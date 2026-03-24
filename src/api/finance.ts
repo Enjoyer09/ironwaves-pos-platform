@@ -1,0 +1,455 @@
+import { Decimal } from 'decimal.js';
+import { v4 as uuidv4 } from 'uuid';
+import { logEvent } from '../lib/logger';
+import { FinanceEntry } from '../types/pos';
+
+import { getDB, setDB } from '../lib/db_sim';
+
+export const get_finance_entries = (tenant_id: string) => {
+  return getDB<FinanceEntry>('finance').filter(f => f.tenant_id === tenant_id && !f.is_deleted);
+};
+
+const normalizeText = (value: string) =>
+  (value || '')
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    // Azerbaijani/Russian letter normalization for stable matching.
+    .replace(/[əƏ]/g, 'e')
+    .replace(/[ıİ]/g, 'i')
+    .replace(/[öÖ]/g, 'o')
+    .replace(/[üÜ]/g, 'u')
+    .replace(/[çÇ]/g, 'c')
+    .replace(/[şŞ]/g, 's')
+    .replace(/[ğĞ]/g, 'g')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+const isFounderInvestmentCategory = (category: string) => {
+  const normalizedCategory = normalizeText(category);
+
+  // Accept common spelling variants used by operators while avoiding
+  // unrelated investor categories like "investor borcu azaldilmasi".
+  const hasFounderToken =
+    normalizedCategory.includes('tesisci') ||
+    normalizedCategory.includes('founder') ||
+    normalizedCategory.includes('учред');
+
+  const hasInvestmentToken =
+    normalizedCategory.includes('investis') ||
+    normalizedCategory.includes('investi') ||
+    normalizedCategory.includes('investment') ||
+    normalizedCategory.includes('инвест');
+
+  return hasFounderToken && hasInvestmentToken;
+};
+
+const INCOME_CATEGORIES = new Set([
+  normalizeText('Təsisçi İnvestisiyası'),
+  normalizeText('Borc Alındı'),
+  normalizeText('Digər Giriş'),
+  normalizeText('Kassa Açılışı'),
+  normalizeText('Satış (Nağd)'),
+  normalizeText('Satış (Kart)'),
+]);
+
+const EXPENSE_CATEGORIES = new Set([
+  normalizeText('Xammal'),
+  normalizeText('Kommunal'),
+  normalizeText('Maaş'),
+  normalizeText('İcarə'),
+  normalizeText('Cərimə'),
+  normalizeText('Digər Xərc'),
+  normalizeText('İnvestora Geri Ödəniş'),
+  normalizeText('İnvestor Borcu Azaldılması'),
+]);
+
+const validateFinanceEntryMatrix = (
+  type: 'in' | 'out',
+  category: string,
+  source: 'cash' | 'card' | 'debt' | 'investor' | 'safe',
+) => {
+  const normalizedCategory = normalizeText(category);
+  const looksIncome = INCOME_CATEGORIES.has(normalizedCategory) || isFounderInvestmentCategory(category);
+  const looksExpense = EXPENSE_CATEGORIES.has(normalizedCategory);
+
+  if (type === 'in' && looksExpense) {
+    throw new Error('Bu kateqoriya məxaric üçündür. Növü "Məxaric" edin.');
+  }
+  if (type === 'out' && looksIncome) {
+    throw new Error('Bu kateqoriya mədaxil üçündür. Növü "Mədaxil" edin.');
+  }
+
+  if (type === 'out' && source === 'debt') {
+    throw new Error('Nisyə/Borc mənbəsindən birbaşa məxaric olmaz. Əvvəl kassaya vəsait köçürün.');
+  }
+};
+
+export const get_investor_summary = (tenant_id: string) => {
+  const finances = get_finance_entries(tenant_id);
+  const founder_invested_total = finances.reduce((sum, entry) => {
+    if (entry.type === 'in' && isFounderInvestmentCategory(entry.category)) {
+      return sum.plus(new Decimal(entry.amount || 0));
+    }
+    return sum;
+  }, new Decimal(0));
+
+  const investor_ledger_in_total = finances.reduce((sum, entry) => {
+    const normalizedCategory = normalizeText(entry.category || '');
+    const isInvestorDebtMirror =
+      normalizedCategory === normalizeText('İnvestor Borcu') ||
+      normalizedCategory === normalizeText('Investor Liability') ||
+      normalizedCategory === normalizeText('Долг инвестору');
+    if (entry.type === 'in' && isInvestorDebtMirror && normalizeSource(entry.source || '') === 'investor') {
+      return sum.plus(new Decimal(entry.amount || 0));
+    }
+    return sum;
+  }, new Decimal(0));
+
+  // Prefer explicit founder-investment entries. If backup/import missed those rows,
+  // fallback to investor liability mirror rows so debt card does not stay zero.
+  const invested_total = founder_invested_total.gt(0) ? founder_invested_total : investor_ledger_in_total;
+
+  // Track explicit investor repayment actions for reporting.
+  const repaid_total = finances.reduce((sum, entry) => {
+    const normalizedCategory = normalizeText(entry.category || '');
+    const isRepaymentCategory =
+      normalizedCategory === normalizeText('İnvestora Geri Ödəniş') ||
+      normalizedCategory === normalizeText('İnvestor Borcu Azaldılması') ||
+      normalizedCategory === normalizeText('Investor Repayment');
+
+    if (entry.type === 'out' && isRepaymentCategory) {
+      return sum.plus(new Decimal(entry.amount || 0));
+    }
+    return sum;
+  }, new Decimal(0));
+
+  // Remaining investor liability = total founder investments - explicit repayments.
+  // This prevents unrelated investor-source expense rows from erasing debt visibility.
+  const debt_remaining = Decimal.max(new Decimal(0), invested_total.minus(repaid_total));
+
+  return {
+    invested_total: invested_total.toString(),
+    repaid_total: repaid_total.toString(),
+    debt_remaining: debt_remaining.toString(),
+  };
+};
+
+const normalizeSource = (source: string) => {
+  if (source === 'Kassa') return 'cash';
+  if (source === 'Bank Kartı') return 'card';
+  if (source === 'Nisyə / Borc') return 'debt';
+  if (source === 'Seyf' || source === 'safe') return 'safe';
+  if (source === 'Investor' || source === 'investor' || source === 'İnvestor') return 'investor';
+  return source as 'cash' | 'card' | 'debt' | 'investor' | 'safe';
+};
+
+// FUNKSIYA: get_balance
+export const get_balance = (tenant_id: string, view_mode?: string, is_test_active: boolean = false) => {
+  const finances = getDB<FinanceEntry>('finance').filter(f => f.tenant_id === tenant_id && !f.is_deleted);
+  
+  let cash_balance = new Decimal(0);
+  let card_balance = new Decimal(0);
+  let debt_balance = new Decimal(0);
+  let investor_balance = new Decimal(0);
+  let safe_balance = new Decimal(0);
+
+  finances.forEach(f => {
+    const amount = new Decimal(f.amount);
+    const source = normalizeSource(f.source);
+    if (source === 'cash') cash_balance = f.type === 'in' ? cash_balance.plus(amount) : cash_balance.minus(amount);
+    if (source === 'card') card_balance = f.type === 'in' ? card_balance.plus(amount) : card_balance.minus(amount);
+    if (source === 'debt') debt_balance = f.type === 'in' ? debt_balance.plus(amount) : debt_balance.minus(amount);
+    if (source === 'investor') investor_balance = f.type === 'in' ? investor_balance.plus(amount) : investor_balance.minus(amount);
+    if (source === 'safe') safe_balance = f.type === 'in' ? safe_balance.plus(amount) : safe_balance.minus(amount);
+  });
+
+  return {
+    cash_balance: cash_balance.toString(),
+    card_balance: card_balance.toString(),
+    debt_balance: debt_balance.toString(),
+    investor_balance: investor_balance.toString(),
+    safe_balance: safe_balance.toString()
+  };
+};
+
+// FUNKSIYA: open_cash_register
+export const open_cash_register = (amount: string, opened_by: string, tenant_id: string) => {
+  const finances = getDB<FinanceEntry>('finance');
+  
+  finances.push({
+    id: uuidv4(),
+    tenant_id,
+    type: 'in',
+    category: 'Kassa Açılışı',
+    amount: new Decimal(amount).toString(),
+    source: 'cash',
+    description: 'Günlük Kassa Açılışı',
+    created_at: new Date().toISOString(),
+    is_deleted: false
+  });
+  setDB('finance', finances);
+
+  logEvent(opened_by, 'CASH_REGISTER_OPENED', { tenant_id, amount });
+  return { success: true };
+};
+
+// FUNKSIYA: create_finance_entry
+export const create_finance_entry = (
+  tenant_id: string,
+  type: 'in' | 'out',
+  category: string,
+  amount: string,
+  source: 'cash' | 'card' | 'debt' | 'investor' | 'safe',
+  description: string,
+  created_by: string
+) => {
+  const finances = getDB<FinanceEntry>('finance');
+  const amountDec = new Decimal(amount);
+  const now = new Date().toISOString();
+
+  validateFinanceEntryMatrix(type, category, source);
+
+  if (type === 'out') {
+    const balance = get_balance(tenant_id, 'all', false) as any;
+    const sourceBalanceMap: Record<string, Decimal> = {
+      cash: new Decimal(balance.cash_balance || 0),
+      card: new Decimal(balance.card_balance || 0),
+      debt: new Decimal(balance.debt_balance || 0),
+      investor: new Decimal(balance.investor_balance || 0),
+      safe: new Decimal(balance.safe_balance || 0),
+    };
+    const available = sourceBalanceMap[source] || new Decimal(0);
+    if (available.lessThan(amountDec)) {
+      throw new Error('Balans kifayət etmir. Mənfi saldo əməliyyatı qadağandır.');
+    }
+  }
+  
+  const entry: FinanceEntry = {
+    id: uuidv4(),
+    tenant_id,
+    type,
+    category,
+    amount: amountDec.toString(),
+    source,
+    description,
+    created_at: now,
+    is_deleted: false
+  };
+
+  finances.push(entry);
+
+  // Borrowed money coming IN from debt should be reflected in cash wallet too,
+  // so operators can spend it from cash without losing traceability.
+  if (type === 'in' && source === 'debt') {
+    finances.push({
+      id: uuidv4(),
+      tenant_id,
+      type: 'in',
+      category: 'Borcdan Kassaya Daxilolma',
+      amount: amountDec.toString(),
+      source: 'cash',
+      description: `Auto mirror: ${description || category}`,
+      created_at: now,
+      is_deleted: false,
+    });
+  }
+
+  // Investor cash injection: if investor adds money directly to cash,
+  // keep a separate investor liability record so debt is trackable.
+  if (
+    type === 'in' &&
+    source === 'cash' &&
+    isFounderInvestmentCategory(category)
+  ) {
+    finances.push({
+      id: uuidv4(),
+      tenant_id,
+      type: 'in',
+      category: 'İnvestor Borcu',
+      amount: amountDec.toString(),
+      source: 'investor',
+      description: `Auto liability mirror: ${description || category}`,
+      created_at: now,
+      is_deleted: false,
+    });
+  }
+
+  setDB('finance', finances);
+
+  logEvent(created_by, 'FINANCE_ENTRY_CREATED', { tenant_id, type, category, amount, source });
+  return entry;
+};
+
+// FUNKSIYA: transfer_funds
+export const transfer_funds = (
+  tenant_id: string,
+  direction:
+    | 'card_to_cash'
+    | 'cash_to_card'
+    | 'cash_to_debt'
+    | 'card_to_debt'
+    | 'cash_to_safe'
+    | 'safe_to_cash',
+  amount: string,
+  commission: string,
+  transferred_by: string
+) => {
+  const finances = getDB<FinanceEntry>('finance');
+  const now = new Date().toISOString();
+  const transfer_amount = new Decimal(amount);
+  let comm_amount = new Decimal(commission || '0');
+
+  // Kartdan kassaya nağdlaşdırma qaydası:
+  // 120 AZN-ə qədər sabit 0.60 AZN, 120-dən yuxarı 0.5%
+  if (direction === 'card_to_cash' && comm_amount.lte(0)) {
+    comm_amount = transfer_amount.lte(120)
+      ? new Decimal(0.6)
+      : transfer_amount.times(0.005).toDecimalPlaces(2);
+  }
+
+  const sources = {
+    'card_to_cash': { from: 'card', to: 'cash' },
+    'cash_to_card': { from: 'cash', to: 'card' },
+    'cash_to_debt': { from: 'cash', to: 'debt' },
+    'card_to_debt': { from: 'card', to: 'debt' },
+    'cash_to_safe': { from: 'cash', to: 'safe' },
+    'safe_to_cash': { from: 'safe', to: 'cash' },
+  };
+  const { from, to } = sources[direction];
+
+  const balance = get_balance(tenant_id, 'all', false) as any;
+  const sourceBalanceMap: Record<string, Decimal> = {
+    cash: new Decimal(balance.cash_balance || 0),
+    card: new Decimal(balance.card_balance || 0),
+    debt: new Decimal(balance.debt_balance || 0),
+    investor: new Decimal(balance.investor_balance || 0),
+    safe: new Decimal(balance.safe_balance || 0),
+  };
+  const needed = transfer_amount.plus(comm_amount);
+  const available = sourceBalanceMap[from] || new Decimal(0);
+  if (available.lessThan(needed)) {
+    throw new Error('Transfer üçün balans kifayət etmir. Mənfi saldo qadağandır.');
+  }
+
+  // Atomik olaraq 2 fərqli əməliyyat (out və in) yazırıq
+  finances.push({
+    id: uuidv4(), tenant_id, type: 'out', category: 'Daxili Transfer Çıxış',
+    amount: transfer_amount.toString(), source: from as any,
+    description: `Transfer: ${direction}`, created_at: now, is_deleted: false
+  });
+
+  finances.push({
+    id: uuidv4(), tenant_id, type: 'in', category: 'Daxili Transfer Giriş',
+    amount: transfer_amount.toString(), source: to as any,
+    description: `Transfer: ${direction}`, created_at: now, is_deleted: false
+  });
+
+  if (comm_amount.greaterThan(0)) {
+    finances.push({
+      id: uuidv4(), tenant_id, type: 'out', category: 'Bank Komissiyası',
+      amount: comm_amount.toString(), source: from as any,
+      description: `Transfer Komissiyası`, created_at: now, is_deleted: false
+    });
+  }
+
+  setDB('finance', finances);
+  logEvent(transferred_by, 'FINANCE_TRANSFER', { tenant_id, direction, amount, commission });
+  return { success: true, applied_commission: comm_amount.toString() };
+};
+
+export const repay_investor = (
+  tenant_id: string,
+  amount: string,
+  pay_from: 'cash' | 'card' | 'safe',
+  created_by: string,
+  description?: string,
+) => {
+  const amountDec = new Decimal(amount || '0');
+  if (amountDec.lte(0)) throw new Error('Məbləğ düzgün deyil');
+
+  const balances = get_balance(tenant_id, 'all', false) as any;
+  const availableMap: Record<string, Decimal> = {
+    cash: new Decimal(balances.cash_balance || 0),
+    card: new Decimal(balances.card_balance || 0),
+    safe: new Decimal(balances.safe_balance || 0),
+  };
+  const available = availableMap[pay_from] || new Decimal(0);
+  if (available.lt(amountDec)) {
+    throw new Error('Seçilən mənbədə kifayət qədər vəsait yoxdur');
+  }
+
+  const summary = get_investor_summary(tenant_id);
+  const debt = new Decimal(summary.debt_remaining || 0);
+  if (debt.lte(0)) {
+    throw new Error('İnvestora borc yoxdur');
+  }
+
+  const payable = Decimal.min(amountDec, debt);
+  const now = new Date().toISOString();
+  const entries = getDB<FinanceEntry>('finance');
+
+  // 1) money leaves selected wallet
+  entries.push({
+    id: uuidv4(),
+    tenant_id,
+    type: 'out',
+    category: 'İnvestora Geri Ödəniş',
+    amount: payable.toString(),
+    source: pay_from,
+    description: description || 'İnvestora ödəniş',
+    created_at: now,
+    is_deleted: false,
+  });
+
+  // 2) liability decreases in investor ledger
+  entries.push({
+    id: uuidv4(),
+    tenant_id,
+    type: 'out',
+    category: 'İnvestor Borcu Azaldılması',
+    amount: payable.toString(),
+    source: 'investor',
+    description: `Liability reduced via ${pay_from}`,
+    created_at: now,
+    is_deleted: false,
+  });
+
+  setDB('finance', entries);
+  logEvent(created_by, 'INVESTOR_REPAYMENT', {
+    tenant_id,
+    amount: payable.toString(),
+    pay_from,
+    description: description || '',
+  });
+
+  return {
+    success: true,
+    paid: payable.toString(),
+    remaining_debt: get_investor_summary(tenant_id).debt_remaining,
+  };
+};
+
+// FUNKSIYA: soft_delete_finance
+export const soft_delete_finance = (record_id: string, reason: string, deleted_by: string) => {
+  const finances = getDB<FinanceEntry>('finance');
+  const record = finances.find(f => f.id === record_id);
+  
+  if (!record) throw new Error('Qeyd tapılmadı');
+  if (!reason) throw new Error('Silinmə səbəbi məcburidir');
+
+  record.is_deleted = true;
+  setDB('finance', finances);
+
+  logEvent(deleted_by, 'FINANCE_DELETE', { tenant_id: record.tenant_id, record_id, amount: record.amount, reason });
+  return { success: true };
+};
+
+export const reset_finance_for_tenant = (tenant_id: string, reset_by: string) => {
+  const all = getDB<FinanceEntry>('finance');
+  const kept = all.filter((f) => f.tenant_id !== tenant_id);
+  setDB('finance', kept);
+  logEvent(reset_by, 'FINANCE_RESET', { tenant_id });
+  return { success: true };
+};
