@@ -1,0 +1,82 @@
+import { getActiveTenantId } from '../lib/tenant';
+
+const ENV = ((import.meta as any)?.env || {}) as Record<string, string | undefined>;
+const BACKEND_FLAG = String(ENV.VITE_USE_BACKEND || '').toLowerCase();
+
+export function isBackendEnabled() {
+  return BACKEND_FLAG === '1' || BACKEND_FLAG === 'true' || BACKEND_FLAG === 'yes';
+}
+
+export function getApiBaseUrl() {
+  return String(ENV.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
+}
+
+type PersistedSession = {
+  access_token?: string | null;
+  user?: { tenant_id?: string } | null;
+};
+
+function getPersistedSession(): PersistedSession {
+  try {
+    const raw = localStorage.getItem('emalatkhana-pos-session');
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    const state = parsed?.state || {};
+    return {
+      access_token: state?.access_token || null,
+      user: state?.user || null,
+    };
+  } catch {
+    return {};
+  }
+}
+
+type ApiRequestOptions = {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+  auth?: boolean;
+  tenantId?: string;
+};
+
+export async function apiRequest<T = any>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const base = getApiBaseUrl();
+  if (!base) {
+    throw new Error('VITE_API_BASE_URL konfiqurasiya edilməyib');
+  }
+
+  const { access_token, user } = getPersistedSession();
+  const tenantId = options.tenantId || user?.tenant_id || getActiveTenantId();
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  };
+
+  if (tenantId) headers['x-tenant-id'] = tenantId;
+  if (options.auth !== false && access_token) {
+    headers.Authorization = `Bearer ${access_token}`;
+  }
+
+  const res = await fetch(`${base}${path}`, {
+    method: options.method || 'GET',
+    headers,
+    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+  });
+
+  const text = await res.text();
+  const data = text ? (() => {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  })() : null;
+
+  if (!res.ok) {
+    const detail = (data && typeof data === 'object' && (data as any).detail) ? (data as any).detail : `HTTP ${res.status}`;
+    throw new Error(String(detail));
+  }
+
+  return data as T;
+}
