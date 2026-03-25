@@ -6,7 +6,7 @@ import { Search, ShoppingCart, ClipboardList, Plus, Minus, Check, ScanLine, Chev
 import { useAppStore } from '../store';
 import { get_menu_for_pos, create_sale, calculate_total, calculate_staff_payable } from '../api/pos';
 import { get_tables, send_to_kitchen, pay_table } from '../api/tables';
-import { get_shift_status } from '../api/reports';
+import { get_shift_status, refresh_shift_status } from '../api/reports';
 import { getDB } from '../lib/db_sim';
 import { i18n, tx } from '../i18n';
 import { get_business_profile, get_settings } from '../api/settings';
@@ -358,7 +358,7 @@ export default function POS() {
 
   const handleCheckout = async (paymentMethod: PaymentMethod) => {
     if (!user) return;
-    const shift = get_shift_status(tenantId);
+    const shift = await refresh_shift_status(tenantId).catch(() => get_shift_status(tenantId));
     if (shift.status !== 'Open') {
       notify('error', tx(safeLang, 'Əvvəlcə günü açın', 'Сначала откройте смену', 'Open shift first'));
       return;
@@ -495,7 +495,7 @@ export default function POS() {
           </head>
           <body style="font-family:Arial;padding:16px;max-width:320px;margin:0 auto">
             ${businessProfile?.logo_url ? `<img src="${businessProfile.logo_url}" style="height:34px;max-width:180px;object-fit:contain;margin-bottom:6px" />` : ''}
-            <div class="bold" style="font-size:15px">${businessProfile?.company_name || 'Social Bee POS'}</div>
+            <div class="bold" style="font-size:15px">${businessProfile?.company_name || 'IRONWAVES POS'}</div>
             <div class="muted">VÖEN: ${businessProfile?.voen || '-'}</div>
             <div class="muted">Tel: ${businessProfile?.phone || '-'}</div>
             <div class="muted">${businessProfile?.address || '-'}</div>
