@@ -6,26 +6,15 @@ from app.models import Tenant
 
 
 def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
-    # 1) Explicit tenant id (legacy fallback)
-    explicit = request.headers.get("x-tenant-id")
-    if explicit:
-        tenant = db.query(Tenant).filter(Tenant.id == explicit).first()
-        if tenant:
-            return tenant
-
-    # 2) Prefer frontend domain header (Plan B)
+    # 1) Prefer frontend host/domain header (Plan B)
     domain = (request.headers.get("x-tenant-domain") or "").split(":")[0].lower().strip()
-
-    # 3) fallback to request host
     if not domain:
         domain = (request.headers.get("host") or "").split(":")[0].lower().strip()
-    if not domain and request.url and request.url.hostname:
-        domain = str(request.url.hostname).lower().strip()
 
     if not domain:
         return None
 
-    # 4) Try tenant_domains table (if exists)
+    # 2) Use tenant_domains mapping table if present
     try:
         row = db.execute(
             text(
@@ -44,12 +33,19 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
             if tenant:
                 return tenant
     except Exception:
-        # table may not exist yet
+        # If tenant_domains does not exist or query fails, fallback to Tenant.domain
         pass
 
-    # 5) Fallback: tenants.domain
+    # 3) Fallback: tenants.domain
     tenant = db.query(Tenant).filter(Tenant.domain == domain).first()
     if tenant:
         return tenant
+
+    # 4) Final fallback: explicit tenant id if provided
+    explicit = request.headers.get("x-tenant-id")
+    if explicit:
+        tenant = db.query(Tenant).filter(Tenant.id == explicit).first()
+        if tenant:
+            return tenant
 
     return None
