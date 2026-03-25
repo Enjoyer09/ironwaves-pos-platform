@@ -253,7 +253,7 @@ export function get_business_profile(tenant_id?: string) {
 
   const created = {
     tenant_id: resolvedTenant,
-    company_name: 'Social Bee POS by IronWaves',
+    company_name: 'IRONWAVES POS',
     voen: '',
     phone: '',
     address: '',
