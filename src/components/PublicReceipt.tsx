@@ -33,7 +33,7 @@ export default function PublicReceipt({ receiptId, token }: Props) {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-400 font-bold text-slate-900">SB</div>
           )}
           <div>
-            <h1 className="text-lg font-bold">{profile?.company_name || 'Social Bee POS'}</h1>
+            <h1 className="text-lg font-bold">{profile?.company_name || 'IRONWAVES POS'}</h1>
             <p className="text-xs text-slate-400">Receipt #{receipt.id.slice(0, 8).toUpperCase()}</p>
           </div>
         </div>
