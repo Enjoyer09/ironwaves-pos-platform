@@ -69,6 +69,7 @@ export default function PinLogin() {
     <div className="metal-app flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-xl">
         <h1 className="mb-8 text-center text-5xl font-black tracking-wide text-slate-100">IRONWAVES POS</h1>
+
         <div className="mx-auto mb-4 max-w-md">
           <select
             value={lang}
@@ -83,8 +84,12 @@ export default function PinLogin() {
 
         <div className="mx-auto max-w-md rounded-2xl border border-slate-600/80 bg-slate-900/45 p-6 shadow-[0_24px_60px_rgba(0,0,0,0.5)] backdrop-blur-sm">
           <div className="mb-5 flex gap-2">
-              <button className={`neon-chip ${mode === 'staff' ? 'neon-chip-active' : ''}`} onClick={() => setMode('staff')}>{tx(safeLang, 'STAFF', 'ПЕРСОНАЛ')}</button>
-              <button className={`neon-chip ${mode === 'admin' ? 'neon-chip-active' : ''}`} onClick={() => setMode('admin')}>ADMIN</button>
+            <button className={`neon-chip ${mode === 'staff' ? 'neon-chip-active' : ''}`} onClick={() => setMode('staff')}>
+              {tx(safeLang, 'STAFF', 'ПЕРСОНАЛ')}
+            </button>
+            <button className={`neon-chip ${mode === 'admin' ? 'neon-chip-active' : ''}`} onClick={() => setMode('admin')}>
+              ADMIN
+            </button>
           </div>
 
           {mode === 'staff' ? (
@@ -125,7 +130,12 @@ export default function PinLogin() {
             </>
           ) : (
             <form className="space-y-3" onSubmit={handleAdminFormSubmit}>
-              <input className="neon-input" value={adminUser} onChange={(e) => setAdminUser(e.target.value)} placeholder={tx(safeLang, 'Admin istifadəçi adı', 'Имя администратора')} />
+              <input
+                className="neon-input"
+                value={adminUser}
+                onChange={(e) => setAdminUser(e.target.value)}
+                placeholder={tx(safeLang, 'Admin istifadəçi adı', 'Имя администратора')}
+              />
               <input
                 className="neon-input"
                 value={adminPass}
@@ -147,11 +157,11 @@ export default function PinLogin() {
             </form>
           )}
 
-            <button
+          <button
             onClick={() => mode === 'admin' && handleAdminSubmit()}
             className={`mt-5 w-full rounded-xl px-4 py-3 text-lg font-bold ${error ? 'bg-red-500 text-white' : 'glossy-gold'}`}
           >
-              {t.login}
+            {t.login}
           </button>
 
           <div className="mt-4 text-center text-xs text-slate-400">
