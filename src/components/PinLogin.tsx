@@ -68,7 +68,7 @@ export default function PinLogin() {
   return (
     <div className="metal-app flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-xl">
-        <h1 className="mb-1 text-center text-5xl font-black tracking-wide text-slate-100">SOCIAL BEE POS</h1>
+        <h1 className="mb-1 text-center text-5xl font-black tracking-wide text-slate-100">IRONWAVES POS</h1>
         <p className="mb-2 text-center text-lg font-semibold text-slate-300">by IronWaves</p>
         <p className="mb-8 text-center text-slate-400">{t.login}</p>
         <div className="mx-auto mb-4 max-w-md">
@@ -157,9 +157,6 @@ export default function PinLogin() {
           </button>
 
           <div className="mt-4 text-center text-xs text-slate-400">
-            <p>{tx(safeLang, 'Admin: username + şifrə', 'Админ: username + пароль', 'Admin: username + password')}</p>
-            <p>{tx(safeLang, '2FA yalnız yeni cihaz/IP üçün soruşulur', '2FA запрашивается только для нового устройства/IP', '2FA is requested only for a new device/IP')}</p>
-            <p>{t.staff_pin}</p>
             {authErrorMessage ? <p className="mt-2 text-red-300">{authErrorMessage}</p> : null}
           </div>
         </div>
