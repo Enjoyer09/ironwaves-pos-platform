@@ -3,6 +3,7 @@ import { logEvent } from '../lib/logger';
 import { FinanceEntry } from '../types/pos';
 import { v4 as uuidv4 } from 'uuid';
 import { send_email } from './email';
+import { apiRequest, isBackendEnabled } from './client';
 
 import { getDB, setDB } from '../lib/db_sim';
 
@@ -94,6 +95,9 @@ const getShiftState = (tenant_id: string) => {
   return rows.find((r) => r.tenant_id === tenant_id) || null;
 };
 
+const shiftStatusCache: Record<string, { status: string; opened_by?: string; timestamp?: string }> = {};
+const expectedCashCache: Record<string, Decimal> = {};
+
 const saveShiftState = (tenant_id: string, payload: any) => {
   const rows = getDB<any>('shift_state');
   const kept = rows.filter((r) => r.tenant_id !== tenant_id);
@@ -101,7 +105,29 @@ const saveShiftState = (tenant_id: string, payload: any) => {
 };
 
 // FUNKSIYA: open_shift
-export const open_shift = (opened_by: string, tenant_id: string) => {
+export const open_shift = async (opened_by: string, tenant_id: string) => {
+  if (isBackendEnabled()) {
+    const res = await apiRequest<any>('/api/v1/reports/open-shift', {
+      method: 'POST',
+      tenantId: tenant_id,
+      body: { opening_cash: '0' },
+    });
+    const next = {
+      id: String(res?.shift_id || uuidv4()),
+      tenant_id,
+      opened_by,
+      status: 'Open',
+      timestamp: new Date().toISOString(),
+    };
+    saveShiftState(tenant_id, next);
+    shiftStatusCache[tenant_id] = {
+      status: 'Open',
+      opened_by,
+      timestamp: next.timestamp,
+    };
+    logEvent(opened_by, 'SHIFT_OPENED', { tenant_id, backend: true });
+    return next;
+  }
   const current_shift = getShiftState(tenant_id);
   if (current_shift && current_shift.status === 'Open') {
     throw new Error('Açıq növbə mövcuddur!');
@@ -116,6 +142,11 @@ export const open_shift = (opened_by: string, tenant_id: string) => {
   };
 
   saveShiftState(tenant_id, next);
+  shiftStatusCache[tenant_id] = {
+    status: 'Open',
+    opened_by,
+    timestamp: next.timestamp,
+  };
 
   logEvent(opened_by, 'SHIFT_OPENED', { tenant_id, timestamp: next.timestamp });
   return next;
@@ -138,6 +169,11 @@ export const close_shift = (closed_by: string) => {
   };
 
   saveShiftState(tenant_id, closed);
+  shiftStatusCache[tenant_id] = {
+    status: 'Closed',
+    opened_by: closed.opened_by,
+    timestamp: closed.timestamp,
+  };
 
   logEvent(closed_by, 'SHIFT_CLOSED', { tenant_id, shift_id: openShift.id });
 
@@ -271,13 +307,36 @@ export const accept_shift_handover = (
 };
 
 export const get_shift_status = (tenant_id: string) => {
+  if (isBackendEnabled() && shiftStatusCache[tenant_id]) {
+    return { tenant_id, ...shiftStatusCache[tenant_id] };
+  }
   const current = getShiftState(tenant_id);
   if (!current) return { status: 'Closed', tenant_id };
   return { status: current.status, tenant_id, opened_by: current.opened_by, timestamp: current.timestamp };
 };
 
+export const refresh_shift_status = async (tenant_id: string) => {
+  if (isBackendEnabled()) {
+    const res = await apiRequest<any>('/api/v1/reports/status', {
+      method: 'GET',
+      tenantId: tenant_id,
+    });
+    const normalized = {
+      status: String(res?.status || 'Closed') === 'Open' ? 'Open' : 'Closed',
+      opened_by: res?.opened_by,
+      timestamp: res?.opened_at || res?.timestamp,
+    };
+    shiftStatusCache[tenant_id] = normalized;
+    return { tenant_id, ...normalized };
+  }
+  return get_shift_status(tenant_id);
+};
+
 // Helper: cash drawer expected amount from finance ledger.
 export const get_expected_cash = (tenant_id: string) => {
+  if (isBackendEnabled() && expectedCashCache[tenant_id]) {
+    return expectedCashCache[tenant_id];
+  }
   const finances = getDB<FinanceEntry>('finance').filter(
     (f) => f.tenant_id === tenant_id && f.source === 'cash' && !f.is_deleted,
   );
@@ -291,8 +350,40 @@ export const get_expected_cash = (tenant_id: string) => {
   return expected_cash;
 };
 
+export const refresh_expected_cash = async (tenant_id: string) => {
+  if (isBackendEnabled()) {
+    const res = await apiRequest<any>('/api/v1/reports/expected-cash', {
+      method: 'GET',
+      tenantId: tenant_id,
+    });
+    const value = new Decimal(String(res?.expected_cash || '0'));
+    expectedCashCache[tenant_id] = value;
+    return value;
+  }
+  return get_expected_cash(tenant_id);
+};
+
 // FUNKSIYA: x_report
-export const x_report = (actual_cash: string, handed_by: string, tenant_id: string) => {
+export const x_report = async (actual_cash: string, handed_by: string, tenant_id: string) => {
+  if (isBackendEnabled()) {
+    const res = await apiRequest<any>('/api/v1/reports/x-report', {
+      method: 'POST',
+      tenantId: tenant_id,
+      body: { actual_cash },
+    });
+    logEvent(handed_by, 'X_REPORT_CREATED', {
+      tenant_id,
+      expected: String(res?.expected_cash || '0'),
+      actual: String(res?.actual_cash || actual_cash),
+      difference: String(res?.difference || '0'),
+      backend: true,
+    });
+    return {
+      expected_cash: String(res?.expected_cash || '0'),
+      actual_cash: String(res?.actual_cash || actual_cash),
+      difference: String(res?.difference || '0'),
+    };
+  }
   const shift = getShiftState(tenant_id);
   if (!shift || shift.status !== 'Open') {
     throw new Error('X-Hesabat üçün əvvəlcə günü (növbəni) açın.');
@@ -326,6 +417,8 @@ export const x_report = (actual_cash: string, handed_by: string, tenant_id: stri
     difference: difference.toString() 
   });
 
+  expectedCashCache[tenant_id] = actual;
+
   return { expected_cash: expected_cash.toString(), actual_cash: actual.toString(), difference: difference.toString() };
 };
 
@@ -336,6 +429,76 @@ export const z_report = async (
   generated_by: string,
   tenant_id: string
 ) => {
+  if (isBackendEnabled()) {
+    const res = await apiRequest<any>('/api/v1/reports/z-report', {
+      method: 'POST',
+      tenantId: tenant_id,
+      body: {
+        actual_cash,
+        wage_amount,
+      },
+    });
+
+    const currentShift = getShiftState(tenant_id);
+    if (currentShift) {
+      saveShiftState(tenant_id, {
+        ...currentShift,
+        status: 'Closed',
+        closed_by: generated_by,
+        closed_at: new Date().toISOString(),
+      });
+    }
+    shiftStatusCache[tenant_id] = {
+      status: 'Closed',
+      opened_by: currentShift?.opened_by,
+      timestamp: currentShift?.timestamp,
+    };
+
+    const profile = getBusinessProfile(tenant_id);
+    const reportId = String(res?.shift_id || '').slice(0, 8).toUpperCase() || 'Z-REPORT';
+    const receipt_html = `
+      <html>
+        <head>
+          <style>
+            @page { size: 80mm auto; margin: 4mm; }
+            body { font-family: Inter, Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
+            .line { display:flex; justify-content:space-between; gap:8px; margin: 2px 0; }
+            .muted { color:#555; font-size:11px; }
+            .bold { font-weight: 700; }
+            hr { border: none; border-top: 1px dashed #999; margin: 8px 0; }
+          </style>
+        </head>
+        <body>
+          ${profile?.logo_url ? `<img src="${profile.logo_url}" style="height:34px;max-width:180px;object-fit:contain;margin-bottom:6px"/>` : ''}
+          <div class="bold" style="font-size:15px">${profile?.company_name || 'IRONWAVES POS'}</div>
+          <div class="muted">VÖEN: ${profile?.voen || '-'}</div>
+          <div class="muted">Tel: ${profile?.phone || '-'}</div>
+          <div class="muted">${profile?.address || '-'}</div>
+          <hr />
+          <div class="line"><span>Z-Hesabat</span><span>${new Date().toLocaleDateString()}</span></div>
+          <div class="line"><span>Report ID</span><span>${reportId}</span></div>
+          <div class="line"><span>Operator</span><span>${generated_by}</span></div>
+          <div class="line"><span>Tarix</span><span>${new Date().toLocaleString()}</span></div>
+          <hr />
+          <div class="line"><span>Nağd Satış</span><span>${new Decimal(res?.cash_sales || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Kart Satış</span><span>${new Decimal(res?.card_sales || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Maaş Çıxışı</span><span>${new Decimal(res?.wage_amount || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Açılış (sabah)</span><span>${new Decimal(res?.actual_cash || actual_cash || 0).toFixed(2)} ₼</span></div>
+          <hr />
+          <div class="muted">${profile?.receipt_footer || 'Bizi seçdiyiniz üçün təşəkkür edirik!'}</div>
+        </body>
+      </html>
+    `;
+
+    return {
+      success: Boolean(res?.success),
+      total_sales: new Decimal(res?.cash_sales || 0).plus(new Decimal(res?.card_sales || 0)).toString(),
+      wage: String(res?.wage_amount || wage_amount || '0'),
+      receipt_html,
+      email_sent: false,
+      email_error: '',
+    };
+  }
   const shift = getShiftState(tenant_id);
   if (!shift || shift.status !== 'Open') {
     throw new Error('Z-Hesabat üçün əvvəlcə günü (növbəni) açın.');
@@ -396,12 +559,18 @@ export const z_report = async (
     closed_by: generated_by,
     closed_at: new Date().toISOString(),
   });
+  expectedCashCache[tenant_id] = actual;
+  shiftStatusCache[tenant_id] = {
+    status: 'Closed',
+    opened_by: shift.opened_by,
+    timestamp: shift.timestamp,
+  };
 
   let email_sent = false;
   let email_error = '';
   try {
     const html = `
-      <h2>${profile?.company_name || 'Social Bee POS'} - Z Report</h2>
+      <h2>${profile?.company_name || 'IRONWAVES POS'} - Z Report</h2>
       <p><b>Date:</b> ${new Date().toLocaleString()}</p>
       <p><b>Total sales:</b> ${total_sales.toFixed(2)} ₼</p>
       <p><b>Cash:</b> ${cash_sales.toFixed(2)} ₼</p>
@@ -445,7 +614,7 @@ export const z_report = async (
       </head>
       <body>
         ${profile?.logo_url ? `<img src="${profile.logo_url}" style="height:34px;max-width:180px;object-fit:contain;margin-bottom:6px"/>` : ''}
-        <div class="bold" style="font-size:15px">${profile?.company_name || 'SOCIAL BEE POS'}</div>
+        <div class="bold" style="font-size:15px">${profile?.company_name || 'IRONWAVES POS'}</div>
         <div class="muted">VÖEN: ${profile?.voen || '-'}</div>
         <div class="muted">Tel: ${profile?.phone || '-'}</div>
         <div class="muted">${profile?.address || '-'}</div>
