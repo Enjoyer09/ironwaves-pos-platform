@@ -36,7 +36,6 @@ type ApiRequestOptions = {
   headers?: Record<string, string>;
   body?: unknown;
   auth?: boolean;
-  // pass null to skip x-tenant-id header (use backend host/domain resolver)
   tenantId?: string | null;
 };
 
@@ -57,10 +56,12 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
     ...(options.headers || {}),
   };
 
-  // Always send the original frontend host so backend can resolve tenant correctly
-  // even when API base URL points to a different host (e.g. Railway backend domain).
+  // Plan B: backend tenanti frontend hostdan həll etsin
   headers['x-tenant-domain'] = window.location.host;
+
+  // Legacy fallback
   if (tenantId) headers['x-tenant-id'] = tenantId;
+
   if (options.auth !== false && access_token) {
     headers.Authorization = `Bearer ${access_token}`;
   }
@@ -72,16 +73,21 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
   });
 
   const text = await res.text();
-  const data = text ? (() => {
-    try {
-      return JSON.parse(text);
-    } catch {
-      return text;
-    }
-  })() : null;
+  const data = text
+    ? (() => {
+        try {
+          return JSON.parse(text);
+        } catch {
+          return text;
+        }
+      })()
+    : null;
 
   if (!res.ok) {
-    const detail = (data && typeof data === 'object' && (data as any).detail) ? (data as any).detail : `HTTP ${res.status}`;
+    const detail =
+      data && typeof data === 'object' && (data as any).detail
+        ? (data as any).detail
+        : `HTTP ${res.status}`;
     throw new Error(String(detail));
   }
 
