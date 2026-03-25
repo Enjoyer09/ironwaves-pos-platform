@@ -36,7 +36,8 @@ type ApiRequestOptions = {
   headers?: Record<string, string>;
   body?: unknown;
   auth?: boolean;
-  tenantId?: string;
+  // pass null to skip x-tenant-id header (use backend host/domain resolver)
+  tenantId?: string | null;
 };
 
 export async function apiRequest<T = any>(path: string, options: ApiRequestOptions = {}): Promise<T> {
@@ -46,13 +47,19 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
   }
 
   const { access_token, user } = getPersistedSession();
-  const tenantId = options.tenantId || user?.tenant_id || getActiveTenantId();
+  const tenantId =
+    options.tenantId === null
+      ? ''
+      : options.tenantId || user?.tenant_id || getActiveTenantId();
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers || {}),
   };
 
+  // Always send the original frontend host so backend can resolve tenant correctly
+  // even when API base URL points to a different host (e.g. Railway backend domain).
+  headers['x-tenant-domain'] = window.location.host;
   if (tenantId) headers['x-tenant-id'] = tenantId;
   if (options.auth !== false && access_token) {
     headers.Authorization = `Bearer ${access_token}`;
