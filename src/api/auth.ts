@@ -94,21 +94,20 @@ export const authApi = {
   // Staff və manager üçün PIN login
   pin_login: async (pin: string, tenant_id: string = getActiveTenantId()) => {
     if (isBackendEnabled()) {
-      const tenantId = tenant_id || getActiveTenantId();
       const result = await apiRequest<any>('/api/v1/auth/pin-login', {
         method: 'POST',
         auth: false,
-        tenantId,
+        tenantId: null,
         body: {
           pin: String(pin || ''),
-          tenant_id: tenantId,
+          tenant_id: null,
         },
       });
       const backendUser = result?.user || {};
       const user = {
         username: backendUser.username,
         role: backendUser.role,
-        tenant_id: backendUser.tenant_id || tenantId,
+        tenant_id: backendUser.tenant_id || tenant_id || getActiveTenantId(),
       };
 
       logEvent(user.username, 'SUCCESSFUL_LOGIN', { role: user.role, tenant_id: user.tenant_id, method: 'PIN', backend: true });
@@ -196,16 +195,21 @@ export const authApi = {
     tenant_id: string = getActiveTenantId(),
     risk_context?: LoginRiskContext,
   ) => {
+    const host = typeof window !== 'undefined' ? String(window.location.hostname || '').toLowerCase() : '';
+    const isSuperDomain = host === 'super.ironwaves.store' || host === 'localhost' || host === '127.0.0.1';
+    if (String(username || '').trim().toLowerCase() === 'ironwaves_owner' && !isSuperDomain) {
+      throw new Error('Super admin yalniz super.ironwaves.store domeninden daxil ola biler.');
+    }
+
     if (isBackendEnabled()) {
-      const tenantId = tenant_id || getActiveTenantId();
       const result = await apiRequest<any>('/api/v1/auth/login', {
         method: 'POST',
         auth: false,
-        tenantId,
+        tenantId: null,
         body: {
           username: String(username || '').trim(),
           password: String(password || ''),
-          tenant_id: tenantId,
+          tenant_id: null,
         },
       });
 
@@ -213,7 +217,7 @@ export const authApi = {
       const user = {
         username: backendUser.username,
         role: backendUser.role,
-        tenant_id: backendUser.tenant_id || tenantId,
+        tenant_id: backendUser.tenant_id || tenant_id || getActiveTenantId(),
       };
 
       logEvent(user.username, 'ADMIN_LOGIN', { method: 'PASSWORD', tenant_id: user.tenant_id, backend: true });
@@ -295,7 +299,34 @@ export const authApi = {
   },
 
   logout: async (token: string, username: string) => {
-    logEvent(username, "LOGOUT", { token_preview: token.substring(0, 5) });
+    const safeToken = String(token || '');
+    if (isBackendEnabled()) {
+      const tenantId = getActiveTenantId();
+      await apiRequest('/api/v1/auth/logout', {
+        method: 'POST',
+        auth: false,
+        tenantId,
+        body: { refresh_token: safeToken },
+      });
+    }
+    logEvent(username, "LOGOUT", { token_preview: safeToken.substring(0, 5) });
     return { success: true };
+  },
+
+  refresh_token: async (refresh_token: string, tenant_id: string = getActiveTenantId()) => {
+    if (!isBackendEnabled()) {
+      return null;
+    }
+    const result = await apiRequest<any>('/api/v1/auth/refresh', {
+      method: 'POST',
+      auth: false,
+      tenantId: tenant_id,
+      body: { refresh_token },
+    });
+    return {
+      access_token: String(result?.access_token || ''),
+      refresh_token: String(result?.refresh_token || ''),
+      user: result?.user,
+    };
   }
 };
