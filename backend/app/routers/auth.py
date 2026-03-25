@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -47,9 +48,10 @@ def _issue_tokens_for_user(db: Session, tenant: Tenant, user: User) -> dict:
 
 @router.post("/login", response_model=TokenOut)
 def login(payload: LoginIn, request: Request, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant)):
+    username_norm = (payload.username or "").strip().lower()
     user = (
         db.query(User)
-        .filter(User.tenant_id == tenant.id, User.username == payload.username, User.is_active == True)
+        .filter(User.tenant_id == tenant.id, func.lower(User.username) == username_norm, User.is_active == True)
         .first()
     )
     if not user:
