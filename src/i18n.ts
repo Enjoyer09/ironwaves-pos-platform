@@ -2,8 +2,8 @@ export const i18n = {
   az: {
     login: 'Sistemə Giriş',
     pin_prompt: 'PİN Kodunuzu daxil edin',
-    admin_pin: 'Admin (0000)',
-    staff_pin: 'Barista (1234)',
+    admin_pin: '',
+    staff_pin: '',
     clear: 'Təmizlə',
     pos: 'POS (Satış)',
     kds: 'Mətbəx Ekranı',
@@ -59,8 +59,8 @@ export const i18n = {
   ru: {
     login: 'Вход в систему',
     pin_prompt: 'Введите свой PIN-код',
-    admin_pin: 'Админ (0000)',
-    staff_pin: 'Бариста (1234)',
+    admin_pin: '',
+    staff_pin: '',
     clear: 'Очистить',
     pos: 'POS (Продажа)',
     kds: 'Экран Кухни',
@@ -116,8 +116,8 @@ export const i18n = {
   en: {
     login: 'Login',
     pin_prompt: 'Enter your PIN code',
-    admin_pin: 'Admin (0000)',
-    staff_pin: 'Barista (1234)',
+    admin_pin: '',
+    staff_pin: '',
     clear: 'Clear',
     pos: 'POS (Sales)',
     kds: 'Kitchen Screen',
