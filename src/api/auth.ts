@@ -1,4 +1,3 @@
-// MODUL 1: AUTENTİFİKASİYA ÜÇÜN LOCAL STORE (BACKEND SİMULYASİYASI)
 import { logEvent } from "../lib/logger";
 import { getDB, setDB } from '../lib/db_sim';
 import { getActiveTenantId } from '../lib/tenant';
@@ -9,7 +8,6 @@ const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 5;
 const TRUST_WINDOW_DAYS = 14;
 
-// Sadə JWT bənzəri token generator (real layihədə JWT)
 const generateToken = () => Math.random().toString(36).substring(2) + Date.now().toString(36);
 
 type TrustedAdminContext = {
@@ -50,7 +48,6 @@ function isContextTrusted(username: string, tenant_id: string, ctx?: LoginRiskCo
   const maxAgeMs = TRUST_WINDOW_DAYS * 24 * 60 * 60 * 1000;
   if (Number.isNaN(last.getTime()) || now.getTime() - last.getTime() > maxAgeMs) return false;
 
-  // If both IPs are known and changed, require 2FA again.
   if (ctx.ip && hit.ip && ctx.ip !== 'ip_unknown' && hit.ip !== 'ip_unknown' && ctx.ip !== hit.ip) {
     return false;
   }
@@ -91,7 +88,6 @@ export const authApi = {
     return { success: true };
   },
 
-  // Staff və manager üçün PIN login
   pin_login: async (pin: string, tenant_id: string = getActiveTenantId()) => {
     if (isBackendEnabled()) {
       const result = await apiRequest<any>('/api/v1/auth/pin-login', {
@@ -100,7 +96,6 @@ export const authApi = {
         tenantId: null,
         body: {
           pin: String(pin || ''),
-          tenant_id: null,
         },
       });
       const backendUser = result?.user || {};
@@ -122,8 +117,7 @@ export const authApi = {
     const lockKey = `lockout_time_${tenant_id}_${pin}`;
     const attemptsStr = localStorage.getItem(attemptsKey) || "0";
     const lockTimeStr = localStorage.getItem(lockKey);
-    
-    // Kilidlənməni yoxla
+
     if (lockTimeStr) {
       const lockTime = new Date(lockTimeStr);
       if (new Date() < lockTime) {
@@ -134,7 +128,6 @@ export const authApi = {
       }
     }
 
-    // Bazadan yoxlama (yeni users cədvəli + legacy tenant key)
     const users = getDB<any>('users');
     const legacyUsers = getDB<any>(`${tenant_id}_users`);
     const dbUser = [...users, ...legacyUsers].find(
@@ -143,7 +136,7 @@ export const authApi = {
         (u.tenant_id ? u.tenant_id === tenant_id : tenant_id === 'tenant_default') &&
         ['staff', 'manager', 'kitchen'].includes(String(u.role || '').toLowerCase())
     );
-    
+
     let user = null;
     if (dbUser) {
       user = { username: dbUser.username, role: dbUser.role, tenant_id: dbUser.tenant_id };
@@ -152,7 +145,7 @@ export const authApi = {
     if (!user) {
       let attempts = parseInt(attemptsStr, 10) + 1;
       localStorage.setItem(attemptsKey, attempts.toString());
-      
+
       logEvent("UNKNOWN", "FAILED_LOGIN", { pin_length: pin.length, attempts, tenant_id });
 
       if (attempts >= MAX_FAILED_ATTEMPTS) {
@@ -164,11 +157,9 @@ export const authApi = {
       throw new Error("Yanlış PIN kod");
     }
 
-    // Uğurlu giriş - sıfırlama
     localStorage.removeItem(attemptsKey);
     localStorage.removeItem(lockKey);
 
-    // İstifadəçi bazasında failed_attempts reset
     if (dbUser?.id) {
       const allUsers = getDB<any>('users');
       const idx = allUsers.findIndex((u) => u.id === dbUser.id);
@@ -178,7 +169,7 @@ export const authApi = {
         setDB('users', allUsers);
       }
     }
-    
+
     const access_token = generateToken();
     const refresh_token = generateToken();
 
@@ -187,7 +178,6 @@ export const authApi = {
     return { access_token, refresh_token, user };
   },
 
-  // Admin üçün username + password login
   password_login: async (
     username: string,
     password: string,
@@ -195,12 +185,6 @@ export const authApi = {
     tenant_id: string = getActiveTenantId(),
     risk_context?: LoginRiskContext,
   ) => {
-    const host = typeof window !== 'undefined' ? String(window.location.hostname || '').toLowerCase() : '';
-    const isSuperDomain = host === 'super.ironwaves.store' || host === 'localhost' || host === '127.0.0.1';
-    if (String(username || '').trim().toLowerCase() === 'ironwaves_owner' && !isSuperDomain) {
-      throw new Error('Super admin yalniz super.ironwaves.store domeninden daxil ola biler.');
-    }
-
     if (isBackendEnabled()) {
       const result = await apiRequest<any>('/api/v1/auth/login', {
         method: 'POST',
@@ -209,7 +193,6 @@ export const authApi = {
         body: {
           username: String(username || '').trim(),
           password: String(password || ''),
-          tenant_id: null,
         },
       });
 
