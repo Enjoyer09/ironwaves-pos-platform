@@ -227,7 +227,7 @@ export default function TablesPage() {
                         </head>
                         <body style="font-family:Arial;padding:16px;max-width:320px;margin:0 auto;color:#111">
                           ${businessProfile?.logo_url ? `<img src="${businessProfile.logo_url}" style="height:34px;max-width:180px;object-fit:contain;margin-bottom:6px" />` : ''}
-                          <h2 style="margin:0 0 4px;font-size:16px">${businessProfile?.company_name || 'Social Bee POS'}</h2>
+                          <h2 style="margin:0 0 4px;font-size:16px">${businessProfile?.company_name || 'IRONWAVES POS'}</h2>
                           <div class="muted">VÖEN: ${businessProfile?.voen || '-'}</div>
                           <div class="muted">Tel: ${businessProfile?.phone || '-'}</div>
                           <div class="muted">${businessProfile?.address || '-'}</div>
