@@ -10,7 +10,7 @@ export default function PinLogin() {
   const t = i18n[safeLang];
   const [pin, setPin] = useState('');
   const [mode, setMode] = useState<'staff' | 'admin'>('staff');
-  const [adminUser, setAdminUser] = useState('admin');
+  const [adminUser, setAdminUser] = useState('');
   const [adminPass, setAdminPass] = useState('');
   const [admin2faPin, setAdmin2faPin] = useState('');
   const [error, setError] = useState(false);
