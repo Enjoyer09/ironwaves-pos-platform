@@ -1,5 +1,3 @@
-import { getActiveTenantId } from '../lib/tenant';
-
 const ENV = ((import.meta as any)?.env || {}) as Record<string, string | undefined>;
 const BACKEND_FLAG = String(ENV.VITE_USE_BACKEND || '').toLowerCase();
 
@@ -36,6 +34,7 @@ type ApiRequestOptions = {
   headers?: Record<string, string>;
   body?: unknown;
   auth?: boolean;
+  // pass null to skip x-tenant-id header (use backend host/domain resolver)
   tenantId?: string | null;
 };
 
@@ -45,23 +44,20 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
     throw new Error('VITE_API_BASE_URL konfiqurasiya edilməyib');
   }
 
-  const { access_token, user } = getPersistedSession();
-  const tenantId =
-    options.tenantId === null
-      ? ''
-      : options.tenantId || user?.tenant_id || getActiveTenantId();
+  const { access_token } = getPersistedSession();
+  // Tenant id header is now opt-in only.
+  // By default backend resolves tenant from x-tenant-domain to avoid stale local tenant mismatches.
+  const tenantId = options.tenantId;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers || {}),
   };
 
-  // Plan B: backend tenanti frontend hostdan həll etsin
+  // Always send the original frontend host so backend can resolve tenant correctly
+  // even when API base URL points to a different host (e.g. Railway backend domain).
   headers['x-tenant-domain'] = window.location.host;
-
-  // Legacy fallback
   if (tenantId) headers['x-tenant-id'] = tenantId;
-
   if (options.auth !== false && access_token) {
     headers.Authorization = `Bearer ${access_token}`;
   }
@@ -73,21 +69,16 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
   });
 
   const text = await res.text();
-  const data = text
-    ? (() => {
-        try {
-          return JSON.parse(text);
-        } catch {
-          return text;
-        }
-      })()
-    : null;
+  const data = text ? (() => {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  })() : null;
 
   if (!res.ok) {
-    const detail =
-      data && typeof data === 'object' && (data as any).detail
-        ? (data as any).detail
-        : `HTTP ${res.status}`;
+    const detail = (data && typeof data === 'object' && (data as any).detail) ? (data as any).detail : `HTTP ${res.status}`;
     throw new Error(String(detail));
   }
 
