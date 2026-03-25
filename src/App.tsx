@@ -368,7 +368,7 @@ export default function App() {
                 )}
               </div>
               <div>
-                <p className="font-semibold leading-tight">Social Bee POS by IronWaves</p>
+                <p className="font-semibold leading-tight">IRONWAVES POS</p>
                   <p className="text-xs text-slate-400">{safeUser.username} / {safeUser.role}</p>
               </div>
             </div>
