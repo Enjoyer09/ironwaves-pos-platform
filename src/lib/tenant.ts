@@ -1,7 +1,4 @@
 const DOMAIN_TENANT_MAP: Record<string, string> = {
-  'socialbee.ironwaves.store': 'tenant_socialbee',
-  'emalatxana.ironwaves.store': 'tenant_emalatxana',
-  'emalatkhana.ironwaves.store': 'tenant_emalatxana',
   'localhost': 'tenant_default',
   '127.0.0.1': 'tenant_default',
 };
@@ -36,8 +33,8 @@ function readDomainMappings(): Record<string, string> {
     const map: Record<string, string> = {};
     parsed.forEach((row: any) => {
       const domain = normalizeHost(row?.domain || '');
-      const tenantId = String(row?.tenant_id || '');
-      if (domain && tenantId.startsWith('tenant_')) {
+      const tenantId = String(row?.tenant_id || '').trim();
+      if (domain && tenantId) {
         map[domain] = tenantId;
       }
     });
@@ -85,9 +82,7 @@ export function getActiveTenantId(): string {
 }
 
 export function setActiveTenantId(tenantId: string): void {
-  const safe = String(tenantId || '').startsWith('tenant_')
-    ? String(tenantId)
-    : 'tenant_default';
+  const safe = String(tenantId || '').trim() || 'tenant_default';
   try {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(ACTIVE_TENANT_KEY, safe);
@@ -99,7 +94,7 @@ export function setActiveTenantId(tenantId: string): void {
 
 export function normalizeTenantId(input?: string): string {
   const raw = String(input || '').trim();
-  return raw.startsWith('tenant_') ? raw : getActiveTenantId();
+  return raw || getActiveTenantId();
 }
 
 export function isTenantRecord(record: any, tenantId?: string): boolean {
