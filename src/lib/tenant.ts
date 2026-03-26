@@ -3,6 +3,12 @@ const DOMAIN_TENANT_MAP: Record<string, string> = {
   '127.0.0.1': 'tenant_default',
 };
 
+const ENV = ((import.meta as any)?.env || {}) as Record<string, string | undefined>;
+// Multi-tenant should be enabled by default.
+// Set VITE_SINGLE_TENANT_MODE=true only for dedicated single-tenant deployments.
+const SINGLE_TENANT_MODE = String(ENV.VITE_SINGLE_TENANT_MODE || 'false').toLowerCase() === 'true';
+const SINGLE_TENANT_ID = String(ENV.VITE_SINGLE_TENANT_ID || '').trim();
+
 const ACTIVE_TENANT_KEY = 'active_tenant_id';
 const TENANT_DOMAINS_KEY = 'tenant_domains';
 
@@ -13,14 +19,6 @@ function normalizeHost(rawHost: string): string {
     .replace(/^https?:\/\//, '')
     .split('/')[0]
     .split(':')[0];
-}
-
-function slugToTenant(subdomain: string): string {
-  const safe = String(subdomain || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9-_]/g, '')
-    .slice(0, 40);
-  return safe ? `tenant_${safe}` : 'tenant_default';
 }
 
 function readDomainMappings(): Record<string, string> {
@@ -45,6 +43,7 @@ function readDomainMappings(): Record<string, string> {
 }
 
 export function resolveTenantIdFromHost(inputHost?: string): string {
+  if (SINGLE_TENANT_MODE && SINGLE_TENANT_ID) return SINGLE_TENANT_ID;
   const host = normalizeHost(
     inputHost || (typeof window !== 'undefined' ? window.location.host : ''),
   );
@@ -54,18 +53,11 @@ export function resolveTenantIdFromHost(inputHost?: string): string {
   if (dynamicMappings[host]) return dynamicMappings[host];
   if (DOMAIN_TENANT_MAP[host]) return DOMAIN_TENANT_MAP[host];
 
-  // Generic subdomain strategy: <tenant>.ironwaves.store
-  if (host.endsWith('.ironwaves.store')) {
-    const sub = host.replace('.ironwaves.store', '');
-    if (sub && sub !== 'www') {
-      return slugToTenant(sub);
-    }
-  }
-
   return 'tenant_default';
 }
 
 export function getActiveTenantId(): string {
+  if (SINGLE_TENANT_MODE && SINGLE_TENANT_ID) return SINGLE_TENANT_ID;
   const hostMapped = resolveTenantIdFromHost();
   // In real multi-tenant domains, host mapping should win over stale local storage.
   if (hostMapped && hostMapped !== 'tenant_default') {
@@ -74,7 +66,8 @@ export function getActiveTenantId(): string {
   try {
     const manual =
       typeof localStorage !== 'undefined' ? localStorage.getItem(ACTIVE_TENANT_KEY) : null;
-    if (manual && manual.startsWith('tenant_')) return manual;
+    // Accept UUID or legacy tenant_* identifiers.
+    if (manual && manual.length >= 6) return manual;
   } catch {
     // Ignore localStorage read errors in restricted environments.
   }
@@ -82,6 +75,7 @@ export function getActiveTenantId(): string {
 }
 
 export function setActiveTenantId(tenantId: string): void {
+  if (SINGLE_TENANT_MODE) return;
   const safe = String(tenantId || '').trim() || 'tenant_default';
   try {
     if (typeof localStorage !== 'undefined') {

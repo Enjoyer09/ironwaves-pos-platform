@@ -2,6 +2,7 @@ import { Decimal } from 'decimal.js';
 import { v4 as uuidv4 } from 'uuid';
 import { logEvent } from '../lib/logger';
 import { FinanceEntry } from '../types/pos';
+import { apiRequest, isBackendEnabled } from './client';
 
 import { getDB, setDB } from '../lib/db_sim';
 
@@ -114,12 +115,16 @@ export const get_investor_summary = (tenant_id: string) => {
   // Track explicit investor repayment actions for reporting.
   const repaid_total = finances.reduce((sum, entry) => {
     const normalizedCategory = normalizeText(entry.category || '');
-    const isRepaymentCategory =
-      normalizedCategory === normalizeText('İnvestora Geri Ödəniş') ||
+    // IMPORTANT:
+    // We only reduce investor debt on liability-ledger entries.
+    // Cash/card/safe out row is the payment movement itself and must not
+    // be counted again, otherwise debt gets reduced 2x.
+    const isLiabilityReduction =
       normalizedCategory === normalizeText('İnvestor Borcu Azaldılması') ||
-      normalizedCategory === normalizeText('Investor Repayment');
+      normalizedCategory === normalizeText('Investor Liability Reduction') ||
+      normalizedCategory === normalizeText('Долг инвестору уменьшен');
 
-    if (entry.type === 'out' && isRepaymentCategory) {
+    if (entry.type === 'out' && isLiabilityReduction && normalizeSource(entry.source || '') === 'investor') {
       return sum.plus(new Decimal(entry.amount || 0));
     }
     return sum;
@@ -452,4 +457,119 @@ export const reset_finance_for_tenant = (tenant_id: string, reset_by: string) =>
   setDB('finance', kept);
   logEvent(reset_by, 'FINANCE_RESET', { tenant_id });
   return { success: true };
+};
+
+// ------------------------------
+// Backend bridge (feature-flag)
+// ------------------------------
+export const fetch_finance_balances = async (tenant_id: string) => {
+  if (!isBackendEnabled()) {
+    return get_balance(tenant_id, 'all', false) as any;
+  }
+
+  const data = await apiRequest<any>('/api/v1/finance/balances', {
+    method: 'GET',
+    tenantId: tenant_id,
+  });
+
+  return {
+    cash_balance: String(data?.cash ?? '0'),
+    card_balance: String(data?.card ?? '0'),
+    debt_balance: String(data?.debt ?? '0'),
+    investor_balance: String(data?.investor ?? '0'),
+    safe_balance: String(data?.safe ?? '0'),
+  };
+};
+
+export const fetch_finance_entries = async (tenant_id: string): Promise<FinanceEntry[]> => {
+  if (!isBackendEnabled()) {
+    return get_finance_entries(tenant_id);
+  }
+
+  const rows = await apiRequest<any[]>('/api/v1/finance/entries', {
+    method: 'GET',
+    tenantId: tenant_id,
+  });
+
+  return (rows || []).map((r) => ({
+    id: String(r.id),
+    tenant_id,
+    type: String(r.type) as 'in' | 'out',
+    category: String(r.category || ''),
+    amount: String(r.amount || '0'),
+    source: normalizeSource(String(r.source || 'cash')),
+    description: String(r.description || ''),
+    created_at: String(r.created_at || new Date().toISOString()),
+    is_deleted: false,
+  }));
+};
+
+export const create_finance_entry_async = async (
+  tenant_id: string,
+  type: 'in' | 'out',
+  category: string,
+  amount: string,
+  source: 'cash' | 'card' | 'debt' | 'investor' | 'safe',
+  description: string,
+  created_by: string,
+) => {
+  if (!isBackendEnabled()) {
+    return create_finance_entry(tenant_id, type, category, amount, source, description, created_by);
+  }
+
+  const data = await apiRequest<any>('/api/v1/finance/entry', {
+    method: 'POST',
+    tenantId: tenant_id,
+    body: {
+      type,
+      category,
+      source,
+      amount,
+      description,
+    },
+  });
+
+  logEvent(created_by, 'FINANCE_ENTRY_CREATED', { tenant_id, type, category, amount, source, via: 'backend' });
+  return data;
+};
+
+export const transfer_funds_async = async (
+  tenant_id: string,
+  direction:
+    | 'card_to_cash'
+    | 'cash_to_card'
+    | 'cash_to_debt'
+    | 'card_to_debt'
+    | 'cash_to_safe'
+    | 'safe_to_cash',
+  amount: string,
+  commission: string,
+  transferred_by: string,
+) => {
+  if (!isBackendEnabled()) {
+    return transfer_funds(tenant_id, direction, amount, commission, transferred_by);
+  }
+
+  const data = await apiRequest<any>('/api/v1/finance/transfer', {
+    method: 'POST',
+    tenantId: tenant_id,
+    body: {
+      direction,
+      amount,
+      description: `Transfer: ${direction}`,
+    },
+  });
+
+  logEvent(transferred_by, 'FINANCE_TRANSFER', {
+    tenant_id,
+    direction,
+    amount,
+    commission: data?.commission || commission,
+    via: 'backend',
+  });
+
+  return {
+    success: true,
+    applied_commission: String(data?.commission ?? commission ?? '0'),
+  };
 };

@@ -18,6 +18,26 @@ def _sum_source(db: Session, tenant_id: str, source: str, typ: str) -> Decimal:
     return sum((Decimal(str(r.amount)) for r in rows), Decimal("0"))
 
 
+@router.get("/status")
+def report_status(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    active = db.query(Shift).filter(Shift.tenant_id == tenant.id, Shift.status == "open").first()
+    if not active:
+        return {"status": "Closed", "tenant_id": tenant.id}
+    return {
+        "status": "Open",
+        "tenant_id": tenant.id,
+        "opened_by": active.opened_by,
+        "opened_at": active.opened_at.isoformat() if active.opened_at else None,
+    }
+
+
+@router.get("/expected-cash")
+def expected_cash(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    cash_in = _sum_source(db, tenant.id, "cash", "in")
+    cash_out = _sum_source(db, tenant.id, "cash", "out")
+    return {"expected_cash": str(cash_in - cash_out)}
+
+
 @router.post("/open-shift")
 def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     active = db.query(Shift).filter(Shift.tenant_id == tenant.id, Shift.status == "open").first()
@@ -94,9 +114,24 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
             )
         )
 
+    cash_in = _sum_source(db, tenant.id, "cash", "in")
+    cash_out = _sum_source(db, tenant.id, "cash", "out")
+    card_in = _sum_source(db, tenant.id, "card", "in")
+    card_out = _sum_source(db, tenant.id, "card", "out")
+    expected = cash_in - cash_out
+
     active.status = "closed"
     active.closed_by = user.username
     active.closed_at = datetime.utcnow()
     db.commit()
 
-    return {"success": True, "shift_id": active.id, "closed_at": active.closed_at.isoformat()}
+    return {
+        "success": True,
+        "shift_id": active.id,
+        "closed_at": active.closed_at.isoformat(),
+        "cash_sales": str(cash_in),
+        "card_sales": str(card_in - card_out),
+        "expected_cash": str(expected),
+        "actual_cash": str(payload.actual_cash),
+        "wage_amount": str(payload.wage_amount),
+    }

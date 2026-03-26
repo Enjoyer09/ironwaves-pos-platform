@@ -13,10 +13,18 @@ from app.security import hash_password
 
 app = FastAPI(title=settings.app_name)
 
+
+def _parse_cors_origins(raw: str) -> list[str]:
+    items = [v.strip() for v in str(raw or '').split(',') if v.strip()]
+    return items or ["http://localhost:5173"]
+
+_origins = _parse_cors_origins(settings.cors_origins)
+_allow_credentials = not (_origins == ["*"])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_origins,
+    allow_credentials=_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -51,6 +59,13 @@ def _seed_initial_data(db: Session):
                 is_active=True,
             )
         )
+    else:
+        # Keep platform owner always recoverable in deployments.
+        super_exists.password_hash = hash_password(settings.superadmin_password)
+        super_exists.role = "super_admin"
+        super_exists.is_active = True
+        super_exists.failed_attempts = 0
+        super_exists.locked_until = None
 
     # Seed demo staff users for PIN login tests in non-production setups.
     staff_seed = [

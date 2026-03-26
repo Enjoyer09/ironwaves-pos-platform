@@ -29,6 +29,7 @@ interface AppState {
   
   user: UserSession | null;
   access_token: string | null;
+  refresh_token: string | null;
   login: (pin: string) => Promise<boolean>;
   adminLogin: (username: string, password: string, secondFactorPin: string, riskContext?: LoginRiskContext) => Promise<boolean>;
   adminNeeds2FA: boolean;
@@ -57,6 +58,7 @@ export const useAppStore = create<AppState>()(
       
       user: null,
       access_token: null,
+      refresh_token: null,
       adminNeeds2FA: false,
       authErrorMessage: '',
       clearAuthError: () => set({ authErrorMessage: '', adminNeeds2FA: false }),
@@ -68,7 +70,7 @@ export const useAppStore = create<AppState>()(
           if (res?.user?.tenant_id) {
             setActiveTenantId(res.user.tenant_id);
           }
-          set({ user: res.user, access_token: res.access_token });
+          set({ user: res.user, access_token: res.access_token, refresh_token: res.refresh_token || null });
           return true;
         } catch (error: any) {
           console.error("Login xətası:", error.message);
@@ -85,6 +87,7 @@ export const useAppStore = create<AppState>()(
           set({
             user: { ...(res.user as any), tenant_id: resolvedTenant },
             access_token: res.access_token,
+            refresh_token: (res as any)?.refresh_token || null,
             adminNeeds2FA: false,
             authErrorMessage: '',
           });
@@ -101,11 +104,11 @@ export const useAppStore = create<AppState>()(
       },
       
       logout: () => {
-        const { access_token, user } = get();
-        if (access_token && user) {
-          authApi.logout(access_token, user.username);
+        const { refresh_token, access_token, user } = get();
+        if ((refresh_token || access_token) && user) {
+          authApi.logout((refresh_token || access_token) as string, user.username);
         }
-        set({ user: null, access_token: null, cart: [] });
+        set({ user: null, access_token: null, refresh_token: null, cart: [] });
       },
       
       cart: [],
@@ -171,6 +174,9 @@ export const useAppStore = create<AppState>()(
         if (typeof next?.access_token !== 'string' || next.access_token.length < 8) {
           next.access_token = null;
         }
+        if (typeof next?.refresh_token !== 'string' || next.refresh_token.length < 8) {
+          next.refresh_token = null;
+        }
         if (!Array.isArray(next?.cart)) next.cart = [];
         return next;
       },
@@ -178,6 +184,7 @@ export const useAppStore = create<AppState>()(
         lang: state.lang,
         user: state.user,
         access_token: state.access_token,
+        refresh_token: state.refresh_token,
         cart: state.cart,
       }),
     }

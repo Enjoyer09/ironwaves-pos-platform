@@ -2,14 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Decimal } from 'decimal.js';
 import { useAppStore } from '../../store';
 import {
-  create_finance_entry,
-  get_balance,
-  get_finance_entries,
-  get_investor_summary,
+  create_finance_entry_async,
+  fetch_finance_balances,
+  fetch_finance_entries,
   repay_investor,
-  transfer_funds,
+  transfer_funds_async,
 } from '../../api/finance';
 import { tx } from '../../i18n';
+import { isBackendEnabled } from '../../api/client';
 
 type WalletSource = 'cash' | 'card' | 'investor' | 'safe' | 'debt';
 
@@ -186,6 +186,14 @@ export default function FinancePanel() {
   const [repayAmount, setRepayAmount] = useState('');
   const [repayFrom, setRepayFrom] = useState<'cash' | 'card' | 'safe'>('cash');
   const [repayNote, setRepayNote] = useState('');
+  const [balance, setBalance] = useState<any>({
+    cash_balance: '0',
+    card_balance: '0',
+    debt_balance: '0',
+    investor_balance: '0',
+    safe_balance: '0',
+  });
+  const [entries, setEntries] = useState<any[]>([]);
 
   const computedTransferCommission = useMemo(() => {
     const amount = new Decimal(transferAmount || '0');
@@ -218,9 +226,83 @@ export default function FinancePanel() {
     localStorage.setItem(`finance_subject_presets_${tenant_id}`, JSON.stringify(next));
   };
 
-  const balance = get_balance(tenant_id, 'all', false);
-  const investorSummary = get_investor_summary(tenant_id);
-  const entries = get_finance_entries(tenant_id);
+  const reloadFinance = async () => {
+    try {
+      const [b, e] = await Promise.all([
+        fetch_finance_balances(tenant_id),
+        fetch_finance_entries(tenant_id),
+      ]);
+      setBalance(b || {
+        cash_balance: '0',
+        card_balance: '0',
+        debt_balance: '0',
+        investor_balance: '0',
+        safe_balance: '0',
+      });
+      setEntries(e || []);
+    } catch (err: any) {
+      notify('error', err?.message || tx(lang, 'Maliyyə məlumatları yüklənmədi', 'Не удалось загрузить финансы'));
+    }
+  };
+
+  useEffect(() => {
+    void reloadFinance();
+  }, [tenant_id]);
+
+  const investorSummary = useMemo(() => {
+    const normalizeText = (value: string) =>
+      (value || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[əƏ]/g, 'e')
+        .replace(/[ıİ]/g, 'i')
+        .replace(/[öÖ]/g, 'o')
+        .replace(/[üÜ]/g, 'u')
+        .replace(/[çÇ]/g, 'c')
+        .replace(/[şŞ]/g, 's')
+        .replace(/[ğĞ]/g, 'g')
+        .trim()
+        .toLowerCase();
+
+    const isFounderInvestmentCategory = (category: string) => {
+      const c = normalizeText(category);
+      return (c.includes('tesisci') || c.includes('founder')) && (c.includes('investis') || c.includes('investment'));
+    };
+
+    const invested = entries.reduce((sum, e: any) => {
+      if (e.type === 'in' && isFounderInvestmentCategory(e.category || '')) {
+        return sum.plus(new Decimal(e.amount || 0));
+      }
+      return sum;
+    }, new Decimal(0));
+
+    const repaid = entries.reduce((sum, e: any) => {
+      const c = normalizeText(e.category || '');
+      const source = normalizeText(e.source || '');
+
+      // IMPORTANT:
+      // Repayment must be counted ONLY on investor liability ledger rows.
+      // The cash/card/safe out row ("İnvestora Geri Ödəniş") is a payment movement
+      // and must not reduce debt a second time.
+      const isLiabilityReduction =
+        c.includes('investor borcu azaldilmasi') ||
+        c.includes('investor liability reduction') ||
+        c.includes('dolg investoru umenshen');
+
+      if (e.type === 'out' && isLiabilityReduction && source === 'investor') {
+        return sum.plus(new Decimal(e.amount || 0));
+      }
+      return sum;
+    }, new Decimal(0));
+
+    const debt = Decimal.max(new Decimal(0), invested.minus(repaid));
+    return {
+      invested_total: invested.toString(),
+      repaid_total: repaid.toString(),
+      debt_remaining: debt.toString(),
+    };
+  }, [entries]);
 
   const filteredEntries = useMemo(() => {
     const start = new Date(fromDate);
@@ -240,17 +322,24 @@ export default function FinancePanel() {
       notify('error', tx(lang, 'Export üçün məlumat yoxdur', 'Нет данных для экспорта', 'No data to export'));
       return;
     }
+
+    const esc = (value: unknown) => {
+      const s = String(value ?? '');
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+
     const header = ['created_at', 'type', 'category', 'source', 'amount', 'description'];
     const rows = filteredEntries.map((e: any) => [
-      e.created_at,
-      e.type,
-      `"${String(e.category || '').replace(/"/g, '""')}"`,
-      e.source,
-      e.amount,
-      `"${String(e.description || '').replace(/"/g, '""')}"`,
+      esc(e.created_at),
+      esc(e.type),
+      esc(e.category),
+      esc(e.source),
+      esc(e.amount),
+      esc(e.description),
     ]);
-    const csv = [header.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    // Use semicolon delimiter + UTF-8 BOM for Excel locale compatibility.
+    const csv = [header.map(esc).join(';'), ...rows.map((r) => r.join(';'))].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -259,7 +348,7 @@ export default function FinancePanel() {
     URL.revokeObjectURL(url);
   };
 
-  const addEntry = () => {
+  const addEntry = async () => {
     if (!amount || new Decimal(amount).lte(0)) {
       notify('error', tx(lang, 'Məbləğ düzgün deyil', 'Неверная сумма'));
       return;
@@ -269,7 +358,7 @@ export default function FinancePanel() {
       return;
     }
     try {
-      create_finance_entry(
+      await create_finance_entry_async(
         tenant_id,
         type,
         category,
@@ -281,6 +370,7 @@ export default function FinancePanel() {
       setAmount('');
       setDescription('');
       setSubject('');
+      await reloadFinance();
       notify('success', tx(lang, 'Əməliyyat yazıldı', 'Операция сохранена', 'Entry saved'));
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Əməliyyat alınmadı', 'Операция не выполнена'));
@@ -302,13 +392,13 @@ export default function FinancePanel() {
     notify('success', tx(lang, 'Yeni subyekt preset əlavə olundu', 'Добавлен новый пресет субъекта', 'Subject preset added'));
   };
 
-  const doTransfer = () => {
+  const doTransfer = async () => {
     if (!transferAmount || new Decimal(transferAmount).lte(0)) {
       notify('error', tx(lang, 'Transfer məbləği düzgün deyil', 'Некорректная сумма перевода'));
       return;
     }
     try {
-      transfer_funds(
+      await transfer_funds_async(
         tenant_id,
         transferDirection,
         transferAmount,
@@ -317,13 +407,14 @@ export default function FinancePanel() {
       );
       setTransferAmount('');
       setTransferCommission('0');
+      await reloadFinance();
       notify('success', tx(lang, 'Transfer tamamlandı', 'Перевод выполнен'));
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Transfer alınmadı', 'Перевод не выполнен'));
     }
   };
 
-  const doRepayInvestor = () => {
+  const doRepayInvestor = async () => {
     if (!repayAmount || new Decimal(repayAmount).lte(0)) {
       notify('error', tx(lang, 'Məbləğ düzgün deyil', 'Некорректная сумма', 'Invalid amount'));
       return;
@@ -338,6 +429,7 @@ export default function FinancePanel() {
       );
       setRepayAmount('');
       setRepayNote('');
+      await reloadFinance();
       notify(
         'success',
         tx(
@@ -473,7 +565,7 @@ export default function FinancePanel() {
             </div>
           </div>
 
-          <button onClick={addEntry} className="glossy-gold mt-4 min-h-12 rounded-lg px-4 py-2 font-semibold">
+          <button onClick={() => void addEntry()} className="glossy-gold mt-4 min-h-12 rounded-lg px-4 py-2 font-semibold">
             {tx(lang, 'Əməliyyatı Yaz', 'Сохранить операцию', 'Save Entry')}
           </button>
         </div>
@@ -510,7 +602,7 @@ export default function FinancePanel() {
               )}
             </p>
           )}
-          <button onClick={doTransfer} className="neon-btn mt-3 rounded-lg px-4 py-2">
+          <button onClick={() => void doTransfer()} className="neon-btn mt-3 rounded-lg px-4 py-2">
             {tx(lang, 'Transfer Et', 'Выполнить перевод')}
           </button>
 
@@ -548,7 +640,7 @@ export default function FinancePanel() {
                 placeholder={tx(lang, 'Qeyd', 'Комментарий', 'Note')}
               />
             </div>
-            <button onClick={doRepayInvestor} className="glossy-gold mt-3 rounded-lg px-4 py-2 font-semibold">
+            <button onClick={() => void doRepayInvestor()} className="glossy-gold mt-3 rounded-lg px-4 py-2 font-semibold">
               {tx(lang, 'İnvestora Ödə', 'Оплатить инвестору', 'Pay Investor')}
             </button>
           </div>

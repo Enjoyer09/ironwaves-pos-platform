@@ -29,6 +29,8 @@ import ConfirmModal from '../ConfirmModal';
 import { getActiveTenantId, resolveTenantIdFromHost } from '../../lib/tenant';
 
 export default function SettingsPanel() {
+  // Default ON for stability; can be disabled with VITE_SINGLE_TENANT_MODE=false.
+  const singleTenantMode = String((import.meta as any)?.env?.VITE_SINGLE_TENANT_MODE ?? 'true').toLowerCase() !== 'false';
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
 
@@ -90,7 +92,7 @@ export default function SettingsPanel() {
   const [tenantSlug, setTenantSlug] = useState('');
   const [tenantDomain, setTenantDomain] = useState('');
   const [tenantAdminUsername, setTenantAdminUsername] = useState('admin');
-  const [tenantAdminPassword, setTenantAdminPassword] = useState('admin123');
+  const [tenantAdminPassword, setTenantAdminPassword] = useState('');
   const [createdCreds, setCreatedCreds] = useState<{ title: string; username: string; password: string; twofa_pin?: string; tenant_id: string; domain: string } | null>(null);
   const [cloneSourceTenant, setCloneSourceTenant] = useState('');
   const [cloneSlug, setCloneSlug] = useState('');
@@ -102,7 +104,7 @@ export default function SettingsPanel() {
   const host = typeof window !== 'undefined' ? window.location.host : 'server';
   const mappedTenant = resolveTenantIdFromHost(host);
   const activeTenant = getActiveTenantId();
-  const isPlatformOwner = String(user?.role || '').toLowerCase() === 'super_admin';
+  const isPlatformOwner = !singleTenantMode && String(user?.role || '').toLowerCase() === 'super_admin';
 
   const loadData = async () => {
     setProfile(get_business_profile(tenant_id));
@@ -382,7 +384,7 @@ export default function SettingsPanel() {
       setTenantSlug('');
       setTenantDomain('');
       setTenantAdminUsername('admin');
-      setTenantAdminPassword('admin123');
+      setTenantAdminPassword('');
       setCreatedCreds({
         title: tx(lang, 'Tenant yaradıldı', 'Тенант создан', 'Tenant created'),
         username: created.admin_username,

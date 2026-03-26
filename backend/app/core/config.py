@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     refresh_token_days: int = 7
 
     superadmin_username: str = "ironwaves_owner"
-    superadmin_password: str = "owner1234"
+    superadmin_password: str
     superadmin_email: str = "owner@ironwaves.store"
 
     default_tenant_slug: str = "socialbee"
@@ -25,6 +25,12 @@ class Settings(BaseSettings):
 
     resend_api_key: str | None = None
     email_from: str = "no-reply@ironwaves.store"
+
+    # Multi-tenant should be enabled by default. Set true only for per-deployment single-tenant mode.
+    single_tenant_mode: bool = False
+    single_tenant_id: str = ""
+
+    cors_origins: str = "http://localhost:5173"
 
 
 settings = Settings()

@@ -27,7 +27,31 @@ def get_balances(db: Session = Depends(get_db), tenant: Tenant = Depends(get_ten
         "card": str(_wallet_balance(db, tenant.id, "card")),
         "safe": str(_wallet_balance(db, tenant.id, "safe")),
         "investor": str(_wallet_balance(db, tenant.id, "investor")),
+        "debt": str(_wallet_balance(db, tenant.id, "debt")),
     }
+
+
+@router.get("/entries")
+def list_entries(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    rows = (
+        db.query(FinanceEntry)
+        .filter(FinanceEntry.tenant_id == tenant.id)
+        .order_by(FinanceEntry.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": r.id,
+            "type": r.type,
+            "category": r.category,
+            "source": r.source,
+            "amount": str(r.amount),
+            "description": r.description,
+            "created_by": r.created_by,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
 
 
 @router.post("/entry")
@@ -35,6 +59,10 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
     amount = Decimal(str(payload.amount))
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be > 0")
+
+    valid_sources = {"cash", "card", "safe", "investor", "debt"}
+    if payload.source not in valid_sources:
+        raise HTTPException(status_code=400, detail="Invalid wallet source")
 
     if payload.type == "out":
         bal = _wallet_balance(db, tenant.id, payload.source)
@@ -66,13 +94,19 @@ def transfer(payload: TransferIn, db: Session = Depends(get_db), tenant: Tenant 
         "safe_to_cash": ("safe", "cash"),
         "cash_to_card": ("cash", "card"),
         "card_to_cash": ("card", "cash"),
+        "cash_to_debt": ("cash", "debt"),
+        "card_to_debt": ("card", "debt"),
     }
     if payload.direction not in direction_map:
         raise HTTPException(status_code=400, detail="Invalid transfer direction")
 
     source, target = direction_map[payload.direction]
+    commission = Decimal("0")
+    if payload.direction == "card_to_cash":
+        commission = Decimal("0.60") if amount <= Decimal("120") else (amount * Decimal("0.005")).quantize(Decimal("0.01"))
+
     bal = _wallet_balance(db, tenant.id, source)
-    if bal < amount:
+    if bal < amount + commission:
         raise HTTPException(status_code=400, detail="Insufficient balance")
 
     db.add(
@@ -97,5 +131,17 @@ def transfer(payload: TransferIn, db: Session = Depends(get_db), tenant: Tenant 
             created_by=user.username,
         )
     )
+    if commission > 0:
+        db.add(
+            FinanceEntry(
+                tenant_id=tenant.id,
+                type="out",
+                category="Bank Komissiyası",
+                source=source,
+                amount=commission,
+                description=f"Transfer komissiyası: {payload.direction}",
+                created_by=user.username,
+            )
+        )
     db.commit()
-    return {"success": True}
+    return {"success": True, "commission": str(commission)}
