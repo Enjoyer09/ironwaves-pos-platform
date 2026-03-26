@@ -66,6 +66,15 @@ function tenantFromSlug(slug: string): string {
   return safe ? `tenant_${safe.replace(/-/g, '_')}` : 'tenant_default';
 }
 
+function generateTempPassword(length = 12): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+  let out = '';
+  for (let i = 0; i < length; i += 1) {
+    out += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return out;
+}
+
 export async function list_tenants(): Promise<TenantRecord[]> {
   if (isBackendEnabled()) {
     const rows = await apiRequest<any[]>('/api/v1/admin/tenants');
@@ -98,8 +107,11 @@ export async function create_tenant(payload: {
     const companyName = String(payload.company_name || '').trim();
     const slug = normalizeSlug(payload.slug || companyName);
     const domain = String(payload.domain || `${slug}.ironwaves.store`).toLowerCase().trim();
-    const adminUsername = String(payload.admin_username || 'admin').trim();
-    const adminPassword = String(payload.admin_password || 'admin123').trim();
+    const adminUsername = String(payload.admin_username || '').trim();
+    const adminPassword = String(payload.admin_password || '').trim();
+    if (!adminUsername || !adminPassword) {
+      throw new Error('Admin username və şifrə mütləqdir');
+    }
     const created = await apiRequest<any>('/api/v1/admin/tenants', {
       method: 'POST',
       body: {
@@ -181,8 +193,11 @@ export async function create_tenant(payload: {
   );
 
   const users = getDB<any>('users');
-  const adminUsername = String(payload.admin_username || 'admin').trim();
-  const adminPassword = String(payload.admin_password || 'admin123').trim();
+  const adminUsername = String(payload.admin_username || '').trim();
+  const adminPassword = String(payload.admin_password || '').trim();
+  if (!adminUsername || !adminPassword) {
+    throw new Error('Admin username və şifrə mütləqdir');
+  }
   const admin2faPin = String(payload.admin_2fa_pin || Math.floor(100000 + Math.random() * 900000)).trim();
   if (!users.some((u) => u.tenant_id === tenant_id && String(u.username).toLowerCase() === adminUsername.toLowerCase())) {
     create_user({
@@ -318,6 +333,7 @@ export async function clone_tenant_as_demo(payload: {
     const sourceTenant = String(payload.source_tenant_id || '').trim();
     const demoSlug = normalizeSlug(payload.demo_slug || `demo-${sourceTenant}`);
     const demoDomain = String(payload.demo_domain || `${demoSlug}.ironwaves.store`).toLowerCase().trim();
+    const demoPassword = generateTempPassword();
     const result = await apiRequest<any>(`/api/v1/admin/tenants/${encodeURIComponent(sourceTenant)}/clone`, {
       method: 'POST',
       body: {
@@ -325,7 +341,7 @@ export async function clone_tenant_as_demo(payload: {
         slug: demoSlug,
         domain: demoDomain,
         admin_username: 'demo_admin',
-        admin_password: 'demo1234',
+        admin_password: demoPassword,
       },
     });
     return {
@@ -333,7 +349,7 @@ export async function clone_tenant_as_demo(payload: {
       demo_tenant_id: String(result.id),
       demo_domain: String(result.domain || demoDomain),
       demo_admin_username: 'demo_admin',
-      demo_admin_password: 'demo1234',
+      demo_admin_password: demoPassword,
       demo_admin_2fa_pin: '',
     };
   }
@@ -346,12 +362,13 @@ export async function clone_tenant_as_demo(payload: {
 
   const demoDomain = String(payload.demo_domain || `${demoSlug}.ironwaves.store`).toLowerCase().trim();
 
+  const demoPassword = generateTempPassword();
   const created = await create_tenant({
     company_name: `Demo - ${sourceTenant}`,
     slug: demoSlug,
     domain: demoDomain,
     admin_username: 'demo_admin',
-    admin_password: 'demo1234',
+    admin_password: demoPassword,
     admin_2fa_pin: '123456',
     created_by: payload.created_by || 'owner',
     created_by_role: payload.created_by_role,
@@ -394,7 +411,7 @@ export async function clone_tenant_as_demo(payload: {
     demo_tenant_id: demoTenant,
     demo_domain: demoDomain,
     demo_admin_username: 'demo_admin',
-    demo_admin_password: 'demo1234',
+    demo_admin_password: demoPassword,
     demo_admin_2fa_pin: '123456',
   };
 }

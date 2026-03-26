@@ -38,6 +38,21 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ## Notes
 
-- Tenant is resolved from `Host` header domain or `x-tenant-id` header.
+- Default mode is single-tenant for stability (`SINGLE_TENANT_MODE=true`).
+- In single-tenant mode, tenant is resolved from `SINGLE_TENANT_ID` (if set) or first active tenant.
+- For full multi-tenant mode, set `SINGLE_TENANT_MODE=false` and ensure domain mappings are configured.
+- Tenant is resolved from `x-tenant-domain`/`Host` in multi-tenant mode (with legacy `x-tenant-id` fallback).
 - Initial super admin is seeded from environment variables.
 - Tenant administration endpoints require `super_admin` role.
+
+## Smoke test
+
+Run the backend smoke test after deploy:
+
+```bash
+BASE_URL="https://<your-backend-domain>" \
+SUPERADMIN_USERNAME="ironwaves_owner" \
+SUPERADMIN_PASSWORD="owner1234" \
+TENANT_HEADER="tenant_default" \
+python scripts/smoke_test.py
+```

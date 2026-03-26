@@ -6,6 +6,8 @@ import {
   accept_shift_handover,
   get_expected_cash,
   get_pending_handover_for_user,
+  refresh_expected_cash,
+  refresh_shift_status,
   get_shift_handover_history,
   get_shift_status,
   handover_shift,
@@ -34,6 +36,8 @@ export default function ZReportPanel() {
   const [handoverActualCash, setHandoverActualCash] = useState('0');
   const [availablePrinters, setAvailablePrinters] = useState<string[]>([]);
   const [loadingPrinters, setLoadingPrinters] = useState(false);
+  const [shiftStatusState, setShiftStatusState] = useState(get_shift_status(tenant_id));
+  const [expectedCashState, setExpectedCashState] = useState<Decimal>(() => get_expected_cash(tenant_id));
   const zReceiptRef = React.useRef<HTMLIFrameElement | null>(null);
   const printSettings = get_settings(tenant_id).print_settings || { use_qz: false, printer_name: '' };
 
@@ -56,12 +60,32 @@ export default function ZReportPanel() {
 
   const summary = get_sales_summary(tenant_id, start, end, user?.role === 'staff' ? user.username : undefined);
   const sales = get_sales_list(tenant_id, start, end, user?.role === 'staff' ? user.username : undefined);
-  const shiftStatus = get_shift_status(tenant_id);
+  const shiftStatus = shiftStatusState;
   const handovers = get_shift_handover_history(tenant_id, user?.username || undefined);
   const latestReceived = handovers.find((h) => h.received_by === user?.username);
   const pendingReceived = get_pending_handover_for_user(tenant_id, user?.username || '');
   const tenantUsers = get_users(tenant_id).filter((u) => ['staff', 'manager'].includes(String(u.role || '').toLowerCase()));
-  const expectedCashNow = useMemo(() => get_expected_cash(tenant_id), [tenant_id, summary.total_revenue]);
+  const expectedCashNow = expectedCashState;
+
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const [status, cash] = await Promise.all([
+          refresh_shift_status(tenant_id),
+          refresh_expected_cash(tenant_id),
+        ]);
+        if (!mounted) return;
+        setShiftStatusState(status);
+        setExpectedCashState(cash);
+      } catch {
+        // Keep cached/local fallback.
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [tenant_id, summary.total_revenue]);
 
   React.useEffect(() => {
     const fallback = expectedCashNow.toFixed(2);
@@ -70,17 +94,19 @@ export default function ZReportPanel() {
     setHandoverActualCash((prev) => (prev === '0' ? fallback : prev));
   }, [expectedCashNow]);
 
-  const handleX = () => {
+  const handleX = async () => {
     if (!xActualCash) return;
     try {
-      const res = x_report(xActualCash, user?.username || 'staff', tenant_id);
+      const res = await x_report(xActualCash, user?.username || 'staff', tenant_id);
+      const cash = await refresh_expected_cash(tenant_id).catch(() => expectedCashNow);
+      setExpectedCashState(cash);
       notify('success', tx(lang, `X-Hesabat tamamlandı. Fərq: ${res.difference} ₼`, `X-отчет завершен. Разница: ${res.difference} ₼`));
     } catch (e: any) {
       notify('error', tx(lang, `Xəta: ${e.message}`, `Ошибка: ${e.message}`));
     }
   };
 
-  const handleOpenDay = () => {
+  const handleOpenDay = async () => {
     try {
       // Bring cash drawer to target opening amount with explicit source trace.
       // IMPORTANT: top-up is validated/applied BEFORE opening the shift.
@@ -148,7 +174,13 @@ export default function ZReportPanel() {
       }
 
       // Open shift only after successful top-up flow.
-      open_shift(user?.username || 'staff', tenant_id);
+      await open_shift(user?.username || 'staff', tenant_id);
+      const [status, cash] = await Promise.all([
+        refresh_shift_status(tenant_id),
+        refresh_expected_cash(tenant_id),
+      ]);
+      setShiftStatusState(status);
+      setExpectedCashState(cash);
 
       notify('success', tx(lang, 'Gün açıldı', 'День открыт'));
       notify('info', tx(lang, 'Xahiş edirik, gün sonu Z-Hesabatla növbəni bağlamağı unutmayın.', 'Пожалуйста, не забудьте закрыть смену через Z-отчет в конце дня.'));
@@ -162,6 +194,12 @@ export default function ZReportPanel() {
     try {
       const result = await z_report(zActualCash, zWage || '0', user?.username || 'admin', tenant_id);
       setZReceiptHtml(result.receipt_html || null);
+      const [status, cash] = await Promise.all([
+        refresh_shift_status(tenant_id),
+        refresh_expected_cash(tenant_id),
+      ]);
+      setShiftStatusState(status);
+      setExpectedCashState(cash);
       notify('success', tx(lang, 'Z-Hesabat yaradıldı', 'Z-отчет создан'));
       if (result.email_sent) {
         notify('success', tx(lang, 'Z hesabat e-mail ilə göndərildi', 'Z-отчет отправлен по e-mail', 'Z report email sent'));

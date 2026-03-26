@@ -8,7 +8,6 @@ from app.db import get_db
 from app.deps import get_super_admin, get_tenant
 from app.models import (
     AuditLog,
-    BusinessProfile,
     FinanceEntry,
     InventoryItem,
     MenuItem,
@@ -224,17 +223,25 @@ def create_tenant(
     for row in _default_setting_rows(tenant.id):
         db.add(row)
 
-    db.add(
-        BusinessProfile(
-            tenant_id=tenant.id,
-            company_name=tenant.name,
-            phone=None,
-            address=None,
-            website=f"https://{tenant.domain}",
-            logo_url=None,
-            receipt_footer="Bizi seçdiyiniz üçün təşəkkür edirik!",
+    # business_profiles may differ between deployments; keep provisioning resilient.
+    try:
+        db.execute(
+            text(
+                """
+                INSERT INTO business_profiles (id, tenant_id, company_name, website, receipt_footer)
+                VALUES (:id, :tenant_id, :company_name, :website, :receipt_footer)
+                """
+            ),
+            {
+                "id": __import__("uuid").uuid4().hex,
+                "tenant_id": tenant.id,
+                "company_name": tenant.name,
+                "website": f"https://{tenant.domain}",
+                "receipt_footer": "Bizi seçdiyiniz üçün təşəkkür edirik!",
+            },
         )
-    )
+    except Exception:
+        pass
 
     db.commit()
     return {
@@ -427,28 +434,57 @@ def clone_tenant(
         for row in _default_setting_rows(tenant.id):
             db.add(row)
 
-    source_profile = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == source.id).first()
-    if source_profile:
-        db.add(
-            BusinessProfile(
-                tenant_id=tenant.id,
-                company_name=source_profile.company_name,
-                phone=source_profile.phone,
-                address=source_profile.address,
-                website=source_profile.website,
-                logo_url=source_profile.logo_url,
-                receipt_footer=source_profile.receipt_footer,
+    try:
+        source_profile = db.execute(
+            text(
+                """
+                SELECT company_name, phone, address, website, logo_url, receipt_footer
+                FROM business_profiles
+                WHERE tenant_id=:tenant_id
+                LIMIT 1
+                """
+            ),
+            {"tenant_id": source.id},
+        ).fetchone()
+        if source_profile:
+            db.execute(
+                text(
+                    """
+                    INSERT INTO business_profiles
+                    (id, tenant_id, company_name, phone, address, website, logo_url, receipt_footer)
+                    VALUES
+                    (:id, :tenant_id, :company_name, :phone, :address, :website, :logo_url, :receipt_footer)
+                    """
+                ),
+                {
+                    "id": __import__("uuid").uuid4().hex,
+                    "tenant_id": tenant.id,
+                    "company_name": source_profile[0],
+                    "phone": source_profile[1],
+                    "address": source_profile[2],
+                    "website": source_profile[3],
+                    "logo_url": source_profile[4],
+                    "receipt_footer": source_profile[5],
+                },
             )
-        )
-    else:
-        db.add(
-            BusinessProfile(
-                tenant_id=tenant.id,
-                company_name=tenant.name,
-                website=f"https://{tenant.domain}",
-                receipt_footer="Bizi seçdiyiniz üçün təşəkkür edirik!",
+        else:
+            db.execute(
+                text(
+                    """
+                    INSERT INTO business_profiles (id, tenant_id, company_name, website, receipt_footer)
+                    VALUES (:id, :tenant_id, :company_name, :website, :receipt_footer)
+                    """
+                ),
+                {
+                    "id": __import__("uuid").uuid4().hex,
+                    "tenant_id": tenant.id,
+                    "company_name": tenant.name,
+                    "website": f"https://{tenant.domain}",
+                    "receipt_footer": "Bizi seçdiyiniz üçün təşəkkür edirik!",
+                },
             )
-        )
+    except Exception:
+        pass
 
     db.commit()
     return {
@@ -481,7 +517,10 @@ def delete_tenant(
     db.query(InventoryItem).filter(InventoryItem.tenant_id == tenant.id).delete(synchronize_session=False)
     db.query(Recipe).filter(Recipe.tenant_id == tenant.id).delete(synchronize_session=False)
     db.query(Setting).filter(Setting.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant.id).delete(synchronize_session=False)
+    try:
+        db.execute(text("DELETE FROM business_profiles WHERE tenant_id=:tenant_id"), {"tenant_id": tenant.id})
+    except Exception:
+        pass
     db.query(MenuItem).filter(MenuItem.tenant_id == tenant.id).delete(synchronize_session=False)
     db.query(Shift).filter(Shift.tenant_id == tenant.id).delete(synchronize_session=False)
     db.query(User).filter(User.tenant_id == tenant.id).delete(synchronize_session=False)

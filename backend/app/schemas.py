@@ -93,16 +93,16 @@ class TenantCreateIn(BaseModel):
     name: str
     slug: str
     domain: str
-    admin_username: str = "admin"
-    admin_password: str = "admin123"
+    admin_username: str
+    admin_password: str
 
 
 class TenantCloneIn(BaseModel):
     name: str
     slug: str
     domain: str
-    admin_username: str = "admin"
-    admin_password: str = "admin123"
+    admin_username: str
+    admin_password: str
 
 
 class TenantOut(BaseModel):
