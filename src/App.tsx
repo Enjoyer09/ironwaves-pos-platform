@@ -253,7 +253,7 @@ export default function App() {
 
   const canAccess = (key: ModuleKey) => {
     const role = sessionRole;
-    if (role === 'super_admin') return key === 'settings';
+    if (role === 'super_admin') return true;
     if (role === 'admin') return true;
 
     if (safeRoleModules) {
