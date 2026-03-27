@@ -5,10 +5,10 @@ import { tx } from '../../i18n';
 import {
   get_business_profile,
   update_business_profile,
-  create_user,
-  delete_user,
-  get_users,
-  update_user_credentials,
+  create_user_live,
+  delete_user_live,
+  get_users_live,
+  update_user_credentials_live,
   get_settings,
   update_role_modules,
   update_print_settings,
@@ -17,6 +17,7 @@ import {
   update_inventory_settings,
 } from '../../api/settings';
 import { authApi } from '../../api/auth';
+import { isBackendEnabled } from '../../api/client';
 import {
   create_tenant,
   list_tenants,
@@ -33,12 +34,14 @@ export default function SettingsPanel() {
   const singleTenantMode = String((import.meta as any)?.env?.VITE_SINGLE_TENANT_MODE ?? 'true').toLowerCase() !== 'false';
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
+  const backendMode = isBackendEnabled();
 
   const [successMsg, setSuccessMsg] = useState('');
   const [profile, setProfile] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [newUserName, setNewUserName] = useState('');
   const [newUserPin, setNewUserPin] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState<'staff' | 'kitchen' | 'manager' | 'admin'>('staff');
   const [targetUser, setTargetUser] = useState('');
   const [targetPin, setTargetPin] = useState('');
@@ -108,7 +111,7 @@ export default function SettingsPanel() {
 
   const loadData = async () => {
     setProfile(get_business_profile(tenant_id));
-    const tenantUsers = get_users(tenant_id);
+    const tenantUsers = await get_users_live(tenant_id);
     setUsers(tenantUsers);
     const me = tenantUsers.find((u) => u.username === user?.username);
     setOwn2faEnabled(Boolean(me?.two_factor_enabled));
@@ -171,26 +174,37 @@ export default function SettingsPanel() {
     setTimeout(() => setSuccessMsg(''), 3000);
   };
 
-  const handleCreateUser = () => {
-    if (!newUserName || !newUserPin) return;
+  const handleCreateUser = async () => {
+    if (!newUserName) return;
+    const requiresPassword = ['admin', 'manager'].includes(newUserRole);
+    if (requiresPassword && !newUserPassword) {
+      notify('error', tx(lang, 'Admin/Manager üçün şifrə tələb olunur', 'Для Admin/Manager требуется пароль', 'Password is required for Admin/Manager'));
+      return;
+    }
+    if (!requiresPassword && !newUserPin) {
+      notify('error', tx(lang, 'Staff/Kitchen üçün PIN tələb olunur', 'Для Staff/Kitchen требуется PIN', 'PIN is required for Staff/Kitchen'));
+      return;
+    }
     try {
-      create_user({
+      await create_user_live({
         tenant_id,
         username: newUserName,
         role: newUserRole,
-        pin: newUserPin,
+        pin: requiresPassword ? undefined : newUserPin,
+        password: requiresPassword ? newUserPassword : undefined,
       } as any);
       setNewUserName('');
       setNewUserPin('');
+      setNewUserPassword('');
       void loadData();
     } catch (e: any) {
       notify('error', e.message);
     }
   };
 
-  const handleDeleteUser = (username: string) => {
+  const handleDeleteUser = async (username: string) => {
     try {
-      delete_user(username);
+      await delete_user_live(username);
       void loadData();
       notify('success', tx(lang, 'İstifadəçi silindi', 'Пользователь удален'));
       setDeleteUserName(null);
@@ -199,10 +213,10 @@ export default function SettingsPanel() {
     }
   };
 
-  const handleUpdatePin = () => {
+  const handleUpdatePin = async () => {
     if (!targetUser || !targetPin) return;
     try {
-      update_user_credentials(targetUser, { pin: targetPin }, user?.username || 'admin');
+      await update_user_credentials_live(targetUser, { pin: targetPin }, user?.username || 'admin');
       setTargetPin('');
       setSuccessMsg(tx(lang, 'İstifadəçi PIN yeniləndi!', 'PIN пользователя обновлен!'));
       setTimeout(() => setSuccessMsg(''), 2500);
@@ -212,7 +226,7 @@ export default function SettingsPanel() {
     }
   };
 
-  const handleChangeOwnSecurity = () => {
+  const handleChangeOwnSecurity = async () => {
     if (!user?.username) return;
     const wantsPasswordChange = Boolean(newOwnPassword || confirmOwnPassword);
     const wants2faChange = own2faEnabled || Boolean(newOwn2faPin);
@@ -244,13 +258,13 @@ export default function SettingsPanel() {
       notify('error', tx(lang, 'Hesab məlumatı tapılmadı', 'Данные аккаунта не найдены', 'Account data not found'));
       return;
     }
-    if (String(me.password || '') !== String(currentPassword || '')) {
+    if (!backendMode && String(me.password || '') !== String(currentPassword || '')) {
       notify('error', tx(lang, 'Mövcud şifrə yanlışdır', 'Текущий пароль неверный', 'Current password is incorrect'));
       return;
     }
 
     try {
-      update_user_credentials(
+      await update_user_credentials_live(
         user.username,
         {
           password: wantsPasswordChange ? newOwnPassword : me.password,
@@ -269,7 +283,7 @@ export default function SettingsPanel() {
       if (!own2faEnabled) {
         authApi.reset_admin_lockout(user.username);
       }
-      loadData();
+      await loadData();
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Yeniləmə xətası', 'Ошибка обновления', 'Update failed'));
     }
@@ -968,13 +982,29 @@ export default function SettingsPanel() {
               <p className="text-slate-300 mb-4">{tx(lang, 'Buradan yeni işçi yarada və PIN dəyişə bilərsiniz. Admin üçün 2FA yalnız aktiv ediləndə tələb olunur.', 'Здесь можно создавать сотрудников и менять PIN. Для Admin 2FA требуется только когда включен.', 'Create staff and change PIN here. Admin 2FA is required only when enabled.')}</p>
             <div className="flex gap-4 mb-6">
               <input value={newUserName} onChange={(e) => setNewUserName(e.target.value)} type="text" placeholder={tx(lang, 'İstifadəçi Adı', 'Имя пользователя')} className="neon-input flex-1" />
-              <input value={newUserPin} onChange={(e) => setNewUserPin(e.target.value)} type="text" placeholder={tx(lang, 'PİN Şifrə (Məs: 1234)', 'PIN-код (напр.: 1234)')} className="neon-input flex-1" />
               <select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value as any)} className="neon-input bg-transparent">
                 <option value="staff">{tx(lang, 'Staff (Kassir)', 'Кассир')}</option>
                 <option value="kitchen">{tx(lang, 'Mətbəx (Kitchen)', 'Кухня')}</option>
                 <option value="manager">Manager</option>
                 <option value="admin">Admin</option>
               </select>
+              {['admin', 'manager'].includes(newUserRole) ? (
+                <input
+                  value={newUserPassword}
+                  onChange={(e) => setNewUserPassword(e.target.value)}
+                  type="password"
+                  placeholder={tx(lang, 'Şifrə (Admin/Manager)', 'Пароль (Admin/Manager)', 'Password (Admin/Manager)')}
+                  className="neon-input flex-1"
+                />
+              ) : (
+                <input
+                  value={newUserPin}
+                  onChange={(e) => setNewUserPin(e.target.value.replace(/\D/g, '').slice(0, 15))}
+                  type="text"
+                  placeholder={tx(lang, 'PIN (Staff/Kitchen, məs: 1234)', 'PIN (Staff/Kitchen, напр.: 1234)', 'PIN (Staff/Kitchen, e.g. 1234)')}
+                  className="neon-input flex-1"
+                />
+              )}
               <button onClick={handleCreateUser} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yarat', 'Создать')}</button>
             </div>
 
