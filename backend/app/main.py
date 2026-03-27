@@ -15,7 +15,7 @@ app = FastAPI(title=settings.app_name)
 
 
 def _parse_cors_origins(raw: str) -> list[str]:
-    items = [v.strip() for v in str(raw or "").split(",") if v.strip()]
+    items = [v.strip() for v in str(raw or '').split(',') if v.strip()]
     return items or ["http://localhost:5173"]
 
 
@@ -61,12 +61,14 @@ def _seed_initial_data(db: Session):
             )
         )
     else:
+        # Keep platform owner always recoverable in deployments.
         super_exists.password_hash = hash_password(settings.superadmin_password)
         super_exists.role = "super_admin"
         super_exists.is_active = True
         super_exists.failed_attempts = 0
         super_exists.locked_until = None
 
+    # Seed demo staff users for PIN login tests in non-production setups.
     staff_seed = [
         ("barista", "1234", "staff"),
         ("barista2", "5678", "staff"),
