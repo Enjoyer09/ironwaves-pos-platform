@@ -110,47 +110,56 @@ export default function SettingsPanel() {
   const isPlatformOwner = !singleTenantMode && String(user?.role || '').toLowerCase() === 'super_admin';
 
   const loadData = async () => {
-    setProfile(get_business_profile(tenant_id));
-    const tenantUsers = await get_users_live(tenant_id);
-    setUsers(tenantUsers);
-    const me = tenantUsers.find((u) => u.username === user?.username);
-    setOwn2faEnabled(Boolean(me?.two_factor_enabled));
-    const settings = get_settings(tenant_id);
-    setRoleModules(settings.role_modules || { staff: ['pos'], manager: ['pos'], kitchen: ['kds'] });
-    setPrintSettings(settings.print_settings || { use_qz: false, printer_name: '' });
-    const inv = settings.inventory_settings || { default_critical_threshold: 5, unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'] };
-    setInventorySettings(inv);
-    setUnitDraft((inv.unit_options || []).join(', '));
-    setOmnitechSettings(
-      settings.omnitech_settings || {
+    try {
+      setProfile(get_business_profile(tenant_id));
+      const tenantUsers = await get_users_live(tenant_id);
+      setUsers(tenantUsers);
+      const me = tenantUsers.find((u) => u.username === user?.username);
+      setOwn2faEnabled(Boolean(me?.two_factor_enabled));
+      const settings = get_settings(tenant_id);
+      setRoleModules(settings.role_modules || { staff: ['pos'], manager: ['pos'], kitchen: ['kds'] });
+      setPrintSettings(settings.print_settings || { use_qz: false, printer_name: '' });
+      const inv = settings.inventory_settings || { default_critical_threshold: 5, unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'] };
+      setInventorySettings(inv);
+      setUnitDraft((inv.unit_options || []).join(', '));
+      setOmnitechSettings(
+        settings.omnitech_settings || {
+          enabled: false,
+          api_base_url: '',
+          api_key: '',
+          merchant_id: '',
+          terminal_id: '',
+          fiscal_device_id: '',
+        }
+      );
+      const em = settings.email_settings || {
         enabled: false,
-        api_base_url: '',
-        api_key: '',
-        merchant_id: '',
-        terminal_id: '',
-        fiscal_device_id: '',
+        provider: 'none',
+        resend_api_key: '',
+        sender_email: '',
+        recipient_emails: [],
+        webhook_url: '',
+        timeout_sec: 15,
+      };
+      setEmailSettings({
+        enabled: Boolean(em.enabled),
+        provider: (em.provider as any) || 'none',
+        resend_api_key: em.resend_api_key || '',
+        sender_email: em.sender_email || '',
+        recipient_emails: (em.recipient_emails || []).join(', '),
+        webhook_url: (em as any).webhook_url || '',
+        timeout_sec: Number((em as any).timeout_sec || 15),
+      });
+
+      if (isPlatformOwner) {
+        const tenantRows = await list_tenants();
+        setTenants(tenantRows);
+      } else {
+        setTenants([]);
       }
-    );
-    const em = settings.email_settings || {
-      enabled: false,
-      provider: 'none',
-      resend_api_key: '',
-      sender_email: '',
-      recipient_emails: [],
-      webhook_url: '',
-      timeout_sec: 15,
-    };
-    setEmailSettings({
-      enabled: Boolean(em.enabled),
-      provider: (em.provider as any) || 'none',
-      resend_api_key: em.resend_api_key || '',
-      sender_email: em.sender_email || '',
-      recipient_emails: (em.recipient_emails || []).join(', '),
-      webhook_url: (em as any).webhook_url || '',
-      timeout_sec: Number((em as any).timeout_sec || 15),
-    });
-    const tenantRows = await list_tenants();
-    setTenants(tenantRows);
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Ayarları yükləmək alınmadı', 'Не удалось загрузить настройки', 'Failed to load settings'));
+    }
   };
 
   useEffect(() => {
