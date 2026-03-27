@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import Tenant, User
-from app.security import hash_password
+from app.security import hash_password, verify_password
 
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
 
@@ -23,6 +23,7 @@ class UserCredentialsUpdateIn(BaseModel):
     password: str | None = None
     pin: str | None = None
     two_factor_enabled: bool | None = None
+    current_password: str | None = None
 
 
 class UserOut(BaseModel):
@@ -34,9 +35,16 @@ class UserOut(BaseModel):
     is_active: bool
 
 
-def _ensure_admin(user: User):
-    if user.role not in {"admin", "super_admin"}:
-        raise HTTPException(status_code=403, detail="Admin access required")
+def _ensure_user_management_access(user: User):
+    if user.role not in {"admin", "super_admin", "manager"}:
+        raise HTTPException(status_code=403, detail="User management access required")
+
+
+def _assert_target_allowed(actor: User, target_role: str):
+    actor_role = str(actor.role or "").lower()
+    target_role_norm = str(target_role or "").lower()
+    if actor_role == "manager" and target_role_norm in {"manager", "admin", "super_admin"}:
+        raise HTTPException(status_code=403, detail="Manager cannot manage admin/manager accounts")
 
 
 def _clean_role(value: str) -> str:
@@ -52,7 +60,7 @@ def list_users(
     tenant: Tenant = Depends(get_tenant),
     current_user: User = Depends(get_current_user),
 ):
-    _ensure_admin(current_user)
+    _ensure_user_management_access(current_user)
     rows = db.query(User).filter(User.tenant_id == tenant.id, User.is_active == True).all()
     return [
         UserOut(
@@ -74,13 +82,14 @@ def create_user(
     tenant: Tenant = Depends(get_tenant),
     current_user: User = Depends(get_current_user),
 ):
-    _ensure_admin(current_user)
+    _ensure_user_management_access(current_user)
 
     username = str(payload.username or "").strip()
     if len(username) < 3:
         raise HTTPException(status_code=400, detail="Username must be at least 3 characters")
 
     role = _clean_role(payload.role)
+    _assert_target_allowed(current_user, role)
     normalized = username.lower()
     existing = (
         db.query(User)
@@ -127,7 +136,7 @@ def update_user_credentials(
     tenant: Tenant = Depends(get_tenant),
     current_user: User = Depends(get_current_user),
 ):
-    _ensure_admin(current_user)
+    _ensure_user_management_access(current_user)
     username_norm = str(username or "").strip().lower()
     row = (
         db.query(User)
@@ -136,11 +145,16 @@ def update_user_credentials(
     )
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
+    _assert_target_allowed(current_user, row.role)
 
     if payload.password is not None:
         password = str(payload.password)
         if len(password) < 4:
             raise HTTPException(status_code=400, detail="Password must be at least 4 characters")
+        if row.id == current_user.id:
+            current_password = str(payload.current_password or "")
+            if not current_password or not verify_password(current_password, row.password_hash):
+                raise HTTPException(status_code=401, detail="Current password is incorrect")
         row.password_hash = hash_password(password)
 
     if payload.pin is not None:
@@ -160,7 +174,7 @@ def delete_user(
     tenant: Tenant = Depends(get_tenant),
     current_user: User = Depends(get_current_user),
 ):
-    _ensure_admin(current_user)
+    _ensure_user_management_access(current_user)
 
     username_norm = str(username or "").strip().lower()
     row = (
@@ -170,8 +184,11 @@ def delete_user(
     )
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
+    _assert_target_allowed(current_user, row.role)
     if row.role == "super_admin":
         raise HTTPException(status_code=400, detail="Super admin cannot be deleted")
+    if row.id == current_user.id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
 
     row.is_active = False
     db.commit()
