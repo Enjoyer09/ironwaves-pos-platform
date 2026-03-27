@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db import Base, engine, SessionLocal
 from app.models import Tenant, User
-from app.routers import auth, finance, pos, reports, settings, tenants
+from app.routers import auth, finance, pos, reports, settings as settings_router, tenants
 from app.security import hash_password
 
 
@@ -15,8 +15,9 @@ app = FastAPI(title=settings.app_name)
 
 
 def _parse_cors_origins(raw: str) -> list[str]:
-    items = [v.strip() for v in str(raw or '').split(',') if v.strip()]
+    items = [v.strip() for v in str(raw or "").split(",") if v.strip()]
     return items or ["http://localhost:5173"]
+
 
 _origins = _parse_cors_origins(settings.cors_origins)
 _allow_credentials = not (_origins == ["*"])
@@ -60,14 +61,12 @@ def _seed_initial_data(db: Session):
             )
         )
     else:
-        # Keep platform owner always recoverable in deployments.
         super_exists.password_hash = hash_password(settings.superadmin_password)
         super_exists.role = "super_admin"
         super_exists.is_active = True
         super_exists.failed_attempts = 0
         super_exists.locked_until = None
 
-    # Seed demo staff users for PIN login tests in non-production setups.
     staff_seed = [
         ("barista", "1234", "staff"),
         ("barista2", "5678", "staff"),
@@ -112,4 +111,4 @@ app.include_router(pos.router)
 app.include_router(finance.router)
 app.include_router(reports.router)
 app.include_router(tenants.router)
-app.include_router(settings.router)
+app.include_router(settings_router.router)
