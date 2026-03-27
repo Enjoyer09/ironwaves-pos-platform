@@ -151,6 +151,7 @@ def update_user_credentials(
         password = str(payload.password)
         if len(password) < 4:
             raise HTTPException(status_code=400, detail="Password must be at least 4 characters")
+        # For self password updates require current password verification.
         if row.id == current_user.id:
             current_password = str(payload.current_password or "")
             if not current_password or not verify_password(current_password, row.password_hash):
