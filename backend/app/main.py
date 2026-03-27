@@ -4,21 +4,21 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
+from app.core.config import settings as app_settings
 from app.db import Base, engine, SessionLocal
 from app.models import Tenant, User
-from app.routers import auth, finance, pos, reports, tenants
+from app.routers import auth, finance, pos, reports, settings as settings_router, tenants
 from app.security import hash_password
 
 
-app = FastAPI(title=settings.app_name)
+app = FastAPI(title=app_settings.app_name)
 
 
 def _parse_cors_origins(raw: str) -> list[str]:
     items = [v.strip() for v in str(raw or '').split(',') if v.strip()]
     return items or ["http://localhost:5173"]
 
-_origins = _parse_cors_origins(settings.cors_origins)
+_origins = _parse_cors_origins(app_settings.cors_origins)
 _allow_credentials = not (_origins == ["*"])
 
 app.add_middleware(
@@ -31,12 +31,12 @@ app.add_middleware(
 
 
 def _seed_initial_data(db: Session):
-    tenant = db.query(Tenant).filter(Tenant.slug == settings.default_tenant_slug).first()
+    tenant = db.query(Tenant).filter(Tenant.slug == app_settings.default_tenant_slug).first()
     if not tenant:
         tenant = Tenant(
-            name=settings.default_tenant_name,
-            slug=settings.default_tenant_slug,
-            domain=settings.default_tenant_domain,
+            name=app_settings.default_tenant_name,
+            slug=app_settings.default_tenant_slug,
+            domain=app_settings.default_tenant_domain,
             status="active",
             created_at=datetime.utcnow(),
         )
@@ -45,23 +45,23 @@ def _seed_initial_data(db: Session):
 
     super_exists = (
         db.query(User)
-        .filter(User.tenant_id == tenant.id, User.username == settings.superadmin_username)
+        .filter(User.tenant_id == tenant.id, User.username == app_settings.superadmin_username)
         .first()
     )
     if not super_exists:
         db.add(
             User(
                 tenant_id=tenant.id,
-                username=settings.superadmin_username,
-                email=settings.superadmin_email,
-                password_hash=hash_password(settings.superadmin_password),
+                username=app_settings.superadmin_username,
+                email=app_settings.superadmin_email,
+                password_hash=hash_password(app_settings.superadmin_password),
                 role="super_admin",
                 is_active=True,
             )
         )
     else:
         # Keep platform owner always recoverable in deployments.
-        super_exists.password_hash = hash_password(settings.superadmin_password)
+        super_exists.password_hash = hash_password(app_settings.superadmin_password)
         super_exists.role = "super_admin"
         super_exists.is_active = True
         super_exists.failed_attempts = 0
@@ -104,7 +104,7 @@ def on_startup():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "app": settings.app_name}
+    return {"status": "ok", "app": app_settings.app_name}
 
 
 app.include_router(auth.router)
@@ -112,3 +112,4 @@ app.include_router(pos.router)
 app.include_router(finance.router)
 app.include_router(reports.router)
 app.include_router(tenants.router)
+app.include_router(settings_router.router)

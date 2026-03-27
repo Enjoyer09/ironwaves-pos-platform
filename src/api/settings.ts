@@ -3,6 +3,7 @@ import { getDB, setDB } from '../lib/db_sim';
 import { logEvent } from '../lib/logger';
 import { Settings, User } from '../types/pos';
 import { getActiveTenantId } from '../lib/tenant';
+import { apiRequest, isBackendEnabled } from './client';
 
 const resolveTenant = (tenant_id?: string) => tenant_id || getActiveTenantId();
 
@@ -359,5 +360,78 @@ export function update_user_credentials(
   };
   setDB('users', users);
   logEvent(updated_by, 'USER_CREDENTIALS_UPDATED', { target_user: username });
+  return true;
+}
+
+type BackendUserRecord = {
+  id: string;
+  tenant_id: string;
+  username: string;
+  role: 'super_admin' | 'admin' | 'manager' | 'staff' | 'kitchen';
+  two_factor_enabled?: boolean;
+  is_active?: boolean;
+};
+
+export async function get_users_live(tenant_id?: string): Promise<User[]> {
+  if (!isBackendEnabled()) {
+    return get_users(tenant_id);
+  }
+  const rows = await apiRequest<BackendUserRecord[]>('/api/v1/settings/users', { method: 'GET', tenantId: null });
+  return rows.map((u) => ({
+    id: u.id,
+    tenant_id: u.tenant_id,
+    username: u.username,
+    role: u.role,
+    two_factor_enabled: Boolean(u.two_factor_enabled),
+    failed_attempts: 0,
+    is_locked: false,
+  }));
+}
+
+export async function create_user_live(
+  payload: Omit<User, 'id' | 'failed_attempts' | 'is_locked' | 'lock_until'>
+): Promise<User> {
+  if (!isBackendEnabled()) {
+    return create_user(payload);
+  }
+  const created = await apiRequest<BackendUserRecord>('/api/v1/settings/users', {
+    method: 'POST',
+    tenantId: null,
+    body: payload,
+  });
+  return {
+    id: created.id,
+    tenant_id: created.tenant_id,
+    username: created.username,
+    role: created.role,
+    two_factor_enabled: Boolean(created.two_factor_enabled),
+    failed_attempts: 0,
+    is_locked: false,
+  };
+}
+
+export async function delete_user_live(username: string): Promise<{ success: boolean }> {
+  if (!isBackendEnabled()) {
+    return delete_user(username);
+  }
+  return apiRequest<{ success: boolean }>(`/api/v1/settings/users/${encodeURIComponent(username)}`, {
+    method: 'DELETE',
+    tenantId: null,
+  });
+}
+
+export async function update_user_credentials_live(
+  username: string,
+  updates: { password?: string; pin?: string; two_factor_enabled?: boolean; current_password?: string },
+  updated_by: string = 'admin'
+): Promise<boolean> {
+  if (!isBackendEnabled()) {
+    return update_user_credentials(username, updates, updated_by);
+  }
+  await apiRequest<{ success: boolean }>(`/api/v1/settings/users/${encodeURIComponent(username)}/credentials`, {
+    method: 'PATCH',
+    tenantId: null,
+    body: updates,
+  });
   return true;
 }
