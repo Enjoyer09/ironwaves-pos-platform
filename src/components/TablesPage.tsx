@@ -327,7 +327,7 @@ export default function TablesPage() {
 
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold flex items-center gap-2"><LayoutGrid size={28} className="text-yellow-300"/> {tx(lang, 'Masaların İdarəsi', 'Управление столами')}</h2>
-        {user?.role === 'admin' && (
+        {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
           <button onClick={() => setShowCreate(true)} className="glossy-gold px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-bold">
             <Plus size={20} /> {tx(lang, 'Masa Yarat', 'Создать стол')}
           </button>
@@ -344,7 +344,7 @@ export default function TablesPage() {
             <span className={`text-xs px-3 py-1 rounded-full mt-3 font-semibold ${t.is_occupied ? 'bg-red-400/20 text-red-200 border border-red-300/50' : 'bg-green-400/20 text-green-200 border border-green-300/50'}`}>
                 {t.is_occupied ? tx(lang, 'Dolu', 'Занято') : tx(lang, 'Boş', 'Свободно')}
             </span>
-            {!t.is_occupied && user?.role === 'admin' && (
+            {!t.is_occupied && ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
               <button onClick={(e) => { e.stopPropagation(); setDeleteTableId(t.id); }} className="absolute top-3 right-3 text-slate-400 hover:text-red-300 transition-colors">
                 <Trash2 size={18}/>
               </button>

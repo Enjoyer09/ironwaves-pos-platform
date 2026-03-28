@@ -49,6 +49,7 @@ export default function ZReportPanel() {
     investor_balance: '0',
     safe_balance: '0',
   });
+  const [reportRefreshKey, setReportRefreshKey] = useState(0);
   const zReceiptRef = React.useRef<HTMLIFrameElement | null>(null);
   const printSettings = get_settings(tenant_id).print_settings || { use_qz: false, printer_name: '' };
 
@@ -100,6 +101,28 @@ export default function ZReportPanel() {
   }, [tenant_id, summary.total_revenue]);
 
   React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const [nextSummary, nextSales] = await Promise.all([
+          get_sales_summary_live(tenant_id, start, end, user?.role === 'staff' ? user.username : undefined),
+          get_sales_list_live(tenant_id, start, end, user?.role === 'staff' ? user.username : undefined),
+        ]);
+        if (!mounted) return;
+        setSummary(nextSummary || { total_revenue: '0', cash_sales: '0', card_sales: '0', gross_profit: '0', total_cogs: '0', void_count: 0 });
+        setSales(nextSales || []);
+      } catch {
+        if (!mounted) return;
+        setSummary({ total_revenue: '0', cash_sales: '0', card_sales: '0', gross_profit: '0', total_cogs: '0', void_count: 0 });
+        setSales([]);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [tenant_id, start, end, user?.role, user?.username, reportRefreshKey]);
+
+  React.useEffect(() => {
     const fallback = expectedCashNow.toFixed(2);
     setXActualCash((prev) => (prev === '0' ? fallback : prev));
     setZActualCash((prev) => (prev === '0' ? fallback : prev));
@@ -113,6 +136,7 @@ export default function ZReportPanel() {
       const cash = await refresh_expected_cash(tenant_id).catch(() => expectedCashNow);
       setExpectedCashState(cash);
       setCurrentBalances(await fetch_finance_balances(tenant_id));
+      setReportRefreshKey((prev) => prev + 1);
       notify('success', tx(lang, `X-Hesabat tamamlandı. Fərq: ${res.difference} ₼`, `X-отчет завершен. Разница: ${res.difference} ₼`));
     } catch (e: any) {
       notify('error', tx(lang, `Xəta: ${e.message}`, `Ошибка: ${e.message}`));
@@ -195,6 +219,7 @@ export default function ZReportPanel() {
       setShiftStatusState(status);
       setExpectedCashState(cash);
       setCurrentBalances(await fetch_finance_balances(tenant_id));
+      setReportRefreshKey((prev) => prev + 1);
 
       notify('success', tx(lang, 'Gün açıldı', 'День открыт'));
       notify('info', tx(lang, 'Xahiş edirik, gün sonu Z-Hesabatla növbəni bağlamağı unutmayın.', 'Пожалуйста, не забудьте закрыть смену через Z-отчет в конце дня.'));
@@ -215,6 +240,7 @@ export default function ZReportPanel() {
       setShiftStatusState(status);
       setExpectedCashState(cash);
       setCurrentBalances(await fetch_finance_balances(tenant_id));
+      setReportRefreshKey((prev) => prev + 1);
       notify('success', tx(lang, 'Z-Hesabat yaradıldı', 'Z-отчет создан'));
       if (result.email_sent) {
         notify('success', tx(lang, 'Z hesabat e-mail ilə göndərildi', 'Z-отчет отправлен по e-mail', 'Z report email sent'));

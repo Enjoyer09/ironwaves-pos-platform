@@ -19,10 +19,14 @@ export default function CRMPanel() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [count, setCount] = useState(1);
   const [tier, setTier] = useState('golden');
+  const [customType, setCustomType] = useState('');
+  const [customDiscount, setCustomDiscount] = useState('0');
   const [loading, setLoading] = useState(false);
   const [importText, setImportText] = useState('');
 
   const selectedTier = useMemo(() => QR_TYPES.find((t) => t.value === tier) || QR_TYPES[0], [tier]);
+  const effectiveType = tier === '__custom__' ? customType.trim() : selectedTier.value;
+  const effectiveDiscount = tier === '__custom__' ? Number(customDiscount || 0) : selectedTier.discount;
 
   const loadData = async () => {
     const cust = await get_customers_live(tenant_id);
@@ -38,9 +42,13 @@ export default function CRMPanel() {
       notify('error', tx(lang, 'Say 1 ilə 200 arasında olmalıdır', 'Количество должно быть от 1 до 200'));
       return;
     }
+    if (tier === '__custom__' && !customType.trim()) {
+      notify('error', tx(lang, 'Custom tip yazın', 'Введите custom тип', 'Enter a custom type'));
+      return;
+    }
     setLoading(true);
     try {
-      await generate_qr_codes(tenant_id, count, selectedTier.value, selectedTier.discount);
+      await generate_qr_codes(tenant_id, count, effectiveType || selectedTier.value, effectiveDiscount);
       loadData();
       notify('success', tx(lang, 'QR kodlar uğurla yaradıldı', 'QR-коды успешно созданы'));
     } catch (error: any) {
@@ -105,9 +113,22 @@ export default function CRMPanel() {
                   {lang === 'ru' ? item.label_ru : item.label_az}
                 </option>
               ))}
+              <option value="__custom__">{tx(lang, 'Custom', 'Custom', 'Custom')}</option>
             </select>
           </label>
         </div>
+        {tier === '__custom__' && (
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label className="text-sm text-slate-300">
+              {tx(lang, 'Custom tip', 'Custom тип', 'Custom type')}
+              <input className="neon-input mt-1" value={customType} onChange={(e) => setCustomType(e.target.value)} placeholder="VIP / Corporate / Legacy" />
+            </label>
+            <label className="text-sm text-slate-300">
+              {tx(lang, 'Custom endirim %', 'Custom скидка %', 'Custom discount %')}
+              <input className="neon-input mt-1" type="number" min={0} max={100} value={customDiscount} onChange={(e) => setCustomDiscount(e.target.value)} />
+            </label>
+          </div>
+        )}
         <button disabled={loading} onClick={onGenerate} className="glossy-gold mt-4 rounded-xl px-5 py-3 font-bold disabled:opacity-60">
           {loading ? tx(lang, 'Yaradılır...', 'Создается...') : tx(lang, 'QR Kodları Yarat', 'Создать QR-коды')}
         </button>

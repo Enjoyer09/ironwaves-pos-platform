@@ -229,7 +229,7 @@ export default function InventoryPanel() {
           <input className="neon-input" type="number" placeholder={tx(lang, 'Min limit', 'Мин. лимит')} value={newMinLimit} onChange={e => setNewMinLimit(e.target.value)} />
           <button
             onClick={() => { void handleAdd(); }}
-            disabled={!newName || !newQty || !newCost}
+            disabled={!newName.trim() || Number(newQty || 0) <= 0 || Number(newCost || -1) < 0}
             className="glossy-gold disabled:opacity-60 disabled:cursor-not-allowed px-4 py-2 rounded-lg font-semibold"
           >
             {tx(lang, 'Əlavə Et', 'Добавить')}
@@ -245,7 +245,8 @@ export default function InventoryPanel() {
                 <th className="pb-3">{tx(lang, 'Xammal Adı', 'Название сырья')}</th>
                 <th className="pb-3">{tx(lang, 'Tipi', 'Тип')}</th>
                 <th className="pb-3">{tx(lang, 'Stok Miqdarı', 'Остаток')}</th>
-                <th className="pb-3">{tx(lang, 'Maya Dəyəri', 'Себестоимость')}</th>
+                <th className="pb-3">{tx(lang, 'Vahid Maya', 'Себестоимость за ед.', 'Unit Cost')}</th>
+                <th className="pb-3">{tx(lang, 'Toplam Dəyər', 'Общая стоимость', 'Total Value')}</th>
                 <th className="pb-3">{tx(lang, 'Status', 'Статус')}</th>
                 <th className="pb-3">{tx(lang, 'Əməliyyat', 'Операция')}</th>
               </tr>
@@ -256,7 +257,8 @@ export default function InventoryPanel() {
                   <td className="py-3 font-medium">{item.name}</td>
                   <td className="py-3">{item.type}</td>
                   <td className="py-3">{item.stock_qty} {item.unit}</td>
-                  <td className="py-3">{item.unit_cost} ₼</td>
+                  <td className="py-3">{new Decimal(item.unit_cost || 0).toFixed(4)} ₼ / {item.unit}</td>
+                  <td className="py-3">{new Decimal(item.stock_qty || 0).mul(new Decimal(item.unit_cost || 0)).toFixed(2)} ₼</td>
                   <td className="py-3">
                     {Number(item.stock_qty || 0) <= Number(item.min_limit ?? inventoryConfig.default_critical_threshold) ? (
                       <span className="px-2 py-1 bg-red-100 text-red-600 rounded-full text-xs font-bold flex w-fit items-center gap-1">
@@ -277,7 +279,7 @@ export default function InventoryPanel() {
               ))}
               {filteredItems.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-500">{tx(lang, 'Anbar boşdur. İlkin məlumat əlavə edin.', 'Склад пуст. Добавьте начальные данные.')}</td>
+                  <td colSpan={7} className="py-8 text-center text-slate-500">{tx(lang, 'Anbar boşdur. İlkin məlumat əlavə edin.', 'Склад пуст. Добавьте начальные данные.')}</td>
                 </tr>
               )}
             </tbody>
