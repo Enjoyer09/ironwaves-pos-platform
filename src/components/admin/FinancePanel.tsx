@@ -42,6 +42,7 @@ export default function FinancePanel() {
 
   const [fromDate, setFromDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [rangePreset, setRangePreset] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'>('daily');
 
   const [type, setType] = useState<'in' | 'out'>('out');
   const [source, setSource] = useState<WalletSource>('cash');
@@ -195,6 +196,26 @@ export default function FinancePanel() {
   });
   const [entries, setEntries] = useState<any[]>([]);
 
+  const applyRangePreset = (preset: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom') => {
+    setRangePreset(preset);
+    const today = new Date();
+    const start = new Date(today);
+    const end = new Date(today);
+    if (preset === 'weekly') {
+      const weekday = start.getDay();
+      const diff = weekday === 0 ? 6 : weekday - 1;
+      start.setDate(start.getDate() - diff);
+    } else if (preset === 'monthly') {
+      start.setDate(1);
+    } else if (preset === 'yearly') {
+      start.setMonth(0, 1);
+    }
+    if (preset !== 'custom') {
+      setFromDate(start.toISOString().slice(0, 10));
+      setToDate(end.toISOString().slice(0, 10));
+    }
+  };
+
   const computedTransferCommission = useMemo(() => {
     const amount = new Decimal(transferAmount || '0');
     if (transferDirection !== 'card_to_cash') {
@@ -247,6 +268,10 @@ export default function FinancePanel() {
 
   useEffect(() => {
     void reloadFinance();
+  }, [tenant_id]);
+
+  useEffect(() => {
+    applyRangePreset('daily');
   }, [tenant_id]);
 
   const investorSummary = useMemo(() => {
@@ -464,15 +489,15 @@ export default function FinancePanel() {
 
   return (
     <div className="space-y-6 text-slate-100">
-      <h2 className="text-2xl font-bold">{tx(lang, 'Maliyyə', 'Финансы')}</h2>
+      <h2 className="text-2xl font-bold">{tx(lang, 'Maliyyə', 'Финансы', 'Finance')}</h2>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <WalletCard title={tx(lang, 'Nağd Kassa', 'Наличная касса')} value={balance.cash_balance} />
-        <WalletCard title={tx(lang, 'Bank/Kart Hesabı', 'Банк/карта')} value={balance.card_balance} />
+        <WalletCard title={tx(lang, 'Nağd Kassa', 'Наличная касса', 'Cash Drawer')} value={balance.cash_balance} />
+        <WalletCard title={tx(lang, 'Bank/Kart Hesabı', 'Банк/карта', 'Bank/Card Wallet')} value={balance.card_balance} />
         <WalletCard
           title={tx(lang, 'İnvestora Borcumuz', 'Наш долг инвестору', 'Debt To Investor')}
           value={investorSummary.debt_remaining || '0'}
         />
-        <WalletCard title={tx(lang, 'Seyf', 'Сейф')} value={balance.safe_balance || '0'} />
+        <WalletCard title={tx(lang, 'Seyf', 'Сейф', 'Safe')} value={balance.safe_balance || '0'} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -617,11 +642,12 @@ export default function FinancePanel() {
                 lang,
                 'Qayda: 120 AZN-ə qədər 0.60 AZN, 120 AZN-dən yuxarı 0.5% komissiya.',
                 'Правило: до 120 AZN комиссия 0.60 AZN, выше 120 AZN комиссия 0.5%.',
+                'Rule: up to 120 AZN fee is 0.60 AZN, above that fee is 0.5%.',
               )}
             </p>
           )}
           <button onClick={() => void doTransfer()} className="neon-btn mt-3 rounded-lg px-4 py-2">
-            {tx(lang, 'Transfer Et', 'Выполнить перевод')}
+            {tx(lang, 'Transfer Et', 'Выполнить перевод', 'Transfer')}
           </button>
 
           <div className="mt-5 border-t border-slate-700/50 pt-4">
@@ -667,8 +693,25 @@ export default function FinancePanel() {
 
       <div className="metal-panel p-4">
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="neon-input w-auto" />
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="neon-input w-auto" />
+          {([
+            ['daily', tx(lang, 'Günlük', 'Дневной', 'Daily')],
+            ['weekly', tx(lang, 'Həftəlik', 'Недельный', 'Weekly')],
+            ['monthly', tx(lang, 'Aylıq', 'Месячный', 'Monthly')],
+            ['yearly', tx(lang, 'İllik', 'Годовой', 'Yearly')],
+            ['custom', tx(lang, 'Tarix Aralığı', 'Диапазон дат', 'Date Range')],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              className={`rounded-lg px-3 py-2 text-xs font-semibold ${rangePreset === key ? 'bg-yellow-400 text-slate-900' : 'border border-slate-600 text-slate-200'}`}
+              onClick={() => applyRangePreset(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <input type="date" value={fromDate} onChange={(e) => { setRangePreset('custom'); setFromDate(e.target.value); }} className="neon-input w-auto" />
+          <input type="date" value={toDate} onChange={(e) => { setRangePreset('custom'); setToDate(e.target.value); }} className="neon-input w-auto" />
           <button className="neon-btn rounded-lg px-3 py-2 text-xs" onClick={exportCsv}>
             {tx(lang, 'CSV Export', 'Экспорт CSV', 'CSV Export')}
           </button>
@@ -683,12 +726,12 @@ export default function FinancePanel() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-700/60 text-slate-300">
               <tr>
-                <th className="py-2">{tx(lang, 'Tarix', 'Дата')}</th>
-                <th className="py-2">{tx(lang, 'Növ', 'Тип')}</th>
-                <th className="py-2">{tx(lang, 'Kateqoriya', 'Категория')}</th>
-                <th className="py-2">{tx(lang, 'Mənbə', 'Источник')}</th>
-                <th className="py-2">{tx(lang, 'Məbləğ', 'Сумма')}</th>
-                <th className="py-2">{tx(lang, 'Açıqlama', 'Описание')}</th>
+                <th className="py-2">{tx(lang, 'Tarix', 'Дата', 'Date')}</th>
+                <th className="py-2">{tx(lang, 'Növ', 'Тип', 'Type')}</th>
+                <th className="py-2">{tx(lang, 'Kateqoriya', 'Категория', 'Category')}</th>
+                <th className="py-2">{tx(lang, 'Mənbə', 'Источник', 'Source')}</th>
+                <th className="py-2">{tx(lang, 'Məbləğ', 'Сумма', 'Amount')}</th>
+                <th className="py-2">{tx(lang, 'Açıqlama', 'Описание', 'Description')}</th>
               </tr>
             </thead>
             <tbody>
@@ -705,7 +748,7 @@ export default function FinancePanel() {
               {filteredEntries.length === 0 && (
                 <tr>
                   <td colSpan={6} className="py-6 text-center text-slate-500">
-                    {tx(lang, 'Bu tarix aralığında qeyd yoxdur', 'За этот период записей нет')}
+                    {tx(lang, 'Bu tarix aralığında qeyd yoxdur', 'За этот период записей нет', 'No entries for this date range')}
                   </td>
                 </tr>
               )}

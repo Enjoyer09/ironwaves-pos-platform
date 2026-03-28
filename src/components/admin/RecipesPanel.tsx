@@ -274,7 +274,7 @@ export default function RecipesPanel() {
                     disabled={isSaving || !hasUnsavedChanges}
                     className="rounded-xl border border-emerald-300/40 bg-emerald-500/20 px-4 py-2 text-sm font-bold text-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isSaving ? tx(lang, 'Saxlanılır...', 'Сохраняется...', 'Saving...') : tx(lang, 'Save', 'Сохранить', 'Save')}
+                    {isSaving ? tx(lang, 'Saxlanılır...', 'Сохраняется...', 'Saving...') : tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
                   </button>
                   {recipeStats && (
                     <>
@@ -327,7 +327,7 @@ export default function RecipesPanel() {
                 </button>
               </div>
               <div className="mb-4 text-xs text-slate-400">
-                {tx(lang, 'İnqrediyentləri əlavə edin, sonra ayrıca Save düyməsi ilə resepti yadda saxlayın.', 'Добавьте ингредиенты, затем сохраните рецепт кнопкой Save.', 'Add ingredients, then save the recipe with the Save button.')}
+                {tx(lang, 'İnqrediyentləri əlavə edin, sonra ayrıca Yadda saxla düyməsi ilə resepti yadda saxlayın.', 'Добавьте ингредиенты, затем сохраните рецепт кнопкой Save.', 'Add ingredients, then save the recipe with the Save button.')}
               </div>
               {selectedIngredientMeta ? (
                 <p className="mb-4 text-xs text-slate-400">

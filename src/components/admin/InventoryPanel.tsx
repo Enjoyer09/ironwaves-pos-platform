@@ -50,6 +50,15 @@ export default function InventoryPanel() {
   const [deleteModal, setDeleteModal] = useState<{ id: string; name: string } | null>(null);
   const [deletePass, setDeletePass] = useState('');
 
+  const formatQty = (value: unknown, unit: string) => {
+    const qty = new Decimal(value || 0);
+    const normalizedUnit = String(unit || '').trim().toLowerCase();
+    const integerUnits = ['ədəd', 'adet', 'piece'];
+    if (integerUnits.includes(normalizedUnit)) return qty.toDecimalPlaces(0).toString();
+    if (normalizedUnit === 'qram' || normalizedUnit === 'ml' || normalizedUnit === 'sm') return qty.toDecimalPlaces(0).toString();
+    return qty.toDecimalPlaces(3).toString();
+  };
+
   const handleAdd = async () => {
     if (!newName || !newQty || !newCost || Number(newQty) <= 0 || Number(newCost) < 0) return;
     try {
@@ -192,47 +201,47 @@ export default function InventoryPanel() {
         </div>
       )}
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">{tx(lang, 'Anbar İdarəetməsi', 'Управление складом')}</h2>
+        <h2 className="text-2xl font-bold">{tx(lang, 'Anbar İdarəetməsi', 'Управление складом', 'Inventory Management')}</h2>
         <div className="flex gap-2">
           <input
             className="neon-input"
-            placeholder={tx(lang, 'Anbar axtarışı...', 'Поиск по складу...')}
+            placeholder={tx(lang, 'Anbar axtarışı...', 'Поиск по складу...', 'Search inventory...')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
           <button onClick={() => setIsAdding(!isAdding)} className="neon-btn px-4 py-2 rounded-lg flex items-center gap-2">
-            <Plus size={20} /> {tx(lang, 'Xammal Əlavə Et', 'Добавить сырье')}
+            <Plus size={20} /> {tx(lang, 'Xammal Əlavə Et', 'Добавить сырье', 'Add Inventory Item')}
           </button>
         </div>
       </div>
 
       {isAdding && (
         <div className="metal-panel p-6 grid grid-cols-1 md:grid-cols-6 gap-4">
-          <input className="neon-input col-span-2" placeholder={tx(lang, 'Xammal Adı (Məs: Kofe dənəsi)', 'Название сырья (напр.: кофейное зерно)')} value={newName} onChange={e => setNewName(e.target.value)} />
+          <input className="neon-input col-span-2" placeholder={tx(lang, 'Xammal Adı (Məs: Kofe dənəsi)', 'Название сырья (напр.: кофейное зерно)', 'Inventory name (e.g. Coffee Beans)')} value={newName} onChange={e => setNewName(e.target.value)} />
           <select className="neon-input" value={newType} onChange={e => setNewType(e.target.value)}>
-            <option value="Xammal">{tx(lang, 'Xammal', 'Сырье')}</option>
-            <option value="İçki Bazası">{tx(lang, 'İçki Bazası', 'Основа напитков')}</option>
-            <option value="Paketləmə">{tx(lang, 'Paketləmə', 'Упаковка')}</option>
+            <option value="Xammal">{tx(lang, 'Xammal', 'Сырье', 'Raw Material')}</option>
+            <option value="İçki Bazası">{tx(lang, 'İçki Bazası', 'Основа напитков', 'Beverage Base')}</option>
+            <option value="Paketləmə">{tx(lang, 'Paketləmə', 'Упаковка', 'Packaging')}</option>
           </select>
           <select className="neon-input" value={measureType} onChange={e => setMeasureType(e.target.value as any)}>
-            <option value="çəki">{tx(lang, 'Çəki', 'Вес')}</option>
-            <option value="say">{tx(lang, 'Say', 'Штуки')}</option>
-            <option value="həcm">{tx(lang, 'Həcm', 'Объем')}</option>
+            <option value="çəki">{tx(lang, 'Çəki', 'Вес', 'Weight')}</option>
+            <option value="say">{tx(lang, 'Say', 'Штуки', 'Count')}</option>
+            <option value="həcm">{tx(lang, 'Həcm', 'Объем', 'Volume')}</option>
           </select>
-          <input className="neon-input" type="number" placeholder={tx(lang, 'Miqdar', 'Количество')} value={newQty} onChange={e => setNewQty(e.target.value)} />
+          <input className="neon-input" type="number" placeholder={tx(lang, 'Miqdar', 'Количество', 'Quantity')} value={newQty} onChange={e => setNewQty(e.target.value)} />
           <select className="neon-input" value={newUnit} onChange={e => setNewUnit(e.target.value)}>
             {(inventoryConfig.unit_options || []).map((u) => (
               <option key={u} value={u}>{u}</option>
             ))}
           </select>
-          <input className="neon-input" type="number" placeholder={tx(lang, 'Toplam alış qiyməti (₼)', 'Общая закупочная цена (₼)')} value={newCost} onChange={e => setNewCost(e.target.value)} />
-          <input className="neon-input" type="number" placeholder={tx(lang, 'Min limit', 'Мин. лимит')} value={newMinLimit} onChange={e => setNewMinLimit(e.target.value)} />
+          <input className="neon-input" type="number" placeholder={tx(lang, 'Toplam alış qiyməti (₼)', 'Общая закупочная цена (₼)', 'Total purchase price (₼)')} value={newCost} onChange={e => setNewCost(e.target.value)} />
+          <input className="neon-input" type="number" placeholder={tx(lang, 'Min limit', 'Мин. лимит', 'Min limit')} value={newMinLimit} onChange={e => setNewMinLimit(e.target.value)} />
           <button
             onClick={() => { void handleAdd(); }}
             disabled={!newName.trim() || Number(newQty || 0) <= 0 || Number(newCost || -1) < 0}
             className="glossy-gold disabled:opacity-60 disabled:cursor-not-allowed px-4 py-2 rounded-lg font-semibold"
           >
-            {tx(lang, 'Əlavə Et', 'Добавить')}
+            {tx(lang, 'Əlavə Et', 'Добавить', 'Add')}
           </button>
         </div>
       )}
@@ -242,9 +251,9 @@ export default function InventoryPanel() {
           <table className="w-full text-left">
             <thead>
               <tr className="text-slate-300 border-b border-slate-700/70">
-                <th className="pb-3">{tx(lang, 'Xammal Adı', 'Название сырья')}</th>
-                <th className="pb-3">{tx(lang, 'Tipi', 'Тип')}</th>
-                <th className="pb-3">{tx(lang, 'Stok Miqdarı', 'Остаток')}</th>
+                <th className="pb-3">{tx(lang, 'Xammal Adı', 'Название сырья', 'Item Name')}</th>
+                <th className="pb-3">{tx(lang, 'Tipi', 'Тип', 'Type')}</th>
+                <th className="pb-3">{tx(lang, 'Stok Miqdarı', 'Остаток', 'Stock Qty')}</th>
                 <th className="pb-3">{tx(lang, 'Vahid Maya', 'Себестоимость за ед.', 'Unit Cost')}</th>
                 <th className="pb-3">{tx(lang, 'Toplam Dəyər', 'Общая стоимость', 'Total Value')}</th>
                 <th className="pb-3">{tx(lang, 'Status', 'Статус')}</th>
@@ -256,30 +265,30 @@ export default function InventoryPanel() {
                 <tr key={item.id} className="border-b border-slate-700/50 last:border-0 hover:bg-slate-800/30">
                   <td className="py-3 font-medium">{item.name}</td>
                   <td className="py-3">{item.type}</td>
-                  <td className="py-3">{item.stock_qty} {item.unit}</td>
+                  <td className="py-3">{formatQty(item.stock_qty, item.unit)} {item.unit}</td>
                   <td className="py-3">{new Decimal(item.unit_cost || 0).toFixed(4)} ₼ / {item.unit}</td>
                   <td className="py-3">{new Decimal(item.stock_qty || 0).mul(new Decimal(item.unit_cost || 0)).toFixed(2)} ₼</td>
                   <td className="py-3">
                     {Number(item.stock_qty || 0) <= Number(item.min_limit ?? inventoryConfig.default_critical_threshold) ? (
                       <span className="px-2 py-1 bg-red-100 text-red-600 rounded-full text-xs font-bold flex w-fit items-center gap-1">
-                        <AlertTriangle size={14}/> {tx(lang, 'Kritik Stok', 'Критический остаток')}
+                        <AlertTriangle size={14}/> {tx(lang, 'Kritik Stok', 'Критический остаток', 'Critical Stock')}
                       </span>
                     ) : (
-                      <span className="px-2 py-1 bg-green-100 text-green-600 rounded-full text-xs font-bold">{tx(lang, 'Normal', 'Норма')}</span>
+                      <span className="px-2 py-1 bg-green-100 text-green-600 rounded-full text-xs font-bold">{tx(lang, 'Normal', 'Норма', 'Normal')}</span>
                     )}
                   </td>
                   <td className="py-3">
                     <div className="flex flex-wrap gap-2">
-                      <button onClick={() => setRestockModal({ id: item.id, name: item.name })} className="rounded border border-emerald-300/40 bg-emerald-400/10 px-2 py-1 text-xs text-emerald-200">{tx(lang, 'Mədaxil', 'Приход')}</button>
-                      <button onClick={() => setLossModal({ id: item.id, name: item.name })} className="rounded border border-amber-300/40 bg-amber-400/10 px-2 py-1 text-xs text-amber-200">{tx(lang, 'Məxaric', 'Расход')}</button>
-                      <button onClick={() => setDeleteModal({ id: item.id, name: item.name })} className="rounded border border-red-300/40 bg-red-400/10 px-2 py-1 text-xs text-red-200">{tx(lang, 'Sil', 'Удалить')}</button>
+                      <button onClick={() => setRestockModal({ id: item.id, name: item.name })} className="rounded border border-emerald-300/40 bg-emerald-400/10 px-2 py-1 text-xs text-emerald-200">{tx(lang, 'Mədaxil', 'Приход', 'Restock')}</button>
+                      <button onClick={() => setLossModal({ id: item.id, name: item.name })} className="rounded border border-amber-300/40 bg-amber-400/10 px-2 py-1 text-xs text-amber-200">{tx(lang, 'Məxaric', 'Расход', 'Loss')}</button>
+                      <button onClick={() => setDeleteModal({ id: item.id, name: item.name })} className="rounded border border-red-300/40 bg-red-400/10 px-2 py-1 text-xs text-red-200">{tx(lang, 'Sil', 'Удалить', 'Delete')}</button>
                     </div>
                   </td>
                 </tr>
               ))}
               {filteredItems.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-500">{tx(lang, 'Anbar boşdur. İlkin məlumat əlavə edin.', 'Склад пуст. Добавьте начальные данные.')}</td>
+                  <td colSpan={7} className="py-8 text-center text-slate-500">{tx(lang, 'Anbar boşdur. İlkin məlumat əlavə edin.', 'Склад пуст. Добавьте начальные данные.', 'Inventory is empty. Add initial data.')}</td>
                 </tr>
               )}
             </tbody>
