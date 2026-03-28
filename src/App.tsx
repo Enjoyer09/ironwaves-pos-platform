@@ -58,9 +58,20 @@ export default function App() {
   const activeTenant = useMemo(() => getActiveTenantId(), []);
   const safeLang = (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az';
   const t = i18n[safeLang];
+  const hasValidUser = Boolean(
+    user &&
+    typeof user.username === 'string' &&
+    typeof user.role === 'string' &&
+    typeof access_token === 'string' &&
+    access_token.length > 8
+  );
 
   useEffect(() => {
-    seedDatabase();
+    try {
+      seedDatabase();
+    } catch (error) {
+      console.error('Seed database failed:', error);
+    }
   }, []);
 
   useEffect(() => {
@@ -69,13 +80,6 @@ export default function App() {
     void get_settings_live(user.tenant_id).catch(() => {});
   }, [hasValidUser, user?.tenant_id]);
 
-  const hasValidUser = Boolean(
-    user &&
-    typeof user.username === 'string' &&
-    typeof user.role === 'string' &&
-    typeof access_token === 'string' &&
-    access_token.length > 8
-  );
   const [currentModule, setCurrentModule] = useState<ModuleKey>('pos');
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [lowStockModal, setLowStockModal] = useState<Array<{ name: string; stock_qty: string; min_limit: string; unit: string }> | null>(null);
