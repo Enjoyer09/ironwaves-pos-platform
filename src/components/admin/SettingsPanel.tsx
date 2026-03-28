@@ -5,11 +5,11 @@ import { tx } from '../../i18n';
 import {
   create_user_live,
   delete_user_live,
-  get_business_profile,
-  get_settings,
+  get_business_profile_live,
+  get_settings_live,
   get_users_live,
-  update_business_profile,
-  update_role_modules,
+  update_business_profile_live,
+  update_role_modules_live,
   update_user_credentials_live,
 } from '../../api/settings';
 import ConfirmModal from '../ConfirmModal';
@@ -57,9 +57,9 @@ export default function SettingsPanel() {
 
   const loadData = async () => {
     try {
-      setProfile(get_business_profile(tenantId));
+      setProfile(await get_business_profile_live(tenantId));
       setUsers(await get_users_live(tenantId));
-      const settings = get_settings(tenantId);
+      const settings = await get_settings_live(tenantId);
       setRoleModules(settings.role_modules || defaultRoleModules);
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Ayarları yükləmək alınmadı', 'Не удалось загрузить настройки', 'Failed to load settings'));
@@ -78,9 +78,9 @@ export default function SettingsPanel() {
     reader.readAsDataURL(file);
   };
 
-  const saveBusinessProfile = () => {
+  const saveBusinessProfile = async () => {
     if (!profile) return;
-    update_business_profile(tenantId, profile, user?.username || 'admin');
+    await update_business_profile_live(tenantId, profile, user?.username || 'admin');
     flashSuccess(tx(lang, 'Biznes məlumatları yadda saxlanıldı', 'Данные бизнеса сохранены', 'Business profile saved'));
   };
 
@@ -190,8 +190,8 @@ export default function SettingsPanel() {
     });
   };
 
-  const saveRoleModules = () => {
-    update_role_modules(roleModules);
+  const saveRoleModules = async () => {
+    await update_role_modules_live(roleModules);
     flashSuccess(tx(lang, 'Rol icazələri yadda saxlanıldı', 'Права ролей сохранены', 'Role permissions saved'));
   };
 
@@ -219,7 +219,7 @@ export default function SettingsPanel() {
           <input className="neon-input md:col-span-2" type="file" accept="image/*" onChange={handleLogoUpload} />
         </div>
         <div className="flex justify-end">
-          <button onClick={saveBusinessProfile} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Saxla', 'Сохранить', 'Save')}</button>
+          <button onClick={() => { void saveBusinessProfile(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 
@@ -282,7 +282,7 @@ export default function SettingsPanel() {
                 className="neon-input"
               />
             )}
-            <button onClick={handleCreateUser} className="glossy-gold rounded-xl px-6 py-2 font-bold">
+            <button onClick={() => { void handleCreateUser(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">
               {tx(lang, 'Yarat', 'Создать', 'Create')}
             </button>
           </div>
@@ -309,7 +309,7 @@ export default function SettingsPanel() {
               ))}
             </select>
             <input value={targetPin} onChange={(e) => setTargetPin(e.target.value.replace(/\D/g, '').slice(0, 15))} type="text" placeholder={tx(lang, 'Yeni PIN', 'Новый PIN', 'New PIN')} className="neon-input" />
-            <button onClick={handleUpdatePin} className="neon-btn px-4 py-2">{tx(lang, 'PIN Dəyiş', 'Изменить PIN', 'Change PIN')}</button>
+            <button onClick={() => { void handleUpdatePin(); }} className="neon-btn px-4 py-2">{tx(lang, 'PIN Dəyiş', 'Изменить PIN', 'Change PIN')}</button>
           </div>
         </div>
       </div>
@@ -330,7 +330,7 @@ export default function SettingsPanel() {
           ))}
         </div>
         <div className="flex justify-end">
-          <button onClick={saveRoleModules} className="neon-btn rounded-xl px-5 py-2 font-semibold">{tx(lang, 'Rol İcazələrini Saxla', 'Сохранить права ролей', 'Save Role Permissions')}</button>
+          <button onClick={() => { void saveRoleModules(); }} className="neon-btn rounded-xl px-5 py-2 font-semibold">{tx(lang, 'Rol İcazələrini Saxla', 'Сохранить права ролей', 'Save Role Permissions')}</button>
         </div>
       </div>
 

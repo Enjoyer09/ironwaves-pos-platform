@@ -1,3 +1,5 @@
+import { getApiBaseUrl, isBackendEnabled } from '../api/client';
+
 export const logEvent = (
   user: string,
   action: string,
@@ -27,6 +29,20 @@ export const logEvent = (
   const tenantLogs = JSON.parse(localStorage.getItem(tenantKey) || '[]');
   tenantLogs.push(logEntry);
   localStorage.setItem(tenantKey, JSON.stringify(tenantLogs.slice(-1000)));
+
+  if (isBackendEnabled()) {
+    const base = getApiBaseUrl();
+    if (base) {
+      fetch(`${base}/api/v1/ops/logs/event`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tenant-domain': window.location.host,
+        },
+        body: JSON.stringify({ user, action, details }),
+      }).catch(() => {});
+    }
+  }
 };
 
 export const logUiError = (

@@ -3,6 +3,7 @@ import { getDB, setDB } from '../lib/db_sim';
 import { logEvent } from '../lib/logger';
 import { HappyHour } from '../types/pos';
 import { getActiveTenantId } from '../lib/tenant';
+import { apiRequest, isBackendEnabled } from './client';
 
 const defaultTenant = () => getActiveTenantId();
 
@@ -22,6 +23,15 @@ export function create_happy_hour(payload: Omit<HappyHour, 'id' | 'tenant_id' | 
 
   logEvent('system', 'HAPPY_HOUR_CREATE', { name: newHH.name, discount: newHH.discount_percent, categories: newHH.categories });
   return newHH;
+}
+
+export async function create_happy_hour_live(payload: Omit<HappyHour, 'id' | 'tenant_id' | 'created_at'>) {
+  if (!isBackendEnabled()) return create_happy_hour(payload);
+  return apiRequest<any>('/api/v1/ops/happy-hours', {
+    method: 'POST',
+    tenantId: null,
+    body: payload,
+  });
 }
 
 export function get_active_happy_hour() {
@@ -51,6 +61,11 @@ export function get_active_happy_hour() {
   return null;
 }
 
+export async function get_active_happy_hour_live() {
+  if (!isBackendEnabled()) return get_active_happy_hour();
+  return apiRequest<any>('/api/v1/ops/happy-hours/active', { tenantId: null });
+}
+
 export function toggle_happy_hour(happy_hour_id: string, is_active: boolean) {
   const happyHours = getDB<HappyHour>('happy_hours');
   const hh = happyHours.find(h => h.id === happy_hour_id);
@@ -66,6 +81,16 @@ export function toggle_happy_hour(happy_hour_id: string, is_active: boolean) {
   return hh;
 }
 
+export async function toggle_happy_hour_live(happy_hour_id: string, is_active: boolean) {
+  if (!isBackendEnabled()) return toggle_happy_hour(happy_hour_id, is_active);
+  await apiRequest(`/api/v1/ops/happy-hours/${encodeURIComponent(happy_hour_id)}`, {
+    method: 'PATCH',
+    tenantId: null,
+    body: { is_active },
+  });
+  return { success: true };
+}
+
 export function delete_happy_hour(happy_hour_id: string) {
   let happyHours = getDB<HappyHour>('happy_hours');
   const hh = happyHours.find(h => h.id === happy_hour_id);
@@ -76,5 +101,14 @@ export function delete_happy_hour(happy_hour_id: string) {
   setDB('happy_hours', happyHours);
 
   logEvent('system', 'HAPPY_HOUR_DELETE', { name: hh.name });
+  return { success: true };
+}
+
+export async function delete_happy_hour_live(happy_hour_id: string) {
+  if (!isBackendEnabled()) return delete_happy_hour(happy_hour_id);
+  await apiRequest(`/api/v1/ops/happy-hours/${encodeURIComponent(happy_hour_id)}`, {
+    method: 'DELETE',
+    tenantId: null,
+  });
   return { success: true };
 }

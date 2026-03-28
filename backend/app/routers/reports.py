@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import FinanceEntry, Shift, Tenant
-from app.schemas import OpenShiftIn, XReportIn, ZReportIn
+from app.models import FinanceEntry, Shift, ShiftHandover, Tenant
+from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XReportIn, ZReportIn
 
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
@@ -134,4 +134,94 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         "expected_cash": str(expected),
         "actual_cash": str(payload.actual_cash),
         "wage_amount": str(payload.wage_amount),
+    }
+
+
+@router.get("/handovers")
+def list_handovers(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    rows = (
+        db.query(ShiftHandover)
+        .filter(ShiftHandover.tenant_id == tenant.id)
+        .order_by(ShiftHandover.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": row.id,
+            "tenant_id": row.tenant_id,
+            "handed_by": row.handed_by,
+            "received_by": row.received_by,
+            "declared_cash": str(row.declared_cash),
+            "actual_cash": str(row.actual_cash) if row.actual_cash is not None else None,
+            "difference": str(row.difference) if row.difference is not None else None,
+            "status": row.status,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "accepted_at": row.accepted_at.isoformat() if row.accepted_at else None,
+        }
+        for row in rows
+    ]
+
+
+@router.post("/handovers")
+def create_handover(payload: ShiftHandoverIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    active = db.query(Shift).filter(Shift.tenant_id == tenant.id, Shift.status == "open").first()
+    if not active:
+        raise HTTPException(status_code=400, detail="Shift is closed")
+    received_by = str(payload.received_by or "").strip()
+    if not received_by:
+        raise HTTPException(status_code=400, detail="Receiver is required")
+    row = ShiftHandover(
+        tenant_id=tenant.id,
+        handed_by=user.username,
+        received_by=received_by,
+        declared_cash=payload.declared_cash,
+        status="PENDING",
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return {"success": True, "id": row.id, "status": row.status}
+
+
+@router.post("/handovers/{handover_id}/accept")
+def accept_handover(handover_id: str, payload: ShiftHandoverAcceptIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    active = db.query(Shift).filter(Shift.tenant_id == tenant.id, Shift.status == "open").first()
+    if not active:
+        raise HTTPException(status_code=400, detail="Shift is closed")
+    row = db.query(ShiftHandover).filter(ShiftHandover.id == handover_id, ShiftHandover.tenant_id == tenant.id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Handover not found")
+    if row.status != "PENDING":
+        raise HTTPException(status_code=400, detail="Handover already accepted")
+    if row.received_by != user.username:
+        raise HTTPException(status_code=403, detail="This handover is not assigned to you")
+
+    actual = Decimal(str(payload.actual_cash))
+    declared = Decimal(str(row.declared_cash))
+    difference = actual - declared
+    if difference != 0:
+        db.add(
+            FinanceEntry(
+                tenant_id=tenant.id,
+                type="in" if difference > 0 else "out",
+                category="Kassa Artığı" if difference > 0 else "Kassa Kəsiri",
+                source="cash",
+                amount=abs(difference),
+                description=f"Smeni qəbul fərqi ({row.handed_by} -> {user.username})",
+                created_by=user.username,
+            )
+        )
+
+    active.opened_by = user.username
+    row.status = "ACCEPTED"
+    row.actual_cash = actual
+    row.difference = difference
+    row.accepted_at = datetime.utcnow()
+    db.commit()
+    return {
+        "success": True,
+        "handover_id": row.id,
+        "declared_cash": str(row.declared_cash),
+        "actual_cash": str(actual),
+        "difference": str(difference),
     }

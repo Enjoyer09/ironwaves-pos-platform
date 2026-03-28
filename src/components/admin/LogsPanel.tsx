@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { clear_ui_errors, get_logs, get_ui_errors } from '../../api/logs';
+import { clear_ui_errors, get_logs_live, get_ui_errors } from '../../api/logs';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 
@@ -10,9 +10,12 @@ export default function LogsPanel() {
   const [query, setQuery] = useState('');
   const [fromDate, setFromDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
-
-  const logs = useMemo(() => get_logs(tenant_id, limit, fromDate, toDate), [tenant_id, limit, fromDate, toDate]);
+  const [logs, setLogs] = useState<any[]>([]);
   const uiErrors = useMemo(() => get_ui_errors(tenant_id, 20), [tenant_id, logs.length]);
+
+  React.useEffect(() => {
+    void get_logs_live(tenant_id, limit, fromDate, toDate).then(setLogs).catch(() => setLogs([]));
+  }, [tenant_id, limit, fromDate, toDate]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

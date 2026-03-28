@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store';
 import { analyze_business, inventory_audit, security_audit, update_api_key } from '../../api/ai_manager';
+import { update_api_key_live } from '../../api/settings';
 import { Bot, TrendingUp, ShieldAlert, PackageSearch, Loader2 } from 'lucide-react';
 import { tx } from '../../i18n';
 
@@ -16,6 +17,7 @@ export default function AIManagerPanel() {
   const saveApiKey = () => {
     localStorage.setItem('gemini_api_key', apiKey);
     update_api_key(apiKey);
+    void update_api_key_live(apiKey);
     notify('success', tx(lang, 'API Key yadda saxlanıldı!', 'API ключ сохранен!'));
   };
 

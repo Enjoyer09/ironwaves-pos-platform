@@ -3,6 +3,7 @@ import { Decimal } from 'decimal.js';
 import { logEvent } from '../lib/logger';
 import { CartItem, PaymentMethod } from '../types/pos';
 import { create_sale } from './pos';
+import { apiRequest, isBackendEnabled } from './client';
 
 import { getDB, setDB } from '../lib/db_sim';
 
@@ -208,4 +209,54 @@ export const pay_table = (
   });
 
   return { sale_id: result.sale_id, success: true };
+};
+
+export const get_tables_live = async (tenant_id: string) => {
+  if (!isBackendEnabled()) return get_tables(tenant_id);
+  return apiRequest<any[]>('/api/v1/ops/tables', { tenantId: null });
+};
+
+export const create_table_live = async (tenant_id: string, label: string, created_by: string) => {
+  if (!isBackendEnabled()) return create_table(tenant_id, label, created_by);
+  return apiRequest<any>('/api/v1/ops/tables', { method: 'POST', tenantId: null, body: { label } });
+};
+
+export const delete_table_live = async (table_id: string, deleted_by: string) => {
+  if (!isBackendEnabled()) return delete_table(table_id, deleted_by);
+  return apiRequest<{ success: boolean }>(`/api/v1/ops/tables/${encodeURIComponent(table_id)}`, { method: 'DELETE', tenantId: null });
+};
+
+export const send_to_kitchen_live = async (
+  table_id: string,
+  cart_items: CartItem[],
+  sent_by: string,
+  options?: { cup_mode?: 'paper' | 'glass' }
+) => {
+  if (!isBackendEnabled()) return send_to_kitchen(table_id, cart_items, sent_by, options);
+  return apiRequest<any>(`/api/v1/ops/tables/${encodeURIComponent(table_id)}/send-to-kitchen`, {
+    method: 'POST',
+    tenantId: null,
+    body: { cart_items, cup_mode: options?.cup_mode || 'paper' },
+  });
+};
+
+export const pay_table_live = async (
+  table_id: string,
+  payment_method: PaymentMethod,
+  paid_by: string,
+  split_cash: Decimal | null = null,
+  split_card: Decimal | null = null,
+  options?: { cup_mode?: 'paper' | 'glass' }
+) => {
+  if (!isBackendEnabled()) return pay_table(table_id, payment_method, paid_by, split_cash, split_card, options);
+  return apiRequest<any>(`/api/v1/ops/tables/${encodeURIComponent(table_id)}/pay`, {
+    method: 'POST',
+    tenantId: null,
+    body: {
+      payment_method,
+      split_cash: split_cash ? split_cash.toFixed(2) : null,
+      split_card: split_card ? split_card.toFixed(2) : null,
+      cup_mode: options?.cup_mode || 'paper',
+    },
+  });
 };

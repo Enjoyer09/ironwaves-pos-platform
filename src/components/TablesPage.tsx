@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { get_tables, create_table, delete_table, pay_table } from '../api/tables';
+import { get_tables_live, create_table_live, delete_table_live, pay_table_live } from '../api/tables';
 import { LayoutGrid, Plus, Trash2 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
@@ -30,31 +30,31 @@ export default function TablesPage() {
   const formatDisplayId = (id: string) => (id ? id.split('-')[0].toUpperCase() : '-');
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [tenant_id]);
 
-  const loadData = () => {
-    setTables(get_tables(tenant_id));
+  const loadData = async () => {
+    setTables(await get_tables_live(tenant_id));
   };
 
-  const handleAddTable = () => {
+  const handleAddTable = async () => {
     const label = newTableName.trim();
     if (!label) return;
     try {
-      create_table(tenant_id, label, user?.username || 'Staff');
+      await create_table_live(tenant_id, label, user?.username || 'Staff');
       notify('success', tx(lang, 'Masa yaradıldı', 'Стол создан'));
-      loadData();
+      await loadData();
       setShowCreate(false);
       setNewTableName('');
     } catch(e:any) { notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message); }
   };
 
-  const handleDeleteTable = (id: string) => {
+  const handleDeleteTable = async (id: string) => {
     try {
-      delete_table(id, user?.username || 'Staff');
+      await delete_table_live(id, user?.username || 'Staff');
       notify('success', tx(lang, 'Masa silindi', 'Стол удален'));
       setDeleteTableId(null);
-      loadData();
+      await loadData();
     } catch(e:any) { notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message); }
   };
 
@@ -120,7 +120,7 @@ export default function TablesPage() {
                     notify('error', tx(lang, 'Admin şifrəsi yanlışdır', 'Неверный пароль администратора'));
                     return;
                   }
-                  if (deleteTableId) handleDeleteTable(deleteTableId);
+                  if (deleteTableId) void handleDeleteTable(deleteTableId);
                   setShowDeleteAuth(false);
                   setDeleteAdminPass('');
                 }}
@@ -144,7 +144,7 @@ export default function TablesPage() {
             />
             <div className="mt-4 flex justify-end gap-2">
               <button className="neon-btn rounded-lg px-4 py-2" onClick={() => setShowCreate(false)}>{tx(lang, 'Ləğv et', 'Отмена')}</button>
-              <button className="glossy-gold rounded-lg px-4 py-2 font-semibold" onClick={handleAddTable}>{tx(lang, 'Yarat', 'Создать')}</button>
+              <button className="glossy-gold rounded-lg px-4 py-2 font-semibold" onClick={() => { void handleAddTable(); }}>{tx(lang, 'Yarat', 'Создать')}</button>
             </div>
           </div>
         </div>
@@ -187,7 +187,7 @@ export default function TablesPage() {
               <button className="neon-btn rounded-lg px-4 py-2" onClick={() => setPayTableId(null)}>{tx(lang, 'Ləğv et', 'Отмена')}</button>
               <button
                 className="glossy-gold rounded-lg px-4 py-2 font-semibold"
-                onClick={() => {
+                onClick={async () => {
                   try {
                     const table = tables.find((x) => x.id === payTableId);
                     if (!table) return;
@@ -195,7 +195,7 @@ export default function TablesPage() {
                     const total = new Decimal(table.total || 0);
                     const cash = paymentMethod === 'Split' ? new Decimal(splitCash || 0) : null;
                     const card = paymentMethod === 'Split' ? Decimal.max(new Decimal(0), total.minus(cash || 0)) : null;
-                    const result = pay_table(table.id, paymentMethod, user?.username || 'Staff', cash, card);
+                    const result = await pay_table_live(table.id, paymentMethod, user?.username || 'Staff', cash, card);
                     const sales = getDB<any>('sales');
                     const paidSale = sales.find((s) => s.id === result.sale_id);
                     const receiptCustomerId = String(paidSale?.customer_card_id || '').trim();
@@ -252,7 +252,7 @@ export default function TablesPage() {
                     notify('success', tx(lang, 'Masa hesabı bağlandı', 'Счет стола закрыт'));
                     setPayTableId(null);
                     setSplitCash('0');
-                    loadData();
+                    await loadData();
                   } catch (e: any) {
                     notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message);
                   }

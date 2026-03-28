@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as QRCode from 'qrcode';
 import { logEvent } from '../lib/logger';
 import { getDB, setDB } from '../lib/db_sim';
+import { apiRequest, isBackendEnabled } from './client';
 
 const TIER_CONFIG: Record<string, { type: string; discount: number }> = {
   golden: { type: 'Golden', discount: 5 },
@@ -14,32 +15,43 @@ const TIER_CONFIG: Record<string, { type: string; discount: number }> = {
 };
 
 export async function generate_qr_codes(tenant_id: string, count: number, customer_type: string, discount_percent: number = 0) {
-  const db = getDB<any>(`${tenant_id}_customers`) || [];
   const tier = TIER_CONFIG[customer_type.toLowerCase()] || { type: customer_type, discount: discount_percent };
   const appliedDiscount = discount_percent > 0 ? discount_percent : tier.discount;
+  const db = getDB<any>(`${tenant_id}_customers`) || [];
   
   const zip = new JSZip();
   const folder = zip.folder("qr_codes");
 
-  const newCustomers = [];
+  const newCustomers = isBackendEnabled()
+    ? await apiRequest<any[]>('/api/v1/ops/customers/qr-batch', {
+        method: 'POST',
+        tenantId: null,
+        body: { count, customer_type: tier.type, discount_percent: appliedDiscount },
+      })
+    : [];
 
-  for (let i = 0; i < count; i++) {
-    const card_id = `QR-${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`;
-    const secret_token = uuidv4();
-    
-    const customer = {
-      id: uuidv4(),
-      tenant_id,
-      card_id,
-      secret_token,
-      type: tier.type,
-      discount_percent: appliedDiscount,
-      stars: 0,
-      created_at: new Date().toISOString()
-    };
-    
-    newCustomers.push(customer);
-    db.push(customer);
+  if (!isBackendEnabled()) {
+    for (let i = 0; i < count; i++) {
+      const card_id = `QR-${Math.floor(Math.random() * 1000000).toString().padStart(6, '0')}`;
+      const secret_token = uuidv4();
+      const customer = {
+        id: uuidv4(),
+        tenant_id,
+        card_id,
+        secret_token,
+        type: tier.type,
+        discount_percent: appliedDiscount,
+        stars: 0,
+        created_at: new Date().toISOString()
+      };
+      newCustomers.push(customer);
+      db.push(customer);
+    }
+  }
+
+  for (const customer of newCustomers) {
+    const card_id = customer.card_id;
+    const secret_token = customer.secret_token;
 
     // Gerçək QR kodunu yaradırıq (DataURL olaraq)
     const url = `http://socialbee.ironwaves.store/?id=${card_id}&t=${secret_token}`;
@@ -57,7 +69,9 @@ export async function generate_qr_codes(tenant_id: string, count: number, custom
     folder?.file(`${card_id}_info.txt`, `Card ID: ${card_id}\nToken: ${secret_token}\nURL: ${url}`);
   }
 
-  setDB(`${tenant_id}_customers`, db);
+  if (!isBackendEnabled()) {
+    setDB(`${tenant_id}_customers`, db);
+  }
   logEvent('System', 'QR_GENERATED', { count, type: tier.type, discount_percent: appliedDiscount });
 
   // Browser download trick

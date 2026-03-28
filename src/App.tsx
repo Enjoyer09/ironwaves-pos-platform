@@ -10,8 +10,8 @@ import PublicReceipt from './components/PublicReceipt';
 import { LogOut, Wifi, WifiOff, Languages, RotateCcw } from 'lucide-react';
 import { seedDatabase } from './lib/seeder';
 import ToastOverlay from './components/ToastOverlay';
-import { get_business_profile } from './api/settings';
-import { get_settings } from './api/settings';
+import { get_business_profile, get_business_profile_live } from './api/settings';
+import { get_settings, get_settings_live } from './api/settings';
 import AppErrorBoundary from './components/AppErrorBoundary';
 import { logUiError } from './lib/logger';
 import { syncPendingOfflineSales } from './lib/offline';
@@ -62,6 +62,12 @@ export default function App() {
   useEffect(() => {
     seedDatabase();
   }, []);
+
+  useEffect(() => {
+    if (!hasValidUser || !user?.tenant_id) return;
+    void get_business_profile_live(user.tenant_id).catch(() => {});
+    void get_settings_live(user.tenant_id).catch(() => {});
+  }, [hasValidUser, user?.tenant_id]);
 
   const hasValidUser = Boolean(
     user &&

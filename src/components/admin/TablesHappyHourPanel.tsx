@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { get_tables, create_table, delete_table } from '../../api/tables';
-import { get_active_happy_hour, create_happy_hour, toggle_happy_hour } from '../../api/happy_hours';
+import { get_tables_live, create_table_live, delete_table_live } from '../../api/tables';
+import { get_active_happy_hour_live, create_happy_hour_live, toggle_happy_hour_live } from '../../api/happy_hours';
 import { LayoutGrid, Clock, Plus, Trash2 } from 'lucide-react';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
-import { get_logs } from '../../api/logs';
+import { get_logs_live } from '../../api/logs';
 
 export default function TablesHappyHourPanel() {
   const { user, lang } = useAppStore();
@@ -14,30 +14,30 @@ export default function TablesHappyHourPanel() {
   const [auditRows, setAuditRows] = useState<any[]>([]);
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [tenant_id]);
 
-  const loadData = () => {
-    setTables(get_tables(tenant_id));
-    setActiveHH(get_active_happy_hour());
-    const rows = get_logs(tenant_id, 300).filter((l: any) => String(l.action || '').startsWith('TABLE_'));
+  const loadData = async () => {
+    setTables(await get_tables_live(tenant_id));
+    setActiveHH(await get_active_happy_hour_live());
+    const rows = (await get_logs_live(tenant_id, 300)).filter((l: any) => String(l.action || '').startsWith('TABLE_'));
     setAuditRows(rows);
   };
 
-  const handleAddTable = () => {
+  const handleAddTable = async () => {
     const label = prompt(tx(lang, 'Yeni Masanın Adı (Məs: Masa 5):', 'Название нового стола (напр.: Стол 5):'));
     if (!label) return;
     try {
-      create_table(tenant_id, label, user?.username || 'Admin');
-      loadData();
+      await create_table_live(tenant_id, label, user?.username || 'Admin');
+      await loadData();
     } catch(e:any) { alert(tx(lang, 'Xəta: ', 'Ошибка: ') + e.message); }
   };
 
-  const handleDeleteTable = (id: string) => {
+  const handleDeleteTable = async (id: string) => {
     if(confirm(tx(lang, 'Masanı silmək istəyirsiniz?', 'Вы хотите удалить стол?'))) {
       try {
-        delete_table(id, user?.username || 'Admin');
-        loadData();
+        await delete_table_live(id, user?.username || 'Admin');
+        await loadData();
       } catch(e:any) { alert(tx(lang, 'Xəta: ', 'Ошибка: ') + e.message); }
     }
   };
@@ -48,7 +48,7 @@ export default function TablesHappyHourPanel() {
       <div>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold flex items-center gap-2"><LayoutGrid/> {tx(lang, 'Masaların İdarəsi', 'Управление столами')}</h2>
-          <button onClick={handleAddTable} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700">
+          <button onClick={() => { void handleAddTable(); }} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700">
             <Plus size={20} /> {tx(lang, 'Masa Yarat', 'Создать стол')}
           </button>
         </div>
@@ -60,7 +60,7 @@ export default function TablesHappyHourPanel() {
                 {t.is_occupied ? tx(lang, 'Dolu', 'Занято') : tx(lang, 'Boş', 'Свободно')}
               </span>
               {!t.is_occupied && (
-                <button onClick={() => handleDeleteTable(t.id)} className="absolute top-2 right-2 text-gray-400 hover:text-red-600">
+                <button onClick={() => { void handleDeleteTable(t.id); }} className="absolute top-2 right-2 text-gray-400 hover:text-red-600">
                   <Trash2 size={16}/>
                 </button>
               )}
@@ -76,7 +76,7 @@ export default function TablesHappyHourPanel() {
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold flex items-center gap-2"><Clock/> {tx(lang, 'Happy Hour (Endirim Saatları)', 'Happy Hour (часы скидок)')}</h2>
           <button onClick={() => {
-             create_happy_hour({
+             void create_happy_hour_live({
                name: 'Səhər Kofesi', 
                start_time: '08:00', 
                end_time: '11:00', 
@@ -84,9 +84,10 @@ export default function TablesHappyHourPanel() {
                days_of_week: [1,2,3,4,5], 
                categories: 'ALL',
                is_active: true
+             }).then(() => {
+               void loadData();
+               alert(tx(lang, 'Nümunə Səhər Kofesi 20% Happy Hour yaradıldı!', 'Создан пример Happy Hour: утренний кофе 20%!'));
              });
-             loadData();
-             alert(tx(lang, 'Nümunə Səhər Kofesi 20% Happy Hour yaradıldı!', 'Создан пример Happy Hour: утренний кофе 20%!'));
           }} className="bg-yellow-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-yellow-600">
             <Plus size={20} /> {tx(lang, 'Nümunə Yarat', 'Создать пример')}
           </button>
@@ -97,7 +98,14 @@ export default function TablesHappyHourPanel() {
             {activeHH && <p className="text-gray-500 text-sm">{tx(lang, 'Bitmə vaxtı', 'Окончание')}: {activeHH.end_time} • {tx(lang, 'Endirim', 'Скидка')}: {activeHH.discount_percent}%</p>}
           </div>
           {activeHH && (
-            <span className="animate-pulse bg-red-100 text-red-600 px-3 py-1 rounded-full font-bold text-sm">🔴 LIVE</span>
+            <button
+              onClick={() => {
+                void toggle_happy_hour_live(activeHH.id, false).then(() => void loadData());
+              }}
+              className="animate-pulse bg-red-100 text-red-600 px-3 py-1 rounded-full font-bold text-sm"
+            >
+              LIVE
+            </button>
           )}
         </div>
       </div>

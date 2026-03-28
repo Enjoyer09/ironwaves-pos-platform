@@ -6,6 +6,7 @@ import { Refund } from '../types/inventory';
 import { create_finance_entry } from './finance';
 import { v4 as uuidv4 } from 'uuid';
 import { filterTenantRecords } from '../lib/tenant';
+import { apiRequest, isBackendEnabled } from './client';
 
 const inDateRange = (createdAt: string, date_from: string, date_to: string) => {
   const current = new Date(createdAt).getTime();
@@ -275,4 +276,48 @@ export function update_sale_amount(
     reason,
   });
   return { success: true };
+}
+
+export async function get_sales_summary_live(tenant_id: string, date_from: string, date_to: string, cashier_filter?: string) {
+  if (!isBackendEnabled()) return get_sales_summary(tenant_id, date_from, date_to, cashier_filter);
+  const qs = new URLSearchParams({ date_from, date_to });
+  if (cashier_filter) qs.set('cashier', cashier_filter);
+  return apiRequest<any>(`/api/v1/analytics/summary?${qs.toString()}`, { tenantId: null });
+}
+
+export async function get_sales_list_live(tenant_id: string, date_from: string, date_to: string, cashier?: string) {
+  if (!isBackendEnabled()) return get_sales_list(tenant_id, date_from, date_to, cashier);
+  const qs = new URLSearchParams({ date_from, date_to });
+  if (cashier) qs.set('cashier', cashier);
+  return apiRequest<any[]>(`/api/v1/analytics/sales?${qs.toString()}`, { tenantId: null });
+}
+
+export async function void_sale_with_reason_live(
+  tenant_id: string,
+  sale_id: string,
+  reason: string,
+  actor: string,
+  return_to_stock: boolean = true,
+) {
+  if (!isBackendEnabled()) return void_sale_with_reason(tenant_id, sale_id, reason, actor, return_to_stock);
+  return apiRequest<{ success: boolean }>(`/api/v1/analytics/sales/${encodeURIComponent(sale_id)}/void`, {
+    method: 'POST',
+    tenantId: null,
+    body: { reason, return_to_stock },
+  });
+}
+
+export async function update_sale_amount_live(
+  tenant_id: string,
+  sale_id: string,
+  new_total: string,
+  reason: string,
+  actor: string,
+) {
+  if (!isBackendEnabled()) return update_sale_amount(tenant_id, sale_id, new_total, reason, actor);
+  return apiRequest<{ success: boolean }>(`/api/v1/analytics/sales/${encodeURIComponent(sale_id)}/adjust`, {
+    method: 'POST',
+    tenantId: null,
+    body: { new_total, reason },
+  });
 }

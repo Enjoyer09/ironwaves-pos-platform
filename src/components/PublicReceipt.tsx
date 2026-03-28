@@ -1,6 +1,6 @@
 import React from 'react';
-import { get_public_receipt } from '../api/pos';
-import { get_business_profile } from '../api/settings';
+import { get_public_receipt_live } from '../api/pos';
+import { get_business_profile, get_business_profile_live } from '../api/settings';
 
 type Props = {
   receiptId: string;
@@ -8,7 +8,39 @@ type Props = {
 };
 
 export default function PublicReceipt({ receiptId, token }: Props) {
-  const receipt = get_public_receipt(receiptId, token);
+  const [receipt, setReceipt] = React.useState<any | null>(null);
+  const [profile, setProfile] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const res = await get_public_receipt_live(receiptId, token);
+        if (!mounted) return;
+        setReceipt(res);
+        setProfile(await get_business_profile_live(res.tenant_id).catch(() => get_business_profile(res.tenant_id)));
+      } catch {
+        if (!mounted) return;
+        setReceipt(null);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [receiptId, token]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0f1722] p-6 text-slate-200">
+        <div className="mx-auto max-w-xl rounded-xl border border-slate-700 bg-[#101722] p-6 text-center">
+          <h1 className="text-xl font-semibold">Loading receipt...</h1>
+        </div>
+      </div>
+    );
+  }
 
   if (!receipt) {
     return (
@@ -20,8 +52,6 @@ export default function PublicReceipt({ receiptId, token }: Props) {
       </div>
     );
   }
-
-  const profile = get_business_profile(receipt.tenant_id);
 
   return (
     <div className="min-h-screen bg-[#0f1722] p-6 text-slate-200">

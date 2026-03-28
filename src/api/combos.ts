@@ -4,6 +4,8 @@ import { Decimal } from 'decimal.js';
 import { Combo } from '../types/inventory';
 import { create_menu_item, soft_delete_menu_item, get_menu_items } from './menu';
 import { get_recipe, add_recipe_ingredient } from './recipes';
+import { create_menu_item_live, get_menu_items_live, soft_delete_menu_item_live } from './menu';
+import { add_recipe_ingredient_live, get_recipe_live } from './recipes';
 
 let combos: Combo[] = [];
 
@@ -82,4 +84,51 @@ export function delete_combo(combo_name: string, user: string = 'system', tenant
 
 export function get_combo_details(combo_name: string, tenant_id: string = 'tenant_default') {
   return get_recipe(combo_name, tenant_id);
+}
+
+export async function create_combo_live(name: string, price: Decimal, selected_items: string[], user: string = 'system', tenant_id: string = 'tenant_default') {
+  if (selected_items.length < 2) {
+    throw new Error('Kombo yaratmaq üçün ən az 2 məhsul seçilməlidir.');
+  }
+  await create_menu_item_live(
+    tenant_id,
+    {
+      item_name: name,
+      price,
+      category: 'Kombolar',
+      is_coffee: false,
+    },
+    user,
+  );
+  for (const itemName of selected_items) {
+    const itemRecipes = await get_recipe_live(itemName, tenant_id);
+    for (const recipe of itemRecipes) {
+      await add_recipe_ingredient_live(
+        {
+          menu_item_name: name,
+          ingredient_name: recipe.ingredient_name,
+          quantity_required: new Decimal(recipe.quantity_required || 0),
+          unit: recipe.unit,
+          unit_cost: new Decimal(recipe.unit_cost || 0),
+          tenant_id,
+        },
+        user,
+      );
+    }
+  }
+  logEvent(user, 'COMBO_CREATED', { name, price: price.toString(), items: selected_items, backend: true });
+  return { success: true };
+}
+
+export async function delete_combo_live(combo_name: string, user: string = 'system', tenant_id: string = 'tenant_default') {
+  const menuItems = await get_menu_items_live(tenant_id);
+  const menuItem = menuItems.find((m: any) => m.item_name === combo_name);
+  if (!menuItem) throw new Error('Kombo tapılmadı');
+  await soft_delete_menu_item_live(tenant_id, menuItem.id, user);
+  logEvent(user, 'COMBO_DELETED', { name: combo_name, backend: true });
+  return true;
+}
+
+export async function get_combo_details_live(combo_name: string, tenant_id: string = 'tenant_default') {
+  return get_recipe_live(combo_name, tenant_id);
 }

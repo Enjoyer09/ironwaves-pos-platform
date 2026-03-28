@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
-import { get_sales_summary, get_sales_list, update_sale_amount, void_sale_with_reason } from '../api/analytics';
+import { get_sales_summary_live, get_sales_list_live, update_sale_amount_live, void_sale_with_reason_live } from '../api/analytics';
 import { get_menu_items_live, create_menu_item_live, soft_delete_menu_item_live } from '../api/menu';
-import { get_logs } from '../api/logs';
+import { get_logs_live } from '../api/logs';
 import { Decimal } from 'decimal.js';
 import { Plus, Trash2, TrendingUp, ShoppingBag, DollarSign } from 'lucide-react';
 import FinancePanel from './admin/FinancePanel';
@@ -86,8 +86,8 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
       from_d.setHours(0, 0, 0, 0);
       const to_d = new Date(dateTo);
       to_d.setHours(23, 59, 59, 999);
-      setSummary(get_sales_summary(tenant_id, from_d.toISOString(), to_d.toISOString()));
-      setSales(get_sales_list(tenant_id, from_d.toISOString(), to_d.toISOString()));
+      setSummary(await get_sales_summary_live(tenant_id, from_d.toISOString(), to_d.toISOString()));
+      setSales(await get_sales_list_live(tenant_id, from_d.toISOString(), to_d.toISOString()));
       return;
     }
 
@@ -97,7 +97,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     }
 
     if (activeTab === 'logs') {
-      setLogsData(get_logs(tenant_id, 250));
+      setLogsData(await get_logs_live(tenant_id, 250));
     }
   };
 
@@ -349,7 +349,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                       </button>
                       <button
                         className="glossy-gold rounded-lg px-4 py-2 font-semibold"
-                        onClick={() => {
+                        onClick={async () => {
                           if (!managerPass) return;
                           if (!verifyManagerOrAdminPass(managerPass)) {
                             notify('error', tx(lang, 'Şifrə yanlışdır', 'Неверный пароль'));
@@ -362,15 +362,15 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                                 ? `${presetReason}: ${saleReason.trim()}`
                                 : presetReason;
                               const returnToStock = voidPreset === 'TEST';
-                              void_sale_with_reason(tenant_id, saleActionModal.sale.id, finalReason, user?.username || 'admin', returnToStock);
+                              await void_sale_with_reason_live(tenant_id, saleActionModal.sale.id, finalReason, user?.username || 'admin', returnToStock);
                               notify('success', tx(lang, 'Satış VOID edildi', 'Продажа VOID выполнена'));
                             } else {
                               if (!newSaleTotal) return;
-                              update_sale_amount(tenant_id, saleActionModal.sale.id, newSaleTotal, saleReason, user?.username || 'admin');
+                              await update_sale_amount_live(tenant_id, saleActionModal.sale.id, newSaleTotal, saleReason, user?.username || 'admin');
                               notify('success', tx(lang, 'Satış düzəlişi tətbiq olundu', 'Изменение продажи применено'));
                             }
                             setSaleActionModal(null);
-                            fetchData();
+                            await fetchData();
                           } catch (e: any) {
                             notify('error', e.message);
                           }
