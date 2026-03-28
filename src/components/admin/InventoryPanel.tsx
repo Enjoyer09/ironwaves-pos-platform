@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Decimal } from 'decimal.js';
 import { get_inventory_items_live, add_inventory_item_live, record_loss_live, restock_item_live, delete_inventory_item_live } from '../../api/inventory';
+import { get_logs_live } from '../../api/logs';
 import { get_settings } from '../../api/settings';
 import { useAppStore } from '../../store';
 import { Package, AlertTriangle, Plus } from 'lucide-react';
@@ -10,6 +11,7 @@ export default function InventoryPanel() {
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [items, setItems] = useState<any[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
   const [inventoryConfig, setInventoryConfig] = useState<{ default_critical_threshold: number; unit_options: string[] }>({
     default_critical_threshold: 5,
     unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'],
@@ -20,8 +22,16 @@ export default function InventoryPanel() {
   }, []);
 
   const loadData = async () => {
-    const data = await get_inventory_items_live(tenant_id);
+    const [data, logs] = await Promise.all([
+      get_inventory_items_live(tenant_id),
+      get_logs_live(tenant_id, 200),
+    ]);
     setItems(data);
+    setHistory(
+      (logs || [])
+        .filter((row: any) => String(row.action || '').startsWith('INVENTORY_'))
+        .slice(0, 20),
+    );
     const settings = get_settings(tenant_id);
     const invSettings = settings.inventory_settings || {
       default_critical_threshold: 5,
@@ -119,6 +129,45 @@ export default function InventoryPanel() {
     return `${item.name} ${item.type} ${item.category}`.toLowerCase().includes(q);
   });
 
+  const describeHistory = (row: any) => {
+    const details = row?.details || {};
+    const action = String(row?.action || '');
+    const itemName = details.item_name || '-';
+    if (action === 'INVENTORY_ADD') {
+      return tx(
+        lang,
+        `${itemName} əlavə olundu: ${details.qty || 0} ${details.unit || ''}`,
+        `${itemName} добавлен: ${details.qty || 0} ${details.unit || ''}`,
+        `${itemName} added: ${details.qty || 0} ${details.unit || ''}`,
+      );
+    }
+    if (action === 'INVENTORY_RESTOCK') {
+      return tx(
+        lang,
+        `${itemName} mədaxil edildi: +${details.qty_added || 0} ${details.unit || ''}`,
+        `${itemName} пополнен: +${details.qty_added || 0} ${details.unit || ''}`,
+        `${itemName} restocked: +${details.qty_added || 0} ${details.unit || ''}`,
+      );
+    }
+    if (action === 'INVENTORY_LOSS') {
+      return tx(
+        lang,
+        `${itemName} silindi/zay oldu: -${details.qty_removed || 0} ${details.unit || ''}`,
+        `${itemName} списан/испорчен: -${details.qty_removed || 0} ${details.unit || ''}`,
+        `${itemName} removed/wasted: -${details.qty_removed || 0} ${details.unit || ''}`,
+      );
+    }
+    if (action === 'INVENTORY_DELETE') {
+      return tx(
+        lang,
+        `${itemName} anbardan tam silindi`,
+        `${itemName} полностью удален со склада`,
+        `${itemName} was fully deleted from inventory`,
+      );
+    }
+    return row?.action || '-';
+  };
+
   return (
     <div className="space-y-6">
       {lossModal && (
@@ -200,16 +249,16 @@ export default function InventoryPanel() {
           </div>
         </div>
       )}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h2 className="text-2xl font-bold">{tx(lang, 'Anbar İdarəetməsi', 'Управление складом', 'Inventory Management')}</h2>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 md:flex-row">
           <input
-            className="neon-input"
+            className="neon-input min-h-13"
             placeholder={tx(lang, 'Anbar axtarışı...', 'Поиск по складу...', 'Search inventory...')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <button onClick={() => setIsAdding(!isAdding)} className="neon-btn px-4 py-2 rounded-lg flex items-center gap-2">
+          <button onClick={() => setIsAdding(!isAdding)} className="neon-btn min-h-13 px-4 py-3 rounded-lg flex items-center justify-center gap-2">
             <Plus size={20} /> {tx(lang, 'Xammal Əlavə Et', 'Добавить сырье', 'Add Inventory Item')}
           </button>
         </div>
@@ -217,29 +266,29 @@ export default function InventoryPanel() {
 
       {isAdding && (
         <div className="metal-panel p-6 grid grid-cols-1 md:grid-cols-6 gap-4">
-          <input className="neon-input col-span-2" placeholder={tx(lang, 'Xammal Adı (Məs: Kofe dənəsi)', 'Название сырья (напр.: кофейное зерно)', 'Inventory name (e.g. Coffee Beans)')} value={newName} onChange={e => setNewName(e.target.value)} />
-          <select className="neon-input" value={newType} onChange={e => setNewType(e.target.value)}>
+          <input className="neon-input min-h-13 col-span-2" placeholder={tx(lang, 'Xammal Adı (Məs: Kofe dənəsi)', 'Название сырья (напр.: кофейное зерно)', 'Inventory name (e.g. Coffee Beans)')} value={newName} onChange={e => setNewName(e.target.value)} />
+          <select className="neon-input min-h-13" value={newType} onChange={e => setNewType(e.target.value)}>
             <option value="Xammal">{tx(lang, 'Xammal', 'Сырье', 'Raw Material')}</option>
             <option value="İçki Bazası">{tx(lang, 'İçki Bazası', 'Основа напитков', 'Beverage Base')}</option>
             <option value="Paketləmə">{tx(lang, 'Paketləmə', 'Упаковка', 'Packaging')}</option>
           </select>
-          <select className="neon-input" value={measureType} onChange={e => setMeasureType(e.target.value as any)}>
+          <select className="neon-input min-h-13" value={measureType} onChange={e => setMeasureType(e.target.value as any)}>
             <option value="çəki">{tx(lang, 'Çəki', 'Вес', 'Weight')}</option>
             <option value="say">{tx(lang, 'Say', 'Штуки', 'Count')}</option>
             <option value="həcm">{tx(lang, 'Həcm', 'Объем', 'Volume')}</option>
           </select>
-          <input className="neon-input" type="number" placeholder={tx(lang, 'Miqdar', 'Количество', 'Quantity')} value={newQty} onChange={e => setNewQty(e.target.value)} />
-          <select className="neon-input" value={newUnit} onChange={e => setNewUnit(e.target.value)}>
+          <input className="neon-input min-h-13" type="number" placeholder={tx(lang, 'Miqdar', 'Количество', 'Quantity')} value={newQty} onChange={e => setNewQty(e.target.value)} />
+          <select className="neon-input min-h-13" value={newUnit} onChange={e => setNewUnit(e.target.value)}>
             {(inventoryConfig.unit_options || []).map((u) => (
               <option key={u} value={u}>{u}</option>
             ))}
           </select>
-          <input className="neon-input" type="number" placeholder={tx(lang, 'Toplam alış qiyməti (₼)', 'Общая закупочная цена (₼)', 'Total purchase price (₼)')} value={newCost} onChange={e => setNewCost(e.target.value)} />
-          <input className="neon-input" type="number" placeholder={tx(lang, 'Min limit', 'Мин. лимит', 'Min limit')} value={newMinLimit} onChange={e => setNewMinLimit(e.target.value)} />
+          <input className="neon-input min-h-13" type="number" placeholder={tx(lang, 'Toplam alış qiyməti (₼)', 'Общая закупочная цена (₼)', 'Total purchase price (₼)')} value={newCost} onChange={e => setNewCost(e.target.value)} />
+          <input className="neon-input min-h-13" type="number" placeholder={tx(lang, 'Min limit', 'Мин. лимит', 'Min limit')} value={newMinLimit} onChange={e => setNewMinLimit(e.target.value)} />
           <button
             onClick={() => { void handleAdd(); }}
             disabled={!newName.trim() || Number(newQty || 0) <= 0 || Number(newCost || -1) < 0}
-            className="glossy-gold disabled:opacity-60 disabled:cursor-not-allowed px-4 py-2 rounded-lg font-semibold"
+            className="glossy-gold disabled:opacity-60 disabled:cursor-not-allowed min-h-13 px-4 py-3 rounded-lg font-semibold"
           >
             {tx(lang, 'Əlavə Et', 'Добавить', 'Add')}
           </button>
@@ -279,9 +328,9 @@ export default function InventoryPanel() {
                   </td>
                   <td className="py-3">
                     <div className="flex flex-wrap gap-2">
-                      <button onClick={() => setRestockModal({ id: item.id, name: item.name })} className="rounded border border-emerald-300/40 bg-emerald-400/10 px-2 py-1 text-xs text-emerald-200">{tx(lang, 'Mədaxil', 'Приход', 'Restock')}</button>
-                      <button onClick={() => setLossModal({ id: item.id, name: item.name })} className="rounded border border-amber-300/40 bg-amber-400/10 px-2 py-1 text-xs text-amber-200">{tx(lang, 'Məxaric', 'Расход', 'Loss')}</button>
-                      <button onClick={() => setDeleteModal({ id: item.id, name: item.name })} className="rounded border border-red-300/40 bg-red-400/10 px-2 py-1 text-xs text-red-200">{tx(lang, 'Sil', 'Удалить', 'Delete')}</button>
+                      <button onClick={() => setRestockModal({ id: item.id, name: item.name })} className="rounded-lg border border-emerald-300/40 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-200">{tx(lang, 'Mədaxil', 'Приход', 'Restock')}</button>
+                      <button onClick={() => setLossModal({ id: item.id, name: item.name })} className="rounded-lg border border-amber-300/40 bg-amber-400/10 px-3 py-2 text-xs font-semibold text-amber-200">{tx(lang, 'Məxaric', 'Расход', 'Loss')}</button>
+                      <button onClick={() => setDeleteModal({ id: item.id, name: item.name })} className="rounded-lg border border-red-300/40 bg-red-400/10 px-3 py-2 text-xs font-semibold text-red-200">{tx(lang, 'Sil', 'Удалить', 'Delete')}</button>
                     </div>
                   </td>
                 </tr>
@@ -293,6 +342,39 @@ export default function InventoryPanel() {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <div className="metal-panel p-5">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-100">{tx(lang, 'Anbar Hərəkət Tarixçəsi', 'История движения склада', 'Inventory Activity')}</h3>
+            <p className="mt-1 text-sm text-slate-400">
+              {tx(lang, 'Kim nə vaxt əlavə etdi, azaltdı və ya sildi buradan görünür.', 'Здесь видно кто, когда добавил, списал или удалил товар.', 'See who added, reduced, or deleted stock and when.')}
+            </p>
+          </div>
+        </div>
+        <div className="space-y-3">
+          {history.map((row: any) => (
+            <div key={row.id} className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div className="font-semibold text-slate-100">{describeHistory(row)}</div>
+                  <div className="mt-1 text-xs text-slate-400">
+                    {tx(lang, 'İstifadəçi', 'Пользователь', 'User')}: <b>{row.user || '-'}</b>
+                  </div>
+                </div>
+                <div className="text-xs text-slate-400">
+                  {new Date(row.created_at).toLocaleString(lang === 'ru' ? 'ru-RU' : 'az-AZ')}
+                </div>
+              </div>
+            </div>
+          ))}
+          {history.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-slate-700/70 p-5 text-sm text-slate-400">
+              {tx(lang, 'Hələ anbar hərəkəti qeydi yoxdur.', 'История склада пока пуста.', 'No inventory activity yet.')}
+            </div>
+          )}
         </div>
       </div>
     </div>
