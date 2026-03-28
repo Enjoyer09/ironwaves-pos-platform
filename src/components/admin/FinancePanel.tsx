@@ -328,6 +328,14 @@ export default function FinancePanel() {
       return `"${s.replace(/"/g, '""')}"`;
     };
 
+    const incomingTotal = filteredEntries
+      .filter((e: any) => e.type === 'in')
+      .reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0));
+    const outgoingTotal = filteredEntries
+      .filter((e: any) => e.type === 'out')
+      .reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0));
+    const netTotal = incomingTotal.minus(outgoingTotal);
+
     const header = ['created_at', 'type', 'category', 'source', 'amount', 'description'];
     const rows = filteredEntries.map((e: any) => [
       esc(e.created_at),
@@ -337,8 +345,18 @@ export default function FinancePanel() {
       esc(e.amount),
       esc(e.description),
     ]);
+    const summaryRows = [
+      [esc('SUMMARY'), esc('in_total'), esc(''), esc(''), esc(incomingTotal.toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc('out_total'), esc(''), esc(''), esc(outgoingTotal.toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc('net_total'), esc(''), esc(''), esc(netTotal.toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc('cash_balance'), esc(''), esc(''), esc(new Decimal(balance.cash_balance || 0).toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc('card_balance'), esc(''), esc(''), esc(new Decimal(balance.card_balance || 0).toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc('safe_balance'), esc(''), esc(''), esc(new Decimal(balance.safe_balance || 0).toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc('debt_balance'), esc(''), esc(''), esc(new Decimal(balance.debt_balance || 0).toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc('investor_balance'), esc(''), esc(''), esc(new Decimal(balance.investor_balance || 0).toFixed(2)), esc('')],
+    ];
     // Use semicolon delimiter + UTF-8 BOM for Excel locale compatibility.
-    const csv = [header.map(esc).join(';'), ...rows.map((r) => r.join(';'))].join('\n');
+    const csv = [header.map(esc).join(';'), ...rows.map((r) => r.join(';')), ...summaryRows.map((r) => r.join(';'))].join('\n');
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -654,6 +672,12 @@ export default function FinancePanel() {
           <button className="neon-btn rounded-lg px-3 py-2 text-xs" onClick={exportCsv}>
             {tx(lang, 'CSV Export', 'Экспорт CSV', 'CSV Export')}
           </button>
+        </div>
+        <div className="mb-3 grid grid-cols-1 gap-2 text-xs text-slate-300 md:grid-cols-4">
+          <div>{tx(lang, 'Daxil olan', 'Вход', 'Incoming')}: <b>{filteredEntries.filter((e: any) => e.type === 'in').reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0)).toFixed(2)} ₼</b></div>
+          <div>{tx(lang, 'Çıxan', 'Выход', 'Outgoing')}: <b>{filteredEntries.filter((e: any) => e.type === 'out').reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0)).toFixed(2)} ₼</b></div>
+          <div>{tx(lang, 'Net', 'Нетто', 'Net')}: <b>{filteredEntries.reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.type === 'in' ? e.amount || 0 : new Decimal(0).minus(new Decimal(e.amount || 0)))), new Decimal(0)).toFixed(2)} ₼</b></div>
+          <div>{tx(lang, 'Qeyd sayı', 'Кол-во записей', 'Entries')}: <b>{filteredEntries.length}</b></div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import FinanceEntry, MenuItem, Sale, Tenant
+from app.models import FinanceEntry, InventoryItem, MenuItem, Recipe, Sale, Tenant
 from app.schemas import SaleCreateIn, SaleCreateOut
 
 
@@ -46,6 +46,26 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
     discount = (subtotal * (Decimal(str(payload.discount_percent)) / Decimal("100"))).quantize(Decimal("0.01"))
     total = (subtotal - discount).quantize(Decimal("0.01"))
 
+    stock_ops: list[tuple[InventoryItem, Decimal]] = []
+    for item in payload.cart_items:
+        recipes = (
+            db.query(Recipe)
+            .filter(Recipe.tenant_id == tenant.id, func.lower(Recipe.menu_item_name) == str(item.item_name).lower())
+            .all()
+        )
+        for recipe in recipes:
+            inventory = (
+                db.query(InventoryItem)
+                .filter(InventoryItem.tenant_id == tenant.id, func.lower(InventoryItem.name) == str(recipe.ingredient_name).lower())
+                .first()
+            )
+            if not inventory:
+                continue
+            qty_required = (Decimal(str(recipe.quantity_required)) * Decimal(str(item.qty or 0))).quantize(Decimal("0.0001"))
+            if Decimal(str(inventory.stock_qty)) < qty_required:
+                raise HTTPException(status_code=400, detail=f"{inventory.name} üçün anbarda kifayət qədər qalıq yoxdur")
+            stock_ops.append((inventory, qty_required))
+
     receipt_code = secrets.token_hex(5).upper()
     receipt_token = secrets.token_hex(10)
 
@@ -65,6 +85,9 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
     )
     db.add(sale)
     db.flush()
+
+    for inventory, qty_required in stock_ops:
+        inventory.stock_qty = (Decimal(str(inventory.stock_qty)) - qty_required).quantize(Decimal("0.001"))
 
     payment_method = str(payload.payment_method or "").strip().lower()
     if payment_method == "split":
