@@ -54,6 +54,14 @@ def _clean_role(value: str) -> str:
     return role
 
 
+def _uses_password(role: str) -> bool:
+    return str(role or "").lower() in {"admin", "manager", "super_admin"}
+
+
+def _uses_pin(role: str) -> bool:
+    return str(role or "").lower() in {"staff", "kitchen"}
+
+
 @router.get("/users", response_model=list[UserOut])
 def list_users(
     db: Session = Depends(get_db),
@@ -101,16 +109,20 @@ def create_user(
 
     password = str(payload.password or "")
     pin = str(payload.pin or "").strip()
-    if role in {"admin", "manager"} and len(password) < 4:
+    if _uses_password(role) and len(password) < 4:
         raise HTTPException(status_code=400, detail="Password required (min 4 chars) for admin/manager")
-    if role in {"staff", "kitchen"} and (len(pin) < 4 or len(pin) > 15):
+    if _uses_pin(role) and (len(pin) < 4 or len(pin) > 15):
         raise HTTPException(status_code=400, detail="PIN required (4-15 digits) for staff/kitchen")
+    if _uses_password(role) and pin:
+        raise HTTPException(status_code=400, detail="Admin/manager accounts must use password login only")
+    if _uses_pin(role) and password:
+        raise HTTPException(status_code=400, detail="Staff/kitchen accounts must use PIN login only")
 
     row = User(
         tenant_id=tenant.id,
         username=username,
-        password_hash=hash_password(password if password else pin),
-        pin_hash=hash_password(pin) if pin else None,
+        password_hash=hash_password(password if _uses_password(role) else pin),
+        pin_hash=hash_password(pin) if _uses_pin(role) else None,
         role=role,
         is_active=True,
     )
@@ -148,6 +160,8 @@ def update_user_credentials(
     _assert_target_allowed(current_user, row.role)
 
     if payload.password is not None:
+        if not _uses_password(row.role):
+            raise HTTPException(status_code=400, detail="This role does not use password login")
         password = str(payload.password)
         if len(password) < 4:
             raise HTTPException(status_code=400, detail="Password must be at least 4 characters")
@@ -159,6 +173,8 @@ def update_user_credentials(
         row.password_hash = hash_password(password)
 
     if payload.pin is not None:
+        if not _uses_pin(row.role):
+            raise HTTPException(status_code=400, detail="This role does not use PIN login")
         pin = str(payload.pin).strip()
         if len(pin) < 4 or len(pin) > 15:
             raise HTTPException(status_code=400, detail="PIN must be 4-15 digits")
