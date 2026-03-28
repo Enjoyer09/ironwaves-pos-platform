@@ -56,13 +56,22 @@ export default function SettingsPanel() {
   };
 
   const loadData = async () => {
-    try {
-      setProfile(await get_business_profile_live(tenantId));
-      setUsers(await get_users_live(tenantId));
-      const settings = await get_settings_live(tenantId);
-      setRoleModules(settings.role_modules || defaultRoleModules);
-    } catch (e: any) {
-      notify('error', e?.message || tx(lang, 'Ayarları yükləmək alınmadı', 'Не удалось загрузить настройки', 'Failed to load settings'));
+    const [profileRes, usersRes, settingsRes] = await Promise.allSettled([
+      get_business_profile_live(tenantId),
+      get_users_live(tenantId),
+      get_settings_live(tenantId),
+    ]);
+
+    if (profileRes.status === 'fulfilled') {
+      setProfile(profileRes.value);
+    }
+    if (usersRes.status === 'fulfilled') {
+      setUsers(usersRes.value);
+    } else {
+      notify('error', usersRes.reason?.message || tx(lang, 'İstifadəçiləri yükləmək alınmadı', 'Не удалось загрузить пользователей', 'Failed to load users'));
+    }
+    if (settingsRes.status === 'fulfilled') {
+      setRoleModules(settingsRes.value.role_modules || defaultRoleModules);
     }
   };
 
@@ -335,11 +344,16 @@ export default function SettingsPanel() {
       </div>
 
       <ConfirmModal
-        isOpen={Boolean(deleteUserName)}
+        open={Boolean(deleteUserName)}
         title={tx(lang, 'İstifadəçini sil', 'Удалить пользователя', 'Delete user')}
         message={tx(lang, `"${deleteUserName || ''}" istifadəçisini silmək istəyirsiniz?`, `Удалить пользователя "${deleteUserName || ''}"?`, `Delete user "${deleteUserName || ''}"?`)}
+        lang={lang}
         onCancel={() => setDeleteUserName(null)}
-        onConfirm={() => deleteUserName && handleDeleteUser(deleteUserName)}
+        onConfirm={() => {
+          if (deleteUserName) {
+            void handleDeleteUser(deleteUserName);
+          }
+        }}
       />
     </div>
   );

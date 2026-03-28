@@ -25,6 +25,20 @@ export default function RecipesPanel() {
   const [deleteRecipeId, setDeleteRecipeId] = useState<string | null>(null);
   const [missingRecipeSet, setMissingRecipeSet] = useState<Set<string>>(new Set());
 
+  const selectedIngredientMeta = ingredients.find((i) => i.name === newIngredient) || null;
+  const suggestedQtyPlaceholder = (() => {
+    const unit = String(selectedIngredientMeta?.unit || '').toLowerCase();
+    const name = String(selectedIngredientMeta?.name || '').toLowerCase();
+    if (!unit) return tx(lang, 'Miqdar', 'Количество');
+    if ((unit.includes('kq') || unit.includes('kg')) && (name.includes('kofe') || name.includes('coffee') || name.includes('qəhvə'))) {
+      return tx(lang, 'Miqdar (məs: 0.018 kq)', 'Количество (напр.: 0.018 кг)');
+    }
+    if ((unit === 'l' || unit.includes('litr')) && (name.includes('su') || name.includes('water') || name.includes('süd') || name.includes('milk'))) {
+      return tx(lang, 'Miqdar (məs: 0.12 litr)', 'Количество (напр.: 0.12 литра)');
+    }
+    return tx(lang, `Miqdar (${selectedIngredientMeta?.unit})`, `Количество (${selectedIngredientMeta?.unit})`);
+  })();
+
   useEffect(() => {
     void (async () => {
       const menu = await get_menu_items_live(tenant_id);
@@ -216,7 +230,8 @@ export default function RecipesPanel() {
                 </select>
                     <input 
                   type="number" 
-                  placeholder={tx(lang, 'Miqdar', 'Количество')} 
+                  step="0.001"
+                  placeholder={suggestedQtyPlaceholder} 
                   value={newQty}
                   onChange={e => setNewQty(e.target.value)}
                   className="neon-input w-32"
@@ -228,6 +243,15 @@ export default function RecipesPanel() {
                   <Plus size={20} />
                 </button>
               </div>
+              {selectedIngredientMeta ? (
+                <p className="mb-4 text-xs text-slate-400">
+                  {tx(
+                    lang,
+                    `Ölçü vahidi avtomatik anbardan götürülür: ${selectedIngredientMeta.unit}. Məsələn kofe üçün 0.018 kq, süd üçün 0.12 litr yaza bilərsiniz.`,
+                    `Единица измерения автоматически берется со склада: ${selectedIngredientMeta.unit}. Например для кофе можно указать 0.018 кг, для молока 0.12 литра.`,
+                  )}
+                </p>
+              ) : null}
 
               <div className="overflow-x-auto flex-1">
                 <table className="w-full">

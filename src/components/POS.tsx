@@ -276,6 +276,25 @@ export default function POS() {
     void refreshData();
   }, [tenantId]);
 
+  useEffect(() => {
+    const handleRefresh = () => {
+      void refreshData();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshData();
+      }
+    };
+    window.addEventListener('focus', handleRefresh);
+    window.addEventListener('catalog-updated', handleRefresh as EventListener);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('focus', handleRefresh);
+      window.removeEventListener('catalog-updated', handleRefresh as EventListener);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [tenantId]);
+
   const categories = useMemo(() => ['ALL', ...Array.from(new Set(menu.map((m) => m.category)))], [menu]);
 
   const selectedTableData = useMemo(

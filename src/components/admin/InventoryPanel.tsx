@@ -53,14 +53,16 @@ export default function InventoryPanel() {
   const handleAdd = async () => {
     if (!newName || !newQty || !newCost || Number(newQty) <= 0 || Number(newCost) < 0) return;
     try {
+      const qty = new Decimal(newQty);
+      const totalPrice = new Decimal(newCost);
       await add_inventory_item_live({
         tenant_id,
         name: newName,
-        stock_qty: new Decimal(newQty),
+        stock_qty: qty,
         unit: newUnit,
         category: measureType,
         type: newType,
-        unit_cost: new Decimal(newCost),
+        unit_cost: qty.gt(0) ? totalPrice.div(qty).toDecimalPlaces(4) : new Decimal(0),
         min_limit: new Decimal(newMinLimit || 0)
       }, user?.username || 'Admin');
       setNewName('');
@@ -223,7 +225,7 @@ export default function InventoryPanel() {
               <option key={u} value={u}>{u}</option>
             ))}
           </select>
-          <input className="neon-input" type="number" placeholder={tx(lang, 'Qiyməti (₼)', 'Цена (₼)')} value={newCost} onChange={e => setNewCost(e.target.value)} />
+          <input className="neon-input" type="number" placeholder={tx(lang, 'Toplam alış qiyməti (₼)', 'Общая закупочная цена (₼)')} value={newCost} onChange={e => setNewCost(e.target.value)} />
           <input className="neon-input" type="number" placeholder={tx(lang, 'Min limit', 'Мин. лимит')} value={newMinLimit} onChange={e => setNewMinLimit(e.target.value)} />
           <button
             onClick={() => { void handleAdd(); }}
