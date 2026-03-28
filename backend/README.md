@@ -41,8 +41,10 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - Default mode is single-tenant for stability (`SINGLE_TENANT_MODE=true`).
 - In single-tenant mode, tenant is resolved from `SINGLE_TENANT_ID` (if set) or first active tenant.
 - For full multi-tenant mode, set `SINGLE_TENANT_MODE=false` and ensure domain mappings are configured.
-- Tenant is resolved from `x-tenant-domain`/`Host` in multi-tenant mode (with legacy `x-tenant-id` fallback).
-- Initial super admin is seeded from environment variables.
+- Tenant is resolved from `x-tenant-domain`/`Host` in multi-tenant mode. Legacy `x-tenant-id` fallback is disabled by default and must be explicitly enabled.
+- Initial super admin is created from environment variables if missing.
+- Existing super admin credentials are not overwritten on startup unless `RESET_SUPERADMIN_ON_STARTUP=true`.
+- Demo PIN users are not seeded unless `SEED_DEMO_USERS=true`.
 - Tenant administration endpoints require `super_admin` role.
 
 ## Smoke test
@@ -53,6 +55,6 @@ Run the backend smoke test after deploy:
 BASE_URL="https://<your-backend-domain>" \
 SUPERADMIN_USERNAME="ironwaves_owner" \
 SUPERADMIN_PASSWORD="<your-superadmin-password>" \
-TENANT_HEADER="tenant_default" \
+TENANT_DOMAIN="socialbee.ironwaves.store" \
 python scripts/smoke_test.py
 ```

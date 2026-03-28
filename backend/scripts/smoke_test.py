@@ -4,7 +4,7 @@ Usage:
   BASE_URL=http://localhost:8000 \
   SUPERADMIN_USERNAME=ironwaves_owner \
   SUPERADMIN_PASSWORD=<your-superadmin-password> \
-  TENANT_HEADER=tenant_default \
+  TENANT_DOMAIN=socialbee.ironwaves.store \
   python scripts/smoke_test.py
 """
 
@@ -64,7 +64,7 @@ def main():
     base = _env("BASE_URL", "http://localhost:8000").rstrip("/")
     username = _env("SUPERADMIN_USERNAME", "ironwaves_owner")
     password = _env("SUPERADMIN_PASSWORD", "change_this_superadmin_password")
-    tenant_header = _env("TENANT_HEADER", "tenant_default")
+    tenant_domain = _env("TENANT_DOMAIN", "socialbee.ironwaves.store")
 
     # 1) Health
     st, payload = _request("GET", f"{base}/health")
@@ -77,7 +77,7 @@ def main():
         "POST",
         f"{base}/api/v1/auth/login",
         body={"username": username, "password": password},
-        headers={"x-tenant-id": tenant_header},
+        headers={"x-tenant-domain": tenant_domain},
     )
     if st != 200:
         _fail("super admin login", st, payload)
@@ -88,7 +88,7 @@ def main():
     _ok("super admin login")
 
     auth_headers = {
-        "x-tenant-id": tenant_header,
+        "x-tenant-domain": tenant_domain,
         "Authorization": f"Bearer {access}",
     }
 
@@ -155,7 +155,7 @@ def main():
     st, payload = _request(
         "POST",
         f"{base}/api/v1/auth/logout",
-        headers={"x-tenant-id": tenant_header},
+        headers={"x-tenant-domain": tenant_domain},
         body={"refresh_token": refresh},
     )
     if st != 200:

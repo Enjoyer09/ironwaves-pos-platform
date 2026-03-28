@@ -22,6 +22,9 @@
    - `DEFAULT_TENANT_NAME`
    - `DEFAULT_TENANT_SLUG`
    - `DEFAULT_TENANT_DOMAIN`
+   - Keep `RESET_SUPERADMIN_ON_STARTUP=false` in production unless you are intentionally rotating from env
+   - Keep `SEED_DEMO_USERS=false` in production
+   - Keep `ALLOW_LEGACY_TENANT_HEADER_FALLBACK=false` in production
 4. Deploy and verify:
    - `GET /health` returns `200`.
 
@@ -34,7 +37,7 @@ cd backend
 BASE_URL="https://<your-backend-domain>" \
 SUPERADMIN_USERNAME="ironwaves_owner" \
 SUPERADMIN_PASSWORD="owner1234" \
-TENANT_HEADER="tenant_default" \
+TENANT_DOMAIN="socialbee.ironwaves.store" \
 python scripts/smoke_test.py
 ```
 
