@@ -35,6 +35,7 @@ function getSettings(tenant_id?: string): Settings {
         unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'],
       },
       print_settings: { use_qz: false, printer_name: '' },
+      qr_settings: { base_url: '' },
       omnitech_settings: {
         enabled: false,
         api_base_url: '',
@@ -144,6 +145,10 @@ export function get_settings(tenant_id?: string) {
     s.print_settings = { use_qz: false, printer_name: '' };
     saveSettings(s);
   }
+  if (!s.qr_settings) {
+    s.qr_settings = { base_url: '' };
+    saveSettings(s);
+  }
   if (!s.omnitech_settings) {
     s.omnitech_settings = {
       enabled: false,
@@ -210,6 +215,16 @@ export function update_print_settings(payload: { use_qz: boolean; printer_name: 
   return { success: true };
 }
 
+export function update_qr_settings(payload: { base_url: string }) {
+  const settings = getSettings();
+  settings.qr_settings = {
+    base_url: String(payload.base_url || '').trim(),
+  };
+  saveSettings(settings);
+  logEvent('admin', 'QR_SETTINGS_UPDATED', settings.qr_settings);
+  return { success: true };
+}
+
 export function update_omnitech_settings(payload: {
   enabled: boolean;
   api_base_url: string;
@@ -253,6 +268,13 @@ export async function get_settings_live(tenant_id?: string) {
   return data;
 }
 
+export async function update_qr_settings_live(payload: { base_url: string }) {
+  if (!isBackendEnabled()) return update_qr_settings(payload);
+  await apiRequest('/api/v1/ops/settings/qr-settings', { method: 'PATCH', tenantId: null, body: payload });
+  update_qr_settings(payload);
+  return { success: true };
+}
+
 export async function update_role_modules_live(payload: { staff: string[]; manager: string[]; kitchen: string[] }) {
   if (!isBackendEnabled()) return update_role_modules(payload);
   await apiRequest('/api/v1/ops/settings/role-modules', { method: 'PATCH', tenantId: null, body: payload });
@@ -270,11 +292,11 @@ export function get_business_profile(tenant_id?: string) {
 
   const created = {
     tenant_id: resolvedTenant,
-    company_name: 'IRONWAVES POS',
+    company_name: 'iRonWaves POS RC',
     voen: '',
     phone: '',
     address: '',
-    website: 'http://socialbee.ironwaves.store',
+    website: 'https://super.ironwaves.store',
     logo_url: '',
     receipt_footer: 'Bizi secdiyiniz ucun tesekkur edirik!'
   };

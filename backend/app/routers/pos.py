@@ -59,7 +59,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         receipt_token=receipt_token,
         total=total,
         discount_amount=discount,
-        items_json=json.dumps([i.model_dump() for i in payload.cart_items], ensure_ascii=False),
+        items_json=json.dumps([i.model_dump(mode="json") for i in payload.cart_items], ensure_ascii=False),
         status="COMPLETED",
         created_at=datetime.utcnow(),
     )

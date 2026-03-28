@@ -68,7 +68,7 @@ export default function PinLogin() {
   return (
     <div className="metal-app flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-xl">
-        <h1 className="mb-8 text-center text-5xl font-black tracking-wide text-slate-100">IRONWAVES POS</h1>
+        <h1 className="mb-8 text-center text-5xl font-black tracking-wide text-slate-100">iRonWaves POS RC</h1>
         <div className="mx-auto mb-4 max-w-md">
           <select
             value={lang}

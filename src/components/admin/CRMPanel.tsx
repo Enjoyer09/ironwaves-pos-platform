@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { generate_qr_codes } from '../../api/qr_generator';
-import { get_customers_live } from '../../api/crm';
+import { get_customers_live, import_customers_live } from '../../api/crm';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 
@@ -20,6 +20,7 @@ export default function CRMPanel() {
   const [count, setCount] = useState(1);
   const [tier, setTier] = useState('golden');
   const [loading, setLoading] = useState(false);
+  const [importText, setImportText] = useState('');
 
   const selectedTier = useMemo(() => QR_TYPES.find((t) => t.value === tier) || QR_TYPES[0], [tier]);
 
@@ -46,6 +47,36 @@ export default function CRMPanel() {
       notify('error', error?.message || tx(lang, 'QR yaratma zamanı xəta', 'Ошибка при создании QR'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onImportLegacy = async () => {
+    const rows = importText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [card_id, secret_token, type, stars, discount_percent] = line.split(',').map((part) => part?.trim() || '');
+        return {
+          card_id,
+          secret_token,
+          type: type || selectedTier.label_az.split(' ')[0],
+          stars: Number(stars || 0),
+          discount_percent: discount_percent || selectedTier.discount,
+        };
+      });
+
+    try {
+      const result = await import_customers_live(rows, tenant_id);
+      notify('success', tx(
+        lang,
+        `${result.imported} yeni, ${result.updated} yenilənmiş QR müştəri köçürüldü`,
+        `${result.imported} новых и ${result.updated} обновленных QR-клиентов импортировано`,
+      ));
+      setImportText('');
+      void loadData();
+    } catch (error: any) {
+      notify('error', error?.message || tx(lang, 'Legacy QR import xətası', 'Ошибка импорта legacy QR'));
     }
   };
 
@@ -79,6 +110,26 @@ export default function CRMPanel() {
         </div>
         <button disabled={loading} onClick={onGenerate} className="glossy-gold mt-4 rounded-xl px-5 py-3 font-bold disabled:opacity-60">
           {loading ? tx(lang, 'Yaradılır...', 'Создается...') : tx(lang, 'QR Kodları Yarat', 'Создать QR-коды')}
+        </button>
+      </div>
+
+      <div className="metal-panel p-5">
+        <h3 className="text-xl font-bold text-slate-100">{tx(lang, 'Legacy QR Köçürmə', 'Импорт legacy QR')}</h3>
+        <p className="mt-2 text-sm text-slate-300">
+          {tx(
+            lang,
+            'Hər sətrə belə yazın: kart_id,secret_token,tip,ulduz,endirim. Təkcə kart_id yazmaq da olar.',
+            'Каждая строка: card_id,secret_token,тип,звезды,скидка. Можно указать только card_id.',
+          )}
+        </p>
+        <textarea
+          value={importText}
+          onChange={(e) => setImportText(e.target.value)}
+          className="neon-input mt-3 min-h-36 w-full"
+          placeholder={'QR-100001,abc123,Golden,12,5\nQR-100002'}
+        />
+        <button onClick={() => { void onImportLegacy(); }} className="glossy-gold mt-4 rounded-xl px-5 py-3 font-bold">
+          {tx(lang, 'Legacy QR-ları Köçür', 'Импортировать legacy QR')}
         </button>
       </div>
 

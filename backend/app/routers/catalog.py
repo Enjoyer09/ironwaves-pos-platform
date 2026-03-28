@@ -19,6 +19,52 @@ def _ensure_catalog_write_access(user: User):
         raise HTTPException(status_code=403, detail="Catalog write access required")
 
 
+def _normalize_unit(raw: str) -> str:
+    value = str(raw or "").strip().lower()
+    aliases = {
+        "kg": "kq",
+        "kq": "kq",
+        "qram": "qram",
+        "gr": "qram",
+        "g": "qram",
+        "l": "litr",
+        "lt": "litr",
+        "litr": "litr",
+        "liter": "litr",
+        "ml": "ml",
+        "m": "metr",
+        "metr": "metr",
+        "meter": "metr",
+        "sm": "sm",
+        "cm": "sm",
+        "eded": "ədəd",
+        "ədəd": "ədəd",
+        "adet": "ədəd",
+        "piece": "ədəd",
+    }
+    return aliases.get(value, value)
+
+
+def _convert_recipe_qty_to_inventory_unit(quantity: Decimal, from_unit: str, inventory_unit: str) -> Decimal:
+    from_normalized = _normalize_unit(from_unit)
+    inventory_normalized = _normalize_unit(inventory_unit)
+    if not from_normalized or from_normalized == inventory_normalized:
+        return quantity
+
+    conversions = {
+        ("qram", "kq"): Decimal("0.001"),
+        ("kq", "qram"): Decimal("1000"),
+        ("ml", "litr"): Decimal("0.001"),
+        ("litr", "ml"): Decimal("1000"),
+        ("sm", "metr"): Decimal("0.01"),
+        ("metr", "sm"): Decimal("100"),
+    }
+    factor = conversions.get((from_normalized, inventory_normalized))
+    if factor is None:
+        raise HTTPException(status_code=400, detail=f"{from_unit} vahidi {inventory_unit} ilə uyğun deyil")
+    return quantity * factor
+
+
 class InventoryItemOut(BaseModel):
     id: str
     tenant_id: str
@@ -388,7 +434,11 @@ def create_recipe_ingredient(
         tenant_id=tenant.id,
         menu_item_name=menu_item_name,
         ingredient_name=inventory.name,
-        quantity_required=Decimal(str(payload.quantity_required)).quantize(Decimal("0.0001")),
+        quantity_required=_convert_recipe_qty_to_inventory_unit(
+            Decimal(str(payload.quantity_required)),
+            str(payload.quantity_unit or inventory.unit),
+            str(inventory.unit),
+        ).quantize(Decimal("0.0001")),
     )
     db.add(row)
     db.commit()

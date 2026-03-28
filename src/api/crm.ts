@@ -100,3 +100,55 @@ export async function get_customers_live(tenant_id?: string) {
   if (!isBackendEnabled()) return getDB<any>(`${tenantId}_customers`) || [];
   return apiRequest<any[]>('/api/v1/ops/customers', { tenantId: null });
 }
+
+export async function import_customers_live(
+  rows: Array<{ card_id: string; secret_token?: string; type?: string; stars?: number; discount_percent?: number | string }>,
+  tenant_id?: string,
+) {
+  const tenantId = tenant_id || defaultTenant();
+  const normalized = rows
+    .map((row) => ({
+      card_id: String(row.card_id || '').trim(),
+      secret_token: String(row.secret_token || '').trim() || undefined,
+      type: String(row.type || 'Golden').trim() || 'Golden',
+      stars: Math.max(0, Number(row.stars || 0)),
+      discount_percent: String(row.discount_percent ?? 0),
+    }))
+    .filter((row) => row.card_id.length >= 2);
+
+  if (!normalized.length) {
+    throw new Error('Import üçün ən azı 1 düzgün kart ID lazımdır');
+  }
+
+  if (!isBackendEnabled()) {
+    const customers = getDB<any>(`${tenantId}_customers`) || [];
+    normalized.forEach((row) => {
+      const existing = customers.find((c: any) => String(c.card_id || '').toLowerCase() === row.card_id.toLowerCase());
+      if (existing) {
+        existing.secret_token = row.secret_token || existing.secret_token;
+        existing.type = row.type;
+        existing.stars = row.stars;
+        existing.discount_percent = row.discount_percent;
+      } else {
+        customers.push({
+          id: uuidv4(),
+          tenant_id: tenantId,
+          card_id: row.card_id,
+          secret_token: row.secret_token || uuidv4(),
+          type: row.type,
+          stars: row.stars,
+          discount_percent: row.discount_percent,
+          created_at: new Date().toISOString(),
+        });
+      }
+    });
+    setDB(`${tenantId}_customers`, customers);
+    return { success: true, imported: normalized.length, updated: 0 };
+  }
+
+  return apiRequest<{ success: boolean; imported: number; updated: number }>('/api/v1/ops/customers/import', {
+    method: 'POST',
+    tenantId: null,
+    body: normalized,
+  });
+}

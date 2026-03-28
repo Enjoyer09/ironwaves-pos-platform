@@ -122,10 +122,10 @@ export const seedDatabase = () => {
   if (businessProfile.length === 0) {
     setDB('business_profile', [{
       tenant_id,
-      company_name: 'IRONWAVES POS',
+      company_name: 'iRonWaves POS RC',
       voen: '1234567891',
       phone: '+994 50 123 45 67',
-      website: 'http://socialbee.ironwaves.store',
+      website: 'https://super.ironwaves.store',
       logo_url: '',
       receipt_footer: 'Bizi secdiyiniz ucun tesekkur edirik!'
     }]);

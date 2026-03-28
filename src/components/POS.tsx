@@ -489,7 +489,7 @@ export default function POS() {
               .toFixed(2)} ₼</td></tr>`,
         )
         .join('');
-      const configuredBase = String(businessProfile?.website || '').trim();
+      const configuredBase = String(get_settings(tenantId).qr_settings?.base_url || businessProfile?.website || '').trim();
       const baseUrl = (configuredBase || window.location.origin).replace(/\/+$/, '');
       const receiptRef = (sale as any).receipt_code || sale.sale_id;
       const receiptUrl = `${baseUrl}/?r=${encodeURIComponent(receiptRef)}&t=${encodeURIComponent((sale as any).receipt_token || '')}`;

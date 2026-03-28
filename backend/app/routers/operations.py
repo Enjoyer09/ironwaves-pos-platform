@@ -113,6 +113,14 @@ class QrBatchIn(BaseModel):
     discount_percent: Decimal = Decimal("0")
 
 
+class CustomerImportRowIn(BaseModel):
+    card_id: str
+    secret_token: str | None = None
+    type: str = "Golden"
+    stars: int = 0
+    discount_percent: Decimal = Decimal("0")
+
+
 class LogEventIn(BaseModel):
     user: str
     action: str
@@ -142,6 +150,7 @@ def get_app_settings(
         },
     )
     print_settings = _setting_value(db, tenant.id, "print_settings", {"use_qz": False, "printer_name": ""})
+    qr_settings = _setting_value(db, tenant.id, "qr_settings", {"base_url": f"https://{tenant.domain}"})
     email_settings = _setting_value(
         db,
         tenant.id,
@@ -163,6 +172,7 @@ def get_app_settings(
         "bank_commission": {"min_amount": 0.10, "percent": 1.5},
         "inventory_settings": inventory_settings,
         "print_settings": print_settings,
+        "qr_settings": qr_settings,
         "omnitech_settings": omnitech_settings,
         "role_modules": role_modules,
         "gemini_api_key": _setting_value(db, tenant.id, "gemini_api_key", ""),
@@ -191,6 +201,20 @@ def update_gemini_key(
 ):
     _ensure_admin(user)
     _set_setting_value(db, tenant.id, "gemini_api_key", str(payload.get("api_key") or ""))
+    db.commit()
+    return {"success": True}
+
+
+@router.patch("/settings/qr-settings")
+def update_qr_settings(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    base_url = str(payload.get("base_url") or "").strip()
+    _set_setting_value(db, tenant.id, "qr_settings", {"base_url": base_url})
     db.commit()
     return {"success": True}
 
@@ -607,6 +631,50 @@ def create_qr_batch(
         )
     db.commit()
     return created
+
+
+@router.post("/customers/import")
+def import_customers(
+    payload: list[CustomerImportRowIn],
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_manager(user)
+    imported = 0
+    updated = 0
+    for row in payload:
+        card_id = str(row.card_id or "").strip()
+        if len(card_id) < 2:
+            continue
+        customer = (
+            db.query(Customer)
+            .filter(Customer.tenant_id == tenant.id, func.lower(Customer.card_id) == card_id.lower())
+            .first()
+        )
+        if customer:
+            customer.type = str(row.type or customer.type or "Golden").strip() or "Golden"
+            customer.stars = max(0, int(row.stars or 0))
+            customer.discount_percent = Decimal(str(row.discount_percent or 0)).quantize(Decimal("0.01"))
+            if str(row.secret_token or "").strip():
+                customer.secret_token = str(row.secret_token).strip()
+            updated += 1
+            continue
+
+        db.add(
+            Customer(
+                tenant_id=tenant.id,
+                card_id=card_id,
+                secret_token=str(row.secret_token or secrets.token_hex(16)).strip(),
+                type=str(row.type or "Golden").strip() or "Golden",
+                stars=max(0, int(row.stars or 0)),
+                discount_percent=Decimal(str(row.discount_percent or 0)).quantize(Decimal("0.01")),
+            )
+        )
+        imported += 1
+
+    db.commit()
+    return {"success": True, "imported": imported, "updated": updated}
 
 
 @router.get("/logs")

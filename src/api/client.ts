@@ -62,11 +62,17 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
     headers.Authorization = `Bearer ${access_token}`;
   }
 
-  const res = await fetch(`${base}${path}`, {
-    method: options.method || 'GET',
-    headers,
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${base}${path}`, {
+      method: options.method || 'GET',
+      headers,
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Backendə qoşulma alınmadı (${options.method || 'GET'} ${path}): ${message}`);
+  }
 
   const text = await res.text();
   const data = text ? (() => {

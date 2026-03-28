@@ -138,6 +138,18 @@ const normalizeQtyForUnit = (menuName: string, ingredient: any, rawQty: number) 
   return qty;
 };
 
+export function getRecipeEntryUnitOptions(baseUnit: string): string[] {
+  const unit = String(baseUnit || '').trim().toLowerCase();
+  if (unit === 'kq' || unit === 'kg') return ['qram', 'kq'];
+  if (unit === 'litr' || unit === 'l' || unit === 'liter') return ['ml', 'litr'];
+  if (unit === 'metr' || unit === 'm') return ['sm', 'metr'];
+  return [String(baseUnit || '').trim() || 'ədəd'];
+}
+
+export function getDefaultRecipeEntryUnit(baseUnit: string): string {
+  return getRecipeEntryUnitOptions(baseUnit)[0] || String(baseUnit || '').trim() || 'ədəd';
+}
+
 export function get_recipe(menu_item_name: string, tenant_id: string = 'tenant_default') {
   return getRecipes(tenant_id).filter((r) => r.menu_item_name === menu_item_name);
 }
@@ -153,6 +165,7 @@ export function add_recipe_ingredient(data: {
   quantity_required: Decimal;
   unit: string;
   unit_cost: Decimal;
+  quantity_unit?: string;
   tenant_id?: string;
 }, user: string = 'system') {
   
@@ -181,6 +194,7 @@ export async function add_recipe_ingredient_live(data: {
   quantity_required: Decimal;
   unit: string;
   unit_cost: Decimal;
+  quantity_unit?: string;
   tenant_id?: string;
 }, user: string = 'system') {
   if (!isBackendEnabled()) return add_recipe_ingredient(data, user);
@@ -191,6 +205,7 @@ export async function add_recipe_ingredient_live(data: {
       menu_item_name: data.menu_item_name,
       ingredient_name: data.ingredient_name,
       quantity_required: new Decimal(data.quantity_required).toFixed(4),
+      quantity_unit: data.quantity_unit || data.unit,
     },
   });
 }

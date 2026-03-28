@@ -69,6 +69,7 @@ class RecipeIngredientCreateIn(BaseModel):
     menu_item_name: str
     ingredient_name: str
     quantity_required: Decimal
+    quantity_unit: str | None = None
 
 
 class SaleItemIn(BaseModel):
