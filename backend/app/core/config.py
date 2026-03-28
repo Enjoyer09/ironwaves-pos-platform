@@ -25,6 +25,20 @@ class Settings(BaseSettings):
     default_tenant_name: str = "Social Bee"
     default_tenant_domain: str = "socialbee.ironwaves.store"
 
+    demo_tenant_enabled: bool = False
+    demo_tenant_slug: str = "demo"
+    demo_tenant_name: str = "iRonWaves Demo"
+    demo_tenant_domain: str = "demo.ironwaves.store"
+    reset_demo_users_on_startup: bool = True
+    demo_admin_username: str = "demo_admin"
+    demo_admin_password: str = "Demo1234!"
+    demo_manager_username: str = "demo_manager"
+    demo_manager_password: str = "Demo1234!"
+    demo_staff_username: str = "demo_staff"
+    demo_staff_pin: str = "1111"
+    demo_kitchen_username: str = "demo_kitchen"
+    demo_kitchen_pin: str = "2222"
+
     resend_api_key: str | None = None
     email_from: str = "no-reply@ironwaves.store"
 

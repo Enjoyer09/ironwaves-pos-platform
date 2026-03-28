@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db import Base, engine, SessionLocal
-from app.models import Tenant, User
+from app.models import BusinessProfile, InventoryItem, MenuItem, Recipe, Setting, Table, Tenant, User
 from app.routers import analytics_api, auth, catalog, finance, operations, pos, reports, settings as settings_router, tenants
 from app.security import hash_password
 
@@ -98,6 +98,114 @@ def _seed_initial_data(db: Session):
     db.commit()
 
 
+def _ensure_demo_user(
+    db: Session,
+    tenant_id: str,
+    username: str,
+    password: str,
+    role: str,
+    pin: str | None = None,
+):
+    row = db.query(User).filter(User.tenant_id == tenant_id, User.username == username).first()
+    if not row:
+        row = User(
+            tenant_id=tenant_id,
+            username=username,
+            email=None,
+            password_hash=hash_password(password),
+            pin_hash=hash_password(pin or password) if pin or role in {"staff", "kitchen"} else None,
+            role=role,
+            is_active=True,
+        )
+        db.add(row)
+        return
+
+    if settings.reset_demo_users_on_startup:
+        row.password_hash = hash_password(password)
+        row.pin_hash = hash_password(pin or password) if pin or role in {"staff", "kitchen"} else row.pin_hash
+        row.role = role
+        row.is_active = True
+        row.failed_attempts = 0
+        row.locked_until = None
+
+
+def _seed_demo_tenant(db: Session):
+    if not settings.demo_tenant_enabled:
+        return
+
+    tenant = db.query(Tenant).filter(Tenant.slug == settings.demo_tenant_slug).first()
+    if not tenant:
+        tenant = Tenant(
+            name=settings.demo_tenant_name,
+            slug=settings.demo_tenant_slug,
+            domain=settings.demo_tenant_domain,
+            status="active",
+            created_at=datetime.utcnow(),
+        )
+        db.add(tenant)
+        db.flush()
+
+    _ensure_demo_user(db, tenant.id, settings.demo_admin_username, settings.demo_admin_password, "admin")
+    _ensure_demo_user(db, tenant.id, settings.demo_manager_username, settings.demo_manager_password, "manager")
+    _ensure_demo_user(db, tenant.id, settings.demo_staff_username, settings.demo_staff_pin, "staff", settings.demo_staff_pin)
+    _ensure_demo_user(db, tenant.id, settings.demo_kitchen_username, settings.demo_kitchen_pin, "kitchen", settings.demo_kitchen_pin)
+
+    if db.query(MenuItem).filter(MenuItem.tenant_id == tenant.id).count() == 0:
+        db.add_all(
+            [
+                MenuItem(tenant_id=tenant.id, item_name="Espresso", category="Coffee", price="3.00", is_coffee=True, is_active=True),
+                MenuItem(tenant_id=tenant.id, item_name="Americano", category="Coffee", price="4.00", is_coffee=True, is_active=True),
+                MenuItem(tenant_id=tenant.id, item_name="Cappuccino", category="Coffee", price="4.80", is_coffee=True, is_active=True),
+                MenuItem(tenant_id=tenant.id, item_name="Cheesecake", category="Dessert", price="6.50", is_coffee=False, is_active=True),
+            ]
+        )
+
+    if db.query(Table).filter(Table.tenant_id == tenant.id).count() == 0:
+        db.add_all(
+            [
+                Table(tenant_id=tenant.id, label="Table 1", is_occupied=False, total="0", items_json="[]"),
+                Table(tenant_id=tenant.id, label="Table 2", is_occupied=False, total="0", items_json="[]"),
+                Table(tenant_id=tenant.id, label="Table 3", is_occupied=False, total="0", items_json="[]"),
+            ]
+        )
+
+    if db.query(InventoryItem).filter(InventoryItem.tenant_id == tenant.id).count() == 0:
+        db.add_all(
+            [
+                InventoryItem(tenant_id=tenant.id, name="Coffee Beans", unit="kq", category="Raw Material", stock_qty="3.000", unit_cost="18.0000", min_limit="1.000"),
+                InventoryItem(tenant_id=tenant.id, name="Milk", unit="litr", category="Raw Material", stock_qty="20.000", unit_cost="2.2000", min_limit="8.000"),
+                InventoryItem(tenant_id=tenant.id, name="Paper Cup", unit="ədəd", category="Packaging", stock_qty="150.000", unit_cost="0.1000", min_limit="60.000"),
+            ]
+        )
+
+    if db.query(Recipe).filter(Recipe.tenant_id == tenant.id).count() == 0:
+        db.add_all(
+            [
+                Recipe(tenant_id=tenant.id, menu_item_name="Espresso", ingredient_name="Coffee Beans", quantity_required="0.0180"),
+                Recipe(tenant_id=tenant.id, menu_item_name="Americano", ingredient_name="Coffee Beans", quantity_required="0.0180"),
+                Recipe(tenant_id=tenant.id, menu_item_name="Cappuccino", ingredient_name="Coffee Beans", quantity_required="0.0180"),
+                Recipe(tenant_id=tenant.id, menu_item_name="Cappuccino", ingredient_name="Milk", quantity_required="0.1800"),
+            ]
+        )
+
+    if db.query(Setting).filter(Setting.tenant_id == tenant.id, Setting.key == "qr_settings").count() == 0:
+        db.add(Setting(tenant_id=tenant.id, key="qr_settings", value=f'{{"base_url":"https://{tenant.domain}"}}'))
+
+    if not db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant.id).first():
+        db.add(
+            BusinessProfile(
+                tenant_id=tenant.id,
+                company_name=settings.demo_tenant_name,
+                website=f"https://{tenant.domain}",
+                phone="+994 00 000 00 00",
+                address="Demo Showroom",
+                receipt_footer="Demo environment for iRonWaves POS RC",
+            )
+        )
+
+    db.commit()
+
+
 def _run_startup_migrations():
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS cogs NUMERIC(12,4) DEFAULT 0"))
@@ -127,6 +235,7 @@ def on_startup():
     _run_startup_migrations()
     with SessionLocal() as db:
         _seed_initial_data(db)
+        _seed_demo_tenant(db)
 
 
 @app.get("/health")
