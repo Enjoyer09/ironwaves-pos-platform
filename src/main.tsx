@@ -10,23 +10,10 @@ createRoot(document.getElementById("root")!).render(
   </AppErrorBoundary>
 );
 
-if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    // Temporary stabilization:
-    // production clients were getting inconsistent boot behavior across browsers,
-    // so we explicitly remove older SW/caches instead of registering a new one.
-    void navigator.serviceWorker.getRegistrations().then((registrations) => {
-      registrations.forEach((registration) => {
-        void registration.unregister();
-      });
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // SW registration failure should never block app startup.
     });
-
-    if ('caches' in window) {
-      void caches.keys().then((keys) => {
-        keys.forEach((key) => {
-          void caches.delete(key);
-        });
-      });
-    }
   });
 }
