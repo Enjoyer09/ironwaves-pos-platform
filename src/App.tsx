@@ -7,6 +7,7 @@ import KDS from './components/KDS';
 import AdminPanel from './components/AdminPanel';
 import TablesPage from './components/TablesPage';
 import PublicReceipt from './components/PublicReceipt';
+import LandingPage from './components/LandingPage';
 import { LogOut, Wifi, WifiOff, Languages, RotateCcw } from 'lucide-react';
 import { seedDatabase } from './lib/seeder';
 import ToastOverlay from './components/ToastOverlay';
@@ -91,6 +92,13 @@ export default function App() {
       receiptId: params.get('r') || params.get('receipt') || params.get('sale_id') || '',
       token: params.get('t') || params.get('token') || '',
     };
+  }, []);
+
+  const hostMode = useMemo(() => {
+    if (typeof window === 'undefined') return 'app';
+    const host = window.location.host.toLowerCase();
+    if (host === 'www.ironwaves.store' || host === 'ironwaves.store') return 'landing';
+    return 'app';
   }, []);
 
   const defaultUiVisibility = { staff_show_tables: true, manager_show_tables: true, staff_show_kitchen: true };
@@ -337,6 +345,10 @@ export default function App() {
   // Public receipt route should not redirect to login even if token is missing/invalid.
   if (publicReceiptParams.receiptId) {
     return <PublicReceipt receiptId={publicReceiptParams.receiptId} token={publicReceiptParams.token} />;
+  }
+
+  if (hostMode === 'landing') {
+    return <LandingPage />;
   }
 
   if (!hasValidUser) {
