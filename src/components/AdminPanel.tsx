@@ -187,7 +187,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
             <div className="flex items-center justify-between mb-8">
               <div>
                   <h1 className="text-3xl font-bold">{tx(lang, 'İdarəetmə Paneli', 'Панель управления')}</h1>
-                  <p className="text-slate-300 mt-1">{tx(lang, 'Seçilmiş tarix aralığına görə statistika', 'Статистика за выбранный период')}</p>
+                  <p className="text-slate-300 mt-1">{tx(lang, 'Seçilmiş tarix aralığına görə statistika', 'Статистика за выбранный период', 'Statistics for the selected date range')}</p>
               </div>
               <div className="flex gap-4">
                   <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="neon-input" />
@@ -203,7 +203,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                     <DollarSign size={28} />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-slate-300">{tx(lang, 'Ümumi Gəlir', 'Общая выручка')}</p>
+                    <p className="text-sm font-medium text-slate-300">{tx(lang, 'Ümumi Gəlir', 'Общая выручка', 'Total Revenue')}</p>
                     <h3 className="text-2xl font-bold text-slate-100">{parseFloat(summary.total_revenue).toFixed(2)} ₼</h3>
                   </div>
                 </div>
@@ -212,7 +212,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                     <ShoppingBag size={28} />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-slate-300">{tx(lang, 'Satış Sayı', 'Количество продаж')}</p>
+                    <p className="text-sm font-medium text-slate-300">{tx(lang, 'Satış Sayı', 'Количество продаж', 'Sales Count')}</p>
                     <h3 className="text-2xl font-bold text-slate-100">{sales.length}</h3>
                   </div>
                 </div>
@@ -221,7 +221,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                     <TrendingUp size={28} />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-slate-300">{tx(lang, 'Xalis Mənfəət', 'Чистая прибыль')}</p>
+                    <p className="text-sm font-medium text-slate-300">{tx(lang, 'Xalis Mənfəət', 'Чистая прибыль', 'Net Profit')}</p>
                     <h3 className="text-2xl font-bold text-slate-100">{parseFloat(summary.gross_profit).toFixed(2)} ₼</h3>
                   </div>
                 </div>
@@ -238,17 +238,17 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                   <table className="w-full text-left">
                     <thead className="bg-slate-900/40 text-xs font-semibold text-slate-300 uppercase tracking-wider">
                       <tr>
-                         <th className="px-6 py-4">{tx(lang, 'Tarix/Saat', 'Дата/время')}</th>
-                         <th className="px-6 py-4">{tx(lang, 'Satan (Staff)', 'Продавец (персонал)')}</th>
-                         <th className="px-6 py-4">{tx(lang, 'Müştəri QR', 'QR клиента')}</th>
-                         <th className="px-6 py-4">{tx(lang, 'Sifariş', 'Заказ')}</th>
-                         <th className="px-6 py-4">{tx(lang, 'Ulduz', 'Звезды')}</th>
-                         <th className="px-6 py-4">{tx(lang, 'Məbləğ / Endirim', 'Сумма / скидка')}</th>
-                         <th className="px-6 py-4">{tx(lang, 'Yekun Məbləğ', 'Итоговая сумма')}</th>
-                         <th className="px-6 py-4">{tx(lang, 'Komissiya', 'Комиссия')}</th>
-                         <th className="px-6 py-4">{tx(lang, 'Üsul', 'Метод')}</th>
-                         <th className="px-6 py-4">{tx(lang, 'Status', 'Статус')}</th>
-                         <th className="px-6 py-4">{tx(lang, 'Əməliyyat', 'Действие')}</th>
+                         <th className="px-6 py-4">{tx(lang, 'Tarix/Saat', 'Дата/время', 'Date/Time')}</th>
+                         <th className="px-6 py-4">{tx(lang, 'Satan (Staff)', 'Продавец (персонал)', 'Cashier')}</th>
+                         <th className="px-6 py-4">{tx(lang, 'Müştəri QR', 'QR клиента', 'Customer QR')}</th>
+                         <th className="px-6 py-4">{tx(lang, 'Sifariş', 'Заказ', 'Order')}</th>
+                         <th className="px-6 py-4">{tx(lang, 'Ulduz', 'Звезды', 'Stars')}</th>
+                         <th className="px-6 py-4">{tx(lang, 'Məbləğ / Endirim', 'Сумма / скидка', 'Amount / Discount')}</th>
+                         <th className="px-6 py-4">{tx(lang, 'Yekun Məbləğ', 'Итоговая сумма', 'Final Total')}</th>
+                         <th className="px-6 py-4">{tx(lang, 'Komissiya', 'Комиссия', 'Fee')}</th>
+                         <th className="px-6 py-4">{tx(lang, 'Üsul', 'Метод', 'Method')}</th>
+                         <th className="px-6 py-4">{tx(lang, 'Status', 'Статус', 'Status')}</th>
+                         <th className="px-6 py-4">{tx(lang, 'Əməliyyat', 'Действие', 'Action')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700/60">
@@ -272,7 +272,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                           </td>
                           <td className="px-6 py-4">
                             <span className={`px-2 py-1 text-xs font-semibold rounded-full border ${s.status === 'VOIDED' ? 'bg-red-500/20 text-red-200 border-red-300/40' : s.status === 'PARTIAL_REFUND' ? 'bg-amber-500/20 text-amber-200 border-amber-300/40' : 'bg-emerald-500/20 text-emerald-200 border-emerald-300/40'}`}>
-                               {s.status === 'VOIDED' ? 'VOID' : s.status === 'PARTIAL_REFUND' ? 'PARTIAL' : tx(lang, 'COMPLETED', 'ЗАВЕРШЕН')}
+                               {s.status === 'VOIDED' ? 'VOID' : s.status === 'PARTIAL_REFUND' ? 'PARTIAL' : tx(lang, 'COMPLETED', 'ЗАВЕРШЕН', 'COMPLETED')}
                             </span>
                           </td>
                           <td className="px-6 py-4">
@@ -319,7 +319,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                         </tr>
                       ))}
                       {sales.length === 0 && (
-                         <tr><td colSpan={11} className="px-6 py-8 text-center text-slate-500">{tx(lang, 'Heç bir satış tapılmadı', 'Продажи не найдены')}</td></tr>
+                         <tr><td colSpan={11} className="px-6 py-8 text-center text-slate-500">{tx(lang, 'Heç bir satış tapılmadı', 'Продажи не найдены', 'No sales found')}</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -418,12 +418,12 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
         {activeTab === 'menu' && (
           <div className="metal-panel flex flex-col">
             <div className="p-6 border-b border-slate-700/70 flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-slate-100">{tx(lang, 'Menyu İdarəetməsi', 'Управление меню')}</h2>
+              <h2 className="text-2xl font-bold text-slate-100">{tx(lang, 'Menyu İdarəetməsi', 'Управление меню', 'Menu Management')}</h2>
             </div>
             
             <div className="p-6 border-b border-slate-700/70 flex gap-3 flex-wrap">
-              <input type="text" placeholder={tx(lang, 'Ad', 'Название')} value={newItemName} onChange={e => setNewItemName(e.target.value)} className="neon-input min-w-[150px]"/>
-              <input type="number" placeholder={tx(lang, 'Qiymət', 'Цена')} value={newItemPrice} onChange={e => setNewItemPrice(e.target.value)} className="neon-input w-28"/>
+              <input type="text" placeholder={tx(lang, 'Ad', 'Название', 'Name')} value={newItemName} onChange={e => setNewItemName(e.target.value)} className="neon-input min-w-[150px]"/>
+              <input type="number" placeholder={tx(lang, 'Qiymət', 'Цена', 'Price')} value={newItemPrice} onChange={e => setNewItemPrice(e.target.value)} className="neon-input w-28"/>
               <select value={newItemCategory} onChange={e => setNewItemCategory(e.target.value)} className="neon-input w-40">
                 {Array.from(new Set(['Qəhvə', 'Şirniyyat', 'Sular', ...menu.map((m) => m.category)])).map((cat) => (
                   <option key={cat} value={cat}>{cat}</option>
@@ -439,8 +439,13 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                   className="neon-input w-40"
                 />
               )}
-              <button onClick={() => { void handleAddMenu(); }} className="glossy-gold px-4 py-2 rounded-xl transition-colors flex items-center">
+              <button
+                onClick={() => { void handleAddMenu(); }}
+                disabled={!newItemName.trim() || !newItemPrice || (newItemCategory === '__custom__' && !customCategory.trim())}
+                className="glossy-gold px-4 py-2 rounded-xl transition-colors flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
                 <Plus size={20} />
+                {tx(lang, 'Məhsulu Yarat', 'Создать товар', 'Create Item')}
               </button>
             </div>
 
