@@ -525,27 +525,27 @@ export default function POS() {
             <div class="muted">Tel: ${businessProfile?.phone || '-'}</div>
             <div class="muted">${businessProfile?.address || '-'}</div>
             <hr />
-            <div class="line"><span>${tx(lang, 'Satış ID', 'ID продажи')}</span><span>${formatDisplayId(sale.sale_id)}</span></div>
-            <div class="line"><span>${tx(lang, 'Operator', 'Оператор')}</span><span>${user.username}</span></div>
-            <div class="line"><span>${tx(lang, 'Tarix', 'Дата')}</span><span>${new Date().toLocaleString()}</span></div>
-            <div class="line"><span>${tx(lang, 'Tip', 'Тип')}</span><span>${ctx.orderType}</span></div>
+            <div class="line"><span>${tx(lang, 'Satış ID', 'ID продажи', 'Sale ID')}</span><span>${formatDisplayId(sale.sale_id)}</span></div>
+            <div class="line"><span>${tx(lang, 'Operator', 'Оператор', 'Operator')}</span><span>${user.username}</span></div>
+            <div class="line"><span>${tx(lang, 'Tarix', 'Дата', 'Date')}</span><span>${new Date().toLocaleString()}</span></div>
+            <div class="line"><span>${tx(lang, 'Tip', 'Тип', 'Type')}</span><span>${ctx.orderType}</span></div>
             <div style="margin-top:8px;text-align:center">${barcodeSvg || ''}</div>
             <div class="muted" style="text-align:center">SALE:${formatDisplayId(sale.sale_id)}</div>
             <hr />
             <table style="width:100%;font-size:13px">${lines}</table>
             <hr />
-            <div class="line"><span>${tx(lang, 'Ara cəm', 'Промежуточный итог')}</span><span>${saleRaw.toFixed(2)} ₼</span></div>
-            <div class="line"><span>${tx(lang, 'Endirim', 'Скидка')}</span><span>- ${saleDiscount.toFixed(2)} ₼</span></div>
-            ${saleFreeCoffees > 0 ? `<div class="line"><span>${tx(lang, 'Pulsuz kofe', 'Бесплатный кофе')}</span><span>${saleFreeCoffees}</span></div>` : ''}
+            <div class="line"><span>${tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span><span>${saleRaw.toFixed(2)} ₼</span></div>
+            <div class="line"><span>${tx(lang, 'Endirim', 'Скидка', 'Discount')}</span><span>- ${saleDiscount.toFixed(2)} ₼</span></div>
+            ${saleFreeCoffees > 0 ? `<div class="line"><span>${tx(lang, 'Pulsuz kofe', 'Бесплатный кофе', 'Free coffee')}</span><span>${saleFreeCoffees}</span></div>` : ''}
             ${receiptCustomerId ? `<div class="line"><span>${tx(lang, 'Müştəri ID', 'ID клиента', 'Customer ID')}</span><span>${receiptCustomerId}</span></div>` : ''}
             ${receiptCustomerId ? `<div class="line"><span>${tx(lang, 'Ulduz balansı', 'Баланс звезд', 'Star Balance')}</span><span>${receiptStarsAfter}</span></div>` : ''}
-            <div class="line bold" style="font-size:13px"><span>${tx(lang, 'Yekun', 'Итого')}</span><span>${saleFinal.toFixed(2)} ₼</span></div>
+            <div class="line bold" style="font-size:13px"><span>${tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>${saleFinal.toFixed(2)} ₼</span></div>
             <hr />
             <div style="display:flex;justify-content:center;margin:8px 0 6px 0">
               <img src="${qrDataUrl}" alt="receipt qr" style="width:108px;height:108px" />
             </div>
             <hr />
-            <div class="muted">${businessProfile?.receipt_footer || tx(lang, 'Bizi seçdiyiniz üçün təşəkkür edirik!', 'Спасибо, что выбрали нас!')}</div>
+            <div class="muted">${businessProfile?.receipt_footer || tx(lang, 'Bizi seçdiyiniz üçün təşəkkür edirik!', 'Спасибо, что выбрали нас!', 'Thank you for choosing us!')}</div>
           </body>
         </html>
       `);
@@ -561,7 +561,7 @@ export default function POS() {
       void refreshData();
     } catch (error: any) {
         logUiError(tenantId, 'pos', error?.message || String(error), { phase: 'checkout_create_sale' });
-        notify('error', error?.message || tx(lang, 'Satış zamanı xəta baş verdi', 'Ошибка при продаже'));
+        notify('error', error?.message || tx(lang, 'Satış zamanı xəta baş verdi', 'Ошибка при продаже', 'An error occurred during the sale'));
     } finally {
       setIsLoading(false);
     }
@@ -579,10 +579,10 @@ export default function POS() {
       clearCart(activeCart);
       patchCtx({ kitchenSent: true });
       void refreshData();
-      notify('success', tx(lang, 'Sifariş mətbəxə göndərildi. Ödəniş üçün masa seçimi saxlanıldı.', 'Заказ отправлен на кухню. Для оплаты стол сохранен.'));
+      notify('success', tx(lang, 'Sifariş mətbəxə göndərildi. Ödəniş üçün masa seçimi saxlanıldı.', 'Заказ отправлен на кухню. Для оплаты стол сохранен.', 'Order sent to the kitchen. The table remains open for payment.'));
     } catch (error: any) {
       logUiError(tenantId, 'pos', error?.message || String(error), { phase: 'send_to_kitchen' });
-      notify('error', error?.message || tx(lang, 'Mətbəxə göndərmə alınmadı', 'Не удалось отправить на кухню'));
+      notify('error', error?.message || tx(lang, 'Mətbəxə göndərmə alınmadı', 'Не удалось отправить на кухню', 'Failed to send the order to the kitchen'));
     }
   };
 
@@ -593,21 +593,21 @@ export default function POS() {
     const customers = getDB<any>(`${tenantId}_customers`) || [];
     const found = customers.find((c: any) => c.card_id === extracted);
     if (!found) {
-      notify('error', tx(lang, 'Müştəri tapılmadı', 'Клиент не найден'));
+      notify('error', tx(lang, 'Müştəri tapılmadı', 'Клиент не найден', 'Customer not found'));
       return;
     }
     patchCtx({ customer: found });
-    notify('success', tx(lang, 'Müştəri tapıldı', 'Клиент найден'));
+    notify('success', tx(lang, 'Müştəri tapıldı', 'Клиент найден', 'Customer found'));
   };
 
   const printReceiptOnly = async () => {
     if (printSettings.use_qz && receiptHtml) {
       try {
         await qzPrintHtml(receiptHtml, printSettings.printer_name);
-        notify('success', tx(lang, 'QZ Tray ilə çap göndərildi', 'Печать отправлена через QZ Tray'));
+        notify('success', tx(lang, 'QZ Tray ilə çap göndərildi', 'Печать отправлена через QZ Tray', 'Print job sent via QZ Tray'));
         return;
       } catch (e: any) {
-        notify('error', tx(lang, `QZ çap alınmadı, brauzerə keçilir: ${e.message || e}`, `QZ печать не удалась, переход к печати браузера: ${e.message || e}`));
+        notify('error', tx(lang, `QZ çap alınmadı, brauzerə keçilir: ${e.message || e}`, `QZ печать не удалась, переход к печати браузера: ${e.message || e}`, `QZ printing failed, falling back to browser printing: ${e.message || e}`));
       }
     }
     const frame = receiptIframeRef.current;
@@ -621,19 +621,19 @@ export default function POS() {
       <div className="h-full w-full flex items-center justify-center bg-[#121922] p-6">
         <div className="w-full max-w-2xl rounded-2xl border border-slate-700 bg-[#101722] p-4">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-slate-100">{tx(lang, 'Çek Hazırdır', 'Чек готов')}</h3>
+            <h3 className="text-lg font-semibold text-slate-100">{tx(lang, 'Çek Hazırdır', 'Чек готов', 'Receipt Ready')}</h3>
             <div className="flex gap-2">
               <button
                 onClick={printReceiptOnly}
                 className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-semibold text-slate-900"
               >
-                {tx(lang, 'Çap Et', 'Печать')}
+                {tx(lang, 'Çap Et', 'Печать', 'Print')}
               </button>
               <button
                 onClick={() => setReceiptHtml(null)}
                 className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200"
               >
-                {tx(lang, 'Bağla', 'Закрыть')}
+                {tx(lang, 'Bağla', 'Закрыть', 'Close')}
               </button>
             </div>
           </div>
@@ -897,7 +897,7 @@ export default function POS() {
             </div>
             {cart.length === 0 && selectedTableData?.is_occupied && (
               <div className="rounded-md border border-amber-400/40 bg-amber-400/10 p-2 text-xs text-amber-200">
-                {tx(lang, 'Masa sifarişi mətbəxə göndərilib. Bu məbləğ masanın açıq hesabıdır.', 'Заказ стола отправлен на кухню. Эта сумма — открытый счет стола.')}
+                {tx(lang, 'Masa sifarişi mətbəxə göndərilib. Bu məbləğ masanın açıq hesabıdır.', 'Заказ стола отправлен на кухню. Эта сумма — открытый счет стола.', 'The table order has been sent to the kitchen. This amount is the open table balance.')}
               </div>
             )}
             {ctx.customer && (
@@ -986,7 +986,7 @@ export default function POS() {
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4">
           <div className="metal-panel w-full max-w-md p-5">
             <h3 className="text-lg font-bold text-slate-100">{variantPicker.base}</h3>
-            <p className="mt-1 text-sm text-slate-300">{tx(lang, 'Ölçü seçin', 'Выберите размер')}</p>
+            <p className="mt-1 text-sm text-slate-300">{tx(lang, 'Ölçü seçin', 'Выберите размер', 'Choose a size')}</p>
             <div className="mt-4 space-y-2">
               {variantPicker.items.map((item) => {
                 const { variant } = splitVariantName(item.item_name);
@@ -1006,7 +1006,7 @@ export default function POS() {
               })}
             </div>
             <button className="mt-4 w-full rounded-lg border border-slate-600 px-4 py-2 text-sm" onClick={() => setVariantPicker(null)}>
-              {tx(lang, 'Bağla', 'Закрыть')}
+              {tx(lang, 'Bağla', 'Закрыть', 'Close')}
             </button>
           </div>
         </div>

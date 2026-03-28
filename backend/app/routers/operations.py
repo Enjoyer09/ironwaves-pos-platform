@@ -2,6 +2,8 @@ import json
 import secrets
 from datetime import datetime
 from decimal import Decimal
+from urllib import request as urllib_request
+from urllib.error import HTTPError, URLError
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -219,6 +221,22 @@ class LogEventIn(BaseModel):
     details: dict | str | None = None
 
 
+class EmailSettingsIn(BaseModel):
+    enabled: bool = False
+    provider: str = "none"
+    resend_api_key: str = ""
+    sender_email: str = ""
+    recipient_emails: list[str] = []
+    webhook_url: str = ""
+    timeout_sec: int = 15
+
+
+class SendEmailIn(BaseModel):
+    subject: str
+    html: str
+    recipients: list[str] | None = None
+
+
 @router.get("/settings")
 def get_app_settings(
     db: Session = Depends(get_db),
@@ -309,6 +327,109 @@ def update_qr_settings(
     _set_setting_value(db, tenant.id, "qr_settings", {"base_url": base_url})
     db.commit()
     return {"success": True}
+
+
+@router.patch("/settings/email-settings")
+def update_email_settings(
+    payload: EmailSettingsIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    cleaned = {
+        "enabled": bool(payload.enabled),
+        "provider": str(payload.provider or "none").strip().lower(),
+        "resend_api_key": str(payload.resend_api_key or "").strip(),
+        "sender_email": str(payload.sender_email or "").strip(),
+        "recipient_emails": [str(v or "").strip() for v in (payload.recipient_emails or []) if str(v or "").strip()],
+        "webhook_url": str(payload.webhook_url or "").strip(),
+        "timeout_sec": max(5, int(payload.timeout_sec or 15)),
+    }
+    _set_setting_value(db, tenant.id, "email_settings", cleaned)
+    db.commit()
+    return {"success": True}
+
+
+@router.post("/emails/send")
+def send_email(
+    payload: SendEmailIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    cfg = _setting_value(
+        db,
+        tenant.id,
+        "email_settings",
+        {"enabled": False, "provider": "none", "resend_api_key": "", "sender_email": "", "recipient_emails": [], "webhook_url": "", "timeout_sec": 15},
+    )
+    if not cfg.get("enabled") or cfg.get("provider") == "none":
+        raise HTTPException(status_code=400, detail="Email provider disabled")
+
+    recipients = payload.recipients or cfg.get("recipient_emails") or []
+    recipients = [str(v or "").strip() for v in recipients if str(v or "").strip()]
+    if not recipients:
+        raise HTTPException(status_code=400, detail="Recipient email list is empty")
+
+    timeout_sec = max(5, int(cfg.get("timeout_sec") or 15))
+    provider = str(cfg.get("provider") or "none").strip().lower()
+
+    try:
+        if provider == "webhook":
+            webhook_url = str(cfg.get("webhook_url") or "").strip()
+            if not webhook_url:
+                raise HTTPException(status_code=400, detail="Webhook URL is empty")
+            req = urllib_request.Request(
+                webhook_url,
+                data=json.dumps(
+                    {
+                        "to": recipients,
+                        "from": cfg.get("sender_email") or "",
+                        "subject": payload.subject,
+                        "html": payload.html,
+                    }
+                ).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib_request.urlopen(req, timeout=timeout_sec) as response:
+                status_code = int(getattr(response, "status", 200))
+                if status_code >= 400:
+                    raise HTTPException(status_code=500, detail=f"Webhook failed: {status_code}")
+            return {"success": True, "message": "Webhook sent"}
+
+        resend_api_key = str(cfg.get("resend_api_key") or "").strip()
+        sender_email = str(cfg.get("sender_email") or "").strip()
+        if not resend_api_key or not sender_email:
+            raise HTTPException(status_code=400, detail="Resend config incomplete")
+        req = urllib_request.Request(
+            "https://api.resend.com/emails",
+            data=json.dumps(
+                {
+                    "from": sender_email,
+                    "to": recipients,
+                    "subject": payload.subject,
+                    "html": payload.html,
+                }
+            ).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {resend_api_key}",
+            },
+            method="POST",
+        )
+        with urllib_request.urlopen(req, timeout=timeout_sec) as response:
+            status_code = int(getattr(response, "status", 200))
+            body = response.read().decode("utf-8") if hasattr(response, "read") else ""
+            if status_code >= 400:
+                raise HTTPException(status_code=500, detail=f"Resend failed: {status_code} {body}")
+        return {"success": True, "message": "Resend sent"}
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8") if hasattr(exc, "read") else str(exc)
+        raise HTTPException(status_code=500, detail=f"Email send failed: {detail}")
+    except URLError as exc:
+        raise HTTPException(status_code=500, detail=f"Email send failed: {exc.reason}")
 
 
 @router.get("/business-profile")

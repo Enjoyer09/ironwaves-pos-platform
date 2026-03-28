@@ -149,9 +149,9 @@ export default function ZReportPanel() {
       setExpectedCashState(cash);
       setCurrentBalances(await fetch_finance_balances(tenant_id));
       setReportRefreshKey((prev) => prev + 1);
-      notify('success', tx(lang, `X-Hesabat tamamlandı. Fərq: ${res.difference} ₼`, `X-отчет завершен. Разница: ${res.difference} ₼`));
+      notify('success', tx(lang, `X-Hesabat tamamlandı. Fərq: ${res.difference} ₼`, `X-отчет завершен. Разница: ${res.difference} ₼`, `X report completed. Difference: ${res.difference} ₼`));
     } catch (e: any) {
-      notify('error', tx(lang, `Xəta: ${e.message}`, `Ошибка: ${e.message}`));
+      notify('error', tx(lang, `Xəta: ${e.message}`, `Ошибка: ${e.message}`, `Error: ${e.message}`));
     }
   };
 
@@ -420,7 +420,7 @@ export default function ZReportPanel() {
             {tx(lang, 'Tamamlanacaq', 'Сумма пополнения', 'Top-up')}: <b>{requiredTopup.toFixed(2)} ₼</b>
           </div>
           <button onClick={handleOpenDay} className="neon-btn px-4 py-2" disabled={shiftStatus.status === 'Open'}>
-            {shiftStatus.status === 'Open' ? tx(lang, 'Gün Açıqdır', 'День уже открыт') : tx(lang, 'Günü Aç', 'Открыть день')}
+            {shiftStatus.status === 'Open' ? tx(lang, 'Gün Açıqdır', 'День уже открыт', 'Day Already Open') : tx(lang, 'Günü Aç', 'Открыть день', 'Open Day')}
           </button>
         </div>
       </div>
@@ -428,19 +428,19 @@ export default function ZReportPanel() {
       {pendingReceived && (
         <div className="metal-panel border border-yellow-400/40 bg-yellow-500/5 p-4">
           <h3 className="mb-2 text-lg font-semibold text-yellow-300">
-            {tx(lang, 'Smena Qəbulu Gözləyir', 'Ожидает подтверждения смены')}
+            {tx(lang, 'Smena Qəbulu Gözləyir', 'Ожидает подтверждения смены', 'Shift Acceptance Pending')}
           </h3>
           <div className="grid grid-cols-1 gap-2 text-sm text-slate-200 md:grid-cols-4">
             <div>
-              <span className="text-slate-400">{tx(lang, 'Təhvil verən', 'Передал')}:</span>{' '}
+              <span className="text-slate-400">{tx(lang, 'Təhvil verən', 'Передал', 'Handed Over By')}:</span>{' '}
               <b>{pendingReceived.handed_by}</b>
             </div>
             <div>
-              <span className="text-slate-400">{tx(lang, 'Bəyan edilən məbləğ', 'Переданная сумма')}:</span>{' '}
+              <span className="text-slate-400">{tx(lang, 'Bəyan edilən məbləğ', 'Переданная сумма', 'Declared Amount')}:</span>{' '}
               <b>{new Decimal(pendingReceived.declared_cash || 0).toFixed(2)} ₼</b>
             </div>
             <div>
-              <span className="text-slate-400">{tx(lang, 'Tarix', 'Дата')}:</span>{' '}
+              <span className="text-slate-400">{tx(lang, 'Tarix', 'Дата', 'Date')}:</span>{' '}
               <b>{new Date(pendingReceived.created_at).toLocaleString()}</b>
             </div>
             <div className="flex items-center gap-2">
@@ -450,10 +450,10 @@ export default function ZReportPanel() {
                 value={handoverActualCash}
                 onChange={(e) => setHandoverActualCash(e.target.value)}
                 className="neon-input w-full"
-                placeholder={tx(lang, 'Saydığınız faktiki nağd', 'Фактически пересчитанная наличность')}
+                placeholder={tx(lang, 'Saydığınız faktiki nağd', 'Фактически пересчитанная наличность', 'Actual cash counted')}
               />
               <button onClick={handleAcceptHandover} className="glossy-gold rounded-lg px-3 py-2 font-semibold whitespace-nowrap">
-                {tx(lang, 'Qəbul Et', 'Подтвердить')}
+                {tx(lang, 'Qəbul Et', 'Подтвердить', 'Accept')}
               </button>
             </div>
           </div>
@@ -467,8 +467,8 @@ export default function ZReportPanel() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="metal-panel p-4">
-          <h3 className="mb-3 text-lg font-semibold">{tx(lang, 'X-Hesabat', 'X-отчет')}</h3>
-          <label className="mb-2 block text-xs text-slate-300">{tx(lang, 'Kassadakı faktiki məbləğ', 'Фактическая сумма в кассе')}</label>
+          <h3 className="mb-3 text-lg font-semibold">{tx(lang, 'X-Hesabat', 'X-отчет', 'X Report')}</h3>
+          <label className="mb-2 block text-xs text-slate-300">{tx(lang, 'Kassadakı faktiki məbləğ', 'Фактическая сумма в кассе', 'Actual cash in drawer')}</label>
           <input
             type="number"
             min={0}
@@ -478,13 +478,13 @@ export default function ZReportPanel() {
             placeholder="0.00"
           />
           <button onClick={handleX} className="neon-btn mt-3 px-4 py-2">
-            {tx(lang, 'X-Hesabatı Təsdiqlə', 'Подтвердить X-отчет')}
+            {tx(lang, 'X-Hesabatı Təsdiqlə', 'Подтвердить X-отчет', 'Confirm X Report')}
           </button>
         </div>
 
         <div className="metal-panel p-4">
-          <h3 className="mb-3 text-lg font-semibold">{tx(lang, 'Z-Hesabat', 'Z-отчет')}</h3>
-          <label className="mb-2 block text-xs text-slate-300">{tx(lang, 'Sabahkı açılış məbləği', 'Сумма открытия на завтра')}</label>
+          <h3 className="mb-3 text-lg font-semibold">{tx(lang, 'Z-Hesabat', 'Z-отчет', 'Z Report')}</h3>
+          <label className="mb-2 block text-xs text-slate-300">{tx(lang, 'Sabahkı açılış məbləği', 'Сумма открытия на завтра', 'Opening amount for tomorrow')}</label>
           <input
             type="number"
             min={0}
@@ -493,7 +493,7 @@ export default function ZReportPanel() {
             className="neon-input"
             placeholder="0.00"
           />
-          <label className="mb-2 mt-3 block text-xs text-slate-300">{tx(lang, 'Maaş məbləği', 'Сумма зарплаты')}</label>
+          <label className="mb-2 mt-3 block text-xs text-slate-300">{tx(lang, 'Maaş məbləği', 'Сумма зарплаты', 'Wage amount')}</label>
           <input
             type="number"
             min={0}
@@ -503,29 +503,29 @@ export default function ZReportPanel() {
             placeholder="0.00"
           />
           <button onClick={handleZ} className="glossy-gold mt-3 rounded-lg px-4 py-2 font-semibold">
-            {tx(lang, 'Z-Hesabatı Yarat', 'Создать Z-отчет')}
+            {tx(lang, 'Z-Hesabatı Yarat', 'Создать Z-отчет', 'Create Z Report')}
           </button>
         </div>
       </div>
 
       {latestReceived && (
         <div className="metal-panel p-4">
-          <h3 className="mb-2 text-lg font-semibold">{tx(lang, 'Son Təhvil Məlumatı', 'Информация о последней передаче')}</h3>
+          <h3 className="mb-2 text-lg font-semibold">{tx(lang, 'Son Təhvil Məlumatı', 'Информация о последней передаче', 'Latest Handover Info')}</h3>
           <div className="grid grid-cols-1 gap-2 text-sm text-slate-200 md:grid-cols-4">
             <div>
-              <span className="text-slate-400">{tx(lang, 'Təhvil verən', 'Передал')}:</span>{' '}
+              <span className="text-slate-400">{tx(lang, 'Təhvil verən', 'Передал', 'Handed Over By')}:</span>{' '}
               <b>{latestReceived.handed_by}</b>
             </div>
             <div>
-              <span className="text-slate-400">{tx(lang, 'Təhvil alan', 'Принял')}:</span>{' '}
+              <span className="text-slate-400">{tx(lang, 'Təhvil alan', 'Принял', 'Received By')}:</span>{' '}
               <b>{latestReceived.received_by}</b>
             </div>
             <div>
-              <span className="text-slate-400">{tx(lang, 'Faktiki nağd', 'Фактическая наличность')}:</span>{' '}
+              <span className="text-slate-400">{tx(lang, 'Faktiki nağd', 'Фактическая наличность', 'Actual cash')}:</span>{' '}
               <b>{new Decimal(latestReceived.actual_cash || 0).toFixed(2)} ₼</b>
             </div>
             <div>
-              <span className="text-slate-400">{tx(lang, 'Tarix', 'Дата')}:</span>{' '}
+              <span className="text-slate-400">{tx(lang, 'Tarix', 'Дата', 'Date')}:</span>{' '}
               <b>{new Date(latestReceived.created_at).toLocaleString()}</b>
             </div>
           </div>
@@ -533,10 +533,10 @@ export default function ZReportPanel() {
       )}
 
       <div className="metal-panel p-4">
-        <h3 className="mb-3 text-lg font-semibold">{tx(lang, 'Smeni Təhvil Ver', 'Передача смены')}</h3>
+        <h3 className="mb-3 text-lg font-semibold">{tx(lang, 'Smeni Təhvil Ver', 'Передача смены', 'Shift Handover')}</h3>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <select className="neon-input" value={handoverTo} onChange={(e) => setHandoverTo(e.target.value)}>
-            <option value="">{tx(lang, 'Təhvil alan işçi seçin', 'Выберите принимающего сотрудника')}</option>
+            <option value="">{tx(lang, 'Təhvil alan işçi seçin', 'Выберите принимающего сотрудника', 'Select receiving staff')}</option>
             {tenantUsers
               .filter((u) => u.username !== user?.username)
               .map((u) => (
@@ -549,35 +549,35 @@ export default function ZReportPanel() {
             className="neon-input"
             value={handoverActualCash}
             onChange={(e) => setHandoverActualCash(e.target.value)}
-            placeholder={tx(lang, 'Faktiki nağd', 'Фактическая наличность')}
+            placeholder={tx(lang, 'Faktiki nağd', 'Фактическая наличность', 'Actual cash')}
           />
           <button onClick={handleHandover} className="neon-btn px-4 py-2">
-            {tx(lang, 'Təhvil Ver', 'Передать')}
+            {tx(lang, 'Təhvil Ver', 'Передать', 'Hand Over')}
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-400">
-          {tx(lang, 'Bu əməliyyat növbəni bağlamır, açıq növbəni seçilən işçiyə ötürür.', 'Эта операция не закрывает смену, а передает открытую смену выбранному сотруднику.')}
+          {tx(lang, 'Bu əməliyyat növbəni bağlamır, açıq növbəni seçilən işçiyə ötürür.', 'Эта операция не закрывает смену, а передает открытую смену выбранному сотруднику.', 'This action does not close the shift. It transfers the active shift to the selected staff member.')}
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
-        <Metric title={tx(lang, 'Ümumi Satış', 'Общие продажи')} value={summary.total_revenue} />
-        <Metric title={tx(lang, 'Nağd', 'Наличные')} value={summary.cash_sales} />
-        <Metric title={tx(lang, 'Kart', 'Карта')} value={summary.card_sales} />
-        <Metric title={tx(lang, 'Maya (COGS)', 'Себестоимость (COGS)')} value={summary.total_cogs} />
-        <Metric title={tx(lang, 'Brutto Mənfəət', 'Валовая прибыль')} value={summary.gross_profit} />
+        <Metric title={tx(lang, 'Ümumi Satış', 'Общие продажи', 'Total Sales')} value={summary.total_revenue} />
+        <Metric title={tx(lang, 'Nağd', 'Наличные', 'Cash')} value={summary.cash_sales} />
+        <Metric title={tx(lang, 'Kart', 'Карта', 'Card')} value={summary.card_sales} />
+        <Metric title={tx(lang, 'Maya (COGS)', 'Себестоимость (COGS)', 'COGS')} value={summary.total_cogs} />
+        <Metric title={tx(lang, 'Brutto Mənfəət', 'Валовая прибыль', 'Gross Profit')} value={summary.gross_profit} />
       </div>
 
       <div className="metal-panel overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-900/50 text-slate-300">
             <tr>
-                <th className="px-4 py-3">{tx(lang, 'Tarix', 'Дата')}</th>
-                <th className="px-4 py-3">{tx(lang, 'İşçi', 'Сотрудник')}</th>
-                <th className="px-4 py-3">{tx(lang, 'Sifariş', 'Заказ')}</th>
-                <th className="px-4 py-3">{tx(lang, 'Müştəri QR', 'QR клиента')}</th>
-                <th className="px-4 py-3">{tx(lang, 'Yekun', 'Итого')}</th>
-                <th className="px-4 py-3">{tx(lang, 'Ödəniş', 'Оплата')}</th>
+                <th className="px-4 py-3">{tx(lang, 'Tarix', 'Дата', 'Date')}</th>
+                <th className="px-4 py-3">{tx(lang, 'İşçi', 'Сотрудник', 'Staff')}</th>
+                <th className="px-4 py-3">{tx(lang, 'Sifariş', 'Заказ', 'Order')}</th>
+                <th className="px-4 py-3">{tx(lang, 'Müştəri QR', 'QR клиента', 'Customer QR')}</th>
+                <th className="px-4 py-3">{tx(lang, 'Yekun', 'Итого', 'Total')}</th>
+                <th className="px-4 py-3">{tx(lang, 'Ödəniş', 'Оплата', 'Payment')}</th>
             </tr>
           </thead>
           <tbody>
@@ -594,7 +594,7 @@ export default function ZReportPanel() {
             {sales.length === 0 && (
               <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
-                  {tx(lang, 'Seçilmiş tarix aralığında satış yoxdur', 'В выбранном периоде продаж нет')}
+                  {tx(lang, 'Seçilmiş tarix aralığında satış yoxdur', 'В выбранном периоде продаж нет', 'No sales found in the selected date range')}
                 </td>
               </tr>
             )}

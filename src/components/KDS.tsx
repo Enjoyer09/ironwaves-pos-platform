@@ -88,9 +88,9 @@ export default function KDS() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'NEW': return <span className="rounded px-2 py-1 text-xs font-bold bg-blue-400/20 text-blue-200 border border-blue-300/40">{tx(lang, 'YENİ', 'НОВЫЙ')}</span>;
-      case 'PREPARING': return <span className="rounded px-2 py-1 text-xs font-bold bg-orange-400/20 text-orange-200 border border-orange-300/40">{tx(lang, 'HAZIRLANIR', 'ГОТОВИТСЯ')}</span>;
-      case 'READY': return <span className="rounded px-2 py-1 text-xs font-bold bg-emerald-400/20 text-emerald-200 border border-emerald-300/40">{tx(lang, 'HAZIRDIR', 'ГОТОВО')}</span>;
+      case 'NEW': return <span className="rounded px-2 py-1 text-xs font-bold bg-blue-400/20 text-blue-200 border border-blue-300/40">{tx(lang, 'YENİ', 'НОВЫЙ', 'NEW')}</span>;
+      case 'PREPARING': return <span className="rounded px-2 py-1 text-xs font-bold bg-orange-400/20 text-orange-200 border border-orange-300/40">{tx(lang, 'HAZIRLANIR', 'ГОТОВИТСЯ', 'PREPARING')}</span>;
+      case 'READY': return <span className="rounded px-2 py-1 text-xs font-bold bg-emerald-400/20 text-emerald-200 border border-emerald-300/40">{tx(lang, 'HAZIRDIR', 'ГОТОВО', 'READY')}</span>;
       default: return null;
     }
   };
@@ -100,11 +100,11 @@ export default function KDS() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center text-slate-100">
           <ChefHat size={28} className="mr-3 text-yellow-300" />
-          <h1 className="text-2xl font-bold">{tx(lang, 'Mətbəx Ekranı (KDS)', 'Экран кухни (KDS)')}</h1>
+          <h1 className="text-2xl font-bold">{tx(lang, 'Mətbəx Ekranı (KDS)', 'Экран кухни (KDS)', 'Kitchen Display (KDS)')}</h1>
         </div>
         <div className="flex gap-3 text-sm font-medium items-center">
           <div className="metal-panel px-4 py-2 text-slate-300 flex items-center">
-            {tx(lang, 'Aktiv Sifarişlər', 'Активные заказы')}: <span className="ml-2 text-yellow-300 text-lg">{orders.length}</span>
+            {tx(lang, 'Aktiv Sifarişlər', 'Активные заказы', 'Active Orders')}: <span className="ml-2 text-yellow-300 text-lg">{orders.length}</span>
           </div>
         </div>
       </div>
@@ -120,20 +120,20 @@ export default function KDS() {
                   {getStatusBadge(order.status)}
                   {order.priority === 'URGENT' && (
                       <span className="flex items-center text-red-500 text-xs font-bold ml-2">
-                      <AlertCircle size={14} className="mr-1" /> {tx(lang, 'TƏCİLİ', 'СРОЧНО')}
+                      <AlertCircle size={14} className="mr-1" /> {tx(lang, 'TƏCİLİ', 'СРОЧНО', 'URGENT')}
                     </span>
                   )}
                 </div>
                 {(order.table_label || order.order_type) && (
                   <div className="text-xs font-bold text-slate-200 bg-slate-700/40 inline-block px-2 py-0.5 rounded">
-                    {order.table_label ? tx(lang, `Masa: ${order.table_label}`, `Стол: ${order.table_label}`) : order.order_type}
+                    {order.table_label ? tx(lang, `Masa: ${order.table_label}`, `Стол: ${order.table_label}`, `Table: ${order.table_label}`) : order.order_type}
                   </div>
                 )}
               </div>
               <div className="flex flex-col items-end text-sm font-medium">
                 <div className="flex items-center text-slate-100 font-bold bg-slate-800/80 px-2 py-1 rounded-lg border border-slate-600/50">
                   <Clock size={14} className="mr-1" />
-                  {getElapsedMinutes(order.created_at)} {tx(lang, 'dəq', 'мин')}
+                  {getElapsedMinutes(order.created_at)} {tx(lang, 'dəq', 'мин', 'min')}
                 </div>
                 <div className="text-slate-400 text-xs mt-1">
                   {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -162,7 +162,7 @@ export default function KDS() {
                   onClick={() => { void handleAccept(order.id); }}
                   className="w-full py-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white transition-colors shadow-sm"
                 >
-                  {tx(lang, 'Qəbul Et (Hazırla)', 'Принять (готовить)')}
+                  {tx(lang, 'Qəbul Et (Hazırla)', 'Принять (готовить)', 'Accept (Start Preparing)')}
                 </button>
               )}
               {order.status === 'PREPARING' && (
@@ -171,12 +171,12 @@ export default function KDS() {
                   className="w-full py-3 rounded-xl font-bold bg-yellow-400 hover:bg-yellow-300 text-slate-900 transition-colors shadow-sm flex items-center justify-center"
                 >
                   <CheckCircle size={20} className="mr-2" />
-                  {tx(lang, 'Hazırdır (Tamamla)', 'Готово (завершить)')}
+                  {tx(lang, 'Hazırdır (Tamamla)', 'Готово (завершить)', 'Ready (Complete)')}
                 </button>
               )}
               {order.status === 'READY' && (
                 <div className="w-full rounded-xl border border-emerald-300/40 bg-emerald-500/10 px-4 py-3 text-center text-sm font-semibold text-emerald-100">
-                  {tx(lang, 'Ofisant üçün hazırdır', 'Готово для официанта')}
+                  {tx(lang, 'Ofisant üçün hazırdır', 'Готово для официанта', 'Ready for waiter')}
                 </div>
               )}
             </div>
@@ -187,8 +187,8 @@ export default function KDS() {
         {orders.length === 0 && (
           <div className="metal-panel col-span-full py-20 flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-600/70">
             <ChefHat size={48} className="mb-4 text-slate-500" />
-            <p className="text-xl font-medium text-slate-300">{tx(lang, 'Hazırda aktiv sifariş yoxdur', 'Сейчас нет активных заказов')}</p>
-            <p className="text-sm">{tx(lang, 'Yeni sifarişlər avtomatik olaraq bura düşəcək.', 'Новые заказы появятся здесь автоматически.')}</p>
+            <p className="text-xl font-medium text-slate-300">{tx(lang, 'Hazırda aktiv sifariş yoxdur', 'Сейчас нет активных заказов', 'There are no active orders right now')}</p>
+            <p className="text-sm">{tx(lang, 'Yeni sifarişlər avtomatik olaraq bura düşəcək.', 'Новые заказы появятся здесь автоматически.', 'New orders will appear here automatically.')}</p>
           </div>
         )}
       </div>
