@@ -15,6 +15,7 @@ export interface Table {
   items: CartItem[];
   total: string; // Decimal format
   cup_mode?: 'paper' | 'glass';
+  kitchen_status?: string | null;
 }
 
 // FUNKSIYA: get_tables
@@ -211,6 +212,71 @@ export const pay_table = (
   return { sale_id: result.sale_id, success: true };
 };
 
+export const transfer_table = (table_id: string, target_table_id: string, actor: string) => {
+  const tables = getDB<Table>('tables');
+  const source = tables.find((t) => t.id === table_id);
+  const target = tables.find((t) => t.id === target_table_id);
+  if (!source || !target) throw new Error('Masa tapılmadı');
+  if (source.id === target.id) throw new Error('Fərqli masa seçin');
+  if (!source.is_occupied) throw new Error('Mənbə masa boşdur');
+  if (target.is_occupied) throw new Error('Köçürmə üçün hədəf masa boş olmalıdır');
+
+  target.items = Array.isArray(source.items) ? [...source.items] : [];
+  target.total = source.total;
+  target.is_occupied = true;
+
+  source.items = [];
+  source.total = '0';
+  source.is_occupied = false;
+
+  const kitchenOrders = getDB<any>('kitchen_orders');
+  kitchenOrders.forEach((order: any) => {
+    if (order.tenant_id === source.tenant_id && order.table_label === source.label && ['NEW', 'PREPARING', 'READY'].includes(String(order.status || ''))) {
+      order.table_label = target.label;
+    }
+  });
+  setDB('kitchen_orders', kitchenOrders);
+  setDB('tables', tables);
+  logEvent(actor, 'TABLE_TRANSFERRED', { tenant_id: source.tenant_id, from_table: source.label, to_table: target.label });
+  return { success: true };
+};
+
+export const merge_tables = (table_id: string, target_table_id: string, actor: string) => {
+  const tables = getDB<Table>('tables');
+  const source = tables.find((t) => t.id === table_id);
+  const target = tables.find((t) => t.id === target_table_id);
+  if (!source || !target) throw new Error('Masa tapılmadı');
+  if (source.id === target.id) throw new Error('Fərqli masa seçin');
+  if (!source.is_occupied) throw new Error('Mənbə masa boşdur');
+
+  const targetItems = Array.isArray(target.items) ? [...target.items] : [];
+  const sourceItems = Array.isArray(source.items) ? source.items : [];
+  sourceItems.forEach((incoming) => {
+    const idx = targetItems.findIndex((row: any) => row.id === incoming.id || row.item_name === incoming.item_name);
+    if (idx >= 0) targetItems[idx] = { ...targetItems[idx], qty: Number(targetItems[idx].qty || 0) + Number(incoming.qty || 0) };
+    else targetItems.push(incoming as any);
+  });
+
+  target.items = targetItems as any;
+  target.total = new Decimal(target.total || 0).plus(new Decimal(source.total || 0)).toFixed(2);
+  target.is_occupied = true;
+
+  source.items = [];
+  source.total = '0';
+  source.is_occupied = false;
+
+  const kitchenOrders = getDB<any>('kitchen_orders');
+  kitchenOrders.forEach((order: any) => {
+    if (order.tenant_id === source.tenant_id && order.table_label === source.label && ['NEW', 'PREPARING', 'READY'].includes(String(order.status || ''))) {
+      order.table_label = target.label;
+    }
+  });
+  setDB('kitchen_orders', kitchenOrders);
+  setDB('tables', tables);
+  logEvent(actor, 'TABLE_MERGED', { tenant_id: source.tenant_id, from_table: source.label, to_table: target.label });
+  return { success: true };
+};
+
 export const get_tables_live = async (tenant_id: string) => {
   if (!isBackendEnabled()) return get_tables(tenant_id);
   return apiRequest<any[]>('/api/v1/ops/tables', { tenantId: null });
@@ -258,5 +324,23 @@ export const pay_table_live = async (
       split_card: split_card ? split_card.toFixed(2) : null,
       cup_mode: options?.cup_mode || 'paper',
     },
+  });
+};
+
+export const transfer_table_live = async (table_id: string, target_table_id: string, actor: string) => {
+  if (!isBackendEnabled()) return transfer_table(table_id, target_table_id, actor);
+  return apiRequest<{ success: boolean }>(`/api/v1/ops/tables/${encodeURIComponent(table_id)}/transfer`, {
+    method: 'POST',
+    tenantId: null,
+    body: { target_table_id },
+  });
+};
+
+export const merge_tables_live = async (table_id: string, target_table_id: string, actor: string) => {
+  if (!isBackendEnabled()) return merge_tables(table_id, target_table_id, actor);
+  return apiRequest<{ success: boolean }>(`/api/v1/ops/tables/${encodeURIComponent(table_id)}/merge`, {
+    method: 'POST',
+    tenantId: null,
+    body: { target_table_id },
   });
 };

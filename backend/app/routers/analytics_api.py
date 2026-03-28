@@ -25,6 +25,11 @@ class SaleVoidIn(BaseModel):
     return_to_stock: bool = True
 
 
+class SalePartialRefundIn(BaseModel):
+    refund_amount: Decimal
+    reason: str
+
+
 def _in_range(created_at: datetime | None, date_from: datetime | None, date_to: datetime | None) -> bool:
     if not created_at:
         return False
@@ -212,3 +217,75 @@ def adjust_sale(
     row.total = payload.new_total.quantize(Decimal("0.01"))
     db.commit()
     return {"success": True}
+
+
+@router.post("/sales/{sale_id}/partial-refund")
+def partial_refund_sale(
+    sale_id: str,
+    payload: SalePartialRefundIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    row = db.query(Sale).filter(Sale.id == sale_id, Sale.tenant_id == tenant.id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Sale not found")
+    if row.status == "VOIDED":
+        raise HTTPException(status_code=400, detail="Voided sale cannot be refunded")
+
+    current_total = Decimal(str(row.total or 0)).quantize(Decimal("0.01"))
+    refund_amount = Decimal(str(payload.refund_amount or 0)).quantize(Decimal("0.01"))
+    if refund_amount <= 0:
+        raise HTTPException(status_code=400, detail="Refund amount must be greater than 0")
+    if refund_amount >= current_total:
+        raise HTTPException(status_code=400, detail="Use VOID for full refund")
+
+    pm = str(row.payment_method or "").lower()
+    if pm == "split":
+        finance_rows = (
+            db.query(FinanceEntry)
+            .filter(FinanceEntry.tenant_id == tenant.id, FinanceEntry.type == "in", FinanceEntry.description.ilike(f"%{row.id}%"))
+            .all()
+        )
+        total_in = sum((Decimal(str(finance_row.amount or 0)) for finance_row in finance_rows), Decimal("0.00"))
+        remaining = refund_amount
+        for idx, finance_row in enumerate(finance_rows):
+            if total_in <= 0:
+                break
+            if idx == len(finance_rows) - 1:
+                part = remaining
+            else:
+                ratio = Decimal(str(finance_row.amount or 0)) / total_in
+                part = (refund_amount * ratio).quantize(Decimal("0.01"))
+                remaining -= part
+            if part <= 0:
+                continue
+            db.add(
+                FinanceEntry(
+                    tenant_id=tenant.id,
+                    type="out",
+                    category="Partial Refund",
+                    source=finance_row.source,
+                    amount=part,
+                    description=f"PARTIAL REFUND: {payload.reason} ({row.id})",
+                    created_by=user.username,
+                )
+            )
+    else:
+        source = "cash" if pm in {"cash", "nəğd", "staff"} else "card"
+        db.add(
+            FinanceEntry(
+                tenant_id=tenant.id,
+                type="out",
+                category="Partial Refund",
+                source=source,
+                amount=refund_amount,
+                description=f"PARTIAL REFUND: {payload.reason} ({row.id})",
+                created_by=user.username,
+            )
+        )
+
+    row.total = (current_total - refund_amount).quantize(Decimal("0.01"))
+    row.status = "PARTIAL_REFUND"
+    db.commit()
+    return {"success": True, "remaining_total": str(row.total)}

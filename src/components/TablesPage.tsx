@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { get_tables_live, create_table_live, delete_table_live, pay_table_live } from '../api/tables';
+import { get_tables_live, create_table_live, delete_table_live, pay_table_live, transfer_table_live, merge_tables_live } from '../api/tables';
 import { LayoutGrid, Plus, Trash2 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
@@ -20,6 +20,8 @@ export default function TablesPage() {
   const [deleteAdminPass, setDeleteAdminPass] = useState('');
   const [payTableId, setPayTableId] = useState<string | null>(null);
   const [viewTableId, setViewTableId] = useState<string | null>(null);
+  const [transferTargetId, setTransferTargetId] = useState('');
+  const [mergeTargetId, setMergeTargetId] = useState('');
   const [tableReceiptHtml, setTableReceiptHtml] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'Nəğd' | 'Kart' | 'Split'>('Nəğd');
   const [splitCash, setSplitCash] = useState('0');
@@ -288,6 +290,7 @@ export default function TablesPage() {
               const t = tables.find((x) => x.id === viewTableId);
               if (!t) return null;
               const items = Array.isArray(t.items) ? t.items : [];
+              const otherTables = tables.filter((row) => row.id !== t.id);
               return (
                 <>
                   <h3 className="text-lg font-bold text-slate-100">{t.label}</h3>
@@ -305,6 +308,66 @@ export default function TablesPage() {
                     <span>{tx(lang, 'Açıq hesab', 'Открытый счет')}</span>
                     <span className="font-semibold text-slate-100">{new Decimal(t.total || 0).toFixed(2)} ₼</span>
                   </div>
+                  {t.is_occupied && (
+                    <div className="mt-4 grid gap-3 rounded-lg border border-slate-700/70 bg-slate-900/40 p-3">
+                      <div>
+                        <div className="mb-1 text-xs font-semibold text-slate-400">{tx(lang, 'Masanı köçür', 'Перенести стол', 'Transfer table')}</div>
+                        <div className="flex gap-2">
+                          <select className="neon-input flex-1" value={transferTargetId} onChange={(e) => setTransferTargetId(e.target.value)}>
+                            <option value="">{tx(lang, 'Boş masa seçin', 'Выберите свободный стол', 'Select empty table')}</option>
+                            {otherTables.filter((row) => !row.is_occupied).map((row) => (
+                              <option key={row.id} value={row.id}>{row.label}</option>
+                            ))}
+                          </select>
+                          <button
+                            className="rounded-lg border border-blue-300/40 bg-blue-500/15 px-3 py-2 text-sm font-semibold text-blue-100"
+                            onClick={async () => {
+                              if (!transferTargetId) return;
+                              try {
+                                await transfer_table_live(t.id, transferTargetId, user?.username || 'staff');
+                                notify('success', tx(lang, 'Masa köçürüldü', 'Стол перенесен', 'Table transferred'));
+                                setTransferTargetId('');
+                                setViewTableId(null);
+                                await loadData();
+                              } catch (e: any) {
+                                notify('error', e.message);
+                              }
+                            }}
+                          >
+                            {tx(lang, 'Köçür', 'Перенести', 'Transfer')}
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="mb-1 text-xs font-semibold text-slate-400">{tx(lang, 'Masaları birləşdir', 'Объединить столы', 'Merge tables')}</div>
+                        <div className="flex gap-2">
+                          <select className="neon-input flex-1" value={mergeTargetId} onChange={(e) => setMergeTargetId(e.target.value)}>
+                            <option value="">{tx(lang, 'Hədəf masa seçin', 'Выберите целевой стол', 'Select target table')}</option>
+                            {otherTables.map((row) => (
+                              <option key={row.id} value={row.id}>{row.label}{row.is_occupied ? ` (${tx(lang, 'dolu', 'занят', 'occupied')})` : ''}</option>
+                            ))}
+                          </select>
+                          <button
+                            className="rounded-lg border border-amber-300/40 bg-amber-500/15 px-3 py-2 text-sm font-semibold text-amber-100"
+                            onClick={async () => {
+                              if (!mergeTargetId) return;
+                              try {
+                                await merge_tables_live(t.id, mergeTargetId, user?.username || 'staff');
+                                notify('success', tx(lang, 'Masalar birləşdirildi', 'Столы объединены', 'Tables merged'));
+                                setMergeTargetId('');
+                                setViewTableId(null);
+                                await loadData();
+                              } catch (e: any) {
+                                notify('error', e.message);
+                              }
+                            }}
+                          >
+                            {tx(lang, 'Birləşdir', 'Объединить', 'Merge')}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div className="mt-4 flex justify-end gap-2">
                     <button className="neon-btn rounded-lg px-4 py-2" onClick={() => setViewTableId(null)}>{tx(lang, 'Bağla', 'Закрыть')}</button>
                     {t.is_occupied && (

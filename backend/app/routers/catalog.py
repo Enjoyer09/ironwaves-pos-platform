@@ -98,6 +98,17 @@ class RecipeIngredientOut(BaseModel):
     line_cost: str
 
 
+class RecipeIngredientReplaceIn(BaseModel):
+    ingredient_name: str
+    quantity_required: Decimal
+    quantity_unit: str | None = None
+
+
+class RecipeReplaceIn(BaseModel):
+    menu_item_name: str
+    ingredients: list[RecipeIngredientReplaceIn]
+
+
 @router.get("/menu", response_model=list[MenuItemOut])
 def list_menu_items(
     db: Session = Depends(get_db),
@@ -407,6 +418,21 @@ def list_recipe_ingredients(
     ]
 
 
+@router.get("/recipes")
+def list_recipe_menu_names(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    rows = (
+        db.query(Recipe.menu_item_name)
+        .filter(Recipe.tenant_id == tenant.id)
+        .distinct()
+        .all()
+    )
+    return {"menu_item_names": sorted([str(row[0]) for row in rows if row and row[0]])}
+
+
 @router.post("/recipes", response_model=RecipeIngredientOut)
 def create_recipe_ingredient(
     payload: RecipeIngredientCreateIn,
@@ -469,3 +495,45 @@ def delete_recipe_ingredient(
     db.delete(row)
     db.commit()
     return {"success": True}
+
+
+@router.put("/recipes")
+def replace_recipe(
+    payload: RecipeReplaceIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_catalog_write_access(user)
+    menu_item_name = str(payload.menu_item_name or "").strip()
+    if len(menu_item_name) < 2:
+        raise HTTPException(status_code=400, detail="Menu item is required")
+
+    db.query(Recipe).filter(Recipe.tenant_id == tenant.id, Recipe.menu_item_name == menu_item_name).delete()
+
+    for item in payload.ingredients:
+        ingredient_name = str(item.ingredient_name or "").strip()
+        if len(ingredient_name) < 2:
+            continue
+        inventory = (
+            db.query(InventoryItem)
+            .filter(InventoryItem.tenant_id == tenant.id, func.lower(InventoryItem.name) == ingredient_name.lower())
+            .first()
+        )
+        if not inventory:
+            raise HTTPException(status_code=404, detail=f"Inventory ingredient not found: {ingredient_name}")
+        db.add(
+            Recipe(
+                tenant_id=tenant.id,
+                menu_item_name=menu_item_name,
+                ingredient_name=inventory.name,
+                quantity_required=_convert_recipe_qty_to_inventory_unit(
+                    Decimal(str(item.quantity_required)),
+                    str(item.quantity_unit or inventory.unit),
+                    str(inventory.unit),
+                ).quantize(Decimal("0.0001")),
+            )
+        )
+
+    db.commit()
+    return {"success": True, "count": len(payload.ingredients)}

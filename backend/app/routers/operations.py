@@ -148,6 +148,17 @@ def _collect_stock_ops(db: Session, tenant_id: str, items: list[dict]) -> tuple[
     return stock_ops, cogs_total.quantize(Decimal("0.0001"))
 
 
+def _merge_table_items(existing: list[dict], incoming: list[dict]) -> list[dict]:
+    merged = list(existing)
+    for item in incoming:
+        idx = next((i for i, row in enumerate(merged) if row.get("id") == item.get("id") or row.get("item_name") == item.get("item_name")), -1)
+        if idx >= 0:
+            merged[idx]["qty"] = int(merged[idx].get("qty", 0)) + int(item.get("qty", 0))
+        else:
+            merged.append(item)
+    return merged
+
+
 class BusinessProfileIn(BaseModel):
     company_name: str
     phone: str | None = None
@@ -172,6 +183,10 @@ class TablePayIn(BaseModel):
     split_cash: Decimal | None = None
     split_card: Decimal | None = None
     cup_mode: str | None = "paper"
+
+
+class TableTargetIn(BaseModel):
+    target_table_id: str
 
 
 class HappyHourCreateIn(BaseModel):
@@ -568,6 +583,103 @@ def pay_table(
     row.total = Decimal("0.00")
     db.commit()
     return {"success": True, "sale_id": sale.id, "receipt_code": receipt_code, "receipt_token": receipt_token}
+
+
+@router.post("/tables/{table_id}/transfer")
+def transfer_table(
+    table_id: str,
+    payload: TableTargetIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    if str(user.role or "").lower() == "kitchen":
+        raise HTTPException(status_code=403, detail="Floor access required")
+    source = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
+    target = db.query(Table).filter(Table.id == payload.target_table_id, Table.tenant_id == tenant.id).first()
+    if not source or not target:
+        raise HTTPException(status_code=404, detail="Table not found")
+    if source.id == target.id:
+        raise HTTPException(status_code=400, detail="Choose a different table")
+    if not source.is_occupied:
+        raise HTTPException(status_code=400, detail="Source table is empty")
+    if target.is_occupied:
+        raise HTTPException(status_code=400, detail="Target table must be empty for transfer")
+
+    source_items = _json_load(source.items_json, [])
+    target.items_json = json.dumps(source_items, ensure_ascii=False)
+    target.total = Decimal(str(source.total or 0)).quantize(Decimal("0.01"))
+    target.is_occupied = True
+
+    source.items_json = "[]"
+    source.total = Decimal("0.00")
+    source.is_occupied = False
+
+    kitchen_rows = (
+        db.query(KitchenOrder)
+        .filter(KitchenOrder.tenant_id == tenant.id, KitchenOrder.table_label == source.label, KitchenOrder.status.in_(["NEW", "PREPARING", "READY"]))
+        .all()
+    )
+    for kitchen_row in kitchen_rows:
+        kitchen_row.table_label = target.label
+
+    _notify_front_of_house(
+        db,
+        tenant.id,
+        "Masa Köçürüldü",
+        f"{source.label} sifarişi {target.label} masasına köçürüldü.",
+        {"from_table": source.label, "to_table": target.label, "status": "TRANSFERRED"},
+    )
+    db.commit()
+    return {"success": True}
+
+
+@router.post("/tables/{table_id}/merge")
+def merge_tables(
+    table_id: str,
+    payload: TableTargetIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    if str(user.role or "").lower() == "kitchen":
+        raise HTTPException(status_code=403, detail="Floor access required")
+    source = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
+    target = db.query(Table).filter(Table.id == payload.target_table_id, Table.tenant_id == tenant.id).first()
+    if not source or not target:
+        raise HTTPException(status_code=404, detail="Table not found")
+    if source.id == target.id:
+        raise HTTPException(status_code=400, detail="Choose a different table")
+    if not source.is_occupied:
+        raise HTTPException(status_code=400, detail="Source table is empty")
+
+    source_items = _json_load(source.items_json, [])
+    target_items = _json_load(target.items_json, [])
+    target.items_json = json.dumps(_merge_table_items(target_items, source_items), ensure_ascii=False)
+    target.total = (Decimal(str(target.total or 0)) + Decimal(str(source.total or 0))).quantize(Decimal("0.01"))
+    target.is_occupied = True
+
+    source.items_json = "[]"
+    source.total = Decimal("0.00")
+    source.is_occupied = False
+
+    kitchen_rows = (
+        db.query(KitchenOrder)
+        .filter(KitchenOrder.tenant_id == tenant.id, KitchenOrder.table_label == source.label, KitchenOrder.status.in_(["NEW", "PREPARING", "READY"]))
+        .all()
+    )
+    for kitchen_row in kitchen_rows:
+        kitchen_row.table_label = target.label
+
+    _notify_front_of_house(
+        db,
+        tenant.id,
+        "Masalar Birləşdirildi",
+        f"{source.label} sifarişi {target.label} ilə birləşdirildi.",
+        {"from_table": source.label, "to_table": target.label, "status": "MERGED"},
+    )
+    db.commit()
+    return {"success": True}
 
 
 @router.get("/kitchen-orders")
