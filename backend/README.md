@@ -52,7 +52,7 @@ Run the backend smoke test after deploy:
 ```bash
 BASE_URL="https://<your-backend-domain>" \
 SUPERADMIN_USERNAME="ironwaves_owner" \
-SUPERADMIN_PASSWORD="owner1234" \
+SUPERADMIN_PASSWORD="<your-superadmin-password>" \
 TENANT_HEADER="tenant_default" \
 python scripts/smoke_test.py
 ```

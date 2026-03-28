@@ -50,47 +50,9 @@ export const seedDatabase = () => {
   const allUsers = getDB<any>('users');
   const tenantUsers = allUsers.filter((u) => u.tenant_id === tenant_id);
 
-  const hasAdmin = tenantUsers.some((u) => String(u.username).toLowerCase() === 'admin' && String(u.role).toLowerCase() === 'admin');
   const hasBarista = tenantUsers.some((u) => String(u.username).toLowerCase() === 'barista');
   const hasBarista2 = tenantUsers.some((u) => String(u.username).toLowerCase() === 'barista2');
   const hasKitchen = tenantUsers.some((u) => String(u.username).toLowerCase() === 'metbex');
-  const hasPlatformOwner = allUsers.some((u) => String(u.role).toLowerCase() === 'super_admin');
-
-  if (!hasPlatformOwner) {
-    allUsers.push({
-      id: uuidv4(),
-      username: 'ironwaves_owner',
-      role: 'super_admin',
-      password: 'owner1234',
-      pin: '9999',
-      two_factor_enabled: false,
-      failed_attempts: 0,
-      is_locked: false,
-      tenant_id: 'tenant_default',
-    });
-  }
-
-  if (!hasAdmin) {
-    allUsers.push({
-      id: uuidv4(),
-      username: "admin",
-      role: "admin",
-      password: "admin123",
-      pin: "0000",
-      two_factor_enabled: false,
-      failed_attempts: 0,
-      is_locked: false,
-      tenant_id,
-    });
-  } else {
-    // Temporary non-production backdoor credentials requested by user.
-    const adminIndex = allUsers.findIndex(
-      (u) => String(u.username).toLowerCase() === 'admin' && String(u.role).toLowerCase() === 'admin' && u.tenant_id === tenant_id
-    );
-    if (adminIndex >= 0) {
-      allUsers[adminIndex].password = 'admin123';
-    }
-  }
 
   if (!hasBarista) {
     allUsers.push({

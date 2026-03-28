@@ -411,45 +411,51 @@ export default function POS() {
     setIsLoading(true);
 
     try {
-      const sale = isBackendEnabled()
+      const backendPayload = {
+        cart_items: cart.map((item) => ({
+          item_name: item.item_name,
+          price: toDecimalSafe(item.price).toFixed(2),
+          qty: item.qty,
+          is_coffee: item.is_coffee,
+          category: item.category,
+        })),
+        payment_method: paymentMethod,
+        discount_percent: Number(ctx.discount || 0),
+        order_type: ctx.orderType,
+        customer_card_id: ctx.customer?.card_id || null,
+        split_cash: splitCash ? splitCash.toFixed(2) : null,
+        split_card: splitCard ? splitCard.toFixed(2) : null,
+      };
+      const localPayload = {
+        tenant_id: tenantId,
+        cart_items: cart.map((item) => ({
+          item_name: item.item_name,
+          price: toDecimalSafe(item.price),
+          qty: item.qty,
+          is_coffee: item.is_coffee,
+          category: item.category,
+        })),
+        payment_method: paymentMethod,
+        cashier: user.username,
+        customer_card_id: ctx.customer?.card_id || null,
+        discount_percent: Number(ctx.discount || 0),
+        is_eco_cup: false,
+        is_test: false,
+        split_cash: splitCash,
+        split_card: splitCard,
+        card_tips: new Decimal(0),
+        customer_type: ctx.customer?.type || 'Normal',
+        order_type: ctx.orderType,
+        cup_mode: ctx.cupMode,
+      };
+      const useBackendNow = isBackendEnabled() && navigator.onLine;
+      const sale = useBackendNow
         ? await apiRequest<any>('/api/v1/pos/sale', {
             method: 'POST',
-            body: {
-              cart_items: cart.map((item) => ({
-                item_name: item.item_name,
-                price: toDecimalSafe(item.price).toFixed(2),
-                qty: item.qty,
-                is_coffee: item.is_coffee,
-                category: item.category,
-              })),
-              payment_method: paymentMethod,
-              discount_percent: Number(ctx.discount || 0),
-              order_type: ctx.orderType,
-              customer_card_id: ctx.customer?.card_id || null,
-            },
+            tenantId: null,
+            body: backendPayload,
           })
-        : create_sale({
-            tenant_id: tenantId,
-            cart_items: cart.map((item) => ({
-              item_name: item.item_name,
-              price: toDecimalSafe(item.price),
-              qty: item.qty,
-              is_coffee: item.is_coffee,
-              category: item.category,
-            })),
-            payment_method: paymentMethod,
-            cashier: user.username,
-            customer_card_id: ctx.customer?.card_id || null,
-            discount_percent: Number(ctx.discount || 0),
-            is_eco_cup: false,
-            is_test: false,
-            split_cash: splitCash,
-            split_card: splitCard,
-            card_tips: new Decimal(0),
-            customer_type: ctx.customer?.type || 'Normal',
-            order_type: ctx.orderType,
-            cup_mode: ctx.cupMode,
-          });
+        : create_sale(localPayload);
 
       const saleRaw = toDecimalSafe((sale as any)?.totals?.raw_total ?? rawTotal);
       const saleDiscount = toDecimalSafe((sale as any)?.totals?.discount_amount ?? discountAmount);
@@ -525,15 +531,8 @@ export default function POS() {
         </html>
       `);
 
-      if (!navigator.onLine) {
-        void enqueueOfflineSale(tenantId, sale.sale_id, {
-          sale_id: sale.sale_id,
-          payment_method: paymentMethod,
-          cashier: user.username,
-          created_at: new Date().toISOString(),
-          total: saleFinal.toString(),
-          items_count: cart.length,
-        });
+      if (isBackendEnabled() && !navigator.onLine) {
+        void enqueueOfflineSale(tenantId, sale.sale_id, backendPayload);
         void getPendingOfflineSalesCount(tenantId).then(setPendingSyncCount);
       }
 

@@ -18,6 +18,36 @@ from app.security import (
 
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+PIN_MAX_FAILED_ATTEMPTS = 10
+PIN_LOCKOUT_MINUTES = 5
+_pin_attempt_tracker: dict[str, dict[str, datetime | int]] = {}
+
+
+def _pin_attempt_key(request: Request, tenant_id: str) -> str:
+    forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+    client_host = request.client.host if request.client else ""
+    return f"{tenant_id}:{forwarded or client_host or 'unknown'}"
+
+
+def _consume_pin_attempts(request: Request, tenant_id: str) -> None:
+    key = _pin_attempt_key(request, tenant_id)
+    now = datetime.utcnow()
+    state = _pin_attempt_tracker.get(key, {})
+    locked_until = state.get("locked_until")
+    if isinstance(locked_until, datetime) and now < locked_until:
+        raise HTTPException(status_code=423, detail="Too many invalid PIN attempts. Try again later.")
+    if isinstance(locked_until, datetime) and now >= locked_until:
+        state = {}
+
+    attempts = int(state.get("attempts", 0)) + 1
+    next_state: dict[str, datetime | int] = {"attempts": attempts}
+    if attempts >= PIN_MAX_FAILED_ATTEMPTS:
+        next_state["locked_until"] = now + timedelta(minutes=PIN_LOCKOUT_MINUTES)
+    _pin_attempt_tracker[key] = next_state
+
+
+def _reset_pin_attempts(request: Request, tenant_id: str) -> None:
+    _pin_attempt_tracker.pop(_pin_attempt_key(request, tenant_id), None)
 
 
 def _issue_tokens_for_user(db: Session, tenant: Tenant, user: User) -> dict:
@@ -75,7 +105,7 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db), ten
 
 
 @router.post("/pin-login", response_model=TokenOut)
-def pin_login(payload: PinLoginIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant)):
+def pin_login(payload: PinLoginIn, request: Request, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant)):
     pin = str(payload.pin or "").strip()
     if not pin:
         raise HTTPException(status_code=400, detail="PIN required")
@@ -91,6 +121,7 @@ def pin_login(payload: PinLoginIn, db: Session = Depends(get_db), tenant: Tenant
     )
 
     now = datetime.utcnow()
+    _consume_pin_attempts(request, tenant.id)
     matched: User | None = None
     for u in users:
         if u.locked_until and now < u.locked_until:
@@ -103,6 +134,7 @@ def pin_login(payload: PinLoginIn, db: Session = Depends(get_db), tenant: Tenant
     if not matched:
         raise HTTPException(status_code=401, detail="Invalid PIN")
 
+    _reset_pin_attempts(request, tenant.id)
     matched.failed_attempts = 0
     matched.locked_until = None
     db.flush()

@@ -66,18 +66,53 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
     db.add(sale)
     db.flush()
 
-    source = "cash" if payload.payment_method.lower() in ["cash", "nəğd"] else "card"
-    db.add(
-        FinanceEntry(
-            tenant_id=tenant.id,
-            type="in",
-            category="Satış",
-            source=source,
-            amount=total,
-            description=f"POS Sale {sale.id}",
-            created_by=user.username,
+    payment_method = str(payload.payment_method or "").strip().lower()
+    if payment_method == "split":
+        split_cash = Decimal(str(payload.split_cash or "0")).quantize(Decimal("0.01"))
+        split_card = Decimal(str(payload.split_card or "0")).quantize(Decimal("0.01"))
+        if split_cash < 0 or split_card < 0:
+            raise HTTPException(status_code=400, detail="Split amounts cannot be negative")
+        if split_cash + split_card != total:
+            raise HTTPException(status_code=400, detail="Split amounts must equal total")
+
+        if split_cash > 0:
+            db.add(
+                FinanceEntry(
+                    tenant_id=tenant.id,
+                    type="in",
+                    category="Satış (Nağd)",
+                    source="cash",
+                    amount=split_cash,
+                    description=f"POS Sale {sale.id} split cash",
+                    created_by=user.username,
+                )
+            )
+        if split_card > 0:
+            db.add(
+                FinanceEntry(
+                    tenant_id=tenant.id,
+                    type="in",
+                    category="Satış (Kart)",
+                    source="card",
+                    amount=split_card,
+                    description=f"POS Sale {sale.id} split card",
+                    created_by=user.username,
+                )
+            )
+    else:
+        source = "cash" if payment_method in ["cash", "nəğd"] else "card"
+        category = "Satış (Nağd)" if source == "cash" else "Satış (Kart)"
+        db.add(
+            FinanceEntry(
+                tenant_id=tenant.id,
+                type="in",
+                category=category,
+                source=source,
+                amount=total,
+                description=f"POS Sale {sale.id}",
+                created_by=user.username,
+            )
         )
-    )
 
     db.commit()
 
