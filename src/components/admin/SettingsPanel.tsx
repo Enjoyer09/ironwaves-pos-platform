@@ -8,6 +8,7 @@ import {
   get_business_profile_live,
   get_settings_live,
   get_users_live,
+  update_email_settings_live,
   update_business_profile_live,
   update_qr_settings_live,
   update_role_modules_live,
@@ -34,6 +35,15 @@ export default function SettingsPanel() {
   const [profile, setProfile] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [roleModules, setRoleModules] = useState<RoleModules>(defaultRoleModules);
+  const [emailSettings, setEmailSettings] = useState({
+    enabled: false,
+    provider: 'none',
+    resend_api_key: '',
+    sender_email: '',
+    recipient_emails: '',
+    webhook_url: '',
+    timeout_sec: '15',
+  });
 
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<'staff' | 'kitchen' | 'manager' | 'admin'>('staff');
@@ -77,6 +87,15 @@ export default function SettingsPanel() {
     }
     if (settingsRes.status === 'fulfilled') {
       setRoleModules(settingsRes.value.role_modules || defaultRoleModules);
+      setEmailSettings({
+        enabled: Boolean(settingsRes.value.email_settings?.enabled),
+        provider: String(settingsRes.value.email_settings?.provider || 'none'),
+        resend_api_key: String(settingsRes.value.email_settings?.resend_api_key || ''),
+        sender_email: String(settingsRes.value.email_settings?.sender_email || ''),
+        recipient_emails: String((settingsRes.value.email_settings?.recipient_emails || []).join(', ')),
+        webhook_url: String(settingsRes.value.email_settings?.webhook_url || ''),
+        timeout_sec: String(settingsRes.value.email_settings?.timeout_sec || 15),
+      });
     }
   };
 
@@ -218,6 +237,19 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Rol icazələri yadda saxlanıldı', 'Права ролей сохранены', 'Role permissions saved'));
   };
 
+  const saveEmailSettings = async () => {
+    await update_email_settings_live({
+      enabled: emailSettings.enabled,
+      provider: emailSettings.provider as any,
+      resend_api_key: emailSettings.resend_api_key,
+      sender_email: emailSettings.sender_email,
+      recipient_emails: emailSettings.recipient_emails.split(',').map((v) => v.trim()).filter(Boolean),
+      webhook_url: emailSettings.webhook_url,
+      timeout_sec: Number(emailSettings.timeout_sec || 15),
+    });
+    flashSuccess(tx(lang, 'Email ayarları yadda saxlanıldı', 'Настройки email сохранены', 'Email settings saved'));
+  };
+
   return (
     <div className="space-y-6">
       <div className="metal-panel overflow-hidden">
@@ -244,6 +276,41 @@ export default function SettingsPanel() {
         </div>
         <div className="flex justify-end">
           <button onClick={() => { void saveBusinessProfile(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Saxla', 'Сохранить', 'Save')}</button>
+        </div>
+      </div>
+
+      <div className="metal-panel p-6 space-y-4">
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Email və Resend', 'Email и Resend', 'Email and Resend')}</h2>
+        <p className="text-sm text-slate-400">
+          {tx(
+            lang,
+            'Browserdən birbaşa API key göstərmək əvəzinə email-lər backend üzərindən göndərilir.',
+            'Письма отправляются через backend, чтобы не раскрывать API key в браузере.',
+            'Emails are sent through the backend so the API key is not exposed in the browser.',
+          )}
+        </p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={emailSettings.enabled} onChange={(e) => setEmailSettings((prev) => ({ ...prev, enabled: e.target.checked }))} />
+            <span>{tx(lang, 'Email göndərimini aktiv et', 'Включить отправку email', 'Enable email sending')}</span>
+          </label>
+          <select className="neon-input" value={emailSettings.provider} onChange={(e) => setEmailSettings((prev) => ({ ...prev, provider: e.target.value }))}>
+            <option value="none">{tx(lang, 'Provayder seçin', 'Выберите провайдера', 'Select provider')}</option>
+            <option value="resend">Resend</option>
+            <option value="webhook">{tx(lang, 'Webhook', 'Webhook', 'Webhook')}</option>
+          </select>
+          <input className="neon-input" value={emailSettings.sender_email} onChange={(e) => setEmailSettings((prev) => ({ ...prev, sender_email: e.target.value }))} placeholder={tx(lang, 'Göndərən email', 'Email отправителя', 'Sender email')} />
+          <input className="neon-input" value={emailSettings.recipient_emails} onChange={(e) => setEmailSettings((prev) => ({ ...prev, recipient_emails: e.target.value }))} placeholder={tx(lang, 'Default alıcılar (vergüllə)', 'Получатели по умолчанию (через запятую)', 'Default recipients (comma separated)')} />
+          {emailSettings.provider === 'resend' ? (
+            <input className="neon-input md:col-span-2" value={emailSettings.resend_api_key} onChange={(e) => setEmailSettings((prev) => ({ ...prev, resend_api_key: e.target.value }))} placeholder="re_..." />
+          ) : null}
+          {emailSettings.provider === 'webhook' ? (
+            <input className="neon-input md:col-span-2" value={emailSettings.webhook_url} onChange={(e) => setEmailSettings((prev) => ({ ...prev, webhook_url: e.target.value }))} placeholder={tx(lang, 'Webhook URL', 'Webhook URL', 'Webhook URL')} />
+          ) : null}
+          <input className="neon-input" type="number" min={5} value={emailSettings.timeout_sec} onChange={(e) => setEmailSettings((prev) => ({ ...prev, timeout_sec: e.target.value }))} placeholder={tx(lang, 'Timeout (san)', 'Timeout (сек)', 'Timeout (sec)')} />
+        </div>
+        <div className="flex justify-end">
+          <button onClick={() => { void saveEmailSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 

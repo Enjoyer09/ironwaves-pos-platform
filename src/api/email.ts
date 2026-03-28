@@ -1,13 +1,27 @@
+import { apiRequest, isBackendEnabled } from './client';
 import { get_settings } from './settings';
 
 type SendEmailArgs = {
   tenant_id: string;
   subject: string;
   html: string;
+  recipients?: string[];
   attachments?: Array<{ filename: string; content: string; type?: string }>;
 };
 
 export async function send_email(args: SendEmailArgs): Promise<{ success: boolean; message: string }> {
+  if (isBackendEnabled()) {
+    return apiRequest<{ success: boolean; message: string }>('/api/v1/ops/emails/send', {
+      method: 'POST',
+      tenantId: null,
+      body: {
+        subject: args.subject,
+        html: args.html,
+        recipients: args.recipients || undefined,
+      },
+    });
+  }
+
   const settings = get_settings(args.tenant_id);
   const cfg = settings.email_settings;
   if (!cfg?.enabled || cfg.provider === 'none') {

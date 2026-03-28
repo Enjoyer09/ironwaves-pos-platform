@@ -284,6 +284,21 @@ export async function update_role_modules_live(payload: { staff: string[]; manag
   return { success: true };
 }
 
+export async function update_email_settings_live(payload: {
+  enabled?: boolean;
+  provider?: 'none' | 'resend' | 'webhook';
+  resend_api_key?: string;
+  sender_email?: string;
+  recipient_emails?: string[];
+  webhook_url?: string;
+  timeout_sec?: number;
+}) {
+  if (!isBackendEnabled()) return update_email_settings(payload);
+  await apiRequest('/api/v1/ops/settings/email-settings', { method: 'PATCH', tenantId: null, body: payload });
+  update_email_settings(payload);
+  return { success: true };
+}
+
 export function get_business_profile(tenant_id?: string) {
   const resolvedTenant = resolveTenant(tenant_id);
   const profiles = getDB<any>('business_profile');

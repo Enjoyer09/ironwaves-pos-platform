@@ -8,6 +8,7 @@ import {
   repay_investor_async,
   transfer_funds_async,
 } from '../../api/finance';
+import { send_email } from '../../api/email';
 import { tx } from '../../i18n';
 import { isBackendEnabled } from '../../api/client';
 
@@ -391,6 +392,30 @@ export default function FinancePanel() {
     URL.revokeObjectURL(url);
   };
 
+  const sendFinanceSummary = async () => {
+    const html = `
+      <h2>Finance Summary</h2>
+      <p><b>Period:</b> ${fromDate} - ${toDate}</p>
+      <p><b>Incoming:</b> ${filteredEntries.filter((e: any) => e.type === 'in').reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0)).toFixed(2)} ₼</p>
+      <p><b>Outgoing:</b> ${filteredEntries.filter((e: any) => e.type === 'out').reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0)).toFixed(2)} ₼</p>
+      <p><b>Net:</b> ${filteredEntries.reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.type === 'in' ? e.amount || 0 : new Decimal(0).minus(new Decimal(e.amount || 0)))), new Decimal(0)).toFixed(2)} ₼</p>
+      <p><b>Cash Balance:</b> ${new Decimal(balance.cash_balance || 0).toFixed(2)} ₼</p>
+      <p><b>Card Balance:</b> ${new Decimal(balance.card_balance || 0).toFixed(2)} ₼</p>
+      <p><b>Investor Debt:</b> ${new Decimal(investorSummary.debt_remaining || 0).toFixed(2)} ₼</p>
+      <p><b>Entries:</b> ${filteredEntries.length}</p>
+    `;
+    try {
+      const sent = await send_email({
+        tenant_id,
+        subject: `Finance Summary ${fromDate} - ${toDate}`,
+        html,
+      });
+      notify(sent.success ? 'success' : 'error', sent.message);
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Maliyyə email göndərilmədi', 'Финансовый email не отправлен', 'Finance email was not sent'));
+    }
+  };
+
   const addEntry = async () => {
     if (!amount || new Decimal(amount).lte(0)) {
       notify('error', tx(lang, 'Məbləğ düzgün deyil', 'Неверная сумма'));
@@ -714,6 +739,9 @@ export default function FinancePanel() {
           <input type="date" value={toDate} onChange={(e) => { setRangePreset('custom'); setToDate(e.target.value); }} className="neon-input w-auto" />
           <button className="neon-btn rounded-lg px-3 py-2 text-xs" onClick={exportCsv}>
             {tx(lang, 'CSV Export', 'Экспорт CSV', 'CSV Export')}
+          </button>
+          <button className="glossy-gold rounded-lg px-3 py-2 text-xs font-semibold" onClick={() => { void sendFinanceSummary(); }}>
+            {tx(lang, 'Email Göndər', 'Отправить email', 'Send Email')}
           </button>
         </div>
         <div className="mb-3 grid grid-cols-1 gap-2 text-xs text-slate-300 md:grid-cols-4">

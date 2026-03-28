@@ -13,17 +13,19 @@ export default function AIManagerPanel() {
   const [loading, setLoading] = useState(false);
   const [activeAudit, setActiveAudit] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
+  const [auditWindow, setAuditWindow] = useState<'7' | '30' | '90'>('30');
+  const [customPrompt, setCustomPrompt] = useState('');
 
   const saveApiKey = () => {
     localStorage.setItem('gemini_api_key', apiKey);
     update_api_key(apiKey);
     void update_api_key_live(apiKey);
-    notify('success', tx(lang, 'API Key yadda saxlanıldı!', 'API ключ сохранен!'));
+    notify('success', tx(lang, 'API Key yadda saxlanıldı!', 'API ключ сохранен!', 'API key saved'));
   };
 
   const handleAudit = async (type: 'business' | 'inventory' | 'security') => {
     if (!apiKey) {
-      notify('error', tx(lang, 'Zəhmət olmasa əvvəlcə Gemini API Key daxil edin.', 'Сначала введите Gemini API ключ.'));
+      notify('error', tx(lang, 'Zəhmət olmasa əvvəlcə Gemini API Key daxil edin.', 'Сначала введите Gemini API ключ.', 'Please enter the Gemini API key first.'));
       return;
     }
     setLoading(true);
@@ -34,7 +36,7 @@ export default function AIManagerPanel() {
       let response = '';
       
       const date_from = new Date();
-      date_from.setDate(date_from.getDate() - 30);
+      date_from.setDate(date_from.getDate() - Number(auditWindow));
       const to_str = new Date().toISOString();
       const from_str = date_from.toISOString();
 
@@ -47,14 +49,14 @@ export default function AIManagerPanel() {
         response = await security_audit({ date_from: from_str, date_to: to_str });
       }
       
-      // Süni intellekt effekti vermək üçün kiçik gecikmə
-      setTimeout(() => {
-        setAiResponse(response);
-        setLoading(false);
-      }, 1500);
+      const finalResponse = customPrompt.trim()
+        ? `${response}\n\n${tx(lang, 'Əlavə fokus', 'Дополнительный фокус', 'Additional focus')}: ${customPrompt.trim()}`
+        : response;
+      setAiResponse(finalResponse);
+      setLoading(false);
       
     } catch (err) {
-      setAiResponse(tx(lang, 'Süni İntellekt analiz edərkən xəta yarandı.', 'Произошла ошибка при анализе AI.'));
+      setAiResponse(tx(lang, 'Süni İntellekt analiz edərkən xəta yarandı.', 'Произошла ошибка при анализе AI.', 'An error occurred during AI analysis.'));
       setLoading(false);
     }
   };
@@ -65,9 +67,9 @@ export default function AIManagerPanel() {
         <div>
           <h1 className="text-3xl font-bold text-slate-100 flex items-center gap-3">
             <Bot className="text-indigo-500" size={32} />
-            {tx(lang, 'AI Menecer', 'AI менеджер')}
+            {tx(lang, 'AI Menecer', 'AI менеджер', 'AI Manager')}
           </h1>
-          <p className="text-slate-300 mt-1">{tx(lang, 'Süni İntellekt əsaslı biznes, anbar və təhlükəsizlik analizləri', 'AI-анализ бизнеса, склада и безопасности')}</p>
+          <p className="text-slate-300 mt-1">{tx(lang, 'Süni İntellekt əsaslı biznes, anbar və təhlükəsizlik analizləri', 'AI-анализ бизнеса, склада и безопасности', 'AI-powered business, inventory, and security audits')}</p>
         </div>
       </div>
 
@@ -82,7 +84,22 @@ export default function AIManagerPanel() {
             className="neon-input"
           />
         </div>
-          <button onClick={saveApiKey} className="glossy-gold px-6 py-2 mt-5 rounded-lg font-semibold">{tx(lang, 'Yadda Saxla', 'Сохранить')}</button>
+          <button onClick={saveApiKey} className="glossy-gold px-6 py-2 mt-5 rounded-lg font-semibold">{tx(lang, 'Yadda Saxla', 'Сохранить', 'Save')}</button>
+      </div>
+
+      <div className="metal-panel mb-8 grid grid-cols-1 gap-3 rounded-xl border border-slate-700/70 p-6 md:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-sm font-semibold text-slate-300">{tx(lang, 'Audit pəncərəsi', 'Окно аудита', 'Audit window')}</label>
+          <select className="neon-input" value={auditWindow} onChange={(e) => setAuditWindow(e.target.value as any)}>
+            <option value="7">{tx(lang, 'Son 7 gün', 'Последние 7 дней', 'Last 7 days')}</option>
+            <option value="30">{tx(lang, 'Son 30 gün', 'Последние 30 дней', 'Last 30 days')}</option>
+            <option value="90">{tx(lang, 'Son 90 gün', 'Последние 90 дней', 'Last 90 days')}</option>
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-semibold text-slate-300">{tx(lang, 'Əlavə fokus', 'Дополнительный фокус', 'Additional focus')}</label>
+          <input className="neon-input" value={customPrompt} onChange={(e) => setCustomPrompt(e.target.value)} placeholder={tx(lang, 'Məs: xərcləri azalt, zəif saatları tap', 'Напр.: сократить расходы, найти слабые часы', 'Example: reduce costs, find weak hours')} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -94,8 +111,8 @@ export default function AIManagerPanel() {
             <TrendingUp size={24} />
           </div>
           <div>
-             <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Biznes Analizi', 'Анализ бизнеса')}</h3>
-             <p className="text-sm text-slate-300 mt-1">{tx(lang, 'Son 30 günün satışları, qazancı və müştəri tendensiyaları', 'Продажи, прибыль и тренды клиентов за 30 дней')}</p>
+             <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Biznes Analizi', 'Анализ бизнеса', 'Business Analysis')}</h3>
+             <p className="text-sm text-slate-300 mt-1">{tx(lang, 'Satışlar, qazanc və müştəri tendensiyaları', 'Продажи, прибыль и тренды клиентов', 'Sales, profit, and customer trends')}</p>
           </div>
         </button>
 
@@ -107,8 +124,8 @@ export default function AIManagerPanel() {
             <PackageSearch size={24} />
           </div>
           <div>
-             <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Anbar Auditi', 'Аудит склада')}</h3>
-             <p className="text-sm text-slate-300 mt-1">{tx(lang, 'Tükənməkdə olan malların və zay məhsulların analizi', 'Анализ заканчивающихся и списанных товаров')}</p>
+             <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Anbar Auditi', 'Аудит склада', 'Inventory Audit')}</h3>
+             <p className="text-sm text-slate-300 mt-1">{tx(lang, 'Tükənməkdə olan malların və zay məhsulların analizi', 'Анализ заканчивающихся и списанных товаров', 'Analysis of low-stock and wasted items')}</p>
           </div>
         </button>
 
@@ -120,8 +137,8 @@ export default function AIManagerPanel() {
             <ShieldAlert size={24} />
           </div>
           <div>
-             <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Təhlükəsizlik Auditi', 'Аудит безопасности')}</h3>
-             <p className="text-sm text-slate-300 mt-1">{tx(lang, 'Şübhəli ləğvlər (VOID), kassa fərqləri və personal hərəkətləri', 'Подозрительные VOID, разницы кассы и действия персонала')}</p>
+             <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Təhlükəsizlik Auditi', 'Аудит безопасности', 'Security Audit')}</h3>
+             <p className="text-sm text-slate-300 mt-1">{tx(lang, 'Şübhəli ləğvlər (VOID), kassa fərqləri və personal hərəkətləri', 'Подозрительные VOID, разницы кассы и действия персонала', 'Suspicious voids, cash differences, and staff actions')}</p>
           </div>
         </button>
       </div>
@@ -130,14 +147,14 @@ export default function AIManagerPanel() {
         <div className="p-4 border-b border-slate-700/70 bg-slate-900/35 rounded-t-2xl">
           <h2 className="font-bold text-slate-100 flex items-center gap-2">
             <Bot size={20} className="text-indigo-500" />
-            {tx(lang, 'Süni İntellekt Hesabatı', 'Отчет искусственного интеллекта')}
+            {tx(lang, 'Süni İntellekt Hesabatı', 'Отчет искусственного интеллекта', 'AI Report')}
           </h2>
         </div>
         <div className="p-8 flex-1">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4 mt-12">
               <Loader2 size={40} className="animate-spin text-indigo-500" />
-               <p>{tx(lang, 'Məlumatlar toplanır və Gemini AI tərəfindən analiz edilir...', 'Собираются данные и анализируются Gemini AI...')}</p>
+               <p>{tx(lang, 'Məlumatlar toplanır və Gemini AI tərəfindən analiz edilir...', 'Собираются данные и анализируются Gemini AI...', 'Collecting data and analyzing with Gemini AI...')}</p>
             </div>
           ) : aiResponse ? (
             <div className="prose max-w-none text-slate-200 whitespace-pre-line leading-relaxed">
@@ -146,7 +163,7 @@ export default function AIManagerPanel() {
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-4 mt-12">
               <Bot size={64} className="text-slate-500" />
-               <p>{tx(lang, 'Zəhmət olmasa yuxarıdan bir audit növü seçin', 'Выберите тип аудита выше')}</p>
+               <p>{tx(lang, 'Zəhmət olmasa yuxarıdan bir audit növü seçin', 'Выберите тип аудита выше', 'Please select an audit type above')}</p>
             </div>
           )}
         </div>

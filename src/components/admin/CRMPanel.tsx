@@ -3,6 +3,7 @@ import { generate_qr_codes } from '../../api/qr_generator';
 import { get_customers_live, import_customers_live } from '../../api/crm';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
+import { send_email } from '../../api/email';
 
 const QR_TYPES = [
   { value: 'golden', label_az: 'Golden (5%)', label_ru: 'Golden (5%)', discount: 5 },
@@ -23,6 +24,9 @@ export default function CRMPanel() {
   const [customDiscount, setCustomDiscount] = useState('0');
   const [loading, setLoading] = useState(false);
   const [importText, setImportText] = useState('');
+  const [campaignRecipients, setCampaignRecipients] = useState('');
+  const [campaignSubject, setCampaignSubject] = useState('');
+  const [campaignBody, setCampaignBody] = useState('');
 
   const selectedTier = useMemo(() => QR_TYPES.find((t) => t.value === tier) || QR_TYPES[0], [tier]);
   const effectiveType = tier === '__custom__' ? customType.trim() : selectedTier.value;
@@ -31,6 +35,25 @@ export default function CRMPanel() {
   const loadData = async () => {
     const cust = await get_customers_live(tenant_id);
     setCustomers(cust || []);
+  };
+
+  const onSendCampaign = async () => {
+    const recipients = campaignRecipients.split(',').map((v) => v.trim()).filter(Boolean);
+    if (!campaignSubject.trim() || !campaignBody.trim()) {
+      notify('error', tx(lang, 'Email başlığı və mətni vacibdir', 'Тема и текст email обязательны', 'Email subject and body are required'));
+      return;
+    }
+    try {
+      const result = await send_email({
+        tenant_id,
+        subject: campaignSubject.trim(),
+        html: `<div style="font-family:Arial,sans-serif;white-space:pre-line">${campaignBody.trim()}</div>`,
+        recipients: recipients.length ? recipients : undefined,
+      });
+      notify(result.success ? 'success' : 'error', result.message);
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Email göndərilmədi', 'Email не отправлен', 'Email was not sent'));
+    }
   };
 
   useEffect(() => {
@@ -135,7 +158,7 @@ export default function CRMPanel() {
       </div>
 
       <div className="metal-panel p-5">
-        <h3 className="text-xl font-bold text-slate-100">{tx(lang, 'Legacy QR Köçürmə', 'Импорт legacy QR')}</h3>
+        <h3 className="text-xl font-bold text-slate-100">{tx(lang, 'Legacy QR Köçürmə', 'Импорт legacy QR', 'Legacy QR Import')}</h3>
         <p className="mt-2 text-sm text-slate-300">
           {tx(
             lang,
@@ -150,7 +173,27 @@ export default function CRMPanel() {
           placeholder={'QR-100001,abc123,Golden,12,5\nQR-100002'}
         />
         <button onClick={() => { void onImportLegacy(); }} className="glossy-gold mt-4 rounded-xl px-5 py-3 font-bold">
-          {tx(lang, 'Legacy QR-ları Köçür', 'Импортировать legacy QR')}
+          {tx(lang, 'Legacy QR-ları Köçür', 'Импортировать legacy QR', 'Import Legacy QRs')}
+        </button>
+      </div>
+
+      <div className="metal-panel p-5">
+        <h3 className="text-xl font-bold text-slate-100">{tx(lang, 'CRM Email Kampaniyası', 'Email кампания CRM', 'CRM Email Campaign')}</h3>
+        <p className="mt-2 text-sm text-slate-300">
+          {tx(
+            lang,
+            'Burada manual alıcı email-ləri yazıb CRM kampaniyası göndərə bilərsiniz. Default recipient-lər Settings-dən də gəlir.',
+            'Здесь можно вручную указать email получателей и отправить CRM кампанию. Получатели по умолчанию также берутся из Settings.',
+            'You can enter recipient emails manually here and send a CRM campaign. Default recipients also come from Settings.',
+          )}
+        </p>
+        <div className="mt-3 grid grid-cols-1 gap-3">
+          <input className="neon-input" value={campaignRecipients} onChange={(e) => setCampaignRecipients(e.target.value)} placeholder={tx(lang, 'Alıcı email-ləri (vergüllə)', 'Email получателей (через запятую)', 'Recipient emails (comma separated)')} />
+          <input className="neon-input" value={campaignSubject} onChange={(e) => setCampaignSubject(e.target.value)} placeholder={tx(lang, 'Email başlığı', 'Тема email', 'Email subject')} />
+          <textarea className="neon-input min-h-32" value={campaignBody} onChange={(e) => setCampaignBody(e.target.value)} placeholder={tx(lang, 'Kampaniya mətni', 'Текст кампании', 'Campaign body')} />
+        </div>
+        <button onClick={() => { void onSendCampaign(); }} className="glossy-gold mt-4 rounded-xl px-5 py-3 font-bold">
+          {tx(lang, 'Email Göndər', 'Отправить email', 'Send Email')}
         </button>
       </div>
 
@@ -158,11 +201,11 @@ export default function CRMPanel() {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-700/70 bg-slate-900/40 text-slate-300">
             <tr>
-                <th className="px-4 py-3">{tx(lang, 'Kart ID', 'ID карты')}</th>
-                <th className="px-4 py-3">{tx(lang, 'Tip', 'Тип')}</th>
-                <th className="px-4 py-3">{tx(lang, 'Endirim', 'Скидка')}</th>
-                <th className="px-4 py-3">{tx(lang, 'Ulduz', 'Звезды')}</th>
-                <th className="px-4 py-3">{tx(lang, 'Tarix', 'Дата')}</th>
+                <th className="px-4 py-3">{tx(lang, 'Kart ID', 'ID карты', 'Card ID')}</th>
+                <th className="px-4 py-3">{tx(lang, 'Tip', 'Тип', 'Type')}</th>
+                <th className="px-4 py-3">{tx(lang, 'Endirim', 'Скидка', 'Discount')}</th>
+                <th className="px-4 py-3">{tx(lang, 'Ulduz', 'Звезды', 'Stars')}</th>
+                <th className="px-4 py-3">{tx(lang, 'Tarix', 'Дата', 'Date')}</th>
             </tr>
           </thead>
           <tbody>
@@ -178,7 +221,7 @@ export default function CRMPanel() {
             {customers.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
-                    {tx(lang, 'Hələ QR müştəri yaradılmayıb', 'QR-клиенты еще не созданы')}
+                    {tx(lang, 'Hələ QR müştəri yaradılmayıb', 'QR-клиенты еще не созданы', 'No QR customers yet')}
                 </td>
               </tr>
             )}

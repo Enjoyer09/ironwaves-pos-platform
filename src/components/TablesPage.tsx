@@ -33,11 +33,11 @@ export default function TablesPage() {
   const kitchenBadge = (status?: string | null) => {
     switch (String(status || '').toUpperCase()) {
       case 'NEW':
-        return { label: tx(lang, 'Mətbəxə göndərildi', 'Отправлено на кухню'), className: 'bg-blue-400/20 text-blue-200 border border-blue-300/40' };
+        return { label: tx(lang, 'Mətbəxə göndərildi', 'Отправлено на кухню', 'Sent to kitchen'), className: 'bg-blue-400/20 text-blue-200 border border-blue-300/40' };
       case 'PREPARING':
-        return { label: tx(lang, 'Hazırlanır', 'Готовится'), className: 'bg-orange-400/20 text-orange-200 border border-orange-300/40' };
+        return { label: tx(lang, 'Hazırlanır', 'Готовится', 'Preparing'), className: 'bg-orange-400/20 text-orange-200 border border-orange-300/40' };
       case 'READY':
-        return { label: tx(lang, 'Servisə hazırdır', 'Готово к подаче'), className: 'bg-emerald-400/20 text-emerald-200 border border-emerald-300/40' };
+        return { label: tx(lang, 'Servisə hazırdır', 'Готово к подаче', 'Ready to serve'), className: 'bg-emerald-400/20 text-emerald-200 border border-emerald-300/40' };
       default:
         return null;
     }
@@ -56,30 +56,30 @@ export default function TablesPage() {
     if (!label) return;
     try {
       await create_table_live(tenant_id, label, user?.username || 'Staff');
-      notify('success', tx(lang, 'Masa yaradıldı', 'Стол создан'));
+      notify('success', tx(lang, 'Masa yaradıldı', 'Стол создан', 'Table created'));
       await loadData();
       setShowCreate(false);
       setNewTableName('');
-    } catch(e:any) { notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message); }
+    } catch(e:any) { notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message); }
   };
 
   const handleDeleteTable = async (id: string) => {
     try {
       await delete_table_live(id, user?.username || 'Staff');
-      notify('success', tx(lang, 'Masa silindi', 'Стол удален'));
+      notify('success', tx(lang, 'Masa silindi', 'Стол удален', 'Table deleted'));
       setDeleteTableId(null);
       await loadData();
-    } catch(e:any) { notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message); }
+    } catch(e:any) { notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message); }
   };
 
   const printTableReceiptOnly = async () => {
     if (printSettings.use_qz && tableReceiptHtml) {
       try {
         await qzPrintHtml(tableReceiptHtml, printSettings.printer_name);
-        notify('success', tx(lang, 'QZ Tray ilə çap göndərildi', 'Печать отправлена через QZ Tray'));
+        notify('success', tx(lang, 'QZ Tray ilə çap göndərildi', 'Печать отправлена через QZ Tray', 'Print job sent via QZ Tray'));
         return;
       } catch (e: any) {
-        notify('error', tx(lang, `QZ çap alınmadı, brauzerə keçilir: ${e.message || e}`, `QZ печать не удалась, переход к печати браузера: ${e.message || e}`));
+        notify('error', tx(lang, `QZ çap alınmadı, brauzerə keçilir: ${e.message || e}`, `QZ печать не удалась, переход к печати браузера: ${e.message || e}`, `QZ printing failed, falling back to browser printing: ${e.message || e}`));
       }
     }
     const frame = receiptRef.current;
@@ -93,8 +93,8 @@ export default function TablesPage() {
       <ConfirmModal
         open={Boolean(deleteTableId)}
         lang={lang}
-        title={tx(lang, 'Masanı sil', 'Удалить стол')}
-        message={tx(lang, 'Masa yalnız boş olduqda silinməlidir.', 'Стол удаляется только если он свободен.')}
+        title={tx(lang, 'Masanı sil', 'Удалить стол', 'Delete table')}
+        message={tx(lang, 'Masa yalnız boş olduqda silinməlidir.', 'Стол удаляется только если он свободен.', 'A table can only be deleted when it is empty.')}
         onCancel={() => setDeleteTableId(null)}
         onConfirm={() => {
           if (!deleteTableId) return;
@@ -105,7 +105,7 @@ export default function TablesPage() {
       {showDeleteAuth && (
         <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/70 p-4">
           <div className="metal-panel w-full max-w-md p-5">
-            <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Admin Təsdiqi', 'Подтверждение админа')}</h3>
+            <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Admin Təsdiqi', 'Подтверждение админа', 'Admin Confirmation')}</h3>
             <p className="mt-2 text-sm text-slate-300">{tx(lang, 'Masa silmək üçün admin şifrəsini daxil edin', 'Введите пароль администратора для удаления стола')}</p>
             <input
               type="password"
@@ -405,7 +405,7 @@ export default function TablesPage() {
       )}
 
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold flex items-center gap-2"><LayoutGrid size={28} className="text-yellow-300"/> {tx(lang, 'Masaların İdarəsi', 'Управление столами')}</h2>
+        <h2 className="text-2xl font-bold flex items-center gap-2"><LayoutGrid size={28} className="text-yellow-300"/> {tx(lang, 'Masaların İdarəsi', 'Управление столами', 'Table Management')}</h2>
         {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
           <button onClick={() => setShowCreate(true)} className="glossy-gold px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-bold">
             <Plus size={20} /> {tx(lang, 'Masa Yarat', 'Создать стол')}
@@ -450,7 +450,7 @@ export default function TablesPage() {
         ))}
         {tables.length === 0 && (
           <div className="metal-panel col-span-full py-12 text-center text-slate-400 border-2 border-dashed border-slate-600 rounded-2xl">
-             {tx(lang, 'Heç bir masa tapılmadı. Zəhmət olmasa "Masa Yarat" düyməsindən istifadə edin.', 'Столы не найдены. Пожалуйста, используйте кнопку "Создать стол".')}
+             {tx(lang, 'Heç bir masa tapılmadı. Zəhmət olmasa "Masa Yarat" düyməsindən istifadə edin.', 'Столы не найдены. Пожалуйста, используйте кнопку "Создать стол".', 'No tables found. Please use the "Create Table" button.')}
           </div>
         )}
       </div>
