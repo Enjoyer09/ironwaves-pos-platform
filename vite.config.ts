@@ -16,6 +16,7 @@ export default defineConfig({
     tailwindcss(), 
     viteSingleFile(),
     VitePWA({
+      injectRegister: false,
       registerType: 'autoUpdate',
       devOptions: {
         enabled: true
