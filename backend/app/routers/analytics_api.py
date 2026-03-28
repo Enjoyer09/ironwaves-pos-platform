@@ -50,6 +50,7 @@ def get_sales_summary(
     cash_sales = Decimal("0")
     card_sales = Decimal("0")
     void_count = 0
+    total_cogs = Decimal("0")
     for row in rows:
         if not _in_range(row.created_at, start, end):
             continue
@@ -59,6 +60,7 @@ def get_sales_summary(
             void_count += 1
             continue
         total_revenue += Decimal(str(row.total))
+        total_cogs += Decimal(str(row.cogs or 0))
         pm = str(row.payment_method or "").lower()
         if pm in {"cash", "nəğd"}:
             cash_sales += Decimal(str(row.total))
@@ -83,8 +85,8 @@ def get_sales_summary(
         "total_revenue": str(total_revenue.quantize(Decimal("0.01"))),
         "cash_sales": str(cash_sales.quantize(Decimal("0.01"))),
         "card_sales": str(card_sales.quantize(Decimal("0.01"))),
-        "total_cogs": "0.00",
-        "gross_profit": str(total_revenue.quantize(Decimal("0.01"))),
+        "total_cogs": str(total_cogs.quantize(Decimal("0.01"))),
+        "gross_profit": str((total_revenue - total_cogs).quantize(Decimal("0.01"))),
         "void_count": void_count,
     }
 
@@ -120,7 +122,7 @@ def get_sales_list(
                 "original_total": str(original_total.quantize(Decimal("0.01"))),
                 "discount_amount": str(Decimal(str(row.discount_amount or 0)).quantize(Decimal("0.01"))),
                 "total": str(Decimal(str(row.total)).quantize(Decimal("0.01"))),
-                "cogs": "0.00",
+                "cogs": str(Decimal(str(row.cogs or 0)).quantize(Decimal("0.01"))),
                 "payment_method": row.payment_method,
                 "order_type": row.order_type,
                 "items": items,

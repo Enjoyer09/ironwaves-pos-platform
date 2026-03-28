@@ -47,6 +47,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
     total = (subtotal - discount).quantize(Decimal("0.01"))
 
     stock_ops: list[tuple[InventoryItem, Decimal]] = []
+    cogs_total = Decimal("0.0000")
     for item in payload.cart_items:
         recipes = (
             db.query(Recipe)
@@ -65,6 +66,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
             if Decimal(str(inventory.stock_qty)) < qty_required:
                 raise HTTPException(status_code=400, detail=f"{inventory.name} üçün anbarda kifayət qədər qalıq yoxdur")
             stock_ops.append((inventory, qty_required))
+            cogs_total += (qty_required * Decimal(str(inventory.unit_cost or 0))).quantize(Decimal("0.0001"))
 
     receipt_code = secrets.token_hex(5).upper()
     receipt_token = secrets.token_hex(10)
@@ -79,6 +81,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         receipt_token=receipt_token,
         total=total,
         discount_amount=discount,
+        cogs=cogs_total.quantize(Decimal("0.0001")),
         items_json=json.dumps([i.model_dump(mode="json") for i in payload.cart_items], ensure_ascii=False),
         status="COMPLETED",
         created_at=datetime.utcnow(),
