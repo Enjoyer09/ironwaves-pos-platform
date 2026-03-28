@@ -15,7 +15,7 @@ import {
   x_report,
   z_report,
 } from '../../api/reports';
-import { create_finance_entry, get_balance, transfer_funds } from '../../api/finance';
+import { create_finance_entry_async, fetch_finance_balances, transfer_funds_async } from '../../api/finance';
 import { get_settings, get_users } from '../../api/settings';
 import { qzListPrinters, qzPrintHtml } from '../../lib/qz';
 import { tx } from '../../i18n';
@@ -42,10 +42,16 @@ export default function ZReportPanel() {
   const [sales, setSales] = useState<any[]>([]);
   const [handovers, setHandovers] = useState<any[]>([]);
   const [pendingReceived, setPendingReceived] = useState<any | null>(null);
+  const [currentBalances, setCurrentBalances] = useState<any>({
+    cash_balance: '0',
+    card_balance: '0',
+    debt_balance: '0',
+    investor_balance: '0',
+    safe_balance: '0',
+  });
   const zReceiptRef = React.useRef<HTMLIFrameElement | null>(null);
   const printSettings = get_settings(tenant_id).print_settings || { use_qz: false, printer_name: '' };
 
-  const currentBalances = get_balance(tenant_id, 'all', false);
   const carryoverCash = new Decimal(currentBalances.cash_balance || 0);
   const targetCash = new Decimal(openingTarget || '0');
   const requiredTopup = Decimal.max(new Decimal(0), targetCash.minus(carryoverCash));
@@ -71,17 +77,19 @@ export default function ZReportPanel() {
     let mounted = true;
     (async () => {
       try {
-        const [status, cash, nextHandovers, nextPending] = await Promise.all([
+        const [status, cash, nextHandovers, nextPending, balances] = await Promise.all([
           refresh_shift_status(tenant_id),
           refresh_expected_cash(tenant_id),
           get_shift_handover_history_live(tenant_id, user?.username || undefined),
           get_pending_handover_for_user_live(tenant_id, user?.username || ''),
+          fetch_finance_balances(tenant_id),
         ]);
         if (!mounted) return;
         setShiftStatusState(status);
         setExpectedCashState(cash);
         setHandovers(nextHandovers);
         setPendingReceived(nextPending);
+        setCurrentBalances(balances);
       } catch {
         // Keep cached/local fallback.
       }
@@ -104,6 +112,7 @@ export default function ZReportPanel() {
       const res = await x_report(xActualCash, user?.username || 'staff', tenant_id);
       const cash = await refresh_expected_cash(tenant_id).catch(() => expectedCashNow);
       setExpectedCashState(cash);
+      setCurrentBalances(await fetch_finance_balances(tenant_id));
       notify('success', tx(lang, `X-Hesabat tamamlandı. Fərq: ${res.difference} ₼`, `X-отчет завершен. Разница: ${res.difference} ₼`));
     } catch (e: any) {
       notify('error', tx(lang, `Xəta: ${e.message}`, `Ошибка: ${e.message}`));
@@ -116,11 +125,11 @@ export default function ZReportPanel() {
       // IMPORTANT: top-up is validated/applied BEFORE opening the shift.
       // If top-up fails (insufficient funds), day should not be opened.
       if (requiredTopup.greaterThan(0)) {
-        const balances = get_balance(tenant_id, 'all', false) as any;
+        const balances = await fetch_finance_balances(tenant_id);
 
         if (openingTopupSource === 'investor') {
           // Investor injects money directly to cash + liability mirror handled by finance API.
-          create_finance_entry(
+          await create_finance_entry_async(
             tenant_id,
             'in',
             'Təsisçi İnvestisiyası',
@@ -131,7 +140,7 @@ export default function ZReportPanel() {
           );
         } else if (openingTopupSource === 'cash') {
           // Cash as source means no cross-wallet movement; just marker event is enough.
-          create_finance_entry(
+          await create_finance_entry_async(
             tenant_id,
             'in',
             'Kassa Açılışı',
@@ -167,7 +176,7 @@ export default function ZReportPanel() {
 
           // safe/card -> cash transfer
           const direction = openingTopupSource === 'safe' ? 'safe_to_cash' : 'card_to_cash';
-          transfer_funds(
+          await transfer_funds_async(
             tenant_id,
             direction,
             requiredTopup.toString(),
@@ -185,6 +194,7 @@ export default function ZReportPanel() {
       ]);
       setShiftStatusState(status);
       setExpectedCashState(cash);
+      setCurrentBalances(await fetch_finance_balances(tenant_id));
 
       notify('success', tx(lang, 'Gün açıldı', 'День открыт'));
       notify('info', tx(lang, 'Xahiş edirik, gün sonu Z-Hesabatla növbəni bağlamağı unutmayın.', 'Пожалуйста, не забудьте закрыть смену через Z-отчет в конце дня.'));
@@ -204,6 +214,7 @@ export default function ZReportPanel() {
       ]);
       setShiftStatusState(status);
       setExpectedCashState(cash);
+      setCurrentBalances(await fetch_finance_balances(tenant_id));
       notify('success', tx(lang, 'Z-Hesabat yaradıldı', 'Z-отчет создан'));
       if (result.email_sent) {
         notify('success', tx(lang, 'Z hesabat e-mail ilə göndərildi', 'Z-отчет отправлен по e-mail', 'Z report email sent'));

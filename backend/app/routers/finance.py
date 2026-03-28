@@ -12,6 +12,35 @@ from app.schemas import FinanceEntryIn, TransferIn
 router = APIRouter(prefix="/api/v1/finance", tags=["finance"])
 
 
+def _normalize_text(value: str) -> str:
+    return (
+        (value or "")
+        .replace("ə", "e")
+        .replace("Ə", "e")
+        .replace("ı", "i")
+        .replace("İ", "i")
+        .replace("ö", "o")
+        .replace("Ö", "o")
+        .replace("ü", "u")
+        .replace("Ü", "u")
+        .replace("ç", "c")
+        .replace("Ç", "c")
+        .replace("ş", "s")
+        .replace("Ş", "s")
+        .replace("ğ", "g")
+        .replace("Ğ", "g")
+        .strip()
+        .lower()
+    )
+
+
+def _is_founder_investment_category(category: str) -> bool:
+    normalized = _normalize_text(category)
+    has_founder = "tesisci" in normalized or "founder" in normalized or "учред" in normalized
+    has_investment = "investis" in normalized or "investment" in normalized or "инвест" in normalized
+    return has_founder and has_investment
+
+
 def _wallet_balance(db: Session, tenant_id: str, source: str) -> Decimal:
     ins = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant_id, FinanceEntry.source == source, FinanceEntry.type == "in").all()
     outs = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant_id, FinanceEntry.source == source, FinanceEntry.type == "out").all()
@@ -79,6 +108,33 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
         created_by=user.username,
     )
     db.add(row)
+
+    if payload.type == "in" and payload.source == "debt":
+        db.add(
+            FinanceEntry(
+                tenant_id=tenant.id,
+                type="in",
+                category="Borcdan Kassaya Daxilolma",
+                source="cash",
+                amount=amount,
+                description=f"Auto mirror: {payload.description or payload.category}",
+                created_by=user.username,
+            )
+        )
+
+    if payload.type == "in" and payload.source == "cash" and _is_founder_investment_category(payload.category):
+        db.add(
+            FinanceEntry(
+                tenant_id=tenant.id,
+                type="in",
+                category="İnvestor Borcu",
+                source="investor",
+                amount=amount,
+                description=f"Auto liability mirror: {payload.description or payload.category}",
+                created_by=user.username,
+            )
+        )
+
     db.commit()
     return {"success": True, "id": row.id}
 

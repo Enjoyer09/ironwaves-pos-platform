@@ -5,7 +5,7 @@ import {
   create_finance_entry_async,
   fetch_finance_balances,
   fetch_finance_entries,
-  repay_investor,
+  repay_investor_async,
   transfer_funds_async,
 } from '../../api/finance';
 import { tx } from '../../i18n';
@@ -420,7 +420,7 @@ export default function FinancePanel() {
       return;
     }
     try {
-      const result = repay_investor(
+      const result = await repay_investor_async(
         tenant_id,
         repayAmount,
         repayFrom,

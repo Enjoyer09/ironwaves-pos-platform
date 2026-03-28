@@ -436,6 +436,46 @@ export const repay_investor = (
   };
 };
 
+export const repay_investor_async = async (
+  tenant_id: string,
+  amount: string,
+  pay_from: 'cash' | 'card' | 'safe',
+  created_by: string,
+  description?: string,
+) => {
+  if (!isBackendEnabled()) {
+    return repay_investor(tenant_id, amount, pay_from, created_by, description);
+  }
+
+  const amountDec = new Decimal(amount || '0');
+  if (amountDec.lte(0)) throw new Error('Məbləğ düzgün deyil');
+
+  await create_finance_entry_async(
+    tenant_id,
+    'out',
+    'İnvestora Geri Ödəniş',
+    amountDec.toString(),
+    pay_from,
+    description || 'İnvestora ödəniş',
+    created_by,
+  );
+
+  await create_finance_entry_async(
+    tenant_id,
+    'out',
+    'İnvestor Borcu Azaldılması',
+    amountDec.toString(),
+    'investor',
+    `Liability reduced via ${pay_from}`,
+    created_by,
+  );
+
+  return {
+    success: true,
+    paid: amountDec.toString(),
+  };
+};
+
 // FUNKSIYA: soft_delete_finance
 export const soft_delete_finance = (record_id: string, reason: string, deleted_by: string) => {
   const finances = getDB<FinanceEntry>('finance');
