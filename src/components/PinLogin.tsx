@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../store';
 import { i18n, tx } from '../i18n';
-import { Delete } from 'lucide-react';
+import { Delete, ShieldCheck, Sparkles } from 'lucide-react';
 import { getDeviceHash, getPublicIp, LoginRiskContext } from '../lib/risk';
 
 export default function PinLogin() {
@@ -87,24 +87,41 @@ export default function PinLogin() {
     setAdmin2faPin('');
   };
 
+  const isStaffMode = mode === 'staff';
+
   return (
-    <div className="metal-app flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="w-full max-w-xl">
-        <h1 className="mb-8 text-center text-5xl font-black tracking-wide text-slate-100">iRonWaves POS RC</h1>
+    <div className="metal-app relative flex min-h-screen items-center justify-center overflow-auto px-4 py-8">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_18%),linear-gradient(135deg,rgba(248,199,0,0.16),transparent_24%,rgba(56,189,248,0.12)_70%,transparent_100%),linear-gradient(180deg,rgba(10,16,22,0.72),rgba(10,16,22,0.88))]" />
+      <div className="absolute inset-0 opacity-[0.12]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.25) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.25) 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
+
+      <div className="relative w-full max-w-6xl">
+        <div className="mb-6 flex flex-col gap-3 text-center">
+          <div className="inline-flex self-center rounded-full border border-yellow-200/15 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.28em] text-yellow-200/80">
+            iRonWaves POS RC
+          </div>
+          <h1 className="text-4xl font-black tracking-wide text-white md:text-6xl">Premium POS login shell for live and demo tenants</h1>
+          <p className="mx-auto max-w-2xl text-sm leading-7 text-slate-300 md:text-base">
+            Fast enough for cashier flow, polished enough for demos, and structured for multi-tenant rollout across `demo`, `gyropos`, `socialbee`, and future branded subdomains.
+          </p>
+        </div>
+
         {isDemoHost && (
-          <div className="mx-auto mb-5 max-w-3xl rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-4 text-slate-100">
-            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200">Demo Environment</div>
-            <p className="mt-2 text-sm text-slate-300">
+          <div className="mx-auto mb-5 max-w-5xl rounded-[28px] border border-cyan-300/20 bg-cyan-400/10 p-5 text-slate-100 backdrop-blur-sm">
+            <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200">
+              <Sparkles size={16} />
+              Demo Environment
+            </div>
+            <p className="mt-2 text-sm leading-7 text-slate-300">
               Explore the platform with one-tap demo accounts. This space is isolated from production tenants and can be reset anytime.
             </p>
-            <div className="mt-4 grid gap-2 md:grid-cols-2">
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {demoAccounts.map((account) => (
                 <button
                   key={account.label}
                   onClick={() => applyDemoAccount(account)}
-                  className="neon-btn justify-between rounded-2xl px-4 py-3 text-left"
+                  className="neon-btn min-h-14 justify-between rounded-2xl px-4 py-3 text-left"
                 >
-                  <span>{account.label}</span>
+                  <span className="font-semibold">{account.label}</span>
                   <span className="text-xs text-slate-400">
                     {account.mode === 'staff' ? `PIN ${account.pin}` : account.username}
                   </span>
@@ -113,93 +130,124 @@ export default function PinLogin() {
             </div>
           </div>
         )}
-        <div className="mx-auto mb-4 max-w-md">
-          <select
-            value={lang}
-            onChange={(e) => setLang(e.target.value as any)}
-            className="neon-input"
-          >
-            <option value="az">AZ</option>
-            <option value="ru">RU</option>
-            <option value="en">EN</option>
-          </select>
-        </div>
+        <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.04))] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.42)] backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs uppercase tracking-[0.22em] text-slate-400">Tenant Access</div>
+                <div className="mt-2 text-2xl font-bold text-white">{isDemoHost ? 'Demo access ready' : 'Secure production login'}</div>
+              </div>
+              <div className="w-24">
+                <select
+                  value={lang}
+                  onChange={(e) => setLang(e.target.value as any)}
+                  className="neon-input min-h-11 text-sm"
+                >
+                  <option value="az">AZ</option>
+                  <option value="ru">RU</option>
+                  <option value="en">EN</option>
+                </select>
+              </div>
+            </div>
 
-        <div className="mx-auto max-w-md rounded-2xl border border-slate-600/80 bg-slate-900/45 p-6 shadow-[0_24px_60px_rgba(0,0,0,0.5)] backdrop-blur-sm">
-          <div className="mb-5 flex gap-2">
-              <button className={`neon-chip ${mode === 'staff' ? 'neon-chip-active' : ''}`} onClick={() => setMode('staff')}>{tx(safeLang, 'STAFF', 'ПЕРСОНАЛ')}</button>
-              <button className={`neon-chip ${mode === 'admin' ? 'neon-chip-active' : ''}`} onClick={() => setMode('admin')}>{tx(safeLang, 'ADMIN / MANAGER', 'АДМИН / МЕНЕДЖЕР', 'ADMIN / MANAGER')}</button>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/8 bg-slate-950/25 p-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Mode</div>
+                <div className="mt-2 text-lg font-semibold text-white">{isStaffMode ? 'PIN Login' : 'User Login'}</div>
+                <div className="mt-1 text-sm leading-6 text-slate-300">
+                  {isStaffMode ? 'Fast cashier and kitchen access with large touch keypad.' : 'Admin and manager access with password-based login.'}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-slate-950/25 p-4">
+                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-emerald-300">
+                  <ShieldCheck size={14} />
+                  Security
+                </div>
+                <div className="mt-2 text-sm leading-6 text-slate-300">
+                  Tenant isolation by subdomain, backend auth flow, and optional 2FA-aware manager login.
+                </div>
+              </div>
+            </div>
           </div>
 
-          {mode === 'staff' ? (
-            <>
-              <div className="mb-5 rounded-xl border border-slate-700 bg-[#111720] px-4 py-3 text-center text-2xl tracking-[0.6em] text-slate-100">
-                {pin ? '•'.repeat(pin.length) : t.pin_prompt}
-              </div>
+          <div className="mx-auto w-full max-w-xl rounded-[32px] border border-slate-500/30 bg-[linear-gradient(180deg,rgba(15,21,32,0.84),rgba(15,21,32,0.72))] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+            <div className="mb-5 flex gap-2">
+              <button className={`neon-chip min-h-12 px-4 ${mode === 'staff' ? 'neon-chip-active' : ''}`} onClick={() => setMode('staff')}>{tx(safeLang, 'STAFF', 'ПЕРСОНАЛ')}</button>
+              <button className={`neon-chip min-h-12 px-4 ${mode === 'admin' ? 'neon-chip-active' : ''}`} onClick={() => setMode('admin')}>{tx(safeLang, 'ADMIN / MANAGER', 'АДМИН / МЕНЕДЖЕР', 'ADMIN / MANAGER')}</button>
+            </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+            {mode === 'staff' ? (
+              <>
+                <div className="mb-5 rounded-[24px] border border-white/10 bg-[#0d1219]/90 px-4 py-4 text-center">
+                  <div className="text-xs uppercase tracking-[0.22em] text-slate-500">PIN</div>
+                  <div className="mt-2 min-h-10 text-3xl tracking-[0.6em] text-white">{pin ? '•'.repeat(pin.length) : '• • • •'}</div>
+                  <div className="mt-2 text-xs text-slate-400">{t.pin_prompt}</div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                    <button
+                      key={num}
+                      onClick={() => handleKeyPress(num.toString())}
+                      className="rounded-[26px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.10),rgba(255,255,255,0.04))] py-5 text-3xl font-bold text-white shadow-[0_10px_28px_rgba(0,0,0,0.35)] transition hover:scale-[1.02]"
+                    >
+                      {num}
+                    </button>
+                  ))}
                   <button
-                    key={num}
-                    onClick={() => handleKeyPress(num.toString())}
-                    className="metal-panel h-16 text-xl font-bold text-slate-100 transition hover:scale-[1.02]"
+                    onClick={handleClear}
+                    className="rounded-[26px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.10),rgba(255,255,255,0.04))] py-5 text-2xl font-bold text-white shadow-[0_10px_28px_rgba(0,0,0,0.35)] transition hover:scale-[1.02]"
                   >
-                    {num}
+                    C
                   </button>
-                ))}
-                <button
-                  onClick={handleClear}
-                  className="metal-panel flex h-16 items-center justify-center text-slate-200 transition hover:scale-[1.02]"
-                >
-                  C
-                </button>
-                <button
-                  onClick={() => handleKeyPress('0')}
-                  className="metal-panel h-16 text-xl font-bold text-slate-100 transition hover:scale-[1.02]"
-                >
-                  0
-                </button>
-                <button
-                  onClick={() => setPin((prev) => prev.slice(0, -1))}
-                  className="metal-panel flex h-16 items-center justify-center text-slate-200 transition hover:scale-[1.02]"
-                >
-                  <Delete size={20} />
-                </button>
-              </div>
-            </>
-          ) : (
-            <form className="space-y-3" onSubmit={handleAdminFormSubmit}>
-              <input className="neon-input" value={adminUser} onChange={(e) => setAdminUser(e.target.value)} placeholder={tx(safeLang, 'Admin istifadəçi adı', 'Имя администратора')} />
-              <input
-                className="neon-input"
-                value={adminPass}
-                onChange={(e) => setAdminPass(e.target.value)}
-                placeholder={tx(safeLang, 'Şifrə', 'Пароль')}
-                type="password"
-              />
-              {adminNeeds2FA && (
+                  <button
+                    onClick={() => handleKeyPress('0')}
+                    className="rounded-[26px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.10),rgba(255,255,255,0.04))] py-5 text-3xl font-bold text-white shadow-[0_10px_28px_rgba(0,0,0,0.35)] transition hover:scale-[1.02]"
+                  >
+                    0
+                  </button>
+                  <button
+                    onClick={() => setPin((prev) => prev.slice(0, -1))}
+                    className="flex items-center justify-center rounded-[26px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.10),rgba(255,255,255,0.04))] py-5 text-white shadow-[0_10px_28px_rgba(0,0,0,0.35)] transition hover:scale-[1.02]"
+                  >
+                    <Delete size={24} />
+                  </button>
+                </div>
+              </>
+            ) : (
+              <form className="space-y-3" onSubmit={handleAdminFormSubmit}>
+                <input className="neon-input min-h-13" value={adminUser} onChange={(e) => setAdminUser(e.target.value)} placeholder={tx(safeLang, 'Admin istifadəçi adı', 'Имя администратора', 'Admin username')} />
                 <input
-                  className="neon-input"
-                  value={admin2faPin}
-                  onChange={(e) => setAdmin2faPin(e.target.value.replace(/\D/g, '').slice(0, 15))}
-                  placeholder={tx(safeLang, '2FA PIN', '2FA PIN', '2FA PIN')}
+                  className="neon-input min-h-13"
+                  value={adminPass}
+                  onChange={(e) => setAdminPass(e.target.value)}
+                  placeholder={tx(safeLang, 'Şifrə', 'Пароль', 'Password')}
                   type="password"
-                  inputMode="numeric"
                 />
-              )}
-              <button type="submit" className="hidden" aria-hidden="true" />
-            </form>
-          )}
+                {adminNeeds2FA && (
+                  <input
+                    className="neon-input min-h-13"
+                    value={admin2faPin}
+                    onChange={(e) => setAdmin2faPin(e.target.value.replace(/\D/g, '').slice(0, 15))}
+                    placeholder={tx(safeLang, '2FA PIN', '2FA PIN', '2FA PIN')}
+                    type="password"
+                    inputMode="numeric"
+                  />
+                )}
+                <button type="submit" className="hidden" aria-hidden="true" />
+              </form>
+            )}
 
             <button
-            onClick={() => mode === 'admin' && handleAdminSubmit()}
-            className={`mt-5 w-full rounded-xl px-4 py-3 text-lg font-bold ${error ? 'bg-red-500 text-white' : 'glossy-gold'}`}
-          >
-              {t.login}
-          </button>
+              onClick={() => mode === 'admin' && handleAdminSubmit()}
+              className={`mt-5 w-full rounded-[24px] px-4 py-4 text-lg font-bold ${error ? 'bg-red-500 text-white' : 'glossy-gold'}`}
+            >
+              {mode === 'staff' ? tx(safeLang, 'PIN ilə Daxil Ol', 'Войти по PIN', 'Enter With PIN') : t.login}
+            </button>
 
-          <div className="mt-4 text-center text-xs text-slate-400">
-            {authErrorMessage ? <p className="mt-2 text-red-300">{authErrorMessage}</p> : null}
+            <div className="mt-4 text-center text-xs text-slate-400">
+              {authErrorMessage ? <p className="mt-2 text-red-300">{authErrorMessage}</p> : null}
+            </div>
           </div>
         </div>
       </div>
