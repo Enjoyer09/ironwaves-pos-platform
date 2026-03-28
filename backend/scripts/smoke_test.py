@@ -3,7 +3,7 @@
 Usage:
   BASE_URL=http://localhost:8000 \
   SUPERADMIN_USERNAME=ironwaves_owner \
-  SUPERADMIN_PASSWORD=owner1234 \
+  SUPERADMIN_PASSWORD=<your-superadmin-password> \
   TENANT_HEADER=tenant_default \
   python scripts/smoke_test.py
 """
@@ -63,7 +63,7 @@ def _fail(label: str, status: int, payload):
 def main():
     base = _env("BASE_URL", "http://localhost:8000").rstrip("/")
     username = _env("SUPERADMIN_USERNAME", "ironwaves_owner")
-    password = _env("SUPERADMIN_PASSWORD", "owner1234")
+    password = _env("SUPERADMIN_PASSWORD", "change_this_superadmin_password")
     tenant_header = _env("TENANT_HEADER", "tenant_default")
 
     # 1) Health
@@ -102,6 +102,7 @@ def main():
     suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=5))
     slug = f"smoke-{suffix}"
     domain = f"{slug}.ironwaves.store"
+    tenant_admin_password = "".join(random.choices(string.ascii_letters + string.digits, k=16))
     st, payload = _request(
         "POST",
         f"{base}/api/v1/admin/tenants",
@@ -111,7 +112,7 @@ def main():
             "slug": slug,
             "domain": domain,
             "admin_username": "admin",
-            "admin_password": "admin123",
+            "admin_password": tenant_admin_password,
         },
     )
     if st != 200:

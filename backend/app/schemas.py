@@ -52,6 +52,8 @@ class SaleCreateIn(BaseModel):
     discount_percent: Decimal = Decimal("0")
     order_type: str | None = "Take Away"
     customer_card_id: str | None = None
+    split_cash: Decimal | None = None
+    split_card: Decimal | None = None
 
 
 class SaleCreateOut(BaseModel):

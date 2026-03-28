@@ -1,3 +1,4 @@
+import { apiRequest, isBackendEnabled } from '../api/client';
 import { logEvent } from './logger';
 
 const DB_NAME = 'socialbee-pos-offline';
@@ -114,6 +115,10 @@ export const getPendingOfflineSalesCount = async (tenantId: string): Promise<num
 
 export const syncPendingOfflineSales = async (tenantId: string) => {
   try {
+    if (!isBackendEnabled()) {
+      return { synced: 0, failed: 0 };
+    }
+
     const db = await openDb();
     const all = await new Promise<OfflineSaleRecord[]>((resolve, reject) => {
       const tx = db.transaction(SALES_STORE, 'readonly');
@@ -125,28 +130,45 @@ export const syncPendingOfflineSales = async (tenantId: string) => {
     const pending = all.filter((x) => x.tenant_id === tenantId && x.status === 'pending');
     if (!pending.length) {
       db.close();
-      return { synced: 0 };
+      return { synced: 0, failed: 0 };
     }
 
-    await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(SALES_STORE, 'readwrite');
-      const store = tx.objectStore(SALES_STORE);
-      pending.forEach((row) => {
-        store.put({ ...row, status: 'synced', synced_at: new Date().toISOString() });
-      });
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
+    let synced = 0;
+    let failed = 0;
+
+    for (const row of pending) {
+      try {
+        await apiRequest('/api/v1/pos/sale', {
+          method: 'POST',
+          tenantId: null,
+          body: row.payload,
+        });
+
+        await new Promise<void>((resolve, reject) => {
+          const tx = db.transaction(SALES_STORE, 'readwrite');
+          tx.objectStore(SALES_STORE).put({
+            ...row,
+            status: 'synced',
+            synced_at: new Date().toISOString(),
+          });
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+        synced += 1;
+      } catch {
+        failed += 1;
+      }
+    }
     db.close();
 
     logEvent('system', 'OFFLINE_SALES_SYNCED', {
       tenant_id: tenantId,
-      synced_count: pending.length,
-      failed_count: 0,
+      synced_count: synced,
+      failed_count: failed,
     });
 
-    return { synced: pending.length };
+    return { synced, failed };
   } catch {
-    return { synced: 0 };
+    return { synced: 0, failed: 0 };
   }
 };

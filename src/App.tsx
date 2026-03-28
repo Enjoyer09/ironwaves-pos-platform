@@ -165,6 +165,9 @@ export default function App() {
       if (result.synced > 0) {
         notify('success', tx(safeLang, `${result.synced} offline satış sinxron olundu`, `${result.synced} офлайн продаж синхронизировано`, `${result.synced} offline sales synced`));
       }
+      if ((result.failed || 0) > 0) {
+        notify('error', tx(safeLang, `${result.failed} offline satış göndərilə bilmədi`, `${result.failed} офлайн продаж не удалось отправить`, `${result.failed} offline sales failed to sync`));
+      }
     });
   }, [isOnline, user?.tenant_id]);
 
