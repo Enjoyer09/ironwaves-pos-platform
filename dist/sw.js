@@ -1,1 +1,21 @@
-if(!self.define){let e,i={};const n=(n,t)=>(n=new URL(n+".js",t).href,i[n]||new Promise(i=>{if("document"in self){const e=document.createElement("script");e.src=n,e.onload=i,document.head.appendChild(e)}else e=n,importScripts(n),i()}).then(()=>{let e=i[n];if(!e)throw new Error(`Module ${n} didn’t register its module`);return e}));self.define=(t,r)=>{const s=e||("document"in self?document.currentScript.src:"")||location.href;if(i[s])return;let o={};const l=e=>n(e,s),u={module:{uri:s},exports:o,require:l};i[s]=Promise.all(t.map(e=>u[e]||l(e))).then(e=>(r(...e),o))}}define(["./workbox-8c29f6e4"],function(e){"use strict";self.skipWaiting(),e.clientsClaim(),e.precacheAndRoute([{url:"registerSW.js",revision:null},{url:"index.html",revision:null},{url:"manifest.webmanifest",revision:"0239c667da12245bb4cf66558d84e32c"}],{}),e.cleanupOutdatedCaches(),e.registerRoute(new e.NavigationRoute(e.createHandlerBoundToURL("index.html")))});
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    try {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+    } catch {
+      // Ignore cache cleanup errors during SW retirement.
+    }
+
+    await self.clients.claim();
+    await self.registration.unregister();
+  })());
+});
+
+self.addEventListener('fetch', () => {
+  // Intentionally empty. This worker only exists to retire old cached SW installs.
+});
