@@ -61,6 +61,21 @@ class Shift(Base):
     closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class ShiftHandover(Base):
+    __tablename__ = "shift_handovers"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    handed_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    received_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    declared_cash: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    actual_cash: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    difference: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="PENDING")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class MenuItem(Base):
     __tablename__ = "menu_items"
 
@@ -169,4 +184,59 @@ class AuditLog(Base):
     user: Mapped[str] = mapped_column(String(80), nullable=False)
     action: Mapped[str] = mapped_column(String(120), nullable=False)
     details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class KitchenOrder(Base):
+    __tablename__ = "kitchen_orders"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    sale_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    table_label: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    order_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="NEW")
+    priority: Mapped[str] = mapped_column(String(16), default="NORMAL")
+    items_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class Customer(Base):
+    __tablename__ = "customers"
+    __table_args__ = (UniqueConstraint("tenant_id", "card_id", name="uq_customer_card_per_tenant"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    card_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    type: Mapped[str] = mapped_column(String(32), nullable=False, default="Normal")
+    stars: Mapped[int] = mapped_column(Integer, default=0)
+    secret_token: Mapped[str] = mapped_column(String(64), nullable=False)
+    discount_percent: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal("0.00"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    card_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class HappyHour(Base):
+    __tablename__ = "happy_hours"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    start_time: Mapped[str] = mapped_column(String(5), nullable=False)
+    end_time: Mapped[str] = mapped_column(String(5), nullable=False)
+    discount_percent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    days_of_week_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    categories: Mapped[str] = mapped_column(String(255), nullable=False, default="ALL")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

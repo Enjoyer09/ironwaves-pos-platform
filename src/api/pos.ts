@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Decimal } from 'decimal.js';
 import { logEvent } from '../lib/logger';
 import { SalePayload, Sale, FinanceEntry, KitchenOrder, OfflineSale } from '../types/pos';
+import { apiRequest, isBackendEnabled } from './client';
 
 import { getDB, setDB } from '../lib/db_sim';
 
@@ -488,6 +489,14 @@ export const get_public_receipt = (sale_ref: string, token: string) => {
     items: Array.isArray((sale as any).items) ? (sale as any).items : [],
     status: sale.status,
   };
+};
+
+export const get_public_receipt_live = async (sale_ref: string, token: string) => {
+  if (!isBackendEnabled()) return get_public_receipt(sale_ref, token);
+  return apiRequest<any>(`/api/v1/pos/receipt/${encodeURIComponent(sale_ref)}?token=${encodeURIComponent(token || '')}`, {
+    auth: false,
+    tenantId: null,
+  });
 };
 
 // FUNKSIYA: get_menu_for_pos

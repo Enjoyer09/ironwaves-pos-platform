@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { Decimal } from 'decimal.js';
 import { useAppStore } from '../../store';
-import { get_menu_items } from '../../api/menu';
-import { create_combo, delete_combo, get_combo_details } from '../../api/combos';
+import { get_menu_items_live } from '../../api/menu';
+import { create_combo_live, delete_combo_live, get_combo_details_live } from '../../api/combos';
 import { tx } from '../../i18n';
 import ConfirmModal from '../ConfirmModal';
 
@@ -10,7 +10,7 @@ export default function CombosPanel() {
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [reloadKey, setReloadKey] = useState(0);
-  const menuItems = useMemo(() => get_menu_items(tenant_id), [tenant_id, reloadKey]);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
   const comboItems = menuItems.filter((m: any) => m.category === 'Kombolar');
 
   const [comboName, setComboName] = useState('');
@@ -18,6 +18,7 @@ export default function CombosPanel() {
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [itemSearch, setItemSearch] = useState('');
   const [deleteComboName, setDeleteComboName] = useState<string | null>(null);
+  const [comboDetails, setComboDetails] = useState<Record<string, any[]>>({});
 
   const normalMenu = useMemo(
     () =>
@@ -29,11 +30,23 @@ export default function CombosPanel() {
     [menuItems, itemSearch],
   );
 
+  React.useEffect(() => {
+    void (async () => {
+      const nextMenu = await get_menu_items_live(tenant_id);
+      setMenuItems(nextMenu);
+      const combos = nextMenu.filter((m: any) => m.category === 'Kombolar');
+      const detailEntries = await Promise.all(
+        combos.map(async (combo: any) => [combo.item_name, await get_combo_details_live(combo.item_name, tenant_id)] as const),
+      );
+      setComboDetails(Object.fromEntries(detailEntries));
+    })();
+  }, [tenant_id, reloadKey]);
+
   const toggleItem = (name: string) => {
     setSelectedItems((prev) => (prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]));
   };
 
-  const onCreate = () => {
+  const onCreate = async () => {
     if (!comboName || !comboPrice) {
       notify('error', tx(lang, 'Kombo adı və qiymət vacibdir', 'Название комбо и цена обязательны'));
       return;
@@ -43,7 +56,7 @@ export default function CombosPanel() {
       return;
     }
     try {
-      create_combo(comboName, new Decimal(comboPrice), selectedItems, user?.username || 'admin', tenant_id);
+      await create_combo_live(comboName, new Decimal(comboPrice), selectedItems, user?.username || 'admin', tenant_id);
       setComboName('');
       setComboPrice('');
       setSelectedItems([]);
@@ -64,10 +77,11 @@ export default function CombosPanel() {
         onCancel={() => setDeleteComboName(null)}
         onConfirm={() => {
           if (!deleteComboName) return;
-          delete_combo(deleteComboName, user?.username || 'admin', tenant_id);
-          setDeleteComboName(null);
-          setReloadKey((v) => v + 1);
-          notify('success', tx(lang, 'Kombo silindi', 'Комбо удалено'));
+          void delete_combo_live(deleteComboName, user?.username || 'admin', tenant_id).then(() => {
+            setDeleteComboName(null);
+            setReloadKey((v) => v + 1);
+            notify('success', tx(lang, 'Kombo silindi', 'Комбо удалено'));
+          });
         }}
       />
       <h2 className="text-2xl font-bold">{tx(lang, 'Kombolar', 'Комбо')}</h2>
@@ -119,7 +133,7 @@ export default function CombosPanel() {
          <h3 className="mb-3 text-lg font-bold">{tx(lang, 'Mövcud Kombolar', 'Существующие комбо')}</h3>
         <div className="space-y-3">
           {comboItems.map((combo: any) => {
-            const details = get_combo_details(combo.item_name, tenant_id) || [];
+            const details = comboDetails[combo.item_name] || [];
             return (
               <div key={combo.id} className="rounded-lg border border-slate-700/70 p-3">
                 <div className="mb-2 flex items-center justify-between">

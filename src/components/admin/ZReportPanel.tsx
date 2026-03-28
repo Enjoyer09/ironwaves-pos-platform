@@ -1,16 +1,16 @@
 import React, { useMemo, useState } from 'react';
 import { Decimal } from 'decimal.js';
 import { useAppStore } from '../../store';
-import { get_sales_summary, get_sales_list } from '../../api/analytics';
+import { get_sales_summary_live, get_sales_list_live } from '../../api/analytics';
 import {
-  accept_shift_handover,
+  accept_shift_handover_live,
   get_expected_cash,
-  get_pending_handover_for_user,
+  get_pending_handover_for_user_live,
   refresh_expected_cash,
   refresh_shift_status,
-  get_shift_handover_history,
+  get_shift_handover_history_live,
   get_shift_status,
-  handover_shift,
+  handover_shift_live,
   open_shift,
   x_report,
   z_report,
@@ -38,6 +38,10 @@ export default function ZReportPanel() {
   const [loadingPrinters, setLoadingPrinters] = useState(false);
   const [shiftStatusState, setShiftStatusState] = useState(get_shift_status(tenant_id));
   const [expectedCashState, setExpectedCashState] = useState<Decimal>(() => get_expected_cash(tenant_id));
+  const [summary, setSummary] = useState<any>({ total_revenue: '0', cash_sales: '0', card_sales: '0', gross_profit: '0', total_cogs: '0', void_count: 0 });
+  const [sales, setSales] = useState<any[]>([]);
+  const [handovers, setHandovers] = useState<any[]>([]);
+  const [pendingReceived, setPendingReceived] = useState<any | null>(null);
   const zReceiptRef = React.useRef<HTMLIFrameElement | null>(null);
   const printSettings = get_settings(tenant_id).print_settings || { use_qz: false, printer_name: '' };
 
@@ -58,12 +62,8 @@ export default function ZReportPanel() {
     return d.toISOString();
   }, [toDate]);
 
-  const summary = get_sales_summary(tenant_id, start, end, user?.role === 'staff' ? user.username : undefined);
-  const sales = get_sales_list(tenant_id, start, end, user?.role === 'staff' ? user.username : undefined);
   const shiftStatus = shiftStatusState;
-  const handovers = get_shift_handover_history(tenant_id, user?.username || undefined);
   const latestReceived = handovers.find((h) => h.received_by === user?.username);
-  const pendingReceived = get_pending_handover_for_user(tenant_id, user?.username || '');
   const tenantUsers = get_users(tenant_id).filter((u) => ['staff', 'manager'].includes(String(u.role || '').toLowerCase()));
   const expectedCashNow = expectedCashState;
 
@@ -71,13 +71,17 @@ export default function ZReportPanel() {
     let mounted = true;
     (async () => {
       try {
-        const [status, cash] = await Promise.all([
+        const [status, cash, nextHandovers, nextPending] = await Promise.all([
           refresh_shift_status(tenant_id),
           refresh_expected_cash(tenant_id),
+          get_shift_handover_history_live(tenant_id, user?.username || undefined),
+          get_pending_handover_for_user_live(tenant_id, user?.username || ''),
         ]);
         if (!mounted) return;
         setShiftStatusState(status);
         setExpectedCashState(cash);
+        setHandovers(nextHandovers);
+        setPendingReceived(nextPending);
       } catch {
         // Keep cached/local fallback.
       }
@@ -211,7 +215,7 @@ export default function ZReportPanel() {
     }
   };
 
-  const handleHandover = () => {
+  const handleHandover = async () => {
     if (!handoverTo) {
       notify('error', tx(lang, 'Təhvil alan işçini seçin', 'Выберите сотрудника для передачи'));
       return;
@@ -221,7 +225,9 @@ export default function ZReportPanel() {
       return;
     }
     try {
-      handover_shift(tenant_id, user?.username || 'staff', handoverTo, handoverActualCash);
+      await handover_shift_live(tenant_id, user?.username || 'staff', handoverTo, handoverActualCash);
+      setHandovers(await get_shift_handover_history_live(tenant_id, user?.username || undefined));
+      setPendingReceived(await get_pending_handover_for_user_live(tenant_id, user?.username || ''));
       notify('success', tx(lang, `Smena ${handoverTo} istifadəçisinə təhvil verildi`, `Смена передана пользователю ${handoverTo}`));
       notify('info', tx(lang, 'Qəbul edən əməkdaş smenanı təsdiqləməlidir.', 'Принимающий сотрудник должен подтвердить смену.'));
     } catch (e: any) {
@@ -229,19 +235,21 @@ export default function ZReportPanel() {
     }
   };
 
-  const handleAcceptHandover = () => {
+  const handleAcceptHandover = async () => {
     if (!pendingReceived?.id) return;
     if (!handoverActualCash) {
       notify('error', tx(lang, 'Faktiki nağdı daxil edin', 'Введите фактическую наличность'));
       return;
     }
     try {
-      const res = accept_shift_handover(
+      const res = await accept_shift_handover_live(
         tenant_id,
         pendingReceived.id,
         user?.username || 'staff',
         handoverActualCash,
       );
+      setHandovers(await get_shift_handover_history_live(tenant_id, user?.username || undefined));
+      setPendingReceived(await get_pending_handover_for_user_live(tenant_id, user?.username || ''));
       notify('success', tx(lang, 'Smena qəbul edildi', 'Смена принята'));
       notify('info', tx(lang, `Fərq: ${res.difference} ₼`, `Разница: ${res.difference} ₼`));
     } catch (e: any) {
@@ -556,3 +564,9 @@ function Metric({ title, value }: { title: string; value: string | number }) {
     </div>
   );
 }
+  React.useEffect(() => {
+    void (async () => {
+      setSummary(await get_sales_summary_live(tenant_id, start, end, user?.role === 'staff' ? user.username : undefined));
+      setSales(await get_sales_list_live(tenant_id, start, end, user?.role === 'staff' ? user.username : undefined));
+    })();
+  }, [tenant_id, start, end, user?.role, user?.username]);

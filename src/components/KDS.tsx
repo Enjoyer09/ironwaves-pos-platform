@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { get_kitchen_orders, accept_order, complete_order } from '../api/kds';
+import { get_kitchen_orders_live, accept_order_live, complete_order_live } from '../api/kds';
 import { Clock, CheckCircle, ChefHat, AlertCircle } from 'lucide-react';
 import { KitchenOrder } from '../types/pos';
 import { useAppStore } from '../store';
@@ -15,9 +15,9 @@ export default function KDS() {
 
   // Sifarişləri mütəmadi olaraq yoxla (Simulyativ WebSocket)
   useEffect(() => {
-    const fetchOrders = () => {
+    const fetchOrders = async () => {
       try {
-        const activeOrders = get_kitchen_orders(tenant_id);
+        const activeOrders = await get_kitchen_orders_live(tenant_id);
         setOrders(Array.isArray(activeOrders) ? activeOrders : []);
       } catch (e) {
         logUiError(tenant_id, 'kds', e instanceof Error ? e.message : String(e), { phase: 'fetch_orders' });
@@ -25,8 +25,8 @@ export default function KDS() {
       }
     };
 
-    fetchOrders();
-    const interval = setInterval(fetchOrders, 5000);
+    void fetchOrders();
+    const interval = setInterval(() => { void fetchOrders(); }, 5000);
     const clock = setInterval(() => setCurrentTime(Date.now()), 15000);
     return () => {
       clearInterval(interval);
@@ -53,20 +53,20 @@ export default function KDS() {
     return [];
   };
 
-  const handleAccept = (order_id: string) => {
+  const handleAccept = async (order_id: string) => {
     try {
-      accept_order(order_id, user?.username || 'kitchen');
-      setOrders(get_kitchen_orders(tenant_id));
+      await accept_order_live(order_id, user?.username || 'kitchen');
+      setOrders(await get_kitchen_orders_live(tenant_id));
     } catch (e: any) {
       logUiError(tenant_id, 'kds', e?.message || String(e), { phase: 'accept_order', order_id });
       useAppStore.getState().notify('error', e.message);
     }
   };
 
-  const handleComplete = (order_id: string) => {
+  const handleComplete = async (order_id: string) => {
     try {
-      complete_order(order_id, user?.username || 'kitchen');
-      setOrders(get_kitchen_orders(tenant_id));
+      await complete_order_live(order_id, user?.username || 'kitchen');
+      setOrders(await get_kitchen_orders_live(tenant_id));
     } catch (e: any) {
       logUiError(tenant_id, 'kds', e?.message || String(e), { phase: 'complete_order', order_id });
       useAppStore.getState().notify('error', e.message);
@@ -157,7 +157,7 @@ export default function KDS() {
             <div className="p-4 mt-auto">
               {order.status === 'NEW' && (
                 <button
-                  onClick={() => handleAccept(order.id)}
+                  onClick={() => { void handleAccept(order.id); }}
                   className="w-full py-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white transition-colors shadow-sm"
                 >
                   {tx(lang, 'Qəbul Et (Hazırla)', 'Принять (готовить)')}
@@ -165,7 +165,7 @@ export default function KDS() {
               )}
               {order.status === 'PREPARING' && (
                 <button
-                  onClick={() => handleComplete(order.id)}
+                  onClick={() => { void handleComplete(order.id); }}
                   className="w-full py-3 rounded-xl font-bold bg-yellow-400 hover:bg-yellow-300 text-slate-900 transition-colors shadow-sm flex items-center justify-center"
                 >
                   <CheckCircle size={20} className="mr-2" />

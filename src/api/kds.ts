@@ -2,6 +2,7 @@ import { logEvent } from '../lib/logger';
 import { KitchenOrder } from '../types/pos';
 
 import { getDB, setDB } from '../lib/db_sim';
+import { apiRequest, isBackendEnabled } from './client';
 
 // FUNKSIYA: get_kitchen_orders
 export const get_kitchen_orders = (tenant_id: string) => {
@@ -76,4 +77,19 @@ export const reset_kitchen_orders = (tenant_id: string, reset_by: string) => {
   setDB('kitchen_orders', kept);
   logEvent(reset_by, 'KITCHEN_RESET', { tenant_id });
   return { success: true };
+};
+
+export const get_kitchen_orders_live = async (tenant_id: string) => {
+  if (!isBackendEnabled()) return get_kitchen_orders(tenant_id);
+  return apiRequest<any[]>('/api/v1/ops/kitchen-orders', { tenantId: null });
+};
+
+export const accept_order_live = async (order_id: string, accepted_by: string) => {
+  if (!isBackendEnabled()) return accept_order(order_id, accepted_by);
+  return apiRequest<{ success: boolean }>(`/api/v1/ops/kitchen-orders/${encodeURIComponent(order_id)}/accept`, { method: 'POST', tenantId: null, body: {} });
+};
+
+export const complete_order_live = async (order_id: string, completed_by: string) => {
+  if (!isBackendEnabled()) return complete_order(order_id, completed_by);
+  return apiRequest<{ success: boolean }>(`/api/v1/ops/kitchen-orders/${encodeURIComponent(order_id)}/complete`, { method: 'POST', tenantId: null, body: {} });
 };

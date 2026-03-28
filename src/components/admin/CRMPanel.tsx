@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { generate_qr_codes } from '../../api/qr_generator';
-import { getDB } from '../../lib/db_sim';
+import { get_customers_live } from '../../api/crm';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 
@@ -23,13 +23,13 @@ export default function CRMPanel() {
 
   const selectedTier = useMemo(() => QR_TYPES.find((t) => t.value === tier) || QR_TYPES[0], [tier]);
 
-  const loadData = () => {
-    const cust = getDB<any>(`${tenant_id}_customers`);
+  const loadData = async () => {
+    const cust = await get_customers_live(tenant_id);
     setCustomers(cust || []);
   };
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [tenant_id]);
 
   const onGenerate = async () => {

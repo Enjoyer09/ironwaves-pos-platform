@@ -5,7 +5,7 @@ import JsBarcode from 'jsbarcode';
 import { Search, ShoppingCart, ClipboardList, Plus, Minus, Check, ScanLine, ChevronDown } from 'lucide-react';
 import { useAppStore } from '../store';
 import { get_menu_for_pos, create_sale, calculate_total, calculate_staff_payable } from '../api/pos';
-import { get_tables, send_to_kitchen, pay_table } from '../api/tables';
+import { get_tables_live, send_to_kitchen_live, pay_table_live } from '../api/tables';
 import { get_shift_status, refresh_shift_status } from '../api/reports';
 import { getDB } from '../lib/db_sim';
 import { i18n, tx } from '../i18n';
@@ -254,7 +254,7 @@ export default function POS() {
       const nextMenu = isBackendEnabled()
         ? await apiRequest<any[]>('/api/v1/pos/menu')
         : get_menu_for_pos(tenantId);
-      const nextTables = get_tables(tenantId);
+      const nextTables = await get_tables_live(tenantId);
       setMenu(Array.isArray(nextMenu) ? nextMenu : []);
       setTables(Array.isArray(nextTables) ? nextTables : []);
       if (Array.isArray(nextMenu)) {
@@ -377,7 +377,7 @@ export default function POS() {
 
       setIsLoading(true);
       try {
-        pay_table(
+        await pay_table_live(
           selectedTableData.id,
           paymentMethod,
           user.username,
@@ -548,10 +548,10 @@ export default function POS() {
     }
   };
 
-  const handleSendToKitchen = () => {
+  const handleSendToKitchen = async () => {
     if (!ctx.selectedTable || cart.length === 0 || !user) return;
     try {
-      send_to_kitchen(
+      await send_to_kitchen_live(
         ctx.selectedTable,
         cart.map((c) => ({ ...c, price: toDecimalSafe(c.price) })) as any,
         user.username,
@@ -824,7 +824,7 @@ export default function POS() {
           {ctx.orderType === 'Dine In' && (
            <button
               disabled={isLoading || !ctx.selectedTable || cart.length === 0}
-              onClick={handleSendToKitchen}
+              onClick={() => { void handleSendToKitchen(); }}
               className="pay-btn mb-3 h-12 w-full"
             >
               {tx(lang, 'Mətbəxə Göndər', 'Отправить на кухню', 'Send To Kitchen')}

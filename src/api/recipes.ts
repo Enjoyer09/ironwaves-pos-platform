@@ -3,6 +3,8 @@ import { logEvent } from '../lib/logger';
 import { Decimal } from 'decimal.js';
 import { RecipeIngredient } from '../types/inventory';
 import { getDB, setDB } from '../lib/db_sim';
+import { apiRequest, isBackendEnabled } from './client';
+import { get_inventory_items_live } from './inventory';
 
 const getRecipes = (tenant_id: string = 'tenant_default') =>
   getDB<any>('recipes').filter((r) => !r.tenant_id || r.tenant_id === tenant_id);
@@ -140,6 +142,11 @@ export function get_recipe(menu_item_name: string, tenant_id: string = 'tenant_d
   return getRecipes(tenant_id).filter((r) => r.menu_item_name === menu_item_name);
 }
 
+export async function get_recipe_live(menu_item_name: string, tenant_id: string = 'tenant_default') {
+  if (!isBackendEnabled()) return get_recipe(menu_item_name, tenant_id);
+  return apiRequest<any[]>(`/api/v1/catalog/recipes/${encodeURIComponent(menu_item_name)}`, { tenantId: null });
+}
+
 export function add_recipe_ingredient(data: {
   menu_item_name: string;
   ingredient_name: string;
@@ -168,6 +175,26 @@ export function add_recipe_ingredient(data: {
   return newItem;
 }
 
+export async function add_recipe_ingredient_live(data: {
+  menu_item_name: string;
+  ingredient_name: string;
+  quantity_required: Decimal;
+  unit: string;
+  unit_cost: Decimal;
+  tenant_id?: string;
+}, user: string = 'system') {
+  if (!isBackendEnabled()) return add_recipe_ingredient(data, user);
+  return apiRequest<any>('/api/v1/catalog/recipes', {
+    method: 'POST',
+    tenantId: null,
+    body: {
+      menu_item_name: data.menu_item_name,
+      ingredient_name: data.ingredient_name,
+      quantity_required: new Decimal(data.quantity_required).toFixed(4),
+    },
+  });
+}
+
 export function update_recipe_ingredient(recipe_id: string, quantity_required: Decimal, user: string = 'system', tenant_id: string = 'tenant_default') {
   const recipes = getRecipes(tenant_id);
   const index = recipes.findIndex(r => r.id === recipe_id);
@@ -190,6 +217,15 @@ export function delete_recipe_ingredient(recipe_id: string, user: string = 'syst
   recipes = recipes.filter(r => r.id !== recipe_id);
   saveRecipes(tenant_id, recipes);
   logEvent(user, 'RECIPE_DELETE', { recipe_id });
+  return true;
+}
+
+export async function delete_recipe_ingredient_live(recipe_id: string, user: string = 'system', tenant_id: string = 'tenant_default') {
+  if (!isBackendEnabled()) return delete_recipe_ingredient(recipe_id, user, tenant_id);
+  await apiRequest(`/api/v1/catalog/recipes/${encodeURIComponent(recipe_id)}`, {
+    method: 'DELETE',
+    tenantId: null,
+  });
   return true;
 }
 
@@ -299,6 +335,25 @@ export async function generate_recipe_ai(menu_item_name: string, user: string = 
   return get_recipe(menu_item_name, tenant_id);
 }
 
+export async function generate_recipe_ai_live(menu_item_name: string, user: string = 'system', tenant_id: string = 'tenant_default') {
+  if (!isBackendEnabled()) return generate_recipe_ai(menu_item_name, user, tenant_id);
+  const generated = await generate_recipe_ai(menu_item_name, user, tenant_id);
+  for (const row of generated) {
+    await add_recipe_ingredient_live(
+      {
+        menu_item_name,
+        ingredient_name: row.ingredient_name,
+        quantity_required: new Decimal(row.quantity_required || 0),
+        unit: row.unit,
+        unit_cost: new Decimal(row.unit_cost || 0),
+        tenant_id,
+      },
+      user,
+    );
+  }
+  return get_recipe_live(menu_item_name, tenant_id);
+}
+
 export function analyze_recipe_ai(menu_item_name: string) {
   return "AI Tövsiyəsi: Mövcud reseptdə kofein miqdarı bir qədər yüksəkdir. Süd əlavəsini 20ml artırmaq məqsədəuyğundur.";
 }
@@ -310,5 +365,22 @@ export function calculate_recipe_cost(menu_item_name: string, sell_price: Decima
   const margin = sell_price.minus(total_cost);
   const margin_percent = sell_price.greaterThan(0) ? margin.div(sell_price).mul(100) : new Decimal(0);
 
+  return { total_cost, margin, margin_percent };
+}
+
+export async function calculate_recipe_cost_live(menu_item_name: string, sell_price: Decimal, tenant_id: string = 'tenant_default') {
+  const [recipe, inventory] = await Promise.all([
+    get_recipe_live(menu_item_name, tenant_id),
+    get_inventory_items_live(tenant_id),
+  ]);
+  const inventoryMap = new Map(
+    (inventory || []).map((item: any) => [String(item.name || '').toLowerCase(), new Decimal(item.unit_cost || 0)]),
+  );
+  const total_cost = (recipe || []).reduce((acc, row: any) => {
+    const unitCost = inventoryMap.get(String(row.ingredient_name || '').toLowerCase()) || new Decimal(row.unit_cost || 0);
+    return acc.plus(new Decimal(row.quantity_required || 0).mul(unitCost));
+  }, new Decimal(0));
+  const margin = sell_price.minus(total_cost);
+  const margin_percent = sell_price.greaterThan(0) ? margin.div(sell_price).mul(100) : new Decimal(0);
   return { total_cost, margin, margin_percent };
 }

@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import FinanceEntry, InventoryItem, MenuItem, Tenant, User
-from app.schemas import InventoryItemCreateIn, InventoryRestockIn, InventoryLossIn, MenuItemCreateIn
+from app.models import FinanceEntry, InventoryItem, MenuItem, Recipe, Tenant, User
+from app.schemas import InventoryItemCreateIn, InventoryRestockIn, InventoryLossIn, MenuItemCreateIn, RecipeIngredientCreateIn
 
 
 router = APIRouter(prefix="/api/v1/catalog", tags=["catalog"])
@@ -39,6 +39,17 @@ class MenuItemOut(BaseModel):
     price: str
     is_coffee: bool
     is_active: bool
+
+
+class RecipeIngredientOut(BaseModel):
+    id: str
+    tenant_id: str
+    menu_item_name: str
+    ingredient_name: str
+    quantity_required: str
+    unit: str
+    unit_cost: str
+    line_cost: str
 
 
 @router.get("/menu", response_model=list[MenuItemOut])
@@ -308,6 +319,98 @@ def delete_inventory_item(
     row = db.query(InventoryItem).filter(InventoryItem.id == item_id, InventoryItem.tenant_id == tenant.id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Inventory item not found")
+    db.delete(row)
+    db.commit()
+    return {"success": True}
+
+
+@router.get("/recipes/{menu_item_name}", response_model=list[RecipeIngredientOut])
+def list_recipe_ingredients(
+    menu_item_name: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    rows = (
+        db.query(Recipe, InventoryItem)
+        .outerjoin(
+            InventoryItem,
+            (InventoryItem.tenant_id == tenant.id) & (func.lower(InventoryItem.name) == func.lower(Recipe.ingredient_name)),
+        )
+        .filter(Recipe.tenant_id == tenant.id, Recipe.menu_item_name == menu_item_name)
+        .order_by(Recipe.ingredient_name.asc())
+        .all()
+    )
+    return [
+        {
+            "id": recipe.id,
+            "tenant_id": recipe.tenant_id,
+            "menu_item_name": recipe.menu_item_name,
+            "ingredient_name": recipe.ingredient_name,
+            "quantity_required": str(recipe.quantity_required),
+            "unit": inventory.unit if inventory else "",
+            "unit_cost": str(inventory.unit_cost) if inventory else "0",
+            "line_cost": str((Decimal(str(recipe.quantity_required)) * Decimal(str(inventory.unit_cost))).quantize(Decimal("0.0001"))) if inventory else "0",
+        }
+        for recipe, inventory in rows
+    ]
+
+
+@router.post("/recipes", response_model=RecipeIngredientOut)
+def create_recipe_ingredient(
+    payload: RecipeIngredientCreateIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_catalog_write_access(user)
+    menu_item_name = str(payload.menu_item_name or "").strip()
+    ingredient_name = str(payload.ingredient_name or "").strip()
+    if len(menu_item_name) < 2:
+        raise HTTPException(status_code=400, detail="Menu item is required")
+    if len(ingredient_name) < 2:
+        raise HTTPException(status_code=400, detail="Ingredient is required")
+
+    inventory = (
+        db.query(InventoryItem)
+        .filter(InventoryItem.tenant_id == tenant.id, func.lower(InventoryItem.name) == ingredient_name.lower())
+        .first()
+    )
+    if not inventory:
+        raise HTTPException(status_code=404, detail="Inventory ingredient not found")
+
+    row = Recipe(
+        tenant_id=tenant.id,
+        menu_item_name=menu_item_name,
+        ingredient_name=inventory.name,
+        quantity_required=Decimal(str(payload.quantity_required)).quantize(Decimal("0.0001")),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return {
+        "id": row.id,
+        "tenant_id": row.tenant_id,
+        "menu_item_name": row.menu_item_name,
+        "ingredient_name": row.ingredient_name,
+        "quantity_required": str(row.quantity_required),
+        "unit": inventory.unit,
+        "unit_cost": str(inventory.unit_cost),
+        "line_cost": str((Decimal(str(row.quantity_required)) * Decimal(str(inventory.unit_cost))).quantize(Decimal("0.0001"))),
+    }
+
+
+@router.delete("/recipes/{recipe_id}")
+def delete_recipe_ingredient(
+    recipe_id: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_catalog_write_access(user)
+    row = db.query(Recipe).filter(Recipe.id == recipe_id, Recipe.tenant_id == tenant.id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Recipe row not found")
     db.delete(row)
     db.commit()
     return {"success": True}

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db import Base, engine, SessionLocal
 from app.models import Tenant, User
-from app.routers import auth, catalog, finance, pos, reports, settings as settings_router, tenants
+from app.routers import analytics_api, auth, catalog, finance, operations, pos, reports, settings as settings_router, tenants
 from app.security import hash_password
 
 
@@ -113,6 +113,8 @@ app.include_router(auth.router)
 app.include_router(pos.router)
 app.include_router(finance.router)
 app.include_router(catalog.router)
+app.include_router(operations.router)
+app.include_router(analytics_api.router)
 app.include_router(reports.router)
 app.include_router(tenants.router)
 app.include_router(settings_router.router)

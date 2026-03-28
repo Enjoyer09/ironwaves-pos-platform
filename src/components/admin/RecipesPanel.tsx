@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../../store';
 import { get_menu_items_live } from '../../api/menu';
-import { get_recipe, add_recipe_ingredient, delete_recipe_ingredient, calculate_recipe_cost, generate_recipe_ai } from '../../api/recipes';
+import { get_recipe_live, add_recipe_ingredient_live, delete_recipe_ingredient_live, calculate_recipe_cost_live, generate_recipe_ai_live } from '../../api/recipes';
 import { get_inventory_items_live } from '../../api/inventory';
 import { Decimal } from 'decimal.js';
 import { ChefHat, Plus, Trash2, Calculator, Sparkles } from 'lucide-react';
@@ -51,26 +51,27 @@ export default function RecipesPanel() {
   };
 
   useEffect(() => {
-    if (selectedMenu) {
+    if (!selectedMenu) return;
+    void (async () => {
       try {
-        const items = get_recipe(selectedMenu, tenant_id);
+        const items = await get_recipe_live(selectedMenu, tenant_id);
         setRecipeItems(items);
-        const stats = calculate_recipe_cost(selectedMenu, getSelectedMenuPrice(), tenant_id);
+        const stats = await calculate_recipe_cost_live(selectedMenu, getSelectedMenuPrice(), tenant_id);
         setRecipeStats(stats);
       } catch (error) {
         console.error(error);
         setRecipeItems([]);
         setRecipeStats({ total_cost: 0, margin: 0, margin_percent: 0 });
       }
-    }
-  }, [selectedMenu, menuItems]);
+    })();
+  }, [selectedMenu, menuItems, tenant_id]);
 
-  const handleAddIngredient = () => {
+  const handleAddIngredient = async () => {
     if (!selectedMenu || !newIngredient || !newQty) return;
 
     try {
       const invItem = ingredients.find(i => i.name === newIngredient);
-      add_recipe_ingredient({
+      await add_recipe_ingredient_live({
         menu_item_name: selectedMenu,
         ingredient_name: newIngredient,
         quantity_required: new Decimal(newQty),
@@ -79,8 +80,8 @@ export default function RecipesPanel() {
         tenant_id,
       }, user?.username);
 
-      setRecipeItems(get_recipe(selectedMenu, tenant_id));
-      setRecipeStats(calculate_recipe_cost(selectedMenu, getSelectedMenuPrice(), tenant_id));
+      setRecipeItems(await get_recipe_live(selectedMenu, tenant_id));
+      setRecipeStats(await calculate_recipe_cost_live(selectedMenu, getSelectedMenuPrice(), tenant_id));
       setNewIngredient('');
       setNewQty('');
     } catch (e: any) {
@@ -88,12 +89,12 @@ export default function RecipesPanel() {
     }
   };
 
-  const handleDeleteIngredient = (recipe_id: string) => {
+  const handleDeleteIngredient = async (recipe_id: string) => {
     try {
-      delete_recipe_ingredient(recipe_id, user?.username, tenant_id);
+      await delete_recipe_ingredient_live(recipe_id, user?.username, tenant_id);
       if (selectedMenu) {
-        setRecipeItems(get_recipe(selectedMenu, tenant_id));
-        setRecipeStats(calculate_recipe_cost(selectedMenu, getSelectedMenuPrice(), tenant_id));
+        setRecipeItems(await get_recipe_live(selectedMenu, tenant_id));
+        setRecipeStats(await calculate_recipe_cost_live(selectedMenu, getSelectedMenuPrice(), tenant_id));
       }
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Resept silinmədi', 'Рецепт не удален'));
@@ -103,10 +104,10 @@ export default function RecipesPanel() {
   const handleGenerateAI = async () => {
     if (!selectedMenu) return;
     try {
-      await generate_recipe_ai(selectedMenu, user?.username, tenant_id);
+      await generate_recipe_ai_live(selectedMenu, user?.username, tenant_id);
       notify('success', tx(lang, `AI ${selectedMenu} üçün resept yaratdı!`, `AI создал рецепт для ${selectedMenu}!`));
-      setRecipeItems(get_recipe(selectedMenu, tenant_id));
-      setRecipeStats(calculate_recipe_cost(selectedMenu, getSelectedMenuPrice(), tenant_id));
+      setRecipeItems(await get_recipe_live(selectedMenu, tenant_id));
+      setRecipeStats(await calculate_recipe_cost_live(selectedMenu, getSelectedMenuPrice(), tenant_id));
     } catch(e:any) {
       notify('error', e.message);
     }
@@ -122,7 +123,7 @@ export default function RecipesPanel() {
         onCancel={() => setDeleteRecipeId(null)}
         onConfirm={() => {
           if (!deleteRecipeId) return;
-          handleDeleteIngredient(deleteRecipeId);
+          void handleDeleteIngredient(deleteRecipeId);
           setDeleteRecipeId(null);
         }}
       />
@@ -221,7 +222,7 @@ export default function RecipesPanel() {
                   className="neon-input w-32"
                 />
                 <button 
-                  onClick={handleAddIngredient}
+                  onClick={() => { void handleAddIngredient(); }}
                   className="glossy-gold px-4 py-2 rounded-lg transition-colors"
                 >
                   <Plus size={20} />

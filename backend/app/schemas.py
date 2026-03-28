@@ -65,6 +65,12 @@ class InventoryLossIn(BaseModel):
     reason: str
 
 
+class RecipeIngredientCreateIn(BaseModel):
+    menu_item_name: str
+    ingredient_name: str
+    quantity_required: Decimal
+
+
 class SaleItemIn(BaseModel):
     item_name: str
     price: Decimal
@@ -102,6 +108,15 @@ class XReportIn(BaseModel):
 class ZReportIn(BaseModel):
     actual_cash: Decimal
     wage_amount: Decimal = Decimal("0")
+
+
+class ShiftHandoverIn(BaseModel):
+    received_by: str
+    declared_cash: Decimal
+
+
+class ShiftHandoverAcceptIn(BaseModel):
+    actual_cash: Decimal
 
 
 class FinanceEntryIn(BaseModel):

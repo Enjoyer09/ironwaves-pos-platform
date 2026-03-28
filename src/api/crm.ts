@@ -3,6 +3,7 @@ import { getDB, setDB } from '../lib/db_sim';
 import { logEvent } from '../lib/logger';
 import { Customer, CustomerType, Notification } from '../types/pos';
 import { getActiveTenantId } from '../lib/tenant';
+import { apiRequest, isBackendEnabled } from './client';
 
 const defaultTenant = () => getActiveTenantId();
 
@@ -92,4 +93,10 @@ export async function generate_campaign_ai(goal: string) {
   logEvent('system', 'AI_CAMPAIGN_REQUEST', { goal, tenant_id: defaultTenant });
   
   return Promise.resolve(`AI Simulyasiyası: ${customerCount} müştərini cəlb etmək üçün "Həftəsonu Kofe Günü" adlı kampaniya başladın! Hər gələnə 2 qat ulduz (stars) verilsin.`);
+}
+
+export async function get_customers_live(tenant_id?: string) {
+  const tenantId = tenant_id || defaultTenant();
+  if (!isBackendEnabled()) return getDB<any>(`${tenantId}_customers`) || [];
+  return apiRequest<any[]>('/api/v1/ops/customers', { tenantId: null });
 }

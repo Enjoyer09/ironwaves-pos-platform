@@ -137,3 +137,40 @@ def sync_offline_sales(payload: list[SaleCreateIn], db: Session = Depends(get_db
             failed += 1
             db.rollback()
     return {"synced": synced, "failed": failed}
+
+
+@router.get("/receipt/{sale_ref}")
+def public_receipt(
+    sale_ref: str,
+    token: str,
+    db: Session = Depends(get_db),
+):
+    ref = str(sale_ref or "").strip()
+    row = (
+        db.query(Sale)
+        .filter((Sale.id == ref) | (func.lower(Sale.receipt_code) == ref.lower()))
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+    if not token or row.receipt_token != token:
+        raise HTTPException(status_code=403, detail="Invalid receipt token")
+
+    items = json.loads(row.items_json or "[]")
+    original_total = Decimal(str(row.total)) + Decimal(str(row.discount_amount or 0))
+    return {
+        "id": row.id,
+        "tenant_id": row.tenant_id,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "cashier": row.cashier,
+        "customer_card_id": row.customer_card_id,
+        "customer_stars_after": 0,
+        "free_coffees_applied": 0,
+        "payment_method": row.payment_method,
+        "order_type": row.order_type,
+        "total": str(row.total),
+        "original_total": str(original_total),
+        "discount_amount": str(row.discount_amount or 0),
+        "items": items,
+        "status": row.status,
+    }

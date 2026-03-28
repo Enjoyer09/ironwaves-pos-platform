@@ -1,4 +1,5 @@
 import { getDB } from '../lib/db_sim';
+import { apiRequest, isBackendEnabled } from './client';
 
 export function get_logs(tenant_id: string, limit: number = 100, fromDate?: string, toDate?: string) {
   const tenantLogs = getDB<any>(`${tenant_id}_logs`);
@@ -28,4 +29,12 @@ export function get_ui_errors(tenant_id: string, limit: number = 50) {
 export function clear_ui_errors(tenant_id: string) {
   localStorage.removeItem(`${tenant_id}_ui_errors`);
   return true;
+}
+
+export async function get_logs_live(tenant_id: string, limit: number = 100, fromDate?: string, toDate?: string) {
+  if (!isBackendEnabled()) return get_logs(tenant_id, limit, fromDate, toDate);
+  const qs = new URLSearchParams({ limit: String(limit) });
+  if (fromDate) qs.set('from_date', fromDate);
+  if (toDate) qs.set('to_date', toDate);
+  return apiRequest<any[]>(`/api/v1/ops/logs?${qs.toString()}`, { tenantId: null });
 }

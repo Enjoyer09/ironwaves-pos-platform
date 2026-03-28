@@ -78,11 +78,26 @@ export const get_shift_handover_history = (tenant_id: string, username?: string)
   return filtered.sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
 };
 
+export const get_shift_handover_history_live = async (tenant_id: string, username?: string) => {
+  if (!isBackendEnabled()) return get_shift_handover_history(tenant_id, username);
+  const rows = await apiRequest<ShiftHandoverRow[]>('/api/v1/reports/handovers', {
+    method: 'GET',
+    tenantId: tenant_id,
+  });
+  const filtered = username ? rows.filter((r) => r.handed_by === username || r.received_by === username) : rows;
+  return filtered.sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
+};
+
 export const get_pending_handover_for_user = (tenant_id: string, username: string) => {
   const rows = getDB<ShiftHandoverRow>('shift_handovers').filter(
     (r) => r.tenant_id === tenant_id && r.received_by === username && r.status === 'PENDING',
   );
   return rows.sort((a, b) => (a.created_at > b.created_at ? -1 : 1))[0] || null;
+};
+
+export const get_pending_handover_for_user_live = async (tenant_id: string, username: string) => {
+  const rows = await get_shift_handover_history_live(tenant_id, username);
+  return rows.find((r) => r.received_by === username && r.status === 'PENDING') || null;
 };
 
 const getBusinessProfile = (tenant_id: string) => {
@@ -231,6 +246,20 @@ export const handover_shift = (
   return { success: true, declared_cash: declared.toString(), status: 'PENDING' };
 };
 
+export const handover_shift_live = async (
+  tenant_id: string,
+  handed_by: string,
+  received_by: string,
+  declared_cash: string,
+) => {
+  if (!isBackendEnabled()) return handover_shift(tenant_id, handed_by, received_by, declared_cash);
+  return apiRequest<any>('/api/v1/reports/handovers', {
+    method: 'POST',
+    tenantId: tenant_id,
+    body: { received_by, declared_cash },
+  });
+};
+
 export const accept_shift_handover = (
   tenant_id: string,
   handover_id: string,
@@ -304,6 +333,20 @@ export const accept_shift_handover = (
     actual_cash: actual.toString(),
     difference: difference.toString(),
   };
+};
+
+export const accept_shift_handover_live = async (
+  tenant_id: string,
+  handover_id: string,
+  received_by: string,
+  actual_cash: string,
+) => {
+  if (!isBackendEnabled()) return accept_shift_handover(tenant_id, handover_id, received_by, actual_cash);
+  return apiRequest<any>(`/api/v1/reports/handovers/${encodeURIComponent(handover_id)}/accept`, {
+    method: 'POST',
+    tenantId: tenant_id,
+    body: { actual_cash },
+  });
 };
 
 export const get_shift_status = (tenant_id: string) => {

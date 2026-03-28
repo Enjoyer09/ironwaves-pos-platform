@@ -246,6 +246,22 @@ export function update_role_modules(payload: { staff: string[]; manager: string[
   return { success: true };
 }
 
+export async function get_settings_live(tenant_id?: string) {
+  if (!isBackendEnabled()) return get_settings(tenant_id);
+  const data = await apiRequest<Settings>('/api/v1/ops/settings', { tenantId: null });
+  saveSettings(data);
+  return data;
+}
+
+export async function update_role_modules_live(payload: { staff: string[]; manager: string[]; kitchen: string[] }) {
+  if (!isBackendEnabled()) return update_role_modules(payload);
+  await apiRequest('/api/v1/ops/settings/role-modules', { method: 'PATCH', tenantId: null, body: payload });
+  const settings = getSettings();
+  settings.role_modules = payload;
+  saveSettings(settings);
+  return { success: true };
+}
+
 export function get_business_profile(tenant_id?: string) {
   const resolvedTenant = resolveTenant(tenant_id);
   const profiles = getDB<any>('business_profile');
@@ -286,6 +302,33 @@ export function update_business_profile(tenant_id: string, payload: {
   }
   setDB('business_profile', profiles);
   logEvent(updated_by, 'BUSINESS_PROFILE_UPDATED', { tenant_id: resolvedTenant });
+  return true;
+}
+
+export async function get_business_profile_live(tenant_id?: string) {
+  if (!isBackendEnabled()) return get_business_profile(tenant_id);
+  const data = await apiRequest<any>('/api/v1/ops/business-profile', { tenantId: null });
+  const profiles = getDB<any>('business_profile');
+  const resolvedTenant = resolveTenant(tenant_id);
+  const idx = profiles.findIndex((p) => p.tenant_id === resolvedTenant);
+  if (idx >= 0) profiles[idx] = data;
+  else profiles.push(data);
+  setDB('business_profile', profiles);
+  return data;
+}
+
+export async function update_business_profile_live(tenant_id: string, payload: {
+  company_name: string;
+  voen: string;
+  phone: string;
+  address?: string;
+  website: string;
+  logo_url?: string;
+  receipt_footer?: string;
+}, updated_by: string = 'admin') {
+  if (!isBackendEnabled()) return update_business_profile(tenant_id, payload, updated_by);
+  await apiRequest('/api/v1/ops/business-profile', { method: 'PUT', tenantId: null, body: payload });
+  update_business_profile(tenant_id, payload, updated_by);
   return true;
 }
 
@@ -453,4 +496,22 @@ export async function update_user_credentials_live(
     body: updates,
   });
   return true;
+}
+
+export async function update_api_key_live(api_key: string) {
+  if (!isBackendEnabled()) {
+    const settings = getSettings();
+    settings.gemini_api_key = api_key;
+    saveSettings(settings);
+    return { success: true };
+  }
+  await apiRequest('/api/v1/ops/settings/gemini-key', {
+    method: 'PATCH',
+    tenantId: null,
+    body: { api_key },
+  });
+  const settings = getSettings();
+  settings.gemini_api_key = api_key;
+  saveSettings(settings);
+  return { success: true };
 }
