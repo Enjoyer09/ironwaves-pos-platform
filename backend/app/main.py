@@ -60,39 +60,40 @@ def _seed_initial_data(db: Session):
                 is_active=True,
             )
         )
-    else:
-        # Keep platform owner always recoverable in deployments.
+    elif settings.reset_superadmin_on_startup:
+        # Opt-in only: keep platform owner recoverable without overwriting prod credentials by default.
         super_exists.password_hash = hash_password(settings.superadmin_password)
         super_exists.role = "super_admin"
         super_exists.is_active = True
         super_exists.failed_attempts = 0
         super_exists.locked_until = None
 
-    # Seed demo staff users for PIN login tests in non-production setups.
-    staff_seed = [
-        ("barista", "1234", "staff"),
-        ("barista2", "5678", "staff"),
-    ]
-    for username, pin, role in staff_seed:
-        row = (
-            db.query(User)
-            .filter(User.tenant_id == tenant.id, User.username == username)
-            .first()
-        )
-        if not row:
-            db.add(
-                User(
-                    tenant_id=tenant.id,
-                    username=username,
-                    email=None,
-                    password_hash=hash_password(pin),
-                    pin_hash=hash_password(pin),
-                    role=role,
-                    is_active=True,
-                )
+    # Demo PIN users are opt-in only so production deployments never get weak seeded accounts.
+    if settings.seed_demo_users:
+        staff_seed = [
+            ("barista", "1234", "staff"),
+            ("barista2", "5678", "staff"),
+        ]
+        for username, pin, role in staff_seed:
+            row = (
+                db.query(User)
+                .filter(User.tenant_id == tenant.id, User.username == username)
+                .first()
             )
-        elif not row.pin_hash:
-            row.pin_hash = hash_password(pin)
+            if not row:
+                db.add(
+                    User(
+                        tenant_id=tenant.id,
+                        username=username,
+                        email=None,
+                        password_hash=hash_password(pin),
+                        pin_hash=hash_password(pin),
+                        role=role,
+                        is_active=True,
+                    )
+                )
+            elif not row.pin_hash:
+                row.pin_hash = hash_password(pin)
     db.commit()
 
 

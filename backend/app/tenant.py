@@ -71,11 +71,12 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
     if tenant:
         return tenant
 
-    # 4) Final fallback: explicit tenant id if provided
-    explicit = request.headers.get("x-tenant-id")
-    if explicit:
-        tenant = db.query(Tenant).filter(Tenant.id == explicit).first()
-        if tenant:
-            return tenant
+    # 4) Legacy header fallback is opt-in only for local/dev compatibility.
+    if settings.allow_legacy_tenant_header_fallback or settings.single_tenant_mode:
+        explicit = (request.headers.get("x-tenant-id") or "").strip()
+        if explicit:
+            tenant = db.query(Tenant).filter(Tenant.id == explicit).first()
+            if tenant:
+                return tenant
 
     return None
