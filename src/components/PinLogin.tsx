@@ -15,6 +15,7 @@ export default function PinLogin() {
   const [admin2faPin, setAdmin2faPin] = useState('');
   const [error, setError] = useState(false);
   const [riskContext, setRiskContext] = useState<LoginRiskContext>({ device_hash: getDeviceHash(), ip: 'ip_unknown' });
+  const isDemoHost = typeof window !== 'undefined' && window.location.host.toLowerCase() === 'demo.ironwaves.store';
 
   React.useEffect(() => {
     let mounted = true;
@@ -65,10 +66,53 @@ export default function PinLogin() {
     await handleAdminSubmit();
   };
 
+  const demoAccounts = [
+    { label: 'Demo Admin', mode: 'admin' as const, username: 'demo_admin', password: 'Demo1234!' },
+    { label: 'Demo Manager', mode: 'admin' as const, username: 'demo_manager', password: 'Demo1234!' },
+    { label: 'Demo Staff PIN', mode: 'staff' as const, pin: '1111' },
+    { label: 'Demo Kitchen PIN', mode: 'staff' as const, pin: '2222' },
+  ];
+
+  const applyDemoAccount = (account: (typeof demoAccounts)[number]) => {
+    setError(false);
+    clearAuthError();
+    if (account.mode === 'staff') {
+      setMode('staff');
+      setPin(account.pin || '');
+      return;
+    }
+    setMode('admin');
+    setAdminUser(account.username || '');
+    setAdminPass(account.password || '');
+    setAdmin2faPin('');
+  };
+
   return (
     <div className="metal-app flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-xl">
         <h1 className="mb-8 text-center text-5xl font-black tracking-wide text-slate-100">iRonWaves POS RC</h1>
+        {isDemoHost && (
+          <div className="mx-auto mb-5 max-w-3xl rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-4 text-slate-100">
+            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200">Demo Environment</div>
+            <p className="mt-2 text-sm text-slate-300">
+              Explore the platform with one-tap demo accounts. This space is isolated from production tenants and can be reset anytime.
+            </p>
+            <div className="mt-4 grid gap-2 md:grid-cols-2">
+              {demoAccounts.map((account) => (
+                <button
+                  key={account.label}
+                  onClick={() => applyDemoAccount(account)}
+                  className="neon-btn justify-between rounded-2xl px-4 py-3 text-left"
+                >
+                  <span>{account.label}</span>
+                  <span className="text-xs text-slate-400">
+                    {account.mode === 'staff' ? `PIN ${account.pin}` : account.username}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="mx-auto mb-4 max-w-md">
           <select
             value={lang}
