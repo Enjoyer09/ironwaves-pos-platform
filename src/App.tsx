@@ -16,7 +16,7 @@ import AppErrorBoundary from './components/AppErrorBoundary';
 import { logUiError } from './lib/logger';
 import { syncPendingOfflineSales } from './lib/offline';
 import { probeInternet } from './lib/connectivity';
-import { get_unread_staff_notifications, mark_staff_notifications_read } from './api/reports';
+import { get_unread_staff_notifications_live, mark_staff_notifications_read_live } from './api/reports';
 import { getActiveTenantId } from './lib/tenant';
 import { get_low_stock_items } from './api/inventory';
 
@@ -183,18 +183,30 @@ export default function App() {
 
   useEffect(() => {
     if (!hasValidUser || !user?.tenant_id || !user?.username) return;
-    try {
-      const unread = get_unread_staff_notifications(user.tenant_id, user.username);
-      if (unread.length > 0) {
+    let cancelled = false;
+    const pollNotifications = async () => {
+      try {
+        const unread = await get_unread_staff_notifications_live(user.tenant_id, user.username);
+        if (cancelled || unread.length === 0) return;
         unread.slice(0, 2).forEach((n) => {
           notify('info', `${n.title}: ${n.message}`);
         });
-        mark_staff_notifications_read(user.tenant_id, user.username);
+        await mark_staff_notifications_read_live(user.tenant_id, user.username);
+      } catch (e: any) {
+        logUiError(user?.tenant_id || activeTenant, 'app-shell', e?.message || 'Failed to load staff notifications');
       }
-    } catch (e: any) {
-      logUiError(user?.tenant_id || activeTenant, 'app-shell', e?.message || 'Failed to load staff notifications');
-    }
-  }, [hasValidUser, user?.tenant_id, user?.username]);
+    };
+
+    void pollNotifications();
+    const timer = window.setInterval(() => {
+      void pollNotifications();
+    }, 15000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [hasValidUser, user?.tenant_id, user?.username, notify, activeTenant]);
 
   useEffect(() => {
     if (!hasValidUser || !user?.tenant_id || !user?.username) return;

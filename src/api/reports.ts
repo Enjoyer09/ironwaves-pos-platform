@@ -7,7 +7,7 @@ import { apiRequest, isBackendEnabled } from './client';
 
 import { getDB, setDB } from '../lib/db_sim';
 
-type StaffNotification = {
+export type StaffNotification = {
   id: string;
   tenant_id: string;
   username: string;
@@ -68,6 +68,23 @@ export const mark_staff_notifications_read = (tenant_id: string, username: strin
     return r;
   });
   setDB('staff_notifications', next);
+};
+
+export const get_unread_staff_notifications_live = async (tenant_id: string, username: string) => {
+  if (!isBackendEnabled()) return get_unread_staff_notifications(tenant_id, username);
+  return apiRequest<StaffNotification[]>('/api/v1/ops/staff-notifications/unread', {
+    method: 'GET',
+    tenantId: null,
+  });
+};
+
+export const mark_staff_notifications_read_live = async (tenant_id: string, username: string) => {
+  if (!isBackendEnabled()) return mark_staff_notifications_read(tenant_id, username);
+  return apiRequest<{ success: boolean; count: number }>('/api/v1/ops/staff-notifications/read', {
+    method: 'POST',
+    tenantId: null,
+    body: {},
+  });
 };
 
 export const get_shift_handover_history = (tenant_id: string, username?: string) => {

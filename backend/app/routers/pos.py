@@ -98,7 +98,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         split_card = Decimal(str(payload.split_card or "0")).quantize(Decimal("0.01"))
         if split_cash < 0 or split_card < 0:
             raise HTTPException(status_code=400, detail="Split amounts cannot be negative")
-        if split_cash + split_card != total:
+        if (split_cash + split_card - total).copy_abs() > Decimal("0.01"):
             raise HTTPException(status_code=400, detail="Split amounts must equal total")
 
         if split_cash > 0:
@@ -126,7 +126,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
                 )
             )
     else:
-        source = "cash" if payment_method in ["cash", "nəğd"] else "card"
+        source = "cash" if payment_method in ["cash", "nəğd", "staff"] else "card"
         category = "Satış (Nağd)" if source == "cash" else "Satış (Kart)"
         db.add(
             FinanceEntry(

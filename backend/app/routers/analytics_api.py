@@ -4,11 +4,12 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import FinanceEntry, Sale, Tenant, User
+from app.models import FinanceEntry, InventoryItem, Recipe, Sale, Tenant, User
 
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
@@ -147,11 +148,50 @@ def void_sale(
         raise HTTPException(status_code=404, detail="Sale not found")
     if row.status == "VOIDED":
         raise HTTPException(status_code=400, detail="Sale already voided")
+
+    items = json.loads(row.items_json or "[]")
+    if payload.return_to_stock:
+        for item in items:
+            recipes = (
+                db.query(Recipe)
+                .filter(Recipe.tenant_id == tenant.id, func.lower(Recipe.menu_item_name) == str(item.get("item_name") or "").lower())
+                .all()
+            )
+            for recipe in recipes:
+                inventory = (
+                    db.query(InventoryItem)
+                    .filter(InventoryItem.tenant_id == tenant.id, func.lower(InventoryItem.name) == str(recipe.ingredient_name).lower())
+                    .first()
+                )
+                if not inventory:
+                    continue
+                add_qty = (Decimal(str(recipe.quantity_required or 0)) * Decimal(str(item.get("qty") or 0))).quantize(Decimal("0.0001"))
+                inventory.stock_qty = (Decimal(str(inventory.stock_qty or 0)) + add_qty).quantize(Decimal("0.001"))
+
     row.status = "VOIDED"
     amount = Decimal(str(row.total)).quantize(Decimal("0.01"))
     pm = str(row.payment_method or "").lower()
-    source = "cash" if pm in {"cash", "nəğd"} else "card"
-    db.add(FinanceEntry(tenant_id=tenant.id, type="out", category="Refund / Ləğv", source=source, amount=amount, description=f"VOID: {payload.reason}", created_by=user.username))
+    if pm == "split":
+        finance_rows = (
+            db.query(FinanceEntry)
+            .filter(FinanceEntry.tenant_id == tenant.id, FinanceEntry.type == "in", FinanceEntry.description.ilike(f"%{row.id}%"))
+            .all()
+        )
+        for finance_row in finance_rows:
+            db.add(
+                FinanceEntry(
+                    tenant_id=tenant.id,
+                    type="out",
+                    category="Refund / Ləğv",
+                    source=finance_row.source,
+                    amount=Decimal(str(finance_row.amount)).quantize(Decimal("0.01")),
+                    description=f"VOID: {payload.reason} ({row.id})",
+                    created_by=user.username,
+                )
+            )
+    else:
+        source = "cash" if pm in {"cash", "nəğd", "staff"} else "card"
+        db.add(FinanceEntry(tenant_id=tenant.id, type="out", category="Refund / Ləğv", source=source, amount=amount, description=f"VOID: {payload.reason}", created_by=user.username))
     db.commit()
     return {"success": True}
 

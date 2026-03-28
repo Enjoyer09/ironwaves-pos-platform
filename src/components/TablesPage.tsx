@@ -28,6 +28,18 @@ export default function TablesPage() {
   const printSettings = get_settings(tenant_id).print_settings || { use_qz: false, printer_name: '' };
 
   const formatDisplayId = (id: string) => (id ? id.split('-')[0].toUpperCase() : '-');
+  const kitchenBadge = (status?: string | null) => {
+    switch (String(status || '').toUpperCase()) {
+      case 'NEW':
+        return { label: tx(lang, 'Mətbəxə göndərildi', 'Отправлено на кухню'), className: 'bg-blue-400/20 text-blue-200 border border-blue-300/40' };
+      case 'PREPARING':
+        return { label: tx(lang, 'Hazırlanır', 'Готовится'), className: 'bg-orange-400/20 text-orange-200 border border-orange-300/40' };
+      case 'READY':
+        return { label: tx(lang, 'Servisə hazırdır', 'Готово к подаче'), className: 'bg-emerald-400/20 text-emerald-200 border border-emerald-300/40' };
+      default:
+        return null;
+    }
+  };
 
   useEffect(() => {
     void loadData();
@@ -195,6 +207,10 @@ export default function TablesPage() {
                     const total = new Decimal(table.total || 0);
                     const cash = paymentMethod === 'Split' ? new Decimal(splitCash || 0) : null;
                     const card = paymentMethod === 'Split' ? Decimal.max(new Decimal(0), total.minus(cash || 0)) : null;
+                    if (paymentMethod === 'Split' && ((cash || new Decimal(0)).lessThan(0) || (card || new Decimal(0)).lessThan(0) || cash!.plus(card!).minus(total).abs().greaterThan(0.01))) {
+                      notify('error', tx(lang, 'Split məbləğlər toplam hesaba bərabər olmalıdır', 'Суммы split должны совпадать с итогом'));
+                      return;
+                    }
                     const result = await pay_table_live(table.id, paymentMethod, user?.username || 'Staff', cash, card);
                     const sales = getDB<any>('sales');
                     const paidSale = sales.find((s) => s.id === result.sale_id);
@@ -335,6 +351,9 @@ export default function TablesPage() {
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
         {tables.map(t => (
+          (() => {
+            const kitchen = kitchenBadge((t as any).kitchen_status);
+            return (
           <div
             key={t.id}
             onClick={() => setViewTableId(t.id)}
@@ -344,6 +363,11 @@ export default function TablesPage() {
             <span className={`text-xs px-3 py-1 rounded-full mt-3 font-semibold ${t.is_occupied ? 'bg-red-400/20 text-red-200 border border-red-300/50' : 'bg-green-400/20 text-green-200 border border-green-300/50'}`}>
                 {t.is_occupied ? tx(lang, 'Dolu', 'Занято') : tx(lang, 'Boş', 'Свободно')}
             </span>
+            {kitchen && (
+              <span className={`mt-2 rounded-full px-3 py-1 text-[11px] font-semibold ${kitchen.className}`}>
+                {kitchen.label}
+              </span>
+            )}
             {!t.is_occupied && ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
               <button onClick={(e) => { e.stopPropagation(); setDeleteTableId(t.id); }} className="absolute top-3 right-3 text-slate-400 hover:text-red-300 transition-colors">
                 <Trash2 size={18}/>
@@ -358,6 +382,8 @@ export default function TablesPage() {
               </button>
             )}
           </div>
+            );
+          })()
         ))}
         {tables.length === 0 && (
           <div className="metal-panel col-span-full py-12 text-center text-slate-400 border-2 border-dashed border-slate-600 rounded-2xl">

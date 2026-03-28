@@ -81,6 +81,7 @@ export default function KDS() {
     switch (status) {
       case 'NEW': return 'border-blue-300/60 bg-blue-900/20';
       case 'PREPARING': return 'border-orange-300/60 bg-orange-900/20';
+      case 'READY': return 'border-emerald-300/70 bg-emerald-900/20';
       default: return 'border-slate-600 bg-slate-800/30';
     }
   };
@@ -89,6 +90,7 @@ export default function KDS() {
     switch (status) {
       case 'NEW': return <span className="rounded px-2 py-1 text-xs font-bold bg-blue-400/20 text-blue-200 border border-blue-300/40">{tx(lang, 'YENİ', 'НОВЫЙ')}</span>;
       case 'PREPARING': return <span className="rounded px-2 py-1 text-xs font-bold bg-orange-400/20 text-orange-200 border border-orange-300/40">{tx(lang, 'HAZIRLANIR', 'ГОТОВИТСЯ')}</span>;
+      case 'READY': return <span className="rounded px-2 py-1 text-xs font-bold bg-emerald-400/20 text-emerald-200 border border-emerald-300/40">{tx(lang, 'HAZIRDIR', 'ГОТОВО')}</span>;
       default: return null;
     }
   };
@@ -171,6 +173,11 @@ export default function KDS() {
                   <CheckCircle size={20} className="mr-2" />
                   {tx(lang, 'Hazırdır (Tamamla)', 'Готово (завершить)')}
                 </button>
+              )}
+              {order.status === 'READY' && (
+                <div className="w-full rounded-xl border border-emerald-300/40 bg-emerald-500/10 px-4 py-3 text-center text-sm font-semibold text-emerald-100">
+                  {tx(lang, 'Ofisant üçün hazırdır', 'Готово для официанта')}
+                </div>
               )}
             </div>
             
