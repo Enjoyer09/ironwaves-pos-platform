@@ -525,6 +525,43 @@ export default function FinancePanel() {
         <WalletCard title={tx(lang, 'Seyf', 'Сейф', 'Safe')} value={balance.safe_balance || '0'} />
       </div>
 
+      <div className="metal-panel p-5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="space-y-3">
+            <div className="text-sm font-semibold text-slate-200">{tx(lang, 'Hesabat Aralığı', 'Период отчета', 'Report Range')}</div>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ['daily', tx(lang, 'Günlük', 'Дневной', 'Daily')],
+                ['weekly', tx(lang, 'Həftəlik', 'Недельный', 'Weekly')],
+                ['monthly', tx(lang, 'Aylıq', 'Месячный', 'Monthly')],
+                ['yearly', tx(lang, 'İllik', 'Годовой', 'Yearly')],
+                ['custom', tx(lang, 'Tarix Aralığı', 'Диапазон дат', 'Date Range')],
+              ] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  className={`rounded-xl px-4 py-3 text-sm font-semibold ${rangePreset === key ? 'bg-yellow-400 text-slate-900' : 'border border-slate-600 text-slate-200'}`}
+                  onClick={() => applyRangePreset(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-col gap-2 md:flex-row">
+              <input type="date" value={fromDate} onChange={(e) => { setRangePreset('custom'); setFromDate(e.target.value); }} className="neon-input min-h-13 md:w-44" />
+              <input type="date" value={toDate} onChange={(e) => { setRangePreset('custom'); setToDate(e.target.value); }} className="neon-input min-h-13 md:w-44" />
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 md:flex-row">
+            <button className="neon-btn min-h-13 rounded-xl px-4 py-3 text-sm" onClick={exportCsv}>
+              {tx(lang, 'CSV Export', 'Экспорт CSV', 'CSV Export')}
+            </button>
+            <button className="glossy-gold min-h-13 rounded-xl px-4 py-3 text-sm font-semibold" onClick={() => { void sendFinanceSummary(); }}>
+              {tx(lang, 'Email Göndər', 'Отправить email', 'Send Email')}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="metal-panel p-5">
           <h3 className="mb-4 text-lg font-semibold">{tx(lang, 'Smart Xərc / Mədaxil', 'Умный расход / приход', 'Smart Expense / Income')}</h3>
@@ -717,33 +754,6 @@ export default function FinancePanel() {
       </div>
 
       <div className="metal-panel p-4">
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          {([
-            ['daily', tx(lang, 'Günlük', 'Дневной', 'Daily')],
-            ['weekly', tx(lang, 'Həftəlik', 'Недельный', 'Weekly')],
-            ['monthly', tx(lang, 'Aylıq', 'Месячный', 'Monthly')],
-            ['yearly', tx(lang, 'İllik', 'Годовой', 'Yearly')],
-            ['custom', tx(lang, 'Tarix Aralığı', 'Диапазон дат', 'Date Range')],
-          ] as const).map(([key, label]) => (
-            <button
-              key={key}
-              className={`rounded-lg px-3 py-2 text-xs font-semibold ${rangePreset === key ? 'bg-yellow-400 text-slate-900' : 'border border-slate-600 text-slate-200'}`}
-              onClick={() => applyRangePreset(key)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <input type="date" value={fromDate} onChange={(e) => { setRangePreset('custom'); setFromDate(e.target.value); }} className="neon-input w-auto" />
-          <input type="date" value={toDate} onChange={(e) => { setRangePreset('custom'); setToDate(e.target.value); }} className="neon-input w-auto" />
-          <button className="neon-btn rounded-lg px-3 py-2 text-xs" onClick={exportCsv}>
-            {tx(lang, 'CSV Export', 'Экспорт CSV', 'CSV Export')}
-          </button>
-          <button className="glossy-gold rounded-lg px-3 py-2 text-xs font-semibold" onClick={() => { void sendFinanceSummary(); }}>
-            {tx(lang, 'Email Göndər', 'Отправить email', 'Send Email')}
-          </button>
-        </div>
         <div className="mb-3 grid grid-cols-1 gap-2 text-xs text-slate-300 md:grid-cols-4">
           <div>{tx(lang, 'Daxil olan', 'Вход', 'Incoming')}: <b>{filteredEntries.filter((e: any) => e.type === 'in').reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0)).toFixed(2)} ₼</b></div>
           <div>{tx(lang, 'Çıxan', 'Выход', 'Outgoing')}: <b>{filteredEntries.filter((e: any) => e.type === 'out').reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0)).toFixed(2)} ₼</b></div>

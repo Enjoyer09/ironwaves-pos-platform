@@ -1,3 +1,4 @@
+import json
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import FinanceEntry, InventoryItem, MenuItem, Recipe, Tenant, User
+from app.models import AuditLog, FinanceEntry, InventoryItem, MenuItem, Recipe, Tenant, User
 from app.schemas import InventoryItemCreateIn, InventoryRestockIn, InventoryLossIn, MenuItemCreateIn, RecipeIngredientCreateIn
 
 
@@ -63,6 +64,17 @@ def _convert_recipe_qty_to_inventory_unit(quantity: Decimal, from_unit: str, inv
     if factor is None:
         raise HTTPException(status_code=400, detail=f"{from_unit} vahidi {inventory_unit} ilə uyğun deyil")
     return quantity * factor
+
+
+def _log_inventory_audit(db: Session, tenant_id: str, username: str, action: str, details: dict):
+    db.add(
+        AuditLog(
+            tenant_id=tenant_id,
+            user=username,
+            action=action,
+            details=json.dumps(details, ensure_ascii=False),
+        )
+    )
 
 
 class InventoryItemOut(BaseModel):
@@ -263,6 +275,19 @@ def create_inventory_item(
         existing.min_limit = Decimal(str(payload.min_limit)).quantize(Decimal("0.001"))
         existing.unit = str(payload.unit or existing.unit).strip()
         existing.category = str(payload.category or existing.category or "").strip() or None
+        _log_inventory_audit(
+            db,
+            tenant.id,
+            user.username,
+            "INVENTORY_ADD",
+            {
+                "item_name": existing.name,
+                "qty": str(incoming_qty),
+                "unit": existing.unit,
+                "unit_cost": str(incoming_unit_cost),
+                "mode": "merge",
+            },
+        )
         db.commit()
         db.refresh(existing)
         row = existing
@@ -277,6 +302,19 @@ def create_inventory_item(
             min_limit=Decimal(str(payload.min_limit)).quantize(Decimal("0.001")),
         )
         db.add(row)
+        _log_inventory_audit(
+            db,
+            tenant.id,
+            user.username,
+            "INVENTORY_ADD",
+            {
+                "item_name": row.name,
+                "qty": str(row.stock_qty),
+                "unit": row.unit,
+                "unit_cost": str(row.unit_cost),
+                "mode": "create",
+            },
+        )
         db.commit()
         db.refresh(row)
 
@@ -319,6 +357,19 @@ def restock_inventory_item(
 
     row.stock_qty = new_total_qty.quantize(Decimal("0.001"))
     row.unit_cost = new_unit_cost.quantize(Decimal("0.0001"))
+    _log_inventory_audit(
+        db,
+        tenant.id,
+        user.username,
+        "INVENTORY_RESTOCK",
+        {
+            "item_name": row.name,
+            "qty_added": str(qty_added.quantize(Decimal("0.001"))),
+            "unit": row.unit,
+            "total_price": str(total_price.quantize(Decimal("0.01"))),
+            "new_unit_cost": str(row.unit_cost),
+        },
+    )
     db.commit()
     db.refresh(row)
     return {
@@ -366,6 +417,19 @@ def record_inventory_loss(
             created_by=user.username,
         )
     )
+    _log_inventory_audit(
+        db,
+        tenant.id,
+        user.username,
+        "INVENTORY_LOSS",
+        {
+            "item_name": row.name,
+            "qty_removed": str(qty_removed.quantize(Decimal("0.001"))),
+            "unit": row.unit,
+            "reason": payload.reason,
+            "loss_amount": str(loss_amount),
+        },
+    )
     db.commit()
     return {"success": True, "loss_amount": str(loss_amount)}
 
@@ -381,6 +445,17 @@ def delete_inventory_item(
     row = db.query(InventoryItem).filter(InventoryItem.id == item_id, InventoryItem.tenant_id == tenant.id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Inventory item not found")
+    _log_inventory_audit(
+        db,
+        tenant.id,
+        user.username,
+        "INVENTORY_DELETE",
+        {
+            "item_name": row.name,
+            "stock_qty": str(row.stock_qty),
+            "unit": row.unit,
+        },
+    )
     db.delete(row)
     db.commit()
     return {"success": True}
