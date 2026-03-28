@@ -2,6 +2,7 @@ from datetime import datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -97,9 +98,15 @@ def _seed_initial_data(db: Session):
     db.commit()
 
 
+def _run_startup_migrations():
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS cogs NUMERIC(12,4) DEFAULT 0"))
+
+
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
+    _run_startup_migrations()
     with SessionLocal() as db:
         _seed_initial_data(db)
 

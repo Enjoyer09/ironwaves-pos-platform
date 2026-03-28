@@ -123,6 +123,18 @@ export default function ZReportPanel() {
   }, [tenant_id, start, end, user?.role, user?.username, reportRefreshKey]);
 
   React.useEffect(() => {
+    const onFocusRefresh = () => setReportRefreshKey((prev) => prev + 1);
+    window.addEventListener('focus', onFocusRefresh);
+    const timer = window.setInterval(() => {
+      setReportRefreshKey((prev) => prev + 1);
+    }, 15000);
+    return () => {
+      window.removeEventListener('focus', onFocusRefresh);
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  React.useEffect(() => {
     const fallback = expectedCashNow.toFixed(2);
     setXActualCash((prev) => (prev === '0' ? fallback : prev));
     setZActualCash((prev) => (prev === '0' ? fallback : prev));
