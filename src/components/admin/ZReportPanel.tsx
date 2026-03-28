@@ -575,9 +575,3 @@ function Metric({ title, value }: { title: string; value: string | number }) {
     </div>
   );
 }
-  React.useEffect(() => {
-    void (async () => {
-      setSummary(await get_sales_summary_live(tenant_id, start, end, user?.role === 'staff' ? user.username : undefined));
-      setSales(await get_sales_list_live(tenant_id, start, end, user?.role === 'staff' ? user.username : undefined));
-    })();
-  }, [tenant_id, start, end, user?.role, user?.username]);
