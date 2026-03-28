@@ -321,3 +321,52 @@ export async function update_sale_amount_live(
     body: { new_total, reason },
   });
 }
+
+export function partial_refund_sale(
+  tenant_id: string,
+  sale_id: string,
+  refund_amount: string,
+  reason: string,
+  actor: string,
+) {
+  const sales = getDB<Sale>('sales');
+  const idx = sales.findIndex((s) => s.id === sale_id && s.tenant_id === tenant_id);
+  if (idx === -1) throw new Error('Satış tapılmadı');
+  if (sales[idx].status === 'VOIDED') throw new Error('VOID olunmuş satışa partial refund tətbiq edilə bilməz');
+
+  const refund = new Decimal(refund_amount || 0);
+  const currentTotal = new Decimal((sales[idx] as any).total || 0);
+  if (refund.lte(0)) throw new Error('Refund məbləği 0-dan böyük olmalıdır');
+  if (refund.greaterThanOrEqualTo(currentTotal)) throw new Error('Tam refund üçün VOID istifadə edin');
+
+  (sales[idx] as any).total = currentTotal.minus(refund).toFixed(2);
+  (sales[idx] as any).status = 'PARTIAL_REFUND';
+  setDB('sales', sales);
+
+  create_finance_entry(
+    tenant_id,
+    'out',
+    'Partial Refund',
+    refund.toFixed(2),
+    sales[idx].payment_method === 'Kart' ? 'card' : 'cash',
+    `PARTIAL REFUND: ${reason}`,
+    actor,
+  );
+  logEvent(actor, 'SALE_PARTIAL_REFUND', { tenant_id, sale_id, refund_amount: refund.toFixed(2), reason });
+  return { success: true, remaining_total: (sales[idx] as any).total };
+}
+
+export async function partial_refund_sale_live(
+  tenant_id: string,
+  sale_id: string,
+  refund_amount: string,
+  reason: string,
+  actor: string,
+) {
+  if (!isBackendEnabled()) return partial_refund_sale(tenant_id, sale_id, refund_amount, reason, actor);
+  return apiRequest<{ success: boolean; remaining_total: string }>(`/api/v1/analytics/sales/${encodeURIComponent(sale_id)}/partial-refund`, {
+    method: 'POST',
+    tenantId: null,
+    body: { refund_amount, reason },
+  });
+}

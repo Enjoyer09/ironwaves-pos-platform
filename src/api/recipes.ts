@@ -159,6 +159,14 @@ export async function get_recipe_live(menu_item_name: string, tenant_id: string 
   return apiRequest<any[]>(`/api/v1/catalog/recipes/${encodeURIComponent(menu_item_name)}`, { tenantId: null });
 }
 
+export async function get_recipe_menu_names_live(tenant_id: string = 'tenant_default') {
+  if (!isBackendEnabled()) {
+    return Array.from(new Set(getRecipes(tenant_id).map((r) => String(r.menu_item_name || ''))));
+  }
+  const res = await apiRequest<{ menu_item_names: string[] }>('/api/v1/catalog/recipes', { tenantId: null });
+  return Array.isArray(res?.menu_item_names) ? res.menu_item_names : [];
+}
+
 export function add_recipe_ingredient(data: {
   menu_item_name: string;
   ingredient_name: string;
@@ -242,6 +250,44 @@ export async function delete_recipe_ingredient_live(recipe_id: string, user: str
     tenantId: null,
   });
   return true;
+}
+
+export async function replace_recipe_live(
+  menu_item_name: string,
+  ingredients: Array<{ ingredient_name: string; quantity_required: Decimal.Value; quantity_unit?: string }>,
+  tenant_id: string = 'tenant_default',
+) {
+  if (!isBackendEnabled()) {
+    const existing = get_recipe(menu_item_name, tenant_id);
+    existing.forEach((row) => delete_recipe_ingredient(row.id, 'system', tenant_id));
+    ingredients.forEach((row) => {
+      add_recipe_ingredient(
+        {
+          menu_item_name,
+          ingredient_name: row.ingredient_name,
+          quantity_required: new Decimal(row.quantity_required),
+          unit: row.quantity_unit || 'ədəd',
+          unit_cost: new Decimal(0),
+          quantity_unit: row.quantity_unit,
+          tenant_id,
+        },
+        'system',
+      );
+    });
+    return { success: true, count: ingredients.length };
+  }
+  return apiRequest<{ success: boolean; count: number }>('/api/v1/catalog/recipes', {
+    method: 'PUT',
+    tenantId: null,
+    body: {
+      menu_item_name,
+      ingredients: ingredients.map((row) => ({
+        ingredient_name: row.ingredient_name,
+        quantity_required: new Decimal(row.quantity_required).toFixed(4),
+        quantity_unit: row.quantity_unit || null,
+      })),
+    },
+  });
 }
 
 export async function generate_recipe_ai(menu_item_name: string, user: string = 'system', tenant_id: string = 'tenant_default') {

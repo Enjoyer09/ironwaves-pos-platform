@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../../store';
 import { get_menu_items_live } from '../../api/menu';
-import { get_recipe_live, add_recipe_ingredient_live, delete_recipe_ingredient_live, calculate_recipe_cost_live, generate_recipe_ai_live, getDefaultRecipeEntryUnit, getRecipeEntryUnitOptions } from '../../api/recipes';
+import { get_recipe_live, calculate_recipe_cost_live, generate_recipe_ai_live, getDefaultRecipeEntryUnit, getRecipeEntryUnitOptions, get_recipe_menu_names_live, replace_recipe_live } from '../../api/recipes';
 import { get_inventory_items_live } from '../../api/inventory';
 import { Decimal } from 'decimal.js';
 import { ChefHat, Plus, Trash2, Calculator, Sparkles } from 'lucide-react';
 import { tx } from '../../i18n';
 import ConfirmModal from '../ConfirmModal';
-import { getDB } from '../../lib/db_sim';
 
 export default function RecipesPanel() {
   const { user, lang, notify } = useAppStore();
@@ -16,7 +15,9 @@ export default function RecipesPanel() {
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [selectedMenu, setSelectedMenu] = useState<string | null>(null);
   const [recipeItems, setRecipeItems] = useState<any[]>([]);
+  const [draftRecipeItems, setDraftRecipeItems] = useState<any[]>([]);
   const [recipeStats, setRecipeStats] = useState<any>(null);
+  const [isSaving, setIsSaving] = useState(false);
   
   // Xammal əlavə etmək üçün
   const [ingredients, setIngredients] = useState<any[]>([]);
@@ -41,13 +42,28 @@ export default function RecipesPanel() {
     return tx(lang, `Miqdar (${selectedIngredientMeta?.unit})`, `Количество (${selectedIngredientMeta?.unit})`);
   })();
 
+  const convertToInventoryUnit = (quantity: Decimal, fromUnit: string, inventoryUnit: string) => {
+    const normalize = (value: string) => String(value || '').trim().toLowerCase();
+    const from = normalize(fromUnit);
+    const to = normalize(inventoryUnit);
+    if (!from || from === to) return quantity;
+    const conversions: Record<string, Decimal> = {
+      'qram->kq': new Decimal('0.001'),
+      'kq->qram': new Decimal('1000'),
+      'ml->litr': new Decimal('0.001'),
+      'litr->ml': new Decimal('1000'),
+      'sm->metr': new Decimal('0.01'),
+      'metr->sm': new Decimal('100'),
+    };
+    return quantity.mul(conversions[`${from}->${to}`] || new Decimal(1));
+  };
+
   useEffect(() => {
     void (async () => {
       const menu = await get_menu_items_live(tenant_id);
       setMenuItems(menu);
 
-      const allRecipes = (getDB<any>('recipes') || []).filter((r) => !r.tenant_id || r.tenant_id === tenant_id);
-      const recipeMenuNames = new Set(allRecipes.map((r: any) => String(r.menu_item_name || '')));
+      const recipeMenuNames = new Set(await get_recipe_menu_names_live(tenant_id));
       const missing = new Set(menu.filter((m: any) => !recipeMenuNames.has(String(m.item_name))).map((m: any) => String(m.item_name)));
       setMissingRecipeSet(missing);
 
@@ -77,11 +93,13 @@ export default function RecipesPanel() {
       try {
         const items = await get_recipe_live(selectedMenu, tenant_id);
         setRecipeItems(items);
+        setDraftRecipeItems(items);
         const stats = await calculate_recipe_cost_live(selectedMenu, getSelectedMenuPrice(), tenant_id);
         setRecipeStats(stats);
       } catch (error) {
         console.error(error);
         setRecipeItems([]);
+        setDraftRecipeItems([]);
         setRecipeStats({ total_cost: 0, margin: 0, margin_percent: 0 });
       }
     })();
@@ -92,47 +110,85 @@ export default function RecipesPanel() {
 
     try {
       const invItem = ingredients.find(i => i.name === newIngredient);
-      await add_recipe_ingredient_live({
-        menu_item_name: selectedMenu,
-        ingredient_name: newIngredient,
-        quantity_required: new Decimal(newQty),
-        unit: invItem ? invItem.unit : 'q',
-        unit_cost: invItem ? new Decimal(invItem.unit_cost) : new Decimal(0),
-        quantity_unit: newQtyUnit,
-        tenant_id,
-      }, user?.username);
-
-      setRecipeItems(await get_recipe_live(selectedMenu, tenant_id));
-      setRecipeStats(await calculate_recipe_cost_live(selectedMenu, getSelectedMenuPrice(), tenant_id));
+      const qty = new Decimal(newQty || 0);
+      const unitCost = new Decimal(invItem?.unit_cost || 0);
+      const normalizedQty = convertToInventoryUnit(qty, newQtyUnit, String(invItem?.unit || newQtyUnit));
+      setDraftRecipeItems((prev) => [
+        ...prev,
+        {
+          id: `draft_${Date.now()}`,
+          tenant_id,
+          menu_item_name: selectedMenu,
+          ingredient_name: newIngredient,
+          quantity_required: qty.toFixed(4),
+          quantity_unit: newQtyUnit,
+          unit: invItem?.unit || newQtyUnit,
+          unit_cost: unitCost.toFixed(4),
+          line_cost: normalizedQty.mul(unitCost).toFixed(4),
+        },
+      ]);
       setNewIngredient('');
       setNewQty('');
       setNewQtyUnit(invItem ? getDefaultRecipeEntryUnit(String(invItem.unit)) : 'qram');
     } catch (e: any) {
-      notify('error', e?.message || tx(lang, 'Reseptə xammal əlavə olunmadı', 'Не удалось добавить ингредиент в рецепт'));
+      notify('error', e?.message || tx(lang, 'Reseptə xammal əlavə olunmadı', 'Не удалось добавить ингредиент в рецепт', 'Failed to add ingredient to recipe'));
     }
   };
 
-  const handleDeleteIngredient = async (recipe_id: string) => {
-    try {
-      await delete_recipe_ingredient_live(recipe_id, user?.username, tenant_id);
-      if (selectedMenu) {
-        setRecipeItems(await get_recipe_live(selectedMenu, tenant_id));
-        setRecipeStats(await calculate_recipe_cost_live(selectedMenu, getSelectedMenuPrice(), tenant_id));
-      }
-    } catch (e: any) {
-      notify('error', e?.message || tx(lang, 'Resept silinmədi', 'Рецепт не удален'));
-    }
+  const handleDeleteIngredient = (recipe_id: string) => {
+    setDraftRecipeItems((prev) => prev.filter((item) => item.id !== recipe_id));
   };
 
   const handleGenerateAI = async () => {
     if (!selectedMenu) return;
     try {
       await generate_recipe_ai_live(selectedMenu, user?.username, tenant_id);
-      notify('success', tx(lang, `AI ${selectedMenu} üçün resept yaratdı!`, `AI создал рецепт для ${selectedMenu}!`));
-      setRecipeItems(await get_recipe_live(selectedMenu, tenant_id));
+      notify('success', tx(lang, `AI ${selectedMenu} üçün resept yaratdı!`, `AI создал рецепт для ${selectedMenu}!`, `AI created a recipe for ${selectedMenu}!`));
+      const nextItems = await get_recipe_live(selectedMenu, tenant_id);
+      setRecipeItems(nextItems);
+      setDraftRecipeItems(nextItems);
       setRecipeStats(await calculate_recipe_cost_live(selectedMenu, getSelectedMenuPrice(), tenant_id));
+      setMissingRecipeSet((prev) => {
+        const next = new Set(prev);
+        next.delete(String(selectedMenu));
+        return next;
+      });
     } catch(e:any) {
       notify('error', e.message);
+    }
+  };
+
+  const hasUnsavedChanges = JSON.stringify(draftRecipeItems.map((item) => ({ ingredient_name: item.ingredient_name, quantity_required: item.quantity_required, quantity_unit: item.quantity_unit || item.unit })))
+    !== JSON.stringify(recipeItems.map((item) => ({ ingredient_name: item.ingredient_name, quantity_required: item.quantity_required, quantity_unit: item.quantity_unit || item.unit })));
+
+  const handleSaveRecipe = async () => {
+    if (!selectedMenu) return;
+    setIsSaving(true);
+    try {
+      await replace_recipe_live(
+        selectedMenu,
+        draftRecipeItems.map((item) => ({
+          ingredient_name: item.ingredient_name,
+          quantity_required: item.quantity_required,
+          quantity_unit: item.quantity_unit || item.unit,
+        })),
+        tenant_id,
+      );
+      const nextItems = await get_recipe_live(selectedMenu, tenant_id);
+      setRecipeItems(nextItems);
+      setDraftRecipeItems(nextItems);
+      setRecipeStats(await calculate_recipe_cost_live(selectedMenu, getSelectedMenuPrice(), tenant_id));
+      setMissingRecipeSet((prev) => {
+        const next = new Set(prev);
+        if (nextItems.length > 0) next.delete(String(selectedMenu));
+        else next.add(String(selectedMenu));
+        return next;
+      });
+      notify('success', tx(lang, 'Resept yadda saxlanıldı', 'Рецепт сохранен', 'Recipe saved'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Resept saxlanmadı', 'Рецепт не сохранен', 'Recipe was not saved'));
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -154,21 +210,21 @@ export default function RecipesPanel() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <ChefHat className="text-orange-500" size={32} />
-            {tx(lang, 'Reseptlər və Maya Dəyəri', 'Рецепты и себестоимость')}
+            {tx(lang, 'Reseptlər və Maya Dəyəri', 'Рецепты и себестоимость', 'Recipes and Costing')}
           </h1>
-          <p className="text-slate-300 mt-1">{tx(lang, 'Məhsulların tərkibini yaradın və qazancınızı (margin) hesablayın', 'Создавайте состав продуктов и считайте вашу маржу')}</p>
+          <p className="text-slate-300 mt-1">{tx(lang, 'Məhsulların tərkibini yaradın və qazancınızı (margin) hesablayın', 'Создавайте состав продуктов и считайте вашу маржу', 'Build product recipes and calculate margin')}</p>
         </div>
       </div>
 
       {menuItems.length === 0 && (
-          <div className="metal-panel p-5 text-sm text-slate-300">{tx(lang, 'Aktiv menyu məhsulu yoxdur. Əvvəlcə Menyu bölməsindən məhsul yaradın.', 'Нет активных позиций меню. Сначала создайте продукт в разделе Меню.')}</div>
+          <div className="metal-panel p-5 text-sm text-slate-300">{tx(lang, 'Aktiv menyu məhsulu yoxdur. Əvvəlcə Menyu bölməsindən məhsul yaradın.', 'Нет активных позиций меню. Сначала создайте продукт в разделе Меню.', 'There are no active menu items. Create one in Menu first.')}</div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {/* Sol: Menyu Seçimi */}
         <div className="metal-panel overflow-hidden col-span-1">
           <div className="p-4 border-b border-slate-700/70 bg-slate-900/40">
-            <h2 className="font-bold text-slate-100">{tx(lang, 'Menyu Məhsulları', 'Позиции меню')}</h2>
+            <h2 className="font-bold text-slate-100">{tx(lang, 'Menyu Məhsulları', 'Позиции меню', 'Menu Items')}</h2>
           </div>
           <div className="divide-y divide-slate-700/60 max-h-[500px] overflow-y-auto">
             {[...menuItems]
@@ -203,23 +259,30 @@ export default function RecipesPanel() {
           {!selectedMenu ? (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
               <ChefHat size={64} className="mb-4 text-slate-500" />
-               <p>{tx(lang, 'Resepti görmək üçün soldan bir məhsul seçin', 'Выберите продукт слева, чтобы увидеть рецепт')}</p>
+               <p>{tx(lang, 'Resepti görmək üçün soldan bir məhsul seçin', 'Выберите продукт слева, чтобы увидеть рецепт', 'Select a menu item on the left to view the recipe')}</p>
             </div>
           ) : (
             <>
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-slate-100">{selectedMenu} Resepti</h2>
+                <h2 className="text-xl font-bold text-slate-100">{selectedMenu} {tx(lang, 'Resepti', 'Рецепт', 'Recipe')}</h2>
                 <div className="flex gap-4 items-center">
                   <button onClick={handleGenerateAI} className="glossy-gold px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors">
-                    <Sparkles size={16} /> {tx(lang, 'AI İlə Yarat', 'Создать через AI')}
+                    <Sparkles size={16} /> {tx(lang, 'AI İlə Yarat', 'Создать через AI', 'Generate with AI')}
+                  </button>
+                  <button
+                    onClick={() => { void handleSaveRecipe(); }}
+                    disabled={isSaving || !hasUnsavedChanges}
+                    className="rounded-xl border border-emerald-300/40 bg-emerald-500/20 px-4 py-2 text-sm font-bold text-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isSaving ? tx(lang, 'Saxlanılır...', 'Сохраняется...', 'Saving...') : tx(lang, 'Save', 'Сохранить', 'Save')}
                   </button>
                   {recipeStats && (
                     <>
                       <div className="bg-blue-500/20 text-blue-200 px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2">
-                        <Calculator size={16} /> {tx(lang, 'Maya', 'Себестоимость')}: {new Decimal(recipeStats.total_cost || 0).toFixed(2)} ₼
+                        <Calculator size={16} /> {tx(lang, 'Maya', 'Себестоимость', 'Cost')}: {new Decimal(recipeStats.total_cost || 0).toFixed(2)} ₼
                       </div>
                       <div className={`px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 ${new Decimal(recipeStats.margin || 0).gt(0) ? 'bg-green-500/20 text-green-200' : 'bg-red-500/20 text-red-200'}`}>
-                        <Calculator size={16} /> {tx(lang, 'Mənfəət', 'Маржа')}: {new Decimal(recipeStats.margin || 0).toFixed(2)} ₼ ({new Decimal(recipeStats.margin_percent || 0).toFixed(2)}%)
+                        <Calculator size={16} /> {tx(lang, 'Mənfəət', 'Маржа', 'Margin')}: {new Decimal(recipeStats.margin || 0).toFixed(2)} ₼ ({new Decimal(recipeStats.margin_percent || 0).toFixed(2)}%)
                       </div>
                     </>
                   )}
@@ -232,7 +295,7 @@ export default function RecipesPanel() {
                   onChange={e => setNewIngredient(e.target.value)}
                   className="neon-input flex-1"
                 >
-                    <option value="">{tx(lang, '-- Anbardan Xammal Seç --', '-- Выберите ингредиент со склада --')}</option>
+                    <option value="">{tx(lang, '-- Anbardan Xammal Seç --', '-- Выберите ингредиент со склада --', '-- Select inventory ingredient --')}</option>
                   {ingredients.map(inv => (
                     <option key={inv.id} value={inv.name}>{inv.name} (Stok: {inv.stock_qty} {inv.unit})</option>
                   ))}
@@ -258,9 +321,13 @@ export default function RecipesPanel() {
                 <button 
                   onClick={() => { void handleAddIngredient(); }}
                   className="glossy-gold px-4 py-2 rounded-lg transition-colors"
+                  title={tx(lang, 'Draft-a əlavə et', 'Добавить в черновик', 'Add to draft')}
                 >
                   <Plus size={20} />
                 </button>
+              </div>
+              <div className="mb-4 text-xs text-slate-400">
+                {tx(lang, 'İnqrediyentləri əlavə edin, sonra ayrıca Save düyməsi ilə resepti yadda saxlayın.', 'Добавьте ингредиенты, затем сохраните рецепт кнопкой Save.', 'Add ingredients, then save the recipe with the Save button.')}
               </div>
               {selectedIngredientMeta ? (
                 <p className="mb-4 text-xs text-slate-400">
@@ -268,6 +335,7 @@ export default function RecipesPanel() {
                     lang,
                     `Anbar vahidi: ${selectedIngredientMeta.unit}. Reseptdə giriş vahidini ayrıca seçə bilərsiniz: məsələn kofe üçün 18 qram, süd üçün 120 ml.`,
                     `Складская единица: ${selectedIngredientMeta.unit}. В рецепте можно выбрать отдельную единицу ввода: например 18 грамм кофе или 120 мл молока.`,
+                    `Inventory unit: ${selectedIngredientMeta.unit}. You can choose a different recipe entry unit, for example 18 grams of coffee or 120 ml of milk.`,
                   )}
                 </p>
               ) : null}
@@ -284,11 +352,11 @@ export default function RecipesPanel() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {recipeItems.map(item => (
+                    {draftRecipeItems.map(item => (
                       <tr key={item.id} className="border-t border-slate-700/60">
                         <td className="px-4 py-3 font-medium text-slate-100">{item.ingredient_name}</td>
                         <td className="px-4 py-3 text-slate-300">{item.quantity_required}</td>
-                        <td className="px-4 py-3 text-slate-300">{item.unit}</td>
+                        <td className="px-4 py-3 text-slate-300">{item.quantity_unit || item.unit}</td>
                         <td className="px-4 py-3 font-semibold text-slate-100">{item.line_cost} ₼</td>
                         <td className="px-4 py-3 text-right">
                           <button 
@@ -300,10 +368,10 @@ export default function RecipesPanel() {
                         </td>
                       </tr>
                     ))}
-                    {recipeItems.length === 0 && (
+                    {draftRecipeItems.length === 0 && (
                       <tr>
                         <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
-                          {tx(lang, 'Bu məhsul üçün resept əlavə edilməyib', 'Для этого продукта рецепт не добавлен')}
+                          {tx(lang, 'Bu məhsul üçün resept əlavə edilməyib', 'Для этого продукта рецепт не добавлен', 'No recipe has been added for this item')}
                         </td>
                       </tr>
                     )}

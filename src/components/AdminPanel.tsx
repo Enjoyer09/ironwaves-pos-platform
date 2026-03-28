@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
-import { get_sales_summary_live, get_sales_list_live, update_sale_amount_live, void_sale_with_reason_live } from '../api/analytics';
+import { get_sales_summary_live, get_sales_list_live, update_sale_amount_live, void_sale_with_reason_live, partial_refund_sale_live } from '../api/analytics';
 import { get_menu_items_live, create_menu_item_live, soft_delete_menu_item_live } from '../api/menu';
 import { get_logs_live } from '../api/logs';
 import { Decimal } from 'decimal.js';
@@ -54,7 +54,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   const [dateTo, setDateTo] = useState(() => {
     const d = new Date(); d.setHours(23,59,59,999); return d.toISOString().split('T')[0];
   });
-  const [saleActionModal, setSaleActionModal] = useState<null | { mode: 'void' | 'edit'; sale: any }>(null);
+  const [saleActionModal, setSaleActionModal] = useState<null | { mode: 'void' | 'edit' | 'partial'; sale: any }>(null);
   const [saleReason, setSaleReason] = useState('');
   const [voidPreset, setVoidPreset] = useState<'TEST' | 'ZAY_MEHSUL'>('TEST');
   const [managerPass, setManagerPass] = useState('');
@@ -291,6 +291,18 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                                 VOID
                               </button>
                               <button
+                                className="rounded-lg border border-amber-300/40 bg-amber-500/15 px-2 py-1 text-[11px] font-semibold text-amber-100"
+                                disabled={s.status === 'VOIDED'}
+                                onClick={() => {
+                                  setSaleActionModal({ mode: 'partial', sale: s });
+                                  setSaleReason('');
+                                  setManagerPass('');
+                                  setNewSaleTotal('');
+                                }}
+                              >
+                                {tx(lang, 'Partial', 'Частично', 'Partial')}
+                              </button>
+                              <button
                                 className="glossy-gold rounded-lg px-2 py-1 text-[11px] font-semibold"
                                 disabled={s.status === 'VOIDED'}
                                 onClick={() => {
@@ -320,7 +332,9 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                     <h3 className="text-lg font-bold text-slate-100">
                       {saleActionModal.mode === 'void'
                         ? tx(lang, 'Satışı VOID et', 'Сделать продажу VOID')
-                        : tx(lang, 'Satışı düzəlt', 'Исправить продажу')}
+                        : saleActionModal.mode === 'partial'
+                          ? tx(lang, 'Partial refund et', 'Сделать частичный возврат', 'Apply partial refund')
+                          : tx(lang, 'Satışı düzəlt', 'Исправить продажу')}
                     </h3>
                     <div className="mt-2 text-xs text-slate-300">ID: {saleActionModal.sale.id}</div>
                     <div className="mt-3 space-y-2">
@@ -344,6 +358,9 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                       {saleActionModal.mode === 'edit' && (
                         <input className="neon-input" type="number" placeholder={tx(lang, 'Yeni total', 'Новый итог')} value={newSaleTotal} onChange={(e) => setNewSaleTotal(e.target.value)} />
                       )}
+                      {saleActionModal.mode === 'partial' && (
+                        <input className="neon-input" type="number" placeholder={tx(lang, 'Refund məbləği', 'Сумма возврата', 'Refund amount')} value={newSaleTotal} onChange={(e) => setNewSaleTotal(e.target.value)} />
+                      )}
                     </div>
                     <div className="mt-4 flex justify-end gap-2">
                       <button className="neon-btn rounded-lg px-4 py-2" onClick={() => setSaleActionModal(null)}>
@@ -366,10 +383,20 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                               const returnToStock = voidPreset === 'TEST';
                               await void_sale_with_reason_live(tenant_id, saleActionModal.sale.id, finalReason, user?.username || 'admin', returnToStock);
                               notify('success', tx(lang, 'Satış VOID edildi', 'Продажа VOID выполнена'));
-                            } else {
+                            } else if (saleActionModal.mode === 'edit') {
                               if (!newSaleTotal) return;
                               await update_sale_amount_live(tenant_id, saleActionModal.sale.id, newSaleTotal, saleReason, user?.username || 'admin');
                               notify('success', tx(lang, 'Satış düzəlişi tətbiq olundu', 'Изменение продажи применено'));
+                            } else {
+                              if (!newSaleTotal) return;
+                              await partial_refund_sale_live(
+                                tenant_id,
+                                saleActionModal.sale.id,
+                                newSaleTotal,
+                                saleReason || tx(lang, 'Partial refund', 'Частичный возврат', 'Partial refund'),
+                                user?.username || 'admin',
+                              );
+                              notify('success', tx(lang, 'Partial refund tətbiq olundu', 'Частичный возврат применен', 'Partial refund applied'));
                             }
                             setSaleActionModal(null);
                             await fetchData();
