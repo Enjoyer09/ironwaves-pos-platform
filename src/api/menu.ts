@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { logEvent } from '../lib/logger';
 import { Decimal } from 'decimal.js';
 import { getDB, setDB } from '../lib/db_sim';
+import { apiRequest, isBackendEnabled } from './client';
 
 export interface MenuItem {
   id: string;
@@ -77,4 +78,48 @@ export function export_menu_to_excel(user: string = 'system') {
   // Simulyasiya: Fayl yükləndi
   logEvent(user, 'MENU_EXCEL_EXPORT', { status: 'success' });
   return 'base64_or_blob_url_simulated';
+}
+
+export async function get_menu_items_live(tenant_id: string, search?: string, category_filter?: string) {
+  if (!isBackendEnabled()) {
+    return get_menu_items(tenant_id, search, category_filter);
+  }
+  let items = await apiRequest<any[]>('/api/v1/catalog/menu');
+  if (category_filter && category_filter !== 'ALL') {
+    items = items.filter((i) => i.category === category_filter);
+  }
+  if (search) {
+    items = items.filter((i) => String(i.item_name || '').toLowerCase().includes(search.toLowerCase()));
+  }
+  return items;
+}
+
+export async function create_menu_item_live(
+  tenant_id: string,
+  data: { item_name: string; price: Decimal; category: string; is_coffee: boolean; image_url?: string },
+  user: string = 'system'
+) {
+  if (!isBackendEnabled()) {
+    return create_menu_item(tenant_id, data, user);
+  }
+  return apiRequest<any>('/api/v1/catalog/menu', {
+    method: 'POST',
+    tenantId: null,
+    body: {
+      item_name: data.item_name,
+      price: new Decimal(data.price).toFixed(2),
+      category: data.category,
+      is_coffee: data.is_coffee,
+    },
+  });
+}
+
+export async function soft_delete_menu_item_live(tenant_id: string, item_id: string, user: string = 'system') {
+  if (!isBackendEnabled()) {
+    return soft_delete_menu_item(tenant_id, item_id, user);
+  }
+  return apiRequest<{ success: boolean }>(`/api/v1/catalog/menu/${encodeURIComponent(item_id)}`, {
+    method: 'DELETE',
+    tenantId: null,
+  });
 }

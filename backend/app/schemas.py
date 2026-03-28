@@ -38,6 +38,33 @@ class MenuItemOut(BaseModel):
     is_coffee: bool
 
 
+class MenuItemCreateIn(BaseModel):
+    item_name: str
+    price: Decimal
+    category: str
+    is_coffee: bool = False
+
+
+class InventoryItemCreateIn(BaseModel):
+    name: str
+    stock_qty: Decimal
+    unit: str
+    category: str | None = None
+    type: str | None = None
+    unit_cost: Decimal
+    min_limit: Decimal = Decimal("0")
+
+
+class InventoryRestockIn(BaseModel):
+    qty_added: Decimal
+    total_price: Decimal
+
+
+class InventoryLossIn(BaseModel):
+    qty_removed: Decimal
+    reason: str
+
+
 class SaleItemIn(BaseModel):
     item_name: str
     price: Decimal

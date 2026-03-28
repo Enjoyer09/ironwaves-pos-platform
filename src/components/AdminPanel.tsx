@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../store';
 import { get_sales_summary, get_sales_list, update_sale_amount, void_sale_with_reason } from '../api/analytics';
-import { get_menu_items, create_menu_item, soft_delete_menu_item } from '../api/menu';
+import { get_menu_items_live, create_menu_item_live, soft_delete_menu_item_live } from '../api/menu';
 import { get_logs } from '../api/logs';
 import { Decimal } from 'decimal.js';
 import { Plus, Trash2, TrendingUp, ShoppingBag, DollarSign } from 'lucide-react';
@@ -61,7 +61,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   const [newSaleTotal, setNewSaleTotal] = useState('');
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, [activeTab, dateFrom, dateTo]);
 
   useEffect(() => {
@@ -80,7 +80,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     }
   }, [externalTab]);
 
-  const fetchData = () => {
+  const fetchData = async () => {
     if (activeTab === 'analytics') {
       const from_d = new Date(dateFrom);
       from_d.setHours(0, 0, 0, 0);
@@ -92,7 +92,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     }
 
     if (activeTab === 'menu') {
-      setMenu(get_menu_items(tenant_id));
+      setMenu(await get_menu_items_live(tenant_id));
       return;
     }
 
@@ -101,11 +101,11 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     }
   };
 
-  const handleAddMenu = () => {
+  const handleAddMenu = async () => {
     if (!newItemName || !newItemPrice) return;
     const finalCategory = newItemCategory === '__custom__' ? customCategory.trim() : newItemCategory;
     if (!finalCategory) return;
-    create_menu_item(tenant_id, {
+    await create_menu_item_live(tenant_id, {
       item_name: newItemName,
       price: new Decimal(newItemPrice),
       category: finalCategory,
@@ -114,12 +114,12 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     setNewItemName('');
     setNewItemPrice('');
     setCustomCategory('');
-    fetchData();
+    await fetchData();
   };
 
-  const handleDeleteMenu = (id: string) => {
-    soft_delete_menu_item(tenant_id, id, user?.username || 'admin');
-    fetchData();
+  const handleDeleteMenu = async (id: string) => {
+    await soft_delete_menu_item_live(tenant_id, id, user?.username || 'admin');
+    await fetchData();
     setDeleteMenuId(null);
   };
 
@@ -165,7 +165,10 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
         title={tx(lang, 'Məhsulu deaktiv et', 'Деактивировать продукт')}
         message={tx(lang, 'Bu məhsul silinməyəcək, yalnız deaktiv olunacaq.', 'Продукт не удалится, только деактивируется.')}
         onCancel={() => setDeleteMenuId(null)}
-        onConfirm={() => deleteMenuId && handleDeleteMenu(deleteMenuId)}
+        onConfirm={() => {
+          if (!deleteMenuId) return;
+          void handleDeleteMenu(deleteMenuId);
+        }}
       />
       <ConfirmModal
         open={Boolean(deleteNoteId)}
@@ -407,7 +410,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                   className="neon-input w-40"
                 />
               )}
-              <button onClick={handleAddMenu} className="glossy-gold px-4 py-2 rounded-xl transition-colors flex items-center">
+              <button onClick={() => { void handleAddMenu(); }} className="glossy-gold px-4 py-2 rounded-xl transition-colors flex items-center">
                 <Plus size={20} />
               </button>
             </div>

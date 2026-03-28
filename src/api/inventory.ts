@@ -4,6 +4,7 @@ import { logEvent } from '../lib/logger';
 import { create_finance_entry } from './finance';
 import { InventoryItem } from '../types/inventory';
 import { getDB, setDB } from '../lib/db_sim';
+import { apiRequest, isBackendEnabled } from './client';
 
 const withTenant = (tenant_id: string, rows: any[]) =>
   rows
@@ -176,4 +177,77 @@ export function analyze_inventory_ai() {
 
 export function get_inventory_items(tenant_id: string = 'tenant_default') {
   return getInventory(tenant_id);
+}
+
+export async function get_inventory_items_live(tenant_id: string = 'tenant_default') {
+  if (!isBackendEnabled()) {
+    return get_inventory_items(tenant_id);
+  }
+  return apiRequest<any[]>('/api/v1/catalog/inventory', { tenantId: null });
+}
+
+export async function add_inventory_item_live(data: {
+  tenant_id?: string;
+  name: string;
+  stock_qty: Decimal;
+  unit: string;
+  category: string;
+  type: string;
+  unit_cost: Decimal;
+  min_limit: Decimal;
+}, user: string = 'system') {
+  if (!isBackendEnabled()) {
+    return add_inventory_item(data, user);
+  }
+  return apiRequest<any>('/api/v1/catalog/inventory', {
+    method: 'POST',
+    tenantId: null,
+    body: {
+      name: data.name,
+      stock_qty: new Decimal(data.stock_qty).toFixed(3),
+      unit: data.unit,
+      category: data.category,
+      type: data.type,
+      unit_cost: new Decimal(data.unit_cost).toFixed(4),
+      min_limit: new Decimal(data.min_limit).toFixed(3),
+    },
+  });
+}
+
+export async function restock_item_live(tenant_id: string, item_id: string, qty_added: Decimal, total_price: Decimal, user: string = 'system') {
+  if (!isBackendEnabled()) {
+    return restock_item(tenant_id, item_id, qty_added, total_price, user);
+  }
+  return apiRequest<any>(`/api/v1/catalog/inventory/${encodeURIComponent(item_id)}/restock`, {
+    method: 'POST',
+    tenantId: null,
+    body: {
+      qty_added: new Decimal(qty_added).toFixed(3),
+      total_price: new Decimal(total_price).toFixed(2),
+    },
+  });
+}
+
+export async function record_loss_live(item_id: string, qty_removed: Decimal, reason: string, recorded_by: string) {
+  if (!isBackendEnabled()) {
+    return record_loss(item_id, qty_removed, reason, recorded_by);
+  }
+  return apiRequest<{ success: boolean; loss_amount: string }>(`/api/v1/catalog/inventory/${encodeURIComponent(item_id)}/loss`, {
+    method: 'POST',
+    tenantId: null,
+    body: {
+      qty_removed: new Decimal(qty_removed).toFixed(3),
+      reason,
+    },
+  });
+}
+
+export async function delete_inventory_item_live(item_id: string, user: string = 'system') {
+  if (!isBackendEnabled()) {
+    return delete_inventory_item(item_id, user);
+  }
+  return apiRequest<{ success: boolean }>(`/api/v1/catalog/inventory/${encodeURIComponent(item_id)}`, {
+    method: 'DELETE',
+    tenantId: null,
+  });
 }

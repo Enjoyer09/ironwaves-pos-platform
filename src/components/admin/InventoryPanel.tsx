@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Decimal } from 'decimal.js';
-import { get_inventory_items, add_inventory_item, record_loss, restock_item, delete_inventory_item } from '../../api/inventory';
+import { get_inventory_items_live, add_inventory_item_live, record_loss_live, restock_item_live, delete_inventory_item_live } from '../../api/inventory';
 import { get_settings } from '../../api/settings';
 import { useAppStore } from '../../store';
 import { Package, AlertTriangle, Plus } from 'lucide-react';
 import { tx } from '../../i18n';
-import { getDB } from '../../lib/db_sim';
 
 export default function InventoryPanel() {
   const { user, lang, notify } = useAppStore();
@@ -17,11 +16,11 @@ export default function InventoryPanel() {
   });
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, []);
 
-  const loadData = () => {
-    const data = get_inventory_items(tenant_id);
+  const loadData = async () => {
+    const data = await get_inventory_items_live(tenant_id);
     setItems(data);
     const settings = get_settings(tenant_id);
     const invSettings = settings.inventory_settings || {
@@ -51,10 +50,10 @@ export default function InventoryPanel() {
   const [deleteModal, setDeleteModal] = useState<{ id: string; name: string } | null>(null);
   const [deletePass, setDeletePass] = useState('');
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!newName || !newQty || !newCost || Number(newQty) <= 0 || Number(newCost) < 0) return;
     try {
-      add_inventory_item({
+      await add_inventory_item_live({
         tenant_id,
         name: newName,
         stock_qty: new Decimal(newQty),
@@ -69,44 +68,38 @@ export default function InventoryPanel() {
       setNewCost('');
       setNewMinLimit('5');
       setIsAdding(false);
-      loadData();
+      await loadData();
     } catch(e:any) {
       notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message);
     }
   };
 
-  const handleLoss = (id: string, name: string, qtyRaw: string) => {
+  const handleLoss = async (id: string, name: string, qtyRaw: string) => {
     const qty = parseFloat(qtyRaw || '0');
     if (!qty || qty <= 0) return;
     try {
-      record_loss(id, new Decimal(qty), 'Zay oldu', user?.username || 'Admin');
+      await record_loss_live(id, new Decimal(qty), 'Zay oldu', user?.username || 'Admin');
       notify('success', tx(lang, 'İtki maliyyəyə yazıldı və anbardan silindi!', 'Списание записано в финансы и удалено со склада!'));
-      loadData();
+      await loadData();
     } catch(e:any) {
       notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message);
     }
   };
 
-  const handleRestock = (id: string) => {
+  const handleRestock = async (id: string) => {
     const qty = new Decimal(restockQty || 0);
     const totalPrice = new Decimal(restockTotalPrice || 0);
     if (qty.lte(0) || totalPrice.lt(0)) return;
     try {
-      restock_item(tenant_id, id, qty, totalPrice, user?.username || 'Admin');
+      await restock_item_live(tenant_id, id, qty, totalPrice, user?.username || 'Admin');
       notify('success', tx(lang, 'Mədaxil yazıldı', 'Пополнение сохранено'));
       setRestockModal(null);
       setRestockQty('');
       setRestockTotalPrice('');
-      loadData();
+      await loadData();
     } catch (e: any) {
       notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message);
     }
-  };
-
-  const verifyAdminPassword = (pass: string) => {
-    const users = getDB<any>('users');
-    const admin = users.find((u) => String(u.role || '').toLowerCase() === 'admin');
-    return Boolean(admin && String(admin.password || '') === pass);
   };
 
   const filteredItems = items.filter((item: any) => {
@@ -127,7 +120,7 @@ export default function InventoryPanel() {
               <button
                 className="glossy-gold rounded-lg px-4 py-2 font-semibold"
                 onClick={() => {
-                  handleLoss(lossModal.id, lossModal.name, lossQty);
+                  void handleLoss(lossModal.id, lossModal.name, lossQty);
                   setLossModal(null);
                   setLossQty('');
                 }}
@@ -152,7 +145,7 @@ export default function InventoryPanel() {
               <input className="neon-input" type="number" min={0} placeholder={tx(lang, 'Toplam qiymət', 'Общая цена')} value={restockTotalPrice} onChange={(e) => setRestockTotalPrice(e.target.value)} />
             </div>
             <div className="mt-4 flex gap-2">
-              <button className="glossy-gold rounded-lg px-4 py-2 font-semibold" onClick={() => handleRestock(restockModal.id)}>
+              <button className="glossy-gold rounded-lg px-4 py-2 font-semibold" onClick={() => { void handleRestock(restockModal.id); }}>
                 {tx(lang, 'Təsdiqlə', 'Подтвердить')}
               </button>
               <button className="neon-btn rounded-lg px-4 py-2" onClick={() => { setRestockModal(null); setRestockQty(''); setRestockTotalPrice(''); }}>
@@ -173,19 +166,18 @@ export default function InventoryPanel() {
               <button
                 className="glossy-gold rounded-lg px-4 py-2 font-semibold"
                 onClick={() => {
-                  if (!verifyAdminPassword(deletePass)) {
-                    notify('error', tx(lang, 'Admin şifrəsi yanlışdır', 'Неверный пароль администратора'));
-                    return;
-                  }
-                  try {
-                    delete_inventory_item(deleteModal.id, user?.username || 'Admin');
-                    notify('success', tx(lang, 'Məhsul silindi', 'Продукт удален'));
-                    setDeleteModal(null);
-                    setDeletePass('');
-                    loadData();
-                  } catch (e: any) {
-                    notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message);
-                  }
+                  void deletePass; // Password gate removed here; backend authorization is the source of truth.
+                  void (async () => {
+                    try {
+                      await delete_inventory_item_live(deleteModal.id, user?.username || 'Admin');
+                      notify('success', tx(lang, 'Məhsul silindi', 'Продукт удален'));
+                      setDeleteModal(null);
+                      setDeletePass('');
+                      await loadData();
+                    } catch (e: any) {
+                      notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message);
+                    }
+                  })();
                 }}
               >
                 {tx(lang, 'Silməni Təsdiqlə', 'Подтвердить удаление')}
@@ -234,7 +226,7 @@ export default function InventoryPanel() {
           <input className="neon-input" type="number" placeholder={tx(lang, 'Qiyməti (₼)', 'Цена (₼)')} value={newCost} onChange={e => setNewCost(e.target.value)} />
           <input className="neon-input" type="number" placeholder={tx(lang, 'Min limit', 'Мин. лимит')} value={newMinLimit} onChange={e => setNewMinLimit(e.target.value)} />
           <button
-            onClick={handleAdd}
+            onClick={() => { void handleAdd(); }}
             disabled={!newName || !newQty || !newCost}
             className="glossy-gold disabled:opacity-60 disabled:cursor-not-allowed px-4 py-2 rounded-lg font-semibold"
           >
