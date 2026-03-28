@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../../store';
 import { get_menu_items_live } from '../../api/menu';
-import { get_recipe_live, add_recipe_ingredient_live, delete_recipe_ingredient_live, calculate_recipe_cost_live, generate_recipe_ai_live } from '../../api/recipes';
+import { get_recipe_live, add_recipe_ingredient_live, delete_recipe_ingredient_live, calculate_recipe_cost_live, generate_recipe_ai_live, getDefaultRecipeEntryUnit, getRecipeEntryUnitOptions } from '../../api/recipes';
 import { get_inventory_items_live } from '../../api/inventory';
 import { Decimal } from 'decimal.js';
 import { ChefHat, Plus, Trash2, Calculator, Sparkles } from 'lucide-react';
@@ -22,12 +22,14 @@ export default function RecipesPanel() {
   const [ingredients, setIngredients] = useState<any[]>([]);
   const [newIngredient, setNewIngredient] = useState('');
   const [newQty, setNewQty] = useState('');
+  const [newQtyUnit, setNewQtyUnit] = useState('qram');
   const [deleteRecipeId, setDeleteRecipeId] = useState<string | null>(null);
   const [missingRecipeSet, setMissingRecipeSet] = useState<Set<string>>(new Set());
 
   const selectedIngredientMeta = ingredients.find((i) => i.name === newIngredient) || null;
+  const qtyUnitOptions = getRecipeEntryUnitOptions(String(selectedIngredientMeta?.unit || ''));
   const suggestedQtyPlaceholder = (() => {
-    const unit = String(selectedIngredientMeta?.unit || '').toLowerCase();
+    const unit = String(newQtyUnit || selectedIngredientMeta?.unit || '').toLowerCase();
     const name = String(selectedIngredientMeta?.name || '').toLowerCase();
     if (!unit) return tx(lang, 'Miqdar', 'Количество');
     if ((unit.includes('kq') || unit.includes('kg')) && (name.includes('kofe') || name.includes('coffee') || name.includes('qəhvə'))) {
@@ -53,6 +55,11 @@ export default function RecipesPanel() {
       setIngredients(inv || []);
     })();
   }, [tenant_id]);
+
+  useEffect(() => {
+    if (!selectedIngredientMeta?.unit) return;
+    setNewQtyUnit(getDefaultRecipeEntryUnit(String(selectedIngredientMeta.unit)));
+  }, [selectedIngredientMeta?.unit, newIngredient]);
 
   // Seçilmiş məhsulun qiymətini tapırıq
   const getSelectedMenuPrice = () => {
@@ -91,6 +98,7 @@ export default function RecipesPanel() {
         quantity_required: new Decimal(newQty),
         unit: invItem ? invItem.unit : 'q',
         unit_cost: invItem ? new Decimal(invItem.unit_cost) : new Decimal(0),
+        quantity_unit: newQtyUnit,
         tenant_id,
       }, user?.username);
 
@@ -98,6 +106,7 @@ export default function RecipesPanel() {
       setRecipeStats(await calculate_recipe_cost_live(selectedMenu, getSelectedMenuPrice(), tenant_id));
       setNewIngredient('');
       setNewQty('');
+      setNewQtyUnit(invItem ? getDefaultRecipeEntryUnit(String(invItem.unit)) : 'qram');
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Reseptə xammal əlavə olunmadı', 'Не удалось добавить ингредиент в рецепт'));
     }
@@ -236,6 +245,16 @@ export default function RecipesPanel() {
                   onChange={e => setNewQty(e.target.value)}
                   className="neon-input w-32"
                 />
+                <select
+                  value={newQtyUnit}
+                  onChange={(e) => setNewQtyUnit(e.target.value)}
+                  className="neon-input w-28"
+                  disabled={!selectedIngredientMeta}
+                >
+                  {qtyUnitOptions.map((unit) => (
+                    <option key={unit} value={unit}>{unit}</option>
+                  ))}
+                </select>
                 <button 
                   onClick={() => { void handleAddIngredient(); }}
                   className="glossy-gold px-4 py-2 rounded-lg transition-colors"
@@ -247,8 +266,8 @@ export default function RecipesPanel() {
                 <p className="mb-4 text-xs text-slate-400">
                   {tx(
                     lang,
-                    `Ölçü vahidi avtomatik anbardan götürülür: ${selectedIngredientMeta.unit}. Məsələn kofe üçün 0.018 kq, süd üçün 0.12 litr yaza bilərsiniz.`,
-                    `Единица измерения автоматически берется со склада: ${selectedIngredientMeta.unit}. Например для кофе можно указать 0.018 кг, для молока 0.12 литра.`,
+                    `Anbar vahidi: ${selectedIngredientMeta.unit}. Reseptdə giriş vahidini ayrıca seçə bilərsiniz: məsələn kofe üçün 18 qram, süd üçün 120 ml.`,
+                    `Складская единица: ${selectedIngredientMeta.unit}. В рецепте можно выбрать отдельную единицу ввода: например 18 грамм кофе или 120 мл молока.`,
                   )}
                 </p>
               ) : null}

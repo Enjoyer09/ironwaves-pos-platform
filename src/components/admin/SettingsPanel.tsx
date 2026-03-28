@@ -9,6 +9,7 @@ import {
   get_settings_live,
   get_users_live,
   update_business_profile_live,
+  update_qr_settings_live,
   update_role_modules_live,
   update_user_credentials_live,
 } from '../../api/settings';
@@ -63,7 +64,11 @@ export default function SettingsPanel() {
     ]);
 
     if (profileRes.status === 'fulfilled') {
-      setProfile(profileRes.value);
+      const nextProfile = {
+        ...profileRes.value,
+        qr_base_url: settingsRes.status === 'fulfilled' ? String(settingsRes.value.qr_settings?.base_url || '') : '',
+      };
+      setProfile(nextProfile);
     }
     if (usersRes.status === 'fulfilled') {
       setUsers(usersRes.value);
@@ -89,7 +94,16 @@ export default function SettingsPanel() {
 
   const saveBusinessProfile = async () => {
     if (!profile) return;
-    await update_business_profile_live(tenantId, profile, user?.username || 'admin');
+    await update_business_profile_live(tenantId, {
+      company_name: profile.company_name,
+      voen: profile.voen,
+      phone: profile.phone,
+      address: profile.address,
+      website: profile.website,
+      logo_url: profile.logo_url,
+      receipt_footer: profile.receipt_footer,
+    }, user?.username || 'admin');
+    await update_qr_settings_live({ base_url: String(profile.qr_base_url || '').trim() });
     flashSuccess(tx(lang, 'Biznes məlumatları yadda saxlanıldı', 'Данные бизнеса сохранены', 'Business profile saved'));
   };
 
@@ -224,6 +238,7 @@ export default function SettingsPanel() {
           <input className="neon-input" value={profile?.phone || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), phone: e.target.value }))} placeholder={tx(lang, 'Telefon', 'Телефон', 'Phone')} />
           <input className="neon-input" value={profile?.address || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), address: e.target.value }))} placeholder={tx(lang, 'Ünvan', 'Адрес', 'Address')} />
           <input className="neon-input" value={profile?.website || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), website: e.target.value }))} placeholder={tx(lang, 'Website', 'Сайт', 'Website')} />
+          <input className="neon-input" value={profile?.qr_base_url || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), qr_base_url: e.target.value }))} placeholder={tx(lang, 'QR Base URL', 'QR Base URL', 'QR Base URL')} />
           <input className="neon-input md:col-span-2" value={profile?.receipt_footer || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), receipt_footer: e.target.value }))} placeholder={tx(lang, 'Qəbz alt mətni', 'Текст внизу чека', 'Receipt footer')} />
           <input className="neon-input md:col-span-2" type="file" accept="image/*" onChange={handleLogoUpload} />
         </div>

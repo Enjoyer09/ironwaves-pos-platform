@@ -381,7 +381,7 @@ export default function App() {
                 )}
               </div>
               <div>
-                <p className="font-semibold leading-tight">IRONWAVES POS</p>
+                <p className="font-semibold leading-tight">iRonWaves POS RC</p>
                   <p className="text-xs text-slate-400">{safeUser.username} / {safeUser.role}</p>
               </div>
             </div>
@@ -441,7 +441,7 @@ export default function App() {
         </div>
 
         <div className="shrink-0 border-t border-slate-700/40 px-4 py-2 text-center text-xs text-slate-400">
-          iRonWaves POS RC1 2026
+          iRonWaves POS RC
         </div>
       </div>
     </div>

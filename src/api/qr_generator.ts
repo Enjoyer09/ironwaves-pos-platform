@@ -4,6 +4,7 @@ import * as QRCode from 'qrcode';
 import { logEvent } from '../lib/logger';
 import { getDB, setDB } from '../lib/db_sim';
 import { apiRequest, isBackendEnabled } from './client';
+import { get_settings } from './settings';
 
 const TIER_CONFIG: Record<string, { type: string; discount: number }> = {
   golden: { type: 'Golden', discount: 5 },
@@ -21,6 +22,8 @@ export async function generate_qr_codes(tenant_id: string, count: number, custom
   
   const zip = new JSZip();
   const folder = zip.folder("qr_codes");
+  const configuredBase = String(get_settings(tenant_id).qr_settings?.base_url || '').trim();
+  const qrBaseUrl = (configuredBase || window.location.origin).replace(/\/+$/, '');
 
   const newCustomers = isBackendEnabled()
     ? await apiRequest<any[]>('/api/v1/ops/customers/qr-batch', {
@@ -54,7 +57,7 @@ export async function generate_qr_codes(tenant_id: string, count: number, custom
     const secret_token = customer.secret_token;
 
     // Gerçək QR kodunu yaradırıq (DataURL olaraq)
-    const url = `http://socialbee.ironwaves.store/?id=${card_id}&t=${secret_token}`;
+    const url = `${qrBaseUrl}/?id=${encodeURIComponent(card_id)}&t=${encodeURIComponent(secret_token)}`;
     const qrDataUrl = await QRCode.toDataURL(url, {
       width: 300,
       margin: 2,

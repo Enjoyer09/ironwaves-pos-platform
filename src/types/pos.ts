@@ -154,6 +154,9 @@ export interface Settings {
     use_qz: boolean;
     printer_name: string;
   };
+  qr_settings?: {
+    base_url: string;
+  };
   omnitech_settings?: {
     enabled: boolean;
     api_base_url: string;
