@@ -16,10 +16,13 @@ from app.models import (
     Customer,
     FinanceEntry,
     HappyHour,
+    InventoryItem,
     KitchenOrder,
     Notification,
+    Recipe,
     Sale,
     Setting,
+    StaffNotification,
     Table,
     Tenant,
     User,
@@ -69,6 +72,80 @@ def _set_setting_value(db: Session, tenant_id: str, key: str, value):
         row.value = serialized
     else:
         db.add(Setting(tenant_id=tenant_id, key=key, value=serialized))
+
+
+def _normalize_payment_method(value: str | None) -> str:
+    return str(value or "").strip().lower()
+
+
+def _summarize_items(items: list[dict]) -> str:
+    cleaned = [f"{int(item.get('qty') or 0)}x {str(item.get('item_name') or '').strip()}".strip() for item in items]
+    return ", ".join([item for item in cleaned if item])[:180]
+
+
+def _order_fingerprint(items: list[dict]) -> str:
+    normalized = [
+        {
+            "n": str(item.get("item_name") or "").strip().lower(),
+            "q": int(item.get("qty") or 0),
+            "p": str(item.get("price") or "0"),
+        }
+        for item in items
+    ]
+    normalized.sort(key=lambda item: item["n"])
+    return json.dumps(normalized, ensure_ascii=False, sort_keys=True)
+
+
+def _notify_front_of_house(
+    db: Session,
+    tenant_id: str,
+    title: str,
+    message: str,
+    meta: dict | None = None,
+):
+    usernames = [
+        row.username
+        for row in db.query(User)
+        .filter(User.tenant_id == tenant_id, User.is_active == True)
+        .all()
+        if str(row.role or "").lower() in {"staff", "manager", "admin", "super_admin"}
+    ]
+    for username in usernames:
+        db.add(
+            StaffNotification(
+                tenant_id=tenant_id,
+                username=username,
+                title=title,
+                message=message,
+                meta_json=json.dumps(meta or {}, ensure_ascii=False) if meta else None,
+                is_read=False,
+            )
+        )
+
+
+def _collect_stock_ops(db: Session, tenant_id: str, items: list[dict]) -> tuple[list[tuple[InventoryItem, Decimal]], Decimal]:
+    stock_ops: list[tuple[InventoryItem, Decimal]] = []
+    cogs_total = Decimal("0.0000")
+    for item in items:
+        recipes = (
+            db.query(Recipe)
+            .filter(Recipe.tenant_id == tenant_id, func.lower(Recipe.menu_item_name) == str(item.get("item_name") or "").lower())
+            .all()
+        )
+        for recipe in recipes:
+            inventory = (
+                db.query(InventoryItem)
+                .filter(InventoryItem.tenant_id == tenant_id, func.lower(InventoryItem.name) == str(recipe.ingredient_name).lower())
+                .first()
+            )
+            if not inventory:
+                continue
+            qty_required = (Decimal(str(recipe.quantity_required or 0)) * Decimal(str(item.get("qty") or 0))).quantize(Decimal("0.0001"))
+            if Decimal(str(inventory.stock_qty or 0)) < qty_required:
+                raise HTTPException(status_code=400, detail=f"{inventory.name} üçün anbarda kifayət qədər qalıq yoxdur")
+            stock_ops.append((inventory, qty_required))
+            cogs_total += (qty_required * Decimal(str(inventory.unit_cost or 0))).quantize(Decimal("0.0001"))
+    return stock_ops, cogs_total.quantize(Decimal("0.0001"))
 
 
 class BusinessProfileIn(BaseModel):
@@ -287,6 +364,18 @@ def list_tables(
     user: User = Depends(get_current_user),
 ):
     rows = db.query(Table).filter(Table.tenant_id == tenant.id).order_by(Table.label.asc()).all()
+    kitchen_rows = (
+        db.query(KitchenOrder)
+        .filter(KitchenOrder.tenant_id == tenant.id, KitchenOrder.status.in_(["NEW", "PREPARING", "READY"]))
+        .order_by(KitchenOrder.created_at.desc())
+        .all()
+    )
+    status_by_table: dict[str, str] = {}
+    for kitchen_row in kitchen_rows:
+        label = str(kitchen_row.table_label or "").strip()
+        if not label or label in status_by_table:
+            continue
+        status_by_table[label] = str(kitchen_row.status or "NEW")
     return [
         {
             "id": row.id,
@@ -295,6 +384,7 @@ def list_tables(
             "is_occupied": bool(row.is_occupied),
             "total": str(row.total),
             "items": _json_load(row.items_json, []),
+            "kitchen_status": status_by_table.get(row.label),
         }
         for row in rows
     ]
@@ -328,7 +418,7 @@ def delete_table(
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
 ):
-    _ensure_admin(user)
+    _ensure_manager(user)
     row = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Table not found")
@@ -350,6 +440,22 @@ def send_to_kitchen(
     row = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Table not found")
+    if not payload.cart_items:
+        raise HTTPException(status_code=400, detail="Cart is empty")
+
+    active_orders = (
+        db.query(KitchenOrder)
+        .filter(KitchenOrder.tenant_id == tenant.id, KitchenOrder.table_label == row.label, KitchenOrder.status.in_(["NEW", "PREPARING", "READY"]))
+        .all()
+    )
+    now = datetime.utcnow()
+    fingerprint = _order_fingerprint(payload.cart_items)
+    for active_order in active_orders:
+        created_at = active_order.created_at or now
+        if (now - created_at).total_seconds() > 45:
+            continue
+        if _order_fingerprint(_json_load(active_order.items_json, [])) == fingerprint:
+            raise HTTPException(status_code=409, detail="Bu sifariş artıq mətbəxə göndərilib")
 
     existing = _json_load(row.items_json, [])
     merged = list(existing)
@@ -377,6 +483,13 @@ def send_to_kitchen(
         items_json=json.dumps(payload.cart_items, ensure_ascii=False),
     )
     db.add(order)
+    _notify_front_of_house(
+        db,
+        tenant.id,
+        "Yeni Masa Sifarişi",
+        f"{row.label} üçün sifariş mətbəxə göndərildi: {_summarize_items(payload.cart_items)}",
+        {"table_label": row.label, "status": "NEW", "kitchen_order_id": order.id},
+    )
     db.commit()
     return {"success": True, "kitchen_order_id": order.id}
 
@@ -399,6 +512,7 @@ def pay_table(
         raise HTTPException(status_code=400, detail="Table is empty")
 
     total = Decimal(str(row.total or 0)).quantize(Decimal("0.01"))
+    stock_ops, cogs_total = _collect_stock_ops(db, tenant.id, items)
     receipt_code = secrets.token_hex(5).upper()
     receipt_token = secrets.token_hex(10)
     sale = Sale(
@@ -411,26 +525,43 @@ def pay_table(
         receipt_token=receipt_token,
         total=total,
         discount_amount=Decimal("0.00"),
+        cogs=cogs_total,
         items_json=json.dumps(items, ensure_ascii=False),
         status="COMPLETED",
         created_at=datetime.utcnow(),
     )
     db.add(sale)
     db.flush()
-    payment_method = str(payload.payment_method or "").lower()
+
+    for inventory, qty_required in stock_ops:
+        inventory.stock_qty = (Decimal(str(inventory.stock_qty or 0)) - qty_required).quantize(Decimal("0.001"))
+
+    payment_method = _normalize_payment_method(payload.payment_method)
     if payment_method == "split":
         split_cash = Decimal(str(payload.split_cash or 0)).quantize(Decimal("0.01"))
         split_card = Decimal(str(payload.split_card or 0)).quantize(Decimal("0.01"))
-        if split_cash + split_card != total:
+        if split_cash < 0 or split_card < 0:
+            raise HTTPException(status_code=400, detail="Split amounts cannot be negative")
+        if (split_cash + split_card - total).copy_abs() > Decimal("0.01"):
             raise HTTPException(status_code=400, detail="Split amounts must equal table total")
         if split_cash > 0:
             db.add(FinanceEntry(tenant_id=tenant.id, type="in", category="Satış (Nağd)", source="cash", amount=split_cash, description=f"Table payment {sale.id}", created_by=user.username))
         if split_card > 0:
             db.add(FinanceEntry(tenant_id=tenant.id, type="in", category="Satış (Kart)", source="card", amount=split_card, description=f"Table payment {sale.id}", created_by=user.username))
     else:
-        source = "cash" if payment_method in {"nəğd", "cash"} else "card"
+        source = "cash" if payment_method in {"nəğd", "cash", "staff"} else "card"
         category = "Satış (Nağd)" if source == "cash" else "Satış (Kart)"
         db.add(FinanceEntry(tenant_id=tenant.id, type="in", category=category, source=source, amount=total, description=f"Table payment {sale.id}", created_by=user.username))
+
+    done_time = datetime.utcnow()
+    kitchen_rows = (
+        db.query(KitchenOrder)
+        .filter(KitchenOrder.tenant_id == tenant.id, KitchenOrder.table_label == row.label, KitchenOrder.status.in_(["NEW", "PREPARING", "READY"]))
+        .all()
+    )
+    for kitchen_row in kitchen_rows:
+        kitchen_row.status = "DONE"
+        kitchen_row.completed_at = done_time
 
     row.is_occupied = False
     row.items_json = "[]"
@@ -447,7 +578,7 @@ def list_kitchen_orders(
 ):
     rows = (
         db.query(KitchenOrder)
-        .filter(KitchenOrder.tenant_id == tenant.id, KitchenOrder.status.in_(["NEW", "PREPARING"]))
+        .filter(KitchenOrder.tenant_id == tenant.id, KitchenOrder.status.in_(["NEW", "PREPARING", "READY"]))
         .order_by(KitchenOrder.created_at.desc())
         .all()
     )
@@ -478,7 +609,21 @@ def accept_kitchen_order(
     row = db.query(KitchenOrder).filter(KitchenOrder.id == order_id, KitchenOrder.tenant_id == tenant.id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Kitchen order not found")
+    if row.status not in {"NEW", "PREPARING"}:
+        raise HTTPException(status_code=400, detail="Kitchen order cannot be accepted in current state")
     row.status = "PREPARING"
+    _notify_front_of_house(
+        db,
+        tenant.id,
+        "Mətbəx Qəbul Etdi",
+        f"{row.table_label or row.order_type or 'Sifariş'} hazırlanmağa başladı.",
+        {
+            "kitchen_order_id": row.id,
+            "table_label": row.table_label or "",
+            "status": "PREPARING",
+            "items": _summarize_items(_json_load(row.items_json, [])),
+        },
+    )
     db.commit()
     return {"success": True}
 
@@ -493,10 +638,68 @@ def complete_kitchen_order(
     row = db.query(KitchenOrder).filter(KitchenOrder.id == order_id, KitchenOrder.tenant_id == tenant.id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Kitchen order not found")
-    row.status = "DONE"
+    if row.status not in {"PREPARING", "READY"}:
+        raise HTTPException(status_code=400, detail="Kitchen order cannot be completed in current state")
+    row.status = "READY"
     row.completed_at = datetime.utcnow()
+    _notify_front_of_house(
+        db,
+        tenant.id,
+        "Sifariş Hazırdır",
+        f"{row.table_label or row.order_type or 'Sifariş'} hazırdır. Ofisant təqdim edə bilər.",
+        {
+            "kitchen_order_id": row.id,
+            "table_label": row.table_label or "",
+            "status": "READY",
+            "items": _summarize_items(_json_load(row.items_json, [])),
+        },
+    )
     db.commit()
     return {"success": True}
+
+
+@router.get("/staff-notifications/unread")
+def get_unread_staff_notifications(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    rows = (
+        db.query(StaffNotification)
+        .filter(StaffNotification.tenant_id == tenant.id, StaffNotification.username == user.username, StaffNotification.is_read == False)
+        .order_by(StaffNotification.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": row.id,
+            "tenant_id": row.tenant_id,
+            "username": row.username,
+            "title": row.title,
+            "message": row.message,
+            "meta": _json_load(row.meta_json, {}),
+            "read": bool(row.is_read),
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+        for row in rows
+    ]
+
+
+@router.post("/staff-notifications/read")
+def mark_staff_notifications_read(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    rows = (
+        db.query(StaffNotification)
+        .filter(StaffNotification.tenant_id == tenant.id, StaffNotification.username == user.username, StaffNotification.is_read == False)
+        .all()
+    )
+    for row in rows:
+        row.is_read = True
+    db.commit()
+    return {"success": True, "count": len(rows)}
 
 
 @router.get("/happy-hours/active")

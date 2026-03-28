@@ -72,7 +72,7 @@ export interface KitchenOrder {
   sale_id: string;
   table_label: string | null;
   order_type?: 'Dine In' | 'Take Away' | 'Order Online';
-  status: 'NEW' | 'PREPARING' | 'DONE';
+  status: 'NEW' | 'PREPARING' | 'READY' | 'DONE';
   priority: 'NORMAL' | 'URGENT';
   items: CartItem[];
   created_at: string;

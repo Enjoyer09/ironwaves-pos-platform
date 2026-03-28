@@ -101,6 +101,24 @@ def _seed_initial_data(db: Session):
 def _run_startup_migrations():
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS cogs NUMERIC(12,4) DEFAULT 0"))
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS staff_notifications (
+                    id VARCHAR(36) PRIMARY KEY,
+                    tenant_id VARCHAR(36) NOT NULL,
+                    username VARCHAR(80) NOT NULL,
+                    title VARCHAR(120) NOT NULL,
+                    message TEXT NOT NULL,
+                    meta_json TEXT NULL,
+                    is_read BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_staff_notifications_tenant_id ON staff_notifications (tenant_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_staff_notifications_username ON staff_notifications (username)"))
 
 
 @app.on_event("startup")

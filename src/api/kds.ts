@@ -7,7 +7,7 @@ import { apiRequest, isBackendEnabled } from './client';
 // FUNKSIYA: get_kitchen_orders
 export const get_kitchen_orders = (tenant_id: string) => {
   const orders = getDB<KitchenOrder>('kitchen_orders')
-    .filter(o => o.tenant_id === tenant_id && (o.status === 'NEW' || o.status === 'PREPARING'));
+    .filter(o => o.tenant_id === tenant_id && (o.status === 'NEW' || o.status === 'PREPARING' || o.status === 'READY'));
 
   // QAYDALAR: priority=URGENT olanlar öndə göstərilir
   return orders.sort((a, b) => {
@@ -53,7 +53,7 @@ export const complete_order = (order_id: string, completed_by: string) => {
   
   if (!order) throw new Error('Sifariş tapılmadı');
   
-  order.status = 'DONE';
+  order.status = 'READY';
   const now = new Date();
   order.completed_at = now.toISOString();
   
