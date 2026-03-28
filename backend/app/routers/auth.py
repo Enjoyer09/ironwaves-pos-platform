@@ -115,7 +115,7 @@ def pin_login(payload: PinLoginIn, request: Request, db: Session = Depends(get_d
         .filter(
             User.tenant_id == tenant.id,
             User.is_active == True,
-            User.role.in_(["staff", "manager", "kitchen"]),
+            User.role.in_(["staff", "kitchen"]),
         )
         .all()
     )

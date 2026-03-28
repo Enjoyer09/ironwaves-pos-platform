@@ -141,7 +141,7 @@ export const authApi = {
       (u: any) =>
         (u.pin === pin || u.pin_hash === pin) &&
         (u.tenant_id ? u.tenant_id === tenant_id : tenant_id === 'tenant_default') &&
-        ['staff', 'manager', 'kitchen'].includes(String(u.role || '').toLowerCase())
+        ['staff', 'kitchen'].includes(String(u.role || '').toLowerCase())
     );
     
     let user = null;

@@ -184,7 +184,11 @@ export default function SettingsPanel() {
   };
 
   const handleCreateUser = async () => {
-    if (!newUserName) return;
+    const username = newUserName.trim();
+    if (!username) {
+      notify('error', tx(lang, 'İstifadəçi adı boş ola bilməz', 'Имя пользователя не может быть пустым', 'Username cannot be empty'));
+      return;
+    }
     const requiresPassword = ['admin', 'manager'].includes(newUserRole);
     if (requiresPassword && !newUserPassword) {
       notify('error', tx(lang, 'Admin/Manager üçün şifrə tələb olunur', 'Для Admin/Manager требуется пароль', 'Password is required for Admin/Manager'));
@@ -197,7 +201,7 @@ export default function SettingsPanel() {
     try {
       await create_user_live({
         tenant_id,
-        username: newUserName,
+        username,
         role: newUserRole,
         pin: requiresPassword ? undefined : newUserPin,
         password: requiresPassword ? newUserPassword : undefined,
@@ -205,6 +209,7 @@ export default function SettingsPanel() {
       setNewUserName('');
       setNewUserPin('');
       setNewUserPassword('');
+      notify('success', tx(lang, 'İstifadəçi yaradıldı', 'Пользователь создан', 'User created'));
       void loadData();
     } catch (e: any) {
       notify('error', e.message);
@@ -657,7 +662,7 @@ className="neon-input"
             <div className="mt-6 grid grid-cols-3 gap-3 border-t border-slate-700/70 pt-4">
               <select value={targetUser} onChange={(e) => setTargetUser(e.target.value)} className="neon-input">
                 <option value="">{tx(lang, 'İstifadəçi seçin', 'Выберите пользователя')}</option>
-                {users.map((u) => (
+                {users.filter((u) => ['staff', 'kitchen'].includes(String(u.role || '').toLowerCase())).map((u) => (
                   <option key={u.id || u.username} value={u.username}>{u.username}</option>
                 ))}
               </select>

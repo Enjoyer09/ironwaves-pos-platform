@@ -293,16 +293,24 @@ export function update_business_profile(tenant_id: string, payload: {
 
 export function create_user(payload: Omit<User, 'id' | 'failed_attempts' | 'is_locked' | 'lock_until'>) {
   const users = getDB<User>('users');
+  const role = String(payload.role || '').toLowerCase();
+  const usesPassword = ['admin', 'manager', 'super_admin'].includes(role);
+  const usesPin = ['staff', 'kitchen'].includes(role);
   
   const existing = users.find(u => u.username === payload.username || (u.pin && u.pin === payload.pin));
   if (existing) throw new Error('Bu istifadəçi adı və ya PIN artıq mövcuddur');
 
-  if (payload.password && payload.password.length < 4) throw new Error('Şifrə minimum 4 simvol olmalıdır');
+  if (usesPassword && (!payload.password || payload.password.length < 4)) throw new Error('Şifrə minimum 4 simvol olmalıdır');
+  if (usesPin && (!payload.pin || payload.pin.length < 4 || payload.pin.length > 15)) throw new Error('PIN 4-15 rəqəm aralığında olmalıdır');
+  if (usesPassword && payload.pin) throw new Error('Admin/Manager yalnız şifrə ilə giriş etməlidir');
+  if (usesPin && payload.password) throw new Error('Staff/Kitchen yalnız PIN ilə giriş etməlidir');
 
   // Gələcəkdə password bura girməmişdən öncə bcrypt ilə hash olunur
   const newUser: User = {
     id: uuidv4(),
     ...payload,
+    password: usesPassword ? payload.password : undefined,
+    pin: usesPin ? payload.pin : undefined,
     two_factor_enabled: Boolean((payload as any).two_factor_enabled),
     failed_attempts: 0,
     is_locked: false
@@ -342,6 +350,9 @@ export function update_user_credentials(
   const users = getDB<User>('users');
   const index = users.findIndex((u) => u.username === username);
   if (index === -1) throw new Error('İstifadəçi tapılmadı');
+  const role = String(users[index].role || '').toLowerCase();
+  const usesPassword = ['admin', 'manager', 'super_admin'].includes(role);
+  const usesPin = ['staff', 'kitchen'].includes(role);
 
   if (updates.password && updates.password.length < 4) {
     throw new Error('Şifrə minimum 4 simvol olmalıdır');
@@ -349,10 +360,18 @@ export function update_user_credentials(
   if (updates.pin && (updates.pin.length < 4 || updates.pin.length > 15)) {
     throw new Error('PIN 4-15 rəqəm aralığında olmalıdır');
   }
+  if (updates.password !== undefined && !usesPassword) {
+    throw new Error('Bu rol şifrə ilə giriş etmir');
+  }
+  if (updates.pin !== undefined && !usesPin) {
+    throw new Error('Bu rol PIN ilə giriş etmir');
+  }
 
   users[index] = {
     ...users[index],
     ...updates,
+    password: usesPassword ? (updates.password ?? users[index].password) : undefined,
+    pin: usesPin ? (updates.pin ?? users[index].pin) : undefined,
     two_factor_enabled:
       typeof updates.two_factor_enabled === 'boolean'
         ? updates.two_factor_enabled
@@ -422,7 +441,7 @@ export async function delete_user_live(username: string): Promise<{ success: boo
 
 export async function update_user_credentials_live(
   username: string,
-  updates: { password?: string; pin?: string; two_factor_enabled?: boolean },
+  updates: { password?: string; pin?: string; two_factor_enabled?: boolean; current_password?: string },
   updated_by: string = 'admin'
 ): Promise<boolean> {
   if (!isBackendEnabled()) {

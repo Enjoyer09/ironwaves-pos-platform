@@ -84,7 +84,7 @@ export default function PinLogin() {
         <div className="mx-auto max-w-md rounded-2xl border border-slate-600/80 bg-slate-900/45 p-6 shadow-[0_24px_60px_rgba(0,0,0,0.5)] backdrop-blur-sm">
           <div className="mb-5 flex gap-2">
               <button className={`neon-chip ${mode === 'staff' ? 'neon-chip-active' : ''}`} onClick={() => setMode('staff')}>{tx(safeLang, 'STAFF', 'ПЕРСОНАЛ')}</button>
-              <button className={`neon-chip ${mode === 'admin' ? 'neon-chip-active' : ''}`} onClick={() => setMode('admin')}>ADMIN</button>
+              <button className={`neon-chip ${mode === 'admin' ? 'neon-chip-active' : ''}`} onClick={() => setMode('admin')}>{tx(safeLang, 'ADMIN / MANAGER', 'АДМИН / МЕНЕДЖЕР', 'ADMIN / MANAGER')}</button>
           </div>
 
           {mode === 'staff' ? (
