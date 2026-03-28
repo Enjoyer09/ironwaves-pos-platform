@@ -40,8 +40,16 @@ export function add_inventory_item(data: {
     const existingIndex = inventoryItems.findIndex(i => i.name === data.name);
     
     if (existingIndex >= 0) {
-      // Upsert: stok artırılır
-      inventoryItems[existingIndex].stock_qty = new Decimal(inventoryItems[existingIndex].stock_qty).plus(data.stock_qty).toString();
+      const currentQty = new Decimal(inventoryItems[existingIndex].stock_qty || 0);
+      const currentUnitCost = new Decimal(inventoryItems[existingIndex].unit_cost || 0);
+      const incomingQty = new Decimal(data.stock_qty || 0);
+      const incomingUnitCost = new Decimal(data.unit_cost || 0);
+      const nextQty = currentQty.plus(incomingQty);
+      const nextUnitCost = nextQty.lte(0)
+        ? new Decimal(0)
+        : currentQty.mul(currentUnitCost).plus(incomingQty.mul(incomingUnitCost)).div(nextQty);
+      inventoryItems[existingIndex].stock_qty = nextQty.toString();
+      inventoryItems[existingIndex].unit_cost = nextUnitCost.toDecimalPlaces(4).toString();
       saveInventory(tenant_id, inventoryItems);
       logEvent(user, 'INVENTORY_ADD', { item_name: data.name, qty: data.stock_qty, unit_cost: data.unit_cost });
       return inventoryItems[existingIndex];

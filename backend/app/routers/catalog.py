@@ -196,8 +196,13 @@ def create_inventory_item(
         .first()
     )
     if existing:
-        existing.stock_qty = (Decimal(str(existing.stock_qty)) + Decimal(str(payload.stock_qty))).quantize(Decimal("0.001"))
-        existing.unit_cost = Decimal(str(payload.unit_cost)).quantize(Decimal("0.0001"))
+        incoming_qty = Decimal(str(payload.stock_qty)).quantize(Decimal("0.001"))
+        incoming_unit_cost = Decimal(str(payload.unit_cost)).quantize(Decimal("0.0001"))
+        old_total_value = Decimal(str(existing.stock_qty)) * Decimal(str(existing.unit_cost))
+        incoming_total_value = incoming_qty * incoming_unit_cost
+        new_total_qty = (Decimal(str(existing.stock_qty)) + incoming_qty).quantize(Decimal("0.001"))
+        existing.stock_qty = new_total_qty
+        existing.unit_cost = (Decimal("0") if new_total_qty <= 0 else (old_total_value + incoming_total_value) / new_total_qty).quantize(Decimal("0.0001"))
         existing.min_limit = Decimal(str(payload.min_limit)).quantize(Decimal("0.001"))
         existing.unit = str(payload.unit or existing.unit).strip()
         existing.category = str(payload.category or existing.category or "").strip() or None

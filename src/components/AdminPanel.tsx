@@ -114,11 +114,13 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     setNewItemName('');
     setNewItemPrice('');
     setCustomCategory('');
+    window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { scope: 'menu' } }));
     await fetchData();
   };
 
   const handleDeleteMenu = async (id: string) => {
     await soft_delete_menu_item_live(tenant_id, id, user?.username || 'admin');
+    window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { scope: 'menu' } }));
     await fetchData();
     setDeleteMenuId(null);
   };
