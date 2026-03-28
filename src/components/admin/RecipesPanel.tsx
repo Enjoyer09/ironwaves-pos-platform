@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../../store';
-import { get_menu_items } from '../../api/menu';
+import { get_menu_items_live } from '../../api/menu';
 import { get_recipe, add_recipe_ingredient, delete_recipe_ingredient, calculate_recipe_cost, generate_recipe_ai } from '../../api/recipes';
-import { get_inventory_items } from '../../api/inventory';
+import { get_inventory_items_live } from '../../api/inventory';
 import { Decimal } from 'decimal.js';
 import { ChefHat, Plus, Trash2, Calculator, Sparkles } from 'lucide-react';
 import { tx } from '../../i18n';
@@ -26,18 +26,18 @@ export default function RecipesPanel() {
   const [missingRecipeSet, setMissingRecipeSet] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    // Menyunu yükləyirik
-    const menu = get_menu_items(tenant_id);
-    setMenuItems(menu);
+    void (async () => {
+      const menu = await get_menu_items_live(tenant_id);
+      setMenuItems(menu);
 
-    const allRecipes = (getDB<any>('recipes') || []).filter((r) => !r.tenant_id || r.tenant_id === tenant_id);
-    const recipeMenuNames = new Set(allRecipes.map((r: any) => String(r.menu_item_name || '')));
-    const missing = new Set(menu.filter((m: any) => !recipeMenuNames.has(String(m.item_name))).map((m: any) => String(m.item_name)));
-    setMissingRecipeSet(missing);
+      const allRecipes = (getDB<any>('recipes') || []).filter((r) => !r.tenant_id || r.tenant_id === tenant_id);
+      const recipeMenuNames = new Set(allRecipes.map((r: any) => String(r.menu_item_name || '')));
+      const missing = new Set(menu.filter((m: any) => !recipeMenuNames.has(String(m.item_name))).map((m: any) => String(m.item_name)));
+      setMissingRecipeSet(missing);
 
-    // Anbardakı malları yükləyirik
-    const inv = get_inventory_items(tenant_id) || [];
-    setIngredients(inv);
+      const inv = await get_inventory_items_live(tenant_id);
+      setIngredients(inv || []);
+    })();
   }, [tenant_id]);
 
   // Seçilmiş məhsulun qiymətini tapırıq
