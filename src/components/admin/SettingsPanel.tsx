@@ -10,6 +10,7 @@ import {
   get_users_live,
   update_email_settings_live,
   update_business_profile_live,
+  update_print_settings,
   update_qr_settings_live,
   update_role_modules_live,
   update_user_credentials_live,
@@ -43,6 +44,10 @@ export default function SettingsPanel() {
     recipient_emails: '',
     webhook_url: '',
     timeout_sec: '15',
+  });
+  const [printSettings, setPrintSettings] = useState({
+    use_qz: false,
+    printer_name: '',
   });
 
   const [newUserName, setNewUserName] = useState('');
@@ -95,6 +100,10 @@ export default function SettingsPanel() {
         recipient_emails: String((settingsRes.value.email_settings?.recipient_emails || []).join(', ')),
         webhook_url: String(settingsRes.value.email_settings?.webhook_url || ''),
         timeout_sec: String(settingsRes.value.email_settings?.timeout_sec || 15),
+      });
+      setPrintSettings({
+        use_qz: Boolean(settingsRes.value.print_settings?.use_qz),
+        printer_name: String(settingsRes.value.print_settings?.printer_name || ''),
       });
     }
   };
@@ -250,6 +259,14 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Email ayarları yadda saxlanıldı', 'Настройки email сохранены', 'Email settings saved'));
   };
 
+  const savePrintSettings = () => {
+    update_print_settings({
+      use_qz: printSettings.use_qz,
+      printer_name: printSettings.printer_name.trim(),
+    });
+    flashSuccess(tx(lang, 'Çap ayarları yadda saxlanıldı', 'Настройки печати сохранены', 'Print settings saved'));
+  };
+
   return (
     <div className="space-y-6">
       <div className="metal-panel overflow-hidden">
@@ -311,6 +328,41 @@ export default function SettingsPanel() {
         </div>
         <div className="flex justify-end">
           <button onClick={() => { void saveEmailSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+        </div>
+      </div>
+
+      <div className="metal-panel p-6 space-y-4">
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Çap Ayarları', 'Настройки печати', 'Print Settings')}</h2>
+        <p className="text-sm text-slate-400">
+          {tx(
+            lang,
+            'Brauzerin print pəncərəsini səssiz keçməyin ən praktik yolu QZ Tray-dir. Bu aktiv olanda POS, masa çeki və Z-report birbaşa printerə göndərilir.',
+            'Самый практичный способ обойти окно печати браузера — QZ Tray. Когда он активен, POS, чеки столов и Z-отчет отправляются прямо на принтер.',
+            'The most practical way to bypass the browser print dialog is QZ Tray. When enabled, POS, table receipts, and Z-report go directly to the printer.',
+          )}
+        </p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={printSettings.use_qz} onChange={(e) => setPrintSettings((prev) => ({ ...prev, use_qz: e.target.checked }))} />
+            <span>{tx(lang, 'QZ Tray ilə birbaşa çap et', 'Печатать напрямую через QZ Tray', 'Direct print via QZ Tray')}</span>
+          </label>
+          <input
+            className="neon-input"
+            value={printSettings.printer_name}
+            onChange={(e) => setPrintSettings((prev) => ({ ...prev, printer_name: e.target.value }))}
+            placeholder={tx(lang, 'Printer adı (opsional)', 'Имя принтера (необязательно)', 'Printer name (optional)')}
+          />
+        </div>
+        <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-xs text-slate-300">
+          {tx(
+            lang,
+            'Qeyd: QZ Tray quraşdırılmayıbsa, sistem yenə brauzer print pəncərəsinə düşəcək. Safari-də səssiz çap praktik deyil; Chrome/Edge + QZ daha uyğundur.',
+            'Примечание: если QZ Tray не установлен, система вернется к окну печати браузера. Для тихой печати лучше Chrome/Edge + QZ.',
+            'Note: if QZ Tray is not installed, the system falls back to the browser print dialog. For silent printing, Chrome/Edge + QZ is the practical setup.',
+          )}
+        </div>
+        <div className="flex justify-end">
+          <button onClick={savePrintSettings} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 

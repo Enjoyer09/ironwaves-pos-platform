@@ -12,6 +12,8 @@ export default function InventoryPanel() {
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [items, setItems] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
+  const [itemsPageSize, setItemsPageSize] = useState(10);
+  const [historyPageSize, setHistoryPageSize] = useState(10);
   const [inventoryConfig, setInventoryConfig] = useState<{ default_critical_threshold: number; unit_options: string[] }>({
     default_critical_threshold: 5,
     unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'],
@@ -142,6 +144,9 @@ export default function InventoryPanel() {
     if (!q) return true;
     return `${item.name} ${item.type} ${item.category}`.toLowerCase().includes(q);
   });
+
+  const visibleItems = filteredItems.slice(0, itemsPageSize);
+  const visibleHistory = history.slice(0, historyPageSize);
 
   const describeHistory = (row: any) => {
     const details = row?.details || {};
@@ -319,6 +324,16 @@ export default function InventoryPanel() {
       )}
 
       <div className="metal-panel rounded-xl p-6">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="text-sm text-slate-300">
+            {tx(lang, 'Ekranda məhsul sayı', 'Количество товаров на экране', 'Items shown on screen')}: <b>{visibleItems.length}</b> / {filteredItems.length}
+          </div>
+          <select value={itemsPageSize} onChange={(e) => setItemsPageSize(Number(e.target.value))} className="neon-input min-h-12 w-28">
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+          </select>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
@@ -333,7 +348,7 @@ export default function InventoryPanel() {
               </tr>
             </thead>
             <tbody>
-              {filteredItems.map((item: any) => (
+              {visibleItems.map((item: any) => (
                 <tr key={item.id} className="border-b border-slate-700/50 last:border-0 hover:bg-slate-800/30">
                   <td className="py-3 font-medium">{item.name}</td>
                   <td className="py-3">{item.type}</td>
@@ -376,9 +391,14 @@ export default function InventoryPanel() {
               {tx(lang, 'Kim nə vaxt əlavə etdi, azaltdı və ya sildi buradan görünür.', 'Здесь видно кто, когда добавил, списал или удалил товар.', 'See who added, reduced, or deleted stock and when.')}
             </p>
           </div>
+          <select value={historyPageSize} onChange={(e) => setHistoryPageSize(Number(e.target.value))} className="neon-input min-h-12 w-28">
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+          </select>
         </div>
         <div className="space-y-3">
-          {history.map((row: any) => (
+          {visibleHistory.map((row: any) => (
             <div key={row.id} className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
@@ -399,6 +419,11 @@ export default function InventoryPanel() {
             </div>
           )}
         </div>
+        {history.length > 0 ? (
+          <div className="mt-3 text-xs text-slate-400">
+            {tx(lang, 'Ekranda görünən tarixçə', 'Показано записей', 'History shown')}: <b>{visibleHistory.length}</b> / {history.length}
+          </div>
+        ) : null}
       </div>
     </div>
   );
