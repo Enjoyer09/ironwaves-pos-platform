@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.security import (
     create_access_token,
     create_refresh_token,
+    create_trusted_device_token,
     decode_token,
     hash_token,
     verify_password,
@@ -76,6 +77,36 @@ def _issue_tokens_for_user(db: Session, tenant: Tenant, user: User) -> dict:
             "tenant_id": tenant.id,
         },
     }
+
+
+def _request_ip(request: Request) -> str:
+    forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+    client_host = request.client.host if request.client else ""
+    return forwarded or client_host or "ip_unknown"
+
+
+def _is_trusted_device(request: Request, tenant: Tenant, user: User) -> bool:
+    token = str(request.headers.get("x-trusted-device-token") or "").strip()
+    device_hash = str(request.headers.get("x-device-hash") or "").strip()
+    if not token or not device_hash:
+        return False
+    try:
+        data = decode_token(token)
+    except Exception:
+        return False
+    if data.get("type") != "trusted_device":
+        return False
+    if data.get("sub") != user.id:
+        return False
+    if data.get("tenant_id") != tenant.id:
+        return False
+    if data.get("device_hash") != device_hash:
+        return False
+    trusted_ip = str(data.get("ip") or "").strip()
+    current_ip = _request_ip(request)
+    if trusted_ip and trusted_ip != "ip_unknown" and current_ip and current_ip != trusted_ip:
+        return False
+    return True
 
 
 def _assert_platform_domain(tenant: Tenant) -> None:
@@ -161,7 +192,9 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db), ten
         db.commit()
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    if bool(user.totp_enabled) and user.totp_secret:
+    trusted_device = _is_trusted_device(request, tenant, user)
+
+    if bool(user.totp_enabled) and user.totp_secret and not trusted_device:
         code = str(payload.second_factor_code or "").strip().replace(" ", "")
         if not code:
             raise HTTPException(status_code=401, detail="2FA_REQUIRED")
@@ -172,7 +205,17 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db), ten
     user.failed_attempts = 0
     user.locked_until = None
 
-    return _issue_tokens_for_user(db, tenant, user)
+    result = _issue_tokens_for_user(db, tenant, user)
+    remember_device = bool(payload.remember_device)
+    device_hash = str(request.headers.get("x-device-hash") or "").strip()
+    if bool(user.totp_enabled) and user.totp_secret and remember_device and device_hash:
+        result["trusted_device_token"] = create_trusted_device_token(
+            subject=user.id,
+            tenant_id=tenant.id,
+            device_hash=device_hash,
+            ip=_request_ip(request),
+        )
+    return result
 
 
 @router.post("/pin-login", response_model=TokenOut)

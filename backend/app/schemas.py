@@ -13,6 +13,7 @@ class LoginIn(BaseModel):
     password: str
     tenant_id: str | None = None
     second_factor_code: str | None = None
+    remember_device: bool | None = False
 
 
 class PinLoginIn(BaseModel):
@@ -29,6 +30,7 @@ class TokenOut(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     user: dict
+    trusted_device_token: str | None = None
 
 
 class BootstrapOwnerIn(BaseModel):

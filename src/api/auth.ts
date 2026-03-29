@@ -4,7 +4,7 @@ import { getDB, setDB } from '../lib/db_sim';
 import { getActiveTenantId } from '../lib/tenant';
 import { LoginRiskContext } from '../lib/risk';
 import { apiRequest, isBackendEnabled } from './client';
-import { readScopedStorage, writeScopedStorage } from '../lib/storage_keys';
+import { readScopedStorage, removeScopedStorage, writeScopedStorage } from '../lib/storage_keys';
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 5;
@@ -34,6 +34,19 @@ function getTrustedContexts(): TrustedAdminContext[] {
 
 function setTrustedContexts(items: TrustedAdminContext[]) {
   writeScopedStorage('trusted_admin_contexts', JSON.stringify(items));
+}
+
+function getTrustedDeviceToken(): string {
+  return String(readScopedStorage('trusted_admin_2fa_token') || '').trim();
+}
+
+function setTrustedDeviceToken(token: string) {
+  const safe = String(token || '').trim();
+  if (!safe) {
+    removeScopedStorage('trusted_admin_2fa_token');
+    return;
+  }
+  writeScopedStorage('trusted_admin_2fa_token', safe);
 }
 
 function isContextTrusted(username: string, tenant_id: string, ctx?: LoginRiskContext): boolean {
@@ -195,16 +208,22 @@ export const authApi = {
     second_factor_pin: string,
     tenant_id: string = getActiveTenantId(),
     risk_context?: LoginRiskContext,
+    remember_device: boolean = true,
   ) => {
     if (isBackendEnabled()) {
       const result = await apiRequest<any>('/api/v1/auth/login', {
         method: 'POST',
         auth: false,
         tenantId: null,
+        headers: {
+          'x-device-hash': String(risk_context?.device_hash || ''),
+          'x-trusted-device-token': getTrustedDeviceToken(),
+        },
         body: {
           username: String(username || '').trim(),
           password: String(password || ''),
           second_factor_code: String(second_factor_pin || '').trim(),
+          remember_device,
           tenant_id: null,
         },
       });
@@ -215,6 +234,10 @@ export const authApi = {
         role: backendUser.role,
         tenant_id: backendUser.tenant_id || tenant_id || getActiveTenantId(),
       };
+
+      if (String(result?.trusted_device_token || '').trim()) {
+        setTrustedDeviceToken(String(result.trusted_device_token));
+      }
 
       logEvent(user.username, 'ADMIN_LOGIN', { method: 'PASSWORD', tenant_id: user.tenant_id, backend: true });
       return {
