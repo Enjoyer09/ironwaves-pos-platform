@@ -30,6 +30,19 @@ def create_refresh_token(subject: str, tenant_id: str) -> str:
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
+def create_trusted_device_token(subject: str, tenant_id: str, device_hash: str, ip: str, days: int = 30) -> str:
+    exp = datetime.now(timezone.utc) + timedelta(days=days)
+    payload = {
+        "sub": subject,
+        "tenant_id": tenant_id,
+        "device_hash": device_hash,
+        "ip": ip,
+        "type": "trusted_device",
+        "exp": exp,
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
 def decode_token(token: str) -> dict:
     return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
 

@@ -9,13 +9,19 @@ from app.deps import get_super_admin, get_tenant
 from app.core.config import settings
 from app.models import (
     AuditLog,
+    Customer,
     FinanceEntry,
+    HappyHour,
     InventoryItem,
+    KitchenOrder,
     MenuItem,
+    Notification,
     Recipe,
     RefreshToken,
     Sale,
     Setting,
+    ShiftHandover,
+    StaffNotification,
     Shift,
     Table,
     Tenant,
@@ -526,10 +532,16 @@ def delete_tenant(
     db.query(AuditLog).filter(AuditLog.tenant_id == tenant.id).delete(synchronize_session=False)
     db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant.id).delete(synchronize_session=False)
     db.query(Sale).filter(Sale.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(KitchenOrder).filter(KitchenOrder.tenant_id == tenant.id).delete(synchronize_session=False)
     db.query(Table).filter(Table.tenant_id == tenant.id).delete(synchronize_session=False)
     db.query(InventoryItem).filter(InventoryItem.tenant_id == tenant.id).delete(synchronize_session=False)
     db.query(Recipe).filter(Recipe.tenant_id == tenant.id).delete(synchronize_session=False)
     db.query(Setting).filter(Setting.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(ShiftHandover).filter(ShiftHandover.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Customer).filter(Customer.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Notification).filter(Notification.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(StaffNotification).filter(StaffNotification.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(HappyHour).filter(HappyHour.tenant_id == tenant.id).delete(synchronize_session=False)
     try:
         db.execute(text("DELETE FROM business_profiles WHERE tenant_id=:tenant_id"), {"tenant_id": tenant.id})
     except Exception:

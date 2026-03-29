@@ -16,6 +16,7 @@ export default function PinLogin() {
   const [adminUser, setAdminUser] = useState('');
   const [adminPass, setAdminPass] = useState('');
   const [admin2faPin, setAdmin2faPin] = useState('');
+  const [rememberDevice, setRememberDevice] = useState(true);
   const [error, setError] = useState(false);
   const [riskContext, setRiskContext] = useState<LoginRiskContext>({ device_hash: getDeviceHash(), ip: 'ip_unknown' });
   const isDemoHost = typeof window !== 'undefined' && window.location.host.toLowerCase() === 'demo.ironwaves.store';
@@ -91,7 +92,7 @@ export default function PinLogin() {
 
   const handleAdminSubmit = async () => {
     clearAuthError();
-    const success = await adminLogin(adminUser, adminPass, admin2faPin, riskContext);
+    const success = await adminLogin(adminUser, adminPass, admin2faPin, riskContext, rememberDevice);
     if (!success) {
       setError(true);
       if (!adminNeeds2FA) setAdmin2faPin('');
@@ -258,14 +259,20 @@ export default function PinLogin() {
                   type="password"
                 />
                 {adminNeeds2FA && (
-                  <input
-                    className="neon-input min-h-13"
-                    value={admin2faPin}
-                    onChange={(e) => setAdmin2faPin(e.target.value.replace(/\D/g, '').slice(0, 15))}
-                    placeholder={tx(safeLang, '2FA PIN', '2FA PIN', '2FA PIN')}
-                    type="password"
-                    inputMode="numeric"
-                  />
+                  <>
+                    <input
+                      className="neon-input min-h-13"
+                      value={admin2faPin}
+                      onChange={(e) => setAdmin2faPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder={tx(safeLang, 'Google Authenticator kodu', 'Код Google Authenticator', 'Google Authenticator code')}
+                      type="password"
+                      inputMode="numeric"
+                    />
+                    <label className="flex items-center gap-2 rounded-2xl border border-slate-700/70 bg-slate-950/30 px-4 py-3 text-sm text-slate-300">
+                      <input type="checkbox" checked={rememberDevice} onChange={(e) => setRememberDevice(e.target.checked)} />
+                      <span>{tx(safeLang, 'Bu cihazı 30 gün xatırla', 'Запомнить это устройство на 30 дней', 'Remember this device for 30 days')}</span>
+                    </label>
+                  </>
                 )}
                 <button type="submit" className="hidden" aria-hidden="true" />
               </form>

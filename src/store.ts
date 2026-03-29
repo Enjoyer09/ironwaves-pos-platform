@@ -32,7 +32,7 @@ interface AppState {
   access_token: string | null;
   refresh_token: string | null;
   login: (pin: string) => Promise<boolean>;
-  adminLogin: (username: string, password: string, secondFactorPin: string, riskContext?: LoginRiskContext) => Promise<boolean>;
+  adminLogin: (username: string, password: string, secondFactorPin: string, riskContext?: LoginRiskContext, rememberDevice?: boolean) => Promise<boolean>;
   bootstrapPlatformOwner: (username: string, password: string) => Promise<boolean>;
   adminNeeds2FA: boolean;
   authErrorMessage: string;
@@ -82,10 +82,10 @@ export const useAppStore = create<AppState>()(
         }
       },
 
-      adminLogin: async (username: string, password: string, secondFactorPin: string, riskContext?: LoginRiskContext) => {
+      adminLogin: async (username: string, password: string, secondFactorPin: string, riskContext?: LoginRiskContext, rememberDevice: boolean = true) => {
         try {
           const tenantId = getActiveTenantId();
-          const res = await authApi.password_login(username, password, secondFactorPin, tenantId, riskContext);
+          const res = await authApi.password_login(username, password, secondFactorPin, tenantId, riskContext, rememberDevice);
           const resolvedTenant = (res.user as any)?.tenant_id || tenantId;
           setActiveTenantId(resolvedTenant);
           set({
