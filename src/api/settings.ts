@@ -34,6 +34,12 @@ function getSettings(tenant_id?: string): Settings {
         default_critical_threshold: 5,
         unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'],
       },
+      staff_benefits: {
+        daily_limit_azn: 6,
+        allow_coffee: true,
+        allow_non_coffee: true,
+        non_coffee_unit_cap_azn: 2,
+      },
       print_settings: { use_qz: false, printer_name: '' },
       qr_settings: { base_url: '' },
       omnitech_settings: {
@@ -190,6 +196,15 @@ export function get_settings(tenant_id?: string) {
     };
     saveSettings(s);
   }
+  if (!s.staff_benefits) {
+    s.staff_benefits = {
+      daily_limit_azn: 6,
+      allow_coffee: true,
+      allow_non_coffee: true,
+      non_coffee_unit_cap_azn: 2,
+    };
+    saveSettings(s);
+  }
   return s;
 }
 
@@ -205,6 +220,26 @@ export function update_inventory_settings(payload: { default_critical_threshold:
   saveSettings(settings);
   logEvent('admin', 'INVENTORY_SETTINGS_UPDATED', settings.inventory_settings);
   return { success: true, inventory_settings: settings.inventory_settings };
+}
+
+export function update_staff_benefits(payload: {
+  daily_limit_azn: number;
+  allow_coffee: boolean;
+  allow_non_coffee: boolean;
+  non_coffee_unit_cap_azn: number;
+}) {
+  const settings = getSettings();
+  settings.staff_benefits = {
+    daily_limit_azn: Number.isFinite(payload.daily_limit_azn) ? Math.max(0, Number(payload.daily_limit_azn)) : 6,
+    allow_coffee: Boolean(payload.allow_coffee),
+    allow_non_coffee: Boolean(payload.allow_non_coffee),
+    non_coffee_unit_cap_azn: Number.isFinite(payload.non_coffee_unit_cap_azn)
+      ? Math.max(0, Number(payload.non_coffee_unit_cap_azn))
+      : 2,
+  };
+  saveSettings(settings);
+  logEvent('admin', 'STAFF_BENEFITS_UPDATED', settings.staff_benefits);
+  return { success: true, staff_benefits: settings.staff_benefits };
 }
 
 export function update_print_settings(payload: { use_qz: boolean; printer_name: string }) {
@@ -296,6 +331,18 @@ export async function update_email_settings_live(payload: {
   if (!isBackendEnabled()) return update_email_settings(payload);
   await apiRequest('/api/v1/ops/settings/email-settings', { method: 'PATCH', tenantId: null, body: payload });
   update_email_settings(payload);
+  return { success: true };
+}
+
+export async function update_staff_benefits_live(payload: {
+  daily_limit_azn: number;
+  allow_coffee: boolean;
+  allow_non_coffee: boolean;
+  non_coffee_unit_cap_azn: number;
+}) {
+  if (!isBackendEnabled()) return update_staff_benefits(payload);
+  await apiRequest('/api/v1/ops/settings/staff-benefits', { method: 'PATCH', tenantId: null, body: payload });
+  update_staff_benefits(payload);
   return { success: true };
 }
 

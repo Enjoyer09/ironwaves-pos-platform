@@ -3,6 +3,7 @@ import { Decimal } from 'decimal.js';
 import { logEvent } from '../lib/logger';
 import { SalePayload, Sale, FinanceEntry, KitchenOrder, OfflineSale } from '../types/pos';
 import { apiRequest, isBackendEnabled } from './client';
+import { get_settings } from './settings';
 
 import { getDB, setDB } from '../lib/db_sim';
 
@@ -29,7 +30,7 @@ export const calculate_total = (
   manual_discount_percent: number = 0,
   is_eco_cup: boolean = false,
   happy_hour: any = null,
-  customer_stars: number = 0
+  customer_stars: number | null = null
 ) => {
   const normalizedType = (customer_type || 'Normal').toLowerCase();
   let raw_total = new Decimal(0);
@@ -57,7 +58,9 @@ export const calculate_total = (
 
   // Stamps: each coffee gives 1 stamp. 10 stamps => 1 free coffee.
   const coffee_qty = cart_items.reduce((acc, item) => acc + (isCoffeeLike(item as any) ? item.qty : 0), 0);
-  const free_coffees = Math.floor((Math.max(0, Number(customer_stars) || 0) + coffee_qty) / 10);
+  const loyaltyEnabled = customer_stars !== null && customer_stars !== undefined;
+  const safeStars = loyaltyEnabled ? Math.max(0, Number(customer_stars) || 0) : 0;
+  const free_coffees = loyaltyEnabled ? Math.floor((safeStars + coffee_qty) / 10) : 0;
 
   const discounted_coffee_units: Decimal[] = [];
   let discounted_subtotal = new Decimal(0);
@@ -83,9 +86,9 @@ export const calculate_total = (
 
   const final_total = Decimal.max(new Decimal(0), discounted_subtotal.minus(free_discount)).toDecimalPlaces(2);
   const discount_amount = raw_total.minus(final_total).toDecimalPlaces(2);
-  const customer_stars_after = coffee_qty > 0
-    ? (Math.max(0, Number(customer_stars) || 0) + coffee_qty) % 10
-    : Math.max(0, Number(customer_stars) || 0);
+  const customer_stars_after = loyaltyEnabled
+    ? (coffee_qty > 0 ? (safeStars + coffee_qty) % 10 : safeStars)
+    : 0;
 
   return {
     raw_total,
@@ -108,8 +111,14 @@ export const calculate_staff_payable = (
   tenant_id: string,
   cashier: string,
 ) => {
-  const DAILY_LIMIT = new Decimal(6);
-  const NON_COFFEE_UNIT_BENEFIT_CAP = new Decimal(2);
+  const cfg = get_settings(tenant_id).staff_benefits || {
+    daily_limit_azn: 6,
+    allow_coffee: true,
+    allow_non_coffee: true,
+    non_coffee_unit_cap_azn: 2,
+  };
+  const DAILY_LIMIT = new Decimal(cfg.daily_limit_azn || 0);
+  const NON_COFFEE_UNIT_BENEFIT_CAP = new Decimal(cfg.non_coffee_unit_cap_azn || 0);
 
   const now = new Date();
   const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -136,12 +145,20 @@ export const calculate_staff_payable = (
     const unitPrice = new Decimal(item.price);
     for (let i = 0; i < item.qty; i += 1) {
       if (isCoffee) {
-        benefitUsedThisSale = benefitUsedThisSale.plus(unitPrice);
+        if (cfg.allow_coffee) {
+          benefitUsedThisSale = benefitUsedThisSale.plus(unitPrice);
+        } else {
+          nonCoffeeExcess = nonCoffeeExcess.plus(unitPrice);
+        }
       } else {
-        const coveredForUnit = Decimal.min(unitPrice, NON_COFFEE_UNIT_BENEFIT_CAP);
-        benefitUsedThisSale = benefitUsedThisSale.plus(coveredForUnit);
-        if (unitPrice.greaterThan(NON_COFFEE_UNIT_BENEFIT_CAP)) {
-          nonCoffeeExcess = nonCoffeeExcess.plus(unitPrice.minus(NON_COFFEE_UNIT_BENEFIT_CAP));
+        if (cfg.allow_non_coffee) {
+          const coveredForUnit = Decimal.min(unitPrice, NON_COFFEE_UNIT_BENEFIT_CAP);
+          benefitUsedThisSale = benefitUsedThisSale.plus(coveredForUnit);
+          if (unitPrice.greaterThan(NON_COFFEE_UNIT_BENEFIT_CAP)) {
+            nonCoffeeExcess = nonCoffeeExcess.plus(unitPrice.minus(NON_COFFEE_UNIT_BENEFIT_CAP));
+          }
+        } else {
+          nonCoffeeExcess = nonCoffeeExcess.plus(unitPrice);
         }
       }
     }
@@ -174,7 +191,7 @@ export const create_sale = (payload: SalePayload) => {
     const customers = getDB<any>(`${payload.tenant_id}_customers`) || [];
     const customer = customers.find((c: any) => c.card_id === payload.customer_card_id);
     
-    const current_stars = Number(customer?.stars || 0);
+    const current_stars = customer ? Number(customer?.stars || 0) : null;
 
     if (customer) {
       if (customer.discount_percent && customer.discount_percent > apply_discount_percent) {

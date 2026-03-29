@@ -249,6 +249,12 @@ def get_app_settings(
         "inventory_settings",
         {"default_critical_threshold": 5, "unit_options": ["kq", "qram", "litr", "ml", "ədəd", "metr"]},
     )
+    staff_benefits = _setting_value(
+        db,
+        tenant.id,
+        "staff_benefits",
+        {"daily_limit_azn": 6, "allow_coffee": True, "allow_non_coffee": True, "non_coffee_unit_cap_azn": 2},
+    )
     role_modules = _setting_value(
         db,
         tenant.id,
@@ -281,6 +287,7 @@ def get_app_settings(
         "email_settings": email_settings,
         "bank_commission": {"min_amount": 0.10, "percent": 1.5},
         "inventory_settings": inventory_settings,
+        "staff_benefits": staff_benefits,
         "print_settings": print_settings,
         "qr_settings": qr_settings,
         "omnitech_settings": omnitech_settings,
@@ -347,6 +354,25 @@ def update_email_settings(
         "timeout_sec": max(5, int(payload.timeout_sec or 15)),
     }
     _set_setting_value(db, tenant.id, "email_settings", cleaned)
+    db.commit()
+    return {"success": True}
+
+
+@router.patch("/settings/staff-benefits")
+def update_staff_benefits(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    cleaned = {
+        "daily_limit_azn": max(0, float(payload.get("daily_limit_azn") or 0)),
+        "allow_coffee": bool(payload.get("allow_coffee", True)),
+        "allow_non_coffee": bool(payload.get("allow_non_coffee", True)),
+        "non_coffee_unit_cap_azn": max(0, float(payload.get("non_coffee_unit_cap_azn") or 0)),
+    }
+    _set_setting_value(db, tenant.id, "staff_benefits", cleaned)
     db.commit()
     return {"success": True}
 
