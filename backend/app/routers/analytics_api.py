@@ -67,26 +67,23 @@ def get_sales_summary(
             continue
         total_revenue += Decimal(str(row.total))
         total_cogs += Decimal(str(row.cogs or 0))
-        pm = str(row.payment_method or "").lower()
-        if pm in {"cash", "nəğd"}:
-            cash_sales += Decimal(str(row.total))
-        elif pm == "split":
-            pass
-        else:
-            card_sales += Decimal(str(row.total))
     finance_rows = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant.id).all()
-    split_cash = Decimal("0")
-    split_card = Decimal("0")
+    cash_total = Decimal("0")
+    card_total = Decimal("0")
     for row in finance_rows:
         if not _in_range(row.created_at, start, end):
             continue
-        if row.type == "in" and row.category == "Satış (Nağd)":
-            split_cash += Decimal(str(row.amount))
-        if row.type == "in" and row.category == "Satış (Kart)":
-            split_card += Decimal(str(row.amount))
-    if split_cash > 0 or split_card > 0:
-        cash_sales = split_cash
-        card_sales = split_card
+        if cashier and row.created_by != cashier:
+            continue
+        if row.type != "in":
+            continue
+        category = str(row.category or "")
+        if category in {"Satış (Nağd)", "Staff Ödənişi"}:
+            cash_total += Decimal(str(row.amount))
+        elif category == "Satış (Kart)":
+            card_total += Decimal(str(row.amount))
+    cash_sales = cash_total
+    card_sales = card_total
     return {
         "total_revenue": str(total_revenue.quantize(Decimal("0.01"))),
         "cash_sales": str(cash_sales.quantize(Decimal("0.01"))),
@@ -197,6 +194,29 @@ def void_sale(
     else:
         source = "cash" if pm in {"cash", "nəğd", "staff"} else "card"
         db.add(FinanceEntry(tenant_id=tenant.id, type="out", category="Refund / Ləğv", source=source, amount=amount, description=f"VOID: {payload.reason}", created_by=user.username))
+        if pm == "staff":
+            benefit_rows = (
+                db.query(FinanceEntry)
+                .filter(
+                    FinanceEntry.tenant_id == tenant.id,
+                    FinanceEntry.type == "out",
+                    FinanceEntry.category == "Staff Benefit",
+                    FinanceEntry.description.ilike(f"%{row.id}%"),
+                )
+                .all()
+            )
+            for benefit_row in benefit_rows:
+                db.add(
+                    FinanceEntry(
+                        tenant_id=tenant.id,
+                        type="in",
+                        category="Staff Benefit Reversal",
+                        source="cash",
+                        amount=Decimal(str(benefit_row.amount)).quantize(Decimal("0.01")),
+                        description=f"VOID reverse benefit: {payload.reason} ({row.id})",
+                        created_by=user.username,
+                    )
+                )
     db.commit()
     return {"success": True}
 

@@ -5,6 +5,7 @@ import { getActiveTenantId } from '../lib/tenant';
 import { LoginRiskContext } from '../lib/risk';
 import { apiRequest, isBackendEnabled } from './client';
 import { readScopedStorage, removeScopedStorage, writeScopedStorage } from '../lib/storage_keys';
+import { hashLocalCredential, verifyLocalCredential } from '../lib/local_auth';
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 5;
@@ -151,12 +152,29 @@ export const authApi = {
     // Bazadan yoxlama (yeni users cədvəli + legacy tenant key)
     const users = getDB<any>('users');
     const legacyUsers = getDB<any>(`${tenant_id}_users`);
-    const dbUser = [...users, ...legacyUsers].find(
-      (u: any) =>
-        (u.pin === pin || u.pin_hash === pin) &&
-        (u.tenant_id ? u.tenant_id === tenant_id : tenant_id === 'tenant_default') &&
-        ['staff', 'kitchen'].includes(String(u.role || '').toLowerCase())
-    );
+    let dbUser: any = null;
+    for (const candidate of [...users, ...legacyUsers]) {
+      if (
+        !(candidate.tenant_id ? candidate.tenant_id === tenant_id : tenant_id === 'tenant_default') ||
+        !['staff', 'kitchen'].includes(String(candidate.role || '').toLowerCase())
+      ) {
+        continue;
+      }
+      const storedPin = candidate.pin_hash || candidate.pin;
+      if (await verifyLocalCredential(pin, storedPin)) {
+        dbUser = candidate;
+        if (!candidate.pin_hash && candidate.id) {
+          const allUsers = getDB<any>('users');
+          const idx = allUsers.findIndex((u) => u.id === candidate.id);
+          if (idx >= 0) {
+            allUsers[idx].pin_hash = await hashLocalCredential(pin);
+            delete allUsers[idx].pin;
+            setDB('users', allUsers);
+          }
+        }
+        break;
+      }
+    }
     
     let user = null;
     if (dbUser) {
@@ -272,7 +290,7 @@ export const authApi = {
         ['admin', 'manager', 'super_admin'].includes(String(u.role || '').toLowerCase())
     );
 
-    const isPasswordMatch = dbUser && String(dbUser.password || '') === trimmedPass;
+    const isPasswordMatch = dbUser ? await verifyLocalCredential(trimmedPass, dbUser.password_hash || dbUser.password) : false;
     const requiredPin = String(dbUser?.pin || '').trim();
     const isTwoFactorEnabled = Boolean(dbUser?.two_factor_enabled);
     const trustedContext = isContextTrusted(trimmedUser, tenant_id, risk_context);
@@ -280,6 +298,15 @@ export const authApi = {
     const isSecondFactorValid = requiresSecondFactor ? requiredPin === trimmedPin : true;
 
     if (dbUser && isPasswordMatch && isSecondFactorValid) {
+      if (!dbUser.password_hash && dbUser.id) {
+        const allUsers = getDB<any>('users');
+        const idx = allUsers.findIndex((u) => u.id === dbUser.id);
+        if (idx >= 0) {
+          allUsers[idx].password_hash = await hashLocalCredential(trimmedPass);
+          delete allUsers[idx].password;
+          setDB('users', allUsers);
+        }
+      }
       localStorage.removeItem(attemptsKey);
       localStorage.removeItem(lockKey);
       const access_token = generateToken();
@@ -319,6 +346,7 @@ export const authApi = {
 
   logout: async (token: string, username: string) => {
     const safeToken = String(token || '');
+    setTrustedDeviceToken('');
     if (isBackendEnabled()) {
       const tenantId = getActiveTenantId();
       await apiRequest('/api/v1/auth/logout', {
