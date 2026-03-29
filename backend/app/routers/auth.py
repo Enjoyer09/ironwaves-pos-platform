@@ -8,6 +8,7 @@ from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import RefreshToken, Tenant, User
 from app.schemas import LoginIn, PinLoginIn, RefreshIn, TokenOut
+from app.core.config import settings
 from app.security import (
     create_access_token,
     create_refresh_token,
@@ -86,6 +87,8 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db), ten
     )
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    if user.role == "super_admin" and tenant.domain != settings.platform_tenant_domain:
+        raise HTTPException(status_code=403, detail="Super admin can only sign in on the platform domain")
 
     now = datetime.utcnow()
     if user.locked_until and now < user.locked_until:

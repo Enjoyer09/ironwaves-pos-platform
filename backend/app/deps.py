@@ -2,6 +2,7 @@ from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.core.config import settings
 from app.models import Tenant, User
 from app.security import decode_token
 from app.tenant import resolve_tenant_from_request
@@ -45,7 +46,9 @@ def get_current_user(
     return user
 
 
-def get_super_admin(user: User = Depends(get_current_user)) -> User:
+def get_super_admin(user: User = Depends(get_current_user), tenant: Tenant = Depends(get_tenant)) -> User:
     if user.role != "super_admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super admin access required")
+    if tenant.domain != settings.platform_tenant_domain:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super admin is limited to the platform domain")
     return user
