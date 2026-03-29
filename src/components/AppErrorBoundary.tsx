@@ -1,5 +1,6 @@
 import React from 'react';
 import { logUiError } from '../lib/logger';
+import { readScopedStorage, removeScopedStorage } from '../lib/storage_keys';
 
 type Props = {
   children: React.ReactNode;
@@ -23,7 +24,7 @@ export default class AppErrorBoundary extends React.Component<Props, State> {
     // Guard the app shell and keep user in control.
     console.error('UI crash captured by ErrorBoundary:', error);
     try {
-      const raw = localStorage.getItem('emalatkhana-pos-session');
+      const raw = readScopedStorage('emalatkhana-pos-session');
       const parsed = raw ? JSON.parse(raw) : null;
       const tenant = parsed?.state?.user?.tenant_id || 'tenant_default';
       const message = error instanceof Error ? error.message : String(error);
@@ -54,7 +55,7 @@ export default class AppErrorBoundary extends React.Component<Props, State> {
               <button
                 onClick={() => {
                   try {
-                    localStorage.removeItem('emalatkhana-pos-session');
+                    removeScopedStorage('emalatkhana-pos-session');
                     // Also clear potentially corrupted tenant-scoped runtime caches.
                     Object.keys(localStorage)
                       .filter((key) =>

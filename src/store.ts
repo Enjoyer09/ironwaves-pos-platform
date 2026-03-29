@@ -5,6 +5,7 @@ import { authApi } from './api/auth';
 import { logEvent } from './lib/logger';
 import { getActiveTenantId, setActiveTenantId } from './lib/tenant';
 import { LoginRiskContext } from './lib/risk';
+import { hostScopedKey } from './lib/storage_keys';
 
 export interface UserSession {
   username: string;
@@ -154,7 +155,7 @@ export const useAppStore = create<AppState>()(
         })),
     }),
     {
-      name: 'emalatkhana-pos-session',
+      name: hostScopedKey('emalatkhana-pos-session'),
       version: 3,
       onRehydrateStorage: () => (state) => {
         // Runtime guard for corrupted persisted lang/session payloads.

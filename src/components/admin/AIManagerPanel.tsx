@@ -4,6 +4,7 @@ import { analyze_business, inventory_audit, security_audit, update_api_key } fro
 import { update_api_key_live } from '../../api/settings';
 import { Bot, TrendingUp, ShieldAlert, PackageSearch, Loader2 } from 'lucide-react';
 import { tx } from '../../i18n';
+import { readScopedStorage, writeScopedStorage } from '../../lib/storage_keys';
 
 export default function AIManagerPanel() {
   const { user, lang, notify } = useAppStore();
@@ -12,12 +13,12 @@ export default function AIManagerPanel() {
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeAudit, setActiveAudit] = useState<string | null>(null);
-  const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
+  const [apiKey, setApiKey] = useState(readScopedStorage('gemini_api_key') || '');
   const [auditWindow, setAuditWindow] = useState<'7' | '30' | '90'>('30');
   const [customPrompt, setCustomPrompt] = useState('');
 
   const saveApiKey = () => {
-    localStorage.setItem('gemini_api_key', apiKey);
+    writeScopedStorage('gemini_api_key', apiKey);
     update_api_key(apiKey);
     void update_api_key_live(apiKey);
     notify('success', tx(lang, 'API Key yadda saxlanıldı!', 'API ключ сохранен!', 'API key saved'));
