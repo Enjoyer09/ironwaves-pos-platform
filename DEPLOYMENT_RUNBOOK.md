@@ -17,6 +17,7 @@
 3. Set required env vars:
    - `DATABASE_URL`
    - `JWT_SECRET`
+   - `CORS_ORIGINS`
    - `SUPERADMIN_USERNAME`
    - `SUPERADMIN_PASSWORD`
    - `DEFAULT_TENANT_NAME`
@@ -27,6 +28,14 @@
    - Keep `ALLOW_LEGACY_TENANT_HEADER_FALLBACK=false` in production
 4. Deploy and verify:
    - `GET /health` returns `200`.
+
+Recommended `CORS_ORIGINS` for wildcard tenant setup:
+
+```text
+https://www.ironwaves.store,https://ironwaves.store,https://super.ironwaves.store,https://demo.ironwaves.store,https://*.ironwaves.store,http://localhost:5173
+```
+
+This backend supports wildcard origins like `https://*.ironwaves.store`, so new tenant subdomains such as `https://gyrospos.ironwaves.store` do not need to be added one by one.
 
 ## 3) Backend Smoke Test
 
