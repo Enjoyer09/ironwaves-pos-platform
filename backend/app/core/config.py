@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     default_tenant_slug: str = "socialbee"
     default_tenant_name: str = "Social Bee"
     default_tenant_domain: str = "socialbee.ironwaves.store"
+    platform_tenant_slug: str = "super"
+    platform_tenant_name: str = "iRonWaves Platform"
+    platform_tenant_domain: str = "super.ironwaves.store"
 
     demo_tenant_enabled: bool = False
     demo_tenant_slug: str = "demo"

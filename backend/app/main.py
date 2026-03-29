@@ -49,27 +49,45 @@ app.add_middleware(
 
 
 def _seed_initial_data(db: Session):
-    tenant = db.query(Tenant).filter(Tenant.slug == settings.default_tenant_slug).first()
-    if not tenant:
-        tenant = Tenant(
+    default_tenant = db.query(Tenant).filter(Tenant.slug == settings.default_tenant_slug).first()
+    if not default_tenant:
+        default_tenant = Tenant(
             name=settings.default_tenant_name,
             slug=settings.default_tenant_slug,
             domain=settings.default_tenant_domain,
             status="active",
             created_at=datetime.utcnow(),
         )
-        db.add(tenant)
+        db.add(default_tenant)
         db.flush()
+
+    platform_tenant = db.query(Tenant).filter(Tenant.slug == settings.platform_tenant_slug).first()
+    if not platform_tenant:
+        platform_tenant = Tenant(
+            name=settings.platform_tenant_name,
+            slug=settings.platform_tenant_slug,
+            domain=settings.platform_tenant_domain,
+            status="active",
+            created_at=datetime.utcnow(),
+        )
+        db.add(platform_tenant)
+        db.flush()
+
+    (
+        db.query(User)
+        .filter(User.role == "super_admin", User.tenant_id != platform_tenant.id)
+        .update({"role": "admin"}, synchronize_session=False)
+    )
 
     super_exists = (
         db.query(User)
-        .filter(User.tenant_id == tenant.id, User.username == settings.superadmin_username)
+        .filter(User.tenant_id == platform_tenant.id, User.username == settings.superadmin_username)
         .first()
     )
     if not super_exists:
         db.add(
             User(
-                tenant_id=tenant.id,
+                tenant_id=platform_tenant.id,
                 username=settings.superadmin_username,
                 email=settings.superadmin_email,
                 password_hash=hash_password(settings.superadmin_password),
@@ -94,13 +112,13 @@ def _seed_initial_data(db: Session):
         for username, pin, role in staff_seed:
             row = (
                 db.query(User)
-                .filter(User.tenant_id == tenant.id, User.username == username)
+                .filter(User.tenant_id == default_tenant.id, User.username == username)
                 .first()
             )
             if not row:
                 db.add(
                     User(
-                        tenant_id=tenant.id,
+                        tenant_id=default_tenant.id,
                         username=username,
                         email=None,
                         password_hash=hash_password(pin),

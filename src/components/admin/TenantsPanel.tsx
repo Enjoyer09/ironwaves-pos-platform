@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAppStore } from '../../store';
-import { create_tenant, list_tenants, suspend_tenant, type TenantRecord } from '../../api/tenants';
+import { create_tenant, delete_tenant, list_tenants, suspend_tenant, type TenantRecord } from '../../api/tenants';
 import { tx } from '../../i18n';
 
 function slugify(value: string) {
@@ -122,6 +122,23 @@ export default function TenantsPanel() {
     }
   };
 
+  const deleteRow = async (tenant_id: string) => {
+    if (!user) return;
+    const confirmed = window.confirm(`"${tenant_id}" tenant silinsin?`);
+    if (!confirmed) return;
+    try {
+      await delete_tenant({
+        tenant_id,
+        deleted_by: user.username,
+        deleted_by_role: user.role,
+      });
+      notify('success', tx(lang, 'Tenant silindi', 'Тенант удален', 'Tenant deleted'));
+      await refresh();
+    } catch (error: any) {
+      notify('error', error?.message || 'Tenant silinmədi');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -232,13 +249,18 @@ export default function TenantsPanel() {
                       </span>
                     </td>
                     <td className="px-3 py-3">
-                      {row.status === 'active' ? (
-                        <button className="neon-btn px-3 py-2" onClick={() => void suspendRow(row.tenant_id)}>
-                          {tx(lang, 'Dayandır', 'Приостановить', 'Suspend')}
+                      <div className="flex flex-wrap gap-2">
+                        {row.status === 'active' ? (
+                          <button className="neon-btn px-3 py-2" onClick={() => void suspendRow(row.tenant_id)}>
+                            {tx(lang, 'Dayandır', 'Приостановить', 'Suspend')}
+                          </button>
+                        ) : (
+                          <span className="self-center text-slate-500">{tx(lang, 'Hazırda aktiv deyil', 'Сейчас не активен', 'Currently inactive')}</span>
+                        )}
+                        <button className="rounded-xl border border-rose-400/40 px-3 py-2 text-rose-300 hover:bg-rose-500/10" onClick={() => void deleteRow(row.tenant_id)}>
+                          {tx(lang, 'Sil', 'Удалить', 'Delete')}
                         </button>
-                      ) : (
-                        <span className="text-slate-500">{tx(lang, 'Hazırda aktiv deyil', 'Сейчас не активен', 'Currently inactive')}</span>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 ))}
