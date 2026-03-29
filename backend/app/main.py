@@ -16,6 +16,39 @@ from app.security import hash_password
 app = FastAPI(title=settings.app_name)
 
 
+def _sync_tenant_domain(db: Session, tenant_id: str, domain: str) -> None:
+    safe_domain = str(domain or "").strip().lower()
+    if not tenant_id or not safe_domain:
+        return
+    try:
+        db.execute(
+            text(
+                """
+                INSERT INTO tenant_domains (domain, tenant_id, is_active)
+                VALUES (:domain, :tenant_id, TRUE)
+                ON CONFLICT (domain)
+                DO UPDATE SET tenant_id = EXCLUDED.tenant_id, is_active = TRUE
+                """
+            ),
+            {"domain": safe_domain, "tenant_id": tenant_id},
+        )
+    except Exception:
+        try:
+            db.execute(
+                text(
+                    """
+                    INSERT INTO tenant_domains (domain, tenant_id)
+                    VALUES (:domain, :tenant_id)
+                    ON CONFLICT (domain)
+                    DO UPDATE SET tenant_id = EXCLUDED.tenant_id
+                    """
+                ),
+                {"domain": safe_domain, "tenant_id": tenant_id},
+            )
+        except Exception:
+            pass
+
+
 def _parse_cors_origins(raw: str) -> list[str]:
     items = [v.strip() for v in str(raw or '').split(',') if v.strip()]
     return items or ["http://localhost:5173"]
@@ -60,6 +93,7 @@ def _seed_initial_data(db: Session):
         )
         db.add(default_tenant)
         db.flush()
+    _sync_tenant_domain(db, default_tenant.id, default_tenant.domain)
 
     platform_tenant = db.query(Tenant).filter(Tenant.slug == settings.platform_tenant_slug).first()
     if not platform_tenant:
@@ -72,6 +106,7 @@ def _seed_initial_data(db: Session):
         )
         db.add(platform_tenant)
         db.flush()
+    _sync_tenant_domain(db, platform_tenant.id, platform_tenant.domain)
 
     (
         db.query(User)
@@ -178,6 +213,7 @@ def _seed_demo_tenant(db: Session):
         )
         db.add(tenant)
         db.flush()
+    _sync_tenant_domain(db, tenant.id, tenant.domain)
 
     _ensure_demo_user(db, tenant.id, settings.demo_admin_username, settings.demo_admin_password, "admin")
     _ensure_demo_user(db, tenant.id, settings.demo_manager_username, settings.demo_manager_password, "manager")
