@@ -196,6 +196,7 @@ export default function FinancePanel() {
     safe_balance: '0',
   });
   const [entries, setEntries] = useState<any[]>([]);
+  const [ledgerPageSize, setLedgerPageSize] = useState(10);
 
   const applyRangePreset = (preset: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom') => {
     setRangePreset(preset);
@@ -343,6 +344,8 @@ export default function FinancePanel() {
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [entries, fromDate, toDate]);
 
+  const visibleEntries = useMemo(() => filteredEntries.slice(0, ledgerPageSize), [filteredEntries, ledgerPageSize]);
+
   const financeSummary = useMemo(() => {
     const incoming = filteredEntries
       .filter((e: any) => e.type === 'in')
@@ -401,13 +404,14 @@ export default function FinancePanel() {
       .reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0));
     const netTotal = incomingTotal.minus(outgoingTotal);
 
-    const header = ['created_at', 'type', 'category', 'source', 'amount', 'description'];
+    const header = ['created_at', 'direction', 'category', 'source', 'amount', 'counterparty', 'description'];
     const rows = filteredEntries.map((e: any) => [
       esc(e.created_at),
-      esc(e.type),
+      esc(e.type === 'in' ? tx(lang, 'Giriş', 'Приход', 'Incoming') : tx(lang, 'Çıxış', 'Расход', 'Outgoing')),
       esc(e.category),
       esc(e.source),
       esc(e.amount),
+      esc(String(e.description || '').split('|').find((part: string) => part.includes('Subyekt:'))?.replace('Subyekt:', '').trim() || ''),
       esc(e.description),
     ]);
     const summaryRows = [
@@ -897,6 +901,16 @@ export default function FinancePanel() {
           </div>
         </div>
         <div className="overflow-x-auto">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="text-xs text-slate-400">
+              {tx(lang, 'Ekranda görünən qeyd', 'Показано записей', 'Entries shown')}: <b>{visibleEntries.length}</b> / {filteredEntries.length}
+            </div>
+            <select value={ledgerPageSize} onChange={(e) => setLedgerPageSize(Number(e.target.value))} className="neon-input min-h-12 w-28">
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+            </select>
+          </div>
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-700/60 text-slate-300">
               <tr>
@@ -909,7 +923,7 @@ export default function FinancePanel() {
               </tr>
             </thead>
             <tbody>
-              {filteredEntries.map((e: any) => (
+              {visibleEntries.map((e: any) => (
                 <tr key={e.id} className="border-t border-slate-700/40">
                   <td className="py-2">{new Date(e.created_at).toLocaleString(lang === 'ru' ? 'ru-RU' : 'az-AZ')}</td>
                   <td className={`py-2 ${e.type === 'in' ? 'text-emerald-300' : 'text-red-300'}`}>{e.type}</td>

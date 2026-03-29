@@ -50,6 +50,7 @@ export default function ZReportPanel() {
     safe_balance: '0',
   });
   const [reportRefreshKey, setReportRefreshKey] = useState(0);
+  const [salesPageSize, setSalesPageSize] = useState(10);
   const zReceiptRef = React.useRef<HTMLIFrameElement | null>(null);
   const printSettings = get_settings(tenant_id).print_settings || { use_qz: false, printer_name: '' };
 
@@ -73,6 +74,75 @@ export default function ZReportPanel() {
   const latestReceived = handovers.find((h) => h.received_by === user?.username);
   const tenantUsers = get_users(tenant_id).filter((u) => ['staff', 'manager'].includes(String(u.role || '').toLowerCase()));
   const expectedCashNow = expectedCashState;
+  const visibleSales = useMemo(() => sales.slice(0, salesPageSize), [sales, salesPageSize]);
+  const cashierBreakdown = useMemo(() => {
+    const map = new Map<string, { salesCount: number; total: Decimal; cash: Decimal; card: Decimal }>();
+    sales.forEach((sale: any) => {
+      const key = String(sale.cashier || '-');
+      const current = map.get(key) || {
+        salesCount: 0,
+        total: new Decimal(0),
+        cash: new Decimal(0),
+        card: new Decimal(0),
+      };
+      const total = new Decimal(sale.total || 0);
+      current.salesCount += 1;
+      current.total = current.total.plus(total);
+      if (String(sale.payment_method || '').toLowerCase().includes('kart') || String(sale.payment_method || '').toLowerCase().includes('card')) {
+        current.card = current.card.plus(total);
+      } else {
+        current.cash = current.cash.plus(total);
+      }
+      map.set(key, current);
+    });
+    return Array.from(map.entries())
+      .map(([cashier, stats]) => ({ cashier, ...stats }))
+      .sort((a, b) => b.total.minus(a.total).toNumber());
+  }, [sales]);
+
+  const buildZReceiptHtml = (result: any) => {
+    const cashierRows = cashierBreakdown
+      .map((row) => `
+        <div class="line"><span>${row.cashier} (${row.salesCount})</span><span>${row.total.toFixed(2)} ₼</span></div>
+        <div class="muted">cash ${row.cash.toFixed(2)} ₼ • card ${row.card.toFixed(2)} ₼</div>
+      `)
+      .join('');
+    return `
+      <html>
+        <head>
+          <style>
+            @page { size: 80mm auto; margin: 4mm; }
+            body { font-family: Inter, Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
+            .line { display:flex; justify-content:space-between; gap:8px; margin: 2px 0; }
+            .muted { color:#555; font-size:11px; }
+            .bold { font-weight: 700; }
+            .section-title { margin-top: 8px; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: .04em; }
+            hr { border: none; border-top: 1px dashed #999; margin: 8px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="bold" style="font-size:15px">iRonWaves POS RC</div>
+          <div class="line"><span>Z-Hesabat</span><span>${new Date().toLocaleDateString()}</span></div>
+          <div class="line"><span>Operator</span><span>${user?.username || '-'}</span></div>
+          <div class="line"><span>Aralıq</span><span>${fromDate} - ${toDate}</span></div>
+          <hr />
+          <div class="line"><span>Ümumi Satış</span><span>${new Decimal(summary.total_revenue || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Nağd Satış</span><span>${new Decimal(summary.cash_sales || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Kart Satış</span><span>${new Decimal(summary.card_sales || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Maya (COGS)</span><span>${new Decimal(summary.total_cogs || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Brutto Mənfəət</span><span>${new Decimal(summary.gross_profit || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Maaş Çıxışı</span><span>${new Decimal(result?.wage || zWage || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Növbə Açılışı</span><span>${new Decimal(result?.total_sales || 0).gte(0) ? new Decimal(zActualCash || 0).toFixed(2) : new Decimal(zActualCash || 0).toFixed(2)} ₼</span></div>
+          <hr />
+          <div class="section-title">Kassir Breakdown</div>
+          ${cashierRows || '<div class="muted">No cashier activity</div>'}
+          <hr />
+          <div class="line"><span>Satış sayı</span><span>${sales.length}</span></div>
+          <div class="line"><span>Void sayı</span><span>${summary.void_count || 0}</span></div>
+        </body>
+      </html>
+    `;
+  };
 
   React.useEffect(() => {
     let mounted = true;
@@ -244,7 +314,7 @@ export default function ZReportPanel() {
     if (!zActualCash) return;
     try {
       const result = await z_report(zActualCash, zWage || '0', user?.username || 'admin', tenant_id);
-      setZReceiptHtml(result.receipt_html || null);
+      setZReceiptHtml(buildZReceiptHtml(result));
       const [status, cash] = await Promise.all([
         refresh_shift_status(tenant_id),
         refresh_expected_cash(tenant_id),
@@ -569,6 +639,16 @@ export default function ZReportPanel() {
       </div>
 
       <div className="metal-panel overflow-x-auto">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-700/60 px-4 py-3">
+          <div className="text-xs text-slate-400">
+            {tx(lang, 'Ekranda görünən satış', 'Показано продаж', 'Sales shown')}: <b>{visibleSales.length}</b> / {sales.length}
+          </div>
+          <select value={salesPageSize} onChange={(e) => setSalesPageSize(Number(e.target.value))} className="neon-input min-h-12 w-28">
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+          </select>
+        </div>
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-900/50 text-slate-300">
             <tr>
@@ -581,7 +661,7 @@ export default function ZReportPanel() {
             </tr>
           </thead>
           <tbody>
-            {sales.map((s: any) => (
+            {visibleSales.map((s: any) => (
               <tr key={s.id} className="border-t border-slate-700/50">
                 <td className="px-4 py-3">{new Date(s.created_at).toLocaleString(lang === 'ru' ? 'ru-RU' : 'az-AZ')}</td>
                 <td className="px-4 py-3 font-medium">{s.cashier}</td>
