@@ -343,6 +343,45 @@ export default function FinancePanel() {
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [entries, fromDate, toDate]);
 
+  const financeSummary = useMemo(() => {
+    const incoming = filteredEntries
+      .filter((e: any) => e.type === 'in')
+      .reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0));
+    const outgoing = filteredEntries
+      .filter((e: any) => e.type === 'out')
+      .reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0));
+    const net = incoming.minus(outgoing);
+    const biggestExpense = filteredEntries
+      .filter((e: any) => e.type === 'out')
+      .reduce((max: any, row: any) => {
+        if (!max) return row;
+        return new Decimal(row.amount || 0).gt(new Decimal(max.amount || 0)) ? row : max;
+      }, null);
+    return {
+      incoming,
+      outgoing,
+      net,
+      entriesCount: filteredEntries.length,
+      biggestExpense,
+    };
+  }, [filteredEntries]);
+
+  const financeHealthTone = useMemo(() => {
+    if (financeSummary.net.gte(0)) return 'text-emerald-300';
+    if (financeSummary.net.gte(new Decimal('-50'))) return 'text-amber-300';
+    return 'text-rose-300';
+  }, [financeSummary.net]);
+
+  const cashCoverage = useMemo(() => {
+    const liquid = new Decimal(balance.cash_balance || 0)
+      .plus(new Decimal(balance.card_balance || 0))
+      .plus(new Decimal(balance.safe_balance || 0));
+    const obligations = new Decimal(investorSummary.debt_remaining || 0)
+      .plus(new Decimal(balance.debt_balance || 0));
+    if (obligations.lte(0)) return '100';
+    return Decimal.min(new Decimal(100), liquid.div(obligations).times(100)).toFixed(0);
+  }, [balance.cash_balance, balance.card_balance, balance.safe_balance, balance.debt_balance, investorSummary.debt_remaining]);
+
   const exportCsv = () => {
     if (!filteredEntries.length) {
       notify('error', tx(lang, 'Export üçün məlumat yoxdur', 'Нет данных для экспорта', 'No data to export'));
@@ -514,21 +553,64 @@ export default function FinancePanel() {
 
   return (
     <div className="space-y-6 text-slate-100">
-      <h2 className="text-2xl font-bold">{tx(lang, 'Maliyyə', 'Финансы', 'Finance')}</h2>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <WalletCard title={tx(lang, 'Nağd Kassa', 'Наличная касса', 'Cash Drawer')} value={balance.cash_balance} />
-        <WalletCard title={tx(lang, 'Bank/Kart Hesabı', 'Банк/карта', 'Bank/Card Wallet')} value={balance.card_balance} />
+      <div className="overflow-hidden rounded-[28px] border border-slate-700/70 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.16),transparent_28%),linear-gradient(135deg,#1d2632,#0f1722)] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.35)]">
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">
+              {tx(lang, 'Maliyyə İdarəetməsi', 'Финансовое управление', 'Finance Control')}
+            </p>
+            <h2 className="mt-2 text-3xl font-black tracking-tight text-white">
+              {tx(lang, 'Pul axınına bir baxışda nəzarət edin', 'Контролируйте денежный поток с одного экрана', 'Control cash flow from one screen')}
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+              {tx(
+                lang,
+                'Kassa, kart, seyf, investor borcu və gündəlik hərəkətlər eyni paneldə toplanır. Məqsəd sürətli qərar vermək və qarışıqlığı azaltmaqdır.',
+                'Касса, карта, сейф, долг инвестору и ежедневные движения собраны в одной панели. Цель — быстро принимать решения и убрать хаос.',
+                'Cash, card, safe, investor debt, and daily movements are collected in one panel so decisions are faster and cleaner.',
+              )}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:min-w-[460px]">
+            <HighlightStat
+              label={tx(lang, 'Net Cashflow', 'Нетто поток', 'Net Cashflow')}
+              value={`${financeSummary.net.toFixed(2)} ₼`}
+              tone={financeHealthTone}
+              helper={tx(lang, 'Seçilmiş aralıq üçün', 'За выбранный период', 'For selected range')}
+            />
+            <HighlightStat
+              label={tx(lang, 'Likvidlik', 'Ликвидность', 'Liquidity')}
+              value={`${cashCoverage}%`}
+              tone="text-sky-300"
+              helper={tx(lang, 'Likvid vəsait / öhdəlik', 'Ликвидные средства / обязательства', 'Liquid cash / obligations')}
+            />
+            <HighlightStat
+              label={tx(lang, 'Qeyd sayı', 'Кол-во записей', 'Entries')}
+              value={String(financeSummary.entriesCount)}
+              tone="text-violet-300"
+              helper={tx(lang, 'Bu period üzrə', 'За этот период', 'In this period')}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <WalletCard title={tx(lang, 'Nağd Kassa', 'Наличная касса', 'Cash Drawer')} value={balance.cash_balance} helper={tx(lang, 'Birbaşa işlək nağd pul', 'Оперативная наличность', 'Operational cash on hand')} />
+        <WalletCard title={tx(lang, 'Bank/Kart Hesabı', 'Банк/карта', 'Bank/Card Wallet')} value={balance.card_balance} helper={tx(lang, 'Kart və bank qalıqları', 'Остатки на карте и в банке', 'Card and bank holdings')} />
         <WalletCard
           title={tx(lang, 'İnvestora Borcumuz', 'Наш долг инвестору', 'Debt To Investor')}
           value={investorSummary.debt_remaining || '0'}
+          helper={tx(lang, 'Qalan investor öhdəliyi', 'Оставшееся обязательство перед инвестором', 'Remaining investor liability')}
+          accent="rose"
         />
-        <WalletCard title={tx(lang, 'Seyf', 'Сейф', 'Safe')} value={balance.safe_balance || '0'} />
+        <WalletCard title={tx(lang, 'Seyf', 'Сейф', 'Safe')} value={balance.safe_balance || '0'} helper={tx(lang, 'Rezerv vəsait', 'Резервные средства', 'Reserved funds')} accent="sky" />
       </div>
 
       <div className="metal-panel p-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-3">
-            <div className="text-sm font-semibold text-slate-200">{tx(lang, 'Hesabat Aralığı', 'Период отчета', 'Report Range')}</div>
+            <div className="text-sm font-semibold text-slate-100">{tx(lang, 'Hesabat Aralığı', 'Период отчета', 'Report Range')}</div>
             <div className="flex flex-wrap gap-2">
               {([
                 ['daily', tx(lang, 'Günlük', 'Дневной', 'Daily')],
@@ -551,6 +633,24 @@ export default function FinancePanel() {
               <input type="date" value={toDate} onChange={(e) => { setRangePreset('custom'); setToDate(e.target.value); }} className="neon-input min-h-13 md:w-44" />
             </div>
           </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:min-w-[460px]">
+            <MiniSummaryCard
+              label={tx(lang, 'Girişlər', 'Поступления', 'Incoming')}
+              value={`${financeSummary.incoming.toFixed(2)} ₼`}
+              tone="emerald"
+            />
+            <MiniSummaryCard
+              label={tx(lang, 'Çıxışlar', 'Расходы', 'Outgoing')}
+              value={`${financeSummary.outgoing.toFixed(2)} ₼`}
+              tone="rose"
+            />
+            <MiniSummaryCard
+              label={tx(lang, 'Ən böyük xərc', 'Крупнейший расход', 'Largest Expense')}
+              value={financeSummary.biggestExpense ? `${new Decimal(financeSummary.biggestExpense.amount || 0).toFixed(2)} ₼` : '0.00 ₼'}
+              helper={financeSummary.biggestExpense?.category || tx(lang, 'Hələ yoxdur', 'Пока нет', 'None yet')}
+              tone="amber"
+            />
+          </div>
           <div className="flex flex-col gap-2 md:flex-row">
             <button className="neon-btn min-h-13 rounded-xl px-4 py-3 text-sm" onClick={exportCsv}>
               {tx(lang, 'CSV Export', 'Экспорт CSV', 'CSV Export')}
@@ -562,9 +662,20 @@ export default function FinancePanel() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="metal-panel p-5">
-          <h3 className="mb-4 text-lg font-semibold">{tx(lang, 'Smart Xərc / Mədaxil', 'Умный расход / приход', 'Smart Expense / Income')}</h3>
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-semibold">{tx(lang, 'Smart Xərc / Mədaxil', 'Умный расход / приход', 'Smart Expense / Income')}</h3>
+              <p className="mt-1 text-sm text-slate-400">
+                {tx(lang, 'Günlük əməliyyatları standart formda daxil edin.', 'Вносите ежедневные операции в стандартной форме.', 'Record daily finance moves in a standard format.')}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-700/70 bg-slate-950/30 px-4 py-3 text-right">
+              <div className="text-xs text-slate-400">{tx(lang, 'Cari seçim', 'Текущий режим', 'Current mode')}</div>
+              <div className="mt-1 text-sm font-semibold text-slate-100">{type === 'in' ? tx(lang, 'Giriş', 'Приход', 'Income') : tx(lang, 'Çıxış', 'Расход', 'Expense')}</div>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-1">
@@ -675,8 +786,14 @@ export default function FinancePanel() {
           </button>
         </div>
 
-        <div className="metal-panel p-4">
-          <h3 className="mb-3 text-lg font-semibold">{tx(lang, 'Daxili Transfer', 'Внутренний перевод')}</h3>
+        <div className="space-y-4">
+          <div className="metal-panel p-4">
+            <div className="mb-3">
+              <h3 className="text-lg font-semibold">{tx(lang, 'Daxili Transfer', 'Внутренний перевод', 'Internal Transfer')}</h3>
+              <p className="mt-1 text-sm text-slate-400">
+                {tx(lang, 'Cüzdanlar arası hərəkətləri nəzarətdə saxlayın.', 'Контролируйте переводы между кошельками.', 'Control movements between wallets.')}
+              </p>
+            </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <select className="neon-input" value={transferDirection} onChange={(e) => setTransferDirection(e.target.value as any)}>
               <option value="card_to_cash">{tx(lang, 'Kartdan Kassaya', 'С карты в кассу')}</option>
@@ -751,14 +868,33 @@ export default function FinancePanel() {
             </button>
           </div>
         </div>
+
+          <div className="metal-panel p-4">
+            <h3 className="text-lg font-semibold text-slate-100">{tx(lang, 'Öhdəlik Xülasəsi', 'Сводка обязательств', 'Obligations Snapshot')}</h3>
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <MiniSummaryCard label={tx(lang, 'Investor yatırımı', 'Инвестиции инвестора', 'Investor Inflow')} value={`${new Decimal(investorSummary.invested_total || 0).toFixed(2)} ₼`} tone="sky" />
+              <MiniSummaryCard label={tx(lang, 'Ödənən hissə', 'Погашено', 'Repaid')} value={`${new Decimal(investorSummary.repaid_total || 0).toFixed(2)} ₼`} tone="emerald" />
+              <MiniSummaryCard label={tx(lang, 'Qalan investor borcu', 'Остаток долга инвестору', 'Remaining Investor Debt')} value={`${new Decimal(investorSummary.debt_remaining || 0).toFixed(2)} ₼`} tone="rose" />
+              <MiniSummaryCard label={tx(lang, 'Nisyə borc balansı', 'Баланс долга', 'Debt Wallet Balance')} value={`${new Decimal(balance.debt_balance || 0).toFixed(2)} ₼`} tone="amber" />
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="metal-panel p-4">
-        <div className="mb-3 grid grid-cols-1 gap-2 text-xs text-slate-300 md:grid-cols-4">
-          <div>{tx(lang, 'Daxil olan', 'Вход', 'Incoming')}: <b>{filteredEntries.filter((e: any) => e.type === 'in').reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0)).toFixed(2)} ₼</b></div>
-          <div>{tx(lang, 'Çıxan', 'Выход', 'Outgoing')}: <b>{filteredEntries.filter((e: any) => e.type === 'out').reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0)).toFixed(2)} ₼</b></div>
-          <div>{tx(lang, 'Net', 'Нетто', 'Net')}: <b>{filteredEntries.reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.type === 'in' ? e.amount || 0 : new Decimal(0).minus(new Decimal(e.amount || 0)))), new Decimal(0)).toFixed(2)} ₼</b></div>
-          <div>{tx(lang, 'Qeyd sayı', 'Кол-во записей', 'Entries')}: <b>{filteredEntries.length}</b></div>
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-100">{tx(lang, 'Maliyyə Jurnalı', 'Финансовый журнал', 'Finance Ledger')}</h3>
+            <p className="mt-1 text-sm text-slate-400">
+              {tx(lang, 'Bütün maliyyə hərəkətləri burada tarixçələnir.', 'Здесь хранятся все финансовые движения.', 'Every finance movement is recorded here.')}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-xs text-slate-300 md:grid-cols-4">
+            <div className="rounded-xl border border-slate-700/60 bg-slate-950/30 px-3 py-2">{tx(lang, 'Daxil olan', 'Вход', 'Incoming')}: <b>{financeSummary.incoming.toFixed(2)} ₼</b></div>
+            <div className="rounded-xl border border-slate-700/60 bg-slate-950/30 px-3 py-2">{tx(lang, 'Çıxan', 'Выход', 'Outgoing')}: <b>{financeSummary.outgoing.toFixed(2)} ₼</b></div>
+            <div className="rounded-xl border border-slate-700/60 bg-slate-950/30 px-3 py-2">{tx(lang, 'Net', 'Нетто', 'Net')}: <b>{financeSummary.net.toFixed(2)} ₼</b></div>
+            <div className="rounded-xl border border-slate-700/60 bg-slate-950/30 px-3 py-2">{tx(lang, 'Qeyd sayı', 'Кол-во записей', 'Entries')}: <b>{financeSummary.entriesCount}</b></div>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -798,11 +934,75 @@ export default function FinancePanel() {
   );
 }
 
-function WalletCard({ title, value }: { title: string; value: string | number }) {
+function WalletCard({
+  title,
+  value,
+  helper,
+  accent = 'amber',
+}: {
+  title: string;
+  value: string | number;
+  helper?: string;
+  accent?: 'amber' | 'rose' | 'sky';
+}) {
+  const accentMap = {
+    amber: 'from-amber-300/18 to-transparent text-amber-200',
+    rose: 'from-rose-300/18 to-transparent text-rose-200',
+    sky: 'from-sky-300/18 to-transparent text-sky-200',
+  } as const;
   return (
-    <div className="metal-panel p-5">
+    <div className={`metal-panel bg-gradient-to-br ${accentMap[accent]} p-5`}>
       <div className="text-sm text-slate-300">{title}</div>
-      <div className="mt-1 text-3xl font-bold text-slate-100">{new Decimal(value || 0).toFixed(2)} ₼</div>
+      <div className="mt-2 text-3xl font-bold text-slate-100">{new Decimal(value || 0).toFixed(2)} ₼</div>
+      {helper ? <div className="mt-2 text-xs text-slate-400">{helper}</div> : null}
+    </div>
+  );
+}
+
+function HighlightStat({
+  label,
+  value,
+  helper,
+  tone,
+}: {
+  label: string;
+  value: string;
+  helper?: string;
+  tone: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-slate-950/25 px-4 py-4 backdrop-blur">
+      <div className="text-xs uppercase tracking-[0.18em] text-slate-400">{label}</div>
+      <div className={`mt-2 text-2xl font-black ${tone}`}>{value}</div>
+      {helper ? <div className="mt-1 text-xs text-slate-400">{helper}</div> : null}
+    </div>
+  );
+}
+
+function MiniSummaryCard({
+  label,
+  value,
+  helper,
+  tone,
+}: {
+  label: string;
+  value: string;
+  helper?: string;
+  tone: 'emerald' | 'rose' | 'amber' | 'sky' | 'violet';
+}) {
+  const toneMap = {
+    emerald: 'text-emerald-300 border-emerald-300/20 bg-emerald-400/5',
+    rose: 'text-rose-300 border-rose-300/20 bg-rose-400/5',
+    amber: 'text-amber-300 border-amber-300/20 bg-amber-400/5',
+    sky: 'text-sky-300 border-sky-300/20 bg-sky-400/5',
+    violet: 'text-violet-300 border-violet-300/20 bg-violet-400/5',
+  } as const;
+
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${toneMap[tone]}`}>
+      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</div>
+      <div className="mt-2 text-xl font-bold text-slate-100">{value}</div>
+      {helper ? <div className="mt-1 text-xs text-slate-400">{helper}</div> : null}
     </div>
   );
 }
