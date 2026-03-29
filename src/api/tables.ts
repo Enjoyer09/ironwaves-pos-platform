@@ -18,6 +18,19 @@ export interface Table {
   kitchen_status?: string | null;
 }
 
+const isRecoverableNetworkFailure = (error: unknown) => {
+  const message = String((error as any)?.message || error || '').toLowerCase();
+  return (
+    message.includes('failed to fetch') ||
+    message.includes('networkerror') ||
+    message.includes('network request failed') ||
+    message.includes('load failed') ||
+    message.includes('backendə qoşulma alınmadı') ||
+    message.includes('backend') ||
+    message.includes('network')
+  );
+};
+
 // FUNKSIYA: get_tables
 export const get_tables = (tenant_id: string) => {
   return getDB<Table>('tables')
@@ -279,17 +292,32 @@ export const merge_tables = (table_id: string, target_table_id: string, actor: s
 
 export const get_tables_live = async (tenant_id: string) => {
   if (!isBackendEnabled()) return get_tables(tenant_id);
-  return apiRequest<any[]>('/api/v1/ops/tables', { tenantId: null });
+  try {
+    return await apiRequest<any[]>('/api/v1/ops/tables', { tenantId: null });
+  } catch (error) {
+    if (!isRecoverableNetworkFailure(error)) throw error;
+    return get_tables(tenant_id);
+  }
 };
 
 export const create_table_live = async (tenant_id: string, label: string, created_by: string) => {
   if (!isBackendEnabled()) return create_table(tenant_id, label, created_by);
-  return apiRequest<any>('/api/v1/ops/tables', { method: 'POST', tenantId: null, body: { label } });
+  try {
+    return await apiRequest<any>('/api/v1/ops/tables', { method: 'POST', tenantId: null, body: { label } });
+  } catch (error) {
+    if (!isRecoverableNetworkFailure(error)) throw error;
+    return create_table(tenant_id, label, created_by);
+  }
 };
 
 export const delete_table_live = async (table_id: string, deleted_by: string) => {
   if (!isBackendEnabled()) return delete_table(table_id, deleted_by);
-  return apiRequest<{ success: boolean }>(`/api/v1/ops/tables/${encodeURIComponent(table_id)}`, { method: 'DELETE', tenantId: null });
+  try {
+    return await apiRequest<{ success: boolean }>(`/api/v1/ops/tables/${encodeURIComponent(table_id)}`, { method: 'DELETE', tenantId: null });
+  } catch (error) {
+    if (!isRecoverableNetworkFailure(error)) throw error;
+    return delete_table(table_id, deleted_by);
+  }
 };
 
 export const send_to_kitchen_live = async (
@@ -299,11 +327,16 @@ export const send_to_kitchen_live = async (
   options?: { cup_mode?: 'paper' | 'glass' }
 ) => {
   if (!isBackendEnabled()) return send_to_kitchen(table_id, cart_items, sent_by, options);
-  return apiRequest<any>(`/api/v1/ops/tables/${encodeURIComponent(table_id)}/send-to-kitchen`, {
-    method: 'POST',
-    tenantId: null,
-    body: { cart_items, cup_mode: options?.cup_mode || 'paper' },
-  });
+  try {
+    return await apiRequest<any>(`/api/v1/ops/tables/${encodeURIComponent(table_id)}/send-to-kitchen`, {
+      method: 'POST',
+      tenantId: null,
+      body: { cart_items, cup_mode: options?.cup_mode || 'paper' },
+    });
+  } catch (error) {
+    if (!isRecoverableNetworkFailure(error)) throw error;
+    return send_to_kitchen(table_id, cart_items, sent_by, options);
+  }
 };
 
 export const pay_table_live = async (
@@ -315,32 +348,47 @@ export const pay_table_live = async (
   options?: { cup_mode?: 'paper' | 'glass' }
 ) => {
   if (!isBackendEnabled()) return pay_table(table_id, payment_method, paid_by, split_cash, split_card, options);
-  return apiRequest<any>(`/api/v1/ops/tables/${encodeURIComponent(table_id)}/pay`, {
-    method: 'POST',
-    tenantId: null,
-    body: {
-      payment_method,
-      split_cash: split_cash ? split_cash.toFixed(2) : null,
-      split_card: split_card ? split_card.toFixed(2) : null,
-      cup_mode: options?.cup_mode || 'paper',
-    },
-  });
+  try {
+    return await apiRequest<any>(`/api/v1/ops/tables/${encodeURIComponent(table_id)}/pay`, {
+      method: 'POST',
+      tenantId: null,
+      body: {
+        payment_method,
+        split_cash: split_cash ? split_cash.toFixed(2) : null,
+        split_card: split_card ? split_card.toFixed(2) : null,
+        cup_mode: options?.cup_mode || 'paper',
+      },
+    });
+  } catch (error) {
+    if (!isRecoverableNetworkFailure(error)) throw error;
+    return pay_table(table_id, payment_method, paid_by, split_cash, split_card, options);
+  }
 };
 
 export const transfer_table_live = async (table_id: string, target_table_id: string, actor: string) => {
   if (!isBackendEnabled()) return transfer_table(table_id, target_table_id, actor);
-  return apiRequest<{ success: boolean }>(`/api/v1/ops/tables/${encodeURIComponent(table_id)}/transfer`, {
-    method: 'POST',
-    tenantId: null,
-    body: { target_table_id },
-  });
+  try {
+    return await apiRequest<{ success: boolean }>(`/api/v1/ops/tables/${encodeURIComponent(table_id)}/transfer`, {
+      method: 'POST',
+      tenantId: null,
+      body: { target_table_id },
+    });
+  } catch (error) {
+    if (!isRecoverableNetworkFailure(error)) throw error;
+    return transfer_table(table_id, target_table_id, actor);
+  }
 };
 
 export const merge_tables_live = async (table_id: string, target_table_id: string, actor: string) => {
   if (!isBackendEnabled()) return merge_tables(table_id, target_table_id, actor);
-  return apiRequest<{ success: boolean }>(`/api/v1/ops/tables/${encodeURIComponent(table_id)}/merge`, {
-    method: 'POST',
-    tenantId: null,
-    body: { target_table_id },
-  });
+  try {
+    return await apiRequest<{ success: boolean }>(`/api/v1/ops/tables/${encodeURIComponent(table_id)}/merge`, {
+      method: 'POST',
+      tenantId: null,
+      body: { target_table_id },
+    });
+  } catch (error) {
+    if (!isRecoverableNetworkFailure(error)) throw error;
+    return merge_tables(table_id, target_table_id, actor);
+  }
 };

@@ -22,6 +22,7 @@ import { getActiveTenantId } from './lib/tenant';
 import { get_low_stock_items } from './api/inventory';
 
 type AdminView =
+  | 'dashboard'
   | 'analytics'
   | 'menu'
   | 'finance'
@@ -44,6 +45,7 @@ type ModuleKey =
   | 'finance'
   | 'inventory'
   | 'combos'
+  | 'dashboard'
   | 'analytics'
   | 'logs'
   | 'crm'
@@ -106,7 +108,7 @@ export default function App() {
   const defaultInventorySettings = { default_critical_threshold: 5, unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'] };
   const defaultRoleModules = {
     staff: ['pos', 'tables', 'kds', 'zreport'],
-    manager: ['pos', 'tables', 'kds', 'zreport', 'finance', 'inventory', 'combos', 'analytics', 'logs', 'crm', 'ai', 'menu', 'recipes'],
+    manager: ['pos', 'tables', 'kds', 'zreport', 'dashboard', 'finance', 'inventory', 'combos', 'analytics', 'logs', 'crm', 'ai', 'menu', 'recipes'],
     kitchen: ['kds'],
   };
 
@@ -139,7 +141,7 @@ export default function App() {
   const safeRoleModules = {
     staff: Array.isArray(roleModules?.staff) ? roleModules!.staff : defaultRoleModules.staff,
     manager: Array.isArray(roleModules?.manager)
-      ? roleModules!.manager
+      ? Array.from(new Set([...roleModules!.manager, 'dashboard']))
       : defaultRoleModules.manager,
     kitchen: Array.isArray(roleModules?.kitchen) ? roleModules!.kitchen : defaultRoleModules.kitchen,
   };
@@ -301,6 +303,7 @@ export default function App() {
     { key: 'pos', label: t.modules.pos },
     { key: 'tables', label: t.modules.tables },
     { key: 'kds', label: t.modules.kds },
+    { key: 'dashboard', label: t.modules.dashboard, manager: true },
     { key: 'finance', label: t.modules.finance, manager: true },
     { key: 'analytics', label: t.modules.analytics, manager: true },
     { key: 'zreport', label: t.modules.zreport },
