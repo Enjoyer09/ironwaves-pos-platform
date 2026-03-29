@@ -152,9 +152,10 @@ export interface Settings {
   };
   staff_benefits?: {
     daily_limit_azn: number;
-    allow_coffee: boolean;
-    allow_non_coffee: boolean;
-    non_coffee_unit_cap_azn: number;
+    allowed_scope: 'all' | 'categories' | 'items';
+    included_categories: string[];
+    included_items: string[];
+    item_unit_cap_azn: number;
   };
   print_settings?: {
     use_qz: boolean;

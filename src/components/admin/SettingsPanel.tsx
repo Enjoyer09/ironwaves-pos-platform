@@ -16,6 +16,7 @@ import {
   update_staff_benefits_live,
   update_user_credentials_live,
 } from '../../api/settings';
+import { get_menu_items_live } from '../../api/menu';
 import ConfirmModal from '../ConfirmModal';
 
 type RoleModules = { staff: string[]; manager: string[]; kitchen: string[] };
@@ -52,10 +53,12 @@ export default function SettingsPanel() {
   });
   const [staffBenefits, setStaffBenefits] = useState({
     daily_limit_azn: '6',
-    allow_coffee: true,
-    allow_non_coffee: true,
-    non_coffee_unit_cap_azn: '2',
+    allowed_scope: 'all' as 'all' | 'categories' | 'items',
+    included_categories: [] as string[],
+    included_items: [] as string[],
+    item_unit_cap_azn: '6',
   });
+  const [menuCatalog, setMenuCatalog] = useState<any[]>([]);
 
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<'staff' | 'kitchen' | 'manager' | 'admin'>('staff');
@@ -84,6 +87,7 @@ export default function SettingsPanel() {
       get_users_live(tenantId),
       get_settings_live(tenantId),
     ]);
+    void get_menu_items_live(tenantId).then(setMenuCatalog).catch(() => setMenuCatalog([]));
 
     if (profileRes.status === 'fulfilled') {
       const nextProfile = {
@@ -114,9 +118,10 @@ export default function SettingsPanel() {
       });
       setStaffBenefits({
         daily_limit_azn: String(settingsRes.value.staff_benefits?.daily_limit_azn ?? 6),
-        allow_coffee: Boolean(settingsRes.value.staff_benefits?.allow_coffee ?? true),
-        allow_non_coffee: Boolean(settingsRes.value.staff_benefits?.allow_non_coffee ?? true),
-        non_coffee_unit_cap_azn: String(settingsRes.value.staff_benefits?.non_coffee_unit_cap_azn ?? 2),
+        allowed_scope: (settingsRes.value.staff_benefits?.allowed_scope as any) || 'all',
+        included_categories: Array.isArray(settingsRes.value.staff_benefits?.included_categories) ? settingsRes.value.staff_benefits!.included_categories : [],
+        included_items: Array.isArray(settingsRes.value.staff_benefits?.included_items) ? settingsRes.value.staff_benefits!.included_items : [],
+        item_unit_cap_azn: String(settingsRes.value.staff_benefits?.item_unit_cap_azn ?? 6),
       });
     }
   };
@@ -283,9 +288,10 @@ export default function SettingsPanel() {
   const saveStaffBenefits = async () => {
     await update_staff_benefits_live({
       daily_limit_azn: Number(staffBenefits.daily_limit_azn || 0),
-      allow_coffee: staffBenefits.allow_coffee,
-      allow_non_coffee: staffBenefits.allow_non_coffee,
-      non_coffee_unit_cap_azn: Number(staffBenefits.non_coffee_unit_cap_azn || 0),
+      allowed_scope: staffBenefits.allowed_scope,
+      included_categories: staffBenefits.included_categories,
+      included_items: staffBenefits.included_items,
+      item_unit_cap_azn: Number(staffBenefits.item_unit_cap_azn || 0),
     });
     flashSuccess(tx(lang, 'Staff limit ayarları yadda saxlanıldı', 'Настройки лимита staff сохранены', 'Staff benefit settings saved'));
   };
@@ -412,19 +418,71 @@ export default function SettingsPanel() {
             className="neon-input"
             type="number"
             min={0}
-            value={staffBenefits.non_coffee_unit_cap_azn}
-            onChange={(e) => setStaffBenefits((prev) => ({ ...prev, non_coffee_unit_cap_azn: e.target.value }))}
-            placeholder={tx(lang, 'Qeyri-kofe vahid limiti', 'Лимит на единицу некофе', 'Non-coffee unit cap')}
+            value={staffBenefits.item_unit_cap_azn}
+            onChange={(e) => setStaffBenefits((prev) => ({ ...prev, item_unit_cap_azn: e.target.value }))}
+            placeholder={tx(lang, 'Bir məhsul üçün maksimum benefit', 'Максимальная льгота на единицу товара', 'Maximum benefit per item')}
           />
-          <label className="flex items-center gap-2 text-sm text-slate-300">
-            <input type="checkbox" checked={staffBenefits.allow_coffee} onChange={(e) => setStaffBenefits((prev) => ({ ...prev, allow_coffee: e.target.checked }))} />
-            <span>{tx(lang, 'Kofe məhsulları staff limitinə daxil olsun', 'Кофе входит в staff-лимит', 'Coffee items use staff benefit')}</span>
-          </label>
-          <label className="flex items-center gap-2 text-sm text-slate-300">
-            <input type="checkbox" checked={staffBenefits.allow_non_coffee} onChange={(e) => setStaffBenefits((prev) => ({ ...prev, allow_non_coffee: e.target.checked }))} />
-            <span>{tx(lang, 'Qeyri-kofe məhsulları da staff limitinə daxil olsun', 'Некофе тоже входит в staff-лимит', 'Non-coffee items also use staff benefit')}</span>
-          </label>
+          <select
+            className="neon-input md:col-span-2"
+            value={staffBenefits.allowed_scope}
+            onChange={(e) => setStaffBenefits((prev) => ({ ...prev, allowed_scope: e.target.value as any }))}
+          >
+            <option value="all">{tx(lang, 'Bütün məhsullar üçün keçərli olsun', 'Для всех товаров', 'Apply to all products')}</option>
+            <option value="categories">{tx(lang, 'Yalnız seçilmiş kateqoriyalar üçün', 'Только для выбранных категорий', 'Only selected categories')}</option>
+            <option value="items">{tx(lang, 'Yalnız seçilmiş məhsullar üçün', 'Только для выбранных товаров', 'Only selected items')}</option>
+          </select>
         </div>
+        {staffBenefits.allowed_scope === 'categories' ? (
+          <div className="space-y-2">
+            <div className="text-sm text-slate-300">{tx(lang, 'Limitə daxil kateqoriyalar', 'Категории в лимите', 'Included categories')}</div>
+            <div className="flex flex-wrap gap-2">
+              {Array.from(new Set(menuCatalog.map((item: any) => String(item.category || '').trim()).filter(Boolean))).map((category) => {
+                const active = staffBenefits.included_categories.includes(category);
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setStaffBenefits((prev) => ({
+                      ...prev,
+                      included_categories: active
+                        ? prev.included_categories.filter((entry) => entry !== category)
+                        : [...prev.included_categories, category],
+                    }))}
+                    className={`rounded-full px-3 py-2 text-sm ${active ? 'bg-yellow-400 text-slate-900' : 'border border-slate-600 text-slate-200'}`}
+                  >
+                    {category}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+        {staffBenefits.allowed_scope === 'items' ? (
+          <div className="space-y-2">
+            <div className="text-sm text-slate-300">{tx(lang, 'Limitə daxil məhsullar', 'Товары в лимите', 'Included products')}</div>
+            <div className="flex max-h-56 flex-wrap gap-2 overflow-y-auto rounded-2xl border border-slate-700/60 bg-slate-950/30 p-3">
+              {menuCatalog.map((item: any) => {
+                const name = String(item.item_name || '').trim();
+                const active = staffBenefits.included_items.includes(name);
+                return (
+                  <button
+                    key={item.id || name}
+                    type="button"
+                    onClick={() => setStaffBenefits((prev) => ({
+                      ...prev,
+                      included_items: active
+                        ? prev.included_items.filter((entry) => entry !== name)
+                        : [...prev.included_items, name],
+                    }))}
+                    className={`rounded-full px-3 py-2 text-sm ${active ? 'bg-yellow-400 text-slate-900' : 'border border-slate-600 text-slate-200'}`}
+                  >
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
         <div className="flex justify-end">
           <button onClick={() => { void saveStaffBenefits(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>

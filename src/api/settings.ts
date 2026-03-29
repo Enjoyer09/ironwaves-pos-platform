@@ -36,9 +36,10 @@ function getSettings(tenant_id?: string): Settings {
       },
       staff_benefits: {
         daily_limit_azn: 6,
-        allow_coffee: true,
-        allow_non_coffee: true,
-        non_coffee_unit_cap_azn: 2,
+        allowed_scope: 'all',
+        included_categories: [],
+        included_items: [],
+        item_unit_cap_azn: 6,
       },
       print_settings: { use_qz: false, printer_name: '' },
       qr_settings: { base_url: '' },
@@ -199,9 +200,19 @@ export function get_settings(tenant_id?: string) {
   if (!s.staff_benefits) {
     s.staff_benefits = {
       daily_limit_azn: 6,
-      allow_coffee: true,
-      allow_non_coffee: true,
-      non_coffee_unit_cap_azn: 2,
+      allowed_scope: 'all',
+      included_categories: [],
+      included_items: [],
+      item_unit_cap_azn: 6,
+    };
+    saveSettings(s);
+  } else if (!(s.staff_benefits as any).allowed_scope) {
+    s.staff_benefits = {
+      daily_limit_azn: Number((s.staff_benefits as any).daily_limit_azn ?? 6),
+      allowed_scope: 'all',
+      included_categories: [],
+      included_items: [],
+      item_unit_cap_azn: Number((s.staff_benefits as any).non_coffee_unit_cap_azn ?? 6),
     };
     saveSettings(s);
   }
@@ -224,18 +235,20 @@ export function update_inventory_settings(payload: { default_critical_threshold:
 
 export function update_staff_benefits(payload: {
   daily_limit_azn: number;
-  allow_coffee: boolean;
-  allow_non_coffee: boolean;
-  non_coffee_unit_cap_azn: number;
+  allowed_scope: 'all' | 'categories' | 'items';
+  included_categories: string[];
+  included_items: string[];
+  item_unit_cap_azn: number;
 }) {
   const settings = getSettings();
   settings.staff_benefits = {
     daily_limit_azn: Number.isFinite(payload.daily_limit_azn) ? Math.max(0, Number(payload.daily_limit_azn)) : 6,
-    allow_coffee: Boolean(payload.allow_coffee),
-    allow_non_coffee: Boolean(payload.allow_non_coffee),
-    non_coffee_unit_cap_azn: Number.isFinite(payload.non_coffee_unit_cap_azn)
-      ? Math.max(0, Number(payload.non_coffee_unit_cap_azn))
-      : 2,
+    allowed_scope: payload.allowed_scope || 'all',
+    included_categories: Array.from(new Set((payload.included_categories || []).map((v) => String(v || '').trim()).filter(Boolean))),
+    included_items: Array.from(new Set((payload.included_items || []).map((v) => String(v || '').trim()).filter(Boolean))),
+    item_unit_cap_azn: Number.isFinite(payload.item_unit_cap_azn)
+      ? Math.max(0, Number(payload.item_unit_cap_azn))
+      : 6,
   };
   saveSettings(settings);
   logEvent('admin', 'STAFF_BENEFITS_UPDATED', settings.staff_benefits);
@@ -336,9 +349,10 @@ export async function update_email_settings_live(payload: {
 
 export async function update_staff_benefits_live(payload: {
   daily_limit_azn: number;
-  allow_coffee: boolean;
-  allow_non_coffee: boolean;
-  non_coffee_unit_cap_azn: number;
+  allowed_scope: 'all' | 'categories' | 'items';
+  included_categories: string[];
+  included_items: string[];
+  item_unit_cap_azn: number;
 }) {
   if (!isBackendEnabled()) return update_staff_benefits(payload);
   await apiRequest('/api/v1/ops/settings/staff-benefits', { method: 'PATCH', tenantId: null, body: payload });

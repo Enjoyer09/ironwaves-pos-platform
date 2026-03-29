@@ -253,7 +253,7 @@ def get_app_settings(
         db,
         tenant.id,
         "staff_benefits",
-        {"daily_limit_azn": 6, "allow_coffee": True, "allow_non_coffee": True, "non_coffee_unit_cap_azn": 2},
+        {"daily_limit_azn": 6, "allowed_scope": "all", "included_categories": [], "included_items": [], "item_unit_cap_azn": 6},
     )
     role_modules = _setting_value(
         db,
@@ -368,9 +368,10 @@ def update_staff_benefits(
     _ensure_admin(user)
     cleaned = {
         "daily_limit_azn": max(0, float(payload.get("daily_limit_azn") or 0)),
-        "allow_coffee": bool(payload.get("allow_coffee", True)),
-        "allow_non_coffee": bool(payload.get("allow_non_coffee", True)),
-        "non_coffee_unit_cap_azn": max(0, float(payload.get("non_coffee_unit_cap_azn") or 0)),
+        "allowed_scope": str(payload.get("allowed_scope") or "all"),
+        "included_categories": [str(v or "").strip() for v in (payload.get("included_categories") or []) if str(v or "").strip()],
+        "included_items": [str(v or "").strip() for v in (payload.get("included_items") or []) if str(v or "").strip()],
+        "item_unit_cap_azn": max(0, float(payload.get("item_unit_cap_azn") or 0)),
     }
     _set_setting_value(db, tenant.id, "staff_benefits", cleaned)
     db.commit()
