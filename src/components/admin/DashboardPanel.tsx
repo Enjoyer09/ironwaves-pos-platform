@@ -22,6 +22,8 @@ type DashboardSnapshot = {
   pendingOffline: number;
 };
 
+type RangePreset = 'daily' | 'weekly' | 'monthly' | 'custom';
+
 const emptyBalances = {
   cash_balance: '0',
   card_balance: '0',
@@ -33,6 +35,9 @@ const emptyBalances = {
 export default function DashboardPanel() {
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
+  const [rangePreset, setRangePreset] = useState<RangePreset>('daily');
+  const [fromDate, setFromDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [snapshot, setSnapshot] = useState<DashboardSnapshot>({
     summary: null,
     sales: [],
@@ -43,16 +48,41 @@ export default function DashboardPanel() {
     pendingOffline: 0,
   });
 
-  const todayRange = useMemo(() => {
-    const from = new Date();
+  useEffect(() => {
+    const now = new Date();
+    const start = new Date(now);
+    if (rangePreset === 'weekly') {
+      const weekday = start.getDay();
+      const diff = weekday === 0 ? 6 : weekday - 1;
+      start.setDate(start.getDate() - diff);
+    } else if (rangePreset === 'monthly') {
+      start.setDate(1);
+    }
+
+    if (rangePreset !== 'custom') {
+      setFromDate(start.toISOString().slice(0, 10));
+      setToDate(now.toISOString().slice(0, 10));
+    }
+  }, [rangePreset]);
+
+  const activeRange = useMemo(() => {
+    const from = new Date(fromDate || new Date().toISOString().slice(0, 10));
     from.setHours(0, 0, 0, 0);
-    const to = new Date();
+    const to = new Date(toDate || new Date().toISOString().slice(0, 10));
     to.setHours(23, 59, 59, 999);
     return {
       fromIso: from.toISOString(),
       toIso: to.toISOString(),
+      label:
+        rangePreset === 'daily'
+          ? tx(lang, 'Bu gün', 'Сегодня', 'Today')
+          : rangePreset === 'weekly'
+            ? tx(lang, 'Bu həftə', 'На этой неделе', 'This week')
+            : rangePreset === 'monthly'
+              ? tx(lang, 'Bu ay', 'В этом месяце', 'This month')
+              : `${fromDate} - ${toDate}`,
     };
-  }, []);
+  }, [fromDate, toDate, rangePreset, lang]);
 
   useEffect(() => {
     let mounted = true;
@@ -94,17 +124,17 @@ export default function DashboardPanel() {
 
     const getSalesSummarySafe = async () => {
       try {
-        return await get_sales_summary_live(tenant_id, todayRange.fromIso, todayRange.toIso);
+        return await get_sales_summary_live(tenant_id, activeRange.fromIso, activeRange.toIso);
       } catch {
-        return get_sales_summary(tenant_id, todayRange.fromIso, todayRange.toIso);
+        return get_sales_summary(tenant_id, activeRange.fromIso, activeRange.toIso);
       }
     };
 
     const getSalesListSafe = async () => {
       try {
-        return await get_sales_list_live(tenant_id, todayRange.fromIso, todayRange.toIso);
+        return await get_sales_list_live(tenant_id, activeRange.fromIso, activeRange.toIso);
       } catch {
-        return get_sales_list(tenant_id, todayRange.fromIso, todayRange.toIso);
+        return get_sales_list(tenant_id, activeRange.fromIso, activeRange.toIso);
       }
     };
 
@@ -141,7 +171,7 @@ export default function DashboardPanel() {
       mounted = false;
       window.clearInterval(timer);
     };
-  }, [tenant_id, todayRange.fromIso, todayRange.toIso, lang, notify]);
+  }, [tenant_id, activeRange.fromIso, activeRange.toIso, lang, notify]);
 
   const openTables = snapshot.tables.filter((table: any) => table.is_occupied).length;
   const readyOrders = snapshot.kitchenOrders.filter((order: any) => String(order.status || '').toUpperCase() === 'READY').length;
@@ -160,6 +190,32 @@ export default function DashboardPanel() {
       .map(([name, qty]) => ({ name, qty }))
       .sort((a, b) => b.qty - a.qty)
       .slice(0, 5);
+  }, [snapshot.sales]);
+
+  const cashierPerformance = useMemo(() => {
+    const staffMap = new Map<string, { sales: number; revenue: Decimal }>();
+    snapshot.sales.forEach((sale: any) => {
+      const key = String(sale.cashier || '-');
+      const current = staffMap.get(key) || { sales: 0, revenue: new Decimal(0) };
+      current.sales += 1;
+      current.revenue = current.revenue.plus(new Decimal(sale.total || 0));
+      staffMap.set(key, current);
+    });
+    return Array.from(staffMap.entries())
+      .map(([cashier, stats]) => ({
+        cashier,
+        sales: stats.sales,
+        revenue: stats.revenue,
+        avgCheck: stats.sales > 0 ? stats.revenue.div(stats.sales) : new Decimal(0),
+      }))
+      .sort((a, b) => b.revenue.minus(a.revenue).toNumber())
+      .slice(0, 4);
+  }, [snapshot.sales]);
+
+  const averageCheck = useMemo(() => {
+    if (!snapshot.sales.length) return new Decimal(0);
+    const total = snapshot.sales.reduce((sum: Decimal, sale: any) => sum.plus(new Decimal(sale.total || 0)), new Decimal(0));
+    return total.div(snapshot.sales.length);
   }, [snapshot.sales]);
 
   const hourlyTrend = useMemo(() => {
@@ -194,7 +250,7 @@ export default function DashboardPanel() {
               })}
             </div>
             <div className="mt-1 text-sm text-slate-500">
-              {tx(lang, 'Operativ görünüş', 'Оперативный вид', 'Operational view')}
+              {activeRange.label}
             </div>
           </div>
 
@@ -207,9 +263,62 @@ export default function DashboardPanel() {
         </aside>
 
         <div className="space-y-4">
+          <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.93),rgba(246,248,252,0.88))] p-4 text-slate-900 shadow-[0_16px_45px_rgba(0,0,0,0.22)]">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <h3 className="text-lg font-bold">{tx(lang, 'Dashboard Aralığı', 'Период dashboard', 'Dashboard Range')}</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  {tx(lang, 'Default olaraq bu gün açılır, amma daha geniş analiz üçün aralığı dəyişə bilərsiniz.', 'По умолчанию открыт сегодняшний день, но диапазон можно расширить для анализа.', 'It opens on today by default, but you can expand the range for analysis.')}
+                </p>
+              </div>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    ['daily', tx(lang, 'Günlük', 'День', 'Daily')],
+                    ['weekly', tx(lang, 'Həftəlik', 'Неделя', 'Weekly')],
+                    ['monthly', tx(lang, 'Aylıq', 'Месяц', 'Monthly')],
+                    ['custom', tx(lang, 'Tarix Aralığı', 'Диапазон дат', 'Date Range')],
+                  ] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => setRangePreset(key)}
+                      className={`rounded-2xl px-4 py-3 text-sm font-semibold ${
+                        rangePreset === key
+                          ? 'bg-slate-900 text-white'
+                          : 'border border-slate-200 bg-white text-slate-700'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => {
+                      setRangePreset('custom');
+                      setFromDate(e.target.value);
+                    }}
+                    className="neon-input min-h-12 bg-white"
+                  />
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => {
+                      setRangePreset('custom');
+                      setToDate(e.target.value);
+                    }}
+                    className="neon-input min-h-12 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
             <DashboardStatCard
-              title={tx(lang, 'Bu Gün Gəlir', 'Выручка сегодня', 'Revenue Today')}
+              title={tx(lang, 'Gəlir', 'Выручка', 'Revenue')}
               value={`${new Decimal(snapshot.summary?.total_revenue || 0).toFixed(2)} ₼`}
               helper={`${tx(lang, 'Satış sayı', 'Продажи', 'Sales')}: ${snapshot.sales.length}`}
               tone="emerald"
@@ -231,6 +340,21 @@ export default function DashboardPanel() {
               value={`${new Decimal(snapshot.balances.investor_balance || 0).toFixed(2)} ₼`}
               helper={`${tx(lang, 'Nisyə borc', 'Долговой баланс', 'Debt balance')}: ${new Decimal(snapshot.balances.debt_balance || 0).toFixed(2)} ₼`}
               tone="rose"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <SoftTile
+              title={tx(lang, 'Orta Çek', 'Средний чек', 'Average Check')}
+              value={`${averageCheck.toFixed(2)} ₼`}
+              helper={activeRange.label}
+              icon={<Receipt size={18} />}
+            />
+            <SoftTile
+              title={tx(lang, 'Ən güclü kassir', 'Лучший кассир', 'Top Cashier')}
+              value={cashierPerformance[0]?.cashier || '-'}
+              helper={cashierPerformance[0] ? `${cashierPerformance[0].revenue.toFixed(2)} ₼ / ${cashierPerformance[0].sales} ${tx(lang, 'satış', 'продаж', 'sales')}` : tx(lang, 'Hələ məlumat yoxdur', 'Пока нет данных', 'No data yet')}
+              icon={<ShoppingBag size={18} />}
             />
           </div>
 
@@ -294,7 +418,7 @@ export default function DashboardPanel() {
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-bold">{tx(lang, 'Top Məhsullar', 'Топ продукты', 'Top Products')}</h3>
-                  <p className="mt-1 text-sm text-slate-500">{tx(lang, 'Bugünkü ən çox satılanlar', 'Самые продаваемые сегодня', 'Best sellers today')}</p>
+                  <p className="mt-1 text-sm text-slate-500">{tx(lang, 'Seçilmiş aralıqda ən çox satılanlar', 'Самые продаваемые за выбранный период', 'Best sellers in selected range')}</p>
                 </div>
                 <ArrowRight size={18} className="text-slate-400" />
               </div>
@@ -318,6 +442,26 @@ export default function DashboardPanel() {
             </section>
 
             <section className="space-y-4">
+              <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.93),rgba(246,248,252,0.88))] p-5 text-slate-900 shadow-[0_16px_45px_rgba(0,0,0,0.22)]">
+                <h3 className="text-lg font-bold">{tx(lang, 'Kassir Performansı', 'Эффективность кассиров', 'Cashier Performance')}</h3>
+                <div className="mt-4 space-y-3">
+                  {cashierPerformance.map((row) => (
+                    <div key={row.cashier} className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="font-semibold text-slate-900">{row.cashier}</div>
+                          <div className="text-xs text-slate-500">{row.sales} {tx(lang, 'satış', 'продаж', 'sales')} / {tx(lang, 'orta çek', 'средний чек', 'avg check')} {row.avgCheck.toFixed(2)} ₼</div>
+                        </div>
+                        <div className="text-lg font-black text-slate-900">{row.revenue.toFixed(2)} ₼</div>
+                      </div>
+                    </div>
+                  ))}
+                  {cashierPerformance.length === 0 && (
+                    <EmptyDash text={tx(lang, 'Bu aralıqda kassir məlumatı yoxdur', 'За этот период нет данных по кассирам', 'No cashier data in this range')} />
+                  )}
+                </div>
+              </div>
+
               <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.93),rgba(246,248,252,0.88))] p-5 text-slate-900 shadow-[0_16px_45px_rgba(0,0,0,0.22)]">
                 <h3 className="text-lg font-bold">{tx(lang, 'Kritik Siqnallar', 'Критические сигналы', 'Critical Signals')}</h3>
                 <div className="mt-4 space-y-3">
