@@ -328,10 +328,12 @@ def public_receipt(
     sale_ref: str,
     token: str,
     db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
 ):
     ref = str(sale_ref or "").strip()
     row = (
         db.query(Sale)
+        .filter(Sale.tenant_id == tenant.id)
         .filter((Sale.id == ref) | (func.lower(Sale.receipt_code) == ref.lower()))
         .first()
     )

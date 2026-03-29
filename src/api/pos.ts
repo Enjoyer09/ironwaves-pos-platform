@@ -6,6 +6,7 @@ import { get_settings } from './settings';
 import { apiRequest, isBackendEnabled } from './client';
 
 import { getDB, setDB } from '../lib/db_sim';
+import { getActiveTenantId } from '../lib/tenant';
 
 const isCoffeeLike = (item: { is_coffee?: boolean; category?: string; item_name?: string }) => {
   if (item.is_coffee) return true;
@@ -486,7 +487,12 @@ export const create_sale = (payload: SalePayload) => {
 export const get_public_receipt = (sale_ref: string, token: string) => {
   const sales = getDB<Sale>('sales');
   const ref = String(sale_ref || '').trim();
-  const sale = sales.find((s: any) => s.id === ref || (s as any).receipt_code === ref);
+  const activeTenant = getActiveTenantId();
+  const sale = sales.find(
+    (s: any) =>
+      s.tenant_id === activeTenant &&
+      (s.id === ref || (s as any).receipt_code === ref),
+  );
   if (!sale) return null;
   if (!token || sale.receipt_token !== token) return null;
 
