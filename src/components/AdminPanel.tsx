@@ -59,6 +59,22 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   const [voidPreset, setVoidPreset] = useState<'TEST' | 'ZAY_MEHSUL'>('TEST');
   const [managerPass, setManagerPass] = useState('');
   const [newSaleTotal, setNewSaleTotal] = useState('');
+  const mobileTabOptions: Array<{ key: AdminTab; label: string }> = [
+    { key: 'analytics', label: tx(lang, 'Analitika', 'Аналитика', 'Analytics') },
+    { key: 'menu', label: tx(lang, 'Menyu', 'Меню', 'Menu') },
+    { key: 'finance', label: tx(lang, 'Maliyyə', 'Финансы', 'Finance') },
+    { key: 'inventory', label: tx(lang, 'Anbar', 'Склад', 'Inventory') },
+    { key: 'crm', label: tx(lang, 'CRM', 'CRM', 'CRM') },
+    { key: 'recipes', label: tx(lang, 'Resept', 'Рецепт', 'Recipes') },
+    { key: 'settings', label: tx(lang, 'Ayarlar', 'Настройки', 'Settings') },
+    { key: 'logs', label: tx(lang, 'Loqlar', 'Логи', 'Logs') },
+    { key: 'zreport', label: tx(lang, 'Z-Hesabat', 'Z-Отчет', 'Z-Report') },
+    { key: 'combos', label: tx(lang, 'Kombolar', 'Комбо', 'Combos') },
+    { key: 'database', label: tx(lang, 'Baza', 'База', 'Database') },
+    { key: 'ai', label: tx(lang, 'AI Menecer', 'AI Менеджер', 'AI Manager') },
+    { key: 'tables', label: tx(lang, 'Masalar / HH', 'Столы / HH', 'Tables / HH') },
+    { key: 'notes', label: tx(lang, 'Qeydlər', 'Заметки', 'Notes') },
+  ];
 
   useEffect(() => {
     void fetchData();
@@ -181,6 +197,17 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
         onConfirm={() => deleteNoteId && removeNote(deleteNoteId)}
       />
       <div className="h-full overflow-y-auto metal-panel p-4 md:p-6">
+        <div className="mb-4 md:hidden">
+          <select
+            className="neon-input min-h-13"
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value as AdminTab)}
+          >
+            {mobileTabOptions.map((tab) => (
+              <option key={tab.key} value={tab.key}>{tab.label}</option>
+            ))}
+          </select>
+        </div>
         
         {activeTab === 'analytics' && (
           <div>
