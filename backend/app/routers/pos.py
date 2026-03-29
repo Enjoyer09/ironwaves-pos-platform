@@ -42,6 +42,24 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
     if not payload.cart_items:
         raise HTTPException(status_code=400, detail="Cart is empty")
 
+    if payload.offline_request_id:
+        existing = (
+            db.query(Sale)
+            .filter(
+                Sale.tenant_id == tenant.id,
+                Sale.offline_request_id == payload.offline_request_id,
+            )
+            .first()
+        )
+        if existing:
+            return {
+                "sale_id": existing.id,
+                "receipt_code": existing.receipt_code,
+                "receipt_token": existing.receipt_token,
+                "total": existing.total,
+                "created_at": existing.created_at,
+            }
+
     subtotal = sum((Decimal(str(i.price)) * i.qty for i in payload.cart_items), Decimal("0"))
     discount = (subtotal * (Decimal(str(payload.discount_percent)) / Decimal("100"))).quantize(Decimal("0.01"))
     total = (subtotal - discount).quantize(Decimal("0.01"))
@@ -77,6 +95,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         customer_card_id=payload.customer_card_id,
         payment_method=payload.payment_method,
         order_type=payload.order_type,
+        offline_request_id=payload.offline_request_id,
         receipt_code=receipt_code,
         receipt_token=receipt_token,
         total=total,
