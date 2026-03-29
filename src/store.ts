@@ -33,6 +33,7 @@ interface AppState {
   refresh_token: string | null;
   login: (pin: string) => Promise<boolean>;
   adminLogin: (username: string, password: string, secondFactorPin: string, riskContext?: LoginRiskContext) => Promise<boolean>;
+  bootstrapPlatformOwner: (username: string, password: string) => Promise<boolean>;
   adminNeeds2FA: boolean;
   authErrorMessage: string;
   clearAuthError: () => void;
@@ -102,6 +103,24 @@ export const useAppStore = create<AppState>()(
           } else {
             set({ authErrorMessage: String(error?.message || 'Giriş xətası') });
           }
+          return false;
+        }
+      },
+      bootstrapPlatformOwner: async (username: string, password: string) => {
+        try {
+          const res = await authApi.bootstrap_platform_owner(username, password);
+          const resolvedTenant = (res.user as any)?.tenant_id || getActiveTenantId();
+          setActiveTenantId(resolvedTenant);
+          set({
+            user: { ...(res.user as any), tenant_id: resolvedTenant },
+            access_token: res.access_token,
+            refresh_token: (res as any)?.refresh_token || null,
+            adminNeeds2FA: false,
+            authErrorMessage: '',
+          });
+          return true;
+        } catch (error: any) {
+          set({ authErrorMessage: String(error?.message || 'Owner yaradılmadı') });
           return false;
         }
       },

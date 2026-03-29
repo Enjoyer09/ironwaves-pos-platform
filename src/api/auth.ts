@@ -332,4 +332,25 @@ export const authApi = {
       tenantId: null,
     });
   },
+
+  platform_owner_bootstrap_status: async () => {
+    if (!isBackendEnabled()) return { available: false };
+    return apiRequest<{ available: boolean }>('/api/v1/auth/bootstrap-owner/status', {
+      method: 'GET',
+      auth: false,
+      tenantId: null,
+    });
+  },
+
+  bootstrap_platform_owner: async (username: string, password: string) => {
+    if (!isBackendEnabled()) {
+      throw new Error('Backend tələb olunur');
+    }
+    return apiRequest<any>('/api/v1/auth/bootstrap-owner', {
+      method: 'POST',
+      auth: false,
+      tenantId: null,
+      body: { username, password },
+    });
+  },
 };
