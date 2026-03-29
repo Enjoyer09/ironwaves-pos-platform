@@ -354,6 +354,18 @@ export async function get_business_profile_live(tenant_id?: string) {
   return data;
 }
 
+export async function get_public_branding_live(tenant_id?: string) {
+  if (!isBackendEnabled()) return get_business_profile(tenant_id);
+  const data = await apiRequest<any>('/api/v1/ops/public-branding', { tenantId: null, auth: false });
+  const profiles = getDB<any>('business_profile');
+  const resolvedTenant = resolveTenant(tenant_id);
+  const idx = profiles.findIndex((p) => p.tenant_id === resolvedTenant);
+  if (idx >= 0) profiles[idx] = { ...profiles[idx], ...data };
+  else profiles.push(data);
+  setDB('business_profile', profiles);
+  return data;
+}
+
 export async function update_business_profile_live(tenant_id: string, payload: {
   company_name: string;
   voen: string;

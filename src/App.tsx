@@ -394,8 +394,8 @@ export default function App() {
         </div>
       )}
       <div className="flex-1 flex flex-col relative overflow-hidden">
-        <div className="border-b border-slate-700/40 px-6 py-4 shrink-0 z-20 space-y-4">
-          <div className="flex items-center justify-between gap-4">
+        <div className="border-b border-slate-700/40 px-4 py-4 md:px-6 shrink-0 z-20 space-y-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-yellow-400 text-[#111827] rounded-xl flex items-center justify-center shrink-0 font-black overflow-hidden">
                 {profile?.logo_url ? (
@@ -410,7 +410,7 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                 isOnline ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-200 shadow-sm animate-pulse'
               }`}>
@@ -442,12 +442,12 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <div className="flex items-center gap-3 overflow-x-auto pb-2">
             {visibleModules.map((item) => (
                 <button
                   key={item.key}
                   onClick={() => setCurrentModule(item.key)}
-                  className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap`}
+                  className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap px-4 py-3 text-sm`}
                 >
                   <span>{item.label}</span>
                 </button>
