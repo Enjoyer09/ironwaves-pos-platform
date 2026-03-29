@@ -30,6 +30,11 @@ class TokenOut(BaseModel):
     user: dict
 
 
+class BootstrapOwnerIn(BaseModel):
+    username: str
+    password: str
+
+
 class MenuItemOut(BaseModel):
     id: str
     item_name: str

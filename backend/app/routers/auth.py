@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import RefreshToken, Tenant, User
-from app.schemas import LoginIn, PinLoginIn, RefreshIn, TokenOut
+from app.schemas import BootstrapOwnerIn, LoginIn, PinLoginIn, RefreshIn, TokenOut
 from app.core.config import settings
 from app.security import (
     create_access_token,
@@ -75,6 +75,65 @@ def _issue_tokens_for_user(db: Session, tenant: Tenant, user: User) -> dict:
             "tenant_id": tenant.id,
         },
     }
+
+
+def _assert_platform_domain(tenant: Tenant) -> None:
+    if tenant.domain != settings.platform_tenant_domain:
+        raise HTTPException(status_code=403, detail="Platform owner bootstrap is only allowed on the platform domain")
+
+
+def _has_platform_owner(db: Session, tenant_id: str) -> bool:
+    return (
+        db.query(User)
+        .filter(User.tenant_id == tenant_id, User.role == "super_admin", User.is_active == True)
+        .first()
+        is not None
+    )
+
+
+@router.get("/bootstrap-owner/status")
+def bootstrap_owner_status(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant)):
+    _assert_platform_domain(tenant)
+    return {"available": not _has_platform_owner(db, tenant.id)}
+
+
+@router.post("/bootstrap-owner", response_model=TokenOut)
+def bootstrap_owner(
+    payload: BootstrapOwnerIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    _assert_platform_domain(tenant)
+    if _has_platform_owner(db, tenant.id):
+        raise HTTPException(status_code=409, detail="Platform owner already exists")
+
+    username = str(payload.username or "").strip()
+    password = str(payload.password or "")
+    if len(username) < 3:
+        raise HTTPException(status_code=400, detail="Username must be at least 3 characters")
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    exists = (
+        db.query(User)
+        .filter(User.tenant_id == tenant.id, func.lower(User.username) == username.lower())
+        .first()
+    )
+    if exists:
+        raise HTTPException(status_code=409, detail="Username already exists")
+
+    user = User(
+        tenant_id=tenant.id,
+        username=username,
+        email=settings.superadmin_email,
+        password_hash=hash_password(password),
+        role="super_admin",
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return _issue_tokens_for_user(db, tenant, user)
 
 
 @router.post("/login", response_model=TokenOut)

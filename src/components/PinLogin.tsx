@@ -5,9 +5,10 @@ import { Delete, ShieldCheck, Sparkles } from 'lucide-react';
 import { getDeviceHash, getPublicIp, LoginRiskContext } from '../lib/risk';
 import { get_business_profile, get_public_branding_live } from '../api/settings';
 import { resolveTenantIdFromHost } from '../lib/tenant';
+import { authApi } from '../api/auth';
 
 export default function PinLogin() {
-  const { login, adminLogin, lang, setLang, adminNeeds2FA, authErrorMessage, clearAuthError } = useAppStore();
+  const { login, adminLogin, bootstrapPlatformOwner, lang, setLang, adminNeeds2FA, authErrorMessage, clearAuthError } = useAppStore();
   const safeLang = (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az';
   const t = i18n[safeLang];
   const [pin, setPin] = useState('');
@@ -18,8 +19,13 @@ export default function PinLogin() {
   const [error, setError] = useState(false);
   const [riskContext, setRiskContext] = useState<LoginRiskContext>({ device_hash: getDeviceHash(), ip: 'ip_unknown' });
   const isDemoHost = typeof window !== 'undefined' && window.location.host.toLowerCase() === 'demo.ironwaves.store';
+  const isPlatformHost = typeof window !== 'undefined' && window.location.host.toLowerCase() === 'super.ironwaves.store';
   const tenantId = resolveTenantIdFromHost();
   const [branding, setBranding] = useState(() => get_business_profile(tenantId));
+  const [ownerBootstrapAvailable, setOwnerBootstrapAvailable] = useState(false);
+  const [ownerUser, setOwnerUser] = useState('owner');
+  const [ownerPass, setOwnerPass] = useState('');
+  const [ownerPassConfirm, setOwnerPassConfirm] = useState('');
 
   React.useEffect(() => {
     let mounted = true;
@@ -43,6 +49,21 @@ export default function PinLogin() {
       mounted = false;
     };
   }, [tenantId]);
+
+  React.useEffect(() => {
+    if (!isPlatformHost) return;
+    let mounted = true;
+    authApi.platform_owner_bootstrap_status()
+      .then((res) => {
+        if (mounted) setOwnerBootstrapAvailable(Boolean(res?.available));
+      })
+      .catch(() => {
+        if (mounted) setOwnerBootstrapAvailable(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [isPlatformHost]);
 
   const handleKeyPress = (num: string) => {
     if (pin.length < 4) {
@@ -81,6 +102,23 @@ export default function PinLogin() {
   const handleAdminFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await handleAdminSubmit();
+  };
+
+  const handleOwnerBootstrap = async () => {
+    clearAuthError();
+    if (!ownerUser.trim() || ownerPass.length < 8) {
+      return;
+    }
+    if (ownerPass !== ownerPassConfirm) {
+      return;
+    }
+    const success = await bootstrapPlatformOwner(ownerUser.trim(), ownerPass);
+    if (!success) {
+      setError(true);
+      setTimeout(() => setError(false), 1200);
+      return;
+    }
+    setOwnerBootstrapAvailable(false);
   };
 
   const demoAccounts = [
@@ -275,6 +313,23 @@ export default function PinLogin() {
             <div className="mt-4 text-center text-xs text-slate-400">
               {authErrorMessage ? <p className="mt-2 text-red-300">{authErrorMessage}</p> : null}
             </div>
+
+            {mode === 'admin' && isPlatformHost && ownerBootstrapAvailable && (
+              <div className="mt-5 rounded-[24px] border border-cyan-300/20 bg-cyan-400/10 p-4 text-left">
+                <div className="text-sm font-semibold text-cyan-100">{tx(safeLang, 'Platform Owner Yaradın', 'Создать platform owner', 'Create Platform Owner')}</div>
+                <div className="mt-1 text-xs text-slate-300">
+                  {tx(safeLang, 'Bu blok yalnız owner yoxdursa görünür və yalnız super domenində işləyir.', 'Этот блок виден только если owner еще не создан и работает только на super домене.', 'This block is only shown when no owner exists yet and only works on the platform domain.')}
+                </div>
+                <div className="mt-3 grid gap-3">
+                  <input className="neon-input min-h-13" value={ownerUser} onChange={(e) => setOwnerUser(e.target.value)} placeholder={tx(safeLang, 'Owner username', 'Owner username', 'Owner username')} />
+                  <input className="neon-input min-h-13" type="password" value={ownerPass} onChange={(e) => setOwnerPass(e.target.value)} placeholder={tx(safeLang, 'Güclü şifrə (min 8)', 'Надежный пароль (мин 8)', 'Strong password (min 8)')} />
+                  <input className="neon-input min-h-13" type="password" value={ownerPassConfirm} onChange={(e) => setOwnerPassConfirm(e.target.value)} placeholder={tx(safeLang, 'Şifrə təkrarı', 'Повтор пароля', 'Confirm password')} />
+                  <button onClick={() => void handleOwnerBootstrap()} className="neon-btn-active rounded-2xl px-4 py-3 font-semibold">
+                    {tx(safeLang, 'Owner Yarat', 'Создать owner', 'Create Owner')}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
