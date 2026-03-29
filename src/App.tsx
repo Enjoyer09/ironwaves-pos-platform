@@ -37,7 +37,8 @@ type AdminView =
   | 'logs'
   | 'database'
   | 'zreport'
-  | 'combos';
+  | 'combos'
+  | 'tenants';
 
 type ModuleKey =
   | 'pos'
@@ -54,6 +55,7 @@ type ModuleKey =
   | 'ai'
   | 'menu'
   | 'recipes'
+  | 'tenants'
   | 'notes'
   | 'settings'
   | 'database';
@@ -355,7 +357,7 @@ export default function App() {
     }, 120);
   };
 
-  const moduleButtons: Array<{ key: ModuleKey; label: string; manager?: boolean; adminOnly?: boolean }> = [
+  const moduleButtons: Array<{ key: ModuleKey; label: string; manager?: boolean; adminOnly?: boolean; superAdminOnly?: boolean }> = [
     { key: 'pos', label: t.modules.pos },
     { key: 'tables', label: t.modules.tables },
     { key: 'kds', label: t.modules.kds },
@@ -370,6 +372,7 @@ export default function App() {
     { key: 'ai', label: t.modules.ai, manager: true },
     { key: 'menu', label: t.modules.menu, manager: true },
     { key: 'recipes', label: t.modules.recipes, manager: true },
+    { key: 'tenants', label: t.modules.tenants, superAdminOnly: true },
     { key: 'notes', label: t.modules.notes, adminOnly: true },
     { key: 'settings', label: t.modules.settings, adminOnly: true },
     { key: 'database', label: t.modules.database, adminOnly: true },
@@ -377,6 +380,8 @@ export default function App() {
 
   const canAccess = (key: ModuleKey) => {
     const role = sessionRole;
+    const definition = moduleButtons.find((item) => item.key === key);
+    if (definition?.superAdminOnly) return role === 'super_admin';
     if (role === 'super_admin') return true;
     if (role === 'admin') return true;
 

@@ -52,6 +52,7 @@ export const i18n = {
       ai: 'AI Menecer',
       menu: 'Menyu',
       recipes: 'Resept',
+      tenants: 'Tenantlər',
       notes: 'Qeydlər',
       settings: 'Ayarlar',
       database: 'Baza'
@@ -110,6 +111,7 @@ export const i18n = {
       ai: 'AI Менеджер',
       menu: 'Меню',
       recipes: 'Рецепт',
+      tenants: 'Тенанты',
       notes: 'Заметки',
       settings: 'Настройки',
       database: 'База'
@@ -168,6 +170,7 @@ export const i18n = {
       ai: 'AI Manager',
       menu: 'Menu',
       recipes: 'Recipes',
+      tenants: 'Tenants',
       notes: 'Notes',
       settings: 'Settings',
       database: 'Database'

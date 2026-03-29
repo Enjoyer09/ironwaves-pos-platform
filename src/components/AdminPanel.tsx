@@ -17,11 +17,12 @@ import ZReportPanel from './admin/ZReportPanel';
 import LogsPanel from './admin/LogsPanel';
 import CombosPanel from './admin/CombosPanel';
 import DatabasePanel from './admin/DatabasePanel';
+import TenantsPanel from './admin/TenantsPanel';
 import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
 import { getDB } from '../lib/db_sim';
 
-type AdminTab = 'dashboard' | 'analytics' | 'menu' | 'tables' | 'finance' | 'inventory' | 'crm' | 'recipes' | 'ai' | 'settings' | 'notes' | 'logs' | 'database' | 'zreport' | 'combos';
+type AdminTab = 'dashboard' | 'analytics' | 'menu' | 'tables' | 'finance' | 'inventory' | 'crm' | 'recipes' | 'ai' | 'settings' | 'notes' | 'logs' | 'database' | 'zreport' | 'combos' | 'tenants';
 
 interface AdminPanelProps {
   externalTab?: AdminTab;
@@ -68,6 +69,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     { key: 'inventory', label: tx(lang, 'Anbar', 'Склад', 'Inventory') },
     { key: 'crm', label: tx(lang, 'CRM', 'CRM', 'CRM') },
     { key: 'recipes', label: tx(lang, 'Resept', 'Рецепт', 'Recipes') },
+    { key: 'tenants', label: tx(lang, 'Tenantlər', 'Тенанты', 'Tenants') },
     { key: 'settings', label: tx(lang, 'Ayarlar', 'Настройки', 'Settings') },
     { key: 'logs', label: tx(lang, 'Loqlar', 'Логи', 'Logs') },
     { key: 'zreport', label: tx(lang, 'Z-Hesabat', 'Z-Отчет', 'Z-Report') },
@@ -509,6 +511,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
         {activeTab === 'zreport' && <ZReportPanel />}
         {activeTab === 'logs' && <LogsPanel />}
         {activeTab === 'combos' && <CombosPanel />}
+        {activeTab === 'tenants' && <TenantsPanel />}
         {activeTab === 'notes' && (
           <div className="space-y-4">
                <h2 className="text-2xl font-bold">{tx(lang, 'Admin Qeydləri', 'Заметки администратора')}</h2>
