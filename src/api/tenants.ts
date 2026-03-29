@@ -200,7 +200,7 @@ export async function create_tenant(payload: {
   }
   const admin2faPin = String(payload.admin_2fa_pin || Math.floor(100000 + Math.random() * 900000)).trim();
   if (!users.some((u) => u.tenant_id === tenant_id && String(u.username).toLowerCase() === adminUsername.toLowerCase())) {
-    create_user({
+    await create_user({
       tenant_id,
       username: adminUsername,
       role: 'admin',

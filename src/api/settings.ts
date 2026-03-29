@@ -4,6 +4,7 @@ import { logEvent } from '../lib/logger';
 import { Settings, User } from '../types/pos';
 import { getActiveTenantId } from '../lib/tenant';
 import { apiRequest, isBackendEnabled } from './client';
+import { hashLocalCredential } from '../lib/local_auth';
 
 const resolveTenant = (tenant_id?: string) => tenant_id || getActiveTenantId();
 
@@ -478,7 +479,7 @@ export async function update_business_profile_live(tenant_id: string, payload: {
 
 // --- İstifadəçi İdarəetməsi ---
 
-export function create_user(payload: Omit<User, 'id' | 'failed_attempts' | 'is_locked' | 'lock_until'>) {
+export async function create_user(payload: Omit<User, 'id' | 'failed_attempts' | 'is_locked' | 'lock_until'>) {
   const users = getDB<User>('users');
   const role = String(payload.role || '').toLowerCase();
   const usesPassword = ['admin', 'manager', 'super_admin'].includes(role);
@@ -496,12 +497,18 @@ export function create_user(payload: Omit<User, 'id' | 'failed_attempts' | 'is_l
   const newUser: User = {
     id: uuidv4(),
     ...payload,
-    password: usesPassword ? payload.password : undefined,
-    pin: usesPin ? payload.pin : undefined,
+    password: undefined,
+    pin: undefined,
     two_factor_enabled: Boolean((payload as any).two_factor_enabled),
     failed_attempts: 0,
     is_locked: false
   };
+  if (usesPassword) {
+    (newUser as any).password_hash = await hashLocalCredential(String(payload.password || ''));
+  }
+  if (usesPin) {
+    (newUser as any).pin_hash = await hashLocalCredential(String(payload.pin || ''));
+  }
 
   users.push(newUser);
   setDB('users', users);
@@ -529,7 +536,7 @@ export function get_users(tenant_id?: string) {
   return getDB<User>('users').filter((u) => u.tenant_id === resolvedTenant);
 }
 
-export function update_user_credentials(
+export async function update_user_credentials(
   username: string,
   updates: { password?: string; pin?: string; two_factor_enabled?: boolean },
   updated_by: string = 'admin'
@@ -554,16 +561,23 @@ export function update_user_credentials(
     throw new Error('Bu rol PIN ilə giriş etmir');
   }
 
-  users[index] = {
+  const nextUser: any = {
     ...users[index],
     ...updates,
-    password: usesPassword ? (updates.password ?? users[index].password) : undefined,
-    pin: usesPin ? (updates.pin ?? users[index].pin) : undefined,
     two_factor_enabled:
       typeof updates.two_factor_enabled === 'boolean'
         ? updates.two_factor_enabled
         : users[index].two_factor_enabled,
   };
+  if (usesPassword && updates.password !== undefined) {
+    nextUser.password_hash = await hashLocalCredential(updates.password);
+    delete nextUser.password;
+  }
+  if (usesPin && updates.pin !== undefined) {
+    nextUser.pin_hash = await hashLocalCredential(updates.pin);
+    delete nextUser.pin;
+  }
+  users[index] = nextUser;
   setDB('users', users);
   logEvent(updated_by, 'USER_CREDENTIALS_UPDATED', { target_user: username });
   return true;

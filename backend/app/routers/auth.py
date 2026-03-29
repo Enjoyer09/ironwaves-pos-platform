@@ -192,7 +192,7 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db), ten
         db.commit()
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    trusted_device = _is_trusted_device(request, tenant, user)
+    trusted_device = False if user.role == "super_admin" else _is_trusted_device(request, tenant, user)
 
     if bool(user.totp_enabled) and user.totp_secret and not trusted_device:
         code = str(payload.second_factor_code or "").strip().replace(" ", "")
@@ -208,7 +208,7 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db), ten
     result = _issue_tokens_for_user(db, tenant, user)
     remember_device = bool(payload.remember_device)
     device_hash = str(request.headers.get("x-device-hash") or "").strip()
-    if bool(user.totp_enabled) and user.totp_secret and remember_device and device_hash:
+    if user.role != "super_admin" and bool(user.totp_enabled) and user.totp_secret and remember_device and device_hash:
         result["trusted_device_token"] = create_trusted_device_token(
             subject=user.id,
             tenant_id=tenant.id,

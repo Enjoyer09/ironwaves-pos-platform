@@ -44,6 +44,10 @@ def _ensure_admin(user: User):
         raise HTTPException(status_code=403, detail="Admin access required")
 
 
+def _can_view_sensitive_settings(user: User) -> bool:
+    return str(user.role or "").lower() in {"admin", "super_admin"}
+
+
 def _json_load(value: str | None, default):
     try:
         return json.loads(value or "")
@@ -279,6 +283,27 @@ def get_app_settings(
         "omnitech_settings",
         {"enabled": False, "api_base_url": "", "api_key": "", "merchant_id": "", "terminal_id": "", "fiscal_device_id": ""},
     )
+    if not _can_view_sensitive_settings(user):
+        email_settings = {
+            "enabled": bool(email_settings.get("enabled")),
+            "provider": str(email_settings.get("provider") or "none"),
+            "resend_api_key": "",
+            "sender_email": "",
+            "recipient_emails": [],
+            "webhook_url": "",
+            "timeout_sec": int(email_settings.get("timeout_sec") or 15),
+        }
+        omnitech_settings = {
+            "enabled": bool(omnitech_settings.get("enabled")),
+            "api_base_url": str(omnitech_settings.get("api_base_url") or ""),
+            "api_key": "",
+            "merchant_id": str(omnitech_settings.get("merchant_id") or ""),
+            "terminal_id": str(omnitech_settings.get("terminal_id") or ""),
+            "fiscal_device_id": str(omnitech_settings.get("fiscal_device_id") or ""),
+        }
+        gemini_api_key = ""
+    else:
+        gemini_api_key = _setting_value(db, tenant.id, "gemini_api_key", "")
     return {
         "tenant_id": tenant.id,
         "service_fee_percent": 0,
@@ -292,7 +317,7 @@ def get_app_settings(
         "qr_settings": qr_settings,
         "omnitech_settings": omnitech_settings,
         "role_modules": role_modules,
-        "gemini_api_key": _setting_value(db, tenant.id, "gemini_api_key", ""),
+        "gemini_api_key": gemini_api_key,
     }
 
 
