@@ -1,3 +1,5 @@
+import { readScopedStorage } from '../lib/storage_keys';
+
 const ENV = ((import.meta as any)?.env || {}) as Record<string, string | undefined>;
 const BACKEND_FLAG = String(ENV.VITE_USE_BACKEND || '').toLowerCase();
 
@@ -16,7 +18,7 @@ type PersistedSession = {
 
 function getPersistedSession(): PersistedSession {
   try {
-    const raw = localStorage.getItem('emalatkhana-pos-session');
+    const raw = readScopedStorage('emalatkhana-pos-session');
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     const state = parsed?.state || {};

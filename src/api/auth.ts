@@ -4,6 +4,7 @@ import { getDB, setDB } from '../lib/db_sim';
 import { getActiveTenantId } from '../lib/tenant';
 import { LoginRiskContext } from '../lib/risk';
 import { apiRequest, isBackendEnabled } from './client';
+import { readScopedStorage, writeScopedStorage } from '../lib/storage_keys';
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 5;
@@ -22,7 +23,7 @@ type TrustedAdminContext = {
 
 function getTrustedContexts(): TrustedAdminContext[] {
   try {
-    const raw = localStorage.getItem('trusted_admin_contexts');
+    const raw = readScopedStorage('trusted_admin_contexts');
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -32,7 +33,7 @@ function getTrustedContexts(): TrustedAdminContext[] {
 }
 
 function setTrustedContexts(items: TrustedAdminContext[]) {
-  localStorage.setItem('trusted_admin_contexts', JSON.stringify(items));
+  writeScopedStorage('trusted_admin_contexts', JSON.stringify(items));
 }
 
 function isContextTrusted(username: string, tenant_id: string, ctx?: LoginRiskContext): boolean {

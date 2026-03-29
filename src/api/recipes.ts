@@ -4,6 +4,7 @@ import { Decimal } from 'decimal.js';
 import { RecipeIngredient } from '../types/inventory';
 import { getDB, setDB } from '../lib/db_sim';
 import { apiRequest, isBackendEnabled } from './client';
+import { readScopedStorage } from '../lib/storage_keys';
 import { get_inventory_items_live } from './inventory';
 
 const getRecipes = (tenant_id: string = 'tenant_default') =>
@@ -293,7 +294,8 @@ export async function replace_recipe_live(
 export async function generate_recipe_ai(menu_item_name: string, user: string = 'system', tenant_id: string = 'tenant_default') {
   let recipes = getRecipes(tenant_id).filter((r) => r.menu_item_name !== menu_item_name);
   const settings = getDB<any>('settings') || [];
-  const aiKey = settings?.[0]?.gemini_api_key || localStorage.getItem('gemini_api_key') || '';
+  const tenantSettings = settings.find((row: any) => row?.tenant_id === tenant_id) || settings[0];
+  const aiKey = tenantSettings?.gemini_api_key || readScopedStorage('gemini_api_key') || '';
   if (!aiKey) {
     throw new Error('AI resept üçün API key daxil edilməyib.');
   }
