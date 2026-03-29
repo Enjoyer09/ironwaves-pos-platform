@@ -150,6 +150,12 @@ export interface Settings {
     default_critical_threshold: number;
     unit_options: string[];
   };
+  staff_benefits?: {
+    daily_limit_azn: number;
+    allow_coffee: boolean;
+    allow_non_coffee: boolean;
+    non_coffee_unit_cap_azn: number;
+  };
   print_settings?: {
     use_qz: boolean;
     printer_name: string;

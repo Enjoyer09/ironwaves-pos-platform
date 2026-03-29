@@ -13,6 +13,7 @@ import {
   update_print_settings,
   update_qr_settings_live,
   update_role_modules_live,
+  update_staff_benefits_live,
   update_user_credentials_live,
 } from '../../api/settings';
 import ConfirmModal from '../ConfirmModal';
@@ -48,6 +49,12 @@ export default function SettingsPanel() {
   const [printSettings, setPrintSettings] = useState({
     use_qz: false,
     printer_name: '',
+  });
+  const [staffBenefits, setStaffBenefits] = useState({
+    daily_limit_azn: '6',
+    allow_coffee: true,
+    allow_non_coffee: true,
+    non_coffee_unit_cap_azn: '2',
   });
 
   const [newUserName, setNewUserName] = useState('');
@@ -104,6 +111,12 @@ export default function SettingsPanel() {
       setPrintSettings({
         use_qz: Boolean(settingsRes.value.print_settings?.use_qz),
         printer_name: String(settingsRes.value.print_settings?.printer_name || ''),
+      });
+      setStaffBenefits({
+        daily_limit_azn: String(settingsRes.value.staff_benefits?.daily_limit_azn ?? 6),
+        allow_coffee: Boolean(settingsRes.value.staff_benefits?.allow_coffee ?? true),
+        allow_non_coffee: Boolean(settingsRes.value.staff_benefits?.allow_non_coffee ?? true),
+        non_coffee_unit_cap_azn: String(settingsRes.value.staff_benefits?.non_coffee_unit_cap_azn ?? 2),
       });
     }
   };
@@ -267,6 +280,16 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Çap ayarları yadda saxlanıldı', 'Настройки печати сохранены', 'Print settings saved'));
   };
 
+  const saveStaffBenefits = async () => {
+    await update_staff_benefits_live({
+      daily_limit_azn: Number(staffBenefits.daily_limit_azn || 0),
+      allow_coffee: staffBenefits.allow_coffee,
+      allow_non_coffee: staffBenefits.allow_non_coffee,
+      non_coffee_unit_cap_azn: Number(staffBenefits.non_coffee_unit_cap_azn || 0),
+    });
+    flashSuccess(tx(lang, 'Staff limit ayarları yadda saxlanıldı', 'Настройки лимита staff сохранены', 'Staff benefit settings saved'));
+  };
+
   return (
     <div className="space-y-6">
       <div className="metal-panel overflow-hidden">
@@ -363,6 +386,47 @@ export default function SettingsPanel() {
         </div>
         <div className="flex justify-end">
           <button onClick={savePrintSettings} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+        </div>
+      </div>
+
+      <div className="metal-panel p-6 space-y-4">
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Staff Limit Ayarları', 'Настройки лимита staff', 'Staff Benefit Settings')}</h2>
+        <p className="text-sm text-slate-400">
+          {tx(
+            lang,
+            'Hər müəssisə staff üçün günlük limitini və hansı məhsulların limiti istifadə edə biləcəyini özü seçə bilər.',
+            'Каждое заведение может само определить дневной лимит staff и какие товары покрываются льготой.',
+            'Each business can define the daily staff benefit and which product groups it covers.',
+          )}
+        </p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <input
+            className="neon-input"
+            type="number"
+            min={0}
+            value={staffBenefits.daily_limit_azn}
+            onChange={(e) => setStaffBenefits((prev) => ({ ...prev, daily_limit_azn: e.target.value }))}
+            placeholder={tx(lang, 'Günlük limit (AZN)', 'Дневной лимит (AZN)', 'Daily limit (AZN)')}
+          />
+          <input
+            className="neon-input"
+            type="number"
+            min={0}
+            value={staffBenefits.non_coffee_unit_cap_azn}
+            onChange={(e) => setStaffBenefits((prev) => ({ ...prev, non_coffee_unit_cap_azn: e.target.value }))}
+            placeholder={tx(lang, 'Qeyri-kofe vahid limiti', 'Лимит на единицу некофе', 'Non-coffee unit cap')}
+          />
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={staffBenefits.allow_coffee} onChange={(e) => setStaffBenefits((prev) => ({ ...prev, allow_coffee: e.target.checked }))} />
+            <span>{tx(lang, 'Kofe məhsulları staff limitinə daxil olsun', 'Кофе входит в staff-лимит', 'Coffee items use staff benefit')}</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={staffBenefits.allow_non_coffee} onChange={(e) => setStaffBenefits((prev) => ({ ...prev, allow_non_coffee: e.target.checked }))} />
+            <span>{tx(lang, 'Qeyri-kofe məhsulları da staff limitinə daxil olsun', 'Некофе тоже входит в staff-лимит', 'Non-coffee items also use staff benefit')}</span>
+          </label>
+        </div>
+        <div className="flex justify-end">
+          <button onClick={() => { void saveStaffBenefits(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 

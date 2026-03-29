@@ -409,7 +409,7 @@ export default function POS() {
       Number(ctx.discount || 0),
       false,
       null,
-      Number(ctx.customer?.stars || 0),
+      ctx.customer ? Number(ctx.customer?.stars || 0) : null,
     );
   }, [cart, ctx.customer, ctx.discount]);
 

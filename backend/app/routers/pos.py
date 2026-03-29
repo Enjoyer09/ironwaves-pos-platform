@@ -9,11 +9,59 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import FinanceEntry, InventoryItem, MenuItem, Recipe, Sale, Tenant
+from app.models import Customer, FinanceEntry, InventoryItem, MenuItem, Recipe, Sale, Setting, Tenant
 from app.schemas import SaleCreateIn, SaleCreateOut
 
 
 router = APIRouter(prefix="/api/v1/pos", tags=["pos"])
+
+
+def _is_coffee_like(item_name: str | None, category: str | None, is_coffee: bool | None) -> bool:
+    if is_coffee:
+        return True
+    haystack = f"{item_name or ''} {category or ''}".lower()
+    return any(token in haystack for token in ["kofe", "qəhvə", "qehve", "coffee"])
+
+
+def _setting_value(db: Session, tenant_id: str, key: str, default):
+    row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
+    if not row or row.value is None:
+        return default
+    try:
+        return json.loads(row.value)
+    except Exception:
+        return default
+
+
+def _calculate_staff_due(items: list, used_today: Decimal, config: dict) -> tuple[Decimal, Decimal, Decimal]:
+    daily_limit = Decimal(str(config.get("daily_limit_azn", 6)))
+    non_coffee_cap = Decimal(str(config.get("non_coffee_unit_cap_azn", 2)))
+    allow_coffee = bool(config.get("allow_coffee", True))
+    allow_non_coffee = bool(config.get("allow_non_coffee", True))
+
+    benefit_used = Decimal("0")
+    excess_due = Decimal("0")
+    for item in items:
+        unit_price = Decimal(str(item.price or 0))
+        is_coffee = _is_coffee_like(item.item_name, item.category, item.is_coffee)
+        for _ in range(int(item.qty or 0)):
+            if is_coffee:
+                if allow_coffee:
+                    benefit_used += unit_price
+                else:
+                    excess_due += unit_price
+            else:
+                if allow_non_coffee:
+                    covered = min(unit_price, non_coffee_cap)
+                    benefit_used += covered
+                    if unit_price > non_coffee_cap:
+                        excess_due += unit_price - non_coffee_cap
+                else:
+                    excess_due += unit_price
+    remaining = max(Decimal("0"), daily_limit - used_today)
+    overflow = max(Decimal("0"), benefit_used - remaining)
+    final_due = (overflow + excess_due).quantize(Decimal("0.01"))
+    return final_due, benefit_used.quantize(Decimal("0.01")), max(Decimal("0"), remaining - min(benefit_used, remaining)).quantize(Decimal("0.01"))
 
 
 @router.get("/menu")
@@ -60,9 +108,45 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
                 "created_at": existing.created_at,
             }
 
+    customer = None
+    current_stars: int | None = None
+    customer_type = "Normal"
+    customer_discount = Decimal("0")
+    if payload.customer_card_id:
+        customer = (
+            db.query(Customer)
+            .filter(Customer.tenant_id == tenant.id, Customer.card_id == str(payload.customer_card_id).strip())
+            .first()
+        )
+        if customer:
+            current_stars = int(customer.stars or 0)
+            customer_type = str(customer.type or "Normal")
+            customer_discount = Decimal(str(customer.discount_percent or 0))
+
+    manual_discount = Decimal(str(payload.discount_percent or 0))
+    effective_discount = max(manual_discount, customer_discount)
     subtotal = sum((Decimal(str(i.price)) * i.qty for i in payload.cart_items), Decimal("0"))
-    discount = (subtotal * (Decimal(str(payload.discount_percent)) / Decimal("100"))).quantize(Decimal("0.01"))
+    discount = (subtotal * (effective_discount / Decimal("100"))).quantize(Decimal("0.01"))
     total = (subtotal - discount).quantize(Decimal("0.01"))
+
+    coffee_unit_prices: list[Decimal] = []
+    coffee_qty = 0
+    for item in payload.cart_items:
+        if _is_coffee_like(item.item_name, item.category, item.is_coffee):
+            coffee_qty += int(item.qty or 0)
+            discounted_unit = (Decimal(str(item.price)) * (Decimal("1") - (effective_discount / Decimal("100")))).quantize(Decimal("0.01"))
+            for _ in range(int(item.qty or 0)):
+                coffee_unit_prices.append(discounted_unit)
+    free_coffees = 0
+    customer_stars_after = 0
+    if current_stars is not None:
+        free_coffees = int((current_stars + coffee_qty) // 10)
+        customer_stars_after = (current_stars + coffee_qty) % 10 if coffee_qty > 0 else current_stars
+        if free_coffees > 0 and coffee_unit_prices:
+            coffee_unit_prices.sort()
+            free_discount = sum(coffee_unit_prices[:free_coffees], Decimal("0"))
+            discount += free_discount
+            total = max(Decimal("0"), subtotal - discount).quantize(Decimal("0.01"))
 
     stock_ops: list[tuple[InventoryItem, Decimal]] = []
     cogs_total = Decimal("0.0000")
@@ -89,6 +173,32 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
     receipt_code = secrets.token_hex(5).upper()
     receipt_token = secrets.token_hex(10)
 
+    payment_method = str(payload.payment_method or "").strip().lower()
+    staff_benefit_used = Decimal("0.00")
+    if payment_method == "staff":
+        staff_cfg = _setting_value(
+            db,
+            tenant.id,
+            "staff_benefits",
+            {"daily_limit_azn": 6, "allow_coffee": True, "allow_non_coffee": True, "non_coffee_unit_cap_azn": 2},
+        )
+        day_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
+        used_today = (
+            db.query(FinanceEntry)
+            .filter(
+                FinanceEntry.tenant_id == tenant.id,
+                FinanceEntry.created_by == user.username,
+                FinanceEntry.category == "Staff Benefit",
+                FinanceEntry.type == "out",
+                FinanceEntry.created_at >= day_start,
+                FinanceEntry.created_at <= day_end,
+            )
+            .all()
+        )
+        used_total = sum((Decimal(str(row.amount or 0)) for row in used_today), Decimal("0.00"))
+        total, staff_benefit_used, _ = _calculate_staff_due(payload.cart_items, used_total, staff_cfg)
+
     sale = Sale(
         tenant_id=tenant.id,
         cashier=user.username,
@@ -111,7 +221,6 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
     for inventory, qty_required in stock_ops:
         inventory.stock_qty = (Decimal(str(inventory.stock_qty)) - qty_required).quantize(Decimal("0.001"))
 
-    payment_method = str(payload.payment_method or "").strip().lower()
     if payment_method == "split":
         split_cash = Decimal(str(payload.split_cash or "0")).quantize(Decimal("0.01"))
         split_card = Decimal(str(payload.split_card or "0")).quantize(Decimal("0.01"))
@@ -145,19 +254,48 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
                 )
             )
     else:
-        source = "cash" if payment_method in ["cash", "nəğd", "staff"] else "card"
-        category = "Satış (Nağd)" if source == "cash" else "Satış (Kart)"
-        db.add(
-            FinanceEntry(
-                tenant_id=tenant.id,
-                type="in",
-                category=category,
-                source=source,
-                amount=total,
-                description=f"POS Sale {sale.id}",
-                created_by=user.username,
+        if payment_method == "staff":
+            if staff_benefit_used > 0:
+                db.add(
+                    FinanceEntry(
+                        tenant_id=tenant.id,
+                        type="out",
+                        category="Staff Benefit",
+                        source="cash",
+                        amount=staff_benefit_used,
+                        description=f"Staff benefit usage {sale.id}",
+                        created_by=user.username,
+                    )
+                )
+            if total > 0:
+                db.add(
+                    FinanceEntry(
+                        tenant_id=tenant.id,
+                        type="in",
+                        category="Staff Ödənişi",
+                        source="cash",
+                        amount=total,
+                        description=f"Staff payment {sale.id}",
+                        created_by=user.username,
+                    )
+                )
+        else:
+            source = "cash" if payment_method in ["cash", "nəğd"] else "card"
+            category = "Satış (Nağd)" if source == "cash" else "Satış (Kart)"
+            db.add(
+                FinanceEntry(
+                    tenant_id=tenant.id,
+                    type="in",
+                    category=category,
+                    source=source,
+                    amount=total,
+                    description=f"POS Sale {sale.id}",
+                    created_by=user.username,
+                )
             )
-        )
+
+    if customer is not None:
+        customer.stars = customer_stars_after
 
     db.commit()
 
