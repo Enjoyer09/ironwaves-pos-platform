@@ -201,6 +201,10 @@ html {
   .pay-btn {
     min-height: 3.4rem;
   }
+
+  .metal-app {
+    min-height: 100dvh;
+  }
 }
 
 @keyframes toastIn {

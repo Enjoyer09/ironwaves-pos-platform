@@ -89,7 +89,7 @@ export default function TablesPage() {
   };
 
   return (
-    <div className="p-6 h-full overflow-auto text-slate-100">
+    <div className="h-full overflow-auto p-3 text-slate-100 md:p-6">
       <ConfirmModal
         open={Boolean(deleteTableId)}
         lang={lang}
@@ -404,15 +404,15 @@ export default function TablesPage() {
         </div>
       )}
 
-      <div className="flex justify-between items-center mb-6">
+      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h2 className="text-2xl font-bold flex items-center gap-2"><LayoutGrid size={28} className="text-yellow-300"/> {tx(lang, 'Masaların İdarəsi', 'Управление столами', 'Table Management')}</h2>
         {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
-          <button onClick={() => setShowCreate(true)} className="glossy-gold px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-bold">
-            <Plus size={20} /> {tx(lang, 'Masa Yarat', 'Создать стол')}
+          <button onClick={() => setShowCreate(true)} className="glossy-gold min-h-13 px-4 py-3 rounded-xl flex items-center justify-center gap-2 transition-colors font-bold">
+            <Plus size={20} /> {tx(lang, 'Masa Yarat', 'Создать стол', 'Create Table')}
           </button>
         )}
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5">
         {tables.map(t => (
           (() => {
             const kitchen = kitchenBadge((t as any).kitchen_status);
@@ -420,11 +420,11 @@ export default function TablesPage() {
           <div
             key={t.id}
             onClick={() => setViewTableId(t.id)}
-            className={`p-6 rounded-2xl border-2 flex flex-col items-center justify-center relative transition-all shadow-sm cursor-pointer ${t.is_occupied ? 'bg-red-900/25 border-red-400/70' : 'bg-slate-800/50 border-slate-600/70 hover:border-yellow-300/60'}`}
+            className={`min-h-44 p-6 rounded-3xl border-2 flex flex-col items-center justify-center relative transition-all shadow-sm cursor-pointer ${t.is_occupied ? 'bg-red-900/25 border-red-400/70' : 'bg-slate-800/50 border-slate-600/70 hover:border-yellow-300/60'}`}
           >
             <span className="font-bold text-xl text-slate-100">{t.label}</span>
             <span className={`text-xs px-3 py-1 rounded-full mt-3 font-semibold ${t.is_occupied ? 'bg-red-400/20 text-red-200 border border-red-300/50' : 'bg-green-400/20 text-green-200 border border-green-300/50'}`}>
-                {t.is_occupied ? tx(lang, 'Dolu', 'Занято') : tx(lang, 'Boş', 'Свободно')}
+                {t.is_occupied ? tx(lang, 'Dolu', 'Занято', 'Occupied') : tx(lang, 'Boş', 'Свободно', 'Available')}
             </span>
             {kitchen && (
               <span className={`mt-2 rounded-full px-3 py-1 text-[11px] font-semibold ${kitchen.className}`}>
@@ -441,7 +441,7 @@ export default function TablesPage() {
                 onClick={(e) => { e.stopPropagation(); setPayTableId(t.id); }}
                 className="mt-3 rounded-lg border border-yellow-300/60 bg-yellow-400/20 px-3 py-1 text-xs font-semibold text-yellow-100"
               >
-                {tx(lang, 'Hesabı Bağla', 'Закрыть счет')}
+                {tx(lang, 'Hesabı Bağla', 'Закрыть счет', 'Close Bill')}
               </button>
             )}
           </div>
