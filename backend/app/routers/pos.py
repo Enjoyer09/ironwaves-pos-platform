@@ -35,29 +35,30 @@ def _setting_value(db: Session, tenant_id: str, key: str, default):
 
 def _calculate_staff_due(items: list, used_today: Decimal, config: dict) -> tuple[Decimal, Decimal, Decimal]:
     daily_limit = Decimal(str(config.get("daily_limit_azn", 6)))
-    non_coffee_cap = Decimal(str(config.get("non_coffee_unit_cap_azn", 2)))
-    allow_coffee = bool(config.get("allow_coffee", True))
-    allow_non_coffee = bool(config.get("allow_non_coffee", True))
+    item_cap = Decimal(str(config.get("item_unit_cap_azn", 6)))
+    allowed_scope = str(config.get("allowed_scope", "all") or "all").lower()
+    allowed_categories = {str(v or "").strip().lower() for v in (config.get("included_categories") or []) if str(v or "").strip()}
+    allowed_items = {str(v or "").strip().lower() for v in (config.get("included_items") or []) if str(v or "").strip()}
 
     benefit_used = Decimal("0")
     excess_due = Decimal("0")
     for item in items:
         unit_price = Decimal(str(item.price or 0))
-        is_coffee = _is_coffee_like(item.item_name, item.category, item.is_coffee)
+        item_name = str(item.item_name or "").strip().lower()
+        category_name = str(item.category or "").strip().lower()
+        eligible = (
+            allowed_scope == "all"
+            or (allowed_scope == "categories" and category_name in allowed_categories)
+            or (allowed_scope == "items" and item_name in allowed_items)
+        )
         for _ in range(int(item.qty or 0)):
-            if is_coffee:
-                if allow_coffee:
-                    benefit_used += unit_price
-                else:
-                    excess_due += unit_price
+            if not eligible:
+                excess_due += unit_price
             else:
-                if allow_non_coffee:
-                    covered = min(unit_price, non_coffee_cap)
-                    benefit_used += covered
-                    if unit_price > non_coffee_cap:
-                        excess_due += unit_price - non_coffee_cap
-                else:
-                    excess_due += unit_price
+                covered = min(unit_price, item_cap)
+                benefit_used += covered
+                if unit_price > item_cap:
+                    excess_due += unit_price - item_cap
     remaining = max(Decimal("0"), daily_limit - used_today)
     overflow = max(Decimal("0"), benefit_used - remaining)
     final_due = (overflow + excess_due).quantize(Decimal("0.01"))
@@ -180,7 +181,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
             db,
             tenant.id,
             "staff_benefits",
-            {"daily_limit_azn": 6, "allow_coffee": True, "allow_non_coffee": True, "non_coffee_unit_cap_azn": 2},
+            {"daily_limit_azn": 6, "allowed_scope": "all", "included_categories": [], "included_items": [], "item_unit_cap_azn": 6},
         )
         day_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         day_end = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)

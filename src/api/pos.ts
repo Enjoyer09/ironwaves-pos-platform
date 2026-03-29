@@ -2,8 +2,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { Decimal } from 'decimal.js';
 import { logEvent } from '../lib/logger';
 import { SalePayload, Sale, FinanceEntry, KitchenOrder, OfflineSale } from '../types/pos';
-import { apiRequest, isBackendEnabled } from './client';
 import { get_settings } from './settings';
+import { apiRequest, isBackendEnabled } from './client';
 
 import { getDB, setDB } from '../lib/db_sim';
 
@@ -113,12 +113,15 @@ export const calculate_staff_payable = (
 ) => {
   const cfg = get_settings(tenant_id).staff_benefits || {
     daily_limit_azn: 6,
-    allow_coffee: true,
-    allow_non_coffee: true,
-    non_coffee_unit_cap_azn: 2,
+    allowed_scope: 'all',
+    included_categories: [],
+    included_items: [],
+    item_unit_cap_azn: 6,
   };
   const DAILY_LIMIT = new Decimal(cfg.daily_limit_azn || 0);
-  const NON_COFFEE_UNIT_BENEFIT_CAP = new Decimal(cfg.non_coffee_unit_cap_azn || 0);
+  const ITEM_UNIT_BENEFIT_CAP = new Decimal(cfg.item_unit_cap_azn || 0);
+  const allowedCategories = new Set((cfg.included_categories || []).map((v) => String(v || '').trim().toLowerCase()).filter(Boolean));
+  const allowedItems = new Set((cfg.included_items || []).map((v) => String(v || '').trim().toLowerCase()).filter(Boolean));
 
   const now = new Date();
   const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -141,24 +144,21 @@ export const calculate_staff_payable = (
   let nonCoffeeExcess = new Decimal(0);
 
   cart_items.forEach((item) => {
-    const isCoffee = isCoffeeLike(item as any);
     const unitPrice = new Decimal(item.price);
+    const itemName = String(item.item_name || '').trim().toLowerCase();
+    const categoryName = String(item.category || '').trim().toLowerCase();
+    const eligible =
+      cfg.allowed_scope === 'all' ||
+      (cfg.allowed_scope === 'categories' && allowedCategories.has(categoryName)) ||
+      (cfg.allowed_scope === 'items' && allowedItems.has(itemName));
     for (let i = 0; i < item.qty; i += 1) {
-      if (isCoffee) {
-        if (cfg.allow_coffee) {
-          benefitUsedThisSale = benefitUsedThisSale.plus(unitPrice);
-        } else {
-          nonCoffeeExcess = nonCoffeeExcess.plus(unitPrice);
-        }
+      if (!eligible) {
+        nonCoffeeExcess = nonCoffeeExcess.plus(unitPrice);
       } else {
-        if (cfg.allow_non_coffee) {
-          const coveredForUnit = Decimal.min(unitPrice, NON_COFFEE_UNIT_BENEFIT_CAP);
-          benefitUsedThisSale = benefitUsedThisSale.plus(coveredForUnit);
-          if (unitPrice.greaterThan(NON_COFFEE_UNIT_BENEFIT_CAP)) {
-            nonCoffeeExcess = nonCoffeeExcess.plus(unitPrice.minus(NON_COFFEE_UNIT_BENEFIT_CAP));
-          }
-        } else {
-          nonCoffeeExcess = nonCoffeeExcess.plus(unitPrice);
+        const coveredForUnit = Decimal.min(unitPrice, ITEM_UNIT_BENEFIT_CAP);
+        benefitUsedThisSale = benefitUsedThisSale.plus(coveredForUnit);
+        if (unitPrice.greaterThan(ITEM_UNIT_BENEFIT_CAP)) {
+          nonCoffeeExcess = nonCoffeeExcess.plus(unitPrice.minus(ITEM_UNIT_BENEFIT_CAP));
         }
       }
     }
