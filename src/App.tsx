@@ -58,7 +58,7 @@ type ModuleKey =
 
 export default function App() {
   const { user, access_token, logout, lang, setLang, hasHydrated, notify } = useAppStore();
-  const activeTenant = useMemo(() => getActiveTenantId(), []);
+  const activeTenant = getActiveTenantId();
   const safeLang = (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az';
   const t = i18n[safeLang];
   const hasValidUser = Boolean(

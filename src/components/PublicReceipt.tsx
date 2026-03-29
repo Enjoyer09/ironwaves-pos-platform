@@ -1,6 +1,6 @@
 import React from 'react';
 import { get_public_receipt_live } from '../api/pos';
-import { get_business_profile, get_business_profile_live } from '../api/settings';
+import { get_business_profile, get_public_branding_live } from '../api/settings';
 
 type Props = {
   receiptId: string;
@@ -19,7 +19,7 @@ export default function PublicReceipt({ receiptId, token }: Props) {
         const res = await get_public_receipt_live(receiptId, token);
         if (!mounted) return;
         setReceipt(res);
-        setProfile(await get_business_profile_live(res.tenant_id).catch(() => get_business_profile(res.tenant_id)));
+        setProfile(await get_public_branding_live(res.tenant_id).catch(() => get_business_profile(res.tenant_id)));
       } catch {
         if (!mounted) return;
         setReceipt(null);

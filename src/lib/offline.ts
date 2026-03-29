@@ -1,7 +1,10 @@
 import { apiRequest, isBackendEnabled } from '../api/client';
 import { logEvent } from './logger';
 
-const DB_NAME = 'socialbee-pos-offline';
+const getDbName = () => {
+  const host = typeof window !== 'undefined' ? window.location.host.toLowerCase().replace(/[^a-z0-9.-]/g, '_') : 'global';
+  return `socialbee-pos-offline__${host}`;
+};
 const DB_VERSION = 1;
 const MENU_STORE = 'menu_cache';
 const SALES_STORE = 'offline_sales';
@@ -29,7 +32,7 @@ export type OfflineSaleSummary = {
 
 const openDb = (): Promise<IDBDatabase> =>
   new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    const req = indexedDB.open(getDbName(), DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(MENU_STORE)) {
