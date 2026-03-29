@@ -88,6 +88,7 @@ class SaleCreateIn(BaseModel):
     customer_card_id: str | None = None
     split_cash: Decimal | None = None
     split_card: Decimal | None = None
+    offline_request_id: str | None = None
 
 
 class SaleCreateOut(BaseModel):

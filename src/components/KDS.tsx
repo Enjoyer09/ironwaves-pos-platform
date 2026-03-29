@@ -10,6 +10,7 @@ export default function KDS() {
   const { user, lang } = useAppStore();
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const tenant_id = user?.tenant_id || 'tenant_default';
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
   const [currentTime, setCurrentTime] = useState(Date.now());
 
@@ -33,6 +34,17 @@ export default function KDS() {
       clearInterval(clock);
     };
   }, [tenant_id]);
+
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
 
   const getElapsedMinutes = (created_at: string) => {
     const ts = new Date(created_at).getTime();
@@ -97,6 +109,19 @@ export default function KDS() {
 
   return (
     <div className="h-full overflow-y-auto p-6 text-slate-100">
+      {!isOnline && (
+        <div className="mb-4 rounded-xl border border-amber-300/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+          <div className="font-semibold">{tx(lang, 'Offline mətbəx rejimi aktivdir', 'Офлайн режим кухни активен', 'Offline kitchen mode is active')}</div>
+          <div className="mt-1 text-amber-200/90">
+            {tx(
+              lang,
+              'Aktiv sifarişlər lokal yaddaşdan oxunur. Qəbul et və Hazırdır əməliyyatları bu cihazda saxlanacaq.',
+              'Активные заказы читаются из локального хранилища. Действия принять и готово будут сохранены на этом устройстве.',
+              'Active orders are read from local storage. Accept and Ready actions will be stored on this device.',
+            )}
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center text-slate-100">
           <ChefHat size={28} className="mr-3 text-yellow-300" />

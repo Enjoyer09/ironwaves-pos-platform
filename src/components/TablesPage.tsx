@@ -13,6 +13,7 @@ export default function TablesPage() {
   const [tables, setTables] = useState<any[]>([]);
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [newTableName, setNewTableName] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [deleteTableId, setDeleteTableId] = useState<string | null>(null);
@@ -46,6 +47,17 @@ export default function TablesPage() {
   useEffect(() => {
     void loadData();
   }, [tenant_id]);
+
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
 
   const loadData = async () => {
     setTables(await get_tables_live(tenant_id));
@@ -90,6 +102,19 @@ export default function TablesPage() {
 
   return (
     <div className="h-full overflow-auto p-3 text-slate-100 md:p-6">
+      {!isOnline && (
+        <div className="mb-4 rounded-xl border border-amber-300/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+          <div className="font-semibold">{tx(lang, 'Offline masa rejimi aktivdir', 'Офлайн режим столов активен', 'Offline table mode is active')}</div>
+          <div className="mt-1 text-amber-200/90">
+            {tx(
+              lang,
+              'Masa əməliyyatları və mətbəx axını bu cihazda lokal olaraq davam edəcək. İnternet qayıdanda satış sync statusunu ayrıca yoxlayın.',
+              'Операции со столами и кухня продолжат работать локально на этом устройстве. После возврата связи отдельно проверьте статус синхронизации продаж.',
+              'Table actions and kitchen flow continue locally on this device. When connection returns, verify sale sync status separately.',
+            )}
+          </div>
+        </div>
+      )}
       <ConfirmModal
         open={Boolean(deleteTableId)}
         lang={lang}

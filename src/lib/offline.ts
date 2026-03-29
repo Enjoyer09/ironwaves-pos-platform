@@ -16,6 +16,17 @@ type OfflineSaleRecord = {
   payload: Record<string, unknown>;
 };
 
+export type OfflineSaleSummary = {
+  id: string;
+  sale_id: string;
+  created_at: string;
+  payment_method: string;
+  order_type: string;
+  item_count: number;
+  total: string;
+  status: 'pending' | 'synced';
+};
+
 const openDb = (): Promise<IDBDatabase> =>
   new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -113,6 +124,92 @@ export const getPendingOfflineSalesCount = async (tenantId: string): Promise<num
   }
 };
 
+export const getPendingOfflineSales = async (tenantId: string): Promise<OfflineSaleSummary[]> => {
+  try {
+    const db = await openDb();
+    const rows = await new Promise<OfflineSaleRecord[]>((resolve, reject) => {
+      const tx = db.transaction(SALES_STORE, 'readonly');
+      const req = tx.objectStore(SALES_STORE).getAll();
+      req.onsuccess = () => resolve((req.result || []) as OfflineSaleRecord[]);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+
+    return rows
+      .filter((row) => row.tenant_id === tenantId && row.status === 'pending')
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+      .map((row) => {
+        const cartItems = Array.isArray((row.payload as any)?.cart_items) ? ((row.payload as any).cart_items as any[]) : [];
+        const subtotal = cartItems.reduce((sum, item) => {
+          const qty = Number(item?.qty || 0);
+          const price = Number(item?.price || 0);
+          return sum + (qty * price);
+        }, 0);
+        const discountPercent = Number((row.payload as any)?.discount_percent || 0);
+        const total = Math.max(0, subtotal - (subtotal * discountPercent / 100));
+        return {
+          id: row.id,
+          sale_id: row.sale_id,
+          created_at: row.created_at,
+          payment_method: String((row.payload as any)?.payment_method || '-'),
+          order_type: String((row.payload as any)?.order_type || '-'),
+          item_count: cartItems.reduce((sum, item) => sum + Number(item?.qty || 0), 0),
+          total: total.toFixed(2),
+          status: row.status,
+        };
+      });
+  } catch {
+    return [];
+  }
+};
+
+export const clearSyncedOfflineSales = async (tenantId: string) => {
+  try {
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(SALES_STORE, 'readwrite');
+      const store = tx.objectStore(SALES_STORE);
+      const req = store.getAll();
+      req.onsuccess = () => {
+        const rows = (req.result || []) as OfflineSaleRecord[];
+        rows
+          .filter((row) => row.tenant_id === tenantId && row.status === 'synced')
+          .forEach((row) => store.delete(row.id));
+      };
+      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch {
+    // No-op
+  }
+};
+
+export const pruneSyncedOfflineSales = async (tenantId: string, maxAgeDays = 7) => {
+  try {
+    const cutoff = Date.now() - (maxAgeDays * 24 * 60 * 60 * 1000);
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(SALES_STORE, 'readwrite');
+      const store = tx.objectStore(SALES_STORE);
+      const req = store.getAll();
+      req.onsuccess = () => {
+        const rows = (req.result || []) as OfflineSaleRecord[];
+        rows
+          .filter((row) => row.tenant_id === tenantId && row.status === 'synced' && new Date(row.synced_at || row.created_at).getTime() < cutoff)
+          .forEach((row) => store.delete(row.id));
+      };
+      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch {
+    // No-op
+  }
+};
+
 export const syncPendingOfflineSales = async (tenantId: string) => {
   try {
     if (!isBackendEnabled()) {
@@ -160,6 +257,8 @@ export const syncPendingOfflineSales = async (tenantId: string) => {
       }
     }
     db.close();
+
+    await pruneSyncedOfflineSales(tenantId);
 
     logEvent('system', 'OFFLINE_SALES_SYNCED', {
       tenant_id: tenantId,

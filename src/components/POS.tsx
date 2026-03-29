@@ -12,7 +12,16 @@ import { i18n, tx } from '../i18n';
 import { get_business_profile, get_settings } from '../api/settings';
 import { logUiError } from '../lib/logger';
 import { qzPrintHtml } from '../lib/qz';
-import { cacheMenuOffline, enqueueOfflineSale, getCachedMenuOffline, getPendingOfflineSalesCount } from '../lib/offline';
+import {
+  cacheMenuOffline,
+  clearSyncedOfflineSales,
+  enqueueOfflineSale,
+  getCachedMenuOffline,
+  getPendingOfflineSales,
+  getPendingOfflineSalesCount,
+  syncPendingOfflineSales,
+  type OfflineSaleSummary,
+} from '../lib/offline';
 import { apiRequest, isBackendEnabled } from '../api/client';
 
 type OrderType = 'Dine In' | 'Take Away' | 'Order Online';
@@ -115,8 +124,16 @@ const isRecoverableNetworkFailure = (error: unknown) => {
     message.includes('failed to fetch') ||
     message.includes('networkerror') ||
     message.includes('network request failed') ||
-    message.includes('load failed')
+    message.includes('load failed') ||
+    message.includes('network')
   );
+};
+
+const generateOfflineRequestId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `offline_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 };
 
 export default function POS() {
@@ -142,6 +159,9 @@ export default function POS() {
   const [splitCashInput, setSplitCashInput] = useState<string>('0');
   const [variantPicker, setVariantPicker] = useState<{ base: string; items: any[] } | null>(null);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [pendingOfflineSales, setPendingOfflineSales] = useState<OfflineSaleSummary[]>([]);
+  const [showOfflineQueue, setShowOfflineQueue] = useState(false);
+  const [isSyncingOffline, setIsSyncingOffline] = useState(false);
   const [mobilePane, setMobilePane] = useState<'menu' | 'cart'>('menu');
   const [showMobileCheckout, setShowMobileCheckout] = useState(false);
   const receiptIframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -266,6 +286,15 @@ export default function POS() {
     setCarts((prev) => ({ ...prev, [key]: [] }));
   };
 
+  const refreshOfflineState = async () => {
+    const [count, rows] = await Promise.all([
+      getPendingOfflineSalesCount(tenantId),
+      getPendingOfflineSales(tenantId),
+    ]);
+    setPendingSyncCount(count);
+    setPendingOfflineSales(rows);
+  };
+
   const refreshData = async () => {
     try {
       const nextMenu = isBackendEnabled()
@@ -277,7 +306,7 @@ export default function POS() {
       if (Array.isArray(nextMenu)) {
         void cacheMenuOffline(tenantId, nextMenu);
       }
-      void getPendingOfflineSalesCount(tenantId).then(setPendingSyncCount);
+      void refreshOfflineState();
     } catch (e) {
       console.error('POS refreshData failed:', e);
       logUiError(tenantId, 'pos', e instanceof Error ? e.message : String(e), { phase: 'refreshData' });
@@ -285,6 +314,7 @@ export default function POS() {
         setMenu(Array.isArray(cached) ? (cached as any[]) : []);
       });
       setTables([]);
+      void refreshOfflineState();
       notify('error', tx(safeLang, 'POS məlumatları yüklənmədi', 'Не удалось загрузить данные POS', 'Failed to load POS data'));
     }
   };
@@ -296,6 +326,7 @@ export default function POS() {
   useEffect(() => {
     const handleRefresh = () => {
       void refreshData();
+      void refreshOfflineState();
     };
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
@@ -310,6 +341,14 @@ export default function POS() {
       window.removeEventListener('catalog-updated', handleRefresh as EventListener);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
+  }, [tenantId]);
+
+  useEffect(() => {
+    void refreshOfflineState();
+    const timer = window.setInterval(() => {
+      void refreshOfflineState();
+    }, 15000);
+    return () => window.clearInterval(timer);
   }, [tenantId]);
 
   const categories = useMemo(() => ['ALL', ...Array.from(new Set(menu.map((m) => m.category)))], [menu]);
@@ -448,6 +487,7 @@ export default function POS() {
 
     try {
       const backendPayload = {
+        offline_request_id: generateOfflineRequestId(),
         cart_items: cart.map((item) => ({
           item_name: item.item_name,
           price: toDecimalSafe(item.price).toFixed(2),
@@ -500,13 +540,13 @@ export default function POS() {
             throw error;
           }
           sale = create_sale(localPayload);
-          await enqueueOfflineSale(tenantId, sale.sale_id, backendPayload);
+          void enqueueOfflineSale(tenantId, sale.sale_id, backendPayload);
           queuedOffline = true;
         }
       } else {
         sale = create_sale(localPayload);
         if (isBackendEnabled()) {
-          await enqueueOfflineSale(tenantId, sale.sale_id, backendPayload);
+          void enqueueOfflineSale(tenantId, sale.sale_id, backendPayload);
           queuedOffline = true;
         }
       }
@@ -586,8 +626,8 @@ export default function POS() {
       `);
 
       if (queuedOffline) {
-        notify('info', tx(safeLang, 'Satış offline növbəyə yazıldı və sonra sinxron olunacaq', 'Продажа сохранена в офлайн-очередь и синхронизируется позже', 'Sale saved to offline queue and will sync later'));
-        void getPendingOfflineSalesCount(tenantId).then(setPendingSyncCount);
+        void refreshOfflineState();
+        notify('info', tx(safeLang, 'Satış offline yadda saxlandı, bağlantı gələndə sinxron olacaq', 'Продажа сохранена офлайн и синхронизируется при подключении', 'Sale saved offline and will sync when connection returns'));
       }
 
       clearCart(activeCart);
@@ -651,6 +691,27 @@ export default function POS() {
     frame.contentWindow.print();
   };
 
+  const handleSyncOfflineQueue = async () => {
+    if (isSyncingOffline) return;
+    setIsSyncingOffline(true);
+    try {
+      const result = await syncPendingOfflineSales(tenantId);
+      await clearSyncedOfflineSales(tenantId);
+      await refreshOfflineState();
+      if (result.synced > 0) {
+        notify('success', tx(safeLang, `${result.synced} offline satış göndərildi`, `${result.synced} офлайн продаж отправлено`, `${result.synced} offline sales sent`));
+      }
+      if ((result.failed || 0) > 0) {
+        notify('error', tx(safeLang, `${result.failed} satış hələ də gözləyir`, `${result.failed} продаж все еще ожидают`, `${result.failed} sales are still pending`));
+      }
+      if (!result.synced && !result.failed) {
+        notify('info', tx(safeLang, 'Gözləyən offline satış yoxdur', 'Ожидающих офлайн продаж нет', 'No pending offline sales'));
+      }
+    } finally {
+      setIsSyncingOffline(false);
+    }
+  };
+
   if (receiptHtml) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-[#121922] p-6">
@@ -694,8 +755,57 @@ export default function POS() {
       </div>
 
       {pendingSyncCount > 0 && (
-        <div className="mb-3 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-          {tx(safeLang, `${pendingSyncCount} satış sinxronizasiya gözləyir`, `${pendingSyncCount} продаж ожидают синхронизации`, `${pendingSyncCount} sales pending sync`)}
+        <div className="mb-3 rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-amber-100">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="text-sm font-semibold">
+                {tx(safeLang, `${pendingSyncCount} satış sinxronizasiya gözləyir`, `${pendingSyncCount} продаж ожидают синхронизации`, `${pendingSyncCount} sales pending sync`)}
+              </div>
+              <div className="mt-1 text-xs text-amber-200/90">
+                {tx(safeLang, 'Bağlantı gələndə göndərilir, istəsəniz əl ilə də sync edə bilərsiniz', 'При подключении отправится автоматически, но можно синхронизировать вручную', 'It syncs automatically when back online, or you can sync manually')}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setShowOfflineQueue((prev) => !prev)}
+                className="rounded-lg border border-amber-300/40 px-3 py-2 text-xs font-semibold text-amber-50"
+              >
+                {showOfflineQueue
+                  ? tx(safeLang, 'Siyahını gizlət', 'Скрыть список', 'Hide list')
+                  : tx(safeLang, 'Siyahını göstər', 'Показать список', 'Show list')}
+              </button>
+              <button
+                onClick={handleSyncOfflineQueue}
+                disabled={isSyncingOffline}
+                className="rounded-lg bg-amber-300 px-3 py-2 text-xs font-bold text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSyncingOffline
+                  ? tx(safeLang, 'Göndərilir...', 'Отправка...', 'Syncing...')
+                  : tx(safeLang, 'İndi sync et', 'Синхронизировать', 'Sync now')}
+              </button>
+            </div>
+          </div>
+          {showOfflineQueue && (
+            <div className="mt-3 grid gap-2">
+              {pendingOfflineSales.map((row) => (
+                <div
+                  key={row.id}
+                  className="rounded-lg border border-amber-300/20 bg-slate-950/20 px-3 py-3 text-xs text-amber-50"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="font-semibold">{row.sale_id.slice(0, 8).toUpperCase()}</div>
+                    <div className="text-amber-200/80">{new Date(row.created_at).toLocaleString()}</div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-amber-100/90">
+                    <span>{row.item_count} {tx(safeLang, 'məhsul', 'товар', 'items')}</span>
+                    <span>{row.payment_method}</span>
+                    <span>{row.order_type}</span>
+                    <span>{row.total} ₼</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

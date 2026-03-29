@@ -15,7 +15,7 @@ import { get_business_profile, get_business_profile_live } from './api/settings'
 import { get_settings, get_settings_live } from './api/settings';
 import AppErrorBoundary from './components/AppErrorBoundary';
 import { logUiError } from './lib/logger';
-import { syncPendingOfflineSales } from './lib/offline';
+import { getPendingOfflineSalesCount, syncPendingOfflineSales } from './lib/offline';
 import { probeInternet } from './lib/connectivity';
 import { get_unread_staff_notifications_live, mark_staff_notifications_read_live } from './api/reports';
 import { getActiveTenantId } from './lib/tenant';
@@ -83,6 +83,7 @@ export default function App() {
 
   const [currentModule, setCurrentModule] = useState<ModuleKey>('pos');
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [pendingOfflineCount, setPendingOfflineCount] = useState(0);
   const [lowStockModal, setLowStockModal] = useState<Array<{ name: string; stock_qty: string; min_limit: string; unit: string }> | null>(null);
 
   const publicReceiptParams = useMemo(() => {
@@ -188,6 +189,37 @@ export default function App() {
       }
     });
   }, [isOnline, user?.tenant_id]);
+
+  useEffect(() => {
+    if (!user?.tenant_id) {
+      setPendingOfflineCount(0);
+      return;
+    }
+
+    let mounted = true;
+    const refreshPending = async () => {
+      const count = await getPendingOfflineSalesCount(user.tenant_id as string);
+      if (mounted) setPendingOfflineCount(count);
+    };
+
+    void refreshPending();
+    const timer = window.setInterval(() => {
+      void refreshPending();
+    }, 15000);
+
+    const onVisibility = () => {
+      if (!document.hidden) void refreshPending();
+    };
+    window.addEventListener('focus', onVisibility);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+      window.removeEventListener('focus', onVisibility);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [user?.tenant_id]);
 
   useEffect(() => {
     if (!hasValidUser || !user?.tenant_id || !user?.username) return;
@@ -417,6 +449,12 @@ export default function App() {
                 {isOnline ? <Wifi size={16} /> : <WifiOff size={16} />}
                 <span>{isOnline ? t.online : t.offline}</span>
               </div>
+              {pendingOfflineCount > 0 && (
+                <div className="flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1.5 text-sm font-medium text-amber-200">
+                  <span>{pendingOfflineCount}</span>
+                  <span>{tx(safeLang, 'gözləyən sync', 'ожидает синхронизации', 'pending sync')}</span>
+                </div>
+              )}
               <button
                 onClick={() => window.location.reload()}
                 className="neon-btn px-3 py-2"
