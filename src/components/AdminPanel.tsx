@@ -160,7 +160,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   };
 
   return (
-    <div className="h-full overflow-hidden p-6 text-slate-100">
+    <div className="h-full overflow-hidden p-3 text-slate-100 md:p-6">
       <ConfirmModal
         open={Boolean(deleteMenuId)}
         lang={lang}
@@ -180,24 +180,24 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
         onCancel={() => setDeleteNoteId(null)}
         onConfirm={() => deleteNoteId && removeNote(deleteNoteId)}
       />
-      <div className="h-full overflow-y-auto metal-panel p-6">
+      <div className="h-full overflow-y-auto metal-panel p-4 md:p-6">
         
         {activeTab === 'analytics' && (
           <div>
-            <div className="flex items-center justify-between mb-8">
+            <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                   <h1 className="text-3xl font-bold">{tx(lang, 'İdarəetmə Paneli', 'Панель управления')}</h1>
                   <p className="text-slate-300 mt-1">{tx(lang, 'Seçilmiş tarix aralığına görə statistika', 'Статистика за выбранный период', 'Statistics for the selected date range')}</p>
               </div>
-              <div className="flex gap-4">
-                  <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="neon-input" />
-                  <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="neon-input" />
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="neon-input min-h-13" />
+                  <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="neon-input min-h-13" />
               </div>
             </div>
 
             {/* Summary Cards */}
             {summary && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="metal-panel p-6 flex items-center">
                   <div className="w-14 h-14 bg-green-400/20 text-green-200 rounded-2xl flex items-center justify-center mr-4 border border-green-300/30">
                     <DollarSign size={28} />

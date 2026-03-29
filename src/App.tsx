@@ -442,7 +442,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 overflow-x-auto pb-2">
+          <div className="hidden md:flex items-center gap-3 overflow-x-auto pb-2">
             {visibleModules.map((item) => (
                 <button
                   key={item.key}
@@ -464,7 +464,21 @@ export default function App() {
           </AppErrorBoundary>
         </div>
 
-        <div className="shrink-0 border-t border-slate-700/40 px-4 py-2 text-center text-xs text-slate-400">
+        <div className="shrink-0 border-t border-slate-700/40 bg-[#0e141d]/95 px-2 py-2 md:hidden">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {visibleModules.map((item) => (
+              <button
+                key={`mobile_${item.key}`}
+                onClick={() => setCurrentModule(item.key)}
+                className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap`}
+              >
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="hidden md:block shrink-0 border-t border-slate-700/40 px-4 py-2 text-center text-xs text-slate-400">
           iRonWaves POS RC
         </div>
       </div>

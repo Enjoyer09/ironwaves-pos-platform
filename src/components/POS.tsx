@@ -130,6 +130,7 @@ export default function POS() {
   const [splitCashInput, setSplitCashInput] = useState<string>('0');
   const [variantPicker, setVariantPicker] = useState<{ base: string; items: any[] } | null>(null);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [mobilePane, setMobilePane] = useState<'menu' | 'cart'>('menu');
   const receiptIframeRef = useRef<HTMLIFrameElement | null>(null);
   const businessProfile = get_business_profile(tenantId);
   const printSettings = get_settings(tenantId).print_settings || { use_qz: false, printer_name: '' };
@@ -235,6 +236,9 @@ export default function POS() {
         ],
       };
     });
+    if (typeof window !== 'undefined' && window.innerWidth < 1280) {
+      setMobilePane('cart');
+    }
   };
 
   const updateCartItem = (id: string, qty: number) => {
@@ -644,9 +648,9 @@ export default function POS() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[radial-gradient(circle_at_top,#2a3342,#141b24_55%)] px-6 pb-2 pt-4 text-slate-200">
+    <div className="flex h-full min-h-0 flex-col bg-[radial-gradient(circle_at_top,#2a3342,#141b24_55%)] px-3 pb-3 pt-3 text-slate-200 md:px-4 xl:px-6">
 
-      <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
         <button onClick={() => setActiveCart('S1')} className={`neon-tab ${activeCart === 'S1' ? 'neon-tab-active' : ''}`}>
           <ShoppingCart size={14} /> {t.cart} 1 ({carts.S1.length})
         </button>
@@ -664,8 +668,17 @@ export default function POS() {
         </div>
       )}
 
+      <div className="mb-3 grid grid-cols-2 gap-2 xl:hidden">
+        <button onClick={() => setMobilePane('menu')} className={`neon-chip justify-center ${mobilePane === 'menu' ? 'neon-chip-active' : ''}`}>
+          {tx(lang, 'Menyu', 'Меню', 'Menu')}
+        </button>
+        <button onClick={() => setMobilePane('cart')} className={`neon-chip justify-center ${mobilePane === 'cart' ? 'neon-chip-active' : ''}`}>
+          {tx(lang, 'Səbət və Ödəniş', 'Корзина и оплата', 'Cart & Pay')}
+        </button>
+      </div>
+
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 xl:grid-cols-[1fr_460px]">
-        <section className="flex min-h-0 flex-col">
+        <section className={`flex min-h-0 flex-col ${mobilePane !== 'menu' ? 'hidden xl:flex' : ''}`}>
           <div className="mb-3 flex items-center gap-2 text-sm text-slate-300">
             <span className="text-yellow-300">•</span> {tx(lang, 'POS Menyu', 'POS меню', 'POS Menu')}
           </div>
@@ -680,7 +693,7 @@ export default function POS() {
             />
           </div>
 
-          <div className="mb-3 flex flex-wrap gap-2">
+          <div className="mb-3 flex flex-wrap gap-2 overflow-x-auto pb-1">
             {categories.map((cat) => (
               <button
                 key={cat}
@@ -692,7 +705,7 @@ export default function POS() {
             ))}
           </div>
 
-          <div className="grid flex-1 auto-rows-max grid-cols-1 gap-2 overflow-y-auto pr-2 md:grid-cols-2 2xl:grid-cols-4">
+          <div className="grid flex-1 auto-rows-max grid-cols-1 gap-2 overflow-y-auto pr-1 md:grid-cols-2 2xl:grid-cols-4">
             {groupedMenu.map((group) => {
               const hasVariants = group.items.length > 1;
               const minPrice = group.items.reduce(
@@ -724,7 +737,7 @@ export default function POS() {
           </div>
         </section>
 
-        <aside className="flex h-full min-h-0 flex-col overflow-y-auto rounded-xl border border-slate-700/70 bg-[#101722]/80 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+        <aside className={`flex h-full min-h-0 flex-col overflow-y-auto rounded-xl border border-slate-700/70 bg-[#101722]/80 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)] md:p-4 ${mobilePane !== 'cart' ? 'hidden xl:flex' : ''}`}>
           <div className="mb-3 flex items-center justify-between border-b border-slate-700/60 pb-3">
             <h3 className="flex items-center gap-2 text-2xl font-bold"><ShoppingCart size={22} /> {t.cart.toUpperCase()} {activeCart.slice(1)}</h3>
             <button className="rounded-lg border border-slate-600 p-2"><ClipboardList size={16} /></button>
@@ -740,7 +753,7 @@ export default function POS() {
               onKeyDown={(e) => e.key === 'Enter' && handleFindCustomer()}
             />
           </div>
-          <div className="mb-2 flex gap-2">
+          <div className="mb-2 grid grid-cols-2 gap-2">
             <button onClick={handleFindCustomer} className="pay-btn h-12 w-full">{tx(lang, 'Müştəri Tap', 'Найти клиента', 'Find Customer')}</button>
             <button onClick={() => patchCtx({ customer: null, customerQR: '' })} className="pay-btn h-12 w-full">{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</button>
           </div>
@@ -760,7 +773,7 @@ export default function POS() {
             className="neon-input mb-2"
           />
 
-          <div className="mb-3 grid grid-cols-3 gap-2">
+          <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
             {(['Take Away', 'Dine In', 'Order Online'] as OrderType[]).map((mode) => (
               <button
                 key={mode}
@@ -798,7 +811,7 @@ export default function POS() {
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <button
                   onClick={() => patchCtx({ cupMode: 'paper' })}
                   className={`rounded-md border px-2 py-2 text-xs font-semibold ${
@@ -908,7 +921,7 @@ export default function POS() {
             )}
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-4">
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <button
               disabled={isLoading}
               onClick={() => setSelectedPayment('Nəğd')}
