@@ -462,6 +462,29 @@ def get_business_profile(
     }
 
 
+@router.get("/public-branding")
+def get_public_branding(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    row = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant.id).first()
+    if not row:
+      return {
+          "tenant_id": tenant.id,
+          "company_name": tenant.name,
+          "website": f"https://{tenant.domain}",
+          "logo_url": "",
+          "receipt_footer": "Bizi secdiyiniz ucun tesekkur edirik!",
+      }
+    return {
+        "tenant_id": tenant.id,
+        "company_name": row.company_name,
+        "website": row.website or f"https://{tenant.domain}",
+        "logo_url": row.logo_url or "",
+        "receipt_footer": row.receipt_footer or "",
+    }
+
+
 @router.put("/business-profile")
 def put_business_profile(
     payload: BusinessProfileIn,

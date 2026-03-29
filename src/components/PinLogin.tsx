@@ -3,6 +3,8 @@ import { useAppStore } from '../store';
 import { i18n, tx } from '../i18n';
 import { Delete, ShieldCheck, Sparkles } from 'lucide-react';
 import { getDeviceHash, getPublicIp, LoginRiskContext } from '../lib/risk';
+import { get_business_profile, get_public_branding_live } from '../api/settings';
+import { resolveTenantIdFromHost } from '../lib/tenant';
 
 export default function PinLogin() {
   const { login, adminLogin, lang, setLang, adminNeeds2FA, authErrorMessage, clearAuthError } = useAppStore();
@@ -16,6 +18,8 @@ export default function PinLogin() {
   const [error, setError] = useState(false);
   const [riskContext, setRiskContext] = useState<LoginRiskContext>({ device_hash: getDeviceHash(), ip: 'ip_unknown' });
   const isDemoHost = typeof window !== 'undefined' && window.location.host.toLowerCase() === 'demo.ironwaves.store';
+  const tenantId = resolveTenantIdFromHost();
+  const [branding, setBranding] = useState(() => get_business_profile(tenantId));
 
   React.useEffect(() => {
     let mounted = true;
@@ -26,6 +30,19 @@ export default function PinLogin() {
       mounted = false;
     };
   }, []);
+
+  React.useEffect(() => {
+    let mounted = true;
+    setBranding(get_business_profile(tenantId));
+    get_public_branding_live(tenantId)
+      .then((data) => {
+        if (mounted && data) setBranding(data);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [tenantId]);
 
   const handleKeyPress = (num: string) => {
     if (pin.length < 4) {
@@ -97,9 +114,18 @@ export default function PinLogin() {
       <div className="relative w-full max-w-6xl">
         <div className="mb-6 flex flex-col gap-3 text-center">
           <div className="inline-flex self-center rounded-full border border-yellow-200/15 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.28em] text-yellow-200/80">
-            iRonWaves POS RC
+            {branding?.company_name || 'iRonWaves POS RC'}
           </div>
-          <h1 className="text-4xl font-black tracking-wide text-white md:text-6xl">Premium POS login shell for live and demo tenants</h1>
+          <div className="mx-auto flex items-center justify-center gap-3">
+            {branding?.logo_url ? (
+              <img src={branding.logo_url} alt="brand logo" className="h-14 w-14 rounded-2xl object-cover shadow-[0_10px_28px_rgba(0,0,0,0.35)] md:h-16 md:w-16" />
+            ) : (
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-yellow-400 text-xl font-black text-slate-900 shadow-[0_10px_28px_rgba(0,0,0,0.35)] md:h-16 md:w-16">
+                {(branding?.company_name || 'I').trim().slice(0, 1).toUpperCase()}
+              </div>
+            )}
+            <h1 className="text-4xl font-black tracking-wide text-white md:text-6xl">{branding?.company_name || 'Premium POS login shell'}</h1>
+          </div>
           <p className="mx-auto max-w-2xl text-sm leading-7 text-slate-300 md:text-base">
             Fast enough for cashier flow, polished enough for demos, and structured for multi-tenant rollout across `demo`, `gyropos`, `socialbee`, and future branded subdomains.
           </p>
@@ -136,6 +162,7 @@ export default function PinLogin() {
               <div>
                 <div className="text-xs uppercase tracking-[0.22em] text-slate-400">Tenant Access</div>
                 <div className="mt-2 text-2xl font-bold text-white">{isDemoHost ? 'Demo access ready' : 'Secure production login'}</div>
+                <div className="mt-1 text-sm text-slate-400">{branding?.website || (typeof window !== 'undefined' ? window.location.host : '')}</div>
               </div>
               <div className="w-24">
                 <select
