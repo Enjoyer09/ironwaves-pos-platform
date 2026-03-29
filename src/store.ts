@@ -37,6 +37,7 @@ interface AppState {
   authErrorMessage: string;
   clearAuthError: () => void;
   logout: () => void;
+  applySessionUser: (user: UserSession | null) => void;
   switchTenantContext: (tenantId: string) => void;
   
   cart: CartItem[];
@@ -111,6 +112,12 @@ export const useAppStore = create<AppState>()(
           authApi.logout((refresh_token || access_token) as string, user.username);
         }
         set({ user: null, access_token: null, refresh_token: null, cart: [] });
+      },
+      applySessionUser: (user) => {
+        if (user?.tenant_id) {
+          setActiveTenantId(user.tenant_id);
+        }
+        set({ user: user || null, cart: [] });
       },
       switchTenantContext: (tenantId: string) => {
         const safeTenant = String(tenantId || '').trim() || getActiveTenantId();

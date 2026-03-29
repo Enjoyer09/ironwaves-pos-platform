@@ -323,5 +323,13 @@ export const authApi = {
       refresh_token: String(result?.refresh_token || ''),
       user: result?.user,
     };
-  }
+  },
+
+  me: async () => {
+    if (!isBackendEnabled()) return null;
+    return apiRequest<any>('/api/v1/auth/me', {
+      method: 'GET',
+      tenantId: null,
+    });
+  },
 };

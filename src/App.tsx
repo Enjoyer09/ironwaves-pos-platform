@@ -22,6 +22,7 @@ import { getActiveTenantId } from './lib/tenant';
 import { get_low_stock_items } from './api/inventory';
 import { list_tenants, type TenantRecord } from './api/tenants';
 import { clearDBCache } from './lib/db_sim';
+import { authApi } from './api/auth';
 
 type AdminView =
   | 'dashboard'
@@ -61,7 +62,7 @@ type ModuleKey =
   | 'database';
 
 export default function App() {
-  const { user, access_token, logout, lang, setLang, hasHydrated, notify, switchTenantContext } = useAppStore();
+  const { user, access_token, logout, lang, setLang, hasHydrated, notify, switchTenantContext, applySessionUser } = useAppStore();
   const activeTenant = getActiveTenantId();
   const safeLang = (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az';
   const t = i18n[safeLang];
@@ -86,6 +87,34 @@ export default function App() {
     void get_business_profile_live(user.tenant_id).catch(() => {});
     void get_settings_live(user.tenant_id).catch(() => {});
   }, [hasValidUser, user?.tenant_id]);
+
+  useEffect(() => {
+    if (!hasValidUser) return;
+    let cancelled = false;
+    const syncSession = async () => {
+      try {
+        const me = await authApi.me();
+        if (!me || cancelled) return;
+        const nextRole = String(me.role || '');
+        const nextTenant = String(me.tenant_id || '');
+        if (nextRole !== String(user?.role || '') || nextTenant !== String(user?.tenant_id || '')) {
+          applySessionUser({
+            username: String(me.username || user?.username || ''),
+            role: nextRole,
+            tenant_id: nextTenant,
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          logout();
+        }
+      }
+    };
+    void syncSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasValidUser, user?.role, user?.tenant_id, user?.username, applySessionUser, logout]);
 
   const [currentModule, setCurrentModule] = useState<ModuleKey>('pos');
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
