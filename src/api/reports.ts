@@ -7,6 +7,27 @@ import { apiRequest, isBackendEnabled } from './client';
 
 import { getDB, setDB } from '../lib/db_sim';
 
+const tenantKey = (tenant_id: string, suffix: string) => `${tenant_id}_${suffix}`;
+
+const getTenantRows = <T extends { tenant_id?: string }>(tenant_id: string, globalKey: string, suffix: string): T[] => {
+  const scoped = getDB<T>(tenantKey(tenant_id, suffix));
+  if (scoped.length > 0) {
+    return scoped.map((row) => ({ ...row, tenant_id }));
+  }
+  return getDB<T>(globalKey).filter((row) => row.tenant_id === tenant_id);
+};
+
+const saveTenantRows = <T extends { tenant_id?: string }>(tenant_id: string, globalKey: string, suffix: string, rows: T[]) => {
+  const safeRows = (Array.isArray(rows) ? rows : []).map((row) => ({ ...row, tenant_id }));
+  const all = getDB<T>(globalKey);
+  const kept = all.filter((row) => row.tenant_id !== tenant_id);
+  setDB(globalKey, [...kept, ...safeRows]);
+  setDB(tenantKey(tenant_id, suffix), safeRows);
+};
+
+const getFinanceRows = (tenant_id: string) => getTenantRows<FinanceEntry>(tenant_id, 'finance', 'finance');
+const saveFinanceRows = (tenant_id: string, rows: FinanceEntry[]) => saveTenantRows<FinanceEntry>(tenant_id, 'finance', 'finance', rows);
+
 export type StaffNotification = {
   id: string;
   tenant_id: string;
@@ -38,7 +59,7 @@ const pushStaffNotification = (
   message: string,
   meta?: Record<string, string>,
 ) => {
-  const rows = getDB<StaffNotification>('staff_notifications');
+  const rows = getTenantRows<StaffNotification>(tenant_id, 'staff_notifications', 'staff_notifications');
   rows.push({
     id: uuidv4(),
     tenant_id,
@@ -49,25 +70,25 @@ const pushStaffNotification = (
     read: false,
     created_at: new Date().toISOString(),
   });
-  setDB('staff_notifications', rows);
+  saveTenantRows(tenant_id, 'staff_notifications', 'staff_notifications', rows);
 };
 
 export const get_unread_staff_notifications = (tenant_id: string, username: string) => {
-  const rows = getDB<StaffNotification>('staff_notifications');
+  const rows = getTenantRows<StaffNotification>(tenant_id, 'staff_notifications', 'staff_notifications');
   return rows
     .filter((r) => r.tenant_id === tenant_id && r.username === username && !r.read)
     .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
 };
 
 export const mark_staff_notifications_read = (tenant_id: string, username: string) => {
-  const rows = getDB<StaffNotification>('staff_notifications');
+  const rows = getTenantRows<StaffNotification>(tenant_id, 'staff_notifications', 'staff_notifications');
   const next = rows.map((r) => {
     if (r.tenant_id === tenant_id && r.username === username && !r.read) {
       return { ...r, read: true };
     }
     return r;
   });
-  setDB('staff_notifications', next);
+  saveTenantRows(tenant_id, 'staff_notifications', 'staff_notifications', next);
 };
 
 export const get_unread_staff_notifications_live = async (tenant_id: string, username: string) => {
@@ -88,7 +109,7 @@ export const mark_staff_notifications_read_live = async (tenant_id: string, user
 };
 
 export const get_shift_handover_history = (tenant_id: string, username?: string) => {
-  const rows = getDB<ShiftHandoverRow>('shift_handovers').filter((r) => r.tenant_id === tenant_id);
+  const rows = getTenantRows<ShiftHandoverRow>(tenant_id, 'shift_handovers', 'shift_handovers');
   const filtered = username
     ? rows.filter((r) => r.handed_by === username || r.received_by === username)
     : rows;
@@ -106,7 +127,7 @@ export const get_shift_handover_history_live = async (tenant_id: string, usernam
 };
 
 export const get_pending_handover_for_user = (tenant_id: string, username: string) => {
-  const rows = getDB<ShiftHandoverRow>('shift_handovers').filter(
+  const rows = getTenantRows<ShiftHandoverRow>(tenant_id, 'shift_handovers', 'shift_handovers').filter(
     (r) => r.tenant_id === tenant_id && r.received_by === username && r.status === 'PENDING',
   );
   return rows.sort((a, b) => (a.created_at > b.created_at ? -1 : 1))[0] || null;
@@ -123,7 +144,7 @@ const getBusinessProfile = (tenant_id: string) => {
 };
 
 const getShiftState = (tenant_id: string) => {
-  const rows = getDB<any>('shift_state');
+  const rows = getTenantRows<any>(tenant_id, 'shift_state', 'shift_state');
   return rows.find((r) => r.tenant_id === tenant_id) || null;
 };
 
@@ -131,9 +152,7 @@ const shiftStatusCache: Record<string, { status: string; opened_by?: string; tim
 const expectedCashCache: Record<string, Decimal> = {};
 
 const saveShiftState = (tenant_id: string, payload: any) => {
-  const rows = getDB<any>('shift_state');
-  const kept = rows.filter((r) => r.tenant_id !== tenant_id);
-  setDB('shift_state', [...kept, payload]);
+  saveTenantRows(tenant_id, 'shift_state', 'shift_state', [payload]);
 };
 
 // FUNKSIYA: open_shift
@@ -185,14 +204,15 @@ export const open_shift = async (opened_by: string, tenant_id: string) => {
 };
 
 // FUNKSIYA: close_shift
-export const close_shift = (closed_by: string) => {
-  const allStates = getDB<any>('shift_state');
-  const openShift = allStates.find((s) => s.status === 'Open');
+export const close_shift = (tenant_id: string, closed_by: string) => {
+  const openShift = getShiftState(tenant_id);
   if (!openShift) {
     throw new Error('Bağlanacaq açıq növbə yoxdur');
   }
+  if (openShift.status !== 'Open') {
+    throw new Error('Bu tenant üçün açıq növbə yoxdur');
+  }
 
-  const tenant_id = openShift.tenant_id;
   const closed = {
     ...openShift,
     status: 'Closed',
@@ -229,7 +249,7 @@ export const handover_shift = (
   const declared = new Decimal(declared_cash || '0');
   const now = new Date().toISOString();
 
-  const handovers = getDB<ShiftHandoverRow>('shift_handovers');
+  const handovers = getTenantRows<ShiftHandoverRow>(tenant_id, 'shift_handovers', 'shift_handovers');
   handovers.push({
     id: uuidv4(),
     tenant_id,
@@ -239,7 +259,7 @@ export const handover_shift = (
     status: 'PENDING',
     created_at: now,
   });
-  setDB('shift_handovers', handovers);
+  saveTenantRows(tenant_id, 'shift_handovers', 'shift_handovers', handovers);
 
   pushStaffNotification(
     tenant_id,
@@ -288,7 +308,7 @@ export const accept_shift_handover = (
     throw new Error('Açıq növbə yoxdur.');
   }
 
-  const handovers = getDB<ShiftHandoverRow>('shift_handovers');
+  const handovers = getTenantRows<ShiftHandoverRow>(tenant_id, 'shift_handovers', 'shift_handovers');
   const idx = handovers.findIndex((h) => h.id === handover_id && h.tenant_id === tenant_id);
   if (idx < 0) throw new Error('Təhvil qeydi tapılmadı.');
 
@@ -301,7 +321,7 @@ export const accept_shift_handover = (
   const difference = actual.minus(declared);
 
   if (!difference.isZero()) {
-    const allFinances = getDB<FinanceEntry>('finance');
+    const allFinances = getFinanceRows(tenant_id);
     allFinances.push({
       id: uuidv4(),
       tenant_id,
@@ -313,7 +333,7 @@ export const accept_shift_handover = (
       created_at: new Date().toISOString(),
       is_deleted: false,
     });
-    setDB('finance', allFinances);
+    saveFinanceRows(tenant_id, allFinances);
   }
 
   const acceptedAt = new Date().toISOString();
@@ -324,7 +344,7 @@ export const accept_shift_handover = (
     difference: difference.toString(),
     accepted_at: acceptedAt,
   };
-  setDB('shift_handovers', handovers);
+  saveTenantRows(tenant_id, 'shift_handovers', 'shift_handovers', handovers);
 
   saveShiftState(tenant_id, {
     ...shift,
@@ -397,9 +417,7 @@ export const get_expected_cash = (tenant_id: string) => {
   if (isBackendEnabled() && expectedCashCache[tenant_id]) {
     return expectedCashCache[tenant_id];
   }
-  const finances = getDB<FinanceEntry>('finance').filter(
-    (f) => f.tenant_id === tenant_id && f.source === 'cash' && !f.is_deleted,
-  );
+  const finances = getFinanceRows(tenant_id).filter((f) => f.source === 'cash' && !f.is_deleted);
 
   let expected_cash = new Decimal(0);
   finances.forEach((f) => {
@@ -455,7 +473,7 @@ export const x_report = async (actual_cash: string, handed_by: string, tenant_id
 
   // Fərq varsa Finance'ə yazılır
   if (!difference.isZero()) {
-    const allFinances = getDB<FinanceEntry>('finance');
+    const allFinances = getFinanceRows(tenant_id);
     allFinances.push({
       id: uuidv4(),
       tenant_id,
@@ -467,7 +485,7 @@ export const x_report = async (actual_cash: string, handed_by: string, tenant_id
       created_at: new Date().toISOString(),
       is_deleted: false
     });
-    setDB('finance', allFinances);
+    saveFinanceRows(tenant_id, allFinances);
   }
 
   logEvent(handed_by, 'X_REPORT_CREATED', { 
@@ -563,8 +581,8 @@ export const z_report = async (
   if (!shift || shift.status !== 'Open') {
     throw new Error('Z-Hesabat üçün əvvəlcə günü (növbəni) açın.');
   }
-  const allFinances = getDB<FinanceEntry>('finance');
-  const finances = allFinances.filter(f => f.tenant_id === tenant_id && !f.is_deleted);
+  const allFinances = getFinanceRows(tenant_id);
+  const finances = allFinances.filter(f => !f.is_deleted);
   
   let cash_sales = new Decimal(0);
   let card_sales = new Decimal(0);
@@ -595,10 +613,10 @@ export const z_report = async (
       created_at: new Date().toISOString(),
       is_deleted: false
     });
-    setDB('finance', allFinances);
+    saveFinanceRows(tenant_id, allFinances);
   }
 
-  const reports = getDB<any>('z_reports');
+  const reports = getTenantRows<any>(tenant_id, 'z_reports', 'z_reports');
   reports.push({
     id: reportId,
     tenant_id,
@@ -610,7 +628,7 @@ export const z_report = async (
     generated_by,
     created_at: new Date().toISOString(),
   });
-  setDB('z_reports', reports);
+  saveTenantRows(tenant_id, 'z_reports', 'z_reports', reports);
 
   // Z reportdan sonra növbəni avtomatik bağlayırıq.
   saveShiftState(tenant_id, {
