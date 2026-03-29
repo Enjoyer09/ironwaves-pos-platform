@@ -20,6 +20,8 @@ import { probeInternet } from './lib/connectivity';
 import { get_unread_staff_notifications_live, mark_staff_notifications_read_live } from './api/reports';
 import { getActiveTenantId } from './lib/tenant';
 import { get_low_stock_items } from './api/inventory';
+import { list_tenants, type TenantRecord } from './api/tenants';
+import { clearDBCache } from './lib/db_sim';
 
 type AdminView =
   | 'dashboard'
@@ -57,7 +59,7 @@ type ModuleKey =
   | 'database';
 
 export default function App() {
-  const { user, access_token, logout, lang, setLang, hasHydrated, notify } = useAppStore();
+  const { user, access_token, logout, lang, setLang, hasHydrated, notify, switchTenantContext } = useAppStore();
   const activeTenant = getActiveTenantId();
   const safeLang = (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az';
   const t = i18n[safeLang];
@@ -87,6 +89,8 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [pendingOfflineCount, setPendingOfflineCount] = useState(0);
   const [lowStockModal, setLowStockModal] = useState<Array<{ name: string; stock_qty: string; min_limit: string; unit: string }> | null>(null);
+  const [availableTenants, setAvailableTenants] = useState<TenantRecord[]>([]);
+  const [tenantSwitching, setTenantSwitching] = useState(false);
 
   const publicReceiptParams = useMemo(() => {
     if (typeof window === 'undefined') return { receiptId: '', token: '' };
@@ -298,6 +302,58 @@ export default function App() {
   }, [user?.tenant_id]);
 
   const sessionRole = String(user?.role || '').toLowerCase();
+  const selectedTenantId = String(user?.tenant_id || activeTenant || 'tenant_default');
+
+  useEffect(() => {
+    if (!hasValidUser || sessionRole !== 'super_admin') {
+      setAvailableTenants([]);
+      return;
+    }
+    let cancelled = false;
+    const loadTenants = async () => {
+      try {
+        const rows = await list_tenants();
+        if (cancelled) return;
+        setAvailableTenants(
+          (rows || [])
+            .filter((row) => String(row?.tenant_id || '').trim())
+            .sort((a, b) =>
+              String(a.company_name || a.slug || a.tenant_id).localeCompare(
+                String(b.company_name || b.slug || b.tenant_id),
+              ),
+            ),
+        );
+      } catch (error: any) {
+        if (!cancelled) {
+          setAvailableTenants([]);
+          logUiError(selectedTenantId, 'tenant-switcher', error?.message || 'Failed to load tenants');
+        }
+      }
+    };
+    void loadTenants();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasValidUser, sessionRole, selectedTenantId]);
+
+  const handleTenantSwitch = (nextTenantId: string) => {
+    const safeTenantId = String(nextTenantId || '').trim();
+    if (!safeTenantId || safeTenantId === selectedTenantId) return;
+    setTenantSwitching(true);
+    try {
+      clearDBCache();
+      switchTenantContext(safeTenantId);
+      sessionStorage.removeItem(`low_stock_popup_seen_${selectedTenantId}_${user?.username || ''}`);
+      sessionStorage.removeItem(`low_stock_popup_seen_${safeTenantId}_${user?.username || ''}`);
+    } catch (error: any) {
+      setTenantSwitching(false);
+      notify('error', error?.message || 'Tenant keçidi alınmadı');
+      return;
+    }
+    window.setTimeout(() => {
+      window.location.reload();
+    }, 120);
+  };
 
   const moduleButtons: Array<{ key: ModuleKey; label: string; manager?: boolean; adminOnly?: boolean }> = [
     { key: 'pos', label: t.modules.pos },
@@ -446,6 +502,23 @@ export default function App() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {sessionRole === 'super_admin' && availableTenants.length > 0 && (
+                <label className="flex items-center gap-2 rounded-2xl border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 text-sm text-cyan-100">
+                  <span className="hidden md:inline">{tx(safeLang, 'Tenant', 'Тенант', 'Tenant')}</span>
+                  <select
+                    value={selectedTenantId}
+                    onChange={(event) => handleTenantSwitch(event.target.value)}
+                    disabled={tenantSwitching}
+                    className="min-w-[180px] bg-transparent text-sm font-medium text-cyan-50 outline-none"
+                  >
+                    {availableTenants.map((tenant) => (
+                      <option key={tenant.tenant_id} value={tenant.tenant_id} className="bg-slate-900 text-slate-100">
+                        {tenant.company_name || tenant.slug || tenant.tenant_id}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                 isOnline ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-200 shadow-sm animate-pulse'
               }`}>
