@@ -2,20 +2,33 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDB, setDB } from '../lib/db_sim';
 import { logEvent } from '../lib/logger';
 import { Customer, CustomerType, Notification } from '../types/pos';
-import { getActiveTenantId } from '../lib/tenant';
+import { filterTenantRecords, getActiveTenantId } from '../lib/tenant';
 import { apiRequest, isBackendEnabled } from './client';
 
 const defaultTenant = () => getActiveTenantId();
 
+const getCustomersLocal = (tenantId: string) => {
+  const tenantRows = getDB<Customer>(`${tenantId}_customers`) || [];
+  if (tenantRows.length > 0) return tenantRows;
+  return filterTenantRecords(getDB<Customer>('customers'), tenantId);
+};
+
+const saveCustomersLocal = (tenantId: string, rows: Customer[]) => {
+  const shared = getDB<Customer>('customers').filter((row) => String(row.tenant_id || '') !== tenantId);
+  const next = [...shared, ...(Array.isArray(rows) ? rows : [])];
+  setDB('customers', next);
+  setDB(`${tenantId}_customers`, rows);
+};
+
 export function create_customer(payload: { card_id: string; type: CustomerType; initial_stars: number }) {
   const tenantId = defaultTenant();
-  const customers = getDB<Customer>('customers');
+  const customers = getCustomersLocal(tenantId);
 
   const existing = customers.find((c) => c.card_id === payload.card_id && c.tenant_id === tenantId);
   if (existing) {
     existing.type = payload.type;
     existing.stars = payload.initial_stars;
-    setDB('customers', customers);
+    saveCustomersLocal(tenantId, customers);
     logEvent('system', 'CUSTOMER_UPSERT', { card_id: payload.card_id, type: payload.type, tenant_id: tenantId });
     return existing;
   }
@@ -31,7 +44,7 @@ export function create_customer(payload: { card_id: string; type: CustomerType; 
   };
 
   customers.push(newCustomer);
-  setDB('customers', customers);
+  saveCustomersLocal(tenantId, customers);
   
   logEvent('system', 'CUSTOMER_UPSERT', { card_id: payload.card_id, type: payload.type, tenant_id: tenantId });
   return newCustomer;
@@ -39,7 +52,7 @@ export function create_customer(payload: { card_id: string; type: CustomerType; 
 
 export function get_customer_by_qr(card_id: string) {
   const tenantId = defaultTenant();
-  const customers = getDB<Customer>('customers');
+  const customers = getCustomersLocal(tenantId);
   const customer = customers.find((c) => c.card_id === card_id && c.tenant_id === tenantId);
   if (!customer) throw new Error('Müştəri tapılmadı');
   return {
@@ -52,7 +65,8 @@ export function get_customer_by_qr(card_id: string) {
 
 export function send_notification(payload: { card_ids: string[]; message: string }) {
   const tenantId = defaultTenant();
-  const notifications = getDB<Notification>('notifications');
+  const notifications = filterTenantRecords(getDB<Notification>('notifications'), tenantId);
+  const foreignNotifications = getDB<Notification>('notifications').filter((row) => String(row.tenant_id || '') !== tenantId);
 
   let count = 0;
   for (const card_id of payload.card_ids) {
@@ -68,23 +82,25 @@ export function send_notification(payload: { card_ids: string[]; message: string
     count++;
   }
 
-  setDB('notifications', notifications);
+  setDB('notifications', [...foreignNotifications, ...notifications]);
   logEvent('system', 'CRM_SEND', { customer_count: count, tenant_id: tenantId });
   return { success: true, count };
 }
 
 export function mark_notification_read(notification_id: string) {
-  const notifications = getDB<Notification>('notifications');
+  const tenantId = defaultTenant();
+  const notifications = filterTenantRecords(getDB<Notification>('notifications'), tenantId);
+  const foreignNotifications = getDB<Notification>('notifications').filter((row) => String(row.tenant_id || '') !== tenantId);
   const notif = notifications.find((n) => n.id === notification_id);
   if (!notif) throw new Error('Bildiriş tapılmadı');
   
   notif.is_read = true;
-  setDB('notifications', notifications);
+  setDB('notifications', [...foreignNotifications, ...notifications]);
   return { success: true };
 }
 
 export async function generate_campaign_ai(goal: string) {
-  const customers = getDB<Customer>('customers');
+  const customers = getCustomersLocal(defaultTenant());
   const customerCount = customers.length;
   
   // Gemini API simulyasiyası
@@ -97,7 +113,7 @@ export async function generate_campaign_ai(goal: string) {
 
 export async function get_customers_live(tenant_id?: string) {
   const tenantId = tenant_id || defaultTenant();
-  if (!isBackendEnabled()) return getDB<any>(`${tenantId}_customers`) || [];
+  if (!isBackendEnabled()) return getCustomersLocal(tenantId);
   return apiRequest<any[]>('/api/v1/ops/customers', { tenantId: null });
 }
 
@@ -121,7 +137,7 @@ export async function import_customers_live(
   }
 
   if (!isBackendEnabled()) {
-    const customers = getDB<any>(`${tenantId}_customers`) || [];
+    const customers = getCustomersLocal(tenantId);
     normalized.forEach((row) => {
       const existing = customers.find((c: any) => String(c.card_id || '').toLowerCase() === row.card_id.toLowerCase());
       if (existing) {
@@ -142,7 +158,7 @@ export async function import_customers_live(
         });
       }
     });
-    setDB(`${tenantId}_customers`, customers);
+    saveCustomersLocal(tenantId, customers);
     return { success: true, imported: normalized.length, updated: 0 };
   }
 
