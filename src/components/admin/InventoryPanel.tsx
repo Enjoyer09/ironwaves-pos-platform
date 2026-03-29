@@ -48,6 +48,7 @@ export default function InventoryPanel() {
   const [newCost, setNewCost] = useState('');
   const [newUnit, setNewUnit] = useState('qram');
   const [newType, setNewType] = useState('Xammal');
+  const [customType, setCustomType] = useState('');
   const [newMinLimit, setNewMinLimit] = useState('5');
   const [measureType, setMeasureType] = useState<'çəki' | 'say' | 'həcm'>('çəki');
   const [isAdding, setIsAdding] = useState(false);
@@ -69,8 +70,19 @@ export default function InventoryPanel() {
     return qty.toDecimalPlaces(3).toString();
   };
 
+  const inventoryTypeOptions = Array.from(
+    new Set(
+      ['Xammal', 'İçki Bazası', 'Paketləmə', ...items.map((item: any) => String(item.type || '').trim()).filter(Boolean)],
+    ),
+  );
+
   const handleAdd = async () => {
     if (!newName || !newQty || !newCost || Number(newQty) <= 0 || Number(newCost) < 0) return;
+    const resolvedType = newType === '__custom__' ? customType.trim() : newType.trim();
+    if (!resolvedType) {
+      notify('error', tx(lang, 'Kateqoriya boş ola bilməz', 'Категория не может быть пустой', 'Category cannot be empty'));
+      return;
+    }
     try {
       const qty = new Decimal(newQty);
       const totalPrice = new Decimal(newCost);
@@ -80,7 +92,7 @@ export default function InventoryPanel() {
         stock_qty: qty,
         unit: newUnit,
         category: measureType,
-        type: newType,
+        type: resolvedType,
         unit_cost: qty.gt(0) ? totalPrice.div(qty).toDecimalPlaces(4) : new Decimal(0),
         min_limit: new Decimal(newMinLimit || 0)
       }, user?.username || 'Admin');
@@ -88,6 +100,8 @@ export default function InventoryPanel() {
       setNewQty('');
       setNewCost('');
       setNewMinLimit('5');
+      setCustomType('');
+      setNewType('Xammal');
       setIsAdding(false);
       await loadData();
     } catch(e:any) {
@@ -268,10 +282,19 @@ export default function InventoryPanel() {
         <div className="metal-panel p-6 grid grid-cols-1 md:grid-cols-6 gap-4">
           <input className="neon-input min-h-13 col-span-2" placeholder={tx(lang, 'Xammal Adı (Məs: Kofe dənəsi)', 'Название сырья (напр.: кофейное зерно)', 'Inventory name (e.g. Coffee Beans)')} value={newName} onChange={e => setNewName(e.target.value)} />
           <select className="neon-input min-h-13" value={newType} onChange={e => setNewType(e.target.value)}>
-            <option value="Xammal">{tx(lang, 'Xammal', 'Сырье', 'Raw Material')}</option>
-            <option value="İçki Bazası">{tx(lang, 'İçki Bazası', 'Основа напитков', 'Beverage Base')}</option>
-            <option value="Paketləmə">{tx(lang, 'Paketləmə', 'Упаковка', 'Packaging')}</option>
+            {inventoryTypeOptions.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+            <option value="__custom__">{tx(lang, 'Yeni kateqoriya...', 'Новая категория...', 'New category...')}</option>
           </select>
+          {newType === '__custom__' && (
+            <input
+              className="neon-input min-h-13"
+              placeholder={tx(lang, 'Manual kateqoriya adı', 'Название категории вручную', 'Manual category name')}
+              value={customType}
+              onChange={e => setCustomType(e.target.value)}
+            />
+          )}
           <select className="neon-input min-h-13" value={measureType} onChange={e => setMeasureType(e.target.value as any)}>
             <option value="çəki">{tx(lang, 'Çəki', 'Вес', 'Weight')}</option>
             <option value="say">{tx(lang, 'Say', 'Штуки', 'Count')}</option>
