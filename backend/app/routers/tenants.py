@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_super_admin, get_tenant
+from app.core.config import settings
 from app.models import (
     AuditLog,
     FinanceEntry,
@@ -505,10 +506,22 @@ def delete_tenant(
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    if tenant.slug in {"socialbee", "platform", "default"}:
+
+    protected_slugs = {str(settings.platform_tenant_slug or "").strip().lower()}
+    if settings.demo_tenant_enabled and settings.demo_tenant_slug:
+        protected_slugs.add(str(settings.demo_tenant_slug).strip().lower())
+    protected_domains = {str(settings.platform_tenant_domain or "").strip().lower()}
+    if settings.demo_tenant_enabled and settings.demo_tenant_domain:
+        protected_domains.add(str(settings.demo_tenant_domain).strip().lower())
+
+    if tenant.slug.strip().lower() in protected_slugs or tenant.domain.strip().lower() in protected_domains:
         raise HTTPException(status_code=400, detail="Protected tenant cannot be deleted")
 
     # Remove dependent rows first (no ON DELETE CASCADE configured in this MVP schema).
+    try:
+        db.execute(text("DELETE FROM tenant_domains WHERE tenant_id=:tenant_id"), {"tenant_id": tenant.id})
+    except Exception:
+        pass
     db.query(RefreshToken).filter(RefreshToken.tenant_id == tenant.id).delete(synchronize_session=False)
     db.query(AuditLog).filter(AuditLog.tenant_id == tenant.id).delete(synchronize_session=False)
     db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant.id).delete(synchronize_session=False)
