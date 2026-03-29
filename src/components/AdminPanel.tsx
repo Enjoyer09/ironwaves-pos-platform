@@ -7,6 +7,7 @@ import { Decimal } from 'decimal.js';
 import { Plus, Trash2, TrendingUp, ShoppingBag, DollarSign } from 'lucide-react';
 import FinancePanel from './admin/FinancePanel';
 import InventoryPanel from './admin/InventoryPanel';
+import DashboardPanel from './admin/DashboardPanel';
 import CRMPanel from './admin/CRMPanel';
 import TablesHappyHourPanel from './admin/TablesHappyHourPanel';
 import RecipesPanel from './admin/RecipesPanel';
@@ -20,7 +21,7 @@ import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
 import { getDB } from '../lib/db_sim';
 
-type AdminTab = 'analytics' | 'menu' | 'tables' | 'finance' | 'inventory' | 'crm' | 'recipes' | 'ai' | 'settings' | 'notes' | 'logs' | 'database' | 'zreport' | 'combos';
+type AdminTab = 'dashboard' | 'analytics' | 'menu' | 'tables' | 'finance' | 'inventory' | 'crm' | 'recipes' | 'ai' | 'settings' | 'notes' | 'logs' | 'database' | 'zreport' | 'combos';
 
 interface AdminPanelProps {
   externalTab?: AdminTab;
@@ -30,7 +31,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
 
-  const [activeTab, setActiveTab] = useState<AdminTab>('analytics');
+  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   
   const [summary, setSummary] = useState<any>(null);
   const [sales, setSales] = useState<any[]>([]);
@@ -60,6 +61,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   const [managerPass, setManagerPass] = useState('');
   const [newSaleTotal, setNewSaleTotal] = useState('');
   const mobileTabOptions: Array<{ key: AdminTab; label: string }> = [
+    { key: 'dashboard', label: tx(lang, 'Dashboard', 'Дашборд', 'Dashboard') },
     { key: 'analytics', label: tx(lang, 'Analitika', 'Аналитика', 'Analytics') },
     { key: 'menu', label: tx(lang, 'Menyu', 'Меню', 'Menu') },
     { key: 'finance', label: tx(lang, 'Maliyyə', 'Финансы', 'Finance') },
@@ -209,6 +211,8 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
           </select>
         </div>
         
+        {activeTab === 'dashboard' && <DashboardPanel />}
+
         {activeTab === 'analytics' && (
           <div>
             <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
