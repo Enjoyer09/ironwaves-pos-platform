@@ -211,7 +211,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
           </select>
         </div>
         
-        {activeTab === 'dashboard' && <DashboardPanel />}
+        {activeTab === 'dashboard' && <DashboardPanel onOpenTab={setActiveTab} />}
 
         {activeTab === 'analytics' && (
           <div>

@@ -4,13 +4,11 @@ import { ArrowRight, ChefHat, CreditCard, PackageSearch, Receipt, SignalHigh, Sh
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 import { get_sales_list, get_sales_list_live, get_sales_summary, get_sales_summary_live } from '../../api/analytics';
-import { fetch_finance_balances } from '../../api/finance';
-import { get_balance } from '../../api/finance';
+import { fetch_finance_balances, fetch_finance_entries, get_balance } from '../../api/finance';
 import { get_low_stock_items } from '../../api/inventory';
 import { get_kitchen_orders, get_kitchen_orders_live } from '../../api/kds';
 import { get_tables, get_tables_live } from '../../api/tables';
 import { getPendingOfflineSalesCount } from '../../lib/offline';
-import { isBackendEnabled } from '../../api/client';
 
 type DashboardSnapshot = {
   summary: any;
@@ -18,6 +16,7 @@ type DashboardSnapshot = {
   kitchenOrders: any[];
   tables: any[];
   balances: any;
+  financeEntries: any[];
   lowStock: any[];
   pendingOffline: number;
 };
@@ -32,7 +31,7 @@ const emptyBalances = {
   safe_balance: '0',
 };
 
-export default function DashboardPanel() {
+export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'inventory' | 'finance' | 'analytics' | 'tables') => void }) {
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [rangePreset, setRangePreset] = useState<RangePreset>('daily');
@@ -44,6 +43,7 @@ export default function DashboardPanel() {
     kitchenOrders: [],
     tables: [],
     balances: emptyBalances,
+    financeEntries: [],
     lowStock: [],
     pendingOffline: 0,
   });
@@ -94,12 +94,14 @@ export default function DashboardPanel() {
           sales,
           kitchenOrders,
           tables,
+          financeEntries,
           pendingOffline,
         ] = await Promise.all([
           getSalesSummarySafe(),
           getSalesListSafe(),
           getKitchenOrdersSafe(),
           getTablesSafe(),
+          getFinanceEntriesSafe(),
           getPendingOfflineSalesCount(tenant_id),
         ]);
 
@@ -113,6 +115,7 @@ export default function DashboardPanel() {
           kitchenOrders,
           tables,
           balances,
+          financeEntries,
           lowStock,
           pendingOffline,
         });
@@ -159,6 +162,14 @@ export default function DashboardPanel() {
         return await fetch_finance_balances(tenant_id);
       } catch {
         return get_balance(tenant_id, 'all', false) as any;
+      }
+    };
+
+    const getFinanceEntriesSafe = async () => {
+      try {
+        return await fetch_finance_entries(tenant_id);
+      } catch {
+        return [];
       }
     };
 
@@ -217,6 +228,48 @@ export default function DashboardPanel() {
     const total = snapshot.sales.reduce((sum: Decimal, sale: any) => sum.plus(new Decimal(sale.total || 0)), new Decimal(0));
     return total.div(snapshot.sales.length);
   }, [snapshot.sales]);
+
+  const financeTrend = useMemo(() => {
+    const start = new Date(activeRange.fromIso);
+    const end = new Date(activeRange.toIso);
+    const days: Array<{ label: string; net: Decimal }> = [];
+    const cursor = new Date(start);
+    while (cursor <= end && days.length < 8) {
+      days.push({
+        label: `${String(cursor.getDate()).padStart(2, '0')}/${String(cursor.getMonth() + 1).padStart(2, '0')}`,
+        net: new Decimal(0),
+      });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    if (!days.length) {
+      days.push({ label: tx(lang, 'Bu gün', 'Сегодня', 'Today'), net: new Decimal(0) });
+    }
+    snapshot.financeEntries.forEach((entry: any) => {
+      const date = new Date(entry.created_at);
+      const label = `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const bucket = days.find((row) => row.label === label);
+      if (!bucket) return;
+      const amount = new Decimal(entry.amount || 0);
+      bucket.net = bucket.net.plus(entry.type === 'in' ? amount : amount.negated());
+    });
+    return days;
+  }, [snapshot.financeEntries, activeRange.fromIso, activeRange.toIso, lang]);
+
+  const financeSparkline = useMemo(() => {
+    const points = financeTrend.map((row) => row.net);
+    const max = points.reduce((peak, value) => Decimal.max(peak, value.abs()), new Decimal(1));
+    return financeTrend.map((row, index) => ({
+      label: row.label,
+      value: row.net,
+      x: financeTrend.length === 1 ? 0 : (index / (financeTrend.length - 1)) * 100,
+      y: 50 - row.net.div(max).times(38).toNumber(),
+    }));
+  }, [financeTrend]);
+
+  const trendPath = useMemo(() => {
+    if (!financeSparkline.length) return '';
+    return financeSparkline.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+  }, [financeSparkline]);
 
   const hourlyTrend = useMemo(() => {
     const buckets = Array.from({ length: 6 }).map((_, idx) => {
@@ -402,13 +455,19 @@ export default function DashboardPanel() {
                   <p className="mt-1 text-sm text-slate-500">{tx(lang, 'Son saatlar üzrə', 'По последним часам', 'Last hours')}</p>
                 </div>
               </div>
-              <div className="flex h-52 items-end gap-3 rounded-2xl bg-slate-100/80 p-4">
-                {hourlyTrend.map((point) => (
-                  <div key={point.label} className="flex flex-1 flex-col items-center justify-end gap-2">
-                    <div className="flex w-full items-end justify-center rounded-t-2xl bg-gradient-to-t from-sky-500 to-cyan-300" style={{ height: `${Math.max(8, point.height)}%` }} />
-                    <div className="text-[11px] font-semibold text-slate-500">{point.label}</div>
-                  </div>
-                ))}
+              <div className="rounded-2xl bg-slate-100/80 p-4">
+                <svg viewBox="0 0 100 60" className="h-44 w-full overflow-visible">
+                  <path d="M 0 52 L 100 52" stroke="#cbd5e1" strokeWidth="0.6" strokeDasharray="2 2" fill="none" />
+                  <path d={hourlyTrend.map((point, index) => `${index === 0 ? 'M' : 'L'} ${hourlyTrend.length === 1 ? 0 : (index / (hourlyTrend.length - 1)) * 100} ${52 - point.height * 0.42}`).join(' ')} fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" />
+                  {hourlyTrend.map((point, index) => (
+                    <circle key={point.label} cx={hourlyTrend.length === 1 ? 0 : (index / (hourlyTrend.length - 1)) * 100} cy={52 - point.height * 0.42} r="1.8" fill="#0ea5e9" />
+                  ))}
+                </svg>
+                <div className="mt-3 grid grid-cols-6 gap-2 text-center">
+                  {hourlyTrend.map((point) => (
+                    <div key={point.label} className="text-[11px] font-semibold text-slate-500">{point.label}</div>
+                  ))}
+                </div>
               </div>
             </section>
           </div>
@@ -439,9 +498,41 @@ export default function DashboardPanel() {
                   <EmptyDash text={tx(lang, 'Bu gün hələ satış yoxdur', 'Сегодня еще нет продаж', 'No sales yet today')} />
                 )}
               </div>
+              <div className="mt-4">
+                <button
+                  onClick={() => onOpenTab('analytics')}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm"
+                >
+                  {tx(lang, 'Ətraflı analitikaya keç', 'Открыть аналитику', 'Open analytics')}
+                </button>
+              </div>
             </section>
 
             <section className="space-y-4">
+              {readyOrders > 0 && (
+                <div className="rounded-[28px] border border-amber-200 bg-[linear-gradient(135deg,#fff8e7,#fff1c7)] p-5 text-amber-950 shadow-[0_16px_40px_rgba(245,158,11,0.18)]">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
+                        {tx(lang, 'Canlı Xəbərdarlıq', 'Живое уведомление', 'Live Alert')}
+                      </div>
+                      <div className="mt-2 text-2xl font-black">
+                        {readyOrders} {tx(lang, 'sifariş servisə hazırdır', 'заказов готовы к выдаче', 'orders are ready to serve')}
+                      </div>
+                      <div className="mt-2 text-sm text-amber-800/80">
+                        {tx(lang, 'Ofisiant və ya zal komandası bu sifarişləri masalara çıxarmalıdır.', 'Официант или команда зала должны выдать эти заказы.', 'Front-of-house should serve these ready orders now.')}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onOpenTab('tables')}
+                      className="rounded-2xl bg-amber-950 px-4 py-3 text-sm font-semibold text-white shadow-sm"
+                    >
+                      {tx(lang, 'Masalara bax', 'Открыть столы', 'Open tables')}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.93),rgba(246,248,252,0.88))] p-5 text-slate-900 shadow-[0_16px_45px_rgba(0,0,0,0.22)]">
                 <h3 className="text-lg font-bold">{tx(lang, 'Kassir Performansı', 'Эффективность кассиров', 'Cashier Performance')}</h3>
                 <div className="mt-4 space-y-3">
@@ -471,6 +562,14 @@ export default function DashboardPanel() {
                     title={tx(lang, 'Kritik stok', 'Критический остаток', 'Critical stock')}
                     value={String(snapshot.lowStock.length)}
                     helper={snapshot.lowStock[0]?.name || tx(lang, 'Hazırda kritik məhsul yoxdur', 'Пока нет критических позиций', 'No critical item right now')}
+                    action={snapshot.lowStock.length > 0 ? (
+                      <button
+                        onClick={() => onOpenTab('inventory')}
+                        className="rounded-xl bg-rose-950 px-3 py-2 text-xs font-semibold text-white"
+                      >
+                        {tx(lang, 'Anbara keç', 'Открыть склад', 'Open inventory')}
+                      </button>
+                    ) : undefined}
                   />
                   <AlertRow
                     icon={<ShoppingBag size={18} />}
@@ -486,6 +585,35 @@ export default function DashboardPanel() {
                     value={String(readyOrders)}
                     helper={tx(lang, 'Servisə çağırılmalıdır', 'Нужно выдать в зал', 'Needs front-of-house action')}
                   />
+                </div>
+              </div>
+
+              <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.93),rgba(246,248,252,0.88))] p-5 text-slate-900 shadow-[0_16px_45px_rgba(0,0,0,0.22)]">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-bold">{tx(lang, 'Maliyyə Snapshot', 'Финансовый снимок', 'Finance Snapshot')}</h3>
+                    <p className="mt-1 text-sm text-slate-500">{tx(lang, 'Seçilmiş aralıqda net trend', 'Нетто тренд за выбранный период', 'Net trend for selected range')}</p>
+                  </div>
+                  <button
+                    onClick={() => onOpenTab('finance')}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm"
+                  >
+                    {tx(lang, 'Maliyyəyə keç', 'Открыть финансы', 'Open finance')}
+                  </button>
+                </div>
+                <div className="mt-4 rounded-2xl bg-slate-100/80 p-4">
+                  <svg viewBox="0 0 100 60" className="h-24 w-full overflow-visible">
+                    <path d="M 0 30 L 100 30" stroke="#cbd5e1" strokeWidth="0.6" strokeDasharray="2 2" fill="none" />
+                    {trendPath ? <path d={trendPath} fill="none" stroke="#111827" strokeWidth="2.4" strokeLinecap="round" /> : null}
+                    {financeSparkline.map((point) => (
+                      <circle key={point.label} cx={point.x} cy={point.y} r="1.6" fill={point.value.gte(0) ? '#10b981' : '#ef4444'} />
+                    ))}
+                  </svg>
+                  <div className="mt-3 grid grid-cols-4 gap-2 text-center text-[11px] font-semibold text-slate-500">
+                    {financeSparkline.slice(-4).map((point) => (
+                      <div key={point.label}>{point.label}</div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -580,12 +708,14 @@ function AlertRow({
   value,
   helper,
   tone,
+  action,
 }: {
   icon: React.ReactNode;
   title: string;
   value: string;
   helper: string;
   tone: 'rose' | 'sky' | 'amber';
+  action?: React.ReactNode;
 }) {
   const toneMap = {
     rose: 'border-rose-200 bg-rose-50 text-rose-900',
@@ -600,6 +730,7 @@ function AlertRow({
           <div>
             <div className="font-semibold">{title}</div>
             <div className="mt-1 text-xs opacity-75">{helper}</div>
+            {action ? <div className="mt-3">{action}</div> : null}
           </div>
         </div>
         <div className="text-xl font-black">{value}</div>
