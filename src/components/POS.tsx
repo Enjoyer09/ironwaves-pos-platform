@@ -131,6 +131,7 @@ export default function POS() {
   const [variantPicker, setVariantPicker] = useState<{ base: string; items: any[] } | null>(null);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [mobilePane, setMobilePane] = useState<'menu' | 'cart'>('menu');
+  const [showMobileCheckout, setShowMobileCheckout] = useState(false);
   const receiptIframeRef = useRef<HTMLIFrameElement | null>(null);
   const businessProfile = get_business_profile(tenantId);
   const printSettings = get_settings(tenantId).print_settings || { use_qz: false, printer_name: '' };
@@ -648,7 +649,7 @@ export default function POS() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[radial-gradient(circle_at_top,#2a3342,#141b24_55%)] px-3 pb-3 pt-3 text-slate-200 md:px-4 xl:px-6">
+    <div className="flex h-full min-h-0 flex-col bg-[radial-gradient(circle_at_top,#2a3342,#141b24_55%)] px-3 pb-24 pt-3 text-slate-200 md:px-4 md:pb-3 xl:px-6">
 
       <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
         <button onClick={() => setActiveCart('S1')} className={`neon-tab ${activeCart === 'S1' ? 'neon-tab-active' : ''}`}>
@@ -994,6 +995,102 @@ export default function POS() {
           </button>
         </aside>
       </div>
+
+      <div className="fixed inset-x-0 bottom-16 z-30 px-3 md:hidden">
+        <button
+          onClick={() => setShowMobileCheckout(true)}
+          className="flex w-full items-center justify-between rounded-[24px] border border-yellow-300/30 bg-[#111821]/95 px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+        >
+          <div className="text-left">
+            <div className="text-xs uppercase tracking-[0.18em] text-slate-400">{tx(lang, 'Checkout', 'Оплата', 'Checkout')}</div>
+            <div className="mt-1 text-sm font-semibold text-slate-200">{tx(lang, 'Səbət və ödəniş seçimləri', 'Корзина и варианты оплаты', 'Cart and payment options')}</div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-slate-400">{tx(lang, 'Yekun', 'Итого', 'Total')}</div>
+            <div className="text-xl font-black text-white">{checkoutBaseTotal.toFixed(2)} ₼</div>
+          </div>
+        </button>
+      </div>
+
+      {showMobileCheckout && (
+        <div className="fixed inset-0 z-[130] bg-black/65 md:hidden">
+          <div className="absolute inset-x-0 bottom-0 max-h-[88dvh] overflow-y-auto rounded-t-[30px] border border-slate-700/70 bg-[#101722] p-4 shadow-[0_-20px_60px_rgba(0,0,0,0.45)]">
+            <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-600" />
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <div className="text-xs uppercase tracking-[0.18em] text-slate-400">{tx(lang, 'Mobile Checkout', 'Мобильная оплата', 'Mobile Checkout')}</div>
+                <div className="mt-1 text-lg font-bold text-white">{checkoutBaseTotal.toFixed(2)} ₼</div>
+              </div>
+              <button className="neon-btn rounded-xl px-4 py-2" onClick={() => setShowMobileCheckout(false)}>
+                {tx(lang, 'Bağla', 'Закрыть', 'Close')}
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-xl border border-slate-700/70 bg-[#0d141e] p-3">
+                <div className="mb-2 text-sm font-semibold text-slate-200">{tx(lang, 'Səbət', 'Корзина', 'Cart')}</div>
+                <div className="space-y-2">
+                  {cart.length === 0 && <div className="text-sm text-slate-500">{t.cart_empty}</div>}
+                  {cart.map((item) => (
+                    <div key={`mobile_${item.id}`} className="rounded-lg border border-slate-700 bg-slate-900/40 p-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-semibold text-slate-100">{item.item_name}</span>
+                        <span className="font-semibold text-yellow-300">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
+                      </div>
+                      <div className="mt-2 flex items-center justify-end gap-2">
+                        <button className="neon-mini-btn" onClick={() => updateCartItem(item.id, item.qty - 1)}>
+                          <Minus size={14} />
+                        </button>
+                        <span className="w-6 text-center">{item.qty}</span>
+                        <button className="neon-mini-btn" onClick={() => updateCartItem(item.id, item.qty + 1)}>
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button disabled={isLoading} onClick={() => setSelectedPayment('Nəğd')} className={`pay-btn ${selectedPayment === 'Nəğd' ? 'pay-btn-active' : ''}`}>{tx(lang, 'Nəğd', 'Наличные', 'Cash')}</button>
+                <button disabled={isLoading} onClick={() => setSelectedPayment('Kart')} className={`pay-btn ${selectedPayment === 'Kart' ? 'pay-btn-active' : ''}`}>{tx(lang, 'Kart', 'Карта', 'Card')}</button>
+                <button disabled={isLoading} onClick={() => setSelectedPayment('Split')} className={`pay-btn ${selectedPayment === 'Split' ? 'pay-btn-active' : ''}`}>{tx(lang, 'Bölünmüş', 'Разделено', 'Split')}</button>
+                <button disabled={isLoading} onClick={() => setSelectedPayment('Staff')} className={`pay-btn ${selectedPayment === 'Staff' ? 'pay-btn-active' : ''}`}>{tx(lang, 'Staff', 'Персонал', 'Staff')}</button>
+              </div>
+
+              {selectedPayment === 'Split' && (
+                <div className="rounded-lg border border-slate-700/70 bg-[#0e1520] p-3 text-sm">
+                  <label className="mb-1 block text-slate-300">{tx(lang, 'Nağd hissə', 'Наличная часть', 'Cash part')}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    max={checkoutBaseTotal.toNumber()}
+                    value={splitCashInput}
+                    onChange={(e) => setSplitCashInput(e.target.value)}
+                    className="neon-input"
+                  />
+                </div>
+              )}
+
+              <button
+                disabled={
+                  isLoading ||
+                  (cart.length === 0 && !(ctx.orderType === 'Dine In' && selectedTableData?.is_occupied)) ||
+                  (ctx.orderType === 'Dine In' && !ctx.selectedTable)
+                }
+                onClick={() => {
+                  void handleCheckout(selectedPayment);
+                  setShowMobileCheckout(false);
+                }}
+                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border border-red-300/40 bg-red-600 px-4 text-base font-bold text-white shadow-[0_0_22px_rgba(239,68,68,0.35)] disabled:opacity-50"
+              >
+                <Check size={18} /> {tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {variantPicker && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4">

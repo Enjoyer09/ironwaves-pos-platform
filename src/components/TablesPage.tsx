@@ -165,8 +165,9 @@ export default function TablesPage() {
       )}
 
       {payTableId && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/65 p-4">
-          <div className="metal-panel w-full max-w-md p-5">
+        <div className="fixed inset-0 z-[130] flex items-end justify-center bg-black/65 p-0 md:items-center md:p-4">
+          <div className="metal-panel w-full max-w-md rounded-t-[28px] p-5 md:rounded-2xl">
+            <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-600 md:hidden" />
             <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Masa hesabını bağla', 'Закрыть счет стола')}</h3>
             <div className="mt-3 text-sm text-slate-300">
               {(() => {
@@ -284,8 +285,9 @@ export default function TablesPage() {
       )}
 
       {viewTableId && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/65 p-4">
-          <div className="metal-panel w-full max-w-lg p-5">
+        <div className="fixed inset-0 z-[130] flex items-end justify-center bg-black/65 p-0 md:items-center md:p-4">
+          <div className="metal-panel w-full max-w-lg rounded-t-[30px] p-5 md:rounded-2xl">
+            <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-600 md:hidden" />
             {(() => {
               const t = tables.find((x) => x.id === viewTableId);
               if (!t) return null;
