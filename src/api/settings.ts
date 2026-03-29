@@ -360,6 +360,40 @@ export async function update_staff_benefits_live(payload: {
   return { success: true };
 }
 
+export async function setup_totp_live() {
+  if (!isBackendEnabled()) {
+    throw new Error('Google Authenticator yalnız backend aktiv olduqda qoşula bilər');
+  }
+  return apiRequest<{ secret: string; otpauth_url: string }>('/api/v1/settings/2fa/totp/setup', {
+    method: 'POST',
+    tenantId: null,
+  });
+}
+
+export async function verify_totp_live(code: string) {
+  if (!isBackendEnabled()) {
+    throw new Error('Google Authenticator yalnız backend aktiv olduqda qoşula bilər');
+  }
+  await apiRequest('/api/v1/settings/2fa/totp/verify', {
+    method: 'POST',
+    tenantId: null,
+    body: { code: String(code || '').trim() },
+  });
+  return { success: true };
+}
+
+export async function disable_totp_live(current_password: string) {
+  if (!isBackendEnabled()) {
+    throw new Error('Google Authenticator yalnız backend aktiv olduqda söndürülə bilər');
+  }
+  await apiRequest('/api/v1/settings/2fa/totp/disable', {
+    method: 'POST',
+    tenantId: null,
+    body: { current_password: String(current_password || '') },
+  });
+  return { success: true };
+}
+
 export function get_business_profile(tenant_id?: string) {
   const resolvedTenant = resolveTenant(tenant_id);
   const profiles = getDB<any>('business_profile');

@@ -12,6 +12,7 @@ class LoginIn(BaseModel):
     username: str
     password: str
     tenant_id: str | None = None
+    second_factor_code: str | None = None
 
 
 class PinLoginIn(BaseModel):
@@ -33,6 +34,19 @@ class TokenOut(BaseModel):
 class BootstrapOwnerIn(BaseModel):
     username: str
     password: str
+
+
+class TotpSetupOut(BaseModel):
+    secret: str
+    otpauth_url: str
+
+
+class TotpVerifyIn(BaseModel):
+    code: str
+
+
+class TotpDisableIn(BaseModel):
+    current_password: str
 
 
 class MenuItemOut(BaseModel):

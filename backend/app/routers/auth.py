@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+import pyotp
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -159,6 +160,14 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db), ten
             user.locked_until = now + timedelta(minutes=5)
         db.commit()
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if bool(user.totp_enabled) and user.totp_secret:
+        code = str(payload.second_factor_code or "").strip().replace(" ", "")
+        if not code:
+            raise HTTPException(status_code=401, detail="2FA_REQUIRED")
+        totp = pyotp.TOTP(user.totp_secret)
+        if not totp.verify(code, valid_window=1):
+            raise HTTPException(status_code=401, detail="Invalid 2FA code")
 
     user.failed_attempts = 0
     user.locked_until = None
