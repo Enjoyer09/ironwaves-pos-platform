@@ -1,4 +1,5 @@
 from datetime import datetime
+import re
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,12 +21,27 @@ def _parse_cors_origins(raw: str) -> list[str]:
     return items or ["http://localhost:5173"]
 
 
+def _build_cors_regex(origins: list[str]) -> str | None:
+    wildcard_patterns: list[str] = []
+    for origin in origins:
+        if "*" not in origin or origin == "*":
+            continue
+        escaped = re.escape(origin)
+        wildcard_patterns.append(escaped.replace(r"\*", r"[^.]+"))
+    if not wildcard_patterns:
+        return None
+    return "^(" + "|".join(wildcard_patterns) + ")$"
+
+
 _origins = _parse_cors_origins(settings.cors_origins)
+_cors_regex = _build_cors_regex(_origins)
+_exact_origins = [origin for origin in _origins if "*" not in origin or origin == "*"]
 _allow_credentials = not (_origins == ["*"])
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_origins,
+    allow_origins=_exact_origins,
+    allow_origin_regex=_cors_regex,
     allow_credentials=_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
