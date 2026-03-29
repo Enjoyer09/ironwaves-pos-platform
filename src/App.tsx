@@ -395,16 +395,15 @@ export default function App() {
     { key: 'analytics', label: t.modules.analytics, manager: true },
     { key: 'zreport', label: t.modules.zreport },
     { key: 'inventory', label: t.modules.inventory, manager: true },
-    { key: 'combos', label: t.modules.combos, manager: true },
-    { key: 'crm', label: t.modules.crm, manager: true },
-    { key: 'logs', label: t.modules.logs, manager: true },
-    { key: 'ai', label: t.modules.ai, manager: true },
     { key: 'menu', label: t.modules.menu, manager: true },
     { key: 'recipes', label: t.modules.recipes, manager: true },
-    { key: 'tenants', label: t.modules.tenants, superAdminOnly: true },
+    { key: 'logs', label: t.modules.logs, manager: true },
+    { key: 'crm', label: t.modules.crm, manager: true },
     { key: 'notes', label: t.modules.notes, adminOnly: true },
-    { key: 'settings', label: t.modules.settings, adminOnly: true },
     { key: 'database', label: t.modules.database, adminOnly: true },
+    { key: 'settings', label: t.modules.settings, adminOnly: true },
+    { key: 'ai', label: t.modules.ai, manager: true },
+    { key: 'tenants', label: t.modules.tenants, superAdminOnly: true },
   ];
 
   const canAccess = (key: ModuleKey) => {

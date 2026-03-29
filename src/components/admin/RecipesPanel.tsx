@@ -7,6 +7,7 @@ import { Decimal } from 'decimal.js';
 import { ChefHat, Plus, Trash2, Calculator, Sparkles } from 'lucide-react';
 import { tx } from '../../i18n';
 import ConfirmModal from '../ConfirmModal';
+import CombosPanel from './CombosPanel';
 
 export default function RecipesPanel() {
   const { user, lang, notify } = useAppStore();
@@ -26,6 +27,7 @@ export default function RecipesPanel() {
   const [newQtyUnit, setNewQtyUnit] = useState('qram');
   const [deleteRecipeId, setDeleteRecipeId] = useState<string | null>(null);
   const [missingRecipeSet, setMissingRecipeSet] = useState<Set<string>>(new Set());
+  const [workspace, setWorkspace] = useState<'recipes' | 'combos'>('recipes');
 
   const selectedIngredientMeta = ingredients.find((i) => i.name === newIngredient) || null;
   const qtyUnitOptions = getRecipeEntryUnitOptions(String(selectedIngredientMeta?.unit || ''));
@@ -206,7 +208,7 @@ export default function RecipesPanel() {
           setDeleteRecipeId(null);
         }}
       />
-      <div className="flex items-center justify-between mb-8">
+      <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <ChefHat className="text-orange-500" size={32} />
@@ -214,8 +216,26 @@ export default function RecipesPanel() {
           </h1>
           <p className="text-slate-300 mt-1">{tx(lang, 'Məhsulların tərkibini yaradın və qazancınızı (margin) hesablayın', 'Создавайте состав продуктов и считайте вашу маржу', 'Build product recipes and calculate margin')}</p>
         </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setWorkspace('recipes')}
+            className={`${workspace === 'recipes' ? 'neon-chip neon-chip-active' : 'neon-chip'} min-h-12 px-4`}
+          >
+            {tx(lang, 'Reseptlər', 'Рецепты', 'Recipes')}
+          </button>
+          <button
+            onClick={() => setWorkspace('combos')}
+            className={`${workspace === 'combos' ? 'neon-chip neon-chip-active' : 'neon-chip'} min-h-12 px-4`}
+          >
+            {tx(lang, 'Kombolar', 'Комбо', 'Combos')}
+          </button>
+        </div>
       </div>
 
+      {workspace === 'combos' ? (
+        <CombosPanel />
+      ) : (
+      <>
       {menuItems.length === 0 && (
           <div className="metal-panel p-5 text-sm text-slate-300">{tx(lang, 'Aktiv menyu məhsulu yoxdur. Əvvəlcə Menyu bölməsindən məhsul yaradın.', 'Нет активных позиций меню. Сначала создайте продукт в разделе Меню.', 'There are no active menu items. Create one in Menu first.')}</div>
       )}
@@ -382,6 +402,8 @@ export default function RecipesPanel() {
           )}
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
