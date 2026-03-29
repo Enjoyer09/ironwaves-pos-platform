@@ -9,6 +9,7 @@ import { get_low_stock_items } from '../../api/inventory';
 import { get_kitchen_orders, get_kitchen_orders_live } from '../../api/kds';
 import { get_tables, get_tables_live } from '../../api/tables';
 import { getPendingOfflineSalesCount } from '../../lib/offline';
+import { get_business_profile } from '../../api/settings';
 
 type DashboardSnapshot = {
   summary: any;
@@ -37,6 +38,8 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
   const [rangePreset, setRangePreset] = useState<RangePreset>('daily');
   const [fromDate, setFromDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [hoveredTrend, setHoveredTrend] = useState<{ label: string; value: string } | null>(null);
   const [snapshot, setSnapshot] = useState<DashboardSnapshot>({
     summary: null,
     sales: [],
@@ -47,6 +50,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
     lowStock: [],
     pendingOffline: 0,
   });
+  const branding = useMemo(() => get_business_profile(tenant_id), [tenant_id]);
 
   useEffect(() => {
     const now = new Date();
@@ -187,6 +191,34 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
   const openTables = snapshot.tables.filter((table: any) => table.is_occupied).length;
   const readyOrders = snapshot.kitchenOrders.filter((order: any) => String(order.status || '').toUpperCase() === 'READY').length;
   const preparingOrders = snapshot.kitchenOrders.filter((order: any) => String(order.status || '').toUpperCase() === 'PREPARING').length;
+  const [lastReadyOrders, setLastReadyOrders] = useState(0);
+
+  useEffect(() => {
+    if (!audioEnabled) {
+      setLastReadyOrders(readyOrders);
+      return;
+    }
+    if (readyOrders > lastReadyOrders) {
+      try {
+        const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          const ctx = new AudioCtx();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = 880;
+          gain.gain.value = 0.035;
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.18);
+        }
+      } catch {
+        // Audio alert should never break dashboard.
+      }
+    }
+    setLastReadyOrders(readyOrders);
+  }, [readyOrders, lastReadyOrders, audioEnabled]);
 
   const topProducts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -293,6 +325,19 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[260px_1fr]">
         <aside className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(245,247,250,0.82))] p-4 text-slate-900 shadow-[0_20px_60px_rgba(0,0,0,0.25)] backdrop-blur">
           <div className="rounded-2xl bg-white/70 p-4 shadow-sm">
+            <div className="mb-4 flex items-center gap-3">
+              {branding?.logo_url ? (
+                <img src={branding.logo_url} alt="brand logo" className="h-12 w-12 rounded-2xl object-cover shadow-sm" />
+              ) : (
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-lg font-black text-white">
+                  {(branding?.company_name || 'I').trim().slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <div>
+                <div className="text-sm font-bold text-slate-900">{branding?.company_name || 'iRonWaves POS RC'}</div>
+                <div className="text-xs text-slate-500">{branding?.website || (typeof window !== 'undefined' ? window.location.host : '')}</div>
+              </div>
+            </div>
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
               {tx(lang, 'Bu Gün', 'Сегодня', 'Today')}
             </div>
@@ -325,7 +370,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
                 </p>
               </div>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-                <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2">
                   {([
                     ['daily', tx(lang, 'Günlük', 'День', 'Daily')],
                     ['weekly', tx(lang, 'Həftəlik', 'Неделя', 'Weekly')],
@@ -365,6 +410,14 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
                     className="neon-input min-h-12 bg-white"
                   />
                 </div>
+                <button
+                  onClick={() => setAudioEnabled((prev) => !prev)}
+                  className={`rounded-2xl px-4 py-3 text-sm font-semibold ${audioEnabled ? 'bg-amber-400 text-slate-900' : 'border border-slate-200 bg-white text-slate-700'}`}
+                >
+                  {audioEnabled
+                    ? tx(lang, 'Kitchen səsi aktiv', 'Звук кухни активен', 'Kitchen sound on')
+                    : tx(lang, 'Kitchen səsi passiv', 'Звук кухни выкл', 'Kitchen sound off')}
+                </button>
               </div>
             </div>
           </section>
@@ -375,24 +428,28 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
               value={`${new Decimal(snapshot.summary?.total_revenue || 0).toFixed(2)} ₼`}
               helper={`${tx(lang, 'Satış sayı', 'Продажи', 'Sales')}: ${snapshot.sales.length}`}
               tone="emerald"
+              onClick={() => onOpenTab('analytics')}
             />
             <DashboardStatCard
               title={tx(lang, 'Açıq Masalar', 'Открытые столы', 'Open Tables')}
               value={String(openTables)}
               helper={`${tx(lang, 'Hazır sifariş', 'Готовые заказы', 'Ready orders')}: ${readyOrders}`}
               tone="sky"
+              onClick={() => onOpenTab('tables')}
             />
             <DashboardStatCard
               title={tx(lang, 'Kassa + Kart', 'Касса + карта', 'Cash + Card')}
               value={`${new Decimal(snapshot.balances.cash_balance || 0).plus(new Decimal(snapshot.balances.card_balance || 0)).toFixed(2)} ₼`}
               helper={`${tx(lang, 'Seyf', 'Сейф', 'Safe')}: ${new Decimal(snapshot.balances.safe_balance || 0).toFixed(2)} ₼`}
               tone="violet"
+              onClick={() => onOpenTab('finance')}
             />
             <DashboardStatCard
               title={tx(lang, 'Investor Borcu', 'Долг инвестору', 'Investor Debt')}
               value={`${new Decimal(snapshot.balances.investor_balance || 0).toFixed(2)} ₼`}
               helper={`${tx(lang, 'Nisyə borc', 'Долговой баланс', 'Debt balance')}: ${new Decimal(snapshot.balances.debt_balance || 0).toFixed(2)} ₼`}
               tone="rose"
+              onClick={() => onOpenTab('finance')}
             />
           </div>
 
@@ -454,13 +511,27 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
                   <h3 className="text-lg font-bold">{tx(lang, 'Satış Trend', 'Тренд продаж', 'Sales Trend')}</h3>
                   <p className="mt-1 text-sm text-slate-500">{tx(lang, 'Son saatlar üzrə', 'По последним часам', 'Last hours')}</p>
                 </div>
+                {hoveredTrend ? (
+                  <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-right shadow-sm">
+                    <div className="text-xs text-slate-500">{hoveredTrend.label}</div>
+                    <div className="text-sm font-bold text-slate-900">{hoveredTrend.value}</div>
+                  </div>
+                ) : null}
               </div>
               <div className="rounded-2xl bg-slate-100/80 p-4">
                 <svg viewBox="0 0 100 60" className="h-44 w-full overflow-visible">
                   <path d="M 0 52 L 100 52" stroke="#cbd5e1" strokeWidth="0.6" strokeDasharray="2 2" fill="none" />
                   <path d={hourlyTrend.map((point, index) => `${index === 0 ? 'M' : 'L'} ${hourlyTrend.length === 1 ? 0 : (index / (hourlyTrend.length - 1)) * 100} ${52 - point.height * 0.42}`).join(' ')} fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" />
                   {hourlyTrend.map((point, index) => (
-                    <circle key={point.label} cx={hourlyTrend.length === 1 ? 0 : (index / (hourlyTrend.length - 1)) * 100} cy={52 - point.height * 0.42} r="1.8" fill="#0ea5e9" />
+                    <circle
+                      key={point.label}
+                      cx={hourlyTrend.length === 1 ? 0 : (index / (hourlyTrend.length - 1)) * 100}
+                      cy={52 - point.height * 0.42}
+                      r="2.2"
+                      fill="#0ea5e9"
+                      onMouseEnter={() => setHoveredTrend({ label: point.label, value: `${point.total.toFixed(2)} ₼` })}
+                      onMouseLeave={() => setHoveredTrend(null)}
+                    />
                   ))}
                 </svg>
                 <div className="mt-3 grid grid-cols-6 gap-2 text-center">
