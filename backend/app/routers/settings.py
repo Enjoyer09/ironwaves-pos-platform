@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+import pyotp
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import Tenant, User
+from app.schemas import TotpDisableIn, TotpSetupOut, TotpVerifyIn
 from app.security import hash_password, verify_password
 
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
@@ -76,7 +78,7 @@ def list_users(
             tenant_id=u.tenant_id,
             username=u.username,
             role=u.role,
-            two_factor_enabled=bool(u.pin_hash),
+            two_factor_enabled=bool(u.totp_enabled),
             is_active=bool(u.is_active),
         )
         for u in rows
@@ -135,7 +137,7 @@ def create_user(
         tenant_id=row.tenant_id,
         username=row.username,
         role=row.role,
-        two_factor_enabled=bool(row.pin_hash),
+        two_factor_enabled=bool(row.totp_enabled),
         is_active=bool(row.is_active),
     )
 
@@ -180,6 +182,56 @@ def update_user_credentials(
             raise HTTPException(status_code=400, detail="PIN must be 4-15 digits")
         row.pin_hash = hash_password(pin)
 
+    db.commit()
+    return {"success": True}
+
+
+@router.post("/2fa/totp/setup", response_model=TotpSetupOut)
+def setup_totp(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    current_user: User = Depends(get_current_user),
+):
+    if not _uses_password(current_user.role):
+        raise HTTPException(status_code=400, detail="This role does not support TOTP login")
+    secret = pyotp.random_base32()
+    current_user.totp_secret = secret
+    current_user.totp_enabled = False
+    db.commit()
+    issuer = tenant.name or "iRonWaves POS RC"
+    otpauth_url = pyotp.TOTP(secret).provisioning_uri(name=current_user.username, issuer_name=issuer)
+    return TotpSetupOut(secret=secret, otpauth_url=otpauth_url)
+
+
+@router.post("/2fa/totp/verify")
+def verify_totp(
+    payload: TotpVerifyIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not current_user.totp_secret:
+        raise HTTPException(status_code=400, detail="TOTP setup not started")
+    code = str(payload.code or "").strip().replace(" ", "")
+    totp = pyotp.TOTP(current_user.totp_secret)
+    if not totp.verify(code, valid_window=1):
+        raise HTTPException(status_code=400, detail="Invalid authenticator code")
+    current_user.totp_enabled = True
+    db.commit()
+    return {"success": True}
+
+
+@router.post("/2fa/totp/disable")
+def disable_totp(
+    payload: TotpDisableIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not current_user.totp_enabled:
+        raise HTTPException(status_code=400, detail="TOTP is not enabled")
+    if not verify_password(str(payload.current_password or ""), current_user.password_hash):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+    current_user.totp_secret = None
+    current_user.totp_enabled = False
     db.commit()
     return {"success": True}
 

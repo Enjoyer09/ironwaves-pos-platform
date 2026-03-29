@@ -280,6 +280,8 @@ def _run_startup_migrations():
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS cogs NUMERIC(12,4) DEFAULT 0"))
         conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS offline_request_id VARCHAR(64)"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64)"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE"))
         conn.execute(
             text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS uq_sales_tenant_offline_request_id "

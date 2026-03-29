@@ -204,6 +204,7 @@ export const authApi = {
         body: {
           username: String(username || '').trim(),
           password: String(password || ''),
+          second_factor_code: String(second_factor_pin || '').trim(),
           tenant_id: null,
         },
       });

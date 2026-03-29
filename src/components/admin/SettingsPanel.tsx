@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { Settings as SettingsIcon } from 'lucide-react';
+import QRCode from 'qrcode';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 import {
   create_user_live,
+  disable_totp_live,
   delete_user_live,
   get_business_profile_live,
   get_settings_live,
   get_users_live,
+  setup_totp_live,
   update_email_settings_live,
   update_business_profile_live,
   update_print_settings,
@@ -15,6 +18,7 @@ import {
   update_role_modules_live,
   update_staff_benefits_live,
   update_user_credentials_live,
+  verify_totp_live,
 } from '../../api/settings';
 import { get_menu_items_live } from '../../api/menu';
 import ConfirmModal from '../ConfirmModal';
@@ -74,10 +78,17 @@ export default function SettingsPanel() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newOwnPassword, setNewOwnPassword] = useState('');
   const [confirmOwnPassword, setConfirmOwnPassword] = useState('');
+  const [totpSetupUrl, setTotpSetupUrl] = useState('');
+  const [totpSecret, setTotpSecret] = useState('');
+  const [totpQrDataUrl, setTotpQrDataUrl] = useState('');
+  const [totpCode, setTotpCode] = useState('');
+  const [totpDisablePassword, setTotpDisablePassword] = useState('');
 
   const requiresPasswordForNewUser = ['admin', 'manager'].includes(newUserRole);
   const pinUsers = users.filter((u) => ['staff', 'kitchen'].includes(String(u.role || '').toLowerCase()));
   const passwordUsers = users.filter((u) => ['admin', 'manager', 'super_admin'].includes(String(u.role || '').toLowerCase()));
+  const currentPasswordUser = users.find((u) => u.username === user?.username);
+  const totpEnabled = Boolean(currentPasswordUser?.two_factor_enabled);
 
   const flashSuccess = (message: string) => {
     setSuccessMsg(message);
@@ -268,6 +279,60 @@ export default function SettingsPanel() {
       flashSuccess(tx(lang, 'Şifrə yeniləndi', 'Пароль обновлен', 'Password updated'));
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Şifrə yenilənmədi', 'Пароль не обновлен', 'Password update failed'));
+    }
+  };
+
+  const handleStartTotpSetup = async () => {
+    try {
+      const result = await setup_totp_live();
+      setTotpSetupUrl(result.otpauth_url);
+      setTotpSecret(result.secret);
+      setTotpCode('');
+      setTotpDisablePassword('');
+      const qrDataUrl = await QRCode.toDataURL(result.otpauth_url, {
+        margin: 1,
+        width: 220,
+      });
+      setTotpQrDataUrl(qrDataUrl);
+      flashSuccess(tx(lang, 'Google Authenticator qoşulması başladı', 'Настройка Google Authenticator начата', 'Google Authenticator setup started'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, '2FA qurulumu başlatmaq alınmadı', 'Не удалось начать настройку 2FA', 'Failed to start 2FA setup'));
+    }
+  };
+
+  const handleVerifyTotp = async () => {
+    if (!totpCode || totpCode.trim().length < 6) {
+      notify('error', tx(lang, '6 rəqəmli kodu daxil edin', 'Введите 6-значный код', 'Enter the 6-digit code'));
+      return;
+    }
+    try {
+      await verify_totp_live(totpCode);
+      setTotpCode('');
+      setTotpSetupUrl('');
+      setTotpSecret('');
+      setTotpQrDataUrl('');
+      await loadData();
+      flashSuccess(tx(lang, 'Google Authenticator aktiv edildi', 'Google Authenticator включен', 'Google Authenticator enabled'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, '2FA kodu təsdiqlənmədi', 'Код 2FA не подтвержден', '2FA code verification failed'));
+    }
+  };
+
+  const handleDisableTotp = async () => {
+    if (!totpDisablePassword) {
+      notify('error', tx(lang, 'Cari şifrəni daxil edin', 'Введите текущий пароль', 'Enter your current password'));
+      return;
+    }
+    try {
+      await disable_totp_live(totpDisablePassword);
+      setTotpDisablePassword('');
+      setTotpSetupUrl('');
+      setTotpSecret('');
+      setTotpQrDataUrl('');
+      await loadData();
+      flashSuccess(tx(lang, 'Google Authenticator söndürüldü', 'Google Authenticator отключен', 'Google Authenticator disabled'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, '2FA söndürülmədi', '2FA не отключен', 'Failed to disable 2FA'));
     }
   };
 
@@ -511,15 +576,102 @@ export default function SettingsPanel() {
       </div>
 
       {['admin', 'manager', 'super_admin'].includes(currentRole) ? (
-        <div className="metal-panel p-6 space-y-4">
-          <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Şifrə Yenilə', 'Смена пароля', 'Change Password')}</h2>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <input className="neon-input" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder={tx(lang, 'Mövcud şifrə', 'Текущий пароль', 'Current password')} />
-            <input className="neon-input" type="password" value={newOwnPassword} onChange={(e) => setNewOwnPassword(e.target.value)} placeholder={tx(lang, 'Yeni şifrə', 'Новый пароль', 'New password')} />
-            <input className="neon-input" type="password" value={confirmOwnPassword} onChange={(e) => setConfirmOwnPassword(e.target.value)} placeholder={tx(lang, 'Yeni şifrə təkrarı', 'Повторите пароль', 'Confirm new password')} />
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="metal-panel p-6 space-y-4">
+            <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Şifrə Yenilə', 'Смена пароля', 'Change Password')}</h2>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <input className="neon-input" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder={tx(lang, 'Mövcud şifrə', 'Текущий пароль', 'Current password')} />
+              <input className="neon-input" type="password" value={newOwnPassword} onChange={(e) => setNewOwnPassword(e.target.value)} placeholder={tx(lang, 'Yeni şifrə', 'Новый пароль', 'New password')} />
+              <input className="neon-input" type="password" value={confirmOwnPassword} onChange={(e) => setConfirmOwnPassword(e.target.value)} placeholder={tx(lang, 'Yeni şifrə təkrarı', 'Повторите пароль', 'Confirm new password')} />
+            </div>
+            <div className="flex justify-end">
+              <button onClick={handleChangeOwnPassword} className="neon-btn rounded-xl px-5 py-2 font-semibold">{tx(lang, 'Şifrəni Yenilə', 'Обновить пароль', 'Update Password')}</button>
+            </div>
           </div>
-          <div className="flex justify-end">
-            <button onClick={handleChangeOwnPassword} className="neon-btn rounded-xl px-5 py-2 font-semibold">{tx(lang, 'Şifrəni Yenilə', 'Обновить пароль', 'Update Password')}</button>
+
+          <div className="metal-panel p-6 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Google Authenticator', 'Google Authenticator', 'Google Authenticator')}</h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  {tx(
+                    lang,
+                    'Admin, Manager və Super Admin üçün real 6 rəqəmli TOTP qoruması.',
+                    'Реальная TOTP-защита с 6-значным кодом для Admin, Manager и Super Admin.',
+                    'Real 6-digit TOTP protection for Admin, Manager, and Super Admin.',
+                  )}
+                </p>
+              </div>
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${totpEnabled ? 'bg-emerald-500/20 text-emerald-200' : 'bg-slate-700/80 text-slate-300'}`}>
+                {totpEnabled
+                  ? tx(lang, 'Aktivdir', 'Активно', 'Enabled')
+                  : tx(lang, 'Aktiv deyil', 'Не активно', 'Disabled')}
+              </span>
+            </div>
+
+            {!totpEnabled ? (
+              <div className="space-y-4">
+                {!totpSetupUrl ? (
+                  <button onClick={() => { void handleStartTotpSetup(); }} className="glossy-gold rounded-xl px-5 py-2 font-bold">
+                    {tx(lang, 'Google Authenticator Qoş', 'Подключить Google Authenticator', 'Connect Google Authenticator')}
+                  </button>
+                ) : null}
+
+                {totpSetupUrl ? (
+                  <div className="space-y-3 rounded-2xl border border-slate-700/70 bg-slate-950/30 p-4">
+                    <p className="text-sm text-slate-300">
+                      {tx(
+                        lang,
+                        'Google Authenticator tətbiqində QR kodu skan edin, sonra 6 rəqəmli kodu aşağıda təsdiqləyin.',
+                        'Отсканируйте QR-код в Google Authenticator и подтвердите 6-значный код ниже.',
+                        'Scan the QR code in Google Authenticator, then confirm the 6-digit code below.',
+                      )}
+                    </p>
+                    {totpQrDataUrl ? (
+                      <img src={totpQrDataUrl} alt="TOTP QR" className="h-44 w-44 rounded-2xl border border-slate-700 bg-white p-2" />
+                    ) : null}
+                    <div className="rounded-xl border border-slate-700/70 bg-slate-900/50 p-3 text-xs text-slate-300 break-all">
+                      <div className="font-semibold text-slate-200">{tx(lang, 'Manual secret', 'Ручной secret', 'Manual secret')}</div>
+                      <div className="mt-1">{totpSecret}</div>
+                    </div>
+                    <div className="flex flex-col gap-3 md:flex-row">
+                      <input
+                        className="neon-input"
+                        value={totpCode}
+                        onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder={tx(lang, '6 rəqəmli kod', '6-значный код', '6-digit code')}
+                      />
+                      <button onClick={() => { void handleVerifyTotp(); }} className="neon-btn rounded-xl px-5 py-2 font-semibold">
+                        {tx(lang, 'Təsdiqlə', 'Подтвердить', 'Verify')}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="space-y-3 rounded-2xl border border-amber-400/20 bg-amber-500/5 p-4">
+                <p className="text-sm text-slate-300">
+                  {tx(
+                    lang,
+                    '2FA aktivdir. Söndürmək üçün mövcud şifrənizi təsdiqləyin.',
+                    '2FA включена. Подтвердите текущий пароль, чтобы отключить ее.',
+                    '2FA is enabled. Confirm your current password to disable it.',
+                  )}
+                </p>
+                <div className="flex flex-col gap-3 md:flex-row">
+                  <input
+                    className="neon-input"
+                    type="password"
+                    value={totpDisablePassword}
+                    onChange={(e) => setTotpDisablePassword(e.target.value)}
+                    placeholder={tx(lang, 'Cari şifrə', 'Текущий пароль', 'Current password')}
+                  />
+                  <button onClick={() => { void handleDisableTotp(); }} className="rounded-xl border border-red-400/50 px-5 py-2 font-semibold text-red-300 hover:bg-red-500/10">
+                    {tx(lang, '2FA Söndür', 'Отключить 2FA', 'Disable 2FA')}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : null}
