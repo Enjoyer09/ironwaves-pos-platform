@@ -63,21 +63,20 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   const [newSaleTotal, setNewSaleTotal] = useState('');
   const mobileTabOptions: Array<{ key: AdminTab; label: string }> = [
     { key: 'dashboard', label: tx(lang, 'Dashboard', 'Дашборд', 'Dashboard') },
-    { key: 'analytics', label: tx(lang, 'Analitika', 'Аналитика', 'Analytics') },
-    { key: 'menu', label: tx(lang, 'Menyu', 'Меню', 'Menu') },
     { key: 'finance', label: tx(lang, 'Maliyyə', 'Финансы', 'Finance') },
-    { key: 'inventory', label: tx(lang, 'Anbar', 'Склад', 'Inventory') },
-    { key: 'crm', label: tx(lang, 'CRM', 'CRM', 'CRM') },
-    { key: 'recipes', label: tx(lang, 'Resept', 'Рецепт', 'Recipes') },
-    { key: 'tenants', label: tx(lang, 'Tenantlər', 'Тенанты', 'Tenants') },
-    { key: 'settings', label: tx(lang, 'Ayarlar', 'Настройки', 'Settings') },
-    { key: 'logs', label: tx(lang, 'Loqlar', 'Логи', 'Logs') },
+    { key: 'analytics', label: tx(lang, 'Analitika', 'Аналитика', 'Analytics') },
     { key: 'zreport', label: tx(lang, 'Z-Hesabat', 'Z-Отчет', 'Z-Report') },
-    { key: 'combos', label: tx(lang, 'Kombolar', 'Комбо', 'Combos') },
-    { key: 'database', label: tx(lang, 'Baza', 'База', 'Database') },
-    { key: 'ai', label: tx(lang, 'AI Menecer', 'AI Менеджер', 'AI Manager') },
+    { key: 'inventory', label: tx(lang, 'Anbar', 'Склад', 'Inventory') },
+    { key: 'menu', label: tx(lang, 'Menyu', 'Меню', 'Menu') },
+    { key: 'recipes', label: tx(lang, 'Resept', 'Рецепт', 'Recipes') },
+    { key: 'logs', label: tx(lang, 'Loqlar', 'Логи', 'Logs') },
+    { key: 'crm', label: tx(lang, 'CRM', 'CRM', 'CRM') },
     { key: 'tables', label: tx(lang, 'Masalar / HH', 'Столы / HH', 'Tables / HH') },
     { key: 'notes', label: tx(lang, 'Qeydlər', 'Заметки', 'Notes') },
+    { key: 'database', label: tx(lang, 'Baza', 'База', 'Database') },
+    { key: 'settings', label: tx(lang, 'Ayarlar', 'Настройки', 'Settings') },
+    { key: 'ai', label: tx(lang, 'AI Menecer', 'AI Менеджер', 'AI Manager') },
+    { key: 'tenants', label: tx(lang, 'Tenantlər', 'Тенанты', 'Tenants') },
   ];
 
   useEffect(() => {
