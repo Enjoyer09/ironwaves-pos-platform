@@ -1,3 +1,5 @@
+import { getApiBaseUrl, isBackendEnabled } from '../api/client';
+
 const DEFAULT_PROBE_URL = 'https://www.gstatic.com/generate_204';
 
 const withTimeout = async (promise: Promise<Response>, timeoutMs = 3500): Promise<Response> => {
@@ -17,16 +19,26 @@ const withTimeout = async (promise: Promise<Response>, timeoutMs = 3500): Promis
 
 // navigator.onLine is often optimistic; this probe confirms real internet access.
 export const probeInternet = async (probeUrl = DEFAULT_PROBE_URL): Promise<boolean> => {
+  const backendProbe = isBackendEnabled() ? `${getApiBaseUrl()}/health` : '';
+  const candidates = [backendProbe, probeUrl].filter(Boolean);
+
   try {
-    await withTimeout(
-      fetch(probeUrl, {
-        method: 'GET',
-        cache: 'no-store',
-        mode: 'no-cors',
-      }),
-      3500,
-    );
-    return true;
+    for (const candidate of candidates) {
+      try {
+        await withTimeout(
+          fetch(candidate, {
+            method: 'GET',
+            cache: 'no-store',
+            mode: candidate === backendProbe ? 'cors' : 'no-cors',
+          }),
+          3500,
+        );
+        return true;
+      } catch {
+        // try next probe candidate
+      }
+    }
+    return false;
   } catch {
     return false;
   }
