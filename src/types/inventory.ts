@@ -31,6 +31,7 @@ export interface RecipeIngredient {
 export interface Refund {
   id: string;
   sale_id: string;
+  tenant_id?: string;
   refund_type: 'VOID' | 'PARTIAL';
   refund_amount: Decimal;
   reason: string;

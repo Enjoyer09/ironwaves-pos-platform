@@ -6,8 +6,27 @@ import { apiRequest, isBackendEnabled } from './client';
 
 import { getDB, setDB } from '../lib/db_sim';
 
+const tenantFinanceKey = (tenant_id: string) => `${tenant_id}_finance`;
+
+const getFinanceLocal = (tenant_id: string): FinanceEntry[] => {
+  const scoped = getDB<FinanceEntry>(tenantFinanceKey(tenant_id));
+  if (scoped.length > 0) return scoped.filter((f) => !f.is_deleted);
+  return getDB<FinanceEntry>('finance').filter((f) => f.tenant_id === tenant_id && !f.is_deleted);
+};
+
+const saveFinanceLocal = (tenant_id: string, rows: FinanceEntry[]) => {
+  const safeRows = (Array.isArray(rows) ? rows : []).map((row) => ({
+    ...row,
+    tenant_id,
+  }));
+  const all = getDB<FinanceEntry>('finance');
+  const kept = all.filter((f) => f.tenant_id !== tenant_id);
+  setDB('finance', [...kept, ...safeRows]);
+  setDB(tenantFinanceKey(tenant_id), safeRows);
+};
+
 export const get_finance_entries = (tenant_id: string) => {
-  return getDB<FinanceEntry>('finance').filter(f => f.tenant_id === tenant_id && !f.is_deleted);
+  return getFinanceLocal(tenant_id);
 };
 
 const normalizeText = (value: string) =>
@@ -152,7 +171,7 @@ const normalizeSource = (source: string) => {
 
 // FUNKSIYA: get_balance
 export const get_balance = (tenant_id: string, view_mode?: string, is_test_active: boolean = false) => {
-  const finances = getDB<FinanceEntry>('finance').filter(f => f.tenant_id === tenant_id && !f.is_deleted);
+  const finances = getFinanceLocal(tenant_id);
   
   let cash_balance = new Decimal(0);
   let card_balance = new Decimal(0);
@@ -181,7 +200,7 @@ export const get_balance = (tenant_id: string, view_mode?: string, is_test_activ
 
 // FUNKSIYA: open_cash_register
 export const open_cash_register = (amount: string, opened_by: string, tenant_id: string) => {
-  const finances = getDB<FinanceEntry>('finance');
+  const finances = getFinanceLocal(tenant_id);
   
   finances.push({
     id: uuidv4(),
@@ -194,7 +213,7 @@ export const open_cash_register = (amount: string, opened_by: string, tenant_id:
     created_at: new Date().toISOString(),
     is_deleted: false
   });
-  setDB('finance', finances);
+  saveFinanceLocal(tenant_id, finances);
 
   logEvent(opened_by, 'CASH_REGISTER_OPENED', { tenant_id, amount });
   return { success: true };
@@ -210,7 +229,7 @@ export const create_finance_entry = (
   description: string,
   created_by: string
 ) => {
-  const finances = getDB<FinanceEntry>('finance');
+  const finances = getFinanceLocal(tenant_id);
   const amountDec = new Decimal(amount);
   const now = new Date().toISOString();
 
@@ -281,7 +300,7 @@ export const create_finance_entry = (
     });
   }
 
-  setDB('finance', finances);
+  saveFinanceLocal(tenant_id, finances);
 
   logEvent(created_by, 'FINANCE_ENTRY_CREATED', { tenant_id, type, category, amount, source });
   return entry;
@@ -301,7 +320,7 @@ export const transfer_funds = (
   commission: string,
   transferred_by: string
 ) => {
-  const finances = getDB<FinanceEntry>('finance');
+  const finances = getFinanceLocal(tenant_id);
   const now = new Date().toISOString();
   const transfer_amount = new Decimal(amount);
   let comm_amount = new Decimal(commission || '0');
@@ -359,7 +378,7 @@ export const transfer_funds = (
     });
   }
 
-  setDB('finance', finances);
+  saveFinanceLocal(tenant_id, finances);
   logEvent(transferred_by, 'FINANCE_TRANSFER', { tenant_id, direction, amount, commission });
   return { success: true, applied_commission: comm_amount.toString() };
 };
@@ -393,7 +412,7 @@ export const repay_investor = (
 
   const payable = Decimal.min(amountDec, debt);
   const now = new Date().toISOString();
-  const entries = getDB<FinanceEntry>('finance');
+  const entries = getFinanceLocal(tenant_id);
 
   // 1) money leaves selected wallet
   entries.push({
@@ -421,7 +440,7 @@ export const repay_investor = (
     is_deleted: false,
   });
 
-  setDB('finance', entries);
+  saveFinanceLocal(tenant_id, entries);
   logEvent(created_by, 'INVESTOR_REPAYMENT', {
     tenant_id,
     amount: payable.toString(),
@@ -477,24 +496,22 @@ export const repay_investor_async = async (
 };
 
 // FUNKSIYA: soft_delete_finance
-export const soft_delete_finance = (record_id: string, reason: string, deleted_by: string) => {
-  const finances = getDB<FinanceEntry>('finance');
-  const record = finances.find(f => f.id === record_id);
+export const soft_delete_finance = (tenant_id: string, record_id: string, reason: string, deleted_by: string) => {
+  const finances = getFinanceLocal(tenant_id);
+  const record = finances.find((f) => f.id === record_id && f.tenant_id === tenant_id);
   
   if (!record) throw new Error('Qeyd tapılmadı');
   if (!reason) throw new Error('Silinmə səbəbi məcburidir');
 
   record.is_deleted = true;
-  setDB('finance', finances);
+  saveFinanceLocal(tenant_id, finances);
 
-  logEvent(deleted_by, 'FINANCE_DELETE', { tenant_id: record.tenant_id, record_id, amount: record.amount, reason });
+  logEvent(deleted_by, 'FINANCE_DELETE', { tenant_id, record_id, amount: record.amount, reason });
   return { success: true };
 };
 
 export const reset_finance_for_tenant = (tenant_id: string, reset_by: string) => {
-  const all = getDB<FinanceEntry>('finance');
-  const kept = all.filter((f) => f.tenant_id !== tenant_id);
-  setDB('finance', kept);
+  saveFinanceLocal(tenant_id, []);
   logEvent(reset_by, 'FINANCE_RESET', { tenant_id });
   return { success: true };
 };

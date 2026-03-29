@@ -8,22 +8,66 @@ import { v4 as uuidv4 } from 'uuid';
 import { filterTenantRecords } from '../lib/tenant';
 import { apiRequest, isBackendEnabled } from './client';
 
+const tenantSalesKey = (tenant_id: string) => `${tenant_id}_sales`;
+const tenantRefundsKey = (tenant_id: string) => `${tenant_id}_refunds`;
+const tenantFinanceKey = (tenant_id: string) => `${tenant_id}_finance`;
+
+const getSalesLocal = (tenant_id: string) => {
+  const scoped = getDB<Sale>(tenantSalesKey(tenant_id));
+  if (scoped.length > 0) return scoped.filter((s) => s.tenant_id === tenant_id);
+  return getDB<Sale>('sales').filter((s) => s.tenant_id === tenant_id);
+};
+
+const saveSalesLocal = (tenant_id: string, rows: Sale[]) => {
+  const safeRows = (Array.isArray(rows) ? rows : []).map((row) => ({
+    ...row,
+    tenant_id,
+  }));
+  const all = getDB<Sale>('sales');
+  const kept = all.filter((row) => row.tenant_id !== tenant_id);
+  setDB('sales', [...kept, ...safeRows]);
+  setDB(tenantSalesKey(tenant_id), safeRows);
+};
+
+const getRefundsLocal = (tenant_id: string) => {
+  const scoped = getDB<any>(tenantRefundsKey(tenant_id));
+  if (scoped.length > 0) return scoped.filter((r) => r.tenant_id === tenant_id);
+  return getDB<any>('refunds').filter((r) => r.tenant_id === tenant_id);
+};
+
+const saveRefundsLocal = (tenant_id: string, rows: any[]) => {
+  const safeRows = (Array.isArray(rows) ? rows : []).map((row) => ({
+    ...row,
+    tenant_id,
+  }));
+  const all = getDB<any>('refunds');
+  const kept = all.filter((row) => row.tenant_id !== tenant_id);
+  setDB('refunds', [...kept, ...safeRows]);
+  setDB(tenantRefundsKey(tenant_id), safeRows);
+};
+
+const getFinanceLocal = (tenant_id: string) => {
+  const scoped = getDB<any>(tenantFinanceKey(tenant_id));
+  if (scoped.length > 0) return scoped.filter((f) => !f.is_deleted);
+  return getDB<any>('finance').filter((f) => f.tenant_id === tenant_id && !f.is_deleted);
+};
+
 const inDateRange = (createdAt: string, date_from: string, date_to: string) => {
   const current = new Date(createdAt).getTime();
   return current >= new Date(date_from).getTime() && current <= new Date(date_to).getTime();
 };
 
 export function get_sales_summary(tenant_id: string, date_from: string, date_to: string, cashier_filter?: string) {
-  const sales = getDB<Sale>('sales').filter(
-    (s) => s.tenant_id === tenant_id && s.status === 'COMPLETED' && inDateRange(s.created_at, date_from, date_to)
+  const sales = getSalesLocal(tenant_id).filter(
+    (s) => s.status === 'COMPLETED' && inDateRange(s.created_at, date_from, date_to)
   );
   
   let total_revenue = new Decimal(0);
   let cash_sales = new Decimal(0);
   let card_sales = new Decimal(0);
   let total_cogs = new Decimal(0);
-  const void_count = getDB<Sale>('sales').filter(
-    (s) => s.tenant_id === tenant_id && s.status === 'VOIDED' && inDateRange(s.created_at, date_from, date_to)
+  const void_count = getSalesLocal(tenant_id).filter(
+    (s) => s.status === 'VOIDED' && inDateRange(s.created_at, date_from, date_to)
   ).length;
 
   sales.forEach(sale => {
@@ -37,9 +81,7 @@ export function get_sales_summary(tenant_id: string, date_from: string, date_to:
   });
 
   // Split satışları finance cədvəlindən dəqiqləşdiririk
-  const finance = getDB<any>('finance').filter(
-    (f) => f.tenant_id === tenant_id && !f.is_deleted && inDateRange(f.created_at, date_from, date_to)
-  );
+  const finance = getFinanceLocal(tenant_id).filter((f) => inDateRange(f.created_at, date_from, date_to));
   const splitCash = finance
     .filter((f) => f.type === 'in' && f.category === 'Satış (Nağd)')
     .reduce((acc, f) => acc.plus(new Decimal(f.amount || 0)), new Decimal(0));
@@ -68,9 +110,7 @@ export function get_sales_list(tenant_id: string, date_from: string, date_to: st
   const tenantCustomers = getDB<any>(`${tenant_id}_customers`);
   const sharedCustomers = filterTenantRecords(getDB<any>('customers'), tenant_id);
   const customers = tenantCustomers.length > 0 ? tenantCustomers : sharedCustomers;
-  let sales = getDB<Sale>('sales').filter(
-    (s) => s.tenant_id === tenant_id && inDateRange(s.created_at, date_from, date_to)
-  );
+  let sales = getSalesLocal(tenant_id).filter((s) => inDateRange(s.created_at, date_from, date_to));
   if (cashier) {
     sales = sales.filter(s => s.cashier === cashier);
   }
@@ -92,8 +132,8 @@ export function get_sales_list(tenant_id: string, date_from: string, date_to: st
 }
 
 export function get_product_stats(tenant_id: string, date_from: string, date_to: string) {
-  const sales = getDB<Sale>('sales').filter(
-    (s) => s.tenant_id === tenant_id && s.status === 'COMPLETED' && inDateRange(s.created_at, date_from, date_to)
+  const sales = getSalesLocal(tenant_id).filter(
+    (s) => s.status === 'COMPLETED' && inDateRange(s.created_at, date_from, date_to)
   );
   const product_counts: Record<string, number> = {};
 
@@ -110,8 +150,8 @@ export function get_product_stats(tenant_id: string, date_from: string, date_to:
 }
 
 export function get_staff_performance(tenant_id: string, date_from: string, date_to: string) {
-  const sales = getDB<Sale>('sales').filter(
-    (s) => s.tenant_id === tenant_id && s.status === 'COMPLETED' && inDateRange(s.created_at, date_from, date_to)
+  const sales = getSalesLocal(tenant_id).filter(
+    (s) => s.status === 'COMPLETED' && inDateRange(s.created_at, date_from, date_to)
   );
   const staff_stats: Record<string, { sale_count: number, total_revenue: Decimal; discount_total: Decimal }> = {};
 
@@ -137,20 +177,25 @@ export function get_staff_performance(tenant_id: string, date_from: string, date
 
 export function create_refund(sale_id: string, refund_type: 'VOID' | 'PARTIAL', refund_amount: Decimal, reason: string, return_to_stock: boolean, performed_by: string) {
   try {
-    const sales = getDB<Sale>('sales');
+    const allSales = getDB<Sale>('sales');
+    const sourceSale = allSales.find((s) => s.id === sale_id);
+    if (!sourceSale?.tenant_id) throw new Error('Satış tenant-i tapılmadı.');
+    const tenant_id = sourceSale.tenant_id;
+    const sales = getSalesLocal(tenant_id);
     const saleIndex = sales.findIndex(s => s.id === sale_id);
     
     if (saleIndex === -1) throw new Error('Satış tapılmadı.');
     
     // Satış statusunu dəyiş
     sales[saleIndex].status = refund_type === 'VOID' ? 'VOIDED' : 'PARTIAL_REFUND';
-    setDB('sales', sales);
+    saveSalesLocal(tenant_id, sales);
 
     // Refund loga yaz
-    const refunds = getDB<Refund>('refunds');
+    const refunds = getRefundsLocal(tenant_id) as Refund[];
     refunds.push({
       id: uuidv4(),
       sale_id,
+      tenant_id,
       refund_type,
       refund_amount,
       reason,
@@ -158,7 +203,7 @@ export function create_refund(sale_id: string, refund_type: 'VOID' | 'PARTIAL', 
       performed_by,
       created_at: new Date().toISOString()
     });
-    setDB('refunds', refunds);
+    saveRefundsLocal(tenant_id, refunds as any[]);
 
     // Maliyyəyə mənfi yazılır
     create_finance_entry(
@@ -192,7 +237,7 @@ export function void_sale_with_reason(
   actor: string,
   return_to_stock: boolean = true,
 ) {
-  const sales = getDB<Sale>('sales');
+  const sales = getSalesLocal(tenant_id);
   const idx = sales.findIndex((s) => s.id === sale_id && s.tenant_id === tenant_id);
   if (idx === -1) throw new Error('Satış tapılmadı');
   const sale: any = sales[idx];
@@ -200,10 +245,10 @@ export function void_sale_with_reason(
 
   sale.status = 'VOIDED';
   sales[idx] = sale;
-  setDB('sales', sales);
+  saveSalesLocal(tenant_id, sales);
 
   // Refund entry
-  const refunds = getDB<any>('refunds');
+  const refunds = getRefundsLocal(tenant_id);
   refunds.push({
     id: uuidv4(),
     sale_id,
@@ -214,7 +259,7 @@ export function void_sale_with_reason(
     created_by: actor,
     created_at: new Date().toISOString(),
   });
-  setDB('refunds', refunds);
+  saveRefundsLocal(tenant_id, refunds);
 
   // Finance reversal
   create_finance_entry(
@@ -256,7 +301,7 @@ export function update_sale_amount(
   reason: string,
   actor: string,
 ) {
-  const sales = getDB<Sale>('sales');
+  const sales = getSalesLocal(tenant_id);
   const idx = sales.findIndex((s) => s.id === sale_id && s.tenant_id === tenant_id);
   if (idx === -1) throw new Error('Satış tapılmadı');
   if (sales[idx].status === 'VOIDED') throw new Error('VOID satış düzəldilə bilməz');
@@ -266,7 +311,7 @@ export function update_sale_amount(
   if (nextTotal.lte(0)) throw new Error('Yeni məbləğ 0-dan böyük olmalıdır');
 
   (sales[idx] as any).total = nextTotal.toString();
-  setDB('sales', sales);
+  saveSalesLocal(tenant_id, sales);
 
   logEvent(actor, 'SALE_EDITED', {
     tenant_id,
@@ -329,7 +374,7 @@ export function partial_refund_sale(
   reason: string,
   actor: string,
 ) {
-  const sales = getDB<Sale>('sales');
+  const sales = getSalesLocal(tenant_id);
   const idx = sales.findIndex((s) => s.id === sale_id && s.tenant_id === tenant_id);
   if (idx === -1) throw new Error('Satış tapılmadı');
   if (sales[idx].status === 'VOIDED') throw new Error('VOID olunmuş satışa partial refund tətbiq edilə bilməz');
@@ -341,7 +386,7 @@ export function partial_refund_sale(
 
   (sales[idx] as any).total = currentTotal.minus(refund).toFixed(2);
   (sales[idx] as any).status = 'PARTIAL_REFUND';
-  setDB('sales', sales);
+  saveSalesLocal(tenant_id, sales);
 
   create_finance_entry(
     tenant_id,
