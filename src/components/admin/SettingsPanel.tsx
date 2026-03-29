@@ -67,6 +67,8 @@ export default function SettingsPanel() {
 
   const [targetUser, setTargetUser] = useState('');
   const [targetPin, setTargetPin] = useState('');
+  const [targetPasswordUser, setTargetPasswordUser] = useState('');
+  const [targetPassword, setTargetPassword] = useState('');
   const [deleteUserName, setDeleteUserName] = useState<string | null>(null);
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -75,6 +77,7 @@ export default function SettingsPanel() {
 
   const requiresPasswordForNewUser = ['admin', 'manager'].includes(newUserRole);
   const pinUsers = users.filter((u) => ['staff', 'kitchen'].includes(String(u.role || '').toLowerCase()));
+  const passwordUsers = users.filter((u) => ['admin', 'manager', 'super_admin'].includes(String(u.role || '').toLowerCase()));
 
   const flashSuccess = (message: string) => {
     setSuccessMsg(message);
@@ -216,6 +219,25 @@ export default function SettingsPanel() {
       flashSuccess(tx(lang, 'PIN yeniləndi', 'PIN обновлен', 'PIN updated'));
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'PIN yenilənmədi', 'PIN не обновлен', 'PIN update failed'));
+    }
+  };
+
+  const handleUpdatePasswordForUser = async () => {
+    if (!targetPasswordUser) {
+      notify('error', tx(lang, 'Şifrə dəyişmək üçün istifadəçi seçin', 'Выберите пользователя для смены пароля', 'Select a user to change password'));
+      return;
+    }
+    if (!targetPassword || targetPassword.length < 4) {
+      notify('error', tx(lang, 'Yeni şifrə minimum 4 simvol olmalıdır', 'Новый пароль должен быть минимум 4 символа', 'New password must be at least 4 characters'));
+      return;
+    }
+    try {
+      await update_user_credentials_live(targetPasswordUser, { password: targetPassword }, user?.username || 'admin');
+      setTargetPassword('');
+      await loadData();
+      flashSuccess(tx(lang, 'İstifadəçi şifrəsi yeniləndi', 'Пароль пользователя обновлен', 'User password updated'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Şifrə yenilənmədi', 'Пароль не обновлен', 'Password update failed'));
     }
   };
 
@@ -575,6 +597,17 @@ export default function SettingsPanel() {
             </select>
             <input value={targetPin} onChange={(e) => setTargetPin(e.target.value.replace(/\D/g, '').slice(0, 15))} type="text" placeholder={tx(lang, 'Yeni PIN', 'Новый PIN', 'New PIN')} className="neon-input" />
             <button onClick={() => { void handleUpdatePin(); }} className="neon-btn px-4 py-2">{tx(lang, 'PIN Dəyiş', 'Изменить PIN', 'Change PIN')}</button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 border-t border-slate-700/70 pt-4 md:grid-cols-3">
+            <select value={targetPasswordUser} onChange={(e) => setTargetPasswordUser(e.target.value)} className="neon-input">
+              <option value="">{tx(lang, 'Şifrə üçün admin seçin', 'Выберите admin для пароля', 'Select admin for password')}</option>
+              {passwordUsers.map((u) => (
+                <option key={u.id || u.username} value={u.username}>{u.username} ({u.role})</option>
+              ))}
+            </select>
+            <input value={targetPassword} onChange={(e) => setTargetPassword(e.target.value)} type="password" placeholder={tx(lang, 'Yeni şifrə', 'Новый пароль', 'New password')} className="neon-input" />
+            <button onClick={() => { void handleUpdatePasswordForUser(); }} className="neon-btn px-4 py-2">{tx(lang, 'Şifrə Dəyiş', 'Изменить пароль', 'Change Password')}</button>
           </div>
         </div>
       </div>

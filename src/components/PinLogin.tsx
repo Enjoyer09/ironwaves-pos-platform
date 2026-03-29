@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../store';
 import { i18n, tx } from '../i18n';
-import { Delete, ShieldCheck, Sparkles } from 'lucide-react';
+import { Delete } from 'lucide-react';
 import { getDeviceHash, getPublicIp, LoginRiskContext } from '../lib/risk';
 import { get_business_profile, get_public_branding_live } from '../api/settings';
 import { resolveTenantIdFromHost } from '../lib/tenant';
@@ -149,11 +149,8 @@ export default function PinLogin() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_18%),linear-gradient(135deg,rgba(248,199,0,0.16),transparent_24%,rgba(56,189,248,0.12)_70%,transparent_100%),linear-gradient(180deg,rgba(10,16,22,0.72),rgba(10,16,22,0.88))]" />
       <div className="absolute inset-0 opacity-[0.12]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.25) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.25) 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
 
-      <div className="relative w-full max-w-6xl">
+      <div className="relative w-full max-w-5xl">
         <div className="mb-6 flex flex-col gap-3 text-center">
-          <div className="inline-flex self-center rounded-full border border-yellow-200/15 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.28em] text-yellow-200/80">
-            {branding?.company_name || 'iRonWaves POS RC'}
-          </div>
           <div className="mx-auto flex items-center justify-center gap-3">
             {branding?.logo_url ? (
               <img src={branding.logo_url} alt="brand logo" className="h-14 w-14 rounded-2xl object-cover shadow-[0_10px_28px_rgba(0,0,0,0.35)] md:h-16 md:w-16" />
@@ -162,22 +159,12 @@ export default function PinLogin() {
                 {(branding?.company_name || 'I').trim().slice(0, 1).toUpperCase()}
               </div>
             )}
-            <h1 className="text-4xl font-black tracking-wide text-white md:text-6xl">{branding?.company_name || 'Premium POS login shell'}</h1>
+            <h1 className="text-4xl font-black tracking-wide text-white md:text-5xl">{branding?.company_name || 'iRonWaves POS RC'}</h1>
           </div>
-          <p className="mx-auto max-w-2xl text-sm leading-7 text-slate-300 md:text-base">
-            Fast enough for cashier flow, polished enough for demos, and structured for multi-tenant rollout across `demo`, `gyropos`, `socialbee`, and future branded subdomains.
-          </p>
         </div>
 
         {isDemoHost && (
-          <div className="mx-auto mb-5 max-w-5xl rounded-[28px] border border-cyan-300/20 bg-cyan-400/10 p-5 text-slate-100 backdrop-blur-sm">
-            <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200">
-              <Sparkles size={16} />
-              Demo Environment
-            </div>
-            <p className="mt-2 text-sm leading-7 text-slate-300">
-              Explore the platform with one-tap demo accounts. This space is isolated from production tenants and can be reset anytime.
-            </p>
+          <div className="mx-auto mb-5 max-w-4xl rounded-[28px] border border-cyan-300/20 bg-cyan-400/10 p-5 text-slate-100 backdrop-blur-sm">
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {demoAccounts.map((account) => (
                 <button
@@ -194,13 +181,11 @@ export default function PinLogin() {
             </div>
           </div>
         )}
-        <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="mx-auto max-w-xl">
           <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.04))] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.42)] backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-xs uppercase tracking-[0.22em] text-slate-400">Tenant Access</div>
-                <div className="mt-2 text-2xl font-bold text-white">{isDemoHost ? 'Demo access ready' : 'Secure production login'}</div>
-                <div className="mt-1 text-sm text-slate-400">{branding?.website || (typeof window !== 'undefined' ? window.location.host : '')}</div>
+                <div className="text-sm text-slate-400">{branding?.website || (typeof window !== 'undefined' ? window.location.host : '')}</div>
               </div>
               <div className="w-24">
                 <select
@@ -215,24 +200,7 @@ export default function PinLogin() {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/8 bg-slate-950/25 p-4">
-                <div className="text-xs uppercase tracking-[0.18em] text-slate-400">Mode</div>
-                <div className="mt-2 text-lg font-semibold text-white">{isStaffMode ? 'PIN Login' : 'User Login'}</div>
-                <div className="mt-1 text-sm leading-6 text-slate-300">
-                  {isStaffMode ? 'Fast cashier and kitchen access with large touch keypad.' : 'Admin and manager access with password-based login.'}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-white/8 bg-slate-950/25 p-4">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-emerald-300">
-                  <ShieldCheck size={14} />
-                  Security
-                </div>
-                <div className="mt-2 text-sm leading-6 text-slate-300">
-                  Tenant isolation by subdomain, backend auth flow, and optional 2FA-aware manager login.
-                </div>
-              </div>
-            </div>
+            <div className="mt-4 text-center text-sm text-slate-300">{isStaffMode ? tx(safeLang, 'PIN login', 'PIN вход', 'PIN login') : tx(safeLang, 'User login', 'User login', 'User login')}</div>
           </div>
 
           <div className="mx-auto w-full max-w-xl rounded-[32px] border border-slate-500/30 bg-[linear-gradient(180deg,rgba(15,21,32,0.84),rgba(15,21,32,0.72))] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.55)] backdrop-blur-xl">
