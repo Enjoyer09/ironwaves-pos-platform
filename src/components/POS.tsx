@@ -107,6 +107,18 @@ const generateBarcodeSvg = (value: string) => {
     return '';
   }
 };
+
+const isRecoverableNetworkFailure = (error: unknown) => {
+  const message = String((error as any)?.message || error || '').toLowerCase();
+  return (
+    message.includes('backendə qoşulma alınmadı') ||
+    message.includes('failed to fetch') ||
+    message.includes('networkerror') ||
+    message.includes('network request failed') ||
+    message.includes('load failed')
+  );
+};
+
 export default function POS() {
   const { user, lang, notify } = useAppStore();
   const safeLang = (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az';
@@ -473,13 +485,31 @@ export default function POS() {
         cup_mode: ctx.cupMode,
       };
       const useBackendNow = isBackendEnabled() && navigator.onLine;
-      const sale = useBackendNow
-        ? await apiRequest<any>('/api/v1/pos/sale', {
+      let sale: any;
+      let queuedOffline = false;
+
+      if (useBackendNow) {
+        try {
+          sale = await apiRequest<any>('/api/v1/pos/sale', {
             method: 'POST',
             tenantId: null,
             body: backendPayload,
-          })
-        : create_sale(localPayload);
+          });
+        } catch (error: any) {
+          if (!isRecoverableNetworkFailure(error)) {
+            throw error;
+          }
+          sale = create_sale(localPayload);
+          await enqueueOfflineSale(tenantId, sale.sale_id, backendPayload);
+          queuedOffline = true;
+        }
+      } else {
+        sale = create_sale(localPayload);
+        if (isBackendEnabled()) {
+          await enqueueOfflineSale(tenantId, sale.sale_id, backendPayload);
+          queuedOffline = true;
+        }
+      }
 
       const saleRaw = toDecimalSafe((sale as any)?.totals?.raw_total ?? rawTotal);
       const saleDiscount = toDecimalSafe((sale as any)?.totals?.discount_amount ?? discountAmount);
@@ -555,8 +585,8 @@ export default function POS() {
         </html>
       `);
 
-      if (isBackendEnabled() && !navigator.onLine) {
-        void enqueueOfflineSale(tenantId, sale.sale_id, backendPayload);
+      if (queuedOffline) {
+        notify('info', tx(safeLang, 'Satış offline növbəyə yazıldı və sonra sinxron olunacaq', 'Продажа сохранена в офлайн-очередь и синхронизируется позже', 'Sale saved to offline queue and will sync later'));
         void getPendingOfflineSalesCount(tenantId).then(setPendingSyncCount);
       }
 
