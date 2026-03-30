@@ -635,6 +635,7 @@ export default function POS() {
       }
 
       window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { tenant_id: tenantId, sale_id: sale.sale_id, source: 'pos' } }));
+      window.dispatchEvent(new CustomEvent('logs-updated', { detail: { tenant_id: tenantId, sale_id: sale.sale_id, source: 'pos' } }));
       clearCart(activeCart);
       patchCtx({ ...defaultCtx });
       setSplitCashInput('0');

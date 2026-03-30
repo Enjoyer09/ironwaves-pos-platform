@@ -15,7 +15,22 @@ export default function LogsPanel() {
   const uiErrors = useMemo(() => get_ui_errors(tenant_id, 20), [tenant_id, logs.length]);
 
   React.useEffect(() => {
-    void get_logs_live(tenant_id, limit, fromDate, toDate).then(setLogs).catch(() => setLogs([]));
+    const load = () => {
+      void get_logs_live(tenant_id, limit, fromDate, toDate).then(setLogs).catch(() => setLogs([]));
+    };
+    load();
+    const handleRefresh = () => load();
+    const handleVisibility = () => {
+      if (!document.hidden) load();
+    };
+    window.addEventListener('focus', handleRefresh);
+    window.addEventListener('logs-updated', handleRefresh as EventListener);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('focus', handleRefresh);
+      window.removeEventListener('logs-updated', handleRefresh as EventListener);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [tenant_id, limit, fromDate, toDate]);
 
   const filtered = useMemo(() => {
@@ -50,6 +65,7 @@ export default function LogsPanel() {
       INVENTORY_RESTOCK: tx(lang, 'Anbara əlavə mədaxil yazıldı', 'Склад пополнен', 'Inventory restocked'),
       INVENTORY_LOSS: tx(lang, 'Anbardan itki/zay yazıldı', 'Со склада списана потеря', 'Inventory loss recorded'),
       INVENTORY_DELETE: tx(lang, 'Anbar məhsulu silindi', 'Товар на складе удален', 'Inventory item deleted'),
+      INVENTORY_CONSUMED: tx(lang, 'Satış üçün xammal sərf olundu', 'Сырье списано на продажу', 'Inventory consumed by sale'),
       SALE_VOIDED: tx(lang, 'Satış ləğv edildi', 'Продажа аннулирована', 'Sale voided'),
       SALE_PARTIAL_REFUND: tx(lang, 'Qismən refund edildi', 'Сделан частичный возврат', 'Partial refund applied'),
       REFUND_CREATED: tx(lang, 'Refund yaradıldı', 'Возврат создан', 'Refund created'),
