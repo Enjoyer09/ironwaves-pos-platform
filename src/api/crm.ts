@@ -326,7 +326,7 @@ export async function enroll_customer_app_live(
   if (!consent_accepted) throw new Error('Consent must be accepted');
   if (!isBackendEnabled()) {
     const customers = getCustomersLocal(tenantId);
-    const card_id = `CUST-${uuidv4().replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+    const card_id = `QR-${uuidv4().replace(/-/g, '').slice(0, 8).toUpperCase()}`;
     const token = uuidv4().replace(/-/g, '');
     const newCustomer: Customer = {
       id: uuidv4(),
