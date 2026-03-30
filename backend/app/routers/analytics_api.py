@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import FinanceEntry, InventoryItem, Recipe, Sale, Tenant, User
+from app.models import Customer, FinanceEntry, InventoryItem, LoyaltyLedgerEntry, Recipe, RewardClaim, Sale, Setting, Tenant, User
 
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
@@ -38,6 +38,16 @@ def _in_range(created_at: datetime | None, date_from: datetime | None, date_to: 
     if date_to and created_at > date_to:
         return False
     return True
+
+
+def _setting_value(db: Session, tenant_id: str, key: str, default):
+    row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
+    if not row or row.value is None:
+        return default
+    try:
+        return json.loads(row.value)
+    except Exception:
+        return default
 
 
 @router.get("/summary")
@@ -173,6 +183,9 @@ def void_sale(
     row.status = "VOIDED"
     amount = Decimal(str(row.total)).quantize(Decimal("0.01"))
     pm = str(row.payment_method or "").lower()
+    loyalty_cfg = _setting_value(db, tenant.id, "customer_app_settings", {"program_mode": "points", "cashback_percent": 5})
+    program_mode = str(loyalty_cfg.get("program_mode") or "points").lower()
+    cashback_percent = Decimal(str(loyalty_cfg.get("cashback_percent") or 0))
     if pm == "split":
         finance_rows = (
             db.query(FinanceEntry)
@@ -215,6 +228,37 @@ def void_sale(
                         amount=Decimal(str(benefit_row.amount)).quantize(Decimal("0.01")),
                         description=f"VOID reverse benefit: {payload.reason} ({row.id})",
                         created_by=user.username,
+                )
+            )
+    if row.customer_card_id and program_mode == "cashback":
+        cashback_amount = (amount * (cashback_percent / Decimal("100"))).quantize(Decimal("0.01"))
+        if cashback_amount > 0:
+            db.add(
+                LoyaltyLedgerEntry(
+                    tenant_id=tenant.id,
+                    card_id=row.customer_card_id,
+                    unit="cashback",
+                    entry_type="reversal",
+                    amount=Decimal("0.00") - cashback_amount,
+                    source_sale_id=row.id,
+                    description=f"VOID cashback reverse ({row.id})",
+                )
+            )
+        if getattr(row, "reward_claim_code", None):
+            claim = db.query(RewardClaim).filter(RewardClaim.tenant_id == tenant.id, RewardClaim.claim_code == row.reward_claim_code).first()
+            if claim and claim.status == "REDEEMED":
+                claim.status = "PENDING"
+                claim.redeemed_sale_id = None
+                claim.redeemed_at = None
+                db.add(
+                    LoyaltyLedgerEntry(
+                        tenant_id=tenant.id,
+                        card_id=row.customer_card_id,
+                        unit="cashback",
+                        entry_type="reversal",
+                        amount=Decimal(str(claim.points_cost or 0)).quantize(Decimal("0.01")),
+                        source_sale_id=row.id,
+                        description=f"VOID reward restore ({claim.claim_code})",
                     )
                 )
     db.commit()
@@ -261,6 +305,9 @@ def partial_refund_sale(
         raise HTTPException(status_code=400, detail="Use VOID for full refund")
 
     pm = str(row.payment_method or "").lower()
+    loyalty_cfg = _setting_value(db, tenant.id, "customer_app_settings", {"program_mode": "points", "cashback_percent": 5})
+    program_mode = str(loyalty_cfg.get("program_mode") or "points").lower()
+    cashback_percent = Decimal(str(loyalty_cfg.get("cashback_percent") or 0))
     if pm == "split":
         finance_rows = (
             db.query(FinanceEntry)
@@ -307,5 +354,19 @@ def partial_refund_sale(
 
     row.total = (current_total - refund_amount).quantize(Decimal("0.01"))
     row.status = "PARTIAL_REFUND"
+    if row.customer_card_id and program_mode == "cashback":
+        cashback_amount = (refund_amount * (cashback_percent / Decimal("100"))).quantize(Decimal("0.01"))
+        if cashback_amount > 0:
+            db.add(
+                LoyaltyLedgerEntry(
+                    tenant_id=tenant.id,
+                    card_id=row.customer_card_id,
+                    unit="cashback",
+                    entry_type="reversal",
+                    amount=Decimal("0.00") - cashback_amount,
+                    source_sale_id=row.id,
+                    description=f"Partial refund cashback reverse ({row.id})",
+                )
+            )
     db.commit()
     return {"success": True, "remaining_total": str(row.total)}

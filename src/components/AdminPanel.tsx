@@ -9,6 +9,7 @@ import FinancePanel from './admin/FinancePanel';
 import InventoryPanel from './admin/InventoryPanel';
 import DashboardPanel from './admin/DashboardPanel';
 import CRMPanel from './admin/CRMPanel';
+import CustomerAppPanel from './admin/CustomerAppPanel';
 import TablesHappyHourPanel from './admin/TablesHappyHourPanel';
 import RecipesPanel from './admin/RecipesPanel';
 import AIManagerPanel from './admin/AIManagerPanel';
@@ -22,7 +23,7 @@ import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
 import { getDB } from '../lib/db_sim';
 
-type AdminTab = 'dashboard' | 'analytics' | 'menu' | 'tables' | 'finance' | 'inventory' | 'crm' | 'recipes' | 'ai' | 'settings' | 'notes' | 'logs' | 'database' | 'zreport' | 'combos' | 'tenants';
+type AdminTab = 'dashboard' | 'analytics' | 'menu' | 'tables' | 'finance' | 'inventory' | 'crm' | 'customerapp' | 'recipes' | 'ai' | 'settings' | 'notes' | 'logs' | 'database' | 'zreport' | 'combos' | 'tenants';
 
 interface AdminPanelProps {
   externalTab?: AdminTab;
@@ -71,6 +72,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     { key: 'recipes', label: tx(lang, 'Resept', 'Рецепт', 'Recipes') },
     { key: 'logs', label: tx(lang, 'Loqlar', 'Логи', 'Logs') },
     { key: 'crm', label: tx(lang, 'CRM', 'CRM', 'CRM') },
+    { key: 'customerapp', label: tx(lang, 'Customer App', 'Customer App', 'Customer App') },
     { key: 'tables', label: tx(lang, 'Masalar / HH', 'Столы / HH', 'Tables / HH') },
     { key: 'notes', label: tx(lang, 'Qeydlər', 'Заметки', 'Notes') },
     { key: 'database', label: tx(lang, 'Baza', 'База', 'Database') },
@@ -505,6 +507,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
         {activeTab === 'finance' && <FinancePanel />}
         {activeTab === 'inventory' && <InventoryPanel />}
         {activeTab === 'crm' && <CRMPanel />}
+        {activeTab === 'customerapp' && <CustomerAppPanel />}
         {activeTab === 'recipes' && <RecipesPanel />}
         {activeTab === 'ai' && <AIManagerPanel />}
         {activeTab === 'zreport' && <ZReportPanel />}

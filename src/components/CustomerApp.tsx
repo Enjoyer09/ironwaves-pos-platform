@@ -17,6 +17,8 @@ export default function CustomerApp({ cardId, token }: Props) {
   const [error, setError] = React.useState('');
   const [claiming, setClaiming] = React.useState(false);
   const [cardQr, setCardQr] = React.useState('');
+  const [baristaText, setBaristaText] = React.useState('');
+  const [fortuneText, setFortuneText] = React.useState('');
 
   const load = React.useCallback(async () => {
     try {
@@ -110,17 +112,45 @@ export default function CustomerApp({ cardId, token }: Props) {
   const showQrCard = branding.show_qr_card !== false;
   const showWallet = branding.show_wallet !== false;
   const balanceSuffix = programMode === 'cashback' ? ' ₼' : '';
+  const heroImage = String(branding.hero_image_url || '');
+  const backgroundImage = String(branding.background_image_url || '');
+  const aiBaristaEnabled = branding.ai_barista_enabled === true;
+  const aiFalciEnabled = branding.ai_falci_enabled === true;
+
+  const generateBarista = () => {
+    const picks = [
+      tx(lang, 'Bu gün sənə yumşaq və rahat içimə malik xüsusi latte yaraşır.', 'Сегодня тебе подойдет мягкий фирменный латте.', 'Today you would love a soft signature latte.'),
+      tx(lang, 'Sənin profilinə görə karamel notlu isti içki ən yaxşı seçimdir.', 'По твоему профилю лучший выбор — тёплый напиток с карамельными нотами.', 'Based on your profile, a warm caramel drink is the best match.'),
+      tx(lang, 'Bu gün bonusunu desertlə birlikdə istifadə etməyin daha sərfəlidir.', 'Сегодня выгоднее использовать бонус вместе с десертом.', 'Today it is smarter to use your bonus with a dessert.'),
+    ];
+    setBaristaText(picks[Math.floor(Math.random() * picks.length)]);
+  };
+
+  const generateFortune = () => {
+    const picks = [
+      tx(lang, 'Fal deyir ki, növbəti ziyarətdə səni şirin bir sürpriz gözləyir.', 'Гадание говорит, что в следующий визит тебя ждёт сладкий сюрприз.', 'Your fortune says a sweet surprise is waiting for your next visit.'),
+      tx(lang, 'Bu həftə topladığın bonuslar səni yeni reward-a yaxınlaşdıracaq.', 'На этой неделе твои бонусы приблизят тебя к новой награде.', 'This week your bonuses will move you closer to a new reward.'),
+      tx(lang, 'Falçı görür ki, sevdiyin içki çox yaxın günlərdə kampaniyaya düşəcək.', 'Предсказание говорит, что твой любимый напиток скоро попадёт в акцию.', 'Your fortune says your favorite drink may go on promo very soon.'),
+    ];
+    setFortuneText(picks[Math.floor(Math.random() * picks.length)]);
+  };
 
   return (
     <div
       className="min-h-screen px-4 py-6 text-slate-100"
-      style={{ backgroundImage: `radial-gradient(circle at top, ${primaryColor}33, transparent 18%), linear-gradient(180deg,#090d13,#111827)` }}
+      style={{
+        backgroundImage: `${backgroundImage ? `linear-gradient(rgba(9,13,19,0.82), rgba(17,24,39,0.92)), url(${backgroundImage}), ` : ''}radial-gradient(circle at top, ${primaryColor}33, transparent 18%), linear-gradient(180deg,#090d13,#111827)`,
+        backgroundSize: backgroundImage ? 'cover, auto, auto' : undefined,
+        backgroundPosition: backgroundImage ? 'center, center, center' : undefined,
+      }}
     >
       <div className="mx-auto max-w-5xl space-y-6">
         <div className="rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
-              {branding.logo_url ? (
+              {heroImage ? (
+                <img src={heroImage} alt="hero" className="h-20 w-20 rounded-[28px] object-cover shadow-[0_10px_30px_rgba(0,0,0,0.35)]" />
+              ) : branding.logo_url ? (
                 <img src={branding.logo_url} alt="brand" className="h-16 w-16 rounded-3xl object-cover" />
               ) : (
                 <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-yellow-400 text-2xl font-black text-slate-900">
@@ -252,6 +282,32 @@ export default function CustomerApp({ cardId, token }: Props) {
           </div>
 
           <div className="space-y-6">
+            {(aiBaristaEnabled || aiFalciEnabled) ? (
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+                <div className="mb-4 text-lg font-bold text-white">{tx(lang, 'Fun Zone', 'Fun Zone', 'Fun Zone')}</div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {aiBaristaEnabled ? (
+                    <div className="rounded-2xl border border-fuchsia-300/20 bg-fuchsia-400/10 p-4">
+                      <div className="font-semibold text-fuchsia-100">AI Barista</div>
+                      <p className="mt-2 text-sm text-slate-200">{baristaText || tx(lang, 'Bugünkü içki tövsiyəni öyrən.', 'Узнай свою рекомендацию напитка на сегодня.', 'Get your drink recommendation for today.')}</p>
+                      <button type="button" onClick={generateBarista} className="mt-3 rounded-xl px-4 py-2 font-semibold text-slate-950" style={{ backgroundColor: accentColor }}>
+                        {tx(lang, 'Tövsiyə ver', 'Подобрать', 'Recommend')}
+                      </button>
+                    </div>
+                  ) : null}
+                  {aiFalciEnabled ? (
+                    <div className="rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4">
+                      <div className="font-semibold text-amber-100">AI Falçı</div>
+                      <p className="mt-2 text-sm text-slate-200">{fortuneText || tx(lang, 'Bonus falına bax və əyləncəli mesaj al.', 'Посмотри бонусное предсказание и получи веселое сообщение.', 'Check your bonus fortune and get a playful message.')}</p>
+                      <button type="button" onClick={generateFortune} className="mt-3 rounded-xl px-4 py-2 font-semibold text-slate-950" style={{ backgroundColor: primaryColor }}>
+                        {tx(lang, 'Fal aç', 'Открыть предсказание', 'Open fortune')}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
               <div className="mb-4 flex items-center gap-2 text-lg font-bold"><Gift size={18} /> {tx(lang, 'Claim kodları', 'Коды наград', 'Claim codes')}</div>
               <div className="space-y-3">
