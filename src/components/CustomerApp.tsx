@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, Gift, Home, MessageCircleHeart, QrCode, Sparkles, UserRound } from 'lucide-react';
+import { Bell, Gift, Home, Languages, MessageCircleHeart, QrCode, Sparkles, UserRound } from 'lucide-react';
 import QRCode from 'qrcode';
 import { tx } from '../i18n';
 import { useAppStore } from '../store';
@@ -11,7 +11,7 @@ type Props = {
   joinMode?: boolean;
 };
 
-type CustomerTab = 'home' | 'offers' | 'fun' | 'profile';
+type CustomerTab = 'home' | 'offers' | 'barista' | 'falci' | 'profile';
 
 const BARISTA_QUICK_PROMPTS = [
   'Mənə soyuq içki tövsiyə et',
@@ -20,7 +20,7 @@ const BARISTA_QUICK_PROMPTS = [
 ];
 
 export default function CustomerApp({ cardId = '', token = '', joinMode = false }: Props) {
-  const { lang } = useAppStore();
+  const { lang, setLang } = useAppStore();
   const [loading, setLoading] = React.useState(true);
   const [data, setData] = React.useState<any | null>(null);
   const [bootstrapData, setBootstrapData] = React.useState<any | null>(null);
@@ -35,6 +35,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [fortuneText, setFortuneText] = React.useState('');
   const [fortuneImage, setFortuneImage] = React.useState('');
   const fileRef = React.useRef<HTMLInputElement | null>(null);
+  const safeLang = lang === 'ru' || lang === 'en' ? lang : 'az';
 
   const load = React.useCallback(async () => {
     if (!sessionCreds.cardId || !sessionCreds.token) {
@@ -228,16 +229,24 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs uppercase tracking-[0.3em] text-white/70">{bootstrapBranding.app_name || 'Loyalty Club'}</div>
-                <h1 className="mt-3 text-3xl font-black text-white">{bootstrapBranding.hero_title || tx(lang, 'Xoş gəldiniz', 'Добро пожаловать', 'Welcome')}</h1>
-                <p className="mt-2 text-sm text-white/80">{bootstrapBranding.hero_subtitle || tx(lang, 'Loyalty klubuna bir toxunuşla qoşul', 'Присоединяйся к loyalty клубу одним касанием', 'Join the loyalty club in one tap')}</p>
+                <h1 className="mt-3 text-3xl font-black text-white">{bootstrapBranding.hero_title || tx(safeLang, 'Xoş gəldiniz', 'Добро пожаловать', 'Welcome')}</h1>
+                <p className="mt-2 text-sm text-white/80">{bootstrapBranding.hero_subtitle || tx(safeLang, 'Loyalty klubuna bir toxunuşla qoşul', 'Присоединяйся к loyalty клубу одним касанием', 'Join the loyalty club in one tap')}</p>
               </div>
-              {bootstrapBranding.logo_url ? <img src={bootstrapBranding.logo_url} alt="brand" className="h-12 w-12 rounded-2xl object-cover" /> : null}
+              <div className="flex flex-col items-end gap-3">
+                <div className="flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs text-white backdrop-blur">
+                  <Languages size={14} />
+                  <button type="button" onClick={() => setLang('az')} className={safeLang === 'az' ? 'font-bold underline' : ''}>AZ</button>
+                  <button type="button" onClick={() => setLang('en')} className={safeLang === 'en' ? 'font-bold underline' : ''}>EN</button>
+                  <button type="button" onClick={() => setLang('ru')} className={safeLang === 'ru' ? 'font-bold underline' : ''}>RU</button>
+                </div>
+                {bootstrapBranding.logo_url ? <img src={bootstrapBranding.logo_url} alt="brand" className="h-12 w-12 rounded-2xl object-cover" /> : null}
+              </div>
             </div>
           </section>
           <section className="rounded-[30px] border border-white/10 bg-white p-5 text-slate-900 shadow-[0_12px_32px_rgba(0,0,0,0.16)]">
-            <div className="text-lg font-black">{tx(lang, 'Müştəri razılaşması', 'Согласие клиента', 'Customer consent')}</div>
+            <div className="text-lg font-black">{tx(safeLang, 'Müştəri razılaşması', 'Согласие клиента', 'Customer consent')}</div>
             <div className="mt-3 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
-              {bootstrapData?.consent_text || tx(lang, 'Razılaşma mətni əlavə edilməyib.', 'Текст согласия не задан.', 'Consent text has not been set.')}
+              {bootstrapData?.consent_text || tx(safeLang, 'Razılaşma mətni əlavə edilməyib.', 'Текст согласия не задан.', 'Consent text has not been set.')}
             </div>
             <button
               type="button"
@@ -246,7 +255,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               className="mt-4 w-full rounded-2xl px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-60"
               style={{ backgroundColor: joinPrimary }}
             >
-              {acceptingConsent ? tx(lang, 'Kart yaradılır...', 'Карта создается...', 'Creating your card...') : tx(lang, 'Qəbul edirəm və kartımı yarat', 'Принимаю и создать карту', 'Accept and create my card')}
+              {acceptingConsent ? tx(safeLang, 'Kart yaradılır...', 'Карта создается...', 'Creating your card...') : tx(safeLang, 'Qəbul edirəm və kartımı yarat', 'Принимаю и создать карту', 'Accept and create my card')}
             </button>
           </section>
         </div>
@@ -258,7 +267,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     return (
       <div className="min-h-screen bg-slate-950 px-4 py-10 text-center text-slate-200">
         <div className="mx-auto max-w-lg rounded-3xl border border-red-400/20 bg-red-500/10 p-6">
-          <h1 className="text-2xl font-bold text-white">{tx(lang, 'Müştəri tətbiqi açıla bilmədi', 'Клиентское приложение не открылось', 'Customer app could not be opened')}</h1>
+          <h1 className="text-2xl font-bold text-white">{tx(safeLang, 'Müştəri tətbiqi açıla bilmədi', 'Клиентское приложение не открылось', 'Customer app could not be opened')}</h1>
           <p className="mt-3 text-sm text-red-200">{error || 'Invalid customer link'}</p>
         </div>
       </div>
@@ -296,11 +305,17 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     : `${cardRadiusClass} border border-white/10 bg-white p-4 text-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)]`;
 
   const bottomTabs: Array<{ key: CustomerTab; label: string; icon: React.ReactNode }> = [
-    { key: 'home', label: tx(lang, 'Rewards', 'Награды', 'Rewards'), icon: <Home size={18} /> },
-    { key: 'offers', label: tx(lang, 'Offers', 'Offers', 'Offers'), icon: <Gift size={18} /> },
-    { key: 'fun', label: tx(lang, 'Fun', 'Fun', 'Fun'), icon: <MessageCircleHeart size={18} /> },
-    { key: 'profile', label: tx(lang, 'Profil', 'Профиль', 'Profile'), icon: <UserRound size={18} /> },
+    { key: 'home', label: tx(safeLang, 'Rewards', 'Награды', 'Rewards'), icon: <Home size={18} /> },
+    { key: 'offers', label: tx(safeLang, 'Təkliflər', 'Предложения', 'Offers'), icon: <Gift size={18} /> },
+    ...(aiBaristaEnabled ? [{ key: 'barista' as CustomerTab, label: tx(safeLang, 'Barista', 'Barиста', 'Barista'), icon: <MessageCircleHeart size={18} /> }] : []),
+    ...(aiFalciEnabled ? [{ key: 'falci' as CustomerTab, label: tx(safeLang, 'Falçı', 'Фалчы', 'Fortune'), icon: <Sparkles size={18} /> }] : []),
+    { key: 'profile', label: tx(safeLang, 'Profil', 'Профиль', 'Profile'), icon: <UserRound size={18} /> },
   ];
+
+  React.useEffect(() => {
+    if (activeTab === 'barista' && !aiBaristaEnabled) setActiveTab('home');
+    if (activeTab === 'falci' && !aiFalciEnabled) setActiveTab('home');
+  }, [activeTab, aiBaristaEnabled, aiFalciEnabled]);
 
   const renderHome = () => (
     <div className="space-y-4">
@@ -318,7 +333,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="text-xs uppercase tracking-[0.3em] text-white/70">{branding.app_name || 'Loyalty Club'}</div>
-            <h1 className="mt-3 text-3xl font-black text-white">{branding.hero_title || tx(lang, 'Xoş gəldiniz', 'Добро пожаловать', 'Welcome')}</h1>
+            <h1 className="mt-3 text-3xl font-black text-white">{branding.hero_title || tx(safeLang, 'Xoş gəldiniz', 'Добро пожаловать', 'Welcome')}</h1>
             <p className="mt-2 max-w-[16rem] text-sm text-white/80">{branding.hero_subtitle || customer.card_id}</p>
           </div>
           {branding.logo_url ? <img src={branding.logo_url} alt="brand" className="h-12 w-12 rounded-2xl object-cover" /> : null}
@@ -336,8 +351,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               <div className="h-full rounded-full bg-white" style={{ width: `${progressPercent}%` }} />
             </div>
             <div className="mt-3 flex items-center justify-between text-xs text-white/75">
-              <span>{tx(lang, 'Növbəti reward', 'Следующая награда', 'Next reward')}</span>
-              <span>{wallet.reward_name || tx(lang, 'Bonus', 'Бонус', 'Reward')}</span>
+              <span>{tx(safeLang, 'Növbəti reward', 'Следующая награда', 'Next reward')}</span>
+              <span>{wallet.reward_name || tx(safeLang, 'Bonus', 'Бонус', 'Reward')}</span>
             </div>
           </div>
         ) : null}
@@ -345,7 +360,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
       <div className="grid gap-4 md:grid-cols-2">
         <section className={cardClass}>
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><Gift size={16} /> {tx(lang, 'Reward-lar', 'Награды', 'Rewards')}</div>
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><Gift size={16} /> {tx(safeLang, 'Reward-lar', 'Награды', 'Rewards')}</div>
           <div className="mt-3 text-3xl font-black text-slate-900">{wallet.available_rewards ?? 0}</div>
           <div className="mt-2 text-sm text-slate-600">{wallet.reward_label || 'Reward'}</div>
           {rewards[0] ? (
@@ -356,13 +371,13 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               className="mt-4 w-full rounded-2xl px-4 py-3 text-sm font-bold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
               style={{ backgroundColor: primaryColor }}
             >
-              {claiming ? tx(lang, 'Hazırlanır...', 'Подготавливается...', 'Preparing...') : tx(lang, 'Reward claim et', 'Забрать награду', 'Claim reward')}
+              {claiming ? tx(safeLang, 'Hazırlanır...', 'Подготавливается...', 'Preparing...') : tx(safeLang, 'Reward claim et', 'Забрать награду', 'Claim reward')}
             </button>
           ) : null}
         </section>
 
         <section className={cardClass}>
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><QrCode size={16} /> {tx(lang, 'QR Kart', 'QR карта', 'QR card')}</div>
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><QrCode size={16} /> {tx(safeLang, 'QR Kart', 'QR карта', 'QR card')}</div>
           {showQrCard ? (
             <div className="mt-3 flex flex-col items-center rounded-[24px] bg-white px-4 py-5 text-slate-900">
               {cardQr ? <img src={cardQr} alt="customer qr" className="h-36 w-36 rounded-2xl" /> : null}
@@ -377,8 +392,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       <section className="rounded-[28px] border border-white/10 bg-white p-4 text-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold">{tx(lang, 'Hazır claim kodların', 'Готовые коды наград', 'Your ready claim codes')}</div>
-            <div className="mt-1 text-xs text-slate-500">{tx(lang, 'Kassada bu kodu göstər və reward istifadə et', 'Покажи код на кассе и используй награду', 'Show this code at checkout to use your reward')}</div>
+            <div className="text-sm font-semibold">{tx(safeLang, 'Hazır claim kodların', 'Готовые коды наград', 'Your ready claim codes')}</div>
+            <div className="mt-1 text-xs text-slate-500">{tx(safeLang, 'Kassada bu kodu göstər və reward istifadə et', 'Покажи код на кассе и используй награду', 'Show this code at checkout to use your reward')}</div>
           </div>
           <div className="rounded-full px-3 py-1 text-xs font-bold text-slate-950" style={{ backgroundColor: accentColor }}>
             {pendingClaims.length}
@@ -387,7 +402,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
           {pendingClaims.length === 0 ? (
             <div className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-              {tx(lang, 'Hələ aktiv reward kodu yoxdur', 'Пока нет активного reward-кода', 'No active reward code yet')}
+              {tx(safeLang, 'Hələ aktiv reward kodu yoxdur', 'Пока нет активного reward-кода', 'No active reward code yet')}
             </div>
           ) : pendingClaims.map((row: any) => (
             <div key={row.id} className="min-w-[210px] rounded-[24px] border border-slate-200 bg-slate-50 p-4">
@@ -405,16 +420,16 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     <div className="space-y-4">
       <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
         <div className="flex items-center justify-between gap-3">
-          <div className="text-lg font-bold text-white">{tx(lang, 'Aktiv kampaniyalar', 'Активные кампании', 'Active offers')}</div>
+          <div className="text-lg font-bold text-white">{tx(safeLang, 'Aktiv kampaniyalar', 'Активные кампании', 'Active offers')}</div>
           <div className="rounded-full px-3 py-1 text-xs font-semibold text-slate-950" style={{ backgroundColor: primaryColor }}>{campaigns.length}</div>
         </div>
         <div className="mt-4 space-y-3">
           {campaigns.length === 0 ? (
-            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">{tx(lang, 'Hazırda aktiv kampaniya yoxdur', 'Сейчас нет активных кампаний', 'No active campaigns right now')}</div>
+            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">{tx(safeLang, 'Hazırda aktiv kampaniya yoxdur', 'Сейчас нет активных кампаний', 'No active campaigns right now')}</div>
           ) : campaigns.map((row: any) => (
             <div key={row.id} className="rounded-[24px] border border-white/10 bg-white px-4 py-4 text-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
               <div className="text-lg font-bold">{row.name}</div>
-              <div className="mt-2 text-sm text-slate-600">{row.discount_percent}% {tx(lang, 'endirim', 'скидка', 'discount')}</div>
+              <div className="mt-2 text-sm text-slate-600">{row.discount_percent}% {tx(safeLang, 'endirim', 'скидка', 'discount')}</div>
               <div className="mt-3 text-xs text-slate-500">{row.start_time} - {row.end_time} • {row.categories || 'ALL'}</div>
             </div>
           ))}
@@ -422,13 +437,13 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       </section>
 
       <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
-        <div className="text-lg font-bold text-white">{tx(lang, 'Claim kodları', 'Коды наград', 'Claim codes')}</div>
+        <div className="text-lg font-bold text-white">{tx(safeLang, 'Claim kodları', 'Коды наград', 'Claim codes')}</div>
         <div className="mt-4 space-y-3">
           {pendingClaims.length === 0 ? (
-            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">{tx(lang, 'Aktiv claim kodu yoxdur', 'Активных кодов нет', 'No active claim codes')}</div>
+            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">{tx(safeLang, 'Aktiv claim kodu yoxdur', 'Активных кодов нет', 'No active claim codes')}</div>
           ) : pendingClaims.map((row: any) => (
             <div key={row.id} className="rounded-[24px] border border-amber-300/20 bg-amber-400/10 p-4">
-              <div className="text-xs uppercase tracking-[0.25em] text-amber-100">{tx(lang, 'Kassada göstərin', 'Покажите на кассе', 'Show at POS')}</div>
+              <div className="text-xs uppercase tracking-[0.25em] text-amber-100">{tx(safeLang, 'Kassada göstərin', 'Покажите на кассе', 'Show at POS')}</div>
               <div className="mt-2 text-3xl font-black text-white">{row.claim_code}</div>
               <div className="mt-2 text-sm text-slate-200">{row.reward_name}</div>
             </div>
@@ -438,97 +453,96 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     </div>
   );
 
-  const renderFun = () => (
-    <div className="space-y-4">
-      {aiBaristaEnabled ? (
-        <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
-          <div className="text-lg font-bold text-white">AI Barista</div>
-          <div className="mt-4 max-h-72 space-y-3 overflow-y-auto rounded-[24px] bg-slate-950/35 p-3">
-            {baristaMessages.map((msg, idx) => (
-              <div key={`${msg.role}_${idx}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-[80%] rounded-[20px] px-4 py-3 text-sm ${
-                    msg.role === 'user' ? 'text-slate-950' : 'bg-white/10 text-slate-100'
-                  }`}
-                  style={msg.role === 'user' ? { backgroundColor: primaryColor } : undefined}
-                >
-                  {msg.text}
-                </div>
-              </div>
-            ))}
+  const renderBarista = () => (
+    <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
+      <div className="text-lg font-bold text-white">AI Barista</div>
+      <div className="mt-2 text-sm text-slate-300">{tx(safeLang, 'Söhbət et, içki və reward tövsiyəsi al.', 'Поговори и получи совет по напиткам и наградам.', 'Chat and get drink and reward suggestions.')}</div>
+      <div className="mt-4 max-h-72 space-y-3 overflow-y-auto rounded-[24px] bg-slate-950/35 p-3">
+        {baristaMessages.map((msg, idx) => (
+          <div key={`${msg.role}_${idx}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div
+              className={`max-w-[80%] rounded-[20px] px-4 py-3 text-sm ${
+                msg.role === 'user' ? 'text-slate-950' : 'bg-white/10 text-slate-100'
+              }`}
+              style={msg.role === 'user' ? { backgroundColor: primaryColor } : undefined}
+            >
+              {msg.text}
+            </div>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {BARISTA_QUICK_PROMPTS.map((prompt) => (
-              <button
-                key={prompt}
-                type="button"
-                onClick={() => setBaristaInput(prompt)}
-                className="rounded-full border border-white/10 bg-white/6 px-3 py-2 text-xs text-slate-200"
-              >
-                {prompt}
-              </button>
-            ))}
-          </div>
-          <div className="mt-3 flex gap-2">
-            <input
-              className="neon-input"
-              value={baristaInput}
-              onChange={(e) => setBaristaInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') sendBaristaMessage(); }}
-              placeholder={tx(lang, 'Mənə nə tövsiyə edərsən?', 'Что ты посоветуешь мне?', 'What would you recommend for me?')}
-            />
-            <button type="button" onClick={sendBaristaMessage} className="rounded-2xl px-4 py-3 font-semibold text-slate-950" style={{ backgroundColor: accentColor }}>
-              {tx(lang, 'Göndər', 'Отправить', 'Send')}
-            </button>
-          </div>
-        </section>
-      ) : null}
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {BARISTA_QUICK_PROMPTS.map((prompt) => (
+          <button
+            key={prompt}
+            type="button"
+            onClick={() => setBaristaInput(prompt)}
+            className="rounded-full border border-white/10 bg-white/6 px-3 py-2 text-xs text-slate-200"
+          >
+            {prompt}
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 flex gap-2">
+        <input
+          className="neon-input"
+          value={baristaInput}
+          onChange={(e) => setBaristaInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') sendBaristaMessage(); }}
+          placeholder={tx(safeLang, 'Mənə nə tövsiyə edərsən?', 'Что ты посоветуешь мне?', 'What would you recommend for me?')}
+        />
+        <button type="button" onClick={sendBaristaMessage} className="rounded-2xl px-4 py-3 font-semibold text-slate-950" style={{ backgroundColor: accentColor }}>
+          {tx(safeLang, 'Göndər', 'Отправить', 'Send')}
+        </button>
+      </div>
+    </section>
+  );
 
-      {aiFalciEnabled ? (
-        <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
-          <div className="text-lg font-bold text-white">AI Falçı</div>
-          <p className="mt-2 text-sm text-slate-300">{tx(lang, 'Bir şəkil yüklə, AI Falçı onun tonuna və ab-havasına baxıb əyləncəli mesaj versin.', 'Загрузи фото, и AI Falçı даст тебе игровое предсказание по атмосфере изображения.', 'Upload an image and AI Fortune Teller will give you a playful reading based on its vibe.')}</p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <button type="button" onClick={() => fileRef.current?.click()} className="rounded-2xl px-4 py-3 font-semibold text-slate-950" style={{ backgroundColor: primaryColor }}>
-              {tx(lang, 'Şəkil yüklə', 'Загрузить фото', 'Upload image')}
-            </button>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) analyzeImageFortune(file);
-            }} />
-          </div>
-          {fortuneImage ? <img src={fortuneImage} alt="fortune preview" className="mt-4 h-44 w-full rounded-[24px] object-cover" /> : null}
-          <div className="mt-4 rounded-[24px] bg-amber-400/10 p-4 text-sm text-slate-100">
-            {fortuneText || tx(lang, 'Şəkli yükləyəndən sonra fal burada görünəcək.', 'После загрузки фото предсказание появится здесь.', 'Your fortune will appear here after you upload an image.')}
-          </div>
-        </section>
-      ) : null}
-
-      {!aiBaristaEnabled && !aiFalciEnabled ? (
-        <section className="rounded-[28px] border border-white/10 bg-white/6 p-5 text-sm text-slate-300 backdrop-blur-xl">
-          {tx(lang, 'Bu tenant üçün Fun Zone hələ aktiv deyil.', 'Для этого tenant Fun Zone пока не включена.', 'Fun Zone is not enabled for this tenant yet.')}
-        </section>
-      ) : null}
-    </div>
+  const renderFalci = () => (
+    <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
+      <div className="text-lg font-bold text-white">AI Falçı</div>
+      <p className="mt-2 text-sm text-slate-300">{tx(safeLang, 'Bir şəkil yüklə, AI Falçı onun tonuna və ab-havasına baxıb əyləncəli mesaj versin.', 'Загрузи фото, и AI Falçı даст тебе игровое предсказание по атмосфере изображения.', 'Upload an image and AI Fortune Teller will give you a playful reading based on its vibe.')}</p>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <button type="button" onClick={() => fileRef.current?.click()} className="rounded-2xl px-4 py-3 font-semibold text-slate-950" style={{ backgroundColor: primaryColor }}>
+          {tx(safeLang, 'Şəkil yüklə', 'Загрузить фото', 'Upload image')}
+        </button>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) analyzeImageFortune(file);
+        }} />
+      </div>
+      {fortuneImage ? <img src={fortuneImage} alt="fortune preview" className="mt-4 h-44 w-full rounded-[24px] object-cover" /> : null}
+      <div className="mt-4 rounded-[24px] bg-amber-400/10 p-4 text-sm text-slate-100">
+        {fortuneText || tx(safeLang, 'Şəkli yükləyəndən sonra fal burada görünəcək.', 'После загрузки фото предсказание появится здесь.', 'Your fortune will appear here after you upload an image.')}
+      </div>
+    </section>
   );
 
   const renderProfile = () => (
     <div className="space-y-4">
       <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
-        <div className="text-lg font-bold text-white">{tx(lang, 'Müştəri Profili', 'Профиль клиента', 'Customer profile')}</div>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="text-lg font-bold text-white">{tx(safeLang, 'Müştəri Profili', 'Профиль клиента', 'Customer profile')}</div>
+          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-slate-200">
+            <Languages size={14} />
+            <button type="button" onClick={() => setLang('az')} className={safeLang === 'az' ? 'font-bold underline' : ''}>AZ</button>
+            <button type="button" onClick={() => setLang('en')} className={safeLang === 'en' ? 'font-bold underline' : ''}>EN</button>
+            <button type="button" onClick={() => setLang('ru')} className={safeLang === 'ru' ? 'font-bold underline' : ''}>RU</button>
+          </div>
+        </div>
         <div className="mt-4 space-y-3 rounded-[24px] bg-slate-950/35 p-4 text-sm text-slate-200">
-          <div className="flex items-center justify-between gap-3"><span className="text-slate-400">{tx(lang, 'Kart ID', 'ID карты', 'Card ID')}</span><span className="font-semibold text-white">{customer.card_id}</span></div>
-          <div className="flex items-center justify-between gap-3"><span className="text-slate-400">{tx(lang, 'Tip', 'Тип', 'Type')}</span><span className="font-semibold text-white">{customer.type || 'Member'}</span></div>
-          <div className="flex items-center justify-between gap-3"><span className="text-slate-400">{tx(lang, 'Endirim', 'Скидка', 'Discount')}</span><span className="font-semibold text-white">{Number(customer.discount_percent || 0).toFixed(0)}%</span></div>
-          <div className="flex items-center justify-between gap-3"><span className="text-slate-400">{tx(lang, 'Qoşulma tarixi', 'Дата подключения', 'Joined')}</span><span className="font-semibold text-white">{customer.created_at ? new Date(customer.created_at).toLocaleDateString() : '-'}</span></div>
+          <div className="flex items-center justify-between gap-3"><span className="text-slate-400">{tx(safeLang, 'Kart ID', 'ID карты', 'Card ID')}</span><span className="font-semibold text-white">{customer.card_id}</span></div>
+          <div className="flex items-center justify-between gap-3"><span className="text-slate-400">{tx(safeLang, 'Tip', 'Тип', 'Type')}</span><span className="font-semibold text-white">{customer.type || 'Member'}</span></div>
+          <div className="flex items-center justify-between gap-3"><span className="text-slate-400">{tx(safeLang, 'Endirim', 'Скидка', 'Discount')}</span><span className="font-semibold text-white">{Number(customer.discount_percent || 0).toFixed(0)}%</span></div>
+          <div className="flex items-center justify-between gap-3"><span className="text-slate-400">{tx(safeLang, 'Qoşulma tarixi', 'Дата подключения', 'Joined')}</span><span className="font-semibold text-white">{customer.created_at ? new Date(customer.created_at).toLocaleDateString() : '-'}</span></div>
         </div>
       </section>
 
       <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
-        <div className="mb-4 flex items-center gap-2 text-lg font-bold text-white"><Bell size={18} /> {tx(lang, 'Bildirişlər', 'Уведомления', 'Notifications')}</div>
+        <div className="mb-4 flex items-center gap-2 text-lg font-bold text-white"><Bell size={18} /> {tx(safeLang, 'Bildirişlər', 'Уведомления', 'Notifications')}</div>
         <div className="space-y-3">
           {notifications.length === 0 ? (
-            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">{tx(lang, 'Yeni bildiriş yoxdur', 'Нет новых уведомлений', 'No new notifications')}</div>
+            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">{tx(safeLang, 'Yeni bildiriş yoxdur', 'Нет новых уведомлений', 'No new notifications')}</div>
           ) : notifications.map((row: any) => (
             <button
               key={row.id}
@@ -544,10 +558,10 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       </section>
 
       <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
-        <div className="mb-4 flex items-center gap-2 text-lg font-bold text-white"><Gift size={18} /> {tx(lang, 'Son tarixçə', 'Последняя история', 'Recent history')}</div>
+        <div className="mb-4 flex items-center gap-2 text-lg font-bold text-white"><Gift size={18} /> {tx(safeLang, 'Son tarixçə', 'Последняя история', 'Recent history')}</div>
         <div className="space-y-3">
           {history.length === 0 ? (
-            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">{tx(lang, 'Hələ alış tarixçəsi yoxdur', 'История покупок пока пуста', 'No purchase history yet')}</div>
+            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">{tx(safeLang, 'Hələ alış tarixçəsi yoxdur', 'История покупок пока пуста', 'No purchase history yet')}</div>
           ) : history.map((row: any) => (
             <div key={row.id} className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4">
               <div className="flex items-start justify-between gap-3">
@@ -578,14 +592,23 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       }}
     >
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-28 pt-4">
+        <div className="mb-3 flex justify-end">
+          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-slate-200 backdrop-blur">
+            <Languages size={14} />
+            <button type="button" onClick={() => setLang('az')} className={safeLang === 'az' ? 'font-bold underline' : ''}>AZ</button>
+            <button type="button" onClick={() => setLang('en')} className={safeLang === 'en' ? 'font-bold underline' : ''}>EN</button>
+            <button type="button" onClick={() => setLang('ru')} className={safeLang === 'ru' ? 'font-bold underline' : ''}>RU</button>
+          </div>
+        </div>
         {activeTab === 'home' && renderHome()}
         {activeTab === 'offers' && renderOffers()}
-        {activeTab === 'fun' && renderFun()}
+        {activeTab === 'barista' && aiBaristaEnabled && renderBarista()}
+        {activeTab === 'falci' && aiFalciEnabled && renderFalci()}
         {activeTab === 'profile' && renderProfile()}
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-md px-4 pb-4">
-        <div className="grid grid-cols-4 gap-2 rounded-[28px] border border-white/10 bg-slate-950/85 p-2 shadow-[0_20px_50px_rgba(0,0,0,0.4)] backdrop-blur-xl">
+        <div className="grid gap-2 rounded-[28px] border border-white/10 bg-slate-950/85 p-2 shadow-[0_20px_50px_rgba(0,0,0,0.4)] backdrop-blur-xl" style={{ gridTemplateColumns: `repeat(${bottomTabs.length}, minmax(0, 1fr))` }}>
           {bottomTabs.map((tab) => {
             const active = tab.key === activeTab;
             return (

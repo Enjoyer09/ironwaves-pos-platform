@@ -691,9 +691,9 @@ def enroll_customer_app(
     if not bool(app_settings.get("enabled", True)):
         raise HTTPException(status_code=403, detail="Customer app is disabled for this tenant")
 
-    card_id = f"CUST-{secrets.token_hex(4).upper()}"
+    card_id = f"QR-{secrets.token_hex(4).upper()}"
     while db.query(Customer).filter(Customer.tenant_id == tenant.id, Customer.card_id == card_id).first():
-        card_id = f"CUST-{secrets.token_hex(4).upper()}"
+        card_id = f"QR-{secrets.token_hex(4).upper()}"
     secret_token = secrets.token_urlsafe(18)
     customer = Customer(
         tenant_id=tenant.id,
