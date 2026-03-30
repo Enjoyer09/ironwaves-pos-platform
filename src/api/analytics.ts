@@ -429,6 +429,7 @@ export function partial_refund_sale(
   if (refund.lte(0)) throw new Error('Refund məbləği 0-dan böyük olmalıdır');
   if (refund.greaterThanOrEqualTo(currentTotal)) throw new Error('Tam refund üçün VOID istifadə edin');
 
+  const sale: any = sales[idx];
   (sales[idx] as any).total = currentTotal.minus(refund).toFixed(2);
   (sales[idx] as any).status = 'PARTIAL_REFUND';
   saveSalesLocal(tenant_id, sales);

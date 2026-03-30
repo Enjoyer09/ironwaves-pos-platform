@@ -6,6 +6,18 @@ import { InventoryItem } from '../types/inventory';
 import { getDB, setDB } from '../lib/db_sim';
 import { apiRequest, isBackendEnabled } from './client';
 
+const isRecoverableNetworkFailure = (error: unknown) => {
+  const message = String((error as any)?.message || error || '').toLowerCase();
+  return (
+    message.includes('failed to fetch') ||
+    message.includes('networkerror') ||
+    message.includes('network request failed') ||
+    message.includes('load failed') ||
+    message.includes('backendə qoşulma alınmadı') ||
+    message.includes('network')
+  );
+};
+
 const withTenant = (tenant_id: string, rows: any[]) =>
   rows
     .map((row) => (row?.tenant_id ? row : { ...row, tenant_id }))
@@ -195,8 +207,11 @@ export async function get_inventory_items_live(tenant_id: string = 'tenant_defau
     const rows = await apiRequest<any[]>('/api/v1/catalog/inventory', { tenantId: null });
     if (Array.isArray(rows)) saveInventory(tenant_id, rows.map((row) => ({ ...row, tenant_id: row?.tenant_id || tenant_id })));
     return rows;
-  } catch {
-    return get_inventory_items(tenant_id);
+  } catch (error) {
+    if (isRecoverableNetworkFailure(error)) {
+      return get_inventory_items(tenant_id);
+    }
+    throw error;
   }
 }
 
