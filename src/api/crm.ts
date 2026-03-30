@@ -230,8 +230,10 @@ export async function get_customer_app_session_live(card_id: string, token: stri
         hero_subtitle: settings.hero_subtitle || 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
         hero_image_url: settings.hero_image_url || '',
         background_image_url: settings.background_image_url || '',
+        background_color: settings.background_color || '#0b1220',
         primary_color: settings.primary_color || '#facc15',
         accent_color: settings.accent_color || '#22d3ee',
+        reward_card_style: settings.reward_card_style || 'rounded',
         show_qr_card: settings.show_qr_card !== false,
         show_wallet: settings.show_wallet !== false,
         ai_barista_enabled: settings.ai_barista_enabled === true,
@@ -284,6 +286,60 @@ export async function get_customer_app_session_live(card_id: string, token: stri
     method: 'GET',
     tenantId: null,
     auth: false,
+  });
+}
+
+export async function get_customer_app_bootstrap_live(tenant_id?: string) {
+  const tenantId = tenant_id || defaultTenant();
+  if (!isBackendEnabled()) {
+    const profile = getDB<any>('business_profile').find((row) => row.tenant_id === tenantId);
+    const settings = getDB<any>('settings').find((row) => row.tenant_id === tenantId)?.customer_app_settings || {};
+    return {
+      tenant_id: tenantId,
+      enabled: settings.enabled !== false,
+      branding: {
+        company_name: profile?.company_name || 'iRonWaves POS RC',
+        website: profile?.website || (typeof window !== 'undefined' ? window.location.origin : ''),
+        logo_url: profile?.logo_url || '',
+        app_name: settings.app_name || 'Loyalty Club',
+        hero_title: settings.hero_title || 'Xoş gəldiniz',
+        hero_subtitle: settings.hero_subtitle || 'QR-ni skan et və reward dünyasına qoşul.',
+        background_color: settings.background_color || '#0b1220',
+        primary_color: settings.primary_color || '#facc15',
+        accent_color: settings.accent_color || '#22d3ee',
+      },
+      consent_text: settings.consent_text || 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.',
+    };
+  }
+  return apiRequest<any>('/api/v1/ops/customer-app/bootstrap', { method: 'GET', tenantId: null, auth: false });
+}
+
+export async function enroll_customer_app_live(consent_accepted: boolean = true, tenant_id?: string) {
+  const tenantId = tenant_id || defaultTenant();
+  if (!consent_accepted) throw new Error('Consent must be accepted');
+  if (!isBackendEnabled()) {
+    const customers = getCustomersLocal(tenantId);
+    const card_id = `CUST-${uuidv4().replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+    const token = uuidv4().replace(/-/g, '');
+    const newCustomer: Customer = {
+      id: uuidv4(),
+      tenant_id: tenantId,
+      card_id,
+      type: 'Normal',
+      stars: 0,
+      secret_token: token,
+      created_at: new Date().toISOString(),
+    };
+    customers.push(newCustomer);
+    saveCustomersLocal(tenantId, customers);
+    send_notification({ card_ids: [card_id], message: 'Loyalty club hesabınız yaradıldı. QR kartınızı kassada göstərə bilərsiniz.' });
+    return { success: true, card_id, token };
+  }
+  return apiRequest<{ success: boolean; card_id: string; token: string }>('/api/v1/ops/customer-app/enroll', {
+    method: 'POST',
+    tenantId: null,
+    auth: false,
+    body: { consent_accepted: true },
   });
 }
 

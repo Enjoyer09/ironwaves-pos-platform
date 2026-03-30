@@ -170,15 +170,18 @@ export interface Settings {
     enabled: boolean;
     program_mode?: 'points' | 'cashback';
     layout_preset?: 'rewards' | 'cashback' | 'playful';
+    consent_text?: string;
     app_name: string;
     hero_title: string;
     hero_subtitle: string;
     hero_image_url?: string;
     background_image_url?: string;
+    background_color?: string;
     points_label: string;
     reward_name: string;
     reward_threshold: number;
     reward_description: string;
+    reward_card_style?: 'rounded' | 'soft-square' | 'glass';
     cashback_percent?: number;
     primary_color: string;
     accent_color: string;

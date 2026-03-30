@@ -48,15 +48,18 @@ function getSettings(tenant_id?: string): Settings {
         enabled: true,
         program_mode: 'points',
         layout_preset: 'rewards',
+        consent_text: 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.',
         app_name: 'Loyalty Club',
         hero_title: 'Xoş gəldiniz',
         hero_subtitle: 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
         hero_image_url: '',
         background_image_url: '',
+        background_color: '#0b1220',
         points_label: 'Ulduz',
         reward_name: 'Reward',
         reward_threshold: 10,
         reward_description: '10 ulduza 1 pulsuz içki',
+        reward_card_style: 'rounded',
         cashback_percent: 5,
         primary_color: '#facc15',
         accent_color: '#22d3ee',
@@ -186,15 +189,18 @@ export function get_settings(tenant_id?: string) {
       enabled: true,
       program_mode: 'points',
       layout_preset: 'rewards',
+      consent_text: 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.',
       app_name: 'Loyalty Club',
       hero_title: 'Xoş gəldiniz',
       hero_subtitle: 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
       hero_image_url: '',
       background_image_url: '',
+      background_color: '#0b1220',
       points_label: 'Ulduz',
       reward_name: 'Reward',
       reward_threshold: 10,
       reward_description: '10 ulduza 1 pulsuz içki',
+      reward_card_style: 'rounded',
       cashback_percent: 5,
       primary_color: '#facc15',
       accent_color: '#22d3ee',
@@ -329,15 +335,18 @@ export function update_customer_app_settings(payload: {
   enabled: boolean;
   program_mode?: 'points' | 'cashback';
   layout_preset?: 'rewards' | 'cashback' | 'playful';
+  consent_text?: string;
   app_name: string;
   hero_title: string;
   hero_subtitle: string;
   hero_image_url?: string;
   background_image_url?: string;
+  background_color?: string;
   points_label: string;
   reward_name: string;
   reward_threshold: number;
   reward_description: string;
+  reward_card_style?: 'rounded' | 'soft-square' | 'glass';
   cashback_percent?: number;
   primary_color: string;
   accent_color: string;
@@ -354,15 +363,18 @@ export function update_customer_app_settings(payload: {
     enabled: Boolean(payload.enabled),
     program_mode: payload.program_mode === 'cashback' ? 'cashback' : 'points',
     layout_preset: payload.layout_preset === 'cashback' || payload.layout_preset === 'playful' ? payload.layout_preset : 'rewards',
+    consent_text: String(payload.consent_text || '').trim() || 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.',
     app_name: String(payload.app_name || '').trim() || 'Loyalty Club',
     hero_title: String(payload.hero_title || '').trim() || 'Xoş gəldiniz',
     hero_subtitle: String(payload.hero_subtitle || '').trim() || 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
     hero_image_url: String(payload.hero_image_url || '').trim(),
     background_image_url: String(payload.background_image_url || '').trim(),
+    background_color: String(payload.background_color || '').trim() || '#0b1220',
     points_label: String(payload.points_label || '').trim() || 'Ulduz',
     reward_name: String(payload.reward_name || '').trim() || 'Reward',
     reward_threshold: Number.isFinite(payload.reward_threshold) ? Math.max(1, Number(payload.reward_threshold)) : 10,
     reward_description: String(payload.reward_description || '').trim() || '10 ulduza 1 pulsuz içki',
+    reward_card_style: payload.reward_card_style === 'soft-square' || payload.reward_card_style === 'glass' ? payload.reward_card_style : 'rounded',
     cashback_percent: Number.isFinite(payload.cashback_percent) ? Math.max(0, Number(payload.cashback_percent)) : 5,
     primary_color: String(payload.primary_color || '').trim() || '#facc15',
     accent_color: String(payload.accent_color || '').trim() || '#22d3ee',
@@ -433,15 +445,18 @@ export async function update_customer_app_settings_live(payload: {
   enabled: boolean;
   program_mode?: 'points' | 'cashback';
   layout_preset?: 'rewards' | 'cashback' | 'playful';
+  consent_text?: string;
   app_name: string;
   hero_title: string;
   hero_subtitle: string;
   hero_image_url?: string;
   background_image_url?: string;
+  background_color?: string;
   points_label: string;
   reward_name: string;
   reward_threshold: number;
   reward_description: string;
+  reward_card_style?: 'rounded' | 'soft-square' | 'glass';
   cashback_percent?: number;
   primary_color: string;
   accent_color: string;
