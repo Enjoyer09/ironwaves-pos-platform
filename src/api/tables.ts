@@ -305,8 +305,8 @@ export const create_table_live = async (tenant_id: string, label: string, create
   try {
     return await apiRequest<any>('/api/v1/ops/tables', { method: 'POST', tenantId: null, body: { label } });
   } catch (error) {
-    if (!isRecoverableNetworkFailure(error)) throw error;
-    return create_table(tenant_id, label, created_by);
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Tables backend create failed: ${message}`);
   }
 };
 
@@ -315,8 +315,8 @@ export const delete_table_live = async (table_id: string, deleted_by: string) =>
   try {
     return await apiRequest<{ success: boolean }>(`/api/v1/ops/tables/${encodeURIComponent(table_id)}`, { method: 'DELETE', tenantId: null });
   } catch (error) {
-    if (!isRecoverableNetworkFailure(error)) throw error;
-    return delete_table(table_id, deleted_by);
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Tables backend delete failed: ${message}`);
   }
 };
 
@@ -334,8 +334,8 @@ export const send_to_kitchen_live = async (
       body: { cart_items, cup_mode: options?.cup_mode || 'paper' },
     });
   } catch (error) {
-    if (!isRecoverableNetworkFailure(error)) throw error;
-    return send_to_kitchen(table_id, cart_items, sent_by, options);
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Tables backend kitchen send failed: ${message}`);
   }
 };
 
@@ -360,8 +360,8 @@ export const pay_table_live = async (
       },
     });
   } catch (error) {
-    if (!isRecoverableNetworkFailure(error)) throw error;
-    return pay_table(table_id, payment_method, paid_by, split_cash, split_card, options);
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Tables backend pay failed: ${message}`);
   }
 };
 
@@ -374,8 +374,8 @@ export const transfer_table_live = async (table_id: string, target_table_id: str
       body: { target_table_id },
     });
   } catch (error) {
-    if (!isRecoverableNetworkFailure(error)) throw error;
-    return transfer_table(table_id, target_table_id, actor);
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Tables backend transfer failed: ${message}`);
   }
 };
 
@@ -388,7 +388,7 @@ export const merge_tables_live = async (table_id: string, target_table_id: strin
       body: { target_table_id },
     });
   } catch (error) {
-    if (!isRecoverableNetworkFailure(error)) throw error;
-    return merge_tables(table_id, target_table_id, actor);
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Tables backend merge failed: ${message}`);
   }
 };

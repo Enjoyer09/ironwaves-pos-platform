@@ -85,6 +85,8 @@ export async function get_menu_items_live(tenant_id: string, search?: string, ca
     return get_menu_items(tenant_id, search, category_filter);
   }
   let items = await apiRequest<any[]>('/api/v1/catalog/menu');
+  const all = getDB<any>('menu_items').filter((i) => i.tenant_id !== tenant_id);
+  setDB('menu_items', [...all, ...items.map((i) => ({ ...i, tenant_id: i?.tenant_id || tenant_id }))]);
   if (category_filter && category_filter !== 'ALL') {
     items = items.filter((i) => i.category === category_filter);
   }
@@ -102,24 +104,44 @@ export async function create_menu_item_live(
   if (!isBackendEnabled()) {
     return create_menu_item(tenant_id, data, user);
   }
-  return apiRequest<any>('/api/v1/catalog/menu', {
-    method: 'POST',
-    tenantId: null,
-    body: {
-      item_name: data.item_name,
-      price: new Decimal(data.price).toFixed(2),
-      category: data.category,
-      is_coffee: data.is_coffee,
-    },
-  });
+  try {
+    const created = await apiRequest<any>('/api/v1/catalog/menu', {
+      method: 'POST',
+      tenantId: null,
+      body: {
+        item_name: data.item_name,
+        price: new Decimal(data.price).toFixed(2),
+        category: data.category,
+        is_coffee: data.is_coffee,
+      },
+    });
+    const menuItems = getDB<any>('menu_items').filter((i) => !(i.tenant_id === tenant_id && String(i.id) === String(created?.id)));
+    setDB('menu_items', [...menuItems, { ...created, tenant_id: created?.tenant_id || tenant_id }]);
+    return created;
+  } catch (error: any) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Menu backend write failed: ${message}`);
+  }
 }
 
 export async function soft_delete_menu_item_live(tenant_id: string, item_id: string, user: string = 'system') {
   if (!isBackendEnabled()) {
     return soft_delete_menu_item(tenant_id, item_id, user);
   }
-  return apiRequest<{ success: boolean }>(`/api/v1/catalog/menu/${encodeURIComponent(item_id)}`, {
-    method: 'DELETE',
-    tenantId: null,
-  });
+  try {
+    const result = await apiRequest<{ success: boolean }>(`/api/v1/catalog/menu/${encodeURIComponent(item_id)}`, {
+      method: 'DELETE',
+      tenantId: null,
+    });
+    const menuItems = getDB<any>('menu_items');
+    const idx = menuItems.findIndex((i) => String(i.id) === String(item_id) && i.tenant_id === tenant_id);
+    if (idx >= 0) {
+      menuItems[idx] = { ...menuItems[idx], is_active: false };
+      setDB('menu_items', menuItems);
+    }
+    return result;
+  } catch (error: any) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Menu backend delete failed: ${message}`);
+  }
 }

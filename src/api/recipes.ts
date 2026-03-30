@@ -157,7 +157,11 @@ export function get_recipe(menu_item_name: string, tenant_id: string = 'tenant_d
 
 export async function get_recipe_live(menu_item_name: string, tenant_id: string = 'tenant_default') {
   if (!isBackendEnabled()) return get_recipe(menu_item_name, tenant_id);
-  return apiRequest<any[]>(`/api/v1/catalog/recipes/${encodeURIComponent(menu_item_name)}`, { tenantId: null });
+  const rows = await apiRequest<any[]>(`/api/v1/catalog/recipes/${encodeURIComponent(menu_item_name)}`, { tenantId: null });
+  const all = getDB<any>('recipes').filter((r) => r.tenant_id && r.tenant_id !== tenant_id);
+  const othersForMenu = getDB<any>('recipes').filter((r) => !(String(r.tenant_id || '') === tenant_id && String(r.menu_item_name || '') === menu_item_name));
+  setDB('recipes', [...all, ...othersForMenu.filter((r) => !r.tenant_id), ...rows.map((r) => ({ ...r, tenant_id: r?.tenant_id || tenant_id }))]);
+  return rows;
 }
 
 export async function get_recipe_menu_names_live(tenant_id: string = 'tenant_default') {
@@ -207,16 +211,24 @@ export async function add_recipe_ingredient_live(data: {
   tenant_id?: string;
 }, user: string = 'system') {
   if (!isBackendEnabled()) return add_recipe_ingredient(data, user);
-  return apiRequest<any>('/api/v1/catalog/recipes', {
-    method: 'POST',
-    tenantId: null,
-    body: {
-      menu_item_name: data.menu_item_name,
-      ingredient_name: data.ingredient_name,
-      quantity_required: new Decimal(data.quantity_required).toFixed(4),
-      quantity_unit: data.quantity_unit || data.unit,
-    },
-  });
+  try {
+    const created = await apiRequest<any>('/api/v1/catalog/recipes', {
+      method: 'POST',
+      tenantId: null,
+      body: {
+        menu_item_name: data.menu_item_name,
+        ingredient_name: data.ingredient_name,
+        quantity_required: new Decimal(data.quantity_required).toFixed(4),
+        quantity_unit: data.quantity_unit || data.unit,
+      },
+    });
+    const recipes = getRecipes(data.tenant_id || 'tenant_default').filter((r) => String(r.id) !== String(created?.id));
+    saveRecipes(data.tenant_id || 'tenant_default', [...recipes, { ...created, tenant_id: created?.tenant_id || data.tenant_id || 'tenant_default' }]);
+    return created;
+  } catch (error: any) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Recipe backend write failed: ${message}`);
+  }
 }
 
 export function update_recipe_ingredient(recipe_id: string, quantity_required: Decimal, user: string = 'system', tenant_id: string = 'tenant_default') {
@@ -246,11 +258,18 @@ export function delete_recipe_ingredient(recipe_id: string, user: string = 'syst
 
 export async function delete_recipe_ingredient_live(recipe_id: string, user: string = 'system', tenant_id: string = 'tenant_default') {
   if (!isBackendEnabled()) return delete_recipe_ingredient(recipe_id, user, tenant_id);
-  await apiRequest(`/api/v1/catalog/recipes/${encodeURIComponent(recipe_id)}`, {
-    method: 'DELETE',
-    tenantId: null,
-  });
-  return true;
+  try {
+    await apiRequest(`/api/v1/catalog/recipes/${encodeURIComponent(recipe_id)}`, {
+      method: 'DELETE',
+      tenantId: null,
+    });
+    const recipes = getRecipes(tenant_id).filter((r) => String(r.id) !== String(recipe_id));
+    saveRecipes(tenant_id, recipes);
+    return true;
+  } catch (error: any) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Recipe backend delete failed: ${message}`);
+  }
 }
 
 export async function replace_recipe_live(
@@ -277,18 +296,23 @@ export async function replace_recipe_live(
     });
     return { success: true, count: ingredients.length };
   }
-  return apiRequest<{ success: boolean; count: number }>('/api/v1/catalog/recipes', {
-    method: 'PUT',
-    tenantId: null,
-    body: {
-      menu_item_name,
-      ingredients: ingredients.map((row) => ({
-        ingredient_name: row.ingredient_name,
-        quantity_required: new Decimal(row.quantity_required).toFixed(4),
-        quantity_unit: row.quantity_unit || null,
-      })),
-    },
-  });
+  try {
+    return await apiRequest<{ success: boolean; count: number }>('/api/v1/catalog/recipes', {
+      method: 'PUT',
+      tenantId: null,
+      body: {
+        menu_item_name,
+        ingredients: ingredients.map((row) => ({
+          ingredient_name: row.ingredient_name,
+          quantity_required: new Decimal(row.quantity_required).toFixed(4),
+          quantity_unit: row.quantity_unit || null,
+        })),
+      },
+    });
+  } catch (error: any) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Recipe backend replace failed: ${message}`);
+  }
 }
 
 export async function generate_recipe_ai(menu_item_name: string, user: string = 'system', tenant_id: string = 'tenant_default') {
