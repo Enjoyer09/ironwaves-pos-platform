@@ -164,6 +164,21 @@ export interface Settings {
   qr_settings?: {
     base_url: string;
   };
+  customer_app_settings?: {
+    enabled: boolean;
+    app_name: string;
+    hero_title: string;
+    hero_subtitle: string;
+    points_label: string;
+    reward_name: string;
+    reward_threshold: number;
+    reward_description: string;
+    primary_color: string;
+    accent_color: string;
+    show_campaigns: boolean;
+    show_history: boolean;
+    show_notifications: boolean;
+  };
   omnitech_settings?: {
     enabled: boolean;
     api_base_url: string;

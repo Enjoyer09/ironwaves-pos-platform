@@ -286,6 +286,26 @@ def get_app_settings(
     )
     print_settings = _setting_value(db, tenant.id, "print_settings", {"use_qz": False, "printer_name": ""})
     qr_settings = _setting_value(db, tenant.id, "qr_settings", {"base_url": f"https://{tenant.domain}"})
+    customer_app_settings = _setting_value(
+        db,
+        tenant.id,
+        "customer_app_settings",
+        {
+            "enabled": True,
+            "app_name": "Loyalty Club",
+            "hero_title": "Xoş gəldiniz",
+            "hero_subtitle": "Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.",
+            "points_label": "Ulduz",
+            "reward_name": "Reward",
+            "reward_threshold": 10,
+            "reward_description": "10 ulduza 1 pulsuz içki",
+            "primary_color": "#facc15",
+            "accent_color": "#22d3ee",
+            "show_campaigns": True,
+            "show_history": True,
+            "show_notifications": True,
+        },
+    )
     email_settings = _setting_value(
         db,
         tenant.id,
@@ -330,6 +350,7 @@ def get_app_settings(
         "staff_benefits": staff_benefits,
         "print_settings": print_settings,
         "qr_settings": qr_settings,
+        "customer_app_settings": customer_app_settings,
         "omnitech_settings": omnitech_settings,
         "role_modules": role_modules,
         "gemini_api_key": gemini_api_key,
@@ -372,6 +393,34 @@ def update_qr_settings(
     _ensure_admin(user)
     base_url = str(payload.get("base_url") or "").strip()
     _set_setting_value(db, tenant.id, "qr_settings", {"base_url": base_url})
+    db.commit()
+    return {"success": True}
+
+
+@router.patch("/settings/customer-app")
+def update_customer_app_settings(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    cleaned = {
+        "enabled": bool(payload.get("enabled", True)),
+        "app_name": str(payload.get("app_name") or "").strip() or "Loyalty Club",
+        "hero_title": str(payload.get("hero_title") or "").strip() or "Xoş gəldiniz",
+        "hero_subtitle": str(payload.get("hero_subtitle") or "").strip() or "Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.",
+        "points_label": str(payload.get("points_label") or "").strip() or "Ulduz",
+        "reward_name": str(payload.get("reward_name") or "").strip() or "Reward",
+        "reward_threshold": max(1, int(payload.get("reward_threshold") or 10)),
+        "reward_description": str(payload.get("reward_description") or "").strip() or "10 ulduza 1 pulsuz içki",
+        "primary_color": str(payload.get("primary_color") or "").strip() or "#facc15",
+        "accent_color": str(payload.get("accent_color") or "").strip() or "#22d3ee",
+        "show_campaigns": bool(payload.get("show_campaigns", True)),
+        "show_history": bool(payload.get("show_history", True)),
+        "show_notifications": bool(payload.get("show_notifications", True)),
+    }
+    _set_setting_value(db, tenant.id, "customer_app_settings", cleaned)
     db.commit()
     return {"success": True}
 
@@ -582,9 +631,31 @@ def get_customer_app_session(
         .limit(12)
         .all()
     )
+    app_settings = _setting_value(
+        db,
+        tenant.id,
+        "customer_app_settings",
+        {
+            "enabled": True,
+            "app_name": "Loyalty Club",
+            "hero_title": "Xoş gəldiniz",
+            "hero_subtitle": "Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.",
+            "points_label": "Ulduz",
+            "reward_name": "Reward",
+            "reward_threshold": 10,
+            "reward_description": "10 ulduza 1 pulsuz içki",
+            "primary_color": "#facc15",
+            "accent_color": "#22d3ee",
+            "show_campaigns": True,
+            "show_history": True,
+            "show_notifications": True,
+        },
+    )
+    if not bool(app_settings.get("enabled", True)):
+        raise HTTPException(status_code=403, detail="Customer app is disabled for this tenant")
 
     stars = int(customer.stars or 0)
-    next_reward_at = 10
+    next_reward_at = max(1, int(app_settings.get("reward_threshold") or 10))
     progress_current = stars % next_reward_at
     progress_remaining = 0 if progress_current == 0 and stars > 0 else next_reward_at - progress_current
     available_rewards = stars // next_reward_at
@@ -596,6 +667,11 @@ def get_customer_app_session(
             "website": (branding.website if branding else f"https://{tenant.domain}") or f"https://{tenant.domain}",
             "logo_url": (branding.logo_url if branding else "") or "",
             "receipt_footer": (branding.receipt_footer if branding else "") or "",
+            "app_name": str(app_settings.get("app_name") or "Loyalty Club"),
+            "hero_title": str(app_settings.get("hero_title") or "Xoş gəldiniz"),
+            "hero_subtitle": str(app_settings.get("hero_subtitle") or ""),
+            "primary_color": str(app_settings.get("primary_color") or "#facc15"),
+            "accent_color": str(app_settings.get("accent_color") or "#22d3ee"),
         },
         "customer": {
             "card_id": customer.card_id,
@@ -605,13 +681,23 @@ def get_customer_app_session(
             "created_at": customer.created_at.isoformat() if customer.created_at else None,
         },
         "wallet": {
-            "points_label": "Ulduz",
+            "points_label": str(app_settings.get("points_label") or "Ulduz"),
             "stars_balance": stars,
             "available_rewards": available_rewards,
             "next_reward_at": next_reward_at,
             "progress_current": progress_current,
             "progress_remaining": progress_remaining,
-            "reward_label": "10 ulduza 1 pulsuz içki",
+            "reward_label": str(app_settings.get("reward_description") or "10 ulduza 1 pulsuz içki"),
+            "reward_name": str(app_settings.get("reward_name") or "Reward"),
+            "rewards": [
+                {
+                    "id": "default-reward",
+                    "title": str(app_settings.get("reward_name") or "Reward"),
+                    "description": str(app_settings.get("reward_description") or "10 ulduza 1 pulsuz içki"),
+                    "threshold": next_reward_at,
+                    "available_count": available_rewards,
+                }
+            ],
         },
         "campaigns": [
             {
@@ -623,7 +709,7 @@ def get_customer_app_session(
                 "categories": row.categories,
             }
             for row in active_campaigns
-        ],
+        ] if bool(app_settings.get("show_campaigns", True)) else [],
         "notifications": [
             {
                 "id": row.id,
@@ -632,7 +718,7 @@ def get_customer_app_session(
                 "created_at": row.created_at.isoformat() if row.created_at else None,
             }
             for row in notifications
-        ],
+        ] if bool(app_settings.get("show_notifications", True)) else [],
         "history": [
             {
                 "id": row.id,
@@ -645,7 +731,8 @@ def get_customer_app_session(
                 "items": _json_load(row.items_json, []),
             }
             for row in sales
-        ],
+        ] if bool(app_settings.get("show_history", True)) else [],
+        "customer_app_settings": app_settings,
     }
 
 

@@ -13,6 +13,7 @@ import {
   setup_totp_live,
   update_email_settings_live,
   update_business_profile_live,
+  update_customer_app_settings_live,
   update_print_settings,
   update_qr_settings_live,
   update_role_modules_live,
@@ -54,6 +55,21 @@ export default function SettingsPanel() {
   const [printSettings, setPrintSettings] = useState({
     use_qz: false,
     printer_name: '',
+  });
+  const [customerAppSettings, setCustomerAppSettings] = useState({
+    enabled: true,
+    app_name: 'Loyalty Club',
+    hero_title: 'Xoş gəldiniz',
+    hero_subtitle: 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
+    points_label: 'Ulduz',
+    reward_name: 'Reward',
+    reward_threshold: '10',
+    reward_description: '10 ulduza 1 pulsuz içki',
+    primary_color: '#facc15',
+    accent_color: '#22d3ee',
+    show_campaigns: true,
+    show_history: true,
+    show_notifications: true,
   });
   const [staffBenefits, setStaffBenefits] = useState({
     daily_limit_azn: '6',
@@ -129,6 +145,21 @@ export default function SettingsPanel() {
       setPrintSettings({
         use_qz: Boolean(settingsRes.value.print_settings?.use_qz),
         printer_name: String(settingsRes.value.print_settings?.printer_name || ''),
+      });
+      setCustomerAppSettings({
+        enabled: Boolean(settingsRes.value.customer_app_settings?.enabled ?? true),
+        app_name: String(settingsRes.value.customer_app_settings?.app_name || 'Loyalty Club'),
+        hero_title: String(settingsRes.value.customer_app_settings?.hero_title || 'Xoş gəldiniz'),
+        hero_subtitle: String(settingsRes.value.customer_app_settings?.hero_subtitle || 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.'),
+        points_label: String(settingsRes.value.customer_app_settings?.points_label || 'Ulduz'),
+        reward_name: String(settingsRes.value.customer_app_settings?.reward_name || 'Reward'),
+        reward_threshold: String(settingsRes.value.customer_app_settings?.reward_threshold || 10),
+        reward_description: String(settingsRes.value.customer_app_settings?.reward_description || '10 ulduza 1 pulsuz içki'),
+        primary_color: String(settingsRes.value.customer_app_settings?.primary_color || '#facc15'),
+        accent_color: String(settingsRes.value.customer_app_settings?.accent_color || '#22d3ee'),
+        show_campaigns: Boolean(settingsRes.value.customer_app_settings?.show_campaigns ?? true),
+        show_history: Boolean(settingsRes.value.customer_app_settings?.show_history ?? true),
+        show_notifications: Boolean(settingsRes.value.customer_app_settings?.show_notifications ?? true),
       });
       setStaffBenefits({
         daily_limit_azn: String(settingsRes.value.staff_benefits?.daily_limit_azn ?? 6),
@@ -372,6 +403,25 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Çap ayarları yadda saxlanıldı', 'Настройки печати сохранены', 'Print settings saved'));
   };
 
+  const saveCustomerAppSettings = async () => {
+    await update_customer_app_settings_live({
+      enabled: customerAppSettings.enabled,
+      app_name: customerAppSettings.app_name,
+      hero_title: customerAppSettings.hero_title,
+      hero_subtitle: customerAppSettings.hero_subtitle,
+      points_label: customerAppSettings.points_label,
+      reward_name: customerAppSettings.reward_name,
+      reward_threshold: Number(customerAppSettings.reward_threshold || 10),
+      reward_description: customerAppSettings.reward_description,
+      primary_color: customerAppSettings.primary_color,
+      accent_color: customerAppSettings.accent_color,
+      show_campaigns: customerAppSettings.show_campaigns,
+      show_history: customerAppSettings.show_history,
+      show_notifications: customerAppSettings.show_notifications,
+    });
+    flashSuccess(tx(lang, 'Customer app ayarları yadda saxlanıldı', 'Настройки customer app сохранены', 'Customer app settings saved'));
+  };
+
   const saveStaffBenefits = async () => {
     await update_staff_benefits_live({
       daily_limit_azn: Number(staffBenefits.daily_limit_azn || 0),
@@ -479,6 +529,48 @@ export default function SettingsPanel() {
         </div>
         <div className="flex justify-end">
           <button onClick={savePrintSettings} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+        </div>
+      </div>
+
+      <div className="metal-panel p-6 space-y-4">
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Customer App', 'Customer App', 'Customer App')}</h2>
+        <p className="text-sm text-slate-400">
+          {tx(
+            lang,
+            'Müştəri portalının adı, mətnləri, xal adı və reward həddi tenant-a görə buradan dəyişdirilir.',
+            'Здесь настраиваются название, тексты, название баллов и порог награды клиентского приложения.',
+            'Customize the customer app name, copy, point label, and reward threshold for this tenant here.',
+          )}
+        </p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
+            <input type="checkbox" checked={customerAppSettings.enabled} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, enabled: e.target.checked }))} />
+            <span>{tx(lang, 'Customer app aktiv olsun', 'Включить customer app', 'Enable customer app')}</span>
+          </label>
+          <input className="neon-input" value={customerAppSettings.app_name} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, app_name: e.target.value }))} placeholder={tx(lang, 'App adı', 'Название приложения', 'App name')} />
+          <input className="neon-input" value={customerAppSettings.points_label} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, points_label: e.target.value }))} placeholder={tx(lang, 'Point adı', 'Название баллов', 'Point label')} />
+          <input className="neon-input" value={customerAppSettings.hero_title} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, hero_title: e.target.value }))} placeholder={tx(lang, 'Başlıq', 'Заголовок', 'Hero title')} />
+          <input className="neon-input" value={customerAppSettings.reward_name} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, reward_name: e.target.value }))} placeholder={tx(lang, 'Reward adı', 'Название награды', 'Reward name')} />
+          <input className="neon-input md:col-span-2" value={customerAppSettings.hero_subtitle} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, hero_subtitle: e.target.value }))} placeholder={tx(lang, 'Qısa izah', 'Краткое описание', 'Hero subtitle')} />
+          <input className="neon-input" type="number" min={1} value={customerAppSettings.reward_threshold} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, reward_threshold: e.target.value }))} placeholder={tx(lang, 'Reward həddi', 'Порог награды', 'Reward threshold')} />
+          <input className="neon-input md:col-span-2" value={customerAppSettings.reward_description} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, reward_description: e.target.value }))} placeholder={tx(lang, 'Reward izahı', 'Описание награды', 'Reward description')} />
+          <input className="neon-input" value={customerAppSettings.primary_color} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, primary_color: e.target.value }))} placeholder={tx(lang, 'Primary rəng', 'Primary цвет', 'Primary color')} />
+          <input className="neon-input" value={customerAppSettings.accent_color} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, accent_color: e.target.value }))} placeholder={tx(lang, 'Accent rəng', 'Accent цвет', 'Accent color')} />
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={customerAppSettings.show_campaigns} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, show_campaigns: e.target.checked }))} />
+            <span>{tx(lang, 'Kampaniyaları göstər', 'Показывать кампании', 'Show campaigns')}</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={customerAppSettings.show_history} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, show_history: e.target.checked }))} />
+            <span>{tx(lang, 'Tarixçəni göstər', 'Показывать историю', 'Show history')}</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
+            <input type="checkbox" checked={customerAppSettings.show_notifications} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, show_notifications: e.target.checked }))} />
+            <span>{tx(lang, 'Bildirişləri göstər', 'Показывать уведомления', 'Show notifications')}</span>
+          </label>
+        </div>
+        <div className="flex justify-end">
+          <button onClick={() => { void saveCustomerAppSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 
