@@ -7,7 +7,28 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import RefreshToken, Tenant, User
+from app.models import (
+    AuditLog,
+    Customer,
+    FinanceEntry,
+    HappyHour,
+    InventoryItem,
+    KitchenOrder,
+    LoyaltyLedgerEntry,
+    MenuItem,
+    Notification,
+    RefreshToken,
+    Recipe,
+    RewardClaim,
+    Sale,
+    Setting,
+    Shift,
+    ShiftHandover,
+    StaffNotification,
+    Table,
+    Tenant,
+    User,
+)
 from app.schemas import BootstrapOwnerIn, LoginIn, PinLoginIn, RefreshIn, TokenOut
 from app.core.config import settings
 from app.security import (
@@ -15,6 +36,7 @@ from app.security import (
     create_refresh_token,
     create_trusted_device_token,
     decode_token,
+    hash_password,
     hash_token,
     verify_password,
 )
@@ -121,6 +143,88 @@ def _has_platform_owner(db: Session, tenant_id: str) -> bool:
         .first()
         is not None
     )
+
+
+def _ensure_demo_user(db: Session, tenant_id: str, username: str, password: str, role: str, pin: str | None = None):
+    row = db.query(User).filter(User.tenant_id == tenant_id, User.username == username).first()
+    if not row:
+        row = User(
+            tenant_id=tenant_id,
+            username=username,
+            email=None,
+            password_hash=hash_password(password),
+            pin_hash=hash_password(pin or password) if pin or role in {"staff", "kitchen"} else None,
+            role=role,
+            is_active=True,
+        )
+        db.add(row)
+        return
+
+    row.password_hash = hash_password(password)
+    row.pin_hash = hash_password(pin or password) if pin or role in {"staff", "kitchen"} else row.pin_hash
+    row.role = role
+    row.is_active = True
+    row.failed_attempts = 0
+    row.locked_until = None
+
+
+def _reset_demo_tenant_runtime(db: Session, tenant: Tenant):
+    db.query(RefreshToken).filter(RefreshToken.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(AuditLog).filter(AuditLog.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Sale).filter(Sale.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(KitchenOrder).filter(KitchenOrder.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Table).filter(Table.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(InventoryItem).filter(InventoryItem.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Recipe).filter(Recipe.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Setting).filter(Setting.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(ShiftHandover).filter(ShiftHandover.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Customer).filter(Customer.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Notification).filter(Notification.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(StaffNotification).filter(StaffNotification.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(HappyHour).filter(HappyHour.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(MenuItem).filter(MenuItem.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Shift).filter(Shift.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(RewardClaim).filter(RewardClaim.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(LoyaltyLedgerEntry).filter(LoyaltyLedgerEntry.tenant_id == tenant.id).delete(synchronize_session=False)
+
+    _ensure_demo_user(db, tenant.id, settings.demo_admin_username, settings.demo_admin_password, "admin")
+    _ensure_demo_user(db, tenant.id, settings.demo_manager_username, settings.demo_manager_password, "manager")
+    _ensure_demo_user(db, tenant.id, settings.demo_staff_username, settings.demo_staff_pin, "staff", settings.demo_staff_pin)
+    _ensure_demo_user(db, tenant.id, settings.demo_kitchen_username, settings.demo_kitchen_pin, "kitchen", settings.demo_kitchen_pin)
+
+    db.add_all(
+        [
+            MenuItem(tenant_id=tenant.id, item_name="Espresso", category="Coffee", price="3.00", is_coffee=True, is_active=True),
+            MenuItem(tenant_id=tenant.id, item_name="Americano", category="Coffee", price="4.00", is_coffee=True, is_active=True),
+            MenuItem(tenant_id=tenant.id, item_name="Cappuccino", category="Coffee", price="4.80", is_coffee=True, is_active=True),
+            MenuItem(tenant_id=tenant.id, item_name="Cheesecake", category="Dessert", price="6.50", is_coffee=False, is_active=True),
+        ]
+    )
+    db.add_all(
+        [
+            Table(tenant_id=tenant.id, label="Table 1", is_occupied=False, total="0", items_json="[]"),
+            Table(tenant_id=tenant.id, label="Table 2", is_occupied=False, total="0", items_json="[]"),
+            Table(tenant_id=tenant.id, label="Table 3", is_occupied=False, total="0", items_json="[]"),
+        ]
+    )
+    db.add_all(
+        [
+            InventoryItem(tenant_id=tenant.id, name="Coffee Beans", unit="kq", category="Raw Material", stock_qty="3.000", unit_cost="18.0000", min_limit="1.000"),
+            InventoryItem(tenant_id=tenant.id, name="Milk", unit="litr", category="Raw Material", stock_qty="20.000", unit_cost="2.2000", min_limit="8.000"),
+            InventoryItem(tenant_id=tenant.id, name="Paper Cup", unit="ədəd", category="Packaging", stock_qty="150.000", unit_cost="0.1000", min_limit="60.000"),
+        ]
+    )
+    db.add_all(
+        [
+            Recipe(tenant_id=tenant.id, menu_item_name="Espresso", ingredient_name="Coffee Beans", quantity_required="0.0180"),
+            Recipe(tenant_id=tenant.id, menu_item_name="Americano", ingredient_name="Coffee Beans", quantity_required="0.0180"),
+            Recipe(tenant_id=tenant.id, menu_item_name="Cappuccino", ingredient_name="Coffee Beans", quantity_required="0.0180"),
+            Recipe(tenant_id=tenant.id, menu_item_name="Cappuccino", ingredient_name="Milk", quantity_required="0.1800"),
+        ]
+    )
+    db.add(Setting(tenant_id=tenant.id, key="qr_settings", value=f'{{"base_url":"https://{tenant.domain}"}}'))
+    db.commit()
 
 
 @router.get("/bootstrap-owner/status")
@@ -321,6 +425,8 @@ def logout(payload: RefreshIn, db: Session = Depends(get_db), tenant: Tenant = D
     if row:
         row.revoked = True
         db.commit()
+    if settings.demo_tenant_enabled and tenant.domain == settings.demo_tenant_domain:
+        _reset_demo_tenant_runtime(db, tenant)
     return {"success": True}
 
 
