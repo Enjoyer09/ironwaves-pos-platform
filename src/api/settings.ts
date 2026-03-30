@@ -49,6 +49,8 @@ function getSettings(tenant_id?: string): Settings {
         program_mode: 'points',
         layout_preset: 'rewards',
         consent_text: 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.',
+        join_customer_type: 'golden',
+        join_discount_percent: 5,
         app_name: 'Loyalty Club',
         hero_title: 'Xoş gəldiniz',
         hero_subtitle: 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
@@ -190,6 +192,8 @@ export function get_settings(tenant_id?: string) {
       program_mode: 'points',
       layout_preset: 'rewards',
       consent_text: 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.',
+      join_customer_type: 'golden',
+      join_discount_percent: 5,
       app_name: 'Loyalty Club',
       hero_title: 'Xoş gəldiniz',
       hero_subtitle: 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
@@ -336,6 +340,8 @@ export function update_customer_app_settings(payload: {
   program_mode?: 'points' | 'cashback';
   layout_preset?: 'rewards' | 'cashback' | 'playful';
   consent_text?: string;
+  join_customer_type?: string;
+  join_discount_percent?: number;
   app_name: string;
   hero_title: string;
   hero_subtitle: string;
@@ -364,6 +370,8 @@ export function update_customer_app_settings(payload: {
     program_mode: payload.program_mode === 'cashback' ? 'cashback' : 'points',
     layout_preset: payload.layout_preset === 'cashback' || payload.layout_preset === 'playful' ? payload.layout_preset : 'rewards',
     consent_text: String(payload.consent_text || '').trim() || 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.',
+    join_customer_type: String(payload.join_customer_type || '').trim() || 'golden',
+    join_discount_percent: Number.isFinite(payload.join_discount_percent) ? Math.max(0, Number(payload.join_discount_percent)) : 5,
     app_name: String(payload.app_name || '').trim() || 'Loyalty Club',
     hero_title: String(payload.hero_title || '').trim() || 'Xoş gəldiniz',
     hero_subtitle: String(payload.hero_subtitle || '').trim() || 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
@@ -446,6 +454,8 @@ export async function update_customer_app_settings_live(payload: {
   program_mode?: 'points' | 'cashback';
   layout_preset?: 'rewards' | 'cashback' | 'playful';
   consent_text?: string;
+  join_customer_type?: string;
+  join_discount_percent?: number;
   app_name: string;
   hero_title: string;
   hero_subtitle: string;

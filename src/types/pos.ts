@@ -171,6 +171,8 @@ export interface Settings {
     program_mode?: 'points' | 'cashback';
     layout_preset?: 'rewards' | 'cashback' | 'playful';
     consent_text?: string;
+    join_customer_type?: string;
+    join_discount_percent?: number;
     app_name: string;
     hero_title: string;
     hero_subtitle: string;

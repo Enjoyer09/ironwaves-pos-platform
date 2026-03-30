@@ -301,6 +301,8 @@ def get_app_settings(
             "program_mode": "points",
             "layout_preset": "rewards",
             "consent_text": "Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.",
+            "join_customer_type": "golden",
+            "join_discount_percent": 5,
             "app_name": "Loyalty Club",
             "hero_title": "Xoş gəldiniz",
             "hero_subtitle": "Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.",
@@ -428,6 +430,8 @@ def update_customer_app_settings(
         "program_mode": "cashback" if str(payload.get("program_mode") or "").strip().lower() == "cashback" else "points",
         "layout_preset": str(payload.get("layout_preset") or "rewards").strip().lower() if str(payload.get("layout_preset") or "rewards").strip().lower() in {"rewards", "cashback", "playful"} else "rewards",
         "consent_text": str(payload.get("consent_text") or "").strip() or "Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.",
+        "join_customer_type": str(payload.get("join_customer_type") or "golden").strip() or "golden",
+        "join_discount_percent": max(0, float(payload.get("join_discount_percent") or 5)),
         "app_name": str(payload.get("app_name") or "").strip() or "Loyalty Club",
         "hero_title": str(payload.get("hero_title") or "").strip() or "Xoş gəldiniz",
         "hero_subtitle": str(payload.get("hero_subtitle") or "").strip() or "Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.",
@@ -645,6 +649,8 @@ def get_customer_app_bootstrap(
             "enabled": True,
             "app_name": "Loyalty Club",
             "consent_text": "Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.",
+            "join_customer_type": "golden",
+            "join_discount_percent": 5,
             "background_color": "#0b1220",
             "primary_color": "#facc15",
             "accent_color": "#22d3ee",
@@ -667,6 +673,8 @@ def get_customer_app_bootstrap(
             "accent_color": str(app_settings.get("accent_color") or "#22d3ee"),
         },
         "consent_text": str(app_settings.get("consent_text") or "Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam."),
+        "join_customer_type": str(app_settings.get("join_customer_type") or "golden"),
+        "join_discount_percent": float(app_settings.get("join_discount_percent") or 5),
     }
 
 
@@ -690,8 +698,9 @@ def enroll_customer_app(
     customer = Customer(
         tenant_id=tenant.id,
         card_id=card_id,
-        type="Normal",
+        type=str(payload.get("join_customer_type") or app_settings.get("join_customer_type") or "golden"),
         stars=0,
+        discount_percent=Decimal(str(payload.get("join_discount_percent") or app_settings.get("join_discount_percent") or 0)),
         secret_token=secret_token,
     )
     db.add(customer)

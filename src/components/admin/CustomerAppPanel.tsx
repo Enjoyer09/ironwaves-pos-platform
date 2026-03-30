@@ -5,6 +5,15 @@ import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 import { get_settings_live, update_customer_app_settings_live } from '../../api/settings';
 
+const CRM_MEMBER_TYPES = [
+  { value: 'golden', label: 'Golden (5%)', discount: 5 },
+  { value: 'platinum', label: 'Platinum (10%)', discount: 10 },
+  { value: 'elite', label: 'Elite (20%)', discount: 20 },
+  { value: 'thermos', label: 'Thermos (20%)', discount: 20 },
+  { value: 'ikram', label: 'Ikram (100%)', discount: 100 },
+  { value: 'telebe', label: 'Tələbə (15%)', discount: 15 },
+];
+
 export default function CustomerAppPanel() {
   const { user, lang, notify } = useAppStore();
   const tenantId = user?.tenant_id || 'tenant_default';
@@ -16,6 +25,8 @@ export default function CustomerAppPanel() {
     program_mode: 'points' as 'points' | 'cashback',
     layout_preset: 'rewards' as 'rewards' | 'cashback' | 'playful',
     consent_text: 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.',
+    join_customer_type: 'golden',
+    join_discount_percent: '5',
     app_name: 'Loyalty Club',
     hero_title: 'Xoş gəldiniz',
     hero_subtitle: 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
@@ -50,6 +61,8 @@ export default function CustomerAppPanel() {
           program_mode: c.program_mode === 'cashback' ? 'cashback' : 'points',
           layout_preset: c.layout_preset === 'cashback' || c.layout_preset === 'playful' ? c.layout_preset : 'rewards',
           consent_text: String(c.consent_text || prev.consent_text),
+          join_customer_type: String(c.join_customer_type || prev.join_customer_type || 'golden'),
+          join_discount_percent: String(c.join_discount_percent || prev.join_discount_percent || '5'),
           app_name: String(c.app_name || prev.app_name),
           hero_title: String(c.hero_title || prev.hero_title),
           hero_subtitle: String(c.hero_subtitle || prev.hero_subtitle),
@@ -80,7 +93,9 @@ export default function CustomerAppPanel() {
 
   useEffect(() => {
     let cancelled = false;
-    const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/?join=1` : '';
+    const joinUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}/?join=1&club=${encodeURIComponent(form.join_customer_type)}&discount=${encodeURIComponent(form.join_discount_percent)}`
+      : '';
     if (!joinUrl) return;
     void QRCode.toDataURL(joinUrl, { width: 220, margin: 1 }).then((url) => {
       if (!cancelled) setJoinQr(url);
@@ -90,7 +105,7 @@ export default function CustomerAppPanel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [form.join_customer_type, form.join_discount_percent]);
 
   const flash = (msg: string) => {
     setSuccess(msg);
@@ -110,6 +125,8 @@ export default function CustomerAppPanel() {
       program_mode: form.program_mode,
       layout_preset: form.layout_preset,
       consent_text: form.consent_text,
+      join_customer_type: form.join_customer_type,
+      join_discount_percent: Number(form.join_discount_percent || 0),
       app_name: form.app_name,
       hero_title: form.hero_title,
       hero_subtitle: form.hero_subtitle,
@@ -192,6 +209,23 @@ export default function CustomerAppPanel() {
       primary_color: '#facc15',
       accent_color: '#22d3ee',
     }));
+  };
+
+  const handleJoinTypeChange = (nextType: string) => {
+    const selected = CRM_MEMBER_TYPES.find((item) => item.value === nextType);
+    setForm((prev) => ({
+      ...prev,
+      join_customer_type: nextType,
+      join_discount_percent: String(selected?.discount ?? prev.join_discount_percent),
+    }));
+  };
+
+  const downloadJoinQr = () => {
+    if (!joinQr || typeof document === 'undefined') return;
+    const link = document.createElement('a');
+    link.href = joinQr;
+    link.download = `${tenantId}-cashier-join-qr.png`;
+    link.click();
   };
 
   return (
@@ -312,9 +346,29 @@ export default function CustomerAppPanel() {
       <div className="metal-panel p-6 space-y-4">
         <div className="text-lg font-bold text-slate-100">{tx(lang, 'Kassadakı onboarding QR', 'QR для кассы', 'Cashier onboarding QR')}</div>
         <p className="text-sm text-slate-400">{tx(lang, 'Bu QR-ni çap edib kassaya qoyun. İlk skanda razılaşma çıxacaq, qəbul edən müştəriyə sistem avtomatik unikal QR kart yaradacaq.', 'Распечатайте этот QR и поставьте на кассу. При первом скане покажется согласие, после подтверждения клиенту создастся уникальная QR-карта.', 'Print this QR and place it at the cashier. On first scan the customer sees consent, then gets a unique QR card automatically.')}</p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label className="text-sm text-slate-300">
+            {tx(lang, 'Klub üzvü tipi', 'Тип клубного участника', 'Club member type')}
+            <select className="neon-input mt-1" value={form.join_customer_type} onChange={(e) => handleJoinTypeChange(e.target.value)}>
+              {CRM_MEMBER_TYPES.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm text-slate-300">
+            {tx(lang, 'Başlanğıc endirim %', 'Стартовая скидка %', 'Starting discount %')}
+            <input className="neon-input mt-1" type="number" min={0} max={100} value={form.join_discount_percent} onChange={(e) => setForm((prev) => ({ ...prev, join_discount_percent: e.target.value }))} />
+          </label>
+        </div>
         <div className="flex flex-col items-center gap-3 rounded-3xl border border-slate-700/70 bg-white p-5 text-slate-900">
           {joinQr ? <img src={joinQr} alt="join qr" className="h-52 w-52 rounded-2xl" /> : null}
-          <div className="text-center text-xs text-slate-500">{typeof window !== 'undefined' ? `${window.location.origin}/?join=1` : ''}</div>
+          <div className="text-center text-xs font-semibold text-slate-700">
+            {tx(lang, 'CRM tipi', 'CRM тип', 'CRM type')}: {form.join_customer_type} ({form.join_discount_percent}%)
+          </div>
+          <div className="text-center text-xs text-slate-500">{typeof window !== 'undefined' ? `${window.location.origin}/?join=1&club=${encodeURIComponent(form.join_customer_type)}&discount=${encodeURIComponent(form.join_discount_percent)}` : ''}</div>
+          <button type="button" onClick={downloadJoinQr} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">
+            {tx(lang, 'QR yüklə', 'Скачать QR', 'Download QR')}
+          </button>
         </div>
       </div>
 

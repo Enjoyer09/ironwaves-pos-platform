@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { useAppStore } from '../store';
 import { get_sales_summary_live, get_sales_list_live, update_sale_amount_live, void_sale_with_reason_live, partial_refund_sale_live } from '../api/analytics';
 import { get_menu_items_live, create_menu_item_live, soft_delete_menu_item_live } from '../api/menu';
@@ -95,7 +95,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     }
   }, [activeTab, tenant_id]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (externalTab) {
       setActiveTab(externalTab);
     }

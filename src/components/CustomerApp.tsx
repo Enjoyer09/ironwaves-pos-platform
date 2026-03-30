@@ -140,7 +140,10 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const acceptConsentAndCreateCard = async () => {
     try {
       setAcceptingConsent(true);
-      const created = await enroll_customer_app_live(true);
+      const currentUrl = typeof window !== 'undefined' ? new URL(window.location.href) : null;
+      const joinCustomerType = currentUrl?.searchParams.get('club') || bootstrapData?.join_customer_type || '';
+      const joinDiscount = Number(currentUrl?.searchParams.get('discount') || bootstrapData?.join_discount_percent || 0);
+      const created = await enroll_customer_app_live(true, undefined, joinCustomerType, joinDiscount);
       const next = { cardId: created.card_id, token: created.token };
       setSessionCreds(next);
       if (typeof window !== 'undefined') {

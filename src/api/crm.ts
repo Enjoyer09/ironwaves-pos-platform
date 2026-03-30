@@ -309,12 +309,19 @@ export async function get_customer_app_bootstrap_live(tenant_id?: string) {
         accent_color: settings.accent_color || '#22d3ee',
       },
       consent_text: settings.consent_text || 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.',
+      join_customer_type: settings.join_customer_type || 'golden',
+      join_discount_percent: Number(settings.join_discount_percent || 5),
     };
   }
   return apiRequest<any>('/api/v1/ops/customer-app/bootstrap', { method: 'GET', tenantId: null, auth: false });
 }
 
-export async function enroll_customer_app_live(consent_accepted: boolean = true, tenant_id?: string) {
+export async function enroll_customer_app_live(
+  consent_accepted: boolean = true,
+  tenant_id?: string,
+  join_customer_type?: string,
+  join_discount_percent?: number,
+) {
   const tenantId = tenant_id || defaultTenant();
   if (!consent_accepted) throw new Error('Consent must be accepted');
   if (!isBackendEnabled()) {
@@ -325,8 +332,9 @@ export async function enroll_customer_app_live(consent_accepted: boolean = true,
       id: uuidv4(),
       tenant_id: tenantId,
       card_id,
-      type: 'Normal',
+      type: String(join_customer_type || 'golden'),
       stars: 0,
+      discount_percent: Number.isFinite(join_discount_percent) ? Number(join_discount_percent) : 0,
       secret_token: token,
       created_at: new Date().toISOString(),
     };
@@ -339,7 +347,11 @@ export async function enroll_customer_app_live(consent_accepted: boolean = true,
     method: 'POST',
     tenantId: null,
     auth: false,
-    body: { consent_accepted: true },
+    body: {
+      consent_accepted: true,
+      join_customer_type,
+      join_discount_percent,
+    },
   });
 }
 
