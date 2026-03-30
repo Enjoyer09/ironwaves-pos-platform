@@ -19,7 +19,7 @@ import { logUiError } from './lib/logger';
 import { getPendingOfflineSalesCount, syncPendingOfflineSales } from './lib/offline';
 import { probeInternet } from './lib/connectivity';
 import { get_unread_staff_notifications_live, mark_staff_notifications_read_live } from './api/reports';
-import { getActiveTenantId, isKnownTenantHost } from './lib/tenant';
+import { getActiveTenantId } from './lib/tenant';
 import { get_low_stock_items } from './api/inventory';
 import { list_tenants, type TenantRecord } from './api/tenants';
 import { clearDBCache } from './lib/db_sim';
@@ -150,12 +150,6 @@ export default function App() {
     const host = window.location.host.toLowerCase();
     if (host === 'www.ironwaves.store' || host === 'ironwaves.store') return 'landing';
     return 'app';
-  }, []);
-  const knownTenantHost = useMemo(() => {
-    if (typeof window === 'undefined') return true;
-    const host = window.location.host.toLowerCase();
-    if (host === 'www.ironwaves.store' || host === 'ironwaves.store') return true;
-    return isKnownTenantHost(host);
   }, []);
 
   const defaultUiVisibility = { staff_show_tables: true, manager_show_tables: true, staff_show_kitchen: true };
@@ -498,32 +492,6 @@ export default function App() {
 
   if (hostMode === 'landing') {
     return <LandingPage />;
-  }
-
-  if (!knownTenantHost && !hasValidUser) {
-    return (
-      <div className="metal-app flex min-h-screen items-center justify-center px-4 py-10 text-slate-100">
-        <div className="metal-panel w-full max-w-xl rounded-3xl p-8 text-center">
-          <h1 className="text-2xl font-bold text-rose-200">{tx(safeLang, 'Tenant tapılmadı', 'Тенант не найден', 'Tenant not found')}</h1>
-          <p className="mt-3 text-sm text-slate-300">
-            {tx(
-              safeLang,
-              'Bu subdomain üçün aktiv tenant yoxdur. Silinmiş və ya qurulmamış tenant heç vaxt başqa tenant-a açılmamalıdır.',
-              'Для этого поддомена нет активного тенанта. Удаленный или не настроенный тенант не должен открывать другой тенант.',
-              'There is no active tenant for this subdomain. A deleted or unconfigured tenant must never open another tenant.',
-            )}
-          </p>
-          <div className="mt-6 flex justify-center gap-3">
-            <button className="neon-btn rounded-xl px-5 py-3" onClick={() => window.location.reload()}>
-              {tx(safeLang, 'Yenilə', 'Обновить', 'Reload')}
-            </button>
-            <a href="https://super.ironwaves.store" className="glossy-gold rounded-xl px-5 py-3 font-semibold text-slate-900">
-              {tx(safeLang, 'Platforma qayıt', 'Вернуться на платформу', 'Go to platform')}
-            </a>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   if (!hasValidUser) {

@@ -4,6 +4,18 @@ import { KitchenOrder } from '../types/pos';
 import { getDB, setDB } from '../lib/db_sim';
 import { apiRequest, isBackendEnabled } from './client';
 
+const isRecoverableNetworkFailure = (error: unknown) => {
+  const message = String((error as any)?.message || error || '').toLowerCase();
+  return (
+    message.includes('failed to fetch') ||
+    message.includes('networkerror') ||
+    message.includes('network request failed') ||
+    message.includes('load failed') ||
+    message.includes('backendə qoşulma alınmadı') ||
+    message.includes('network')
+  );
+};
+
 // FUNKSIYA: get_kitchen_orders
 export const get_kitchen_orders = (tenant_id: string) => {
   const orders = getDB<KitchenOrder>('kitchen_orders')
@@ -81,7 +93,14 @@ export const reset_kitchen_orders = (tenant_id: string, reset_by: string) => {
 
 export const get_kitchen_orders_live = async (tenant_id: string) => {
   if (!isBackendEnabled()) return get_kitchen_orders(tenant_id);
-  return apiRequest<any[]>('/api/v1/ops/kitchen-orders', { tenantId: null });
+  try {
+    return await apiRequest<any[]>('/api/v1/ops/kitchen-orders', { tenantId: null });
+  } catch (error) {
+    if (isRecoverableNetworkFailure(error)) {
+      return get_kitchen_orders(tenant_id);
+    }
+    throw error;
+  }
 };
 
 export const accept_order_live = async (order_id: string, accepted_by: string) => {

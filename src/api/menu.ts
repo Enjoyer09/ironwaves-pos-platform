@@ -4,6 +4,18 @@ import { Decimal } from 'decimal.js';
 import { getDB, setDB } from '../lib/db_sim';
 import { apiRequest, isBackendEnabled } from './client';
 
+const isRecoverableNetworkFailure = (error: unknown) => {
+  const message = String((error as any)?.message || error || '').toLowerCase();
+  return (
+    message.includes('failed to fetch') ||
+    message.includes('networkerror') ||
+    message.includes('network request failed') ||
+    message.includes('load failed') ||
+    message.includes('backendə qoşulma alınmadı') ||
+    message.includes('network')
+  );
+};
+
 export interface MenuItem {
   id: string;
   tenant_id: string;
@@ -84,7 +96,15 @@ export async function get_menu_items_live(tenant_id: string, search?: string, ca
   if (!isBackendEnabled()) {
     return get_menu_items(tenant_id, search, category_filter);
   }
-  let items = await apiRequest<any[]>('/api/v1/catalog/menu');
+  let items: any[] = [];
+  try {
+    items = await apiRequest<any[]>('/api/v1/catalog/menu', { tenantId: null });
+  } catch (error) {
+    if (isRecoverableNetworkFailure(error)) {
+      return get_menu_items(tenant_id, search, category_filter);
+    }
+    throw error;
+  }
   const all = getDB<any>('menu_items').filter((i) => i.tenant_id !== tenant_id);
   setDB('menu_items', [...all, ...items.map((i) => ({ ...i, tenant_id: i?.tenant_id || tenant_id }))]);
   if (category_filter && category_filter !== 'ALL') {
