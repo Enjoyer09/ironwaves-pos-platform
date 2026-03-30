@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, Gift, History, QrCode, Sparkles } from 'lucide-react';
+import { Bell, Gift, Home, MessageCircleHeart, QrCode, Sparkles, UserRound } from 'lucide-react';
 import QRCode from 'qrcode';
 import { tx } from '../i18n';
 import { useAppStore } from '../store';
@@ -10,6 +10,14 @@ type Props = {
   token: string;
 };
 
+type CustomerTab = 'home' | 'offers' | 'fun' | 'profile';
+
+const BARISTA_QUICK_PROMPTS = [
+  'Mənə soyuq içki tövsiyə et',
+  'Bu gün hansı reward mənə sərf edir?',
+  'Dessert ilə nə uyğun gedər?',
+];
+
 export default function CustomerApp({ cardId, token }: Props) {
   const { lang } = useAppStore();
   const [loading, setLoading] = React.useState(true);
@@ -17,8 +25,12 @@ export default function CustomerApp({ cardId, token }: Props) {
   const [error, setError] = React.useState('');
   const [claiming, setClaiming] = React.useState(false);
   const [cardQr, setCardQr] = React.useState('');
-  const [baristaText, setBaristaText] = React.useState('');
+  const [activeTab, setActiveTab] = React.useState<CustomerTab>('home');
+  const [baristaMessages, setBaristaMessages] = React.useState<Array<{ role: 'assistant' | 'user'; text: string }>>([]);
+  const [baristaInput, setBaristaInput] = React.useState('');
   const [fortuneText, setFortuneText] = React.useState('');
+  const [fortuneImage, setFortuneImage] = React.useState('');
+  const fileRef = React.useRef<HTMLInputElement | null>(null);
 
   const load = React.useCallback(async () => {
     try {
@@ -45,18 +57,34 @@ export default function CustomerApp({ cardId, token }: Props) {
       return;
     }
     void QRCode.toDataURL(payload, {
-      width: 220,
+      width: 240,
       margin: 1,
       color: { dark: '#0f172a', light: '#ffffff' },
-    }).then((url) => {
-      if (!cancelled) setCardQr(url);
-    }).catch(() => {
-      if (!cancelled) setCardQr('');
-    });
+    })
+      .then((url) => {
+        if (!cancelled) setCardQr(url);
+      })
+      .catch(() => {
+        if (!cancelled) setCardQr('');
+      });
     return () => {
       cancelled = true;
     };
   }, [cardId]);
+
+  React.useEffect(() => {
+    setBaristaMessages([
+      {
+        role: 'assistant',
+        text: tx(
+          lang,
+          'Salam, mən AI Barista. İçki zövqünə, bonusuna və mood-una görə sənə seçim tövsiyə edə bilərəm.',
+          'Привет, я AI Barista. Подскажу напиток по твоему настроению и бонусам.',
+          'Hi, I am AI Barista. I can recommend drinks based on your mood and rewards.',
+        ),
+      },
+    ]);
+  }, [lang]);
 
   const markRead = async (notificationId: string) => {
     try {
@@ -80,6 +108,58 @@ export default function CustomerApp({ cardId, token }: Props) {
     } finally {
       setClaiming(false);
     }
+  };
+
+  const sendBaristaMessage = () => {
+    const prompt = baristaInput.trim();
+    if (!prompt) return;
+    const lower = prompt.toLowerCase();
+    const answer = lower.includes('soyuq') || lower.includes('cold')
+      ? tx(lang, 'Sənə buzlu latte və ya meyvəli soyuq içki tövsiyə edirəm. Bonusun varsa bunu desertlə birləşdirmək yaxşı olar.', 'Тебе подойдут айс-латте или фруктовый холодный напиток. Если есть бонус, лучше взять с десертом.', 'I would recommend an iced latte or a fruity cold drink. If you have a bonus, pairing it with dessert would be smart.')
+      : lower.includes('güclü') || lower.includes('strong') || lower.includes('oyaq')
+      ? tx(lang, 'Bugünkü ritmin üçün double espresso və ya daha güclü qəhvə bazalı içki yaxşı seçimdir.', 'Для сегодняшнего темпа тебе подойдёт double espresso или более крепкий кофейный напиток.', 'For your pace today, a double espresso or another stronger coffee is a great pick.')
+      : tx(lang, 'Mood-un üçün balanslı latte, yumşaq desert və mövcud reward-unla rahat combo ən uyğun seçimdir.', 'Для твоего настроения лучше всего подойдут сбалансированный латте, мягкий десерт и спокойное комбо с наградой.', 'For your mood, a balanced latte, a soft dessert, and a calm reward combo would fit best.');
+
+    setBaristaMessages((prev) => [...prev, { role: 'user', text: prompt }, { role: 'assistant', text: answer }]);
+    setBaristaInput('');
+  };
+
+  const analyzeImageFortune = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const src = String(reader.result || '');
+      setFortuneImage(src);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const size = 40;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, size, size);
+        const pixels = ctx.getImageData(0, 0, size, size).data;
+        let total = 0;
+        let warm = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+          const r = pixels[i];
+          const g = pixels[i + 1];
+          const b = pixels[i + 2];
+          total += (r + g + b) / 3;
+          if (r > b) warm += 1;
+        }
+        const avg = total / (pixels.length / 4);
+        const warmRatio = warm / (pixels.length / 4);
+        const result = avg > 160
+          ? tx(lang, 'Fal deyir ki, bu şəkil işıqlı enerji daşıyır. Qarşıdakı günlərdə sənin üçün açıq qapılar və xoş kampaniyalar görünür.', 'Изображение несет светлую энергию. Впереди для тебя открытые возможности и приятные акции.', 'This image carries bright energy. Open doors and pleasant offers are ahead for you.')
+          : warmRatio > 0.55
+          ? tx(lang, 'Fal isti tonlar görür. Bu, yaxın zamanda daha rahatlıq, dadlı seçimlər və özünü mükafatlandırmaq vaxtı deməkdir.', 'Предсказание видит тёплые тона. Это знак уюта, вкусных выборов и времени порадовать себя.', 'Your fortune sees warm tones. That means comfort, tasty choices, and a good time to reward yourself.')
+          : tx(lang, 'Fal daha dərin və sakit aura görür. Yaxın günlərdə səni sürpriz bonus və gözlənilməz bir reward sevindirə bilər.', 'Предсказание видит более глубокую и спокойную ауру. В ближайшие дни тебя может порадовать неожиданный бонус.', 'Your fortune sees a deeper, calmer aura. An unexpected bonus or reward may cheer you up soon.');
+        setFortuneText(result);
+      };
+      img.src = src;
+    };
+    reader.readAsDataURL(file);
   };
 
   if (loading) {
@@ -106,8 +186,8 @@ export default function CustomerApp({ cardId, token }: Props) {
   const rewards = Array.isArray(wallet.rewards) ? wallet.rewards : [];
   const pendingClaims = Array.isArray(data.pending_claims) ? data.pending_claims : [];
   const progressPercent = wallet.next_reward_at ? Math.min(100, Math.round((Number(wallet.progress_current || 0) / Number(wallet.next_reward_at || 1)) * 100)) : 0;
-  const primaryColor = String(branding.primary_color || '#facc15');
-  const accentColor = String(branding.accent_color || '#22d3ee');
+  const primaryColor = String(branding.primary_color || '#14b8a6');
+  const accentColor = String(branding.accent_color || '#7c3aed');
   const programMode = String(wallet.program_mode || 'points').toLowerCase();
   const showQrCard = branding.show_qr_card !== false;
   const showWallet = branding.show_wallet !== false;
@@ -117,247 +197,310 @@ export default function CustomerApp({ cardId, token }: Props) {
   const aiBaristaEnabled = branding.ai_barista_enabled === true;
   const aiFalciEnabled = branding.ai_falci_enabled === true;
 
-  const generateBarista = () => {
-    const picks = [
-      tx(lang, 'Bu gün sənə yumşaq və rahat içimə malik xüsusi latte yaraşır.', 'Сегодня тебе подойдет мягкий фирменный латте.', 'Today you would love a soft signature latte.'),
-      tx(lang, 'Sənin profilinə görə karamel notlu isti içki ən yaxşı seçimdir.', 'По твоему профилю лучший выбор — тёплый напиток с карамельными нотами.', 'Based on your profile, a warm caramel drink is the best match.'),
-      tx(lang, 'Bu gün bonusunu desertlə birlikdə istifadə etməyin daha sərfəlidir.', 'Сегодня выгоднее использовать бонус вместе с десертом.', 'Today it is smarter to use your bonus with a dessert.'),
-    ];
-    setBaristaText(picks[Math.floor(Math.random() * picks.length)]);
-  };
+  const bottomTabs: Array<{ key: CustomerTab; label: string; icon: React.ReactNode }> = [
+    { key: 'home', label: tx(lang, 'Rewards', 'Награды', 'Rewards'), icon: <Home size={18} /> },
+    { key: 'offers', label: tx(lang, 'Offers', 'Offers', 'Offers'), icon: <Gift size={18} /> },
+    { key: 'fun', label: tx(lang, 'Fun', 'Fun', 'Fun'), icon: <MessageCircleHeart size={18} /> },
+    { key: 'profile', label: tx(lang, 'Profil', 'Профиль', 'Profile'), icon: <UserRound size={18} /> },
+  ];
 
-  const generateFortune = () => {
-    const picks = [
-      tx(lang, 'Fal deyir ki, növbəti ziyarətdə səni şirin bir sürpriz gözləyir.', 'Гадание говорит, что в следующий визит тебя ждёт сладкий сюрприз.', 'Your fortune says a sweet surprise is waiting for your next visit.'),
-      tx(lang, 'Bu həftə topladığın bonuslar səni yeni reward-a yaxınlaşdıracaq.', 'На этой неделе твои бонусы приблизят тебя к новой награде.', 'This week your bonuses will move you closer to a new reward.'),
-      tx(lang, 'Falçı görür ki, sevdiyin içki çox yaxın günlərdə kampaniyaya düşəcək.', 'Предсказание говорит, что твой любимый напиток скоро попадёт в акцию.', 'Your fortune says your favorite drink may go on promo very soon.'),
-    ];
-    setFortuneText(picks[Math.floor(Math.random() * picks.length)]);
-  };
+  const renderHome = () => (
+    <div className="space-y-4">
+      <section
+        className="overflow-hidden rounded-[32px] border border-white/10 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
+        style={{
+          background: heroImage
+            ? `linear-gradient(180deg, rgba(15,23,42,0.18), rgba(15,23,42,0.68)), url(${heroImage}) center/cover`
+            : `linear-gradient(180deg, ${accentColor}, ${primaryColor})`,
+        }}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-xs uppercase tracking-[0.3em] text-white/70">{branding.app_name || 'Loyalty Club'}</div>
+            <h1 className="mt-3 text-3xl font-black text-white">{branding.hero_title || tx(lang, 'Xoş gəldiniz', 'Добро пожаловать', 'Welcome')}</h1>
+            <p className="mt-2 max-w-[16rem] text-sm text-white/80">{branding.hero_subtitle || customer.card_id}</p>
+          </div>
+          {branding.logo_url ? <img src={branding.logo_url} alt="brand" className="h-12 w-12 rounded-2xl object-cover" /> : null}
+        </div>
+        {showWallet ? (
+          <div className="mt-6 rounded-[28px] bg-white/12 p-4 backdrop-blur">
+            <div className="text-xs uppercase tracking-[0.2em] text-white/70">{wallet.points_label || 'Ulduz'}</div>
+            <div className="mt-2 text-5xl font-black text-white">{Number(wallet.stars_balance ?? 0).toFixed(programMode === 'cashback' ? 2 : 0)}{balanceSuffix}</div>
+            <div className="mt-2 text-sm text-white/80">
+              {programMode === 'cashback'
+                ? `${Number(wallet.cashback_percent || 0).toFixed(0)}% cashback`
+                : (customer.type || 'Member')}
+            </div>
+            <div className="mt-4 h-3 overflow-hidden rounded-full bg-black/20">
+              <div className="h-full rounded-full bg-white" style={{ width: `${progressPercent}%` }} />
+            </div>
+            <div className="mt-3 flex items-center justify-between text-xs text-white/75">
+              <span>{tx(lang, 'Növbəti reward', 'Следующая награда', 'Next reward')}</span>
+              <span>{wallet.reward_name || tx(lang, 'Bonus', 'Бонус', 'Reward')}</span>
+            </div>
+          </div>
+        ) : null}
+      </section>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <section className="rounded-[28px] border border-white/10 bg-white p-4 text-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><Gift size={16} /> {tx(lang, 'Reward-lar', 'Награды', 'Rewards')}</div>
+          <div className="mt-3 text-3xl font-black text-slate-900">{wallet.available_rewards ?? 0}</div>
+          <div className="mt-2 text-sm text-slate-600">{wallet.reward_label || 'Reward'}</div>
+          {rewards[0] ? (
+            <button
+              type="button"
+              disabled={claiming || Number(wallet.available_rewards || 0) <= 0}
+              onClick={() => { void claimReward(); }}
+              className="mt-4 w-full rounded-2xl px-4 py-3 text-sm font-bold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ backgroundColor: primaryColor }}
+            >
+              {claiming ? tx(lang, 'Hazırlanır...', 'Подготавливается...', 'Preparing...') : tx(lang, 'Reward claim et', 'Забрать награду', 'Claim reward')}
+            </button>
+          ) : null}
+        </section>
+
+        <section className="rounded-[28px] border border-white/10 bg-white p-4 text-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><QrCode size={16} /> {tx(lang, 'QR Kart', 'QR карта', 'QR card')}</div>
+          {showQrCard ? (
+            <div className="mt-3 flex flex-col items-center rounded-[24px] bg-white px-4 py-5 text-slate-900">
+              {cardQr ? <img src={cardQr} alt="customer qr" className="h-36 w-36 rounded-2xl" /> : null}
+              <div className="mt-3 text-sm font-bold">{customer.card_id}</div>
+            </div>
+          ) : (
+            <div className="mt-3 rounded-[24px] bg-slate-100 p-4 text-sm text-slate-700">{customer.card_id}</div>
+          )}
+        </section>
+      </div>
+
+      <section className="rounded-[28px] border border-white/10 bg-white p-4 text-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold">{tx(lang, 'Hazır claim kodların', 'Готовые коды наград', 'Your ready claim codes')}</div>
+            <div className="mt-1 text-xs text-slate-500">{tx(lang, 'Kassada bu kodu göstər və reward istifadə et', 'Покажи код на кассе и используй награду', 'Show this code at checkout to use your reward')}</div>
+          </div>
+          <div className="rounded-full px-3 py-1 text-xs font-bold text-slate-950" style={{ backgroundColor: accentColor }}>
+            {pendingClaims.length}
+          </div>
+        </div>
+        <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
+          {pendingClaims.length === 0 ? (
+            <div className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+              {tx(lang, 'Hələ aktiv reward kodu yoxdur', 'Пока нет активного reward-кода', 'No active reward code yet')}
+            </div>
+          ) : pendingClaims.map((row: any) => (
+            <div key={row.id} className="min-w-[210px] rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+              <div className="text-xs uppercase tracking-[0.24em] text-slate-500">{tx(lang, 'Kod', 'Код', 'Code')}</div>
+              <div className="mt-2 text-2xl font-black text-slate-900">{row.claim_code}</div>
+              <div className="mt-2 text-sm text-slate-600">{row.reward_name}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+
+  const renderOffers = () => (
+    <div className="space-y-4">
+      <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-lg font-bold text-white">{tx(lang, 'Aktiv kampaniyalar', 'Активные кампании', 'Active offers')}</div>
+          <div className="rounded-full px-3 py-1 text-xs font-semibold text-slate-950" style={{ backgroundColor: primaryColor }}>{campaigns.length}</div>
+        </div>
+        <div className="mt-4 space-y-3">
+          {campaigns.length === 0 ? (
+            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">{tx(lang, 'Hazırda aktiv kampaniya yoxdur', 'Сейчас нет активных кампаний', 'No active campaigns right now')}</div>
+          ) : campaigns.map((row: any) => (
+            <div key={row.id} className="rounded-[24px] border border-white/10 bg-white px-4 py-4 text-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
+              <div className="text-lg font-bold">{row.name}</div>
+              <div className="mt-2 text-sm text-slate-600">{row.discount_percent}% {tx(lang, 'endirim', 'скидка', 'discount')}</div>
+              <div className="mt-3 text-xs text-slate-500">{row.start_time} - {row.end_time} • {row.categories || 'ALL'}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
+        <div className="text-lg font-bold text-white">{tx(lang, 'Claim kodları', 'Коды наград', 'Claim codes')}</div>
+        <div className="mt-4 space-y-3">
+          {pendingClaims.length === 0 ? (
+            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">{tx(lang, 'Aktiv claim kodu yoxdur', 'Активных кодов нет', 'No active claim codes')}</div>
+          ) : pendingClaims.map((row: any) => (
+            <div key={row.id} className="rounded-[24px] border border-amber-300/20 bg-amber-400/10 p-4">
+              <div className="text-xs uppercase tracking-[0.25em] text-amber-100">{tx(lang, 'Kassada göstərin', 'Покажите на кассе', 'Show at POS')}</div>
+              <div className="mt-2 text-3xl font-black text-white">{row.claim_code}</div>
+              <div className="mt-2 text-sm text-slate-200">{row.reward_name}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+
+  const renderFun = () => (
+    <div className="space-y-4">
+      {aiBaristaEnabled ? (
+        <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
+          <div className="text-lg font-bold text-white">AI Barista</div>
+          <div className="mt-4 max-h-72 space-y-3 overflow-y-auto rounded-[24px] bg-slate-950/35 p-3">
+            {baristaMessages.map((msg, idx) => (
+              <div key={`${msg.role}_${idx}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`max-w-[80%] rounded-[20px] px-4 py-3 text-sm ${
+                    msg.role === 'user' ? 'text-slate-950' : 'bg-white/10 text-slate-100'
+                  }`}
+                  style={msg.role === 'user' ? { backgroundColor: primaryColor } : undefined}
+                >
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {BARISTA_QUICK_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => setBaristaInput(prompt)}
+                className="rounded-full border border-white/10 bg-white/6 px-3 py-2 text-xs text-slate-200"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <input
+              className="neon-input"
+              value={baristaInput}
+              onChange={(e) => setBaristaInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') sendBaristaMessage(); }}
+              placeholder={tx(lang, 'Mənə nə tövsiyə edərsən?', 'Что ты посоветуешь мне?', 'What would you recommend for me?')}
+            />
+            <button type="button" onClick={sendBaristaMessage} className="rounded-2xl px-4 py-3 font-semibold text-slate-950" style={{ backgroundColor: accentColor }}>
+              {tx(lang, 'Göndər', 'Отправить', 'Send')}
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {aiFalciEnabled ? (
+        <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
+          <div className="text-lg font-bold text-white">AI Falçı</div>
+          <p className="mt-2 text-sm text-slate-300">{tx(lang, 'Bir şəkil yüklə, AI Falçı onun tonuna və ab-havasına baxıb əyləncəli mesaj versin.', 'Загрузи фото, и AI Falçı даст тебе игровое предсказание по атмосфере изображения.', 'Upload an image and AI Fortune Teller will give you a playful reading based on its vibe.')}</p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button type="button" onClick={() => fileRef.current?.click()} className="rounded-2xl px-4 py-3 font-semibold text-slate-950" style={{ backgroundColor: primaryColor }}>
+              {tx(lang, 'Şəkil yüklə', 'Загрузить фото', 'Upload image')}
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) analyzeImageFortune(file);
+            }} />
+          </div>
+          {fortuneImage ? <img src={fortuneImage} alt="fortune preview" className="mt-4 h-44 w-full rounded-[24px] object-cover" /> : null}
+          <div className="mt-4 rounded-[24px] bg-amber-400/10 p-4 text-sm text-slate-100">
+            {fortuneText || tx(lang, 'Şəkli yükləyəndən sonra fal burada görünəcək.', 'После загрузки фото предсказание появится здесь.', 'Your fortune will appear here after you upload an image.')}
+          </div>
+        </section>
+      ) : null}
+
+      {!aiBaristaEnabled && !aiFalciEnabled ? (
+        <section className="rounded-[28px] border border-white/10 bg-white/6 p-5 text-sm text-slate-300 backdrop-blur-xl">
+          {tx(lang, 'Bu tenant üçün Fun Zone hələ aktiv deyil.', 'Для этого tenant Fun Zone пока не включена.', 'Fun Zone is not enabled for this tenant yet.')}
+        </section>
+      ) : null}
+    </div>
+  );
+
+  const renderProfile = () => (
+    <div className="space-y-4">
+      <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
+        <div className="text-lg font-bold text-white">{tx(lang, 'Müştəri Profili', 'Профиль клиента', 'Customer profile')}</div>
+        <div className="mt-4 space-y-3 rounded-[24px] bg-slate-950/35 p-4 text-sm text-slate-200">
+          <div className="flex items-center justify-between gap-3"><span className="text-slate-400">{tx(lang, 'Kart ID', 'ID карты', 'Card ID')}</span><span className="font-semibold text-white">{customer.card_id}</span></div>
+          <div className="flex items-center justify-between gap-3"><span className="text-slate-400">{tx(lang, 'Tip', 'Тип', 'Type')}</span><span className="font-semibold text-white">{customer.type || 'Member'}</span></div>
+          <div className="flex items-center justify-between gap-3"><span className="text-slate-400">{tx(lang, 'Endirim', 'Скидка', 'Discount')}</span><span className="font-semibold text-white">{Number(customer.discount_percent || 0).toFixed(0)}%</span></div>
+          <div className="flex items-center justify-between gap-3"><span className="text-slate-400">{tx(lang, 'Qoşulma tarixi', 'Дата подключения', 'Joined')}</span><span className="font-semibold text-white">{customer.created_at ? new Date(customer.created_at).toLocaleDateString() : '-'}</span></div>
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
+        <div className="mb-4 flex items-center gap-2 text-lg font-bold text-white"><Bell size={18} /> {tx(lang, 'Bildirişlər', 'Уведомления', 'Notifications')}</div>
+        <div className="space-y-3">
+          {notifications.length === 0 ? (
+            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">{tx(lang, 'Yeni bildiriş yoxdur', 'Нет новых уведомлений', 'No new notifications')}</div>
+          ) : notifications.map((row: any) => (
+            <button
+              key={row.id}
+              type="button"
+              onClick={() => { if (!row.is_read) void markRead(row.id); }}
+              className={`w-full rounded-2xl border p-4 text-left ${row.is_read ? 'border-slate-700/60 bg-slate-950/20' : 'border-cyan-300/20 bg-cyan-400/10'}`}
+            >
+              <div className="text-sm text-white">{row.message}</div>
+              <div className="mt-2 text-xs text-slate-400">{new Date(row.created_at).toLocaleString()}</div>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
+        <div className="mb-4 flex items-center gap-2 text-lg font-bold text-white"><Gift size={18} /> {tx(lang, 'Son tarixçə', 'Последняя история', 'Recent history')}</div>
+        <div className="space-y-3">
+          {history.length === 0 ? (
+            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">{tx(lang, 'Hələ alış tarixçəsi yoxdur', 'История покупок пока пуста', 'No purchase history yet')}</div>
+          ) : history.map((row: any) => (
+            <div key={row.id} className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="font-semibold text-white">{new Date(row.created_at).toLocaleString()}</div>
+                  <div className="mt-1 text-sm text-slate-400">{(row.items || []).map((item: any) => `${item.item_name} x${item.qty}`).join(', ') || '-'}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-bold text-white">{Number(row.total || 0).toFixed(2)} ₼</div>
+                  <div className="text-xs text-slate-400">{row.payment_method}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
 
   return (
     <div
-      className="min-h-screen px-4 py-6 text-slate-100"
+      className="min-h-screen text-slate-100"
       style={{
-        backgroundImage: `${backgroundImage ? `linear-gradient(rgba(9,13,19,0.82), rgba(17,24,39,0.92)), url(${backgroundImage}), ` : ''}radial-gradient(circle at top, ${primaryColor}33, transparent 18%), linear-gradient(180deg,#090d13,#111827)`,
-        backgroundSize: backgroundImage ? 'cover, auto, auto' : undefined,
-        backgroundPosition: backgroundImage ? 'center, center, center' : undefined,
+        backgroundImage: `${backgroundImage ? `linear-gradient(rgba(8,12,22,0.82), rgba(8,12,22,0.94)), url(${backgroundImage}), ` : ''}linear-gradient(180deg, #0b1220, #121b2c)`,
+        backgroundSize: backgroundImage ? 'cover, auto' : undefined,
+        backgroundPosition: backgroundImage ? 'center, center' : undefined,
       }}
     >
-      <div className="mx-auto max-w-5xl space-y-6">
-        <div className="rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-4">
-              {heroImage ? (
-                <img src={heroImage} alt="hero" className="h-20 w-20 rounded-[28px] object-cover shadow-[0_10px_30px_rgba(0,0,0,0.35)]" />
-              ) : branding.logo_url ? (
-                <img src={branding.logo_url} alt="brand" className="h-16 w-16 rounded-3xl object-cover" />
-              ) : (
-                <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-yellow-400 text-2xl font-black text-slate-900">
-                  {String(branding.company_name || 'I').slice(0, 1).toUpperCase()}
-                </div>
-              )}
-              <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{branding.app_name || tx(lang, 'Loyalty Club', 'Loyalty Club', 'Loyalty Club')}</p>
-                <h1 className="text-3xl font-black">{branding.company_name || 'iRonWaves POS RC'}</h1>
-                <p className="mt-1 text-sm text-slate-300">{branding.hero_title || tx(lang, 'Xoş gəldiniz', 'Добро пожаловать', 'Welcome')}</p>
-                <p className="mt-1 text-sm text-slate-400">{branding.hero_subtitle || customer.card_id}</p>
-              </div>
-            </div>
-            {showWallet ? (
-              <div className="rounded-3xl px-5 py-4" style={{ border: `1px solid ${accentColor}33`, backgroundColor: `${accentColor}1a` }}>
-                <div className="text-xs uppercase tracking-[0.2em]" style={{ color: accentColor }}>{wallet.points_label || 'Ulduz'}</div>
-                <div className="mt-1 text-4xl font-black text-white">{Number(wallet.stars_balance ?? 0).toFixed(programMode === 'cashback' ? 2 : 0)}{balanceSuffix}</div>
-                <div className="text-sm text-cyan-100">
-                  {programMode === 'cashback'
-                    ? `${Number(wallet.cashback_percent || 0).toFixed(0)}% cashback`
-                    : (customer.type || 'Member')}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-            <div className="flex items-center gap-2 text-slate-300"><Sparkles size={18} /> {programMode === 'cashback' ? tx(lang, 'Növbəti cash-out', 'Следующий cash-out', 'Next cash-out') : tx(lang, 'Növbəti reward', 'Следующая награда', 'Next reward')}</div>
-            <div className="mt-3 text-2xl font-bold">{wallet.reward_label || 'Reward'}</div>
-            <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-800">
-              <div className="h-full rounded-full" style={{ width: `${progressPercent}%`, backgroundColor: primaryColor }} />
-            </div>
-            <div className="mt-2 text-sm text-slate-400">
-              {wallet.progress_remaining > 0
-                ? (programMode === 'cashback'
-                    ? tx(lang, `${wallet.progress_remaining} AZN qalıb`, `Осталось ${wallet.progress_remaining} AZN`, `${wallet.progress_remaining} AZN remaining`)
-                    : tx(lang, `${wallet.progress_remaining} ulduz qalıb`, `Осталось ${wallet.progress_remaining} звезд`, `${wallet.progress_remaining} stars remaining`))
-                : (programMode === 'cashback'
-                    ? tx(lang, 'Cash-out hazırdır', 'Cash-out готов', 'Cash-out is ready')
-                    : tx(lang, 'Reward hazırdır', 'Награда готова', 'Reward is ready'))}
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-            <div className="flex items-center gap-2 text-slate-300"><Gift size={18} /> {tx(lang, 'Hazır reward-lar', 'Готовые награды', 'Available rewards')}</div>
-            <div className="mt-3 text-4xl font-black">{wallet.available_rewards ?? 0}</div>
-            <div className="mt-2 text-sm text-slate-400">{tx(lang, 'POS-da istifadə edilə bilər', 'Можно использовать на кассе', 'Can be redeemed at the POS')}</div>
-            {rewards[0] ? (
-              <div className="mt-3 rounded-2xl border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-300">
-                <div className="font-semibold text-white">{rewards[0].title}</div>
-                <div className="mt-1 text-slate-400">{rewards[0].description}</div>
-                <button
-                  type="button"
-                  disabled={claiming || Number(wallet.available_rewards || 0) <= 0}
-                  onClick={() => { void claimReward(); }}
-                  className="mt-3 rounded-xl px-4 py-2 font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{ backgroundColor: primaryColor }}
-                >
-                  {claiming
-                    ? tx(lang, 'Hazırlanır...', 'Подготавливается...', 'Preparing...')
-                    : tx(lang, 'Reward claim et', 'Забрать награду', 'Claim reward')}
-                </button>
-              </div>
-            ) : null}
-          </div>
-
-          {showQrCard ? (
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-            <div className="flex items-center gap-2 text-slate-300"><QrCode size={18} /> {tx(lang, 'Kart', 'Карта', 'Card')}</div>
-            <div className="mt-3 flex flex-col items-center rounded-3xl border border-white/10 bg-white/90 p-4 text-slate-900">
-              {cardQr ? <img src={cardQr} alt="customer qr" className="h-40 w-40 rounded-2xl" /> : null}
-              <div className="mt-3 text-lg font-semibold">{customer.card_id}</div>
-            </div>
-            <div className="mt-2 text-sm text-slate-400">{tx(lang, 'Müştəri kassada bu QR kodu göstərir, kassir skan edib kartı tanıyır.', 'Покажите этот QR на кассе для сканирования.', 'Show this QR at the POS so the cashier can scan it.')}</div>
-          </div>
-          ) : (
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-              <div className="flex items-center gap-2 text-slate-300"><QrCode size={18} /> {tx(lang, 'Kart', 'Карта', 'Card')}</div>
-              <div className="mt-3 text-lg font-semibold">{customer.card_id}</div>
-              <div className="mt-2 text-sm text-slate-400">{tx(lang, 'Bu ID ilə kassada tanınacaqsınız', 'По этому ID вас узнают на кассе', 'Use this ID at the POS')}</div>
-            </div>
-          )}
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="space-y-6">
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-              <div className="mb-4 flex items-center gap-2 text-lg font-bold"><Gift size={18} /> {tx(lang, 'Aktiv kampaniyalar', 'Активные кампании', 'Active campaigns')}</div>
-              <div className="grid gap-3">
-                {campaigns.length === 0 ? (
-                  <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">
-                    {tx(lang, 'Hazırda aktiv kampaniya yoxdur', 'Сейчас нет активных кампаний', 'No active campaigns right now')}
-                  </div>
-                ) : campaigns.map((row: any) => (
-                  <div key={row.id} className="rounded-2xl border border-emerald-400/15 bg-emerald-500/5 p-4">
-                    <div className="text-lg font-semibold text-white">{row.name}</div>
-                    <div className="mt-1 text-sm text-emerald-100">{row.discount_percent}% {tx(lang, 'endirim', 'скидка', 'discount')}</div>
-                    <div className="mt-2 text-xs text-slate-400">{row.start_time} - {row.end_time} • {row.categories || 'ALL'}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-              <div className="mb-4 flex items-center gap-2 text-lg font-bold"><History size={18} /> {tx(lang, 'Son tarixçə', 'Последняя история', 'Recent history')}</div>
-              <div className="space-y-3">
-                {history.length === 0 ? (
-                  <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">
-                    {tx(lang, 'Hələ alış tarixçəsi yoxdur', 'История покупок пока пуста', 'No purchase history yet')}
-                  </div>
-                ) : history.map((row: any) => (
-                  <div key={row.id} className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="font-semibold text-white">{new Date(row.created_at).toLocaleString()}</div>
-                        <div className="mt-1 text-sm text-slate-400">{(row.items || []).map((item: any) => `${item.item_name} x${item.qty}`).join(', ') || '-'}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-white">{Number(row.total || 0).toFixed(2)} ₼</div>
-                        <div className="text-xs text-slate-400">{row.payment_method}</div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            {(aiBaristaEnabled || aiFalciEnabled) ? (
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-                <div className="mb-4 text-lg font-bold text-white">{tx(lang, 'Fun Zone', 'Fun Zone', 'Fun Zone')}</div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {aiBaristaEnabled ? (
-                    <div className="rounded-2xl border border-fuchsia-300/20 bg-fuchsia-400/10 p-4">
-                      <div className="font-semibold text-fuchsia-100">AI Barista</div>
-                      <p className="mt-2 text-sm text-slate-200">{baristaText || tx(lang, 'Bugünkü içki tövsiyəni öyrən.', 'Узнай свою рекомендацию напитка на сегодня.', 'Get your drink recommendation for today.')}</p>
-                      <button type="button" onClick={generateBarista} className="mt-3 rounded-xl px-4 py-2 font-semibold text-slate-950" style={{ backgroundColor: accentColor }}>
-                        {tx(lang, 'Tövsiyə ver', 'Подобрать', 'Recommend')}
-                      </button>
-                    </div>
-                  ) : null}
-                  {aiFalciEnabled ? (
-                    <div className="rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4">
-                      <div className="font-semibold text-amber-100">AI Falçı</div>
-                      <p className="mt-2 text-sm text-slate-200">{fortuneText || tx(lang, 'Bonus falına bax və əyləncəli mesaj al.', 'Посмотри бонусное предсказание и получи веселое сообщение.', 'Check your bonus fortune and get a playful message.')}</p>
-                      <button type="button" onClick={generateFortune} className="mt-3 rounded-xl px-4 py-2 font-semibold text-slate-950" style={{ backgroundColor: primaryColor }}>
-                        {tx(lang, 'Fal aç', 'Открыть предсказание', 'Open fortune')}
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-              <div className="mb-4 flex items-center gap-2 text-lg font-bold"><Gift size={18} /> {tx(lang, 'Claim kodları', 'Коды наград', 'Claim codes')}</div>
-              <div className="space-y-3">
-                {pendingClaims.length === 0 ? (
-                  <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">
-                    {tx(lang, 'Aktiv claim kodu yoxdur', 'Активных кодов нет', 'No active claim codes')}
-                  </div>
-                ) : pendingClaims.map((row: any) => (
-                  <div key={row.id} className="rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4">
-                    <div className="text-xs uppercase tracking-[0.2em] text-amber-100">{tx(lang, 'Kassada bu kodu göstərin', 'Покажите этот код на кассе', 'Show this code at the POS')}</div>
-                    <div className="mt-2 text-2xl font-black text-white">{row.claim_code}</div>
-                    <div className="mt-2 text-sm text-slate-200">{row.reward_name}</div>
-                    <div className="mt-1 text-xs text-slate-400">{row.reward_description}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-              <div className="mb-4 flex items-center gap-2 text-lg font-bold"><Bell size={18} /> {tx(lang, 'Bildirişlər', 'Уведомления', 'Notifications')}</div>
-              <div className="space-y-3">
-                {notifications.length === 0 ? (
-                  <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">
-                    {tx(lang, 'Yeni bildiriş yoxdur', 'Нет новых уведомлений', 'No new notifications')}
-                  </div>
-                ) : notifications.map((row: any) => (
-                  <button
-                    key={row.id}
-                    type="button"
-                    onClick={() => { if (!row.is_read) void markRead(row.id); }}
-                    className={`w-full rounded-2xl border p-4 text-left ${row.is_read ? 'border-slate-700/60 bg-slate-950/20' : 'border-cyan-300/20 bg-cyan-400/10'}`}
-                  >
-                    <div className="text-sm text-white">{row.message}</div>
-                    <div className="mt-2 text-xs text-slate-400">{new Date(row.created_at).toLocaleString()}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-              <div className="text-lg font-bold">{tx(lang, 'Üstünlüklər', 'Преимущества', 'Benefits')}</div>
-              <ul className="mt-3 space-y-2 text-sm text-slate-300">
-                <li>{tx(lang, 'Topladığınız ulduzlar burada görünür', 'Здесь видны накопленные звезды', 'Your collected stars are shown here')}</li>
-                <li>{tx(lang, 'Aktiv kampaniyaları bir baxışda izləyin', 'Следите за активными кампаниями', 'Track active campaigns at a glance')}</li>
-                <li>{tx(lang, 'Reward hazır olduqda kassada istifadə edin', 'Используйте награды на кассе', 'Redeem rewards at the POS')}</li>
-              </ul>
-            </div>
-          </div>
-        </div>
+      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-28 pt-4">
+        {activeTab === 'home' && renderHome()}
+        {activeTab === 'offers' && renderOffers()}
+        {activeTab === 'fun' && renderFun()}
+        {activeTab === 'profile' && renderProfile()}
       </div>
+
+      <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-md px-4 pb-4">
+        <div className="grid grid-cols-4 gap-2 rounded-[28px] border border-white/10 bg-slate-950/85 p-2 shadow-[0_20px_50px_rgba(0,0,0,0.4)] backdrop-blur-xl">
+          {bottomTabs.map((tab) => {
+            const active = tab.key === activeTab;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex flex-col items-center gap-1 rounded-[22px] px-2 py-3 text-xs font-semibold transition ${active ? 'text-slate-950' : 'text-slate-300'}`}
+                style={active ? { backgroundColor: primaryColor } : undefined}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }
