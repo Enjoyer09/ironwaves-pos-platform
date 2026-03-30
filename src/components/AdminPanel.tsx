@@ -83,7 +83,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
 
   useEffect(() => {
     void fetchData();
-  }, [activeTab, dateFrom, dateTo]);
+  }, [activeTab, dateFrom, dateTo, tenant_id]);
 
   useEffect(() => {
     if (activeTab !== 'notes') return;

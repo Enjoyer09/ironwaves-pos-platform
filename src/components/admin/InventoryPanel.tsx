@@ -20,8 +20,9 @@ export default function InventoryPanel() {
   });
 
   useEffect(() => {
+    setSearch('');
     void loadData();
-  }, []);
+  }, [tenant_id]);
 
   const loadData = async () => {
     try {
