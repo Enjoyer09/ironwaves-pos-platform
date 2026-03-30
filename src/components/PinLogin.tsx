@@ -146,7 +146,7 @@ export default function PinLogin() {
   const isStaffMode = mode === 'staff';
 
   return (
-    <div className="metal-app relative flex min-h-screen items-center justify-center overflow-auto px-4 py-8">
+    <div className="metal-app relative flex h-[100dvh] overflow-y-auto px-4 py-8 md:items-center md:justify-center">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_18%),linear-gradient(135deg,rgba(248,199,0,0.16),transparent_24%,rgba(56,189,248,0.12)_70%,transparent_100%),linear-gradient(180deg,rgba(10,16,22,0.72),rgba(10,16,22,0.88))]" />
       <div className="absolute inset-0 opacity-[0.12]" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.25) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.25) 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
 
