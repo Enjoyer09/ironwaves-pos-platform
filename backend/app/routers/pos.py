@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import Customer, FinanceEntry, InventoryItem, MenuItem, Recipe, Sale, Setting, Tenant
+from app.models import Customer, FinanceEntry, InventoryItem, MenuItem, Recipe, RewardClaim, Sale, Setting, Tenant
 from app.schemas import SaleCreateIn, SaleCreateOut
 
 
@@ -129,6 +129,8 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
     subtotal = sum((Decimal(str(i.price)) * i.qty for i in payload.cart_items), Decimal("0"))
     discount = (subtotal * (effective_discount / Decimal("100"))).quantize(Decimal("0.01"))
     total = (subtotal - discount).quantize(Decimal("0.01"))
+    reward_claim = None
+    reward_discount = Decimal("0.00")
 
     coffee_unit_prices: list[Decimal] = []
     coffee_qty = 0
@@ -147,6 +149,32 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
             coffee_unit_prices.sort()
             free_discount = sum(coffee_unit_prices[:free_coffees], Decimal("0"))
             discount += free_discount
+            total = max(Decimal("0"), subtotal - discount).quantize(Decimal("0.01"))
+
+    if payload.reward_claim_code:
+        if not customer:
+            raise HTTPException(status_code=400, detail="Reward istifadə etmək üçün müştəri kartı seçilməlidir")
+        reward_claim = (
+            db.query(RewardClaim)
+            .filter(
+                RewardClaim.tenant_id == tenant.id,
+                RewardClaim.card_id == customer.card_id,
+                RewardClaim.claim_code == str(payload.reward_claim_code).strip().upper(),
+                RewardClaim.status == "PENDING",
+            )
+            .first()
+        )
+        if not reward_claim:
+            raise HTTPException(status_code=400, detail="Reward code etibarlı deyil")
+        reward_candidates = []
+        for item in payload.cart_items:
+            unit_price = (Decimal(str(item.price)) * (Decimal("1") - (effective_discount / Decimal("100")))).quantize(Decimal("0.01"))
+            for _ in range(int(item.qty or 0)):
+                reward_candidates.append(unit_price)
+        if reward_candidates:
+            reward_candidates.sort()
+            reward_discount = reward_candidates[0]
+            discount += reward_discount
             total = max(Decimal("0"), subtotal - discount).quantize(Decimal("0.01"))
 
     stock_ops: list[tuple[InventoryItem, Decimal]] = []
@@ -211,6 +239,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         receipt_token=receipt_token,
         total=total,
         discount_amount=discount,
+        reward_claim_code=str(payload.reward_claim_code or "").strip().upper() or None,
         cogs=cogs_total.quantize(Decimal("0.0001")),
         items_json=json.dumps([i.model_dump(mode="json") for i in payload.cart_items], ensure_ascii=False),
         status="COMPLETED",
@@ -297,6 +326,11 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
 
     if customer is not None:
         customer.stars = customer_stars_after
+        if reward_claim:
+            customer.stars = max(0, int(customer.stars or 0) - int(reward_claim.points_cost or 0))
+            reward_claim.status = "REDEEMED"
+            reward_claim.redeemed_sale_id = sale.id
+            reward_claim.redeemed_at = datetime.utcnow()
 
     db.commit()
 

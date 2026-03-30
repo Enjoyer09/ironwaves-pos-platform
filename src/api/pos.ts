@@ -190,7 +190,7 @@ export const create_sale = (payload: SalePayload) => {
     let apply_discount_percent = payload.discount_percent;
     let apply_customer_type = payload.customer_type;
     const customers = getDB<any>(`${payload.tenant_id}_customers`) || [];
-    const customer = customers.find((c: any) => c.card_id === payload.customer_card_id);
+  const customer = customers.find((c: any) => c.card_id === payload.customer_card_id);
     
     const current_stars = customer ? Number(customer?.stars || 0) : null;
 
@@ -223,16 +223,45 @@ export const create_sale = (payload: SalePayload) => {
       };
     }
 
+    const sale_id = uuidv4();
+    const now = new Date().toISOString();
+
+    if (payload.reward_claim_code && customer) {
+      const claims = (getDB<any>('reward_claims') || []).filter(
+        (row) =>
+          String(row.tenant_id || '') === payload.tenant_id &&
+          row.card_id === customer.card_id &&
+          String(row.claim_code || '').toUpperCase() === String(payload.reward_claim_code || '').trim().toUpperCase() &&
+          row.status === 'PENDING',
+      );
+      const claim = claims[0];
+      if (!claim) {
+        throw new Error('Reward code etibarlı deyil');
+      }
+      const unitPrices: Decimal[] = [];
+      payload.cart_items.forEach((item) => {
+        for (let i = 0; i < item.qty; i += 1) {
+          unitPrices.push(new Decimal(item.price));
+        }
+      });
+      unitPrices.sort((a, b) => a.comparedTo(b));
+      const rewardDiscount = unitPrices[0] || new Decimal(0);
+      final_total = Decimal.max(new Decimal(0), final_total.minus(rewardDiscount)).toDecimalPlaces(2);
+      discount_amount = raw_total.minus(final_total).toDecimalPlaces(2);
+      claim.status = 'REDEEMED';
+      claim.redeemed_sale_id = sale_id;
+      claim.redeemed_at = now;
+      setDB('reward_claims', getDB<any>('reward_claims'));
+      customer_stars_after = Math.max(0, Number(customer_stars_after || customer.stars || 0) - Number(claim.points_cost || 0));
+    }
+
     if (customer) {
       customer.stars = customer_stars_after;
       setDB(`${payload.tenant_id}_customers`, customers);
     }
-
-    const sale_id = uuidv4();
     // Short receipt code/token keep QR payload compact while preserving lookup safety.
     const receipt_code = uuidv4().replace(/-/g, '').slice(0, 10).toUpperCase();
     const receipt_token = uuidv4().replace(/-/g, '').slice(0, 10);
-    const now = new Date().toISOString();
 
     // Inventory + recipe cogs calculation (non-test)
     if (!payload.is_test) {
@@ -299,6 +328,7 @@ export const create_sale = (payload: SalePayload) => {
       cashier: payload.cashier,
       customer_card_id: payload.customer_card_id,
       customer_type: apply_customer_type,
+      reward_claim_code: payload.reward_claim_code || null,
       original_total: raw_total.toString(),
       discount_amount: discount_amount.toString(),
       total: final_total.toString(),

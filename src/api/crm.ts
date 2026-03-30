@@ -199,8 +199,12 @@ export async function get_customer_app_session_live(card_id: string, token: stri
     if (settings.enabled === false) {
       throw new Error('Customer app is disabled for this tenant');
     }
+    const pendingClaims = (getDB<any>('reward_claims') || [])
+      .filter((row) => String(row.tenant_id || '') === tenantId && row.card_id === customer.card_id && row.status === 'PENDING')
+      .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
     const nextRewardAt = Math.max(1, Number(settings.reward_threshold || 10));
     const progressCurrent = stars % nextRewardAt;
+    const availableRewards = Math.max(0, Math.floor(stars / nextRewardAt) - pendingClaims.length);
     return {
       tenant_id: tenantId,
       branding: {
@@ -224,7 +228,7 @@ export async function get_customer_app_session_live(card_id: string, token: stri
       wallet: {
         points_label: settings.points_label || 'Ulduz',
         stars_balance: stars,
-        available_rewards: Math.floor(stars / nextRewardAt),
+        available_rewards: availableRewards,
         next_reward_at: nextRewardAt,
         progress_current: progressCurrent,
         progress_remaining: progressCurrent === 0 && stars > 0 ? 0 : nextRewardAt - progressCurrent,
@@ -250,6 +254,7 @@ export async function get_customer_app_session_live(card_id: string, token: stri
       })),
       notifications: settings.show_notifications === false ? [] : notifications,
       history: settings.show_history === false ? [] : sales,
+      pending_claims: pendingClaims,
       customer_app_settings: settings,
     };
   }
@@ -285,4 +290,54 @@ export async function mark_customer_notification_read_live(notification_id: stri
     tenantId: null,
     auth: false,
   });
+}
+
+export async function claim_customer_reward_live(card_id: string, token: string, reward_id: string = 'default-reward', tenant_id?: string) {
+  const tenantId = tenant_id || defaultTenant();
+  const safeCard = String(card_id || '').trim();
+  const safeToken = String(token || '').trim();
+  if (!safeCard || !safeToken) {
+    throw new Error('Reward claim request is invalid');
+  }
+
+  if (!isBackendEnabled()) {
+    const customer = getCustomersLocal(tenantId).find(
+      (row) => String(row.card_id || '').toLowerCase() === safeCard.toLowerCase() && row.secret_token === safeToken,
+    );
+    if (!customer) throw new Error('Customer session is invalid');
+    const settings = getDB<any>('settings').find((row) => row.tenant_id === tenantId)?.customer_app_settings || {};
+    const threshold = Math.max(1, Number(settings.reward_threshold || 10));
+    const allClaims = getDB<any>('reward_claims') || [];
+    const tenantClaims = allClaims.filter((row) => String(row.tenant_id || '') === tenantId);
+    const foreignClaims = allClaims.filter((row) => String(row.tenant_id || '') !== tenantId);
+    const pendingCount = tenantClaims.filter((row) => row.card_id === customer.card_id && row.status === 'PENDING').length;
+    const availableRewards = Math.max(0, Math.floor(Number(customer.stars || 0) / threshold) - pendingCount);
+    if (availableRewards <= 0) throw new Error('No reward available to claim');
+    const claimCode = `RW${uuidv4().replace(/-/g, '').slice(0, 6).toUpperCase()}`;
+    const claim = {
+      id: uuidv4(),
+      tenant_id: tenantId,
+      card_id: customer.card_id,
+      claim_code: claimCode,
+      reward_name: settings.reward_name || 'Reward',
+      reward_description: settings.reward_description || '10 ulduza 1 pulsuz içki',
+      points_cost: threshold,
+      status: 'PENDING',
+      created_at: new Date().toISOString(),
+      reward_id,
+    };
+    setDB('reward_claims', [...foreignClaims, ...tenantClaims, claim]);
+    send_notification({ card_ids: [customer.card_id], message: `Reward claim code hazırdır: ${claimCode}` });
+    return { success: true, claim_code: claimCode, reward_name: claim.reward_name, points_cost: threshold, available_rewards: Math.max(0, availableRewards - 1) };
+  }
+
+  return apiRequest<{ success: boolean; claim_code: string; reward_name: string; points_cost: number; available_rewards: number }>(
+    `/api/v1/ops/customer-app/rewards/claim?id=${encodeURIComponent(safeCard)}&t=${encodeURIComponent(safeToken)}`,
+    {
+      method: 'POST',
+      tenantId: null,
+      auth: false,
+      body: { reward_id: reward_id || 'default-reward' },
+    },
+  );
 }

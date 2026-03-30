@@ -2,7 +2,7 @@ import React from 'react';
 import { Bell, Gift, History, QrCode, Sparkles } from 'lucide-react';
 import { tx } from '../i18n';
 import { useAppStore } from '../store';
-import { get_customer_app_session_live, mark_customer_notification_read_live } from '../api/crm';
+import { claim_customer_reward_live, get_customer_app_session_live, mark_customer_notification_read_live } from '../api/crm';
 
 type Props = {
   cardId: string;
@@ -14,6 +14,7 @@ export default function CustomerApp({ cardId, token }: Props) {
   const [loading, setLoading] = React.useState(true);
   const [data, setData] = React.useState<any | null>(null);
   const [error, setError] = React.useState('');
+  const [claiming, setClaiming] = React.useState(false);
 
   const load = React.useCallback(async () => {
     try {
@@ -44,6 +45,18 @@ export default function CustomerApp({ cardId, token }: Props) {
     } catch {}
   };
 
+  const claimReward = async () => {
+    try {
+      setClaiming(true);
+      await claim_customer_reward_live(cardId, token);
+      await load();
+    } catch (e: any) {
+      setError(String(e?.message || 'Reward claim failed'));
+    } finally {
+      setClaiming(false);
+    }
+  };
+
   if (loading) {
     return <div className="min-h-screen bg-slate-950 px-4 py-10 text-center text-slate-200">Loading customer app...</div>;
   }
@@ -66,6 +79,7 @@ export default function CustomerApp({ cardId, token }: Props) {
   const history = Array.isArray(data.history) ? data.history : [];
   const customer = data.customer || {};
   const rewards = Array.isArray(wallet.rewards) ? wallet.rewards : [];
+  const pendingClaims = Array.isArray(data.pending_claims) ? data.pending_claims : [];
   const progressPercent = wallet.next_reward_at ? Math.min(100, Math.round((Number(wallet.progress_current || 0) / Number(wallet.next_reward_at || 1)) * 100)) : 0;
   const primaryColor = String(branding.primary_color || '#facc15');
   const accentColor = String(branding.accent_color || '#22d3ee');
@@ -123,6 +137,17 @@ export default function CustomerApp({ cardId, token }: Props) {
               <div className="mt-3 rounded-2xl border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-300">
                 <div className="font-semibold text-white">{rewards[0].title}</div>
                 <div className="mt-1 text-slate-400">{rewards[0].description}</div>
+                <button
+                  type="button"
+                  disabled={claiming || Number(wallet.available_rewards || 0) <= 0}
+                  onClick={() => { void claimReward(); }}
+                  className="mt-3 rounded-xl px-4 py-2 font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  {claiming
+                    ? tx(lang, 'Hazırlanır...', 'Подготавливается...', 'Preparing...')
+                    : tx(lang, 'Reward claim et', 'Забрать награду', 'Claim reward')}
+                </button>
               </div>
             ) : null}
           </div>
@@ -179,6 +204,24 @@ export default function CustomerApp({ cardId, token }: Props) {
           </div>
 
           <div className="space-y-6">
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <div className="mb-4 flex items-center gap-2 text-lg font-bold"><Gift size={18} /> {tx(lang, 'Claim kodları', 'Коды наград', 'Claim codes')}</div>
+              <div className="space-y-3">
+                {pendingClaims.length === 0 ? (
+                  <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">
+                    {tx(lang, 'Aktiv claim kodu yoxdur', 'Активных кодов нет', 'No active claim codes')}
+                  </div>
+                ) : pendingClaims.map((row: any) => (
+                  <div key={row.id} className="rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4">
+                    <div className="text-xs uppercase tracking-[0.2em] text-amber-100">{tx(lang, 'Kassada bu kodu göstərin', 'Покажите этот код на кассе', 'Show this code at the POS')}</div>
+                    <div className="mt-2 text-2xl font-black text-white">{row.claim_code}</div>
+                    <div className="mt-2 text-sm text-slate-200">{row.reward_name}</div>
+                    <div className="mt-1 text-xs text-slate-400">{row.reward_description}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
               <div className="mb-4 flex items-center gap-2 text-lg font-bold"><Bell size={18} /> {tx(lang, 'Bildirişlər', 'Уведомления', 'Notifications')}</div>
               <div className="space-y-3">
