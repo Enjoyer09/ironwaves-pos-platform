@@ -21,9 +21,10 @@ class Settings(BaseSettings):
     reset_superadmin_on_startup: bool = False
     seed_demo_users: bool = False
 
-    default_tenant_slug: str = "socialbee"
-    default_tenant_name: str = "Social Bee"
-    default_tenant_domain: str = "socialbee.ironwaves.store"
+    seed_default_tenant: bool = False
+    default_tenant_slug: str = "default"
+    default_tenant_name: str = "Default Workspace"
+    default_tenant_domain: str = "default.ironwaves.store"
     platform_tenant_slug: str = "super"
     platform_tenant_name: str = "iRonWaves Platform"
     platform_tenant_domain: str = "super.ironwaves.store"
