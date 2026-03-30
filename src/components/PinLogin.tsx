@@ -166,18 +166,45 @@ export default function PinLogin() {
 
         {isDemoHost && (
           <div className="mx-auto mb-5 max-w-4xl rounded-[28px] border border-cyan-300/20 bg-cyan-400/10 p-5 text-slate-100 backdrop-blur-sm">
+            <div className="mb-4">
+              <div className="text-sm font-bold text-cyan-100">{tx(safeLang, 'Demo giriş hesabları', 'Демо-аккаунты для входа', 'Demo login accounts')}</div>
+              <div className="mt-1 text-xs text-cyan-50/80">
+                {tx(
+                  safeLang,
+                  'İstifadəçi adını, şifrəni və ya PIN-i birbaşa yazıb daxil ola bilərsiniz.',
+                  'Вы можете напрямую ввести логин, пароль или PIN и войти.',
+                  'You can type these usernames, passwords, or PINs directly and sign in.',
+                )}
+              </div>
+            </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {demoAccounts.map((account) => (
-                <button
-                  key={account.label}
-                  onClick={() => applyDemoAccount(account)}
-                  className="neon-btn min-h-14 justify-between rounded-2xl px-4 py-3 text-left"
-                >
-                  <span className="font-semibold">{account.label}</span>
-                  <span className="text-xs text-slate-400">
-                    {account.mode === 'staff' ? `PIN ${account.pin}` : account.username}
-                  </span>
-                </button>
+                <div key={account.label} className="rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-left">
+                  <div className="font-semibold text-white">{account.label}</div>
+                  {account.mode === 'staff' ? (
+                    <div className="mt-3 space-y-1 text-sm">
+                      <div className="text-slate-400">{tx(safeLang, 'PIN', 'PIN', 'PIN')}</div>
+                      <div className="font-mono text-lg font-bold text-cyan-100">{account.pin}</div>
+                    </div>
+                  ) : (
+                    <div className="mt-3 space-y-2 text-sm">
+                      <div>
+                        <div className="text-slate-400">{tx(safeLang, 'İstifadəçi adı', 'Имя пользователя', 'Username')}</div>
+                        <div className="font-mono text-cyan-100">{account.username}</div>
+                      </div>
+                      <div>
+                        <div className="text-slate-400">{tx(safeLang, 'Şifrə', 'Пароль', 'Password')}</div>
+                        <div className="font-mono text-cyan-100">{account.password}</div>
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => applyDemoAccount(account)}
+                    className="neon-btn mt-4 min-h-11 w-full justify-center rounded-2xl px-4 py-2 text-sm"
+                  >
+                    {tx(safeLang, 'Bu hesabı doldur', 'Подставить этот аккаунт', 'Use this account')}
+                  </button>
+                </div>
               ))}
             </div>
           </div>
