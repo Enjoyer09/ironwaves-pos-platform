@@ -1,6 +1,18 @@
 import { getDB } from '../lib/db_sim';
 import { apiRequest, isBackendEnabled } from './client';
 
+const isRecoverableNetworkFailure = (error: unknown) => {
+  const message = String((error as any)?.message || error || '').toLowerCase();
+  return (
+    message.includes('failed to fetch') ||
+    message.includes('networkerror') ||
+    message.includes('network request failed') ||
+    message.includes('load failed') ||
+    message.includes('backendə qoşulma alınmadı') ||
+    message.includes('network')
+  );
+};
+
 export function get_logs(tenant_id: string, limit: number = 100, fromDate?: string, toDate?: string) {
   const tenantLogs = getDB<any>(`${tenant_id}_logs`);
   const inRange = (row: any) => {
@@ -38,7 +50,10 @@ export async function get_logs_live(tenant_id: string, limit: number = 100, from
   if (toDate) qs.set('to_date', toDate);
   try {
     return await apiRequest<any[]>(`/api/v1/ops/logs?${qs.toString()}`, { tenantId: null });
-  } catch {
-    return get_logs(tenant_id, limit, fromDate, toDate);
+  } catch (error) {
+    if (isRecoverableNetworkFailure(error)) {
+      return get_logs(tenant_id, limit, fromDate, toDate);
+    }
+    throw error;
   }
 }
