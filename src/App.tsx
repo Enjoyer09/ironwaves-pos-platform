@@ -19,7 +19,7 @@ import { logUiError } from './lib/logger';
 import { getPendingOfflineSalesCount, syncPendingOfflineSales } from './lib/offline';
 import { probeInternet } from './lib/connectivity';
 import { get_unread_staff_notifications_live, mark_staff_notifications_read_live } from './api/reports';
-import { getActiveTenantId } from './lib/tenant';
+import { getActiveTenantId, getResolvedTenantIdFromHost } from './lib/tenant';
 import { get_low_stock_items } from './api/inventory';
 import { list_tenants, type TenantRecord } from './api/tenants';
 import { clearDBCache } from './lib/db_sim';
@@ -152,6 +152,11 @@ export default function App() {
     return 'app';
   }, []);
 
+  const currentHost = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return String(window.location.host || '').trim().toLowerCase().split(':')[0];
+  }, []);
+
   const defaultUiVisibility = { staff_show_tables: true, manager_show_tables: true, staff_show_kitchen: true };
   const defaultInventorySettings = { default_critical_threshold: 5, unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'] };
   const defaultRoleModules = {
@@ -183,6 +188,12 @@ export default function App() {
 
   const profile = appConfig.profile;
   const settings = appConfig.settings;
+  const mappedTenantFromHost = useMemo(() => getResolvedTenantIdFromHost(currentHost), [currentHost]);
+  const profileWebsiteHost = useMemo(() => {
+    const raw = String(profile?.website || '').trim().toLowerCase();
+    if (!raw) return '';
+    return raw.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+  }, [profile?.website]);
 
   const uiVisibility = settings?.ui_visibility || defaultUiVisibility;
   const roleModules = settings?.role_modules || null;
@@ -499,6 +510,53 @@ export default function App() {
   }
 
   const safeUser = user as NonNullable<typeof user>;
+  const hostTenantMismatch = Boolean(
+    currentHost &&
+    currentHost !== 'localhost' &&
+    currentHost !== '127.0.0.1' &&
+    mappedTenantFromHost &&
+    mappedTenantFromHost !== String(safeUser.tenant_id || ''),
+  );
+  const unknownForeignHost = Boolean(
+    currentHost &&
+    currentHost !== 'localhost' &&
+    currentHost !== '127.0.0.1' &&
+    !mappedTenantFromHost &&
+    profileWebsiteHost &&
+    currentHost !== profileWebsiteHost,
+  );
+
+  if (hostTenantMismatch || unknownForeignHost) {
+    return (
+      <div className="metal-app flex min-h-screen items-center justify-center px-4 text-slate-100">
+        <div className="metal-panel w-full max-w-xl rounded-3xl p-8 text-center">
+          <h1 className="text-2xl font-black">{tx(safeLang, 'Tenant tapılmadı', 'Тенант не найден', 'Tenant not found')}</h1>
+          <p className="mt-3 text-sm text-slate-300">
+            {tx(
+              safeLang,
+              'Bu subdomain üçün aktiv tenant yoxdur. Silinmiş və ya qurulmamış tenant heç vaxt başqa tenant-a açılmamalıdır.',
+              'Для этого поддомена нет активного тенанта. Удаленный или не настроенный тенант не должен открываться как другой.',
+              'There is no active tenant for this subdomain. A deleted or unconfigured tenant must never open as another tenant.',
+            )}
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <button onClick={() => window.location.reload()} className="neon-btn px-4 py-3">
+              {tx(safeLang, 'Yenilə', 'Обновить', 'Refresh')}
+            </button>
+            <button
+              onClick={() => {
+                const target = profileWebsiteHost ? `https://${profileWebsiteHost}` : 'https://super.ironwaves.store';
+                window.location.href = target;
+              }}
+              className="glossy-gold rounded-xl px-5 py-3 font-bold text-slate-900"
+            >
+              {tx(safeLang, 'Platforma qayıt', 'Вернуться на платформу', 'Return to platform')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="metal-app flex h-[100dvh] min-h-[100dvh] overflow-hidden font-sans text-slate-100 selection:bg-yellow-300/30">
