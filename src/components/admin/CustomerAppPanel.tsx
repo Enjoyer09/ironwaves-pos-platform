@@ -7,6 +7,7 @@ import { get_settings_live, update_customer_app_settings_live } from '../../api/
 export default function CustomerAppPanel() {
   const { user, lang, notify } = useAppStore();
   const tenantId = user?.tenant_id || 'tenant_default';
+  const colorPresets = ['#14b8a6', '#22d3ee', '#7c3aed', '#f97316', '#facc15', '#ef4444', '#111827', '#ec4899'];
   const [success, setSuccess] = useState('');
   const [form, setForm] = useState({
     enabled: true,
@@ -137,17 +138,55 @@ export default function CustomerAppPanel() {
           <input className="neon-input" type="number" min={1} value={form.reward_threshold} onChange={(e) => setForm((prev) => ({ ...prev, reward_threshold: e.target.value }))} placeholder={tx(lang, 'Reward həddi', 'Порог награды', 'Reward threshold')} />
           <input className="neon-input" type="number" min={0} value={form.cashback_percent} onChange={(e) => setForm((prev) => ({ ...prev, cashback_percent: e.target.value }))} placeholder={tx(lang, 'Cashback %', 'Cashback %', 'Cashback %')} />
           <input className="neon-input md:col-span-2" value={form.reward_description} onChange={(e) => setForm((prev) => ({ ...prev, reward_description: e.target.value }))} placeholder={tx(lang, 'Reward izahı', 'Описание награды', 'Reward description')} />
-          <input className="neon-input" value={form.primary_color} onChange={(e) => setForm((prev) => ({ ...prev, primary_color: e.target.value }))} placeholder={tx(lang, 'Primary rəng', 'Primary цвет', 'Primary color')} />
-          <input className="neon-input" value={form.accent_color} onChange={(e) => setForm((prev) => ({ ...prev, accent_color: e.target.value }))} placeholder={tx(lang, 'Accent rəng', 'Accent цвет', 'Accent color')} />
+          <label className="rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3">
+            <div className="mb-2 text-sm text-slate-300">{tx(lang, 'Primary rəng', 'Primary цвет', 'Primary color')}</div>
+            <div className="flex items-center gap-3">
+              <input type="color" value={form.primary_color} onChange={(e) => setForm((prev) => ({ ...prev, primary_color: e.target.value }))} className="h-12 w-16 cursor-pointer rounded-lg border border-slate-600 bg-transparent p-1" />
+              <div className="rounded-full px-3 py-1 text-xs font-semibold text-slate-100" style={{ backgroundColor: form.primary_color }}>{form.primary_color}</div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {colorPresets.map((color) => (
+                <button
+                  key={`primary_${color}`}
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, primary_color: color }))}
+                  className="h-8 w-8 rounded-full border-2 border-white/20"
+                  style={{ backgroundColor: color }}
+                  aria-label={`Primary ${color}`}
+                />
+              ))}
+            </div>
+          </label>
+          <label className="rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3">
+            <div className="mb-2 text-sm text-slate-300">{tx(lang, 'Accent rəng', 'Accent цвет', 'Accent color')}</div>
+            <div className="flex items-center gap-3">
+              <input type="color" value={form.accent_color} onChange={(e) => setForm((prev) => ({ ...prev, accent_color: e.target.value }))} className="h-12 w-16 cursor-pointer rounded-lg border border-slate-600 bg-transparent p-1" />
+              <div className="rounded-full px-3 py-1 text-xs font-semibold text-slate-100" style={{ backgroundColor: form.accent_color }}>{form.accent_color}</div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {colorPresets.map((color) => (
+                <button
+                  key={`accent_${color}`}
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, accent_color: color }))}
+                  className="h-8 w-8 rounded-full border-2 border-white/20"
+                  style={{ backgroundColor: color }}
+                  aria-label={`Accent ${color}`}
+                />
+              ))}
+            </div>
+          </label>
           <div className="space-y-2">
             <div className="text-sm text-slate-300">{tx(lang, 'Hero şəkli', 'Hero изображение', 'Hero image')}</div>
             <input className="neon-input" value={form.hero_image_url} onChange={(e) => setForm((prev) => ({ ...prev, hero_image_url: e.target.value }))} placeholder={tx(lang, 'Şəkil URL və ya data URL', 'URL или data URL', 'Image URL or data URL')} />
             <input className="neon-input" type="file" accept="image/*" onChange={(e) => handleImage('hero_image_url', e.target.files?.[0])} />
+            {form.hero_image_url ? <img src={form.hero_image_url} alt="hero preview" className="h-24 w-full rounded-xl object-cover" /> : null}
           </div>
           <div className="space-y-2">
             <div className="text-sm text-slate-300">{tx(lang, 'Arxa fon şəkli', 'Фоновое изображение', 'Background image')}</div>
             <input className="neon-input" value={form.background_image_url} onChange={(e) => setForm((prev) => ({ ...prev, background_image_url: e.target.value }))} placeholder={tx(lang, 'Şəkil URL və ya data URL', 'URL или data URL', 'Image URL or data URL')} />
             <input className="neon-input" type="file" accept="image/*" onChange={(e) => handleImage('background_image_url', e.target.files?.[0])} />
+            {form.background_image_url ? <img src={form.background_image_url} alt="background preview" className="h-24 w-full rounded-xl object-cover" /> : null}
           </div>
         </div>
       </div>
