@@ -203,8 +203,16 @@ export async function get_customer_app_session_live(card_id: string, token: stri
       .filter((row) => String(row.tenant_id || '') === tenantId && row.card_id === customer.card_id && row.status === 'PENDING')
       .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
     const nextRewardAt = Math.max(1, Number(settings.reward_threshold || 10));
-    const progressCurrent = stars % nextRewardAt;
-    const availableRewards = Math.max(0, Math.floor(stars / nextRewardAt) - pendingClaims.length);
+    const programMode = String(settings.program_mode || 'points').toLowerCase() === 'cashback' ? 'cashback' : 'points';
+    const cashbackPercent = Math.max(0, Number(settings.cashback_percent || 0));
+    const cashbackEarned = sales.reduce((acc: number, row: any) => acc + (Number(row.total || 0) * cashbackPercent) / 100, 0);
+    const balanceValue = programMode === 'cashback'
+      ? Math.max(0, cashbackEarned - pendingClaims.length * nextRewardAt)
+      : stars;
+    const progressCurrent = programMode === 'cashback'
+      ? Math.floor(balanceValue % nextRewardAt)
+      : stars % nextRewardAt;
+    const availableRewards = Math.max(0, Math.floor(balanceValue / nextRewardAt) - (programMode === 'cashback' ? 0 : pendingClaims.length));
     return {
       tenant_id: tenantId,
       branding: {
@@ -217,6 +225,8 @@ export async function get_customer_app_session_live(card_id: string, token: stri
         hero_subtitle: settings.hero_subtitle || 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
         primary_color: settings.primary_color || '#facc15',
         accent_color: settings.accent_color || '#22d3ee',
+        show_qr_card: settings.show_qr_card !== false,
+        show_wallet: settings.show_wallet !== false,
       },
       customer: {
         card_id: customer.card_id,
@@ -226,14 +236,16 @@ export async function get_customer_app_session_live(card_id: string, token: stri
         created_at: customer.created_at,
       },
       wallet: {
-        points_label: settings.points_label || 'Ulduz',
-        stars_balance: stars,
+        points_label: settings.points_label || (programMode === 'cashback' ? 'Cashback' : 'Ulduz'),
+        stars_balance: balanceValue,
         available_rewards: availableRewards,
         next_reward_at: nextRewardAt,
         progress_current: progressCurrent,
-        progress_remaining: progressCurrent === 0 && stars > 0 ? 0 : nextRewardAt - progressCurrent,
+        progress_remaining: progressCurrent === 0 && balanceValue > 0 ? 0 : nextRewardAt - progressCurrent,
         reward_label: settings.reward_description || '10 ulduza 1 pulsuz içki',
         reward_name: settings.reward_name || 'Reward',
+        program_mode: programMode,
+        cashback_percent: cashbackPercent,
         rewards: [
           {
             id: 'default-reward',

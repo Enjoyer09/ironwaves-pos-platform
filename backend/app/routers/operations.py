@@ -297,6 +297,7 @@ def get_app_settings(
         "customer_app_settings",
         {
             "enabled": True,
+            "program_mode": "points",
             "app_name": "Loyalty Club",
             "hero_title": "Xoş gəldiniz",
             "hero_subtitle": "Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.",
@@ -304,8 +305,11 @@ def get_app_settings(
             "reward_name": "Reward",
             "reward_threshold": 10,
             "reward_description": "10 ulduza 1 pulsuz içki",
+            "cashback_percent": 5,
             "primary_color": "#facc15",
             "accent_color": "#22d3ee",
+            "show_qr_card": True,
+            "show_wallet": True,
             "show_campaigns": True,
             "show_history": True,
             "show_notifications": True,
@@ -412,6 +416,7 @@ def update_customer_app_settings(
     _ensure_admin(user)
     cleaned = {
         "enabled": bool(payload.get("enabled", True)),
+        "program_mode": "cashback" if str(payload.get("program_mode") or "").strip().lower() == "cashback" else "points",
         "app_name": str(payload.get("app_name") or "").strip() or "Loyalty Club",
         "hero_title": str(payload.get("hero_title") or "").strip() or "Xoş gəldiniz",
         "hero_subtitle": str(payload.get("hero_subtitle") or "").strip() or "Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.",
@@ -419,8 +424,11 @@ def update_customer_app_settings(
         "reward_name": str(payload.get("reward_name") or "").strip() or "Reward",
         "reward_threshold": max(1, int(payload.get("reward_threshold") or 10)),
         "reward_description": str(payload.get("reward_description") or "").strip() or "10 ulduza 1 pulsuz içki",
+        "cashback_percent": max(0, float(payload.get("cashback_percent") or 5)),
         "primary_color": str(payload.get("primary_color") or "").strip() or "#facc15",
         "accent_color": str(payload.get("accent_color") or "").strip() or "#22d3ee",
+        "show_qr_card": bool(payload.get("show_qr_card", True)),
+        "show_wallet": bool(payload.get("show_wallet", True)),
         "show_campaigns": bool(payload.get("show_campaigns", True)),
         "show_history": bool(payload.get("show_history", True)),
         "show_notifications": bool(payload.get("show_notifications", True)),
@@ -642,6 +650,7 @@ def get_customer_app_session(
         "customer_app_settings",
         {
             "enabled": True,
+            "program_mode": "points",
             "app_name": "Loyalty Club",
             "hero_title": "Xoş gəldiniz",
             "hero_subtitle": "Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.",
@@ -649,8 +658,11 @@ def get_customer_app_session(
             "reward_name": "Reward",
             "reward_threshold": 10,
             "reward_description": "10 ulduza 1 pulsuz içki",
+            "cashback_percent": 5,
             "primary_color": "#facc15",
             "accent_color": "#22d3ee",
+            "show_qr_card": True,
+            "show_wallet": True,
             "show_campaigns": True,
             "show_history": True,
             "show_notifications": True,
@@ -667,9 +679,19 @@ def get_customer_app_session(
 
     stars = int(customer.stars or 0)
     next_reward_at = max(1, int(app_settings.get("reward_threshold") or 10))
-    progress_current = stars % next_reward_at
-    progress_remaining = 0 if progress_current == 0 and stars > 0 else next_reward_at - progress_current
-    available_rewards = max(0, (stars // next_reward_at) - len(pending_claims))
+    program_mode = str(app_settings.get("program_mode") or "points").strip().lower()
+    cashback_percent = Decimal(str(app_settings.get("cashback_percent") or 0))
+    cashback_earned = Decimal("0.00")
+    if program_mode == "cashback":
+        for row in sales:
+            cashback_earned += (Decimal(str(row.total or 0)) * (cashback_percent / Decimal("100"))).quantize(Decimal("0.01"))
+    redeemed_reserved = Decimal(str(len(pending_claims) * next_reward_at))
+    balance_value = Decimal(str(stars))
+    if program_mode == "cashback":
+        balance_value = max(Decimal("0.00"), cashback_earned - redeemed_reserved)
+    progress_current = int(balance_value % Decimal(str(next_reward_at))) if program_mode == "cashback" else stars % next_reward_at
+    progress_remaining = 0 if progress_current == 0 and balance_value > 0 else next_reward_at - progress_current
+    available_rewards = max(0, int(balance_value // Decimal(str(next_reward_at))) if program_mode == "cashback" else (stars // next_reward_at) - len(pending_claims))
 
     return {
         "tenant_id": tenant.id,
@@ -692,14 +714,16 @@ def get_customer_app_session(
             "created_at": customer.created_at.isoformat() if customer.created_at else None,
         },
         "wallet": {
-            "points_label": str(app_settings.get("points_label") or "Ulduz"),
-            "stars_balance": stars,
+            "points_label": str(app_settings.get("points_label") or ("Cashback" if program_mode == "cashback" else "Ulduz")),
+            "stars_balance": float(balance_value) if program_mode == "cashback" else stars,
             "available_rewards": available_rewards,
             "next_reward_at": next_reward_at,
             "progress_current": progress_current,
             "progress_remaining": progress_remaining,
             "reward_label": str(app_settings.get("reward_description") or "10 ulduza 1 pulsuz içki"),
             "reward_name": str(app_settings.get("reward_name") or "Reward"),
+            "program_mode": program_mode,
+            "cashback_percent": float(cashback_percent),
             "rewards": [
                 {
                     "id": "default-reward",

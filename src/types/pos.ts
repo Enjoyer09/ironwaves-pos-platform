@@ -168,6 +168,7 @@ export interface Settings {
   };
   customer_app_settings?: {
     enabled: boolean;
+    program_mode?: 'points' | 'cashback';
     app_name: string;
     hero_title: string;
     hero_subtitle: string;
@@ -175,8 +176,11 @@ export interface Settings {
     reward_name: string;
     reward_threshold: number;
     reward_description: string;
+    cashback_percent?: number;
     primary_color: string;
     accent_color: string;
+    show_qr_card?: boolean;
+    show_wallet?: boolean;
     show_campaigns: boolean;
     show_history: boolean;
     show_notifications: boolean;
