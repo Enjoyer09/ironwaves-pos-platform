@@ -172,6 +172,8 @@ export interface Settings {
     app_name: string;
     hero_title: string;
     hero_subtitle: string;
+    hero_image_url?: string;
+    background_image_url?: string;
     points_label: string;
     reward_name: string;
     reward_threshold: number;
@@ -181,6 +183,8 @@ export interface Settings {
     accent_color: string;
     show_qr_card?: boolean;
     show_wallet?: boolean;
+    ai_barista_enabled?: boolean;
+    ai_falci_enabled?: boolean;
     show_campaigns: boolean;
     show_history: boolean;
     show_notifications: boolean;

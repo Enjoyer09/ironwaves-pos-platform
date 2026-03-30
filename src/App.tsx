@@ -32,6 +32,7 @@ type AdminView =
   | 'finance'
   | 'inventory'
   | 'crm'
+  | 'customerapp'
   | 'recipes'
   | 'ai'
   | 'settings'
@@ -54,6 +55,7 @@ type ModuleKey =
   | 'analytics'
   | 'logs'
   | 'crm'
+  | 'customerapp'
   | 'ai'
   | 'menu'
   | 'recipes'
@@ -153,7 +155,7 @@ export default function App() {
   const defaultInventorySettings = { default_critical_threshold: 5, unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'] };
   const defaultRoleModules = {
     staff: ['pos', 'tables', 'kds', 'zreport'],
-    manager: ['pos', 'tables', 'kds', 'zreport', 'dashboard', 'finance', 'inventory', 'combos', 'analytics', 'logs', 'crm', 'ai', 'menu', 'recipes'],
+    manager: ['pos', 'tables', 'kds', 'zreport', 'dashboard', 'finance', 'inventory', 'combos', 'analytics', 'logs', 'crm', 'customerapp', 'ai', 'menu', 'recipes'],
     kitchen: ['kds'],
   };
 
@@ -409,6 +411,7 @@ export default function App() {
     { key: 'recipes', label: t.modules.recipes, manager: true },
     { key: 'logs', label: t.modules.logs, manager: true },
     { key: 'crm', label: t.modules.crm, manager: true },
+    { key: 'customerapp', label: t.modules.customerapp, manager: true },
     { key: 'notes', label: t.modules.notes, adminOnly: true },
     { key: 'database', label: t.modules.database, adminOnly: true },
     { key: 'settings', label: t.modules.settings, adminOnly: true },

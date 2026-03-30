@@ -11,6 +11,7 @@ import { apiRequest, isBackendEnabled } from './client';
 const tenantSalesKey = (tenant_id: string) => `${tenant_id}_sales`;
 const tenantRefundsKey = (tenant_id: string) => `${tenant_id}_refunds`;
 const tenantFinanceKey = (tenant_id: string) => `${tenant_id}_finance`;
+const tenantLoyaltyLedgerKey = (tenant_id: string) => `${tenant_id}_loyalty_ledger`;
 
 const getSalesLocal = (tenant_id: string) => {
   const scoped = getDB<Sale>(tenantSalesKey(tenant_id));
@@ -272,6 +273,50 @@ export function void_sale_with_reason(
     actor,
   );
 
+  const customerSettings = (getDB<any>('settings').find((row) => row.tenant_id === tenant_id)?.customer_app_settings) || {};
+  const programMode = String(customerSettings.program_mode || 'points').toLowerCase();
+  const cashbackPercent = Number(customerSettings.cashback_percent || 0);
+  if (sale.customer_card_id && programMode === 'cashback') {
+    const ledger = getDB<any>('loyalty_ledger');
+    const amount = new Decimal(sale.total || 0).times(cashbackPercent).dividedBy(100).toDecimalPlaces(2);
+    if (amount.greaterThan(0)) {
+      ledger.push({
+        id: uuidv4(),
+        tenant_id,
+        card_id: sale.customer_card_id,
+        unit: 'cashback',
+        entry_type: 'reversal',
+        amount: amount.negated().toString(),
+        source_sale_id: sale_id,
+        description: `VOID cashback reverse (${sale_id})`,
+        created_at: new Date().toISOString(),
+      });
+      setDB('loyalty_ledger', ledger);
+    }
+    if (sale.reward_claim_code) {
+      const claims = getDB<any>('reward_claims');
+      const claim = claims.find((row: any) => row.tenant_id === tenant_id && row.claim_code === sale.reward_claim_code);
+      if (claim) {
+        claim.status = 'PENDING';
+        claim.redeemed_sale_id = null;
+        claim.redeemed_at = null;
+        ledger.push({
+          id: uuidv4(),
+          tenant_id,
+          card_id: sale.customer_card_id,
+          unit: 'cashback',
+          entry_type: 'reversal',
+          amount: new Decimal(claim.points_cost || 0).toFixed(2),
+          source_sale_id: sale_id,
+          description: `VOID reward restore (${claim.claim_code})`,
+          created_at: new Date().toISOString(),
+        });
+        setDB('reward_claims', claims);
+        setDB('loyalty_ledger', ledger);
+      }
+    }
+  }
+
   // Stock return if requested OR sale is test data
   if (return_to_stock || sale.is_test) {
     const inventory = getDB<any>('inventory');
@@ -397,6 +442,28 @@ export function partial_refund_sale(
     `PARTIAL REFUND: ${reason}`,
     actor,
   );
+
+  const customerSettings = (getDB<any>('settings').find((row) => row.tenant_id === tenant_id)?.customer_app_settings) || {};
+  const programMode = String(customerSettings.program_mode || 'points').toLowerCase();
+  const cashbackPercent = Number(customerSettings.cashback_percent || 0);
+  if (sale.customer_card_id && programMode === 'cashback') {
+    const ledger = getDB<any>('loyalty_ledger');
+    const amount = new Decimal(refund_amount || 0).times(cashbackPercent).dividedBy(100).toDecimalPlaces(2);
+    if (amount.greaterThan(0)) {
+      ledger.push({
+        id: uuidv4(),
+        tenant_id,
+        card_id: sale.customer_card_id,
+        unit: 'cashback',
+        entry_type: 'reversal',
+        amount: amount.negated().toString(),
+        source_sale_id: sale_id,
+        description: `Partial refund cashback reverse (${sale_id})`,
+        created_at: new Date().toISOString(),
+      });
+      setDB('loyalty_ledger', ledger);
+    }
+  }
   logEvent(actor, 'SALE_PARTIAL_REFUND', { tenant_id, sale_id, refund_amount: refund.toFixed(2), reason });
   return { success: true, remaining_total: (sales[idx] as any).total };
 }
