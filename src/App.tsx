@@ -500,7 +500,7 @@ export default function App() {
     return <LandingPage />;
   }
 
-  if (!knownTenantHost) {
+  if (!knownTenantHost && hasValidUser) {
     return (
       <div className="metal-app flex min-h-screen items-center justify-center px-4 py-10 text-slate-100">
         <div className="metal-panel w-full max-w-xl rounded-3xl p-8 text-center">
