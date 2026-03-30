@@ -347,7 +347,7 @@ export default function App() {
 
   const sessionRole = String(user?.role || '').toLowerCase();
   const selectedTenantId = String(user?.tenant_id || activeTenant || 'tenant_default');
-  const moduleTenantKey = `${resolvedModule}:${selectedTenantId}:${safeUser?.username || 'guest'}`;
+  const moduleTenantKey = `${selectedTenantId}:${String(user?.username || 'guest')}`;
 
   useEffect(() => {
     if (!hasValidUser || sessionRole !== 'super_admin') {
