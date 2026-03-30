@@ -44,25 +44,38 @@ function readDomainMappings(): Record<string, string> {
   }
 }
 
-export function resolveTenantIdFromHost(inputHost?: string): string {
+export function getResolvedTenantIdFromHost(inputHost?: string): string | null {
   if (SINGLE_TENANT_MODE && SINGLE_TENANT_ID) return SINGLE_TENANT_ID;
   const host = normalizeHost(
     inputHost || (typeof window !== 'undefined' ? window.location.host : ''),
   );
 
-  if (!host) return 'tenant_default';
+  if (!host) return null;
   const dynamicMappings = readDomainMappings();
   if (dynamicMappings[host]) return dynamicMappings[host];
   if (DOMAIN_TENANT_MAP[host]) return DOMAIN_TENANT_MAP[host];
 
-  return 'tenant_default';
+  // Production-style unknown hosts must not silently fall back into tenant_default.
+  // Only explicit local/dev hosts may use tenant_default.
+  if (host === 'localhost' || host === '127.0.0.1') {
+    return 'tenant_default';
+  }
+  return null;
+}
+
+export function resolveTenantIdFromHost(inputHost?: string): string {
+  return getResolvedTenantIdFromHost(inputHost) || 'tenant_default';
+}
+
+export function isKnownTenantHost(inputHost?: string): boolean {
+  return Boolean(getResolvedTenantIdFromHost(inputHost));
 }
 
 export function getActiveTenantId(): string {
   if (SINGLE_TENANT_MODE && SINGLE_TENANT_ID) return SINGLE_TENANT_ID;
-  const hostMapped = resolveTenantIdFromHost();
+  const hostMapped = getResolvedTenantIdFromHost();
   // In real multi-tenant domains, host mapping should win over stale local storage.
-  if (hostMapped && hostMapped !== 'tenant_default') {
+  if (hostMapped) {
     return hostMapped;
   }
   try {
@@ -73,7 +86,7 @@ export function getActiveTenantId(): string {
   } catch {
     // Ignore localStorage read errors in restricted environments.
   }
-  return hostMapped;
+  return hostMapped || 'tenant_default';
 }
 
 export function setActiveTenantId(tenantId: string): void {
