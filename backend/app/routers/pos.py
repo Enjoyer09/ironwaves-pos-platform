@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import Customer, FinanceEntry, InventoryItem, LoyaltyLedgerEntry, MenuItem, Recipe, RewardClaim, Sale, Setting, Tenant
+from app.models import AuditLog, Customer, FinanceEntry, InventoryItem, LoyaltyLedgerEntry, MenuItem, Recipe, RewardClaim, Sale, Setting, Tenant
 from app.schemas import SaleCreateIn, SaleCreateOut
 
 
@@ -258,6 +258,24 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
 
     for inventory, qty_required in stock_ops:
         inventory.stock_qty = (Decimal(str(inventory.stock_qty)) - qty_required).quantize(Decimal("0.001"))
+        db.add(
+            AuditLog(
+                tenant_id=tenant.id,
+                user=user.username,
+                action="INVENTORY_CONSUMED",
+                details=json.dumps(
+                    {
+                        "item_name": inventory.name,
+                        "qty_removed": str(qty_required),
+                        "unit": inventory.unit,
+                        "remaining_qty": str(inventory.stock_qty),
+                        "sale_id": sale.id,
+                        "source": "pos_sale",
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
 
     if payment_method == "split":
         split_cash = Decimal(str(payload.split_cash or "0")).quantize(Decimal("0.01"))

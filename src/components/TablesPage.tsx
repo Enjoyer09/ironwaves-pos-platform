@@ -294,6 +294,7 @@ export default function TablesPage() {
                       </html>
                     `);
                     notify('success', tx(lang, 'Masa hesabı bağlandı', 'Счет стола закрыт'));
+                    window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { tenant_id, sale_id: result.sale_id, source: 'table' } }));
                     setPayTableId(null);
                     setSplitCash('0');
                     await loadData();

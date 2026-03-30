@@ -634,6 +634,7 @@ export default function POS() {
         notify('info', tx(safeLang, 'Satış offline yadda saxlandı, bağlantı gələndə sinxron olacaq', 'Продажа сохранена офлайн и синхронизируется при подключении', 'Sale saved offline and will sync when connection returns'));
       }
 
+      window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { tenant_id: tenantId, sale_id: sale.sale_id, source: 'pos' } }));
       clearCart(activeCart);
       patchCtx({ ...defaultCtx });
       setSplitCashInput('0');
