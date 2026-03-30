@@ -3,11 +3,12 @@ import { Bell, Gift, Home, MessageCircleHeart, QrCode, Sparkles, UserRound } fro
 import QRCode from 'qrcode';
 import { tx } from '../i18n';
 import { useAppStore } from '../store';
-import { claim_customer_reward_live, get_customer_app_session_live, mark_customer_notification_read_live } from '../api/crm';
+import { claim_customer_reward_live, enroll_customer_app_live, get_customer_app_bootstrap_live, get_customer_app_session_live, mark_customer_notification_read_live } from '../api/crm';
 
 type Props = {
-  cardId: string;
-  token: string;
+  cardId?: string;
+  token?: string;
+  joinMode?: boolean;
 };
 
 type CustomerTab = 'home' | 'offers' | 'fun' | 'profile';
@@ -18,13 +19,16 @@ const BARISTA_QUICK_PROMPTS = [
   'Dessert ilə nə uyğun gedər?',
 ];
 
-export default function CustomerApp({ cardId, token }: Props) {
+export default function CustomerApp({ cardId = '', token = '', joinMode = false }: Props) {
   const { lang } = useAppStore();
   const [loading, setLoading] = React.useState(true);
   const [data, setData] = React.useState<any | null>(null);
+  const [bootstrapData, setBootstrapData] = React.useState<any | null>(null);
   const [error, setError] = React.useState('');
   const [claiming, setClaiming] = React.useState(false);
   const [cardQr, setCardQr] = React.useState('');
+  const [sessionCreds, setSessionCreds] = React.useState({ cardId, token });
+  const [acceptingConsent, setAcceptingConsent] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<CustomerTab>('home');
   const [baristaMessages, setBaristaMessages] = React.useState<Array<{ role: 'assistant' | 'user'; text: string }>>([]);
   const [baristaInput, setBaristaInput] = React.useState('');
@@ -33,25 +37,48 @@ export default function CustomerApp({ cardId, token }: Props) {
   const fileRef = React.useRef<HTMLInputElement | null>(null);
 
   const load = React.useCallback(async () => {
+    if (!sessionCreds.cardId || !sessionCreds.token) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setError('');
-      const session = await get_customer_app_session_live(cardId, token);
+      const session = await get_customer_app_session_live(sessionCreds.cardId, sessionCreds.token);
       setData(session);
     } catch (e: any) {
       setError(String(e?.message || 'Customer app failed to load'));
     } finally {
       setLoading(false);
     }
-  }, [cardId, token]);
+  }, [sessionCreds.cardId, sessionCreds.token]);
 
   React.useEffect(() => {
-    void load();
-  }, [load]);
+    if (sessionCreds.cardId && sessionCreds.token) {
+      void load();
+      return;
+    }
+    if (!joinMode) {
+      setLoading(false);
+      return;
+    }
+    void (async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const bootstrap = await get_customer_app_bootstrap_live();
+        setBootstrapData(bootstrap);
+      } catch (e: any) {
+        setError(String(e?.message || 'Customer app onboarding failed to load'));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [joinMode, load, sessionCreds.cardId, sessionCreds.token]);
 
   React.useEffect(() => {
     let cancelled = false;
-    const payload = `IWPOS:CARD:${cardId || ''}`;
+    const payload = `IWPOS:CARD:${sessionCreds.cardId || ''}`;
     if (!payload) {
       setCardQr('');
       return;
@@ -70,7 +97,7 @@ export default function CustomerApp({ cardId, token }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [cardId]);
+  }, [sessionCreds.cardId]);
 
   React.useEffect(() => {
     setBaristaMessages([
@@ -88,7 +115,7 @@ export default function CustomerApp({ cardId, token }: Props) {
 
   const markRead = async (notificationId: string) => {
     try {
-      await mark_customer_notification_read_live(notificationId, cardId, token);
+      await mark_customer_notification_read_live(notificationId, sessionCreds.cardId, sessionCreds.token);
       setData((prev: any) => ({
         ...prev,
         notifications: Array.isArray(prev?.notifications)
@@ -101,12 +128,32 @@ export default function CustomerApp({ cardId, token }: Props) {
   const claimReward = async () => {
     try {
       setClaiming(true);
-      await claim_customer_reward_live(cardId, token);
+      await claim_customer_reward_live(sessionCreds.cardId, sessionCreds.token);
       await load();
     } catch (e: any) {
       setError(String(e?.message || 'Reward claim failed'));
     } finally {
       setClaiming(false);
+    }
+  };
+
+  const acceptConsentAndCreateCard = async () => {
+    try {
+      setAcceptingConsent(true);
+      const created = await enroll_customer_app_live(true);
+      const next = { cardId: created.card_id, token: created.token };
+      setSessionCreds(next);
+      if (typeof window !== 'undefined') {
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.set('id', created.card_id);
+        nextUrl.searchParams.set('t', created.token);
+        nextUrl.searchParams.delete('join');
+        window.history.replaceState({}, '', nextUrl.toString());
+      }
+    } catch (e: any) {
+      setError(String(e?.message || 'Customer enrollment failed'));
+    } finally {
+      setAcceptingConsent(false);
     }
   };
 
@@ -166,6 +213,44 @@ export default function CustomerApp({ cardId, token }: Props) {
     return <div className="min-h-screen bg-slate-950 px-4 py-10 text-center text-slate-200">Loading customer app...</div>;
   }
 
+  if (!sessionCreds.cardId || !sessionCreds.token) {
+    const bootstrapBranding = bootstrapData?.branding || {};
+    const joinPrimary = String(bootstrapBranding.primary_color || '#facc15');
+    const joinAccent = String(bootstrapBranding.accent_color || '#22d3ee');
+    const joinBg = String(bootstrapBranding.background_color || '#0b1220');
+    return (
+      <div className="min-h-screen px-4 py-8 text-slate-100" style={{ background: `linear-gradient(180deg, ${joinBg}, #020617)` }}>
+        <div className="mx-auto max-w-md space-y-4">
+          <section className="overflow-hidden rounded-[34px] border border-white/10 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]" style={{ background: `linear-gradient(180deg, ${joinAccent}, ${joinPrimary})` }}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs uppercase tracking-[0.3em] text-white/70">{bootstrapBranding.app_name || 'Loyalty Club'}</div>
+                <h1 className="mt-3 text-3xl font-black text-white">{bootstrapBranding.hero_title || tx(lang, 'Xoş gəldiniz', 'Добро пожаловать', 'Welcome')}</h1>
+                <p className="mt-2 text-sm text-white/80">{bootstrapBranding.hero_subtitle || tx(lang, 'Loyalty klubuna bir toxunuşla qoşul', 'Присоединяйся к loyalty клубу одним касанием', 'Join the loyalty club in one tap')}</p>
+              </div>
+              {bootstrapBranding.logo_url ? <img src={bootstrapBranding.logo_url} alt="brand" className="h-12 w-12 rounded-2xl object-cover" /> : null}
+            </div>
+          </section>
+          <section className="rounded-[30px] border border-white/10 bg-white p-5 text-slate-900 shadow-[0_12px_32px_rgba(0,0,0,0.16)]">
+            <div className="text-lg font-black">{tx(lang, 'Müştəri razılaşması', 'Согласие клиента', 'Customer consent')}</div>
+            <div className="mt-3 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+              {bootstrapData?.consent_text || tx(lang, 'Razılaşma mətni əlavə edilməyib.', 'Текст согласия не задан.', 'Consent text has not been set.')}
+            </div>
+            <button
+              type="button"
+              disabled={acceptingConsent}
+              onClick={() => { void acceptConsentAndCreateCard(); }}
+              className="mt-4 w-full rounded-2xl px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-60"
+              style={{ backgroundColor: joinPrimary }}
+            >
+              {acceptingConsent ? tx(lang, 'Kart yaradılır...', 'Карта создается...', 'Creating your card...') : tx(lang, 'Qəbul edirəm və kartımı yarat', 'Принимаю и создать карту', 'Accept and create my card')}
+            </button>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
   if (error || !data) {
     return (
       <div className="min-h-screen bg-slate-950 px-4 py-10 text-center text-slate-200">
@@ -194,15 +279,18 @@ export default function CustomerApp({ cardId, token }: Props) {
   const balanceSuffix = programMode === 'cashback' ? ' ₼' : '';
   const heroImage = String(branding.hero_image_url || '');
   const backgroundImage = String(branding.background_image_url || '');
+  const backgroundColor = String(branding.background_color || data.customer_app_settings?.background_color || '#0b1220');
   const aiBaristaEnabled = branding.ai_barista_enabled === true;
   const aiFalciEnabled = branding.ai_falci_enabled === true;
   const layoutPreset = String(data.customer_app_settings?.layout_preset || 'rewards').toLowerCase();
+  const rewardCardStyle = String(branding.reward_card_style || data.customer_app_settings?.reward_card_style || 'rounded').toLowerCase();
   const heroRadius = layoutPreset === 'playful' ? '36px' : '32px';
+  const cardRadiusClass = rewardCardStyle === 'glass' ? 'rounded-[30px]' : rewardCardStyle === 'soft-square' ? 'rounded-[18px]' : 'rounded-[28px]';
   const cardClass = layoutPreset === 'playful'
-    ? 'rounded-[28px] border border-white/10 bg-white/95 p-4 text-slate-900 shadow-[0_10px_28px_rgba(236,72,153,0.16)]'
+    ? `${cardRadiusClass} border border-white/10 bg-white/95 p-4 text-slate-900 shadow-[0_10px_28px_rgba(236,72,153,0.16)]`
     : layoutPreset === 'cashback'
-    ? 'rounded-[28px] border border-white/10 bg-white p-4 text-slate-900 shadow-[0_8px_24px_rgba(20,184,166,0.14)]'
-    : 'rounded-[28px] border border-white/10 bg-white p-4 text-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)]';
+    ? `${cardRadiusClass} border border-white/10 bg-white p-4 text-slate-900 shadow-[0_8px_24px_rgba(20,184,166,0.14)]`
+    : `${cardRadiusClass} border border-white/10 bg-white p-4 text-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)]`;
 
   const bottomTabs: Array<{ key: CustomerTab; label: string; icon: React.ReactNode }> = [
     { key: 'home', label: tx(lang, 'Rewards', 'Награды', 'Rewards'), icon: <Home size={18} /> },
@@ -481,6 +569,7 @@ export default function CustomerApp({ cardId, token }: Props) {
       className="min-h-screen text-slate-100"
       style={{
         backgroundImage: `${backgroundImage ? `linear-gradient(rgba(8,12,22,0.82), rgba(8,12,22,0.94)), url(${backgroundImage}), ` : ''}linear-gradient(180deg, #0b1220, #121b2c)`,
+        background: backgroundImage ? undefined : `linear-gradient(180deg, ${backgroundColor}, #121b2c)`,
         backgroundSize: backgroundImage ? 'cover, auto' : undefined,
         backgroundPosition: backgroundImage ? 'center, center' : undefined,
       }}

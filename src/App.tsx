@@ -141,6 +141,7 @@ export default function App() {
     return {
       cardId: params.get('id') || '',
       token: params.get('t') || params.get('token') || '',
+      join: params.get('join') === '1',
     };
   }, []);
 
@@ -484,8 +485,8 @@ export default function App() {
     return <PublicReceipt receiptId={publicReceiptParams.receiptId} token={publicReceiptParams.token} />;
   }
 
-  if (customerAppParams.cardId && customerAppParams.token) {
-    return <CustomerApp cardId={customerAppParams.cardId} token={customerAppParams.token} />;
+  if (customerAppParams.join || (customerAppParams.cardId && customerAppParams.token)) {
+    return <CustomerApp cardId={customerAppParams.cardId} token={customerAppParams.token} joinMode={customerAppParams.join} />;
   }
 
   if (hostMode === 'landing') {

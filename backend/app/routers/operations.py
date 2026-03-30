@@ -300,15 +300,18 @@ def get_app_settings(
             "enabled": True,
             "program_mode": "points",
             "layout_preset": "rewards",
+            "consent_text": "Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.",
             "app_name": "Loyalty Club",
             "hero_title": "Xoş gəldiniz",
             "hero_subtitle": "Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.",
             "hero_image_url": "",
             "background_image_url": "",
+            "background_color": "#0b1220",
             "points_label": "Ulduz",
             "reward_name": "Reward",
             "reward_threshold": 10,
             "reward_description": "10 ulduza 1 pulsuz içki",
+            "reward_card_style": "rounded",
             "cashback_percent": 5,
             "primary_color": "#facc15",
             "accent_color": "#22d3ee",
@@ -424,15 +427,18 @@ def update_customer_app_settings(
         "enabled": bool(payload.get("enabled", True)),
         "program_mode": "cashback" if str(payload.get("program_mode") or "").strip().lower() == "cashback" else "points",
         "layout_preset": str(payload.get("layout_preset") or "rewards").strip().lower() if str(payload.get("layout_preset") or "rewards").strip().lower() in {"rewards", "cashback", "playful"} else "rewards",
+        "consent_text": str(payload.get("consent_text") or "").strip() or "Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.",
         "app_name": str(payload.get("app_name") or "").strip() or "Loyalty Club",
         "hero_title": str(payload.get("hero_title") or "").strip() or "Xoş gəldiniz",
         "hero_subtitle": str(payload.get("hero_subtitle") or "").strip() or "Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.",
         "hero_image_url": str(payload.get("hero_image_url") or "").strip(),
         "background_image_url": str(payload.get("background_image_url") or "").strip(),
+        "background_color": str(payload.get("background_color") or "").strip() or "#0b1220",
         "points_label": str(payload.get("points_label") or "").strip() or "Ulduz",
         "reward_name": str(payload.get("reward_name") or "").strip() or "Reward",
         "reward_threshold": max(1, int(payload.get("reward_threshold") or 10)),
         "reward_description": str(payload.get("reward_description") or "").strip() or "10 ulduza 1 pulsuz içki",
+        "reward_card_style": str(payload.get("reward_card_style") or "rounded").strip().lower() if str(payload.get("reward_card_style") or "rounded").strip().lower() in {"rounded", "soft-square", "glass"} else "rounded",
         "cashback_percent": max(0, float(payload.get("cashback_percent") or 5)),
         "primary_color": str(payload.get("primary_color") or "").strip() or "#facc15",
         "accent_color": str(payload.get("accent_color") or "").strip() or "#22d3ee",
@@ -625,6 +631,82 @@ def get_public_branding(
     }
 
 
+@router.get("/customer-app/bootstrap")
+def get_customer_app_bootstrap(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    branding = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant.id).first()
+    app_settings = _setting_value(
+        db,
+        tenant.id,
+        "customer_app_settings",
+        {
+            "enabled": True,
+            "app_name": "Loyalty Club",
+            "consent_text": "Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.",
+            "background_color": "#0b1220",
+            "primary_color": "#facc15",
+            "accent_color": "#22d3ee",
+            "hero_title": "Xoş gəldiniz",
+            "hero_subtitle": "QR-ni skan et və reward dünyasına qoşul.",
+        },
+    )
+    return {
+        "tenant_id": tenant.id,
+        "enabled": bool(app_settings.get("enabled", True)),
+        "branding": {
+            "company_name": branding.company_name if branding else tenant.name,
+            "website": (branding.website if branding else f"https://{tenant.domain}") or f"https://{tenant.domain}",
+            "logo_url": (branding.logo_url if branding else "") or "",
+            "app_name": str(app_settings.get("app_name") or "Loyalty Club"),
+            "hero_title": str(app_settings.get("hero_title") or "Xoş gəldiniz"),
+            "hero_subtitle": str(app_settings.get("hero_subtitle") or "QR-ni skan et və reward dünyasına qoşul."),
+            "background_color": str(app_settings.get("background_color") or "#0b1220"),
+            "primary_color": str(app_settings.get("primary_color") or "#facc15"),
+            "accent_color": str(app_settings.get("accent_color") or "#22d3ee"),
+        },
+        "consent_text": str(app_settings.get("consent_text") or "Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam."),
+    }
+
+
+@router.post("/customer-app/enroll")
+def enroll_customer_app(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    if not bool(payload.get("consent_accepted", False)):
+        raise HTTPException(status_code=400, detail="Consent must be accepted")
+
+    app_settings = _setting_value(db, tenant.id, "customer_app_settings", {"enabled": True})
+    if not bool(app_settings.get("enabled", True)):
+        raise HTTPException(status_code=403, detail="Customer app is disabled for this tenant")
+
+    card_id = f"CUST-{secrets.token_hex(4).upper()}"
+    while db.query(Customer).filter(Customer.tenant_id == tenant.id, Customer.card_id == card_id).first():
+        card_id = f"CUST-{secrets.token_hex(4).upper()}"
+    secret_token = secrets.token_urlsafe(18)
+    customer = Customer(
+        tenant_id=tenant.id,
+        card_id=card_id,
+        type="Normal",
+        stars=0,
+        secret_token=secret_token,
+    )
+    db.add(customer)
+    db.add(
+        Notification(
+            tenant_id=tenant.id,
+            card_id=card_id,
+            message="Loyalty club hesabınız yaradıldı. QR kartınızı kassada göstərə bilərsiniz.",
+            is_read=False,
+        )
+    )
+    db.commit()
+    return {"success": True, "card_id": card_id, "token": secret_token}
+
+
 @router.get("/customer-app/session")
 def get_customer_app_session(
     id: str = Query(...),
@@ -662,15 +744,19 @@ def get_customer_app_session(
         {
             "enabled": True,
             "program_mode": "points",
+            "layout_preset": "rewards",
+            "consent_text": "Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.",
             "app_name": "Loyalty Club",
             "hero_title": "Xoş gəldiniz",
             "hero_subtitle": "Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.",
             "hero_image_url": "",
             "background_image_url": "",
+            "background_color": "#0b1220",
             "points_label": "Ulduz",
             "reward_name": "Reward",
             "reward_threshold": 10,
             "reward_description": "10 ulduza 1 pulsuz içki",
+            "reward_card_style": "rounded",
             "cashback_percent": 5,
             "primary_color": "#facc15",
             "accent_color": "#22d3ee",
@@ -727,8 +813,10 @@ def get_customer_app_session(
             "hero_subtitle": str(app_settings.get("hero_subtitle") or ""),
             "hero_image_url": str(app_settings.get("hero_image_url") or ""),
             "background_image_url": str(app_settings.get("background_image_url") or ""),
+            "background_color": str(app_settings.get("background_color") or "#0b1220"),
             "primary_color": str(app_settings.get("primary_color") or "#facc15"),
             "accent_color": str(app_settings.get("accent_color") or "#22d3ee"),
+            "reward_card_style": str(app_settings.get("reward_card_style") or "rounded"),
             "show_qr_card": bool(app_settings.get("show_qr_card", True)),
             "show_wallet": bool(app_settings.get("show_wallet", True)),
             "ai_barista_enabled": bool(app_settings.get("ai_barista_enabled", False)),

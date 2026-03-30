@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Palette, Sparkles } from 'lucide-react';
+import QRCode from 'qrcode';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 import { get_settings_live, update_customer_app_settings_live } from '../../api/settings';
@@ -9,19 +10,23 @@ export default function CustomerAppPanel() {
   const tenantId = user?.tenant_id || 'tenant_default';
   const colorPresets = ['#14b8a6', '#22d3ee', '#7c3aed', '#f97316', '#facc15', '#ef4444', '#111827', '#ec4899'];
   const [success, setSuccess] = useState('');
+  const [joinQr, setJoinQr] = useState('');
   const [form, setForm] = useState({
     enabled: true,
     program_mode: 'points' as 'points' | 'cashback',
     layout_preset: 'rewards' as 'rewards' | 'cashback' | 'playful',
+    consent_text: 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.',
     app_name: 'Loyalty Club',
     hero_title: 'Xoş gəldiniz',
     hero_subtitle: 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
     hero_image_url: '',
     background_image_url: '',
+    background_color: '#0b1220',
     points_label: 'Ulduz',
     reward_name: 'Reward',
     reward_threshold: '10',
     reward_description: '10 ulduza 1 pulsuz içki',
+    reward_card_style: 'rounded' as 'rounded' | 'soft-square' | 'glass',
     cashback_percent: '5',
     primary_color: '#facc15',
     accent_color: '#22d3ee',
@@ -44,15 +49,18 @@ export default function CustomerAppPanel() {
           enabled: Boolean(c.enabled ?? true),
           program_mode: c.program_mode === 'cashback' ? 'cashback' : 'points',
           layout_preset: c.layout_preset === 'cashback' || c.layout_preset === 'playful' ? c.layout_preset : 'rewards',
+          consent_text: String(c.consent_text || prev.consent_text),
           app_name: String(c.app_name || prev.app_name),
           hero_title: String(c.hero_title || prev.hero_title),
           hero_subtitle: String(c.hero_subtitle || prev.hero_subtitle),
           hero_image_url: String(c.hero_image_url || ''),
           background_image_url: String(c.background_image_url || ''),
+          background_color: String(c.background_color || prev.background_color),
           points_label: String(c.points_label || prev.points_label),
           reward_name: String(c.reward_name || prev.reward_name),
           reward_threshold: String(c.reward_threshold || prev.reward_threshold),
           reward_description: String(c.reward_description || prev.reward_description),
+          reward_card_style: c.reward_card_style === 'soft-square' || c.reward_card_style === 'glass' ? c.reward_card_style : 'rounded',
           cashback_percent: String(c.cashback_percent || prev.cashback_percent),
           primary_color: String(c.primary_color || prev.primary_color),
           accent_color: String(c.accent_color || prev.accent_color),
@@ -69,6 +77,20 @@ export default function CustomerAppPanel() {
       }
     })();
   }, [tenantId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const joinUrl = typeof window !== 'undefined' ? `${window.location.origin}/?join=1` : '';
+    if (!joinUrl) return;
+    void QRCode.toDataURL(joinUrl, { width: 220, margin: 1 }).then((url) => {
+      if (!cancelled) setJoinQr(url);
+    }).catch(() => {
+      if (!cancelled) setJoinQr('');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const flash = (msg: string) => {
     setSuccess(msg);
@@ -87,15 +109,18 @@ export default function CustomerAppPanel() {
       enabled: form.enabled,
       program_mode: form.program_mode,
       layout_preset: form.layout_preset,
+      consent_text: form.consent_text,
       app_name: form.app_name,
       hero_title: form.hero_title,
       hero_subtitle: form.hero_subtitle,
       hero_image_url: form.hero_image_url,
       background_image_url: form.background_image_url,
+      background_color: form.background_color,
       points_label: form.points_label,
       reward_name: form.reward_name,
       reward_threshold: Number(form.reward_threshold || 10),
       reward_description: form.reward_description,
+      reward_card_style: form.reward_card_style,
       cashback_percent: Number(form.cashback_percent || 5),
       primary_color: form.primary_color,
       accent_color: form.accent_color,
@@ -119,9 +144,12 @@ export default function CustomerAppPanel() {
         app_name: 'Cashback Club',
         hero_title: 'Cashback balansın hazırdır',
         hero_subtitle: 'Hər alışda qazan, tətbiqdən izləmək rahat olsun.',
+        consent_text: 'Mən cashback klubuna qoşulmağa və hesabımın yaradılmasına razıyam.',
+        background_color: '#062c2d',
         points_label: 'Cashback',
         reward_name: 'Cashback Bonus',
         reward_description: 'Balansını növbəti alışda istifadə et',
+        reward_card_style: 'soft-square',
         primary_color: '#14b8a6',
         accent_color: '#0f172a',
       }));
@@ -135,9 +163,12 @@ export default function CustomerAppPanel() {
         app_name: 'Fun Club',
         hero_title: 'Bonus və sürprizlər burada',
         hero_subtitle: 'Reward, QR, oyun və əyləncə bir yerdə.',
+        consent_text: 'Mən loyalty və fun zonaya qoşulmağa razıyam.',
+        background_color: '#1f1235',
         points_label: 'Ulduz',
         reward_name: 'Sürpriz Reward',
         reward_description: 'Bonuslarını topla və claim et',
+        reward_card_style: 'glass',
         primary_color: '#ec4899',
         accent_color: '#7c3aed',
         ai_barista_enabled: true,
@@ -152,9 +183,12 @@ export default function CustomerAppPanel() {
       app_name: 'Loyalty Club',
       hero_title: 'Xoş gəldiniz',
       hero_subtitle: 'Reward, QR və kampaniyalar bir yerdə.',
+      consent_text: 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.',
+      background_color: '#0b1220',
       points_label: 'Ulduz',
       reward_name: 'Reward',
       reward_description: 'Topla və kassada istifadə et',
+      reward_card_style: 'rounded',
       primary_color: '#facc15',
       accent_color: '#22d3ee',
     }));
@@ -204,11 +238,17 @@ export default function CustomerAppPanel() {
           <input className="neon-input" value={form.app_name} onChange={(e) => setForm((prev) => ({ ...prev, app_name: e.target.value }))} placeholder={tx(lang, 'App adı', 'Название приложения', 'App name')} />
           <input className="neon-input" value={form.hero_title} onChange={(e) => setForm((prev) => ({ ...prev, hero_title: e.target.value }))} placeholder={tx(lang, 'Başlıq', 'Заголовок', 'Hero title')} />
           <input className="neon-input" value={form.hero_subtitle} onChange={(e) => setForm((prev) => ({ ...prev, hero_subtitle: e.target.value }))} placeholder={tx(lang, 'Qısa izah', 'Краткое описание', 'Hero subtitle')} />
+          <textarea className="neon-input min-h-28 md:col-span-2" value={form.consent_text} onChange={(e) => setForm((prev) => ({ ...prev, consent_text: e.target.value }))} placeholder={tx(lang, 'Müştəri razılaşma mətni', 'Текст согласия клиента', 'Customer consent text')} />
           <input className="neon-input" value={form.points_label} onChange={(e) => setForm((prev) => ({ ...prev, points_label: e.target.value }))} placeholder={tx(lang, 'Balans adı', 'Название баланса', 'Balance label')} />
           <input className="neon-input" value={form.reward_name} onChange={(e) => setForm((prev) => ({ ...prev, reward_name: e.target.value }))} placeholder={tx(lang, 'Reward adı', 'Название награды', 'Reward name')} />
           <input className="neon-input" type="number" min={1} value={form.reward_threshold} onChange={(e) => setForm((prev) => ({ ...prev, reward_threshold: e.target.value }))} placeholder={tx(lang, 'Reward həddi', 'Порог награды', 'Reward threshold')} />
           <input className="neon-input" type="number" min={0} value={form.cashback_percent} onChange={(e) => setForm((prev) => ({ ...prev, cashback_percent: e.target.value }))} placeholder={tx(lang, 'Cashback %', 'Cashback %', 'Cashback %')} />
           <input className="neon-input md:col-span-2" value={form.reward_description} onChange={(e) => setForm((prev) => ({ ...prev, reward_description: e.target.value }))} placeholder={tx(lang, 'Reward izahı', 'Описание награды', 'Reward description')} />
+          <select className="neon-input" value={form.reward_card_style} onChange={(e) => setForm((prev) => ({ ...prev, reward_card_style: e.target.value as 'rounded' | 'soft-square' | 'glass' }))}>
+            <option value="rounded">{tx(lang, 'Reward kartı: Yumru', 'Карточка: круглая', 'Reward card: rounded')}</option>
+            <option value="soft-square">{tx(lang, 'Reward kartı: Soft square', 'Карточка: soft square', 'Reward card: soft square')}</option>
+            <option value="glass">{tx(lang, 'Reward kartı: Glass', 'Карточка: glass', 'Reward card: glass')}</option>
+          </select>
           <label className="rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3">
             <div className="mb-2 text-sm text-slate-300">{tx(lang, 'Primary rəng', 'Primary цвет', 'Primary color')}</div>
             <div className="flex items-center gap-3">
@@ -247,6 +287,13 @@ export default function CustomerAppPanel() {
               ))}
             </div>
           </label>
+          <label className="rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3">
+            <div className="mb-2 text-sm text-slate-300">{tx(lang, 'Ümumi arxa fon rəngi', 'Цвет общего фона', 'Global background color')}</div>
+            <div className="flex items-center gap-3">
+              <input type="color" value={form.background_color} onChange={(e) => setForm((prev) => ({ ...prev, background_color: e.target.value }))} className="h-12 w-16 cursor-pointer rounded-lg border border-slate-600 bg-transparent p-1" />
+              <div className="rounded-full px-3 py-1 text-xs font-semibold text-slate-100" style={{ backgroundColor: form.background_color }}>{form.background_color}</div>
+            </div>
+          </label>
           <div className="space-y-2">
             <div className="text-sm text-slate-300">{tx(lang, 'Hero şəkli', 'Hero изображение', 'Hero image')}</div>
             <input className="neon-input" value={form.hero_image_url} onChange={(e) => setForm((prev) => ({ ...prev, hero_image_url: e.target.value }))} placeholder={tx(lang, 'Şəkil URL və ya data URL', 'URL или data URL', 'Image URL or data URL')} />
@@ -259,6 +306,15 @@ export default function CustomerAppPanel() {
             <input className="neon-input" type="file" accept="image/*" onChange={(e) => handleImage('background_image_url', e.target.files?.[0])} />
             {form.background_image_url ? <img src={form.background_image_url} alt="background preview" className="h-24 w-full rounded-xl object-cover" /> : null}
           </div>
+        </div>
+      </div>
+
+      <div className="metal-panel p-6 space-y-4">
+        <div className="text-lg font-bold text-slate-100">{tx(lang, 'Kassadakı onboarding QR', 'QR для кассы', 'Cashier onboarding QR')}</div>
+        <p className="text-sm text-slate-400">{tx(lang, 'Bu QR-ni çap edib kassaya qoyun. İlk skanda razılaşma çıxacaq, qəbul edən müştəriyə sistem avtomatik unikal QR kart yaradacaq.', 'Распечатайте этот QR и поставьте на кассу. При первом скане покажется согласие, после подтверждения клиенту создастся уникальная QR-карта.', 'Print this QR and place it at the cashier. On first scan the customer sees consent, then gets a unique QR card automatically.')}</p>
+        <div className="flex flex-col items-center gap-3 rounded-3xl border border-slate-700/70 bg-white p-5 text-slate-900">
+          {joinQr ? <img src={joinQr} alt="join qr" className="h-52 w-52 rounded-2xl" /> : null}
+          <div className="text-center text-xs text-slate-500">{typeof window !== 'undefined' ? `${window.location.origin}/?join=1` : ''}</div>
         </div>
       </div>
 
