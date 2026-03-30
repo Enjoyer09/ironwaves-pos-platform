@@ -347,6 +347,7 @@ export default function App() {
 
   const sessionRole = String(user?.role || '').toLowerCase();
   const selectedTenantId = String(user?.tenant_id || activeTenant || 'tenant_default');
+  const moduleTenantKey = `${resolvedModule}:${selectedTenantId}:${safeUser?.username || 'guest'}`;
 
   useEffect(() => {
     if (!hasValidUser || sessionRole !== 'super_admin') {
@@ -622,10 +623,10 @@ export default function App() {
 
         <div className="relative min-h-0 flex-1 overflow-hidden">
           <AppErrorBoundary>
-            {resolvedModule === 'pos' && <POS />}
-            {resolvedModule === 'kds' && <KDS />}
-            {resolvedModule === 'tables' && <TablesPage />}
-            {!['pos', 'kds', 'tables'].includes(resolvedModule) && <AdminPanel externalTab={resolvedModule as AdminView} />}
+            {resolvedModule === 'pos' && <POS key={moduleTenantKey} />}
+            {resolvedModule === 'kds' && <KDS key={moduleTenantKey} />}
+            {resolvedModule === 'tables' && <TablesPage key={moduleTenantKey} />}
+            {!['pos', 'kds', 'tables'].includes(resolvedModule) && <AdminPanel key={moduleTenantKey} externalTab={resolvedModule as AdminView} />}
           </AppErrorBoundary>
         </div>
 
