@@ -24,24 +24,28 @@ export default function InventoryPanel() {
   }, []);
 
   const loadData = async () => {
-    const [data, logs] = await Promise.all([
-      get_inventory_items_live(tenant_id),
-      get_logs_live(tenant_id, 200),
-    ]);
-    setItems(data);
-    setHistory(
-      (logs || [])
-        .filter((row: any) => String(row.action || '').startsWith('INVENTORY_'))
-        .slice(0, 20),
-    );
-    const settings = get_settings(tenant_id);
-    const invSettings = settings.inventory_settings || {
-      default_critical_threshold: 5,
-      unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'],
-    };
-    setInventoryConfig(invSettings);
-    if (!newMinLimit) {
-      setNewMinLimit(String(invSettings.default_critical_threshold));
+    try {
+      const [data, logs] = await Promise.all([
+        get_inventory_items_live(tenant_id),
+        get_logs_live(tenant_id, 200),
+      ]);
+      setItems(data);
+      setHistory(
+        (logs || [])
+          .filter((row: any) => String(row.action || '').startsWith('INVENTORY_'))
+          .slice(0, 20),
+      );
+      const settings = get_settings(tenant_id);
+      const invSettings = settings.inventory_settings || {
+        default_critical_threshold: 5,
+        unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'],
+      };
+      setInventoryConfig(invSettings);
+      if (!newMinLimit) {
+        setNewMinLimit(String(invSettings.default_critical_threshold));
+      }
+    } catch (e: any) {
+      notify('error', tx(lang, 'Anbar məlumatı yüklənmədi: ', 'Данные склада не загрузились: ', 'Inventory failed to load: ') + String(e?.message || e));
     }
   };
 
@@ -88,6 +92,7 @@ export default function InventoryPanel() {
     try {
       const qty = new Decimal(newQty);
       const totalPrice = new Decimal(newCost);
+      const createdName = newName.trim();
       await add_inventory_item_live({
         tenant_id,
         name: newName,
@@ -105,7 +110,9 @@ export default function InventoryPanel() {
       setCustomType('');
       setNewType('Xammal');
       setIsAdding(false);
+      setSearch(createdName);
       await loadData();
+      notify('success', tx(lang, 'Məhsul yadda saxlanıldı', 'Продукт сохранен', 'Inventory item saved'));
     } catch(e:any) {
       notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message);
     }

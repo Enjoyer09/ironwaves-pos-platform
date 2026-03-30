@@ -231,8 +231,9 @@ export async function add_inventory_item_live(data: {
     const filtered = inventoryItems.filter((row) => String(row.id) !== String(created?.id));
     saveInventory(data.tenant_id || 'tenant_default', [...filtered, { ...created, tenant_id: created?.tenant_id || data.tenant_id || 'tenant_default' }]);
     return created;
-  } catch {
-    return add_inventory_item(data, user);
+  } catch (error: any) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Inventory backend write failed: ${message}`);
   }
 }
 
@@ -252,8 +253,9 @@ export async function restock_item_live(tenant_id: string, item_id: string, qty_
     const inventoryItems = getInventory(tenant_id).filter((row) => String(row.id) !== String(updated?.id));
     saveInventory(tenant_id, [...inventoryItems, { ...updated, tenant_id: updated?.tenant_id || tenant_id }]);
     return updated;
-  } catch {
-    return restock_item(tenant_id, item_id, qty_added, total_price, user);
+  } catch (error: any) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Inventory backend restock failed: ${message}`);
   }
 }
 
@@ -270,8 +272,9 @@ export async function record_loss_live(item_id: string, qty_removed: Decimal, re
         reason,
       },
     });
-  } catch {
-    return record_loss(item_id, qty_removed, reason, recorded_by) as any;
+  } catch (error: any) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Inventory backend loss write failed: ${message}`);
   }
 }
 
@@ -290,7 +293,8 @@ export async function delete_inventory_item_live(item_id: string, user: string =
     const filtered = getInventory(tenant_id).filter(i => i.id !== item_id);
     saveInventory(tenant_id, filtered);
     return result;
-  } catch {
-    return delete_inventory_item(item_id, user) as any;
+  } catch (error: any) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Inventory backend delete failed: ${message}`);
   }
 }
