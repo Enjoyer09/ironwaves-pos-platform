@@ -169,6 +169,7 @@ export interface Settings {
   customer_app_settings?: {
     enabled: boolean;
     program_mode?: 'points' | 'cashback';
+    layout_preset?: 'rewards' | 'cashback' | 'playful';
     app_name: string;
     hero_title: string;
     hero_subtitle: string;
