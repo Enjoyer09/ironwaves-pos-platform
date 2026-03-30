@@ -346,7 +346,6 @@ export const authApi = {
 
   logout: async (token: string, username: string) => {
     const safeToken = String(token || '');
-    setTrustedDeviceToken('');
     if (isBackendEnabled()) {
       const tenantId = getActiveTenantId();
       await apiRequest('/api/v1/auth/logout', {

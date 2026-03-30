@@ -82,18 +82,20 @@ app.add_middleware(
 
 
 def _seed_initial_data(db: Session):
-    default_tenant = db.query(Tenant).filter(Tenant.slug == settings.default_tenant_slug).first()
-    if not default_tenant:
-        default_tenant = Tenant(
-            name=settings.default_tenant_name,
-            slug=settings.default_tenant_slug,
-            domain=settings.default_tenant_domain,
-            status="active",
-            created_at=datetime.utcnow(),
-        )
-        db.add(default_tenant)
-        db.flush()
-    _sync_tenant_domain(db, default_tenant.id, default_tenant.domain)
+    default_tenant = None
+    if settings.seed_default_tenant or settings.single_tenant_mode:
+        default_tenant = db.query(Tenant).filter(Tenant.slug == settings.default_tenant_slug).first()
+        if not default_tenant:
+            default_tenant = Tenant(
+                name=settings.default_tenant_name,
+                slug=settings.default_tenant_slug,
+                domain=settings.default_tenant_domain,
+                status="active",
+                created_at=datetime.utcnow(),
+            )
+            db.add(default_tenant)
+            db.flush()
+        _sync_tenant_domain(db, default_tenant.id, default_tenant.domain)
 
     platform_tenant = db.query(Tenant).filter(Tenant.slug == settings.platform_tenant_slug).first()
     if not platform_tenant:
@@ -139,7 +141,7 @@ def _seed_initial_data(db: Session):
         super_exists.locked_until = None
 
     # Demo PIN users are opt-in only so production deployments never get weak seeded accounts.
-    if settings.seed_demo_users:
+    if settings.seed_demo_users and default_tenant:
         staff_seed = [
             ("barista", "1234", "staff"),
             ("barista2", "5678", "staff"),
