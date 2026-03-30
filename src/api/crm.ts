@@ -168,3 +168,101 @@ export async function import_customers_live(
     body: normalized,
   });
 }
+
+export async function get_customer_app_session_live(card_id: string, token: string, tenant_id?: string) {
+  const tenantId = tenant_id || defaultTenant();
+  const safeCard = String(card_id || '').trim();
+  const safeToken = String(token || '').trim();
+  if (!safeCard || !safeToken) {
+    throw new Error('Customer session is invalid');
+  }
+
+  if (!isBackendEnabled()) {
+    const customer = getCustomersLocal(tenantId).find(
+      (row) => String(row.card_id || '').toLowerCase() === safeCard.toLowerCase() && row.secret_token === safeToken,
+    );
+    if (!customer) {
+      throw new Error('Customer session is invalid');
+    }
+    const notifications = filterTenantRecords(getDB<Notification>('notifications'), tenantId)
+      .filter((row) => row.card_id === customer.card_id)
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+      .slice(0, 20);
+    const sales = filterTenantRecords(getDB<any>('sales'), tenantId)
+      .filter((row) => row.customer_card_id === customer.card_id)
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+      .slice(0, 20);
+    const profile = getDB<any>('business_profile').find((row) => row.tenant_id === tenantId);
+    const happyHours = filterTenantRecords(getDB<any>('happy_hours'), tenantId).filter((row) => row.is_active).slice(0, 12);
+    const stars = Number(customer.stars || 0);
+    const nextRewardAt = 10;
+    const progressCurrent = stars % nextRewardAt;
+    return {
+      tenant_id: tenantId,
+      branding: {
+        company_name: profile?.company_name || 'iRonWaves POS RC',
+        website: profile?.website || (typeof window !== 'undefined' ? window.location.origin : ''),
+        logo_url: profile?.logo_url || '',
+        receipt_footer: profile?.receipt_footer || '',
+      },
+      customer: {
+        card_id: customer.card_id,
+        type: customer.type,
+        stars,
+        discount_percent: String((customer as any).discount_percent || 0),
+        created_at: customer.created_at,
+      },
+      wallet: {
+        points_label: 'Ulduz',
+        stars_balance: stars,
+        available_rewards: Math.floor(stars / nextRewardAt),
+        next_reward_at: nextRewardAt,
+        progress_current: progressCurrent,
+        progress_remaining: progressCurrent === 0 && stars > 0 ? 0 : nextRewardAt - progressCurrent,
+        reward_label: '10 ulduza 1 pulsuz içki',
+      },
+      campaigns: happyHours.map((row) => ({
+        id: row.id,
+        name: row.name,
+        discount_percent: row.discount_percent,
+        start_time: row.start_time,
+        end_time: row.end_time,
+        categories: row.categories,
+      })),
+      notifications,
+      history: sales,
+    };
+  }
+
+  return apiRequest<any>(`/api/v1/ops/customer-app/session?id=${encodeURIComponent(safeCard)}&t=${encodeURIComponent(safeToken)}`, {
+    method: 'GET',
+    tenantId: null,
+    auth: false,
+  });
+}
+
+export async function mark_customer_notification_read_live(notification_id: string, card_id: string, token: string, tenant_id?: string) {
+  const tenantId = tenant_id || defaultTenant();
+  const safeId = String(notification_id || '').trim();
+  const safeCard = String(card_id || '').trim();
+  const safeToken = String(token || '').trim();
+  if (!safeId || !safeCard || !safeToken) {
+    throw new Error('Notification read request is invalid');
+  }
+
+  if (!isBackendEnabled()) {
+    const notifications = filterTenantRecords(getDB<Notification>('notifications'), tenantId);
+    const foreign = getDB<Notification>('notifications').filter((row) => String(row.tenant_id || '') !== tenantId);
+    const row = notifications.find((entry) => entry.id === safeId && entry.card_id === safeCard);
+    if (!row) throw new Error('Notification not found');
+    row.is_read = true;
+    setDB('notifications', [...foreign, ...notifications]);
+    return { success: true };
+  }
+
+  return apiRequest<{ success: boolean }>(`/api/v1/ops/customer-app/notifications/${encodeURIComponent(safeId)}/read?id=${encodeURIComponent(safeCard)}&t=${encodeURIComponent(safeToken)}`, {
+    method: 'POST',
+    tenantId: null,
+    auth: false,
+  });
+}
