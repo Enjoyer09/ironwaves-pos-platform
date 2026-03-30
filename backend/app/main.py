@@ -326,8 +326,26 @@ def _run_startup_migrations():
                 """
             )
         )
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS loyalty_ledger (
+                    id VARCHAR(36) PRIMARY KEY,
+                    tenant_id VARCHAR(36) NOT NULL,
+                    card_id VARCHAR(80) NOT NULL,
+                    unit VARCHAR(16) NOT NULL DEFAULT 'points',
+                    entry_type VARCHAR(16) NOT NULL DEFAULT 'earn',
+                    amount NUMERIC(12,2) DEFAULT 0,
+                    source_sale_id VARCHAR(36),
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+                """
+            )
+        )
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_staff_notifications_tenant_id ON staff_notifications (tenant_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_staff_notifications_username ON staff_notifications (username)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_loyalty_ledger_tenant_card ON loyalty_ledger (tenant_id, card_id)"))
 
 
 @app.on_event("startup")

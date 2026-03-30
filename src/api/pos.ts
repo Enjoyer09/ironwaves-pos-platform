@@ -193,6 +193,9 @@ export const create_sale = (payload: SalePayload) => {
   const customer = customers.find((c: any) => c.card_id === payload.customer_card_id);
     
     const current_stars = customer ? Number(customer?.stars || 0) : null;
+    const customerProgram = get_settings(payload.tenant_id).customer_app_settings || { program_mode: 'points', cashback_percent: 5, reward_threshold: 10 };
+    const programMode = String((customerProgram as any).program_mode || 'points').toLowerCase() === 'cashback' ? 'cashback' : 'points';
+    const cashbackPercent = new Decimal((customerProgram as any).cashback_percent || 0);
 
     if (customer) {
       if (customer.discount_percent && customer.discount_percent > apply_discount_percent) {
@@ -252,11 +255,29 @@ export const create_sale = (payload: SalePayload) => {
       claim.redeemed_sale_id = sale_id;
       claim.redeemed_at = now;
       setDB('reward_claims', getDB<any>('reward_claims'));
-      customer_stars_after = Math.max(0, Number(customer_stars_after || customer.stars || 0) - Number(claim.points_cost || 0));
+      if (programMode === 'cashback') {
+        const ledger = getDB<any>('loyalty_ledger');
+        ledger.push({
+          id: uuidv4(),
+          tenant_id: payload.tenant_id,
+          card_id: customer.card_id,
+          unit: 'cashback',
+          entry_type: 'redeem',
+          amount: new Decimal(0).minus(new Decimal(claim.points_cost || 0)).toFixed(2),
+          source_sale_id: sale_id,
+          description: `Reward redeem ${claim.claim_code}`,
+          created_at: now,
+        });
+        setDB('loyalty_ledger', ledger);
+      } else {
+        customer_stars_after = Math.max(0, Number(customer_stars_after || customer.stars || 0) - Number(claim.points_cost || 0));
+      }
     }
 
     if (customer) {
-      customer.stars = customer_stars_after;
+      if (programMode !== 'cashback') {
+        customer.stars = customer_stars_after;
+      }
       setDB(`${payload.tenant_id}_customers`, customers);
     }
     // Short receipt code/token keep QR payload compact while preserving lookup safety.
@@ -354,6 +375,25 @@ export const create_sale = (payload: SalePayload) => {
       const sales = getDB<Sale>('sales');
       sales.push(sale);
       setDB('sales', sales);
+
+      if (customer && programMode === 'cashback') {
+        const ledger = getDB<any>('loyalty_ledger');
+        const cashbackAmount = final_total.times(cashbackPercent).dividedBy(100).toDecimalPlaces(2);
+        if (cashbackAmount.greaterThan(0)) {
+          ledger.push({
+            id: uuidv4(),
+            tenant_id: payload.tenant_id,
+            card_id: customer.card_id,
+            unit: 'cashback',
+            entry_type: 'earn',
+            amount: cashbackAmount.toString(),
+            source_sale_id: sale_id,
+            description: `Cashback earn ${cashbackPercent.toFixed(0)}%`,
+            created_at: now,
+          });
+          setDB('loyalty_ledger', ledger);
+        }
+      }
 
       // 2. Transaction: Save Finance
       const finances = getDB<FinanceEntry>('finance');

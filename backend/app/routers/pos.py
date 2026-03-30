@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import Customer, FinanceEntry, InventoryItem, MenuItem, Recipe, RewardClaim, Sale, Setting, Tenant
+from app.models import Customer, FinanceEntry, InventoryItem, LoyaltyLedgerEntry, MenuItem, Recipe, RewardClaim, Sale, Setting, Tenant
 from app.schemas import SaleCreateIn, SaleCreateOut
 
 
@@ -126,6 +126,14 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
 
     manual_discount = Decimal(str(payload.discount_percent or 0))
     effective_discount = max(manual_discount, customer_discount)
+    customer_program = _setting_value(
+        db,
+        tenant.id,
+        "customer_app_settings",
+        {"program_mode": "points", "cashback_percent": 5},
+    )
+    program_mode = str(customer_program.get("program_mode") or "points").strip().lower()
+    cashback_percent = Decimal(str(customer_program.get("cashback_percent") or 0))
     subtotal = sum((Decimal(str(i.price)) * i.qty for i in payload.cart_items), Decimal("0"))
     discount = (subtotal * (effective_discount / Decimal("100"))).quantize(Decimal("0.01"))
     total = (subtotal - discount).quantize(Decimal("0.01"))
@@ -325,12 +333,40 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
             )
 
     if customer is not None:
-        customer.stars = customer_stars_after
+        if program_mode != "cashback":
+            customer.stars = customer_stars_after
         if reward_claim:
-            customer.stars = max(0, int(customer.stars or 0) - int(reward_claim.points_cost or 0))
+            if program_mode != "cashback":
+                customer.stars = max(0, int(customer.stars or 0) - int(reward_claim.points_cost or 0))
             reward_claim.status = "REDEEMED"
             reward_claim.redeemed_sale_id = sale.id
             reward_claim.redeemed_at = datetime.utcnow()
+            if program_mode == "cashback":
+                db.add(
+                    LoyaltyLedgerEntry(
+                        tenant_id=tenant.id,
+                        card_id=customer.card_id,
+                        unit="cashback",
+                        entry_type="redeem",
+                        amount=Decimal("0.00") - Decimal(str(reward_claim.points_cost or 0)).quantize(Decimal("0.01")),
+                        source_sale_id=sale.id,
+                        description=f"Reward redeem {reward_claim.claim_code}",
+                    )
+                )
+        if program_mode == "cashback":
+            cashback_amount = (total * (cashback_percent / Decimal("100"))).quantize(Decimal("0.01"))
+            if cashback_amount > 0:
+                db.add(
+                    LoyaltyLedgerEntry(
+                        tenant_id=tenant.id,
+                        card_id=customer.card_id,
+                        unit="cashback",
+                        entry_type="earn",
+                        amount=cashback_amount,
+                        source_sale_id=sale.id,
+                        description=f"Cashback earn {cashback_percent}%",
+                    )
+                )
 
     db.commit()
 

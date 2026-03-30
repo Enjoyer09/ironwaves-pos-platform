@@ -249,6 +249,20 @@ class RewardClaim(Base):
     redeemed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class LoyaltyLedgerEntry(Base):
+    __tablename__ = "loyalty_ledger"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    card_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    unit: Mapped[str] = mapped_column(String(16), nullable=False, default="points")
+    entry_type: Mapped[str] = mapped_column(String(16), nullable=False, default="earn")
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    source_sale_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class StaffNotification(Base):
     __tablename__ = "staff_notifications"
 

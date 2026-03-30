@@ -205,7 +205,12 @@ export async function get_customer_app_session_live(card_id: string, token: stri
     const nextRewardAt = Math.max(1, Number(settings.reward_threshold || 10));
     const programMode = String(settings.program_mode || 'points').toLowerCase() === 'cashback' ? 'cashback' : 'points';
     const cashbackPercent = Math.max(0, Number(settings.cashback_percent || 0));
-    const cashbackEarned = sales.reduce((acc: number, row: any) => acc + (Number(row.total || 0) * cashbackPercent) / 100, 0);
+    const ledgerRows = (getDB<any>('loyalty_ledger') || []).filter(
+      (row) => String(row.tenant_id || '') === tenantId && row.card_id === customer.card_id && String(row.unit || '') === 'cashback',
+    );
+    const cashbackEarned = ledgerRows.length > 0
+      ? ledgerRows.reduce((acc: number, row: any) => acc + Number(row.amount || 0), 0)
+      : sales.reduce((acc: number, row: any) => acc + (Number(row.total || 0) * cashbackPercent) / 100, 0);
     const balanceValue = programMode === 'cashback'
       ? Math.max(0, cashbackEarned - pendingClaims.length * nextRewardAt)
       : stars;
