@@ -1,5 +1,6 @@
 import React from 'react';
 import { Bell, Gift, History, QrCode, Sparkles } from 'lucide-react';
+import QRCode from 'qrcode';
 import { tx } from '../i18n';
 import { useAppStore } from '../store';
 import { claim_customer_reward_live, get_customer_app_session_live, mark_customer_notification_read_live } from '../api/crm';
@@ -15,6 +16,7 @@ export default function CustomerApp({ cardId, token }: Props) {
   const [data, setData] = React.useState<any | null>(null);
   const [error, setError] = React.useState('');
   const [claiming, setClaiming] = React.useState(false);
+  const [cardQr, setCardQr] = React.useState('');
 
   const load = React.useCallback(async () => {
     try {
@@ -32,6 +34,27 @@ export default function CustomerApp({ cardId, token }: Props) {
   React.useEffect(() => {
     void load();
   }, [load]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const payload = cardId || '';
+    if (!payload) {
+      setCardQr('');
+      return;
+    }
+    void QRCode.toDataURL(payload, {
+      width: 220,
+      margin: 1,
+      color: { dark: '#0f172a', light: '#ffffff' },
+    }).then((url) => {
+      if (!cancelled) setCardQr(url);
+    }).catch(() => {
+      if (!cancelled) setCardQr('');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [cardId]);
 
   const markRead = async (notificationId: string) => {
     try {
@@ -83,6 +106,10 @@ export default function CustomerApp({ cardId, token }: Props) {
   const progressPercent = wallet.next_reward_at ? Math.min(100, Math.round((Number(wallet.progress_current || 0) / Number(wallet.next_reward_at || 1)) * 100)) : 0;
   const primaryColor = String(branding.primary_color || '#facc15');
   const accentColor = String(branding.accent_color || '#22d3ee');
+  const programMode = String(wallet.program_mode || 'points').toLowerCase();
+  const showQrCard = branding.show_qr_card !== false;
+  const showWallet = branding.show_wallet !== false;
+  const balanceSuffix = programMode === 'cashback' ? ' ₼' : '';
 
   return (
     <div
@@ -107,25 +134,35 @@ export default function CustomerApp({ cardId, token }: Props) {
                 <p className="mt-1 text-sm text-slate-400">{branding.hero_subtitle || customer.card_id}</p>
               </div>
             </div>
-            <div className="rounded-3xl px-5 py-4" style={{ border: `1px solid ${accentColor}33`, backgroundColor: `${accentColor}1a` }}>
-              <div className="text-xs uppercase tracking-[0.2em]" style={{ color: accentColor }}>{wallet.points_label || 'Ulduz'}</div>
-              <div className="mt-1 text-4xl font-black text-white">{wallet.stars_balance ?? 0}</div>
-              <div className="text-sm text-cyan-100">{customer.type || 'Member'}</div>
-            </div>
+            {showWallet ? (
+              <div className="rounded-3xl px-5 py-4" style={{ border: `1px solid ${accentColor}33`, backgroundColor: `${accentColor}1a` }}>
+                <div className="text-xs uppercase tracking-[0.2em]" style={{ color: accentColor }}>{wallet.points_label || 'Ulduz'}</div>
+                <div className="mt-1 text-4xl font-black text-white">{Number(wallet.stars_balance ?? 0).toFixed(programMode === 'cashback' ? 2 : 0)}{balanceSuffix}</div>
+                <div className="text-sm text-cyan-100">
+                  {programMode === 'cashback'
+                    ? `${Number(wallet.cashback_percent || 0).toFixed(0)}% cashback`
+                    : (customer.type || 'Member')}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-            <div className="flex items-center gap-2 text-slate-300"><Sparkles size={18} /> {tx(lang, 'Növbəti reward', 'Следующая награда', 'Next reward')}</div>
+            <div className="flex items-center gap-2 text-slate-300"><Sparkles size={18} /> {programMode === 'cashback' ? tx(lang, 'Növbəti cash-out', 'Следующий cash-out', 'Next cash-out') : tx(lang, 'Növbəti reward', 'Следующая награда', 'Next reward')}</div>
             <div className="mt-3 text-2xl font-bold">{wallet.reward_label || 'Reward'}</div>
             <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-800">
               <div className="h-full rounded-full" style={{ width: `${progressPercent}%`, backgroundColor: primaryColor }} />
             </div>
             <div className="mt-2 text-sm text-slate-400">
               {wallet.progress_remaining > 0
-                ? tx(lang, `${wallet.progress_remaining} ulduz qalıb`, `Осталось ${wallet.progress_remaining} звезд`, `${wallet.progress_remaining} stars remaining`)
-                : tx(lang, 'Reward hazırdır', 'Награда готова', 'Reward is ready')}
+                ? (programMode === 'cashback'
+                    ? tx(lang, `${wallet.progress_remaining} AZN qalıb`, `Осталось ${wallet.progress_remaining} AZN`, `${wallet.progress_remaining} AZN remaining`)
+                    : tx(lang, `${wallet.progress_remaining} ulduz qalıb`, `Осталось ${wallet.progress_remaining} звезд`, `${wallet.progress_remaining} stars remaining`))
+                : (programMode === 'cashback'
+                    ? tx(lang, 'Cash-out hazırdır', 'Cash-out готов', 'Cash-out is ready')
+                    : tx(lang, 'Reward hazırdır', 'Награда готова', 'Reward is ready'))}
             </div>
           </div>
 
@@ -152,11 +189,22 @@ export default function CustomerApp({ cardId, token }: Props) {
             ) : null}
           </div>
 
+          {showQrCard ? (
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
             <div className="flex items-center gap-2 text-slate-300"><QrCode size={18} /> {tx(lang, 'Kart', 'Карта', 'Card')}</div>
-            <div className="mt-3 text-lg font-semibold">{customer.card_id}</div>
-            <div className="mt-2 text-sm text-slate-400">{tx(lang, 'Bu ID ilə kassada tanınacaqsınız', 'По этому ID вас узнают на кассе', 'Use this ID at the POS')}</div>
+            <div className="mt-3 flex flex-col items-center rounded-3xl border border-white/10 bg-white/90 p-4 text-slate-900">
+              {cardQr ? <img src={cardQr} alt="customer qr" className="h-40 w-40 rounded-2xl" /> : null}
+              <div className="mt-3 text-lg font-semibold">{customer.card_id}</div>
+            </div>
+            <div className="mt-2 text-sm text-slate-400">{tx(lang, 'Müştəri kassada bu QR kodu göstərir, kassir skan edib kartı tanıyır.', 'Покажите этот QR на кассе для сканирования.', 'Show this QR at the POS so the cashier can scan it.')}</div>
           </div>
+          ) : (
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <div className="flex items-center gap-2 text-slate-300"><QrCode size={18} /> {tx(lang, 'Kart', 'Карта', 'Card')}</div>
+              <div className="mt-3 text-lg font-semibold">{customer.card_id}</div>
+              <div className="mt-2 text-sm text-slate-400">{tx(lang, 'Bu ID ilə kassada tanınacaqsınız', 'По этому ID вас узнают на кассе', 'Use this ID at the POS')}</div>
+            </div>
+          )}
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">

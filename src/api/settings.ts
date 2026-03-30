@@ -46,6 +46,7 @@ function getSettings(tenant_id?: string): Settings {
       qr_settings: { base_url: '' },
       customer_app_settings: {
         enabled: true,
+        program_mode: 'points',
         app_name: 'Loyalty Club',
         hero_title: 'Xoş gəldiniz',
         hero_subtitle: 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
@@ -53,8 +54,11 @@ function getSettings(tenant_id?: string): Settings {
         reward_name: 'Reward',
         reward_threshold: 10,
         reward_description: '10 ulduza 1 pulsuz içki',
+        cashback_percent: 5,
         primary_color: '#facc15',
         accent_color: '#22d3ee',
+        show_qr_card: true,
+        show_wallet: true,
         show_campaigns: true,
         show_history: true,
         show_notifications: true,
@@ -175,6 +179,7 @@ export function get_settings(tenant_id?: string) {
   if (!s.customer_app_settings) {
     s.customer_app_settings = {
       enabled: true,
+      program_mode: 'points',
       app_name: 'Loyalty Club',
       hero_title: 'Xoş gəldiniz',
       hero_subtitle: 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
@@ -182,8 +187,11 @@ export function get_settings(tenant_id?: string) {
       reward_name: 'Reward',
       reward_threshold: 10,
       reward_description: '10 ulduza 1 pulsuz içki',
+      cashback_percent: 5,
       primary_color: '#facc15',
       accent_color: '#22d3ee',
+      show_qr_card: true,
+      show_wallet: true,
       show_campaigns: true,
       show_history: true,
       show_notifications: true,
@@ -309,6 +317,7 @@ export function update_qr_settings(payload: { base_url: string }) {
 
 export function update_customer_app_settings(payload: {
   enabled: boolean;
+  program_mode?: 'points' | 'cashback';
   app_name: string;
   hero_title: string;
   hero_subtitle: string;
@@ -316,8 +325,11 @@ export function update_customer_app_settings(payload: {
   reward_name: string;
   reward_threshold: number;
   reward_description: string;
+  cashback_percent?: number;
   primary_color: string;
   accent_color: string;
+  show_qr_card?: boolean;
+  show_wallet?: boolean;
   show_campaigns: boolean;
   show_history: boolean;
   show_notifications: boolean;
@@ -325,6 +337,7 @@ export function update_customer_app_settings(payload: {
   const settings = getSettings();
   settings.customer_app_settings = {
     enabled: Boolean(payload.enabled),
+    program_mode: payload.program_mode === 'cashback' ? 'cashback' : 'points',
     app_name: String(payload.app_name || '').trim() || 'Loyalty Club',
     hero_title: String(payload.hero_title || '').trim() || 'Xoş gəldiniz',
     hero_subtitle: String(payload.hero_subtitle || '').trim() || 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
@@ -332,8 +345,11 @@ export function update_customer_app_settings(payload: {
     reward_name: String(payload.reward_name || '').trim() || 'Reward',
     reward_threshold: Number.isFinite(payload.reward_threshold) ? Math.max(1, Number(payload.reward_threshold)) : 10,
     reward_description: String(payload.reward_description || '').trim() || '10 ulduza 1 pulsuz içki',
+    cashback_percent: Number.isFinite(payload.cashback_percent) ? Math.max(0, Number(payload.cashback_percent)) : 5,
     primary_color: String(payload.primary_color || '').trim() || '#facc15',
     accent_color: String(payload.accent_color || '').trim() || '#22d3ee',
+    show_qr_card: payload.show_qr_card !== false,
+    show_wallet: payload.show_wallet !== false,
     show_campaigns: Boolean(payload.show_campaigns),
     show_history: Boolean(payload.show_history),
     show_notifications: Boolean(payload.show_notifications),
@@ -395,6 +411,7 @@ export async function update_qr_settings_live(payload: { base_url: string }) {
 
 export async function update_customer_app_settings_live(payload: {
   enabled: boolean;
+  program_mode?: 'points' | 'cashback';
   app_name: string;
   hero_title: string;
   hero_subtitle: string;
@@ -402,8 +419,11 @@ export async function update_customer_app_settings_live(payload: {
   reward_name: string;
   reward_threshold: number;
   reward_description: string;
+  cashback_percent?: number;
   primary_color: string;
   accent_color: string;
+  show_qr_card?: boolean;
+  show_wallet?: boolean;
   show_campaigns: boolean;
   show_history: boolean;
   show_notifications: boolean;

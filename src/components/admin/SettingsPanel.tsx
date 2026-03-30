@@ -58,6 +58,7 @@ export default function SettingsPanel() {
   });
   const [customerAppSettings, setCustomerAppSettings] = useState({
     enabled: true,
+    program_mode: 'points' as 'points' | 'cashback',
     app_name: 'Loyalty Club',
     hero_title: 'Xoş gəldiniz',
     hero_subtitle: 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
@@ -65,8 +66,11 @@ export default function SettingsPanel() {
     reward_name: 'Reward',
     reward_threshold: '10',
     reward_description: '10 ulduza 1 pulsuz içki',
+    cashback_percent: '5',
     primary_color: '#facc15',
     accent_color: '#22d3ee',
+    show_qr_card: true,
+    show_wallet: true,
     show_campaigns: true,
     show_history: true,
     show_notifications: true,
@@ -148,6 +152,7 @@ export default function SettingsPanel() {
       });
       setCustomerAppSettings({
         enabled: Boolean(settingsRes.value.customer_app_settings?.enabled ?? true),
+        program_mode: (settingsRes.value.customer_app_settings?.program_mode as 'points' | 'cashback') || 'points',
         app_name: String(settingsRes.value.customer_app_settings?.app_name || 'Loyalty Club'),
         hero_title: String(settingsRes.value.customer_app_settings?.hero_title || 'Xoş gəldiniz'),
         hero_subtitle: String(settingsRes.value.customer_app_settings?.hero_subtitle || 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.'),
@@ -155,8 +160,11 @@ export default function SettingsPanel() {
         reward_name: String(settingsRes.value.customer_app_settings?.reward_name || 'Reward'),
         reward_threshold: String(settingsRes.value.customer_app_settings?.reward_threshold || 10),
         reward_description: String(settingsRes.value.customer_app_settings?.reward_description || '10 ulduza 1 pulsuz içki'),
+        cashback_percent: String(settingsRes.value.customer_app_settings?.cashback_percent || 5),
         primary_color: String(settingsRes.value.customer_app_settings?.primary_color || '#facc15'),
         accent_color: String(settingsRes.value.customer_app_settings?.accent_color || '#22d3ee'),
+        show_qr_card: Boolean(settingsRes.value.customer_app_settings?.show_qr_card ?? true),
+        show_wallet: Boolean(settingsRes.value.customer_app_settings?.show_wallet ?? true),
         show_campaigns: Boolean(settingsRes.value.customer_app_settings?.show_campaigns ?? true),
         show_history: Boolean(settingsRes.value.customer_app_settings?.show_history ?? true),
         show_notifications: Boolean(settingsRes.value.customer_app_settings?.show_notifications ?? true),
@@ -406,6 +414,7 @@ export default function SettingsPanel() {
   const saveCustomerAppSettings = async () => {
     await update_customer_app_settings_live({
       enabled: customerAppSettings.enabled,
+      program_mode: customerAppSettings.program_mode,
       app_name: customerAppSettings.app_name,
       hero_title: customerAppSettings.hero_title,
       hero_subtitle: customerAppSettings.hero_subtitle,
@@ -413,8 +422,11 @@ export default function SettingsPanel() {
       reward_name: customerAppSettings.reward_name,
       reward_threshold: Number(customerAppSettings.reward_threshold || 10),
       reward_description: customerAppSettings.reward_description,
+      cashback_percent: Number(customerAppSettings.cashback_percent || 5),
       primary_color: customerAppSettings.primary_color,
       accent_color: customerAppSettings.accent_color,
+      show_qr_card: customerAppSettings.show_qr_card,
+      show_wallet: customerAppSettings.show_wallet,
       show_campaigns: customerAppSettings.show_campaigns,
       show_history: customerAppSettings.show_history,
       show_notifications: customerAppSettings.show_notifications,
@@ -547,15 +559,28 @@ export default function SettingsPanel() {
             <input type="checkbox" checked={customerAppSettings.enabled} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, enabled: e.target.checked }))} />
             <span>{tx(lang, 'Customer app aktiv olsun', 'Включить customer app', 'Enable customer app')}</span>
           </label>
+          <select className="neon-input" value={customerAppSettings.program_mode} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, program_mode: e.target.value as 'points' | 'cashback' }))}>
+            <option value="points">{tx(lang, 'Point / Ulduz sistemi', 'Система баллов / звезд', 'Points / stars program')}</option>
+            <option value="cashback">{tx(lang, 'Cashback sistemi', 'Система cashback', 'Cashback program')}</option>
+          </select>
           <input className="neon-input" value={customerAppSettings.app_name} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, app_name: e.target.value }))} placeholder={tx(lang, 'App adı', 'Название приложения', 'App name')} />
           <input className="neon-input" value={customerAppSettings.points_label} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, points_label: e.target.value }))} placeholder={tx(lang, 'Point adı', 'Название баллов', 'Point label')} />
           <input className="neon-input" value={customerAppSettings.hero_title} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, hero_title: e.target.value }))} placeholder={tx(lang, 'Başlıq', 'Заголовок', 'Hero title')} />
           <input className="neon-input" value={customerAppSettings.reward_name} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, reward_name: e.target.value }))} placeholder={tx(lang, 'Reward adı', 'Название награды', 'Reward name')} />
           <input className="neon-input md:col-span-2" value={customerAppSettings.hero_subtitle} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, hero_subtitle: e.target.value }))} placeholder={tx(lang, 'Qısa izah', 'Краткое описание', 'Hero subtitle')} />
           <input className="neon-input" type="number" min={1} value={customerAppSettings.reward_threshold} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, reward_threshold: e.target.value }))} placeholder={tx(lang, 'Reward həddi', 'Порог награды', 'Reward threshold')} />
+          <input className="neon-input" type="number" min={0} value={customerAppSettings.cashback_percent} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, cashback_percent: e.target.value }))} placeholder={tx(lang, 'Cashback %', 'Cashback %', 'Cashback %')} />
           <input className="neon-input md:col-span-2" value={customerAppSettings.reward_description} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, reward_description: e.target.value }))} placeholder={tx(lang, 'Reward izahı', 'Описание награды', 'Reward description')} />
           <input className="neon-input" value={customerAppSettings.primary_color} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, primary_color: e.target.value }))} placeholder={tx(lang, 'Primary rəng', 'Primary цвет', 'Primary color')} />
           <input className="neon-input" value={customerAppSettings.accent_color} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, accent_color: e.target.value }))} placeholder={tx(lang, 'Accent rəng', 'Accent цвет', 'Accent color')} />
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={customerAppSettings.show_qr_card} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, show_qr_card: e.target.checked }))} />
+            <span>{tx(lang, 'QR kartı göstər', 'Показывать QR-карту', 'Show QR card')}</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={customerAppSettings.show_wallet} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, show_wallet: e.target.checked }))} />
+            <span>{tx(lang, 'Balans kartını göstər', 'Показывать баланс', 'Show wallet balance')}</span>
+          </label>
           <label className="flex items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" checked={customerAppSettings.show_campaigns} onChange={(e) => setCustomerAppSettings((prev) => ({ ...prev, show_campaigns: e.target.checked }))} />
             <span>{tx(lang, 'Kampaniyaları göstər', 'Показывать кампании', 'Show campaigns')}</span>
