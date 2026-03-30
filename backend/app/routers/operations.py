@@ -241,6 +241,21 @@ class SendEmailIn(BaseModel):
     recipients: list[str] | None = None
 
 
+def _resolve_customer_session(db: Session, tenant_id: str, card_id: str, token: str) -> Customer:
+    safe_card = str(card_id or "").strip()
+    safe_token = str(token or "").strip()
+    if not safe_card or not safe_token:
+        raise HTTPException(status_code=401, detail="Customer session is invalid")
+    row = (
+        db.query(Customer)
+        .filter(Customer.tenant_id == tenant_id, func.lower(Customer.card_id) == safe_card.lower())
+        .first()
+    )
+    if not row or row.secret_token != safe_token:
+        raise HTTPException(status_code=401, detail="Customer session is invalid")
+    return row
+
+
 @router.get("/settings")
 def get_app_settings(
     db: Session = Depends(get_db),
@@ -535,6 +550,124 @@ def get_public_branding(
         "logo_url": row.logo_url or "",
         "receipt_footer": row.receipt_footer or "",
     }
+
+
+@router.get("/customer-app/session")
+def get_customer_app_session(
+    id: str = Query(...),
+    t: str = Query(...),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    customer = _resolve_customer_session(db, tenant.id, id, t)
+    branding = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant.id).first()
+    sales = (
+        db.query(Sale)
+        .filter(Sale.tenant_id == tenant.id, Sale.customer_card_id == customer.card_id)
+        .order_by(Sale.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    notifications = (
+        db.query(Notification)
+        .filter(Notification.tenant_id == tenant.id, Notification.card_id == customer.card_id)
+        .order_by(Notification.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    active_campaigns = (
+        db.query(HappyHour)
+        .filter(HappyHour.tenant_id == tenant.id, HappyHour.is_active == True)
+        .order_by(HappyHour.created_at.desc())
+        .limit(12)
+        .all()
+    )
+
+    stars = int(customer.stars or 0)
+    next_reward_at = 10
+    progress_current = stars % next_reward_at
+    progress_remaining = 0 if progress_current == 0 and stars > 0 else next_reward_at - progress_current
+    available_rewards = stars // next_reward_at
+
+    return {
+        "tenant_id": tenant.id,
+        "branding": {
+            "company_name": branding.company_name if branding else tenant.name,
+            "website": (branding.website if branding else f"https://{tenant.domain}") or f"https://{tenant.domain}",
+            "logo_url": (branding.logo_url if branding else "") or "",
+            "receipt_footer": (branding.receipt_footer if branding else "") or "",
+        },
+        "customer": {
+            "card_id": customer.card_id,
+            "type": customer.type,
+            "stars": stars,
+            "discount_percent": str(customer.discount_percent or 0),
+            "created_at": customer.created_at.isoformat() if customer.created_at else None,
+        },
+        "wallet": {
+            "points_label": "Ulduz",
+            "stars_balance": stars,
+            "available_rewards": available_rewards,
+            "next_reward_at": next_reward_at,
+            "progress_current": progress_current,
+            "progress_remaining": progress_remaining,
+            "reward_label": "10 ulduza 1 pulsuz içki",
+        },
+        "campaigns": [
+            {
+                "id": row.id,
+                "name": row.name,
+                "discount_percent": row.discount_percent,
+                "start_time": row.start_time,
+                "end_time": row.end_time,
+                "categories": row.categories,
+            }
+            for row in active_campaigns
+        ],
+        "notifications": [
+            {
+                "id": row.id,
+                "message": row.message,
+                "is_read": bool(row.is_read),
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+            for row in notifications
+        ],
+        "history": [
+            {
+                "id": row.id,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "total": str(row.total),
+                "payment_method": row.payment_method,
+                "order_type": row.order_type,
+                "discount_amount": str(row.discount_amount or 0),
+                "status": row.status,
+                "items": _json_load(row.items_json, []),
+            }
+            for row in sales
+        ],
+    }
+
+
+@router.post("/customer-app/notifications/{notification_id}/read")
+def mark_customer_notification_read(
+    notification_id: str,
+    id: str = Query(...),
+    t: str = Query(...),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    customer = _resolve_customer_session(db, tenant.id, id, t)
+    row = (
+        db.query(Notification)
+        .filter(Notification.id == notification_id, Notification.tenant_id == tenant.id, Notification.card_id == customer.card_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    row.is_read = True
+    db.commit()
+    return {"success": True}
 
 
 @router.put("/business-profile")
