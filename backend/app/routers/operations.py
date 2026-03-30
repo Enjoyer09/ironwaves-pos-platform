@@ -20,6 +20,7 @@ from app.models import (
     HappyHour,
     InventoryItem,
     KitchenOrder,
+    LoyaltyLedgerEntry,
     Notification,
     Recipe,
     RewardClaim,
@@ -683,8 +684,15 @@ def get_customer_app_session(
     cashback_percent = Decimal(str(app_settings.get("cashback_percent") or 0))
     cashback_earned = Decimal("0.00")
     if program_mode == "cashback":
-        for row in sales:
-            cashback_earned += (Decimal(str(row.total or 0)) * (cashback_percent / Decimal("100"))).quantize(Decimal("0.01"))
+        ledger_rows = (
+            db.query(LoyaltyLedgerEntry)
+            .filter(LoyaltyLedgerEntry.tenant_id == tenant.id, LoyaltyLedgerEntry.card_id == customer.card_id, LoyaltyLedgerEntry.unit == "cashback")
+            .all()
+        )
+        cashback_earned = sum((Decimal(str(row.amount or 0)) for row in ledger_rows), Decimal("0.00"))
+        if cashback_earned == Decimal("0.00"):
+            for row in sales:
+                cashback_earned += (Decimal(str(row.total or 0)) * (cashback_percent / Decimal("100"))).quantize(Decimal("0.01"))
     redeemed_reserved = Decimal(str(len(pending_claims) * next_reward_at))
     balance_value = Decimal(str(stars))
     if program_mode == "cashback":

@@ -37,7 +37,7 @@ export default function CustomerApp({ cardId, token }: Props) {
 
   React.useEffect(() => {
     let cancelled = false;
-    const payload = cardId || '';
+    const payload = `IWPOS:CARD:${cardId || ''}`;
     if (!payload) {
       setCardQr('');
       return;

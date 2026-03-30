@@ -668,7 +668,19 @@ export default function POS() {
   const handleFindCustomer = () => {
     const code = (ctx.customerQR || '').trim();
     if (!code) return;
-    const extracted = code.includes('id=') ? code.split('id=')[1]?.split('&')[0] : code;
+    let extracted = code;
+    if (code.includes('id=')) {
+      extracted = code.split('id=')[1]?.split('&')[0] || code;
+    } else if (code.toUpperCase().startsWith('IWPOS:CARD:')) {
+      extracted = code.split(':').slice(2).join(':') || code;
+    } else if (code.toUpperCase().startsWith('CARD:')) {
+      extracted = code.split(':').slice(1).join(':') || code;
+    } else if (code.toUpperCase().startsWith('IWPOS:CLAIM:')) {
+      const claimCode = code.split(':').slice(2).join(':').trim().toUpperCase();
+      patchCtx({ rewardClaimCode: claimCode });
+      notify('success', tx(lang, 'Reward kodu oxundu', 'Код награды считан', 'Reward code scanned'));
+      return;
+    }
     const customers = getDB<any>(`${tenantId}_customers`) || [];
     const found = customers.find((c: any) => c.card_id === extracted);
     if (!found) {
