@@ -123,6 +123,17 @@ export async function create_tenant(payload: {
       },
     });
 
+    const domainRows = getTenantDomains();
+    if (!domainRows.some((row) => row.domain === String(created.domain || domain))) {
+      domainRows.push({
+        id: uuidv4(),
+        tenant_id: String(created.id),
+        domain: String(created.domain || domain),
+        is_primary: true,
+      });
+      setTenantDomains(domainRows);
+    }
+
     return {
       success: true,
       tenant_id: String(created.id),

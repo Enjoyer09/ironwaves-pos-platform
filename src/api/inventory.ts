@@ -191,7 +191,13 @@ export async function get_inventory_items_live(tenant_id: string = 'tenant_defau
   if (!isBackendEnabled()) {
     return get_inventory_items(tenant_id);
   }
-  return apiRequest<any[]>('/api/v1/catalog/inventory', { tenantId: null });
+  try {
+    const rows = await apiRequest<any[]>('/api/v1/catalog/inventory', { tenantId: null });
+    if (Array.isArray(rows)) saveInventory(tenant_id, rows.map((row) => ({ ...row, tenant_id: row?.tenant_id || tenant_id })));
+    return rows;
+  } catch {
+    return get_inventory_items(tenant_id);
+  }
 }
 
 export async function add_inventory_item_live(data: {
@@ -207,55 +213,84 @@ export async function add_inventory_item_live(data: {
   if (!isBackendEnabled()) {
     return add_inventory_item(data, user);
   }
-  return apiRequest<any>('/api/v1/catalog/inventory', {
-    method: 'POST',
-    tenantId: null,
-    body: {
-      name: data.name,
-      stock_qty: new Decimal(data.stock_qty).toFixed(3),
-      unit: data.unit,
-      category: data.category,
-      type: data.type,
-      unit_cost: new Decimal(data.unit_cost).toFixed(4),
-      min_limit: new Decimal(data.min_limit).toFixed(3),
-    },
-  });
+  try {
+    const created = await apiRequest<any>('/api/v1/catalog/inventory', {
+      method: 'POST',
+      tenantId: null,
+      body: {
+        name: data.name,
+        stock_qty: new Decimal(data.stock_qty).toFixed(3),
+        unit: data.unit,
+        category: data.category,
+        type: data.type,
+        unit_cost: new Decimal(data.unit_cost).toFixed(4),
+        min_limit: new Decimal(data.min_limit).toFixed(3),
+      },
+    });
+    const inventoryItems = getInventory(data.tenant_id || 'tenant_default');
+    const filtered = inventoryItems.filter((row) => String(row.id) !== String(created?.id));
+    saveInventory(data.tenant_id || 'tenant_default', [...filtered, { ...created, tenant_id: created?.tenant_id || data.tenant_id || 'tenant_default' }]);
+    return created;
+  } catch {
+    return add_inventory_item(data, user);
+  }
 }
 
 export async function restock_item_live(tenant_id: string, item_id: string, qty_added: Decimal, total_price: Decimal, user: string = 'system') {
   if (!isBackendEnabled()) {
     return restock_item(tenant_id, item_id, qty_added, total_price, user);
   }
-  return apiRequest<any>(`/api/v1/catalog/inventory/${encodeURIComponent(item_id)}/restock`, {
-    method: 'POST',
-    tenantId: null,
-    body: {
-      qty_added: new Decimal(qty_added).toFixed(3),
-      total_price: new Decimal(total_price).toFixed(2),
-    },
-  });
+  try {
+    const updated = await apiRequest<any>(`/api/v1/catalog/inventory/${encodeURIComponent(item_id)}/restock`, {
+      method: 'POST',
+      tenantId: null,
+      body: {
+        qty_added: new Decimal(qty_added).toFixed(3),
+        total_price: new Decimal(total_price).toFixed(2),
+      },
+    });
+    const inventoryItems = getInventory(tenant_id).filter((row) => String(row.id) !== String(updated?.id));
+    saveInventory(tenant_id, [...inventoryItems, { ...updated, tenant_id: updated?.tenant_id || tenant_id }]);
+    return updated;
+  } catch {
+    return restock_item(tenant_id, item_id, qty_added, total_price, user);
+  }
 }
 
 export async function record_loss_live(item_id: string, qty_removed: Decimal, reason: string, recorded_by: string) {
   if (!isBackendEnabled()) {
     return record_loss(item_id, qty_removed, reason, recorded_by);
   }
-  return apiRequest<{ success: boolean; loss_amount: string }>(`/api/v1/catalog/inventory/${encodeURIComponent(item_id)}/loss`, {
-    method: 'POST',
-    tenantId: null,
-    body: {
-      qty_removed: new Decimal(qty_removed).toFixed(3),
-      reason,
-    },
-  });
+  try {
+    return await apiRequest<{ success: boolean; loss_amount: string }>(`/api/v1/catalog/inventory/${encodeURIComponent(item_id)}/loss`, {
+      method: 'POST',
+      tenantId: null,
+      body: {
+        qty_removed: new Decimal(qty_removed).toFixed(3),
+        reason,
+      },
+    });
+  } catch {
+    return record_loss(item_id, qty_removed, reason, recorded_by) as any;
+  }
 }
 
 export async function delete_inventory_item_live(item_id: string, user: string = 'system') {
   if (!isBackendEnabled()) {
     return delete_inventory_item(item_id, user);
   }
-  return apiRequest<{ success: boolean }>(`/api/v1/catalog/inventory/${encodeURIComponent(item_id)}`, {
-    method: 'DELETE',
-    tenantId: null,
-  });
+  try {
+    const result = await apiRequest<{ success: boolean }>(`/api/v1/catalog/inventory/${encodeURIComponent(item_id)}`, {
+      method: 'DELETE',
+      tenantId: null,
+    });
+    const allInventory = getDB<any>('inventory');
+    const found = allInventory.find(i => i.id === item_id);
+    const tenant_id = found?.tenant_id || 'tenant_default';
+    const filtered = getInventory(tenant_id).filter(i => i.id !== item_id);
+    saveInventory(tenant_id, filtered);
+    return result;
+  } catch {
+    return delete_inventory_item(item_id, user) as any;
+  }
 }
