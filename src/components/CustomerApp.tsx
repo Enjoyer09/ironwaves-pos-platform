@@ -65,10 +65,16 @@ export default function CustomerApp({ cardId, token }: Props) {
   const campaigns = Array.isArray(data.campaigns) ? data.campaigns : [];
   const history = Array.isArray(data.history) ? data.history : [];
   const customer = data.customer || {};
+  const rewards = Array.isArray(wallet.rewards) ? wallet.rewards : [];
   const progressPercent = wallet.next_reward_at ? Math.min(100, Math.round((Number(wallet.progress_current || 0) / Number(wallet.next_reward_at || 1)) * 100)) : 0;
+  const primaryColor = String(branding.primary_color || '#facc15');
+  const accentColor = String(branding.accent_color || '#22d3ee');
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(250,204,21,0.16),transparent_18%),linear-gradient(180deg,#090d13,#111827)] px-4 py-6 text-slate-100">
+    <div
+      className="min-h-screen px-4 py-6 text-slate-100"
+      style={{ backgroundImage: `radial-gradient(circle at top, ${primaryColor}33, transparent 18%), linear-gradient(180deg,#090d13,#111827)` }}
+    >
       <div className="mx-auto max-w-5xl space-y-6">
         <div className="rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -81,13 +87,14 @@ export default function CustomerApp({ cardId, token }: Props) {
                 </div>
               )}
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{tx(lang, 'Loyalty Club', 'Loyalty Club', 'Loyalty Club')}</p>
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{branding.app_name || tx(lang, 'Loyalty Club', 'Loyalty Club', 'Loyalty Club')}</p>
                 <h1 className="text-3xl font-black">{branding.company_name || 'iRonWaves POS RC'}</h1>
-                <p className="mt-1 text-sm text-slate-400">{customer.card_id}</p>
+                <p className="mt-1 text-sm text-slate-300">{branding.hero_title || tx(lang, 'Xoş gəldiniz', 'Добро пожаловать', 'Welcome')}</p>
+                <p className="mt-1 text-sm text-slate-400">{branding.hero_subtitle || customer.card_id}</p>
               </div>
             </div>
-            <div className="rounded-3xl border border-cyan-300/20 bg-cyan-400/10 px-5 py-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-cyan-200">{wallet.points_label || 'Ulduz'}</div>
+            <div className="rounded-3xl px-5 py-4" style={{ border: `1px solid ${accentColor}33`, backgroundColor: `${accentColor}1a` }}>
+              <div className="text-xs uppercase tracking-[0.2em]" style={{ color: accentColor }}>{wallet.points_label || 'Ulduz'}</div>
               <div className="mt-1 text-4xl font-black text-white">{wallet.stars_balance ?? 0}</div>
               <div className="text-sm text-cyan-100">{customer.type || 'Member'}</div>
             </div>
@@ -99,7 +106,7 @@ export default function CustomerApp({ cardId, token }: Props) {
             <div className="flex items-center gap-2 text-slate-300"><Sparkles size={18} /> {tx(lang, 'Növbəti reward', 'Следующая награда', 'Next reward')}</div>
             <div className="mt-3 text-2xl font-bold">{wallet.reward_label || 'Reward'}</div>
             <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-800">
-              <div className="h-full rounded-full bg-yellow-400" style={{ width: `${progressPercent}%` }} />
+              <div className="h-full rounded-full" style={{ width: `${progressPercent}%`, backgroundColor: primaryColor }} />
             </div>
             <div className="mt-2 text-sm text-slate-400">
               {wallet.progress_remaining > 0
@@ -112,6 +119,12 @@ export default function CustomerApp({ cardId, token }: Props) {
             <div className="flex items-center gap-2 text-slate-300"><Gift size={18} /> {tx(lang, 'Hazır reward-lar', 'Готовые награды', 'Available rewards')}</div>
             <div className="mt-3 text-4xl font-black">{wallet.available_rewards ?? 0}</div>
             <div className="mt-2 text-sm text-slate-400">{tx(lang, 'POS-da istifadə edilə bilər', 'Можно использовать на кассе', 'Can be redeemed at the POS')}</div>
+            {rewards[0] ? (
+              <div className="mt-3 rounded-2xl border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-300">
+                <div className="font-semibold text-white">{rewards[0].title}</div>
+                <div className="mt-1 text-slate-400">{rewards[0].description}</div>
+              </div>
+            ) : null}
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5">

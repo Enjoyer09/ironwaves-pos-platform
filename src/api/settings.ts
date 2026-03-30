@@ -44,6 +44,21 @@ function getSettings(tenant_id?: string): Settings {
       },
       print_settings: { use_qz: false, printer_name: '' },
       qr_settings: { base_url: '' },
+      customer_app_settings: {
+        enabled: true,
+        app_name: 'Loyalty Club',
+        hero_title: 'Xoş gəldiniz',
+        hero_subtitle: 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
+        points_label: 'Ulduz',
+        reward_name: 'Reward',
+        reward_threshold: 10,
+        reward_description: '10 ulduza 1 pulsuz içki',
+        primary_color: '#facc15',
+        accent_color: '#22d3ee',
+        show_campaigns: true,
+        show_history: true,
+        show_notifications: true,
+      },
       omnitech_settings: {
         enabled: false,
         api_base_url: '',
@@ -155,6 +170,24 @@ export function get_settings(tenant_id?: string) {
   }
   if (!s.qr_settings) {
     s.qr_settings = { base_url: '' };
+    saveSettings(s);
+  }
+  if (!s.customer_app_settings) {
+    s.customer_app_settings = {
+      enabled: true,
+      app_name: 'Loyalty Club',
+      hero_title: 'Xoş gəldiniz',
+      hero_subtitle: 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
+      points_label: 'Ulduz',
+      reward_name: 'Reward',
+      reward_threshold: 10,
+      reward_description: '10 ulduza 1 pulsuz içki',
+      primary_color: '#facc15',
+      accent_color: '#22d3ee',
+      show_campaigns: true,
+      show_history: true,
+      show_notifications: true,
+    };
     saveSettings(s);
   }
   if (!s.omnitech_settings) {
@@ -274,6 +307,42 @@ export function update_qr_settings(payload: { base_url: string }) {
   return { success: true };
 }
 
+export function update_customer_app_settings(payload: {
+  enabled: boolean;
+  app_name: string;
+  hero_title: string;
+  hero_subtitle: string;
+  points_label: string;
+  reward_name: string;
+  reward_threshold: number;
+  reward_description: string;
+  primary_color: string;
+  accent_color: string;
+  show_campaigns: boolean;
+  show_history: boolean;
+  show_notifications: boolean;
+}) {
+  const settings = getSettings();
+  settings.customer_app_settings = {
+    enabled: Boolean(payload.enabled),
+    app_name: String(payload.app_name || '').trim() || 'Loyalty Club',
+    hero_title: String(payload.hero_title || '').trim() || 'Xoş gəldiniz',
+    hero_subtitle: String(payload.hero_subtitle || '').trim() || 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
+    points_label: String(payload.points_label || '').trim() || 'Ulduz',
+    reward_name: String(payload.reward_name || '').trim() || 'Reward',
+    reward_threshold: Number.isFinite(payload.reward_threshold) ? Math.max(1, Number(payload.reward_threshold)) : 10,
+    reward_description: String(payload.reward_description || '').trim() || '10 ulduza 1 pulsuz içki',
+    primary_color: String(payload.primary_color || '').trim() || '#facc15',
+    accent_color: String(payload.accent_color || '').trim() || '#22d3ee',
+    show_campaigns: Boolean(payload.show_campaigns),
+    show_history: Boolean(payload.show_history),
+    show_notifications: Boolean(payload.show_notifications),
+  };
+  saveSettings(settings);
+  logEvent('admin', 'CUSTOMER_APP_SETTINGS_UPDATED', settings.customer_app_settings);
+  return { success: true, customer_app_settings: settings.customer_app_settings };
+}
+
 export function update_omnitech_settings(payload: {
   enabled: boolean;
   api_base_url: string;
@@ -321,6 +390,27 @@ export async function update_qr_settings_live(payload: { base_url: string }) {
   if (!isBackendEnabled()) return update_qr_settings(payload);
   await apiRequest('/api/v1/ops/settings/qr-settings', { method: 'PATCH', tenantId: null, body: payload });
   update_qr_settings(payload);
+  return { success: true };
+}
+
+export async function update_customer_app_settings_live(payload: {
+  enabled: boolean;
+  app_name: string;
+  hero_title: string;
+  hero_subtitle: string;
+  points_label: string;
+  reward_name: string;
+  reward_threshold: number;
+  reward_description: string;
+  primary_color: string;
+  accent_color: string;
+  show_campaigns: boolean;
+  show_history: boolean;
+  show_notifications: boolean;
+}) {
+  if (!isBackendEnabled()) return update_customer_app_settings(payload);
+  await apiRequest('/api/v1/ops/settings/customer-app', { method: 'PATCH', tenantId: null, body: payload });
+  update_customer_app_settings(payload);
   return { success: true };
 }
 

@@ -195,7 +195,11 @@ export async function get_customer_app_session_live(card_id: string, token: stri
     const profile = getDB<any>('business_profile').find((row) => row.tenant_id === tenantId);
     const happyHours = filterTenantRecords(getDB<any>('happy_hours'), tenantId).filter((row) => row.is_active).slice(0, 12);
     const stars = Number(customer.stars || 0);
-    const nextRewardAt = 10;
+    const settings = getDB<any>('settings').find((row) => row.tenant_id === tenantId)?.customer_app_settings || {};
+    if (settings.enabled === false) {
+      throw new Error('Customer app is disabled for this tenant');
+    }
+    const nextRewardAt = Math.max(1, Number(settings.reward_threshold || 10));
     const progressCurrent = stars % nextRewardAt;
     return {
       tenant_id: tenantId,
@@ -204,6 +208,11 @@ export async function get_customer_app_session_live(card_id: string, token: stri
         website: profile?.website || (typeof window !== 'undefined' ? window.location.origin : ''),
         logo_url: profile?.logo_url || '',
         receipt_footer: profile?.receipt_footer || '',
+        app_name: settings.app_name || 'Loyalty Club',
+        hero_title: settings.hero_title || 'Xoş gəldiniz',
+        hero_subtitle: settings.hero_subtitle || 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
+        primary_color: settings.primary_color || '#facc15',
+        accent_color: settings.accent_color || '#22d3ee',
       },
       customer: {
         card_id: customer.card_id,
@@ -213,15 +222,25 @@ export async function get_customer_app_session_live(card_id: string, token: stri
         created_at: customer.created_at,
       },
       wallet: {
-        points_label: 'Ulduz',
+        points_label: settings.points_label || 'Ulduz',
         stars_balance: stars,
         available_rewards: Math.floor(stars / nextRewardAt),
         next_reward_at: nextRewardAt,
         progress_current: progressCurrent,
         progress_remaining: progressCurrent === 0 && stars > 0 ? 0 : nextRewardAt - progressCurrent,
-        reward_label: '10 ulduza 1 pulsuz içki',
+        reward_label: settings.reward_description || '10 ulduza 1 pulsuz içki',
+        reward_name: settings.reward_name || 'Reward',
+        rewards: [
+          {
+            id: 'default-reward',
+            title: settings.reward_name || 'Reward',
+            description: settings.reward_description || '10 ulduza 1 pulsuz içki',
+            threshold: nextRewardAt,
+            available_count: Math.floor(stars / nextRewardAt),
+          },
+        ],
       },
-      campaigns: happyHours.map((row) => ({
+      campaigns: settings.show_campaigns === false ? [] : happyHours.map((row) => ({
         id: row.id,
         name: row.name,
         discount_percent: row.discount_percent,
@@ -229,8 +248,9 @@ export async function get_customer_app_session_live(card_id: string, token: stri
         end_time: row.end_time,
         categories: row.categories,
       })),
-      notifications,
-      history: sales,
+      notifications: settings.show_notifications === false ? [] : notifications,
+      history: settings.show_history === false ? [] : sales,
+      customer_app_settings: settings,
     };
   }
 
