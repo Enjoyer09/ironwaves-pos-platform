@@ -1186,6 +1186,26 @@ def pay_table(
 
     for inventory, qty_required in stock_ops:
         inventory.stock_qty = (Decimal(str(inventory.stock_qty or 0)) - qty_required).quantize(Decimal("0.001"))
+        db.add(
+            AuditLog(
+                tenant_id=tenant.id,
+                user=user.username,
+                action="INVENTORY_CONSUMED",
+                details=json.dumps(
+                    {
+                        "item_name": inventory.name,
+                        "qty_removed": str(qty_required),
+                        "unit": inventory.unit,
+                        "remaining_qty": str(inventory.stock_qty),
+                        "sale_id": sale.id,
+                        "source": "table_payment",
+                        "table_id": row.id,
+                        "table_label": row.label,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
 
     payment_method = _normalize_payment_method(payload.payment_method)
     if payment_method == "split":

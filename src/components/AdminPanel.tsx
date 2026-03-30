@@ -33,7 +33,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
 
-  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
+  const [activeTab, setActiveTab] = useState<AdminTab>(externalTab || 'dashboard');
   
   const [summary, setSummary] = useState<any>(null);
   const [sales, setSales] = useState<any[]>([]);

@@ -24,13 +24,28 @@ export default function InventoryPanel() {
     void loadData();
   }, [tenant_id]);
 
+  useEffect(() => {
+    const handleRefresh = () => {
+      void loadData();
+    };
+    const handleVisibility = () => {
+      if (!document.hidden) void loadData();
+    };
+    window.addEventListener('focus', handleRefresh);
+    window.addEventListener('inventory-updated', handleRefresh as EventListener);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('focus', handleRefresh);
+      window.removeEventListener('inventory-updated', handleRefresh as EventListener);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [tenant_id]);
+
   const loadData = async () => {
     try {
-      const [data, logs] = await Promise.all([
-        get_inventory_items_live(tenant_id),
-        get_logs_live(tenant_id, 200),
-      ]);
+      const data = await get_inventory_items_live(tenant_id);
       setItems(data);
+      const logs = await get_logs_live(tenant_id, 200);
       setHistory(
         (logs || [])
           .filter((row: any) => String(row.action || '').startsWith('INVENTORY_'))
@@ -190,6 +205,14 @@ export default function InventoryPanel() {
         `${itemName} anbardan tam silindi`,
         `${itemName} полностью удален со склада`,
         `${itemName} was fully deleted from inventory`,
+      );
+    }
+    if (action === 'INVENTORY_CONSUMED') {
+      return tx(
+        lang,
+        `${itemName} satış üçün istifadə olundu: -${details.qty_removed || 0} ${details.unit || ''}`,
+        `${itemName} использован в продаже: -${details.qty_removed || 0} ${details.unit || ''}`,
+        `${itemName} consumed by sale: -${details.qty_removed || 0} ${details.unit || ''}`,
       );
     }
     return row?.action || '-';
