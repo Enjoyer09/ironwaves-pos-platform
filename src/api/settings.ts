@@ -47,6 +47,7 @@ function getSettings(tenant_id?: string): Settings {
       customer_app_settings: {
         enabled: true,
         program_mode: 'points',
+        layout_preset: 'rewards',
         app_name: 'Loyalty Club',
         hero_title: 'Xoş gəldiniz',
         hero_subtitle: 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
@@ -184,6 +185,7 @@ export function get_settings(tenant_id?: string) {
     s.customer_app_settings = {
       enabled: true,
       program_mode: 'points',
+      layout_preset: 'rewards',
       app_name: 'Loyalty Club',
       hero_title: 'Xoş gəldiniz',
       hero_subtitle: 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
@@ -326,6 +328,7 @@ export function update_qr_settings(payload: { base_url: string }) {
 export function update_customer_app_settings(payload: {
   enabled: boolean;
   program_mode?: 'points' | 'cashback';
+  layout_preset?: 'rewards' | 'cashback' | 'playful';
   app_name: string;
   hero_title: string;
   hero_subtitle: string;
@@ -350,6 +353,7 @@ export function update_customer_app_settings(payload: {
   settings.customer_app_settings = {
     enabled: Boolean(payload.enabled),
     program_mode: payload.program_mode === 'cashback' ? 'cashback' : 'points',
+    layout_preset: payload.layout_preset === 'cashback' || payload.layout_preset === 'playful' ? payload.layout_preset : 'rewards',
     app_name: String(payload.app_name || '').trim() || 'Loyalty Club',
     hero_title: String(payload.hero_title || '').trim() || 'Xoş gəldiniz',
     hero_subtitle: String(payload.hero_subtitle || '').trim() || 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
@@ -428,6 +432,7 @@ export async function update_qr_settings_live(payload: { base_url: string }) {
 export async function update_customer_app_settings_live(payload: {
   enabled: boolean;
   program_mode?: 'points' | 'cashback';
+  layout_preset?: 'rewards' | 'cashback' | 'playful';
   app_name: string;
   hero_title: string;
   hero_subtitle: string;

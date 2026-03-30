@@ -12,6 +12,7 @@ export default function CustomerAppPanel() {
   const [form, setForm] = useState({
     enabled: true,
     program_mode: 'points' as 'points' | 'cashback',
+    layout_preset: 'rewards' as 'rewards' | 'cashback' | 'playful',
     app_name: 'Loyalty Club',
     hero_title: 'Xoş gəldiniz',
     hero_subtitle: 'Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.',
@@ -42,6 +43,7 @@ export default function CustomerAppPanel() {
           ...prev,
           enabled: Boolean(c.enabled ?? true),
           program_mode: c.program_mode === 'cashback' ? 'cashback' : 'points',
+          layout_preset: c.layout_preset === 'cashback' || c.layout_preset === 'playful' ? c.layout_preset : 'rewards',
           app_name: String(c.app_name || prev.app_name),
           hero_title: String(c.hero_title || prev.hero_title),
           hero_subtitle: String(c.hero_subtitle || prev.hero_subtitle),
@@ -84,6 +86,7 @@ export default function CustomerAppPanel() {
     await update_customer_app_settings_live({
       enabled: form.enabled,
       program_mode: form.program_mode,
+      layout_preset: form.layout_preset,
       app_name: form.app_name,
       hero_title: form.hero_title,
       hero_subtitle: form.hero_subtitle,
@@ -107,6 +110,56 @@ export default function CustomerAppPanel() {
     flash(tx(lang, 'Customer app dizaynı yadda saxlanıldı', 'Дизайн customer app сохранен', 'Customer app design saved'));
   };
 
+  const applyPreset = (preset: 'rewards' | 'cashback' | 'playful') => {
+    if (preset === 'cashback') {
+      setForm((prev) => ({
+        ...prev,
+        layout_preset: 'cashback',
+        program_mode: 'cashback',
+        app_name: 'Cashback Club',
+        hero_title: 'Cashback balansın hazırdır',
+        hero_subtitle: 'Hər alışda qazan, tətbiqdən izləmək rahat olsun.',
+        points_label: 'Cashback',
+        reward_name: 'Cashback Bonus',
+        reward_description: 'Balansını növbəti alışda istifadə et',
+        primary_color: '#14b8a6',
+        accent_color: '#0f172a',
+      }));
+      return;
+    }
+    if (preset === 'playful') {
+      setForm((prev) => ({
+        ...prev,
+        layout_preset: 'playful',
+        program_mode: 'points',
+        app_name: 'Fun Club',
+        hero_title: 'Bonus və sürprizlər burada',
+        hero_subtitle: 'Reward, QR, oyun və əyləncə bir yerdə.',
+        points_label: 'Ulduz',
+        reward_name: 'Sürpriz Reward',
+        reward_description: 'Bonuslarını topla və claim et',
+        primary_color: '#ec4899',
+        accent_color: '#7c3aed',
+        ai_barista_enabled: true,
+        ai_falci_enabled: true,
+      }));
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      layout_preset: 'rewards',
+      program_mode: 'points',
+      app_name: 'Loyalty Club',
+      hero_title: 'Xoş gəldiniz',
+      hero_subtitle: 'Reward, QR və kampaniyalar bir yerdə.',
+      points_label: 'Ulduz',
+      reward_name: 'Reward',
+      reward_description: 'Topla və kassada istifadə et',
+      primary_color: '#facc15',
+      accent_color: '#22d3ee',
+    }));
+  };
+
   return (
     <div className="space-y-6">
       <div className="metal-panel overflow-hidden">
@@ -121,6 +174,24 @@ export default function CustomerAppPanel() {
       </div>
 
       <div className="metal-panel p-6 space-y-4">
+        <div className="space-y-3">
+          <div className="text-sm font-semibold text-slate-200">{tx(lang, 'Hazır dizayn preset-ləri', 'Готовые дизайн-пресеты', 'Ready design presets')}</div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <button type="button" onClick={() => applyPreset('rewards')} className={`rounded-2xl border p-4 text-left ${form.layout_preset === 'rewards' ? 'border-cyan-300 bg-cyan-400/10' : 'border-slate-700/70 bg-slate-950/30'}`}>
+              <div className="font-bold text-slate-100">Rewards</div>
+              <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Starbucks tipli reward-first görünüş', 'Reward-first стиль', 'Reward-first layout')}</div>
+            </button>
+            <button type="button" onClick={() => applyPreset('cashback')} className={`rounded-2xl border p-4 text-left ${form.layout_preset === 'cashback' ? 'border-cyan-300 bg-cyan-400/10' : 'border-slate-700/70 bg-slate-950/30'}`}>
+              <div className="font-bold text-slate-100">Cashback</div>
+              <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Balans və cashback fokuslu görünüş', 'Фокус на cashback', 'Cashback-first layout')}</div>
+            </button>
+            <button type="button" onClick={() => applyPreset('playful')} className={`rounded-2xl border p-4 text-left ${form.layout_preset === 'playful' ? 'border-cyan-300 bg-cyan-400/10' : 'border-slate-700/70 bg-slate-950/30'}`}>
+              <div className="font-bold text-slate-100">Playful</div>
+              <div className="mt-1 text-xs text-slate-400">{tx(lang, 'AI və əyləncəli bloklar ön planda', 'Игровой стиль с AI', 'Playful AI-first layout')}</div>
+            </button>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
             <input type="checkbox" checked={form.enabled} onChange={(e) => setForm((prev) => ({ ...prev, enabled: e.target.checked }))} />

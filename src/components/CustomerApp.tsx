@@ -196,6 +196,13 @@ export default function CustomerApp({ cardId, token }: Props) {
   const backgroundImage = String(branding.background_image_url || '');
   const aiBaristaEnabled = branding.ai_barista_enabled === true;
   const aiFalciEnabled = branding.ai_falci_enabled === true;
+  const layoutPreset = String(data.customer_app_settings?.layout_preset || 'rewards').toLowerCase();
+  const heroRadius = layoutPreset === 'playful' ? '36px' : '32px';
+  const cardClass = layoutPreset === 'playful'
+    ? 'rounded-[28px] border border-white/10 bg-white/95 p-4 text-slate-900 shadow-[0_10px_28px_rgba(236,72,153,0.16)]'
+    : layoutPreset === 'cashback'
+    ? 'rounded-[28px] border border-white/10 bg-white p-4 text-slate-900 shadow-[0_8px_24px_rgba(20,184,166,0.14)]'
+    : 'rounded-[28px] border border-white/10 bg-white p-4 text-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)]';
 
   const bottomTabs: Array<{ key: CustomerTab; label: string; icon: React.ReactNode }> = [
     { key: 'home', label: tx(lang, 'Rewards', 'Награды', 'Rewards'), icon: <Home size={18} /> },
@@ -207,10 +214,13 @@ export default function CustomerApp({ cardId, token }: Props) {
   const renderHome = () => (
     <div className="space-y-4">
       <section
-        className="overflow-hidden rounded-[32px] border border-white/10 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
+        className="overflow-hidden border border-white/10 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
         style={{
+          borderRadius: heroRadius,
           background: heroImage
             ? `linear-gradient(180deg, rgba(15,23,42,0.18), rgba(15,23,42,0.68)), url(${heroImage}) center/cover`
+            : layoutPreset === 'cashback'
+            ? `linear-gradient(180deg, ${primaryColor}, #052e2b)`
             : `linear-gradient(180deg, ${accentColor}, ${primaryColor})`,
         }}
       >
@@ -243,7 +253,7 @@ export default function CustomerApp({ cardId, token }: Props) {
       </section>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <section className="rounded-[28px] border border-white/10 bg-white p-4 text-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+        <section className={cardClass}>
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><Gift size={16} /> {tx(lang, 'Reward-lar', 'Награды', 'Rewards')}</div>
           <div className="mt-3 text-3xl font-black text-slate-900">{wallet.available_rewards ?? 0}</div>
           <div className="mt-2 text-sm text-slate-600">{wallet.reward_label || 'Reward'}</div>
@@ -260,7 +270,7 @@ export default function CustomerApp({ cardId, token }: Props) {
           ) : null}
         </section>
 
-        <section className="rounded-[28px] border border-white/10 bg-white p-4 text-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+        <section className={cardClass}>
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><QrCode size={16} /> {tx(lang, 'QR Kart', 'QR карта', 'QR card')}</div>
           {showQrCard ? (
             <div className="mt-3 flex flex-col items-center rounded-[24px] bg-white px-4 py-5 text-slate-900">

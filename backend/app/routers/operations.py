@@ -299,6 +299,7 @@ def get_app_settings(
         {
             "enabled": True,
             "program_mode": "points",
+            "layout_preset": "rewards",
             "app_name": "Loyalty Club",
             "hero_title": "Xoş gəldiniz",
             "hero_subtitle": "Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.",
@@ -422,6 +423,7 @@ def update_customer_app_settings(
     cleaned = {
         "enabled": bool(payload.get("enabled", True)),
         "program_mode": "cashback" if str(payload.get("program_mode") or "").strip().lower() == "cashback" else "points",
+        "layout_preset": str(payload.get("layout_preset") or "rewards").strip().lower() if str(payload.get("layout_preset") or "rewards").strip().lower() in {"rewards", "cashback", "playful"} else "rewards",
         "app_name": str(payload.get("app_name") or "").strip() or "Loyalty Club",
         "hero_title": str(payload.get("hero_title") or "").strip() or "Xoş gəldiniz",
         "hero_subtitle": str(payload.get("hero_subtitle") or "").strip() or "Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.",
