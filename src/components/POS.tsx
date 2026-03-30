@@ -43,6 +43,7 @@ type CartContext = {
   orderType: OrderType;
   cupMode: 'paper' | 'glass';
   kitchenSent?: boolean;
+  rewardClaimCode?: string;
 };
 
 const SIZE_TOKENS = ['XS', 'S', 'M', 'L', 'XL', 'DOUBLE', 'SINGLE'];
@@ -94,6 +95,7 @@ const defaultCtx: CartContext = {
   orderType: 'Take Away',
   cupMode: 'paper',
   kitchenSent: false,
+  rewardClaimCode: '',
 };
 
 const formatDisplayId = (id: string) => {
@@ -499,6 +501,7 @@ export default function POS() {
         discount_percent: Number(ctx.discount || 0),
         order_type: ctx.orderType,
         customer_card_id: ctx.customer?.card_id || null,
+        reward_claim_code: ctx.rewardClaimCode || null,
         split_cash: splitCash ? splitCash.toFixed(2) : null,
         split_card: splitCard ? splitCard.toFixed(2) : null,
       };
@@ -514,6 +517,7 @@ export default function POS() {
         payment_method: paymentMethod,
         cashier: user.username,
         customer_card_id: ctx.customer?.card_id || null,
+        reward_claim_code: ctx.rewardClaimCode || null,
         discount_percent: Number(ctx.discount || 0),
         is_eco_cup: false,
         is_test: false,
@@ -896,13 +900,19 @@ export default function POS() {
           </div>
           <div className="mb-2 grid grid-cols-2 gap-2">
             <button onClick={handleFindCustomer} className="pay-btn h-12 w-full">{tx(lang, 'Müştəri Tap', 'Найти клиента', 'Find Customer')}</button>
-            <button onClick={() => patchCtx({ customer: null, customerQR: '' })} className="pay-btn h-12 w-full">{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</button>
+            <button onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '' })} className="pay-btn h-12 w-full">{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</button>
           </div>
           {ctx.customer && (
             <div className="mb-3 rounded-md border border-emerald-400/40 bg-emerald-500/10 p-2 text-xs text-emerald-200">
                QR: {ctx.customer.card_id} | {tx(lang, 'Ulduz', 'Звезды', 'Stars')}: {ctx.customer.stars} | {tx(lang, 'Tip', 'Тип', 'Type')}: {ctx.customer.type}
             </div>
           )}
+          <input
+            placeholder={tx(lang, 'Reward kodu (opsional)', 'Код награды (необязательно)', 'Reward code (optional)')}
+            className="neon-input mb-2"
+            value={ctx.rewardClaimCode || ''}
+            onChange={(e) => patchCtx({ rewardClaimCode: e.target.value.toUpperCase() })}
+          />
 
           <label className="mb-1 text-xs text-slate-400">{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</label>
           <input

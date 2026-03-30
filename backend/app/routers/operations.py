@@ -22,6 +22,7 @@ from app.models import (
     KitchenOrder,
     Notification,
     Recipe,
+    RewardClaim,
     Sale,
     Setting,
     StaffNotification,
@@ -239,6 +240,10 @@ class SendEmailIn(BaseModel):
     subject: str
     html: str
     recipients: list[str] | None = None
+
+
+class RewardClaimIn(BaseModel):
+    reward_id: str | None = None
 
 
 def _resolve_customer_session(db: Session, tenant_id: str, card_id: str, token: str) -> Customer:
@@ -653,12 +658,18 @@ def get_customer_app_session(
     )
     if not bool(app_settings.get("enabled", True)):
         raise HTTPException(status_code=403, detail="Customer app is disabled for this tenant")
+    pending_claims = (
+        db.query(RewardClaim)
+        .filter(RewardClaim.tenant_id == tenant.id, RewardClaim.card_id == customer.card_id, RewardClaim.status == "PENDING")
+        .order_by(RewardClaim.created_at.desc())
+        .all()
+    )
 
     stars = int(customer.stars or 0)
     next_reward_at = max(1, int(app_settings.get("reward_threshold") or 10))
     progress_current = stars % next_reward_at
     progress_remaining = 0 if progress_current == 0 and stars > 0 else next_reward_at - progress_current
-    available_rewards = stars // next_reward_at
+    available_rewards = max(0, (stars // next_reward_at) - len(pending_claims))
 
     return {
         "tenant_id": tenant.id,
@@ -732,7 +743,76 @@ def get_customer_app_session(
             }
             for row in sales
         ] if bool(app_settings.get("show_history", True)) else [],
+        "pending_claims": [
+            {
+                "id": row.id,
+                "claim_code": row.claim_code,
+                "reward_name": row.reward_name,
+                "reward_description": row.reward_description or "",
+                "points_cost": row.points_cost,
+                "status": row.status,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+            for row in pending_claims
+        ],
         "customer_app_settings": app_settings,
+    }
+
+
+@router.post("/customer-app/rewards/claim")
+def claim_customer_reward(
+    payload: RewardClaimIn,
+    id: str = Query(...),
+    t: str = Query(...),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    customer = _resolve_customer_session(db, tenant.id, id, t)
+    app_settings = _setting_value(
+        db,
+        tenant.id,
+        "customer_app_settings",
+        {"reward_threshold": 10, "reward_name": "Reward", "reward_description": "10 ulduza 1 pulsuz içki"},
+    )
+    threshold = max(1, int(app_settings.get("reward_threshold") or 10))
+    pending_count = (
+        db.query(RewardClaim)
+        .filter(RewardClaim.tenant_id == tenant.id, RewardClaim.card_id == customer.card_id, RewardClaim.status == "PENDING")
+        .count()
+    )
+    available_rewards = max(0, (int(customer.stars or 0) // threshold) - int(pending_count or 0))
+    if available_rewards <= 0:
+        raise HTTPException(status_code=400, detail="No reward available to claim")
+
+    claim_code = f"RW{secrets.token_hex(3).upper()}"
+    while db.query(RewardClaim).filter(RewardClaim.claim_code == claim_code).first():
+        claim_code = f"RW{secrets.token_hex(3).upper()}"
+
+    claim = RewardClaim(
+        tenant_id=tenant.id,
+        card_id=customer.card_id,
+        claim_code=claim_code,
+        reward_name=str(app_settings.get("reward_name") or "Reward"),
+        reward_description=str(app_settings.get("reward_description") or "10 ulduza 1 pulsuz içki"),
+        points_cost=threshold,
+        status="PENDING",
+    )
+    db.add(claim)
+    db.add(
+        Notification(
+            tenant_id=tenant.id,
+            card_id=customer.card_id,
+            message=f"Reward claim code hazırdır: {claim_code}",
+            is_read=False,
+        )
+    )
+    db.commit()
+    return {
+        "success": True,
+        "claim_code": claim_code,
+        "reward_name": claim.reward_name,
+        "points_cost": claim.points_cost,
+        "available_rewards": max(0, available_rewards - 1),
     }
 
 

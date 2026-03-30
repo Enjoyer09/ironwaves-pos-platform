@@ -282,6 +282,7 @@ def _run_startup_migrations():
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS cogs NUMERIC(12,4) DEFAULT 0"))
         conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS offline_request_id VARCHAR(64)"))
+        conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS reward_claim_code VARCHAR(32)"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64)"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE"))
         conn.execute(
@@ -302,6 +303,25 @@ def _run_startup_migrations():
                     meta_json TEXT NULL,
                     is_read BOOLEAN DEFAULT FALSE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS reward_claims (
+                    id VARCHAR(36) PRIMARY KEY,
+                    tenant_id VARCHAR(36) NOT NULL,
+                    card_id VARCHAR(80) NOT NULL,
+                    claim_code VARCHAR(32) NOT NULL UNIQUE,
+                    reward_name VARCHAR(120) NOT NULL,
+                    reward_description TEXT,
+                    points_cost INTEGER DEFAULT 10,
+                    status VARCHAR(16) DEFAULT 'PENDING',
+                    redeemed_sale_id VARCHAR(36),
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    redeemed_at TIMESTAMP
                 )
                 """
             )

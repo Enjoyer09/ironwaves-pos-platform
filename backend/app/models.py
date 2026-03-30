@@ -159,6 +159,7 @@ class Sale(Base):
     offline_request_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     receipt_code: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     receipt_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    reward_claim_code: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     discount_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     cogs: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True, default=Decimal("0.0000"))
@@ -230,6 +231,22 @@ class Notification(Base):
     message: Mapped[str] = mapped_column(Text, nullable=False)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class RewardClaim(Base):
+    __tablename__ = "reward_claims"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    card_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    claim_code: Mapped[str] = mapped_column(String(32), nullable=False, unique=True, index=True)
+    reward_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    reward_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    points_cost: Mapped[int] = mapped_column(Integer, default=10)
+    status: Mapped[str] = mapped_column(String(16), default="PENDING")
+    redeemed_sale_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    redeemed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class StaffNotification(Base):
