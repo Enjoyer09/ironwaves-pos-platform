@@ -324,13 +324,13 @@ export const transfer_funds = (
   const now = new Date().toISOString();
   const transfer_amount = new Decimal(amount);
   let comm_amount = new Decimal(commission || '0');
+  const settings = get_settings(tenant_id);
+  const cardTransferPercent = new Decimal(
+    (settings.bank_commission as any)?.card_transfer_percent ?? 0.5,
+  );
 
-  // Kartdan kassaya nağdlaşdırma qaydası:
-  // 120 AZN-ə qədər sabit 0.60 AZN, 120-dən yuxarı 0.5%
-  if (direction === 'card_to_cash' && comm_amount.lte(0)) {
-    comm_amount = transfer_amount.lte(120)
-      ? new Decimal(0.6)
-      : transfer_amount.times(0.005).toDecimalPlaces(2);
+  if ((direction === 'card_to_cash' || direction === 'card_to_debt') && comm_amount.lte(0)) {
+    comm_amount = transfer_amount.times(cardTransferPercent.div(100)).toDecimalPlaces(2);
   }
 
   const sources = {

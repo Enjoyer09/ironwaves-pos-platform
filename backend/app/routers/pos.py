@@ -33,6 +33,13 @@ def _setting_value(db: Session, tenant_id: str, key: str, default):
         return default
 
 
+def _bank_commission_config(db: Session, tenant_id: str) -> tuple[Decimal, Decimal]:
+    config = _setting_value(db, tenant_id, "bank_commission", {"card_sale_percent": 2, "card_transfer_percent": 0.5})
+    card_sale_percent = Decimal(str(config.get("card_sale_percent", config.get("percent", 2)) or 2))
+    card_transfer_percent = Decimal(str(config.get("card_transfer_percent", 0.5) or 0.5))
+    return card_sale_percent, card_transfer_percent
+
+
 def _calculate_staff_due(items: list, used_today: Decimal, config: dict) -> tuple[Decimal, Decimal, Decimal]:
     daily_limit = Decimal(str(config.get("daily_limit_azn", 6)))
     item_cap = Decimal(str(config.get("item_unit_cap_azn", 6)))
@@ -110,6 +117,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
             }
 
     customer = None
+    card_sale_percent, _card_transfer_percent = _bank_commission_config(db, tenant.id)
     current_stars: int | None = None
     customer_type = "Normal"
     customer_discount = Decimal("0")
@@ -309,6 +317,19 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
                     created_by=user.username,
                 )
             )
+            split_card_fee = (split_card * (card_sale_percent / Decimal("100"))).quantize(Decimal("0.01"))
+            if split_card_fee > 0:
+                db.add(
+                    FinanceEntry(
+                        tenant_id=tenant.id,
+                        type="out",
+                        category="Bank Komissiyası",
+                        source="card",
+                        amount=split_card_fee,
+                        description=f"POS Sale {sale.id} split card fee",
+                        created_by=user.username,
+                    )
+                )
     else:
         if payment_method == "staff":
             if staff_benefit_used > 0:
@@ -349,6 +370,20 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
                     created_by=user.username,
                 )
             )
+            if source == "card":
+                card_fee = (total * (card_sale_percent / Decimal("100"))).quantize(Decimal("0.01"))
+                if card_fee > 0:
+                    db.add(
+                        FinanceEntry(
+                            tenant_id=tenant.id,
+                            type="out",
+                            category="Bank Komissiyası",
+                            source="card",
+                            amount=card_fee,
+                            description=f"POS Sale {sale.id} card fee",
+                            created_by=user.username,
+                        )
+                    )
 
     if customer is not None:
         if program_mode != "cashback":

@@ -30,7 +30,7 @@ function getSettings(tenant_id?: string): Settings {
         webhook_url: '',
         timeout_sec: 15,
       },
-      bank_commission: { min_amount: 0.10, percent: 1.5 },
+      bank_commission: { min_amount: 0.10, percent: 1.5, card_sale_percent: 2, card_transfer_percent: 0.5 },
       inventory_settings: {
         default_critical_threshold: 5,
         unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'],
@@ -162,9 +162,14 @@ export function update_email_settings(payload: {
 
 export function update_bank_commission(payload: { min_amount: number; percent: number }) {
   const settings = getSettings();
-  settings.bank_commission = payload;
+  settings.bank_commission = {
+    ...settings.bank_commission,
+    ...payload,
+    card_sale_percent: Number((payload as any)?.card_sale_percent ?? settings.bank_commission?.card_sale_percent ?? settings.bank_commission?.percent ?? 2),
+    card_transfer_percent: Number((payload as any)?.card_transfer_percent ?? settings.bank_commission?.card_transfer_percent ?? 0.5),
+  };
   saveSettings(settings);
-  logEvent('admin', 'BANK_COMMISSION_UPDATE', payload);
+  logEvent('admin', 'BANK_COMMISSION_UPDATE', settings.bank_commission);
   return { success: true };
 }
 
@@ -278,6 +283,12 @@ export function get_settings(tenant_id?: string) {
     };
     saveSettings(s);
   }
+  s.bank_commission = {
+    min_amount: Number((s.bank_commission as any)?.min_amount ?? 0.10),
+    percent: Number((s.bank_commission as any)?.percent ?? 1.5),
+    card_sale_percent: Number((s.bank_commission as any)?.card_sale_percent ?? (s.bank_commission as any)?.percent ?? 2),
+    card_transfer_percent: Number((s.bank_commission as any)?.card_transfer_percent ?? 0.5),
+  };
   return s;
 }
 

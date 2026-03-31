@@ -145,8 +145,10 @@ export interface Settings {
     timeout_sec?: number;
   };
   bank_commission: {
-    min_amount: number;
-    percent: number;
+    min_amount?: number;
+    percent?: number;
+    card_sale_percent?: number;
+    card_transfer_percent?: number;
   };
   inventory_settings?: {
     default_critical_threshold: number;

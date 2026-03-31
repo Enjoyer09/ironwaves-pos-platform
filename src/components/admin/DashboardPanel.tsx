@@ -691,7 +691,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
               <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.93),rgba(246,248,252,0.88))] p-5 text-slate-900 shadow-[0_16px_45px_rgba(0,0,0,0.22)]">
                 <h3 className="text-lg font-bold">{tx(lang, 'Son Satışlar', 'Последние продажи', 'Recent Sales')}</h3>
                 <div className="mt-4 space-y-3">
-                  {snapshot.sales.slice(0, 4).map((sale: any) => (
+                  {snapshot.sales.slice(0, 5).map((sale: any) => (
                     <div key={sale.id} className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3">
                       <div className="flex items-center justify-between gap-3">
                         <div>

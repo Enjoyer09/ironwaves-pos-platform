@@ -8,6 +8,7 @@ import {
   repay_investor_async,
   transfer_funds_async,
 } from '../../api/finance';
+import { get_settings_live } from '../../api/settings';
 import { send_email } from '../../api/email';
 import { tx } from '../../i18n';
 import { isBackendEnabled } from '../../api/client';
@@ -197,6 +198,10 @@ export default function FinancePanel() {
   });
   const [entries, setEntries] = useState<any[]>([]);
   const [ledgerPageSize, setLedgerPageSize] = useState(10);
+  const [bankCommissionConfig, setBankCommissionConfig] = useState<{ card_sale_percent: number; card_transfer_percent: number }>({
+    card_sale_percent: 2,
+    card_transfer_percent: 0.5,
+  });
 
   const applyRangePreset = (preset: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom') => {
     setRangePreset(preset);
@@ -220,12 +225,12 @@ export default function FinancePanel() {
 
   const computedTransferCommission = useMemo(() => {
     const amount = new Decimal(transferAmount || '0');
-    if (transferDirection !== 'card_to_cash') {
+    if (transferDirection !== 'card_to_cash' && transferDirection !== 'card_to_debt') {
       return new Decimal(transferCommission || '0');
     }
     if (amount.lte(0)) return new Decimal(0);
-    return amount.lte(120) ? new Decimal(0.6) : amount.times(0.005).toDecimalPlaces(2);
-  }, [transferAmount, transferCommission, transferDirection]);
+    return amount.times(new Decimal(bankCommissionConfig.card_transfer_percent || 0).div(100)).toDecimalPlaces(2);
+  }, [transferAmount, transferCommission, transferDirection, bankCommissionConfig.card_transfer_percent]);
 
   useEffect(() => {
     const key = `finance_subject_presets_${tenant_id}`;
@@ -251,9 +256,10 @@ export default function FinancePanel() {
 
   const reloadFinance = async () => {
     try {
-      const [b, e] = await Promise.all([
+      const [b, e, settings] = await Promise.all([
         fetch_finance_balances(tenant_id),
         fetch_finance_entries(tenant_id),
+        get_settings_live(tenant_id),
       ]);
       setBalance(b || {
         cash_balance: '0',
@@ -263,6 +269,10 @@ export default function FinancePanel() {
         safe_balance: '0',
       });
       setEntries(e || []);
+      setBankCommissionConfig({
+        card_sale_percent: Number((settings.bank_commission as any)?.card_sale_percent ?? settings.bank_commission?.percent ?? 2),
+        card_transfer_percent: Number((settings.bank_commission as any)?.card_transfer_percent ?? 0.5),
+      });
     } catch (err: any) {
       notify('error', err?.message || tx(lang, 'Maliyyə məlumatları yüklənmədi', 'Не удалось загрузить финансы'));
     }
@@ -819,13 +829,13 @@ export default function FinancePanel() {
               readOnly={transferDirection === 'card_to_cash'}
             />
           </div>
-          {transferDirection === 'card_to_cash' && (
+          {(transferDirection === 'card_to_cash' || transferDirection === 'card_to_debt') && (
             <p className="mt-2 text-xs text-slate-300">
               {tx(
                 lang,
-                'Qayda: 120 AZN-ə qədər 0.60 AZN, 120 AZN-dən yuxarı 0.5% komissiya.',
-                'Правило: до 120 AZN комиссия 0.60 AZN, выше 120 AZN комиссия 0.5%.',
-                'Rule: up to 120 AZN fee is 0.60 AZN, above that fee is 0.5%.',
+                `Kartdan çıxan məbləğ üçün ${bankCommissionConfig.card_transfer_percent}% komissiya hesablanır.`,
+                `Для суммы, выходящей с карты, применяется комиссия ${bankCommissionConfig.card_transfer_percent}%.`,
+                `A ${bankCommissionConfig.card_transfer_percent}% fee is applied to funds moved out of card balance.`,
               )}
             </p>
           )}
