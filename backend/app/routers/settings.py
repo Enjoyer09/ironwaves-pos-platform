@@ -6,8 +6,28 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import Tenant, User
-from app.schemas import TotpDisableIn, TotpSetupOut, TotpVerifyIn
+from app.models import (
+    AuditLog,
+    Customer,
+    FinanceEntry,
+    HappyHour,
+    InventoryItem,
+    KitchenOrder,
+    LoyaltyLedgerEntry,
+    MenuItem,
+    Notification,
+    RewardClaim,
+    Sale,
+    Setting,
+    Shift,
+    ShiftHandover,
+    StaffNotification,
+    Table,
+    Tenant,
+    User,
+    Recipe,
+)
+from app.schemas import SystemResetIn, TotpDisableIn, TotpSetupOut, TotpVerifyIn
 from app.security import hash_password, verify_password
 
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
@@ -226,12 +246,59 @@ def disable_totp(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not current_user.totp_enabled:
-        raise HTTPException(status_code=400, detail="TOTP is not enabled")
     if not verify_password(str(payload.current_password or ""), current_user.password_hash):
         raise HTTPException(status_code=401, detail="Current password is incorrect")
+    if not current_user.totp_enabled:
+        current_user.totp_secret = None
+        db.commit()
+        return {"success": True}
+    code = str(payload.code or "").strip().replace(" ", "")
+    if current_user.totp_secret and code:
+        totp = pyotp.TOTP(current_user.totp_secret)
+        if not totp.verify(code, valid_window=1):
+            raise HTTPException(status_code=400, detail="Invalid authenticator code")
     current_user.totp_secret = None
     current_user.totp_enabled = False
+    db.commit()
+    return {"success": True}
+
+
+@router.post("/reset-system")
+def reset_system(
+    payload: SystemResetIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    current_user: User = Depends(get_current_user),
+):
+    if str(current_user.role or "").lower() not in {"admin", "super_admin"}:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    if not verify_password(str(payload.current_password or ""), current_user.password_hash):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+    if bool(current_user.totp_enabled) and current_user.totp_secret:
+        code = str(payload.code or "").strip().replace(" ", "")
+        if not code:
+          raise HTTPException(status_code=401, detail="2FA_REQUIRED")
+        totp = pyotp.TOTP(current_user.totp_secret)
+        if not totp.verify(code, valid_window=1):
+            raise HTTPException(status_code=400, detail="Invalid authenticator code")
+
+    db.query(AuditLog).filter(AuditLog.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Sale).filter(Sale.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(KitchenOrder).filter(KitchenOrder.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Table).filter(Table.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(InventoryItem).filter(InventoryItem.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Recipe).filter(Recipe.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Setting).filter(Setting.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(ShiftHandover).filter(ShiftHandover.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Customer).filter(Customer.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Notification).filter(Notification.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(StaffNotification).filter(StaffNotification.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(HappyHour).filter(HappyHour.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(MenuItem).filter(MenuItem.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Shift).filter(Shift.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(RewardClaim).filter(RewardClaim.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(LoyaltyLedgerEntry).filter(LoyaltyLedgerEntry.tenant_id == tenant.id).delete(synchronize_session=False)
     db.commit()
     return {"success": True}
 

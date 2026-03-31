@@ -5,6 +5,7 @@ import { Settings, User } from '../types/pos';
 import { getActiveTenantId } from '../lib/tenant';
 import { apiRequest, isBackendEnabled } from './client';
 import { hashLocalCredential } from '../lib/local_auth';
+import { removeScopedStorage } from '../lib/storage_keys';
 
 const resolveTenant = (tenant_id?: string) => tenant_id || getActiveTenantId();
 
@@ -629,14 +630,27 @@ export async function verify_totp_live(code: string) {
   return { success: true };
 }
 
-export async function disable_totp_live(current_password: string) {
+export async function disable_totp_live(current_password: string, code?: string) {
   if (!isBackendEnabled()) {
     throw new Error('Google Authenticator yalnız backend aktiv olduqda söndürülə bilər');
   }
   await apiRequest('/api/v1/settings/2fa/totp/disable', {
     method: 'POST',
     tenantId: null,
-    body: { current_password: String(current_password || '') },
+    body: { current_password: String(current_password || ''), code: String(code || '').trim() || undefined },
+  });
+  removeScopedStorage('trusted_admin_2fa_token');
+  return { success: true };
+}
+
+export async function reset_system_live(current_password: string, code?: string) {
+  if (!isBackendEnabled()) {
+    throw new Error('Sistem sıfırlama yalnız backend aktiv olduqda mümkündür');
+  }
+  await apiRequest('/api/v1/settings/reset-system', {
+    method: 'POST',
+    tenantId: null,
+    body: { current_password: String(current_password || ''), code: String(code || '').trim() || undefined },
   });
   return { success: true };
 }
