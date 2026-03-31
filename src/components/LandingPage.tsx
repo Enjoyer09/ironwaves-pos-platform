@@ -21,16 +21,6 @@ type LandingCopy = {
   screenshotTitle: string;
   screenshotBody: string;
   screenshots: { title: string; text: string }[];
-  pricingTitle: string;
-  pricingBody: string;
-  plans: {
-    name: string;
-    price: string;
-    tag: string;
-    features: string[];
-    cta: string;
-    featured?: boolean;
-  }[];
   testimonialTitle: string;
   testimonialBody: string;
   testimonials: { quote: string; author: string; role: string }[];
@@ -45,101 +35,70 @@ type LandingCopy = {
 
 const content: Record<LandingLang, LandingCopy> = {
   az: {
-    nav: ['Ana Səhifə', 'Funksiyalar', 'Qiymət', 'Demo', 'Əlaqə'],
+    nav: ['Haqqında', 'Əlaqə'],
     badge: 'iRonWaves POS RC',
-    heroTitle: 'Restaurant, coffee shop və retail üçün premium POS platforması',
+    heroTitle: 'Azərbaycan bazarı üçün müasir POS və idarəetmə sistemi',
     heroBody:
-      'Satış, masa, mətbəx, maliyyə, CRM, loyallıq və branded customer app axınlarını bir məhsul daxilində birləşdirən müasir idarəetmə sistemi.',
+      'Kassa, masa, mətbəx, anbar, maliyyə, CRM və loyallıq axınlarını bir mərkəzdə birləşdirən yerli və çevik idarəetmə platforması.',
     primaryCta: 'Canlı Demoya Bax',
     secondaryCta: 'Platformanı Aç',
     highlights: [
-      { title: 'Touch-first UX', text: 'Kassa, tablet və monitor üçün iri, sürətli və təmiz ekranlar.' },
-      { title: 'Kitchen & Tables', text: 'Mətbəx statusları, masa axını və servis koordinasiyası bir ritmdə işləyir.' },
-      { title: 'Finance Control', text: 'Cash drawer, investor, xərclər, Z-report və gündəlik nəzarət bir paneldədir.' },
-      { title: 'CRM & Loyalty', text: 'QR kartlar, cashback, rewards və branded customer app ilə dönüş artır.' },
+      { title: 'Sürətli satış', text: 'Touch-friendly POS ekranı ilə kassada sürət və rahatlıq.' },
+      { title: 'Masa və mətbəx', text: 'Servis, masa və mətbəx arasında koordinasiyanı sadələşdirir.' },
+      { title: 'Maliyyə nəzarəti', text: 'Gün açılışı, investor vəsaiti, xərclər və hesabatlar bir paneldədir.' },
+      { title: 'CRM və loyallıq', text: 'QR kartlar, rewards, cashback və müştəri tətbiqi ilə dönüş artır.' },
     ],
-    sectionTitle: 'Bütün əməliyyat bir mərkəzdə',
+    sectionTitle: 'Biz nə iş görürük',
     sectionBody:
-      'Bu sistem sadəcə kassa deyil. Obyektin gündəlik idarəsini, maliyyə nəzarətini və müştəri loyallığını eyni platformada birləşdirir.',
+      'iRonWaves POS restoran, coffee shop və retail obyektlər üçün gündəlik əməliyyatı daha rahat idarə etmək üçün qurulub.',
     modules: [
       {
-        title: 'POS Checkout',
-        text: 'Sürətli satış, split payment, reward kodu, QR tanıma və peşəkar receipt axını.',
+        title: 'Kassa və satış',
+        text: 'Sürətli checkout, nağd, kart və split payment dəstəyi ilə gündəlik satış axını.',
       },
       {
-        title: 'Kitchen & Tables',
-        text: 'Masa idarəsi, mətbəx statusları, dine-in və servis koordinasiyası.',
+        title: 'Masa və servis',
+        text: 'Masa idarəsi, sifarişlərin mətbəxə ötürülməsi və servis koordinasiyası.',
       },
       {
-        title: 'Finance & Z-Report',
-        text: 'Cash drawer, investor borcu, xərc/gəlir, shift və gündəlik hesabat görünüşü.',
+        title: 'Maliyyə və hesabat',
+        text: 'Gün açılışı, Z-hesabat, xərc-gəlir və gündəlik nəzarət imkanları.',
       },
       {
-        title: 'Inventory & Recipes',
-        text: 'Anbar, maya dəyəri, resept, xammal azalması və loss nəzarəti.',
+        title: 'Anbar və resept',
+        text: 'Xammal, maya dəyəri, resept və satışdan sonra anbar azalması nəzarəti.',
       },
       {
-        title: 'CRM & Customer App',
-        text: 'QR kartlar, campaign-lər, rewards, cashback və branded loyalty portal.',
-      },
-      {
-        title: 'Multi-tenant Rollout',
-        text: 'www, demo, super və branded tenant subdomain-ləri ilə peşəkar SaaS axını.',
+        title: 'CRM və müştəri tətbiqi',
+        text: 'QR üzvlük kartları, rewards, cashback və müştəri ilə daha güclü əlaqə.',
       },
     ],
-    flowTitle: 'Satış və onboarding modeli',
+    flowTitle: 'İstifadə ssenarisi',
     flow: [
       {
-        title: '1. Müştəri landing səhifəsini görür',
-        text: 'Sistemlə ilk tanışlıq məhsulun dəyərini, ekranlarını və rollout modelini aydın göstərir.',
+        title: '1. Obyekt üçün uyğunlaşdırılır',
+        text: 'Restoran, coffee shop və ya retail nöqtəsi üçün məhsul axını sistemə uyğun qurulur.',
       },
       {
-        title: '2. Demo tenant-a keçir',
-        text: 'Canlı POS, finance, kitchen və loyalty axınlarını təhlükəsiz demo mühitdə test edir.',
+        title: '2. Komanda rahat işləyir',
+        text: 'Kassir, menecer, servis və mətbəx üçün ekranlar daha aydın və sürətli işləyir.',
       },
       {
-        title: '3. Öz tenant-ını alır',
-        text: 'Branded subdomain, öz user-ləri, öz ayarları və öz əməliyyat datası ilə işə başlayır.',
+        title: '3. Müştəri geri qayıdır',
+        text: 'CRM, reward və loyalty alətləri ilə daimi müştəri əlaqəsi güclənir.',
       },
     ],
     screenshotTitle: 'Real məhsul ekranları',
     screenshotBody:
-      'Kodla çəkilmiş mockup yox, məhsulun real panellərindən istifadə edərək sistemi necə hiss etdirəcəyinizi göstəririk.',
+      'Burada gördüyünüz panellər məhsulun özündən götürülmüş real görüntülərdir.',
     screenshots: [
-      { title: 'POS və checkout axını', text: 'Satış, touch-first menyu, səbət və kassir ritmi.' },
-      { title: 'Finance və nəzarət paneli', text: 'Pul axını, report və gündəlik qərar paneli.' },
-      { title: 'Loyalty kartları', text: 'Golden və Elite kimi klub üzvlüyü dizaynları.' },
+      { title: 'Kassa və checkout', text: 'Satış menyusu, səbət və kassir ritmi bir ekranda.' },
+      { title: 'Maliyyə paneli', text: 'Pul axını, hesabatlar və gündəlik nəzarət görünüşü.' },
+      { title: 'Üzvlük kartları', text: 'Golden və Elite kimi loyalty kart dizaynları.' },
     ],
-    pricingTitle: 'Sadə planlar, güclü rollout',
-    pricingBody:
-      'İlkin demo və təqdimatdan sonra müştərini rahatlıqla uyğun plan üzrə işə sala bilərsiniz.',
-    plans: [
-      {
-        name: 'Starter',
-        price: '49 ₼/ay',
-        tag: 'Kiçik obyekt',
-        features: ['POS və satış', 'Masalar və mətbəx', 'Z-report və gündəlik hesabat', '1 branded tenant'],
-        cta: 'Demo ilə yoxla',
-      },
-      {
-        name: 'Growth',
-        price: '99 ₼/ay',
-        tag: 'Ən populyar',
-        features: ['Finance və investor nəzarəti', 'CRM və loyalty', 'Customer app', 'Prioritet onboarding'],
-        cta: 'Satış komandası ilə danış',
-        featured: true,
-      },
-      {
-        name: 'Enterprise',
-        price: 'Xüsusi',
-        tag: 'Şəbəkə və rollout',
-        features: ['White-label rollout', 'Xüsusi branding', 'Onboarding paketi', 'Əlavə inteqrasiyalar'],
-        cta: 'Fərdi təklif al',
-      },
-    ],
-    testimonialTitle: 'Sistem təkcə gözəl görünməməlidir',
+    testimonialTitle: 'Əsas məqsəd rahat işdir',
     testimonialBody:
-      'Əsas məqsəd odur ki, həm sahib, həm kassir, həm də servis komandası gündəlik işi daha rahat görsün.',
+      'Sistem həm sahib, həm kassir, həm də servis komandası üçün işi yüngülləşdirmək üçün qurulub.',
     testimonials: [
       {
         quote: 'Kassa və maliyyə eyni məhsulda toplandığı üçün günlük nəzarət xeyli rahatlaşdı.',
@@ -157,27 +116,27 @@ const content: Record<LandingLang, LandingCopy> = {
         role: 'Brand consultant',
       },
     ],
-    contactTitle: 'Demo qurun, tenant açın, satışa başlayın',
+    contactTitle: 'Əlaqə və demo',
     contactBody:
-      'Landing səhifədən demo tenant-a, oradan branded production tenant-a keçən axınla məhsulu həm satış, həm onboarding baxımından gücləndirin.',
+      'Demo baxışı ilə sistemi canlı görün, sonra obyektiniz üçün uyğun quruluşu birlikdə planlayaq.',
     contactCards: [
-      { title: 'Demo tenant', text: 'Canlı test üçün açıq giriş və sıfırlanan demo mühiti.' },
-      { title: 'Custom rollout', text: 'Branded subdomain, tenant ayarları və loyalty ssenariləri.' },
-      { title: 'Sales CTA', text: 'WhatsApp, e-mail və demo request axını ilə əlaqə toplayın.' },
+      { title: 'Canlı demo', text: 'Açıq demo tenant ilə sistemin əsas funksiyalarını yoxlayın.' },
+      { title: 'Qurulum', text: 'Obyektinizə uyğun modul və iş axını birlikdə qurulur.' },
+      { title: 'Əlaqə', text: 'Demo sorğusu, satış və təqdimat üçün birbaşa əlaqə saxlayın.' },
     ],
-    finalTitle: 'Məhsulu daha rahat satın, komandaya daha rahat öyrədin',
+    finalTitle: 'Gündəlik idarəetməni sadələşdirin',
     finalBody:
-      'Landing + demo + branded tenant modeli ilə həm satış prosesi daha peşəkar görünür, həm də onboarding daha rahat olur.',
-    launchModelTitle: 'Launch model',
+      'Kassa, masa, mətbəx, maliyyə və CRM axınlarını eyni məhsulda birləşdirərək işinizi daha rahat idarə edin.',
+    launchModelTitle: 'Platforma modeli',
     launchHosts: [
-      ['www.ironwaves.store', 'Landing və məhsul təqdimatı'],
-      ['demo.ironwaves.store', 'Təmizlənən canlı demo tenant'],
-      ['super.ironwaves.store', 'Platform və idarəetmə mərkəzi'],
-      ['client-name.ironwaves.store', 'Branded production tenant'],
+      ['www.ironwaves.store', 'Məhsulun təqdimat səhifəsi'],
+      ['demo.ironwaves.store', 'Canlı demo mühiti'],
+      ['super.ironwaves.store', 'İdarəetmə və konfiqurasiya mərkəzi'],
+      ['client-name.ironwaves.store', 'Obyektə uyğun iş mühiti'],
     ],
   },
   ru: {
-    nav: ['Главная', 'Функции', 'Тарифы', 'Демо', 'Контакты'],
+    nav: ['О продукте', 'Контакты'],
     badge: 'iRonWaves POS RC',
     heroTitle: 'Премиальная POS-платформа для ресторанов, coffee shop и retail',
     heroBody:
@@ -214,32 +173,6 @@ const content: Record<LandingLang, LandingCopy> = {
       { title: 'POS и checkout flow', text: 'Продажи, touch-first меню, корзина и ритм кассира.' },
       { title: 'Finance и контроль', text: 'Денежный поток, отчеты и ежедневная управленческая картина.' },
       { title: 'Карты лояльности', text: 'Дизайн клубных карт уровня Golden и Elite.' },
-    ],
-    pricingTitle: 'Понятные планы, сильный rollout',
-    pricingBody: 'После demo и презентации клиента можно мягко перевести на нужный тариф.',
-    plans: [
-      {
-        name: 'Starter',
-        price: '49 ₼/мес',
-        tag: 'Небольшой объект',
-        features: ['POS и продажи', 'Столы и кухня', 'Z-report и daily reporting', '1 branded tenant'],
-        cta: 'Проверить в demo',
-      },
-      {
-        name: 'Growth',
-        price: '99 ₼/мес',
-        tag: 'Самый популярный',
-        features: ['Finance и investor control', 'CRM и loyalty', 'Customer app', 'Приоритетный onboarding'],
-        cta: 'Связаться с продажами',
-        featured: true,
-      },
-      {
-        name: 'Enterprise',
-        price: 'Индивидуально',
-        tag: 'Сети и rollout',
-        features: ['White-label rollout', 'Индивидуальный branding', 'Пакет onboarding', 'Доп. интеграции'],
-        cta: 'Получить предложение',
-      },
     ],
     testimonialTitle: 'Система должна быть не только красивой',
     testimonialBody: 'Главная цель - чтобы owner, cashier и service team работали быстрее и спокойнее.',
@@ -280,7 +213,7 @@ const content: Record<LandingLang, LandingCopy> = {
     ],
   },
   en: {
-    nav: ['Home', 'Features', 'Pricing', 'Demo', 'Contact'],
+    nav: ['About', 'Contact'],
     badge: 'iRonWaves POS RC',
     heroTitle: 'A premium POS platform for restaurants, coffee shops, and retail concepts',
     heroBody:
@@ -317,33 +250,6 @@ const content: Record<LandingLang, LandingCopy> = {
       { title: 'POS and checkout flow', text: 'Sales rhythm, touch-first menu, cart, and cashier experience.' },
       { title: 'Finance and control panel', text: 'Cash flow, reports, and daily operational visibility.' },
       { title: 'Loyalty card designs', text: 'Golden and Elite style club card experiences.' },
-    ],
-    pricingTitle: 'Simple plans, strong rollout',
-    pricingBody:
-      'After the demo and presentation, you can move the client into the right commercial tier without friction.',
-    plans: [
-      {
-        name: 'Starter',
-        price: '49 ₼/mo',
-        tag: 'Small venue',
-        features: ['POS and sales', 'Tables and kitchen', 'Z-report and daily reporting', '1 branded tenant'],
-        cta: 'Try the demo',
-      },
-      {
-        name: 'Growth',
-        price: '99 ₼/mo',
-        tag: 'Most popular',
-        features: ['Finance and investor control', 'CRM and loyalty', 'Customer app', 'Priority onboarding'],
-        cta: 'Talk to sales',
-        featured: true,
-      },
-      {
-        name: 'Enterprise',
-        price: 'Custom',
-        tag: 'Chains and rollout',
-        features: ['White-label rollout', 'Custom branding', 'Onboarding package', 'Advanced integrations'],
-        cta: 'Request a quote',
-      },
     ],
     testimonialTitle: 'The product should do more than look good',
     testimonialBody:
@@ -508,10 +414,14 @@ export default function LandingPage() {
               </div>
 
               <div className="hidden items-center gap-6 text-sm font-semibold text-slate-600 lg:flex">
-                {copy.nav.map((item) => (
-                  <button key={item} className="transition hover:text-indigo-600">
+                {copy.nav.map((item, idx) => (
+                  <a
+                    key={item}
+                    href={idx === 0 ? '#about' : '#contact'}
+                    className="transition hover:text-indigo-600"
+                  >
                     {item}
-                  </button>
+                  </a>
                 ))}
               </div>
 
@@ -582,7 +492,7 @@ export default function LandingPage() {
             ))}
           </section>
 
-          <section className="grid gap-8 pb-20 lg:grid-cols-[0.95fr_1.05fr]">
+          <section id="about" className="grid gap-8 pb-20 lg:grid-cols-[0.95fr_1.05fr]">
             <div className="rounded-[34px] bg-[linear-gradient(180deg,#0f172a,#111827)] p-8 text-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
               <div className="text-sm font-bold uppercase tracking-[0.26em] text-sky-300">{copy.sectionTitle}</div>
               <h2 className="mt-4 text-4xl font-black leading-tight">{copy.flowTitle}</h2>
@@ -625,56 +535,6 @@ export default function LandingPage() {
           </section>
 
           <section className="pb-20">
-            <div className="mb-10 max-w-3xl">
-              <div className="text-sm font-bold uppercase tracking-[0.22em] text-indigo-600">Pricing</div>
-              <h2 className="mt-4 text-4xl font-black leading-tight text-slate-900">{copy.pricingTitle}</h2>
-              <p className="mt-4 text-sm leading-8 text-slate-600">{copy.pricingBody}</p>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-3">
-              {copy.plans.map((plan) => (
-                <div
-                  key={plan.name}
-                  className={`rounded-[32px] border p-7 shadow-[0_20px_50px_rgba(15,23,42,0.06)] ${
-                    plan.featured
-                      ? 'border-indigo-300 bg-[linear-gradient(180deg,#eef2ff,#ffffff)]'
-                      : 'border-slate-200 bg-white'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-xs font-bold uppercase tracking-[0.22em] text-indigo-600">{plan.tag}</div>
-                      <h3 className="mt-3 text-3xl font-black text-slate-900">{plan.name}</h3>
-                    </div>
-                    {plan.featured ? (
-                      <div className="rounded-full bg-indigo-600 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-white">Best fit</div>
-                    ) : null}
-                  </div>
-                  <div className="mt-6 text-4xl font-black text-slate-900">{plan.price}</div>
-                  <div className="mt-6 space-y-3">
-                    {plan.features.map((feature) => (
-                      <div key={feature} className="flex items-start gap-3 text-sm text-slate-600">
-                        <div className="mt-1 h-2.5 w-2.5 rounded-full bg-indigo-500" />
-                        <span>{feature}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <a
-                    href={plan.featured ? appUrl : demoUrl}
-                    className={`mt-8 inline-flex min-h-12 w-full items-center justify-center rounded-2xl px-5 py-3 text-sm font-bold ${
-                      plan.featured
-                        ? 'bg-[linear-gradient(180deg,#6366f1,#4f46e5)] text-white shadow-[0_16px_30px_rgba(99,102,241,0.22)]'
-                        : 'border border-slate-200 bg-white text-slate-800'
-                    }`}
-                  >
-                    {plan.cta}
-                  </a>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="pb-20">
             <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
               <div>
                 <div className="text-sm font-bold uppercase tracking-[0.22em] text-indigo-600">{copy.testimonialTitle}</div>
@@ -694,7 +554,7 @@ export default function LandingPage() {
             </div>
           </section>
 
-          <section className="pb-24">
+          <section id="contact" className="pb-24">
             <div className="rounded-[36px] bg-[linear-gradient(135deg,#eef2ff,#ffffff,#ecfeff)] p-8 shadow-[0_24px_60px_rgba(15,23,42,0.06)] md:p-10">
               <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
                 <div>
