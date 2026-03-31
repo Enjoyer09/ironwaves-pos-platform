@@ -197,6 +197,23 @@ export interface Settings {
     show_history: boolean;
     show_notifications: boolean;
   };
+  landing_settings?: {
+    hero_title_az?: string;
+    hero_title_ru?: string;
+    hero_title_en?: string;
+    hero_body_az?: string;
+    hero_body_ru?: string;
+    hero_body_en?: string;
+    primary_cta_az?: string;
+    primary_cta_ru?: string;
+    primary_cta_en?: string;
+    secondary_cta_az?: string;
+    secondary_cta_ru?: string;
+    secondary_cta_en?: string;
+    contact_email?: string;
+    contact_phone?: string;
+    contact_whatsapp?: string;
+  };
   omnitech_settings?: {
     enabled: boolean;
     api_base_url: string;

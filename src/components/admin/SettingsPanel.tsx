@@ -11,6 +11,7 @@ import {
   get_settings_live,
   get_users_live,
   setup_totp_live,
+  update_bank_commission_live,
   update_email_settings_live,
   update_business_profile_live,
   update_print_settings,
@@ -54,6 +55,10 @@ export default function SettingsPanel() {
   const [printSettings, setPrintSettings] = useState({
     use_qz: false,
     printer_name: '',
+  });
+  const [bankCommission, setBankCommission] = useState({
+    card_sale_percent: '2',
+    card_transfer_percent: '0.5',
   });
   const [staffBenefits, setStaffBenefits] = useState({
     daily_limit_azn: '6',
@@ -129,6 +134,10 @@ export default function SettingsPanel() {
       setPrintSettings({
         use_qz: Boolean(settingsRes.value.print_settings?.use_qz),
         printer_name: String(settingsRes.value.print_settings?.printer_name || ''),
+      });
+      setBankCommission({
+        card_sale_percent: String((settingsRes.value.bank_commission as any)?.card_sale_percent ?? settingsRes.value.bank_commission?.percent ?? 2),
+        card_transfer_percent: String((settingsRes.value.bank_commission as any)?.card_transfer_percent ?? 0.5),
       });
       setStaffBenefits({
         daily_limit_azn: String(settingsRes.value.staff_benefits?.daily_limit_azn ?? 6),
@@ -372,6 +381,14 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Çap ayarları yadda saxlanıldı', 'Настройки печати сохранены', 'Print settings saved'));
   };
 
+  const saveBankCommission = async () => {
+    await update_bank_commission_live({
+      card_sale_percent: Number(bankCommission.card_sale_percent || 0),
+      card_transfer_percent: Number(bankCommission.card_transfer_percent || 0),
+    });
+    flashSuccess(tx(lang, 'Bank faiz ayarları yadda saxlanıldı', 'Настройки банковских комиссий сохранены', 'Bank fee settings saved'));
+  };
+
 
   const saveStaffBenefits = async () => {
     await update_staff_benefits_live({
@@ -480,6 +497,49 @@ export default function SettingsPanel() {
         </div>
         <div className="flex justify-end">
           <button onClick={savePrintSettings} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+        </div>
+      </div>
+
+      <div className="metal-panel p-6 space-y-4">
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Bank Faiz Ayarları', 'Настройки банковских комиссий', 'Bank Fee Settings')}</h2>
+        <p className="text-sm text-slate-400">
+          {tx(
+            lang,
+            'Hər tenant öz bank faizlərini özü müəyyən edə bilər. Kartla edilən satış və kartdan çıxan/köçürülən pul üçün faizlər ayrıdır.',
+            'Каждый tenant может сам задать банковские комиссии. Для карточных продаж и вывода/перевода с карты проценты разделены.',
+            'Each tenant can define its own bank fee rules. Card sales and money moved out of card balance are configured separately.',
+          )}
+        </p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <input
+            className="neon-input"
+            type="number"
+            min={0}
+            step="0.01"
+            value={bankCommission.card_sale_percent}
+            onChange={(e) => setBankCommission((prev) => ({ ...prev, card_sale_percent: e.target.value }))}
+            placeholder={tx(lang, 'Kartla satış faizi (%)', 'Комиссия за карточную продажу (%)', 'Card sale fee (%)')}
+          />
+          <input
+            className="neon-input"
+            type="number"
+            min={0}
+            step="0.01"
+            value={bankCommission.card_transfer_percent}
+            onChange={(e) => setBankCommission((prev) => ({ ...prev, card_transfer_percent: e.target.value }))}
+            placeholder={tx(lang, 'Kartdan çıxış/köçürmə faizi (%)', 'Комиссия за вывод/перевод с карты (%)', 'Card transfer-out fee (%)')}
+          />
+        </div>
+        <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-xs text-slate-300">
+          {tx(
+            lang,
+            'Məntiq: kassada adi kart ödənişi üçün bir faiz, kartdan kassaya və ya borca köçürmə üçün ayrıca faiz tətbiq olunur. Kassadan karta, kassadan seyfə kimi hərəkətlərdə kart çıxışı olmadığı üçün bu faiz avtomatik tətbiq olunmur.',
+            'Логика: для обычной карточной оплаты в кассе один процент, для перевода/вывода с карты — отдельный. Для касса->карта и касса->сейф комиссия не применяется автоматически.',
+            'Logic: regular card sales use one percentage, while money moved out of card balance uses another. Cash->card and cash->safe do not get this fee automatically.',
+          )}
+        </div>
+        <div className="flex justify-end">
+          <button onClick={() => { void saveBankCommission(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 

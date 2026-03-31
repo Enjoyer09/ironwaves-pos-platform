@@ -73,6 +73,23 @@ function getSettings(tenant_id?: string): Settings {
         show_history: true,
         show_notifications: true,
       },
+      landing_settings: {
+        hero_title_az: 'Azərbaycan bazarı üçün müasir POS və idarəetmə sistemi',
+        hero_title_ru: 'Премиальная POS-платформа для ресторанов, coffee shop и retail',
+        hero_title_en: 'A premium POS platform for restaurants, coffee shops, and retail concepts',
+        hero_body_az: 'Kassa, masa, mətbəx, anbar, maliyyə, CRM və loyallıq axınlarını bir mərkəzdə birləşdirən yerli və çevik idarəetmə platforması.',
+        hero_body_ru: 'Современная система управления, объединяющая продажи, столы, кухню, финансы, CRM и loyalty в одном продукте.',
+        hero_body_en: 'A modern operations system that connects sales, tables, kitchen, finance, CRM, and loyalty inside one product.',
+        primary_cta_az: 'Canlı Demoya Bax',
+        primary_cta_ru: 'Открыть Live Demo',
+        primary_cta_en: 'Open Live Demo',
+        secondary_cta_az: 'Platformanı Aç',
+        secondary_cta_ru: 'Открыть Платформу',
+        secondary_cta_en: 'Open Platform',
+        contact_email: 'hello@ironwaves.store',
+        contact_phone: '',
+        contact_whatsapp: '',
+      },
       omnitech_settings: {
         enabled: false,
         api_base_url: '',
@@ -170,6 +187,17 @@ export function update_bank_commission(payload: { min_amount: number; percent: n
   };
   saveSettings(settings);
   logEvent('admin', 'BANK_COMMISSION_UPDATE', settings.bank_commission);
+  return { success: true };
+}
+
+export function update_landing_settings(payload: Settings['landing_settings']) {
+  const settings = getSettings();
+  settings.landing_settings = {
+    ...(settings.landing_settings || {}),
+    ...(payload || {}),
+  };
+  saveSettings(settings);
+  logEvent('admin', 'LANDING_SETTINGS_UPDATE', settings.landing_settings);
   return { success: true };
 }
 
@@ -280,6 +308,26 @@ export function get_settings(tenant_id?: string) {
       included_categories: [],
       included_items: [],
       item_unit_cap_azn: Number((s.staff_benefits as any).non_coffee_unit_cap_azn ?? 6),
+    };
+    saveSettings(s);
+  }
+  if (!s.landing_settings) {
+    s.landing_settings = {
+      hero_title_az: 'Azərbaycan bazarı üçün müasir POS və idarəetmə sistemi',
+      hero_title_ru: 'Премиальная POS-платформа для ресторанов, coffee shop и retail',
+      hero_title_en: 'A premium POS platform for restaurants, coffee shops, and retail concepts',
+      hero_body_az: 'Kassa, masa, mətbəx, anbar, maliyyə, CRM və loyallıq axınlarını bir mərkəzdə birləşdirən yerli və çevik idarəetmə platforması.',
+      hero_body_ru: 'Современная система управления, объединяющая продажи, столы, кухню, финансы, CRM и loyalty в одном продукте.',
+      hero_body_en: 'A modern operations system that connects sales, tables, kitchen, finance, CRM, and loyalty inside one product.',
+      primary_cta_az: 'Canlı Demoya Bax',
+      primary_cta_ru: 'Открыть Live Demo',
+      primary_cta_en: 'Open Live Demo',
+      secondary_cta_az: 'Platformanı Aç',
+      secondary_cta_ru: 'Открыть Платформу',
+      secondary_cta_en: 'Open Platform',
+      contact_email: 'hello@ironwaves.store',
+      contact_phone: '',
+      contact_whatsapp: '',
     };
     saveSettings(s);
   }
@@ -530,6 +578,33 @@ export async function update_staff_benefits_live(payload: {
   await apiRequest('/api/v1/ops/settings/staff-benefits', { method: 'PATCH', tenantId: null, body: payload });
   update_staff_benefits(payload);
   return { success: true };
+}
+
+export async function update_bank_commission_live(payload: {
+  min_amount?: number;
+  percent?: number;
+  card_sale_percent?: number;
+  card_transfer_percent?: number;
+}) {
+  if (!isBackendEnabled()) return update_bank_commission(payload as any);
+  await apiRequest('/api/v1/ops/settings/bank-commission', { method: 'PATCH', tenantId: null, body: payload });
+  update_bank_commission(payload as any);
+  return { success: true };
+}
+
+export async function update_landing_settings_live(payload: Settings['landing_settings']) {
+  if (!isBackendEnabled()) return update_landing_settings(payload);
+  await apiRequest('/api/v1/ops/settings/landing', { method: 'PATCH', tenantId: null, body: payload });
+  update_landing_settings(payload);
+  return { success: true };
+}
+
+export async function get_public_landing_settings_live() {
+  if (!isBackendEnabled()) return get_settings().landing_settings || {};
+  return apiRequest<NonNullable<Settings['landing_settings']>>('/api/v1/ops/public/landing-settings', {
+    auth: false,
+    tenantId: null,
+  });
 }
 
 export async function setup_totp_live() {
