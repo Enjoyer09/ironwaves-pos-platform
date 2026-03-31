@@ -1,4 +1,5 @@
 import React from 'react';
+import { get_public_landing_settings_live } from '../api/settings';
 
 const demoUrl = 'https://demo.ironwaves.store';
 const appUrl = 'https://super.ironwaves.store';
@@ -393,7 +394,40 @@ function ScreenshotCard({
 
 export default function LandingPage() {
   const [lang, setLang] = React.useState<LandingLang>('az');
+  const [landingSettings, setLandingSettings] = React.useState<any>(null);
   const copy = content[lang];
+
+  React.useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        const data = await get_public_landing_settings_live();
+        if (mounted) setLandingSettings(data || null);
+      } catch {
+        // Keep baked-in copy if public landing settings are unavailable.
+      }
+    };
+    void load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const heroTitle =
+    landingSettings?.[`hero_title_${lang}`] ||
+    copy.heroTitle;
+  const heroBody =
+    landingSettings?.[`hero_body_${lang}`] ||
+    copy.heroBody;
+  const primaryCta =
+    landingSettings?.[`primary_cta_${lang}`] ||
+    copy.primaryCta;
+  const secondaryCta =
+    landingSettings?.[`secondary_cta_${lang}`] ||
+    copy.secondaryCta;
+  const contactEmail = landingSettings?.contact_email || 'hello@ironwaves.store';
+  const contactPhone = landingSettings?.contact_phone || '';
+  const contactWhatsapp = landingSettings?.contact_whatsapp || '';
 
   return (
     <div className="h-[100dvh] overflow-y-auto bg-[#f7f8fc] text-slate-900">
@@ -454,21 +488,21 @@ export default function LandingPage() {
               <div className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-bold uppercase tracking-[0.28em] text-indigo-600">
                 {copy.badge}
               </div>
-              <h1 className="mt-8 text-5xl font-black leading-[1.02] text-slate-900 md:text-7xl">{copy.heroTitle}</h1>
-              <p className="mt-6 max-w-xl text-base leading-8 text-slate-600 md:text-lg">{copy.heroBody}</p>
+              <h1 className="mt-8 text-5xl font-black leading-[1.02] text-slate-900 md:text-7xl">{heroTitle}</h1>
+              <p className="mt-6 max-w-xl text-base leading-8 text-slate-600 md:text-lg">{heroBody}</p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <a
                   href={demoUrl}
                   className="inline-flex min-h-13 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#6366f1,#4f46e5)] px-7 py-3 text-base font-bold text-white shadow-[0_16px_30px_rgba(99,102,241,0.26)]"
                 >
-                  {copy.primaryCta}
+                  {primaryCta}
                 </a>
                 <a
                   href={appUrl}
                   className="inline-flex min-h-13 items-center justify-center rounded-2xl border border-slate-200 bg-white px-7 py-3 text-base font-semibold text-slate-800 shadow-[0_12px_24px_rgba(15,23,42,0.06)]"
                 >
-                  {copy.secondaryCta}
+                  {secondaryCta}
                 </a>
               </div>
             </div>
@@ -566,15 +600,21 @@ export default function LandingPage() {
                       href={demoUrl}
                       className="inline-flex min-h-13 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#6366f1,#4f46e5)] px-7 py-3 text-base font-bold text-white shadow-[0_16px_30px_rgba(99,102,241,0.22)]"
                     >
-                      {copy.primaryCta}
+                      {primaryCta}
                     </a>
                     <a
-                      href="mailto:hello@ironwaves.store"
+                      href={contactEmail ? `mailto:${contactEmail}` : '#'}
                       className="inline-flex min-h-13 items-center justify-center rounded-2xl border border-slate-200 bg-white px-7 py-3 text-base font-semibold text-slate-800"
                     >
-                      hello@ironwaves.store
+                      {contactEmail || 'hello@ironwaves.store'}
                     </a>
                   </div>
+                  {(contactPhone || contactWhatsapp) ? (
+                    <div className="mt-4 flex flex-col gap-2 text-sm text-slate-600">
+                      {contactPhone ? <div>{contactPhone}</div> : null}
+                      {contactWhatsapp ? <div>{contactWhatsapp}</div> : null}
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="space-y-5">

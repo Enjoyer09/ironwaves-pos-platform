@@ -31,6 +31,7 @@ from app.models import (
     Tenant,
     User,
 )
+from app.core.config import settings as app_settings
 
 
 router = APIRouter(prefix="/api/v1/ops", tags=["operations"])
@@ -365,12 +366,34 @@ def get_app_settings(
         "ui_visibility": {"staff_show_tables": True, "manager_show_tables": True, "staff_show_kitchen": True},
         "time_settings": {"shift_start_time": "08:00", "shift_end_time": "23:00", "utc_offset": 4, "timezone": "Asia/Baku"},
         "email_settings": email_settings,
-        "bank_commission": {"min_amount": 0.10, "percent": 1.5, "card_sale_percent": 2, "card_transfer_percent": 0.5},
+        "bank_commission": _setting_value(db, tenant.id, "bank_commission", {"min_amount": 0.10, "percent": 1.5, "card_sale_percent": 2, "card_transfer_percent": 0.5}),
         "inventory_settings": inventory_settings,
         "staff_benefits": staff_benefits,
         "print_settings": print_settings,
         "qr_settings": qr_settings,
         "customer_app_settings": customer_app_settings,
+        "landing_settings": _setting_value(
+            db,
+            tenant.id,
+            "landing_settings",
+            {
+                "hero_title_az": "Azərbaycan bazarı üçün müasir POS və idarəetmə sistemi",
+                "hero_title_ru": "Премиальная POS-платформа для ресторанов, coffee shop и retail",
+                "hero_title_en": "A premium POS platform for restaurants, coffee shops, and retail concepts",
+                "hero_body_az": "Kassa, masa, mətbəx, anbar, maliyyə, CRM və loyallıq axınlarını bir mərkəzdə birləşdirən yerli və çevik idarəetmə platforması.",
+                "hero_body_ru": "Современная система управления, объединяющая продажи, столы, кухню, финансы, CRM и loyalty в одном продукте.",
+                "hero_body_en": "A modern operations system that connects sales, tables, kitchen, finance, CRM, and loyalty inside one product.",
+                "primary_cta_az": "Canlı Demoya Bax",
+                "primary_cta_ru": "Открыть Live Demo",
+                "primary_cta_en": "Open Live Demo",
+                "secondary_cta_az": "Platformanı Aç",
+                "secondary_cta_ru": "Открыть Платформу",
+                "secondary_cta_en": "Open Platform",
+                "contact_email": "hello@ironwaves.store",
+                "contact_phone": "",
+                "contact_whatsapp": "",
+            },
+        ),
         "omnitech_settings": omnitech_settings,
         "role_modules": role_modules,
         "gemini_api_key": gemini_api_key,
@@ -415,6 +438,109 @@ def update_qr_settings(
     _set_setting_value(db, tenant.id, "qr_settings", {"base_url": base_url})
     db.commit()
     return {"success": True}
+
+
+@router.patch("/settings/bank-commission")
+def update_bank_commission(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    current = _setting_value(db, tenant.id, "bank_commission", {"min_amount": 0.10, "percent": 1.5, "card_sale_percent": 2, "card_transfer_percent": 0.5})
+    merged = {
+        **current,
+        **payload,
+    }
+    _set_setting_value(db, tenant.id, "bank_commission", merged)
+    db.commit()
+    return {"success": True}
+
+
+@router.patch("/settings/landing")
+def update_landing_settings(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    current = _setting_value(
+        db,
+        tenant.id,
+        "landing_settings",
+        {
+            "hero_title_az": "Azərbaycan bazarı üçün müasir POS və idarəetmə sistemi",
+            "hero_title_ru": "Премиальная POS-платформа для ресторанов, coffee shop и retail",
+            "hero_title_en": "A premium POS platform for restaurants, coffee shops, and retail concepts",
+            "hero_body_az": "Kassa, masa, mətbəx, anbar, maliyyə, CRM və loyallıq axınlarını bir mərkəzdə birləşdirən yerli və çevik idarəetmə platforması.",
+            "hero_body_ru": "Современная система управления, объединяющая продажи, столы, кухню, финансы, CRM и loyalty в одном продукте.",
+            "hero_body_en": "A modern operations system that connects sales, tables, kitchen, finance, CRM, and loyalty inside one product.",
+            "primary_cta_az": "Canlı Demoya Bax",
+            "primary_cta_ru": "Открыть Live Demo",
+            "primary_cta_en": "Open Live Demo",
+            "secondary_cta_az": "Platformanı Aç",
+            "secondary_cta_ru": "Открыть Платформу",
+            "secondary_cta_en": "Open Platform",
+            "contact_email": "hello@ironwaves.store",
+            "contact_phone": "",
+            "contact_whatsapp": "",
+        },
+    )
+    merged = {**current, **payload}
+    _set_setting_value(db, tenant.id, "landing_settings", merged)
+    db.commit()
+    return {"success": True}
+
+
+@router.get("/public/landing-settings")
+def get_public_landing_settings(db: Session = Depends(get_db)):
+    platform_tenant = (
+        db.query(Tenant)
+        .filter(Tenant.slug == app_settings.platform_tenant_slug)
+        .first()
+    )
+    if not platform_tenant:
+        return {
+            "hero_title_az": "Azərbaycan bazarı üçün müasir POS və idarəetmə sistemi",
+            "hero_title_ru": "Премиальная POS-платформа для ресторанов, coffee shop и retail",
+            "hero_title_en": "A premium POS platform for restaurants, coffee shops, and retail concepts",
+            "hero_body_az": "Kassa, masa, mətbəx, anbar, maliyyə, CRM və loyallıq axınlarını bir mərkəzdə birləşdirən yerli və çevik idarəetmə platforması.",
+            "hero_body_ru": "Современная система управления, объединяющая продажи, столы, кухню, финансы, CRM и loyalty в одном продукте.",
+            "hero_body_en": "A modern operations system that connects sales, tables, kitchen, finance, CRM, and loyalty inside one product.",
+            "primary_cta_az": "Canlı Demoya Bax",
+            "primary_cta_ru": "Открыть Live Demo",
+            "primary_cta_en": "Open Live Demo",
+            "secondary_cta_az": "Platformanı Aç",
+            "secondary_cta_ru": "Открыть Платформу",
+            "secondary_cta_en": "Open Platform",
+            "contact_email": "hello@ironwaves.store",
+            "contact_phone": "",
+            "contact_whatsapp": "",
+        }
+    return _setting_value(
+        db,
+        platform_tenant.id,
+        "landing_settings",
+        {
+            "hero_title_az": "Azərbaycan bazarı üçün müasir POS və idarəetmə sistemi",
+            "hero_title_ru": "Премиальная POS-платформа для ресторанов, coffee shop и retail",
+            "hero_title_en": "A premium POS platform for restaurants, coffee shops, and retail concepts",
+            "hero_body_az": "Kassa, masa, mətbəx, anbar, maliyyə, CRM və loyallıq axınlarını bir mərkəzdə birləşdirən yerli və çevik idarəetmə platforması.",
+            "hero_body_ru": "Современная система управления, объединяющая продажи, столы, кухню, финансы, CRM и loyalty в одном продукте.",
+            "hero_body_en": "A modern operations system that connects sales, tables, kitchen, finance, CRM, and loyalty inside one product.",
+            "primary_cta_az": "Canlı Demoya Bax",
+            "primary_cta_ru": "Открыть Live Demo",
+            "primary_cta_en": "Open Live Demo",
+            "secondary_cta_az": "Platformanı Aç",
+            "secondary_cta_ru": "Открыть Платформу",
+            "secondary_cta_en": "Open Platform",
+            "contact_email": "hello@ironwaves.store",
+            "contact_phone": "",
+            "contact_whatsapp": "",
+        },
+    )
 
 
 @router.patch("/settings/customer-app")
