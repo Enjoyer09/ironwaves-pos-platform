@@ -365,7 +365,7 @@ def get_app_settings(
         "ui_visibility": {"staff_show_tables": True, "manager_show_tables": True, "staff_show_kitchen": True},
         "time_settings": {"shift_start_time": "08:00", "shift_end_time": "23:00", "utc_offset": 4, "timezone": "Asia/Baku"},
         "email_settings": email_settings,
-        "bank_commission": {"min_amount": 0.10, "percent": 1.5},
+        "bank_commission": {"min_amount": 0.10, "percent": 1.5, "card_sale_percent": 2, "card_transfer_percent": 0.5},
         "inventory_settings": inventory_settings,
         "staff_benefits": staff_benefits,
         "print_settings": print_settings,

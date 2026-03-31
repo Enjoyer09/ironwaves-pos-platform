@@ -5,7 +5,9 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import FinanceEntry, Tenant
+import json
+
+from app.models import FinanceEntry, Setting, Tenant
 from app.schemas import FinanceEntryIn, TransferIn
 
 
@@ -47,6 +49,16 @@ def _wallet_balance(db: Session, tenant_id: str, source: str) -> Decimal:
     in_total = sum((Decimal(str(x.amount)) for x in ins), Decimal("0"))
     out_total = sum((Decimal(str(x.amount)) for x in outs), Decimal("0"))
     return in_total - out_total
+
+
+def _setting_value(db: Session, tenant_id: str, key: str, default):
+    row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
+    if not row or row.value is None:
+        return default
+    try:
+        return json.loads(row.value)
+    except Exception:
+        return default
 
 
 @router.get("/balances")
@@ -158,8 +170,10 @@ def transfer(payload: TransferIn, db: Session = Depends(get_db), tenant: Tenant 
 
     source, target = direction_map[payload.direction]
     commission = Decimal("0")
-    if payload.direction == "card_to_cash":
-        commission = Decimal("0.60") if amount <= Decimal("120") else (amount * Decimal("0.005")).quantize(Decimal("0.01"))
+    commission_cfg = _setting_value(db, tenant.id, "bank_commission", {"card_transfer_percent": 0.5})
+    card_transfer_percent = Decimal(str(commission_cfg.get("card_transfer_percent", 0.5) or 0.5))
+    if payload.direction in {"card_to_cash", "card_to_debt"}:
+        commission = (amount * (card_transfer_percent / Decimal("100"))).quantize(Decimal("0.01"))
 
     bal = _wallet_balance(db, tenant.id, source)
     if bal < amount + commission:

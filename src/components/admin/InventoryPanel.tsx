@@ -108,7 +108,6 @@ export default function InventoryPanel() {
     try {
       const qty = new Decimal(newQty);
       const totalPrice = new Decimal(newCost);
-      const createdName = newName.trim();
       await add_inventory_item_live({
         tenant_id,
         name: newName,
@@ -126,7 +125,6 @@ export default function InventoryPanel() {
       setCustomType('');
       setNewType('Xammal');
       setIsAdding(false);
-      setSearch(createdName);
       await loadData();
       notify('success', tx(lang, 'Məhsul yadda saxlanıldı', 'Продукт сохранен', 'Inventory item saved'));
     } catch(e:any) {

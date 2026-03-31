@@ -8,6 +8,15 @@ import { apiRequest, isBackendEnabled } from './client';
 import { getDB, setDB } from '../lib/db_sim';
 import { getActiveTenantId } from '../lib/tenant';
 
+const getCardSaleCommissionPercent = (tenant_id: string) => {
+  const settings = get_settings(tenant_id);
+  return new Decimal(
+    (settings.bank_commission as any)?.card_sale_percent ??
+      settings.bank_commission?.percent ??
+      2,
+  );
+};
+
 const isCoffeeLike = (item: { is_coffee?: boolean; category?: string; item_name?: string }) => {
   if (item.is_coffee) return true;
   const category = (item.category || '').toLowerCase();
@@ -429,8 +438,9 @@ export const create_sale = (payload: SalePayload) => {
           created_at: now,
           is_deleted: false
         });
-        // Kart əməliyyat komissiyası: 2%
-        const splitCardFee = payload.split_card.times(0.02).toDecimalPlaces(2);
+        const splitCardFee = payload.split_card
+          .times(getCardSaleCommissionPercent(payload.tenant_id).div(100))
+          .toDecimalPlaces(2);
         finances.push({
           id: uuidv4(),
           tenant_id: payload.tenant_id,
@@ -476,8 +486,9 @@ export const create_sale = (payload: SalePayload) => {
           });
 
           if (payload.payment_method === 'Kart') {
-            // Kart əməliyyat komissiyası: 2%
-            const fee = final_total.times(0.02).toDecimalPlaces(2);
+            const fee = final_total
+              .times(getCardSaleCommissionPercent(payload.tenant_id).div(100))
+              .toDecimalPlaces(2);
             finances.push({
               id: uuidv4(),
               tenant_id: payload.tenant_id,
