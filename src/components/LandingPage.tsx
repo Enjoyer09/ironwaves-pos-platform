@@ -7,371 +7,188 @@ type LandingLang = 'az' | 'ru' | 'en';
 
 const content: Record<LandingLang, any> = {
   az: {
+    nav: ['Ana Səhifə', 'Funksiyalar', 'Modullar', 'Demo', 'Əlaqə'],
     badge: 'iRonWaves POS RC',
-    heroTitle: 'Bir platforma ilə satış, mətbəx, maliyyə, CRM və loyallıq axınını premium səviyyədə idarə edin.',
+    heroTitle: 'Restaurant, coffee shop və retail üçün premium POS platforması',
     heroBody:
-      'iRonWaves POS RC kassa əməliyyatlarını, masa və mətbəx axınını, investor və maliyyə nəzarətini, QR loyallıq sistemini və çox-tenant rollout modelini bir məhsul daxilində birləşdirir.',
-    primaryCta: 'Canlı demoya bax',
-    secondaryCta: 'Platformanı aç',
+      'Satış, masa, mətbəx, maliyyə, CRM, loyallıq və tenant rollout axınlarını bir məhsul daxilində birləşdirən müasir idarəetmə sistemi.',
+    primaryCta: 'Canlı Demoya Bax',
+    secondaryCta: 'Platformanı Aç',
     highlights: [
-      { value: 'POS + KDS', label: 'satış və servis axını bir yerdə' },
-      { value: 'Finance', label: 'cash, card, investor, Z-report nəzarəti' },
-      { value: 'CRM + Loyalty', label: 'QR kart, reward, cashback, customer app' },
+      { title: 'Easy UI & UX', text: 'Touch-friendly, sürətli və komandaya uyğun ekranlar' },
+      { title: 'Kitchen Panel', text: 'Qəbul, hazırlanır və servisə hazır status axını' },
+      { title: 'Cashier Panel', text: 'Split payment, reward, QR, receipt və sürətli checkout' },
+      { title: 'CRM & Loyalty', text: 'QR kart, cashback, reward və branded customer app' },
     ],
-    proofTitle: 'Bu platforma kim üçündür?',
-    proofItems: [
-      'Coffee shop, dessert bar, restoran və hybrid konseptlər üçün',
-      'Subdomain-based SaaS rollout üçün',
-      'Railway + Neon arxitekturası ilə sürətli deploy üçün',
-      'Bir neçə brendi eyni məhsul core-u ilə idarə etmək üçün',
-    ],
-    showcaseTitle: 'Əsas modullar',
-    showcaseBody:
-      'Sistem yalnız POS ekranı deyil. Bu, əməliyyatın bütün təbəqələrini bir-birinə bağlayan tam idarəetmə platformasıdır.',
+    sectionTitle: 'Bütün əməliyyat bir mərkəzdə',
+    sectionBody:
+      'Bu sistem sadəcə kassa deyil. Obyektin gündəlik idarəsini, maliyyə nəzarətini və müştəri loyallığını eyni platformada birləşdirir.',
     modules: [
       {
-        title: 'POS və Checkout',
-        text: 'Sürətli satış, split payment, staff limit, reward kodu, receipt və loyalty axını.',
+        title: 'POS Checkout',
+        text: 'Sürətli satış, kart/nağd/split payment, reward kodu və receipt axını.',
       },
       {
-        title: 'Masalar və Mətbəx',
-        text: 'Dine-in masalar, kitchen qəbul/hazır statusları və servisə hazır bildirişləri.',
+        title: 'Kitchen & Tables',
+        text: 'Masa idarəsi, mətbəx statusları, dine-in və servis koordinasiyası.',
       },
       {
-        title: 'Maliyyə və Hesabat',
-        text: 'Cash drawer, bank/card, investor borcu, Z-report və gündəlik nəzarət paneli.',
+        title: 'Finance & Z-Report',
+        text: 'Cash drawer, investor borcu, xərc/gəlir və gündəlik hesabat görünüşü.',
       },
       {
-        title: 'Anbar və Maya',
-        text: 'Inventory, reseptlər, maya dəyəri, loss, restock və audit-friendly tarixçə.',
+        title: 'Inventory & Recipes',
+        text: 'Anbar, maya dəyəri, xammal azalması, resept və loss nəzarəti.',
       },
       {
-        title: 'CRM və Loyalty',
-        text: 'QR müştəri kartları, kampaniyalar, reward, cashback və branded customer app.',
+        title: 'CRM & Customer App',
+        text: 'QR kartlar, müştəri profili, campaign-lər və loyalty proqramları.',
       },
       {
-        title: 'Tenant Rollout',
-        text: 'www, demo, super və müştəri subdomain-ləri ilə peşəkar məhsul axını.',
+        title: 'Multi-tenant Rollout',
+        text: 'www, demo, super və branded tenant subdomain-ləri ilə peşəkar SaaS axını.',
       },
     ],
-    architectureTitle: 'Satış axını',
-    architectureSteps: [
+    flowTitle: 'Satış və onboarding modeli',
+    flow: [
       {
-        title: '1. Müştəri www səhifəsinə gəlir',
-        text: 'Məhsulu, modulları, vizual nümunələri və platforma dəyərini bir yerdə görür.',
+        title: '1. Müştəri landing səhifəsini görür',
+        text: 'Məhsulun əsas dəyərləri, modullar və sistemin vizual görünüşü ilə tanış olur.',
       },
       {
         title: '2. Demo tenant-a keçir',
-        text: 'Safe demo mühitdə canlı POS, kitchen, finance və loyalty axınını test edir.',
+        text: 'Canlı POS, finance, kitchen və loyalty axınlarını təhlükəsiz demo mühitdə test edir.',
       },
       {
-        title: '3. Öz tenant-ı açılır',
-        text: 'Müştəri öz subdomain-i, branding-i, user-ləri və ayarları ilə işə başlayır.',
+        title: '3. Öz tenant-ını alır',
+        text: 'Branded subdomain, öz user-ləri, öz ayarları və öz əməliyyat datası ilə işə başlayır.',
       },
     ],
-    architectureCardTitle: 'Demo-first rollout',
-    architectureCardBody:
-      'Demo tenant çıxış zamanı təmizlənir, buna görə hər yeni görüşdə investor və ya müştəri eyni təmiz ssenarini görür.',
-    finalTitle: 'Bir məhsulla daha peşəkar sat, daha rahat idarə et.',
+    finalTitle: 'Məhsulu daha rahat satın, komandaya daha rahat öyrədin',
     finalBody:
-      'Landing, demo və branded tenant modeli sayəsində məhsulu daha rahat təqdim edir, daha sürətli onboard edir və daha az texniki qarışıqlıqla böyüdürsünüz.',
-    screenshotTitle: 'Məhsul preview-ları',
-    screenshotBody:
-      'Aşağıdakı preview kartlar sistemin əsas ekran dillərini göstərir. İstəsəniz növbəti mərhələdə bunları real screenshot-larla əvəz edək.',
+      'Landing + demo + branded tenant modeli ilə həm satış prosesi daha peşəkar görünür, həm də onboarding daha rahat olur.',
   },
   ru: {
+    nav: ['Главная', 'Функции', 'Модули', 'Демо', 'Контакты'],
     badge: 'iRonWaves POS RC',
-    heroTitle: 'Управляйте продажами, кухней, финансами, CRM и loyalty в одной премиальной платформе.',
+    heroTitle: 'Премиальная POS-платформа для ресторанов, coffee shop и retail',
     heroBody:
-      'iRonWaves POS RC объединяет кассу, столы и кухню, investor/finance контроль, QR loyalty и multi-tenant rollout в одном продукте.',
-    primaryCta: 'Открыть live demo',
-    secondaryCta: 'Открыть платформу',
+      'Современная система управления, объединяющая продажи, столы, кухню, финансы, CRM, loyalty и tenant rollout в одном продукте.',
+    primaryCta: 'Открыть Live Demo',
+    secondaryCta: 'Открыть Платформу',
     highlights: [
-      { value: 'POS + KDS', label: 'продажи и сервис в одной системе' },
-      { value: 'Finance', label: 'cash, card, investor, Z-report контроль' },
-      { value: 'CRM + Loyalty', label: 'QR карта, reward, cashback, customer app' },
+      { title: 'Easy UI & UX', text: 'Touch-friendly, быстрые и понятные интерфейсы для команды' },
+      { title: 'Kitchen Panel', text: 'Статусы принятия, приготовления и готовности к сервису' },
+      { title: 'Cashier Panel', text: 'Split payment, reward, QR, receipt и быстрый checkout' },
+      { title: 'CRM & Loyalty', text: 'QR-карты, cashback, reward и branded customer app' },
     ],
-    proofTitle: 'Для кого эта платформа?',
-    proofItems: [
-      'Для coffee shop, dessert bar, ресторанов и hybrid-концептов',
-      'Для subdomain-based SaaS rollout',
-      'Для быстрого deploy на Railway + Neon',
-      'Для управления несколькими брендами из одного core-продукта',
-    ],
-    showcaseTitle: 'Основные модули',
-    showcaseBody:
-      'Это не просто POS-экран. Это полноценная платформа управления операциями, где все ключевые слои работают вместе.',
+    sectionTitle: 'Все операции в одном центре',
+    sectionBody:
+      'Это не просто касса. Платформа объединяет ежедневное управление, финансовый контроль и loyalty клиента в единой системе.',
     modules: [
-      {
-        title: 'POS и Checkout',
-        text: 'Быстрая продажа, split payment, staff limit, reward code, receipt и loyalty flow.',
-      },
-      {
-        title: 'Столы и Кухня',
-        text: 'Dine-in столы, kitchen статусы и уведомления о готовности заказа.',
-      },
-      {
-        title: 'Финансы и Отчёты',
-        text: 'Cash drawer, bank/card, investor debt, Z-report и ежедневный контроль.',
-      },
-      {
-        title: 'Склад и Себестоимость',
-        text: 'Inventory, recipes, costing, loss, restock и audit-friendly история движений.',
-      },
-      {
-        title: 'CRM и Loyalty',
-        text: 'QR карты клиентов, кампании, reward, cashback и branded customer app.',
-      },
-      {
-        title: 'Tenant Rollout',
-        text: 'www, demo, super и клиентские subdomain-ы для профессионального SaaS потока.',
-      },
+      { title: 'POS Checkout', text: 'Быстрые продажи, карта/наличные/split payment, reward code и receipt flow.' },
+      { title: 'Kitchen & Tables', text: 'Управление столами, кухонные статусы, dine-in и сервисная координация.' },
+      { title: 'Finance & Z-Report', text: 'Cash drawer, investor debt, расходы/доходы и ежедневная отчетность.' },
+      { title: 'Inventory & Recipes', text: 'Склад, себестоимость, расход сырья, рецепты и контроль loss.' },
+      { title: 'CRM & Customer App', text: 'QR-карты, профиль клиента, кампании и loyalty-программы.' },
+      { title: 'Multi-tenant Rollout', text: 'www, demo, super и branded tenant subdomain-ы для SaaS-модели.' },
     ],
-    architectureTitle: 'Сценарий продаж',
-    architectureSteps: [
-      {
-        title: '1. Клиент заходит на www',
-        text: 'Видит продукт, модули, визуальные примеры и общую ценность платформы.',
-      },
-      {
-        title: '2. Переходит в demo tenant',
-        text: 'Тестирует живой POS, kitchen, finance и loyalty в безопасной среде.',
-      },
-      {
-        title: '3. Получает свой tenant',
-        text: 'Запускается на собственном subdomain с branding, users и настройками.',
-      },
+    flowTitle: 'Сценарий продаж и onboarding',
+    flow: [
+      { title: '1. Клиент видит landing page', text: 'Знакомится с ключевыми модулями, визуальным стилем и ценностью системы.' },
+      { title: '2. Переходит в demo tenant', text: 'Тестирует live POS, finance, kitchen и loyalty в безопасной demo-среде.' },
+      { title: '3. Получает свой tenant', text: 'Запускается на branded subdomain со своими users, settings и operational data.' },
     ],
-    architectureCardTitle: 'Demo-first rollout',
-    architectureCardBody:
-      'Demo tenant очищается после выхода, поэтому каждый новый клиент видит чистый и управляемый сценарий.',
-    finalTitle: 'Продавайте продукт увереннее и управляйте операциями легче.',
+    finalTitle: 'Продавать продукт проще. Обучать команду легче.',
     finalBody:
-      'Связка landing + demo + branded tenant помогает лучше презентовать систему, быстрее онбордить клиентов и масштабироваться с меньшим хаосом.',
-    screenshotTitle: 'Превью продукта',
-    screenshotBody:
-      'Ниже — стилизованные preview-карты ключевых экранов. На следующем этапе мы можем заменить их реальными screenshot-ами.',
+      'Связка landing + demo + branded tenant делает продажи профессиональнее, а onboarding заметно удобнее.',
   },
   en: {
+    nav: ['Home', 'Features', 'Modules', 'Demo', 'Contact'],
     badge: 'iRonWaves POS RC',
-    heroTitle: 'Run sales, kitchen, finance, CRM, and loyalty from one premium operations platform.',
+    heroTitle: 'A premium POS platform for restaurants, coffee shops, and retail concepts',
     heroBody:
-      'iRonWaves POS RC brings checkout, tables and kitchen flow, investor-grade finance control, QR loyalty, and multi-tenant rollout together inside one product core.',
-    primaryCta: 'Open live demo',
-    secondaryCta: 'Open platform',
+      'A modern operations system that connects sales, tables, kitchen, finance, CRM, loyalty, and tenant rollout inside one product.',
+    primaryCta: 'Open Live Demo',
+    secondaryCta: 'Open Platform',
     highlights: [
-      { value: 'POS + KDS', label: 'sales and service flow in one system' },
-      { value: 'Finance', label: 'cash, card, investor, Z-report visibility' },
-      { value: 'CRM + Loyalty', label: 'QR cards, rewards, cashback, customer app' },
+      { title: 'Easy UI & UX', text: 'Touch-friendly, fast, and team-friendly interfaces' },
+      { title: 'Kitchen Panel', text: 'Accepted, preparing, and ready-for-service status flow' },
+      { title: 'Cashier Panel', text: 'Split payment, reward, QR, receipt, and fast checkout' },
+      { title: 'CRM & Loyalty', text: 'QR cards, cashback, rewards, and a branded customer app' },
     ],
-    proofTitle: 'Who is this platform for?',
-    proofItems: [
-      'Coffee shops, dessert bars, restaurants, and hybrid concepts',
-      'Subdomain-based SaaS rollout',
-      'Fast deployment on Railway + Neon',
-      'Operating multiple brands from one product core',
-    ],
-    showcaseTitle: 'Core modules',
-    showcaseBody:
-      'This is not just a POS screen. It is a full operating layer that connects checkout, kitchen, finance, CRM, loyalty, and rollout logic.',
+    sectionTitle: 'Your whole operation in one center',
+    sectionBody:
+      'This is not just a cashier screen. It combines daily operations, finance control, and customer loyalty in one connected platform.',
     modules: [
-      {
-        title: 'POS and Checkout',
-        text: 'Fast sales, split payments, staff limits, reward codes, receipts, and loyalty flow.',
-      },
-      {
-        title: 'Tables and Kitchen',
-        text: 'Dine-in tables, kitchen acceptance and ready states, and front-of-house service visibility.',
-      },
-      {
-        title: 'Finance and Reports',
-        text: 'Cash drawer, bank/card, investor debt, Z-report, and daily control in one place.',
-      },
-      {
-        title: 'Inventory and Costing',
-        text: 'Inventory, recipes, costing, loss, restock, and audit-friendly stock movement history.',
-      },
-      {
-        title: 'CRM and Loyalty',
-        text: 'QR customer cards, campaigns, rewards, cashback models, and a branded customer app.',
-      },
-      {
-        title: 'Tenant Rollout',
-        text: 'www, demo, super, and client subdomains for a clean SaaS operating model.',
-      },
+      { title: 'POS Checkout', text: 'Fast sales, cash/card/split payment, reward codes, and receipt flow.' },
+      { title: 'Kitchen & Tables', text: 'Table management, kitchen statuses, dine-in, and service coordination.' },
+      { title: 'Finance & Z-Report', text: 'Cash drawer, investor debt, expenses/income, and daily reporting.' },
+      { title: 'Inventory & Recipes', text: 'Inventory, costing, ingredient consumption, recipes, and loss control.' },
+      { title: 'CRM & Customer App', text: 'QR cards, customer profiles, campaigns, and loyalty programs.' },
+      { title: 'Multi-tenant Rollout', text: 'www, demo, super, and branded tenant subdomains for SaaS rollout.' },
     ],
-    architectureTitle: 'Sales journey',
-    architectureSteps: [
-      {
-        title: '1. Prospect lands on www',
-        text: 'They see the product story, key modules, visual previews, and the system’s value clearly.',
-      },
-      {
-        title: '2. They enter the demo tenant',
-        text: 'They test live POS, kitchen, finance, and loyalty flows in a safe environment.',
-      },
-      {
-        title: '3. They receive their own tenant',
-        text: 'They launch on their branded subdomain with their own settings, users, and operational data.',
-      },
+    flowTitle: 'Sales and onboarding journey',
+    flow: [
+      { title: '1. A prospect sees the landing page', text: 'They understand the product, modules, visuals, and value quickly.' },
+      { title: '2. They enter the demo tenant', text: 'They test live POS, finance, kitchen, and loyalty flows in a safe environment.' },
+      { title: '3. They receive their own tenant', text: 'They launch on a branded subdomain with their own users, settings, and operational data.' },
     ],
-    architectureCardTitle: 'Demo-first rollout',
-    architectureCardBody:
-      'The demo tenant resets on logout, so every new client walkthrough starts from a clean and controlled state.',
-    finalTitle: 'Sell with more confidence. Operate with more control.',
+    finalTitle: 'Sell the product better. Train the team faster.',
     finalBody:
-      'A landing page, a resettable live demo, and branded tenant workspaces create a cleaner product story and a stronger SaaS rollout model.',
-    screenshotTitle: 'Product previews',
-    screenshotBody:
-      'The preview cards below are styled product mockups. We can replace them with real screenshots in the next pass.',
+      'A landing + demo + branded tenant model makes the product story stronger and the onboarding process smoother.',
   },
 };
 
-function MockupFrame({
-  title,
-  accent,
-  children,
-}: {
-  title: string;
-  accent: string;
-  children: React.ReactNode;
-}) {
+function ProductScreen() {
   return (
-    <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-3 shadow-[0_24px_60px_rgba(0,0,0,0.38)]">
-      <div className="rounded-[24px] border border-white/10 bg-[#0a0f15] p-3">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-rose-400/80" />
-            <span className="h-2.5 w-2.5 rounded-full bg-amber-300/80" />
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
+    <div className="relative mx-auto w-full max-w-[560px]">
+      <div className="absolute -left-8 top-10 h-44 w-44 rounded-full bg-sky-300/60 blur-2xl" />
+      <div className="absolute -right-8 top-24 h-36 w-36 rounded-full bg-violet-300/60 blur-2xl" />
+      <div className="absolute right-8 top-0 h-24 w-24 rounded-full border-[18px] border-violet-200/50" />
+
+      <div className="relative rotate-[8deg] rounded-[34px] bg-white p-4 shadow-[0_30px_60px_rgba(24,34,56,0.18)]">
+        <div className="overflow-hidden rounded-[28px] border border-slate-200">
+          <div className="flex items-center gap-2 bg-[#2d6cdf] px-4 py-3 text-white">
+            <div className="h-3 w-3 rounded-full bg-white/70" />
+            <div className="h-3 w-3 rounded-full bg-white/50" />
+            <div className="h-3 w-3 rounded-full bg-white/35" />
+            <div className="ml-3 text-xs font-semibold uppercase tracking-[0.24em]">iRonWaves POS</div>
           </div>
-          <div className="rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-950" style={{ backgroundColor: accent }}>
-            {title}
+
+          <div className="grid grid-cols-[88px_1fr] bg-[#f7f9ff]">
+            <div className="space-y-2 bg-[#3069dd] p-3">
+              {Array.from({ length: 7 }).map((_, idx) => (
+                <div key={idx} className={`rounded-xl ${idx === 1 ? 'bg-white text-[#3069dd]' : 'bg-white/15 text-white'} px-3 py-2 text-[11px] font-semibold`}>
+                  {idx === 0 ? 'POS' : idx === 1 ? 'Menu' : idx === 2 ? 'Tables' : idx === 3 ? 'Kitchen' : idx === 4 ? 'CRM' : idx === 5 ? 'Stock' : 'Finance'}
+                </div>
+              ))}
+            </div>
+            <div className="p-4">
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  'Americano',
+                  'Latte',
+                  'Flat White',
+                  'Cheesecake',
+                  'Cold Brew',
+                  'Croissant',
+                  'Brownie',
+                  'Mocha',
+                  'Tea',
+                ].map((name, idx) => (
+                  <div key={name} className="rounded-2xl bg-white p-2 shadow-[0_6px_14px_rgba(30,41,59,0.08)]">
+                    <div className={`h-16 rounded-xl ${idx % 3 === 0 ? 'bg-amber-200' : idx % 3 === 1 ? 'bg-sky-200' : 'bg-rose-200'}`} />
+                    <div className="mt-2 text-[11px] font-semibold text-slate-800">{name}</div>
+                    <div className="text-[10px] text-slate-500">{(idx + 3).toFixed(2)} ₼</div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
-        {children}
       </div>
     </div>
-  );
-}
-
-function PosMockup() {
-  return (
-    <MockupFrame title="POS" accent="#f8c700">
-      <div className="grid gap-3 md:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-[22px] bg-slate-900/80 p-4">
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              ['Americano', '4.00'],
-              ['Latte', '5.50'],
-              ['Cheesecake', '6.50'],
-              ['Cold Brew', '5.00'],
-            ].map(([name, price]) => (
-              <div key={name} className="rounded-2xl border border-white/8 bg-white/5 p-3">
-                <div className="text-sm font-semibold text-white">{name}</div>
-                <div className="mt-1 text-xs text-slate-400">{price} ₼</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-[22px] bg-white p-4 text-slate-900">
-          <div className="text-sm font-bold">Cart</div>
-          <div className="mt-3 space-y-3 text-sm">
-            <div className="flex items-center justify-between"><span>2x Americano</span><span>8.00</span></div>
-            <div className="flex items-center justify-between"><span>1x Cheesecake</span><span>6.50</span></div>
-          </div>
-          <div className="mt-4 h-px bg-slate-200" />
-          <div className="mt-4 flex items-center justify-between text-lg font-black">
-            <span>Total</span>
-            <span>14.50 ₼</span>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <div className="rounded-2xl bg-emerald-100 px-3 py-2 text-center text-sm font-semibold text-emerald-800">Cash</div>
-            <div className="rounded-2xl bg-sky-100 px-3 py-2 text-center text-sm font-semibold text-sky-800">Card</div>
-          </div>
-          <div className="mt-4 rounded-2xl bg-[#f8c700] px-4 py-3 text-center text-sm font-black text-slate-900">Complete Payment</div>
-        </div>
-      </div>
-    </MockupFrame>
-  );
-}
-
-function FinanceMockup() {
-  return (
-    <MockupFrame title="Finance" accent="#22d3ee">
-      <div className="grid gap-3">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {[
-            ['Cash Drawer', '842 ₼'],
-            ['Bank/Card', '1,420 ₼'],
-            ['Investor Debt', '310 ₼'],
-            ['Safe', '2,180 ₼'],
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-[20px] bg-white p-4 text-slate-900">
-              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">{label}</div>
-              <div className="mt-3 text-2xl font-black">{value}</div>
-            </div>
-          ))}
-        </div>
-        <div className="grid gap-3 md:grid-cols-[0.9fr_1.1fr]">
-          <div className="rounded-[22px] bg-slate-900/85 p-4">
-            <div className="text-sm font-semibold text-white">Smart Expense / Income</div>
-            <div className="mt-4 space-y-2">
-              <div className="h-11 rounded-xl bg-white/6" />
-              <div className="h-11 rounded-xl bg-white/6" />
-              <div className="h-11 rounded-xl bg-white/6" />
-            </div>
-            <div className="mt-4 rounded-2xl bg-[#22d3ee] px-4 py-3 text-center text-sm font-bold text-slate-950">Save Entry</div>
-          </div>
-          <div className="rounded-[22px] bg-white p-4 text-slate-900">
-            <div className="text-sm font-semibold">Daily snapshot</div>
-            <div className="mt-4 space-y-3 text-sm">
-              <div className="flex items-center justify-between"><span>Sales in</span><span className="font-semibold text-emerald-600">+1,560 ₼</span></div>
-              <div className="flex items-center justify-between"><span>Expenses out</span><span className="font-semibold text-rose-600">-280 ₼</span></div>
-              <div className="flex items-center justify-between"><span>Investor repayment</span><span className="font-semibold text-amber-600">-70 ₼</span></div>
-              <div className="h-px bg-slate-200" />
-              <div className="flex items-center justify-between text-base font-black"><span>Net</span><span>1,210 ₼</span></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </MockupFrame>
-  );
-}
-
-function LoyaltyMockup() {
-  return (
-    <MockupFrame title="Customer App" accent="#7c3aed">
-      <div className="grid gap-3 md:grid-cols-[1fr_0.9fr]">
-        <div className="rounded-[24px] bg-[linear-gradient(180deg,#7c3aed,#22d3ee)] p-5 text-white">
-          <div className="text-xs uppercase tracking-[0.28em] text-white/70">LOYALTY CLUB</div>
-          <div className="mt-4 text-5xl font-black">1,240</div>
-          <div className="mt-2 text-sm text-white/80">Stars / Cashback balance</div>
-          <div className="mt-5 rounded-[22px] bg-white/12 p-4">
-            <div className="text-sm font-semibold">Next reward</div>
-            <div className="mt-2 h-3 rounded-full bg-black/15">
-              <div className="h-full w-2/3 rounded-full bg-white" />
-            </div>
-          </div>
-        </div>
-        <div className="grid gap-3">
-          <div className="rounded-[22px] bg-white p-4 text-slate-900">
-            <div className="text-sm font-semibold">Claim codes</div>
-            <div className="mt-4 rounded-[20px] bg-slate-100 p-4">
-              <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Code</div>
-              <div className="mt-2 text-3xl font-black">IW-4832</div>
-            </div>
-          </div>
-          <div className="rounded-[22px] bg-slate-900/85 p-4">
-            <div className="text-sm font-semibold text-white">Campaigns</div>
-            <div className="mt-3 space-y-2">
-              <div className="rounded-xl bg-white/6 px-3 py-2 text-sm text-slate-200">2x stars on desserts</div>
-              <div className="rounded-xl bg-white/6 px-3 py-2 text-sm text-slate-200">Morning coffee cashback</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </MockupFrame>
   );
 }
 
@@ -380,146 +197,164 @@ export default function LandingPage() {
   const copy = content[lang];
 
   return (
-    <div className="min-h-screen overflow-auto bg-[#0d1218] text-slate-100">
-      <section className="relative isolate overflow-hidden border-b border-white/8">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(248,199,0,0.18),transparent_22%),radial-gradient(circle_at_78%_10%,rgba(34,211,238,0.18),transparent_18%),radial-gradient(circle_at_70%_85%,rgba(59,130,246,0.12),transparent_16%),linear-gradient(140deg,#202836_0%,#131922_52%,#0b1016_100%)]" />
-        <div
-          className="absolute inset-0 opacity-[0.08]"
-          style={{
-            backgroundImage:
-              'linear-gradient(rgba(255,255,255,0.25) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.25) 1px, transparent 1px)',
-            backgroundSize: '36px 36px',
-          }}
-        />
+    <div className="h-[100dvh] overflow-y-auto bg-[#f7f8fc] text-slate-900">
+      <div className="relative min-h-full overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.10),transparent_22%),radial-gradient(circle_at_80%_12%,rgba(56,189,248,0.12),transparent_18%),linear-gradient(180deg,#ffffff_0%,#f6f7fb_45%,#eef2ff_100%)]" />
 
-        <div className="relative mx-auto max-w-7xl px-6 pb-16 pt-8 md:px-10 lg:px-14 lg:pb-24">
-          <div className="flex items-center justify-between gap-4">
-            <div className="inline-flex rounded-full border border-yellow-200/20 bg-white/6 px-4 py-2 text-xs uppercase tracking-[0.28em] text-yellow-200/85">
-              {copy.badge}
-            </div>
-            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/6 p-1 backdrop-blur">
-              {(['az', 'ru', 'en'] as LandingLang[]).map((code) => (
-                <button
-                  key={code}
-                  onClick={() => setLang(code)}
-                  className={`rounded-full px-3 py-2 text-xs font-bold uppercase transition ${lang === code ? 'bg-white text-slate-950' : 'text-slate-200'}`}
+        <div className="relative mx-auto max-w-7xl px-6 md:px-10 lg:px-14">
+          <header className="sticky top-0 z-20 mb-8 border-b border-slate-200/70 bg-white/90 py-5 backdrop-blur">
+            <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-0">
+              <div className="flex items-center gap-3">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#1f2937,#4b5563)] text-xl font-black text-white shadow-[0_10px_24px_rgba(15,23,42,0.12)]">
+                  IW
+                </div>
+                <div>
+                  <div className="text-sm font-bold uppercase tracking-[0.22em] text-indigo-600">{copy.badge}</div>
+                  <div className="text-2xl font-black leading-none text-slate-900">MSAR-style Premium POS</div>
+                </div>
+              </div>
+
+              <div className="hidden items-center gap-6 text-sm font-semibold text-slate-600 lg:flex">
+                {copy.nav.map((item: string) => (
+                  <button key={item} className="transition hover:text-indigo-600">{item}</button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="hidden rounded-full border border-slate-200 bg-white p-1 sm:flex">
+                  {(['az', 'ru', 'en'] as LandingLang[]).map((code) => (
+                    <button
+                      key={code}
+                      onClick={() => setLang(code)}
+                      className={`rounded-full px-3 py-2 text-xs font-bold uppercase transition ${lang === code ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:text-indigo-600'}`}
+                    >
+                      {code}
+                    </button>
+                  ))}
+                </div>
+                <a
+                  href={demoUrl}
+                  className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#6366f1,#4f46e5)] px-6 py-3 text-sm font-bold text-white shadow-[0_16px_30px_rgba(99,102,241,0.28)]"
                 >
-                  {code}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-10 grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
-            <div className="max-w-4xl">
-              <h1 className="max-w-5xl font-[Georgia] text-5xl font-bold leading-[0.92] text-white md:text-7xl">
-                {copy.heroTitle}
-              </h1>
-              <p className="mt-6 max-w-2xl text-base leading-7 text-slate-300 md:text-lg">{copy.heroBody}</p>
-
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <a href={demoUrl} className="glossy-gold inline-flex min-h-13 items-center justify-center rounded-2xl px-7 py-3 text-base font-bold">
                   {copy.primaryCta}
                 </a>
-                <a href={appUrl} className="neon-btn inline-flex min-h-13 items-center justify-center rounded-2xl px-7 py-3 text-base font-semibold">
+              </div>
+            </div>
+          </header>
+
+          <section className="grid gap-14 pb-20 pt-8 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
+            <div className="max-w-2xl">
+              <div className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-bold uppercase tracking-[0.28em] text-indigo-600">
+                {copy.badge}
+              </div>
+              <h1 className="mt-8 text-5xl font-black leading-[1.02] text-slate-900 md:text-7xl">
+                {copy.heroTitle}
+              </h1>
+              <p className="mt-6 max-w-xl text-base leading-8 text-slate-600 md:text-lg">
+                {copy.heroBody}
+              </p>
+
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <a
+                  href={demoUrl}
+                  className="inline-flex min-h-13 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#6366f1,#4f46e5)] px-7 py-3 text-base font-bold text-white shadow-[0_16px_30px_rgba(99,102,241,0.26)]"
+                >
+                  {copy.primaryCta}
+                </a>
+                <a
+                  href={appUrl}
+                  className="inline-flex min-h-13 items-center justify-center rounded-2xl border border-slate-200 bg-white px-7 py-3 text-base font-semibold text-slate-800 shadow-[0_12px_24px_rgba(15,23,42,0.06)]"
+                >
                   {copy.secondaryCta}
                 </a>
               </div>
-
-              <div className="mt-10 grid gap-3 sm:grid-cols-3">
-                {copy.highlights.map((item: any) => (
-                  <div key={item.label} className="rounded-[24px] border border-white/10 bg-white/6 p-4 backdrop-blur-sm">
-                    <div className="text-2xl font-black text-white">{item.value}</div>
-                    <div className="mt-1 text-sm leading-6 text-slate-300">{item.label}</div>
-                  </div>
-                ))}
-              </div>
             </div>
 
-            <div className="w-full rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.10),rgba(255,255,255,0.04))] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
-              <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Go-to-market flow</div>
-              <div className="mt-3 text-2xl font-bold text-white">{'www -> demo -> branded tenant'}</div>
-              <div className="mt-5 space-y-3">
-                {copy.proofItems.map((item: string) => (
-                  <div key={item} className="rounded-[20px] border border-white/10 bg-slate-950/30 px-4 py-3 text-sm leading-6 text-slate-200">
-                    {item}
-                  </div>
-                ))}
-              </div>
-              <div className="mt-5 rounded-[24px] border border-cyan-300/15 bg-cyan-400/8 p-4">
-                <div className="text-sm font-semibold text-cyan-100">Demo tenant policy</div>
-                <div className="mt-2 text-sm leading-6 text-slate-300">
-                  Demo user logout resets operational demo data, so every investor or client walkthrough starts from a clean state.
+            <ProductScreen />
+          </section>
+
+          <section className="grid gap-5 pb-20 md:grid-cols-2 xl:grid-cols-4">
+            {copy.highlights.map((item: any, idx: number) => (
+              <div key={item.title} className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-[0_12px_24px_rgba(15,23,42,0.10)] ${idx === 0 ? 'bg-violet-500' : idx === 1 ? 'bg-orange-500' : idx === 2 ? 'bg-sky-500' : 'bg-lime-500'}`}>
+                  <span className="text-lg font-black">{idx + 1}</span>
                 </div>
+                <h2 className="mt-5 text-2xl font-black text-slate-900">{item.title}</h2>
+                <p className="mt-3 text-sm leading-7 text-slate-600">{item.text}</p>
+              </div>
+            ))}
+          </section>
+
+          <section className="grid gap-8 pb-20 lg:grid-cols-[0.95fr_1.05fr]">
+            <div className="rounded-[34px] bg-[linear-gradient(180deg,#0f172a,#111827)] p-8 text-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+              <div className="text-sm font-bold uppercase tracking-[0.26em] text-sky-300">{copy.sectionTitle}</div>
+              <h2 className="mt-4 text-4xl font-black leading-tight">{copy.flowTitle}</h2>
+              <p className="mt-5 text-sm leading-8 text-slate-300">{copy.sectionBody}</p>
+              <div className="mt-8 space-y-4">
+                {copy.flow.map((step: any) => (
+                  <div key={step.title} className="rounded-[24px] border border-white/10 bg-white/6 p-5">
+                    <div className="text-lg font-bold text-white">{step.title}</div>
+                    <div className="mt-2 text-sm leading-7 text-slate-300">{step.text}</div>
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
-        </div>
-      </section>
 
-      <section className="mx-auto max-w-7xl px-6 py-16 md:px-10 lg:px-14">
-        <div className="max-w-3xl">
-          <div className="text-sm uppercase tracking-[0.22em] text-slate-400">{copy.showcaseTitle}</div>
-          <h2 className="mt-3 text-4xl font-bold text-white">{copy.proofTitle}</h2>
-          <p className="mt-4 text-sm leading-7 text-slate-300 md:text-base">{copy.showcaseBody}</p>
-        </div>
-
-        <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {copy.modules.map((item: any) => (
-            <div key={item.title} className="rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-6">
-              <div className="text-sm uppercase tracking-[0.22em] text-slate-400">Module</div>
-              <h3 className="mt-3 text-2xl font-bold text-white">{item.title}</h3>
-              <p className="mt-4 text-sm leading-7 text-slate-300">{item.text}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-6 py-8 md:px-10 lg:px-14">
-        <div className="max-w-3xl">
-          <div className="text-sm uppercase tracking-[0.22em] text-slate-400">{copy.screenshotTitle}</div>
-          <h2 className="mt-3 text-4xl font-bold text-white">Product surfaces that sell the system</h2>
-          <p className="mt-4 text-sm leading-7 text-slate-300 md:text-base">{copy.screenshotBody}</p>
-        </div>
-        <div className="mt-8 grid gap-6">
-          <PosMockup />
-          <FinanceMockup />
-          <LoyaltyMockup />
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-6 py-16 md:px-10 lg:px-14">
-        <div className="grid gap-10 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="rounded-[30px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-6">
-            <div className="text-sm uppercase tracking-[0.22em] text-slate-400">{copy.architectureTitle}</div>
-            <div className="mt-4 space-y-4">
-              {copy.architectureSteps.map((step: any) => (
-                <div key={step.title} className="rounded-2xl border border-white/8 bg-black/20 p-4">
-                  <div className="text-sm font-semibold text-white">{step.title}</div>
-                  <div className="mt-1 text-sm leading-6 text-slate-300">{step.text}</div>
+            <div className="grid gap-5 md:grid-cols-2">
+              {copy.modules.map((item: any) => (
+                <div key={item.title} className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
+                  <div className="text-xs font-bold uppercase tracking-[0.22em] text-indigo-600">Module</div>
+                  <h3 className="mt-4 text-2xl font-black text-slate-900">{item.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-slate-600">{item.text}</p>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
 
-          <div className="rounded-[30px] border border-cyan-300/10 bg-[linear-gradient(180deg,rgba(34,211,238,0.08),rgba(34,211,238,0.02))] p-6">
-            <div className="text-sm uppercase tracking-[0.22em] text-cyan-200/80">Call to action</div>
-            <h3 className="mt-3 text-3xl font-bold text-white">{copy.finalTitle}</h3>
-            <p className="mt-4 text-sm leading-7 text-slate-300">{copy.finalBody}</p>
-            <div className="mt-6 flex flex-col gap-3">
-              <a href={demoUrl} className="glossy-gold inline-flex min-h-13 items-center justify-center rounded-2xl px-6 py-3 text-base font-bold">
-                {copy.primaryCta}
-              </a>
-              <a href={appUrl} className="neon-btn inline-flex min-h-13 items-center justify-center rounded-2xl px-6 py-3 text-base font-semibold">
-                {copy.secondaryCta}
-              </a>
+          <section className="pb-24">
+            <div className="rounded-[36px] bg-[linear-gradient(135deg,#eef2ff,#ffffff,#ecfeff)] p-8 shadow-[0_24px_60px_rgba(15,23,42,0.06)] md:p-10">
+              <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+                <div>
+                  <div className="text-sm font-bold uppercase tracking-[0.22em] text-indigo-600">Go-to-market</div>
+                  <h2 className="mt-4 text-4xl font-black leading-tight text-slate-900">{copy.finalTitle}</h2>
+                  <p className="mt-5 text-sm leading-8 text-slate-600">{copy.finalBody}</p>
+                  <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                    <a
+                      href={demoUrl}
+                      className="inline-flex min-h-13 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#6366f1,#4f46e5)] px-7 py-3 text-base font-bold text-white shadow-[0_16px_30px_rgba(99,102,241,0.22)]"
+                    >
+                      {copy.primaryCta}
+                    </a>
+                    <a
+                      href={appUrl}
+                      className="inline-flex min-h-13 items-center justify-center rounded-2xl border border-slate-200 bg-white px-7 py-3 text-base font-semibold text-slate-800"
+                    >
+                      {copy.secondaryCta}
+                    </a>
+                  </div>
+                </div>
+
+                <div className="rounded-[30px] border border-white/70 bg-white p-6 shadow-[0_16px_32px_rgba(15,23,42,0.05)]">
+                  <div className="text-sm font-bold uppercase tracking-[0.22em] text-slate-500">Launch model</div>
+                  <div className="mt-5 space-y-4">
+                    {[
+                      ['www.ironwaves.store', 'Landing və məhsul təqdimatı'],
+                      ['demo.ironwaves.store', 'Təmizlənən canlı demo tenant'],
+                      ['super.ironwaves.store', 'Platform və idarəetmə mərkəzi'],
+                      ['client-name.ironwaves.store', 'Branded production tenant'],
+                    ].map(([host, text]) => (
+                      <div key={host} className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
+                        <div className="font-semibold text-slate-900">{host}</div>
+                        <div className="mt-1 text-sm text-slate-600">{text}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="mt-6 rounded-[24px] border border-white/8 bg-black/20 p-4 text-sm leading-7 text-slate-300">
-              {copy.architectureCardBody}
-            </div>
-          </div>
+          </section>
         </div>
-      </section>
+      </div>
     </div>
   );
 }
