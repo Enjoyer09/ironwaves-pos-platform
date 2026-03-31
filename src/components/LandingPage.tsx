@@ -2,8 +2,6 @@ import React from 'react';
 import { get_public_landing_settings_live } from '../api/settings';
 
 const demoUrl = 'https://demo.ironwaves.store';
-const appUrl = 'https://super.ironwaves.store';
-
 type LandingLang = 'az' | 'ru' | 'en';
 
 type LandingCopy = {
@@ -12,7 +10,6 @@ type LandingCopy = {
   heroTitle: string;
   heroBody: string;
   primaryCta: string;
-  secondaryCta: string;
   highlights: { title: string; text: string }[];
   sectionTitle: string;
   sectionBody: string;
@@ -42,7 +39,6 @@ const content: Record<LandingLang, LandingCopy> = {
     heroBody:
       'Kassa, masa, mətbəx, anbar, maliyyə, CRM və loyallıq axınlarını bir mərkəzdə birləşdirən yerli və çevik idarəetmə platforması.',
     primaryCta: 'Canlı Demoya Bax',
-    secondaryCta: 'Platformanı Aç',
     highlights: [
       { title: 'Sürətli satış', text: 'Touch-friendly POS ekranı ilə kassada sürət və rahatlıq.' },
       { title: 'Masa və mətbəx', text: 'Servis, masa və mətbəx arasında koordinasiyanı sadələşdirir.' },
@@ -143,7 +139,6 @@ const content: Record<LandingLang, LandingCopy> = {
     heroBody:
       'Современная система управления, объединяющая продажи, столы, кухню, финансы, CRM, loyalty и branded customer app в одном продукте.',
     primaryCta: 'Открыть Live Demo',
-    secondaryCta: 'Открыть Платформу',
     highlights: [
       { title: 'Touch-first UX', text: 'Крупные, быстрые и чистые экраны для кассы, планшета и сенсорных мониторов.' },
       { title: 'Kitchen & Tables', text: 'Кухонные статусы, столы и сервисный поток работают как одна система.' },
@@ -220,7 +215,6 @@ const content: Record<LandingLang, LandingCopy> = {
     heroBody:
       'A modern operations system that connects sales, tables, kitchen, finance, CRM, loyalty, and a branded customer app inside one product.',
     primaryCta: 'Open Live Demo',
-    secondaryCta: 'Open Platform',
     highlights: [
       { title: 'Touch-first UX', text: 'Large, fast, polished screens for cashier desks, tablets, and touch monitors.' },
       { title: 'Kitchen & Tables', text: 'Kitchen statuses, table flow, and service coordination move as one rhythm.' },
@@ -422,9 +416,6 @@ export default function LandingPage() {
   const primaryCta =
     landingSettings?.[`primary_cta_${lang}`] ||
     copy.primaryCta;
-  const secondaryCta =
-    landingSettings?.[`secondary_cta_${lang}`] ||
-    copy.secondaryCta;
   const contactEmail = landingSettings?.contact_email || 'hello@ironwaves.store';
   const contactPhone = landingSettings?.contact_phone || '';
   const contactWhatsapp = landingSettings?.contact_whatsapp || '';
@@ -497,12 +488,6 @@ export default function LandingPage() {
                   className="inline-flex min-h-13 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#6366f1,#4f46e5)] px-7 py-3 text-base font-bold text-white shadow-[0_16px_30px_rgba(99,102,241,0.26)]"
                 >
                   {primaryCta}
-                </a>
-                <a
-                  href={appUrl}
-                  className="inline-flex min-h-13 items-center justify-center rounded-2xl border border-slate-200 bg-white px-7 py-3 text-base font-semibold text-slate-800 shadow-[0_12px_24px_rgba(15,23,42,0.06)]"
-                >
-                  {secondaryCta}
                 </a>
               </div>
             </div>
