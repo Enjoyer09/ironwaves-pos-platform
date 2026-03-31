@@ -1,28 +1,29 @@
-import React, { useState, useEffect, useLayoutEffect } from 'react';
+import React, { Suspense, lazy, useMemo, useState, useEffect, useLayoutEffect } from 'react';
 import { useAppStore } from '../store';
 import { get_sales_summary_live, get_sales_list_live, update_sale_amount_live, void_sale_with_reason_live, partial_refund_sale_live } from '../api/analytics';
 import { get_menu_items_live, create_menu_item_live, soft_delete_menu_item_live } from '../api/menu';
 import { get_logs_live } from '../api/logs';
 import { Decimal } from 'decimal.js';
 import { Plus, Trash2, TrendingUp, ShoppingBag, DollarSign } from 'lucide-react';
-import FinancePanel from './admin/FinancePanel';
-import InventoryPanel from './admin/InventoryPanel';
-import DashboardPanel from './admin/DashboardPanel';
-import CRMPanel from './admin/CRMPanel';
-import CustomerAppPanel from './admin/CustomerAppPanel';
-import LandingPanel from './admin/LandingPanel';
-import TablesHappyHourPanel from './admin/TablesHappyHourPanel';
-import RecipesPanel from './admin/RecipesPanel';
-import AIManagerPanel from './admin/AIManagerPanel';
-import SettingsPanel from './admin/SettingsPanel';
-import ZReportPanel from './admin/ZReportPanel';
-import LogsPanel from './admin/LogsPanel';
-import CombosPanel from './admin/CombosPanel';
-import DatabasePanel from './admin/DatabasePanel';
-import TenantsPanel from './admin/TenantsPanel';
 import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
 import { getDB } from '../lib/db_sim';
+
+const FinancePanel = lazy(() => import('./admin/FinancePanel'));
+const InventoryPanel = lazy(() => import('./admin/InventoryPanel'));
+const DashboardPanel = lazy(() => import('./admin/DashboardPanel'));
+const CRMPanel = lazy(() => import('./admin/CRMPanel'));
+const CustomerAppPanel = lazy(() => import('./admin/CustomerAppPanel'));
+const LandingPanel = lazy(() => import('./admin/LandingPanel'));
+const TablesHappyHourPanel = lazy(() => import('./admin/TablesHappyHourPanel'));
+const RecipesPanel = lazy(() => import('./admin/RecipesPanel'));
+const AIManagerPanel = lazy(() => import('./admin/AIManagerPanel'));
+const SettingsPanel = lazy(() => import('./admin/SettingsPanel'));
+const ZReportPanel = lazy(() => import('./admin/ZReportPanel'));
+const LogsPanel = lazy(() => import('./admin/LogsPanel'));
+const CombosPanel = lazy(() => import('./admin/CombosPanel'));
+const DatabasePanel = lazy(() => import('./admin/DatabasePanel'));
+const TenantsPanel = lazy(() => import('./admin/TenantsPanel'));
 
 type AdminTab = 'dashboard' | 'analytics' | 'menu' | 'tables' | 'finance' | 'inventory' | 'crm' | 'customerapp' | 'landing' | 'recipes' | 'ai' | 'settings' | 'notes' | 'logs' | 'database' | 'zreport' | 'combos' | 'tenants';
 
@@ -33,6 +34,7 @@ interface AdminPanelProps {
 export default function AdminPanel({ externalTab }: AdminPanelProps) {
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
+  const currentRole = String(user?.role || '').toLowerCase();
 
   const [activeTab, setActiveTab] = useState<AdminTab>(externalTab || 'dashboard');
   
@@ -63,7 +65,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   const [voidPreset, setVoidPreset] = useState<'TEST' | 'ZAY_MEHSUL'>('TEST');
   const [managerPass, setManagerPass] = useState('');
   const [newSaleTotal, setNewSaleTotal] = useState('');
-  const mobileTabOptions: Array<{ key: AdminTab; label: string }> = [
+  const mobileTabOptions: Array<{ key: AdminTab; label: string }> = useMemo(() => ([
     { key: 'dashboard', label: tx(lang, 'Dashboard', 'Дашборд', 'Dashboard') },
     { key: 'finance', label: tx(lang, 'Maliyyə', 'Финансы', 'Finance') },
     { key: 'analytics', label: tx(lang, 'Analitika', 'Аналитика', 'Analytics') },
@@ -81,7 +83,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     { key: 'settings', label: tx(lang, 'Ayarlar', 'Настройки', 'Settings') },
     { key: 'ai', label: tx(lang, 'AI Menecer', 'AI Менеджер', 'AI Manager') },
     { key: 'tenants', label: tx(lang, 'Tenantlər', 'Тенанты', 'Tenants') },
-  ];
+  ]), [lang, currentRole]);
 
   useEffect(() => {
     void fetchData();
@@ -98,10 +100,10 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   }, [activeTab, tenant_id]);
 
   useLayoutEffect(() => {
-    if (externalTab) {
+    if (externalTab && externalTab !== activeTab) {
       setActiveTab(externalTab);
     }
-  }, [externalTab]);
+  }, [externalTab, activeTab]);
 
   const fetchData = async () => {
     if (activeTab === 'analytics') {
@@ -216,6 +218,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
           </select>
         </div>
         
+        <Suspense fallback={<div className="rounded-2xl border border-slate-700/60 bg-slate-900/30 p-6 text-sm text-slate-300">{tx(lang, 'Panel yüklənir...', 'Панель загружается...', 'Loading panel...')}</div>}>
         {activeTab === 'dashboard' && <DashboardPanel onOpenTab={setActiveTab} />}
 
         {activeTab === 'analytics' && (
@@ -592,6 +595,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
         )}
         {activeTab === 'settings' && <SettingsPanel />}
         {activeTab === 'database' && <DatabasePanel />}
+        </Suspense>
 
       </div>
     </div>
