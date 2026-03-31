@@ -49,6 +49,12 @@ class TotpVerifyIn(BaseModel):
 
 class TotpDisableIn(BaseModel):
     current_password: str
+    code: str | None = None
+
+
+class SystemResetIn(BaseModel):
+    current_password: str
+    code: str | None = None
 
 
 class MenuItemOut(BaseModel):

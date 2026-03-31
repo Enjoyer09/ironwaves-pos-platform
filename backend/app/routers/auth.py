@@ -124,10 +124,6 @@ def _is_trusted_device(request: Request, tenant: Tenant, user: User) -> bool:
         return False
     if data.get("device_hash") != device_hash:
         return False
-    trusted_ip = str(data.get("ip") or "").strip()
-    current_ip = _request_ip(request)
-    if trusted_ip and trusted_ip != "ip_unknown" and current_ip and current_ip != trusted_ip:
-        return False
     return True
 
 

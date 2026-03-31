@@ -10,6 +10,7 @@ import {
   get_business_profile_live,
   get_settings_live,
   get_users_live,
+  reset_system_live,
   setup_totp_live,
   update_bank_commission_live,
   update_email_settings_live,
@@ -88,6 +89,10 @@ export default function SettingsPanel() {
   const [totpQrDataUrl, setTotpQrDataUrl] = useState('');
   const [totpCode, setTotpCode] = useState('');
   const [totpDisablePassword, setTotpDisablePassword] = useState('');
+  const [totpDisableCode, setTotpDisableCode] = useState('');
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetTotpCode, setResetTotpCode] = useState('');
 
   const requiresPasswordForNewUser = ['admin', 'manager'].includes(newUserRole);
   const pinUsers = users.filter((u) => ['staff', 'kitchen'].includes(String(u.role || '').toLowerCase()));
@@ -333,8 +338,9 @@ export default function SettingsPanel() {
       return;
     }
     try {
-      await disable_totp_live(totpDisablePassword);
+      await disable_totp_live(totpDisablePassword, totpDisableCode);
       setTotpDisablePassword('');
+      setTotpDisableCode('');
       setTotpSetupUrl('');
       setTotpSecret('');
       setTotpQrDataUrl('');
@@ -342,6 +348,23 @@ export default function SettingsPanel() {
       flashSuccess(tx(lang, 'Google Authenticator söndürüldü', 'Google Authenticator отключен', 'Google Authenticator disabled'));
     } catch (e: any) {
       notify('error', e?.message || tx(lang, '2FA söndürülmədi', '2FA не отключен', 'Failed to disable 2FA'));
+    }
+  };
+
+  const handleResetSystem = async () => {
+    if (!resetPassword) {
+      notify('error', tx(lang, 'Admin şifrəsini daxil edin', 'Введите пароль администратора', 'Enter the admin password'));
+      return;
+    }
+    try {
+      await reset_system_live(resetPassword, totpEnabled ? resetTotpCode : undefined);
+      setResetModalOpen(false);
+      setResetPassword('');
+      setResetTotpCode('');
+      await loadData();
+      flashSuccess(tx(lang, 'Sistem datası sıfırlandı', 'Данные системы сброшены', 'System data was reset'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Sistem sıfırlanmadı', 'Система не была сброшена', 'System reset failed'));
     }
   };
 
@@ -403,6 +426,53 @@ export default function SettingsPanel() {
 
   return (
     <div className="space-y-6">
+      {resetModalOpen ? (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/70 p-4">
+          <div className="metal-panel w-full max-w-md p-5">
+            <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Bütün sistemi sıfırla', 'Сбросить всю систему', 'Reset entire system')}</h3>
+            <p className="mt-2 text-sm text-slate-300">
+              {tx(
+                lang,
+                'Cari tenantın bütün iş datası silinəcək. Davam etmək üçün admin şifrəsini yazın.',
+                'Рабочие данные текущего tenant будут удалены. Для продолжения введите пароль администратора.',
+                'The current tenant operational data will be deleted. Enter the admin password to continue.',
+              )}
+            </p>
+            <div className="mt-4 space-y-3">
+              <input
+                className="neon-input"
+                type="password"
+                value={resetPassword}
+                onChange={(e) => setResetPassword(e.target.value)}
+                placeholder={tx(lang, 'Admin şifrəsi', 'Пароль администратора', 'Admin password')}
+              />
+              {totpEnabled ? (
+                <input
+                  className="neon-input"
+                  value={resetTotpCode}
+                  onChange={(e) => setResetTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder={tx(lang, '2FA kodu', 'Код 2FA', '2FA code')}
+                />
+              ) : null}
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setResetModalOpen(false);
+                  setResetPassword('');
+                  setResetTotpCode('');
+                }}
+                className="neon-btn rounded-lg px-4 py-2"
+              >
+                {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
+              </button>
+              <button onClick={() => { void handleResetSystem(); }} className="rounded-lg border border-red-400/50 px-4 py-2 font-semibold text-red-200 hover:bg-red-500/10">
+                {tx(lang, 'Sıfırla', 'Сбросить', 'Reset')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="metal-panel overflow-hidden">
         <div className="flex items-center gap-3 border-b border-slate-700/70 p-6">
           <SettingsIcon className="text-cyan-300" size={22} />
@@ -727,6 +797,12 @@ export default function SettingsPanel() {
                     onChange={(e) => setTotpDisablePassword(e.target.value)}
                     placeholder={tx(lang, 'Cari şifrə', 'Текущий пароль', 'Current password')}
                   />
+                  <input
+                    className="neon-input"
+                    value={totpDisableCode}
+                    onChange={(e) => setTotpDisableCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder={tx(lang, '2FA kodu (opsional)', 'Код 2FA (необязательно)', '2FA code (optional)')}
+                  />
                   <button onClick={() => { void handleDisableTotp(); }} className="rounded-xl border border-red-400/50 px-5 py-2 font-semibold text-red-300 hover:bg-red-500/10">
                     {tx(lang, '2FA Söndür', 'Отключить 2FA', 'Disable 2FA')}
                   </button>
@@ -824,6 +900,30 @@ export default function SettingsPanel() {
           </div>
         </div>
       </div>
+
+      {['admin', 'super_admin'].includes(currentRole) ? (
+        <div className="metal-panel p-6 space-y-4">
+          <h2 className="text-xl font-bold text-red-300">{tx(lang, 'Təhlükəli Əməliyyatlar', 'Опасные операции', 'Danger Zone')}</h2>
+          <p className="text-sm text-slate-400">
+            {tx(
+              lang,
+              'Bu bölmə cari tenantın bütün iş datasını sıfırlamaq üçündür. İstifadəçilər qalacaq, amma əməliyyat datası silinəcək.',
+              'Этот раздел нужен для полного сброса рабочих данных текущего tenant. Пользователи останутся, но рабочие данные будут удалены.',
+              'This section resets the current tenant operational data. Users remain, but operational data is erased.',
+            )}
+          </p>
+        <div className="rounded-2xl border border-red-400/20 bg-red-500/5 p-4">
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => setResetModalOpen(true)}
+                className="rounded-xl border border-red-400/50 px-6 py-2 font-bold text-red-200 hover:bg-red-500/10"
+              >
+                {tx(lang, 'Bütün sistemi sıfırla', 'Сбросить систему', 'Reset entire system')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Rol İcazələri', 'Права ролей', 'Role Permissions')}</h2>
