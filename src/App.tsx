@@ -18,7 +18,7 @@ import AppErrorBoundary from './components/AppErrorBoundary';
 import { logUiError } from './lib/logger';
 import { getPendingOfflineSalesCount, syncPendingOfflineSales } from './lib/offline';
 import { probeInternet } from './lib/connectivity';
-import { get_unread_staff_notifications_live, mark_staff_notifications_read_live } from './api/reports';
+import { get_unread_staff_notifications_live, mark_staff_notification_read_live, mark_staff_notifications_read_live } from './api/reports';
 import { getActiveTenantId, getResolvedTenantIdFromHost } from './lib/tenant';
 import { get_low_stock_items } from './api/inventory';
 import { list_tenants, type TenantRecord } from './api/tenants';
@@ -109,6 +109,7 @@ export default function App() {
   const mappedTenantFromHost = useMemo(() => getResolvedTenantIdFromHost(currentHost), [currentHost]);
 
   const [sessionChecking, setSessionChecking] = useState(false);
+  const [readyPopup, setReadyPopup] = useState<any | null>(null);
 
   useEffect(() => {
     if (!hasValidUser) return;
@@ -329,10 +330,17 @@ export default function App() {
       try {
         const unread = await get_unread_staff_notifications_live(user.tenant_id, user.username);
         if (cancelled || unread.length === 0) return;
-        unread.slice(0, 2).forEach((n) => {
+        const readyNotification = unread.find((n) => String(n.meta?.status || '') === 'READY');
+        if (readyNotification) {
+          setReadyPopup((prev: any) => prev || readyNotification);
+        }
+        const nonReady = unread.filter((n) => String(n.meta?.status || '') !== 'READY');
+        nonReady.slice(0, 2).forEach((n) => {
           notify('info', `${n.title}: ${n.message}`);
         });
-        await mark_staff_notifications_read_live(user.tenant_id, user.username);
+        if (nonReady.length > 0) {
+          await mark_staff_notifications_read_live(user.tenant_id, user.username);
+        }
       } catch (e: any) {
         logUiError(user?.tenant_id || activeTenant, 'app-shell', e?.message || 'Failed to load staff notifications');
       }
@@ -684,6 +692,42 @@ export default function App() {
             <div className="mt-4 flex justify-end">
               <button className="glossy-gold rounded-xl px-5 py-2 font-semibold" onClick={() => setLowStockModal(null)}>
                 Bağla
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {readyPopup && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4">
+          <div className="metal-panel w-full max-w-lg rounded-2xl p-5">
+            <div className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-300">{tx(safeLang, 'Hazır sifariş', 'Готовый заказ', 'Ready order')}</div>
+            <h3 className="mt-2 text-2xl font-bold text-slate-100">{readyPopup.title}</h3>
+            <p className="mt-2 text-sm text-slate-300">{readyPopup.message}</p>
+            {Array.isArray(readyPopup.meta?.ready_items) && readyPopup.meta.ready_items.length > 0 ? (
+              <div className="mt-4 rounded-xl border border-emerald-300/30 bg-emerald-400/10 p-4">
+                <div className="mb-2 text-sm font-semibold text-emerald-100">{tx(safeLang, 'Hazır olanlar', 'Готовые позиции', 'Ready items')}</div>
+                <div className="space-y-2">
+                  {readyPopup.meta.ready_items.map((item: string, idx: number) => (
+                    <div key={`${item}_${idx}`} className="rounded-lg bg-black/15 px-3 py-2 text-sm text-emerald-50">
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <div className="mt-5 flex justify-end">
+              <button
+                className="glossy-gold rounded-xl px-5 py-2 font-semibold"
+                onClick={async () => {
+                  try {
+                    await mark_staff_notification_read_live(readyPopup.id);
+                  } catch {
+                    // ignore read failures for UI continuity
+                  }
+                  setReadyPopup(null);
+                }}
+              >
+                OK
               </button>
             </div>
           </div>

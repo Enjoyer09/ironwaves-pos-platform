@@ -59,7 +59,7 @@ export const mark_urgent = (order_id: string, marked_by: string) => {
 };
 
 // FUNKSIYA: complete_order (PREPARING -> DONE)
-export const complete_order = (order_id: string, completed_by: string) => {
+export const complete_order = (order_id: string, completed_by: string, ready_items: string[] = []) => {
   const orders = getDB<KitchenOrder>('kitchen_orders');
   const order = orders.find(o => o.id === order_id);
   
@@ -77,7 +77,8 @@ export const complete_order = (order_id: string, completed_by: string) => {
   logEvent(completed_by, 'KITCHEN_COMPLETED', { 
     tenant_id: order.tenant_id, 
     order_id, 
-    prep_time_minutes 
+    prep_time_minutes,
+    ready_items,
   });
   
   return { success: true };
@@ -108,7 +109,7 @@ export const accept_order_live = async (order_id: string, accepted_by: string) =
   return apiRequest<{ success: boolean }>(`/api/v1/ops/kitchen-orders/${encodeURIComponent(order_id)}/accept`, { method: 'POST', tenantId: null, body: {} });
 };
 
-export const complete_order_live = async (order_id: string, completed_by: string) => {
-  if (!isBackendEnabled()) return complete_order(order_id, completed_by);
-  return apiRequest<{ success: boolean }>(`/api/v1/ops/kitchen-orders/${encodeURIComponent(order_id)}/complete`, { method: 'POST', tenantId: null, body: {} });
+export const complete_order_live = async (order_id: string, completed_by: string, ready_items: string[] = []) => {
+  if (!isBackendEnabled()) return complete_order(order_id, completed_by, ready_items);
+  return apiRequest<{ success: boolean }>(`/api/v1/ops/kitchen-orders/${encodeURIComponent(order_id)}/complete`, { method: 'POST', tenantId: null, body: { ready_items } });
 };

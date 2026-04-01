@@ -9,6 +9,7 @@ import { logUiError } from '../lib/logger';
 export default function KDS() {
   const { user, lang } = useAppStore();
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
+  const [readySelections, setReadySelections] = useState<Record<string, string[]>>({});
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
@@ -81,9 +82,9 @@ export default function KDS() {
     }
   };
 
-  const handleComplete = async (order_id: string) => {
+  const handleComplete = async (order_id: string, readyItems: string[] = []) => {
     try {
-      await complete_order_live(order_id, user?.username || 'kitchen');
+      await complete_order_live(order_id, user?.username || 'kitchen', readyItems);
       setOrders(await get_kitchen_orders_live(tenant_id));
     } catch (e: any) {
       logUiError(tenant_id, 'kds', e?.message || String(e), { phase: 'complete_order', order_id });
@@ -190,9 +191,19 @@ export default function KDS() {
     }
   };
 
-  const handleCompleteGroup = async (group: { preparingIds: string[] }) => {
+  const handleCompleteGroup = async (group: { key: string; preparingIds: string[] }) => {
     try {
-      await Promise.all(group.preparingIds.map((orderId) => complete_order_live(orderId, user?.username || 'kitchen')));
+      const selectedReady = readySelections[group.key] || [];
+      if (selectedReady.length === 0) {
+        useAppStore.getState().notify('error', tx(lang, 'Hazır olan məhsulları seçin', 'Выберите готовые позиции', 'Select ready items'));
+        return;
+      }
+      await Promise.all(group.preparingIds.map((orderId) => complete_order_live(orderId, user?.username || 'kitchen', selectedReady)));
+      setReadySelections((prev) => {
+        const next = { ...prev };
+        delete next[group.key];
+        return next;
+      });
       setOrders(await get_kitchen_orders_live(tenant_id));
     } catch (e: any) {
       logUiError(tenant_id, 'kds', e?.message || String(e), { phase: 'complete_group', ids: group.preparingIds });
@@ -280,6 +291,23 @@ export default function KDS() {
                         ) : null}
                       </span>
                     </span>
+                    {item.action !== 'CANCEL' && order.status === 'PREPARING' && (
+                      <label className="ml-3 flex items-center gap-2 text-xs text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={(readySelections[order.key] || []).includes(item.item_name)}
+                          onChange={(e) => {
+                            setReadySelections((prev) => {
+                              const current = new Set(prev[order.key] || []);
+                              if (e.target.checked) current.add(item.item_name);
+                              else current.delete(item.item_name);
+                              return { ...prev, [order.key]: Array.from(current) };
+                            });
+                          }}
+                        />
+                        {tx(lang, 'Hazırdır', 'Готово', 'Ready')}
+                      </label>
+                    )}
                   </li>
                 ))}
               </ul>

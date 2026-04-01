@@ -13,6 +13,7 @@ export interface Table {
   tenant_id: string;
   label: string;
   is_occupied: boolean;
+  assigned_to?: string | null;
   items: CartItem[];
   total: string; // Decimal format
   cup_mode?: 'paper' | 'glass';
@@ -72,6 +73,7 @@ export const create_table = (tenant_id: string, label: string, created_by: strin
     tenant_id,
     label,
     is_occupied: false,
+    assigned_to: null,
     items: [],
     total: '0'
   };
@@ -89,6 +91,10 @@ export const delete_table = (table_id: string, deleted_by: string) => {
   const table = tables.find(t => t.id === table_id);
   
   if (!table) throw new Error('Masa tapılmadı');
+  const actorRole = String(getDB<any>('users').find((u: any) => u.tenant_id === table.tenant_id && u.username === sent_by)?.role || '').toLowerCase();
+  if (table.is_occupied && table.assigned_to && table.assigned_to !== sent_by && !['admin', 'manager', 'super_admin'].includes(actorRole)) {
+    throw new Error(`Bu masa ${table.assigned_to} üçün aktivdir`);
+  }
   if (table.is_occupied) throw new Error('İstifadədə olan masa silinə bilməz');
 
   tables = tables.filter(t => t.id !== table_id);
@@ -124,6 +130,7 @@ export const send_to_kitchen = (
   });
   table.items = merged as any;
   table.cup_mode = options?.cup_mode || 'paper';
+  if (!table.assigned_to) table.assigned_to = sent_by;
   
   // Totalı decimal ilə hesablayaq
   const rawTotal = cart_items.reduce((acc, curr) => {
@@ -219,6 +226,7 @@ export const pay_table = (
 
   // Uğurlu ödənişdən sonra masanı sıfırlayırıq
   table.is_occupied = false;
+  table.assigned_to = null;
   table.items = [];
   table.total = '0';
   setDB('tables', tables);
@@ -306,10 +314,12 @@ export const transfer_table = (table_id: string, target_table_id: string, actor:
   target.items = Array.isArray(source.items) ? [...source.items] : [];
   target.total = source.total;
   target.is_occupied = true;
+  target.assigned_to = source.assigned_to || target.assigned_to || null;
 
   source.items = [];
   source.total = '0';
   source.is_occupied = false;
+  source.assigned_to = null;
 
   const kitchenOrders = getDB<any>('kitchen_orders');
   kitchenOrders.forEach((order: any) => {
@@ -342,10 +352,12 @@ export const merge_tables = (table_id: string, target_table_id: string, actor: s
   target.items = targetItems as any;
   target.total = new Decimal(target.total || 0).plus(new Decimal(source.total || 0)).toFixed(2);
   target.is_occupied = true;
+  target.assigned_to = target.assigned_to || source.assigned_to || null;
 
   source.items = [];
   source.total = '0';
   source.is_occupied = false;
+  source.assigned_to = null;
 
   const kitchenOrders = getDB<any>('kitchen_orders');
   kitchenOrders.forEach((order: any) => {

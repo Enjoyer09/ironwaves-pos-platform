@@ -34,7 +34,7 @@ export type StaffNotification = {
   username: string;
   title: string;
   message: string;
-  meta?: Record<string, string>;
+  meta?: Record<string, any>;
   read: boolean;
   created_at: string;
 };
@@ -109,6 +109,15 @@ export const get_unread_staff_notifications_live = async (tenant_id: string, use
 export const mark_staff_notifications_read_live = async (tenant_id: string, username: string) => {
   if (!isBackendEnabled()) return mark_staff_notifications_read(tenant_id, username);
   return apiRequest<{ success: boolean; count: number }>('/api/v1/ops/staff-notifications/read', {
+    method: 'POST',
+    tenantId: null,
+    body: {},
+  });
+};
+
+export const mark_staff_notification_read_live = async (notification_id: string) => {
+  if (!isBackendEnabled()) return { success: true };
+  return apiRequest<{ success: boolean }>(`/api/v1/ops/staff-notifications/${encodeURIComponent(notification_id)}/read`, {
     method: 'POST',
     tenantId: null,
     body: {},
