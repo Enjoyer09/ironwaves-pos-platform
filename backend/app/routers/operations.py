@@ -34,6 +34,7 @@ from app.models import (
     User,
 )
 from app.core.config import settings as app_settings
+from app.security import verify_password
 
 
 router = APIRouter(prefix="/api/v1/ops", tags=["operations"])
@@ -198,6 +199,12 @@ class TablePayIn(BaseModel):
 
 class TableTargetIn(BaseModel):
     target_table_id: str
+
+
+class TableRevisionIn(BaseModel):
+    items: list[dict]
+    reason: str
+    override_password: str
 
 
 class HappyHourCreateIn(BaseModel):
@@ -1471,6 +1478,139 @@ def send_to_kitchen(
     )
     db.commit()
     return {"success": True, "kitchen_order_id": order.id}
+
+
+@router.patch("/tables/{table_id}/items")
+def revise_table_items(
+    table_id: str,
+    payload: TableRevisionIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    row = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
+    if not row:
+      raise HTTPException(status_code=404, detail="Table not found")
+
+    override_password = str(payload.override_password or "").strip()
+    reason = str(payload.reason or "").strip()
+    if not override_password:
+        raise HTTPException(status_code=400, detail="Manager/Admin password required")
+    if len(reason) < 3:
+        raise HTTPException(status_code=400, detail="Reason is required")
+
+    override_user = None
+    candidates = (
+        db.query(User)
+        .filter(User.tenant_id == tenant.id, User.is_active == True)
+        .all()
+    )
+    for candidate in candidates:
+        if str(candidate.role or "").lower() not in {"admin", "manager", "super_admin"}:
+            continue
+        if candidate.password_hash and verify_password(override_password, candidate.password_hash):
+            override_user = candidate
+            break
+    if not override_user:
+        raise HTTPException(status_code=403, detail="Manager/Admin override failed")
+
+    old_items = _json_load(row.items_json, [])
+    next_items = []
+    for item in payload.items:
+        qty = int(item.get("qty") or 0)
+        if qty <= 0:
+            continue
+        next_items.append(
+            {
+                "id": item.get("id"),
+                "item_name": str(item.get("item_name") or "").strip(),
+                "price": str(item.get("price") or "0"),
+                "qty": qty,
+                "is_coffee": bool(item.get("is_coffee")),
+                "category": str(item.get("category") or ""),
+            }
+        )
+
+    removed_items: list[dict] = []
+    for old in old_items:
+        old_name = str(old.get("item_name") or "").strip()
+        old_qty = int(old.get("qty") or 0)
+        matching = next((item for item in next_items if str(item.get("item_name") or "").strip() == old_name), None)
+        next_qty = int(matching.get("qty") or 0) if matching else 0
+        removed_qty = old_qty - next_qty
+        if removed_qty > 0:
+            removed_items.append(
+                {
+                    "id": old.get("id"),
+                    "item_name": old_name,
+                    "price": str(old.get("price") or "0"),
+                    "qty": removed_qty,
+                    "is_coffee": bool(old.get("is_coffee")),
+                    "category": str(old.get("category") or ""),
+                    "action": "CANCEL",
+                    "reason": reason,
+                    "updated_by": override_user.username,
+                    "updated_at": datetime.utcnow().isoformat(),
+                }
+            )
+
+    if not removed_items:
+        raise HTTPException(status_code=400, detail="No removable item changes detected")
+
+    next_total = Decimal("0.00")
+    for item in next_items:
+        next_total += Decimal(str(item.get("price") or 0)) * Decimal(str(item.get("qty") or 0))
+
+    row.items_json = json.dumps(next_items, ensure_ascii=False)
+    row.total = next_total.quantize(Decimal("0.01"))
+    row.is_occupied = len(next_items) > 0
+
+    active_order = (
+        db.query(KitchenOrder)
+        .filter(
+            KitchenOrder.tenant_id == tenant.id,
+            KitchenOrder.table_label == row.label,
+            KitchenOrder.status.in_(["NEW", "PREPARING", "READY"]),
+        )
+        .order_by(KitchenOrder.created_at.desc())
+        .first()
+    )
+    if active_order:
+        active_items = _json_load(active_order.items_json, [])
+        active_order.items_json = json.dumps([*active_items, *removed_items], ensure_ascii=False)
+        active_order.priority = "URGENT"
+
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="TABLE_ITEM_REVISED",
+            details=json.dumps(
+                {
+                    "table_id": row.id,
+                    "table_label": row.label,
+                    "reason": reason,
+                    "removed_items": removed_items,
+                    "override_by": override_user.username,
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    _notify_front_of_house(
+        db,
+        tenant.id,
+        "Masa Sifarişi Dəyişdirildi",
+        f"{row.label} üçün sifariş düzəlişi edildi: {reason}",
+        {
+            "table_label": row.label,
+            "status": "REVISION",
+            "removed_items": _summarize_items(removed_items),
+            "override_by": override_user.username,
+        },
+    )
+    db.commit()
+    return {"success": True, "table_total": str(row.total), "override_by": override_user.username}
 
 
 @router.post("/tables/{table_id}/pay")

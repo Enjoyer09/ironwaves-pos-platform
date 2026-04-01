@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { get_tables_live, create_table_live, delete_table_live, pay_table_live, transfer_table_live, merge_tables_live } from '../api/tables';
+import { get_tables_live, create_table_live, delete_table_live, pay_table_live, transfer_table_live, merge_tables_live, revise_table_items_live } from '../api/tables';
 import { LayoutGrid, Plus, Trash2 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
@@ -24,6 +24,9 @@ export default function TablesPage() {
   const [transferTargetId, setTransferTargetId] = useState('');
   const [mergeTargetId, setMergeTargetId] = useState('');
   const [tableReceiptHtml, setTableReceiptHtml] = useState<string | null>(null);
+  const [revisionTarget, setRevisionTarget] = useState<{ tableId: string; itemName: string; nextItems: any[] } | null>(null);
+  const [revisionReason, setRevisionReason] = useState('');
+  const [revisionOverridePassword, setRevisionOverridePassword] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'Nəğd' | 'Kart' | 'Split'>('Nəğd');
   const [splitCash, setSplitCash] = useState('0');
   const receiptRef = useRef<HTMLIFrameElement | null>(null);
@@ -189,6 +192,65 @@ export default function TablesPage() {
         </div>
       )}
 
+      {revisionTarget && (
+        <div className="fixed inset-0 z-[145] flex items-center justify-center bg-black/70 p-4">
+          <div className="metal-panel w-full max-w-md p-5">
+            <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Manager/Admin Təsdiqi', 'Подтверждение manager/admin', 'Manager/Admin Override')}</h3>
+            <p className="mt-2 text-sm text-slate-300">
+              {tx(lang, `"${revisionTarget.itemName}" mətbəxə göndərilib. Dəyişiklik üçün manager/admin şifrəsi və səbəb lazımdır.`, `"${revisionTarget.itemName}" уже отправлен на кухню. Для изменения нужны пароль manager/admin и причина.`, `"${revisionTarget.itemName}" was already sent to the kitchen. Manager/admin password and reason are required to change it.`)}
+            </p>
+            <input
+              className="neon-input mt-3"
+              value={revisionReason}
+              onChange={(e) => setRevisionReason(e.target.value)}
+              placeholder={tx(lang, 'Səbəb', 'Причина', 'Reason')}
+            />
+            <input
+              type="password"
+              className="neon-input mt-3"
+              value={revisionOverridePassword}
+              onChange={(e) => setRevisionOverridePassword(e.target.value)}
+              placeholder={tx(lang, 'Manager/Admin şifrəsi', 'Пароль manager/admin', 'Manager/Admin password')}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                className="neon-btn rounded-lg px-4 py-2"
+                onClick={() => {
+                  setRevisionTarget(null);
+                  setRevisionReason('');
+                  setRevisionOverridePassword('');
+                }}
+              >
+                {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
+              </button>
+              <button
+                className="glossy-gold rounded-lg px-4 py-2 font-semibold"
+                onClick={async () => {
+                  if (!revisionTarget) return;
+                  try {
+                    await revise_table_items_live(revisionTarget.tableId, {
+                      items: revisionTarget.nextItems,
+                      reason: revisionReason,
+                      override_password: revisionOverridePassword,
+                      actor: user?.username || 'staff',
+                    });
+                    notify('success', tx(lang, 'Düzəliş mətbəx reviziyası ilə yazıldı', 'Изменение записано как ревизия кухни', 'Change was written as a kitchen revision'));
+                    setRevisionTarget(null);
+                    setRevisionReason('');
+                    setRevisionOverridePassword('');
+                    await loadData();
+                  } catch (e: any) {
+                    notify('error', e?.message || tx(lang, 'Düzəliş alınmadı', 'Изменение не выполнено', 'Revision failed'));
+                  }
+                }}
+              >
+                {tx(lang, 'Təsdiqlə', 'Подтвердить', 'Confirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {payTableId && (
         <div className="fixed inset-0 z-[130] flex items-end justify-center bg-black/65 p-0 md:items-center md:p-4">
           <div className="metal-panel w-full max-w-md rounded-t-[28px] p-5 md:rounded-2xl">
@@ -327,9 +389,35 @@ export default function TablesPage() {
                   <div className="mt-3 max-h-72 overflow-auto rounded-lg border border-slate-700/70 bg-slate-900/40 p-3">
                     {items.length === 0 && <div className="text-sm text-slate-400">{tx(lang, 'Masa boşdur', 'Стол пуст')}</div>}
                     {items.map((it: any, idx: number) => (
-                      <div key={`${it.item_name}_${idx}`} className="flex items-center justify-between border-b border-slate-700/40 py-2 text-sm last:border-b-0">
-                        <span>{it.item_name}</span>
-                        <span>x{it.qty}</span>
+                      <div key={`${it.item_name}_${idx}`} className="flex items-center justify-between gap-3 border-b border-slate-700/40 py-2 text-sm last:border-b-0">
+                        <div>
+                          <div>{it.item_name}</div>
+                          <div className="mt-1 text-xs text-slate-500">x{it.qty}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            className="rounded-md border border-amber-300/40 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-100"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const nextItems = items
+                                .map((row: any, rowIdx: number) => rowIdx === idx ? { ...row, qty: Number(row.qty || 0) - 1 } : row)
+                                .filter((row: any) => Number(row.qty || 0) > 0);
+                              setRevisionTarget({ tableId: t.id, itemName: it.item_name, nextItems });
+                            }}
+                          >
+                            -1
+                          </button>
+                          <button
+                            className="rounded-md border border-rose-300/40 bg-rose-500/10 px-2 py-1 text-xs font-semibold text-rose-100"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const nextItems = items.filter((_: any, rowIdx: number) => rowIdx !== idx);
+                              setRevisionTarget({ tableId: t.id, itemName: it.item_name, nextItems });
+                            }}
+                          >
+                            {tx(lang, 'Sil', 'Убрать', 'Remove')}
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

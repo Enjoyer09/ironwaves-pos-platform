@@ -143,7 +143,12 @@ export default function KDS() {
         newIds: order.status === 'NEW' ? [order.id] : [],
         preparingIds: order.status === 'PREPARING' ? [order.id] : [],
         readyIds: order.status === 'READY' ? [order.id] : [],
-        items: normalizedItems.map((item: any) => ({ item_name: item.item_name, qty: Number(item.qty || 0) })),
+        items: normalizedItems.map((item: any) => ({
+          item_name: item.item_name,
+          qty: Number(item.qty || 0),
+          action: String(item.action || '').toUpperCase() || null,
+          reason: item.reason || '',
+        })),
         batchCount: 1,
       });
       return acc;
@@ -167,9 +172,10 @@ export default function KDS() {
     else existing.status = 'READY';
 
     normalizedItems.forEach((item: any) => {
-      const idx = existing.items.findIndex((row) => row.item_name === item.item_name);
+      const itemAction = String(item.action || '').toUpperCase() || null;
+      const idx = existing.items.findIndex((row) => row.item_name === item.item_name && (row.action || null) === itemAction);
       if (idx >= 0) existing.items[idx].qty += Number(item.qty || 0);
-      else existing.items.push({ item_name: item.item_name, qty: Number(item.qty || 0) });
+      else existing.items.push({ item_name: item.item_name, qty: Number(item.qty || 0), action: itemAction, reason: item.reason || '' });
     });
     return acc;
   }, []);
@@ -261,12 +267,18 @@ export default function KDS() {
             <div className="flex-1 p-4 bg-slate-900/15">
               <ul className="space-y-3">
                 {order.items.map((item: any, idx: number) => (
-                  <li key={idx} className="flex justify-between items-center text-lg font-medium text-slate-100">
+                  <li key={idx} className={`flex justify-between items-center text-lg font-medium ${item.action === 'CANCEL' ? 'text-rose-300' : 'text-slate-100'}`}>
                     <span className="flex items-center">
-                      <span className="w-6 h-6 rounded bg-slate-700 text-slate-100 flex items-center justify-center text-sm mr-3">
+                      <span className={`w-6 h-6 rounded flex items-center justify-center text-sm mr-3 ${item.action === 'CANCEL' ? 'bg-rose-900/60 text-rose-100' : 'bg-slate-700 text-slate-100'}`}>
                         {item.qty}
                       </span>
-                      {item.item_name}
+                      <span>
+                        {item.action === 'CANCEL' ? `${tx(lang, 'LƏĞV', 'ОТМЕНА', 'CANCEL')} · ` : ''}
+                        {item.item_name}
+                        {item.action === 'CANCEL' && item.reason ? (
+                          <span className="ml-2 text-xs font-medium text-rose-200/80">({item.reason})</span>
+                        ) : null}
+                      </span>
                     </span>
                   </li>
                 ))}
