@@ -18,7 +18,7 @@ import {
   z_report,
 } from '../../api/reports';
 import { create_finance_entry_async, fetch_finance_balances, get_balance, transfer_funds_async } from '../../api/finance';
-import { get_settings } from '../../api/settings';
+import { get_settings, get_users_live } from '../../api/settings';
 import { qzListPrinters, qzPrintHtml } from '../../lib/qz';
 import { tx } from '../../i18n';
 import { isBackendEnabled } from '../../api/client';
@@ -213,8 +213,16 @@ export default function ZReportPanel() {
       } catch {
         if (!mounted) return;
         if (isBackendEnabled()) {
-          setTenantUsers([]);
-          notify('error', tx(lang, 'Təhvil üçün istifadəçi siyahısı yüklənmədi', 'Не удалось загрузить список пользователей для передачи', 'Failed to load handover user list'));
+          try {
+            const fallbackRows = await get_users_live(tenant_id);
+            if (!mounted) return;
+            setTenantUsers(
+              fallbackRows.filter((u) => ['staff', 'manager', 'admin'].includes(String(u.role || '').toLowerCase()))
+            );
+          } catch {
+            setTenantUsers([]);
+            notify('error', tx(lang, 'Təhvil üçün istifadəçi siyahısı yüklənmədi', 'Не удалось загрузить список пользователей для передачи', 'Failed to load handover user list'));
+          }
         } else {
           setTenantUsers(get_shift_handover_users(tenant_id));
         }
@@ -232,7 +240,14 @@ export default function ZReportPanel() {
           setTenantUsers(rows);
         } catch {
           if (isBackendEnabled()) {
-            setTenantUsers([]);
+            try {
+              const fallbackRows = await get_users_live(tenant_id);
+              setTenantUsers(
+                fallbackRows.filter((u) => ['staff', 'manager', 'admin'].includes(String(u.role || '').toLowerCase()))
+              );
+            } catch {
+              setTenantUsers([]);
+            }
           } else {
             setTenantUsers(get_shift_handover_users(tenant_id));
           }

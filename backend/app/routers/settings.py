@@ -84,6 +84,27 @@ def _uses_pin(role: str) -> bool:
     return str(role or "").lower() in {"staff", "kitchen"}
 
 
+def _assert_unique_pin(db: Session, tenant_id: str, pin: str, exclude_user_id: str | None = None):
+    pin_value = str(pin or "").strip()
+    if not pin_value:
+        return
+    rows = (
+        db.query(User)
+        .filter(
+            User.tenant_id == tenant_id,
+            User.is_active == True,
+            User.role.in_(["staff", "kitchen"]),
+        )
+        .all()
+    )
+    for row in rows:
+        if exclude_user_id and row.id == exclude_user_id:
+            continue
+        pin_hash = row.pin_hash or row.password_hash
+        if pin_hash and verify_password(pin_value, pin_hash):
+            raise HTTPException(status_code=409, detail="Bu PIN artıq başqa staff/kitchen hesabında istifadə olunur")
+
+
 @router.get("/users", response_model=list[UserOut])
 def list_users(
     db: Session = Depends(get_db),
@@ -139,6 +160,8 @@ def create_user(
         raise HTTPException(status_code=400, detail="Admin/manager accounts must use password login only")
     if _uses_pin(role) and password:
         raise HTTPException(status_code=400, detail="Staff/kitchen accounts must use PIN login only")
+    if _uses_pin(role):
+        _assert_unique_pin(db, tenant.id, pin)
 
     row = User(
         tenant_id=tenant.id,
@@ -200,6 +223,7 @@ def update_user_credentials(
         pin = str(payload.pin).strip()
         if len(pin) < 4 or len(pin) > 15:
             raise HTTPException(status_code=400, detail="PIN must be 4-15 digits")
+        _assert_unique_pin(db, tenant.id, pin, exclude_user_id=row.id)
         row.pin_hash = hash_password(pin)
 
     db.commit()
