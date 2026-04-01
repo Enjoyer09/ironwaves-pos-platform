@@ -316,14 +316,23 @@ export async function replace_recipe_live(
 }
 
 export async function generate_recipe_ai(menu_item_name: string, user: string = 'system', tenant_id: string = 'tenant_default') {
-  let recipes = getRecipes(tenant_id).filter((r) => r.menu_item_name !== menu_item_name);
-  const settings = getDB<any>('settings') || [];
-  const tenantSettings = settings.find((row: any) => row?.tenant_id === tenant_id) || settings[0];
-  const aiKey = tenantSettings?.gemini_api_key || readScopedStorage('gemini_api_key') || '';
-  if (!aiKey) {
-    throw new Error('AI resept üçün API key daxil edilməyib.');
-  }
+  const generatedRows = await generate_recipe_ai_rows(menu_item_name, tenant_id);
+  const recipes = [
+    ...getRecipes(tenant_id).filter((r) => r.menu_item_name !== menu_item_name),
+    ...generatedRows,
+  ];
+  saveRecipes(tenant_id, recipes);
+  logEvent(user, 'RECIPE_AI_CREATED', { menu_item_name, count: generatedRows.length });
+  return get_recipe(menu_item_name, tenant_id);
+}
 
+async function generate_recipe_ai_rows(menu_item_name: string, tenant_id: string = 'tenant_default') {
+  const settings = getDB<any>('settings') || [];
+  const tenantSettings = settings.find((row: any) => row?.tenant_id === tenant_id);
+  const aiKey = String(tenantSettings?.gemini_api_key || readScopedStorage('gemini_api_key') || '').trim();
+  if (!aiKey) {
+    throw new Error('AI resept üçün əvvəlcə Gemini API key daxil edilməlidir.');
+  }
   const inventory = (getDB<any>('inventory') || []).filter((i) => !i.tenant_id || i.tenant_id === tenant_id);
   if (inventory.length === 0) {
     throw new Error('AI resept yaratmaq üçün anbarda xammal tapılmadı.');
@@ -400,44 +409,44 @@ export async function generate_recipe_ai(menu_item_name: string, user: string = 
     });
   }
 
-  aiRows.forEach((row) => {
+  const generatedRows = aiRows.flatMap((row) => {
     const item = inventory.find((i: any) => String(i.name).toLowerCase() === row.ingredient.toLowerCase());
-    if (!item) return;
+    if (!item) return [];
     const qty = normalizeQtyForUnit(menu_item_name, item, Number(row.qty || 0));
     const unitCost = new Decimal(item.unit_cost || '0');
     const rowCost = qty.mul(unitCost);
-    recipes.push({
+    return [{
       id: uuidv4(),
+      tenant_id,
       menu_item_name,
       ingredient_name: item.name,
       quantity_required: qty.toString(),
       unit: item.unit || 'q',
       unit_cost: unitCost.toString(),
       line_cost: rowCost.toString()
-    });
+    }];
   });
-  saveRecipes(tenant_id, recipes);
-  
-  logEvent(user, 'RECIPE_AI_CREATED', { menu_item_name });
-  return get_recipe(menu_item_name, tenant_id);
+
+  if (generatedRows.length === 0) {
+    throw new Error('AI uyğun xammal seçə bilmədi. Əvvəl anbarda uyğun ingredient əlavə edin.');
+  }
+
+  return generatedRows;
 }
 
 export async function generate_recipe_ai_live(menu_item_name: string, user: string = 'system', tenant_id: string = 'tenant_default') {
   if (!isBackendEnabled()) return generate_recipe_ai(menu_item_name, user, tenant_id);
-  const generated = await generate_recipe_ai(menu_item_name, user, tenant_id);
-  for (const row of generated) {
-    await add_recipe_ingredient_live(
-      {
-        menu_item_name,
-        ingredient_name: row.ingredient_name,
-        quantity_required: new Decimal(row.quantity_required || 0),
-        unit: row.unit,
-        unit_cost: new Decimal(row.unit_cost || 0),
-        tenant_id,
-      },
-      user,
-    );
-  }
+  const generated = await generate_recipe_ai_rows(menu_item_name, tenant_id);
+  await replace_recipe_live(
+    menu_item_name,
+    generated.map((row) => ({
+      ingredient_name: row.ingredient_name,
+      quantity_required: row.quantity_required,
+      quantity_unit: row.unit,
+    })),
+    tenant_id,
+  );
+  logEvent(user, 'RECIPE_AI_CREATED', { menu_item_name, count: generated.length, mode: 'live' });
   return get_recipe_live(menu_item_name, tenant_id);
 }
 
