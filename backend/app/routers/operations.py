@@ -338,6 +338,20 @@ def get_app_settings(
             "show_notifications": True,
         },
     )
+    pos_layout = _setting_value(
+        db,
+        tenant.id,
+        "pos_layout",
+        {
+            "preset": "classic",
+            "density": "comfortable",
+            "product_columns": 3,
+            "show_cart_tabs": True,
+            "accent_color": "#facc15",
+            "hidden_widgets": [],
+            "widget_order": ["customer", "discount", "orderType", "table", "cartItems", "cartSummary", "payments"],
+        },
+    )
     email_settings = _setting_value(
         db,
         tenant.id,
@@ -383,6 +397,7 @@ def get_app_settings(
         "print_settings": print_settings,
         "qr_settings": qr_settings,
         "customer_app_settings": customer_app_settings,
+        "pos_layout": pos_layout,
         "landing_settings": _setting_value(
             db,
             tenant.id,
@@ -592,6 +607,28 @@ def update_customer_app_settings(
         "show_notifications": bool(payload.get("show_notifications", True)),
     }
     _set_setting_value(db, tenant.id, "customer_app_settings", cleaned)
+    db.commit()
+    return {"success": True}
+
+
+@router.patch("/settings/pos-layout")
+def update_pos_layout_settings(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    cleaned = {
+        "preset": str(payload.get("preset") or "classic").strip().lower() if str(payload.get("preset") or "classic").strip().lower() in {"classic", "fast", "touch", "tables"} else "classic",
+        "density": str(payload.get("density") or "comfortable").strip().lower() if str(payload.get("density") or "comfortable").strip().lower() in {"compact", "comfortable", "large"} else "comfortable",
+        "product_columns": int(payload.get("product_columns") or 3) if int(payload.get("product_columns") or 3) in {2, 3, 4} else 3,
+        "show_cart_tabs": bool(payload.get("show_cart_tabs", True)),
+        "accent_color": str(payload.get("accent_color") or "").strip() or "#facc15",
+        "hidden_widgets": [str(v or "").strip() for v in (payload.get("hidden_widgets") or []) if str(v or "").strip()],
+        "widget_order": [str(v or "").strip() for v in (payload.get("widget_order") or []) if str(v or "").strip()],
+    }
+    _set_setting_value(db, tenant.id, "pos_layout", cleaned)
     db.commit()
     return {"success": True}
 

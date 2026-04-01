@@ -197,6 +197,15 @@ export interface Settings {
     show_history: boolean;
     show_notifications: boolean;
   };
+  pos_layout?: {
+    preset: 'classic' | 'fast' | 'touch' | 'tables';
+    density: 'compact' | 'comfortable' | 'large';
+    product_columns: 2 | 3 | 4;
+    show_cart_tabs: boolean;
+    accent_color: string;
+    hidden_widgets: string[];
+    widget_order: string[];
+  };
   landing_settings?: {
     hero_title_az?: string;
     hero_title_ru?: string;
