@@ -1,4 +1,5 @@
 import { readScopedStorage } from '../lib/storage_keys';
+import { emitPerfEvent } from '../lib/perf';
 
 const ENV = ((import.meta as any)?.env || {}) as Record<string, string | undefined>;
 const BACKEND_FLAG = String(ENV.VITE_USE_BACKEND || '').toLowerCase();
@@ -64,6 +65,7 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
     headers.Authorization = `Bearer ${access_token}`;
   }
 
+  const startedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   let res: Response;
   try {
     res = await fetch(`${base}${path}`, {
@@ -72,6 +74,16 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
     });
   } catch (error) {
+    const endedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    emitPerfEvent({
+      type: 'api',
+      label: `${options.method || 'GET'} ${path}`,
+      method: options.method || 'GET',
+      path,
+      duration_ms: Math.round(endedAt - startedAt),
+      ok: false,
+      at: new Date().toISOString(),
+    });
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Backendə qoşulma alınmadı (${options.method || 'GET'} ${path}): ${message}`);
   }
@@ -84,6 +96,18 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
       return text;
     }
   })() : null;
+
+  const endedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  emitPerfEvent({
+    type: 'api',
+    label: `${options.method || 'GET'} ${path}`,
+    method: options.method || 'GET',
+    path,
+    duration_ms: Math.round(endedAt - startedAt),
+    ok: res.ok,
+    status: res.status,
+    at: new Date().toISOString(),
+  });
 
   if (!res.ok) {
     const detail = (data && typeof data === 'object' && (data as any).detail) ? (data as any).detail : `HTTP ${res.status}`;
