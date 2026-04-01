@@ -21,6 +21,7 @@ import { create_finance_entry_async, fetch_finance_balances, get_balance, transf
 import { get_settings } from '../../api/settings';
 import { qzListPrinters, qzPrintHtml } from '../../lib/qz';
 import { tx } from '../../i18n';
+import { isBackendEnabled } from '../../api/client';
 
 export default function ZReportPanel() {
   const { user, lang, notify } = useAppStore();
@@ -44,9 +45,8 @@ export default function ZReportPanel() {
   const [sales, setSales] = useState<any[]>([]);
   const [handovers, setHandovers] = useState<any[]>([]);
   const [pendingReceived, setPendingReceived] = useState<any | null>(null);
-  const [tenantUsers, setTenantUsers] = useState<any[]>(() =>
-    get_shift_handover_users(tenant_id)
-  );
+  const [tenantUsers, setTenantUsers] = useState<any[]>([]);
+  const [handoverUsersLoading, setHandoverUsersLoading] = useState(false);
   const [currentBalances, setCurrentBalances] = useState<any>({
     cash_balance: '0',
     card_balance: '0',
@@ -202,6 +202,8 @@ export default function ZReportPanel() {
 
   React.useEffect(() => {
     let mounted = true;
+    setHandoverUsersLoading(true);
+    setTenantUsers([]);
     (async () => {
       try {
         const rows = await get_shift_handover_users_live(tenant_id);
@@ -209,16 +211,32 @@ export default function ZReportPanel() {
         setTenantUsers(rows);
       } catch {
         if (!mounted) return;
-        setTenantUsers(get_shift_handover_users(tenant_id));
+        if (isBackendEnabled()) {
+          setTenantUsers([]);
+          notify('error', tx(lang, 'Təhvil üçün istifadəçi siyahısı yüklənmədi', 'Не удалось загрузить список пользователей для передачи', 'Failed to load handover user list'));
+        } else {
+          setTenantUsers(get_shift_handover_users(tenant_id));
+        }
+      } finally {
+        if (mounted) {
+          setHandoverUsersLoading(false);
+        }
       }
     })();
     const refreshUsers = () => {
       void (async () => {
         try {
+          setHandoverUsersLoading(true);
           const rows = await get_shift_handover_users_live(tenant_id);
           setTenantUsers(rows);
         } catch {
-          setTenantUsers(get_shift_handover_users(tenant_id));
+          if (isBackendEnabled()) {
+            setTenantUsers([]);
+          } else {
+            setTenantUsers(get_shift_handover_users(tenant_id));
+          }
+        } finally {
+          setHandoverUsersLoading(false);
         }
       })();
     };
@@ -747,7 +765,11 @@ export default function ZReportPanel() {
         <h3 className="mb-3 text-lg font-semibold">{tx(lang, 'Smeni Təhvil Ver', 'Передача смены', 'Shift Handover')}</h3>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <select className="neon-input" value={handoverTo} onChange={(e) => setHandoverTo(e.target.value)}>
-            <option value="">{tx(lang, 'Təhvil alan işçi seçin', 'Выберите принимающего сотрудника', 'Select receiving staff')}</option>
+            <option value="">
+              {handoverUsersLoading
+                ? tx(lang, 'İstifadəçilər yüklənir...', 'Пользователи загружаются...', 'Loading users...')
+                : tx(lang, 'Təhvil alan işçi seçin', 'Выберите принимающего сотрудника', 'Select receiving staff')}
+            </option>
             {tenantUsers
               .filter((u) => u.username !== user?.username)
               .map((u) => (
@@ -771,6 +793,11 @@ export default function ZReportPanel() {
             <span>{tx(lang, 'Seçilmiş qəbul edən', 'Выбранный принимающий', 'Selected receiver')}:</span>
             <b className="text-slate-100">{selectedReceiver.username}</b>
             <RoleBadge role={selectedReceiver.role} />
+          </div>
+        )}
+        {!handoverUsersLoading && tenantUsers.filter((u) => u.username !== user?.username).length === 0 && (
+          <div className="mt-3 text-xs text-amber-300">
+            {tx(lang, 'Təhvil veriləcək aktiv staff/manager/admin tapılmadı.', 'Не найдено активных staff/manager/admin для передачи.', 'No active staff/manager/admin users available for handover.')}
           </div>
         )}
         <p className="mt-2 text-xs text-slate-400">
