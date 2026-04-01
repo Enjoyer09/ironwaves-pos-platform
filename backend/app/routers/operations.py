@@ -366,6 +366,10 @@ def get_app_settings(
                     "left_widget_sizes": {},
                 },
             },
+            "role_overrides": {
+                "staff": {},
+                "manager": {},
+            },
         },
     )
     email_settings = _setting_value(
@@ -490,6 +494,10 @@ def update_pos_layout_draft_settings(
                 str(k): (str(v).strip().lower() if str(v).strip().lower() in {"compact", "comfortable", "expanded"} else "comfortable")
                 for k, v in dict(source.get("left_widget_sizes") or base.get("left_widget_sizes") or {}).items()
                 if str(k or "").strip()
+            },
+            "role_overrides": {
+                "staff": _clean_layout(source.get("role_overrides", {}).get("staff") or {}, base) if (source.get("role_overrides") or {}).get("staff") else {},
+                "manager": _clean_layout(source.get("role_overrides", {}).get("manager") or {}, base) if (source.get("role_overrides") or {}).get("manager") else {},
             },
         }
     cleaned = _clean_layout(payload)
