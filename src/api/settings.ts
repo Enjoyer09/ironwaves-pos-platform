@@ -82,12 +82,16 @@ function getSettings(tenant_id?: string): Settings {
         accent_color: '#facc15',
         hidden_widgets: [],
         widget_order: ['customer', 'discount', 'orderType', 'table', 'cartItems', 'cartSummary', 'payments'],
+        left_hidden_widgets: [],
+        left_widget_order: ['menuHeader', 'search', 'categories', 'productGrid'],
         device_layouts: {
           desktop: {},
           tablet: {
             preset: 'touch',
             density: 'large',
             product_columns: 2,
+            left_hidden_widgets: [],
+            left_widget_order: ['search', 'categories', 'productGrid'],
           },
         },
       },
@@ -259,8 +263,18 @@ export function get_settings(tenant_id?: string) {
         preset: 'touch',
         density: 'large',
         product_columns: 2,
+        left_hidden_widgets: [],
+        left_widget_order: ['search', 'categories', 'productGrid'],
       },
     };
+    saveSettings(s);
+  }
+  if (!s.pos_layout.left_hidden_widgets) {
+    s.pos_layout.left_hidden_widgets = [];
+    saveSettings(s);
+  }
+  if (!s.pos_layout.left_widget_order) {
+    s.pos_layout.left_widget_order = ['menuHeader', 'search', 'categories', 'productGrid'];
     saveSettings(s);
   }
   if (!s.qr_settings) {
@@ -308,6 +322,8 @@ export function get_settings(tenant_id?: string) {
       accent_color: '#facc15',
       hidden_widgets: [],
       widget_order: ['customer', 'discount', 'orderType', 'table', 'cartItems', 'cartSummary', 'payments'],
+      left_hidden_widgets: [],
+      left_widget_order: ['menuHeader', 'search', 'categories', 'productGrid'],
     };
     saveSettings(s);
   }
@@ -527,6 +543,8 @@ export function update_pos_layout_settings(payload: NonNullable<Settings['pos_la
     accent_color: String(source?.accent_color || '').trim() || '#facc15',
     hidden_widgets: Array.from(new Set(((source?.hidden_widgets) || []).map((v: any) => String(v || '').trim()).filter(Boolean))),
     widget_order: Array.from(new Set(((source?.widget_order) || []).map((v: any) => String(v || '').trim()).filter(Boolean))),
+    left_hidden_widgets: Array.from(new Set(((source?.left_hidden_widgets) || []).map((v: any) => String(v || '').trim()).filter(Boolean))),
+    left_widget_order: Array.from(new Set((((source?.left_widget_order) || ['menuHeader', 'search', 'categories', 'productGrid']) as any[]).map((v: any) => String(v || '').trim()).filter(Boolean))),
   });
   const settings = getSettings();
   settings.pos_layout = {

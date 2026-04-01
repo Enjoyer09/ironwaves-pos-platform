@@ -350,12 +350,16 @@ def get_app_settings(
             "accent_color": "#facc15",
             "hidden_widgets": [],
             "widget_order": ["customer", "discount", "orderType", "table", "cartItems", "cartSummary", "payments"],
+            "left_hidden_widgets": [],
+            "left_widget_order": ["menuHeader", "search", "categories", "productGrid"],
             "device_layouts": {
                 "desktop": {},
                 "tablet": {
                     "preset": "touch",
                     "density": "large",
                     "product_columns": 2,
+                    "left_hidden_widgets": [],
+                    "left_widget_order": ["search", "categories", "productGrid"],
                 },
             },
         },
@@ -643,6 +647,8 @@ def update_pos_layout_settings(
             "accent_color": str(source.get("accent_color") or base.get("accent_color") or "").strip() or "#facc15",
             "hidden_widgets": [str(v or "").strip() for v in (source.get("hidden_widgets") or base.get("hidden_widgets") or []) if str(v or "").strip()],
             "widget_order": [str(v or "").strip() for v in (source.get("widget_order") or base.get("widget_order") or []) if str(v or "").strip()],
+            "left_hidden_widgets": [str(v or "").strip() for v in (source.get("left_hidden_widgets") or base.get("left_hidden_widgets") or []) if str(v or "").strip()],
+            "left_widget_order": [str(v or "").strip() for v in (source.get("left_widget_order") or base.get("left_widget_order") or ["menuHeader", "search", "categories", "productGrid"]) if str(v or "").strip()],
         }
 
     cleaned = _clean_layout(payload)

@@ -36,6 +36,13 @@ const WIDGETS = [
   { key: 'payments', labelAz: 'Ödəniş düymələri', labelRu: 'Кнопки оплаты', labelEn: 'Payment buttons' },
 ];
 
+const LEFT_WIDGETS = [
+  { key: 'menuHeader', labelAz: 'Menyu başlığı', labelRu: 'Заголовок меню', labelEn: 'Menu header' },
+  { key: 'search', labelAz: 'Axtarış', labelRu: 'Поиск', labelEn: 'Search' },
+  { key: 'categories', labelAz: 'Kateqoriyalar', labelRu: 'Категории', labelEn: 'Categories' },
+  { key: 'productGrid', labelAz: 'Məhsul grid', labelRu: 'Сетка товаров', labelEn: 'Product grid' },
+];
+
 const PRESETS: Array<{ key: PosLayoutSettings['preset']; titleAz: string; titleRu: string; titleEn: string; noteAz: string; noteRu: string; noteEn: string }> = [
   {
     key: 'classic',
@@ -89,6 +96,8 @@ export default function PosBuilderPanel() {
   const [isSaving, setIsSaving] = useState(false);
   const [draggingWidget, setDraggingWidget] = useState<string | null>(null);
   const [dropTargetWidget, setDropTargetWidget] = useState<string | null>(null);
+  const [draggingLeftWidget, setDraggingLeftWidget] = useState<string | null>(null);
+  const [dropTargetLeftWidget, setDropTargetLeftWidget] = useState<string | null>(null);
   const [activeDevice, setActiveDevice] = useState<LayoutDevice>('desktop');
 
   useEffect(() => {
@@ -132,6 +141,14 @@ export default function PosBuilderPanel() {
         },
       },
     }));
+  };
+
+  const toggleLeftHidden = (widgetKey: string) => {
+    updateActiveProfile({
+      left_hidden_widgets: activeProfile.left_hidden_widgets.includes(widgetKey)
+        ? activeProfile.left_hidden_widgets.filter((key) => key !== widgetKey)
+        : [...activeProfile.left_hidden_widgets, widgetKey],
+    });
   };
 
   const setPreset = (preset: PosLayoutSettings['preset']) => {
@@ -195,14 +212,59 @@ export default function PosBuilderPanel() {
     });
   };
 
+  const moveLeftWidget = (widgetKey: string, direction: -1 | 1) => {
+    setLayout((prev) => {
+      const currentProfile = { ...prev, ...(prev.device_layouts?.[activeDevice] || {}) };
+      const next = [...currentProfile.left_widget_order];
+      const index = next.indexOf(widgetKey);
+      if (index < 0) return prev;
+      const target = index + direction;
+      if (target < 0 || target >= next.length) return prev;
+      [next[index], next[target]] = [next[target], next[index]];
+      return {
+        ...prev,
+        device_layouts: {
+          ...(prev.device_layouts || {}),
+          [activeDevice]: {
+            ...(prev.device_layouts?.[activeDevice] || {}),
+            left_widget_order: next,
+          },
+        },
+      };
+    });
+  };
+
+  const moveLeftWidgetTo = (fromKey: string, toKey: string) => {
+    if (!fromKey || !toKey || fromKey === toKey) return;
+    setLayout((prev) => {
+      const currentProfile = { ...prev, ...(prev.device_layouts?.[activeDevice] || {}) };
+      const current = [...currentProfile.left_widget_order];
+      const fromIndex = current.indexOf(fromKey);
+      const toIndex = current.indexOf(toKey);
+      if (fromIndex < 0 || toIndex < 0) return prev;
+      const [moved] = current.splice(fromIndex, 1);
+      current.splice(toIndex, 0, moved);
+      return {
+        ...prev,
+        device_layouts: {
+          ...(prev.device_layouts || {}),
+          [activeDevice]: {
+            ...(prev.device_layouts?.[activeDevice] || {}),
+            left_widget_order: current,
+          },
+        },
+      };
+    });
+  };
+
   const resetLayout = () => {
     setLayout((prev) => ({
       ...prev,
       device_layouts: {
         ...(prev.device_layouts || {}),
         [activeDevice]: activeDevice === 'tablet'
-          ? { preset: 'touch', density: 'large', product_columns: 2, show_cart_tabs: true, accent_color: '#facc15', hidden_widgets: [], widget_order: DEFAULT_LAYOUT.widget_order }
-          : { preset: 'classic', density: 'comfortable', product_columns: 3, show_cart_tabs: true, accent_color: '#facc15', hidden_widgets: [], widget_order: DEFAULT_LAYOUT.widget_order },
+          ? { preset: 'touch', density: 'large', product_columns: 2, show_cart_tabs: true, accent_color: '#facc15', hidden_widgets: [], widget_order: DEFAULT_LAYOUT.widget_order, left_hidden_widgets: [], left_widget_order: ['search', 'categories', 'productGrid'] }
+          : { preset: 'classic', density: 'comfortable', product_columns: 3, show_cart_tabs: true, accent_color: '#facc15', hidden_widgets: [], widget_order: DEFAULT_LAYOUT.widget_order, left_hidden_widgets: [], left_widget_order: DEFAULT_LAYOUT.left_widget_order },
       },
     }));
     notify('info', tx(lang, 'POS builder default görünüşə qaytarıldı', 'POS builder сброшен к виду по умолчанию', 'POS builder reset to default'));
@@ -227,6 +289,12 @@ export default function PosBuilderPanel() {
     return lang === 'ru' ? row.labelRu : lang === 'en' ? row.labelEn : row.labelAz;
   };
 
+  const leftWidgetLabel = (key: string) => {
+    const row = LEFT_WIDGETS.find((widget) => widget.key === key);
+    if (!row) return key;
+    return lang === 'ru' ? row.labelRu : lang === 'en' ? row.labelEn : row.labelAz;
+  };
+
   return (
     <div className="space-y-6 text-slate-100">
       <div className="metal-panel p-5">
@@ -241,7 +309,7 @@ export default function PosBuilderPanel() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <div className="metal-panel p-5">
           <div className="mb-4 flex flex-wrap gap-2">
             {([
@@ -304,6 +372,7 @@ export default function PosBuilderPanel() {
           </div>
         </div>
 
+        <div className="space-y-5">
         <div className="metal-panel p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="text-sm font-semibold text-slate-300">{tx(lang, 'Widget idarəetməsi', 'Управление виджетами', 'Widget controls')}</div>
@@ -410,6 +479,71 @@ export default function PosBuilderPanel() {
           <button onClick={save} disabled={isSaving} className="glossy-gold mt-5 w-full rounded-2xl px-4 py-3 font-semibold">
             {isSaving ? tx(lang, 'Yadda saxlanılır...', 'Сохраняется...', 'Saving...') : tx(lang, 'POS Dizaynını Yadda Saxla', 'Сохранить POS дизайн', 'Save POS Layout')}
           </button>
+        </div>
+
+        <div className="metal-panel p-5">
+          <div className="mb-4 text-sm font-semibold text-slate-300">{tx(lang, 'Sol panel blokları', 'Блоки левой панели', 'Left panel blocks')}</div>
+          <div className="mb-3 rounded-2xl border border-slate-700/60 bg-slate-950/35 px-4 py-3 text-xs text-slate-400">
+            {tx(lang, 'Axtarış, kateqoriya və məhsul hissəsini də ayrıca düzün. Tablet-də daha sadə axın saxlaya bilərsiniz.', 'Отдельно настройте поиск, категории и товары. Для tablet можно оставить более простой поток.', 'Arrange search, categories, and product sections separately. You can keep a simpler flow for tablet.')}
+          </div>
+          <div className="space-y-3">
+            {activeProfile.left_widget_order.map((widgetKey, index) => {
+              const hidden = activeProfile.left_hidden_widgets.includes(widgetKey);
+              const isDropTarget = dropTargetLeftWidget === widgetKey && draggingLeftWidget !== widgetKey;
+              return (
+                <div
+                  key={`left_${widgetKey}`}
+                  draggable
+                  onDragStart={() => {
+                    setDraggingLeftWidget(widgetKey);
+                    setDropTargetLeftWidget(widgetKey);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (draggingLeftWidget && draggingLeftWidget !== widgetKey) {
+                      setDropTargetLeftWidget(widgetKey);
+                    }
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggingLeftWidget && draggingLeftWidget !== widgetKey) {
+                      moveLeftWidgetTo(draggingLeftWidget, widgetKey);
+                    }
+                    setDraggingLeftWidget(null);
+                    setDropTargetLeftWidget(null);
+                  }}
+                  onDragEnd={() => {
+                    setDraggingLeftWidget(null);
+                    setDropTargetLeftWidget(null);
+                  }}
+                  className={`flex items-center gap-3 rounded-2xl border px-3 py-3 transition ${
+                    isDropTarget
+                      ? 'border-cyan-300/60 bg-cyan-400/10 shadow-[0_0_20px_rgba(34,211,238,0.12)]'
+                      : draggingLeftWidget === widgetKey
+                        ? 'border-yellow-300/50 bg-yellow-400/10 opacity-80'
+                        : 'border-slate-700/60 bg-slate-900/25'
+                  }`}
+                >
+                  <Grip size={16} className="cursor-grab text-slate-500" />
+                  <div className="min-w-0 flex-1">
+                    <div className={`font-medium ${hidden ? 'text-slate-500 line-through' : 'text-slate-100'}`}>{leftWidgetLabel(widgetKey)}</div>
+                    <div className="text-xs text-slate-500">{tx(lang, 'Sıra', 'Порядок', 'Order')}: {index + 1}</div>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-slate-300">
+                    <input type="checkbox" checked={!hidden} onChange={() => toggleLeftHidden(widgetKey)} />
+                    {tx(lang, 'Görünsün', 'Показывать', 'Visible')}
+                  </label>
+                  <button onClick={() => moveLeftWidget(widgetKey, -1)} className="neon-btn rounded-lg px-2 py-2" disabled={index === 0}>
+                    <ArrowUp size={14} />
+                  </button>
+                  <button onClick={() => moveLeftWidget(widgetKey, 1)} className="neon-btn rounded-lg px-2 py-2" disabled={index === activeProfile.left_widget_order.length - 1}>
+                    <ArrowDown size={14} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
         </div>
       </div>
     </div>
