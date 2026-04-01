@@ -350,6 +350,14 @@ def get_app_settings(
             "accent_color": "#facc15",
             "hidden_widgets": [],
             "widget_order": ["customer", "discount", "orderType", "table", "cartItems", "cartSummary", "payments"],
+            "device_layouts": {
+                "desktop": {},
+                "tablet": {
+                    "preset": "touch",
+                    "density": "large",
+                    "product_columns": 2,
+                },
+            },
         },
     )
     email_settings = _setting_value(
@@ -619,14 +627,29 @@ def update_pos_layout_settings(
     user: User = Depends(get_current_user),
 ):
     _ensure_admin(user)
-    cleaned = {
-        "preset": str(payload.get("preset") or "classic").strip().lower() if str(payload.get("preset") or "classic").strip().lower() in {"classic", "fast", "touch", "tables"} else "classic",
-        "density": str(payload.get("density") or "comfortable").strip().lower() if str(payload.get("density") or "comfortable").strip().lower() in {"compact", "comfortable", "large"} else "comfortable",
-        "product_columns": int(payload.get("product_columns") or 3) if int(payload.get("product_columns") or 3) in {2, 3, 4} else 3,
-        "show_cart_tabs": bool(payload.get("show_cart_tabs", True)),
-        "accent_color": str(payload.get("accent_color") or "").strip() or "#facc15",
-        "hidden_widgets": [str(v or "").strip() for v in (payload.get("hidden_widgets") or []) if str(v or "").strip()],
-        "widget_order": [str(v or "").strip() for v in (payload.get("widget_order") or []) if str(v or "").strip()],
+    def _clean_layout(source: dict, fallback: dict | None = None):
+        base = fallback or {}
+        preset_value = str(source.get("preset", base.get("preset", "classic")) or "classic").strip().lower()
+        density_value = str(source.get("density", base.get("density", "comfortable")) or "comfortable").strip().lower()
+        try:
+            product_columns_value = int(source.get("product_columns", base.get("product_columns", 3)) or 3)
+        except Exception:
+            product_columns_value = 3
+        return {
+            "preset": preset_value if preset_value in {"classic", "fast", "touch", "tables"} else "classic",
+            "density": density_value if density_value in {"compact", "comfortable", "large"} else "comfortable",
+            "product_columns": product_columns_value if product_columns_value in {2, 3, 4} else 3,
+            "show_cart_tabs": bool(source.get("show_cart_tabs", base.get("show_cart_tabs", True))),
+            "accent_color": str(source.get("accent_color") or base.get("accent_color") or "").strip() or "#facc15",
+            "hidden_widgets": [str(v or "").strip() for v in (source.get("hidden_widgets") or base.get("hidden_widgets") or []) if str(v or "").strip()],
+            "widget_order": [str(v or "").strip() for v in (source.get("widget_order") or base.get("widget_order") or []) if str(v or "").strip()],
+        }
+
+    cleaned = _clean_layout(payload)
+    device_layouts = payload.get("device_layouts") or {}
+    cleaned["device_layouts"] = {
+        "desktop": _clean_layout(device_layouts.get("desktop") or {}, cleaned) if device_layouts.get("desktop") else {},
+        "tablet": _clean_layout(device_layouts.get("tablet") or {}, cleaned) if device_layouts.get("tablet") else {},
     }
     _set_setting_value(db, tenant.id, "pos_layout", cleaned)
     db.commit()

@@ -82,6 +82,14 @@ function getSettings(tenant_id?: string): Settings {
         accent_color: '#facc15',
         hidden_widgets: [],
         widget_order: ['customer', 'discount', 'orderType', 'table', 'cartItems', 'cartSummary', 'payments'],
+        device_layouts: {
+          desktop: {},
+          tablet: {
+            preset: 'touch',
+            density: 'large',
+            product_columns: 2,
+          },
+        },
       },
       landing_settings: {
         hero_title_az: 'Azərbaycan bazarı üçün müasir POS və idarəetmə sistemi',
@@ -223,6 +231,36 @@ export function get_settings(tenant_id?: string) {
   }
   if (!s.print_settings) {
     s.print_settings = { use_qz: false, printer_name: '' };
+    saveSettings(s);
+  }
+  if (!s.pos_layout) {
+    s.pos_layout = {
+      preset: 'classic',
+      density: 'comfortable',
+      product_columns: 3,
+      show_cart_tabs: true,
+      accent_color: '#facc15',
+      hidden_widgets: [],
+      widget_order: ['customer', 'discount', 'orderType', 'table', 'cartItems', 'cartSummary', 'payments'],
+      device_layouts: {
+        desktop: {},
+        tablet: {
+          preset: 'touch',
+          density: 'large',
+          product_columns: 2,
+        },
+      },
+    };
+    saveSettings(s);
+  } else if (!s.pos_layout.device_layouts) {
+    s.pos_layout.device_layouts = {
+      desktop: {},
+      tablet: {
+        preset: 'touch',
+        density: 'large',
+        product_columns: 2,
+      },
+    };
     saveSettings(s);
   }
   if (!s.qr_settings) {
@@ -481,15 +519,22 @@ export function update_customer_app_settings(payload: {
 }
 
 export function update_pos_layout_settings(payload: NonNullable<Settings['pos_layout']>) {
+  const normalizeLayout = (source: any) => ({
+    preset: source?.preset === 'fast' || source?.preset === 'touch' || source?.preset === 'tables' ? source.preset : 'classic',
+    density: source?.density === 'compact' || source?.density === 'large' ? source.density : 'comfortable',
+    product_columns: source?.product_columns === 2 || source?.product_columns === 4 ? source.product_columns : 3,
+    show_cart_tabs: source?.show_cart_tabs !== false,
+    accent_color: String(source?.accent_color || '').trim() || '#facc15',
+    hidden_widgets: Array.from(new Set(((source?.hidden_widgets) || []).map((v: any) => String(v || '').trim()).filter(Boolean))),
+    widget_order: Array.from(new Set(((source?.widget_order) || []).map((v: any) => String(v || '').trim()).filter(Boolean))),
+  });
   const settings = getSettings();
   settings.pos_layout = {
-    preset: payload.preset === 'fast' || payload.preset === 'touch' || payload.preset === 'tables' ? payload.preset : 'classic',
-    density: payload.density === 'compact' || payload.density === 'large' ? payload.density : 'comfortable',
-    product_columns: payload.product_columns === 2 || payload.product_columns === 4 ? payload.product_columns : 3,
-    show_cart_tabs: payload.show_cart_tabs !== false,
-    accent_color: String(payload.accent_color || '').trim() || '#facc15',
-    hidden_widgets: Array.from(new Set((payload.hidden_widgets || []).map((v) => String(v || '').trim()).filter(Boolean))),
-    widget_order: Array.from(new Set((payload.widget_order || []).map((v) => String(v || '').trim()).filter(Boolean))),
+    ...normalizeLayout(payload),
+    device_layouts: {
+      desktop: payload.device_layouts?.desktop ? normalizeLayout({ ...normalizeLayout(payload), ...payload.device_layouts.desktop }) : {},
+      tablet: payload.device_layouts?.tablet ? normalizeLayout({ ...normalizeLayout(payload), ...payload.device_layouts.tablet }) : {},
+    },
   };
   saveSettings(settings);
   logEvent('admin', 'POS_LAYOUT_UPDATED', settings.pos_layout);
