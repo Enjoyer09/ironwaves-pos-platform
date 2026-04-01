@@ -25,6 +25,11 @@ const saveFinanceLocal = (tenant_id: string, rows: FinanceEntry[]) => {
   setDB(tenantFinanceKey(tenant_id), safeRows);
 };
 
+const pushFinanceLocalEntries = (tenant_id: string, rows: FinanceEntry[]) => {
+  const current = getFinanceLocal(tenant_id);
+  saveFinanceLocal(tenant_id, [...current, ...(Array.isArray(rows) ? rows : [])]);
+};
+
 export const get_finance_entries = (tenant_id: string) => {
   return getFinanceLocal(tenant_id);
 };
@@ -529,13 +534,14 @@ export const fetch_finance_balances = async (tenant_id: string) => {
     tenantId: tenant_id,
   });
 
-  return {
+  const balances = {
     cash_balance: String(data?.cash ?? '0'),
     card_balance: String(data?.card ?? '0'),
     debt_balance: String(data?.debt ?? '0'),
     investor_balance: String(data?.investor ?? '0'),
     safe_balance: String(data?.safe ?? '0'),
   };
+  return balances;
 };
 
 export const fetch_finance_entries = async (tenant_id: string): Promise<FinanceEntry[]> => {
@@ -548,7 +554,7 @@ export const fetch_finance_entries = async (tenant_id: string): Promise<FinanceE
     tenantId: tenant_id,
   });
 
-  return (rows || []).map((r) => ({
+  const mapped = (rows || []).map((r) => ({
     id: String(r.id),
     tenant_id,
     type: String(r.type) as 'in' | 'out',
@@ -559,6 +565,8 @@ export const fetch_finance_entries = async (tenant_id: string): Promise<FinanceE
     created_at: String(r.created_at || new Date().toISOString()),
     is_deleted: false,
   }));
+  saveFinanceLocal(tenant_id, mapped);
+  return mapped;
 };
 
 export const create_finance_entry_async = async (
@@ -585,6 +593,49 @@ export const create_finance_entry_async = async (
       description,
     },
   });
+
+  const now = new Date().toISOString();
+  const amountDec = new Decimal(amount || '0');
+  const mirroredRows: FinanceEntry[] = [
+    {
+      id: String(data?.id || uuidv4()),
+      tenant_id,
+      type,
+      category,
+      amount: amountDec.toString(),
+      source,
+      description,
+      created_at: now,
+      is_deleted: false,
+    },
+  ];
+  if (type === 'in' && source === 'debt') {
+    mirroredRows.push({
+      id: uuidv4(),
+      tenant_id,
+      type: 'in',
+      category: 'Borcdan Kassaya Daxilolma',
+      amount: amountDec.toString(),
+      source: 'cash',
+      description: `Auto mirror: ${description || category}`,
+      created_at: now,
+      is_deleted: false,
+    });
+  }
+  if (type === 'in' && source === 'cash' && isFounderInvestmentCategory(category)) {
+    mirroredRows.push({
+      id: uuidv4(),
+      tenant_id,
+      type: 'in',
+      category: 'İnvestor Borcu',
+      amount: amountDec.toString(),
+      source: 'investor',
+      description: `Auto liability mirror: ${description || category}`,
+      created_at: now,
+      is_deleted: false,
+    });
+  }
+  pushFinanceLocalEntries(tenant_id, mirroredRows);
 
   logEvent(created_by, 'FINANCE_ENTRY_CREATED', { tenant_id, type, category, amount, source, via: 'backend' });
   if (typeof window !== 'undefined') {
@@ -619,6 +670,58 @@ export const transfer_funds_async = async (
       description: `Transfer: ${direction}`,
     },
   });
+
+  const now = new Date().toISOString();
+  const transferAmountDec = new Decimal(amount || '0');
+  const appliedCommission = String(data?.commission ?? commission ?? '0');
+  const commissionDec = new Decimal(appliedCommission || '0');
+  const sources = {
+    card_to_cash: { from: 'card', to: 'cash' },
+    cash_to_card: { from: 'cash', to: 'card' },
+    cash_to_debt: { from: 'cash', to: 'debt' },
+    card_to_debt: { from: 'card', to: 'debt' },
+    cash_to_safe: { from: 'cash', to: 'safe' },
+    safe_to_cash: { from: 'safe', to: 'cash' },
+  } as const;
+  const walletPair = sources[direction];
+  const transferRows: FinanceEntry[] = [
+    {
+      id: uuidv4(),
+      tenant_id,
+      type: 'out',
+      category: 'Daxili Transfer',
+      amount: transferAmountDec.toString(),
+      source: walletPair.from,
+      description: `Transfer: ${direction}`,
+      created_at: now,
+      is_deleted: false,
+    },
+    {
+      id: uuidv4(),
+      tenant_id,
+      type: 'in',
+      category: 'Daxili Transfer',
+      amount: transferAmountDec.toString(),
+      source: walletPair.to,
+      description: `Transfer: ${direction}`,
+      created_at: now,
+      is_deleted: false,
+    },
+  ];
+  if (commissionDec.greaterThan(0)) {
+    transferRows.push({
+      id: uuidv4(),
+      tenant_id,
+      type: 'out',
+      category: 'Bank Komissiyası',
+      amount: commissionDec.toString(),
+      source: walletPair.from,
+      description: `Transfer komissiyası: ${direction}`,
+      created_at: now,
+      is_deleted: false,
+    });
+  }
+  pushFinanceLocalEntries(tenant_id, transferRows);
 
   logEvent(transferred_by, 'FINANCE_TRANSFER', {
     tenant_id,

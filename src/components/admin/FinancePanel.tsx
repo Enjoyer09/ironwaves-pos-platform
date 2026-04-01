@@ -283,6 +283,19 @@ export default function FinancePanel() {
   }, [tenant_id]);
 
   useEffect(() => {
+    const handleFinanceUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ tenant_id?: string }>).detail;
+      if (!detail?.tenant_id || detail.tenant_id === tenant_id) {
+        void reloadFinance();
+      }
+    };
+    window.addEventListener('finance-updated', handleFinanceUpdated as EventListener);
+    return () => {
+      window.removeEventListener('finance-updated', handleFinanceUpdated as EventListener);
+    };
+  }, [tenant_id]);
+
+  useEffect(() => {
     applyRangePreset('daily');
   }, [tenant_id]);
 

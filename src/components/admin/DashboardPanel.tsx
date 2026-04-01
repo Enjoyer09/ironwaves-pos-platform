@@ -188,6 +188,27 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
     };
   }, [tenant_id, activeRange.fromIso, activeRange.toIso, lang, notify]);
 
+  useEffect(() => {
+    const handleFinanceUpdated = async (event: Event) => {
+      const detail = (event as CustomEvent<{ tenant_id?: string }>).detail;
+      if (!detail?.tenant_id || detail.tenant_id === tenant_id) {
+        try {
+          const [balances, financeEntries] = await Promise.all([
+            fetch_finance_balances(tenant_id).catch(() => get_balance(tenant_id, 'all', false) as any),
+            fetch_finance_entries(tenant_id).catch(() => []),
+          ]);
+          setSnapshot((prev) => ({ ...prev, balances, financeEntries }));
+        } catch {
+          // Finance ping should never break dashboard rendering.
+        }
+      }
+    };
+    window.addEventListener('finance-updated', handleFinanceUpdated as EventListener);
+    return () => {
+      window.removeEventListener('finance-updated', handleFinanceUpdated as EventListener);
+    };
+  }, [tenant_id]);
+
   const openTables = snapshot.tables.filter((table: any) => table.is_occupied).length;
   const readyOrders = snapshot.kitchenOrders.filter((order: any) => String(order.status || '').toUpperCase() === 'READY').length;
   const preparingOrders = snapshot.kitchenOrders.filter((order: any) => String(order.status || '').toUpperCase() === 'PREPARING').length;
