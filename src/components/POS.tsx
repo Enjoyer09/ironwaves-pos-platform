@@ -948,7 +948,7 @@ export default function POS() {
         <div
           key={widget}
           className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-lg border border-slate-700/70 bg-[#0d141e] p-3"
-          style={{ resize: 'vertical', minHeight: size === 'compact' ? '180px' : size === 'expanded' ? '340px' : posLayout.density === 'large' ? '280px' : '220px' }}
+          style={{ resize: 'vertical', minHeight: size === 'compact' ? '120px' : size === 'expanded' ? '220px' : posLayout.density === 'large' ? '180px' : '150px' }}
         >
           {cart.length === 0 && <div className="pt-8 text-center text-sm text-slate-500">{t.cart_empty}</div>}
           {cart.map((item) => (
@@ -1203,19 +1203,19 @@ export default function POS() {
         </button>
       </div>
 
-      <div className="compact-pos-grid grid min-h-0 flex-1 grid-cols-1 gap-5 xl:grid-cols-[1fr_460px]">
+      <div className="compact-pos-grid grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(420px,2fr)]">
         <section className={`flex min-h-0 flex-col ${mobilePane !== 'menu' ? 'hidden xl:flex' : ''}`}>
           {(posLayout.left_widget_order || ['menuHeader', 'search', 'categories', 'productGrid']).map((widget) => renderLeftWidget(widget))}
         </section>
 
-        <aside className={`compact-pos-sidebar flex h-full min-h-0 flex-col overflow-y-auto rounded-xl border border-slate-700/70 bg-[#101722]/80 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)] md:p-4 ${mobilePane !== 'cart' ? 'hidden xl:flex' : ''}`}>
+        <aside className={`compact-pos-sidebar flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-[#101722]/80 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)] md:p-4 ${mobilePane !== 'cart' ? 'hidden xl:flex' : ''}`}>
           <div className="compact-pos-header mb-3 flex items-center justify-between border-b border-slate-700/60 pb-3">
             <h3 className="compact-pos-title flex items-center gap-2 text-2xl font-bold"><ShoppingCart size={22} /> {t.cart.toUpperCase()} {activeCart.slice(1)}</h3>
             <button className="rounded-lg border border-slate-600 p-2"><ClipboardList size={16} /></button>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
               {floatingSidebarWidgets.map((widget) => renderSidebarWidget(widget))}
               {ctx.customer && (
                 <div className="rounded-md border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-xs text-slate-400">
@@ -1231,7 +1231,7 @@ export default function POS() {
                 </div>
               )}
             </div>
-            <div className="mt-3 space-y-3 border-t border-slate-700/60 pt-3">
+            <div className="mt-2 space-y-2 border-t border-slate-700/60 pt-2">
               {footerSidebarWidgets.map((widget) => renderSidebarWidget(widget))}
             </div>
           </div>
