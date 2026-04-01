@@ -136,6 +136,10 @@ export type PosLayoutConfig = {
     desktop?: Partial<PosLayoutConfig>;
     tablet?: Partial<PosLayoutConfig>;
   };
+  role_overrides?: {
+    staff?: Partial<PosLayoutConfig>;
+    manager?: Partial<PosLayoutConfig>;
+  };
 };
 
 // --- MODUL 15: SETTINGS ---

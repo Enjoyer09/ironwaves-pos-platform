@@ -199,11 +199,14 @@ export default function POS() {
   };
   const posLayout = useMemo(() => {
     const devicePatch = isTabletViewport ? basePosLayout.device_layouts?.tablet : basePosLayout.device_layouts?.desktop;
+    const roleKey = user?.role === 'manager' ? 'manager' : user?.role === 'staff' ? 'staff' : null;
+    const rolePatch = roleKey ? basePosLayout.role_overrides?.[roleKey] : null;
     return {
       ...basePosLayout,
       ...(devicePatch || {}),
+      ...(rolePatch || {}),
     };
-  }, [basePosLayout, isTabletViewport]);
+  }, [basePosLayout, isTabletViewport, user?.role]);
 
   useEffect(() => {
     const onLayoutUpdate = (event: Event) => {

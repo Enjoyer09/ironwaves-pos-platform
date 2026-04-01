@@ -7,6 +7,7 @@ import type { Settings } from '../../types/pos';
 
 type PosLayoutSettings = NonNullable<Settings['pos_layout']>;
 type LayoutDevice = 'desktop' | 'tablet';
+type LayoutScope = 'base' | 'staff' | 'manager';
 
 const DEFAULT_LAYOUT: PosLayoutSettings = {
   preset: 'classic',
@@ -226,6 +227,7 @@ export default function PosBuilderPanel() {
   const [draggingLeftWidget, setDraggingLeftWidget] = useState<string | null>(null);
   const [dropTargetLeftWidget, setDropTargetLeftWidget] = useState<string | null>(null);
   const [activeDevice, setActiveDevice] = useState<LayoutDevice>('desktop');
+  const [activeScope, setActiveScope] = useState<LayoutScope>('base');
 
   useEffect(() => {
     void (async () => {
@@ -243,20 +245,22 @@ export default function PosBuilderPanel() {
       const profile = {
         ...layout,
         ...(layout.device_layouts?.[activeDevice] || {}),
+        ...(activeScope === 'staff' ? (layout.role_overrides?.staff || {}) : activeScope === 'manager' ? (layout.role_overrides?.manager || {}) : {}),
       };
       return profile.widget_order.filter((key) => !profile.hidden_widgets.includes(key));
     },
-    [layout, activeDevice],
+    [layout, activeDevice, activeScope],
   );
   const visibleLeftWidgets = useMemo(
     () => {
       const profile = {
         ...layout,
         ...(layout.device_layouts?.[activeDevice] || {}),
+        ...(activeScope === 'staff' ? (layout.role_overrides?.staff || {}) : activeScope === 'manager' ? (layout.role_overrides?.manager || {}) : {}),
       };
       return profile.left_widget_order.filter((key) => !profile.left_hidden_widgets.includes(key));
     },
-    [layout, activeDevice],
+    [layout, activeDevice, activeScope],
   );
 
   const activeProfile = useMemo(
@@ -264,21 +268,36 @@ export default function PosBuilderPanel() {
       ...DEFAULT_LAYOUT,
       ...layout,
       ...(layout.device_layouts?.[activeDevice] || {}),
+      ...(activeScope === 'staff' ? (layout.role_overrides?.staff || {}) : activeScope === 'manager' ? (layout.role_overrides?.manager || {}) : {}),
     }),
-    [layout, activeDevice],
+    [layout, activeDevice, activeScope],
   );
 
   const updateActiveProfile = (patch: Partial<PosLayoutSettings>) => {
-    setLayout((prev) => ({
-      ...prev,
-      device_layouts: {
-        ...(prev.device_layouts || {}),
-        [activeDevice]: {
-          ...(prev.device_layouts?.[activeDevice] || {}),
-          ...patch,
+    setLayout((prev) => {
+      if (activeScope === 'staff' || activeScope === 'manager') {
+        return {
+          ...prev,
+          role_overrides: {
+            ...(prev.role_overrides || {}),
+            [activeScope]: {
+              ...(prev.role_overrides?.[activeScope] || {}),
+              ...patch,
+            },
+          },
+        };
+      }
+      return {
+        ...prev,
+        device_layouts: {
+          ...(prev.device_layouts || {}),
+          [activeDevice]: {
+            ...(prev.device_layouts?.[activeDevice] || {}),
+            ...patch,
+          },
         },
-      },
-    }));
+      };
+    });
   };
 
   const toggleLeftHidden = (widgetKey: string) => {
@@ -330,13 +349,29 @@ export default function PosBuilderPanel() {
 
   const moveWidget = (widgetKey: string, direction: -1 | 1) => {
     setLayout((prev) => {
-      const currentProfile = { ...prev, ...(prev.device_layouts?.[activeDevice] || {}) };
+      const currentProfile = {
+        ...prev,
+        ...(prev.device_layouts?.[activeDevice] || {}),
+        ...(activeScope === 'staff' ? (prev.role_overrides?.staff || {}) : activeScope === 'manager' ? (prev.role_overrides?.manager || {}) : {}),
+      };
       const next = [...currentProfile.widget_order];
       const index = next.indexOf(widgetKey);
       if (index < 0) return prev;
       const target = index + direction;
       if (target < 0 || target >= next.length) return prev;
       [next[index], next[target]] = [next[target], next[index]];
+      if (activeScope === 'staff' || activeScope === 'manager') {
+        return {
+          ...prev,
+          role_overrides: {
+            ...(prev.role_overrides || {}),
+            [activeScope]: {
+              ...(prev.role_overrides?.[activeScope] || {}),
+              widget_order: next,
+            },
+          },
+        };
+      }
       return {
         ...prev,
         device_layouts: {
@@ -353,13 +388,29 @@ export default function PosBuilderPanel() {
   const moveWidgetTo = (fromKey: string, toKey: string) => {
     if (!fromKey || !toKey || fromKey === toKey) return;
     setLayout((prev) => {
-      const currentProfile = { ...prev, ...(prev.device_layouts?.[activeDevice] || {}) };
+      const currentProfile = {
+        ...prev,
+        ...(prev.device_layouts?.[activeDevice] || {}),
+        ...(activeScope === 'staff' ? (prev.role_overrides?.staff || {}) : activeScope === 'manager' ? (prev.role_overrides?.manager || {}) : {}),
+      };
       const current = [...currentProfile.widget_order];
       const fromIndex = current.indexOf(fromKey);
       const toIndex = current.indexOf(toKey);
       if (fromIndex < 0 || toIndex < 0) return prev;
       const [moved] = current.splice(fromIndex, 1);
       current.splice(toIndex, 0, moved);
+      if (activeScope === 'staff' || activeScope === 'manager') {
+        return {
+          ...prev,
+          role_overrides: {
+            ...(prev.role_overrides || {}),
+            [activeScope]: {
+              ...(prev.role_overrides?.[activeScope] || {}),
+              widget_order: current,
+            },
+          },
+        };
+      }
       return {
         ...prev,
         device_layouts: {
@@ -375,13 +426,29 @@ export default function PosBuilderPanel() {
 
   const moveLeftWidget = (widgetKey: string, direction: -1 | 1) => {
     setLayout((prev) => {
-      const currentProfile = { ...prev, ...(prev.device_layouts?.[activeDevice] || {}) };
+      const currentProfile = {
+        ...prev,
+        ...(prev.device_layouts?.[activeDevice] || {}),
+        ...(activeScope === 'staff' ? (prev.role_overrides?.staff || {}) : activeScope === 'manager' ? (prev.role_overrides?.manager || {}) : {}),
+      };
       const next = [...currentProfile.left_widget_order];
       const index = next.indexOf(widgetKey);
       if (index < 0) return prev;
       const target = index + direction;
       if (target < 0 || target >= next.length) return prev;
       [next[index], next[target]] = [next[target], next[index]];
+      if (activeScope === 'staff' || activeScope === 'manager') {
+        return {
+          ...prev,
+          role_overrides: {
+            ...(prev.role_overrides || {}),
+            [activeScope]: {
+              ...(prev.role_overrides?.[activeScope] || {}),
+              left_widget_order: next,
+            },
+          },
+        };
+      }
       return {
         ...prev,
         device_layouts: {
@@ -398,13 +465,29 @@ export default function PosBuilderPanel() {
   const moveLeftWidgetTo = (fromKey: string, toKey: string) => {
     if (!fromKey || !toKey || fromKey === toKey) return;
     setLayout((prev) => {
-      const currentProfile = { ...prev, ...(prev.device_layouts?.[activeDevice] || {}) };
+      const currentProfile = {
+        ...prev,
+        ...(prev.device_layouts?.[activeDevice] || {}),
+        ...(activeScope === 'staff' ? (prev.role_overrides?.staff || {}) : activeScope === 'manager' ? (prev.role_overrides?.manager || {}) : {}),
+      };
       const current = [...currentProfile.left_widget_order];
       const fromIndex = current.indexOf(fromKey);
       const toIndex = current.indexOf(toKey);
       if (fromIndex < 0 || toIndex < 0) return prev;
       const [moved] = current.splice(fromIndex, 1);
       current.splice(toIndex, 0, moved);
+      if (activeScope === 'staff' || activeScope === 'manager') {
+        return {
+          ...prev,
+          role_overrides: {
+            ...(prev.role_overrides || {}),
+            [activeScope]: {
+              ...(prev.role_overrides?.[activeScope] || {}),
+              left_widget_order: current,
+            },
+          },
+        };
+      }
       return {
         ...prev,
         device_layouts: {
@@ -421,12 +504,21 @@ export default function PosBuilderPanel() {
   const resetLayout = () => {
     setLayout((prev) => ({
       ...prev,
-      device_layouts: {
-        ...(prev.device_layouts || {}),
-        [activeDevice]: activeDevice === 'tablet'
-          ? { preset: 'touch', density: 'large', product_columns: 2, show_cart_tabs: true, accent_color: '#facc15', hidden_widgets: [], widget_order: DEFAULT_LAYOUT.widget_order, left_hidden_widgets: [], left_widget_order: ['search', 'categories', 'productGrid'] }
-          : { preset: 'classic', density: 'comfortable', product_columns: 3, show_cart_tabs: true, accent_color: '#facc15', hidden_widgets: [], widget_order: DEFAULT_LAYOUT.widget_order, left_hidden_widgets: [], left_widget_order: DEFAULT_LAYOUT.left_widget_order },
-      },
+      ...(activeScope === 'staff' || activeScope === 'manager'
+        ? {
+            role_overrides: {
+              ...(prev.role_overrides || {}),
+              [activeScope]: {},
+            },
+          }
+        : {
+            device_layouts: {
+              ...(prev.device_layouts || {}),
+              [activeDevice]: activeDevice === 'tablet'
+                ? { preset: 'touch', density: 'large', product_columns: 2, show_cart_tabs: true, accent_color: '#facc15', hidden_widgets: [], widget_order: DEFAULT_LAYOUT.widget_order, left_hidden_widgets: [], left_widget_order: ['search', 'categories', 'productGrid'] }
+                : { preset: 'classic', density: 'comfortable', product_columns: 3, show_cart_tabs: true, accent_color: '#facc15', hidden_widgets: [], widget_order: DEFAULT_LAYOUT.widget_order, left_hidden_widgets: [], left_widget_order: DEFAULT_LAYOUT.left_widget_order },
+            },
+          }),
     }));
     notify('info', tx(lang, 'POS builder default görünüşə qaytarıldı', 'POS builder сброшен к виду по умолчанию', 'POS builder reset to default'));
   };
@@ -523,6 +615,21 @@ export default function PosBuilderPanel() {
                 className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${activeDevice === device.key ? 'border-yellow-300/60 bg-yellow-400/10 text-yellow-200' : 'border-slate-700/60 bg-slate-900/25 text-slate-300'}`}
               >
                 {device.label}
+              </button>
+            ))}
+          </div>
+          <div className="mb-4 flex flex-wrap gap-2">
+            {([
+              { key: 'base', label: tx(lang, 'Ümumi', 'Общий', 'Base') },
+              { key: 'staff', label: tx(lang, 'Staff', 'Staff', 'Staff') },
+              { key: 'manager', label: tx(lang, 'Manager', 'Manager', 'Manager') },
+            ] as const).map((scope) => (
+              <button
+                key={scope.key}
+                onClick={() => setActiveScope(scope.key)}
+                className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${activeScope === scope.key ? 'border-cyan-300/60 bg-cyan-400/10 text-cyan-200' : 'border-slate-700/60 bg-slate-900/25 text-slate-300'}`}
+              >
+                {scope.label}
               </button>
             ))}
           </div>
@@ -686,7 +793,7 @@ export default function PosBuilderPanel() {
             <div className="mt-4 rounded-[28px] border border-slate-700/70 bg-[linear-gradient(180deg,#182231,#0c131d)] p-4">
               <div className="mb-3 flex items-center justify-between text-xs text-slate-400">
                 <span>{tx(lang, 'Canlı preview', 'Живой превью', 'Live preview')}</span>
-                <span>{activeDevice} / {activeProfile.preset}</span>
+                <span>{activeDevice} / {activeScope} / {activeProfile.preset}</span>
               </div>
               <div className="overflow-hidden rounded-[26px] border border-slate-700/60 bg-[radial-gradient(circle_at_top,#243244,#0d141e_65%)] p-3">
                 {activeProfile.show_cart_tabs && (

@@ -33,6 +33,10 @@ const DEFAULT_POS_LAYOUT: PosLayoutConfig = {
       left_widget_sizes: {},
     },
   },
+  role_overrides: {
+    staff: {},
+    manager: {},
+  },
 };
 
 // Mərkəzi settings obyektini tapmaq (ya da yaratmaq) üçün kiçik helper:
@@ -566,6 +570,10 @@ export function update_pos_layout_settings(payload: NonNullable<Settings['pos_la
         value === 'compact' || value === 'expanded' ? value : 'comfortable',
       ]),
     ) as Record<string, 'compact' | 'comfortable' | 'expanded'>,
+    role_overrides: {
+      staff: source?.role_overrides?.staff ? normalizeLayout(source.role_overrides.staff) : {},
+      manager: source?.role_overrides?.manager ? normalizeLayout(source.role_overrides.manager) : {},
+    },
   });
   const settings = getSettings();
   settings.pos_layout = {
