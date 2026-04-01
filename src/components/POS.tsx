@@ -1117,12 +1117,12 @@ export default function POS() {
 
   return (
     <div
-      className={`flex h-full min-h-0 flex-col px-3 pb-24 pt-3 text-slate-200 md:px-4 md:pb-3 xl:px-6 ${shellClass} ${densityClass}`}
+      className={`compact-pos-shell flex h-full min-h-0 flex-col px-3 pb-24 pt-3 text-slate-200 md:px-4 md:pb-3 xl:px-6 ${shellClass} ${densityClass}`}
       style={{ ['--pos-accent' as any]: posLayout.accent_color }}
     >
 
       {posLayout.show_cart_tabs && (
-        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="compact-pos-tabs mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
           <button onClick={() => setActiveCart('S1')} className={`neon-tab ${activeCart === 'S1' ? 'neon-tab-active' : ''}`}>
             <ShoppingCart size={14} /> {t.cart} 1 ({carts.S1.length})
           </button>
@@ -1199,14 +1199,14 @@ export default function POS() {
         </button>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 xl:grid-cols-[1fr_460px]">
+      <div className="compact-pos-grid grid min-h-0 flex-1 grid-cols-1 gap-5 xl:grid-cols-[1fr_460px]">
         <section className={`flex min-h-0 flex-col ${mobilePane !== 'menu' ? 'hidden xl:flex' : ''}`}>
           {(posLayout.left_widget_order || ['menuHeader', 'search', 'categories', 'productGrid']).map((widget) => renderLeftWidget(widget))}
         </section>
 
-        <aside className={`flex h-full min-h-0 flex-col overflow-y-auto rounded-xl border border-slate-700/70 bg-[#101722]/80 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)] md:p-4 ${mobilePane !== 'cart' ? 'hidden xl:flex' : ''}`}>
-          <div className="mb-3 flex items-center justify-between border-b border-slate-700/60 pb-3">
-            <h3 className="flex items-center gap-2 text-2xl font-bold"><ShoppingCart size={22} /> {t.cart.toUpperCase()} {activeCart.slice(1)}</h3>
+        <aside className={`compact-pos-sidebar flex h-full min-h-0 flex-col overflow-y-auto rounded-xl border border-slate-700/70 bg-[#101722]/80 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)] md:p-4 ${mobilePane !== 'cart' ? 'hidden xl:flex' : ''}`}>
+          <div className="compact-pos-header mb-3 flex items-center justify-between border-b border-slate-700/60 pb-3">
+            <h3 className="compact-pos-title flex items-center gap-2 text-2xl font-bold"><ShoppingCart size={22} /> {t.cart.toUpperCase()} {activeCart.slice(1)}</h3>
             <button className="rounded-lg border border-slate-600 p-2"><ClipboardList size={16} /></button>
           </div>
 

@@ -393,10 +393,10 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
   }, [snapshot.sales]);
 
   return (
-    <div className="space-y-5 text-slate-100">
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[260px_1fr]">
-        <aside className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(245,247,250,0.82))] p-4 text-slate-900 shadow-[0_20px_60px_rgba(0,0,0,0.25)] backdrop-blur">
-          <div className="rounded-2xl bg-white/70 p-4 shadow-sm">
+    <div className="compact-dashboard space-y-5 text-slate-100">
+      <div className="dashboard-grid-gap grid grid-cols-1 gap-4 xl:grid-cols-[260px_1fr]">
+        <aside className="dashboard-card rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(245,247,250,0.82))] p-4 text-slate-900 shadow-[0_20px_60px_rgba(0,0,0,0.25)] backdrop-blur">
+          <div className="dashboard-card-soft rounded-2xl bg-white/70 p-4 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
               {branding?.logo_url ? (
                 <img src={branding.logo_url} alt="brand logo" className="h-12 w-12 rounded-2xl object-cover shadow-sm" />
@@ -413,7 +413,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
               {tx(lang, 'Bu Gün', 'Сегодня', 'Today')}
             </div>
-            <div className="mt-2 text-2xl font-black text-slate-900">
+            <div className="dashboard-title-xl mt-2 text-2xl font-black text-slate-900">
               {new Date().toLocaleDateString(lang === 'ru' ? 'ru-RU' : lang === 'en' ? 'en-GB' : 'az-AZ', {
                 day: '2-digit',
                 month: 'short',
@@ -433,10 +433,10 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
         </aside>
 
         <div className="space-y-4">
-          <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.93),rgba(246,248,252,0.88))] p-4 text-slate-900 shadow-[0_16px_45px_rgba(0,0,0,0.22)]">
+          <section className="dashboard-card rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.93),rgba(246,248,252,0.88))] p-4 text-slate-900 shadow-[0_16px_45px_rgba(0,0,0,0.22)]">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
               <div>
-                <h3 className="text-lg font-bold">{tx(lang, 'Dashboard Aralığı', 'Период dashboard', 'Dashboard Range')}</h3>
+                <h3 className="dashboard-title-lg text-lg font-bold">{tx(lang, 'Dashboard Aralığı', 'Период dashboard', 'Dashboard Range')}</h3>
                 <p className="mt-1 text-sm text-slate-500">
                   {tx(lang, 'Default olaraq bu gün açılır, amma daha geniş analiz üçün aralığı dəyişə bilərsiniz.', 'По умолчанию открыт сегодняшний день, но диапазон можно расширить для анализа.', 'It opens on today by default, but you can expand the range for analysis.')}
                 </p>
@@ -865,7 +865,7 @@ function AiInsightTile({
         ? 'border-emerald-400/35 bg-emerald-500/10 text-emerald-50'
         : 'border-cyan-400/30 bg-cyan-500/10 text-cyan-50';
   return (
-    <section className={`rounded-[24px] border p-5 shadow-[0_14px_40px_rgba(0,0,0,0.18)] ${palette}`}>
+    <section className={`dashboard-card rounded-[24px] border p-5 shadow-[0_14px_40px_rgba(0,0,0,0.18)] ${palette}`}>
       <div className="text-xs font-bold uppercase tracking-[0.2em] opacity-80">{title}</div>
       <div className="mt-3 text-sm leading-6 text-white/90">
         {summary || 'AI insight hazırlanır...'}
@@ -906,9 +906,9 @@ function DashboardStatCard({
   } as const;
 
   return (
-    <div className={`rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,248,252,0.88)),radial-gradient(circle_at_top_left,var(--tw-gradient-from),var(--tw-gradient-to))] ${toneMap[tone]} p-5 text-slate-900 shadow-[0_16px_40px_rgba(0,0,0,0.2)]`}>
+    <div className={`dashboard-card rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,248,252,0.88)),radial-gradient(circle_at_top_left,var(--tw-gradient-from),var(--tw-gradient-to))] ${toneMap[tone]} p-5 text-slate-900 shadow-[0_16px_40px_rgba(0,0,0,0.2)]`}>
       <div className="text-sm font-medium text-slate-500">{title}</div>
-      <div className="mt-2 text-3xl font-black text-slate-950">{value}</div>
+      <div className="dashboard-stat-value mt-2 text-3xl font-black text-slate-950">{value}</div>
       <div className="mt-2 text-xs text-slate-500">{helper}</div>
     </div>
   );
@@ -916,7 +916,7 @@ function DashboardStatCard({
 
 function SoftTile({ title, value, helper, icon }: { title: string; value: string; helper: string; icon: React.ReactNode }) {
   return (
-    <div className="rounded-[24px] border border-slate-200 bg-white/80 p-4 shadow-sm">
+    <div className="dashboard-card-soft rounded-[24px] border border-slate-200 bg-white/80 p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-sm text-slate-500">{title}</div>
@@ -932,7 +932,7 @@ function SoftTile({ title, value, helper, icon }: { title: string; value: string
 function NavInsight({ icon, label, value, accent = 'slate' }: { icon: React.ReactNode; label: string; value: string; accent?: 'slate' | 'amber' }) {
   const accentClass = accent === 'amber' ? 'border-amber-200/60 bg-amber-50 text-amber-900' : 'border-slate-200 bg-white/70 text-slate-900';
   return (
-    <div className={`flex items-center justify-between rounded-2xl border px-4 py-3 ${accentClass}`}>
+    <div className={`dashboard-card-soft flex items-center justify-between rounded-2xl border px-4 py-3 ${accentClass}`}>
       <div className="flex items-center gap-3">
         <div className="rounded-2xl bg-white/70 p-2">{icon}</div>
         <div className="text-sm font-medium">{label}</div>
@@ -963,7 +963,7 @@ function AlertRow({
     amber: 'border-amber-200 bg-amber-50 text-amber-900',
   } as const;
   return (
-    <div className={`rounded-2xl border px-4 py-3 ${toneMap[tone]}`}>
+    <div className={`dashboard-card-soft rounded-2xl border px-4 py-3 ${toneMap[tone]}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="rounded-2xl bg-white/70 p-2">{icon}</div>

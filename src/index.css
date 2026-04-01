@@ -234,6 +234,87 @@ html {
   }
 }
 
+@media (max-width: 1440px) and (max-height: 820px) {
+  html {
+    font-size: 78%;
+  }
+
+  .compact-shell {
+    padding: 0.7rem !important;
+  }
+
+  .compact-panel {
+    padding: 0.9rem !important;
+  }
+
+  .compact-shell .metal-title {
+    letter-spacing: 0.02em;
+  }
+
+  .compact-dashboard {
+    gap: 0.85rem !important;
+  }
+
+  .compact-dashboard .dashboard-card {
+    padding: 0.9rem !important;
+    border-radius: 20px !important;
+  }
+
+  .compact-dashboard .dashboard-card-soft {
+    padding: 0.75rem !important;
+    border-radius: 18px !important;
+  }
+
+  .compact-dashboard .dashboard-title-xl {
+    font-size: 1.45rem !important;
+    line-height: 1.1 !important;
+  }
+
+  .compact-dashboard .dashboard-title-lg {
+    font-size: 1.05rem !important;
+    line-height: 1.2 !important;
+  }
+
+  .compact-dashboard .dashboard-stat-value {
+    font-size: 2rem !important;
+    line-height: 1.05 !important;
+  }
+
+  .compact-dashboard .dashboard-grid-gap {
+    gap: 0.85rem !important;
+  }
+
+  .compact-pos-shell {
+    padding-top: 0.7rem !important;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+    padding-bottom: 4.8rem !important;
+  }
+
+  .compact-pos-tabs {
+    margin-bottom: 0.8rem !important;
+    gap: 0.55rem !important;
+  }
+
+  .compact-pos-grid {
+    gap: 0.8rem !important;
+  }
+
+  .compact-pos-sidebar {
+    padding: 0.75rem !important;
+  }
+
+  .compact-pos-sidebar .compact-pos-header {
+    margin-bottom: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+  }
+
+  .compact-pos-sidebar .compact-pos-title {
+    font-size: 1.35rem !important;
+    line-height: 1.1 !important;
+  }
+}
+
 @keyframes toastIn {
   from {
     opacity: 0;

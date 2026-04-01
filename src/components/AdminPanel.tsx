@@ -236,7 +236,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   };
 
   return (
-    <div className="h-full overflow-hidden p-3 text-slate-100 md:p-6">
+    <div className="compact-shell h-full overflow-hidden p-3 text-slate-100 md:p-6">
       <ConfirmModal
         open={Boolean(deleteMenuId)}
         lang={lang}
@@ -256,7 +256,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
         onCancel={() => setDeleteNoteId(null)}
         onConfirm={() => deleteNoteId && removeNote(deleteNoteId)}
       />
-      <div className="h-full overflow-y-auto metal-panel p-4 md:p-6">
+      <div className="compact-panel h-full overflow-y-auto metal-panel p-4 md:p-6">
         <div className="mb-4 md:hidden">
           <select
             className="neon-input min-h-13"
