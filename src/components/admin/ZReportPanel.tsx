@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Decimal } from 'decimal.js';
 import { useAppStore } from '../../store';
 import { get_sales_summary_live, get_sales_list_live } from '../../api/analytics';
@@ -53,6 +53,8 @@ export default function ZReportPanel() {
   const [salesPageSize, setSalesPageSize] = useState(10);
   const zReceiptRef = React.useRef<HTMLIFrameElement | null>(null);
   const previousShiftStatusRef = useRef<string>(shiftStatusState.status);
+  const refreshTimerRef = useRef<number | null>(null);
+  const lastRefreshAtRef = useRef(0);
   const printSettings = get_settings(tenant_id).print_settings || { use_qz: false, printer_name: '' };
 
   const carryoverCash = new Decimal(currentBalances.cash_balance || 0);
@@ -145,6 +147,26 @@ export default function ZReportPanel() {
     `;
   };
 
+  const refreshOperationalState = useCallback(async (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastRefreshAtRef.current < 1500) {
+      return;
+    }
+    lastRefreshAtRef.current = now;
+    const [status, cash, nextHandovers, nextPending, balances] = await Promise.all([
+      refresh_shift_status(tenant_id),
+      refresh_expected_cash(tenant_id),
+      get_shift_handover_history_live(tenant_id, user?.username || undefined),
+      get_pending_handover_for_user_live(tenant_id, user?.username || ''),
+      fetch_finance_balances(tenant_id),
+    ]);
+    setShiftStatusState(status);
+    setExpectedCashState(cash);
+    setHandovers(nextHandovers);
+    setPendingReceived(nextPending);
+    setCurrentBalances(balances);
+  }, [tenant_id, user?.username]);
+
   React.useEffect(() => {
     let mounted = true;
     (async () => {
@@ -157,6 +179,7 @@ export default function ZReportPanel() {
           fetch_finance_balances(tenant_id),
         ]);
         if (!mounted) return;
+        lastRefreshAtRef.current = Date.now();
         setShiftStatusState(status);
         setExpectedCashState(cash);
         setHandovers(nextHandovers);
@@ -208,19 +231,27 @@ export default function ZReportPanel() {
         setZActualCash(nextCash);
         setHandoverActualCash(nextCash);
       }
-      setReportRefreshKey((prev) => prev + 1);
+      if (refreshTimerRef.current) {
+        window.clearTimeout(refreshTimerRef.current);
+      }
+      refreshTimerRef.current = window.setTimeout(() => {
+        void refreshOperationalState();
+      }, 350);
     };
     window.addEventListener('focus', onFocusRefresh);
     window.addEventListener('finance-updated', onFinanceRefresh as EventListener);
     const timer = window.setInterval(() => {
       setReportRefreshKey((prev) => prev + 1);
-    }, 15000);
+    }, 30000);
     return () => {
       window.removeEventListener('focus', onFocusRefresh);
       window.removeEventListener('finance-updated', onFinanceRefresh as EventListener);
       window.clearInterval(timer);
+      if (refreshTimerRef.current) {
+        window.clearTimeout(refreshTimerRef.current);
+      }
     };
-  }, []);
+  }, [tenant_id, shiftStatusState.status, refreshOperationalState, expectedCashNow]);
 
   React.useEffect(() => {
     const fallback = expectedCashNow.toFixed(2);

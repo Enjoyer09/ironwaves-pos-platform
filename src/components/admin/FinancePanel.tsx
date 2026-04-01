@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Decimal } from 'decimal.js';
 import { useAppStore } from '../../store';
 import {
@@ -204,6 +204,8 @@ export default function FinancePanel() {
     card_sale_percent: 2,
     card_transfer_percent: 0.5,
   });
+  const lastReloadAtRef = useRef(0);
+  const reloadTimerRef = useRef<number | null>(null);
 
   const applyRangePreset = (preset: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom') => {
     setRangePreset(preset);
@@ -256,7 +258,12 @@ export default function FinancePanel() {
     localStorage.setItem(`finance_subject_presets_${tenant_id}`, JSON.stringify(next));
   };
 
-  const reloadFinance = async () => {
+  const reloadFinance = useCallback(async (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastReloadAtRef.current < 1500) {
+      return;
+    }
+    lastReloadAtRef.current = now;
     try {
       const [b, e, settings] = await Promise.all([
         fetch_finance_balances(tenant_id),
@@ -278,11 +285,11 @@ export default function FinancePanel() {
     } catch (err: any) {
       notify('error', err?.message || tx(lang, 'Maliyyə məlumatları yüklənmədi', 'Не удалось загрузить финансы'));
     }
-  };
+  }, [tenant_id, notify, lang]);
 
   useEffect(() => {
-    void reloadFinance();
-  }, [tenant_id]);
+    void reloadFinance(true);
+  }, [tenant_id, reloadFinance]);
 
   useEffect(() => {
     const handleFinanceUpdated = (event: Event) => {
@@ -290,14 +297,22 @@ export default function FinancePanel() {
       if (!detail?.tenant_id || detail.tenant_id === tenant_id) {
         setBalance(get_balance(tenant_id, 'all', false) as any);
         setEntries(get_finance_entries(tenant_id));
-        void reloadFinance();
+        if (reloadTimerRef.current) {
+          window.clearTimeout(reloadTimerRef.current);
+        }
+        reloadTimerRef.current = window.setTimeout(() => {
+          void reloadFinance();
+        }, 350);
       }
     };
     window.addEventListener('finance-updated', handleFinanceUpdated as EventListener);
     return () => {
       window.removeEventListener('finance-updated', handleFinanceUpdated as EventListener);
+      if (reloadTimerRef.current) {
+        window.clearTimeout(reloadTimerRef.current);
+      }
     };
-  }, [tenant_id]);
+  }, [tenant_id, reloadFinance]);
 
   useEffect(() => {
     applyRangePreset('daily');
