@@ -29,7 +29,7 @@ from app.models import (
     Tenant,
     User,
 )
-from app.schemas import BootstrapOwnerIn, LoginIn, PinLoginIn, RefreshIn, TokenOut
+from app.schemas import BootstrapOwnerIn, LoginIn, PinLoginIn, RefreshIn, TokenOut, VerifyPasswordIn
 from app.core.config import settings
 from app.security import (
     create_access_token,
@@ -420,10 +420,21 @@ def logout(payload: RefreshIn, db: Session = Depends(get_db), tenant: Tenant = D
     row = db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash, RefreshToken.tenant_id == tenant.id).first()
     if row:
         row.revoked = True
-        db.commit()
+    db.commit()
     if settings.demo_tenant_enabled and tenant.domain == settings.demo_tenant_domain:
         _reset_demo_tenant_runtime(db, tenant)
     return {"success": True}
+
+
+@router.post("/verify-password")
+def verify_current_password(
+    payload: VerifyPasswordIn,
+    current_user: User = Depends(get_current_user),
+):
+    raw = str(payload.password or "")
+    if not raw:
+        raise HTTPException(status_code=400, detail="Password required")
+    return {"success": verify_password(raw, current_user.password_hash)}
 
 
 @router.get("/me")

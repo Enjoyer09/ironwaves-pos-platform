@@ -311,11 +311,10 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     ...(aiFalciEnabled ? [{ key: 'falci' as CustomerTab, label: tx(safeLang, 'Falçı', 'Фалчы', 'Fortune'), icon: <Sparkles size={18} /> }] : []),
     { key: 'profile', label: tx(safeLang, 'Profil', 'Профиль', 'Profile'), icon: <UserRound size={18} /> },
   ];
-
-  React.useEffect(() => {
-    if (activeTab === 'barista' && !aiBaristaEnabled) setActiveTab('home');
-    if (activeTab === 'falci' && !aiFalciEnabled) setActiveTab('home');
-  }, [activeTab, aiBaristaEnabled, aiFalciEnabled]);
+  const resolvedActiveTab: CustomerTab =
+    (activeTab === 'barista' && !aiBaristaEnabled) || (activeTab === 'falci' && !aiFalciEnabled)
+      ? 'home'
+      : activeTab;
 
   const renderHome = () => (
     <div className="space-y-4">
@@ -600,17 +599,17 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             <button type="button" onClick={() => setLang('ru')} className={safeLang === 'ru' ? 'font-bold underline' : ''}>RU</button>
           </div>
         </div>
-        {activeTab === 'home' && renderHome()}
-        {activeTab === 'offers' && renderOffers()}
-        {activeTab === 'barista' && aiBaristaEnabled && renderBarista()}
-        {activeTab === 'falci' && aiFalciEnabled && renderFalci()}
-        {activeTab === 'profile' && renderProfile()}
+        {resolvedActiveTab === 'home' && renderHome()}
+        {resolvedActiveTab === 'offers' && renderOffers()}
+        {resolvedActiveTab === 'barista' && aiBaristaEnabled && renderBarista()}
+        {resolvedActiveTab === 'falci' && aiFalciEnabled && renderFalci()}
+        {resolvedActiveTab === 'profile' && renderProfile()}
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-md px-4 pb-4">
         <div className="grid gap-2 rounded-[28px] border border-white/10 bg-slate-950/85 p-2 shadow-[0_20px_50px_rgba(0,0,0,0.4)] backdrop-blur-xl" style={{ gridTemplateColumns: `repeat(${bottomTabs.length}, minmax(0, 1fr))` }}>
           {bottomTabs.map((tab) => {
-            const active = tab.key === activeTab;
+            const active = tab.key === resolvedActiveTab;
             return (
               <button
                 key={tab.key}

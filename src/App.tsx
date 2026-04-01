@@ -125,6 +125,7 @@ export default function App() {
   const [lowStockModal, setLowStockModal] = useState<Array<{ name: string; stock_qty: string; min_limit: string; unit: string }> | null>(null);
   const [availableTenants, setAvailableTenants] = useState<TenantRecord[]>([]);
   const [tenantSwitching, setTenantSwitching] = useState(false);
+  const [businessProfileVersion, setBusinessProfileVersion] = useState(0);
 
   const publicReceiptParams = useMemo(() => {
     if (typeof window === 'undefined') return { receiptId: '', token: '' };
@@ -184,7 +185,7 @@ export default function App() {
           settings: { ui_visibility: defaultUiVisibility, role_modules: defaultRoleModules, inventory_settings: defaultInventorySettings },
       };
     }
-  }, [hasValidUser, user?.tenant_id]);
+  }, [hasValidUser, user?.tenant_id, businessProfileVersion]);
 
   const profile = appConfig.profile;
   const settings = appConfig.settings;
@@ -473,6 +474,31 @@ export default function App() {
   const visibleModuleKeys = visibleModules.map((m) => m.key).join('|');
 
   useEffect(() => {
+    const onBusinessProfileUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ tenant_id?: string }>).detail;
+      const eventTenant = String(detail?.tenant_id || '');
+      const currentTenant = String(user?.tenant_id || activeTenant || '');
+      if (!eventTenant || !currentTenant || eventTenant === currentTenant) {
+        setBusinessProfileVersion((prev) => prev + 1);
+      }
+    };
+    window.addEventListener('business-profile-updated', onBusinessProfileUpdated as EventListener);
+    return () => {
+      window.removeEventListener('business-profile-updated', onBusinessProfileUpdated as EventListener);
+    };
+  }, [user?.tenant_id, activeTenant]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (hostMode === 'landing') {
+      document.title = 'iRonWaves POS RC';
+      return;
+    }
+    const companyName = String(profile?.company_name || '').trim();
+    document.title = companyName || 'iRonWaves POS RC';
+  }, [hostMode, profile?.company_name]);
+
+  useEffect(() => {
     if (!visibleModules.find((m) => m.key === currentModule)) {
       setCurrentModule(visibleModules[0]?.key || 'pos');
     }
@@ -606,7 +632,7 @@ export default function App() {
                 )}
               </div>
               <div>
-                <p className="font-semibold leading-tight">iRonWaves POS RC</p>
+                <p className="font-semibold leading-tight">{profile?.company_name || 'iRonWaves POS RC'}</p>
                   <p className="text-xs text-slate-400">{safeUser.username} / {safeUser.role}</p>
               </div>
             </div>

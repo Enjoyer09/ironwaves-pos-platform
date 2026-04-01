@@ -25,6 +25,10 @@ class RefreshIn(BaseModel):
     refresh_token: str
 
 
+class VerifyPasswordIn(BaseModel):
+    password: str
+
+
 class TokenOut(BaseModel):
     access_token: str
     refresh_token: str
