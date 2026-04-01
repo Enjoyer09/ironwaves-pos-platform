@@ -37,6 +37,24 @@ export default function AIManagerPanel() {
   const [customReport, setCustomReport] = useState<string | null>(null);
   const [structuredResult, setStructuredResult] = useState<AiInsightResult | null>(null);
 
+  const pushCampaignToCrm = () => {
+    if (!structuredResult || structuredResult.kind !== 'campaign') return;
+    const narrativeLines = String(structuredResult.narrative || '').split('\n');
+    const subjectLine = narrativeLines.find((line) => line.startsWith('Subject:'));
+    const bodyLine = narrativeLines.find((line) => line.startsWith('Body:'));
+    const payload = {
+      subject: subjectLine ? subjectLine.replace(/^Subject:\s*/, '').trim() : tx(lang, 'AI CRM Kampaniyası', 'AI CRM кампания', 'AI CRM Campaign'),
+      body: bodyLine ? bodyLine.replace(/^Body:\s*/, '').trim() : structuredResult.summary,
+    };
+    writeScopedStorage('ai_campaign_draft', JSON.stringify(payload));
+    try {
+      window.dispatchEvent(new CustomEvent('ai-campaign-draft', { detail: payload }));
+    } catch {
+      // ignore browser event issues
+    }
+    notify('success', tx(lang, 'AI kampaniya mətni CRM moduluna göndərildi', 'AI кампания отправлена в CRM модуль', 'AI campaign draft sent to CRM'));
+  };
+
   const range = useMemo(() => {
     const end = new Date();
     const start = new Date();
@@ -189,6 +207,11 @@ export default function AIManagerPanel() {
           <button onClick={copyResult} className="rounded-xl border border-slate-700 bg-slate-900/50 px-4 py-2 text-sm font-semibold text-slate-200 hover:border-cyan-300/50">
             <span className="inline-flex items-center gap-2"><Clipboard size={16} /> {tx(lang, 'Kopyala', 'Копировать', 'Copy')}</span>
           </button>
+          {structuredResult?.kind === 'campaign' && (
+            <button onClick={pushCampaignToCrm} className="rounded-xl border border-fuchsia-400/40 bg-fuchsia-500/10 px-4 py-2 text-sm font-semibold text-fuchsia-100 hover:bg-fuchsia-500/20">
+              {tx(lang, 'CRM-ə ötür', 'Передать в CRM', 'Send to CRM')}
+            </button>
+          )}
         </div>
       </div>
 

@@ -10,6 +10,7 @@ import { get_kitchen_orders, get_kitchen_orders_live } from '../../api/kds';
 import { get_tables, get_tables_live } from '../../api/tables';
 import { getPendingOfflineSalesCount } from '../../lib/offline';
 import { get_business_profile } from '../../api/settings';
+import { generate_finance_insight, generate_shift_summary, generate_stock_forecast, type AiInsightResult } from '../../api/ai_manager';
 
 type DashboardSnapshot = {
   summary: any;
@@ -50,6 +51,11 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
     lowStock: [],
     pendingOffline: 0,
   });
+  const [aiInsights, setAiInsights] = useState<{
+    shift: AiInsightResult | null;
+    finance: AiInsightResult | null;
+    stock: AiInsightResult | null;
+  }>({ shift: null, finance: null, stock: null });
   const branding = useMemo(() => get_business_profile(tenant_id), [tenant_id]);
 
   useEffect(() => {
@@ -187,6 +193,28 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
       window.clearInterval(timer);
     };
   }, [tenant_id, activeRange.fromIso, activeRange.toIso, lang, notify]);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadAi = async () => {
+      try {
+        const [shift, finance, stock] = await Promise.all([
+          generate_shift_summary({ tenant_id, date_from: activeRange.fromIso, date_to: activeRange.toIso }),
+          generate_finance_insight({ tenant_id, date_from: activeRange.fromIso, date_to: activeRange.toIso }),
+          generate_stock_forecast({ tenant_id, date_from: activeRange.fromIso, date_to: activeRange.toIso }),
+        ]);
+        if (!mounted) return;
+        setAiInsights({ shift, finance, stock });
+      } catch {
+        if (!mounted) return;
+        setAiInsights({ shift: null, finance: null, stock: null });
+      }
+    };
+    void loadAi();
+    return () => {
+      mounted = false;
+    };
+  }, [tenant_id, activeRange.fromIso, activeRange.toIso]);
 
   useEffect(() => {
     const handleFinanceUpdated = async (event: Event) => {
@@ -489,6 +517,27 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
             />
           </div>
 
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <AiInsightTile
+              title={tx(lang, 'AI Shift', 'AI смена', 'AI Shift')}
+              summary={aiInsights.shift?.summary}
+              action={aiInsights.shift?.actions?.[0]}
+              tone={aiInsights.shift?.highlights?.find((item) => item.tone === 'warning') ? 'warning' : 'neutral'}
+            />
+            <AiInsightTile
+              title={tx(lang, 'AI Finance', 'AI финансы', 'AI Finance')}
+              summary={aiInsights.finance?.summary}
+              action={aiInsights.finance?.actions?.[0]}
+              tone={aiInsights.finance?.highlights?.find((item) => item.tone === 'warning') ? 'warning' : 'good'}
+            />
+            <AiInsightTile
+              title={tx(lang, 'AI Stock Alert', 'AI склад alert', 'AI Stock Alert')}
+              summary={aiInsights.stock?.summary}
+              action={aiInsights.stock?.actions?.[0]}
+              tone={snapshot.lowStock.length > 0 ? 'warning' : 'good'}
+            />
+          </div>
+
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
             <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.93),rgba(246,248,252,0.88))] p-5 text-slate-900 shadow-[0_16px_45px_rgba(0,0,0,0.22)]">
               <div className="mb-5 flex items-center justify-between">
@@ -736,6 +785,38 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
         </div>
       </div>
     </div>
+  );
+}
+
+function AiInsightTile({
+  title,
+  summary,
+  action,
+  tone = 'neutral',
+}: {
+  title: string;
+  summary?: string | null;
+  action?: string | null;
+  tone?: 'neutral' | 'good' | 'warning';
+}) {
+  const palette =
+    tone === 'warning'
+      ? 'border-amber-400/35 bg-amber-500/10 text-amber-50'
+      : tone === 'good'
+        ? 'border-emerald-400/35 bg-emerald-500/10 text-emerald-50'
+        : 'border-cyan-400/30 bg-cyan-500/10 text-cyan-50';
+  return (
+    <section className={`rounded-[24px] border p-5 shadow-[0_14px_40px_rgba(0,0,0,0.18)] ${palette}`}>
+      <div className="text-xs font-bold uppercase tracking-[0.2em] opacity-80">{title}</div>
+      <div className="mt-3 text-sm leading-6 text-white/90">
+        {summary || 'AI insight hazırlanır...'}
+      </div>
+      {action ? (
+        <div className="mt-4 rounded-xl border border-white/10 bg-black/10 px-4 py-3 text-sm font-semibold text-white/90">
+          {action}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
