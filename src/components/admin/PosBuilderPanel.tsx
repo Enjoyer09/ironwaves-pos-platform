@@ -78,6 +78,8 @@ export default function PosBuilderPanel() {
   const tenantId = user?.tenant_id || 'tenant_default';
   const [layout, setLayout] = useState<PosLayoutSettings>(DEFAULT_LAYOUT);
   const [isSaving, setIsSaving] = useState(false);
+  const [draggingWidget, setDraggingWidget] = useState<string | null>(null);
+  const [dropTargetWidget, setDropTargetWidget] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -123,6 +125,24 @@ export default function PosBuilderPanel() {
       [next[index], next[target]] = [next[target], next[index]];
       return { ...prev, widget_order: next };
     });
+  };
+
+  const moveWidgetTo = (fromKey: string, toKey: string) => {
+    if (!fromKey || !toKey || fromKey === toKey) return;
+    setLayout((prev) => {
+      const current = [...prev.widget_order];
+      const fromIndex = current.indexOf(fromKey);
+      const toIndex = current.indexOf(toKey);
+      if (fromIndex < 0 || toIndex < 0) return prev;
+      const [moved] = current.splice(fromIndex, 1);
+      current.splice(toIndex, 0, moved);
+      return { ...prev, widget_order: current };
+    });
+  };
+
+  const resetLayout = () => {
+    setLayout(DEFAULT_LAYOUT);
+    notify('info', tx(lang, 'POS builder default görünüşə qaytarıldı', 'POS builder сброшен к виду по умолчанию', 'POS builder reset to default'));
   };
 
   const save = async () => {
@@ -208,13 +228,54 @@ export default function PosBuilderPanel() {
         </div>
 
         <div className="metal-panel p-5">
-          <div className="mb-4 text-sm font-semibold text-slate-300">{tx(lang, 'Widget idarəetməsi', 'Управление виджетами', 'Widget controls')}</div>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="text-sm font-semibold text-slate-300">{tx(lang, 'Widget idarəetməsi', 'Управление виджетами', 'Widget controls')}</div>
+            <button onClick={resetLayout} className="neon-btn rounded-xl px-3 py-2 text-xs">
+              {tx(lang, 'Default-a qaytar', 'Сбросить', 'Reset')}
+            </button>
+          </div>
+          <div className="mb-3 rounded-2xl border border-slate-700/60 bg-slate-950/35 px-4 py-3 text-xs text-slate-400">
+            {tx(lang, 'Widget-ləri sürüşdürüb buraxaraq sıralayın. İstəsəniz sağdakı düymələrlə də yerini dəyişə bilərsiniz.', 'Перетаскивайте виджеты, чтобы менять порядок. Кнопки справа тоже работают.', 'Drag and drop widgets to reorder them. You can also use the buttons on the right.')}
+          </div>
           <div className="space-y-3">
             {layout.widget_order.map((widgetKey, index) => {
               const hidden = layout.hidden_widgets.includes(widgetKey);
+              const isDropTarget = dropTargetWidget === widgetKey && draggingWidget !== widgetKey;
               return (
-                <div key={widgetKey} className="flex items-center gap-3 rounded-2xl border border-slate-700/60 bg-slate-900/25 px-3 py-3">
-                  <Grip size={16} className="text-slate-500" />
+                <div
+                  key={widgetKey}
+                  draggable
+                  onDragStart={() => {
+                    setDraggingWidget(widgetKey);
+                    setDropTargetWidget(widgetKey);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (draggingWidget && draggingWidget !== widgetKey) {
+                      setDropTargetWidget(widgetKey);
+                    }
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggingWidget && draggingWidget !== widgetKey) {
+                      moveWidgetTo(draggingWidget, widgetKey);
+                    }
+                    setDraggingWidget(null);
+                    setDropTargetWidget(null);
+                  }}
+                  onDragEnd={() => {
+                    setDraggingWidget(null);
+                    setDropTargetWidget(null);
+                  }}
+                  className={`flex items-center gap-3 rounded-2xl border px-3 py-3 transition ${
+                    isDropTarget
+                      ? 'border-yellow-300/60 bg-yellow-400/10 shadow-[0_0_20px_rgba(250,204,21,0.12)]'
+                      : draggingWidget === widgetKey
+                        ? 'border-cyan-300/50 bg-cyan-400/10 opacity-80'
+                        : 'border-slate-700/60 bg-slate-900/25'
+                  }`}
+                >
+                  <Grip size={16} className="cursor-grab text-slate-500" />
                   <div className="min-w-0 flex-1">
                     <div className={`font-medium ${hidden ? 'text-slate-500 line-through' : 'text-slate-100'}`}>{widgetLabel(widgetKey)}</div>
                     <div className="text-xs text-slate-500">{tx(lang, 'Sıra', 'Порядок', 'Order')}: {index + 1}</div>
@@ -245,6 +306,27 @@ export default function PosBuilderPanel() {
                   {widgetLabel(key)}
                 </span>
               ))}
+            </div>
+            <div className="mt-4 rounded-[28px] border border-slate-700/70 bg-[linear-gradient(180deg,#182231,#0c131d)] p-4">
+              <div className="mb-3 flex items-center justify-between text-xs text-slate-400">
+                <span>{tx(lang, 'Mini preview', 'Мини-превью', 'Mini preview')}</span>
+                <span>{layout.preset}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-2xl p-3 text-xs font-semibold text-slate-900" style={{ backgroundColor: layout.accent_color }}>
+                  {tx(lang, 'Məhsul grid', 'Сетка товаров', 'Product grid')} x{layout.product_columns}
+                </div>
+                <div className="rounded-2xl border border-slate-600/70 bg-slate-900/35 p-3 text-xs text-slate-200">
+                  {tx(lang, 'Sıxlıq', 'Плотность', 'Density')}: {layout.density}
+                </div>
+              </div>
+              <div className="mt-3 space-y-2">
+                {visibleWidgets.slice(0, 4).map((key) => (
+                  <div key={`preview_${key}`} className="rounded-2xl border border-slate-700/60 bg-slate-900/35 px-3 py-2 text-xs text-slate-200">
+                    {widgetLabel(key)}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
