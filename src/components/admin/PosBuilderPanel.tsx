@@ -103,6 +103,119 @@ const PRESET_PATCHES: Record<PosLayoutSettings['preset'], Partial<PosLayoutSetti
   tables: { density: 'comfortable', product_columns: 3, show_cart_tabs: true, hidden_widgets: [] },
 };
 
+const INDUSTRY_PRESETS = [
+  {
+    key: 'coffee_shop',
+    titleAz: 'Coffee Shop',
+    titleRu: 'Coffee Shop',
+    titleEn: 'Coffee Shop',
+    noteAz: 'QR, reward və sürətli takeaway axını ön planda.',
+    noteRu: 'Фокус на QR, reward и быстром takeaway.',
+    noteEn: 'Focused on QR, rewards, and fast takeaway flow.',
+    build: (device: LayoutDevice) => ({
+      preset: device === 'tablet' ? 'touch' : 'classic',
+      density: device === 'tablet' ? 'large' : 'comfortable',
+      product_columns: device === 'tablet' ? 2 : 3,
+      show_cart_tabs: true,
+      accent_color: '#f59e0b',
+      hidden_widgets: [],
+      widget_order: ['customer', 'discount', 'cartItems', 'cartSummary', 'payments', 'orderType', 'table'],
+      left_hidden_widgets: [],
+      left_widget_order: ['search', 'categories', 'productGrid', 'menuHeader'],
+      widget_sizes: { customer: 'expanded', discount: 'comfortable', payments: 'expanded', cartItems: 'expanded' },
+      left_widget_sizes: { search: 'expanded', categories: 'comfortable', productGrid: 'expanded' },
+    }),
+  },
+  {
+    key: 'restaurant',
+    titleAz: 'Restaurant',
+    titleRu: 'Restaurant',
+    titleEn: 'Restaurant',
+    noteAz: 'Masa servisi və mətbəx axını daha önə çəkilir.',
+    noteRu: 'Усилен акцент на зале и кухонном потоке.',
+    noteEn: 'Table service and kitchen flow are prioritized.',
+    build: (device: LayoutDevice) => ({
+      preset: 'tables',
+      density: device === 'tablet' ? 'large' : 'comfortable',
+      product_columns: device === 'tablet' ? 2 : 3,
+      show_cart_tabs: true,
+      accent_color: '#22c55e',
+      hidden_widgets: [],
+      widget_order: ['table', 'orderType', 'cartItems', 'cartSummary', 'payments', 'customer', 'discount'],
+      left_hidden_widgets: [],
+      left_widget_order: ['menuHeader', 'categories', 'search', 'productGrid'],
+      widget_sizes: { table: 'expanded', orderType: 'comfortable', cartItems: 'expanded', payments: 'comfortable' },
+      left_widget_sizes: { categories: 'expanded', productGrid: 'expanded' },
+    }),
+  },
+  {
+    key: 'fast_food',
+    titleAz: 'Fast Food',
+    titleRu: 'Fast Food',
+    titleEn: 'Fast Food',
+    noteAz: 'Maksimum sürət, daha sıx məhsul grid və böyük checkout.',
+    noteRu: 'Максимальная скорость, плотная сетка и крупный checkout.',
+    noteEn: 'Maximum speed, dense product grid, and bold checkout.',
+    build: (device: LayoutDevice) => ({
+      preset: 'fast',
+      density: 'compact',
+      product_columns: device === 'tablet' ? 3 : 4,
+      show_cart_tabs: false,
+      accent_color: '#ef4444',
+      hidden_widgets: ['table', 'customer'],
+      widget_order: ['cartItems', 'cartSummary', 'payments', 'discount', 'orderType', 'table', 'customer'],
+      left_hidden_widgets: device === 'tablet' ? ['menuHeader'] : [],
+      left_widget_order: ['search', 'productGrid', 'categories', 'menuHeader'],
+      widget_sizes: { cartItems: 'expanded', payments: 'expanded', cartSummary: 'comfortable' },
+      left_widget_sizes: { search: 'compact', productGrid: 'expanded', categories: 'compact' },
+    }),
+  },
+  {
+    key: 'bakery',
+    titleAz: 'Bakery',
+    titleRu: 'Bakery',
+    titleEn: 'Bakery',
+    noteAz: 'Məhsul vitrini və rahat kateqoriya naviqasiyası vurğulanır.',
+    noteRu: 'Акцент на витрине товаров и удобной навигации.',
+    noteEn: 'Highlights product display and easy category browsing.',
+    build: (device: LayoutDevice) => ({
+      preset: 'classic',
+      density: 'comfortable',
+      product_columns: device === 'tablet' ? 2 : 4,
+      show_cart_tabs: true,
+      accent_color: '#a855f7',
+      hidden_widgets: ['table'],
+      widget_order: ['customer', 'cartItems', 'cartSummary', 'payments', 'discount', 'orderType', 'table'],
+      left_hidden_widgets: [],
+      left_widget_order: ['menuHeader', 'search', 'productGrid', 'categories'],
+      widget_sizes: { cartItems: 'comfortable', cartSummary: 'comfortable', payments: 'expanded' },
+      left_widget_sizes: { productGrid: 'expanded', search: 'comfortable' },
+    }),
+  },
+  {
+    key: 'touch_kiosk',
+    titleAz: 'Touch Kiosk',
+    titleRu: 'Touch Kiosk',
+    titleEn: 'Touch Kiosk',
+    noteAz: 'Özünəsifariş üçün iri düymələr və sadələşdirilmiş sağ panel.',
+    noteRu: 'Крупные кнопки и упрощенная правая панель для self-order.',
+    noteEn: 'Large buttons and simplified side rail for self-order.',
+    build: (_device: LayoutDevice) => ({
+      preset: 'touch',
+      density: 'large',
+      product_columns: 2,
+      show_cart_tabs: false,
+      accent_color: '#06b6d4',
+      hidden_widgets: ['table', 'customer'],
+      widget_order: ['cartItems', 'cartSummary', 'payments', 'discount', 'orderType', 'table', 'customer'],
+      left_hidden_widgets: ['menuHeader'],
+      left_widget_order: ['search', 'categories', 'productGrid', 'menuHeader'],
+      widget_sizes: { cartItems: 'expanded', cartSummary: 'expanded', payments: 'expanded' },
+      left_widget_sizes: { search: 'expanded', categories: 'expanded', productGrid: 'expanded' },
+    }),
+  },
+] as const;
+
 export default function PosBuilderPanel() {
   const { user, lang, notify } = useAppStore();
   const tenantId = user?.tenant_id || 'tenant_default';
@@ -200,6 +313,11 @@ export default function PosBuilderPanel() {
       ...PRESET_PATCHES[preset],
       hidden_widgets: [...(PRESET_PATCHES[preset].hidden_widgets || activeProfile.hidden_widgets || [])],
     });
+  };
+
+  const applyIndustryPreset = (builder: (device: LayoutDevice) => Partial<PosLayoutSettings>) => {
+    updateActiveProfile(builder(activeDevice));
+    notify('success', tx(lang, 'Hazır POS preset tətbiq olundu', 'Готовый POS-пресет применен', 'POS preset applied'));
   };
 
   const toggleHidden = (widgetKey: string) => {
@@ -425,6 +543,26 @@ export default function PosBuilderPanel() {
                 </button>
               );
             })}
+          </div>
+
+          <div className="mt-6">
+            <div className="mb-4 text-sm font-semibold text-slate-300">{tx(lang, 'Hazır biznes preset-ləri', 'Готовые бизнес-пресеты', 'Industry preset library')}</div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {INDUSTRY_PRESETS.map((preset) => {
+                const title = lang === 'ru' ? preset.titleRu : lang === 'en' ? preset.titleEn : preset.titleAz;
+                const note = lang === 'ru' ? preset.noteRu : lang === 'en' ? preset.noteEn : preset.noteAz;
+                return (
+                  <button
+                    key={preset.key}
+                    onClick={() => applyIndustryPreset(preset.build)}
+                    className="rounded-2xl border border-slate-700/60 bg-slate-900/25 p-4 text-left transition hover:border-cyan-300/40 hover:bg-cyan-400/5"
+                  >
+                    <div className="text-base font-semibold text-slate-100">{title}</div>
+                    <div className="mt-1 text-sm text-slate-400">{note}</div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
