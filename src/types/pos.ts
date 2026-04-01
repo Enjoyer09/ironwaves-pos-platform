@@ -207,6 +207,8 @@ export interface Settings {
     widget_order: string[];
     left_hidden_widgets?: string[];
     left_widget_order?: string[];
+    widget_sizes?: Record<string, 'compact' | 'comfortable' | 'expanded'>;
+    left_widget_sizes?: Record<string, 'compact' | 'comfortable' | 'expanded'>;
     device_layouts?: {
       desktop?: Partial<{
         preset: 'classic' | 'fast' | 'touch' | 'tables';
@@ -218,6 +220,8 @@ export interface Settings {
         widget_order: string[];
         left_hidden_widgets: string[];
         left_widget_order: string[];
+        widget_sizes: Record<string, 'compact' | 'comfortable' | 'expanded'>;
+        left_widget_sizes: Record<string, 'compact' | 'comfortable' | 'expanded'>;
       }>;
       tablet?: Partial<{
         preset: 'classic' | 'fast' | 'touch' | 'tables';
@@ -229,6 +233,8 @@ export interface Settings {
         widget_order: string[];
         left_hidden_widgets: string[];
         left_widget_order: string[];
+        widget_sizes: Record<string, 'compact' | 'comfortable' | 'expanded'>;
+        left_widget_sizes: Record<string, 'compact' | 'comfortable' | 'expanded'>;
       }>;
     };
   };

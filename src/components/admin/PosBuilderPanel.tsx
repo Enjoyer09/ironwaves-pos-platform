@@ -16,12 +16,20 @@ const DEFAULT_LAYOUT: PosLayoutSettings = {
   accent_color: '#facc15',
   hidden_widgets: [],
   widget_order: ['customer', 'discount', 'orderType', 'table', 'cartItems', 'cartSummary', 'payments'],
+  left_hidden_widgets: [],
+  left_widget_order: ['menuHeader', 'search', 'categories', 'productGrid'],
+  widget_sizes: {},
+  left_widget_sizes: {},
   device_layouts: {
     desktop: {},
     tablet: {
       preset: 'touch',
       density: 'large',
       product_columns: 2,
+      left_hidden_widgets: [],
+      left_widget_order: ['search', 'categories', 'productGrid'],
+      widget_sizes: {},
+      left_widget_sizes: {},
     },
   },
 };
@@ -42,6 +50,12 @@ const LEFT_WIDGETS = [
   { key: 'categories', labelAz: 'Kateqoriyalar', labelRu: 'Категории', labelEn: 'Categories' },
   { key: 'productGrid', labelAz: 'Məhsul grid', labelRu: 'Сетка товаров', labelEn: 'Product grid' },
 ];
+
+const SIZE_OPTIONS = [
+  { key: 'compact', az: 'Kompakt', ru: 'Компактно', en: 'Compact' },
+  { key: 'comfortable', az: 'Rahat', ru: 'Комфортно', en: 'Comfortable' },
+  { key: 'expanded', az: 'Geniş', ru: 'Расширенно', en: 'Expanded' },
+] as const;
 
 const PRESETS: Array<{ key: PosLayoutSettings['preset']; titleAz: string; titleRu: string; titleEn: string; noteAz: string; noteRu: string; noteEn: string }> = [
   {
@@ -124,6 +138,7 @@ export default function PosBuilderPanel() {
 
   const activeProfile = useMemo(
     () => ({
+      ...DEFAULT_LAYOUT,
       ...layout,
       ...(layout.device_layouts?.[activeDevice] || {}),
     }),
@@ -148,6 +163,24 @@ export default function PosBuilderPanel() {
       left_hidden_widgets: activeProfile.left_hidden_widgets.includes(widgetKey)
         ? activeProfile.left_hidden_widgets.filter((key) => key !== widgetKey)
         : [...activeProfile.left_hidden_widgets, widgetKey],
+    });
+  };
+
+  const updateWidgetSize = (widgetKey: string, size: 'compact' | 'comfortable' | 'expanded') => {
+    updateActiveProfile({
+      widget_sizes: {
+        ...(activeProfile.widget_sizes || {}),
+        [widgetKey]: size,
+      },
+    });
+  };
+
+  const updateLeftWidgetSize = (widgetKey: string, size: 'compact' | 'comfortable' | 'expanded') => {
+    updateActiveProfile({
+      left_widget_sizes: {
+        ...(activeProfile.left_widget_sizes || {}),
+        [widgetKey]: size,
+      },
     });
   };
 
@@ -295,6 +328,12 @@ export default function PosBuilderPanel() {
     return lang === 'ru' ? row.labelRu : lang === 'en' ? row.labelEn : row.labelAz;
   };
 
+  const sizeLabel = (key: 'compact' | 'comfortable' | 'expanded') => {
+    const row = SIZE_OPTIONS.find((item) => item.key === key);
+    if (!row) return key;
+    return lang === 'ru' ? row.ru : lang === 'en' ? row.en : row.az;
+  };
+
   return (
     <div className="space-y-6 text-slate-100">
       <div className="metal-panel p-5">
@@ -430,6 +469,15 @@ export default function PosBuilderPanel() {
                     <input type="checkbox" checked={!hidden} onChange={() => toggleHidden(widgetKey)} />
                     {tx(lang, 'Görünsün', 'Показывать', 'Visible')}
                   </label>
+                  <select
+                    value={activeProfile.widget_sizes?.[widgetKey] || 'comfortable'}
+                    onChange={(e) => updateWidgetSize(widgetKey, e.target.value as 'compact' | 'comfortable' | 'expanded')}
+                    className="rounded-lg border border-slate-700/60 bg-slate-950/70 px-2 py-2 text-xs text-slate-200"
+                  >
+                    {SIZE_OPTIONS.map((size) => (
+                      <option key={size.key} value={size.key}>{sizeLabel(size.key)}</option>
+                    ))}
+                  </select>
                   <button onClick={() => moveWidget(widgetKey, -1)} className="neon-btn rounded-lg px-2 py-2" disabled={index === 0}>
                     <ArrowUp size={14} />
                   </button>
@@ -533,6 +581,15 @@ export default function PosBuilderPanel() {
                     <input type="checkbox" checked={!hidden} onChange={() => toggleLeftHidden(widgetKey)} />
                     {tx(lang, 'Görünsün', 'Показывать', 'Visible')}
                   </label>
+                  <select
+                    value={activeProfile.left_widget_sizes?.[widgetKey] || 'comfortable'}
+                    onChange={(e) => updateLeftWidgetSize(widgetKey, e.target.value as 'compact' | 'comfortable' | 'expanded')}
+                    className="rounded-lg border border-slate-700/60 bg-slate-950/70 px-2 py-2 text-xs text-slate-200"
+                  >
+                    {SIZE_OPTIONS.map((size) => (
+                      <option key={size.key} value={size.key}>{sizeLabel(size.key)}</option>
+                    ))}
+                  </select>
                   <button onClick={() => moveLeftWidget(widgetKey, -1)} className="neon-btn rounded-lg px-2 py-2" disabled={index === 0}>
                     <ArrowUp size={14} />
                   </button>
