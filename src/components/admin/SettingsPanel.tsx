@@ -210,6 +210,7 @@ export default function SettingsPanel() {
       setNewUserPassword('');
       setNewUserPin('');
       await loadData();
+      window.dispatchEvent(new CustomEvent('settings-users-updated', { detail: { tenant_id: tenantId } }));
       flashSuccess(tx(lang, 'İstifadəçi yaradıldı', 'Пользователь создан', 'User created'));
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'İstifadəçi yaratmaq alınmadı', 'Не удалось создать пользователя', 'Failed to create user'));
@@ -221,6 +222,7 @@ export default function SettingsPanel() {
       await delete_user_live(username);
       setDeleteUserName(null);
       await loadData();
+      window.dispatchEvent(new CustomEvent('settings-users-updated', { detail: { tenant_id: tenantId } }));
       flashSuccess(tx(lang, 'İstifadəçi silindi', 'Пользователь удален', 'User deleted'));
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'İstifadəçini silmək alınmadı', 'Не удалось удалить пользователя', 'Failed to delete user'));
@@ -241,6 +243,7 @@ export default function SettingsPanel() {
       await update_user_credentials_live(targetUser, { pin: targetPin }, user?.username || 'admin');
       setTargetPin('');
       await loadData();
+      window.dispatchEvent(new CustomEvent('settings-users-updated', { detail: { tenant_id: tenantId } }));
       flashSuccess(tx(lang, 'PIN yeniləndi', 'PIN обновлен', 'PIN updated'));
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'PIN yenilənmədi', 'PIN не обновлен', 'PIN update failed'));
@@ -260,6 +263,7 @@ export default function SettingsPanel() {
       await update_user_credentials_live(targetPasswordUser, { password: targetPassword }, user?.username || 'admin');
       setTargetPassword('');
       await loadData();
+      window.dispatchEvent(new CustomEvent('settings-users-updated', { detail: { tenant_id: tenantId } }));
       flashSuccess(tx(lang, 'İstifadəçi şifrəsi yeniləndi', 'Пароль пользователя обновлен', 'User password updated'));
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Şifrə yenilənmədi', 'Пароль не обновлен', 'Password update failed'));

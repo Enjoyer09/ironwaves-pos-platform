@@ -83,6 +83,7 @@ export default function ZReportPanel() {
   const expectedCashNow = expectedCashState;
   const activeShiftOwner = String(shiftStatus.opened_by || '');
   const selectedReceiver = tenantUsers.find((u) => u.username === handoverTo);
+  const availableReceivers = tenantUsers.filter((u) => u.username !== user?.username);
   const visibleSales = useMemo(() => sales.slice(0, salesPageSize), [sales, salesPageSize]);
   const cashierBreakdown = useMemo(() => {
     const map = new Map<string, { salesCount: number; total: Decimal; cash: Decimal; card: Decimal }>();
@@ -795,9 +796,29 @@ export default function ZReportPanel() {
             <RoleBadge role={selectedReceiver.role} />
           </div>
         )}
-        {!handoverUsersLoading && tenantUsers.filter((u) => u.username !== user?.username).length === 0 && (
+        {!handoverUsersLoading && availableReceivers.length === 0 && (
           <div className="mt-3 text-xs text-amber-300">
-            {tx(lang, 'Təhvil veriləcək aktiv staff/manager/admin tapılmadı.', 'Не найдено активных staff/manager/admin для передачи.', 'No active staff/manager/admin users available for handover.')}
+            {tenantUsers.length > 0
+              ? tx(lang, 'Sistemdə yalnız sizin aktiv hesabınız görünür. Təhvil üçün ikinci aktiv staff/manager/admin yaradın.', 'В системе виден только ваш активный аккаунт. Для передачи создайте второго активного staff/manager/admin.', 'Only your active account is visible. Create a second active staff/manager/admin user for handover.')
+              : tx(lang, 'Təhvil veriləcək aktiv staff/manager/admin tapılmadı.', 'Не найдено активных staff/manager/admin для передачи.', 'No active staff/manager/admin users available for handover.')}
+          </div>
+        )}
+        {!handoverUsersLoading && tenantUsers.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            {tenantUsers.map((u) => (
+              <span
+                key={u.id}
+                className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 ${
+                  u.username === user?.username
+                    ? 'border-yellow-300/40 bg-yellow-500/10 text-yellow-100'
+                    : 'border-slate-600/60 bg-slate-900/40 text-slate-200'
+                }`}
+              >
+                <span>{u.username}</span>
+                <RoleBadge role={u.role} />
+                {u.username === user?.username && <span>{tx(lang, 'siz', 'вы', 'you')}</span>}
+              </span>
+            ))}
           </div>
         )}
         <p className="mt-2 text-xs text-slate-400">
