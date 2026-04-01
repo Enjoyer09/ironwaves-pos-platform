@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { get_tables_live, create_table_live, delete_table_live, pay_table_live, transfer_table_live, merge_tables_live, revise_table_items_live } from '../api/tables';
+import { get_kitchen_orders_live } from '../api/kds';
 import { LayoutGrid, Plus, Trash2 } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
@@ -11,6 +12,7 @@ import { qzPrintHtml } from '../lib/qz';
 
 export default function TablesPage() {
   const [tables, setTables] = useState<any[]>([]);
+  const [kitchenOrders, setKitchenOrders] = useState<any[]>([]);
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -63,7 +65,12 @@ export default function TablesPage() {
   }, []);
 
   const loadData = async () => {
-    setTables(await get_tables_live(tenant_id));
+    const [nextTables, nextKitchenOrders] = await Promise.all([
+      get_tables_live(tenant_id),
+      get_kitchen_orders_live(tenant_id),
+    ]);
+    setTables(nextTables);
+    setKitchenOrders(Array.isArray(nextKitchenOrders) ? nextKitchenOrders : []);
   };
 
   const handleAddTable = async () => {
@@ -381,11 +388,23 @@ export default function TablesPage() {
               const t = tables.find((x) => x.id === viewTableId);
               if (!t) return null;
               const items = Array.isArray(t.items) ? t.items : [];
+              const activeKitchenOrders = kitchenOrders.filter((row) => row.table_label === t.label);
+              const waitingItems = activeKitchenOrders
+                .filter((row) => ['NEW', 'PREPARING'].includes(String(row.status || '')))
+                .flatMap((row) => (Array.isArray(row.items) ? row.items : []))
+                .filter((row: any) => String(row.action || '').toUpperCase() !== 'CANCEL');
+              const readyItems = activeKitchenOrders
+                .filter((row) => String(row.status || '') === 'READY')
+                .flatMap((row) => Array.isArray(row.items) ? row.items : [])
+                .filter((row: any) => String(row.action || '').toUpperCase() !== 'CANCEL');
+              const revisionItems = activeKitchenOrders
+                .flatMap((row) => Array.isArray(row.items) ? row.items : [])
+                .filter((row: any) => String(row.action || '').toUpperCase() === 'CANCEL');
               const otherTables = tables.filter((row) => row.id !== t.id);
               return (
                 <>
                   <h3 className="text-lg font-bold text-slate-100">{t.label}</h3>
-                  <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Açıq sifarişlər', 'Открытые заказы')}</div>
+                  <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Masa sifariş detalı', 'Детали заказа стола', 'Table order detail')}</div>
                   <div className="mt-3 max-h-72 overflow-auto rounded-lg border border-slate-700/70 bg-slate-900/40 p-3">
                     {items.length === 0 && <div className="text-sm text-slate-400">{tx(lang, 'Masa boşdur', 'Стол пуст')}</div>}
                     {items.map((it: any, idx: number) => (
@@ -420,6 +439,32 @@ export default function TablesPage() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    <div className="rounded-lg border border-blue-300/30 bg-blue-500/10 p-3">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">{tx(lang, 'Mətbəxdə gözləyənlər', 'Ожидают на кухне', 'Waiting in kitchen')}</div>
+                      <div className="space-y-2 text-sm text-slate-100">
+                        {waitingItems.length === 0 ? <div className="text-xs text-slate-400">{tx(lang, 'Aktiv gözləyən item yoxdur', 'Нет ожидающих позиций', 'No waiting items')}</div> : waitingItems.map((row: any, idx: number) => (
+                          <div key={`wait_${idx}`} className="rounded-md bg-black/15 px-3 py-2">{row.qty}x {row.item_name}</div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-emerald-300/30 bg-emerald-500/10 p-3">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200">{tx(lang, 'Hazır olanlar', 'Готово', 'Ready items')}</div>
+                      <div className="space-y-2 text-sm text-slate-100">
+                        {readyItems.length === 0 ? <div className="text-xs text-slate-400">{tx(lang, 'Hazır item yoxdur', 'Нет готовых позиций', 'No ready items')}</div> : readyItems.map((row: any, idx: number) => (
+                          <div key={`ready_${idx}`} className="rounded-md bg-black/15 px-3 py-2">{row.qty}x {row.item_name}</div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-rose-300/30 bg-rose-500/10 p-3">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-rose-200">{tx(lang, 'Dəyişikliklər', 'Изменения', 'Revisions')}</div>
+                      <div className="space-y-2 text-sm text-slate-100">
+                        {revisionItems.length === 0 ? <div className="text-xs text-slate-400">{tx(lang, 'Düzəliş yoxdur', 'Нет изменений', 'No revisions')}</div> : revisionItems.map((row: any, idx: number) => (
+                          <div key={`rev_${idx}`} className="rounded-md bg-black/15 px-3 py-2">{row.qty}x {row.item_name}{row.reason ? ` · ${row.reason}` : ''}</div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                   <div className="mt-4 flex justify-between text-sm text-slate-300">
                     <span>{tx(lang, 'Açıq hesab', 'Открытый счет')}</span>

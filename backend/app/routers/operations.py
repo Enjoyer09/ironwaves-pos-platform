@@ -1433,8 +1433,7 @@ def send_to_kitchen(
         raise HTTPException(status_code=404, detail="Table not found")
     if not payload.cart_items:
         raise HTTPException(status_code=400, detail="Cart is empty")
-    current_role = str(user.role or "").lower()
-    if row.is_occupied and row.assigned_to and row.assigned_to != user.username and current_role not in {"admin", "manager", "super_admin"}:
+    if row.is_occupied and row.assigned_to and row.assigned_to != user.username:
         raise HTTPException(status_code=403, detail=f"Bu masa {row.assigned_to} üçün aktivdir")
 
     active_orders = (

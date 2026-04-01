@@ -910,7 +910,7 @@ export default function POS() {
                     {occupiedTables.map((t) => (
                       <button
                         key={`open_${t.id}`}
-                        disabled={Boolean(t.assigned_to && t.assigned_to !== user?.username && !['admin', 'manager', 'super_admin'].includes(currentRole))}
+                        disabled={Boolean(t.assigned_to && t.assigned_to !== user?.username)}
                         onClick={() => patchCtx({ selectedTable: t.id, orderType: 'Dine In' })}
                         className={`rounded-md border px-2 py-1 ${ctx.selectedTable === t.id ? 'text-slate-900' : 'border-slate-600 bg-slate-800/40 text-slate-200'} disabled:cursor-not-allowed disabled:opacity-45`}
                         style={ctx.selectedTable === t.id ? { borderColor: posLayout.accent_color, backgroundColor: posLayout.accent_color } : undefined}
