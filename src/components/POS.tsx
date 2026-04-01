@@ -778,6 +778,7 @@ export default function POS() {
   };
 
   const isWidgetVisible = (widget: string) => !posLayout.hidden_widgets?.includes(widget);
+  const isLeftWidgetVisible = (widget: string) => !posLayout.left_hidden_widgets?.includes(widget);
   const productGridClass =
     posLayout.product_columns === 2
       ? 'md:grid-cols-2 2xl:grid-cols-2'
@@ -983,6 +984,80 @@ export default function POS() {
     return null;
   };
 
+  const renderLeftWidget = (widget: string) => {
+    if (!isLeftWidgetVisible(widget)) return null;
+    if (widget === 'menuHeader') {
+      return (
+        <div key={widget} className="mb-3 flex items-center gap-2 text-sm text-slate-300">
+          <span style={{ color: posLayout.accent_color }}>•</span> {tx(lang, 'POS Menyu', 'POS меню', 'POS Menu')}
+        </div>
+      );
+    }
+    if (widget === 'search') {
+      return (
+        <div key={widget} className="relative mb-3">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="neon-input pl-10"
+            placeholder={t.search}
+          />
+        </div>
+      );
+    }
+    if (widget === 'categories') {
+      return (
+        <div key={widget} className="mb-3 flex flex-wrap gap-2 overflow-x-auto pb-1">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setCategory(cat)}
+              className={`neon-chip ${category === cat ? 'neon-chip-active' : ''}`}
+            >
+              {cat === 'ALL' ? t.all_categories : cat}
+            </button>
+          ))}
+        </div>
+      );
+    }
+    if (widget === 'productGrid') {
+      return (
+        <div key={widget} className={`grid flex-1 auto-rows-max grid-cols-1 gap-2 overflow-y-auto pr-1 ${productGridClass}`}>
+          {groupedMenu.map((group) => {
+            const hasVariants = group.items.length > 1;
+            const minPrice = group.items.reduce(
+              (acc, cur) => Decimal.min(acc, toDecimalSafe(cur.price)),
+              toDecimalSafe(group.items[0].price),
+            );
+
+            return (
+              <button
+                key={`${group.base}_${group.items.length}`}
+                onClick={() => {
+                  if (hasVariants) {
+                    setVariantPicker({ base: group.base, items: group.items });
+                    return;
+                  }
+                  addToCart(group.items[0]);
+                }}
+                className="neon-item min-h-14 p-3 text-left"
+              >
+                <div className="flex w-full items-center justify-between gap-2">
+                  <span>{group.base}</span>
+                  <span className="text-slate-300">
+                    {minPrice.toFixed(2)} ₼ {hasVariants ? '▾' : ''}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      );
+    }
+    return null;
+  };
+
   if (receiptHtml) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-[#121922] p-6">
@@ -1096,62 +1171,7 @@ export default function POS() {
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-5 xl:grid-cols-[1fr_460px]">
         <section className={`flex min-h-0 flex-col ${mobilePane !== 'menu' ? 'hidden xl:flex' : ''}`}>
-          <div className="mb-3 flex items-center gap-2 text-sm text-slate-300">
-            <span className="text-yellow-300">•</span> {tx(lang, 'POS Menyu', 'POS меню', 'POS Menu')}
-          </div>
-
-          <div className="relative mb-3">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="neon-input pl-10"
-              placeholder={t.search}
-            />
-          </div>
-
-          <div className="mb-3 flex flex-wrap gap-2 overflow-x-auto pb-1">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setCategory(cat)}
-                className={`neon-chip ${category === cat ? 'neon-chip-active' : ''}`}
-              >
-                {cat === 'ALL' ? t.all_categories : cat}
-              </button>
-            ))}
-          </div>
-
-          <div className={`grid flex-1 auto-rows-max grid-cols-1 gap-2 overflow-y-auto pr-1 ${productGridClass}`}>
-            {groupedMenu.map((group) => {
-              const hasVariants = group.items.length > 1;
-              const minPrice = group.items.reduce(
-                (acc, cur) => Decimal.min(acc, toDecimalSafe(cur.price)),
-                toDecimalSafe(group.items[0].price),
-              );
-
-              return (
-                <button
-                  key={`${group.base}_${group.items.length}`}
-                  onClick={() => {
-                    if (hasVariants) {
-                      setVariantPicker({ base: group.base, items: group.items });
-                      return;
-                    }
-                    addToCart(group.items[0]);
-                  }}
-                  className="neon-item min-h-14 p-3 text-left"
-                >
-                  <div className="flex w-full items-center justify-between gap-2">
-                    <span>{group.base}</span>
-                    <span className="text-slate-300">
-                      {minPrice.toFixed(2)} ₼ {hasVariants ? '▾' : ''}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+          {(posLayout.left_widget_order || ['menuHeader', 'search', 'categories', 'productGrid']).map((widget) => renderLeftWidget(widget))}
         </section>
 
         <aside className={`flex h-full min-h-0 flex-col overflow-y-auto rounded-xl border border-slate-700/70 bg-[#101722]/80 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)] md:p-4 ${mobilePane !== 'cart' ? 'hidden xl:flex' : ''}`}>

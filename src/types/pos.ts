@@ -205,6 +205,8 @@ export interface Settings {
     accent_color: string;
     hidden_widgets: string[];
     widget_order: string[];
+    left_hidden_widgets?: string[];
+    left_widget_order?: string[];
     device_layouts?: {
       desktop?: Partial<{
         preset: 'classic' | 'fast' | 'touch' | 'tables';
@@ -214,6 +216,8 @@ export interface Settings {
         accent_color: string;
         hidden_widgets: string[];
         widget_order: string[];
+        left_hidden_widgets: string[];
+        left_widget_order: string[];
       }>;
       tablet?: Partial<{
         preset: 'classic' | 'fast' | 'touch' | 'tables';
@@ -223,6 +227,8 @@ export interface Settings {
         accent_color: string;
         hidden_widgets: string[];
         widget_order: string[];
+        left_hidden_widgets: string[];
+        left_widget_order: string[];
       }>;
     };
   };
