@@ -3,11 +3,13 @@ import { useAppStore } from '../store';
 import { get_sales_summary_live, get_sales_list_live, update_sale_amount_live, void_sale_with_reason_live, partial_refund_sale_live } from '../api/analytics';
 import { get_menu_items_live, create_menu_item_live, soft_delete_menu_item_live } from '../api/menu';
 import { get_logs_live } from '../api/logs';
+import { apiRequest, isBackendEnabled } from '../api/client';
 import { Decimal } from 'decimal.js';
 import { Plus, Trash2, TrendingUp, ShoppingBag, DollarSign } from 'lucide-react';
 import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
 import { getDB } from '../lib/db_sim';
+import { verifyLocalCredential } from '../lib/local_auth';
 
 const FinancePanel = lazy(() => import('./admin/FinancePanel'));
 const InventoryPanel = lazy(() => import('./admin/InventoryPanel'));
@@ -178,10 +180,27 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     notify('success', tx(lang, 'Qeyd yeniləndi', 'Заметка обновлена', 'Note updated'));
   };
 
-  const verifyManagerOrAdminPass = (pass: string) => {
+  const verifyManagerOrAdminPass = async (pass: string) => {
+    const normalized = String(pass || '').trim();
+    if (!normalized) return false;
+
+    if (isBackendEnabled()) {
+      const result = await apiRequest<{ success: boolean }>('/api/v1/auth/verify-password', {
+        method: 'POST',
+        tenantId: null,
+        body: { password: normalized },
+      });
+      return Boolean(result?.success);
+    }
+
     const users = getDB<any>('users');
-    const allowed = users.find((u: any) => ['admin', 'manager'].includes(String(u.role || '').toLowerCase()));
-    return Boolean(allowed && String(allowed.password || '') === pass);
+    const currentUser = users.find((u: any) =>
+      u.tenant_id === tenant_id &&
+      String(u.username || '').toLowerCase() === String(user?.username || '').toLowerCase() &&
+      ['admin', 'manager', 'super_admin'].includes(String(u.role || '').toLowerCase()),
+    );
+    if (!currentUser) return false;
+    return verifyLocalCredential(normalized, currentUser.password_hash || currentUser.password);
   };
 
   return (
@@ -409,7 +428,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                         className="glossy-gold rounded-lg px-4 py-2 font-semibold"
                         onClick={async () => {
                           if (!managerPass) return;
-                          if (!verifyManagerOrAdminPass(managerPass)) {
+                          if (!(await verifyManagerOrAdminPass(managerPass))) {
                             notify('error', tx(lang, 'Şifrə yanlışdır', 'Неверный пароль'));
                             return;
                           }

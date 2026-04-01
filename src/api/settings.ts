@@ -734,6 +734,9 @@ export async function update_business_profile_live(tenant_id: string, payload: {
   if (!isBackendEnabled()) return update_business_profile(tenant_id, payload, updated_by);
   await apiRequest('/api/v1/ops/business-profile', { method: 'PUT', tenantId: null, body: payload });
   update_business_profile(tenant_id, payload, updated_by);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('business-profile-updated', { detail: { tenant_id, company_name: payload.company_name } }));
+  }
   return true;
 }
 

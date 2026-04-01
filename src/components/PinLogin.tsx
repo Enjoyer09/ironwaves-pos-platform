@@ -52,6 +52,11 @@ export default function PinLogin() {
   }, [tenantId]);
 
   React.useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.title = String(branding?.company_name || 'iRonWaves POS RC').trim() || 'iRonWaves POS RC';
+  }, [branding?.company_name]);
+
+  React.useEffect(() => {
     if (!isPlatformHost) return;
     let mounted = true;
     authApi.platform_owner_bootstrap_status()

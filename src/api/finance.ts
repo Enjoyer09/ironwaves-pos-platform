@@ -587,6 +587,9 @@ export const create_finance_entry_async = async (
   });
 
   logEvent(created_by, 'FINANCE_ENTRY_CREATED', { tenant_id, type, category, amount, source, via: 'backend' });
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('finance-updated', { detail: { tenant_id, type, category, amount, source } }));
+  }
   return data;
 };
 
@@ -624,6 +627,9 @@ export const transfer_funds_async = async (
     commission: data?.commission || commission,
     via: 'backend',
   });
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('finance-updated', { detail: { tenant_id, direction, amount, commission: data?.commission || commission } }));
+  }
 
   return {
     success: true,

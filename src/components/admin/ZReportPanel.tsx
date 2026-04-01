@@ -168,7 +168,7 @@ export default function ZReportPanel() {
     return () => {
       mounted = false;
     };
-  }, [tenant_id, summary.total_revenue]);
+  }, [tenant_id, summary.total_revenue, reportRefreshKey, user?.username]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -194,12 +194,15 @@ export default function ZReportPanel() {
 
   React.useEffect(() => {
     const onFocusRefresh = () => setReportRefreshKey((prev) => prev + 1);
+    const onFinanceRefresh = () => setReportRefreshKey((prev) => prev + 1);
     window.addEventListener('focus', onFocusRefresh);
+    window.addEventListener('finance-updated', onFinanceRefresh as EventListener);
     const timer = window.setInterval(() => {
       setReportRefreshKey((prev) => prev + 1);
     }, 15000);
     return () => {
       window.removeEventListener('focus', onFocusRefresh);
+      window.removeEventListener('finance-updated', onFinanceRefresh as EventListener);
       window.clearInterval(timer);
     };
   }, []);

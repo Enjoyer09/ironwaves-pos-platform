@@ -207,6 +207,33 @@ html {
   }
 }
 
+@media (max-height: 800px) {
+  html {
+    font-size: 84%;
+  }
+
+  .neon-input {
+    min-height: 2.75rem;
+    padding-top: 0.55rem;
+    padding-bottom: 0.55rem;
+  }
+
+  .neon-btn,
+  .glossy-gold,
+  .pay-btn,
+  .neon-tab,
+  .neon-chip,
+  .neon-btn-active {
+    min-height: 2.8rem;
+    padding-top: 0.55rem;
+    padding-bottom: 0.55rem;
+  }
+
+  .metal-panel {
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.34), inset 0 1px 1px rgba(255, 255, 255, 0.06);
+  }
+}
+
 @keyframes toastIn {
   from {
     opacity: 0;
