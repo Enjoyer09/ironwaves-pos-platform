@@ -84,6 +84,8 @@ function getSettings(tenant_id?: string): Settings {
         widget_order: ['customer', 'discount', 'orderType', 'table', 'cartItems', 'cartSummary', 'payments'],
         left_hidden_widgets: [],
         left_widget_order: ['menuHeader', 'search', 'categories', 'productGrid'],
+        widget_sizes: {},
+        left_widget_sizes: {},
         device_layouts: {
           desktop: {},
           tablet: {
@@ -92,6 +94,8 @@ function getSettings(tenant_id?: string): Settings {
             product_columns: 2,
             left_hidden_widgets: [],
             left_widget_order: ['search', 'categories', 'productGrid'],
+            widget_sizes: {},
+            left_widget_sizes: {},
           },
         },
       },
@@ -277,6 +281,14 @@ export function get_settings(tenant_id?: string) {
     s.pos_layout.left_widget_order = ['menuHeader', 'search', 'categories', 'productGrid'];
     saveSettings(s);
   }
+  if (!s.pos_layout.widget_sizes) {
+    s.pos_layout.widget_sizes = {};
+    saveSettings(s);
+  }
+  if (!s.pos_layout.left_widget_sizes) {
+    s.pos_layout.left_widget_sizes = {};
+    saveSettings(s);
+  }
   if (!s.qr_settings) {
     s.qr_settings = { base_url: '' };
     saveSettings(s);
@@ -324,6 +336,8 @@ export function get_settings(tenant_id?: string) {
       widget_order: ['customer', 'discount', 'orderType', 'table', 'cartItems', 'cartSummary', 'payments'],
       left_hidden_widgets: [],
       left_widget_order: ['menuHeader', 'search', 'categories', 'productGrid'],
+      widget_sizes: {},
+      left_widget_sizes: {},
     };
     saveSettings(s);
   }
@@ -545,6 +559,18 @@ export function update_pos_layout_settings(payload: NonNullable<Settings['pos_la
     widget_order: Array.from(new Set(((source?.widget_order) || []).map((v: any) => String(v || '').trim()).filter(Boolean))),
     left_hidden_widgets: Array.from(new Set(((source?.left_hidden_widgets) || []).map((v: any) => String(v || '').trim()).filter(Boolean))),
     left_widget_order: Array.from(new Set((((source?.left_widget_order) || ['menuHeader', 'search', 'categories', 'productGrid']) as any[]).map((v: any) => String(v || '').trim()).filter(Boolean))),
+    widget_sizes: Object.fromEntries(
+      Object.entries(source?.widget_sizes || {}).map(([key, value]) => [
+        String(key),
+        value === 'compact' || value === 'expanded' ? value : 'comfortable',
+      ]),
+    ) as Record<string, 'compact' | 'comfortable' | 'expanded'>,
+    left_widget_sizes: Object.fromEntries(
+      Object.entries(source?.left_widget_sizes || {}).map(([key, value]) => [
+        String(key),
+        value === 'compact' || value === 'expanded' ? value : 'comfortable',
+      ]),
+    ) as Record<string, 'compact' | 'comfortable' | 'expanded'>,
   });
   const settings = getSettings();
   settings.pos_layout = {

@@ -180,12 +180,20 @@ export default function POS() {
     accent_color: '#facc15',
     hidden_widgets: [],
     widget_order: ['customer', 'discount', 'orderType', 'table', 'cartItems', 'cartSummary', 'payments'],
+    left_hidden_widgets: [],
+    left_widget_order: ['menuHeader', 'search', 'categories', 'productGrid'],
+    widget_sizes: {},
+    left_widget_sizes: {},
     device_layouts: {
       desktop: {},
       tablet: {
         preset: 'touch',
         density: 'large',
         product_columns: 2,
+        left_hidden_widgets: [],
+        left_widget_order: ['search', 'categories', 'productGrid'],
+        widget_sizes: {},
+        left_widget_sizes: {},
       },
     },
   };
@@ -779,12 +787,20 @@ export default function POS() {
 
   const isWidgetVisible = (widget: string) => !posLayout.hidden_widgets?.includes(widget);
   const isLeftWidgetVisible = (widget: string) => !posLayout.left_hidden_widgets?.includes(widget);
+  const getWidgetSize = (widget: string) => posLayout.widget_sizes?.[widget] || 'comfortable';
+  const getLeftWidgetSize = (widget: string) => posLayout.left_widget_sizes?.[widget] || 'comfortable';
   const productGridClass =
     posLayout.product_columns === 2
       ? 'md:grid-cols-2 2xl:grid-cols-2'
       : posLayout.product_columns === 4
         ? 'md:grid-cols-2 2xl:grid-cols-4'
         : 'md:grid-cols-2 2xl:grid-cols-3';
+  const productItemClass =
+    getLeftWidgetSize('productGrid') === 'compact'
+      ? 'min-h-12 p-2'
+      : getLeftWidgetSize('productGrid') === 'expanded'
+        ? 'min-h-20 p-4'
+        : 'min-h-14 p-3';
   const densityClass =
     posLayout.density === 'compact'
       ? 'text-[13px]'
@@ -804,13 +820,14 @@ export default function POS() {
   const renderSidebarWidget = (widget: string) => {
     if (!isWidgetVisible(widget)) return null;
     if (widget === 'customer') {
+      const size = getWidgetSize(widget);
       return (
         <React.Fragment key={widget}>
-          <div className="relative">
+          <div className={`relative ${size === 'expanded' ? 'mb-1' : ''}`}>
             <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
               placeholder={tx(lang, 'Skan et...', 'Сканируйте...', 'Scan...')}
-              className="neon-input pl-9"
+              className={`neon-input pl-9 ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}
               value={ctx.customerQR}
               onChange={(e) => patchCtx({ customerQR: e.target.value })}
               onKeyDown={(e) => e.key === 'Enter' && handleFindCustomer()}
@@ -829,11 +846,12 @@ export default function POS() {
       );
     }
     if (widget === 'discount') {
+      const size = getWidgetSize(widget);
       return (
         <React.Fragment key={widget}>
           <input
             placeholder={tx(lang, 'Reward kodu (opsional)', 'Код награды (необязательно)', 'Reward code (optional)')}
-            className="neon-input"
+            className={`neon-input ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}
             value={ctx.rewardClaimCode || ''}
             onChange={(e) => patchCtx({ rewardClaimCode: e.target.value.toUpperCase() })}
           />
@@ -844,19 +862,20 @@ export default function POS() {
             max={100}
             value={ctx.discount}
             onChange={(e) => patchCtx({ discount: e.target.value })}
-            className="neon-input"
+            className={`neon-input ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}
           />
         </React.Fragment>
       );
     }
     if (widget === 'orderType' && orderTypeBlockVisible) {
+      const size = getWidgetSize(widget);
       return (
-        <div key={widget} className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div key={widget} className={`grid grid-cols-1 gap-2 sm:grid-cols-3 ${size === 'expanded' ? 'text-sm' : 'text-xs'}`}>
           {(['Take Away', 'Dine In', 'Order Online'] as OrderType[]).map((mode) => (
             <button
               key={mode}
               onClick={() => patchCtx({ orderType: mode })}
-              className={`rounded-md border px-2 py-3 text-xs font-semibold ${
+              className={`rounded-md border px-2 ${size === 'compact' ? 'py-2 text-[11px]' : size === 'expanded' ? 'py-4 text-sm' : 'py-3 text-xs'} font-semibold ${
                 ctx.orderType === mode
                   ? 'text-slate-900'
                   : 'border-slate-600 bg-slate-800/40 text-slate-200'
@@ -874,12 +893,13 @@ export default function POS() {
       );
     }
     if (widget === 'table' && tableBlockVisible) {
+      const size = getWidgetSize(widget);
       return (
         <React.Fragment key={widget}>
           {ctx.orderType === 'Dine In' && (
-            <div className="space-y-2">
+            <div className={`space-y-2 ${size === 'expanded' ? 'text-sm' : 'text-xs'}`}>
               <div className="relative">
-                <select value={ctx.selectedTable} onChange={(e) => patchCtx({ selectedTable: e.target.value })} className="neon-input appearance-none">
+                <select value={ctx.selectedTable} onChange={(e) => patchCtx({ selectedTable: e.target.value })} className={`neon-input appearance-none ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}>
                   <option value="">{tx(lang, 'Masa seçin', 'Выберите стол', 'Select table')}</option>
                   {tables.map((table) => (
                     <option key={table.id} value={table.id}>{table.label}</option>
@@ -916,11 +936,12 @@ export default function POS() {
       );
     }
     if (widget === 'cartItems') {
+      const size = getWidgetSize(widget);
       return (
         <div
           key={widget}
           className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-lg border border-slate-700/70 bg-[#0d141e] p-3"
-          style={{ resize: 'vertical', minHeight: posLayout.density === 'large' ? '280px' : '220px' }}
+          style={{ resize: 'vertical', minHeight: size === 'compact' ? '180px' : size === 'expanded' ? '340px' : posLayout.density === 'large' ? '280px' : '220px' }}
         >
           {cart.length === 0 && <div className="pt-8 text-center text-sm text-slate-500">{t.cart_empty}</div>}
           {cart.map((item) => (
@@ -940,8 +961,9 @@ export default function POS() {
       );
     }
     if (widget === 'cartSummary') {
+      const size = getWidgetSize(widget);
       return (
-        <div key={widget} className="space-y-2 border-t border-slate-700/60 bg-[#101722] pt-3 text-sm">
+        <div key={widget} className={`space-y-2 border-t border-slate-700/60 bg-[#101722] pt-3 ${size === 'compact' ? 'text-xs' : size === 'expanded' ? 'text-base' : 'text-sm'}`}>
           <div className="flex justify-between text-slate-300"><span>{tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span><span>{rawTotal.toFixed(2)} ₼</span></div>
           <div className="flex justify-between text-slate-300"><span>{tx(lang, 'Endirim', 'Скидка', 'Discount')}</span><span>- {discountAmount.toFixed(2)} ₼</span></div>
           {totals.free_coffees > 0 && <div className="flex justify-between text-emerald-300"><span>{tx(lang, 'Pulsuz kofe', 'Бесплатный кофе', 'Free coffee')}</span><span>{totals.free_coffees}</span></div>}
@@ -950,11 +972,12 @@ export default function POS() {
       );
     }
     if (widget === 'payments') {
+      const size = getWidgetSize(widget);
       return (
         <React.Fragment key={widget}>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className={`grid grid-cols-2 gap-2 sm:grid-cols-4 ${size === 'expanded' ? 'text-sm' : 'text-xs'}`}>
             {(['Nəğd', 'Kart', 'Split', 'Staff'] as PaymentMethod[]).map((method) => (
-              <button key={method} disabled={isLoading} onClick={() => setSelectedPayment(method)} className={`pay-btn h-12 ${selectedPayment === method ? 'pay-btn-active' : ''}`}>{method === 'Nəğd' ? tx(lang, 'Nəğd', 'Наличные', 'Cash') : method === 'Kart' ? tx(lang, 'Kart', 'Карта', 'Card') : method === 'Split' ? tx(lang, 'Bölünmüş', 'Разделено', 'Split') : tx(lang, 'Staff', 'Персонал', 'Staff')}</button>
+              <button key={method} disabled={isLoading} onClick={() => setSelectedPayment(method)} className={`pay-btn ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'} ${selectedPayment === method ? 'pay-btn-active' : ''}`}>{method === 'Nəğd' ? tx(lang, 'Nəğd', 'Наличные', 'Cash') : method === 'Kart' ? tx(lang, 'Kart', 'Карта', 'Card') : method === 'Split' ? tx(lang, 'Bölünmüş', 'Разделено', 'Split') : tx(lang, 'Staff', 'Персонал', 'Staff')}</button>
             ))}
           </div>
           {selectedPayment === 'Split' && (
@@ -973,7 +996,7 @@ export default function POS() {
           <button
             disabled={isLoading || (cart.length === 0 && !(ctx.orderType === 'Dine In' && selectedTableData?.is_occupied)) || (ctx.orderType === 'Dine In' && !ctx.selectedTable)}
             onClick={() => handleCheckout(selectedPayment)}
-            className="flex h-14 items-center justify-center gap-2 rounded-lg border px-4 text-base font-bold text-white shadow-[0_0_22px_rgba(239,68,68,0.35)] disabled:opacity-50"
+            className={`flex ${size === 'compact' ? 'h-12 text-sm' : size === 'expanded' ? 'h-16 text-lg' : 'h-14 text-base'} items-center justify-center gap-2 rounded-lg border px-4 font-bold text-white shadow-[0_0_22px_rgba(239,68,68,0.35)] disabled:opacity-50`}
             style={{ backgroundColor: posLayout.accent_color, borderColor: posLayout.accent_color, color: '#111827' }}
           >
             <Check size={18} /> {tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}
@@ -987,28 +1010,31 @@ export default function POS() {
   const renderLeftWidget = (widget: string) => {
     if (!isLeftWidgetVisible(widget)) return null;
     if (widget === 'menuHeader') {
+      const size = getLeftWidgetSize(widget);
       return (
-        <div key={widget} className="mb-3 flex items-center gap-2 text-sm text-slate-300">
+        <div key={widget} className={`mb-3 flex items-center gap-2 ${size === 'compact' ? 'text-xs' : size === 'expanded' ? 'text-base' : 'text-sm'} text-slate-300`}>
           <span style={{ color: posLayout.accent_color }}>•</span> {tx(lang, 'POS Menyu', 'POS меню', 'POS Menu')}
         </div>
       );
     }
     if (widget === 'search') {
+      const size = getLeftWidgetSize(widget);
       return (
         <div key={widget} className="relative mb-3">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="neon-input pl-10"
+            className={`neon-input pl-10 ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}
             placeholder={t.search}
           />
         </div>
       );
     }
     if (widget === 'categories') {
+      const size = getLeftWidgetSize(widget);
       return (
-        <div key={widget} className="mb-3 flex flex-wrap gap-2 overflow-x-auto pb-1">
+        <div key={widget} className={`mb-3 flex flex-wrap overflow-x-auto pb-1 ${size === 'compact' ? 'gap-1' : size === 'expanded' ? 'gap-3' : 'gap-2'}`}>
           {categories.map((cat) => (
             <button
               key={cat}
@@ -1022,6 +1048,7 @@ export default function POS() {
       );
     }
     if (widget === 'productGrid') {
+      const size = getLeftWidgetSize(widget);
       return (
         <div key={widget} className={`grid flex-1 auto-rows-max grid-cols-1 gap-2 overflow-y-auto pr-1 ${productGridClass}`}>
           {groupedMenu.map((group) => {
@@ -1041,7 +1068,7 @@ export default function POS() {
                   }
                   addToCart(group.items[0]);
                 }}
-                className="neon-item min-h-14 p-3 text-left"
+                className={`neon-item ${size === 'compact' ? 'text-xs' : size === 'expanded' ? 'text-base' : 'text-sm'} ${productItemClass} text-left`}
               >
                 <div className="flex w-full items-center justify-between gap-2">
                   <span>{group.base}</span>

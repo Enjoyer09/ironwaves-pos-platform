@@ -352,6 +352,8 @@ def get_app_settings(
             "widget_order": ["customer", "discount", "orderType", "table", "cartItems", "cartSummary", "payments"],
             "left_hidden_widgets": [],
             "left_widget_order": ["menuHeader", "search", "categories", "productGrid"],
+            "widget_sizes": {},
+            "left_widget_sizes": {},
             "device_layouts": {
                 "desktop": {},
                 "tablet": {
@@ -360,6 +362,8 @@ def get_app_settings(
                     "product_columns": 2,
                     "left_hidden_widgets": [],
                     "left_widget_order": ["search", "categories", "productGrid"],
+                    "widget_sizes": {},
+                    "left_widget_sizes": {},
                 },
             },
         },
@@ -649,6 +653,16 @@ def update_pos_layout_settings(
             "widget_order": [str(v or "").strip() for v in (source.get("widget_order") or base.get("widget_order") or []) if str(v or "").strip()],
             "left_hidden_widgets": [str(v or "").strip() for v in (source.get("left_hidden_widgets") or base.get("left_hidden_widgets") or []) if str(v or "").strip()],
             "left_widget_order": [str(v or "").strip() for v in (source.get("left_widget_order") or base.get("left_widget_order") or ["menuHeader", "search", "categories", "productGrid"]) if str(v or "").strip()],
+            "widget_sizes": {
+                str(k): (str(v).strip().lower() if str(v).strip().lower() in {"compact", "comfortable", "expanded"} else "comfortable")
+                for k, v in dict(source.get("widget_sizes") or base.get("widget_sizes") or {}).items()
+                if str(k or "").strip()
+            },
+            "left_widget_sizes": {
+                str(k): (str(v).strip().lower() if str(v).strip().lower() in {"compact", "comfortable", "expanded"} else "comfortable")
+                for k, v in dict(source.get("left_widget_sizes") or base.get("left_widget_sizes") or {}).items()
+                if str(k or "").strip()
+            },
         }
 
     cleaned = _clean_layout(payload)
