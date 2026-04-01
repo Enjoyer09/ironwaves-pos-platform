@@ -114,14 +114,22 @@ def _notify_front_of_house(
     title: str,
     message: str,
     meta: dict | None = None,
+    preferred_username: str | None = None,
+    fallback_roles: set[str] | None = None,
 ):
-    usernames = [
-        row.username
-        for row in db.query(User)
-        .filter(User.tenant_id == tenant_id, User.is_active == True)
-        .all()
-        if str(row.role or "").lower() in {"staff", "manager", "admin", "super_admin"}
-    ]
+    allowed_roles = fallback_roles or {"staff", "manager", "admin", "super_admin"}
+    active_users = db.query(User).filter(User.tenant_id == tenant_id, User.is_active == True).all()
+    usernames: list[str] = []
+    if preferred_username:
+        preferred = next((row.username for row in active_users if row.username == preferred_username), None)
+        if preferred:
+            usernames = [preferred]
+    if not usernames:
+        usernames = [
+            row.username
+            for row in active_users
+            if str(row.role or "").lower() in allowed_roles
+        ]
     for username in usernames:
         db.add(
             StaffNotification(
@@ -1897,6 +1905,14 @@ def complete_kitchen_order(
     ready_items = [str(item).strip() for item in (payload.ready_items or []) if str(item).strip()]
     ready_items = ready_items[:12]
     ready_summary = ", ".join(ready_items) if ready_items else _summarize_items(_json_load(row.items_json, []))
+    table_owner = None
+    if row.table_label:
+        table_row = (
+            db.query(Table)
+            .filter(Table.tenant_id == tenant.id, Table.label == row.table_label)
+            .first()
+        )
+        table_owner = table_row.assigned_to if table_row else None
     _notify_front_of_house(
         db,
         tenant.id,
@@ -1909,6 +1925,8 @@ def complete_kitchen_order(
             "items": _summarize_items(_json_load(row.items_json, [])),
             "ready_items": ready_items,
         },
+        preferred_username=table_owner,
+        fallback_roles={"manager", "admin", "super_admin"},
     )
     db.commit()
     return {"success": True}
