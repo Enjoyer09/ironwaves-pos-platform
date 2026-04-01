@@ -11,6 +11,7 @@ import { get_tables, get_tables_live } from '../../api/tables';
 import { getPendingOfflineSalesCount } from '../../lib/offline';
 import { get_business_profile } from '../../api/settings';
 import { generate_finance_insight, generate_shift_summary, generate_stock_forecast, type AiInsightResult } from '../../api/ai_manager';
+import { hostScopedKey } from '../../lib/storage_keys';
 
 type DashboardSnapshot = {
   summary: any;
@@ -33,7 +34,7 @@ const emptyBalances = {
   safe_balance: '0',
 };
 
-export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'inventory' | 'finance' | 'analytics' | 'tables') => void }) {
+export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'inventory' | 'finance' | 'analytics' | 'tables' | 'crm' | 'ai') => void }) {
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [rangePreset, setRangePreset] = useState<RangePreset>('daily');
@@ -56,6 +57,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
     finance: AiInsightResult | null;
     stock: AiInsightResult | null;
   }>({ shift: null, finance: null, stock: null });
+  const [stockReminderDismissed, setStockReminderDismissed] = useState(false);
   const branding = useMemo(() => get_business_profile(tenant_id), [tenant_id]);
 
   useEffect(() => {
@@ -215,6 +217,27 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
       mounted = false;
     };
   }, [tenant_id, activeRange.fromIso, activeRange.toIso]);
+
+  useEffect(() => {
+    const dayKey = new Date().toISOString().slice(0, 10);
+    const dismissedKey = hostScopedKey(`ai_stock_banner_dismissed_${tenant_id}_${dayKey}`);
+    try {
+      setStockReminderDismissed(localStorage.getItem(dismissedKey) === '1');
+    } catch {
+      setStockReminderDismissed(false);
+    }
+  }, [tenant_id]);
+
+  const dismissStockReminder = () => {
+    const dayKey = new Date().toISOString().slice(0, 10);
+    const dismissedKey = hostScopedKey(`ai_stock_banner_dismissed_${tenant_id}_${dayKey}`);
+    try {
+      localStorage.setItem(dismissedKey, '1');
+    } catch {
+      // ignore
+    }
+    setStockReminderDismissed(true);
+  };
 
   useEffect(() => {
     const handleFinanceUpdated = async (event: Event) => {
@@ -523,20 +546,52 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
               summary={aiInsights.shift?.summary}
               action={aiInsights.shift?.actions?.[0]}
               tone={aiInsights.shift?.highlights?.find((item) => item.tone === 'warning') ? 'warning' : 'neutral'}
+              ctaLabel={tx(lang, 'AI modulunu aç', 'Открыть AI модуль', 'Open AI module')}
+              onClick={() => onOpenTab('ai')}
             />
             <AiInsightTile
               title={tx(lang, 'AI Finance', 'AI финансы', 'AI Finance')}
               summary={aiInsights.finance?.summary}
               action={aiInsights.finance?.actions?.[0]}
               tone={aiInsights.finance?.highlights?.find((item) => item.tone === 'warning') ? 'warning' : 'good'}
+              ctaLabel={tx(lang, 'Maliyyəyə keç', 'Открыть финансы', 'Open finance')}
+              onClick={() => onOpenTab('finance')}
             />
             <AiInsightTile
               title={tx(lang, 'AI Stock Alert', 'AI склад alert', 'AI Stock Alert')}
               summary={aiInsights.stock?.summary}
               action={aiInsights.stock?.actions?.[0]}
               tone={snapshot.lowStock.length > 0 ? 'warning' : 'good'}
+              ctaLabel={snapshot.lowStock.length > 0 ? tx(lang, 'Anbara keç', 'Открыть склад', 'Open inventory') : tx(lang, 'AI modulunu aç', 'Открыть AI модуль', 'Open AI module')}
+              onClick={() => onOpenTab(snapshot.lowStock.length > 0 ? 'inventory' : 'ai')}
             />
           </div>
+
+          {!stockReminderDismissed && snapshot.lowStock.length > 0 && aiInsights.stock?.actions?.[0] && (
+            <div className="rounded-[28px] border border-amber-300/50 bg-[linear-gradient(135deg,#fff7d6,#ffefb0)] p-5 text-amber-950 shadow-[0_16px_40px_rgba(245,158,11,0.2)]">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-[0.22em] text-amber-700">{tx(lang, 'AI Günlük Reminder', 'AI дневной reminder', 'AI Daily Reminder')}</div>
+                  <div className="mt-2 text-2xl font-black">{tx(lang, 'Kritik stok üçün bu gün tədbir görmək lazımdır', 'По критическому складу нужно действовать сегодня', 'Critical stock needs action today')}</div>
+                  <div className="mt-2 text-sm text-amber-900/80">{aiInsights.stock.actions[0]}</div>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => onOpenTab('inventory')}
+                    className="rounded-2xl bg-amber-950 px-4 py-3 text-sm font-semibold text-white"
+                  >
+                    {tx(lang, 'Anbara keç', 'Открыть склад', 'Open inventory')}
+                  </button>
+                  <button
+                    onClick={dismissStockReminder}
+                    className="rounded-2xl border border-amber-900/20 bg-white/50 px-4 py-3 text-sm font-semibold text-amber-950"
+                  >
+                    {tx(lang, 'Bu gün bağla', 'Скрыть на сегодня', 'Dismiss for today')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
             <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.93),rgba(246,248,252,0.88))] p-5 text-slate-900 shadow-[0_16px_45px_rgba(0,0,0,0.22)]">
@@ -793,11 +848,15 @@ function AiInsightTile({
   summary,
   action,
   tone = 'neutral',
+  onClick,
+  ctaLabel,
 }: {
   title: string;
   summary?: string | null;
   action?: string | null;
   tone?: 'neutral' | 'good' | 'warning';
+  onClick?: () => void;
+  ctaLabel?: string;
 }) {
   const palette =
     tone === 'warning'
@@ -815,6 +874,14 @@ function AiInsightTile({
         <div className="mt-4 rounded-xl border border-white/10 bg-black/10 px-4 py-3 text-sm font-semibold text-white/90">
           {action}
         </div>
+      ) : null}
+      {onClick ? (
+        <button
+          onClick={onClick}
+          className="mt-4 rounded-xl border border-white/15 bg-black/15 px-4 py-3 text-sm font-semibold text-white/95"
+        >
+          {ctaLabel || 'Open'}
+        </button>
       ) : null}
     </section>
   );

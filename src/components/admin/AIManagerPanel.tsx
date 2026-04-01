@@ -15,6 +15,7 @@ import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 import { readScopedStorage, writeScopedStorage } from '../../lib/storage_keys';
 import { Bot, Clipboard, Loader2, PackageSearch, ShieldAlert, Sparkles, TrendingUp, WalletCards } from 'lucide-react';
+import { send_email } from '../../api/email';
 
 type AiWorkspace = 'shift' | 'finance' | 'stock' | 'campaign' | 'security';
 
@@ -36,6 +37,7 @@ export default function AIManagerPanel() {
   const [campaignGoal, setCampaignGoal] = useState('');
   const [customReport, setCustomReport] = useState<string | null>(null);
   const [structuredResult, setStructuredResult] = useState<AiInsightResult | null>(null);
+  const [digestSending, setDigestSending] = useState(false);
 
   const pushCampaignToCrm = () => {
     if (!structuredResult || structuredResult.kind !== 'campaign') return;
@@ -142,6 +144,52 @@ export default function AIManagerPanel() {
     }
   };
 
+  const sendDailyDigest = async () => {
+    setDigestSending(true);
+    try {
+      const [shift, finance, stock] = await Promise.all([
+        generate_shift_summary({ tenant_id, ...range, focus }),
+        generate_finance_insight({ tenant_id, ...range, focus }),
+        generate_stock_forecast({ tenant_id, ...range, focus }),
+      ]);
+
+      const renderCard = (result: AiInsightResult) => `
+        <div style="border:1px solid #1e293b;border-radius:16px;padding:16px;margin-bottom:16px;background:#0f172a;color:#e2e8f0;">
+          <div style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#94a3b8;font-weight:700;">${result.title}</div>
+          <div style="margin-top:10px;font-size:15px;line-height:1.7;">${result.summary}</div>
+          <div style="margin-top:12px;padding:12px;border-radius:12px;background:#111827;color:#f8fafc;font-weight:600;">${result.actions[0] || ''}</div>
+          <div style="margin-top:12px;font-size:13px;line-height:1.7;color:#cbd5e1;white-space:pre-line;">${result.narrative}</div>
+        </div>
+      `;
+
+      const html = `
+        <div style="font-family:Inter,Segoe UI,Arial,sans-serif;background:#020617;padding:24px;color:#e2e8f0;">
+          <div style="max-width:760px;margin:0 auto;">
+            <div style="margin-bottom:18px;">
+              <div style="font-size:12px;letter-spacing:0.22em;text-transform:uppercase;color:#67e8f9;font-weight:800;">AI Daily Digest</div>
+              <h1 style="margin:10px 0 0;font-size:28px;line-height:1.2;color:#f8fafc;">${tx(lang, 'Günlük operativ AI xülasəsi', 'Ежедневная AI сводка', 'Daily AI operations digest')}</h1>
+              <p style="margin:10px 0 0;color:#94a3b8;font-size:14px;">${new Date().toLocaleString(lang === 'ru' ? 'ru-RU' : lang === 'en' ? 'en-GB' : 'az-AZ')}</p>
+            </div>
+            ${renderCard(shift)}
+            ${renderCard(finance)}
+            ${renderCard(stock)}
+          </div>
+        </div>
+      `;
+
+      const result = await send_email({
+        tenant_id,
+        subject: tx(lang, 'AI Günlük Xülasə', 'AI ежедневная сводка', 'AI Daily Digest'),
+        html,
+      });
+      notify(result.success ? 'success' : 'error', result.message);
+    } catch (error: any) {
+      notify('error', error?.message || tx(lang, 'AI daily digest göndərilmədi', 'AI daily digest не отправлен', 'AI daily digest failed'));
+    } finally {
+      setDigestSending(false);
+    }
+  };
+
   const workspaceCards: Array<{
     key: AiWorkspace;
     title: string;
@@ -206,6 +254,13 @@ export default function AIManagerPanel() {
         <div className="flex gap-3">
           <button onClick={copyResult} className="rounded-xl border border-slate-700 bg-slate-900/50 px-4 py-2 text-sm font-semibold text-slate-200 hover:border-cyan-300/50">
             <span className="inline-flex items-center gap-2"><Clipboard size={16} /> {tx(lang, 'Kopyala', 'Копировать', 'Copy')}</span>
+          </button>
+          <button
+            onClick={() => { void sendDailyDigest(); }}
+            disabled={digestSending}
+            className="rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-60"
+          >
+            {digestSending ? tx(lang, 'Digest göndərilir...', 'Digest отправляется...', 'Sending digest...') : tx(lang, 'Daily Digest göndər', 'Отправить daily digest', 'Send daily digest')}
           </button>
           {structuredResult?.kind === 'campaign' && (
             <button onClick={pushCampaignToCrm} className="rounded-xl border border-fuchsia-400/40 bg-fuchsia-500/10 px-4 py-2 text-sm font-semibold text-fuchsia-100 hover:bg-fuchsia-500/20">
@@ -375,9 +430,9 @@ export default function AIManagerPanel() {
             <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Növbəti AI addımları', 'Следующие AI шаги', 'Next AI steps')}</h3>
             <div className="mt-4 space-y-3 text-sm text-slate-300">
               {[
-                tx(lang, 'AI nəticələrini Dashboard kartlarına da çıxaraq.', 'Выведем AI результаты прямо в карточки Dashboard.', 'Surface AI results directly on Dashboard cards.'),
-                tx(lang, 'CRM kampaniyasını bir kliklə CRM panelinə ötürək.', 'Передадим CRM кампанию в CRM панель в один клик.', 'Send the CRM campaign into the CRM panel in one click.'),
-                tx(lang, 'Stock forecast üçün həftəlik avtomatik xəbərdarlıq quraq.', 'Добавим еженедельное авто-предупреждение по stock forecast.', 'Add a weekly auto-alert for stock forecast.'),
+                tx(lang, 'AI daily digest artıq email kimi göndərilə bilir.', 'AI daily digest теперь можно отправить по email.', 'AI daily digest can now be sent by email.'),
+                tx(lang, 'CRM kampaniyası AI-dən bir kliklə CRM formuna ötürülür.', 'CRM кампания уже передается в CRM форму в один клик.', 'CRM campaign now flows into the CRM form in one click.'),
+                tx(lang, 'Kritik stok üçün dashboard reminder artıq gündəlik görünür.', 'Dashboard reminder по критическому складу теперь ежедневный.', 'Critical stock dashboard reminder is now daily.'),
               ].map((item) => (
                 <div key={item} className="rounded-xl border border-slate-700/70 bg-slate-900/45 px-4 py-3">{item}</div>
               ))}
