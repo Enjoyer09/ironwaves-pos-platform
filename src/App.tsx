@@ -91,6 +91,20 @@ export default function App() {
     void get_settings_live(user.tenant_id).catch(() => {});
   }, [hasValidUser, user?.tenant_id]);
 
+  const hostMode = useMemo(() => {
+    if (typeof window === 'undefined') return 'app';
+    const host = window.location.host.toLowerCase();
+    if (host === 'www.ironwaves.store' || host === 'ironwaves.store') return 'landing';
+    return 'app';
+  }, []);
+
+  const currentHost = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return String(window.location.host || '').trim().toLowerCase().split(':')[0];
+  }, []);
+
+  const mappedTenantFromHost = useMemo(() => getResolvedTenantIdFromHost(currentHost), [currentHost]);
+
   const [sessionChecking, setSessionChecking] = useState(false);
 
   useEffect(() => {
@@ -154,18 +168,6 @@ export default function App() {
     };
   }, []);
 
-  const hostMode = useMemo(() => {
-    if (typeof window === 'undefined') return 'app';
-    const host = window.location.host.toLowerCase();
-    if (host === 'www.ironwaves.store' || host === 'ironwaves.store') return 'landing';
-    return 'app';
-  }, []);
-
-  const currentHost = useMemo(() => {
-    if (typeof window === 'undefined') return '';
-    return String(window.location.host || '').trim().toLowerCase().split(':')[0];
-  }, []);
-
   const defaultUiVisibility = { staff_show_tables: true, manager_show_tables: true, staff_show_kitchen: true };
   const defaultInventorySettings = { default_critical_threshold: 5, unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'] };
   const defaultRoleModules = {
@@ -197,7 +199,6 @@ export default function App() {
 
   const profile = appConfig.profile;
   const settings = appConfig.settings;
-  const mappedTenantFromHost = useMemo(() => getResolvedTenantIdFromHost(currentHost), [currentHost]);
   const profileWebsiteHost = useMemo(() => {
     const raw = String(profile?.website || '').trim().toLowerCase();
     if (!raw) return '';
