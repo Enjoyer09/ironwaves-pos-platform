@@ -135,6 +135,16 @@ export default function PosBuilderPanel() {
     },
     [layout, activeDevice],
   );
+  const visibleLeftWidgets = useMemo(
+    () => {
+      const profile = {
+        ...layout,
+        ...(layout.device_layouts?.[activeDevice] || {}),
+      };
+      return profile.left_widget_order.filter((key) => !profile.left_hidden_widgets.includes(key));
+    },
+    [layout, activeDevice],
+  );
 
   const activeProfile = useMemo(
     () => ({
@@ -334,6 +344,13 @@ export default function PosBuilderPanel() {
     return lang === 'ru' ? row.ru : lang === 'en' ? row.en : row.az;
   };
 
+  const previewBlockClass = (size: 'compact' | 'comfortable' | 'expanded' | undefined) =>
+    size === 'compact'
+      ? 'min-h-[34px] px-2 py-1.5 text-[10px]'
+      : size === 'expanded'
+        ? 'min-h-[68px] px-3 py-3 text-xs'
+        : 'min-h-[48px] px-3 py-2 text-[11px]';
+
   return (
     <div className="space-y-6 text-slate-100">
       <div className="metal-panel p-5">
@@ -503,23 +520,82 @@ export default function PosBuilderPanel() {
             </div>
             <div className="mt-4 rounded-[28px] border border-slate-700/70 bg-[linear-gradient(180deg,#182231,#0c131d)] p-4">
               <div className="mb-3 flex items-center justify-between text-xs text-slate-400">
-                <span>{tx(lang, 'Mini preview', 'Мини-превью', 'Mini preview')}</span>
-                <span>{activeProfile.preset}</span>
+                <span>{tx(lang, 'Canlı preview', 'Живой превью', 'Live preview')}</span>
+                <span>{activeDevice} / {activeProfile.preset}</span>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-2xl p-3 text-xs font-semibold text-slate-900" style={{ backgroundColor: activeProfile.accent_color }}>
-                  {tx(lang, 'Məhsul grid', 'Сетка товаров', 'Product grid')} x{activeProfile.product_columns}
-                </div>
-                <div className="rounded-2xl border border-slate-600/70 bg-slate-900/35 p-3 text-xs text-slate-200">
-                  {tx(lang, 'Sıxlıq', 'Плотность', 'Density')}: {activeProfile.density}
-                </div>
-              </div>
-              <div className="mt-3 space-y-2">
-                {visibleWidgets.slice(0, 4).map((key) => (
-                  <div key={`preview_${key}`} className="rounded-2xl border border-slate-700/60 bg-slate-900/35 px-3 py-2 text-xs text-slate-200">
-                    {widgetLabel(key)}
+              <div className="overflow-hidden rounded-[26px] border border-slate-700/60 bg-[radial-gradient(circle_at_top,#243244,#0d141e_65%)] p-3">
+                {activeProfile.show_cart_tabs && (
+                  <div className="mb-3 grid grid-cols-3 gap-2">
+                    {[1, 2, 3].map((tab) => (
+                      <div
+                        key={`tab_${tab}`}
+                        className={`rounded-xl px-2 py-2 text-center text-[10px] font-semibold ${tab === 1 ? 'text-slate-900' : 'border border-slate-700/60 bg-slate-900/35 text-slate-300'}`}
+                        style={tab === 1 ? { backgroundColor: activeProfile.accent_color } : undefined}
+                      >
+                        {tx(lang, 'Səbət', 'Корзина', 'Cart')} {tab}
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
+
+                <div className="grid grid-cols-[1.1fr_0.9fr] gap-3">
+                  <div className="rounded-2xl border border-slate-700/60 bg-slate-950/35 p-3">
+                    <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-slate-500">{tx(lang, 'Sol panel', 'Левая панель', 'Left panel')}</div>
+                    <div className="space-y-2">
+                      {visibleLeftWidgets.map((key) => (
+                        <div
+                          key={`live_left_${key}`}
+                          className={`rounded-2xl border border-slate-700/60 bg-slate-900/35 text-slate-200 ${previewBlockClass(activeProfile.left_widget_sizes?.[key])}`}
+                        >
+                          {leftWidgetLabel(key)}
+                          {key === 'productGrid' && (
+                            <div className="mt-2 grid grid-cols-2 gap-1.5">
+                              {Array.from({ length: Math.min(activeProfile.product_columns + 2, 6) }).map((_, index) => (
+                                <div
+                                  key={`product_tile_${index}`}
+                                  className="rounded-xl text-slate-900"
+                                  style={{ backgroundColor: activeProfile.accent_color, padding: '8px 6px' }}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-700/60 bg-slate-950/35 p-3">
+                    <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-slate-500">{tx(lang, 'Sağ panel', 'Правая панель', 'Right panel')}</div>
+                    <div className="space-y-2">
+                      {visibleWidgets.map((key) => (
+                        <div
+                          key={`live_right_${key}`}
+                          className={`rounded-2xl border border-slate-700/60 bg-slate-900/35 text-slate-200 ${previewBlockClass(activeProfile.widget_sizes?.[key])}`}
+                        >
+                          {widgetLabel(key)}
+                        </div>
+                      ))}
+                      <div
+                        className="rounded-2xl text-center font-semibold text-slate-900"
+                        style={{ backgroundColor: activeProfile.accent_color, padding: activeProfile.widget_sizes?.payments === 'expanded' ? '14px 10px' : activeProfile.widget_sizes?.payments === 'compact' ? '8px 8px' : '10px 8px' }}
+                      >
+                        {tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <div className="rounded-2xl border border-slate-700/60 bg-slate-950/35 px-3 py-2 text-[10px] text-slate-300">
+                    {tx(lang, 'Məhsul sütunu', 'Колонки', 'Columns')}: {activeProfile.product_columns}
+                  </div>
+                  <div className="rounded-2xl border border-slate-700/60 bg-slate-950/35 px-3 py-2 text-[10px] text-slate-300">
+                    {tx(lang, 'Sıxlıq', 'Плотность', 'Density')}: {activeProfile.density}
+                  </div>
+                  <div className="rounded-2xl border border-slate-700/60 bg-slate-950/35 px-3 py-2 text-[10px] text-slate-300">
+                    {tx(lang, 'Görünən blok', 'Видимых блоков', 'Visible blocks')}: {visibleWidgets.length + visibleLeftWidgets.length}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
