@@ -91,9 +91,15 @@ export default function App() {
     void get_settings_live(user.tenant_id).catch(() => {});
   }, [hasValidUser, user?.tenant_id]);
 
+  const [sessionChecking, setSessionChecking] = useState(false);
+
   useEffect(() => {
     if (!hasValidUser) return;
     let cancelled = false;
+    const shouldBlockForTenantMismatch =
+      Boolean(mappedTenantFromHost) &&
+      String(mappedTenantFromHost || '') !== String(user?.tenant_id || '');
+    if (shouldBlockForTenantMismatch) setSessionChecking(true);
     const syncSession = async () => {
       try {
         const me = await authApi.me();
@@ -111,13 +117,15 @@ export default function App() {
         if (!cancelled) {
           logout();
         }
+      } finally {
+        if (!cancelled) setSessionChecking(false);
       }
     };
     void syncSession();
     return () => {
       cancelled = true;
     };
-  }, [hasValidUser, user?.role, user?.tenant_id, user?.username, applySessionUser, logout]);
+  }, [hasValidUser, user?.role, user?.tenant_id, user?.username, applySessionUser, logout, mappedTenantFromHost]);
 
   const [currentModule, setCurrentModule] = useState<ModuleKey>('pos');
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -533,6 +541,14 @@ export default function App() {
 
   if (!hasValidUser) {
     return <PinLogin />;
+  }
+
+  if (sessionChecking) {
+    return (
+      <div className="metal-app flex min-h-screen items-center justify-center text-slate-300">
+        <div className="metal-panel rounded-xl px-6 py-4 text-sm">{tx(safeLang, 'Tenant yoxlanır...', 'Проверка тенанта...', 'Checking tenant...')}</div>
+      </div>
+    );
   }
 
   const safeUser = user as NonNullable<typeof user>;

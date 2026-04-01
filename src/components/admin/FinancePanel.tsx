@@ -5,6 +5,8 @@ import {
   create_finance_entry_async,
   fetch_finance_balances,
   fetch_finance_entries,
+  get_balance,
+  get_finance_entries,
   repay_investor_async,
   transfer_funds_async,
 } from '../../api/finance';
@@ -286,6 +288,8 @@ export default function FinancePanel() {
     const handleFinanceUpdated = (event: Event) => {
       const detail = (event as CustomEvent<{ tenant_id?: string }>).detail;
       if (!detail?.tenant_id || detail.tenant_id === tenant_id) {
+        setBalance(get_balance(tenant_id, 'all', false) as any);
+        setEntries(get_finance_entries(tenant_id));
         void reloadFinance();
       }
     };
