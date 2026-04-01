@@ -210,6 +210,7 @@ export default function App() {
   }, [profile?.website]);
 
   const uiVisibility = settings?.ui_visibility || defaultUiVisibility;
+  const idleLogoutMinutes = Math.max(0, Number(settings?.session_settings?.idle_logout_minutes || 0));
   const roleModules = settings?.role_modules || null;
   const safeRoleModules = {
     staff: Array.isArray(roleModules?.staff) ? roleModules!.staff : defaultRoleModules.staff,
@@ -295,6 +296,31 @@ export default function App() {
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [user?.tenant_id]);
+
+  useEffect(() => {
+    if (!hasValidUser) return;
+    if (!idleLogoutMinutes) return;
+
+    let timeoutId: number | null = null;
+    const timeoutMs = idleLogoutMinutes * 60 * 1000;
+
+    const resetTimer = () => {
+      if (timeoutId) window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => {
+        notify('info', tx(safeLang, 'İnaktivlik səbəbilə sistemdən çıxış edildi', 'Вы вышли из системы из-за неактивности', 'You were signed out due to inactivity'));
+        logout();
+      }, timeoutMs);
+    };
+
+    const events: Array<keyof WindowEventMap> = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'];
+    events.forEach((eventName) => window.addEventListener(eventName, resetTimer, { passive: true }));
+    resetTimer();
+
+    return () => {
+      if (timeoutId) window.clearTimeout(timeoutId);
+      events.forEach((eventName) => window.removeEventListener(eventName, resetTimer as EventListener));
+    };
+  }, [hasValidUser, idleLogoutMinutes, logout, notify, safeLang]);
 
   useEffect(() => {
     if (!hasValidUser || !user?.tenant_id || !user?.username) return;

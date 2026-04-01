@@ -303,6 +303,7 @@ def get_app_settings(
         },
     )
     print_settings = _setting_value(db, tenant.id, "print_settings", {"use_qz": False, "printer_name": ""})
+    session_settings = _setting_value(db, tenant.id, "session_settings", {"idle_logout_minutes": 0})
     qr_settings = _setting_value(db, tenant.id, "qr_settings", {"base_url": f"https://{tenant.domain}"})
     customer_app_settings = _setting_value(
         db,
@@ -410,6 +411,7 @@ def get_app_settings(
         "service_fee_percent": 0,
         "ui_visibility": {"staff_show_tables": True, "manager_show_tables": True, "staff_show_kitchen": True},
         "time_settings": {"shift_start_time": "08:00", "shift_end_time": "23:00", "utc_offset": 4, "timezone": "Asia/Baku"},
+        "session_settings": session_settings,
         "email_settings": email_settings,
         "bank_commission": _setting_value(db, tenant.id, "bank_commission", {"min_amount": 0.10, "percent": 1.5, "card_sale_percent": 2, "card_transfer_percent": 0.5}),
         "inventory_settings": inventory_settings,
@@ -778,6 +780,22 @@ def update_email_settings(
         "timeout_sec": max(5, int(payload.timeout_sec or 15)),
     }
     _set_setting_value(db, tenant.id, "email_settings", cleaned)
+    db.commit()
+    return {"success": True}
+
+
+@router.patch("/settings/session")
+def update_session_settings(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    cleaned = {
+        "idle_logout_minutes": max(0, int(payload.get("idle_logout_minutes") or 0)),
+    }
+    _set_setting_value(db, tenant.id, "session_settings", cleaned)
     db.commit()
     return {"success": True}
 

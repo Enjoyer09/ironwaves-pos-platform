@@ -52,6 +52,7 @@ function getSettings(tenant_id?: string): Settings {
       service_fee_percent: 0,
       ui_visibility: { staff_show_tables: true, manager_show_tables: true, staff_show_kitchen: true },
       time_settings: { shift_start_time: '08:00', shift_end_time: '23:00', utc_offset: 4, timezone: 'Asia/Baku' },
+      session_settings: { idle_logout_minutes: 0 },
       email_settings: {
         enabled: false,
         provider: 'none',
@@ -176,6 +177,16 @@ export function update_time_settings(payload: { shift_start_time: string; shift_
   settings.time_settings = payload;
   saveSettings(settings);
   logEvent('admin', 'TIME_SETTINGS_UPDATE', {});
+  return { success: true };
+}
+
+export function update_session_settings(payload: { idle_logout_minutes: number }) {
+  const settings = getSettings();
+  settings.session_settings = {
+    idle_logout_minutes: Math.max(0, Number(payload.idle_logout_minutes || 0)),
+  };
+  saveSettings(settings);
+  logEvent('admin', 'SESSION_SETTINGS_UPDATE', settings.session_settings);
   return { success: true };
 }
 
@@ -417,6 +428,12 @@ export function get_settings(tenant_id?: string) {
       contact_email: 'hello@ironwaves.store',
       contact_phone: '',
       contact_whatsapp: '',
+    };
+    saveSettings(s);
+  }
+  if (!s.session_settings) {
+    s.session_settings = {
+      idle_logout_minutes: 0,
     };
     saveSettings(s);
   }
@@ -746,6 +763,13 @@ export async function update_email_settings_live(payload: {
   if (!isBackendEnabled()) return update_email_settings(payload);
   await apiRequest('/api/v1/ops/settings/email-settings', { method: 'PATCH', tenantId: null, body: payload });
   update_email_settings(payload);
+  return { success: true };
+}
+
+export async function update_session_settings_live(payload: { idle_logout_minutes: number }) {
+  if (!isBackendEnabled()) return update_session_settings(payload);
+  await apiRequest('/api/v1/ops/settings/session', { method: 'PATCH', tenantId: null, body: payload });
+  update_session_settings(payload);
   return { success: true };
 }
 

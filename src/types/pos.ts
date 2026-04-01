@@ -157,6 +157,9 @@ export interface Settings {
     utc_offset: number;
     timezone: string;
   };
+  session_settings?: {
+    idle_logout_minutes: number;
+  };
   email_settings: {
     enabled?: boolean;
     provider?: 'none' | 'resend' | 'webhook';

@@ -14,6 +14,7 @@ import {
   setup_totp_live,
   update_bank_commission_live,
   update_email_settings_live,
+  update_session_settings_live,
   update_business_profile_live,
   update_print_settings,
   update_qr_settings_live,
@@ -52,6 +53,9 @@ export default function SettingsPanel() {
     recipient_emails: '',
     webhook_url: '',
     timeout_sec: '15',
+  });
+  const [sessionSettings, setSessionSettings] = useState({
+    idle_logout_minutes: '0',
   });
   const [printSettings, setPrintSettings] = useState({
     use_qz: false,
@@ -136,6 +140,9 @@ export default function SettingsPanel() {
         webhook_url: String(settingsRes.value.email_settings?.webhook_url || ''),
         timeout_sec: String(settingsRes.value.email_settings?.timeout_sec || 15),
       });
+      setSessionSettings({
+        idle_logout_minutes: String(settingsRes.value.session_settings?.idle_logout_minutes ?? 0),
+      });
       setPrintSettings({
         use_qz: Boolean(settingsRes.value.print_settings?.use_qz),
         printer_name: String(settingsRes.value.print_settings?.printer_name || ''),
@@ -179,6 +186,17 @@ export default function SettingsPanel() {
     }, user?.username || 'admin');
     await update_qr_settings_live({ base_url: String(profile.qr_base_url || '').trim() });
     flashSuccess(tx(lang, 'Biznes məlumatları yadda saxlanıldı', 'Данные бизнеса сохранены', 'Business profile saved'));
+  };
+
+  const saveSessionSettings = async () => {
+    try {
+      await update_session_settings_live({
+        idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
+      });
+      flashSuccess(tx(lang, 'Sessiya ayarları yadda saxlanıldı', 'Настройки сессии сохранены', 'Session settings saved'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Sessiya ayarları saxlanmadı', 'Настройки сессии не сохранены', 'Session settings were not saved'));
+    }
   };
 
   const handleCreateUser = async () => {
@@ -614,6 +632,34 @@ export default function SettingsPanel() {
         </div>
         <div className="flex justify-end">
           <button onClick={() => { void saveBankCommission(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+        </div>
+      </div>
+
+      <div className="metal-panel p-6 space-y-4">
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Sessiya Təhlükəsizliyi', 'Безопасность сессии', 'Session Security')}</h2>
+        <p className="text-sm text-slate-400">
+          {tx(
+            lang,
+            'İstifadəçi müəyyən müddət heç bir hərəkət etməsə sistem avtomatik çıxış etsin. 0 yazsanız bu funksiya söndürüləcək.',
+            'Если пользователь ничего не делает заданное время, система автоматически выйдет. 0 отключает функцию.',
+            'Automatically sign out after inactivity. Use 0 to disable this feature.',
+          )}
+        </p>
+        <div className="flex flex-col gap-3 md:flex-row md:items-end">
+          <label className="text-sm text-slate-300">
+            {tx(lang, 'Idle logout (dəqiqə)', 'Idle logout (минуты)', 'Idle logout (minutes)')}
+            <input
+              className="neon-input mt-1 w-52"
+              type="number"
+              min={0}
+              max={480}
+              value={sessionSettings.idle_logout_minutes}
+              onChange={(e) => setSessionSettings((prev) => ({ ...prev, idle_logout_minutes: e.target.value }))}
+            />
+          </label>
+          <button onClick={() => { void saveSessionSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">
+            {tx(lang, 'Sessiya Ayarlarını Saxla', 'Сохранить настройки сессии', 'Save Session Settings')}
+          </button>
         </div>
       </div>
 
