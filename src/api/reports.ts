@@ -52,6 +52,13 @@ type ShiftHandoverRow = {
   accepted_at?: string;
 };
 
+type HandoverUserRow = {
+  id: string;
+  tenant_id: string;
+  username: string;
+  role: string;
+};
+
 const pushStaffNotification = (
   tenant_id: string,
   username: string,
@@ -136,6 +143,20 @@ export const get_pending_handover_for_user = (tenant_id: string, username: strin
 export const get_pending_handover_for_user_live = async (tenant_id: string, username: string) => {
   const rows = await get_shift_handover_history_live(tenant_id, username);
   return rows.find((r) => r.received_by === username && r.status === 'PENDING') || null;
+};
+
+export const get_shift_handover_users = (tenant_id: string) => {
+  return getDB<any>('users')
+    .filter((u) => u.tenant_id === tenant_id && ['admin', 'manager', 'staff'].includes(String(u.role || '').toLowerCase()))
+    .sort((a, b) => String(a.username || '').localeCompare(String(b.username || '')));
+};
+
+export const get_shift_handover_users_live = async (tenant_id: string) => {
+  if (!isBackendEnabled()) return get_shift_handover_users(tenant_id);
+  return apiRequest<HandoverUserRow[]>('/api/v1/reports/handover-users', {
+    method: 'GET',
+    tenantId: tenant_id,
+  });
 };
 
 const getBusinessProfile = (tenant_id: string) => {
