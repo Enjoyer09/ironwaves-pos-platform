@@ -207,6 +207,10 @@ class TableRevisionIn(BaseModel):
     override_password: str
 
 
+class KitchenCompleteIn(BaseModel):
+    ready_items: list[str] | None = None
+
+
 class HappyHourCreateIn(BaseModel):
     name: str
     start_time: str
@@ -1368,6 +1372,7 @@ def list_tables(
             "tenant_id": row.tenant_id,
             "label": row.label,
             "is_occupied": bool(row.is_occupied),
+            "assigned_to": row.assigned_to,
             "total": str(row.total),
             "items": _json_load(row.items_json, []),
             "kitchen_status": status_by_table.get(row.label),
@@ -1390,11 +1395,11 @@ def create_table(
     exists = db.query(Table).filter(Table.tenant_id == tenant.id, func.lower(Table.label) == label.lower()).first()
     if exists:
         raise HTTPException(status_code=409, detail="Table already exists")
-    row = Table(tenant_id=tenant.id, label=label, is_occupied=False, total=Decimal("0.00"), items_json="[]")
+    row = Table(tenant_id=tenant.id, label=label, is_occupied=False, assigned_to=None, total=Decimal("0.00"), items_json="[]")
     db.add(row)
     db.commit()
     db.refresh(row)
-    return {"id": row.id, "tenant_id": row.tenant_id, "label": row.label, "is_occupied": False, "total": "0", "items": []}
+    return {"id": row.id, "tenant_id": row.tenant_id, "label": row.label, "is_occupied": False, "assigned_to": None, "total": "0", "items": []}
 
 
 @router.delete("/tables/{table_id}")
@@ -1428,6 +1433,9 @@ def send_to_kitchen(
         raise HTTPException(status_code=404, detail="Table not found")
     if not payload.cart_items:
         raise HTTPException(status_code=400, detail="Cart is empty")
+    current_role = str(user.role or "").lower()
+    if row.is_occupied and row.assigned_to and row.assigned_to != user.username and current_role not in {"admin", "manager", "super_admin"}:
+        raise HTTPException(status_code=403, detail=f"Bu masa {row.assigned_to} üçün aktivdir")
 
     active_orders = (
         db.query(KitchenOrder)
@@ -1457,6 +1465,8 @@ def send_to_kitchen(
         total += Decimal(str(incoming.get("price") or 0)) * int(incoming.get("qty") or 0)
 
     row.is_occupied = True
+    if not row.assigned_to:
+        row.assigned_to = user.username
     row.items_json = json.dumps(merged, ensure_ascii=False)
     row.total = total.quantize(Decimal("0.01"))
     order = KitchenOrder(
@@ -1564,6 +1574,7 @@ def revise_table_items(
     row.items_json = json.dumps(next_items, ensure_ascii=False)
     row.total = next_total.quantize(Decimal("0.01"))
     row.is_occupied = len(next_items) > 0
+    row.assigned_to = row.assigned_to if next_items else None
 
     active_order = (
         db.query(KitchenOrder)
@@ -1703,6 +1714,7 @@ def pay_table(
         kitchen_row.completed_at = done_time
 
     row.is_occupied = False
+    row.assigned_to = None
     row.items_json = "[]"
     row.total = Decimal("0.00")
     db.commit()
@@ -1734,10 +1746,12 @@ def transfer_table(
     target.items_json = json.dumps(source_items, ensure_ascii=False)
     target.total = Decimal(str(source.total or 0)).quantize(Decimal("0.01"))
     target.is_occupied = True
+    target.assigned_to = source.assigned_to or target.assigned_to
 
     source.items_json = "[]"
     source.total = Decimal("0.00")
     source.is_occupied = False
+    source.assigned_to = None
 
     kitchen_rows = (
         db.query(KitchenOrder)
@@ -1782,10 +1796,12 @@ def merge_tables(
     target.items_json = json.dumps(_merge_table_items(target_items, source_items), ensure_ascii=False)
     target.total = (Decimal(str(target.total or 0)) + Decimal(str(source.total or 0))).quantize(Decimal("0.01"))
     target.is_occupied = True
+    target.assigned_to = target.assigned_to or source.assigned_to
 
     source.items_json = "[]"
     source.total = Decimal("0.00")
     source.is_occupied = False
+    source.assigned_to = None
 
     kitchen_rows = (
         db.query(KitchenOrder)
@@ -1867,6 +1883,7 @@ def accept_kitchen_order(
 @router.post("/kitchen-orders/{order_id}/complete")
 def complete_kitchen_order(
     order_id: str,
+    payload: KitchenCompleteIn | None = None,
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
@@ -1878,16 +1895,20 @@ def complete_kitchen_order(
         raise HTTPException(status_code=400, detail="Kitchen order cannot be completed in current state")
     row.status = "READY"
     row.completed_at = datetime.utcnow()
+    ready_items = [str(item).strip() for item in (payload.ready_items or []) if str(item).strip()]
+    ready_items = ready_items[:12]
+    ready_summary = ", ".join(ready_items) if ready_items else _summarize_items(_json_load(row.items_json, []))
     _notify_front_of_house(
         db,
         tenant.id,
         "Sifariş Hazırdır",
-        f"{row.table_label or row.order_type or 'Sifariş'} hazırdır. Ofisant təqdim edə bilər.",
+        f"{row.table_label or row.order_type or 'Sifariş'} hazırdır: {ready_summary}",
         {
             "kitchen_order_id": row.id,
             "table_label": row.table_label or "",
             "status": "READY",
             "items": _summarize_items(_json_load(row.items_json, [])),
+            "ready_items": ready_items,
         },
     )
     db.commit()
@@ -1936,6 +1957,29 @@ def mark_staff_notifications_read(
         row.is_read = True
     db.commit()
     return {"success": True, "count": len(rows)}
+
+
+@router.post("/staff-notifications/{notification_id}/read")
+def mark_single_staff_notification_read(
+    notification_id: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    row = (
+        db.query(StaffNotification)
+        .filter(
+            StaffNotification.id == notification_id,
+            StaffNotification.tenant_id == tenant.id,
+            StaffNotification.username == user.username,
+        )
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    row.is_read = True
+    db.commit()
+    return {"success": True}
 
 
 @router.post("/shift-handover")

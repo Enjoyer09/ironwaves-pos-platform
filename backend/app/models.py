@@ -97,6 +97,7 @@ class Table(Base):
     tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
     label: Mapped[str] = mapped_column(String(120), nullable=False)
     is_occupied: Mapped[bool] = mapped_column(Boolean, default=False)
+    assigned_to: Mapped[str | None] = mapped_column(String(80), nullable=True)
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     items_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 

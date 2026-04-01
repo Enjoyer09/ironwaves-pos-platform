@@ -543,6 +543,11 @@ export default function TablesPage() {
             <span className={`text-xs px-3 py-1 rounded-full mt-3 font-semibold ${t.is_occupied ? 'bg-red-400/20 text-red-200 border border-red-300/50' : 'bg-green-400/20 text-green-200 border border-green-300/50'}`}>
                 {t.is_occupied ? tx(lang, 'Dolu', 'Занято', 'Occupied') : tx(lang, 'Boş', 'Свободно', 'Available')}
             </span>
+            {t.assigned_to && (
+              <span className="mt-2 rounded-full border border-cyan-300/40 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold text-cyan-100">
+                {tx(lang, 'Sahib', 'Ответственный', 'Owner')}: {t.assigned_to}
+              </span>
+            )}
             {kitchen && (
               <span className={`mt-2 rounded-full px-3 py-1 text-[11px] font-semibold ${kitchen.className}`}>
                 {kitchen.label}

@@ -417,6 +417,7 @@ export default function POS() {
     () => tables.find((t) => t.id === ctx.selectedTable),
     [tables, ctx.selectedTable],
   );
+  const currentRole = String(user?.role || '').toLowerCase();
 
   const occupiedTables = useMemo(
     () => tables.filter((t) => t.is_occupied),
@@ -927,8 +928,14 @@ export default function POS() {
                   <div className="mb-2 font-semibold text-slate-200">{tx(lang, 'Açıq masa hesabları', 'Открытые счета столов')}</div>
                   <div className="flex flex-wrap gap-2">
                     {occupiedTables.map((t) => (
-                      <button key={`open_${t.id}`} onClick={() => patchCtx({ selectedTable: t.id, orderType: 'Dine In' })} className={`rounded-md border px-2 py-1 ${ctx.selectedTable === t.id ? 'text-slate-900' : 'border-slate-600 bg-slate-800/40 text-slate-200'}`} style={ctx.selectedTable === t.id ? { borderColor: posLayout.accent_color, backgroundColor: posLayout.accent_color } : undefined}>
-                        {t.label} - {toDecimalSafe(t.total || 0).toFixed(2)} ₼
+                      <button
+                        key={`open_${t.id}`}
+                        disabled={Boolean(t.assigned_to && t.assigned_to !== user?.username && !['admin', 'manager', 'super_admin'].includes(currentRole))}
+                        onClick={() => patchCtx({ selectedTable: t.id, orderType: 'Dine In' })}
+                        className={`rounded-md border px-2 py-1 ${ctx.selectedTable === t.id ? 'text-slate-900' : 'border-slate-600 bg-slate-800/40 text-slate-200'} disabled:cursor-not-allowed disabled:opacity-45`}
+                        style={ctx.selectedTable === t.id ? { borderColor: posLayout.accent_color, backgroundColor: posLayout.accent_color } : undefined}
+                      >
+                        {t.label} - {toDecimalSafe(t.total || 0).toFixed(2)} ₼ {t.assigned_to ? `· ${t.assigned_to}` : ''}
                       </button>
                     ))}
                   </div>
