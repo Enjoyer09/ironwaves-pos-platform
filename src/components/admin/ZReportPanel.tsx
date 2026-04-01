@@ -281,8 +281,7 @@ export default function ZReportPanel() {
     try {
       const res = await x_report(xActualCash, user?.username || 'staff', tenant_id);
       const cash = await refresh_expected_cash(tenant_id).catch(() => expectedCashNow);
-      setExpectedCashState(cash);
-      setCurrentBalances(await fetch_finance_balances(tenant_id));
+      await refreshOperationalState(true).catch(() => undefined);
       setReportRefreshKey((prev) => prev + 1);
       notify('success', tx(lang, `X-Hesabat tamamlandı. Fərq: ${res.difference} ₼`, `X-отчет завершен. Разница: ${res.difference} ₼`, `X report completed. Difference: ${res.difference} ₼`));
     } catch (e: any) {
@@ -359,13 +358,8 @@ export default function ZReportPanel() {
 
       // Open shift only after successful top-up flow.
       await open_shift(user?.username || 'staff', tenant_id);
-      const [status, cash] = await Promise.all([
-        refresh_shift_status(tenant_id),
-        refresh_expected_cash(tenant_id),
-      ]);
-      setShiftStatusState(status);
-      setExpectedCashState(cash);
-      setCurrentBalances(await fetch_finance_balances(tenant_id));
+      const cash = await refresh_expected_cash(tenant_id).catch(() => expectedCashNow);
+      await refreshOperationalState(true).catch(() => undefined);
       const nextCash = cash.toFixed(2);
       setXActualCash(nextCash);
       setZActualCash(nextCash);
@@ -384,13 +378,7 @@ export default function ZReportPanel() {
     try {
       const result = await z_report(zActualCash, zWage || '0', user?.username || 'admin', tenant_id);
       setZReceiptHtml(buildZReceiptHtml(result));
-      const [status, cash] = await Promise.all([
-        refresh_shift_status(tenant_id),
-        refresh_expected_cash(tenant_id),
-      ]);
-      setShiftStatusState(status);
-      setExpectedCashState(cash);
-      setCurrentBalances(await fetch_finance_balances(tenant_id));
+      await refreshOperationalState(true).catch(() => undefined);
       setXActualCash('0');
       setZActualCash('0');
       setHandoverActualCash('0');
@@ -417,8 +405,7 @@ export default function ZReportPanel() {
     }
     try {
       await handover_shift_live(tenant_id, user?.username || 'staff', handoverTo, handoverActualCash);
-      setHandovers(await get_shift_handover_history_live(tenant_id, user?.username || undefined));
-      setPendingReceived(await get_pending_handover_for_user_live(tenant_id, user?.username || ''));
+      await refreshOperationalState(true).catch(() => undefined);
       notify('success', tx(lang, `Smena ${handoverTo} istifadəçisinə təhvil verildi`, `Смена передана пользователю ${handoverTo}`));
       notify('info', tx(lang, 'Qəbul edən əməkdaş smenanı təsdiqləməlidir.', 'Принимающий сотрудник должен подтвердить смену.'));
     } catch (e: any) {
@@ -439,8 +426,7 @@ export default function ZReportPanel() {
         user?.username || 'staff',
         handoverActualCash,
       );
-      setHandovers(await get_shift_handover_history_live(tenant_id, user?.username || undefined));
-      setPendingReceived(await get_pending_handover_for_user_live(tenant_id, user?.username || ''));
+      await refreshOperationalState(true).catch(() => undefined);
       notify('success', tx(lang, 'Smena qəbul edildi', 'Смена принята'));
       notify('info', tx(lang, `Fərq: ${res.difference} ₼`, `Разница: ${res.difference} ₼`));
     } catch (e: any) {
