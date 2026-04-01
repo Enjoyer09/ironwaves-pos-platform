@@ -820,6 +820,10 @@ export default function POS() {
           : 'bg-[radial-gradient(circle_at_top,#2a3342,#141b24_55%)]';
   const orderTypeBlockVisible = isWidgetVisible('orderType');
   const tableBlockVisible = isWidgetVisible('table');
+  const sidebarWidgetOrder = posLayout.widget_order || [];
+  const pinnedCheckoutWidgets = ['cartSummary', 'payments'];
+  const floatingSidebarWidgets = sidebarWidgetOrder.filter((widget) => !pinnedCheckoutWidgets.includes(widget));
+  const footerSidebarWidgets = sidebarWidgetOrder.filter((widget) => pinnedCheckoutWidgets.includes(widget));
   const renderSidebarWidget = (widget: string) => {
     if (!isWidgetVisible(widget)) return null;
     if (widget === 'customer') {
@@ -1210,21 +1214,26 @@ export default function POS() {
             <button className="rounded-lg border border-slate-600 p-2"><ClipboardList size={16} /></button>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-3">
-            {(posLayout.widget_order || []).map((widget) => renderSidebarWidget(widget))}
-            {ctx.customer && (
-              <div className="rounded-md border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-xs text-slate-400">
-                <div className="flex justify-between">
-                  <span>{tx(lang, 'Ulduz balansı (satışdan sonra)', 'Баланс звезд (после продажи)', 'Stars after sale')}</span>
-                  <span>{totals.customer_stars_after}</span>
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+              {floatingSidebarWidgets.map((widget) => renderSidebarWidget(widget))}
+              {ctx.customer && (
+                <div className="rounded-md border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-xs text-slate-400">
+                  <div className="flex justify-between">
+                    <span>{tx(lang, 'Ulduz balansı (satışdan sonra)', 'Баланс звезд (после продажи)', 'Stars after sale')}</span>
+                    <span>{totals.customer_stars_after}</span>
+                  </div>
                 </div>
-              </div>
-            )}
-            {cart.length === 0 && selectedTableData?.is_occupied && (
-              <div className="rounded-md border border-amber-400/40 bg-amber-400/10 p-2 text-xs text-amber-200">
-                {tx(lang, 'Masa sifarişi mətbəxə göndərilib. Bu məbləğ masanın açıq hesabıdır.', 'Заказ стола отправлен на кухню. Эта сумма — открытый счет стола.', 'The table order has been sent to the kitchen. This amount is the open table balance.')}
-              </div>
-            )}
+              )}
+              {cart.length === 0 && selectedTableData?.is_occupied && (
+                <div className="rounded-md border border-amber-400/40 bg-amber-400/10 p-2 text-xs text-amber-200">
+                  {tx(lang, 'Masa sifarişi mətbəxə göndərilib. Bu məbləğ masanın açıq hesabıdır.', 'Заказ стола отправлен на кухню. Эта сумма — открытый счет стола.', 'The table order has been sent to the kitchen. This amount is the open table balance.')}
+                </div>
+              )}
+            </div>
+            <div className="mt-3 space-y-3 border-t border-slate-700/60 pt-3">
+              {footerSidebarWidgets.map((widget) => renderSidebarWidget(widget))}
+            </div>
           </div>
         </aside>
       </div>
