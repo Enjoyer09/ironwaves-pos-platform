@@ -91,10 +91,6 @@ export const delete_table = (table_id: string, deleted_by: string) => {
   const table = tables.find(t => t.id === table_id);
   
   if (!table) throw new Error('Masa tapılmadı');
-  const actorRole = String(getDB<any>('users').find((u: any) => u.tenant_id === table.tenant_id && u.username === sent_by)?.role || '').toLowerCase();
-  if (table.is_occupied && table.assigned_to && table.assigned_to !== sent_by && !['admin', 'manager', 'super_admin'].includes(actorRole)) {
-    throw new Error(`Bu masa ${table.assigned_to} üçün aktivdir`);
-  }
   if (table.is_occupied) throw new Error('İstifadədə olan masa silinə bilməz');
 
   tables = tables.filter(t => t.id !== table_id);
@@ -115,6 +111,9 @@ export const send_to_kitchen = (
   const table = tables.find(t => t.id === table_id);
   
   if (!table) throw new Error('Masa tapılmadı');
+  if (table.is_occupied && table.assigned_to && table.assigned_to !== sent_by) {
+    throw new Error(`Bu masa ${table.assigned_to} üçün aktivdir`);
+  }
 
   // Masa məlumatlarını yeniləyək
   table.is_occupied = true;
