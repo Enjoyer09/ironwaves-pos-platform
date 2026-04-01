@@ -6,6 +6,7 @@ import { tx } from '../../i18n';
 import type { Settings } from '../../types/pos';
 
 type PosLayoutSettings = NonNullable<Settings['pos_layout']>;
+type LayoutDevice = 'desktop' | 'tablet';
 
 const DEFAULT_LAYOUT: PosLayoutSettings = {
   preset: 'classic',
@@ -15,6 +16,14 @@ const DEFAULT_LAYOUT: PosLayoutSettings = {
   accent_color: '#facc15',
   hidden_widgets: [],
   widget_order: ['customer', 'discount', 'orderType', 'table', 'cartItems', 'cartSummary', 'payments'],
+  device_layouts: {
+    desktop: {},
+    tablet: {
+      preset: 'touch',
+      density: 'large',
+      product_columns: 2,
+    },
+  },
 };
 
 const WIDGETS = [
@@ -80,6 +89,7 @@ export default function PosBuilderPanel() {
   const [isSaving, setIsSaving] = useState(false);
   const [draggingWidget, setDraggingWidget] = useState<string | null>(null);
   const [dropTargetWidget, setDropTargetWidget] = useState<string | null>(null);
+  const [activeDevice, setActiveDevice] = useState<LayoutDevice>('desktop');
 
   useEffect(() => {
     void (async () => {
@@ -93,55 +103,108 @@ export default function PosBuilderPanel() {
   }, [tenantId]);
 
   const visibleWidgets = useMemo(
-    () => layout.widget_order.filter((key) => !layout.hidden_widgets.includes(key)),
-    [layout.widget_order, layout.hidden_widgets],
+    () => {
+      const profile = {
+        ...layout,
+        ...(layout.device_layouts?.[activeDevice] || {}),
+      };
+      return profile.widget_order.filter((key) => !profile.hidden_widgets.includes(key));
+    },
+    [layout, activeDevice],
   );
 
-  const setPreset = (preset: PosLayoutSettings['preset']) => {
+  const activeProfile = useMemo(
+    () => ({
+      ...layout,
+      ...(layout.device_layouts?.[activeDevice] || {}),
+    }),
+    [layout, activeDevice],
+  );
+
+  const updateActiveProfile = (patch: Partial<PosLayoutSettings>) => {
     setLayout((prev) => ({
       ...prev,
-      preset,
-      ...PRESET_PATCHES[preset],
-      hidden_widgets: [...(PRESET_PATCHES[preset].hidden_widgets || prev.hidden_widgets || [])],
+      device_layouts: {
+        ...(prev.device_layouts || {}),
+        [activeDevice]: {
+          ...(prev.device_layouts?.[activeDevice] || {}),
+          ...patch,
+        },
+      },
     }));
   };
 
+  const setPreset = (preset: PosLayoutSettings['preset']) => {
+    updateActiveProfile({
+      preset,
+      ...PRESET_PATCHES[preset],
+      hidden_widgets: [...(PRESET_PATCHES[preset].hidden_widgets || activeProfile.hidden_widgets || [])],
+    });
+  };
+
   const toggleHidden = (widgetKey: string) => {
-    setLayout((prev) => ({
-      ...prev,
-      hidden_widgets: prev.hidden_widgets.includes(widgetKey)
-        ? prev.hidden_widgets.filter((key) => key !== widgetKey)
-        : [...prev.hidden_widgets, widgetKey],
-    }));
+    updateActiveProfile({
+      hidden_widgets: activeProfile.hidden_widgets.includes(widgetKey)
+        ? activeProfile.hidden_widgets.filter((key) => key !== widgetKey)
+        : [...activeProfile.hidden_widgets, widgetKey],
+    });
   };
 
   const moveWidget = (widgetKey: string, direction: -1 | 1) => {
     setLayout((prev) => {
-      const next = [...prev.widget_order];
+      const currentProfile = { ...prev, ...(prev.device_layouts?.[activeDevice] || {}) };
+      const next = [...currentProfile.widget_order];
       const index = next.indexOf(widgetKey);
       if (index < 0) return prev;
       const target = index + direction;
       if (target < 0 || target >= next.length) return prev;
       [next[index], next[target]] = [next[target], next[index]];
-      return { ...prev, widget_order: next };
+      return {
+        ...prev,
+        device_layouts: {
+          ...(prev.device_layouts || {}),
+          [activeDevice]: {
+            ...(prev.device_layouts?.[activeDevice] || {}),
+            widget_order: next,
+          },
+        },
+      };
     });
   };
 
   const moveWidgetTo = (fromKey: string, toKey: string) => {
     if (!fromKey || !toKey || fromKey === toKey) return;
     setLayout((prev) => {
-      const current = [...prev.widget_order];
+      const currentProfile = { ...prev, ...(prev.device_layouts?.[activeDevice] || {}) };
+      const current = [...currentProfile.widget_order];
       const fromIndex = current.indexOf(fromKey);
       const toIndex = current.indexOf(toKey);
       if (fromIndex < 0 || toIndex < 0) return prev;
       const [moved] = current.splice(fromIndex, 1);
       current.splice(toIndex, 0, moved);
-      return { ...prev, widget_order: current };
+      return {
+        ...prev,
+        device_layouts: {
+          ...(prev.device_layouts || {}),
+          [activeDevice]: {
+            ...(prev.device_layouts?.[activeDevice] || {}),
+            widget_order: current,
+          },
+        },
+      };
     });
   };
 
   const resetLayout = () => {
-    setLayout(DEFAULT_LAYOUT);
+    setLayout((prev) => ({
+      ...prev,
+      device_layouts: {
+        ...(prev.device_layouts || {}),
+        [activeDevice]: activeDevice === 'tablet'
+          ? { preset: 'touch', density: 'large', product_columns: 2, show_cart_tabs: true, accent_color: '#facc15', hidden_widgets: [], widget_order: DEFAULT_LAYOUT.widget_order }
+          : { preset: 'classic', density: 'comfortable', product_columns: 3, show_cart_tabs: true, accent_color: '#facc15', hidden_widgets: [], widget_order: DEFAULT_LAYOUT.widget_order },
+      },
+    }));
     notify('info', tx(lang, 'POS builder default görünüşə qaytarıldı', 'POS builder сброшен к виду по умолчанию', 'POS builder reset to default'));
   };
 
@@ -173,19 +236,33 @@ export default function PosBuilderPanel() {
           </div>
           <div>
             <h2 className="text-2xl font-bold">{tx(lang, 'POS Builder', 'POS Builder', 'POS Builder')}</h2>
-            <p className="text-sm text-slate-400">{tx(lang, 'İlk mərhələ: preset, widget görünüşü və sıra idarəetməsi.', 'Первый этап: пресеты, видимость виджетов и порядок.', 'Phase one: presets, widget visibility, and ordering.')}</p>
+            <p className="text-sm text-slate-400">{tx(lang, 'Desktop və tablet üçün ayrıca POS görünüşü qurun.', 'Настройте отдельный POS-вид для desktop и tablet.', 'Configure separate POS layouts for desktop and tablet.')}</p>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="metal-panel p-5">
+          <div className="mb-4 flex flex-wrap gap-2">
+            {([
+              { key: 'desktop', label: tx(lang, 'Desktop', 'Desktop', 'Desktop') },
+              { key: 'tablet', label: tx(lang, 'Tablet', 'Tablet', 'Tablet') },
+            ] as const).map((device) => (
+              <button
+                key={device.key}
+                onClick={() => setActiveDevice(device.key)}
+                className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${activeDevice === device.key ? 'border-yellow-300/60 bg-yellow-400/10 text-yellow-200' : 'border-slate-700/60 bg-slate-900/25 text-slate-300'}`}
+              >
+                {device.label}
+              </button>
+            ))}
+          </div>
           <div className="mb-4 text-sm font-semibold text-slate-300">{tx(lang, 'Preset seçin', 'Выберите пресет', 'Choose a preset')}</div>
           <div className="grid gap-3 md:grid-cols-2">
             {PRESETS.map((preset) => {
               const title = lang === 'ru' ? preset.titleRu : lang === 'en' ? preset.titleEn : preset.titleAz;
               const note = lang === 'ru' ? preset.noteRu : lang === 'en' ? preset.noteEn : preset.noteAz;
-              const active = layout.preset === preset.key;
+              const active = activeProfile.preset === preset.key;
               return (
                 <button
                   key={preset.key}
@@ -202,7 +279,7 @@ export default function PosBuilderPanel() {
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <label className="space-y-2">
               <span className="text-sm text-slate-300">{tx(lang, 'Sıxlıq', 'Плотность', 'Density')}</span>
-              <select value={layout.density} onChange={(e) => setLayout((prev) => ({ ...prev, density: e.target.value as PosLayoutSettings['density'] }))} className="neon-input">
+              <select value={activeProfile.density} onChange={(e) => updateActiveProfile({ density: e.target.value as PosLayoutSettings['density'] })} className="neon-input">
                 <option value="compact">{tx(lang, 'Kompakt', 'Компактно', 'Compact')}</option>
                 <option value="comfortable">{tx(lang, 'Rahat', 'Комфортно', 'Comfortable')}</option>
                 <option value="large">{tx(lang, 'Böyük Touch', 'Большой touch', 'Large Touch')}</option>
@@ -210,7 +287,7 @@ export default function PosBuilderPanel() {
             </label>
             <label className="space-y-2">
               <span className="text-sm text-slate-300">{tx(lang, 'Məhsul sütunları', 'Колонки товаров', 'Product columns')}</span>
-              <select value={layout.product_columns} onChange={(e) => setLayout((prev) => ({ ...prev, product_columns: Number(e.target.value) as 2 | 3 | 4 }))} className="neon-input">
+              <select value={activeProfile.product_columns} onChange={(e) => updateActiveProfile({ product_columns: Number(e.target.value) as 2 | 3 | 4 })} className="neon-input">
                 <option value={2}>2</option>
                 <option value={3}>3</option>
                 <option value={4}>4</option>
@@ -218,10 +295,10 @@ export default function PosBuilderPanel() {
             </label>
             <label className="space-y-2">
               <span className="text-sm text-slate-300">{tx(lang, 'Accent rəngi', 'Accent цвет', 'Accent color')}</span>
-              <input type="color" value={layout.accent_color} onChange={(e) => setLayout((prev) => ({ ...prev, accent_color: e.target.value }))} className="h-12 w-full rounded-xl border border-slate-700/60 bg-slate-900/20" />
+              <input type="color" value={activeProfile.accent_color} onChange={(e) => updateActiveProfile({ accent_color: e.target.value })} className="h-12 w-full rounded-xl border border-slate-700/60 bg-slate-900/20" />
             </label>
             <label className="flex items-center gap-3 rounded-2xl border border-slate-700/60 bg-slate-900/25 px-4 py-4">
-              <input type="checkbox" checked={layout.show_cart_tabs} onChange={(e) => setLayout((prev) => ({ ...prev, show_cart_tabs: e.target.checked }))} />
+              <input type="checkbox" checked={activeProfile.show_cart_tabs} onChange={(e) => updateActiveProfile({ show_cart_tabs: e.target.checked })} />
               <span className="text-sm text-slate-200">{tx(lang, '3 səbət tab-ı görünsün', 'Показывать 3 вкладки корзины', 'Show 3 cart tabs')}</span>
             </label>
           </div>
@@ -238,8 +315,8 @@ export default function PosBuilderPanel() {
             {tx(lang, 'Widget-ləri sürüşdürüb buraxaraq sıralayın. İstəsəniz sağdakı düymələrlə də yerini dəyişə bilərsiniz.', 'Перетаскивайте виджеты, чтобы менять порядок. Кнопки справа тоже работают.', 'Drag and drop widgets to reorder them. You can also use the buttons on the right.')}
           </div>
           <div className="space-y-3">
-            {layout.widget_order.map((widgetKey, index) => {
-              const hidden = layout.hidden_widgets.includes(widgetKey);
+            {activeProfile.widget_order.map((widgetKey, index) => {
+              const hidden = activeProfile.hidden_widgets.includes(widgetKey);
               const isDropTarget = dropTargetWidget === widgetKey && draggingWidget !== widgetKey;
               return (
                 <div
@@ -287,7 +364,7 @@ export default function PosBuilderPanel() {
                   <button onClick={() => moveWidget(widgetKey, -1)} className="neon-btn rounded-lg px-2 py-2" disabled={index === 0}>
                     <ArrowUp size={14} />
                   </button>
-                  <button onClick={() => moveWidget(widgetKey, 1)} className="neon-btn rounded-lg px-2 py-2" disabled={index === layout.widget_order.length - 1}>
+                  <button onClick={() => moveWidget(widgetKey, 1)} className="neon-btn rounded-lg px-2 py-2" disabled={index === activeProfile.widget_order.length - 1}>
                     <ArrowDown size={14} />
                   </button>
                 </div>
@@ -310,14 +387,14 @@ export default function PosBuilderPanel() {
             <div className="mt-4 rounded-[28px] border border-slate-700/70 bg-[linear-gradient(180deg,#182231,#0c131d)] p-4">
               <div className="mb-3 flex items-center justify-between text-xs text-slate-400">
                 <span>{tx(lang, 'Mini preview', 'Мини-превью', 'Mini preview')}</span>
-                <span>{layout.preset}</span>
+                <span>{activeProfile.preset}</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-2xl p-3 text-xs font-semibold text-slate-900" style={{ backgroundColor: layout.accent_color }}>
-                  {tx(lang, 'Məhsul grid', 'Сетка товаров', 'Product grid')} x{layout.product_columns}
+                <div className="rounded-2xl p-3 text-xs font-semibold text-slate-900" style={{ backgroundColor: activeProfile.accent_color }}>
+                  {tx(lang, 'Məhsul grid', 'Сетка товаров', 'Product grid')} x{activeProfile.product_columns}
                 </div>
                 <div className="rounded-2xl border border-slate-600/70 bg-slate-900/35 p-3 text-xs text-slate-200">
-                  {tx(lang, 'Sıxlıq', 'Плотность', 'Density')}: {layout.density}
+                  {tx(lang, 'Sıxlıq', 'Плотность', 'Density')}: {activeProfile.density}
                 </div>
               </div>
               <div className="mt-3 space-y-2">

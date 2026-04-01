@@ -167,11 +167,12 @@ export default function POS() {
   const [mobilePane, setMobilePane] = useState<'menu' | 'cart'>('menu');
   const [showMobileCheckout, setShowMobileCheckout] = useState(false);
   const [layoutRefreshKey, setLayoutRefreshKey] = useState(0);
+  const [isTabletViewport, setIsTabletViewport] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 1536 : false));
   const receiptIframeRef = useRef<HTMLIFrameElement | null>(null);
   const businessProfile = get_business_profile(tenantId);
   const tenantSettings = useMemo(() => get_settings(tenantId), [tenantId, layoutRefreshKey]);
   const printSettings = tenantSettings.print_settings || { use_qz: false, printer_name: '' };
-  const posLayout = tenantSettings.pos_layout || {
+  const basePosLayout = tenantSettings.pos_layout || {
     preset: 'classic',
     density: 'comfortable',
     product_columns: 3,
@@ -179,7 +180,22 @@ export default function POS() {
     accent_color: '#facc15',
     hidden_widgets: [],
     widget_order: ['customer', 'discount', 'orderType', 'table', 'cartItems', 'cartSummary', 'payments'],
+    device_layouts: {
+      desktop: {},
+      tablet: {
+        preset: 'touch',
+        density: 'large',
+        product_columns: 2,
+      },
+    },
   };
+  const posLayout = useMemo(() => {
+    const devicePatch = isTabletViewport ? basePosLayout.device_layouts?.tablet : basePosLayout.device_layouts?.desktop;
+    return {
+      ...basePosLayout,
+      ...(devicePatch || {}),
+    };
+  }, [basePosLayout, isTabletViewport]);
 
   useEffect(() => {
     const onLayoutUpdate = (event: Event) => {
@@ -193,6 +209,13 @@ export default function POS() {
       window.removeEventListener('pos-layout-updated', onLayoutUpdate as EventListener);
     };
   }, [tenantId]);
+
+  useEffect(() => {
+    const onResize = () => setIsTabletViewport(window.innerWidth < 1536);
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   useEffect(() => {
     const raw = localStorage.getItem(`${tenantId}_pos_carts`);
