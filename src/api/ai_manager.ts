@@ -6,8 +6,22 @@ import { get_sales_summary, get_product_stats, get_sales_list, get_staff_perform
 import { get_balance, get_finance_entries, get_investor_summary } from './finance';
 import { get_inventory_items, get_low_stock_items } from './inventory';
 import { getActiveTenantId } from '../lib/tenant';
+import { readScopedStorage } from '../lib/storage_keys';
 
 const defaultTenant = () => getActiveTenantId();
+
+const resolveAiKey = (tenantId: string) => {
+  const settings = getSettingsLocal(tenantId);
+  return String(settings?.gemini_api_key || readScopedStorage('gemini_api_key') || '').trim();
+};
+
+const ensureAiKey = (tenantId: string) => {
+  const key = resolveAiKey(tenantId);
+  if (!key) {
+    throw new Error('AI funksiyası üçün əvvəlcə Gemini API key daxil edilməlidir.');
+  }
+  return key;
+};
 
 export type AiInsightBlock = {
   label: string;
@@ -43,6 +57,7 @@ const lines = (items: string[]) => items.filter(Boolean).map((item) => `• ${it
 
 export async function analyze_business(payload: { date_from: string; date_to: string; custom_question?: string; tenant_id?: string }) {
   const tenantId = payload.tenant_id || defaultTenant();
+  ensureAiKey(tenantId);
   const summary = get_sales_summary(tenantId, payload.date_from, payload.date_to);
   const staff = get_staff_performance(tenantId, payload.date_from, payload.date_to);
   const topProducts = get_product_stats(tenantId, payload.date_from, payload.date_to).slice(0, 3);
@@ -66,6 +81,7 @@ export async function analyze_business(payload: { date_from: string; date_to: st
 
 export async function security_audit(payload: { date_from: string; date_to: string; question?: string; tenant_id?: string }) {
   const tenantId = payload.tenant_id || defaultTenant();
+  ensureAiKey(tenantId);
   const sales = get_sales_list(tenantId, payload.date_from, payload.date_to);
   const voided = sales.filter((sale: any) => String(sale.status || '').toUpperCase() === 'VOIDED');
   const bigDiscounts = sales.filter((sale: any) => new Decimal(sale.discount_amount || 0).gt(10));
@@ -86,6 +102,7 @@ export async function security_audit(payload: { date_from: string; date_to: stri
 }
 
 export async function inventory_audit(tenant_id: string = defaultTenant()) {
+  ensureAiKey(tenant_id);
   const lowStock = get_low_stock_items(tenant_id, 5);
   const productStats = get_product_stats(
     tenant_id,
@@ -109,6 +126,7 @@ export async function inventory_audit(tenant_id: string = defaultTenant()) {
 
 export async function generate_shift_summary(payload: { tenant_id?: string; date_from: string; date_to: string; focus?: string }): Promise<AiInsightResult> {
   const tenantId = payload.tenant_id || defaultTenant();
+  ensureAiKey(tenantId);
   const summary = get_sales_summary(tenantId, payload.date_from, payload.date_to);
   const staff = get_staff_performance(tenantId, payload.date_from, payload.date_to);
   const topProducts = get_product_stats(tenantId, payload.date_from, payload.date_to).slice(0, 4);
@@ -151,6 +169,7 @@ export async function generate_shift_summary(payload: { tenant_id?: string; date
 
 export async function generate_finance_insight(payload: { tenant_id?: string; date_from: string; date_to: string; focus?: string }): Promise<AiInsightResult> {
   const tenantId = payload.tenant_id || defaultTenant();
+  ensureAiKey(tenantId);
   const summary = get_sales_summary(tenantId, payload.date_from, payload.date_to);
   const balances = get_balance(tenantId);
   const investor = get_investor_summary(tenantId);
@@ -193,6 +212,7 @@ export async function generate_finance_insight(payload: { tenant_id?: string; da
 
 export async function generate_stock_forecast(payload: { tenant_id?: string; date_from: string; date_to: string; focus?: string }): Promise<AiInsightResult> {
   const tenantId = payload.tenant_id || defaultTenant();
+  ensureAiKey(tenantId);
   const inventory = get_inventory_items(tenantId);
   const lowStock = get_low_stock_items(tenantId, 5);
   const topProducts = get_product_stats(tenantId, payload.date_from, payload.date_to).slice(0, 5);
@@ -237,6 +257,7 @@ export async function generate_stock_forecast(payload: { tenant_id?: string; dat
 
 export async function generate_campaign_writer(payload: { tenant_id?: string; goal: string; focus?: string }): Promise<AiInsightResult> {
   const tenantId = payload.tenant_id || defaultTenant();
+  ensureAiKey(tenantId);
   const customers = getCustomersLocal(tenantId);
   const settings = getSettingsLocal(tenantId);
   const rewardName = String(settings?.customer_app_settings?.reward_name || 'reward');
