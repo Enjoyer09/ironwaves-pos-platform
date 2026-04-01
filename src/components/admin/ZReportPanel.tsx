@@ -81,6 +81,8 @@ export default function ZReportPanel() {
   const shiftStatus = shiftStatusState;
   const latestReceived = handovers.find((h) => h.received_by === user?.username && String(h.status || '').toUpperCase() === 'ACCEPTED');
   const expectedCashNow = expectedCashState;
+  const activeShiftOwner = String(shiftStatus.opened_by || '');
+  const selectedReceiver = tenantUsers.find((u) => u.username === handoverTo);
   const visibleSales = useMemo(() => sales.slice(0, salesPageSize), [sales, salesPageSize]);
   const cashierBreakdown = useMemo(() => {
     const map = new Map<string, { salesCount: number; total: Decimal; cash: Decimal; card: Decimal }>();
@@ -592,6 +594,46 @@ export default function ZReportPanel() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="metal-panel p-4">
+          <div className="text-xs text-slate-400">{tx(lang, 'Növbə statusu', 'Статус смены', 'Shift status')}</div>
+          <div className="mt-2 flex items-center gap-2">
+            <ShiftStatusBadge status={shiftStatus.status} lang={lang} />
+            {activeShiftOwner ? (
+              <span className="text-sm text-slate-200">
+                {tx(lang, 'Aktiv növbə sahibi', 'Активная смена у', 'Active shift owner')}: <b>{activeShiftOwner}</b>
+              </span>
+            ) : (
+              <span className="text-sm text-slate-400">{tx(lang, 'Hazırda açıq növbə yoxdur', 'Сейчас нет открытой смены', 'No open shift right now')}</span>
+            )}
+          </div>
+        </div>
+        <div className="metal-panel p-4">
+          <div className="text-xs text-slate-400">{tx(lang, 'Təhvil gözləyən', 'Ожидает передачи', 'Pending handover')}</div>
+          <div className="mt-2 text-sm text-slate-200">
+            {pendingReceived ? (
+              <>
+                <b>{pendingReceived.handed_by}</b> {tx(lang, 'tərəfindən sizə göndərilib', 'передал вам', 'handed over to you')}
+              </>
+            ) : (
+              <span className="text-slate-400">{tx(lang, 'Gözləyən təhvil yoxdur', 'Нет ожидающей передачи', 'No pending handover')}</span>
+            )}
+          </div>
+        </div>
+        <div className="metal-panel p-4">
+          <div className="text-xs text-slate-400">{tx(lang, 'Son qəbul', 'Последнее принятие', 'Latest accepted')}</div>
+          <div className="mt-2 text-sm text-slate-200">
+            {latestReceived ? (
+              <>
+                <b>{latestReceived.handed_by}</b> → <b>{latestReceived.received_by}</b>
+              </>
+            ) : (
+              <span className="text-slate-400">{tx(lang, 'Qəbul edilmiş təhvil yoxdur', 'Нет принятой передачи', 'No accepted handover yet')}</span>
+            )}
+          </div>
+        </div>
+      </div>
+
       {pendingReceived && (
         <div className="metal-panel border border-yellow-400/40 bg-yellow-500/5 p-4">
           <h3 className="mb-2 text-lg font-semibold text-yellow-300">
@@ -600,7 +642,8 @@ export default function ZReportPanel() {
           <div className="grid grid-cols-1 gap-2 text-sm text-slate-200 md:grid-cols-4">
             <div>
               <span className="text-slate-400">{tx(lang, 'Təhvil verən', 'Передал', 'Handed Over By')}:</span>{' '}
-              <b>{pendingReceived.handed_by}</b>
+              <b>{pendingReceived.handed_by}</b>{' '}
+              <ShiftStatusBadge status={pendingReceived.status} lang={lang} compact />
             </div>
             <div>
               <span className="text-slate-400">{tx(lang, 'Bəyan edilən məbləğ', 'Переданная сумма', 'Declared Amount')}:</span>{' '}
@@ -685,7 +728,8 @@ export default function ZReportPanel() {
             </div>
             <div>
               <span className="text-slate-400">{tx(lang, 'Təhvil alan', 'Принял', 'Received By')}:</span>{' '}
-              <b>{latestReceived.received_by}</b>
+              <b>{latestReceived.received_by}</b>{' '}
+              <ShiftStatusBadge status={latestReceived.status} lang={lang} compact />
             </div>
             <div>
               <span className="text-slate-400">{tx(lang, 'Faktiki nağd', 'Фактическая наличность', 'Actual cash')}:</span>{' '}
@@ -722,6 +766,13 @@ export default function ZReportPanel() {
             {tx(lang, 'Təhvil Ver', 'Передать', 'Hand Over')}
           </button>
         </div>
+        {selectedReceiver && (
+          <div className="mt-3 flex items-center gap-2 text-sm text-slate-300">
+            <span>{tx(lang, 'Seçilmiş qəbul edən', 'Выбранный принимающий', 'Selected receiver')}:</span>
+            <b className="text-slate-100">{selectedReceiver.username}</b>
+            <RoleBadge role={selectedReceiver.role} />
+          </div>
+        )}
         <p className="mt-2 text-xs text-slate-400">
           {tx(lang, 'Bu əməliyyat növbəni bağlamır, açıq növbəni seçilən işçiyə ötürür.', 'Эта операция не закрывает смену, а передает открытую смену выбранному сотруднику.', 'This action does not close the shift. It transfers the active shift to the selected staff member.')}
         </p>
@@ -788,5 +839,53 @@ function Metric({ title, value }: { title: string; value: string | number }) {
       <div className="text-xs text-slate-300">{title}</div>
       <div className="mt-1 text-2xl font-bold text-slate-100">{new Decimal(value || 0).toFixed(2)} ₼</div>
     </div>
+  );
+}
+
+function RoleBadge({ role }: { role: string }) {
+  const normalized = String(role || '').toLowerCase();
+  const palette =
+    normalized === 'admin'
+      ? 'border-fuchsia-300/40 bg-fuchsia-500/15 text-fuchsia-100'
+      : normalized === 'manager'
+        ? 'border-sky-300/40 bg-sky-500/15 text-sky-100'
+        : 'border-emerald-300/40 bg-emerald-500/15 text-emerald-100';
+
+  return (
+    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${palette}`}>
+      {normalized || 'staff'}
+    </span>
+  );
+}
+
+function ShiftStatusBadge({
+  status,
+  lang,
+  compact = false,
+}: {
+  status: string;
+  lang: string;
+  compact?: boolean;
+}) {
+  const normalized = String(status || '').toUpperCase();
+  const palette =
+    normalized === 'OPEN' || normalized === 'ACCEPTED'
+      ? 'border-emerald-300/40 bg-emerald-500/15 text-emerald-100'
+      : normalized === 'PENDING'
+        ? 'border-amber-300/40 bg-amber-500/15 text-amber-100'
+        : 'border-slate-400/40 bg-slate-500/15 text-slate-100';
+  const label =
+    normalized === 'OPEN'
+      ? tx(lang, 'Açıq', 'Открыта', 'Open')
+      : normalized === 'PENDING'
+        ? tx(lang, 'Gözləyir', 'Ожидает', 'Pending')
+        : normalized === 'ACCEPTED'
+          ? tx(lang, 'Qəbul edildi', 'Принято', 'Accepted')
+          : tx(lang, 'Bağlı', 'Закрыта', 'Closed');
+
+  return (
+    <span className={`inline-flex rounded-full border font-semibold ${compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'} ${palette}`}>
+      {label}
+    </span>
   );
 }
