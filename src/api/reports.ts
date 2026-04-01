@@ -313,7 +313,7 @@ export const handover_shift_live = async (
   if (!isBackendEnabled()) return handover_shift(tenant_id, handed_by, received_by, declared_cash);
   return apiRequest<any>('/api/v1/reports/handovers', {
     method: 'POST',
-    tenantId: tenant_id,
+    tenantId: null,
     body: { received_by, declared_cash },
   });
 };
@@ -402,7 +402,7 @@ export const accept_shift_handover_live = async (
   if (!isBackendEnabled()) return accept_shift_handover(tenant_id, handover_id, received_by, actual_cash);
   return apiRequest<any>(`/api/v1/reports/handovers/${encodeURIComponent(handover_id)}/accept`, {
     method: 'POST',
-    tenantId: tenant_id,
+    tenantId: null,
     body: { actual_cash },
   });
 };
