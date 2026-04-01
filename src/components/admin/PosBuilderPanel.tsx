@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, Grip, LayoutTemplate } from 'lucide-react';
 import { useAppStore } from '../../store';
-import { get_settings_live, update_pos_layout_settings_live } from '../../api/settings';
+import { get_settings_live, publish_pos_layout_draft_live, reset_pos_layout_draft_live, update_pos_layout_draft_live } from '../../api/settings';
 import { tx } from '../../i18n';
 import type { Settings } from '../../types/pos';
 
@@ -118,7 +118,7 @@ export default function PosBuilderPanel() {
     void (async () => {
       try {
         const settings = await get_settings_live(tenantId);
-        setLayout({ ...DEFAULT_LAYOUT, ...(settings.pos_layout || {}) });
+        setLayout({ ...DEFAULT_LAYOUT, ...((settings.pos_layout_draft || settings.pos_layout) || {}) });
       } catch {
         setLayout(DEFAULT_LAYOUT);
       }
@@ -316,11 +316,38 @@ export default function PosBuilderPanel() {
   const save = async () => {
     setIsSaving(true);
     try {
-      await update_pos_layout_settings_live(layout);
-      window.dispatchEvent(new CustomEvent('pos-layout-updated', { detail: { tenant_id: tenantId } }));
-      notify('success', tx(lang, 'POS dizaynı yadda saxlanıldı', 'POS-дизайн сохранен', 'POS layout saved'));
+      await update_pos_layout_draft_live(layout);
+      notify('success', tx(lang, 'POS draft yadda saxlanıldı', 'POS draft сохранен', 'POS draft saved'));
     } catch (e: any) {
-      notify('error', e?.message || tx(lang, 'POS dizaynı yadda saxlanılmadı', 'POS-дизайн не сохранен', 'Failed to save POS layout'));
+      notify('error', e?.message || tx(lang, 'POS draft yadda saxlanılmadı', 'POS draft не сохранен', 'Failed to save POS draft'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const publish = async () => {
+    setIsSaving(true);
+    try {
+      await update_pos_layout_draft_live(layout);
+      await publish_pos_layout_draft_live();
+      window.dispatchEvent(new CustomEvent('pos-layout-updated', { detail: { tenant_id: tenantId } }));
+      notify('success', tx(lang, 'POS dizaynı canlıya tətbiq olundu', 'POS дизайн опубликован', 'POS layout published'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'POS dizaynı publish olunmadı', 'POS дизайн не опубликован', 'Failed to publish POS layout'));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const resetDraft = async () => {
+    setIsSaving(true);
+    try {
+      await reset_pos_layout_draft_live();
+      const settings = await get_settings_live(tenantId);
+      setLayout({ ...DEFAULT_LAYOUT, ...((settings.pos_layout_draft || settings.pos_layout) || {}) });
+      notify('info', tx(lang, 'Draft canlı versiyaya qaytarıldı', 'Draft возвращен к live версии', 'Draft reset to live version'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Draft geri qaytarılmadı', 'Draft не сброшен', 'Failed to reset draft'));
     } finally {
       setIsSaving(false);
     }
@@ -600,9 +627,17 @@ export default function PosBuilderPanel() {
             </div>
           </div>
 
-          <button onClick={save} disabled={isSaving} className="glossy-gold mt-5 w-full rounded-2xl px-4 py-3 font-semibold">
-            {isSaving ? tx(lang, 'Yadda saxlanılır...', 'Сохраняется...', 'Saving...') : tx(lang, 'POS Dizaynını Yadda Saxla', 'Сохранить POS дизайн', 'Save POS Layout')}
-          </button>
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <button onClick={save} disabled={isSaving} className="neon-btn rounded-2xl px-4 py-3 font-semibold">
+              {isSaving ? tx(lang, 'Yadda saxlanılır...', 'Сохраняется...', 'Saving...') : tx(lang, 'Draft Yadda Saxla', 'Сохранить draft', 'Save Draft')}
+            </button>
+            <button onClick={resetDraft} disabled={isSaving} className="neon-btn rounded-2xl px-4 py-3 font-semibold">
+              {tx(lang, 'Draft-i Geri Qaytar', 'Сбросить draft', 'Reset Draft')}
+            </button>
+            <button onClick={publish} disabled={isSaving} className="glossy-gold rounded-2xl px-4 py-3 font-semibold">
+              {tx(lang, 'Canlıya Tətbiq Et', 'Опубликовать', 'Publish Live')}
+            </button>
+          </div>
         </div>
 
         <div className="metal-panel p-5">
