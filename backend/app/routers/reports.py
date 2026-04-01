@@ -162,6 +162,33 @@ def list_handovers(db: Session = Depends(get_db), tenant: Tenant = Depends(get_t
     ]
 
 
+@router.get("/handover-users")
+def list_handover_users(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user=Depends(get_current_user),
+):
+    rows = (
+        db.query(User)
+        .filter(
+            User.tenant_id == tenant.id,
+            User.is_active == True,
+            User.role.in_(["admin", "manager", "staff"]),
+        )
+        .order_by(User.username.asc())
+        .all()
+    )
+    return [
+        {
+            "id": row.id,
+            "tenant_id": row.tenant_id,
+            "username": row.username,
+            "role": row.role,
+        }
+        for row in rows
+    ]
+
+
 @router.post("/handovers")
 def create_handover(payload: ShiftHandoverIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     active = db.query(Shift).filter(Shift.tenant_id == tenant.id, Shift.status == "open").first()
@@ -170,10 +197,21 @@ def create_handover(payload: ShiftHandoverIn, db: Session = Depends(get_db), ten
     received_by = str(payload.received_by or "").strip()
     if not received_by:
         raise HTTPException(status_code=400, detail="Receiver is required")
+    if received_by == user.username:
+        raise HTTPException(status_code=400, detail="Cannot hand over shift to yourself")
+    receiver = (
+        db.query(User)
+        .filter(User.tenant_id == tenant.id, func.lower(User.username) == received_by.lower(), User.is_active == True)
+        .first()
+    )
+    if not receiver:
+        raise HTTPException(status_code=404, detail="Receiver user not found")
+    if str(receiver.role or "").lower() not in {"admin", "manager", "staff"}:
+        raise HTTPException(status_code=400, detail="Receiver role is not eligible for shift handover")
     row = ShiftHandover(
         tenant_id=tenant.id,
         handed_by=user.username,
-        received_by=received_by,
+        received_by=receiver.username,
         declared_cash=payload.declared_cash,
         status="PENDING",
     )

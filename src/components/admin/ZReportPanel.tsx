@@ -6,6 +6,8 @@ import {
   accept_shift_handover_live,
   get_expected_cash,
   get_pending_handover_for_user_live,
+  get_shift_handover_users,
+  get_shift_handover_users_live,
   refresh_expected_cash,
   refresh_shift_status,
   get_shift_handover_history_live,
@@ -16,7 +18,7 @@ import {
   z_report,
 } from '../../api/reports';
 import { create_finance_entry_async, fetch_finance_balances, get_balance, transfer_funds_async } from '../../api/finance';
-import { get_settings, get_users } from '../../api/settings';
+import { get_settings } from '../../api/settings';
 import { qzListPrinters, qzPrintHtml } from '../../lib/qz';
 import { tx } from '../../i18n';
 
@@ -42,6 +44,9 @@ export default function ZReportPanel() {
   const [sales, setSales] = useState<any[]>([]);
   const [handovers, setHandovers] = useState<any[]>([]);
   const [pendingReceived, setPendingReceived] = useState<any | null>(null);
+  const [tenantUsers, setTenantUsers] = useState<any[]>(() =>
+    get_shift_handover_users(tenant_id)
+  );
   const [currentBalances, setCurrentBalances] = useState<any>({
     cash_balance: '0',
     card_balance: '0',
@@ -74,8 +79,7 @@ export default function ZReportPanel() {
   }, [toDate]);
 
   const shiftStatus = shiftStatusState;
-  const latestReceived = handovers.find((h) => h.received_by === user?.username);
-  const tenantUsers = get_users(tenant_id).filter((u) => ['staff', 'manager'].includes(String(u.role || '').toLowerCase()));
+  const latestReceived = handovers.find((h) => h.received_by === user?.username && String(h.status || '').toUpperCase() === 'ACCEPTED');
   const expectedCashNow = expectedCashState;
   const visibleSales = useMemo(() => sales.slice(0, salesPageSize), [sales, salesPageSize]);
   const cashierBreakdown = useMemo(() => {
@@ -193,6 +197,37 @@ export default function ZReportPanel() {
       mounted = false;
     };
   }, [tenant_id, summary.total_revenue, reportRefreshKey, user?.username]);
+
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const rows = await get_shift_handover_users_live(tenant_id);
+        if (!mounted) return;
+        setTenantUsers(rows);
+      } catch {
+        if (!mounted) return;
+        setTenantUsers(get_shift_handover_users(tenant_id));
+      }
+    })();
+    const refreshUsers = () => {
+      void (async () => {
+        try {
+          const rows = await get_shift_handover_users_live(tenant_id);
+          setTenantUsers(rows);
+        } catch {
+          setTenantUsers(get_shift_handover_users(tenant_id));
+        }
+      })();
+    };
+    window.addEventListener('focus', refreshUsers);
+    window.addEventListener('settings-users-updated', refreshUsers as EventListener);
+    return () => {
+      mounted = false;
+      window.removeEventListener('focus', refreshUsers);
+      window.removeEventListener('settings-users-updated', refreshUsers as EventListener);
+    };
+  }, [tenant_id]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -397,6 +432,10 @@ export default function ZReportPanel() {
   const handleHandover = async () => {
     if (!handoverTo) {
       notify('error', tx(lang, 'Təhvil alan işçini seçin', 'Выберите сотрудника для передачи'));
+      return;
+    }
+    if (handoverTo === user?.username) {
+      notify('error', tx(lang, 'Smeni özünüzə təhvil verə bilməzsiniz', 'Нельзя передать смену самому себе', 'You cannot hand over the shift to yourself'));
       return;
     }
     if (!handoverActualCash) {
@@ -668,7 +707,7 @@ export default function ZReportPanel() {
             {tenantUsers
               .filter((u) => u.username !== user?.username)
               .map((u) => (
-                <option key={u.id} value={u.username}>{u.username} ({u.role})</option>
+                <option key={u.id} value={u.username}>{u.username} ({String(u.role || '').toUpperCase()})</option>
               ))}
           </select>
           <input
