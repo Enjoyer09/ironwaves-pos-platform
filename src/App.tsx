@@ -24,6 +24,7 @@ import { get_low_stock_items } from './api/inventory';
 import { list_tenants, type TenantRecord } from './api/tenants';
 import { clearDBCache } from './lib/db_sim';
 import { authApi } from './api/auth';
+import { isPerfDebugEnabled, type PerfEvent } from './lib/perf';
 
 type AdminView =
   | 'dashboard'
@@ -148,6 +149,7 @@ export default function App() {
   const [availableTenants, setAvailableTenants] = useState<TenantRecord[]>([]);
   const [tenantSwitching, setTenantSwitching] = useState(false);
   const [businessProfileVersion, setBusinessProfileVersion] = useState(0);
+  const [perfEvents, setPerfEvents] = useState<PerfEvent[]>([]);
 
   const publicReceiptParams = useMemo(() => {
     if (typeof window === 'undefined') return { receiptId: '', token: '' };
@@ -506,6 +508,19 @@ export default function App() {
   }, [user?.tenant_id, activeTenant]);
 
   useEffect(() => {
+    if (!isPerfDebugEnabled()) return;
+    const onPerf = (event: Event) => {
+      const detail = (event as CustomEvent<PerfEvent>).detail;
+      if (!detail) return;
+      setPerfEvents((prev) => [detail, ...prev].slice(0, 8));
+    };
+    window.addEventListener('app-perf', onPerf as EventListener);
+    return () => {
+      window.removeEventListener('app-perf', onPerf as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
     if (typeof document === 'undefined') return;
     if (hostMode === 'landing') {
       document.title = 'iRonWaves POS RC';
@@ -757,6 +772,32 @@ export default function App() {
           iRonWaves POS RC
         </div>
       </div>
+      {isPerfDebugEnabled() && (
+        <div className="pointer-events-none fixed bottom-4 right-4 z-[120] w-[360px] max-w-[calc(100vw-2rem)] rounded-2xl border border-cyan-400/25 bg-slate-950/88 p-3 text-xs text-slate-100 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="font-bold text-cyan-200">Perf Debug</div>
+            <div className="text-[10px] text-slate-400">?perf=1</div>
+          </div>
+          <div className="space-y-2">
+            {perfEvents.length === 0 ? (
+              <div className="text-slate-400">No request timings yet.</div>
+            ) : perfEvents.map((row, idx) => (
+              <div key={`${row.at}_${idx}`} className="rounded-xl border border-white/8 bg-white/4 px-3 py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="truncate font-medium text-slate-200">{row.label}</div>
+                  <div className={`${row.duration_ms > 1200 ? 'text-rose-300' : row.duration_ms > 500 ? 'text-amber-300' : 'text-emerald-300'}`}>
+                    {row.duration_ms} ms
+                  </div>
+                </div>
+                <div className="mt-1 flex items-center justify-between gap-3 text-[10px] text-slate-400">
+                  <span>{row.status ? `HTTP ${row.status}` : row.ok ? 'OK' : 'ERR'}</span>
+                  <span>{new Date(row.at).toLocaleTimeString()}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
