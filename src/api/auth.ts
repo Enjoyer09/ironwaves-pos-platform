@@ -152,7 +152,7 @@ export const authApi = {
     // Bazadan yoxlama (yeni users cədvəli + legacy tenant key)
     const users = getDB<any>('users');
     const legacyUsers = getDB<any>(`${tenant_id}_users`);
-    let dbUser: any = null;
+    const matchedUsers: any[] = [];
     for (const candidate of [...users, ...legacyUsers]) {
       if (
         !(candidate.tenant_id ? candidate.tenant_id === tenant_id : tenant_id === 'tenant_default') ||
@@ -162,7 +162,7 @@ export const authApi = {
       }
       const storedPin = candidate.pin_hash || candidate.pin;
       if (await verifyLocalCredential(pin, storedPin)) {
-        dbUser = candidate;
+        matchedUsers.push(candidate);
         if (!candidate.pin_hash && candidate.id) {
           const allUsers = getDB<any>('users');
           const idx = allUsers.findIndex((u) => u.id === candidate.id);
@@ -172,10 +172,14 @@ export const authApi = {
             setDB('users', allUsers);
           }
         }
-        break;
       }
     }
     
+    if (matchedUsers.length > 1) {
+      throw new Error('Bu PIN bir neçə staff hesabında istifadə olunur. PIN-ləri unikal edin.');
+    }
+
+    const dbUser = matchedUsers[0] || null;
     let user = null;
     if (dbUser) {
       user = { username: dbUser.username, role: dbUser.role, tenant_id: dbUser.tenant_id };

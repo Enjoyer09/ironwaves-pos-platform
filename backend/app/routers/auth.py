@@ -336,17 +336,20 @@ def pin_login(payload: PinLoginIn, request: Request, db: Session = Depends(get_d
 
     now = datetime.utcnow()
     _consume_pin_attempts(request, tenant.id)
-    matched: User | None = None
+    matches: list[User] = []
     for u in users:
         if u.locked_until and now < u.locked_until:
             continue
         pin_hash = u.pin_hash or u.password_hash
         if pin_hash and verify_password(pin, pin_hash):
-            matched = u
-            break
+            matches.append(u)
 
-    if not matched:
+    if not matches:
         raise HTTPException(status_code=401, detail="Invalid PIN")
+    if len(matches) > 1:
+        raise HTTPException(status_code=409, detail="Bu PIN bir neçə staff hesabında istifadə olunur. PIN-ləri unikal edin.")
+
+    matched = matches[0]
 
     _reset_pin_attempts(request, tenant.id)
     matched.failed_attempts = 0
