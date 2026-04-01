@@ -491,6 +491,7 @@ export default function POS() {
 
   const payableTotal = selectedPayment === 'Staff' ? staffPreview.final_due : finalTotal;
   const checkoutBaseTotal = cart.length > 0 ? payableTotal : tablePendingTotal;
+  const shouldLockTableCheckoutInPos = ctx.orderType === 'Dine In' && cart.length === 0 && Boolean(selectedTableData?.is_occupied);
 
   const handleCheckout = async (paymentMethod: PaymentMethod) => {
     if (!user) return;
@@ -500,37 +501,16 @@ export default function POS() {
       return;
     }
 
-    // Dine In sifarişi artıq masaya göndərilibsə və səbət boşdursa, masanın ödənişini bağlayırıq.
-    if (ctx.orderType === 'Dine In' && cart.length === 0 && selectedTableData?.is_occupied) {
-      const splitCash = paymentMethod === 'Split' ? toDecimalSafe(splitCashInput || 0) : null;
-      const splitCard = paymentMethod === 'Split' ? tablePendingTotal.minus(splitCash || 0) : null;
-      if (paymentMethod === 'Split') {
-        if ((splitCash || new Decimal(0)).lessThan(0) || (splitCard || new Decimal(0)).lessThan(0)) {
-          notify('error', tx(safeLang, 'Bölünmüş məbləğ yanlışdır', 'Неверная сумма разделения'));
-          return;
-        }
-      }
-
-      setIsLoading(true);
-      try {
-        await pay_table_live(
-          selectedTableData.id,
-          paymentMethod,
-          user.username,
-          splitCash,
-          splitCard,
-          { cup_mode: ctx.cupMode },
-        );
-        notify('success', tx(safeLang, 'Masa ödəndi və bağlandı', 'Стол оплачен и закрыт'));
-        patchCtx({ ...defaultCtx });
-        setSplitCashInput('0');
-        void refreshData();
-      } catch (error: any) {
-        logUiError(tenantId, 'pos', error?.message || String(error), { phase: 'pay_table_checkout' });
-        notify('error', error?.message || tx(safeLang, 'Masa ödənişində xəta', 'Ошибка оплаты стола'));
-      } finally {
-        setIsLoading(false);
-      }
+    if (shouldLockTableCheckoutInPos) {
+      notify(
+        'info',
+        tx(
+          safeLang,
+          'Masaya göndərilmiş hesabı POS səbətindən yox, Masalar modulundan bağlayın',
+          'Счет отправленного на стол заказа нужно закрывать из модуля Столы, а не из POS корзины',
+          'Close sent table orders from the Tables module, not from the POS cart',
+        ),
+      );
       return;
     }
 
@@ -1007,8 +987,18 @@ export default function POS() {
               <div className="flex justify-between font-semibold text-yellow-300"><span>{tx(lang, 'Ödəniləcək', 'К оплате', 'To pay')}</span><span>{staffPreview.final_due.toFixed(2)} ₼</span></div>
             </div>
           )}
+          {shouldLockTableCheckoutInPos && (
+            <div className="rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+              {tx(
+                lang,
+                'Bu masa hesabı POS səbətindən bağlanmır. Ödəniş üçün Masalar moduluna keçin.',
+                'Этот счет стола не закрывается из POS корзины. Для оплаты перейдите в модуль Столы.',
+                'This table bill cannot be closed from the POS cart. Use the Tables module to collect payment.',
+              )}
+            </div>
+          )}
           <button
-            disabled={isLoading || (cart.length === 0 && !(ctx.orderType === 'Dine In' && selectedTableData?.is_occupied)) || (ctx.orderType === 'Dine In' && !ctx.selectedTable)}
+            disabled={isLoading || shouldLockTableCheckoutInPos || (cart.length === 0 && !shouldLockTableCheckoutInPos) || (ctx.orderType === 'Dine In' && !ctx.selectedTable)}
             onClick={() => handleCheckout(selectedPayment)}
             className={`flex ${size === 'compact' ? 'h-12 text-sm' : size === 'expanded' ? 'h-16 text-lg' : 'h-14 text-base'} items-center justify-center gap-2 rounded-lg border px-4 font-bold text-white shadow-[0_0_22px_rgba(239,68,68,0.35)] disabled:opacity-50`}
             style={{ backgroundColor: posLayout.accent_color, borderColor: posLayout.accent_color, color: '#111827' }}
@@ -1321,11 +1311,22 @@ export default function POS() {
                   />
                 </div>
               )}
+              {shouldLockTableCheckoutInPos && (
+                <div className="rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                  {tx(
+                    lang,
+                    'Bu masa hesabını bağlamaq üçün Masalar modulundan istifadə edin.',
+                    'Для закрытия этого счета используйте модуль Столы.',
+                    'Use the Tables module to close this table bill.',
+                  )}
+                </div>
+              )}
 
               <button
                 disabled={
                   isLoading ||
-                  (cart.length === 0 && !(ctx.orderType === 'Dine In' && selectedTableData?.is_occupied)) ||
+                  shouldLockTableCheckoutInPos ||
+                  (cart.length === 0 && !shouldLockTableCheckoutInPos) ||
                   (ctx.orderType === 'Dine In' && !ctx.selectedTable)
                 }
                 onClick={() => {
