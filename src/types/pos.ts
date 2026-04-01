@@ -120,6 +120,24 @@ export interface HappyHour {
   created_at: string;
 }
 
+export type PosLayoutConfig = {
+  preset: 'classic' | 'fast' | 'touch' | 'tables';
+  density: 'compact' | 'comfortable' | 'large';
+  product_columns: 2 | 3 | 4;
+  show_cart_tabs: boolean;
+  accent_color: string;
+  hidden_widgets: string[];
+  widget_order: string[];
+  left_hidden_widgets?: string[];
+  left_widget_order?: string[];
+  widget_sizes?: Record<string, 'compact' | 'comfortable' | 'expanded'>;
+  left_widget_sizes?: Record<string, 'compact' | 'comfortable' | 'expanded'>;
+  device_layouts?: {
+    desktop?: Partial<PosLayoutConfig>;
+    tablet?: Partial<PosLayoutConfig>;
+  };
+};
+
 // --- MODUL 15: SETTINGS ---
 export interface Settings {
   tenant_id: string;
@@ -197,47 +215,8 @@ export interface Settings {
     show_history: boolean;
     show_notifications: boolean;
   };
-  pos_layout?: {
-    preset: 'classic' | 'fast' | 'touch' | 'tables';
-    density: 'compact' | 'comfortable' | 'large';
-    product_columns: 2 | 3 | 4;
-    show_cart_tabs: boolean;
-    accent_color: string;
-    hidden_widgets: string[];
-    widget_order: string[];
-    left_hidden_widgets?: string[];
-    left_widget_order?: string[];
-    widget_sizes?: Record<string, 'compact' | 'comfortable' | 'expanded'>;
-    left_widget_sizes?: Record<string, 'compact' | 'comfortable' | 'expanded'>;
-    device_layouts?: {
-      desktop?: Partial<{
-        preset: 'classic' | 'fast' | 'touch' | 'tables';
-        density: 'compact' | 'comfortable' | 'large';
-        product_columns: 2 | 3 | 4;
-        show_cart_tabs: boolean;
-        accent_color: string;
-        hidden_widgets: string[];
-        widget_order: string[];
-        left_hidden_widgets: string[];
-        left_widget_order: string[];
-        widget_sizes: Record<string, 'compact' | 'comfortable' | 'expanded'>;
-        left_widget_sizes: Record<string, 'compact' | 'comfortable' | 'expanded'>;
-      }>;
-      tablet?: Partial<{
-        preset: 'classic' | 'fast' | 'touch' | 'tables';
-        density: 'compact' | 'comfortable' | 'large';
-        product_columns: 2 | 3 | 4;
-        show_cart_tabs: boolean;
-        accent_color: string;
-        hidden_widgets: string[];
-        widget_order: string[];
-        left_hidden_widgets: string[];
-        left_widget_order: string[];
-        widget_sizes: Record<string, 'compact' | 'comfortable' | 'expanded'>;
-        left_widget_sizes: Record<string, 'compact' | 'comfortable' | 'expanded'>;
-      }>;
-    };
-  };
+  pos_layout?: PosLayoutConfig;
+  pos_layout_draft?: PosLayoutConfig;
   landing_settings?: {
     hero_title_az?: string;
     hero_title_ru?: string;

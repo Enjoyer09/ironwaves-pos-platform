@@ -1,13 +1,39 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getDB, setDB } from '../lib/db_sim';
 import { logEvent } from '../lib/logger';
-import { Settings, User } from '../types/pos';
+import { PosLayoutConfig, Settings, User } from '../types/pos';
 import { getActiveTenantId } from '../lib/tenant';
 import { apiRequest, isBackendEnabled } from './client';
 import { hashLocalCredential } from '../lib/local_auth';
 import { removeScopedStorage } from '../lib/storage_keys';
 
 const resolveTenant = (tenant_id?: string) => tenant_id || getActiveTenantId();
+
+const DEFAULT_POS_LAYOUT: PosLayoutConfig = {
+  preset: 'classic',
+  density: 'comfortable',
+  product_columns: 3,
+  show_cart_tabs: true,
+  accent_color: '#facc15',
+  hidden_widgets: [],
+  widget_order: ['customer', 'discount', 'orderType', 'table', 'cartItems', 'cartSummary', 'payments'],
+  left_hidden_widgets: [],
+  left_widget_order: ['menuHeader', 'search', 'categories', 'productGrid'],
+  widget_sizes: {},
+  left_widget_sizes: {},
+  device_layouts: {
+    desktop: {},
+    tablet: {
+      preset: 'touch',
+      density: 'large',
+      product_columns: 2,
+      left_hidden_widgets: [],
+      left_widget_order: ['search', 'categories', 'productGrid'],
+      widget_sizes: {},
+      left_widget_sizes: {},
+    },
+  },
+};
 
 // Mərkəzi settings obyektini tapmaq (ya da yaratmaq) üçün kiçik helper:
 function getSettings(tenant_id?: string): Settings {
@@ -74,31 +100,8 @@ function getSettings(tenant_id?: string): Settings {
         show_history: true,
         show_notifications: true,
       },
-      pos_layout: {
-        preset: 'classic',
-        density: 'comfortable',
-        product_columns: 3,
-        show_cart_tabs: true,
-        accent_color: '#facc15',
-        hidden_widgets: [],
-        widget_order: ['customer', 'discount', 'orderType', 'table', 'cartItems', 'cartSummary', 'payments'],
-        left_hidden_widgets: [],
-        left_widget_order: ['menuHeader', 'search', 'categories', 'productGrid'],
-        widget_sizes: {},
-        left_widget_sizes: {},
-        device_layouts: {
-          desktop: {},
-          tablet: {
-            preset: 'touch',
-            density: 'large',
-            product_columns: 2,
-            left_hidden_widgets: [],
-            left_widget_order: ['search', 'categories', 'productGrid'],
-            widget_sizes: {},
-            left_widget_sizes: {},
-          },
-        },
-      },
+      pos_layout: DEFAULT_POS_LAYOUT,
+      pos_layout_draft: DEFAULT_POS_LAYOUT,
       landing_settings: {
         hero_title_az: 'Azərbaycan bazarı üçün müasir POS və idarəetmə sistemi',
         hero_title_ru: 'Премиальная POS-платформа для ресторанов, coffee shop и retail',
@@ -273,6 +276,10 @@ export function get_settings(tenant_id?: string) {
     };
     saveSettings(s);
   }
+  if (!s.pos_layout_draft) {
+    s.pos_layout_draft = JSON.parse(JSON.stringify(s.pos_layout || DEFAULT_POS_LAYOUT));
+    saveSettings(s);
+  }
   if (!s.pos_layout.left_hidden_widgets) {
     s.pos_layout.left_hidden_widgets = [];
     saveSettings(s);
@@ -326,19 +333,7 @@ export function get_settings(tenant_id?: string) {
     saveSettings(s);
   }
   if (!s.pos_layout) {
-    s.pos_layout = {
-      preset: 'classic',
-      density: 'comfortable',
-      product_columns: 3,
-      show_cart_tabs: true,
-      accent_color: '#facc15',
-      hidden_widgets: [],
-      widget_order: ['customer', 'discount', 'orderType', 'table', 'cartItems', 'cartSummary', 'payments'],
-      left_hidden_widgets: [],
-      left_widget_order: ['menuHeader', 'search', 'categories', 'productGrid'],
-      widget_sizes: {},
-      left_widget_sizes: {},
-    };
+    s.pos_layout = JSON.parse(JSON.stringify(DEFAULT_POS_LAYOUT));
     saveSettings(s);
   }
   if (!s.omnitech_settings) {
@@ -585,6 +580,30 @@ export function update_pos_layout_settings(payload: NonNullable<Settings['pos_la
   return { success: true, pos_layout: settings.pos_layout };
 }
 
+export function update_pos_layout_draft(payload: NonNullable<Settings['pos_layout_draft']>) {
+  const settings = getSettings();
+  settings.pos_layout_draft = JSON.parse(JSON.stringify(payload));
+  saveSettings(settings);
+  logEvent('admin', 'POS_LAYOUT_DRAFT_UPDATED', settings.pos_layout_draft);
+  return { success: true, pos_layout_draft: settings.pos_layout_draft };
+}
+
+export function publish_pos_layout_draft() {
+  const settings = getSettings();
+  settings.pos_layout = JSON.parse(JSON.stringify(settings.pos_layout_draft || settings.pos_layout || DEFAULT_POS_LAYOUT));
+  saveSettings(settings);
+  logEvent('admin', 'POS_LAYOUT_PUBLISHED', settings.pos_layout);
+  return { success: true, pos_layout: settings.pos_layout };
+}
+
+export function reset_pos_layout_draft() {
+  const settings = getSettings();
+  settings.pos_layout_draft = JSON.parse(JSON.stringify(settings.pos_layout || DEFAULT_POS_LAYOUT));
+  saveSettings(settings);
+  logEvent('admin', 'POS_LAYOUT_DRAFT_RESET', settings.pos_layout_draft);
+  return { success: true, pos_layout_draft: settings.pos_layout_draft };
+}
+
 export function update_omnitech_settings(payload: {
   enabled: boolean;
   api_base_url: string;
@@ -674,6 +693,27 @@ export async function update_pos_layout_settings_live(payload: NonNullable<Setti
   if (!isBackendEnabled()) return update_pos_layout_settings(payload);
   await apiRequest('/api/v1/ops/settings/pos-layout', { method: 'PATCH', tenantId: null, body: payload });
   update_pos_layout_settings(payload);
+  return { success: true };
+}
+
+export async function update_pos_layout_draft_live(payload: NonNullable<Settings['pos_layout_draft']>) {
+  if (!isBackendEnabled()) return update_pos_layout_draft(payload);
+  await apiRequest('/api/v1/ops/settings/pos-layout-draft', { method: 'PATCH', tenantId: null, body: payload });
+  update_pos_layout_draft(payload);
+  return { success: true };
+}
+
+export async function publish_pos_layout_draft_live() {
+  if (!isBackendEnabled()) return publish_pos_layout_draft();
+  await apiRequest('/api/v1/ops/settings/pos-layout/publish', { method: 'POST', tenantId: null });
+  publish_pos_layout_draft();
+  return { success: true };
+}
+
+export async function reset_pos_layout_draft_live() {
+  if (!isBackendEnabled()) return reset_pos_layout_draft();
+  await apiRequest('/api/v1/ops/settings/pos-layout-draft/reset', { method: 'POST', tenantId: null });
+  reset_pos_layout_draft();
   return { success: true };
 }
 

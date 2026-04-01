@@ -455,6 +455,82 @@ def update_role_modules(
     return {"success": True}
 
 
+@router.patch("/settings/pos-layout-draft")
+def update_pos_layout_draft_settings(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    def _clean_layout(source: dict, fallback: dict | None = None):
+        base = fallback or {}
+        preset_value = str(source.get("preset", base.get("preset", "classic")) or "classic").strip().lower()
+        density_value = str(source.get("density", base.get("density", "comfortable")) or "comfortable").strip().lower()
+        try:
+            product_columns_value = int(source.get("product_columns", base.get("product_columns", 3)) or 3)
+        except Exception:
+            product_columns_value = 3
+        return {
+            "preset": preset_value if preset_value in {"classic", "fast", "touch", "tables"} else "classic",
+            "density": density_value if density_value in {"compact", "comfortable", "large"} else "comfortable",
+            "product_columns": product_columns_value if product_columns_value in {2, 3, 4} else 3,
+            "show_cart_tabs": bool(source.get("show_cart_tabs", base.get("show_cart_tabs", True))),
+            "accent_color": str(source.get("accent_color") or base.get("accent_color") or "").strip() or "#facc15",
+            "hidden_widgets": [str(v or "").strip() for v in (source.get("hidden_widgets") or base.get("hidden_widgets") or []) if str(v or "").strip()],
+            "widget_order": [str(v or "").strip() for v in (source.get("widget_order") or base.get("widget_order") or []) if str(v or "").strip()],
+            "left_hidden_widgets": [str(v or "").strip() for v in (source.get("left_hidden_widgets") or base.get("left_hidden_widgets") or []) if str(v or "").strip()],
+            "left_widget_order": [str(v or "").strip() for v in (source.get("left_widget_order") or base.get("left_widget_order") or ["menuHeader", "search", "categories", "productGrid"]) if str(v or "").strip()],
+            "widget_sizes": {
+                str(k): (str(v).strip().lower() if str(v).strip().lower() in {"compact", "comfortable", "expanded"} else "comfortable")
+                for k, v in dict(source.get("widget_sizes") or base.get("widget_sizes") or {}).items()
+                if str(k or "").strip()
+            },
+            "left_widget_sizes": {
+                str(k): (str(v).strip().lower() if str(v).strip().lower() in {"compact", "comfortable", "expanded"} else "comfortable")
+                for k, v in dict(source.get("left_widget_sizes") or base.get("left_widget_sizes") or {}).items()
+                if str(k or "").strip()
+            },
+        }
+    cleaned = _clean_layout(payload)
+    device_layouts = payload.get("device_layouts") or {}
+    cleaned["device_layouts"] = {
+        "desktop": _clean_layout(device_layouts.get("desktop") or {}, cleaned) if device_layouts.get("desktop") else {},
+        "tablet": _clean_layout(device_layouts.get("tablet") or {}, cleaned) if device_layouts.get("tablet") else {},
+    }
+    _set_setting_value(db, tenant.id, "pos_layout_draft", cleaned)
+    db.commit()
+    return {"success": True}
+
+
+@router.post("/settings/pos-layout/publish")
+def publish_pos_layout(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    draft = _setting_value(db, tenant.id, "pos_layout_draft", None)
+    if draft:
+      _set_setting_value(db, tenant.id, "pos_layout", draft)
+      db.commit()
+    return {"success": True}
+
+
+@router.post("/settings/pos-layout-draft/reset")
+def reset_pos_layout_draft(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    live = _setting_value(db, tenant.id, "pos_layout", None)
+    if live:
+      _set_setting_value(db, tenant.id, "pos_layout_draft", live)
+      db.commit()
+    return {"success": True}
+
+
 @router.patch("/settings/gemini-key")
 def update_gemini_key(
     payload: dict,
