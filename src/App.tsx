@@ -481,6 +481,14 @@ export default function App() {
   const resolvedModule = visibleModules.find((m) => m.key === currentModule)?.key || visibleModules[0]?.key || 'pos';
 
   const visibleModuleKeys = visibleModules.map((m) => m.key).join('|');
+  const shouldHoldForTenantResolution = Boolean(
+    hasValidUser &&
+    currentHost &&
+    currentHost !== 'localhost' &&
+    currentHost !== '127.0.0.1' &&
+    mappedTenantFromHost &&
+    String(mappedTenantFromHost || '') !== String(user?.tenant_id || ''),
+  );
 
   useEffect(() => {
     const onBusinessProfileUpdated = (event: Event) => {
@@ -544,7 +552,7 @@ export default function App() {
     return <PinLogin />;
   }
 
-  if (sessionChecking) {
+  if (sessionChecking || shouldHoldForTenantResolution) {
     return (
       <div className="metal-app flex min-h-screen items-center justify-center text-slate-300">
         <div className="metal-panel rounded-xl px-6 py-4 text-sm">{tx(safeLang, 'Tenant yoxlanır...', 'Проверка тенанта...', 'Checking tenant...')}</div>
