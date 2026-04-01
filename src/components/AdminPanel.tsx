@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useMemo, useState, useEffect, useLayoutEffect } from 'react';
+import React, { Suspense, lazy, startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../store';
 import { get_sales_summary_live, get_sales_list_live, update_sale_amount_live, void_sale_with_reason_live, partial_refund_sale_live } from '../api/analytics';
 import { get_menu_items_live, create_menu_item_live, soft_delete_menu_item_live } from '../api/menu';
@@ -67,6 +67,13 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   const [voidPreset, setVoidPreset] = useState<'TEST' | 'ZAY_MEHSUL'>('TEST');
   const [managerPass, setManagerPass] = useState('');
   const [newSaleTotal, setNewSaleTotal] = useState('');
+  const fetchCacheRef = useRef<Record<string, number>>({});
+
+  const setActiveTabSoft = (tab: AdminTab) => {
+    startTransition(() => {
+      setActiveTab(tab);
+    });
+  };
   const mobileTabOptions: Array<{ key: AdminTab; label: string }> = useMemo(() => ([
     { key: 'dashboard', label: tx(lang, 'Dashboard', 'Дашборд', 'Dashboard') },
     { key: 'finance', label: tx(lang, 'Maliyyə', 'Финансы', 'Finance') },
@@ -101,30 +108,51 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     }
   }, [activeTab, tenant_id]);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (externalTab && externalTab !== activeTab) {
-      setActiveTab(externalTab);
+      setActiveTabSoft(externalTab);
     }
   }, [externalTab, activeTab]);
 
   const fetchData = async () => {
+    const now = Date.now();
+
     if (activeTab === 'analytics') {
+      const cacheKey = `analytics:${tenant_id}:${dateFrom}:${dateTo}`;
+      if (fetchCacheRef.current[cacheKey] && now - fetchCacheRef.current[cacheKey] < 15000) {
+        return;
+      }
       const from_d = new Date(dateFrom);
       from_d.setHours(0, 0, 0, 0);
       const to_d = new Date(dateTo);
       to_d.setHours(23, 59, 59, 999);
-      setSummary(await get_sales_summary_live(tenant_id, from_d.toISOString(), to_d.toISOString()));
-      setSales(await get_sales_list_live(tenant_id, from_d.toISOString(), to_d.toISOString()));
+      const [nextSummary, nextSales] = await Promise.all([
+        get_sales_summary_live(tenant_id, from_d.toISOString(), to_d.toISOString()),
+        get_sales_list_live(tenant_id, from_d.toISOString(), to_d.toISOString()),
+      ]);
+      setSummary(nextSummary);
+      setSales(nextSales);
+      fetchCacheRef.current[cacheKey] = Date.now();
       return;
     }
 
     if (activeTab === 'menu') {
+      const cacheKey = `menu:${tenant_id}`;
+      if (fetchCacheRef.current[cacheKey] && now - fetchCacheRef.current[cacheKey] < 30000 && menu.length > 0) {
+        return;
+      }
       setMenu(await get_menu_items_live(tenant_id));
+      fetchCacheRef.current[cacheKey] = Date.now();
       return;
     }
 
     if (activeTab === 'logs') {
+      const cacheKey = `logs:${tenant_id}`;
+      if (fetchCacheRef.current[cacheKey] && now - fetchCacheRef.current[cacheKey] < 15000 && logsData.length > 0) {
+        return;
+      }
       setLogsData(await get_logs_live(tenant_id, 250));
+      fetchCacheRef.current[cacheKey] = Date.now();
     }
   };
 
@@ -140,14 +168,16 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     }, user?.username);
     setNewItemName('');
     setNewItemPrice('');
-    setCustomCategory('');
-    window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { scope: 'menu' } }));
-    await fetchData();
+              setCustomCategory('');
+              window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { scope: 'menu' } }));
+              delete fetchCacheRef.current[`menu:${tenant_id}`];
+              await fetchData();
   };
 
   const handleDeleteMenu = async (id: string) => {
     await soft_delete_menu_item_live(tenant_id, id, user?.username || 'admin');
     window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { scope: 'menu' } }));
+    delete fetchCacheRef.current[`menu:${tenant_id}`];
     await fetchData();
     setDeleteMenuId(null);
   };
@@ -229,7 +259,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
           <select
             className="neon-input min-h-13"
             value={activeTab}
-            onChange={(e) => setActiveTab(e.target.value as AdminTab)}
+            onChange={(e) => setActiveTabSoft(e.target.value as AdminTab)}
           >
             {mobileTabOptions.map((tab) => (
               <option key={tab.key} value={tab.key}>{tab.label}</option>
@@ -238,7 +268,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
         </div>
         
         <Suspense fallback={<div className="rounded-2xl border border-slate-700/60 bg-slate-900/30 p-6 text-sm text-slate-300">{tx(lang, 'Panel yüklənir...', 'Панель загружается...', 'Loading panel...')}</div>}>
-        {activeTab === 'dashboard' && <DashboardPanel onOpenTab={setActiveTab} />}
+        {activeTab === 'dashboard' && <DashboardPanel onOpenTab={setActiveTabSoft} />}
 
         {activeTab === 'analytics' && (
           <div>
