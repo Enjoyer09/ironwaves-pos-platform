@@ -4,6 +4,7 @@ import { get_customers_live, import_customers_live } from '../../api/crm';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 import { send_email } from '../../api/email';
+import { readScopedStorage, removeScopedStorage } from '../../lib/storage_keys';
 
 const QR_TYPES = [
   { value: 'golden', label_az: 'Golden (5%)', label_ru: 'Golden (5%)', discount: 5 },
@@ -27,6 +28,7 @@ export default function CRMPanel() {
   const [campaignRecipients, setCampaignRecipients] = useState('');
   const [campaignSubject, setCampaignSubject] = useState('');
   const [campaignBody, setCampaignBody] = useState('');
+  const [aiDraftLoaded, setAiDraftLoaded] = useState(false);
 
   const selectedTier = useMemo(() => QR_TYPES.find((t) => t.value === tier) || QR_TYPES[0], [tier]);
   const effectiveType = tier === '__custom__' ? customType.trim() : selectedTier.value;
@@ -59,6 +61,33 @@ export default function CRMPanel() {
   useEffect(() => {
     void loadData();
   }, [tenant_id]);
+
+  useEffect(() => {
+    const applyDraft = (payload?: { subject?: string; body?: string }) => {
+      if (!payload) return;
+      if (payload.subject) setCampaignSubject(String(payload.subject));
+      if (payload.body) setCampaignBody(String(payload.body));
+      setAiDraftLoaded(true);
+    };
+
+    try {
+      const raw = readScopedStorage('ai_campaign_draft');
+      if (raw) {
+        applyDraft(JSON.parse(raw));
+      }
+    } catch {
+      // ignore parse issues
+    }
+
+    const handleDraft = (event: Event) => {
+      const detail = (event as CustomEvent<{ subject?: string; body?: string }>).detail;
+      applyDraft(detail);
+    };
+    window.addEventListener('ai-campaign-draft', handleDraft as EventListener);
+    return () => {
+      window.removeEventListener('ai-campaign-draft', handleDraft as EventListener);
+    };
+  }, []);
 
   const onGenerate = async () => {
     if (count < 1 || count > 200) {
@@ -187,6 +216,21 @@ export default function CRMPanel() {
             'You can enter recipient emails manually here and send a CRM campaign. Default recipients also come from Settings.',
           )}
         </p>
+        {aiDraftLoaded && (
+          <div className="mt-3 rounded-2xl border border-fuchsia-400/35 bg-fuchsia-500/10 px-4 py-3 text-sm text-fuchsia-100">
+            <div className="font-bold">{tx(lang, 'AI draft hazırdır', 'AI draft готов', 'AI draft is ready')}</div>
+            <div className="mt-1">{tx(lang, 'AI Manager-dən gələn kampaniya mətni formaya yerləşdirildi.', 'Текст кампании из AI Manager уже добавлен в форму.', 'Campaign copy from AI Manager has been loaded into the form.')}</div>
+            <button
+              onClick={() => {
+                removeScopedStorage('ai_campaign_draft');
+                setAiDraftLoaded(false);
+              }}
+              className="mt-3 rounded-xl border border-fuchsia-300/40 px-3 py-2 text-xs font-semibold text-fuchsia-50"
+            >
+              {tx(lang, 'Draft nişanını bağla', 'Скрыть draft', 'Dismiss draft')}
+            </button>
+          </div>
+        )}
         <div className="mt-3 grid grid-cols-1 gap-3">
           <input className="neon-input" value={campaignRecipients} onChange={(e) => setCampaignRecipients(e.target.value)} placeholder={tx(lang, 'Alıcı email-ləri (vergüllə)', 'Email получателей (через запятую)', 'Recipient emails (comma separated)')} />
           <input className="neon-input" value={campaignSubject} onChange={(e) => setCampaignSubject(e.target.value)} placeholder={tx(lang, 'Email başlığı', 'Тема email', 'Email subject')} />
