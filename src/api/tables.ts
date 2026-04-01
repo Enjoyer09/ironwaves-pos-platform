@@ -4,6 +4,7 @@ import { logEvent } from '../lib/logger';
 import { CartItem, PaymentMethod } from '../types/pos';
 import { create_sale } from './pos';
 import { apiRequest, isBackendEnabled } from './client';
+import { verifyLocalCredential } from '../lib/local_auth';
 
 import { getDB, setDB } from '../lib/db_sim';
 
@@ -17,6 +18,13 @@ export interface Table {
   cup_mode?: 'paper' | 'glass';
   kitchen_status?: string | null;
 }
+
+type TableRevisionPayload = {
+  items: CartItem[];
+  reason: string;
+  override_password: string;
+  actor: string;
+};
 
 const isRecoverableNetworkFailure = (error: unknown) => {
   const message = String((error as any)?.message || error || '').toLowerCase();
@@ -225,6 +233,67 @@ export const pay_table = (
   return { sale_id: result.sale_id, success: true };
 };
 
+export const revise_table_items = (table_id: string, payload: TableRevisionPayload) => {
+  const tables = getDB<Table>('tables');
+  const table = tables.find((t) => t.id === table_id);
+  if (!table) throw new Error('Masa tapılmadı');
+
+  const users = getDB<any>('users');
+  const overrideUser = users.find((row: any) => {
+    const role = String(row.role || '').toLowerCase();
+    if (!['admin', 'manager', 'super_admin'].includes(role)) return false;
+    return verifyLocalCredential(payload.override_password, row.password_hash || row.password);
+  });
+  if (!overrideUser) throw new Error('Manager/Admin override alınmadı');
+
+  const currentItems = Array.isArray(table.items) ? table.items : [];
+  const nextItems = payload.items.filter((item) => Number(item.qty || 0) > 0);
+  const removedItems = currentItems.reduce<any[]>((acc, oldItem: any) => {
+    const next = nextItems.find((item: any) => item.item_name === oldItem.item_name);
+    const removedQty = Number(oldItem.qty || 0) - Number(next?.qty || 0);
+    if (removedQty > 0) {
+      acc.push({
+        ...oldItem,
+        qty: removedQty,
+        action: 'CANCEL',
+        reason: payload.reason,
+        updated_by: overrideUser.username,
+        updated_at: new Date().toISOString(),
+      });
+    }
+    return acc;
+  }, []);
+  if (removedItems.length === 0) throw new Error('Dəyişiklik tapılmadı');
+
+  table.items = nextItems as any;
+  table.total = nextItems
+    .reduce((acc, item) => acc.plus(new Decimal(item.price).times(item.qty)), new Decimal(0))
+    .toFixed(2);
+  table.is_occupied = nextItems.length > 0;
+  setDB('tables', tables);
+
+  const kitchenOrders = getDB<any>('kitchen_orders');
+  const activeOrder = [...kitchenOrders]
+    .filter((row: any) => row.tenant_id === table.tenant_id && row.table_label === table.label && ['NEW', 'PREPARING', 'READY'].includes(String(row.status || '')))
+    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+  if (activeOrder) {
+    const items = Array.isArray(activeOrder.items) ? activeOrder.items : [];
+    activeOrder.items = [...items, ...removedItems];
+    activeOrder.priority = 'URGENT';
+    setDB('kitchen_orders', kitchenOrders);
+  }
+
+  logEvent(payload.actor, 'TABLE_ITEM_REVISED', {
+    tenant_id: table.tenant_id,
+    table_id,
+    table_label: table.label,
+    reason: payload.reason,
+    override_by: overrideUser.username,
+    removed_items: removedItems.map((item: any) => `${item.qty}x ${item.item_name}`),
+  });
+  return { success: true, override_by: overrideUser.username, table_total: table.total };
+};
+
 export const transfer_table = (table_id: string, target_table_id: string, actor: string) => {
   const tables = getDB<Table>('tables');
   const source = tables.find((t) => t.id === table_id);
@@ -390,5 +459,34 @@ export const merge_tables_live = async (table_id: string, target_table_id: strin
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Tables backend merge failed: ${message}`);
+  }
+};
+
+export const revise_table_items_live = async (table_id: string, payload: TableRevisionPayload) => {
+  if (!isBackendEnabled()) return revise_table_items(table_id, payload);
+  try {
+    return await apiRequest<{ success: boolean; override_by: string; table_total: string }>(
+      `/api/v1/ops/tables/${encodeURIComponent(table_id)}/items`,
+      {
+        method: 'PATCH',
+        tenantId: null,
+        body: {
+          items: payload.items.map((item) => ({
+            id: item.id,
+            item_name: item.item_name,
+            price: new Decimal(item.price).toFixed(2),
+            qty: item.qty,
+            is_coffee: item.is_coffee,
+            category: item.category,
+          })),
+          reason: payload.reason,
+          override_password: payload.override_password,
+        },
+      },
+    );
+  } catch (error) {
+    if (isRecoverableNetworkFailure(error)) return revise_table_items(table_id, payload);
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Tables backend revise failed: ${message}`);
   }
 };
