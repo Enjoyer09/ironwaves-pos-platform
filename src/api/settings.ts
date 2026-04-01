@@ -133,7 +133,7 @@ function getSettings(tenant_id?: string): Settings {
       },
       role_modules: {
         staff: ['pos', 'tables', 'kds', 'zreport'],
-        manager: ['pos', 'tables', 'kds', 'zreport', 'finance', 'inventory', 'combos', 'analytics', 'logs', 'crm', 'customerapp', 'ai', 'menu', 'recipes'],
+        manager: ['pos', 'tables', 'kds', 'zreport', 'finance', 'inventory', 'combos', 'analytics', 'logs', 'crm', 'customerapp', 'posbuilder', 'ai', 'menu', 'recipes'],
         kitchen: ['kds']
       }
     };
@@ -239,7 +239,7 @@ export function get_settings(tenant_id?: string) {
   if (!s.role_modules) {
     s.role_modules = {
       staff: ['pos', 'tables', 'kds', 'zreport'],
-      manager: ['pos', 'tables', 'kds', 'zreport', 'finance', 'inventory', 'combos', 'analytics', 'logs', 'crm', 'customerapp', 'ai', 'menu', 'recipes'],
+      manager: ['pos', 'tables', 'kds', 'zreport', 'finance', 'inventory', 'combos', 'analytics', 'logs', 'crm', 'customerapp', 'posbuilder', 'ai', 'menu', 'recipes'],
       kitchen: ['kds']
     };
     saveSettings(s);

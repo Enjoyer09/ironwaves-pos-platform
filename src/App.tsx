@@ -34,6 +34,7 @@ type AdminView =
   | 'inventory'
   | 'crm'
   | 'customerapp'
+  | 'posbuilder'
   | 'recipes'
   | 'ai'
   | 'settings'
@@ -57,6 +58,7 @@ type ModuleKey =
   | 'logs'
   | 'crm'
   | 'customerapp'
+  | 'posbuilder'
   | 'ai'
   | 'menu'
   | 'recipes'
@@ -437,6 +439,7 @@ export default function App() {
     { key: 'logs', label: t.modules.logs, manager: true },
     { key: 'crm', label: t.modules.crm, manager: true },
     { key: 'customerapp', label: t.modules.customerapp, manager: true },
+    { key: 'posbuilder', label: t.modules.posbuilder, manager: true },
     { key: 'notes', label: t.modules.notes, adminOnly: true },
     { key: 'database', label: t.modules.database, adminOnly: true },
     { key: 'settings', label: t.modules.settings, adminOnly: true },
