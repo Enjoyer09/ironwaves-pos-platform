@@ -14,6 +14,12 @@ export default function KDS() {
 
   const [currentTime, setCurrentTime] = useState(Date.now());
 
+  const parseServerTimestamp = (value?: string | null) => {
+    if (!value) return NaN;
+    const normalized = /z$/i.test(value) || /[+-]\d{2}:\d{2}$/.test(value) ? value : `${value}Z`;
+    return new Date(normalized).getTime();
+  };
+
   // Sifarişləri mütəmadi olaraq yoxla (Simulyativ WebSocket)
   useEffect(() => {
     const fetchOrders = async () => {
@@ -47,7 +53,7 @@ export default function KDS() {
   }, []);
 
   const getElapsedMinutes = (created_at: string) => {
-    const ts = new Date(created_at).getTime();
+    const ts = parseServerTimestamp(created_at);
     if (Number.isNaN(ts)) return 0;
     return Math.max(0, Math.floor((currentTime - ts) / 60000));
   };
@@ -107,6 +113,87 @@ export default function KDS() {
     }
   };
 
+  const groupedOrders = orders.reduce<Array<{
+    key: string;
+    table_label: string | null;
+    order_type?: string;
+    status: 'NEW' | 'PREPARING' | 'READY';
+    priority: 'NORMAL' | 'URGENT';
+    created_at: string;
+    ids: string[];
+    newIds: string[];
+    preparingIds: string[];
+    readyIds: string[];
+    items: Array<{ item_name: string; qty: number }>;
+    batchCount: number;
+  }>>((acc, order) => {
+    const key = order.table_label ? `table:${order.table_label}` : `order:${order.id}`;
+    const existing = acc.find((row) => row.key === key);
+    const normalizedItems = normalizeItems(order);
+
+    if (!existing) {
+      acc.push({
+        key,
+        table_label: order.table_label || null,
+        order_type: order.order_type,
+        status: order.status,
+        priority: order.priority,
+        created_at: order.created_at,
+        ids: [order.id],
+        newIds: order.status === 'NEW' ? [order.id] : [],
+        preparingIds: order.status === 'PREPARING' ? [order.id] : [],
+        readyIds: order.status === 'READY' ? [order.id] : [],
+        items: normalizedItems.map((item: any) => ({ item_name: item.item_name, qty: Number(item.qty || 0) })),
+        batchCount: 1,
+      });
+      return acc;
+    }
+
+    existing.ids.push(order.id);
+    existing.batchCount += 1;
+    if (order.status === 'NEW') existing.newIds.push(order.id);
+    if (order.status === 'PREPARING') existing.preparingIds.push(order.id);
+    if (order.status === 'READY') existing.readyIds.push(order.id);
+    if (order.priority === 'URGENT') existing.priority = 'URGENT';
+
+    const currentCreated = parseServerTimestamp(existing.created_at);
+    const nextCreated = parseServerTimestamp(order.created_at);
+    if (!Number.isNaN(nextCreated) && (Number.isNaN(currentCreated) || nextCreated < currentCreated)) {
+      existing.created_at = order.created_at;
+    }
+
+    if (existing.newIds.length > 0) existing.status = 'NEW';
+    else if (existing.preparingIds.length > 0) existing.status = 'PREPARING';
+    else existing.status = 'READY';
+
+    normalizedItems.forEach((item: any) => {
+      const idx = existing.items.findIndex((row) => row.item_name === item.item_name);
+      if (idx >= 0) existing.items[idx].qty += Number(item.qty || 0);
+      else existing.items.push({ item_name: item.item_name, qty: Number(item.qty || 0) });
+    });
+    return acc;
+  }, []);
+
+  const handleAcceptGroup = async (group: { newIds: string[] }) => {
+    try {
+      await Promise.all(group.newIds.map((orderId) => accept_order_live(orderId, user?.username || 'kitchen')));
+      setOrders(await get_kitchen_orders_live(tenant_id));
+    } catch (e: any) {
+      logUiError(tenant_id, 'kds', e?.message || String(e), { phase: 'accept_group', ids: group.newIds });
+      useAppStore.getState().notify('error', e.message);
+    }
+  };
+
+  const handleCompleteGroup = async (group: { preparingIds: string[] }) => {
+    try {
+      await Promise.all(group.preparingIds.map((orderId) => complete_order_live(orderId, user?.username || 'kitchen')));
+      setOrders(await get_kitchen_orders_live(tenant_id));
+    } catch (e: any) {
+      logUiError(tenant_id, 'kds', e?.message || String(e), { phase: 'complete_group', ids: group.preparingIds });
+      useAppStore.getState().notify('error', e.message);
+    }
+  };
+
   return (
     <div className="h-full overflow-y-auto p-6 text-slate-100">
       {!isOnline && (
@@ -129,23 +216,28 @@ export default function KDS() {
         </div>
         <div className="flex gap-3 text-sm font-medium items-center">
           <div className="metal-panel px-4 py-2 text-slate-300 flex items-center">
-            {tx(lang, 'Aktiv Sifarişlər', 'Активные заказы', 'Active Orders')}: <span className="ml-2 text-yellow-300 text-lg">{orders.length}</span>
+            {tx(lang, 'Aktiv Sifarişlər', 'Активные заказы', 'Active Orders')}: <span className="ml-2 text-yellow-300 text-lg">{groupedOrders.length}</span>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
-        {orders.map(order => (
-          <div key={order.id} className={`flex flex-col rounded-2xl border-2 overflow-hidden ${getStatusColor(order.status, order.created_at)}`}>
+        {groupedOrders.map(order => (
+          <div key={order.key} className={`flex flex-col rounded-2xl border-2 overflow-hidden ${getStatusColor(order.status, order.created_at)}`}>
             
             <div className="p-4 border-b border-slate-600/40 flex justify-between items-center bg-slate-900/25">
               <div className="flex flex-col gap-1">
                 <div className="flex items-center space-x-2">
-                    <span className="font-bold text-slate-100">#{String(order.id || '').substring(0,4).toUpperCase()}</span>
+                    <span className="font-bold text-slate-100">#{String(order.ids[0] || '').substring(0,4).toUpperCase()}</span>
                   {getStatusBadge(order.status)}
                   {order.priority === 'URGENT' && (
                       <span className="flex items-center text-red-500 text-xs font-bold ml-2">
                       <AlertCircle size={14} className="mr-1" /> {tx(lang, 'TƏCİLİ', 'СРОЧНО', 'URGENT')}
+                    </span>
+                  )}
+                  {order.batchCount > 1 && (
+                    <span className="rounded px-2 py-1 text-xs font-bold bg-violet-400/20 text-violet-200 border border-violet-300/40">
+                      +{order.batchCount - 1} {tx(lang, 'əlavə göndəriş', 'добавление', 'updates')}
                     </span>
                   )}
                 </div>
@@ -161,14 +253,14 @@ export default function KDS() {
                   {getElapsedMinutes(order.created_at)} {tx(lang, 'dəq', 'мин', 'min')}
                 </div>
                 <div className="text-slate-400 text-xs mt-1">
-                  {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {new Date(parseServerTimestamp(order.created_at)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
             </div>
 
             <div className="flex-1 p-4 bg-slate-900/15">
               <ul className="space-y-3">
-                {normalizeItems(order).map((item: any, idx: number) => (
+                {order.items.map((item: any, idx: number) => (
                   <li key={idx} className="flex justify-between items-center text-lg font-medium text-slate-100">
                     <span className="flex items-center">
                       <span className="w-6 h-6 rounded bg-slate-700 text-slate-100 flex items-center justify-center text-sm mr-3">
@@ -184,15 +276,17 @@ export default function KDS() {
             <div className="p-4 mt-auto">
               {order.status === 'NEW' && (
                 <button
-                  onClick={() => { void handleAccept(order.id); }}
+                  onClick={() => { void handleAcceptGroup(order); }}
                   className="w-full py-3 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white transition-colors shadow-sm"
                 >
-                  {tx(lang, 'Qəbul Et (Hazırla)', 'Принять (готовить)', 'Accept (Start Preparing)')}
+                  {order.newIds.length > 1
+                    ? tx(lang, 'Yeni əlavələri qəbul et', 'Принять новые добавления', 'Accept new additions')
+                    : tx(lang, 'Qəbul Et (Hazırla)', 'Принять (готовить)', 'Accept (Start Preparing)')}
                 </button>
               )}
               {order.status === 'PREPARING' && (
                 <button
-                  onClick={() => { void handleComplete(order.id); }}
+                  onClick={() => { void handleCompleteGroup(order); }}
                   className="w-full py-3 rounded-xl font-bold bg-yellow-400 hover:bg-yellow-300 text-slate-900 transition-colors shadow-sm flex items-center justify-center"
                 >
                   <CheckCircle size={20} className="mr-2" />
