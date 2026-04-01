@@ -29,6 +29,7 @@ export default function CRMPanel() {
   const [campaignSubject, setCampaignSubject] = useState('');
   const [campaignBody, setCampaignBody] = useState('');
   const [aiDraftLoaded, setAiDraftLoaded] = useState(false);
+  const [sendingAiDraft, setSendingAiDraft] = useState(false);
 
   const selectedTier = useMemo(() => QR_TYPES.find((t) => t.value === tier) || QR_TYPES[0], [tier]);
   const effectiveType = tier === '__custom__' ? customType.trim() : selectedTier.value;
@@ -55,6 +56,21 @@ export default function CRMPanel() {
       notify(result.success ? 'success' : 'error', result.message);
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Email göndərilmədi', 'Email не отправлен', 'Email was not sent'));
+    }
+  };
+
+  const onSendAiDraftNow = async () => {
+    if (!campaignSubject.trim() || !campaignBody.trim()) {
+      notify('error', tx(lang, 'Əvvəl AI draft və ya manual mətn doldurun', 'Сначала заполните AI draft или вручную', 'Fill AI draft or manual copy first'));
+      return;
+    }
+    setSendingAiDraft(true);
+    try {
+      await onSendCampaign();
+      removeScopedStorage('ai_campaign_draft');
+      setAiDraftLoaded(false);
+    } finally {
+      setSendingAiDraft(false);
     }
   };
 
@@ -220,15 +236,24 @@ export default function CRMPanel() {
           <div className="mt-3 rounded-2xl border border-fuchsia-400/35 bg-fuchsia-500/10 px-4 py-3 text-sm text-fuchsia-100">
             <div className="font-bold">{tx(lang, 'AI draft hazırdır', 'AI draft готов', 'AI draft is ready')}</div>
             <div className="mt-1">{tx(lang, 'AI Manager-dən gələn kampaniya mətni formaya yerləşdirildi.', 'Текст кампании из AI Manager уже добавлен в форму.', 'Campaign copy from AI Manager has been loaded into the form.')}</div>
-            <button
-              onClick={() => {
-                removeScopedStorage('ai_campaign_draft');
-                setAiDraftLoaded(false);
-              }}
-              className="mt-3 rounded-xl border border-fuchsia-300/40 px-3 py-2 text-xs font-semibold text-fuchsia-50"
-            >
-              {tx(lang, 'Draft nişanını bağla', 'Скрыть draft', 'Dismiss draft')}
-            </button>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <button
+                onClick={() => { void onSendAiDraftNow(); }}
+                disabled={sendingAiDraft}
+                className="rounded-xl border border-fuchsia-200/40 bg-fuchsia-100/10 px-3 py-2 text-xs font-semibold text-fuchsia-50 disabled:opacity-60"
+              >
+                {sendingAiDraft ? tx(lang, 'Göndərilir...', 'Отправляется...', 'Sending...') : tx(lang, '1 kliklə göndər', 'Отправить в 1 клик', 'Send in 1 click')}
+              </button>
+              <button
+                onClick={() => {
+                  removeScopedStorage('ai_campaign_draft');
+                  setAiDraftLoaded(false);
+                }}
+                className="rounded-xl border border-fuchsia-300/40 px-3 py-2 text-xs font-semibold text-fuchsia-50"
+              >
+                {tx(lang, 'Draft nişanını bağla', 'Скрыть draft', 'Dismiss draft')}
+              </button>
+            </div>
           </div>
         )}
         <div className="mt-3 grid grid-cols-1 gap-3">
