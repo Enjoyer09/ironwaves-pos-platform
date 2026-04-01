@@ -15,7 +15,7 @@ import {
   x_report,
   z_report,
 } from '../../api/reports';
-import { create_finance_entry_async, fetch_finance_balances, transfer_funds_async } from '../../api/finance';
+import { create_finance_entry_async, fetch_finance_balances, get_balance, transfer_funds_async } from '../../api/finance';
 import { get_settings, get_users } from '../../api/settings';
 import { qzListPrinters, qzPrintHtml } from '../../lib/qz';
 import { tx } from '../../i18n';
@@ -195,7 +195,21 @@ export default function ZReportPanel() {
 
   React.useEffect(() => {
     const onFocusRefresh = () => setReportRefreshKey((prev) => prev + 1);
-    const onFinanceRefresh = () => setReportRefreshKey((prev) => prev + 1);
+    const onFinanceRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<{ tenant_id?: string }>).detail;
+      if (detail?.tenant_id && detail.tenant_id !== tenant_id) return;
+      const optimisticBalances = get_balance(tenant_id, 'all', false) as any;
+      const optimisticCash = get_expected_cash(tenant_id);
+      setCurrentBalances(optimisticBalances);
+      setExpectedCashState(optimisticCash);
+      const nextCash = optimisticCash.toFixed(2);
+      if (shiftStatusState.status === 'Open') {
+        setXActualCash(nextCash);
+        setZActualCash(nextCash);
+        setHandoverActualCash(nextCash);
+      }
+      setReportRefreshKey((prev) => prev + 1);
+    };
     window.addEventListener('focus', onFocusRefresh);
     window.addEventListener('finance-updated', onFinanceRefresh as EventListener);
     const timer = window.setInterval(() => {
