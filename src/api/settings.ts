@@ -74,6 +74,15 @@ function getSettings(tenant_id?: string): Settings {
         show_history: true,
         show_notifications: true,
       },
+      pos_layout: {
+        preset: 'classic',
+        density: 'comfortable',
+        product_columns: 3,
+        show_cart_tabs: true,
+        accent_color: '#facc15',
+        hidden_widgets: [],
+        widget_order: ['customer', 'discount', 'orderType', 'table', 'cartItems', 'cartSummary', 'payments'],
+      },
       landing_settings: {
         hero_title_az: 'Azərbaycan bazarı üçün müasir POS və idarəetmə sistemi',
         hero_title_ru: 'Премиальная POS-платформа для ресторанов, coffee shop и retail',
@@ -249,6 +258,18 @@ export function get_settings(tenant_id?: string) {
       show_campaigns: true,
       show_history: true,
       show_notifications: true,
+    };
+    saveSettings(s);
+  }
+  if (!s.pos_layout) {
+    s.pos_layout = {
+      preset: 'classic',
+      density: 'comfortable',
+      product_columns: 3,
+      show_cart_tabs: true,
+      accent_color: '#facc15',
+      hidden_widgets: [],
+      widget_order: ['customer', 'discount', 'orderType', 'table', 'cartItems', 'cartSummary', 'payments'],
     };
     saveSettings(s);
   }
@@ -459,6 +480,22 @@ export function update_customer_app_settings(payload: {
   return { success: true, customer_app_settings: settings.customer_app_settings };
 }
 
+export function update_pos_layout_settings(payload: NonNullable<Settings['pos_layout']>) {
+  const settings = getSettings();
+  settings.pos_layout = {
+    preset: payload.preset === 'fast' || payload.preset === 'touch' || payload.preset === 'tables' ? payload.preset : 'classic',
+    density: payload.density === 'compact' || payload.density === 'large' ? payload.density : 'comfortable',
+    product_columns: payload.product_columns === 2 || payload.product_columns === 4 ? payload.product_columns : 3,
+    show_cart_tabs: payload.show_cart_tabs !== false,
+    accent_color: String(payload.accent_color || '').trim() || '#facc15',
+    hidden_widgets: Array.from(new Set((payload.hidden_widgets || []).map((v) => String(v || '').trim()).filter(Boolean))),
+    widget_order: Array.from(new Set((payload.widget_order || []).map((v) => String(v || '').trim()).filter(Boolean))),
+  };
+  saveSettings(settings);
+  logEvent('admin', 'POS_LAYOUT_UPDATED', settings.pos_layout);
+  return { success: true, pos_layout: settings.pos_layout };
+}
+
 export function update_omnitech_settings(payload: {
   enabled: boolean;
   api_base_url: string;
@@ -541,6 +578,13 @@ export async function update_customer_app_settings_live(payload: {
   if (!isBackendEnabled()) return update_customer_app_settings(payload);
   await apiRequest('/api/v1/ops/settings/customer-app', { method: 'PATCH', tenantId: null, body: payload });
   update_customer_app_settings(payload);
+  return { success: true };
+}
+
+export async function update_pos_layout_settings_live(payload: NonNullable<Settings['pos_layout']>) {
+  if (!isBackendEnabled()) return update_pos_layout_settings(payload);
+  await apiRequest('/api/v1/ops/settings/pos-layout', { method: 'PATCH', tenantId: null, body: payload });
+  update_pos_layout_settings(payload);
   return { success: true };
 }
 

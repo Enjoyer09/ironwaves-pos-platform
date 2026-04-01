@@ -166,9 +166,33 @@ export default function POS() {
   const [isSyncingOffline, setIsSyncingOffline] = useState(false);
   const [mobilePane, setMobilePane] = useState<'menu' | 'cart'>('menu');
   const [showMobileCheckout, setShowMobileCheckout] = useState(false);
+  const [layoutRefreshKey, setLayoutRefreshKey] = useState(0);
   const receiptIframeRef = useRef<HTMLIFrameElement | null>(null);
   const businessProfile = get_business_profile(tenantId);
-  const printSettings = get_settings(tenantId).print_settings || { use_qz: false, printer_name: '' };
+  const tenantSettings = useMemo(() => get_settings(tenantId), [tenantId, layoutRefreshKey]);
+  const printSettings = tenantSettings.print_settings || { use_qz: false, printer_name: '' };
+  const posLayout = tenantSettings.pos_layout || {
+    preset: 'classic',
+    density: 'comfortable',
+    product_columns: 3,
+    show_cart_tabs: true,
+    accent_color: '#facc15',
+    hidden_widgets: [],
+    widget_order: ['customer', 'discount', 'orderType', 'table', 'cartItems', 'cartSummary', 'payments'],
+  };
+
+  useEffect(() => {
+    const onLayoutUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<{ tenant_id?: string }>).detail;
+      if (!detail?.tenant_id || detail.tenant_id === tenantId) {
+        setLayoutRefreshKey((prev) => prev + 1);
+      }
+    };
+    window.addEventListener('pos-layout-updated', onLayoutUpdate as EventListener);
+    return () => {
+      window.removeEventListener('pos-layout-updated', onLayoutUpdate as EventListener);
+    };
+  }, [tenantId]);
 
   useEffect(() => {
     const raw = localStorage.getItem(`${tenantId}_pos_carts`);
@@ -730,6 +754,212 @@ export default function POS() {
     }
   };
 
+  const isWidgetVisible = (widget: string) => !posLayout.hidden_widgets?.includes(widget);
+  const productGridClass =
+    posLayout.product_columns === 2
+      ? 'md:grid-cols-2 2xl:grid-cols-2'
+      : posLayout.product_columns === 4
+        ? 'md:grid-cols-2 2xl:grid-cols-4'
+        : 'md:grid-cols-2 2xl:grid-cols-3';
+  const densityClass =
+    posLayout.density === 'compact'
+      ? 'text-[13px]'
+      : posLayout.density === 'large'
+        ? 'text-[15px]'
+        : 'text-sm';
+  const shellClass =
+    posLayout.preset === 'touch'
+      ? 'bg-[radial-gradient(circle_at_top,#314155,#161f2a_58%)]'
+      : posLayout.preset === 'fast'
+        ? 'bg-[radial-gradient(circle_at_top,#22303d,#121922_58%)]'
+        : posLayout.preset === 'tables'
+          ? 'bg-[radial-gradient(circle_at_top,#2e3247,#151b26_58%)]'
+          : 'bg-[radial-gradient(circle_at_top,#2a3342,#141b24_55%)]';
+  const orderTypeBlockVisible = isWidgetVisible('orderType');
+  const tableBlockVisible = isWidgetVisible('table');
+  const renderSidebarWidget = (widget: string) => {
+    if (!isWidgetVisible(widget)) return null;
+    if (widget === 'customer') {
+      return (
+        <React.Fragment key={widget}>
+          <div className="relative">
+            <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            <input
+              placeholder={tx(lang, 'Skan et...', 'Сканируйте...', 'Scan...')}
+              className="neon-input pl-9"
+              value={ctx.customerQR}
+              onChange={(e) => patchCtx({ customerQR: e.target.value })}
+              onKeyDown={(e) => e.key === 'Enter' && handleFindCustomer()}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={handleFindCustomer} className="pay-btn h-12 w-full">{tx(lang, 'Müştəri Tap', 'Найти клиента', 'Find Customer')}</button>
+            <button onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '' })} className="pay-btn h-12 w-full">{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</button>
+          </div>
+          {ctx.customer && (
+            <div className="rounded-md border border-emerald-400/40 bg-emerald-500/10 p-2 text-xs text-emerald-200">
+              QR: {ctx.customer.card_id} | {tx(lang, 'Ulduz', 'Звезды', 'Stars')}: {ctx.customer.stars} | {tx(lang, 'Tip', 'Тип', 'Type')}: {ctx.customer.type}
+            </div>
+          )}
+        </React.Fragment>
+      );
+    }
+    if (widget === 'discount') {
+      return (
+        <React.Fragment key={widget}>
+          <input
+            placeholder={tx(lang, 'Reward kodu (opsional)', 'Код награды (необязательно)', 'Reward code (optional)')}
+            className="neon-input"
+            value={ctx.rewardClaimCode || ''}
+            onChange={(e) => patchCtx({ rewardClaimCode: e.target.value.toUpperCase() })}
+          />
+          <label className="block text-xs text-slate-400">{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</label>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={ctx.discount}
+            onChange={(e) => patchCtx({ discount: e.target.value })}
+            className="neon-input"
+          />
+        </React.Fragment>
+      );
+    }
+    if (widget === 'orderType' && orderTypeBlockVisible) {
+      return (
+        <div key={widget} className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {(['Take Away', 'Dine In', 'Order Online'] as OrderType[]).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => patchCtx({ orderType: mode })}
+              className={`rounded-md border px-2 py-3 text-xs font-semibold ${
+                ctx.orderType === mode
+                  ? 'text-slate-900'
+                  : 'border-slate-600 bg-slate-800/40 text-slate-200'
+              }`}
+              style={ctx.orderType === mode ? { borderColor: posLayout.accent_color, backgroundColor: posLayout.accent_color } : undefined}
+            >
+              {mode === 'Dine In'
+                ? tx(lang, 'Masada', 'В зале', 'Dine In')
+                : mode === 'Take Away'
+                  ? tx(lang, 'Al-apar', 'С собой', 'Take Away')
+                  : tx(lang, 'Onlayn', 'Онлайн', 'Online')}
+            </button>
+          ))}
+        </div>
+      );
+    }
+    if (widget === 'table' && tableBlockVisible) {
+      return (
+        <React.Fragment key={widget}>
+          {ctx.orderType === 'Dine In' && (
+            <div className="space-y-2">
+              <div className="relative">
+                <select value={ctx.selectedTable} onChange={(e) => patchCtx({ selectedTable: e.target.value })} className="neon-input appearance-none">
+                  <option value="">{tx(lang, 'Masa seçin', 'Выберите стол', 'Select table')}</option>
+                  {tables.map((table) => (
+                    <option key={table.id} value={table.id}>{table.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <button onClick={() => patchCtx({ cupMode: 'paper' })} className={`rounded-md border px-2 py-2 text-xs font-semibold ${ctx.cupMode === 'paper' ? 'text-slate-900' : 'border-slate-600 bg-slate-800/40 text-slate-200'}`} style={ctx.cupMode === 'paper' ? { borderColor: posLayout.accent_color, backgroundColor: posLayout.accent_color } : undefined}>
+                  {tx(lang, 'Kağız stəkan', 'Бумажный стакан', 'Paper cup')}
+                </button>
+                <button onClick={() => patchCtx({ cupMode: 'glass' })} className={`rounded-md border px-2 py-2 text-xs font-semibold ${ctx.cupMode === 'glass' ? 'text-slate-900' : 'border-slate-600 bg-slate-800/40 text-slate-200'}`} style={ctx.cupMode === 'glass' ? { borderColor: posLayout.accent_color, backgroundColor: posLayout.accent_color } : undefined}>
+                  {tx(lang, 'Şüşə stəkan', 'Стеклянный стакан', 'Glass cup')}
+                </button>
+              </div>
+              {occupiedTables.length > 0 && (
+                <div className="rounded-lg border border-slate-700/70 bg-[#0e1520] p-3 text-xs text-slate-300">
+                  <div className="mb-2 font-semibold text-slate-200">{tx(lang, 'Açıq masa hesabları', 'Открытые счета столов')}</div>
+                  <div className="flex flex-wrap gap-2">
+                    {occupiedTables.map((t) => (
+                      <button key={`open_${t.id}`} onClick={() => patchCtx({ selectedTable: t.id, orderType: 'Dine In' })} className={`rounded-md border px-2 py-1 ${ctx.selectedTable === t.id ? 'text-slate-900' : 'border-slate-600 bg-slate-800/40 text-slate-200'}`} style={ctx.selectedTable === t.id ? { borderColor: posLayout.accent_color, backgroundColor: posLayout.accent_color } : undefined}>
+                        {t.label} - {toDecimalSafe(t.total || 0).toFixed(2)} ₼
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <button disabled={isLoading || !ctx.selectedTable || cart.length === 0} onClick={() => { void handleSendToKitchen(); }} className="pay-btn h-12 w-full">
+                {tx(lang, 'Mətbəxə Göndər', 'Отправить на кухню', 'Send To Kitchen')}
+              </button>
+            </div>
+          )}
+        </React.Fragment>
+      );
+    }
+    if (widget === 'cartItems') {
+      return (
+        <div
+          key={widget}
+          className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-lg border border-slate-700/70 bg-[#0d141e] p-3"
+          style={{ resize: 'vertical', minHeight: posLayout.density === 'large' ? '280px' : '220px' }}
+        >
+          {cart.length === 0 && <div className="pt-8 text-center text-sm text-slate-500">{t.cart_empty}</div>}
+          {cart.map((item) => (
+            <div key={item.id} className="rounded-md border border-slate-700 bg-slate-900/40 p-2">
+              <div className="mb-1 flex items-center justify-between text-sm">
+                <span className="font-semibold text-slate-100">{item.item_name}</span>
+                <span className="font-semibold text-yellow-300">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
+              </div>
+              <div className="flex items-center justify-end gap-1">
+                <button className="neon-mini-btn" onClick={() => updateCartItem(item.id, item.qty - 1)}><Minus size={13} /></button>
+                <span className="w-6 text-center text-sm">{item.qty}</span>
+                <button className="neon-mini-btn" onClick={() => updateCartItem(item.id, item.qty + 1)}><Plus size={13} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (widget === 'cartSummary') {
+      return (
+        <div key={widget} className="space-y-2 border-t border-slate-700/60 bg-[#101722] pt-3 text-sm">
+          <div className="flex justify-between text-slate-300"><span>{tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span><span>{rawTotal.toFixed(2)} ₼</span></div>
+          <div className="flex justify-between text-slate-300"><span>{tx(lang, 'Endirim', 'Скидка', 'Discount')}</span><span>- {discountAmount.toFixed(2)} ₼</span></div>
+          {totals.free_coffees > 0 && <div className="flex justify-between text-emerald-300"><span>{tx(lang, 'Pulsuz kofe', 'Бесплатный кофе', 'Free coffee')}</span><span>{totals.free_coffees}</span></div>}
+          <div className="flex justify-between text-xl font-bold text-white"><span>{tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>{checkoutBaseTotal.toFixed(2)} ₼</span></div>
+        </div>
+      );
+    }
+    if (widget === 'payments') {
+      return (
+        <React.Fragment key={widget}>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {(['Nəğd', 'Kart', 'Split', 'Staff'] as PaymentMethod[]).map((method) => (
+              <button key={method} disabled={isLoading} onClick={() => setSelectedPayment(method)} className={`pay-btn h-12 ${selectedPayment === method ? 'pay-btn-active' : ''}`}>{method === 'Nəğd' ? tx(lang, 'Nəğd', 'Наличные', 'Cash') : method === 'Kart' ? tx(lang, 'Kart', 'Карта', 'Card') : method === 'Split' ? tx(lang, 'Bölünmüş', 'Разделено', 'Split') : tx(lang, 'Staff', 'Персонал', 'Staff')}</button>
+            ))}
+          </div>
+          {selectedPayment === 'Split' && (
+            <div className="rounded-lg border border-slate-700/70 bg-[#0e1520] p-3 text-sm">
+              <label className="mb-1 block text-slate-300">{tx(lang, 'Nağd hissə', 'Наличная часть', 'Cash part')}</label>
+              <input type="number" min={0} step="0.01" max={checkoutBaseTotal.toNumber()} value={splitCashInput} onChange={(e) => setSplitCashInput(e.target.value)} className="neon-input" />
+            </div>
+          )}
+          {selectedPayment === 'Staff' && (
+            <div className="rounded-lg border border-slate-700/70 bg-[#0e1520] p-3 text-xs text-slate-300 space-y-1">
+              <div className="flex justify-between"><span>{tx(lang, 'Günlük limit', 'Дневной лимит', 'Daily limit')}</span><span>{staffPreview.daily_limit.toFixed(2)} ₼</span></div>
+              <div className="flex justify-between"><span>{tx(lang, 'Bu gün istifadə', 'Использовано сегодня', 'Used today')}</span><span>{staffPreview.used_today.toFixed(2)} ₼</span></div>
+              <div className="flex justify-between font-semibold text-yellow-300"><span>{tx(lang, 'Ödəniləcək', 'К оплате', 'To pay')}</span><span>{staffPreview.final_due.toFixed(2)} ₼</span></div>
+            </div>
+          )}
+          <button
+            disabled={isLoading || (cart.length === 0 && !(ctx.orderType === 'Dine In' && selectedTableData?.is_occupied)) || (ctx.orderType === 'Dine In' && !ctx.selectedTable)}
+            onClick={() => handleCheckout(selectedPayment)}
+            className="flex h-14 items-center justify-center gap-2 rounded-lg border px-4 text-base font-bold text-white shadow-[0_0_22px_rgba(239,68,68,0.35)] disabled:opacity-50"
+            style={{ backgroundColor: posLayout.accent_color, borderColor: posLayout.accent_color, color: '#111827' }}
+          >
+            <Check size={18} /> {tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}
+          </button>
+        </React.Fragment>
+      );
+    }
+    return null;
+  };
+
   if (receiptHtml) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-[#121922] p-6">
@@ -758,19 +988,24 @@ export default function POS() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[radial-gradient(circle_at_top,#2a3342,#141b24_55%)] px-3 pb-24 pt-3 text-slate-200 md:px-4 md:pb-3 xl:px-6">
+    <div
+      className={`flex h-full min-h-0 flex-col px-3 pb-24 pt-3 text-slate-200 md:px-4 md:pb-3 xl:px-6 ${shellClass} ${densityClass}`}
+      style={{ ['--pos-accent' as any]: posLayout.accent_color }}
+    >
 
-      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-        <button onClick={() => setActiveCart('S1')} className={`neon-tab ${activeCart === 'S1' ? 'neon-tab-active' : ''}`}>
-          <ShoppingCart size={14} /> {t.cart} 1 ({carts.S1.length})
-        </button>
-        <button onClick={() => setActiveCart('S2')} className={`neon-tab ${activeCart === 'S2' ? 'neon-tab-active' : ''}`}>
-          <ShoppingCart size={14} /> {t.cart} 2 ({carts.S2.length})
-        </button>
-        <button onClick={() => setActiveCart('S3')} className={`neon-tab ${activeCart === 'S3' ? 'neon-tab-active' : ''}`}>
-          <ShoppingCart size={14} /> {t.cart} 3 ({carts.S3.length})
-        </button>
-      </div>
+      {posLayout.show_cart_tabs && (
+        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <button onClick={() => setActiveCart('S1')} className={`neon-tab ${activeCart === 'S1' ? 'neon-tab-active' : ''}`}>
+            <ShoppingCart size={14} /> {t.cart} 1 ({carts.S1.length})
+          </button>
+          <button onClick={() => setActiveCart('S2')} className={`neon-tab ${activeCart === 'S2' ? 'neon-tab-active' : ''}`}>
+            <ShoppingCart size={14} /> {t.cart} 2 ({carts.S2.length})
+          </button>
+          <button onClick={() => setActiveCart('S3')} className={`neon-tab ${activeCart === 'S3' ? 'neon-tab-active' : ''}`}>
+            <ShoppingCart size={14} /> {t.cart} 3 ({carts.S3.length})
+          </button>
+        </div>
+      )}
 
       {pendingSyncCount > 0 && (
         <div className="mb-3 rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-amber-100">
@@ -864,7 +1099,7 @@ export default function POS() {
             ))}
           </div>
 
-          <div className="grid flex-1 auto-rows-max grid-cols-1 gap-2 overflow-y-auto pr-1 md:grid-cols-2 2xl:grid-cols-4">
+          <div className={`grid flex-1 auto-rows-max grid-cols-1 gap-2 overflow-y-auto pr-1 ${productGridClass}`}>
             {groupedMenu.map((group) => {
               const hasVariants = group.items.length > 1;
               const minPrice = group.items.reduce(
@@ -902,261 +1137,22 @@ export default function POS() {
             <button className="rounded-lg border border-slate-600 p-2"><ClipboardList size={16} /></button>
           </div>
 
-          <div className="relative mb-3">
-            <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-              <input
-                placeholder={tx(lang, 'Skan et...', 'Сканируйте...')}
-              className="neon-input pl-9"
-              value={ctx.customerQR}
-              onChange={(e) => patchCtx({ customerQR: e.target.value })}
-              onKeyDown={(e) => e.key === 'Enter' && handleFindCustomer()}
-            />
-          </div>
-          <div className="mb-2 grid grid-cols-2 gap-2">
-            <button onClick={handleFindCustomer} className="pay-btn h-12 w-full">{tx(lang, 'Müştəri Tap', 'Найти клиента', 'Find Customer')}</button>
-            <button onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '' })} className="pay-btn h-12 w-full">{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</button>
-          </div>
-          {ctx.customer && (
-            <div className="mb-3 rounded-md border border-emerald-400/40 bg-emerald-500/10 p-2 text-xs text-emerald-200">
-               QR: {ctx.customer.card_id} | {tx(lang, 'Ulduz', 'Звезды', 'Stars')}: {ctx.customer.stars} | {tx(lang, 'Tip', 'Тип', 'Type')}: {ctx.customer.type}
-            </div>
-          )}
-          <input
-            placeholder={tx(lang, 'Reward kodu (opsional)', 'Код награды (необязательно)', 'Reward code (optional)')}
-            className="neon-input mb-2"
-            value={ctx.rewardClaimCode || ''}
-            onChange={(e) => patchCtx({ rewardClaimCode: e.target.value.toUpperCase() })}
-          />
-
-          <label className="mb-1 text-xs text-slate-400">{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</label>
-          <input
-            type="number"
-            min={0}
-            max={100}
-            value={ctx.discount}
-            onChange={(e) => patchCtx({ discount: e.target.value })}
-            className="neon-input mb-2"
-          />
-
-          <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {(['Take Away', 'Dine In', 'Order Online'] as OrderType[]).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => patchCtx({ orderType: mode })}
-                className={`rounded-md border px-2 py-3 text-xs font-semibold ${
-                  ctx.orderType === mode
-                    ? 'border-yellow-300 bg-yellow-400 text-slate-900'
-                    : 'border-slate-600 bg-slate-800/40 text-slate-200'
-                }`}
-              >
-                {mode === 'Dine In'
-                  ? tx(lang, 'Masada', 'В зале', 'Dine In')
-                  : mode === 'Take Away'
-                  ? tx(lang, 'Al-apar', 'С собой', 'Take Away')
-                  : tx(lang, 'Onlayn', 'Онлайн', 'Online')}
-              </button>
-            ))}
-          </div>
-
-          {ctx.orderType === 'Dine In' && (
-            <div className="mb-3 space-y-2">
-              <div className="relative">
-                <select
-                  value={ctx.selectedTable}
-                  onChange={(e) => patchCtx({ selectedTable: e.target.value })}
-                  className="neon-input appearance-none"
-                >
-                   <option value="">{tx(lang, 'Masa seçin', 'Выберите стол', 'Select table')}</option>
-                  {tables.map((table) => (
-                    <option key={table.id} value={table.id}>
-                      {table.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
-              </div>
-
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <button
-                  onClick={() => patchCtx({ cupMode: 'paper' })}
-                  className={`rounded-md border px-2 py-2 text-xs font-semibold ${
-                    ctx.cupMode === 'paper'
-                      ? 'border-yellow-300 bg-yellow-400 text-slate-900'
-                      : 'border-slate-600 bg-slate-800/40 text-slate-200'
-                  }`}
-                >
-                  {tx(lang, 'Kağız stəkan', 'Бумажный стакан', 'Paper cup')}
-                </button>
-                <button
-                  onClick={() => patchCtx({ cupMode: 'glass' })}
-                  className={`rounded-md border px-2 py-2 text-xs font-semibold ${
-                    ctx.cupMode === 'glass'
-                      ? 'border-yellow-300 bg-yellow-400 text-slate-900'
-                      : 'border-slate-600 bg-slate-800/40 text-slate-200'
-                  }`}
-                >
-                  {tx(lang, 'Şüşə stəkan', 'Стеклянный стакан', 'Glass cup')}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {ctx.orderType === 'Dine In' && occupiedTables.length > 0 && (
-            <div className="mb-3 rounded-lg border border-slate-700/70 bg-[#0e1520] p-3 text-xs text-slate-300">
-              <div className="mb-2 font-semibold text-slate-200">{tx(lang, 'Açıq masa hesabları', 'Открытые счета столов')}</div>
-              <div className="flex flex-wrap gap-2">
-                {occupiedTables.map((t) => (
-                  <button
-                    key={`open_${t.id}`}
-                    onClick={() => patchCtx({ selectedTable: t.id, orderType: 'Dine In' })}
-                    className={`rounded-md border px-2 py-1 ${ctx.selectedTable === t.id ? 'border-yellow-300 bg-yellow-400 text-slate-900' : 'border-slate-600 bg-slate-800/40 text-slate-200'}`}
-                  >
-                    {t.label} - {toDecimalSafe(t.total || 0).toFixed(2)} ₼
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {ctx.orderType === 'Dine In' && (
-           <button
-              disabled={isLoading || !ctx.selectedTable || cart.length === 0}
-              onClick={() => { void handleSendToKitchen(); }}
-              className="pay-btn mb-3 h-12 w-full"
-            >
-              {tx(lang, 'Mətbəxə Göndər', 'Отправить на кухню', 'Send To Kitchen')}
-            </button>
-          )}
-
-          <div
-            className="mb-3 min-h-0 flex-1 space-y-2 overflow-y-auto rounded-lg border border-slate-700/70 bg-[#0d141e] p-3"
-            style={{ resize: 'vertical', minHeight: '220px' }}
-          >
-            {cart.length === 0 && <div className="pt-8 text-center text-sm text-slate-500">{t.cart_empty}</div>}
-            {cart.map((item) => (
-              <div key={item.id} className="rounded-md border border-slate-700 bg-slate-900/40 p-2">
-                <div className="mb-1 flex items-center justify-between text-sm">
-                  <span className="font-semibold text-slate-100">{item.item_name}</span>
-                  <span className="font-semibold text-yellow-300">
-                    {toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼
-                  </span>
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            {(posLayout.widget_order || []).map((widget) => renderSidebarWidget(widget))}
+            {ctx.customer && (
+              <div className="rounded-md border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-xs text-slate-400">
+                <div className="flex justify-between">
+                  <span>{tx(lang, 'Ulduz balansı (satışdan sonra)', 'Баланс звезд (после продажи)', 'Stars after sale')}</span>
+                  <span>{totals.customer_stars_after}</span>
                 </div>
-                <div className="flex items-center justify-end gap-1">
-                  <button className="neon-mini-btn" onClick={() => updateCartItem(item.id, item.qty - 1)}>
-                    <Minus size={13} />
-                  </button>
-                  <span className="w-6 text-center text-sm">{item.qty}</span>
-                  <button className="neon-mini-btn" onClick={() => updateCartItem(item.id, item.qty + 1)}>
-                    <Plus size={13} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="sticky bottom-0 mt-auto space-y-2 border-t border-slate-700/60 bg-[#101722] pt-3 text-sm">
-            <div className="flex justify-between text-slate-300">
-               <span>{tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span>
-              <span>{rawTotal.toFixed(2)} ₼</span>
-            </div>
-            <div className="flex justify-between text-slate-300">
-               <span>{tx(lang, 'Endirim', 'Скидка', 'Discount')}</span>
-              <span>- {discountAmount.toFixed(2)} ₼</span>
-            </div>
-            {totals.free_coffees > 0 && (
-              <div className="flex justify-between text-emerald-300">
-                <span>{tx(lang, 'Pulsuz kofe', 'Бесплатный кофе', 'Free coffee')}</span>
-                <span>{totals.free_coffees}</span>
               </div>
             )}
-            <div className="flex justify-between text-xl font-bold text-white">
-               <span>{tx(lang, 'Yekun', 'Итого', 'Total')}</span>
-              <span>{checkoutBaseTotal.toFixed(2)} ₼</span>
-            </div>
             {cart.length === 0 && selectedTableData?.is_occupied && (
               <div className="rounded-md border border-amber-400/40 bg-amber-400/10 p-2 text-xs text-amber-200">
                 {tx(lang, 'Masa sifarişi mətbəxə göndərilib. Bu məbləğ masanın açıq hesabıdır.', 'Заказ стола отправлен на кухню. Эта сумма — открытый счет стола.', 'The table order has been sent to the kitchen. This amount is the open table balance.')}
               </div>
             )}
-            {ctx.customer && (
-              <div className="flex justify-between text-xs text-slate-400">
-                 <span>{tx(lang, 'Ulduz balansı (satışdan sonra)', 'Баланс звезд (после продажи)', 'Stars after sale')}</span>
-                <span>{totals.customer_stars_after}</span>
-              </div>
-            )}
           </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <button
-              disabled={isLoading}
-              onClick={() => setSelectedPayment('Nəğd')}
-               className={`pay-btn h-12 ${selectedPayment === 'Nəğd' ? 'pay-btn-active' : ''}`}
-            >
-              {tx(lang, 'Nəğd', 'Наличные', 'Cash')}
-            </button>
-            <button
-              disabled={isLoading}
-              onClick={() => setSelectedPayment('Kart')}
-               className={`pay-btn h-12 ${selectedPayment === 'Kart' ? 'pay-btn-active' : ''}`}
-            >
-              {tx(lang, 'Kart', 'Карта', 'Card')}
-            </button>
-            <button
-              disabled={isLoading}
-              onClick={() => setSelectedPayment('Split')}
-               className={`pay-btn h-12 ${selectedPayment === 'Split' ? 'pay-btn-active' : ''}`}
-            >
-              {tx(lang, 'Bölünmüş', 'Разделено', 'Split')}
-            </button>
-            <button
-              disabled={isLoading}
-              onClick={() => setSelectedPayment('Staff')}
-               className={`pay-btn h-12 ${selectedPayment === 'Staff' ? 'pay-btn-active' : ''}`}
-            >
-              {tx(lang, 'Staff', 'Персонал', 'Staff')}
-            </button>
-          </div>
-
-          {selectedPayment === 'Split' && (
-            <div className="mt-3 rounded-lg border border-slate-700/70 bg-[#0e1520] p-3 text-sm">
-              <label className="mb-1 block text-slate-300">{tx(lang, 'Nağd hissə', 'Наличная часть', 'Cash part')}</label>
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                 max={checkoutBaseTotal.toNumber()}
-                value={splitCashInput}
-                onChange={(e) => setSplitCashInput(e.target.value)}
-                className="neon-input"
-              />
-              <div className="mt-2 flex justify-between text-slate-300">
-                <span>{tx(lang, 'Kart hissə', 'Карточная часть', 'Card part')}</span>
-                 <span>{Decimal.max(new Decimal(0), checkoutBaseTotal.minus(toDecimalSafe(splitCashInput || 0))).toFixed(2)} ₼</span>
-              </div>
-            </div>
-          )}
-
-          {selectedPayment === 'Staff' && (
-            <div className="mt-3 rounded-lg border border-slate-700/70 bg-[#0e1520] p-3 text-xs text-slate-300 space-y-1">
-              <div className="flex justify-between"><span>{tx(lang, 'Günlük limit', 'Дневной лимит', 'Daily limit')}</span><span>{staffPreview.daily_limit.toFixed(2)} ₼</span></div>
-              <div className="flex justify-between"><span>{tx(lang, 'Bu gün istifadə', 'Использовано сегодня', 'Used today')}</span><span>{staffPreview.used_today.toFixed(2)} ₼</span></div>
-              <div className="flex justify-between"><span>{tx(lang, 'Bu satışda limitdən düşən', 'Списывается по лимиту', 'Consumed in this sale')}</span><span>{staffPreview.benefit_used_this_sale.toFixed(2)} ₼</span></div>
-              <div className="flex justify-between"><span>{tx(lang, 'Qeyri-kofe artığı', 'Превышение некофе', 'Non-coffee excess')}</span><span>{staffPreview.non_coffee_excess.toFixed(2)} ₼</span></div>
-              <div className="flex justify-between font-semibold text-yellow-300"><span>{tx(lang, 'Ödəniləcək', 'К оплате', 'To pay')}</span><span>{staffPreview.final_due.toFixed(2)} ₼</span></div>
-            </div>
-          )}
-
-          <button
-            disabled={
-              isLoading ||
-              (cart.length === 0 && !(ctx.orderType === 'Dine In' && selectedTableData?.is_occupied)) ||
-              (ctx.orderType === 'Dine In' && !ctx.selectedTable)
-            }
-            onClick={() => handleCheckout(selectedPayment)}
-            className="mt-3 flex h-14 items-center justify-center gap-2 rounded-lg border border-red-300/40 bg-red-600 px-4 text-base font-bold text-white shadow-[0_0_22px_rgba(239,68,68,0.35)] disabled:opacity-50"
-          >
-            <Check size={18} /> {tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}
-          </button>
         </aside>
       </div>
 
