@@ -26,6 +26,8 @@ from app.models import (
     RewardClaim,
     Sale,
     Setting,
+    Shift,
+    ShiftHandover,
     StaffNotification,
     Table,
     Tenant,
@@ -246,6 +248,15 @@ class SendEmailIn(BaseModel):
 
 class RewardClaimIn(BaseModel):
     reward_id: str | None = None
+
+
+class ShiftHandoverCreateIn(BaseModel):
+    received_by: str
+    declared_cash: Decimal
+
+
+class ShiftHandoverAcceptPayload(BaseModel):
+    actual_cash: Decimal
 
 
 def _resolve_customer_session(db: Session, tenant_id: str, card_id: str, token: str) -> Customer:
@@ -1603,6 +1614,113 @@ def mark_staff_notifications_read(
         row.is_read = True
     db.commit()
     return {"success": True, "count": len(rows)}
+
+
+@router.post("/shift-handover")
+def create_shift_handover(
+    payload: ShiftHandoverCreateIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    active = db.query(Shift).filter(Shift.tenant_id == tenant.id, Shift.status == "open").first()
+    if not active:
+        raise HTTPException(status_code=400, detail="Shift is closed")
+
+    received_by = str(payload.received_by or "").strip()
+    if not received_by:
+        raise HTTPException(status_code=400, detail="Receiver is required")
+    if received_by == user.username:
+        raise HTTPException(status_code=400, detail="Cannot hand over shift to yourself")
+
+    receiver = (
+        db.query(User)
+        .filter(User.tenant_id == tenant.id, func.lower(User.username) == received_by.lower(), User.is_active == True)
+        .first()
+    )
+    if not receiver:
+        raise HTTPException(status_code=404, detail="Receiver user not found")
+    if str(receiver.role or "").lower() not in {"admin", "manager", "staff"}:
+        raise HTTPException(status_code=400, detail="Receiver role is not eligible for shift handover")
+
+    row = ShiftHandover(
+        tenant_id=tenant.id,
+        handed_by=user.username,
+        received_by=receiver.username,
+        declared_cash=payload.declared_cash,
+        status="PENDING",
+    )
+    db.add(row)
+    db.add(
+        StaffNotification(
+            tenant_id=tenant.id,
+            username=receiver.username,
+            title="Smena Təhvil Alındı",
+            message=f"{user.username} sizə {Decimal(str(payload.declared_cash)).quantize(Decimal('0.01'))} ₼ ilə smena təhvil verdi. Təsdiq edin.",
+            meta_json=json.dumps(
+                {
+                    "handed_by": user.username,
+                    "declared_cash": str(payload.declared_cash),
+                },
+                ensure_ascii=False,
+            ),
+            is_read=False,
+        )
+    )
+    db.commit()
+    db.refresh(row)
+    return {"success": True, "id": row.id, "status": row.status}
+
+
+@router.post("/shift-handover/{handover_id}/accept")
+def accept_shift_handover_op(
+    handover_id: str,
+    payload: ShiftHandoverAcceptPayload,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    active = db.query(Shift).filter(Shift.tenant_id == tenant.id, Shift.status == "open").first()
+    if not active:
+        raise HTTPException(status_code=400, detail="Shift is closed")
+
+    row = db.query(ShiftHandover).filter(ShiftHandover.id == handover_id, ShiftHandover.tenant_id == tenant.id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Handover not found")
+    if row.status != "PENDING":
+        raise HTTPException(status_code=400, detail="Handover already accepted")
+    if row.received_by != user.username:
+        raise HTTPException(status_code=403, detail="This handover is not assigned to you")
+
+    actual = Decimal(str(payload.actual_cash))
+    declared = Decimal(str(row.declared_cash))
+    difference = actual - declared
+    if difference != 0:
+        db.add(
+            FinanceEntry(
+                tenant_id=tenant.id,
+                type="in" if difference > 0 else "out",
+                category="Kassa Artığı" if difference > 0 else "Kassa Kəsiri",
+                source="cash",
+                amount=abs(difference),
+                description=f"Smeni qəbul fərqi ({row.handed_by} -> {user.username})",
+                created_by=user.username,
+            )
+        )
+
+    active.opened_by = user.username
+    row.status = "ACCEPTED"
+    row.actual_cash = actual
+    row.difference = difference
+    row.accepted_at = datetime.utcnow()
+    db.commit()
+    return {
+        "success": True,
+        "handover_id": row.id,
+        "declared_cash": str(row.declared_cash),
+        "actual_cash": str(actual),
+        "difference": str(difference),
+    }
 
 
 @router.get("/happy-hours/active")
