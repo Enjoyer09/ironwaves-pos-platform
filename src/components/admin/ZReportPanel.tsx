@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Decimal } from 'decimal.js';
 import { useAppStore } from '../../store';
 import { get_sales_summary_live, get_sales_list_live } from '../../api/analytics';
@@ -52,6 +52,7 @@ export default function ZReportPanel() {
   const [reportRefreshKey, setReportRefreshKey] = useState(0);
   const [salesPageSize, setSalesPageSize] = useState(10);
   const zReceiptRef = React.useRef<HTMLIFrameElement | null>(null);
+  const previousShiftStatusRef = useRef<string>(shiftStatusState.status);
   const printSettings = get_settings(tenant_id).print_settings || { use_qz: false, printer_name: '' };
 
   const carryoverCash = new Decimal(currentBalances.cash_balance || 0);
@@ -214,6 +215,22 @@ export default function ZReportPanel() {
     setHandoverActualCash((prev) => (prev === '0' ? fallback : prev));
   }, [expectedCashNow]);
 
+  React.useEffect(() => {
+    const previous = previousShiftStatusRef.current;
+    if (shiftStatus.status === 'Open' && previous !== 'Open') {
+      const next = expectedCashNow.toFixed(2);
+      setXActualCash(next);
+      setZActualCash(next);
+      setHandoverActualCash(next);
+    }
+    if (shiftStatus.status === 'Closed' && previous !== 'Closed') {
+      setXActualCash('0');
+      setZActualCash('0');
+      setHandoverActualCash('0');
+    }
+    previousShiftStatusRef.current = shiftStatus.status;
+  }, [shiftStatus.status, expectedCashNow]);
+
   const handleX = async () => {
     if (!xActualCash) return;
     try {
@@ -304,6 +321,10 @@ export default function ZReportPanel() {
       setShiftStatusState(status);
       setExpectedCashState(cash);
       setCurrentBalances(await fetch_finance_balances(tenant_id));
+      const nextCash = cash.toFixed(2);
+      setXActualCash(nextCash);
+      setZActualCash(nextCash);
+      setHandoverActualCash(nextCash);
       setReportRefreshKey((prev) => prev + 1);
 
       notify('success', tx(lang, 'Gün açıldı', 'День открыт'));
@@ -325,6 +346,9 @@ export default function ZReportPanel() {
       setShiftStatusState(status);
       setExpectedCashState(cash);
       setCurrentBalances(await fetch_finance_balances(tenant_id));
+      setXActualCash('0');
+      setZActualCash('0');
+      setHandoverActualCash('0');
       setReportRefreshKey((prev) => prev + 1);
       notify('success', tx(lang, 'Z-Hesabat yaradıldı', 'Z-отчет создан'));
       if (result.email_sent) {
