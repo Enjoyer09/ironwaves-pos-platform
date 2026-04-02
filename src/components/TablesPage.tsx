@@ -174,6 +174,24 @@ export default function TablesPage() {
     });
   };
 
+  const getMaxSplitCount = (table: any) => Math.max(2, Number(table?.guest_count || 2));
+
+  const normalizeSplitCount = (table: any, requested?: number | string) => {
+    const maxAllowed = getMaxSplitCount(table);
+    const parsed = Number(requested || splitCount || 2);
+    return Math.min(maxAllowed, Math.max(2, Number.isFinite(parsed) ? parsed : 2));
+  };
+
+  useEffect(() => {
+    if (!payTableId) return;
+    const table = tables.find((x) => x.id === payTableId);
+    if (!table) return;
+    const nextCount = normalizeSplitCount(table, splitCount);
+    if (String(nextCount) !== splitCount) {
+      setSplitCount(String(nextCount));
+    }
+  }, [payTableId, tables, splitCount]);
+
 
   const printTableReceiptOnly = async () => {
     if (printSettings.use_qz && tableReceiptHtml) {
@@ -391,7 +409,8 @@ export default function TablesPage() {
                         const deposit = new Decimal(table.deposit_amount || 0);
                         const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
                         const dueNow = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
-                        const count = Math.max(2, Number(splitCount || 2));
+                        const count = normalizeSplitCount(table, splitCount);
+                        setSplitCount(String(count));
                         setSplitParts(buildEqualSplitParts(count, dueNow));
                       }
                     }
@@ -412,26 +431,50 @@ export default function TablesPage() {
                 const deposit = new Decimal(table.deposit_amount || 0);
                 const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
                 const dueNow = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
-                const participantCount = Math.max(2, Number(splitCount || 2));
+                const participantCount = normalizeSplitCount(table, splitCount);
                 const partsTotal = splitParts.reduce((acc, row) => acc.plus(new Decimal(row.amount || 0)), new Decimal(0)).toDecimalPlaces(2);
                 const diff = dueNow.minus(partsTotal).toDecimalPlaces(2);
+                const depositPerGuestShare = Number(table.guest_count || 0) > 0
+                  ? deposit.div(Math.max(1, Number(table.guest_count || 1))).toDecimalPlaces(2)
+                  : new Decimal(0);
                 return (
                   <div className="mt-3 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3">
+                    <div className="mb-3 rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs text-cyan-100">
+                      <div className="flex justify-between gap-3">
+                        <span>{tx(lang, 'Qonaq sayı', 'Количество гостей', 'Guest count')}</span>
+                        <span>{Math.max(1, Number(table.guest_count || 1))}</span>
+                      </div>
+                      <div className="mt-1 flex justify-between gap-3">
+                        <span>{tx(lang, 'Depozit (cəmi)', 'Депозит (итого)', 'Deposit total')}</span>
+                        <span>{deposit.toFixed(2)} ₼</span>
+                      </div>
+                      <div className="mt-1 flex justify-between gap-3">
+                        <span>{tx(lang, '1 qonaq üçün depozit payı', 'Доля депозита на 1 гостя', 'Deposit share per guest')}</span>
+                        <span>{depositPerGuestShare.toFixed(2)} ₼</span>
+                      </div>
+                      <div className="mt-1 flex justify-between gap-3">
+                        <span>{tx(lang, 'Servis haqqı', 'Сервисный сбор', 'Service fee')}</span>
+                        <span>{serviceFee.toFixed(2)} ₼</span>
+                      </div>
+                    </div>
                     <label className="block text-sm text-slate-300">
                       {tx(lang, 'Neçə hissəyə bölünsün?', 'На сколько частей разделить?', 'How many parts?')}
                       <input
                         className="neon-input mt-2"
                         type="number"
                         min={2}
-                        max={12}
+                        max={getMaxSplitCount(table)}
                         value={splitCount}
                         onChange={(e) => {
-                          const nextCount = Math.max(2, Number(e.target.value || 2));
+                          const nextCount = normalizeSplitCount(table, e.target.value);
                           setSplitCount(String(nextCount));
                           setSplitParts(buildEqualSplitParts(nextCount, dueNow));
                         }}
                       />
                     </label>
+                    <div className="mt-2 text-xs text-slate-400">
+                      {tx(lang, 'Split hissələrinin sayı masa qonaq sayından çox ola bilməz.', 'Количество частей split не может превышать число гостей за столом.', 'Split parts cannot exceed the guest count for the table.')}
+                    </div>
                     <div className="mt-3 space-y-2">
                       {(splitParts.length === participantCount ? splitParts : buildEqualSplitParts(participantCount, dueNow)).map((part, idx) => (
                         <div key={`split_part_${idx}`} className="grid grid-cols-[1fr_120px] gap-2">
@@ -496,7 +539,7 @@ export default function TablesPage() {
                     let cash: Decimal | null = null;
                     let card: Decimal | null = null;
                     if (paymentMethod === 'Split') {
-                      const participantCount = Math.max(2, Number(splitCount || 2));
+                      const participantCount = normalizeSplitCount(table, splitCount);
                       const normalized = (splitParts.length === participantCount ? splitParts : buildEqualSplitParts(participantCount, dueNow));
                       const cashTotal = normalized
                         .filter((row) => row.method === 'Nəğd')
@@ -530,7 +573,13 @@ export default function TablesPage() {
 
                     const breakdown = paymentMethod === 'Split'
                       ? `<div style="display:flex;justify-content:space-between"><span>Nağd</span><span>${cash?.toFixed(2)} ₼</span></div>
-                         <div style="display:flex;justify-content:space-between"><span>Kart</span><span>${card?.toFixed(2)} ₼</span></div>`
+                         <div style="display:flex;justify-content:space-between"><span>Kart</span><span>${card?.toFixed(2)} ₼</span></div>
+                         <div style="margin-top:6px;font-size:11px;color:#555">Split hissələri</div>
+                         ${(
+                           splitParts.length === normalizeSplitCount(table, splitCount)
+                             ? splitParts
+                             : buildEqualSplitParts(normalizeSplitCount(table, splitCount), dueNow)
+                         ).map((part, idx) => `<div style="display:flex;justify-content:space-between"><span>Hissə ${idx + 1} · ${part.method}</span><span>${new Decimal(part.amount || 0).toFixed(2)} ₼</span></div>`).join('')}`
                       : `<div style="display:flex;justify-content:space-between"><span>Ödəniş</span><span>${paymentMethod}</span></div>`;
 
                     setTableReceiptHtml(`
@@ -564,8 +613,10 @@ export default function TablesPage() {
                           ${receiptCustomerId ? `<div class="line"><span>Müştəri ID</span><span>${receiptCustomerId}</span></div>` : ''}
                           ${receiptCustomerId ? `<div class="line"><span>Ulduz balansı</span><span>${receiptStarsAfter}</span></div>` : ''}
                           <div class="line"><span>Sifariş cəmi</span><span>${itemsTotal.toFixed(2)} ₼</span></div>
+                          <div class="line"><span>Servis faizi</span><span>${serviceFeePercent.toFixed(2)}%</span></div>
                           <div class="line"><span>Servis haqqı</span><span>${serviceFee.toFixed(2)} ₼</span></div>
                           <div class="line"><span>Depozit</span><span>${deposit.toFixed(2)} ₼</span></div>
+                          ${Number(table.guest_count || 0) > 0 ? `<div class="line"><span>1 qonaq üçün depozit</span><span>${deposit.div(Math.max(1, Number(table.guest_count || 1))).toDecimalPlaces(2).toFixed(2)} ₼</span></div>` : ''}
                           <div class="line"><span>Əlavə ödəniş</span><span>${dueNow.toFixed(2)} ₼</span></div>
                           <div class="line bold" style="font-size:13px"><span>YEKUN</span><span>${finalTotal.toFixed(2)} ₼</span></div>
                           <hr />
