@@ -103,6 +103,24 @@ export default function PublicReceipt({ receiptId, token }: Props) {
             <span>Subtotal</span>
             <span>{Number(receipt.original_total || 0).toFixed(2)} ₼</span>
           </div>
+          {Number(receipt.service_fee_amount || 0) > 0 ? (
+            <div className="flex justify-between text-slate-300">
+              <span>Service fee</span>
+              <span>{Number(receipt.service_fee_amount || 0).toFixed(2)} ₼</span>
+            </div>
+          ) : null}
+          {Number(receipt.deposit_amount || 0) > 0 ? (
+            <div className="flex justify-between text-slate-300">
+              <span>Deposit</span>
+              <span>{Number(receipt.deposit_amount || 0).toFixed(2)} ₼</span>
+            </div>
+          ) : null}
+          {Number(receipt.extra_due || 0) > 0 ? (
+            <div className="flex justify-between text-slate-300">
+              <span>Extra due</span>
+              <span>{Number(receipt.extra_due || 0).toFixed(2)} ₼</span>
+            </div>
+          ) : null}
           <div className="flex justify-between text-slate-300">
             <span>Discount</span>
             <span>- {Number(receipt.discount_amount || 0).toFixed(2)} ₼</span>

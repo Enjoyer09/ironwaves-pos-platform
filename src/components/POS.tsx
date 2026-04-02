@@ -272,8 +272,6 @@ export default function POS() {
         applyOpenTablePayload(JSON.parse(persisted));
       } catch {
         // ignore invalid persisted context
-      } finally {
-        sessionStorage.removeItem(`${tenantId}_open_table_in_pos`);
       }
     }
     window.addEventListener('open-table-in-pos', handleOpenTableInPos as EventListener);
