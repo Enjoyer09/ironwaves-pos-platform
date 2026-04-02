@@ -182,6 +182,19 @@ export default function TablesPage() {
     return Math.min(maxAllowed, Math.max(2, Number.isFinite(parsed) ? parsed : 2));
   };
 
+  const getTableBillBreakdown = (table: any) => {
+    const payItems = Array.isArray(table?.items) ? table.items : [];
+    const itemsTotal = payItems.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0));
+    const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
+    const deposit = new Decimal(table?.deposit_amount || 0);
+    const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
+    const dueNow = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
+    const splitBasis = dueNow.greaterThan(0) ? dueNow : finalTotal;
+    const guestCount = Math.max(1, Number(table?.guest_count || 1));
+    const depositPerGuestShare = guestCount > 0 ? deposit.div(guestCount).toDecimalPlaces(2) : new Decimal(0);
+    return { itemsTotal, serviceFee, deposit, finalTotal, dueNow, splitBasis, guestCount, depositPerGuestShare };
+  };
+
   useEffect(() => {
     if (!payTableId) return;
     const table = tables.find((x) => x.id === payTableId);
@@ -366,31 +379,21 @@ export default function TablesPage() {
               {(() => {
                 const t = tables.find((x) => x.id === payTableId);
                 if (!t) return '-';
-                const payItems = Array.isArray(t.items) ? t.items : [];
-                const itemsTotal = payItems.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0));
-                const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
-                const deposit = new Decimal(t.deposit_amount || 0);
-                const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
-                const extraDue = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
-                return `${t.label} - ${finalTotal.toFixed(2)} ₼ (${tx(lang, 'əlavə ödəniş', 'доплата', 'extra due')}: ${extraDue.toFixed(2)} ₼)`;
+                const { finalTotal, dueNow } = getTableBillBreakdown(t);
+                return `${t.label} - ${finalTotal.toFixed(2)} ₼ (${tx(lang, 'əlavə ödəniş', 'доплата', 'extra due')}: ${dueNow.toFixed(2)} ₼)`;
               })()}
             </div>
               {(() => {
                 const t = tables.find((x) => x.id === payTableId);
                 if (!t) return null;
-                const payItems = Array.isArray(t.items) ? t.items : [];
-                const itemsTotal = payItems.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0));
-                const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
-                const deposit = new Decimal(t.deposit_amount || 0);
-                const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
-                const extraDue = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
+                const { itemsTotal, serviceFee, deposit, finalTotal, dueNow } = getTableBillBreakdown(t);
                 return (
                 <div className="mt-3 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-300">
                   <div className="flex justify-between"><span>{tx(lang, 'Sifariş cəmi', 'Сумма заказа', 'Items total')}</span><span>{itemsTotal.toFixed(2)} ₼</span></div>
                   <div className="mt-1 flex justify-between"><span>{tx(lang, 'Servis haqqı', 'Сервисный сбор', 'Service fee')}</span><span>{serviceFee.toFixed(2)} ₼</span></div>
                   <div className="mt-1 flex justify-between"><span>{tx(lang, 'Depozit', 'Депозит', 'Deposit')}</span><span>{deposit.toFixed(2)} ₼</span></div>
                   <div className="mt-1 flex justify-between font-semibold text-slate-100"><span>{tx(lang, 'Yekun hesab', 'Итоговый счет', 'Final bill')}</span><span>{finalTotal.toFixed(2)} ₼</span></div>
-                  <div className="mt-1 flex justify-between text-emerald-200"><span>{tx(lang, 'Hazırda alınacaq', 'К оплате сейчас', 'Due now')}</span><span>{extraDue.toFixed(2)} ₼</span></div>
+                  <div className="mt-1 flex justify-between text-emerald-200"><span>{tx(lang, 'Hazırda alınacaq', 'К оплате сейчас', 'Due now')}</span><span>{dueNow.toFixed(2)} ₼</span></div>
                 </div>
               );
             })()}
@@ -403,15 +406,10 @@ export default function TablesPage() {
                     if (m === 'Split') {
                       const table = tables.find((x) => x.id === payTableId);
                       if (table) {
-                        const itemsSnapshot = Array.isArray(table.items) ? [...table.items] : [];
-                        const itemsTotal = itemsSnapshot.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0));
-                        const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
-                        const deposit = new Decimal(table.deposit_amount || 0);
-                        const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
-                        const dueNow = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
+                        const { splitBasis } = getTableBillBreakdown(table);
                         const count = normalizeSplitCount(table, splitCount);
                         setSplitCount(String(count));
-                        setSplitParts(buildEqualSplitParts(count, dueNow));
+                        setSplitParts(buildEqualSplitParts(count, splitBasis));
                       }
                     }
                   }}
@@ -425,24 +423,16 @@ export default function TablesPage() {
               (() => {
                 const table = tables.find((x) => x.id === payTableId);
                 if (!table) return null;
-                const itemsSnapshot = Array.isArray(table.items) ? [...table.items] : [];
-                const itemsTotal = itemsSnapshot.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0));
-                const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
-                const deposit = new Decimal(table.deposit_amount || 0);
-                const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
-                const dueNow = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
+                const { serviceFee, deposit, dueNow, splitBasis, guestCount, depositPerGuestShare } = getTableBillBreakdown(table);
                 const participantCount = normalizeSplitCount(table, splitCount);
                 const partsTotal = splitParts.reduce((acc, row) => acc.plus(new Decimal(row.amount || 0)), new Decimal(0)).toDecimalPlaces(2);
-                const diff = dueNow.minus(partsTotal).toDecimalPlaces(2);
-                const depositPerGuestShare = Number(table.guest_count || 0) > 0
-                  ? deposit.div(Math.max(1, Number(table.guest_count || 1))).toDecimalPlaces(2)
-                  : new Decimal(0);
+                const diff = splitBasis.minus(partsTotal).toDecimalPlaces(2);
                 return (
                   <div className="mt-3 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3">
                     <div className="mb-3 rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs text-cyan-100">
                       <div className="flex justify-between gap-3">
                         <span>{tx(lang, 'Qonaq sayı', 'Количество гостей', 'Guest count')}</span>
-                        <span>{Math.max(1, Number(table.guest_count || 1))}</span>
+                        <span>{guestCount}</span>
                       </div>
                       <div className="mt-1 flex justify-between gap-3">
                         <span>{tx(lang, 'Depozit (cəmi)', 'Депозит (итого)', 'Deposit total')}</span>
@@ -468,7 +458,7 @@ export default function TablesPage() {
                         onChange={(e) => {
                           const nextCount = normalizeSplitCount(table, e.target.value);
                           setSplitCount(String(nextCount));
-                          setSplitParts(buildEqualSplitParts(nextCount, dueNow));
+                          setSplitParts(buildEqualSplitParts(nextCount, splitBasis));
                         }}
                       />
                     </label>
@@ -476,7 +466,7 @@ export default function TablesPage() {
                       {tx(lang, 'Split hissələrinin sayı masa qonaq sayından çox ola bilməz.', 'Количество частей split не может превышать число гостей за столом.', 'Split parts cannot exceed the guest count for the table.')}
                     </div>
                     <div className="mt-3 space-y-2">
-                      {(splitParts.length === participantCount ? splitParts : buildEqualSplitParts(participantCount, dueNow)).map((part, idx) => (
+                      {(splitParts.length === participantCount ? splitParts : buildEqualSplitParts(participantCount, splitBasis)).map((part, idx) => (
                         <div key={`split_part_${idx}`} className="grid grid-cols-[1fr_120px] gap-2">
                           <input
                             className="neon-input"
@@ -485,7 +475,7 @@ export default function TablesPage() {
                             step="0.01"
                             value={part.amount}
                             onChange={(e) => {
-                              const next = (splitParts.length === participantCount ? [...splitParts] : buildEqualSplitParts(participantCount, dueNow));
+                              const next = (splitParts.length === participantCount ? [...splitParts] : buildEqualSplitParts(participantCount, splitBasis));
                               next[idx] = { ...next[idx], amount: e.target.value };
                               setSplitParts(next);
                             }}
@@ -495,7 +485,7 @@ export default function TablesPage() {
                             className="neon-input"
                             value={part.method}
                             onChange={(e) => {
-                              const next = (splitParts.length === participantCount ? [...splitParts] : buildEqualSplitParts(participantCount, dueNow));
+                              const next = (splitParts.length === participantCount ? [...splitParts] : buildEqualSplitParts(participantCount, splitBasis));
                               next[idx] = { ...next[idx], method: e.target.value as 'Nəğd' | 'Kart' };
                               setSplitParts(next);
                             }}
@@ -507,7 +497,7 @@ export default function TablesPage() {
                       ))}
                     </div>
                     <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-                      <span>{tx(lang, 'Bölünəcək məbləğ', 'Сумма к разделению', 'Amount to split')}: {dueNow.toFixed(2)} ₼</span>
+                      <span>{tx(lang, 'Bölünəcək məbləğ', 'Сумма к разделению', 'Amount to split')}: {splitBasis.toFixed(2)} ₼</span>
                       <span className={diff.abs().greaterThan(0.01) ? 'text-rose-300' : 'text-emerald-300'}>
                         {tx(lang, 'Fərq', 'Разница', 'Diff')}: {diff.toFixed(2)} ₼
                       </span>
@@ -531,16 +521,12 @@ export default function TablesPage() {
                     const table = tables.find((x) => x.id === payTableId);
                     if (!table) return;
                     const itemsSnapshot = Array.isArray(table.items) ? [...table.items] : [];
-                    const itemsTotal = itemsSnapshot.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0));
-                    const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
-                    const deposit = new Decimal(table.deposit_amount || 0);
-                    const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
-                    const dueNow = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
+                    const { itemsTotal, serviceFee, deposit, finalTotal, dueNow, splitBasis, guestCount } = getTableBillBreakdown(table);
                     let cash: Decimal | null = null;
                     let card: Decimal | null = null;
                     if (paymentMethod === 'Split') {
                       const participantCount = normalizeSplitCount(table, splitCount);
-                      const normalized = (splitParts.length === participantCount ? splitParts : buildEqualSplitParts(participantCount, dueNow));
+                      const normalized = (splitParts.length === participantCount ? splitParts : buildEqualSplitParts(participantCount, splitBasis));
                       const cashTotal = normalized
                         .filter((row) => row.method === 'Nəğd')
                         .reduce((acc, row) => acc.plus(new Decimal(row.amount || 0)), new Decimal(0))
@@ -549,12 +535,16 @@ export default function TablesPage() {
                         .filter((row) => row.method === 'Kart')
                         .reduce((acc, row) => acc.plus(new Decimal(row.amount || 0)), new Decimal(0))
                         .toDecimalPlaces(2);
-                      if (cashTotal.lessThan(0) || cardTotal.lessThan(0) || cashTotal.plus(cardTotal).minus(dueNow).abs().greaterThan(0.01)) {
-                        notify('error', tx(lang, 'Split hissələri yekun əlavə ödənişə bərabər olmalıdır', 'Сумма частей split должна совпадать с доплатой', 'Split parts must match the due amount'));
+                      if (cashTotal.lessThan(0) || cardTotal.lessThan(0) || cashTotal.plus(cardTotal).minus(splitBasis).abs().greaterThan(0.01)) {
+                        notify('error', tx(lang, 'Split hissələri bölünəcək məbləğə bərabər olmalıdır', 'Сумма частей split должна совпадать с разделяемой суммой', 'Split parts must match the split amount'));
                         return;
                       }
-                      cash = cashTotal;
-                      card = cardTotal;
+                      cash = dueNow.greaterThan(0)
+                        ? normalized.filter((row) => row.method === 'Nəğd').reduce((acc, row) => acc.plus(new Decimal(row.amount || 0)), new Decimal(0)).toDecimalPlaces(2)
+                        : new Decimal(0);
+                      card = dueNow.greaterThan(0)
+                        ? normalized.filter((row) => row.method === 'Kart').reduce((acc, row) => acc.plus(new Decimal(row.amount || 0)), new Decimal(0)).toDecimalPlaces(2)
+                        : new Decimal(0);
                     }
                     const result = await pay_table_live(table.id, paymentMethod, user?.username || 'Staff', cash, card, {
                       pay_scope: 'full',
@@ -601,7 +591,8 @@ export default function TablesPage() {
                           <div class="muted">Tel: ${businessProfile?.phone || '-'}</div>
                           <div class="muted">${businessProfile?.address || '-'}</div>
                           <hr />
-                          <div class="line"><span>Masa</span><span class="bold">${table.label}</span></div>
+                         <div class="line"><span>Masa</span><span class="bold">${table.label}</span></div>
+                          <div class="line"><span>Qonaq sayı</span><span>${guestCount}</span></div>
                           <div class="line"><span>Satış ID</span><span>${formatDisplayId(result.sale_id)}</span></div>
                           <div class="line"><span>Operator</span><span>${user?.username || 'staff'}</span></div>
                           <div class="line"><span>Tarix</span><span>${new Date().toLocaleString()}</span></div>
