@@ -9,6 +9,7 @@ import { Decimal } from 'decimal.js';
 import { get_business_profile, get_settings } from '../api/settings';
 import { getDB } from '../lib/db_sim';
 import { qzPrintHtml } from '../lib/qz';
+import { hostScopedKey } from '../lib/storage_keys';
 
 export default function TablesPage() {
   const [tables, setTables] = useState<any[]>([]);
@@ -156,8 +157,9 @@ export default function TablesPage() {
   };
 
   const openTableInPos = (table: any) => {
+    const storageKey = hostScopedKey(`${tenant_id}_open_table_in_pos`);
     sessionStorage.setItem(
-      `${tenant_id}_open_table_in_pos`,
+      storageKey,
       JSON.stringify({
         table_id: table.id,
         table_label: table.label,

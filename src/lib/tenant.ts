@@ -25,8 +25,7 @@ function normalizeHost(rawHost: string): string {
 
 function readDomainMappings(): Record<string, string> {
   try {
-    if (typeof localStorage === 'undefined') return {};
-    const raw = localStorage.getItem(TENANT_DOMAINS_KEY);
+    const raw = readScopedStorage(TENANT_DOMAINS_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return {};
@@ -119,8 +118,7 @@ export function filterTenantRecords<T extends Record<string, any>>(rows: T[], te
 
 export function getTenantDomains(): Array<{ id: string; tenant_id: string; domain: string; is_primary: boolean }> {
   try {
-    if (typeof localStorage === 'undefined') return [];
-    const raw = localStorage.getItem(TENANT_DOMAINS_KEY);
+    const raw = readScopedStorage(TENANT_DOMAINS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
@@ -131,8 +129,7 @@ export function getTenantDomains(): Array<{ id: string; tenant_id: string; domai
 
 export function setTenantDomains(rows: Array<{ id: string; tenant_id: string; domain: string; is_primary: boolean }>): void {
   try {
-    if (typeof localStorage === 'undefined') return;
-    localStorage.setItem(TENANT_DOMAINS_KEY, JSON.stringify(Array.isArray(rows) ? rows : []));
+    writeScopedStorage(TENANT_DOMAINS_KEY, JSON.stringify(Array.isArray(rows) ? rows : []));
   } catch {
     // Ignore write errors.
   }

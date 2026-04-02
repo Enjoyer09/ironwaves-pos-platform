@@ -12,6 +12,7 @@ import { i18n, tx } from '../i18n';
 import { get_business_profile, get_settings } from '../api/settings';
 import { logUiError } from '../lib/logger';
 import { qzPrintHtml } from '../lib/qz';
+import { hostScopedKey } from '../lib/storage_keys';
 import {
   cacheMenuOffline,
   clearSyncedOfflineSales,
@@ -152,6 +153,10 @@ export default function POS() {
   const safeLang = (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az';
   const t = i18n[safeLang];
   const tenantId = user?.tenant_id || 'tenant_default';
+  const openTableStorageKey = hostScopedKey(`${tenantId}_open_table_in_pos`);
+  const posCartsStorageKey = hostScopedKey(`${tenantId}_pos_carts`);
+  const posCartCtxStorageKey = hostScopedKey(`${tenantId}_pos_cart_ctx`);
+  const posActiveCartStorageKey = hostScopedKey(`${tenantId}_pos_active_cart`);
 
   const [menu, setMenu] = useState<any[]>([]);
   const [tables, setTables] = useState<any[]>([]);
@@ -281,7 +286,7 @@ export default function POS() {
     const handleOpenTableInPos = (event: Event) => {
       applyOpenTablePayload((event as CustomEvent<{ table_id?: string; table_label?: string }>).detail);
     };
-    const persisted = sessionStorage.getItem(`${tenantId}_open_table_in_pos`);
+    const persisted = sessionStorage.getItem(openTableStorageKey) ?? sessionStorage.getItem(`${tenantId}_open_table_in_pos`);
     if (persisted) {
       try {
         applyOpenTablePayload(JSON.parse(persisted));
@@ -293,10 +298,10 @@ export default function POS() {
     return () => {
       window.removeEventListener('open-table-in-pos', handleOpenTableInPos as EventListener);
     };
-  }, [lang, tenantId]);
+  }, [lang, tenantId, openTableStorageKey]);
 
   useEffect(() => {
-    const raw = localStorage.getItem(`${tenantId}_pos_carts`);
+    const raw = localStorage.getItem(posCartsStorageKey) ?? localStorage.getItem(`${tenantId}_pos_carts`);
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
@@ -323,10 +328,10 @@ export default function POS() {
         // ignore invalid local cart data
       }
     }
-  }, [tenantId]);
+  }, [tenantId, posCartsStorageKey]);
 
   useEffect(() => {
-    const rawCtx = localStorage.getItem(`${tenantId}_pos_cart_ctx`);
+    const rawCtx = localStorage.getItem(posCartCtxStorageKey) ?? localStorage.getItem(`${tenantId}_pos_cart_ctx`);
     if (rawCtx) {
       try {
         const parsed = JSON.parse(rawCtx);
@@ -340,38 +345,40 @@ export default function POS() {
       }
     }
 
-    const rawActive = localStorage.getItem(`${tenantId}_pos_active_cart`);
+    const rawActive = localStorage.getItem(posActiveCartStorageKey) ?? localStorage.getItem(`${tenantId}_pos_active_cart`);
     if (rawActive === 'S1' || rawActive === 'S2' || rawActive === 'S3') {
       setActiveCart(rawActive);
     }
 
-    const persisted = sessionStorage.getItem(`${tenantId}_open_table_in_pos`);
+    const persisted = sessionStorage.getItem(openTableStorageKey) ?? sessionStorage.getItem(`${tenantId}_open_table_in_pos`);
     if (persisted) {
       try {
         const applied = applyOpenTablePayload(JSON.parse(persisted));
         if (applied) {
+          sessionStorage.removeItem(openTableStorageKey);
           sessionStorage.removeItem(`${tenantId}_open_table_in_pos`);
         }
       } catch {
+        sessionStorage.removeItem(openTableStorageKey);
         sessionStorage.removeItem(`${tenantId}_open_table_in_pos`);
       }
     }
-  }, [tenantId]);
+  }, [tenantId, openTableStorageKey, posCartCtxStorageKey, posActiveCartStorageKey]);
 
   useEffect(() => {
     const t = window.setTimeout(() => {
-      localStorage.setItem(`${tenantId}_pos_carts`, JSON.stringify(carts));
+      localStorage.setItem(posCartsStorageKey, JSON.stringify(carts));
     }, 120);
     return () => window.clearTimeout(t);
-  }, [tenantId, carts]);
+  }, [tenantId, carts, posCartsStorageKey]);
 
   useEffect(() => {
     const t = window.setTimeout(() => {
-      localStorage.setItem(`${tenantId}_pos_cart_ctx`, JSON.stringify(cartCtx));
-      localStorage.setItem(`${tenantId}_pos_active_cart`, activeCart);
+      localStorage.setItem(posCartCtxStorageKey, JSON.stringify(cartCtx));
+      localStorage.setItem(posActiveCartStorageKey, activeCart);
     }, 120);
     return () => window.clearTimeout(t);
-  }, [tenantId, cartCtx, activeCart]);
+  }, [tenantId, cartCtx, activeCart, posCartCtxStorageKey, posActiveCartStorageKey]);
 
   const cart = carts[activeCart];
   const ctx = cartCtx[activeCart];
