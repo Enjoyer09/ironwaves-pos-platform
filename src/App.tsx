@@ -222,6 +222,14 @@ export default function App() {
   };
 
   useEffect(() => {
+    const handleOpenTableInPos = () => setCurrentModule('pos');
+    window.addEventListener('open-table-in-pos', handleOpenTableInPos as EventListener);
+    return () => {
+      window.removeEventListener('open-table-in-pos', handleOpenTableInPos as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
     let mounted = true;
 
     const refreshConnectivity = async () => {
