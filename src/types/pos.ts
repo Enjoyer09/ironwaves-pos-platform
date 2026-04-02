@@ -11,6 +11,7 @@ export interface CartItem {
   qty: number;
   is_coffee: boolean;
   category: string;
+  seat_label?: string;
 }
 
 export interface SalePayload {

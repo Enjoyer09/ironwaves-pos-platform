@@ -27,12 +27,14 @@ import { apiRequest, isBackendEnabled } from '../api/client';
 type OrderType = 'Dine In' | 'Take Away' | 'Order Online';
 type PaymentMethod = 'Nəğd' | 'Kart' | 'Split' | 'Staff';
 type PosCartItem = {
+  line_id: string;
   id: string;
   item_name: string;
   price: string;
   category: string;
   is_coffee: boolean;
   qty: number;
+  seat_label?: string;
 };
 
 type CartContext = {
@@ -138,6 +140,13 @@ const generateOfflineRequestId = () => {
   return `offline_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 };
 
+const generateLineId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `line_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+};
+
 export default function POS() {
   const { user, lang, notify } = useAppStore();
   const safeLang = (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az';
@@ -237,12 +246,14 @@ export default function POS() {
           (Array.isArray(rows) ? rows : [])
             .filter((row) => row && typeof row === 'object' && typeof row.id === 'string')
             .map((row) => ({
+              line_id: String(row.line_id || generateLineId()),
               id: String(row.id),
               item_name: String(row.item_name || 'Məhsul'),
               price: toDecimalSafe(row.price).toFixed(2),
               category: String(row.category || 'Digər'),
               is_coffee: Boolean(row.is_coffee),
               qty: Math.max(1, Number(row.qty || 1)),
+              seat_label: row.seat_label ? String(row.seat_label) : undefined,
             }));
 
         setCarts({
@@ -306,12 +317,13 @@ export default function POS() {
   };
 
   const addToCart = (item: any) => {
+    const defaultSeatLabel = ctx.orderType === 'Dine In' && seatOptions.length > 0 ? seatOptions[0] : undefined;
     setCarts((prev) => {
-      const existing = prev[activeCart].find((c) => c.id === item.id);
+      const existing = prev[activeCart].find((c) => c.id === item.id && (c.seat_label || '') === (defaultSeatLabel || ''));
       if (existing) {
         return {
           ...prev,
-          [activeCart]: prev[activeCart].map((c) => (c.id === item.id ? { ...c, qty: c.qty + 1 } : c)),
+          [activeCart]: prev[activeCart].map((c) => (c.line_id === existing.line_id ? { ...c, qty: c.qty + 1 } : c)),
         };
       }
       return {
@@ -319,12 +331,14 @@ export default function POS() {
         [activeCart]: [
           ...prev[activeCart],
           {
+            line_id: generateLineId(),
             id: item.id,
             item_name: item.item_name,
             price: item.price,
             category: item.category,
             is_coffee: isCoffeeLike(item),
             qty: 1,
+            seat_label: defaultSeatLabel,
           },
         ],
       };
@@ -334,11 +348,18 @@ export default function POS() {
     }
   };
 
-  const updateCartItem = (id: string, qty: number) => {
+  const updateCartItem = (lineId: string, qty: number) => {
     setCarts((prev) => ({
       ...prev,
       [activeCart]:
-        qty <= 0 ? prev[activeCart].filter((c) => c.id !== id) : prev[activeCart].map((c) => (c.id === id ? { ...c, qty } : c)),
+        qty <= 0 ? prev[activeCart].filter((c) => c.line_id !== lineId) : prev[activeCart].map((c) => (c.line_id === lineId ? { ...c, qty } : c)),
+    }));
+  };
+
+  const updateCartSeat = (lineId: string, seatLabel: string) => {
+    setCarts((prev) => ({
+      ...prev,
+      [activeCart]: prev[activeCart].map((c) => (c.line_id === lineId ? { ...c, seat_label: seatLabel || undefined } : c)),
     }));
   };
 
@@ -423,6 +444,22 @@ export default function POS() {
     () => tables.filter((t) => t.is_occupied),
     [tables],
   );
+
+  const seatOptions = useMemo(() => {
+    const count = Math.max(0, Number(selectedTableData?.guest_count || 0));
+    return Array.from({ length: count }, (_, idx) => `Adam-${idx + 1}`);
+  }, [selectedTableData?.guest_count]);
+
+  useEffect(() => {
+    if (ctx.orderType !== 'Dine In' || seatOptions.length === 0) return;
+    setCarts((prev) => ({
+      ...prev,
+      [activeCart]: prev[activeCart].map((item) => ({
+        ...item,
+        seat_label: item.seat_label || seatOptions[0],
+      })),
+    }));
+  }, [ctx.orderType, ctx.selectedTable, activeCart, seatOptions]);
 
   const tablePendingTotal = useMemo(() => {
     if (!selectedTableData?.is_occupied) return new Decimal(0);
@@ -535,6 +572,7 @@ export default function POS() {
           qty: item.qty,
           is_coffee: item.is_coffee,
           category: item.category,
+          seat_label: item.seat_label || null,
         })),
         payment_method: paymentMethod,
         discount_percent: Number(ctx.discount || 0),
@@ -552,6 +590,7 @@ export default function POS() {
           qty: item.qty,
           is_coffee: item.is_coffee,
           category: item.category,
+          seat_label: item.seat_label,
         })),
         payment_method: paymentMethod,
         cashier: user.username,
@@ -602,7 +641,7 @@ export default function POS() {
       const lines = cart
         .map(
           (item) =>
-            `<tr><td style="padding:3px 0">${item.qty}x ${item.item_name}</td><td style="text-align:right">${toDecimalSafe(item.price)
+            `<tr><td style="padding:3px 0">${item.qty}x ${item.item_name}${item.seat_label ? ` · ${item.seat_label}` : ''}</td><td style="text-align:right">${toDecimalSafe(item.price)
               .times(item.qty)
               .toFixed(2)} ₼</td></tr>`,
         )
@@ -692,7 +731,7 @@ export default function POS() {
     try {
       await send_to_kitchen_live(
         ctx.selectedTable,
-        cart.map((c) => ({ ...c, price: toDecimalSafe(c.price) })) as any,
+        cart.map((c) => ({ ...c, price: toDecimalSafe(c.price), seat_label: c.seat_label })) as any,
         user.username,
         { cup_mode: ctx.cupMode },
       );
@@ -939,15 +978,28 @@ export default function POS() {
         >
           {cart.length === 0 && <div className="pt-8 text-center text-sm text-slate-500">{t.cart_empty}</div>}
           {cart.map((item) => (
-            <div key={item.id} className="rounded-md border border-slate-700 bg-slate-900/40 p-2">
+            <div key={item.line_id} className="rounded-md border border-slate-700 bg-slate-900/40 p-2">
               <div className="mb-1 flex items-center justify-between text-sm">
                 <span className="font-semibold text-slate-100">{item.item_name}</span>
                 <span className="font-semibold text-yellow-300">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
               </div>
+              {ctx.orderType === 'Dine In' && seatOptions.length > 0 && (
+                <div className="mb-2">
+                  <select
+                    value={item.seat_label || ''}
+                    onChange={(e) => updateCartSeat(item.line_id, e.target.value)}
+                    className="neon-input h-9 text-xs"
+                  >
+                    {seatOptions.map((seat) => (
+                      <option key={seat} value={seat}>{seat}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="flex items-center justify-end gap-1">
-                <button className="neon-mini-btn" onClick={() => updateCartItem(item.id, item.qty - 1)}><Minus size={13} /></button>
+                <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty - 1)}><Minus size={13} /></button>
                 <span className="w-6 text-center text-sm">{item.qty}</span>
-                <button className="neon-mini-btn" onClick={() => updateCartItem(item.id, item.qty + 1)}><Plus size={13} /></button>
+                <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty + 1)}><Plus size={13} /></button>
               </div>
             </div>
           ))}
@@ -1271,17 +1323,30 @@ export default function POS() {
                 <div className="space-y-2">
                   {cart.length === 0 && <div className="text-sm text-slate-500">{t.cart_empty}</div>}
                   {cart.map((item) => (
-                    <div key={`mobile_${item.id}`} className="rounded-lg border border-slate-700 bg-slate-900/40 p-2">
+                    <div key={`mobile_${item.line_id}`} className="rounded-lg border border-slate-700 bg-slate-900/40 p-2">
                       <div className="flex items-center justify-between text-sm">
                         <span className="font-semibold text-slate-100">{item.item_name}</span>
                         <span className="font-semibold text-yellow-300">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
                       </div>
+                      {ctx.orderType === 'Dine In' && seatOptions.length > 0 && (
+                        <div className="mt-2">
+                          <select
+                            value={item.seat_label || ''}
+                            onChange={(e) => updateCartSeat(item.line_id, e.target.value)}
+                            className="neon-input h-10 text-sm"
+                          >
+                            {seatOptions.map((seat) => (
+                              <option key={seat} value={seat}>{seat}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                       <div className="mt-2 flex items-center justify-end gap-2">
-                        <button className="neon-mini-btn" onClick={() => updateCartItem(item.id, item.qty - 1)}>
+                        <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty - 1)}>
                           <Minus size={14} />
                         </button>
                         <span className="w-6 text-center">{item.qty}</span>
-                        <button className="neon-mini-btn" onClick={() => updateCartItem(item.id, item.qty + 1)}>
+                        <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty + 1)}>
                           <Plus size={14} />
                         </button>
                       </div>
