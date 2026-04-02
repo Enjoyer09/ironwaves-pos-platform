@@ -230,6 +230,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const handleTableOrderSent = () => setCurrentModule('tables');
+    window.addEventListener('table-order-sent', handleTableOrderSent as EventListener);
+    return () => {
+      window.removeEventListener('table-order-sent', handleTableOrderSent as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
     let mounted = true;
 
     const refreshConnectivity = async () => {

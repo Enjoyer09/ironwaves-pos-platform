@@ -232,6 +232,21 @@ export default function POS() {
   }, [tenantId]);
 
   useEffect(() => {
+    const handleTablePaid = (event: Event) => {
+      const detail = (event as CustomEvent<{ tenant_id?: string; table_id?: string }>).detail;
+      if (!detail?.tenant_id || detail.tenant_id !== tenantId) return;
+      if (!detail.table_id || detail.table_id !== ctx.selectedTable) return;
+      clearCart(activeCart);
+      patchCtx({ ...defaultCtx });
+      setTableRoutingBanner(null);
+    };
+    window.addEventListener('table-paid', handleTablePaid as EventListener);
+    return () => {
+      window.removeEventListener('table-paid', handleTablePaid as EventListener);
+    };
+  }, [tenantId, ctx.selectedTable, activeCart]);
+
+  useEffect(() => {
     const onResize = () => setIsTabletViewport(window.innerWidth < 1536);
     onResize();
     window.addEventListener('resize', onResize);
@@ -769,14 +784,16 @@ export default function POS() {
   const handleSendToKitchen = async () => {
     if (!ctx.selectedTable || cart.length === 0 || !user) return;
     try {
+      const sentTable = ctx.selectedTable;
       await send_to_kitchen_live(
-        ctx.selectedTable,
+        sentTable,
         cart.map((c) => ({ ...c, price: toDecimalSafe(c.price), seat_label: c.seat_label })) as any,
         user.username,
         { cup_mode: ctx.cupMode },
       );
       clearCart(activeCart);
       patchCtx({ kitchenSent: true });
+      window.dispatchEvent(new CustomEvent('table-order-sent', { detail: { tenant_id: tenantId, table_id: sentTable } }));
       void refreshData();
       notify('success', tx(lang, 'Sifariş mətbəxə göndərildi. Ödəniş üçün masa seçimi saxlanıldı.', 'Заказ отправлен на кухню. Для оплаты стол сохранен.', 'Order sent to the kitchen. The table remains open for payment.'));
     } catch (error: any) {
