@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { get_tables_live, create_table_live, delete_table_live, open_table_live, pay_table_live, transfer_table_live, merge_tables_live, revise_table_items_live } from '../api/tables';
+import { get_tables_live, create_table_live, delete_table_live, open_table_live, pay_table_live, transfer_table_live, merge_tables_live, revise_table_items_live, reassign_table_seat_live } from '../api/tables';
 import { get_kitchen_orders_live } from '../api/kds';
 import { LayoutGrid, Plus, Trash2, ArrowRightCircle } from 'lucide-react';
 import { useAppStore } from '../store';
@@ -36,6 +36,10 @@ export default function TablesPage() {
   const [payScope, setPayScope] = useState<'full' | 'seat'>('full');
   const [paySeatLabel, setPaySeatLabel] = useState('');
   const [splitCash, setSplitCash] = useState('0');
+  const [activeSeatTab, setActiveSeatTab] = useState('Adam-1');
+  const [seatTransferTarget, setSeatTransferTarget] = useState('');
+  const [seatMergeTarget, setSeatMergeTarget] = useState('');
+  const [seatTransferItem, setSeatTransferItem] = useState<{ tableId: string; itemName: string; fromSeat: string } | null>(null);
   const receiptRef = useRef<HTMLIFrameElement | null>(null);
   const businessProfile = get_business_profile(tenant_id);
   const tenantSettings = get_settings(tenant_id);
@@ -174,6 +178,23 @@ export default function TablesPage() {
     }));
     setViewTableId(null);
   };
+
+  useEffect(() => {
+    const table = tables.find((row) => row.id === viewTableId);
+    if (!table) {
+      setActiveSeatTab('Adam-1');
+      setSeatMergeTarget('');
+      return;
+    }
+    const seats = deriveActiveSeatLabels(table);
+    if (!seats.includes(activeSeatTab)) {
+      setActiveSeatTab(seats[0] || 'Adam-1');
+    }
+    if (!seatMergeTarget || seatMergeTarget === activeSeatTab || !seats.includes(seatMergeTarget)) {
+      const fallbackTarget = seats.find((seat) => seat !== activeSeatTab) || '';
+      setSeatMergeTarget(fallbackTarget);
+    }
+  }, [viewTableId, tables, activeSeatTab, seatMergeTarget]);
 
   const printTableReceiptOnly = async () => {
     if (printSettings.use_qz && tableReceiptHtml) {
@@ -333,6 +354,53 @@ export default function TablesPage() {
                 }}
               >
                 {tx(lang, 'Təsdiqlə', 'Подтвердить', 'Confirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {seatTransferItem && (
+        <div className="fixed inset-0 z-[145] flex items-center justify-center bg-black/70 p-4">
+          <div className="metal-panel w-full max-w-md p-5">
+            <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Seat transfer', 'Перенос seat', 'Seat transfer')}</h3>
+            <p className="mt-2 text-sm text-slate-300">
+              <span className="font-semibold text-slate-100">{seatTransferItem.itemName}</span> · {seatTransferItem.fromSeat}
+            </p>
+            <select className="neon-input mt-3" value={seatTransferTarget} onChange={(e) => setSeatTransferTarget(e.target.value)}>
+              <option value="">{tx(lang, 'Yeni seat seçin', 'Выберите новый seat', 'Select new seat')}</option>
+              {(tables.find((row) => row.id === seatTransferItem.tableId) ? deriveActiveSeatLabels(tables.find((row) => row.id === seatTransferItem.tableId)) : [])
+                .filter((seat) => seat !== seatTransferItem.fromSeat)
+                .map((seat) => <option key={seat} value={seat}>{seat}</option>)}
+            </select>
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="neon-btn rounded-lg px-4 py-2" onClick={() => {
+                setSeatTransferItem(null);
+                setSeatTransferTarget('');
+              }}>
+                {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
+              </button>
+              <button
+                className="glossy-gold rounded-lg px-4 py-2 font-semibold disabled:opacity-50"
+                disabled={!seatTransferTarget}
+                onClick={async () => {
+                  try {
+                    await reassign_table_seat_live(seatTransferItem.tableId, {
+                      from_seat: seatTransferItem.fromSeat,
+                      to_seat: seatTransferTarget,
+                      item_name: seatTransferItem.itemName,
+                      mode: 'item',
+                    });
+                    notify('success', tx(lang, 'Məhsul yeni seat-ə köçürüldü', 'Позиция перенесена в новый seat', 'Item moved to new seat'));
+                    setSeatTransferItem(null);
+                    setSeatTransferTarget('');
+                    await loadData();
+                  } catch (e: any) {
+                    notify('error', e?.message || tx(lang, 'Seat transfer alınmadı', 'Seat перенос не выполнен', 'Seat transfer failed'));
+                  }
+                }}
+              >
+                {tx(lang, 'Köçür', 'Перенести', 'Move')}
               </button>
             </div>
           </div>
@@ -624,18 +692,24 @@ export default function TablesPage() {
               const t = tables.find((x) => x.id === viewTableId);
               if (!t) return null;
               const items = Array.isArray(t.items) ? t.items : [];
+              const seatLabels = deriveActiveSeatLabels(t);
+              const focusedSeat = seatLabels.includes(activeSeatTab) ? activeSeatTab : (seatLabels[0] || 'Adam-1');
               const activeKitchenOrders = kitchenOrders.filter((row) => row.table_label === t.label);
               const waitingItems = activeKitchenOrders
                 .filter((row) => ['NEW', 'PREPARING'].includes(String(row.status || '')))
                 .flatMap((row) => (Array.isArray(row.items) ? row.items : []))
-                .filter((row: any) => String(row.action || '').toUpperCase() !== 'CANCEL');
+                .filter((row: any) => String(row.action || '').toUpperCase() !== 'CANCEL')
+                .filter((row: any) => !focusedSeat || formatSeatLabel(row) === focusedSeat);
               const readyItems = activeKitchenOrders
                 .filter((row) => String(row.status || '') === 'READY')
                 .flatMap((row) => Array.isArray(row.items) ? row.items : [])
-                .filter((row: any) => String(row.action || '').toUpperCase() !== 'CANCEL');
+                .filter((row: any) => String(row.action || '').toUpperCase() !== 'CANCEL')
+                .filter((row: any) => !focusedSeat || formatSeatLabel(row) === focusedSeat);
               const revisionItems = activeKitchenOrders
                 .flatMap((row) => Array.isArray(row.items) ? row.items : [])
-                .filter((row: any) => String(row.action || '').toUpperCase() === 'CANCEL');
+                .filter((row: any) => String(row.action || '').toUpperCase() === 'CANCEL')
+                .filter((row: any) => !focusedSeat || formatSeatLabel(row) === focusedSeat);
+              const seatItems = items.filter((row: any) => !focusedSeat || formatSeatLabel(row) === focusedSeat);
               const otherTables = tables.filter((row) => row.id !== t.id);
               return (
                 <>
@@ -655,9 +729,51 @@ export default function TablesPage() {
                       <div className="mt-1 text-lg font-bold text-emerald-200">{new Decimal(t.deposit_amount || 0).toFixed(2)} ₼</div>
                     </div>
                   </div>
+                  <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/35 p-3">
+                    <div className="mb-3 flex flex-wrap gap-2">
+                      {seatLabels.map((seat) => (
+                        <button
+                          key={seat}
+                          onClick={() => setActiveSeatTab(seat)}
+                          className={`rounded-full px-4 py-2 text-sm font-semibold ${focusedSeat === seat ? 'bg-yellow-300 text-slate-900' : 'border border-slate-700/70 bg-slate-950/40 text-slate-200'}`}
+                        >
+                          {seat}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                      <div className="rounded-lg border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-300">
+                        <div className="font-semibold text-slate-100">{focusedSeat}</div>
+                        <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Bu seat üçün sifariş, hazır məhsul və düzəlişləri ayrıca görürsünüz.', 'Здесь отображаются только позиции выбранного гостя.', 'You are only seeing the selected seat here.')}</div>
+                      </div>
+                      {seatLabels.length > 1 && (
+                        <div className="flex flex-col gap-2 md:w-60">
+                          <select className="neon-input" value={seatMergeTarget} onChange={(e) => setSeatMergeTarget(e.target.value)}>
+                            <option value="">{tx(lang, 'Hədəf seat seçin', 'Выберите целевой seat', 'Select target seat')}</option>
+                            {seatLabels.filter((seat) => seat !== focusedSeat).map((seat) => <option key={seat} value={seat}>{seat}</option>)}
+                          </select>
+                          <button
+                            className="rounded-xl border border-cyan-300/40 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100 disabled:opacity-50"
+                            disabled={!seatMergeTarget}
+                            onClick={async () => {
+                              try {
+                                await reassign_table_seat_live(t.id, { from_seat: focusedSeat, to_seat: seatMergeTarget, mode: 'seat' });
+                                notify('success', tx(lang, 'Seat birləşdirildi', 'Seat объединен', 'Seat merged'));
+                                await loadData();
+                              } catch (e: any) {
+                                notify('error', e?.message || tx(lang, 'Seat birləşmədi', 'Seat не объединен', 'Seat merge failed'));
+                              }
+                            }}
+                          >
+                            {tx(lang, 'Bu seat-i birləşdir', 'Объединить seat', 'Merge this seat')}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <div className="mt-3 max-h-72 overflow-auto rounded-lg border border-slate-700/70 bg-slate-900/40 p-3">
-                    {items.length === 0 && <div className="text-sm text-slate-400">{tx(lang, 'Masa boşdur', 'Стол пуст')}</div>}
-                    {items.map((it: any, idx: number) => (
+                    {seatItems.length === 0 && <div className="text-sm text-slate-400">{tx(lang, 'Bu seat üçün məhsul yoxdur', 'Для этого seat нет позиций', 'No items for this seat')}</div>}
+                    {seatItems.map((it: any, idx: number) => (
                       <div key={`${it.item_name}_${idx}`} className="flex items-center justify-between gap-3 border-b border-slate-700/40 py-2 text-sm last:border-b-0">
                         <div>
                           <div>{it.item_name}</div>
@@ -665,6 +781,19 @@ export default function TablesPage() {
                           <div className="mt-1 text-xs text-slate-500">x{it.qty}</div>
                         </div>
                         <div className="flex items-center gap-2">
+                          {seatLabels.length > 1 && (
+                            <button
+                              className="rounded-md border border-cyan-300/40 bg-cyan-500/10 px-2 py-1 text-xs font-semibold text-cyan-100"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const nextTarget = seatLabels.find((seat) => seat !== focusedSeat) || '';
+                                setSeatTransferItem({ tableId: t.id, itemName: it.item_name, fromSeat: focusedSeat });
+                                setSeatTransferTarget(nextTarget);
+                              }}
+                            >
+                              {tx(lang, 'Seat-ə köçür', 'Перенести seat', 'Move seat')}
+                            </button>
+                          )}
                           <button
                             className="rounded-md border border-amber-300/40 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-100"
                             onClick={async (e) => {

@@ -1306,6 +1306,26 @@ export default function POS() {
         </div>
       )}
 
+      {ctx.orderType === 'Dine In' && ctx.selectedTable && (
+        <div className="mb-3 flex flex-col gap-3 rounded-2xl border border-cyan-300/35 bg-cyan-500/10 px-4 py-3 text-cyan-100 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-xs uppercase tracking-[0.18em] text-cyan-200/80">{tx(lang, 'Masa rejimi', 'Режим стола', 'Table mode')}</div>
+            <div className="mt-1 text-sm font-semibold">
+              {tableRoutingBanner && ctx.selectedTable === tableRoutingBanner.tableId
+                ? `${tableRoutingBanner.tableLabel} ${tx(lang, 'üçün sifariş yazırsınız', 'для этого стола', 'order is for this table')}`
+                : `${tx(lang, 'Bu seçim masa üçündür', 'Этот выбор для стола', 'This selection is for table')} · ${selectedTableData?.label || ctx.selectedTable}`}
+            </div>
+          </div>
+          <button
+            disabled={isLoading || cart.length === 0}
+            onClick={() => { void handleSendToKitchen(); }}
+            className="glossy-gold inline-flex min-h-14 items-center justify-center rounded-2xl px-5 py-3 text-sm font-bold disabled:opacity-50"
+          >
+            {tx(lang, 'Masaya Göndər', 'Отправить на стол', 'Send To Table')}
+          </button>
+        </div>
+      )}
+
       <div className="mb-3 grid grid-cols-2 gap-2 xl:hidden">
         <button onClick={() => setMobilePane('menu')} className={`neon-chip justify-center ${mobilePane === 'menu' ? 'neon-chip-active' : ''}`}>
           {tx(lang, 'Menyu', 'Меню', 'Menu')}
