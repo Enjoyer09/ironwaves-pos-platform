@@ -101,6 +101,7 @@ class Table(Base):
     guest_count: Mapped[int] = mapped_column(Integer, default=0)
     deposit_guest_count: Mapped[int] = mapped_column(Integer, default=0)
     deposit_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    deposit_seats_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     items_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
