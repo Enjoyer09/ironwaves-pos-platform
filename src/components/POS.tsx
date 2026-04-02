@@ -301,7 +301,8 @@ export default function POS() {
   }, [lang, tenantId, openTableStorageKey]);
 
   useEffect(() => {
-    const raw = localStorage.getItem(posCartsStorageKey) ?? localStorage.getItem(`${tenantId}_pos_carts`);
+    const legacyKey = `${tenantId}_pos_carts`;
+    const raw = localStorage.getItem(posCartsStorageKey);
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
@@ -328,10 +329,13 @@ export default function POS() {
         // ignore invalid local cart data
       }
     }
+    localStorage.removeItem(legacyKey);
   }, [tenantId, posCartsStorageKey]);
 
   useEffect(() => {
-    const rawCtx = localStorage.getItem(posCartCtxStorageKey) ?? localStorage.getItem(`${tenantId}_pos_cart_ctx`);
+    const legacyCtxKey = `${tenantId}_pos_cart_ctx`;
+    const legacyActiveKey = `${tenantId}_pos_active_cart`;
+    const rawCtx = localStorage.getItem(posCartCtxStorageKey);
     if (rawCtx) {
       try {
         const parsed = JSON.parse(rawCtx);
@@ -345,24 +349,25 @@ export default function POS() {
       }
     }
 
-    const rawActive = localStorage.getItem(posActiveCartStorageKey) ?? localStorage.getItem(`${tenantId}_pos_active_cart`);
+    const rawActive = localStorage.getItem(posActiveCartStorageKey);
     if (rawActive === 'S1' || rawActive === 'S2' || rawActive === 'S3') {
       setActiveCart(rawActive);
     }
 
-    const persisted = sessionStorage.getItem(openTableStorageKey) ?? sessionStorage.getItem(`${tenantId}_open_table_in_pos`);
+    const persisted = sessionStorage.getItem(openTableStorageKey);
     if (persisted) {
       try {
         const applied = applyOpenTablePayload(JSON.parse(persisted));
         if (applied) {
           sessionStorage.removeItem(openTableStorageKey);
-          sessionStorage.removeItem(`${tenantId}_open_table_in_pos`);
         }
       } catch {
         sessionStorage.removeItem(openTableStorageKey);
-        sessionStorage.removeItem(`${tenantId}_open_table_in_pos`);
       }
     }
+    localStorage.removeItem(legacyCtxKey);
+    localStorage.removeItem(legacyActiveKey);
+    sessionStorage.removeItem(`${tenantId}_open_table_in_pos`);
   }, [tenantId, openTableStorageKey, posCartCtxStorageKey, posActiveCartStorageKey]);
 
   useEffect(() => {
@@ -516,6 +521,15 @@ export default function POS() {
   );
 
   const seatOptions = useMemo(() => [] as string[], []);
+
+  useEffect(() => {
+    if (!ctx.selectedTable) return;
+    if (!selectedTableData || !selectedTableData.is_occupied) {
+      clearCart(activeCart);
+      patchCtx({ ...defaultCtx });
+      setTableRoutingBanner(null);
+    }
+  }, [ctx.selectedTable, selectedTableData, activeCart]);
 
   useEffect(() => {
     if (tableRoutingBanner && ctx.selectedTable !== tableRoutingBanner.tableId) {
