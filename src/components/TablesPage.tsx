@@ -70,6 +70,33 @@ export default function TablesPage() {
     const combined = sortSeatLabels(Array.from(new Set([...fromItems, ...fromDeposits])));
     return combined.length > 0 ? combined : configured;
   };
+  const getSeatBreakdown = (table: any, seatLabel: string) => {
+    const seatItems = (Array.isArray(table?.items) ? table.items : []).filter((row: any) => String(row?.seat_label || '').trim() === seatLabel);
+    const itemsTotal = seatItems.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0));
+    const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
+    const hasDeposit = deriveDepositSeatLabels(table).includes(seatLabel);
+    const deposit = hasDeposit ? depositPerGuest : new Decimal(0);
+    const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
+    const dueNow = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
+    return { seatItems, itemsTotal, serviceFee, deposit, finalTotal, dueNow };
+  };
+  const buildSeatReceiptBlocks = (items: any[], seatLabels: string[]) => {
+    const groupedLabels = seatLabels.filter((seat) => items.some((row: any) => String(row?.seat_label || '').trim() === seat));
+    const labels = groupedLabels.length > 0 ? groupedLabels : ['Seat yoxdur'];
+    return labels.map((seat) => {
+      const rows = seat === 'Seat yoxdur'
+        ? items.filter((row: any) => !String(row?.seat_label || '').trim())
+        : items.filter((row: any) => String(row?.seat_label || '').trim() === seat);
+      const rowsHtml = rows.map((it: any) => {
+        const line = new Decimal(it.price || 0).times(it.qty || 0);
+        return `<tr><td style="padding:4px 0">${it.qty}x ${it.item_name}</td><td style="text-align:right">${line.toFixed(2)} ₼</td></tr>`;
+      }).join('');
+      return `
+        <div style="margin:10px 0 6px;font-weight:700">${seat}</div>
+        <table style="width:100%;font-size:14px">${rowsHtml}</table>
+      `;
+    }).join('');
+  };
   const kitchenBadge = (status?: string | null) => {
     switch (String(status || '').toUpperCase()) {
       case 'NEW':
@@ -452,6 +479,25 @@ export default function TablesPage() {
                   <div className="mt-1 flex justify-between"><span>{tx(lang, 'Depozit', 'Депозит', 'Deposit')}</span><span>{deposit.toFixed(2)} ₼</span></div>
                   <div className="mt-1 flex justify-between font-semibold text-slate-100"><span>{tx(lang, 'Yekun hesab', 'Итоговый счет', 'Final bill')}</span><span>{finalTotal.toFixed(2)} ₼</span></div>
                   <div className="mt-1 flex justify-between text-emerald-200"><span>{tx(lang, 'Hazırda alınacaq', 'К оплате сейчас', 'Due now')}</span><span>{extraDue.toFixed(2)} ₼</span></div>
+                  {payScope === 'full' && (
+                    <div className="mt-3 space-y-2 border-t border-slate-700/60 pt-3">
+                      {deriveActiveSeatLabels(t).map((seat) => {
+                        const seatSummary = getSeatBreakdown(t, seat);
+                        return (
+                          <div key={seat} className="rounded-lg border border-slate-700/50 bg-black/15 px-3 py-2">
+                            <div className="flex items-center justify-between text-xs font-semibold text-slate-200">
+                              <span>{seat}</span>
+                              <span>{seatSummary.finalTotal.toFixed(2)} ₼</span>
+                            </div>
+                            <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
+                              <span>{tx(lang, 'Depozit', 'Депозит', 'Deposit')}: {seatSummary.deposit.toFixed(2)} ₼</span>
+                              <span>{tx(lang, 'İndi', 'Сейчас', 'Due now')}: {seatSummary.dueNow.toFixed(2)} ₼</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })()}
@@ -541,12 +587,8 @@ export default function TablesPage() {
                     const receiptCustomerId = String(paidSale?.customer_card_id || '').trim();
                     const receiptStarsAfter = Number(paidSale?.customer_stars_after ?? 0);
                     const receiptFreeCoffees = Number(paidSale?.free_coffees_applied ?? 0);
-                    const itemsHtml = itemsSnapshot
-                      .map((it: any) => {
-                        const line = new Decimal(it.price || 0).times(it.qty || 0);
-                        return `<tr><td style="padding:4px 0">${it.qty}x ${it.item_name}${it.seat_label ? ` · ${it.seat_label}` : ''}</td><td style="text-align:right">${line.toFixed(2)} ₼</td></tr>`;
-                      })
-                      .join('');
+                    const receiptSeatLabels = payScope === 'seat' && paySeatLabel ? [paySeatLabel] : deriveActiveSeatLabels(table);
+                    const itemsHtml = buildSeatReceiptBlocks(itemsSnapshot, receiptSeatLabels);
 
                     const breakdown = paymentMethod === 'Split'
                       ? `<div style="display:flex;justify-content:space-between"><span>Nağd</span><span>${cash?.toFixed(2)} ₼</span></div>
@@ -578,7 +620,7 @@ export default function TablesPage() {
                           <div class="line"><span>Operator</span><span>${user?.username || 'staff'}</span></div>
                           <div class="line"><span>Tarix</span><span>${new Date().toLocaleString()}</span></div>
                           <hr />
-                          <table style="width:100%;font-size:14px">${itemsHtml}</table>
+                          ${itemsHtml}
                           <hr style="margin:12px 0" />
                           ${breakdown}
                           ${receiptFreeCoffees > 0 ? `<div class="line"><span>Pulsuz kofe</span><span>${receiptFreeCoffees}</span></div>` : ''}
