@@ -83,6 +83,19 @@ export default function TablesPage() {
     setDepositSelections((prev) => Array.from({ length: count }, (_, idx) => Boolean(prev[idx])));
   }, [guestCount]);
 
+  useEffect(() => {
+    const handleTableOrderSent = async (event: Event) => {
+      const detail = (event as CustomEvent<{ tenant_id?: string; table_id?: string }>).detail;
+      if (!detail?.tenant_id || detail.tenant_id !== tenant_id) return;
+      await loadData();
+      if (detail.table_id) setViewTableId(detail.table_id);
+    };
+    window.addEventListener('table-order-sent', handleTableOrderSent as EventListener);
+    return () => {
+      window.removeEventListener('table-order-sent', handleTableOrderSent as EventListener);
+    };
+  }, [tenant_id]);
+
   const loadData = async () => {
     const [nextTables, nextKitchenOrders] = await Promise.all([
       get_tables_live(tenant_id),
@@ -180,6 +193,30 @@ export default function TablesPage() {
     const maxAllowed = getMaxSplitCount(table);
     const parsed = Number(requested || splitCount || 2);
     return Math.min(maxAllowed, Math.max(2, Number.isFinite(parsed) ? parsed : 2));
+  };
+
+  const rebalanceSplitParts = (
+    baseParts: Array<{ amount: string; method: 'Nəğd' | 'Kart' }>,
+    total: Decimal,
+    editedIndex: number,
+    editedAmountRaw: string,
+  ) => {
+    const parts = baseParts.map((row) => ({ ...row }));
+    const safeTotal = total.toDecimalPlaces(2);
+    const editedAmount = Decimal.max(new Decimal(0), new Decimal(editedAmountRaw || 0)).toDecimalPlaces(2);
+    parts[editedIndex] = { ...parts[editedIndex], amount: editedAmount.toFixed(2) };
+    const lockedTotal = parts
+      .slice(0, editedIndex + 1)
+      .reduce((acc, row) => acc.plus(new Decimal(row.amount || 0)), new Decimal(0))
+      .toDecimalPlaces(2);
+    const tailCount = Math.max(0, parts.length - editedIndex - 1);
+    const remaining = Decimal.max(new Decimal(0), safeTotal.minus(lockedTotal)).toDecimalPlaces(2);
+    if (tailCount === 0) return parts;
+    const redistributed = buildEqualSplitParts(tailCount, remaining);
+    redistributed.forEach((row, idx) => {
+      parts[editedIndex + 1 + idx] = { ...parts[editedIndex + 1 + idx], amount: row.amount };
+    });
+    return parts;
   };
 
   const getTableBillBreakdown = (table: any) => {
@@ -476,8 +513,7 @@ export default function TablesPage() {
                             value={part.amount}
                             onChange={(e) => {
                               const next = (splitParts.length === participantCount ? [...splitParts] : buildEqualSplitParts(participantCount, splitBasis));
-                              next[idx] = { ...next[idx], amount: e.target.value };
-                              setSplitParts(next);
+                              setSplitParts(rebalanceSplitParts(next, splitBasis, idx, e.target.value));
                             }}
                             placeholder={`${tx(lang, 'Hissə', 'Часть', 'Part')} ${idx + 1}`}
                           />
@@ -549,6 +585,7 @@ export default function TablesPage() {
                     const result = await pay_table_live(table.id, paymentMethod, user?.username || 'Staff', cash, card, {
                       pay_scope: 'full',
                     });
+                    window.dispatchEvent(new CustomEvent('table-paid', { detail: { tenant_id, table_id: table.id } }));
                     const sales = getDB<any>('sales');
                     const paidSale = sales.find((s) => s.id === result.sale_id);
                     const receiptCustomerId = String(paidSale?.customer_card_id || '').trim();
@@ -561,6 +598,11 @@ export default function TablesPage() {
                       })
                       .join('');
 
+                    const receiptServiceFee = new Decimal(result.service_fee_amount || serviceFee);
+                    const receiptDeposit = new Decimal(result.deposit_amount || deposit);
+                    const receiptExtraDue = new Decimal(result.extra_due || dueNow);
+                    const receiptFinalTotal = new Decimal(result.final_total || finalTotal);
+
                     const breakdown = paymentMethod === 'Split'
                       ? `<div style="display:flex;justify-content:space-between"><span>Nağd</span><span>${cash?.toFixed(2)} ₼</span></div>
                          <div style="display:flex;justify-content:space-between"><span>Kart</span><span>${card?.toFixed(2)} ₼</span></div>
@@ -568,7 +610,7 @@ export default function TablesPage() {
                          ${(
                            splitParts.length === normalizeSplitCount(table, splitCount)
                              ? splitParts
-                             : buildEqualSplitParts(normalizeSplitCount(table, splitCount), dueNow)
+                             : buildEqualSplitParts(normalizeSplitCount(table, splitCount), splitBasis)
                          ).map((part, idx) => `<div style="display:flex;justify-content:space-between"><span>Hissə ${idx + 1} · ${part.method}</span><span>${new Decimal(part.amount || 0).toFixed(2)} ₼</span></div>`).join('')}`
                       : `<div style="display:flex;justify-content:space-between"><span>Ödəniş</span><span>${paymentMethod}</span></div>`;
 
@@ -605,11 +647,11 @@ export default function TablesPage() {
                           ${receiptCustomerId ? `<div class="line"><span>Ulduz balansı</span><span>${receiptStarsAfter}</span></div>` : ''}
                           <div class="line"><span>Sifariş cəmi</span><span>${itemsTotal.toFixed(2)} ₼</span></div>
                           <div class="line"><span>Servis faizi</span><span>${serviceFeePercent.toFixed(2)}%</span></div>
-                          <div class="line"><span>Servis haqqı</span><span>${serviceFee.toFixed(2)} ₼</span></div>
-                          <div class="line"><span>Depozit</span><span>${deposit.toFixed(2)} ₼</span></div>
-                          ${Number(table.guest_count || 0) > 0 ? `<div class="line"><span>1 qonaq üçün depozit</span><span>${deposit.div(Math.max(1, Number(table.guest_count || 1))).toDecimalPlaces(2).toFixed(2)} ₼</span></div>` : ''}
-                          <div class="line"><span>Əlavə ödəniş</span><span>${dueNow.toFixed(2)} ₼</span></div>
-                          <div class="line bold" style="font-size:13px"><span>YEKUN</span><span>${finalTotal.toFixed(2)} ₼</span></div>
+                          <div class="line"><span>Servis haqqı</span><span>${receiptServiceFee.toFixed(2)} ₼</span></div>
+                          <div class="line"><span>Depozit</span><span>${receiptDeposit.toFixed(2)} ₼</span></div>
+                          ${Number(table.guest_count || 0) > 0 ? `<div class="line"><span>1 qonaq üçün depozit</span><span>${receiptDeposit.div(Math.max(1, Number(table.guest_count || 1))).toDecimalPlaces(2).toFixed(2)} ₼</span></div>` : ''}
+                          <div class="line"><span>Əlavə ödəniş</span><span>${receiptExtraDue.toFixed(2)} ₼</span></div>
+                          <div class="line bold" style="font-size:13px"><span>YEKUN</span><span>${receiptFinalTotal.toFixed(2)} ₼</span></div>
                           <hr />
                           <div class="muted">${businessProfile?.receipt_footer || 'Bizi seçdiyiniz üçün təşəkkür edirik!'}</div>
                         </body>
@@ -619,6 +661,7 @@ export default function TablesPage() {
                     window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { tenant_id, sale_id: result.sale_id, source: 'table' } }));
                     window.dispatchEvent(new CustomEvent('logs-updated', { detail: { tenant_id, sale_id: result.sale_id, source: 'table' } }));
                     setPayTableId(null);
+                    setViewTableId(table.id);
                     setPaymentMethod('Nəğd');
                     setSplitCount('2');
                     setSplitParts([]);
@@ -708,7 +751,7 @@ export default function TablesPage() {
 
       {viewTableId && (
         <div className="fixed inset-0 z-[130] flex items-end justify-center bg-black/65 p-0 md:items-center md:p-4">
-          <div className="metal-panel w-full max-w-lg rounded-t-[30px] p-5 md:rounded-2xl">
+          <div className="metal-panel w-full max-w-5xl rounded-t-[30px] p-5 md:rounded-2xl">
             <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-600 md:hidden" />
             {(() => {
               const t = tables.find((x) => x.id === viewTableId);
@@ -731,7 +774,7 @@ export default function TablesPage() {
                 <>
                   <h3 className="text-lg font-bold text-slate-100">{t.label}</h3>
                   <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Masa sifariş detalı', 'Детали заказа стола', 'Table order detail')}</div>
-                  <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+                  <div className="mt-3 grid grid-cols-3 gap-2 overflow-x-auto">
                     <div className="rounded-lg border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-200">
                       <div className="text-xs uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Qonaq sayı', 'Гостей', 'Guests')}</div>
                       <div className="mt-1 text-lg font-bold text-slate-100">{Number(t.guest_count || 0)}</div>
@@ -810,7 +853,7 @@ export default function TablesPage() {
                       </button>
                     </div>
                   </div>
-                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
                     <div className="rounded-lg border border-blue-300/30 bg-blue-500/10 p-3">
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">{tx(lang, 'Mətbəxdə gözləyənlər', 'Ожидают на кухне', 'Waiting in kitchen')}</div>
                       <div className="space-y-2 text-sm text-slate-100">

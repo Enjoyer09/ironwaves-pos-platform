@@ -333,6 +333,18 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
     return total.div(snapshot.sales.length);
   }, [snapshot.sales]);
 
+  const depositsCollected = useMemo(() => {
+    return snapshot.financeEntries.reduce((sum: Decimal, entry: any) => {
+      const category = String(entry?.category || '').toLowerCase();
+      const description = String(entry?.description || '').toLowerCase();
+      const isDeposit = category.includes('depozit') || description.includes('depozit') || description.includes('deposit');
+      if (entry?.type === 'in' && isDeposit) {
+        return sum.plus(new Decimal(entry.amount || 0));
+      }
+      return sum;
+    }, new Decimal(0));
+  }, [snapshot.financeEntries]);
+
   const financeTrend = useMemo(() => {
     const start = new Date(activeRange.fromIso);
     const end = new Date(activeRange.toIso);
@@ -621,14 +633,20 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
                   helper={tx(lang, 'Bu gün', 'Сегодня', 'Today')}
                   icon={<Wallet size={18} />}
                 />
-                <SoftTile
-                  title={tx(lang, 'Card Sales', 'Продажи по карте', 'Card Sales')}
-                  value={`${new Decimal(snapshot.summary?.card_sales || 0).toFixed(2)} ₼`}
-                  helper={tx(lang, 'Bu gün', 'Сегодня', 'Today')}
-                  icon={<CreditCard size={18} />}
-                />
-              </div>
-            </section>
+              <SoftTile
+                title={tx(lang, 'Card Sales', 'Продажи по карте', 'Card Sales')}
+                value={`${new Decimal(snapshot.summary?.card_sales || 0).toFixed(2)} ₼`}
+                helper={tx(lang, 'Bu gün', 'Сегодня', 'Today')}
+                icon={<CreditCard size={18} />}
+              />
+              <SoftTile
+                title={tx(lang, 'Depozitlər', 'Депозиты', 'Deposits')}
+                value={`${depositsCollected.toFixed(2)} ₼`}
+                helper={tx(lang, 'Masa açılışlarında toplanan məbləğ', 'Сумма собранных депозитов по столам', 'Collected table deposits')}
+                icon={<Wallet size={18} />}
+              />
+            </div>
+          </section>
 
             <section className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.93),rgba(246,248,252,0.88))] p-5 text-slate-900 shadow-[0_16px_45px_rgba(0,0,0,0.22)]">
               <div className="mb-4 flex items-center justify-between">
