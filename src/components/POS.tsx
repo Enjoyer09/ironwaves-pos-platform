@@ -223,6 +223,23 @@ export default function POS() {
     };
   }, [basePosLayout, isTabletViewport, user?.role]);
 
+  const cart = carts[activeCart];
+  const ctx = cartCtx[activeCart];
+
+  const patchCtx = (patch: Partial<CartContext>) => {
+    setCartCtx((prev) => ({
+      ...prev,
+      [activeCart]: {
+        ...prev[activeCart],
+        ...patch,
+      },
+    }));
+  };
+
+  const clearCart = (key: 'S1' | 'S2' | 'S3' = activeCart) => {
+    setCarts((prev) => ({ ...prev, [key]: [] }));
+  };
+
   useEffect(() => {
     const onLayoutUpdate = (event: Event) => {
       const detail = (event as CustomEvent<{ tenant_id?: string }>).detail;
@@ -385,19 +402,6 @@ export default function POS() {
     return () => window.clearTimeout(t);
   }, [tenantId, cartCtx, activeCart, posCartCtxStorageKey, posActiveCartStorageKey]);
 
-  const cart = carts[activeCart];
-  const ctx = cartCtx[activeCart];
-
-  const patchCtx = (patch: Partial<CartContext>) => {
-    setCartCtx((prev) => ({
-      ...prev,
-      [activeCart]: {
-        ...prev[activeCart],
-        ...patch,
-      },
-    }));
-  };
-
   const addToCart = (item: any) => {
     const defaultSeatLabel = undefined;
     setCarts((prev) => {
@@ -436,10 +440,6 @@ export default function POS() {
       [activeCart]:
         qty <= 0 ? prev[activeCart].filter((c) => c.line_id !== lineId) : prev[activeCart].map((c) => (c.line_id === lineId ? { ...c, qty } : c)),
     }));
-  };
-
-  const clearCart = (key: 'S1' | 'S2' | 'S3' = activeCart) => {
-    setCarts((prev) => ({ ...prev, [key]: [] }));
   };
 
   const refreshOfflineState = async () => {
