@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import FinanceEntry, Shift, ShiftHandover, Tenant
+from app.models import FinanceEntry, Shift, ShiftHandover, Tenant, User
 from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XReportIn, ZReportIn
 
 
@@ -17,6 +17,30 @@ router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
 def _sum_source(db: Session, tenant_id: str, source: str, typ: str) -> Decimal:
     rows = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant_id, FinanceEntry.source == source, FinanceEntry.type == typ).all()
     return sum((Decimal(str(r.amount)) for r in rows), Decimal("0"))
+
+
+def _rows_since(db: Session, tenant_id: str, opened_at: datetime | None) -> list[FinanceEntry]:
+    query = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant_id)
+    if opened_at:
+        query = query.filter(FinanceEntry.created_at >= opened_at)
+    return query.all()
+
+
+def _normalized(value: str | None) -> str:
+    return (value or "").strip().lower()
+
+
+def _is_shift_sale_entry(row: FinanceEntry) -> bool:
+    category = _normalized(row.category)
+    return row.type == "in" and (
+        category == "satış (nağd)" or category == "satış (kart)" or category == "staff ödənişi"
+    )
+
+
+def _is_shift_deposit_entry(row: FinanceEntry) -> bool:
+    category = _normalized(row.category)
+    description = _normalized(row.description)
+    return row.type == "in" and ("depozit" in category or "depozit" in description or "deposit" in description)
 
 
 @router.get("/status")
@@ -53,17 +77,6 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
         opening_cash=payload.opening_cash,
     )
     db.add(row)
-    db.add(
-        FinanceEntry(
-            tenant_id=tenant.id,
-            type="in",
-            category="Kassa Açılışı",
-            source="cash",
-            amount=payload.opening_cash,
-            description="Shift opening cash",
-            created_by=user.username,
-        )
-    )
     db.commit()
     return {"success": True, "shift_id": row.id}
 
@@ -117,9 +130,20 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
 
     cash_in = _sum_source(db, tenant.id, "cash", "in")
     cash_out = _sum_source(db, tenant.id, "cash", "out")
-    card_in = _sum_source(db, tenant.id, "card", "in")
-    card_out = _sum_source(db, tenant.id, "card", "out")
     expected = cash_in - cash_out
+    shift_rows = _rows_since(db, tenant.id, active.opened_at)
+    cash_sales = sum(
+        (Decimal(str(row.amount)) for row in shift_rows if _is_shift_sale_entry(row) and row.source == "cash"),
+        Decimal("0"),
+    )
+    card_sales = sum(
+        (Decimal(str(row.amount)) for row in shift_rows if _is_shift_sale_entry(row) and row.source == "card"),
+        Decimal("0"),
+    )
+    deposit_total = sum(
+        (Decimal(str(row.amount)) for row in shift_rows if _is_shift_deposit_entry(row)),
+        Decimal("0"),
+    )
 
     active.status = "closed"
     active.closed_by = user.username
@@ -130,8 +154,9 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         "success": True,
         "shift_id": active.id,
         "closed_at": active.closed_at.isoformat(),
-        "cash_sales": str(cash_in),
-        "card_sales": str(card_in - card_out),
+        "cash_sales": str(cash_sales.quantize(Decimal("0.01"))),
+        "card_sales": str(card_sales.quantize(Decimal("0.01"))),
+        "deposit_total": str(deposit_total.quantize(Decimal("0.01"))),
         "expected_cash": str(expected),
         "actual_cash": str(payload.actual_cash),
         "wage_amount": str(payload.wage_amount),

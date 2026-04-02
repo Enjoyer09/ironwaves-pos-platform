@@ -40,6 +40,36 @@ const defaultSubjectPresets = [
   'Digər',
 ];
 
+const normalizeFinanceText = (value: unknown) =>
+  String(value || '')
+    .replace(/ə/gi, 'e')
+    .replace(/ı/gi, 'i')
+    .replace(/ö/gi, 'o')
+    .replace(/ü/gi, 'u')
+    .replace(/ç/gi, 'c')
+    .replace(/ş/gi, 's')
+    .replace(/ğ/gi, 'g')
+    .trim()
+    .toLowerCase();
+
+const isOperationalFinanceEntry = (entry: any) => {
+  const category = normalizeFinanceText(entry?.category);
+  const source = normalizeFinanceText(entry?.source);
+  const description = normalizeFinanceText(entry?.description);
+
+  if (category.includes('daxili transfer')) return false;
+  if (category.includes('tesisci investisiyasi')) return false;
+  if (category.includes('investor borcu')) return false;
+  if (category.includes('borcdan kassaya daxilolma')) return false;
+  if (category.includes('borc alindi')) return false;
+  if (category.includes('kassa acilisi')) return false;
+  if (source === 'investor' || source === 'debt') return false;
+  if (description.includes('auto liability mirror')) return false;
+  if (description.includes('auto mirror')) return false;
+  if (description.includes('shift opening cash')) return false;
+  return true;
+};
+
 export default function FinancePanel() {
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
@@ -388,15 +418,34 @@ export default function FinancePanel() {
 
   const visibleEntries = useMemo(() => filteredEntries.slice(0, ledgerPageSize), [filteredEntries, ledgerPageSize]);
 
+  const operationalEntries = useMemo(
+    () => filteredEntries.filter((entry: any) => isOperationalFinanceEntry(entry)),
+    [filteredEntries],
+  );
+
+  const depositsInRange = useMemo(
+    () =>
+      filteredEntries.reduce((sum: Decimal, entry: any) => {
+        const category = normalizeFinanceText(entry?.category);
+        const description = normalizeFinanceText(entry?.description);
+        const isDeposit = category.includes('depozit') || description.includes('depozit') || description.includes('deposit');
+        if (entry?.type === 'in' && isDeposit) {
+          return sum.plus(new Decimal(entry.amount || 0));
+        }
+        return sum;
+      }, new Decimal(0)),
+    [filteredEntries],
+  );
+
   const financeSummary = useMemo(() => {
-    const incoming = filteredEntries
+    const incoming = operationalEntries
       .filter((e: any) => e.type === 'in')
       .reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0));
-    const outgoing = filteredEntries
+    const outgoing = operationalEntries
       .filter((e: any) => e.type === 'out')
       .reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0));
     const net = incoming.minus(outgoing);
-    const biggestExpense = filteredEntries
+    const biggestExpense = operationalEntries
       .filter((e: any) => e.type === 'out')
       .reduce((max: any, row: any) => {
         if (!max) return row;
@@ -406,10 +455,10 @@ export default function FinancePanel() {
       incoming,
       outgoing,
       net,
-      entriesCount: filteredEntries.length,
+      entriesCount: operationalEntries.length,
       biggestExpense,
     };
-  }, [filteredEntries]);
+  }, [operationalEntries]);
 
   const financeHealthTone = useMemo(() => {
     if (financeSummary.net.gte(0)) return 'text-emerald-300';
@@ -424,7 +473,7 @@ export default function FinancePanel() {
     const obligations = new Decimal(investorSummary.debt_remaining || 0)
       .plus(new Decimal(balance.debt_balance || 0));
     if (obligations.lte(0)) return '100';
-    return Decimal.min(new Decimal(100), liquid.div(obligations).times(100)).toFixed(0);
+    return liquid.div(obligations).times(100).toFixed(0);
   }, [balance.cash_balance, balance.card_balance, balance.safe_balance, balance.debt_balance, investorSummary.debt_remaining]);
 
   const exportCsv = () => {
@@ -623,7 +672,7 @@ export default function FinancePanel() {
               label={tx(lang, 'Net Cashflow', 'Нетто поток', 'Net Cashflow')}
               value={`${financeSummary.net.toFixed(2)} ₼`}
               tone={financeHealthTone}
-              helper={tx(lang, 'Seçilmiş aralıq üçün', 'За выбранный период', 'For selected range')}
+              helper={tx(lang, 'İnvestor, açılış və daxili transfer xaric', 'Без инвестора, открытия и внутренних переводов', 'Excluding investor, opening, and internal transfers')}
             />
             <HighlightStat
               label={tx(lang, 'Likvidlik', 'Ликвидность', 'Liquidity')}
@@ -635,7 +684,7 @@ export default function FinancePanel() {
               label={tx(lang, 'Qeyd sayı', 'Кол-во записей', 'Entries')}
               value={String(financeSummary.entriesCount)}
               tone="text-violet-300"
-              helper={tx(lang, 'Bu period üzrə', 'За этот период', 'In this period')}
+              helper={tx(lang, 'Yalnız operativ maliyyə qeydləri', 'Только операционные записи', 'Operational finance rows only')}
             />
           </div>
         </div>
@@ -679,7 +728,7 @@ export default function FinancePanel() {
               <input type="date" value={toDate} onChange={(e) => { setRangePreset('custom'); setToDate(e.target.value); }} className="neon-input min-h-13 md:w-44" />
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:min-w-[460px]">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:min-w-[460px] xl:grid-cols-4">
             <MiniSummaryCard
               label={tx(lang, 'Girişlər', 'Поступления', 'Incoming')}
               value={`${financeSummary.incoming.toFixed(2)} ₼`}
@@ -695,6 +744,12 @@ export default function FinancePanel() {
               value={financeSummary.biggestExpense ? `${new Decimal(financeSummary.biggestExpense.amount || 0).toFixed(2)} ₼` : '0.00 ₼'}
               helper={financeSummary.biggestExpense?.category || tx(lang, 'Hələ yoxdur', 'Пока нет', 'None yet')}
               tone="amber"
+            />
+            <MiniSummaryCard
+              label={tx(lang, 'Depozitlər', 'Депозиты', 'Deposits')}
+              value={`${depositsInRange.toFixed(2)} ₼`}
+              helper={tx(lang, 'Masa açılışlarında yığılan məbləğ', 'Собрано при открытии столов', 'Collected from table openings')}
+              tone="sky"
             />
           </div>
           <div className="flex flex-col gap-2 md:flex-row">
