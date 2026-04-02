@@ -1,4 +1,8 @@
+import { hostScopedKey } from './storage_keys';
+
 const memCache = new Map<string, any[]>();
+
+const scopedDbKey = (key: string) => hostScopedKey(`db_${key}`);
 
 function safeParse(raw: string): unknown {
   try {
@@ -18,7 +22,7 @@ export function getDB<T>(key: string): T[] {
   }
 
   try {
-    const data = localStorage.getItem(key);
+    const data = localStorage.getItem(scopedDbKey(key)) ?? localStorage.getItem(key);
     if (!data) {
       memCache.set(key, []);
       return [];
@@ -35,7 +39,7 @@ export function getDB<T>(key: string): T[] {
 
 export function setDB<T>(key: string, data: T[]): void {
   try {
-    localStorage.setItem(key, JSON.stringify(data));
+    localStorage.setItem(scopedDbKey(key), JSON.stringify(data));
     memCache.set(key, Array.isArray(data) ? data : []);
   } catch (e) {
     console.error('LocalStorage error:', e);
