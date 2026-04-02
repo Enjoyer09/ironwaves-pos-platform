@@ -98,6 +98,9 @@ class Table(Base):
     label: Mapped[str] = mapped_column(String(120), nullable=False)
     is_occupied: Mapped[bool] = mapped_column(Boolean, default=False)
     assigned_to: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    guest_count: Mapped[int] = mapped_column(Integer, default=0)
+    deposit_guest_count: Mapped[int] = mapped_column(Integer, default=0)
+    deposit_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     items_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 

@@ -146,6 +146,9 @@ export type PosLayoutConfig = {
 export interface Settings {
   tenant_id: string;
   service_fee_percent: number;
+  table_service_settings?: {
+    deposit_per_guest_azn: number;
+  };
   ui_visibility: {
     staff_show_tables: boolean;
     manager_show_tables: boolean;
