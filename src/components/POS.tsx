@@ -238,29 +238,31 @@ export default function POS() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  const applyOpenTablePayload = (detail?: { table_id?: string; table_label?: string }) => {
+    const tableId = String(detail?.table_id || '').trim();
+    if (!tableId) return false;
+    const targetCart: 'S1' | 'S2' | 'S3' = 'S1';
+    setActiveCart(targetCart);
+    setCartCtx((prev) => ({
+      ...prev,
+      [targetCart]: {
+        ...prev[targetCart],
+        orderType: 'Dine In',
+        selectedTable: tableId,
+        kitchenSent: false,
+      },
+    }));
+    setTableRoutingBanner({
+      tableId,
+      tableLabel: String(detail?.table_label || tx(lang, 'Seçilmiş Masa', 'Выбранный стол', 'Selected table')),
+    });
+    setMobilePane('menu');
+    setShowMobileCheckout(false);
+    window.setTimeout(() => document.getElementById('pos-menu-search')?.focus(), 80);
+    return true;
+  };
+
   useEffect(() => {
-    const applyOpenTablePayload = (detail?: { table_id?: string; table_label?: string }) => {
-      const tableId = String(detail?.table_id || '').trim();
-      if (!tableId) return;
-      const targetCart: 'S1' | 'S2' | 'S3' = 'S1';
-      setActiveCart(targetCart);
-      setCartCtx((prev) => ({
-        ...prev,
-        [targetCart]: {
-          ...prev[targetCart],
-          orderType: 'Dine In',
-          selectedTable: tableId,
-          kitchenSent: false,
-        },
-      }));
-      setTableRoutingBanner({
-        tableId,
-        tableLabel: String(detail?.table_label || tx(lang, 'Seçilmiş Masa', 'Выбранный стол', 'Selected table')),
-      });
-      setMobilePane('menu');
-      setShowMobileCheckout(false);
-      window.setTimeout(() => document.getElementById('pos-menu-search')?.focus(), 80);
-    };
     const handleOpenTableInPos = (event: Event) => {
       applyOpenTablePayload((event as CustomEvent<{ table_id?: string; table_label?: string }>).detail);
     };
@@ -328,6 +330,18 @@ export default function POS() {
     const rawActive = localStorage.getItem(`${tenantId}_pos_active_cart`);
     if (rawActive === 'S1' || rawActive === 'S2' || rawActive === 'S3') {
       setActiveCart(rawActive);
+    }
+
+    const persisted = sessionStorage.getItem(`${tenantId}_open_table_in_pos`);
+    if (persisted) {
+      try {
+        const applied = applyOpenTablePayload(JSON.parse(persisted));
+        if (applied) {
+          sessionStorage.removeItem(`${tenantId}_open_table_in_pos`);
+        }
+      } catch {
+        sessionStorage.removeItem(`${tenantId}_open_table_in_pos`);
+      }
     }
   }, [tenantId]);
 
