@@ -42,6 +42,7 @@ export default function TablesPage() {
   const serviceFeePercent = new Decimal(tenantSettings.service_fee_percent || 0);
 
   const formatDisplayId = (id: string) => (id ? id.split('-')[0].toUpperCase() : '-');
+  const formatSeatLabel = (item: any) => String(item?.seat_label || '').trim();
   const kitchenBadge = (status?: string | null) => {
     switch (String(status || '').toUpperCase()) {
       case 'NEW':
@@ -380,7 +381,7 @@ export default function TablesPage() {
                     const itemsHtml = itemsSnapshot
                       .map((it: any) => {
                         const line = new Decimal(it.price || 0).times(it.qty || 0);
-                        return `<tr><td style="padding:4px 0">${it.qty}x ${it.item_name}</td><td style="text-align:right">${line.toFixed(2)} ₼</td></tr>`;
+                        return `<tr><td style="padding:4px 0">${it.qty}x ${it.item_name}${it.seat_label ? ` · ${it.seat_label}` : ''}</td><td style="text-align:right">${line.toFixed(2)} ₼</td></tr>`;
                       })
                       .join('');
 
@@ -478,7 +479,7 @@ export default function TablesPage() {
               <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {depositSelections.map((checked, idx) => (
                   <label key={idx} className="flex items-center justify-between rounded-lg border border-slate-700/60 bg-slate-900/50 px-3 py-2 text-sm text-slate-200">
-                    <span>{tx(lang, 'Müştəri', 'Гость', 'Guest')} {idx + 1}</span>
+                    <span>{tx(lang, 'Adam', 'Гость', 'Guest')}-{idx + 1}</span>
                     <input
                       type="checkbox"
                       checked={checked}
@@ -548,7 +549,7 @@ export default function TablesPage() {
                       <div className="mt-1 text-lg font-bold text-slate-100">{Number(t.guest_count || 0)}</div>
                     </div>
                     <div className="rounded-lg border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-200">
-                      <div className="text-xs uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Depozitli qonaq', 'Гостей с депозитом', 'Deposited guests')}</div>
+                      <div className="text-xs uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Depozitli adam', 'Гостей с депозитом', 'Deposited guests')}</div>
                       <div className="mt-1 text-lg font-bold text-slate-100">{Number(t.deposit_guest_count || 0)}</div>
                     </div>
                     <div className="rounded-lg border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-200">
@@ -562,6 +563,7 @@ export default function TablesPage() {
                       <div key={`${it.item_name}_${idx}`} className="flex items-center justify-between gap-3 border-b border-slate-700/40 py-2 text-sm last:border-b-0">
                         <div>
                           <div>{it.item_name}</div>
+                          {formatSeatLabel(it) && <div className="mt-1 text-[11px] text-cyan-300">{formatSeatLabel(it)}</div>}
                           <div className="mt-1 text-xs text-slate-500">x{it.qty}</div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -596,7 +598,7 @@ export default function TablesPage() {
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">{tx(lang, 'Mətbəxdə gözləyənlər', 'Ожидают на кухне', 'Waiting in kitchen')}</div>
                       <div className="space-y-2 text-sm text-slate-100">
                         {waitingItems.length === 0 ? <div className="text-xs text-slate-400">{tx(lang, 'Aktiv gözləyən item yoxdur', 'Нет ожидающих позиций', 'No waiting items')}</div> : waitingItems.map((row: any, idx: number) => (
-                          <div key={`wait_${idx}`} className="rounded-md bg-black/15 px-3 py-2">{row.qty}x {row.item_name}</div>
+                          <div key={`wait_${idx}`} className="rounded-md bg-black/15 px-3 py-2">{row.qty}x {row.item_name}{formatSeatLabel(row) ? ` · ${formatSeatLabel(row)}` : ''}</div>
                         ))}
                       </div>
                     </div>
@@ -604,7 +606,7 @@ export default function TablesPage() {
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200">{tx(lang, 'Hazır olanlar', 'Готово', 'Ready items')}</div>
                       <div className="space-y-2 text-sm text-slate-100">
                         {readyItems.length === 0 ? <div className="text-xs text-slate-400">{tx(lang, 'Hazır item yoxdur', 'Нет готовых позиций', 'No ready items')}</div> : readyItems.map((row: any, idx: number) => (
-                          <div key={`ready_${idx}`} className="rounded-md bg-black/15 px-3 py-2">{row.qty}x {row.item_name}</div>
+                          <div key={`ready_${idx}`} className="rounded-md bg-black/15 px-3 py-2">{row.qty}x {row.item_name}{formatSeatLabel(row) ? ` · ${formatSeatLabel(row)}` : ''}</div>
                         ))}
                       </div>
                     </div>
@@ -612,7 +614,7 @@ export default function TablesPage() {
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-rose-200">{tx(lang, 'Dəyişikliklər', 'Изменения', 'Revisions')}</div>
                       <div className="space-y-2 text-sm text-slate-100">
                         {revisionItems.length === 0 ? <div className="text-xs text-slate-400">{tx(lang, 'Düzəliş yoxdur', 'Нет изменений', 'No revisions')}</div> : revisionItems.map((row: any, idx: number) => (
-                          <div key={`rev_${idx}`} className="rounded-md bg-black/15 px-3 py-2">{row.qty}x {row.item_name}{row.reason ? ` · ${row.reason}` : ''}</div>
+                          <div key={`rev_${idx}`} className="rounded-md bg-black/15 px-3 py-2">{row.qty}x {row.item_name}{formatSeatLabel(row) ? ` · ${formatSeatLabel(row)}` : ''}{row.reason ? ` · ${row.reason}` : ''}</div>
                         ))}
                       </div>
                     </div>

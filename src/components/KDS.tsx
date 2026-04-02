@@ -125,7 +125,7 @@ export default function KDS() {
     newIds: string[];
     preparingIds: string[];
     readyIds: string[];
-    items: Array<{ item_name: string; qty: number }>;
+    items: Array<{ item_name: string; qty: number; seat_label?: string; action?: string | null; reason?: string }>;
     batchCount: number;
   }>>((acc, order) => {
     const key = order.table_label ? `table:${order.table_label}` : `order:${order.id}`;
@@ -147,6 +147,7 @@ export default function KDS() {
         items: normalizedItems.map((item: any) => ({
           item_name: item.item_name,
           qty: Number(item.qty || 0),
+          seat_label: item.seat_label ? String(item.seat_label) : undefined,
           action: String(item.action || '').toUpperCase() || null,
           reason: item.reason || '',
         })),
@@ -174,9 +175,10 @@ export default function KDS() {
 
     normalizedItems.forEach((item: any) => {
       const itemAction = String(item.action || '').toUpperCase() || null;
-      const idx = existing.items.findIndex((row) => row.item_name === item.item_name && (row.action || null) === itemAction);
+      const itemSeat = item.seat_label ? String(item.seat_label) : undefined;
+      const idx = existing.items.findIndex((row) => row.item_name === item.item_name && (row.action || null) === itemAction && (row.seat_label || '') === (itemSeat || ''));
       if (idx >= 0) existing.items[idx].qty += Number(item.qty || 0);
-      else existing.items.push({ item_name: item.item_name, qty: Number(item.qty || 0), action: itemAction, reason: item.reason || '' });
+      else existing.items.push({ item_name: item.item_name, qty: Number(item.qty || 0), seat_label: itemSeat, action: itemAction, reason: item.reason || '' });
     });
     return acc;
   }, []);
@@ -193,11 +195,15 @@ export default function KDS() {
 
   const handleCompleteGroup = async (group: { key: string; preparingIds: string[] }) => {
     try {
-      const selectedReady = readySelections[group.key] || [];
-      if (selectedReady.length === 0) {
+      const selectedReadyKeys = readySelections[group.key] || [];
+      if (selectedReadyKeys.length === 0) {
         useAppStore.getState().notify('error', tx(lang, 'Hazır olan məhsulları seçin', 'Выберите готовые позиции', 'Select ready items'));
         return;
       }
+      const selectedReady = selectedReadyKeys.map((entry) => {
+        const [itemName, seatLabel] = String(entry).split('::');
+        return seatLabel ? `${itemName} · ${seatLabel}` : itemName;
+      });
       await Promise.all(group.preparingIds.map((orderId) => complete_order_live(orderId, user?.username || 'kitchen', selectedReady)));
       setReadySelections((prev) => {
         const next = { ...prev };
@@ -286,6 +292,7 @@ export default function KDS() {
                       <span>
                         {item.action === 'CANCEL' ? `${tx(lang, 'LƏĞV', 'ОТМЕНА', 'CANCEL')} · ` : ''}
                         {item.item_name}
+                        {item.seat_label ? <span className="ml-2 text-xs font-medium text-cyan-200/80">[{item.seat_label}]</span> : null}
                         {item.action === 'CANCEL' && item.reason ? (
                           <span className="ml-2 text-xs font-medium text-rose-200/80">({item.reason})</span>
                         ) : null}
@@ -295,12 +302,13 @@ export default function KDS() {
                       <label className="ml-3 flex items-center gap-2 text-xs text-slate-300">
                         <input
                           type="checkbox"
-                          checked={(readySelections[order.key] || []).includes(item.item_name)}
+                          checked={(readySelections[order.key] || []).includes(`${item.item_name}::${item.seat_label || ''}`)}
                           onChange={(e) => {
                             setReadySelections((prev) => {
                               const current = new Set(prev[order.key] || []);
-                              if (e.target.checked) current.add(item.item_name);
-                              else current.delete(item.item_name);
+                              const readyKey = `${item.item_name}::${item.seat_label || ''}`;
+                              if (e.target.checked) current.add(readyKey);
+                              else current.delete(readyKey);
                               return { ...prev, [order.key]: Array.from(current) };
                             });
                           }}

@@ -171,7 +171,20 @@ def _collect_stock_ops(db: Session, tenant_id: str, items: list[dict]) -> tuple[
 def _merge_table_items(existing: list[dict], incoming: list[dict]) -> list[dict]:
     merged = list(existing)
     for item in incoming:
-        idx = next((i for i, row in enumerate(merged) if row.get("id") == item.get("id") or row.get("item_name") == item.get("item_name")), -1)
+        idx = next(
+            (
+                i
+                for i, row in enumerate(merged)
+                if (
+                    row.get("id") == item.get("id")
+                    or (
+                        row.get("item_name") == item.get("item_name")
+                        and str(row.get("seat_label") or "") == str(item.get("seat_label") or "")
+                    )
+                )
+            ),
+            -1,
+        )
         if idx >= 0:
             merged[idx]["qty"] = int(merged[idx].get("qty", 0)) + int(item.get("qty", 0))
         else:
@@ -1585,7 +1598,20 @@ def send_to_kitchen(
     existing = _json_load(row.items_json, [])
     merged = list(existing)
     for incoming in payload.cart_items:
-        idx = next((i for i, item in enumerate(merged) if item.get("id") == incoming.get("id") or item.get("item_name") == incoming.get("item_name")), -1)
+        idx = next(
+            (
+                i
+                for i, item in enumerate(merged)
+                if (
+                    item.get("id") == incoming.get("id")
+                    or (
+                        item.get("item_name") == incoming.get("item_name")
+                        and str(item.get("seat_label") or "") == str(incoming.get("seat_label") or "")
+                    )
+                )
+            ),
+            -1,
+        )
         if idx >= 0:
             merged[idx]["qty"] = int(merged[idx].get("qty", 0)) + int(incoming.get("qty", 0))
         else:
@@ -1675,8 +1701,17 @@ def revise_table_items(
     removed_items: list[dict] = []
     for old in old_items:
         old_name = str(old.get("item_name") or "").strip()
+        old_seat = str(old.get("seat_label") or "").strip()
         old_qty = int(old.get("qty") or 0)
-        matching = next((item for item in next_items if str(item.get("item_name") or "").strip() == old_name), None)
+        matching = next(
+            (
+                item
+                for item in next_items
+                if str(item.get("item_name") or "").strip() == old_name
+                and str(item.get("seat_label") or "").strip() == old_seat
+            ),
+            None,
+        )
         next_qty = int(matching.get("qty") or 0) if matching else 0
         removed_qty = old_qty - next_qty
         if removed_qty > 0:

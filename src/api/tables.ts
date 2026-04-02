@@ -132,7 +132,7 @@ export const send_to_kitchen = (
   const existing = Array.isArray(table.items) ? table.items : [];
   const merged = [...existing];
   cart_items.forEach((incoming) => {
-    const idx = merged.findIndex((m: any) => m.id === incoming.id || m.item_name === incoming.item_name);
+    const idx = merged.findIndex((m: any) => m.id === incoming.id || (m.item_name === incoming.item_name && String(m.seat_label || '') === String((incoming as any).seat_label || '')));
     if (idx >= 0) {
       merged[idx] = { ...merged[idx], qty: Number(merged[idx].qty || 0) + Number(incoming.qty || 0) };
     } else {
@@ -392,7 +392,7 @@ export const revise_table_items = (table_id: string, payload: TableRevisionPaylo
   const currentItems = Array.isArray(table.items) ? table.items : [];
   const nextItems = payload.items.filter((item) => Number(item.qty || 0) > 0);
   const removedItems = currentItems.reduce<any[]>((acc, oldItem: any) => {
-    const next = nextItems.find((item: any) => item.item_name === oldItem.item_name);
+    const next = nextItems.find((item: any) => item.item_name === oldItem.item_name && String(item.seat_label || '') === String(oldItem.seat_label || ''));
     const removedQty = Number(oldItem.qty || 0) - Number(next?.qty || 0);
     if (removedQty > 0) {
       acc.push({
@@ -485,7 +485,7 @@ export const merge_tables = (table_id: string, target_table_id: string, actor: s
   const targetItems = Array.isArray(target.items) ? [...target.items] : [];
   const sourceItems = Array.isArray(source.items) ? source.items : [];
   sourceItems.forEach((incoming) => {
-    const idx = targetItems.findIndex((row: any) => row.id === incoming.id || row.item_name === incoming.item_name);
+    const idx = targetItems.findIndex((row: any) => row.id === incoming.id || (row.item_name === incoming.item_name && String(row.seat_label || '') === String(incoming.seat_label || '')));
     if (idx >= 0) targetItems[idx] = { ...targetItems[idx], qty: Number(targetItems[idx].qty || 0) + Number(incoming.qty || 0) };
     else targetItems.push(incoming as any);
   });
