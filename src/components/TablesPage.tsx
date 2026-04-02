@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { get_tables_live, create_table_live, delete_table_live, open_table_live, pay_table_live, transfer_table_live, merge_tables_live, revise_table_items_live, reassign_table_seat_live } from '../api/tables';
+import { get_tables_live, create_table_live, delete_table_live, open_table_live, pay_table_live, transfer_table_live, merge_tables_live, revise_table_items_live } from '../api/tables';
 import { get_kitchen_orders_live } from '../api/kds';
 import { LayoutGrid, Plus, Trash2, ArrowRightCircle } from 'lucide-react';
 import { useAppStore } from '../store';
@@ -33,13 +33,7 @@ export default function TablesPage() {
   const [revisionReason, setRevisionReason] = useState('');
   const [revisionOverridePassword, setRevisionOverridePassword] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'Nəğd' | 'Kart' | 'Split'>('Nəğd');
-  const [payScope, setPayScope] = useState<'full' | 'seat'>('full');
-  const [paySeatLabel, setPaySeatLabel] = useState('');
   const [splitCash, setSplitCash] = useState('0');
-  const [activeSeatTab, setActiveSeatTab] = useState('Adam-1');
-  const [seatTransferTarget, setSeatTransferTarget] = useState('');
-  const [seatMergeTarget, setSeatMergeTarget] = useState('');
-  const [seatTransferItem, setSeatTransferItem] = useState<{ tableId: string; itemName: string; fromSeat: string } | null>(null);
   const receiptRef = useRef<HTMLIFrameElement | null>(null);
   const businessProfile = get_business_profile(tenant_id);
   const tenantSettings = get_settings(tenant_id);
@@ -48,54 +42,11 @@ export default function TablesPage() {
   const serviceFeePercent = new Decimal(tenantSettings.service_fee_percent || 0);
 
   const formatDisplayId = (id: string) => (id ? id.split('-')[0].toUpperCase() : '-');
-  const formatSeatLabel = (item: any) => String(item?.seat_label || '').trim();
-  const sortSeatLabels = (labels: string[]) =>
-    [...labels].sort((a, b) => {
-      const aNum = Number(String(a).split('-')[1] || 0);
-      const bNum = Number(String(b).split('-')[1] || 0);
-      return aNum - bNum;
-    });
   const deriveConfiguredSeatLabels = (table: any) => Array.from({ length: Math.max(1, Number(table?.guest_count || 1)) }, (_, idx) => `Adam-${idx + 1}`);
   const deriveDepositSeatLabels = (table: any) => {
     const explicit = Array.isArray(table?.deposit_seat_labels) ? table.deposit_seat_labels.map((label: any) => String(label || '').trim()).filter(Boolean) : [];
     if (explicit.length > 0) return explicit;
     return deriveConfiguredSeatLabels(table).slice(0, Math.max(0, Number(table?.deposit_guest_count || 0)));
-  };
-  const deriveActiveSeatLabels = (table: any) => {
-    const configured = deriveConfiguredSeatLabels(table);
-    const fromItems = (Array.isArray(table?.items) ? table.items : [])
-      .map((row: any) => String(row?.seat_label || '').trim())
-      .filter(Boolean);
-    const fromDeposits = deriveDepositSeatLabels(table);
-    const combined = sortSeatLabels(Array.from(new Set([...fromItems, ...fromDeposits])));
-    return combined.length > 0 ? combined : configured;
-  };
-  const getSeatBreakdown = (table: any, seatLabel: string) => {
-    const seatItems = (Array.isArray(table?.items) ? table.items : []).filter((row: any) => String(row?.seat_label || '').trim() === seatLabel);
-    const itemsTotal = seatItems.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0));
-    const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
-    const hasDeposit = deriveDepositSeatLabels(table).includes(seatLabel);
-    const deposit = hasDeposit ? depositPerGuest : new Decimal(0);
-    const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
-    const dueNow = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
-    return { seatItems, itemsTotal, serviceFee, deposit, finalTotal, dueNow };
-  };
-  const buildSeatReceiptBlocks = (items: any[], seatLabels: string[]) => {
-    const groupedLabels = seatLabels.filter((seat) => items.some((row: any) => String(row?.seat_label || '').trim() === seat));
-    const labels = groupedLabels.length > 0 ? groupedLabels : ['Seat yoxdur'];
-    return labels.map((seat) => {
-      const rows = seat === 'Seat yoxdur'
-        ? items.filter((row: any) => !String(row?.seat_label || '').trim())
-        : items.filter((row: any) => String(row?.seat_label || '').trim() === seat);
-      const rowsHtml = rows.map((it: any) => {
-        const line = new Decimal(it.price || 0).times(it.qty || 0);
-        return `<tr><td style="padding:4px 0">${it.qty}x ${it.item_name}</td><td style="text-align:right">${line.toFixed(2)} ₼</td></tr>`;
-      }).join('');
-      return `
-        <div style="margin:10px 0 6px;font-weight:700">${seat}</div>
-        <table style="width:100%;font-size:14px">${rowsHtml}</table>
-      `;
-    }).join('');
   };
   const kitchenBadge = (status?: string | null) => {
     switch (String(status || '').toUpperCase()) {
@@ -206,22 +157,6 @@ export default function TablesPage() {
     setViewTableId(null);
   };
 
-  useEffect(() => {
-    const table = tables.find((row) => row.id === viewTableId);
-    if (!table) {
-      setActiveSeatTab('Adam-1');
-      setSeatMergeTarget('');
-      return;
-    }
-    const seats = deriveActiveSeatLabels(table);
-    if (!seats.includes(activeSeatTab)) {
-      setActiveSeatTab(seats[0] || 'Adam-1');
-    }
-    if (!seatMergeTarget || seatMergeTarget === activeSeatTab || !seats.includes(seatMergeTarget)) {
-      const fallbackTarget = seats.find((seat) => seat !== activeSeatTab) || '';
-      setSeatMergeTarget(fallbackTarget);
-    }
-  }, [viewTableId, tables, activeSeatTab, seatMergeTarget]);
 
   const printTableReceiptOnly = async () => {
     if (printSettings.use_qz && tableReceiptHtml) {
@@ -387,53 +322,6 @@ export default function TablesPage() {
         </div>
       )}
 
-      {seatTransferItem && (
-        <div className="fixed inset-0 z-[145] flex items-center justify-center bg-black/70 p-4">
-          <div className="metal-panel w-full max-w-md p-5">
-            <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Seat transfer', 'Перенос seat', 'Seat transfer')}</h3>
-            <p className="mt-2 text-sm text-slate-300">
-              <span className="font-semibold text-slate-100">{seatTransferItem.itemName}</span> · {seatTransferItem.fromSeat}
-            </p>
-            <select className="neon-input mt-3" value={seatTransferTarget} onChange={(e) => setSeatTransferTarget(e.target.value)}>
-              <option value="">{tx(lang, 'Yeni seat seçin', 'Выберите новый seat', 'Select new seat')}</option>
-              {(tables.find((row) => row.id === seatTransferItem.tableId) ? deriveActiveSeatLabels(tables.find((row) => row.id === seatTransferItem.tableId)) : [])
-                .filter((seat) => seat !== seatTransferItem.fromSeat)
-                .map((seat) => <option key={seat} value={seat}>{seat}</option>)}
-            </select>
-            <div className="mt-4 flex justify-end gap-2">
-              <button className="neon-btn rounded-lg px-4 py-2" onClick={() => {
-                setSeatTransferItem(null);
-                setSeatTransferTarget('');
-              }}>
-                {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
-              </button>
-              <button
-                className="glossy-gold rounded-lg px-4 py-2 font-semibold disabled:opacity-50"
-                disabled={!seatTransferTarget}
-                onClick={async () => {
-                  try {
-                    await reassign_table_seat_live(seatTransferItem.tableId, {
-                      from_seat: seatTransferItem.fromSeat,
-                      to_seat: seatTransferTarget,
-                      item_name: seatTransferItem.itemName,
-                      mode: 'item',
-                    });
-                    notify('success', tx(lang, 'Məhsul yeni seat-ə köçürüldü', 'Позиция перенесена в новый seat', 'Item moved to new seat'));
-                    setSeatTransferItem(null);
-                    setSeatTransferTarget('');
-                    await loadData();
-                  } catch (e: any) {
-                    notify('error', e?.message || tx(lang, 'Seat transfer alınmadı', 'Seat перенос не выполнен', 'Seat transfer failed'));
-                  }
-                }}
-              >
-                {tx(lang, 'Köçür', 'Перенести', 'Move')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {payTableId && (
         <div className="fixed inset-0 z-[130] flex items-end justify-center bg-black/65 p-0 md:items-center md:p-4">
           <div className="metal-panel w-full max-w-md rounded-t-[28px] p-5 md:rounded-2xl">
@@ -441,35 +329,24 @@ export default function TablesPage() {
             <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Masa hesabını bağla', 'Закрыть счет стола')}</h3>
             <div className="mt-3 text-sm text-slate-300">
               {(() => {
-              const t = tables.find((x) => x.id === payTableId);
-              if (!t) return '-';
-                const paymentSeatLabels = deriveActiveSeatLabels(t);
-                const depositSeatLabels = deriveDepositSeatLabels(t);
-                const payItems = payScope === 'seat'
-                  ? (Array.isArray(t.items) ? t.items.filter((row: any) => String(row.seat_label || '') === paySeatLabel) : [])
-                  : (Array.isArray(t.items) ? t.items : []);
+                const t = tables.find((x) => x.id === payTableId);
+                if (!t) return '-';
+                const payItems = Array.isArray(t.items) ? t.items : [];
                 const itemsTotal = payItems.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0));
                 const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
-                const deposit = payScope === 'seat'
-                  ? (depositSeatLabels.includes(paySeatLabel) ? depositPerGuest : new Decimal(0))
-                  : new Decimal(t.deposit_amount || 0);
+                const deposit = new Decimal(t.deposit_amount || 0);
                 const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
                 const extraDue = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
-                return `${t.label}${payScope === 'seat' && paySeatLabel ? ` · ${paySeatLabel}` : ''} - ${finalTotal.toFixed(2)} ₼ (${tx(lang, 'əlavə ödəniş', 'доплата', 'extra due')}: ${extraDue.toFixed(2)} ₼)`;
+                return `${t.label} - ${finalTotal.toFixed(2)} ₼ (${tx(lang, 'əlavə ödəniş', 'доплата', 'extra due')}: ${extraDue.toFixed(2)} ₼)`;
               })()}
             </div>
               {(() => {
                 const t = tables.find((x) => x.id === payTableId);
                 if (!t) return null;
-                const depositSeatLabels = deriveDepositSeatLabels(t);
-                const payItems = payScope === 'seat'
-                  ? (Array.isArray(t.items) ? t.items.filter((row: any) => String(row.seat_label || '') === paySeatLabel) : [])
-                  : (Array.isArray(t.items) ? t.items : []);
+                const payItems = Array.isArray(t.items) ? t.items : [];
                 const itemsTotal = payItems.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0));
                 const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
-                const deposit = payScope === 'seat'
-                  ? (depositSeatLabels.includes(paySeatLabel) ? depositPerGuest : new Decimal(0))
-                  : new Decimal(t.deposit_amount || 0);
+                const deposit = new Decimal(t.deposit_amount || 0);
                 const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
                 const extraDue = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
                 return (
@@ -479,55 +356,10 @@ export default function TablesPage() {
                   <div className="mt-1 flex justify-between"><span>{tx(lang, 'Depozit', 'Депозит', 'Deposit')}</span><span>{deposit.toFixed(2)} ₼</span></div>
                   <div className="mt-1 flex justify-between font-semibold text-slate-100"><span>{tx(lang, 'Yekun hesab', 'Итоговый счет', 'Final bill')}</span><span>{finalTotal.toFixed(2)} ₼</span></div>
                   <div className="mt-1 flex justify-between text-emerald-200"><span>{tx(lang, 'Hazırda alınacaq', 'К оплате сейчас', 'Due now')}</span><span>{extraDue.toFixed(2)} ₼</span></div>
-                  {payScope === 'full' && (
-                    <div className="mt-3 space-y-2 border-t border-slate-700/60 pt-3">
-                      {deriveActiveSeatLabels(t).map((seat) => {
-                        const seatSummary = getSeatBreakdown(t, seat);
-                        return (
-                          <div key={seat} className="rounded-lg border border-slate-700/50 bg-black/15 px-3 py-2">
-                            <div className="flex items-center justify-between text-xs font-semibold text-slate-200">
-                              <span>{seat}</span>
-                              <span>{seatSummary.finalTotal.toFixed(2)} ₼</span>
-                            </div>
-                            <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
-                              <span>{tx(lang, 'Depozit', 'Депозит', 'Deposit')}: {seatSummary.deposit.toFixed(2)} ₼</span>
-                              <span>{tx(lang, 'İndi', 'Сейчас', 'Due now')}: {seatSummary.dueNow.toFixed(2)} ₼</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
               );
             })()}
             <div className="mt-4 grid grid-cols-3 gap-2">
-              {(() => {
-                const t = tables.find((x) => x.id === payTableId);
-                const paySeats = t ? deriveActiveSeatLabels(t) : [];
-                return paySeats.length > 0 ? (
-                  <div className="col-span-3 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3">
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Ödəniş növü', 'Тип оплаты', 'Payment scope')}</div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button className={`pay-btn ${payScope === 'full' ? 'pay-btn-active' : ''}`} onClick={() => setPayScope('full')}>
-                        {tx(lang, 'Tam Masa', 'Весь стол', 'Full Table')}
-                      </button>
-                      <button className={`pay-btn ${payScope === 'seat' ? 'pay-btn-active' : ''}`} onClick={() => {
-                        setPayScope('seat');
-                        if (!paySeatLabel && paySeats[0]) setPaySeatLabel(paySeats[0]);
-                      }}>
-                        {tx(lang, 'Alman Hesabı', 'По гостю', 'German Split')}
-                      </button>
-                    </div>
-                    {payScope === 'seat' && (
-                      <select className="neon-input mt-2" value={paySeatLabel} onChange={(e) => setPaySeatLabel(e.target.value)}>
-                        <option value="">{tx(lang, 'Adam seçin', 'Выберите гостя', 'Select seat')}</option>
-                        {paySeats.map((seat) => <option key={seat} value={seat}>{seat}</option>)}
-                      </select>
-                    )}
-                  </div>
-                ) : null;
-              })()}
               {(['Nəğd', 'Kart', 'Split'] as const).map((m) => (
                 <button
                   key={m}
@@ -552,8 +384,6 @@ export default function TablesPage() {
             <div className="mt-4 flex justify-end gap-2">
               <button className="neon-btn rounded-lg px-4 py-2" onClick={() => {
                 setPayTableId(null);
-                setPayScope('full');
-                setPaySeatLabel('');
               }}>{tx(lang, 'Ləğv et', 'Отмена')}</button>
               <button
                 className="glossy-gold rounded-lg px-4 py-2 font-semibold"
@@ -561,15 +391,10 @@ export default function TablesPage() {
                   try {
                     const table = tables.find((x) => x.id === payTableId);
                     if (!table) return;
-                    const depositSeatLabels = deriveDepositSeatLabels(table);
-                    const itemsSnapshot = payScope === 'seat'
-                      ? (Array.isArray(table.items) ? table.items.filter((row: any) => String(row.seat_label || '') === paySeatLabel) : [])
-                      : (Array.isArray(table.items) ? [...table.items] : []);
+                    const itemsSnapshot = Array.isArray(table.items) ? [...table.items] : [];
                     const itemsTotal = itemsSnapshot.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0));
                     const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
-                    const deposit = payScope === 'seat'
-                      ? (depositSeatLabels.includes(paySeatLabel) ? depositPerGuest : new Decimal(0))
-                      : new Decimal(table.deposit_amount || 0);
+                    const deposit = new Decimal(table.deposit_amount || 0);
                     const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
                     const dueNow = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
                     const cash = paymentMethod === 'Split' ? new Decimal(splitCash || 0) : null;
@@ -579,16 +404,19 @@ export default function TablesPage() {
                       return;
                     }
                     const result = await pay_table_live(table.id, paymentMethod, user?.username || 'Staff', cash, card, {
-                      pay_scope: payScope,
-                      seat_label: paySeatLabel || undefined,
+                      pay_scope: 'full',
                     });
                     const sales = getDB<any>('sales');
                     const paidSale = sales.find((s) => s.id === result.sale_id);
                     const receiptCustomerId = String(paidSale?.customer_card_id || '').trim();
                     const receiptStarsAfter = Number(paidSale?.customer_stars_after ?? 0);
                     const receiptFreeCoffees = Number(paidSale?.free_coffees_applied ?? 0);
-                    const receiptSeatLabels = payScope === 'seat' && paySeatLabel ? [paySeatLabel] : deriveActiveSeatLabels(table);
-                    const itemsHtml = buildSeatReceiptBlocks(itemsSnapshot, receiptSeatLabels);
+                    const itemsHtml = itemsSnapshot
+                      .map((it: any) => {
+                        const line = new Decimal(it.price || 0).times(it.qty || 0);
+                        return `<tr><td style="padding:4px 0">${it.qty}x ${it.item_name}</td><td style="text-align:right">${line.toFixed(2)} ₼</td></tr>`;
+                      })
+                      .join('');
 
                     const breakdown = paymentMethod === 'Split'
                       ? `<div style="display:flex;justify-content:space-between"><span>Nağd</span><span>${cash?.toFixed(2)} ₼</span></div>
@@ -615,12 +443,11 @@ export default function TablesPage() {
                           <div class="muted">${businessProfile?.address || '-'}</div>
                           <hr />
                           <div class="line"><span>Masa</span><span class="bold">${table.label}</span></div>
-                          ${payScope === 'seat' && paySeatLabel ? `<div class="line"><span>Seat</span><span class="bold">${paySeatLabel}</span></div>` : ''}
                           <div class="line"><span>Satış ID</span><span>${formatDisplayId(result.sale_id)}</span></div>
                           <div class="line"><span>Operator</span><span>${user?.username || 'staff'}</span></div>
                           <div class="line"><span>Tarix</span><span>${new Date().toLocaleString()}</span></div>
                           <hr />
-                          ${itemsHtml}
+                          <table style="width:100%;font-size:14px">${itemsHtml}</table>
                           <hr style="margin:12px 0" />
                           ${breakdown}
                           ${receiptFreeCoffees > 0 ? `<div class="line"><span>Pulsuz kofe</span><span>${receiptFreeCoffees}</span></div>` : ''}
@@ -640,8 +467,6 @@ export default function TablesPage() {
                     window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { tenant_id, sale_id: result.sale_id, source: 'table' } }));
                     window.dispatchEvent(new CustomEvent('logs-updated', { detail: { tenant_id, sale_id: result.sale_id, source: 'table' } }));
                     setPayTableId(null);
-                    setPayScope('full');
-                    setPaySeatLabel('');
                     setSplitCash('0');
                     await loadData();
                   } catch (e: any) {
@@ -734,24 +559,18 @@ export default function TablesPage() {
               const t = tables.find((x) => x.id === viewTableId);
               if (!t) return null;
               const items = Array.isArray(t.items) ? t.items : [];
-              const seatLabels = deriveActiveSeatLabels(t);
-              const focusedSeat = seatLabels.includes(activeSeatTab) ? activeSeatTab : (seatLabels[0] || 'Adam-1');
               const activeKitchenOrders = kitchenOrders.filter((row) => row.table_label === t.label);
               const waitingItems = activeKitchenOrders
                 .filter((row) => ['NEW', 'PREPARING'].includes(String(row.status || '')))
                 .flatMap((row) => (Array.isArray(row.items) ? row.items : []))
-                .filter((row: any) => String(row.action || '').toUpperCase() !== 'CANCEL')
-                .filter((row: any) => !focusedSeat || formatSeatLabel(row) === focusedSeat);
+                .filter((row: any) => String(row.action || '').toUpperCase() !== 'CANCEL');
               const readyItems = activeKitchenOrders
                 .filter((row) => String(row.status || '') === 'READY')
                 .flatMap((row) => Array.isArray(row.items) ? row.items : [])
-                .filter((row: any) => String(row.action || '').toUpperCase() !== 'CANCEL')
-                .filter((row: any) => !focusedSeat || formatSeatLabel(row) === focusedSeat);
+                .filter((row: any) => String(row.action || '').toUpperCase() !== 'CANCEL');
               const revisionItems = activeKitchenOrders
                 .flatMap((row) => Array.isArray(row.items) ? row.items : [])
-                .filter((row: any) => String(row.action || '').toUpperCase() === 'CANCEL')
-                .filter((row: any) => !focusedSeat || formatSeatLabel(row) === focusedSeat);
-              const seatItems = items.filter((row: any) => !focusedSeat || formatSeatLabel(row) === focusedSeat);
+                .filter((row: any) => String(row.action || '').toUpperCase() === 'CANCEL');
               const otherTables = tables.filter((row) => row.id !== t.id);
               return (
                 <>
@@ -772,70 +591,22 @@ export default function TablesPage() {
                     </div>
                   </div>
                   <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/35 p-3">
-                    <div className="mb-3 flex flex-wrap gap-2">
-                      {seatLabels.map((seat) => (
-                        <button
-                          key={seat}
-                          onClick={() => setActiveSeatTab(seat)}
-                          className={`rounded-full px-4 py-2 text-sm font-semibold ${focusedSeat === seat ? 'bg-yellow-300 text-slate-900' : 'border border-slate-700/70 bg-slate-950/40 text-slate-200'}`}
-                        >
-                          {seat}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
-                      <div className="rounded-lg border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-300">
-                        <div className="font-semibold text-slate-100">{focusedSeat}</div>
-                        <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Bu seat üçün sifariş, hazır məhsul və düzəlişləri ayrıca görürsünüz.', 'Здесь отображаются только позиции выбранного гостя.', 'You are only seeing the selected seat here.')}</div>
+                    <div className="rounded-lg border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-300">
+                      <div className="font-semibold text-slate-100">{tx(lang, 'Masa sifarişləri', 'Заказы стола', 'Table orders')}</div>
+                      <div className="mt-1 text-xs text-slate-400">
+                        {tx(lang, 'Bu masanın bütün məhsulları burada bir yerdə görünür. Artıq ayrıca adam/seat bölünməsi yoxdur.', 'Все позиции этого стола показаны вместе. Деление по гостям больше не используется.', 'All table items are shown together. Per-person seat splitting is no longer used.')}
                       </div>
-                      {seatLabels.length > 1 && (
-                        <div className="flex flex-col gap-2 md:w-60">
-                          <select className="neon-input" value={seatMergeTarget} onChange={(e) => setSeatMergeTarget(e.target.value)}>
-                            <option value="">{tx(lang, 'Hədəf seat seçin', 'Выберите целевой seat', 'Select target seat')}</option>
-                            {seatLabels.filter((seat) => seat !== focusedSeat).map((seat) => <option key={seat} value={seat}>{seat}</option>)}
-                          </select>
-                          <button
-                            className="rounded-xl border border-cyan-300/40 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100 disabled:opacity-50"
-                            disabled={!seatMergeTarget}
-                            onClick={async () => {
-                              try {
-                                await reassign_table_seat_live(t.id, { from_seat: focusedSeat, to_seat: seatMergeTarget, mode: 'seat' });
-                                notify('success', tx(lang, 'Seat birləşdirildi', 'Seat объединен', 'Seat merged'));
-                                await loadData();
-                              } catch (e: any) {
-                                notify('error', e?.message || tx(lang, 'Seat birləşmədi', 'Seat не объединен', 'Seat merge failed'));
-                              }
-                            }}
-                          >
-                            {tx(lang, 'Bu seat-i birləşdir', 'Объединить seat', 'Merge this seat')}
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </div>
                   <div className="mt-3 max-h-72 overflow-auto rounded-lg border border-slate-700/70 bg-slate-900/40 p-3">
-                    {seatItems.length === 0 && <div className="text-sm text-slate-400">{tx(lang, 'Bu seat üçün məhsul yoxdur', 'Для этого seat нет позиций', 'No items for this seat')}</div>}
-                    {seatItems.map((it: any, idx: number) => (
+                    {items.length === 0 && <div className="text-sm text-slate-400">{tx(lang, 'Masa boşdur', 'Стол пуст', 'Table is empty')}</div>}
+                    {items.map((it: any, idx: number) => (
                       <div key={`${it.item_name}_${idx}`} className="flex items-center justify-between gap-3 border-b border-slate-700/40 py-2 text-sm last:border-b-0">
                         <div>
                           <div>{it.item_name}</div>
-                          {formatSeatLabel(it) && <div className="mt-1 text-[11px] text-cyan-300">{formatSeatLabel(it)}</div>}
                           <div className="mt-1 text-xs text-slate-500">x{it.qty}</div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {seatLabels.length > 1 && (
-                            <button
-                              className="rounded-md border border-cyan-300/40 bg-cyan-500/10 px-2 py-1 text-xs font-semibold text-cyan-100"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const nextTarget = seatLabels.find((seat) => seat !== focusedSeat) || '';
-                                setSeatTransferItem({ tableId: t.id, itemName: it.item_name, fromSeat: focusedSeat });
-                                setSeatTransferTarget(nextTarget);
-                              }}
-                            >
-                              {tx(lang, 'Seat-ə köçür', 'Перенести seat', 'Move seat')}
-                            </button>
-                          )}
                           <button
                             className="rounded-md border border-amber-300/40 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-100"
                             onClick={async (e) => {
@@ -889,7 +660,7 @@ export default function TablesPage() {
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">{tx(lang, 'Mətbəxdə gözləyənlər', 'Ожидают на кухне', 'Waiting in kitchen')}</div>
                       <div className="space-y-2 text-sm text-slate-100">
                         {waitingItems.length === 0 ? <div className="text-xs text-slate-400">{tx(lang, 'Aktiv gözləyən item yoxdur', 'Нет ожидающих позиций', 'No waiting items')}</div> : waitingItems.map((row: any, idx: number) => (
-                          <div key={`wait_${idx}`} className="rounded-md bg-black/15 px-3 py-2">{row.qty}x {row.item_name}{formatSeatLabel(row) ? ` · ${formatSeatLabel(row)}` : ''}</div>
+                          <div key={`wait_${idx}`} className="rounded-md bg-black/15 px-3 py-2">{row.qty}x {row.item_name}</div>
                         ))}
                       </div>
                     </div>
@@ -897,7 +668,7 @@ export default function TablesPage() {
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200">{tx(lang, 'Hazır olanlar', 'Готово', 'Ready items')}</div>
                       <div className="space-y-2 text-sm text-slate-100">
                         {readyItems.length === 0 ? <div className="text-xs text-slate-400">{tx(lang, 'Hazır item yoxdur', 'Нет готовых позиций', 'No ready items')}</div> : readyItems.map((row: any, idx: number) => (
-                          <div key={`ready_${idx}`} className="rounded-md bg-black/15 px-3 py-2">{row.qty}x {row.item_name}{formatSeatLabel(row) ? ` · ${formatSeatLabel(row)}` : ''}</div>
+                          <div key={`ready_${idx}`} className="rounded-md bg-black/15 px-3 py-2">{row.qty}x {row.item_name}</div>
                         ))}
                       </div>
                     </div>
@@ -905,7 +676,7 @@ export default function TablesPage() {
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-rose-200">{tx(lang, 'Dəyişikliklər', 'Изменения', 'Revisions')}</div>
                       <div className="space-y-2 text-sm text-slate-100">
                         {revisionItems.length === 0 ? <div className="text-xs text-slate-400">{tx(lang, 'Düzəliş yoxdur', 'Нет изменений', 'No revisions')}</div> : revisionItems.map((row: any, idx: number) => (
-                          <div key={`rev_${idx}`} className="rounded-md bg-black/15 px-3 py-2">{row.qty}x {row.item_name}{formatSeatLabel(row) ? ` · ${formatSeatLabel(row)}` : ''}{row.reason ? ` · ${row.reason}` : ''}</div>
+                          <div key={`rev_${idx}`} className="rounded-md bg-black/15 px-3 py-2">{row.qty}x {row.item_name}{row.reason ? ` · ${row.reason}` : ''}</div>
                         ))}
                       </div>
                     </div>

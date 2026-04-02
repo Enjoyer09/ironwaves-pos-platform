@@ -360,7 +360,7 @@ export default function POS() {
   };
 
   const addToCart = (item: any) => {
-    const defaultSeatLabel = ctx.orderType === 'Dine In' && seatOptions.length > 0 ? seatOptions[0] : undefined;
+    const defaultSeatLabel = undefined;
     setCarts((prev) => {
       const existing = prev[activeCart].find((c) => c.id === item.id && (c.seat_label || '') === (defaultSeatLabel || ''));
       if (existing) {
@@ -488,29 +488,7 @@ export default function POS() {
     [tables],
   );
 
-  const seatOptions = useMemo(() => {
-    if (!selectedTableData) return [];
-    const configured = Array.from({ length: Math.max(0, Number(selectedTableData.guest_count || 0)) }, (_, idx) => `Adam-${idx + 1}`);
-    const itemSeats = (Array.isArray(selectedTableData.items) ? selectedTableData.items : [])
-      .map((row: any) => String(row?.seat_label || '').trim())
-      .filter(Boolean);
-    const depositSeats = (Array.isArray((selectedTableData as any).deposit_seat_labels) ? (selectedTableData as any).deposit_seat_labels : [])
-      .map((row: any) => String(row || '').trim())
-      .filter(Boolean);
-    const active = Array.from(new Set([...itemSeats, ...depositSeats]));
-    return (active.length > 0 ? active : configured).sort((a, b) => Number(a.split('-')[1] || 0) - Number(b.split('-')[1] || 0));
-  }, [selectedTableData]);
-
-  useEffect(() => {
-    if (ctx.orderType !== 'Dine In' || seatOptions.length === 0) return;
-    setCarts((prev) => ({
-      ...prev,
-      [activeCart]: prev[activeCart].map((item) => ({
-        ...item,
-        seat_label: item.seat_label || seatOptions[0],
-      })),
-    }));
-  }, [ctx.orderType, ctx.selectedTable, activeCart, seatOptions]);
+  const seatOptions = useMemo(() => [] as string[], []);
 
   useEffect(() => {
     if (tableRoutingBanner && ctx.selectedTable !== tableRoutingBanner.tableId) {
@@ -698,7 +676,7 @@ export default function POS() {
       const lines = cart
         .map(
           (item) =>
-            `<tr><td style="padding:3px 0">${item.qty}x ${item.item_name}${item.seat_label ? ` · ${item.seat_label}` : ''}</td><td style="text-align:right">${toDecimalSafe(item.price)
+            `<tr><td style="padding:3px 0">${item.qty}x ${item.item_name}</td><td style="text-align:right">${toDecimalSafe(item.price)
               .times(item.qty)
               .toFixed(2)} ₼</td></tr>`,
         )
@@ -1045,19 +1023,6 @@ export default function POS() {
                 <span className="font-semibold text-slate-100">{item.item_name}</span>
                 <span className="font-semibold text-yellow-300">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
               </div>
-              {ctx.orderType === 'Dine In' && seatOptions.length > 0 && (
-                <div className="mb-2">
-                  <select
-                    value={item.seat_label || ''}
-                    onChange={(e) => updateCartSeat(item.line_id, e.target.value)}
-                    className="neon-input h-9 text-xs"
-                  >
-                    {seatOptions.map((seat) => (
-                      <option key={seat} value={seat}>{seat}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
               <div className="flex items-center justify-end gap-1">
                 <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty - 1)}><Minus size={13} /></button>
                 <span className="w-6 text-center text-sm">{item.qty}</span>
@@ -1411,19 +1376,6 @@ export default function POS() {
                         <span className="font-semibold text-slate-100">{item.item_name}</span>
                         <span className="font-semibold text-yellow-300">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
                       </div>
-                      {ctx.orderType === 'Dine In' && seatOptions.length > 0 && (
-                        <div className="mt-2">
-                          <select
-                            value={item.seat_label || ''}
-                            onChange={(e) => updateCartSeat(item.line_id, e.target.value)}
-                            className="neon-input h-10 text-sm"
-                          >
-                            {seatOptions.map((seat) => (
-                              <option key={seat} value={seat}>{seat}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
                       <div className="mt-2 flex items-center justify-end gap-2">
                         <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty - 1)}>
                           <Minus size={14} />
