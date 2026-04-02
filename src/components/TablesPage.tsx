@@ -870,9 +870,11 @@ export default function TablesPage() {
                         className="glossy-gold min-h-12 rounded-xl px-5 py-3 font-semibold"
                         onClick={() => {
                           setPayTableId(t.id);
-                          setPayScope('full');
-                          setPaySeatLabel('');
                           setViewTableId(null);
+                          setPaymentMethod('Nəğd');
+                          setSplitCount('2');
+                          setSplitParts([]);
+                          setSplitCash('0');
                         }}
                       >
                         {tx(lang, 'Hesabı Al', 'Закрыть счет')}
@@ -954,7 +956,14 @@ export default function TablesPage() {
             )}
             {t.is_occupied && (
               <button
-                onClick={(e) => { e.stopPropagation(); setPayTableId(t.id); setPayScope('full'); setPaySeatLabel(''); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPayTableId(t.id);
+                  setPaymentMethod('Nəğd');
+                  setSplitCount('2');
+                  setSplitParts([]);
+                  setSplitCash('0');
+                }}
                 className="mt-4 inline-flex min-h-14 w-full items-center justify-center rounded-2xl border border-yellow-300/60 bg-yellow-400/20 px-4 py-3 text-base font-bold text-yellow-100"
               >
                 {tx(lang, 'Hesabı Bağla', 'Закрыть счет', 'Close Bill')}

@@ -399,13 +399,6 @@ export default function POS() {
     }));
   };
 
-  const updateCartSeat = (lineId: string, seatLabel: string) => {
-    setCarts((prev) => ({
-      ...prev,
-      [activeCart]: prev[activeCart].map((c) => (c.line_id === lineId ? { ...c, seat_label: seatLabel || undefined } : c)),
-    }));
-  };
-
   const clearCart = (key: 'S1' | 'S2' | 'S3' = activeCart) => {
     setCarts((prev) => ({ ...prev, [key]: [] }));
   };
@@ -932,25 +925,23 @@ export default function POS() {
     if (widget === 'orderType' && orderTypeBlockVisible) {
       const size = getWidgetSize(widget);
       return (
-        <div key={widget} className={`grid grid-cols-1 gap-2 sm:grid-cols-3 ${size === 'expanded' ? 'text-sm' : 'text-xs'}`}>
-          {(['Take Away', 'Dine In', 'Order Online'] as OrderType[]).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => patchCtx({ orderType: mode })}
-              className={`rounded-md border px-2 ${size === 'compact' ? 'py-2 text-[11px]' : size === 'expanded' ? 'py-4 text-sm' : 'py-3 text-xs'} font-semibold ${
-                ctx.orderType === mode
-                  ? 'text-slate-900'
-                  : 'border-slate-600 bg-slate-800/40 text-slate-200'
-              }`}
-              style={ctx.orderType === mode ? { borderColor: posLayout.accent_color, backgroundColor: posLayout.accent_color } : undefined}
-            >
-              {mode === 'Dine In'
-                ? tx(lang, 'Masada', 'В зале', 'Dine In')
-                : mode === 'Take Away'
-                  ? tx(lang, 'Al-apar', 'С собой', 'Take Away')
-                  : tx(lang, 'Onlayn', 'Онлайн', 'Online')}
-            </button>
-          ))}
+        <div key={widget} className={`grid grid-cols-1 gap-2 ${size === 'expanded' ? 'text-sm' : 'text-xs'}`}>
+          <button
+            onClick={() => patchCtx({ orderType: 'Take Away', selectedTable: '' })}
+            className={`rounded-md border px-2 ${size === 'compact' ? 'py-2 text-[11px]' : size === 'expanded' ? 'py-4 text-sm' : 'py-3 text-xs'} font-semibold ${
+              ctx.orderType === 'Take Away'
+                ? 'text-slate-900'
+                : 'border-slate-600 bg-slate-800/40 text-slate-200'
+            }`}
+            style={ctx.orderType === 'Take Away' ? { borderColor: posLayout.accent_color, backgroundColor: posLayout.accent_color } : undefined}
+          >
+            {tx(lang, 'Al-apar', 'С собой', 'Take Away')}
+          </button>
+          {ctx.orderType === 'Dine In' && ctx.selectedTable && (
+            <div className="rounded-md border border-cyan-300/40 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">
+              {tx(lang, 'Masa rejimi aktivdir. Bu POS sessiyası yalnız seçilmiş masa üçündür.', 'Режим стола активен. Эта POS-сессия только для выбранного стола.', 'Table mode is active. This POS session is for the selected table only.')}
+            </div>
+          )}
         </div>
       );
     }
