@@ -177,6 +177,7 @@ export default function POS() {
   const [showMobileCheckout, setShowMobileCheckout] = useState(false);
   const [layoutRefreshKey, setLayoutRefreshKey] = useState(0);
   const [isTabletViewport, setIsTabletViewport] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 1536 : false));
+  const [tableRoutingBanner, setTableRoutingBanner] = useState<{ tableId: string; tableLabel: string } | null>(null);
   const receiptIframeRef = useRef<HTMLIFrameElement | null>(null);
   const businessProfile = get_business_profile(tenantId);
   const tenantSettings = useMemo(() => get_settings(tenantId), [tenantId, layoutRefreshKey]);
@@ -236,6 +237,48 @@ export default function POS() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  useEffect(() => {
+    const applyOpenTablePayload = (detail?: { table_id?: string; table_label?: string }) => {
+      const tableId = String(detail?.table_id || '').trim();
+      if (!tableId) return;
+      const targetCart: 'S1' | 'S2' | 'S3' = 'S1';
+      setActiveCart(targetCart);
+      setCartCtx((prev) => ({
+        ...prev,
+        [targetCart]: {
+          ...prev[targetCart],
+          orderType: 'Dine In',
+          selectedTable: tableId,
+          kitchenSent: false,
+        },
+      }));
+      setTableRoutingBanner({
+        tableId,
+        tableLabel: String(detail?.table_label || tx(lang, 'Seçilmiş Masa', 'Выбранный стол', 'Selected table')),
+      });
+      setMobilePane('menu');
+      setShowMobileCheckout(false);
+      window.setTimeout(() => document.getElementById('pos-menu-search')?.focus(), 80);
+    };
+    const handleOpenTableInPos = (event: Event) => {
+      applyOpenTablePayload((event as CustomEvent<{ table_id?: string; table_label?: string }>).detail);
+    };
+    const persisted = sessionStorage.getItem(`${tenantId}_open_table_in_pos`);
+    if (persisted) {
+      try {
+        applyOpenTablePayload(JSON.parse(persisted));
+      } catch {
+        // ignore invalid persisted context
+      } finally {
+        sessionStorage.removeItem(`${tenantId}_open_table_in_pos`);
+      }
+    }
+    window.addEventListener('open-table-in-pos', handleOpenTableInPos as EventListener);
+    return () => {
+      window.removeEventListener('open-table-in-pos', handleOpenTableInPos as EventListener);
+    };
+  }, [lang, tenantId]);
 
   useEffect(() => {
     const raw = localStorage.getItem(`${tenantId}_pos_carts`);
@@ -446,9 +489,17 @@ export default function POS() {
   );
 
   const seatOptions = useMemo(() => {
-    const count = Math.max(0, Number(selectedTableData?.guest_count || 0));
-    return Array.from({ length: count }, (_, idx) => `Adam-${idx + 1}`);
-  }, [selectedTableData?.guest_count]);
+    if (!selectedTableData) return [];
+    const configured = Array.from({ length: Math.max(0, Number(selectedTableData.guest_count || 0)) }, (_, idx) => `Adam-${idx + 1}`);
+    const itemSeats = (Array.isArray(selectedTableData.items) ? selectedTableData.items : [])
+      .map((row: any) => String(row?.seat_label || '').trim())
+      .filter(Boolean);
+    const depositSeats = (Array.isArray((selectedTableData as any).deposit_seat_labels) ? (selectedTableData as any).deposit_seat_labels : [])
+      .map((row: any) => String(row || '').trim())
+      .filter(Boolean);
+    const active = Array.from(new Set([...itemSeats, ...depositSeats]));
+    return (active.length > 0 ? active : configured).sort((a, b) => Number(a.split('-')[1] || 0) - Number(b.split('-')[1] || 0));
+  }, [selectedTableData]);
 
   useEffect(() => {
     if (ctx.orderType !== 'Dine In' || seatOptions.length === 0) return;
@@ -460,6 +511,12 @@ export default function POS() {
       })),
     }));
   }, [ctx.orderType, ctx.selectedTable, activeCart, seatOptions]);
+
+  useEffect(() => {
+    if (tableRoutingBanner && ctx.selectedTable !== tableRoutingBanner.tableId) {
+      setTableRoutingBanner(null);
+    }
+  }, [ctx.selectedTable, tableRoutingBanner]);
 
   const tablePendingTotal = useMemo(() => {
     if (!selectedTableData?.is_occupied) return new Decimal(0);
@@ -925,6 +982,11 @@ export default function POS() {
         <React.Fragment key={widget}>
           {ctx.orderType === 'Dine In' && (
             <div className={`space-y-2 ${size === 'expanded' ? 'text-sm' : 'text-xs'}`}>
+              {tableRoutingBanner && ctx.selectedTable === tableRoutingBanner.tableId && (
+                <div className="rounded-lg border border-cyan-300/40 bg-cyan-400/10 px-3 py-2 text-xs text-cyan-100">
+                  {tx(lang, 'Bu sifariş', 'Этот заказ', 'This order is for')} <span className="font-bold">{tableRoutingBanner.tableLabel}</span>.
+                </div>
+              )}
               <div className="relative">
                 <select value={ctx.selectedTable} onChange={(e) => patchCtx({ selectedTable: e.target.value })} className={`neon-input appearance-none ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}>
                   <option value="">{tx(lang, 'Masa seçin', 'Выберите стол', 'Select table')}</option>
@@ -1079,6 +1141,7 @@ export default function POS() {
         <div key={widget} className="relative mb-3">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           <input
+            id="pos-menu-search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className={`neon-input pl-10 ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}

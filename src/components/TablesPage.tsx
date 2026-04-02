@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { get_tables_live, create_table_live, delete_table_live, open_table_live, pay_table_live, send_to_kitchen_live, transfer_table_live, merge_tables_live, revise_table_items_live } from '../api/tables';
+import { get_tables_live, create_table_live, delete_table_live, open_table_live, pay_table_live, transfer_table_live, merge_tables_live, revise_table_items_live } from '../api/tables';
 import { get_kitchen_orders_live } from '../api/kds';
-import { LayoutGrid, Plus, Trash2 } from 'lucide-react';
+import { LayoutGrid, Plus, Trash2, ArrowRightCircle } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
@@ -9,12 +9,10 @@ import { Decimal } from 'decimal.js';
 import { get_business_profile, get_settings } from '../api/settings';
 import { getDB } from '../lib/db_sim';
 import { qzPrintHtml } from '../lib/qz';
-import { get_menu_items_live } from '../api/menu';
 
 export default function TablesPage() {
   const [tables, setTables] = useState<any[]>([]);
   const [kitchenOrders, setKitchenOrders] = useState<any[]>([]);
-  const [menuItems, setMenuItems] = useState<any[]>([]);
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -38,10 +36,6 @@ export default function TablesPage() {
   const [payScope, setPayScope] = useState<'full' | 'seat'>('full');
   const [paySeatLabel, setPaySeatLabel] = useState('');
   const [splitCash, setSplitCash] = useState('0');
-  const [tableDraftSeat, setTableDraftSeat] = useState('Adam-1');
-  const [tableDraftItems, setTableDraftItems] = useState<any[]>([]);
-  const [tableMenuSearch, setTableMenuSearch] = useState('');
-  const [tableMenuCategory, setTableMenuCategory] = useState('ALL');
   const receiptRef = useRef<HTMLIFrameElement | null>(null);
   const businessProfile = get_business_profile(tenant_id);
   const tenantSettings = get_settings(tenant_id);
@@ -51,6 +45,27 @@ export default function TablesPage() {
 
   const formatDisplayId = (id: string) => (id ? id.split('-')[0].toUpperCase() : '-');
   const formatSeatLabel = (item: any) => String(item?.seat_label || '').trim();
+  const sortSeatLabels = (labels: string[]) =>
+    [...labels].sort((a, b) => {
+      const aNum = Number(String(a).split('-')[1] || 0);
+      const bNum = Number(String(b).split('-')[1] || 0);
+      return aNum - bNum;
+    });
+  const deriveConfiguredSeatLabels = (table: any) => Array.from({ length: Math.max(1, Number(table?.guest_count || 1)) }, (_, idx) => `Adam-${idx + 1}`);
+  const deriveDepositSeatLabels = (table: any) => {
+    const explicit = Array.isArray(table?.deposit_seat_labels) ? table.deposit_seat_labels.map((label: any) => String(label || '').trim()).filter(Boolean) : [];
+    if (explicit.length > 0) return explicit;
+    return deriveConfiguredSeatLabels(table).slice(0, Math.max(0, Number(table?.deposit_guest_count || 0)));
+  };
+  const deriveActiveSeatLabels = (table: any) => {
+    const configured = deriveConfiguredSeatLabels(table);
+    const fromItems = (Array.isArray(table?.items) ? table.items : [])
+      .map((row: any) => String(row?.seat_label || '').trim())
+      .filter(Boolean);
+    const fromDeposits = deriveDepositSeatLabels(table);
+    const combined = sortSeatLabels(Array.from(new Set([...fromItems, ...fromDeposits])));
+    return combined.length > 0 ? combined : configured;
+  };
   const kitchenBadge = (status?: string | null) => {
     switch (String(status || '').toUpperCase()) {
       case 'NEW':
@@ -84,31 +99,13 @@ export default function TablesPage() {
     setDepositSelections((prev) => Array.from({ length: count }, (_, idx) => Boolean(prev[idx])));
   }, [guestCount]);
 
-  useEffect(() => {
-    const table = tables.find((row) => row.id === viewTableId);
-    if (!table) {
-      setTableDraftItems([]);
-      setTableMenuSearch('');
-      setTableMenuCategory('ALL');
-      setTableDraftSeat('Adam-1');
-      return;
-    }
-    const seatLabels = Array.from({ length: Math.max(1, Number(table.guest_count || 1)) }, (_, idx) => `Adam-${idx + 1}`);
-    setTableDraftItems([]);
-    setTableMenuSearch('');
-    setTableMenuCategory('ALL');
-    setTableDraftSeat(seatLabels[0] || 'Adam-1');
-  }, [viewTableId, tables]);
-
   const loadData = async () => {
-    const [nextTables, nextKitchenOrders, nextMenuItems] = await Promise.all([
+    const [nextTables, nextKitchenOrders] = await Promise.all([
       get_tables_live(tenant_id),
       get_kitchen_orders_live(tenant_id),
-      get_menu_items_live(tenant_id),
     ]);
     setTables(nextTables);
     setKitchenOrders(Array.isArray(nextKitchenOrders) ? nextKitchenOrders : []);
-    setMenuItems(Array.isArray(nextMenuItems) ? nextMenuItems : []);
   };
 
   const handleAddTable = async () => {
@@ -145,7 +142,6 @@ export default function TablesPage() {
       setOpenTableId(null);
       setGuestCount('1');
       setDepositSelections([false]);
-      setTableDraftSeat('Adam-1');
       await loadData();
       setViewTableId(currentTableId);
     } catch (e: any) {
@@ -162,36 +158,21 @@ export default function TablesPage() {
     } catch(e:any) { notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message); }
   };
 
-  const addDraftItemToTable = (menuItem: any) => {
-    const seatLabel = tableDraftSeat || 'Adam-1';
-    setTableDraftItems((prev) => {
-      const idx = prev.findIndex((row) => row.id === menuItem.id && String(row.seat_label || '') === seatLabel);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = { ...next[idx], qty: Number(next[idx].qty || 0) + 1 };
-        return next;
-      }
-      return [
-        ...prev,
-        {
-          id: menuItem.id,
-          item_name: menuItem.item_name,
-          price: menuItem.price,
-          qty: 1,
-          category: menuItem.category,
-          is_coffee: Boolean(menuItem.is_coffee),
-          seat_label: seatLabel,
-        },
-      ];
-    });
-  };
-
-  const updateDraftQty = (index: number, nextQty: number) => {
-    setTableDraftItems((prev) => prev.flatMap((row, idx) => {
-      if (idx !== index) return [row];
-      if (nextQty <= 0) return [];
-      return [{ ...row, qty: nextQty }];
+  const openTableInPos = (table: any) => {
+    sessionStorage.setItem(
+      `${tenant_id}_open_table_in_pos`,
+      JSON.stringify({
+        table_id: table.id,
+        table_label: table.label,
+      }),
+    );
+    window.dispatchEvent(new CustomEvent('open-table-in-pos', {
+      detail: {
+        table_id: table.id,
+        table_label: table.label,
+      },
     }));
+    setViewTableId(null);
   };
 
   const printTableReceiptOnly = async () => {
@@ -365,26 +346,34 @@ export default function TablesPage() {
             <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Masa hesabını bağla', 'Закрыть счет стола')}</h3>
             <div className="mt-3 text-sm text-slate-300">
               {(() => {
-                const t = tables.find((x) => x.id === payTableId);
-                if (!t) return '-';
-                const itemsTotal = new Decimal(t.total || 0);
-                const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
-                const deposit = new Decimal(t.deposit_amount || 0);
-                const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
-                const extraDue = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
-                return `${t.label} - ${finalTotal.toFixed(2)} ₼ (${tx(lang, 'əlavə ödəniş', 'доплата', 'extra due')}: ${extraDue.toFixed(2)} ₼)`;
-              })()}
-            </div>
-              {(() => {
-                const t = tables.find((x) => x.id === payTableId);
-                if (!t) return null;
+              const t = tables.find((x) => x.id === payTableId);
+              if (!t) return '-';
+                const paymentSeatLabels = deriveActiveSeatLabels(t);
+                const depositSeatLabels = deriveDepositSeatLabels(t);
                 const payItems = payScope === 'seat'
                   ? (Array.isArray(t.items) ? t.items.filter((row: any) => String(row.seat_label || '') === paySeatLabel) : [])
                   : (Array.isArray(t.items) ? t.items : []);
                 const itemsTotal = payItems.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0));
                 const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
                 const deposit = payScope === 'seat'
-                  ? ((t.deposit_seat_labels || []).includes(paySeatLabel) ? depositPerGuest : new Decimal(0))
+                  ? (depositSeatLabels.includes(paySeatLabel) ? depositPerGuest : new Decimal(0))
+                  : new Decimal(t.deposit_amount || 0);
+                const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
+                const extraDue = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
+                return `${t.label}${payScope === 'seat' && paySeatLabel ? ` · ${paySeatLabel}` : ''} - ${finalTotal.toFixed(2)} ₼ (${tx(lang, 'əlavə ödəniş', 'доплата', 'extra due')}: ${extraDue.toFixed(2)} ₼)`;
+              })()}
+            </div>
+              {(() => {
+                const t = tables.find((x) => x.id === payTableId);
+                if (!t) return null;
+                const depositSeatLabels = deriveDepositSeatLabels(t);
+                const payItems = payScope === 'seat'
+                  ? (Array.isArray(t.items) ? t.items.filter((row: any) => String(row.seat_label || '') === paySeatLabel) : [])
+                  : (Array.isArray(t.items) ? t.items : []);
+                const itemsTotal = payItems.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0));
+                const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
+                const deposit = payScope === 'seat'
+                  ? (depositSeatLabels.includes(paySeatLabel) ? depositPerGuest : new Decimal(0))
                   : new Decimal(t.deposit_amount || 0);
                 const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
                 const extraDue = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
@@ -401,7 +390,7 @@ export default function TablesPage() {
             <div className="mt-4 grid grid-cols-3 gap-2">
               {(() => {
                 const t = tables.find((x) => x.id === payTableId);
-                const paySeats = Array.from(new Set((Array.isArray(t?.items) ? t.items : []).map((row: any) => String(row.seat_label || '').trim()).filter(Boolean)));
+                const paySeats = t ? deriveActiveSeatLabels(t) : [];
                 return paySeats.length > 0 ? (
                   <div className="col-span-3 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3">
                     <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Ödəniş növü', 'Тип оплаты', 'Payment scope')}</div>
@@ -458,13 +447,14 @@ export default function TablesPage() {
                   try {
                     const table = tables.find((x) => x.id === payTableId);
                     if (!table) return;
+                    const depositSeatLabels = deriveDepositSeatLabels(table);
                     const itemsSnapshot = payScope === 'seat'
                       ? (Array.isArray(table.items) ? table.items.filter((row: any) => String(row.seat_label || '') === paySeatLabel) : [])
                       : (Array.isArray(table.items) ? [...table.items] : []);
                     const itemsTotal = itemsSnapshot.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0));
                     const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
                     const deposit = payScope === 'seat'
-                      ? ((table.deposit_seat_labels || []).includes(paySeatLabel) ? depositPerGuest : new Decimal(0))
+                      ? (depositSeatLabels.includes(paySeatLabel) ? depositPerGuest : new Decimal(0))
                       : new Decimal(table.deposit_amount || 0);
                     const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
                     const dueNow = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
@@ -587,7 +577,7 @@ export default function TablesPage() {
               <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {depositSelections.map((checked, idx) => (
                   <label key={idx} className="flex items-center justify-between rounded-lg border border-slate-700/60 bg-slate-900/50 px-3 py-2 text-sm text-slate-200">
-                    <span>{tx(lang, 'Adam', 'Гость', 'Guest')}-{idx + 1}</span>
+                    <span>{`Adam-${idx + 1}`}</span>
                     <input
                       type="checkbox"
                       checked={checked}
@@ -634,7 +624,6 @@ export default function TablesPage() {
               const t = tables.find((x) => x.id === viewTableId);
               if (!t) return null;
               const items = Array.isArray(t.items) ? t.items : [];
-              const seatLabels = Array.from({ length: Math.max(1, Number(t.guest_count || 1)) }, (_, idx) => `Adam-${idx + 1}`);
               const activeKitchenOrders = kitchenOrders.filter((row) => row.table_label === t.label);
               const waitingItems = activeKitchenOrders
                 .filter((row) => ['NEW', 'PREPARING'].includes(String(row.status || '')))
@@ -702,87 +691,26 @@ export default function TablesPage() {
                       </div>
                     ))}
                   </div>
-                  <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/35 p-3">
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/35 p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div>
-                        <div className="text-sm font-semibold text-slate-100">{tx(lang, 'Masaya yeni sifariş əlavə et', 'Добавить новый заказ к столу', 'Add new order to table')}</div>
-                        <div className="text-xs text-slate-400">{tx(lang, 'Ofisiant buradan birbaşa Adam-1 / Adam-2 üzrə sifariş vura bilər.', 'Официант может добавлять позиции сразу по гостям.', 'Waiter can add items directly by guest seat here.')}</div>
-                      </div>
-                      <select className="neon-input w-36" value={tableDraftSeat} onChange={(e) => setTableDraftSeat(e.target.value)}>
-                        {seatLabels.map((seat) => <option key={seat} value={seat}>{seat}</option>)}
-                      </select>
-                    </div>
-                    <div className="grid gap-3 md:grid-cols-[1.2fr_0.8fr]">
-                      <div>
-                        <div className="mb-2 flex flex-col gap-2 md:flex-row">
-                          <input
-                            className="neon-input flex-1"
-                            value={tableMenuSearch}
-                            onChange={(e) => setTableMenuSearch(e.target.value)}
-                            placeholder={tx(lang, 'Məhsul axtar', 'Поиск товара', 'Search item')}
-                          />
-                          <select className="neon-input md:w-44" value={tableMenuCategory} onChange={(e) => setTableMenuCategory(e.target.value)}>
-                            <option value="ALL">{tx(lang, 'Bütün kateqoriyalar', 'Все категории', 'All categories')}</option>
-                            {Array.from(new Set(menuItems.map((row) => row.category))).map((cat) => (
-                              <option key={cat} value={cat}>{cat}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="grid max-h-64 grid-cols-1 gap-2 overflow-auto sm:grid-cols-2">
-                          {menuItems
-                            .filter((row) => tableMenuCategory === 'ALL' || row.category === tableMenuCategory)
-                            .filter((row) => String(row.item_name || '').toLowerCase().includes(tableMenuSearch.toLowerCase()))
-                            .map((row) => (
-                              <button
-                                key={row.id}
-                                onClick={() => addDraftItemToTable(row)}
-                                className="rounded-lg border border-slate-700/60 bg-slate-950/40 px-3 py-2 text-left transition hover:border-yellow-300/40 hover:bg-slate-900/70"
-                              >
-                                <div className="font-semibold text-slate-100">{row.item_name}</div>
-                                <div className="mt-1 text-xs text-slate-400">{row.category}</div>
-                                <div className="mt-1 text-sm font-bold text-yellow-300">{new Decimal(row.price || 0).toFixed(2)} ₼</div>
-                              </button>
-                            ))}
+                        <div className="text-base font-semibold text-slate-100">{tx(lang, 'Bu masa üçün sifarişi POS ekranında vur', 'Добавляйте заказ для этого стола через POS', 'Add this table order in POS')}</div>
+                        <div className="mt-1 text-sm text-slate-400">
+                          {tx(
+                            lang,
+                            'Sistem sizi avtomatik POS-a keçirəcək. Orada “bu seçim Masa üçündür” bildirişi çıxacaq və seçdiyiniz item-lər Masaya Göndər ilə buraya düşəcək.',
+                            'Система автоматически переведет вас в POS. Там появится заметка, что заказ идет на этот стол, и позиции после отправки на кухню вернутся сюда.',
+                            'The system will switch you to POS automatically. You will see a notice that the order is for this table, and sent items will appear here after Send to Kitchen.',
+                          )}
                         </div>
                       </div>
-                      <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 p-3">
-                        <div className="mb-2 text-sm font-semibold text-slate-100">{tx(lang, 'Göndəriləcək yeni item-lər', 'Новые позиции к отправке', 'New items to send')}</div>
-                        <div className="max-h-56 space-y-2 overflow-auto">
-                          {tableDraftItems.length === 0 && <div className="text-xs text-slate-500">{tx(lang, 'Hələ yeni item əlavə olunmayıb', 'Новые позиции пока не добавлены', 'No new items added yet')}</div>}
-                          {tableDraftItems.map((row, idx) => (
-                            <div key={`${row.id}_${row.seat_label}_${idx}`} className="rounded-md border border-slate-700/60 bg-black/15 p-2">
-                              <div className="flex items-center justify-between gap-2">
-                                <div>
-                                  <div className="font-medium text-slate-100">{row.item_name}</div>
-                                  <div className="text-xs text-cyan-300">{row.seat_label}</div>
-                                </div>
-                                <div className="text-sm font-semibold text-yellow-300">{new Decimal(row.price || 0).times(row.qty || 0).toFixed(2)} ₼</div>
-                              </div>
-                              <div className="mt-2 flex items-center justify-end gap-2">
-                                <button className="neon-mini-btn" onClick={() => updateDraftQty(idx, Number(row.qty || 0) - 1)}>-</button>
-                                <span className="w-6 text-center text-sm text-slate-100">{row.qty}</span>
-                                <button className="neon-mini-btn" onClick={() => updateDraftQty(idx, Number(row.qty || 0) + 1)}>+</button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        <button
-                          disabled={tableDraftItems.length === 0}
-                          className="glossy-gold mt-3 w-full rounded-lg px-4 py-2 font-semibold disabled:opacity-50"
-                          onClick={async () => {
-                            try {
-                              await send_to_kitchen_live(t.id, tableDraftItems as any, user?.username || 'staff');
-                              notify('success', tx(lang, 'Yeni seat sifarişi mətbəxə göndərildi', 'Новый заказ по гостям отправлен на кухню', 'New seat order sent to kitchen'));
-                              setTableDraftItems([]);
-                              await loadData();
-                            } catch (e: any) {
-                              notify('error', e?.message || tx(lang, 'Sifariş göndərilmədi', 'Заказ не отправлен', 'Order was not sent'));
-                            }
-                          }}
-                        >
-                          {tx(lang, 'Mətbəxə Göndər', 'Отправить на кухню', 'Send To Kitchen')}
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => openTableInPos(t)}
+                        className="glossy-gold inline-flex min-h-14 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold"
+                      >
+                        <ArrowRightCircle size={20} />
+                        {tx(lang, 'POS-da sifariş yaz', 'Открыть POS для стола', 'Open in POS')}
+                      </button>
                     </div>
                   </div>
                   <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -884,7 +812,7 @@ export default function TablesPage() {
                     <button className="neon-btn rounded-lg px-4 py-2" onClick={() => setViewTableId(null)}>{tx(lang, 'Bağla', 'Закрыть')}</button>
                     {t.is_occupied && (
                       <button
-                        className="glossy-gold rounded-lg px-4 py-2 font-semibold"
+                        className="glossy-gold min-h-12 rounded-xl px-5 py-3 font-semibold"
                         onClick={() => {
                           setPayTableId(t.id);
                           setPayScope('full');
@@ -942,10 +870,10 @@ export default function TablesPage() {
               }
               setViewTableId(t.id);
             }}
-            className={`min-h-44 p-6 rounded-3xl border-2 flex flex-col items-center justify-center relative transition-all shadow-sm cursor-pointer ${t.is_occupied ? 'bg-red-900/25 border-red-400/70' : 'bg-slate-800/50 border-slate-600/70 hover:border-yellow-300/60'}`}
+            className={`min-h-52 p-6 rounded-3xl border-2 flex flex-col items-center justify-center relative transition-all shadow-sm cursor-pointer ${t.is_occupied ? 'bg-red-900/25 border-red-400/70' : 'bg-slate-800/50 border-slate-600/70 hover:border-yellow-300/60'}`}
           >
             <span className="font-bold text-xl text-slate-100">{t.label}</span>
-            <span className={`text-xs px-3 py-1 rounded-full mt-3 font-semibold ${t.is_occupied ? 'bg-red-400/20 text-red-200 border border-red-300/50' : 'bg-green-400/20 text-green-200 border border-green-300/50'}`}>
+            <span className={`mt-3 min-h-10 rounded-full px-5 py-2 text-sm font-bold ${t.is_occupied ? 'bg-red-400/20 text-red-200 border border-red-300/50' : 'bg-green-400/20 text-green-200 border border-green-300/50'}`}>
                 {t.is_occupied ? tx(lang, 'Dolu', 'Занято', 'Occupied') : tx(lang, 'Boş', 'Свободно', 'Available')}
             </span>
             {t.assigned_to && (
@@ -972,7 +900,7 @@ export default function TablesPage() {
             {t.is_occupied && (
               <button
                 onClick={(e) => { e.stopPropagation(); setPayTableId(t.id); setPayScope('full'); setPaySeatLabel(''); }}
-                className="mt-3 rounded-lg border border-yellow-300/60 bg-yellow-400/20 px-3 py-1 text-xs font-semibold text-yellow-100"
+                className="mt-4 inline-flex min-h-14 w-full items-center justify-center rounded-2xl border border-yellow-300/60 bg-yellow-400/20 px-4 py-3 text-base font-bold text-yellow-100"
               >
                 {tx(lang, 'Hesabı Bağla', 'Закрыть счет', 'Close Bill')}
               </button>
