@@ -14,6 +14,9 @@ export interface Table {
   label: string;
   is_occupied: boolean;
   assigned_to?: string | null;
+  guest_count?: number;
+  deposit_guest_count?: number;
+  deposit_amount?: string;
   items: CartItem[];
   total: string; // Decimal format
   cup_mode?: 'paper' | 'glass';
@@ -25,6 +28,12 @@ type TableRevisionPayload = {
   reason: string;
   override_password: string;
   actor: string;
+};
+
+type TableOpenPayload = {
+  guest_count: number;
+  deposit_guest_count: number;
+  opened_by: string;
 };
 
 const isRecoverableNetworkFailure = (error: unknown) => {
@@ -74,6 +83,9 @@ export const create_table = (tenant_id: string, label: string, created_by: strin
     label,
     is_occupied: false,
     assigned_to: null,
+    guest_count: 0,
+    deposit_guest_count: 0,
+    deposit_amount: '0',
     items: [],
     total: '0'
   };
@@ -187,6 +199,57 @@ export const send_to_kitchen = (
   return { kitchen_order_id: order_id, success: true };
 };
 
+export const open_table = (table_id: string, payload: TableOpenPayload) => {
+  const tables = getDB<Table>('tables');
+  const table = tables.find((t) => t.id === table_id);
+  if (!table) throw new Error('Masa tapılmadı');
+  if (table.is_occupied && table.assigned_to && table.assigned_to !== payload.opened_by) {
+    throw new Error(`Bu masa ${table.assigned_to} üçün aktivdir`);
+  }
+  if (table.is_occupied && ((Array.isArray(table.items) && table.items.length > 0) || new Decimal(table.deposit_amount || 0).greaterThan(0))) {
+    throw new Error('Masa artıq açıqdır');
+  }
+
+  const guestCount = Math.max(1, Number(payload.guest_count || 0));
+  const depositGuestCount = Math.max(0, Math.min(guestCount, Number(payload.deposit_guest_count || 0)));
+  const settings = getDB<any>('settings').find((s: any) => s.tenant_id === table.tenant_id) || {};
+  const depositPerGuest = new Decimal(settings.table_service_settings?.deposit_per_guest_azn || 0);
+  const depositAmount = depositPerGuest.times(depositGuestCount).toFixed(2);
+
+  table.is_occupied = true;
+  table.assigned_to = payload.opened_by;
+  table.guest_count = guestCount;
+  table.deposit_guest_count = depositGuestCount;
+  table.deposit_amount = depositAmount;
+  setDB('tables', tables);
+
+  if (new Decimal(depositAmount).greaterThan(0)) {
+    const finance = getDB<any>('finance');
+    finance.push({
+      id: uuidv4(),
+      tenant_id: table.tenant_id,
+      type: 'in',
+      category: 'Masa Depoziti',
+      amount: depositAmount,
+      source: 'cash',
+      description: `${table.label} üçün depozit (${depositGuestCount} nəfər)`,
+      created_at: new Date().toISOString(),
+      is_deleted: false,
+    });
+    setDB('finance', finance);
+  }
+
+  logEvent(payload.opened_by, 'TABLE_OPENED', {
+    tenant_id: table.tenant_id,
+    table_id,
+    table_label: table.label,
+    guest_count: guestCount,
+    deposit_guest_count: depositGuestCount,
+    deposit_amount: depositAmount,
+  });
+  return { success: true, guest_count: guestCount, deposit_guest_count: depositGuestCount, deposit_amount: depositAmount };
+};
+
 // FUNKSIYA: pay_table
 export const pay_table = (
   table_id: string, 
@@ -200,11 +263,18 @@ export const pay_table = (
   const table = tables.find(t => t.id === table_id);
   
   if (!table) throw new Error('Masa tapılmadı');
-  if (!table.is_occupied || table.items.length === 0) {
+  if (!table.is_occupied || (table.items.length === 0 && new Decimal(table.deposit_amount || 0).lessThanOrEqualTo(0))) {
     throw new Error('Masa boşdur və ya istifadədə deyil');
   }
 
-  const paidTotal = table.total;
+  const settings = getDB<any>('settings').find((s: any) => s.tenant_id === table.tenant_id) || {};
+  const itemsTotal = new Decimal(table.total || 0);
+  const serviceFeePercent = new Decimal(settings.service_fee_percent || 0);
+  const serviceFeeAmount = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
+  const depositAmount = new Decimal(table.deposit_amount || 0);
+  const payableTotal = Decimal.max(itemsTotal.plus(serviceFeeAmount), depositAmount).toDecimalPlaces(2);
+  const extraDue = Decimal.max(new Decimal(0), payableTotal.minus(depositAmount)).toDecimalPlaces(2);
+  const paidTotal = payableTotal.toFixed(2);
 
   // Atomik Transaction: satış yaradırıq.
   const result = create_sale({
@@ -223,9 +293,67 @@ export const pay_table = (
     cup_mode: options?.cup_mode || table.cup_mode || 'paper'
   });
 
+  const sales = getDB<any>('sales');
+  const sale = sales.find((s: any) => s.id === result.sale_id);
+  if (sale) {
+    sale.original_total = itemsTotal.toFixed(2);
+    sale.total = paidTotal;
+    (sale as any).service_fee_amount = serviceFeeAmount.toFixed(2);
+    (sale as any).deposit_amount = depositAmount.toFixed(2);
+    (sale as any).extra_due = extraDue.toFixed(2);
+  }
+  setDB('sales', sales);
+
+  const finance = getDB<any>('finance').filter((row: any) => row.sale_id !== result.sale_id);
+  if (extraDue.greaterThan(0)) {
+    if (payment_method === 'Split' && split_cash !== null && split_card !== null) {
+      finance.push({
+        id: uuidv4(),
+        tenant_id: table.tenant_id,
+        sale_id: result.sale_id,
+        type: 'in',
+        category: 'Satış (Nağd)',
+        amount: split_cash.toFixed(2),
+        source: 'cash',
+        description: 'Table payment split cash',
+        created_at: new Date().toISOString(),
+        is_deleted: false,
+      });
+      finance.push({
+        id: uuidv4(),
+        tenant_id: table.tenant_id,
+        sale_id: result.sale_id,
+        type: 'in',
+        category: 'Satış (Kart)',
+        amount: split_card.toFixed(2),
+        source: 'card',
+        description: 'Table payment split card',
+        created_at: new Date().toISOString(),
+        is_deleted: false,
+      });
+    } else {
+      finance.push({
+        id: uuidv4(),
+        tenant_id: table.tenant_id,
+        sale_id: result.sale_id,
+        type: 'in',
+        category: payment_method === 'Kart' ? 'Satış (Kart)' : 'Satış (Nağd)',
+        amount: extraDue.toFixed(2),
+        source: payment_method === 'Kart' ? 'card' : 'cash',
+        description: 'Table payment additional due',
+        created_at: new Date().toISOString(),
+        is_deleted: false,
+      });
+    }
+  }
+  setDB('finance', finance);
+
   // Uğurlu ödənişdən sonra masanı sıfırlayırıq
   table.is_occupied = false;
   table.assigned_to = null;
+  table.guest_count = 0;
+  table.deposit_guest_count = 0;
+  table.deposit_amount = '0';
   table.items = [];
   table.total = '0';
   setDB('tables', tables);
@@ -237,7 +365,15 @@ export const pay_table = (
     payment_method 
   });
 
-  return { sale_id: result.sale_id, success: true };
+  return {
+    sale_id: result.sale_id,
+    success: true,
+    items_total: itemsTotal.toFixed(2),
+    service_fee_amount: serviceFeeAmount.toFixed(2),
+    deposit_amount: depositAmount.toFixed(2),
+    extra_due: extraDue.toFixed(2),
+    final_total: paidTotal,
+  };
 };
 
 export const revise_table_items = (table_id: string, payload: TableRevisionPayload) => {
@@ -314,11 +450,17 @@ export const transfer_table = (table_id: string, target_table_id: string, actor:
   target.total = source.total;
   target.is_occupied = true;
   target.assigned_to = source.assigned_to || target.assigned_to || null;
+  target.guest_count = source.guest_count || 0;
+  target.deposit_guest_count = source.deposit_guest_count || 0;
+  target.deposit_amount = source.deposit_amount || '0';
 
   source.items = [];
   source.total = '0';
   source.is_occupied = false;
   source.assigned_to = null;
+  source.guest_count = 0;
+  source.deposit_guest_count = 0;
+  source.deposit_amount = '0';
 
   const kitchenOrders = getDB<any>('kitchen_orders');
   kitchenOrders.forEach((order: any) => {
@@ -352,11 +494,17 @@ export const merge_tables = (table_id: string, target_table_id: string, actor: s
   target.total = new Decimal(target.total || 0).plus(new Decimal(source.total || 0)).toFixed(2);
   target.is_occupied = true;
   target.assigned_to = target.assigned_to || source.assigned_to || null;
+  target.guest_count = Number(target.guest_count || 0) + Number(source.guest_count || 0);
+  target.deposit_guest_count = Number(target.deposit_guest_count || 0) + Number(source.deposit_guest_count || 0);
+  target.deposit_amount = new Decimal(target.deposit_amount || 0).plus(new Decimal(source.deposit_amount || 0)).toFixed(2);
 
   source.items = [];
   source.total = '0';
   source.is_occupied = false;
   source.assigned_to = null;
+  source.guest_count = 0;
+  source.deposit_guest_count = 0;
+  source.deposit_amount = '0';
 
   const kitchenOrders = getDB<any>('kitchen_orders');
   kitchenOrders.forEach((order: any) => {
@@ -387,6 +535,23 @@ export const create_table_live = async (tenant_id: string, label: string, create
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Tables backend create failed: ${message}`);
+  }
+};
+
+export const open_table_live = async (table_id: string, payload: TableOpenPayload) => {
+  if (!isBackendEnabled()) return open_table(table_id, payload);
+  try {
+    return await apiRequest<any>(`/api/v1/ops/tables/${encodeURIComponent(table_id)}/open`, {
+      method: 'POST',
+      tenantId: null,
+      body: {
+        guest_count: payload.guest_count,
+        deposit_guest_count: payload.deposit_guest_count,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Tables backend open failed: ${message}`);
   }
 };
 

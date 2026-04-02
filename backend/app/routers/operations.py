@@ -193,6 +193,11 @@ class TableCreateIn(BaseModel):
     label: str
 
 
+class TableOpenIn(BaseModel):
+    guest_count: int
+    deposit_guest_count: int = 0
+
+
 class TableItemsIn(BaseModel):
     cart_items: list[dict]
     cup_mode: str | None = "paper"
@@ -427,7 +432,8 @@ def get_app_settings(
         gemini_api_key = _setting_value(db, tenant.id, "gemini_api_key", "")
     return {
         "tenant_id": tenant.id,
-        "service_fee_percent": 0,
+        "service_fee_percent": _setting_value(db, tenant.id, "service_fee_percent", 0),
+        "table_service_settings": _setting_value(db, tenant.id, "table_service_settings", {"deposit_per_guest_azn": 0}),
         "ui_visibility": {"staff_show_tables": True, "manager_show_tables": True, "staff_show_kitchen": True},
         "time_settings": {"shift_start_time": "08:00", "shift_end_time": "23:00", "utc_offset": 4, "timezone": "Asia/Baku"},
         "session_settings": session_settings,
@@ -799,6 +805,37 @@ def update_email_settings(
         "timeout_sec": max(5, int(payload.timeout_sec or 15)),
     }
     _set_setting_value(db, tenant.id, "email_settings", cleaned)
+    db.commit()
+    return {"success": True}
+
+
+@router.patch("/settings/service-fee")
+def update_service_fee_settings(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    _set_setting_value(db, tenant.id, "service_fee_percent", max(0, float(payload.get("service_fee_percent") or 0)))
+    db.commit()
+    return {"success": True}
+
+
+@router.patch("/settings/table-service")
+def update_table_service_settings(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    current = _setting_value(db, tenant.id, "table_service_settings", {"deposit_per_guest_azn": 0})
+    merged = {
+        **current,
+        "deposit_per_guest_azn": max(0, float(payload.get("deposit_per_guest_azn") or current.get("deposit_per_guest_azn") or 0)),
+    }
+    _set_setting_value(db, tenant.id, "table_service_settings", merged)
     db.commit()
     return {"success": True}
 
@@ -1381,6 +1418,9 @@ def list_tables(
             "label": row.label,
             "is_occupied": bool(row.is_occupied),
             "assigned_to": row.assigned_to,
+            "guest_count": int(row.guest_count or 0),
+            "deposit_guest_count": int(row.deposit_guest_count or 0),
+            "deposit_amount": str(row.deposit_amount or 0),
             "total": str(row.total),
             "items": _json_load(row.items_json, []),
             "kitchen_status": status_by_table.get(row.label),
@@ -1403,11 +1443,95 @@ def create_table(
     exists = db.query(Table).filter(Table.tenant_id == tenant.id, func.lower(Table.label) == label.lower()).first()
     if exists:
         raise HTTPException(status_code=409, detail="Table already exists")
-    row = Table(tenant_id=tenant.id, label=label, is_occupied=False, assigned_to=None, total=Decimal("0.00"), items_json="[]")
+    row = Table(
+        tenant_id=tenant.id,
+        label=label,
+        is_occupied=False,
+        assigned_to=None,
+        guest_count=0,
+        deposit_guest_count=0,
+        deposit_amount=Decimal("0.00"),
+        total=Decimal("0.00"),
+        items_json="[]",
+    )
     db.add(row)
     db.commit()
     db.refresh(row)
-    return {"id": row.id, "tenant_id": row.tenant_id, "label": row.label, "is_occupied": False, "assigned_to": None, "total": "0", "items": []}
+    return {
+        "id": row.id,
+        "tenant_id": row.tenant_id,
+        "label": row.label,
+        "is_occupied": False,
+        "assigned_to": None,
+        "guest_count": 0,
+        "deposit_guest_count": 0,
+        "deposit_amount": "0",
+        "total": "0",
+        "items": [],
+    }
+
+
+@router.post("/tables/{table_id}/open")
+def open_table(
+    table_id: str,
+    payload: TableOpenIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    row = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Table not found")
+    if row.is_occupied and row.assigned_to and row.assigned_to != user.username:
+        raise HTTPException(status_code=403, detail=f"Bu masa {row.assigned_to} üçün aktivdir")
+    if row.is_occupied and (len(_json_load(row.items_json, [])) > 0 or Decimal(str(row.deposit_amount or 0)) > 0):
+        raise HTTPException(status_code=400, detail="Table is already open")
+
+    guest_count = max(1, int(payload.guest_count or 0))
+    deposit_guest_count = max(0, min(guest_count, int(payload.deposit_guest_count or 0)))
+    table_service = _setting_value(db, tenant.id, "table_service_settings", {"deposit_per_guest_azn": 0})
+    deposit_per_guest = Decimal(str(table_service.get("deposit_per_guest_azn") or 0)).quantize(Decimal("0.01"))
+    deposit_amount = (deposit_per_guest * Decimal(deposit_guest_count)).quantize(Decimal("0.01"))
+
+    row.is_occupied = True
+    row.assigned_to = user.username
+    row.guest_count = guest_count
+    row.deposit_guest_count = deposit_guest_count
+    row.deposit_amount = deposit_amount
+    row.items_json = row.items_json or "[]"
+    row.total = Decimal(str(row.total or 0)).quantize(Decimal("0.01"))
+
+    if deposit_amount > 0:
+        db.add(
+            FinanceEntry(
+                tenant_id=tenant.id,
+                type="in",
+                category="Masa Depoziti",
+                source="cash",
+                amount=deposit_amount,
+                description=f"{row.label} üçün depozit ({deposit_guest_count} nəfər)",
+                created_by=user.username,
+            )
+        )
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="TABLE_OPENED",
+            details=json.dumps(
+                {
+                    "table_id": row.id,
+                    "table_label": row.label,
+                    "guest_count": guest_count,
+                    "deposit_guest_count": deposit_guest_count,
+                    "deposit_amount": str(deposit_amount),
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    db.commit()
+    return {"success": True, "guest_count": guest_count, "deposit_guest_count": deposit_guest_count, "deposit_amount": str(deposit_amount)}
 
 
 @router.delete("/tables/{table_id}")
@@ -1580,8 +1704,9 @@ def revise_table_items(
 
     row.items_json = json.dumps(next_items, ensure_ascii=False)
     row.total = next_total.quantize(Decimal("0.01"))
-    row.is_occupied = len(next_items) > 0
-    row.assigned_to = row.assigned_to if next_items else None
+    still_open = len(next_items) > 0 or Decimal(str(row.deposit_amount or 0)) > 0 or int(row.guest_count or 0) > 0
+    row.is_occupied = still_open
+    row.assigned_to = row.assigned_to if still_open else None
 
     active_order = (
         db.query(KitchenOrder)
@@ -1645,10 +1770,15 @@ def pay_table(
     if not row.is_occupied:
         raise HTTPException(status_code=400, detail="Table is not occupied")
     items = _json_load(row.items_json, [])
-    if not items:
+    deposit_amount = Decimal(str(row.deposit_amount or 0)).quantize(Decimal("0.01"))
+    service_fee_percent = Decimal(str(_setting_value(db, tenant.id, "service_fee_percent", 0) or 0))
+    items_total = Decimal(str(row.total or 0)).quantize(Decimal("0.01"))
+    if not items and deposit_amount <= 0:
         raise HTTPException(status_code=400, detail="Table is empty")
 
-    total = Decimal(str(row.total or 0)).quantize(Decimal("0.01"))
+    service_fee_amount = (items_total * service_fee_percent / Decimal("100")).quantize(Decimal("0.01"))
+    total = max(items_total + service_fee_amount, deposit_amount).quantize(Decimal("0.01"))
+    extra_due = max(total - deposit_amount, Decimal("0.00")).quantize(Decimal("0.01"))
     stock_ops, cogs_total = _collect_stock_ops(db, tenant.id, items)
     receipt_code = secrets.token_hex(5).upper()
     receipt_token = secrets.token_hex(10)
@@ -1699,8 +1829,8 @@ def pay_table(
         split_card = Decimal(str(payload.split_card or 0)).quantize(Decimal("0.01"))
         if split_cash < 0 or split_card < 0:
             raise HTTPException(status_code=400, detail="Split amounts cannot be negative")
-        if (split_cash + split_card - total).copy_abs() > Decimal("0.01"):
-            raise HTTPException(status_code=400, detail="Split amounts must equal table total")
+        if (split_cash + split_card - extra_due).copy_abs() > Decimal("0.01"):
+            raise HTTPException(status_code=400, detail="Split amounts must equal additional due")
         if split_cash > 0:
             db.add(FinanceEntry(tenant_id=tenant.id, type="in", category="Satış (Nağd)", source="cash", amount=split_cash, description=f"Table payment {sale.id}", created_by=user.username))
         if split_card > 0:
@@ -1708,7 +1838,8 @@ def pay_table(
     else:
         source = "cash" if payment_method in {"nəğd", "cash", "staff"} else "card"
         category = "Satış (Nağd)" if source == "cash" else "Satış (Kart)"
-        db.add(FinanceEntry(tenant_id=tenant.id, type="in", category=category, source=source, amount=total, description=f"Table payment {sale.id}", created_by=user.username))
+        if extra_due > 0:
+            db.add(FinanceEntry(tenant_id=tenant.id, type="in", category=category, source=source, amount=extra_due, description=f"Table payment {sale.id}", created_by=user.username))
 
     done_time = datetime.utcnow()
     kitchen_rows = (
@@ -1722,10 +1853,23 @@ def pay_table(
 
     row.is_occupied = False
     row.assigned_to = None
+    row.guest_count = 0
+    row.deposit_guest_count = 0
+    row.deposit_amount = Decimal("0.00")
     row.items_json = "[]"
     row.total = Decimal("0.00")
     db.commit()
-    return {"success": True, "sale_id": sale.id, "receipt_code": receipt_code, "receipt_token": receipt_token}
+    return {
+        "success": True,
+        "sale_id": sale.id,
+        "receipt_code": receipt_code,
+        "receipt_token": receipt_token,
+        "items_total": str(items_total),
+        "service_fee_amount": str(service_fee_amount),
+        "deposit_amount": str(deposit_amount),
+        "extra_due": str(extra_due),
+        "final_total": str(total),
+    }
 
 
 @router.post("/tables/{table_id}/transfer")
@@ -1754,11 +1898,17 @@ def transfer_table(
     target.total = Decimal(str(source.total or 0)).quantize(Decimal("0.01"))
     target.is_occupied = True
     target.assigned_to = source.assigned_to or target.assigned_to
+    target.guest_count = int(source.guest_count or 0)
+    target.deposit_guest_count = int(source.deposit_guest_count or 0)
+    target.deposit_amount = Decimal(str(source.deposit_amount or 0)).quantize(Decimal("0.01"))
 
     source.items_json = "[]"
     source.total = Decimal("0.00")
     source.is_occupied = False
     source.assigned_to = None
+    source.guest_count = 0
+    source.deposit_guest_count = 0
+    source.deposit_amount = Decimal("0.00")
 
     kitchen_rows = (
         db.query(KitchenOrder)
@@ -1804,11 +1954,17 @@ def merge_tables(
     target.total = (Decimal(str(target.total or 0)) + Decimal(str(source.total or 0))).quantize(Decimal("0.01"))
     target.is_occupied = True
     target.assigned_to = target.assigned_to or source.assigned_to
+    target.guest_count = int(target.guest_count or 0) + int(source.guest_count or 0)
+    target.deposit_guest_count = int(target.deposit_guest_count or 0) + int(source.deposit_guest_count or 0)
+    target.deposit_amount = (Decimal(str(target.deposit_amount or 0)) + Decimal(str(source.deposit_amount or 0))).quantize(Decimal("0.01"))
 
     source.items_json = "[]"
     source.total = Decimal("0.00")
     source.is_occupied = False
     source.assigned_to = None
+    source.guest_count = 0
+    source.deposit_guest_count = 0
+    source.deposit_amount = Decimal("0.00")
 
     kitchen_rows = (
         db.query(KitchenOrder)

@@ -14,7 +14,9 @@ import {
   setup_totp_live,
   update_bank_commission_live,
   update_email_settings_live,
+  update_service_fee_live,
   update_session_settings_live,
+  update_table_service_settings_live,
   update_business_profile_live,
   update_print_settings,
   update_qr_settings_live,
@@ -64,6 +66,10 @@ export default function SettingsPanel() {
   const [bankCommission, setBankCommission] = useState({
     card_sale_percent: '2',
     card_transfer_percent: '0.5',
+  });
+  const [tableServiceSettings, setTableServiceSettings] = useState({
+    service_fee_percent: '0',
+    deposit_per_guest_azn: '0',
   });
   const [staffBenefits, setStaffBenefits] = useState({
     daily_limit_azn: '6',
@@ -150,6 +156,10 @@ export default function SettingsPanel() {
       setBankCommission({
         card_sale_percent: String((settingsRes.value.bank_commission as any)?.card_sale_percent ?? settingsRes.value.bank_commission?.percent ?? 2),
         card_transfer_percent: String((settingsRes.value.bank_commission as any)?.card_transfer_percent ?? 0.5),
+      });
+      setTableServiceSettings({
+        service_fee_percent: String(settingsRes.value.service_fee_percent ?? 0),
+        deposit_per_guest_azn: String(settingsRes.value.table_service_settings?.deposit_per_guest_azn ?? 0),
       });
       setStaffBenefits({
         daily_limit_azn: String(settingsRes.value.staff_benefits?.daily_limit_azn ?? 6),
@@ -434,6 +444,16 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Bank faiz ayarları yadda saxlanıldı', 'Настройки банковских комиссий сохранены', 'Bank fee settings saved'));
   };
 
+  const saveTableServiceSettings = async () => {
+    await update_service_fee_live({
+      service_fee_percent: Number(tableServiceSettings.service_fee_percent || 0),
+    });
+    await update_table_service_settings_live({
+      deposit_per_guest_azn: Number(tableServiceSettings.deposit_per_guest_azn || 0),
+    });
+    flashSuccess(tx(lang, 'Masa xidməti ayarları yadda saxlanıldı', 'Настройки столов сохранены', 'Table service settings saved'));
+  };
+
 
   const saveStaffBenefits = async () => {
     await update_staff_benefits_live({
@@ -589,6 +609,41 @@ export default function SettingsPanel() {
         </div>
         <div className="flex justify-end">
           <button onClick={savePrintSettings} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+        </div>
+      </div>
+
+      <div className="metal-panel p-6 space-y-4">
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Masa Xidməti Ayarları', 'Настройки обслуживания столов', 'Table Service Settings')}</h2>
+        <p className="text-sm text-slate-400">
+          {tx(
+            lang,
+            'Masada xidmət üçün servis haqqını və nəfər başı depozit məbləğini buradan təyin edin. Depozit masa açılarkən kassaya daxil olur və hesab bağlananda yekun məbləğin içinə sayılır.',
+            'Здесь задаются сервисный сбор и депозит с человека для обслуживания за столом. Депозит сразу входит в кассу и затем учитывается при закрытии счета.',
+            'Configure table-service fee and per-guest deposit here. The deposit is recorded when the table opens and counted into the final bill on checkout.',
+          )}
+        </p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <input
+            className="neon-input"
+            type="number"
+            min={0}
+            step="0.01"
+            value={tableServiceSettings.service_fee_percent}
+            onChange={(e) => setTableServiceSettings((prev) => ({ ...prev, service_fee_percent: e.target.value }))}
+            placeholder={tx(lang, 'Servis haqqı (%)', 'Сервисный сбор (%)', 'Service fee (%)')}
+          />
+          <input
+            className="neon-input"
+            type="number"
+            min={0}
+            step="0.01"
+            value={tableServiceSettings.deposit_per_guest_azn}
+            onChange={(e) => setTableServiceSettings((prev) => ({ ...prev, deposit_per_guest_azn: e.target.value }))}
+            placeholder={tx(lang, 'Nəfər başı depozit (AZN)', 'Депозит с человека (AZN)', 'Deposit per guest (AZN)')}
+          />
+        </div>
+        <div className="flex justify-end">
+          <button onClick={() => { void saveTableServiceSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 
