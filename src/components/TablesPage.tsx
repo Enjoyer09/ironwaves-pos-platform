@@ -34,6 +34,8 @@ export default function TablesPage() {
   const [revisionOverridePassword, setRevisionOverridePassword] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'Nəğd' | 'Kart' | 'Split'>('Nəğd');
   const [splitCash, setSplitCash] = useState('0');
+  const [splitCount, setSplitCount] = useState('2');
+  const [splitParts, setSplitParts] = useState<Array<{ amount: string; method: 'Nəğd' | 'Kart' }>>([]);
   const receiptRef = useRef<HTMLIFrameElement | null>(null);
   const businessProfile = get_business_profile(tenant_id);
   const tenantSettings = get_settings(tenant_id);
@@ -155,6 +157,21 @@ export default function TablesPage() {
       },
     }));
     setViewTableId(null);
+  };
+
+  const buildEqualSplitParts = (count: number, total: Decimal) => {
+    if (count <= 0) return [];
+    const safeTotal = total.toDecimalPlaces(2);
+    const base = safeTotal.div(count).toDecimalPlaces(2, Decimal.ROUND_DOWN);
+    let remainder = safeTotal.minus(base.times(count)).toDecimalPlaces(2);
+    return Array.from({ length: count }, (_, idx) => {
+      const extra = remainder.greaterThan(0) ? new Decimal('0.01') : new Decimal(0);
+      remainder = Decimal.max(new Decimal(0), remainder.minus(extra));
+      return {
+        amount: base.plus(extra).toFixed(2),
+        method: idx === 0 ? 'Nəğd' : 'Kart',
+      } as { amount: string; method: 'Nəğd' | 'Kart' };
+    });
   };
 
 
@@ -363,7 +380,22 @@ export default function TablesPage() {
               {(['Nəğd', 'Kart', 'Split'] as const).map((m) => (
                 <button
                   key={m}
-                  onClick={() => setPaymentMethod(m)}
+                  onClick={() => {
+                    setPaymentMethod(m);
+                    if (m === 'Split') {
+                      const table = tables.find((x) => x.id === payTableId);
+                      if (table) {
+                        const itemsSnapshot = Array.isArray(table.items) ? [...table.items] : [];
+                        const itemsTotal = itemsSnapshot.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0));
+                        const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
+                        const deposit = new Decimal(table.deposit_amount || 0);
+                        const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
+                        const dueNow = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
+                        const count = Math.max(2, Number(splitCount || 2));
+                        setSplitParts(buildEqualSplitParts(count, dueNow));
+                      }
+                    }
+                  }}
                   className={`pay-btn h-11 ${paymentMethod === m ? 'pay-btn-active' : ''}`}
                 >
                   {m}
@@ -371,19 +403,83 @@ export default function TablesPage() {
               ))}
             </div>
             {paymentMethod === 'Split' && (
-              <input
-                className="neon-input mt-3"
-                type="number"
-                min={0}
-                step="0.01"
-                placeholder={tx(lang, 'Nağd hissə', 'Наличная часть')}
-                value={splitCash}
-                onChange={(e) => setSplitCash(e.target.value)}
-              />
+              (() => {
+                const table = tables.find((x) => x.id === payTableId);
+                if (!table) return null;
+                const itemsSnapshot = Array.isArray(table.items) ? [...table.items] : [];
+                const itemsTotal = itemsSnapshot.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0));
+                const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
+                const deposit = new Decimal(table.deposit_amount || 0);
+                const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
+                const dueNow = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
+                const participantCount = Math.max(2, Number(splitCount || 2));
+                const partsTotal = splitParts.reduce((acc, row) => acc.plus(new Decimal(row.amount || 0)), new Decimal(0)).toDecimalPlaces(2);
+                const diff = dueNow.minus(partsTotal).toDecimalPlaces(2);
+                return (
+                  <div className="mt-3 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3">
+                    <label className="block text-sm text-slate-300">
+                      {tx(lang, 'Neçə hissəyə bölünsün?', 'На сколько частей разделить?', 'How many parts?')}
+                      <input
+                        className="neon-input mt-2"
+                        type="number"
+                        min={2}
+                        max={12}
+                        value={splitCount}
+                        onChange={(e) => {
+                          const nextCount = Math.max(2, Number(e.target.value || 2));
+                          setSplitCount(String(nextCount));
+                          setSplitParts(buildEqualSplitParts(nextCount, dueNow));
+                        }}
+                      />
+                    </label>
+                    <div className="mt-3 space-y-2">
+                      {(splitParts.length === participantCount ? splitParts : buildEqualSplitParts(participantCount, dueNow)).map((part, idx) => (
+                        <div key={`split_part_${idx}`} className="grid grid-cols-[1fr_120px] gap-2">
+                          <input
+                            className="neon-input"
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={part.amount}
+                            onChange={(e) => {
+                              const next = (splitParts.length === participantCount ? [...splitParts] : buildEqualSplitParts(participantCount, dueNow));
+                              next[idx] = { ...next[idx], amount: e.target.value };
+                              setSplitParts(next);
+                            }}
+                            placeholder={`${tx(lang, 'Hissə', 'Часть', 'Part')} ${idx + 1}`}
+                          />
+                          <select
+                            className="neon-input"
+                            value={part.method}
+                            onChange={(e) => {
+                              const next = (splitParts.length === participantCount ? [...splitParts] : buildEqualSplitParts(participantCount, dueNow));
+                              next[idx] = { ...next[idx], method: e.target.value as 'Nəğd' | 'Kart' };
+                              setSplitParts(next);
+                            }}
+                          >
+                            <option value="Nəğd">{tx(lang, 'Nəğd', 'Наличные', 'Cash')}</option>
+                            <option value="Kart">{tx(lang, 'Kart', 'Карта', 'Card')}</option>
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+                      <span>{tx(lang, 'Bölünəcək məbləğ', 'Сумма к разделению', 'Amount to split')}: {dueNow.toFixed(2)} ₼</span>
+                      <span className={diff.abs().greaterThan(0.01) ? 'text-rose-300' : 'text-emerald-300'}>
+                        {tx(lang, 'Fərq', 'Разница', 'Diff')}: {diff.toFixed(2)} ₼
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()
             )}
             <div className="mt-4 flex justify-end gap-2">
               <button className="neon-btn rounded-lg px-4 py-2" onClick={() => {
                 setPayTableId(null);
+                setPaymentMethod('Nəğd');
+                setSplitCount('2');
+                setSplitParts([]);
+                setSplitCash('0');
               }}>{tx(lang, 'Ləğv et', 'Отмена')}</button>
               <button
                 className="glossy-gold rounded-lg px-4 py-2 font-semibold"
@@ -397,11 +493,25 @@ export default function TablesPage() {
                     const deposit = new Decimal(table.deposit_amount || 0);
                     const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
                     const dueNow = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
-                    const cash = paymentMethod === 'Split' ? new Decimal(splitCash || 0) : null;
-                    const card = paymentMethod === 'Split' ? Decimal.max(new Decimal(0), dueNow.minus(cash || 0)) : null;
-                    if (paymentMethod === 'Split' && ((cash || new Decimal(0)).lessThan(0) || (card || new Decimal(0)).lessThan(0) || cash!.plus(card!).minus(dueNow).abs().greaterThan(0.01))) {
-                      notify('error', tx(lang, 'Split məbləğlər əlavə alınacaq məbləğə bərabər olmalıdır', 'Суммы split должны совпадать с доплатой'));
-                      return;
+                    let cash: Decimal | null = null;
+                    let card: Decimal | null = null;
+                    if (paymentMethod === 'Split') {
+                      const participantCount = Math.max(2, Number(splitCount || 2));
+                      const normalized = (splitParts.length === participantCount ? splitParts : buildEqualSplitParts(participantCount, dueNow));
+                      const cashTotal = normalized
+                        .filter((row) => row.method === 'Nəğd')
+                        .reduce((acc, row) => acc.plus(new Decimal(row.amount || 0)), new Decimal(0))
+                        .toDecimalPlaces(2);
+                      const cardTotal = normalized
+                        .filter((row) => row.method === 'Kart')
+                        .reduce((acc, row) => acc.plus(new Decimal(row.amount || 0)), new Decimal(0))
+                        .toDecimalPlaces(2);
+                      if (cashTotal.lessThan(0) || cardTotal.lessThan(0) || cashTotal.plus(cardTotal).minus(dueNow).abs().greaterThan(0.01)) {
+                        notify('error', tx(lang, 'Split hissələri yekun əlavə ödənişə bərabər olmalıdır', 'Сумма частей split должна совпадать с доплатой', 'Split parts must match the due amount'));
+                        return;
+                      }
+                      cash = cashTotal;
+                      card = cardTotal;
                     }
                     const result = await pay_table_live(table.id, paymentMethod, user?.username || 'Staff', cash, card, {
                       pay_scope: 'full',
@@ -467,6 +577,9 @@ export default function TablesPage() {
                     window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { tenant_id, sale_id: result.sale_id, source: 'table' } }));
                     window.dispatchEvent(new CustomEvent('logs-updated', { detail: { tenant_id, sale_id: result.sale_id, source: 'table' } }));
                     setPayTableId(null);
+                    setPaymentMethod('Nəğd');
+                    setSplitCount('2');
+                    setSplitParts([]);
                     setSplitCash('0');
                     await loadData();
                   } catch (e: any) {
