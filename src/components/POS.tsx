@@ -938,24 +938,14 @@ export default function POS() {
     }
     if (widget === 'orderType' && orderTypeBlockVisible) {
       const size = getWidgetSize(widget);
+      if (!(ctx.orderType === 'Dine In' && ctx.selectedTable)) {
+        return null;
+      }
       return (
         <div key={widget} className={`grid grid-cols-1 gap-2 ${size === 'expanded' ? 'text-sm' : 'text-xs'}`}>
-          <button
-            onClick={() => patchCtx({ orderType: 'Take Away', selectedTable: '' })}
-            className={`rounded-md border px-2 ${size === 'compact' ? 'py-2 text-[11px]' : size === 'expanded' ? 'py-4 text-sm' : 'py-3 text-xs'} font-semibold ${
-              ctx.orderType === 'Take Away'
-                ? 'text-slate-900'
-                : 'border-slate-600 bg-slate-800/40 text-slate-200'
-            }`}
-            style={ctx.orderType === 'Take Away' ? { borderColor: posLayout.accent_color, backgroundColor: posLayout.accent_color } : undefined}
-          >
-            {tx(lang, 'Al-apar', 'С собой', 'Take Away')}
-          </button>
-          {ctx.orderType === 'Dine In' && ctx.selectedTable && (
-            <div className="rounded-md border border-cyan-300/40 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">
-              {tx(lang, 'Masa rejimi aktivdir. Bu POS sessiyası yalnız seçilmiş masa üçündür.', 'Режим стола активен. Эта POS-сессия только для выбранного стола.', 'Table mode is active. This POS session is for the selected table only.')}
-            </div>
-          )}
+          <div className="rounded-md border border-cyan-300/40 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">
+            {tx(lang, 'Masa rejimi aktivdir. Bu POS sessiyası yalnız seçilmiş masa üçündür.', 'Режим стола активен. Эта POS-сессия только для выбранного стола.', 'Table mode is active. This POS session is for the selected table only.')}
+          </div>
         </div>
       );
     }
@@ -1051,6 +1041,28 @@ export default function POS() {
     }
     if (widget === 'payments') {
       const size = getWidgetSize(widget);
+      if (ctx.orderType === 'Dine In' && ctx.selectedTable) {
+        return (
+          <React.Fragment key={widget}>
+            <div className="rounded-lg border border-cyan-300/35 bg-cyan-500/10 px-3 py-3 text-sm text-cyan-100">
+              <div className="font-semibold">
+                {tx(lang, 'Bu POS səbəti masa sifarişi üçündür.', 'Эта корзина POS предназначена для заказа на стол.', 'This POS cart is for a table order.')}
+              </div>
+              <div className="mt-1 text-xs text-cyan-200/90">
+                {tx(lang, 'Məhsulları seçib birbaşa masaya göndərin.', 'Выберите товары и отправьте их прямо на стол.', 'Select items and send them directly to the table.')}
+              </div>
+            </div>
+            <button
+              disabled={isLoading || !ctx.selectedTable || cart.length === 0}
+              onClick={() => { void handleSendToKitchen(); }}
+              className={`flex ${size === 'compact' ? 'h-12 text-sm' : size === 'expanded' ? 'h-16 text-lg' : 'h-14 text-base'} items-center justify-center gap-2 rounded-lg border px-4 font-bold text-white shadow-[0_0_22px_rgba(34,197,94,0.28)] disabled:opacity-50`}
+              style={{ backgroundColor: posLayout.accent_color, borderColor: posLayout.accent_color, color: '#111827' }}
+            >
+              <Check size={18} /> {tx(lang, 'Masaya Göndər', 'Отправить на стол', 'Send To Table')}
+            </button>
+          </React.Fragment>
+        );
+      }
       return (
         <React.Fragment key={widget}>
           <div className={`grid grid-cols-2 gap-2 sm:grid-cols-4 ${size === 'expanded' ? 'text-sm' : 'text-xs'}`}>
@@ -1426,22 +1438,34 @@ export default function POS() {
                   )}
                 </div>
               )}
-
-              <button
-                disabled={
-                  isLoading ||
-                  shouldLockTableCheckoutInPos ||
-                  (cart.length === 0 && !shouldLockTableCheckoutInPos) ||
-                  (ctx.orderType === 'Dine In' && !ctx.selectedTable)
-                }
-                onClick={() => {
-                  void handleCheckout(selectedPayment);
-                  setShowMobileCheckout(false);
-                }}
-                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border border-red-300/40 bg-red-600 px-4 text-base font-bold text-white shadow-[0_0_22px_rgba(239,68,68,0.35)] disabled:opacity-50"
-              >
-                <Check size={18} /> {tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}
-              </button>
+              {ctx.orderType === 'Dine In' && ctx.selectedTable ? (
+                <button
+                  disabled={isLoading || !ctx.selectedTable || cart.length === 0}
+                  onClick={() => {
+                    void handleSendToKitchen();
+                    setShowMobileCheckout(false);
+                  }}
+                  className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border border-emerald-300/40 bg-emerald-500 px-4 text-base font-bold text-slate-900 shadow-[0_0_22px_rgba(16,185,129,0.35)] disabled:opacity-50"
+                >
+                  <Check size={18} /> {tx(lang, 'Masaya Göndər', 'Отправить на стол', 'Send To Table')}
+                </button>
+              ) : (
+                <button
+                  disabled={
+                    isLoading ||
+                    shouldLockTableCheckoutInPos ||
+                    (cart.length === 0 && !shouldLockTableCheckoutInPos) ||
+                    (ctx.orderType === 'Dine In' && !ctx.selectedTable)
+                  }
+                  onClick={() => {
+                    void handleCheckout(selectedPayment);
+                    setShowMobileCheckout(false);
+                  }}
+                  className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border border-red-300/40 bg-red-600 px-4 text-base font-bold text-white shadow-[0_0_22px_rgba(239,68,68,0.35)] disabled:opacity-50"
+                >
+                  <Check size={18} /> {tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}
+                </button>
+              )}
             </div>
           </div>
         </div>
