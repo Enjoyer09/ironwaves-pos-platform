@@ -17,6 +17,7 @@ export interface Table {
   guest_count?: number;
   deposit_guest_count?: number;
   deposit_amount?: string;
+  deposit_seat_labels?: string[];
   items: CartItem[];
   total: string; // Decimal format
   cup_mode?: 'paper' | 'glass';
@@ -33,6 +34,7 @@ type TableRevisionPayload = {
 type TableOpenPayload = {
   guest_count: number;
   deposit_guest_count: number;
+  deposit_seat_labels?: string[];
   opened_by: string;
 };
 
@@ -86,6 +88,7 @@ export const create_table = (tenant_id: string, label: string, created_by: strin
     guest_count: 0,
     deposit_guest_count: 0,
     deposit_amount: '0',
+    deposit_seat_labels: [],
     items: [],
     total: '0'
   };
@@ -211,7 +214,10 @@ export const open_table = (table_id: string, payload: TableOpenPayload) => {
   }
 
   const guestCount = Math.max(1, Number(payload.guest_count || 0));
-  const depositGuestCount = Math.max(0, Math.min(guestCount, Number(payload.deposit_guest_count || 0)));
+  const depositSeatLabels = Array.isArray(payload.deposit_seat_labels)
+    ? payload.deposit_seat_labels.map((label) => String(label || '').trim()).filter(Boolean)
+    : [];
+  const depositGuestCount = Math.max(0, Math.min(guestCount, depositSeatLabels.length || Number(payload.deposit_guest_count || 0)));
   const settings = getDB<any>('settings').find((s: any) => s.tenant_id === table.tenant_id) || {};
   const depositPerGuest = new Decimal(settings.table_service_settings?.deposit_per_guest_azn || 0);
   const depositAmount = depositPerGuest.times(depositGuestCount).toFixed(2);
@@ -221,6 +227,7 @@ export const open_table = (table_id: string, payload: TableOpenPayload) => {
   table.guest_count = guestCount;
   table.deposit_guest_count = depositGuestCount;
   table.deposit_amount = depositAmount;
+  table.deposit_seat_labels = depositSeatLabels.length ? depositSeatLabels : Array.from({ length: depositGuestCount }, (_, idx) => `Adam-${idx + 1}`);
   setDB('tables', tables);
 
   if (new Decimal(depositAmount).greaterThan(0)) {
@@ -247,7 +254,7 @@ export const open_table = (table_id: string, payload: TableOpenPayload) => {
     deposit_guest_count: depositGuestCount,
     deposit_amount: depositAmount,
   });
-  return { success: true, guest_count: guestCount, deposit_guest_count: depositGuestCount, deposit_amount: depositAmount };
+  return { success: true, guest_count: guestCount, deposit_guest_count: depositGuestCount, deposit_amount: depositAmount, deposit_seat_labels: table.deposit_seat_labels };
 };
 
 // FUNKSIYA: pay_table
@@ -257,7 +264,7 @@ export const pay_table = (
   paid_by: string,
   split_cash: Decimal | null = null,
   split_card: Decimal | null = null,
-  options?: { cup_mode?: 'paper' | 'glass' }
+  options?: { cup_mode?: 'paper' | 'glass'; pay_scope?: 'full' | 'seat'; seat_label?: string }
 ) => {
   let tables = getDB<Table>('tables');
   const table = tables.find(t => t.id === table_id);
@@ -268,17 +275,25 @@ export const pay_table = (
   }
 
   const settings = getDB<any>('settings').find((s: any) => s.tenant_id === table.tenant_id) || {};
-  const itemsTotal = new Decimal(table.total || 0);
+  const payScope = options?.pay_scope || 'full';
+  const seatLabel = options?.seat_label || '';
+  const allItems = Array.isArray(table.items) ? table.items : [];
+  const itemsForSale = payScope === 'seat' ? allItems.filter((item: any) => String(item.seat_label || '') === seatLabel) : allItems;
+  const remainingItems = payScope === 'seat' ? allItems.filter((item: any) => String(item.seat_label || '') !== seatLabel) : [];
+  const itemsTotal = itemsForSale.reduce((acc, item) => acc.plus(new Decimal(item.price || 0).times(item.qty || 0)), new Decimal(0));
   const serviceFeePercent = new Decimal(settings.service_fee_percent || 0);
   const serviceFeeAmount = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
-  const depositAmount = new Decimal(table.deposit_amount || 0);
+  const depositPerGuest = new Decimal(settings.table_service_settings?.deposit_per_guest_azn || 0);
+  const depositAmount = payScope === 'seat'
+    ? ((table.deposit_seat_labels || []).includes(seatLabel) ? depositPerGuest : new Decimal(0))
+    : new Decimal(table.deposit_amount || 0);
   const payableTotal = Decimal.max(itemsTotal.plus(serviceFeeAmount), depositAmount).toDecimalPlaces(2);
   const extraDue = Decimal.max(new Decimal(0), payableTotal.minus(depositAmount)).toDecimalPlaces(2);
   const paidTotal = payableTotal.toFixed(2);
 
   // Atomik Transaction: satış yaradırıq.
   const result = create_sale({
-    cart_items: table.items,
+    cart_items: itemsForSale,
     payment_method,
     cashier: paid_by,
     customer_card_id: null,
@@ -349,13 +364,25 @@ export const pay_table = (
   setDB('finance', finance);
 
   // Uğurlu ödənişdən sonra masanı sıfırlayırıq
-  table.is_occupied = false;
-  table.assigned_to = null;
-  table.guest_count = 0;
-  table.deposit_guest_count = 0;
-  table.deposit_amount = '0';
-  table.items = [];
-  table.total = '0';
+  if (payScope === 'seat') {
+    table.items = remainingItems as any;
+    table.total = remainingItems.reduce((acc, item) => acc.plus(new Decimal(item.price || 0).times(item.qty || 0)), new Decimal(0)).toFixed(2);
+    table.deposit_seat_labels = (table.deposit_seat_labels || []).filter((label) => label !== seatLabel);
+    table.deposit_guest_count = table.deposit_seat_labels.length;
+    table.deposit_amount = depositPerGuest.times(table.deposit_guest_count).toFixed(2);
+    table.guest_count = Math.max(0, Number(table.guest_count || 0) - 1);
+    table.is_occupied = table.items.length > 0 || new Decimal(table.deposit_amount || 0).greaterThan(0) || Number(table.guest_count || 0) > 0;
+    if (!table.is_occupied) table.assigned_to = null;
+  } else {
+    table.is_occupied = false;
+    table.assigned_to = null;
+    table.guest_count = 0;
+    table.deposit_guest_count = 0;
+    table.deposit_amount = '0';
+    table.deposit_seat_labels = [];
+    table.items = [];
+    table.total = '0';
+  }
   setDB('tables', tables);
 
   logEvent(paid_by, 'TABLE_SALE_CREATED', { 
@@ -453,6 +480,7 @@ export const transfer_table = (table_id: string, target_table_id: string, actor:
   target.guest_count = source.guest_count || 0;
   target.deposit_guest_count = source.deposit_guest_count || 0;
   target.deposit_amount = source.deposit_amount || '0';
+  target.deposit_seat_labels = Array.isArray(source.deposit_seat_labels) ? [...source.deposit_seat_labels] : [];
 
   source.items = [];
   source.total = '0';
@@ -461,6 +489,7 @@ export const transfer_table = (table_id: string, target_table_id: string, actor:
   source.guest_count = 0;
   source.deposit_guest_count = 0;
   source.deposit_amount = '0';
+  source.deposit_seat_labels = [];
 
   const kitchenOrders = getDB<any>('kitchen_orders');
   kitchenOrders.forEach((order: any) => {
@@ -497,6 +526,7 @@ export const merge_tables = (table_id: string, target_table_id: string, actor: s
   target.guest_count = Number(target.guest_count || 0) + Number(source.guest_count || 0);
   target.deposit_guest_count = Number(target.deposit_guest_count || 0) + Number(source.deposit_guest_count || 0);
   target.deposit_amount = new Decimal(target.deposit_amount || 0).plus(new Decimal(source.deposit_amount || 0)).toFixed(2);
+  target.deposit_seat_labels = [...(target.deposit_seat_labels || []), ...(source.deposit_seat_labels || [])];
 
   source.items = [];
   source.total = '0';
@@ -505,6 +535,7 @@ export const merge_tables = (table_id: string, target_table_id: string, actor: s
   source.guest_count = 0;
   source.deposit_guest_count = 0;
   source.deposit_amount = '0';
+  source.deposit_seat_labels = [];
 
   const kitchenOrders = getDB<any>('kitchen_orders');
   kitchenOrders.forEach((order: any) => {
@@ -547,6 +578,7 @@ export const open_table_live = async (table_id: string, payload: TableOpenPayloa
       body: {
         guest_count: payload.guest_count,
         deposit_guest_count: payload.deposit_guest_count,
+        deposit_seat_labels: payload.deposit_seat_labels || [],
       },
     });
   } catch (error) {
@@ -590,7 +622,7 @@ export const pay_table_live = async (
   paid_by: string,
   split_cash: Decimal | null = null,
   split_card: Decimal | null = null,
-  options?: { cup_mode?: 'paper' | 'glass' }
+  options?: { cup_mode?: 'paper' | 'glass'; pay_scope?: 'full' | 'seat'; seat_label?: string }
 ) => {
   if (!isBackendEnabled()) return pay_table(table_id, payment_method, paid_by, split_cash, split_card, options);
   try {
@@ -602,6 +634,8 @@ export const pay_table_live = async (
         split_cash: split_cash ? split_cash.toFixed(2) : null,
         split_card: split_card ? split_card.toFixed(2) : null,
         cup_mode: options?.cup_mode || 'paper',
+        pay_scope: options?.pay_scope || 'full',
+        seat_label: options?.seat_label || null,
       },
     });
   } catch (error) {

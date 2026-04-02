@@ -209,6 +209,7 @@ class TableCreateIn(BaseModel):
 class TableOpenIn(BaseModel):
     guest_count: int
     deposit_guest_count: int = 0
+    deposit_seat_labels: list[str] | None = None
 
 
 class TableItemsIn(BaseModel):
@@ -221,6 +222,8 @@ class TablePayIn(BaseModel):
     split_cash: Decimal | None = None
     split_card: Decimal | None = None
     cup_mode: str | None = "paper"
+    pay_scope: str | None = "full"
+    seat_label: str | None = None
 
 
 class TableTargetIn(BaseModel):
@@ -1434,6 +1437,7 @@ def list_tables(
             "guest_count": int(row.guest_count or 0),
             "deposit_guest_count": int(row.deposit_guest_count or 0),
             "deposit_amount": str(row.deposit_amount or 0),
+            "deposit_seat_labels": _json_load(row.deposit_seats_json, []),
             "total": str(row.total),
             "items": _json_load(row.items_json, []),
             "kitchen_status": status_by_table.get(row.label),
@@ -1464,6 +1468,7 @@ def create_table(
         guest_count=0,
         deposit_guest_count=0,
         deposit_amount=Decimal("0.00"),
+        deposit_seats_json="[]",
         total=Decimal("0.00"),
         items_json="[]",
     )
@@ -1479,6 +1484,7 @@ def create_table(
         "guest_count": 0,
         "deposit_guest_count": 0,
         "deposit_amount": "0",
+        "deposit_seat_labels": [],
         "total": "0",
         "items": [],
     }
@@ -1501,7 +1507,14 @@ def open_table(
         raise HTTPException(status_code=400, detail="Table is already open")
 
     guest_count = max(1, int(payload.guest_count or 0))
-    deposit_guest_count = max(0, min(guest_count, int(payload.deposit_guest_count or 0)))
+    deposit_labels_raw = [str(label or "").strip() for label in (payload.deposit_seat_labels or []) if str(label or "").strip()]
+    deposit_labels = [label for label in deposit_labels_raw if label.startswith("Adam-")]
+    if not deposit_labels:
+        deposit_guest_count = max(0, min(guest_count, int(payload.deposit_guest_count or 0)))
+        deposit_labels = [f"Adam-{idx + 1}" for idx in range(deposit_guest_count)]
+    else:
+        deposit_labels = deposit_labels[:guest_count]
+        deposit_guest_count = len(deposit_labels)
     table_service = _setting_value(db, tenant.id, "table_service_settings", {"deposit_per_guest_azn": 0})
     deposit_per_guest = Decimal(str(table_service.get("deposit_per_guest_azn") or 0)).quantize(Decimal("0.01"))
     deposit_amount = (deposit_per_guest * Decimal(deposit_guest_count)).quantize(Decimal("0.01"))
@@ -1511,6 +1524,7 @@ def open_table(
     row.guest_count = guest_count
     row.deposit_guest_count = deposit_guest_count
     row.deposit_amount = deposit_amount
+    row.deposit_seats_json = json.dumps(deposit_labels, ensure_ascii=False)
     row.items_json = row.items_json or "[]"
     row.total = Decimal(str(row.total or 0)).quantize(Decimal("0.01"))
 
@@ -1538,13 +1552,20 @@ def open_table(
                     "guest_count": guest_count,
                     "deposit_guest_count": deposit_guest_count,
                     "deposit_amount": str(deposit_amount),
+                    "deposit_seat_labels": deposit_labels,
                 },
                 ensure_ascii=False,
             ),
         )
     )
     db.commit()
-    return {"success": True, "guest_count": guest_count, "deposit_guest_count": deposit_guest_count, "deposit_amount": str(deposit_amount)}
+    return {
+        "success": True,
+        "guest_count": guest_count,
+        "deposit_guest_count": deposit_guest_count,
+        "deposit_amount": str(deposit_amount),
+        "deposit_seat_labels": deposit_labels,
+    }
 
 
 @router.delete("/tables/{table_id}")
@@ -1804,16 +1825,35 @@ def pay_table(
         raise HTTPException(status_code=404, detail="Table not found")
     if not row.is_occupied:
         raise HTTPException(status_code=400, detail="Table is not occupied")
-    items = _json_load(row.items_json, [])
+    all_items = _json_load(row.items_json, [])
     deposit_amount = Decimal(str(row.deposit_amount or 0)).quantize(Decimal("0.01"))
+    deposit_seat_labels = [str(label or "").strip() for label in _json_load(row.deposit_seats_json, []) if str(label or "").strip()]
     service_fee_percent = Decimal(str(_setting_value(db, tenant.id, "service_fee_percent", 0) or 0))
-    items_total = Decimal(str(row.total or 0)).quantize(Decimal("0.01"))
-    if not items and deposit_amount <= 0:
+    pay_scope = str(payload.pay_scope or "full").lower()
+    seat_label = str(payload.seat_label or "").strip()
+
+    if pay_scope == "seat":
+        if not seat_label:
+            raise HTTPException(status_code=400, detail="Seat label is required")
+        items = [item for item in all_items if str(item.get("seat_label") or "").strip() == seat_label]
+        remaining_items = [item for item in all_items if str(item.get("seat_label") or "").strip() != seat_label]
+        seat_deposit_amount = (
+            Decimal(str(_setting_value(db, tenant.id, "table_service_settings", {"deposit_per_guest_azn": 0}).get("deposit_per_guest_azn") or 0)).quantize(Decimal("0.01"))
+            if seat_label in deposit_seat_labels
+            else Decimal("0.00")
+        )
+    else:
+        items = all_items
+        remaining_items = []
+        seat_deposit_amount = deposit_amount
+
+    items_total = sum((Decimal(str(item.get("price") or 0)) * Decimal(str(item.get("qty") or 0)) for item in items), Decimal("0.00")).quantize(Decimal("0.01"))
+    if not items and seat_deposit_amount <= 0:
         raise HTTPException(status_code=400, detail="Table is empty")
 
     service_fee_amount = (items_total * service_fee_percent / Decimal("100")).quantize(Decimal("0.01"))
-    total = max(items_total + service_fee_amount, deposit_amount).quantize(Decimal("0.01"))
-    extra_due = max(total - deposit_amount, Decimal("0.00")).quantize(Decimal("0.01"))
+    total = max(items_total + service_fee_amount, seat_deposit_amount).quantize(Decimal("0.01"))
+    extra_due = max(total - seat_deposit_amount, Decimal("0.00")).quantize(Decimal("0.01"))
     stock_ops, cogs_total = _collect_stock_ops(db, tenant.id, items)
     receipt_code = secrets.token_hex(5).upper()
     receipt_token = secrets.token_hex(10)
@@ -1876,23 +1916,39 @@ def pay_table(
         if extra_due > 0:
             db.add(FinanceEntry(tenant_id=tenant.id, type="in", category=category, source=source, amount=extra_due, description=f"Table payment {sale.id}", created_by=user.username))
 
-    done_time = datetime.utcnow()
-    kitchen_rows = (
-        db.query(KitchenOrder)
-        .filter(KitchenOrder.tenant_id == tenant.id, KitchenOrder.table_label == row.label, KitchenOrder.status.in_(["NEW", "PREPARING", "READY"]))
-        .all()
-    )
-    for kitchen_row in kitchen_rows:
-        kitchen_row.status = "DONE"
-        kitchen_row.completed_at = done_time
+    if pay_scope == "seat":
+        remaining_guest_count = max(0, int(row.guest_count or 0) - 1)
+        remaining_deposit_labels = [label for label in deposit_seat_labels if label != seat_label]
+        remaining_deposit_amount = (deposit_amount - seat_deposit_amount).quantize(Decimal("0.01"))
+        remaining_total = sum((Decimal(str(item.get("price") or 0)) * Decimal(str(item.get("qty") or 0)) for item in remaining_items), Decimal("0.00")).quantize(Decimal("0.01"))
+        row.guest_count = remaining_guest_count
+        row.deposit_guest_count = len(remaining_deposit_labels)
+        row.deposit_amount = max(remaining_deposit_amount, Decimal("0.00")).quantize(Decimal("0.01"))
+        row.deposit_seats_json = json.dumps(remaining_deposit_labels, ensure_ascii=False)
+        row.items_json = json.dumps(remaining_items, ensure_ascii=False)
+        row.total = remaining_total
+        row.is_occupied = remaining_guest_count > 0 or len(remaining_items) > 0 or row.deposit_amount > 0
+        if not row.is_occupied:
+            row.assigned_to = None
+    else:
+        done_time = datetime.utcnow()
+        kitchen_rows = (
+            db.query(KitchenOrder)
+            .filter(KitchenOrder.tenant_id == tenant.id, KitchenOrder.table_label == row.label, KitchenOrder.status.in_(["NEW", "PREPARING", "READY"]))
+            .all()
+        )
+        for kitchen_row in kitchen_rows:
+            kitchen_row.status = "DONE"
+            kitchen_row.completed_at = done_time
 
-    row.is_occupied = False
-    row.assigned_to = None
-    row.guest_count = 0
-    row.deposit_guest_count = 0
-    row.deposit_amount = Decimal("0.00")
-    row.items_json = "[]"
-    row.total = Decimal("0.00")
+        row.is_occupied = False
+        row.assigned_to = None
+        row.guest_count = 0
+        row.deposit_guest_count = 0
+        row.deposit_amount = Decimal("0.00")
+        row.deposit_seats_json = "[]"
+        row.items_json = "[]"
+        row.total = Decimal("0.00")
     db.commit()
     return {
         "success": True,
@@ -1901,7 +1957,7 @@ def pay_table(
         "receipt_token": receipt_token,
         "items_total": str(items_total),
         "service_fee_amount": str(service_fee_amount),
-        "deposit_amount": str(deposit_amount),
+        "deposit_amount": str(seat_deposit_amount),
         "extra_due": str(extra_due),
         "final_total": str(total),
     }
@@ -1936,6 +1992,7 @@ def transfer_table(
     target.guest_count = int(source.guest_count or 0)
     target.deposit_guest_count = int(source.deposit_guest_count or 0)
     target.deposit_amount = Decimal(str(source.deposit_amount or 0)).quantize(Decimal("0.01"))
+    target.deposit_seats_json = source.deposit_seats_json or "[]"
 
     source.items_json = "[]"
     source.total = Decimal("0.00")
@@ -1944,6 +2001,7 @@ def transfer_table(
     source.guest_count = 0
     source.deposit_guest_count = 0
     source.deposit_amount = Decimal("0.00")
+    source.deposit_seats_json = "[]"
 
     kitchen_rows = (
         db.query(KitchenOrder)
@@ -1992,6 +2050,9 @@ def merge_tables(
     target.guest_count = int(target.guest_count or 0) + int(source.guest_count or 0)
     target.deposit_guest_count = int(target.deposit_guest_count or 0) + int(source.deposit_guest_count or 0)
     target.deposit_amount = (Decimal(str(target.deposit_amount or 0)) + Decimal(str(source.deposit_amount or 0))).quantize(Decimal("0.01"))
+    target_deposit_labels = [str(label or "").strip() for label in _json_load(target.deposit_seats_json, []) if str(label or "").strip()]
+    source_deposit_labels = [str(label or "").strip() for label in _json_load(source.deposit_seats_json, []) if str(label or "").strip()]
+    target.deposit_seats_json = json.dumps([*target_deposit_labels, *source_deposit_labels], ensure_ascii=False)
 
     source.items_json = "[]"
     source.total = Decimal("0.00")
@@ -2000,6 +2061,7 @@ def merge_tables(
     source.guest_count = 0
     source.deposit_guest_count = 0
     source.deposit_amount = Decimal("0.00")
+    source.deposit_seats_json = "[]"
 
     kitchen_rows = (
         db.query(KitchenOrder)
