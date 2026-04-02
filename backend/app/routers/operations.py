@@ -192,6 +192,27 @@ def _merge_table_items(existing: list[dict], incoming: list[dict]) -> list[dict]
     return merged
 
 
+def _merge_same_seat_duplicates(items: list[dict]) -> list[dict]:
+    merged: list[dict] = []
+    for item in items:
+        item_name = str(item.get("item_name") or "").strip()
+        seat_label = str(item.get("seat_label") or "").strip()
+        idx = next(
+            (
+                i
+                for i, row in enumerate(merged)
+                if str(row.get("item_name") or "").strip() == item_name
+                and str(row.get("seat_label") or "").strip() == seat_label
+            ),
+            -1,
+        )
+        if idx >= 0:
+            merged[idx]["qty"] = int(merged[idx].get("qty") or 0) + int(item.get("qty") or 0)
+        else:
+            merged.append(dict(item))
+    return merged
+
+
 class BusinessProfileIn(BaseModel):
     company_name: str
     phone: str | None = None
@@ -224,6 +245,13 @@ class TablePayIn(BaseModel):
     cup_mode: str | None = "paper"
     pay_scope: str | None = "full"
     seat_label: str | None = None
+
+
+class TableSeatReassignIn(BaseModel):
+    from_seat: str
+    to_seat: str
+    item_name: str | None = None
+    mode: str | None = "item"
 
 
 class TableTargetIn(BaseModel):
@@ -1810,6 +1838,111 @@ def revise_table_items(
     )
     db.commit()
     return {"success": True, "table_total": str(row.total), "override_by": override_user.username}
+
+
+@router.post("/tables/{table_id}/seats/reassign")
+def reassign_table_seat(
+    table_id: str,
+    payload: TableSeatReassignIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    row = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Table not found")
+
+    role = str(user.role or "").lower()
+    if row.assigned_to and row.assigned_to != user.username and role not in {"admin", "manager", "super_admin"}:
+        raise HTTPException(status_code=403, detail="This table belongs to another waiter")
+
+    from_seat = str(payload.from_seat or "").strip()
+    to_seat = str(payload.to_seat or "").strip()
+    mode = str(payload.mode or "item").strip().lower()
+    item_name = str(payload.item_name or "").strip()
+    if not from_seat or not to_seat or from_seat == to_seat:
+        raise HTTPException(status_code=400, detail="Valid source and target seats are required")
+    if mode not in {"item", "seat"}:
+        raise HTTPException(status_code=400, detail="Unsupported seat reassignment mode")
+    if mode == "item" and not item_name:
+        raise HTTPException(status_code=400, detail="Item name is required")
+
+    items = _json_load(row.items_json, [])
+    changed = False
+    reassigned_count = 0
+    next_items: list[dict] = []
+    for item in items:
+        current_seat = str(item.get("seat_label") or "").strip()
+        current_name = str(item.get("item_name") or "").strip()
+        should_move = current_seat == from_seat and (mode == "seat" or current_name == item_name)
+        if should_move:
+            updated = dict(item)
+            updated["seat_label"] = to_seat
+            next_items.append(updated)
+            changed = True
+            reassigned_count += int(item.get("qty") or 0)
+        else:
+            next_items.append(dict(item))
+
+    if not changed:
+        raise HTTPException(status_code=400, detail="No matching seat items found")
+
+    next_items = _merge_same_seat_duplicates(next_items)
+    row.items_json = json.dumps(next_items, ensure_ascii=False)
+
+    deposit_seats = [str(label or "").strip() for label in _json_load(row.deposit_seats_json, []) if str(label or "").strip()]
+    if from_seat in deposit_seats:
+        remaining = [label for label in deposit_seats if label != from_seat]
+        if to_seat not in remaining:
+            remaining.append(to_seat)
+        row.deposit_seats_json = json.dumps(sorted(remaining, key=lambda x: int(str(x).split("-")[1] or 0)), ensure_ascii=False)
+        row.deposit_guest_count = len(remaining)
+
+    kitchen_rows = (
+        db.query(KitchenOrder)
+        .filter(
+            KitchenOrder.tenant_id == tenant.id,
+            KitchenOrder.table_label == row.label,
+            KitchenOrder.status.in_(["NEW", "PREPARING", "READY"]),
+        )
+        .all()
+    )
+    for kitchen_row in kitchen_rows:
+        kitchen_items = _json_load(kitchen_row.items_json, [])
+        updated_kitchen_items: list[dict] = []
+        for item in kitchen_items:
+            current_seat = str(item.get("seat_label") or "").strip()
+            current_name = str(item.get("item_name") or "").strip()
+            should_move = current_seat == from_seat and (mode == "seat" or current_name == item_name)
+            if should_move:
+                revised = dict(item)
+                revised["seat_label"] = to_seat
+                updated_kitchen_items.append(revised)
+            else:
+                updated_kitchen_items.append(dict(item))
+        kitchen_row.items_json = json.dumps(_merge_same_seat_duplicates(updated_kitchen_items), ensure_ascii=False)
+
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="TABLE_SEAT_REASSIGNED",
+            details=json.dumps(
+                {
+                    "table_id": row.id,
+                    "table_label": row.label,
+                    "from_seat": from_seat,
+                    "to_seat": to_seat,
+                    "mode": mode,
+                    "item_name": item_name if mode == "item" else None,
+                    "reassigned_count": reassigned_count,
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    db.commit()
+    return {"success": True, "reassigned_count": reassigned_count}
 
 
 @router.post("/tables/{table_id}/pay")

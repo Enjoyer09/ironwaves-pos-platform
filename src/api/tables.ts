@@ -31,6 +31,13 @@ type TableRevisionPayload = {
   actor: string;
 };
 
+type TableSeatReassignPayload = {
+  from_seat: string;
+  to_seat: string;
+  item_name?: string;
+  mode?: 'item' | 'seat';
+};
+
 type TableOpenPayload = {
   guest_count: number;
   deposit_guest_count: number;
@@ -641,6 +648,54 @@ export const pay_table_live = async (
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Tables backend pay failed: ${message}`);
+  }
+};
+
+export const reassign_table_seat = (table_id: string, payload: TableSeatReassignPayload) => {
+  const tables = getDB<Table>('tables');
+  const table = tables.find((row) => row.id === table_id);
+  if (!table) throw new Error('Masa tapılmadı');
+
+  const fromSeat = String(payload.from_seat || '').trim();
+  const toSeat = String(payload.to_seat || '').trim();
+  const mode = payload.mode || 'item';
+  const itemName = String(payload.item_name || '').trim();
+  if (!fromSeat || !toSeat || fromSeat === toSeat) throw new Error('Seat seçimi yanlışdır');
+  if (mode === 'item' && !itemName) throw new Error('Məhsul adı lazımdır');
+
+  const nextItems = (Array.isArray(table.items) ? table.items : []).map((row: any) => {
+    const seat = String(row.seat_label || '').trim();
+    const name = String(row.item_name || '').trim();
+    const shouldMove = seat === fromSeat && (mode === 'seat' || name === itemName);
+    return shouldMove ? { ...row, seat_label: toSeat } : row;
+  });
+  table.items = nextItems as any;
+
+  if (Array.isArray(table.deposit_seat_labels) && table.deposit_seat_labels.includes(fromSeat)) {
+    const remaining = table.deposit_seat_labels.filter((label) => label !== fromSeat);
+    if (!remaining.includes(toSeat)) remaining.push(toSeat);
+    table.deposit_seat_labels = remaining.sort((a, b) => Number(String(a).split('-')[1] || 0) - Number(String(b).split('-')[1] || 0));
+    table.deposit_guest_count = table.deposit_seat_labels.length;
+  }
+  setDB('tables', tables);
+  return { success: true };
+};
+
+export const reassign_table_seat_live = async (table_id: string, payload: TableSeatReassignPayload) => {
+  if (!isBackendEnabled()) {
+    return reassign_table_seat(table_id, payload);
+  }
+  try {
+    return await apiRequest(`/api/v1/ops/tables/${table_id}/seats/reassign`, {
+      method: 'POST',
+      tenantId: null,
+      body: payload,
+    });
+  } catch (error) {
+    if (isRecoverableNetworkFailure(error)) {
+      return reassign_table_seat(table_id, payload);
+    }
+    throw error;
   }
 };
 
