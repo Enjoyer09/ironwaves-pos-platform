@@ -59,6 +59,36 @@ type HandoverUserRow = {
   role: string;
 };
 
+export type YieldBatchRow = {
+  id: string;
+  inventory_name: string;
+  meat_type: 'beef' | 'chicken';
+  opened_by: string;
+  opened_at?: string | null;
+  raw_weight_kg: string;
+  raw_to_ready_ratio: string;
+  expected_ready_weight_kg: string;
+  sold_ready_weight_kg: string;
+  deducted_raw_weight_kg: string;
+  notes?: string | null;
+};
+
+export type YieldWasteLogRow = {
+  id: string;
+  batch_id: string;
+  inventory_name: string;
+  meat_type: 'beef' | 'chicken';
+  expected_raw_consumption_kg: string;
+  actual_raw_consumption_kg: string;
+  variance_percent: string;
+  tolerance_percent: string;
+  flagged: boolean;
+  reason: string;
+  notes?: string | null;
+  created_by: string;
+  created_at?: string | null;
+};
+
 const pushStaffNotification = (
   tenant_id: string,
   username: string,
@@ -165,6 +195,70 @@ export const get_shift_handover_users_live = async (tenant_id: string) => {
   return apiRequest<HandoverUserRow[]>('/api/v1/reports/handover-users', {
     method: 'GET',
     tenantId: tenant_id,
+  });
+};
+
+export const get_active_doner_batches_live = async (tenant_id: string) => {
+  if (!isBackendEnabled()) return [];
+  return apiRequest<YieldBatchRow[]>('/api/v1/ops/yield/batches/active', {
+    method: 'GET',
+    tenantId: null,
+  });
+};
+
+export const open_doner_batch_live = async (
+  payload: {
+    inventory_name: string;
+    meat_type: 'beef' | 'chicken';
+    raw_weight_kg: string;
+    raw_to_ready_ratio?: string;
+    notes?: string;
+  },
+) => {
+  if (!isBackendEnabled()) throw new Error('Backend is required');
+  return apiRequest<{ success: boolean; id: string; expected_ready_weight_kg: string }>('/api/v1/ops/yield/batches/open', {
+    method: 'POST',
+    tenantId: null,
+    body: {
+      inventory_name: payload.inventory_name,
+      meat_type: payload.meat_type,
+      raw_weight_kg: payload.raw_weight_kg,
+      raw_to_ready_ratio: payload.raw_to_ready_ratio ? Number(payload.raw_to_ready_ratio) : undefined,
+      notes: payload.notes || '',
+    },
+  });
+};
+
+export const close_doner_batch_live = async (
+  batch_id: string,
+  payload: {
+    actual_remaining_raw_weight_kg: string;
+    notes?: string;
+  },
+) => {
+  if (!isBackendEnabled()) throw new Error('Backend is required');
+  return apiRequest<{
+    success: boolean;
+    flagged: boolean;
+    reason: string;
+    variance_percent: string;
+    expected_raw_consumption_kg: string;
+    actual_raw_consumption_kg: string;
+  }>(`/api/v1/ops/yield/batches/${encodeURIComponent(batch_id)}/close`, {
+    method: 'POST',
+    tenantId: null,
+    body: {
+      actual_remaining_raw_weight_kg: Number(payload.actual_remaining_raw_weight_kg || 0),
+      notes: payload.notes || '',
+    },
+  });
+};
+
+export const get_yield_waste_logs_live = async (tenant_id: string) => {
+  if (!isBackendEnabled()) return [];
+  return apiRequest<YieldWasteLogRow[]>('/api/v1/ops/yield/waste-logs', {
+    method: 'GET',
+    tenantId: null,
   });
 };
 
