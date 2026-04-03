@@ -32,6 +32,19 @@ import ConfirmModal from '../ConfirmModal';
 
 type RoleModules = { staff: string[]; manager: string[]; kitchen: string[] };
 
+const YIELD_PRESETS = {
+  beef: {
+    ratio: '1.4',
+    min: '30',
+    max: '40',
+  },
+  chicken: {
+    ratio: '1.33',
+    min: '25',
+    max: '35',
+  },
+} as const;
+
 const defaultRoleModules: RoleModules = {
   staff: ['pos', 'tables', 'kds', 'zreport'],
   manager: ['pos', 'tables', 'kds', 'zreport', 'finance', 'inventory', 'combos', 'analytics', 'logs', 'crm', 'customerapp', 'ai', 'menu', 'recipes'],
@@ -117,6 +130,19 @@ export default function SettingsPanel() {
   const [resetModalOpen, setResetModalOpen] = useState(false);
   const [resetPassword, setResetPassword] = useState('');
   const [resetTotpCode, setResetTotpCode] = useState('');
+
+  const suggestedYieldItems = inventoryCatalog.filter((item: any) => {
+    const hay = `${String(item?.name || '')} ${String(item?.category || '')}`.toLowerCase();
+    return (
+      hay.includes('dönər') ||
+      hay.includes('doner') ||
+      hay.includes('dana') ||
+      hay.includes('mal ') ||
+      hay.includes('mal əti') ||
+      hay.includes('toyuq') ||
+      hay.includes('chicken')
+    );
+  });
 
   const requiresPasswordForNewUser = ['admin', 'manager'].includes(newUserRole);
   const pinUsers = users.filter((u) => ['staff', 'kitchen'].includes(String(u.role || '').toLowerCase()));
@@ -540,6 +566,61 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Standart itki ayarları yadda saxlanıldı', 'Настройки yield management сохранены', 'Yield management settings saved'));
   };
 
+  const applyYieldPreset = (meatType: 'beef' | 'chicken') => {
+    const preset = YIELD_PRESETS[meatType];
+    setYieldManagement((prev) => ({
+      ...prev,
+      ...(meatType === 'beef'
+        ? {
+            beef_ratio: preset.ratio,
+            beef_loss_min_percent: preset.min,
+            beef_loss_max_percent: preset.max,
+          }
+        : {
+            chicken_ratio: preset.ratio,
+            chicken_loss_min_percent: preset.min,
+            chicken_loss_max_percent: preset.max,
+          }),
+      tracked_items: prev.tracked_items.map((row) =>
+        row.meat_type === meatType
+          ? { ...row, raw_to_ready_ratio: preset.ratio }
+          : row,
+      ),
+    }));
+  };
+
+  const applySmartYieldSuggestion = (inventoryName: string) => {
+    const hay = String(inventoryName || '').toLowerCase();
+    const meatType: 'beef' | 'chicken' =
+      hay.includes('toyuq') || hay.includes('chicken') ? 'chicken' : 'beef';
+    const ratio = meatType === 'chicken' ? yieldManagement.chicken_ratio || YIELD_PRESETS.chicken.ratio : yieldManagement.beef_ratio || YIELD_PRESETS.beef.ratio;
+    setYieldManagement((prev) => {
+      const existing = prev.tracked_items.find((row) => row.inventory_name === inventoryName);
+      if (existing) {
+        return {
+          ...prev,
+          tracked_items: prev.tracked_items.map((row) =>
+            row.inventory_name === inventoryName
+              ? { ...row, enabled: true, meat_type: meatType, raw_to_ready_ratio: ratio }
+              : row,
+          ),
+        };
+      }
+      return {
+        ...prev,
+        tracked_items: [
+          ...prev.tracked_items,
+          {
+            inventory_name: inventoryName,
+            enabled: true,
+            meat_type: meatType,
+            raw_to_ready_ratio: ratio,
+          },
+        ],
+      };
+    });
+  };
+
 
   const saveStaffBenefits = async () => {
     await update_staff_benefits_live({
@@ -825,20 +906,64 @@ export default function SettingsPanel() {
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 space-y-2">
-            <div className="font-semibold text-slate-100">{tx(lang, 'Mal əti standartı', 'Стандарт говядины', 'Beef standard')}</div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="font-semibold text-slate-100">{tx(lang, 'Mal əti standartı', 'Стандарт говядины', 'Beef standard')}</div>
+              <button type="button" onClick={() => applyYieldPreset('beef')} className="neon-btn rounded-lg px-3 py-1 text-xs">
+                {tx(lang, 'Standartı tətbiq et', 'Применить стандарт', 'Apply preset')}
+              </button>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <input className="neon-input" type="number" min={0} step="0.01" value={yieldManagement.beef_loss_min_percent} onChange={(e) => setYieldManagement((prev) => ({ ...prev, beef_loss_min_percent: e.target.value }))} placeholder={tx(lang, 'Min itki %', 'Мин потеря %', 'Min loss %')} />
               <input className="neon-input" type="number" min={0} step="0.01" value={yieldManagement.beef_loss_max_percent} onChange={(e) => setYieldManagement((prev) => ({ ...prev, beef_loss_max_percent: e.target.value }))} placeholder={tx(lang, 'Max itki %', 'Макс потеря %', 'Max loss %')} />
             </div>
           </div>
           <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 space-y-2">
-            <div className="font-semibold text-slate-100">{tx(lang, 'Toyuq standartı', 'Стандарт курицы', 'Chicken standard')}</div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="font-semibold text-slate-100">{tx(lang, 'Toyuq standartı', 'Стандарт курицы', 'Chicken standard')}</div>
+              <button type="button" onClick={() => applyYieldPreset('chicken')} className="neon-btn rounded-lg px-3 py-1 text-xs">
+                {tx(lang, 'Standartı tətbiq et', 'Применить стандарт', 'Apply preset')}
+              </button>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <input className="neon-input" type="number" min={0} step="0.01" value={yieldManagement.chicken_loss_min_percent} onChange={(e) => setYieldManagement((prev) => ({ ...prev, chicken_loss_min_percent: e.target.value }))} placeholder={tx(lang, 'Min itki %', 'Мин потеря %', 'Min loss %')} />
               <input className="neon-input" type="number" min={0} step="0.01" value={yieldManagement.chicken_loss_max_percent} onChange={(e) => setYieldManagement((prev) => ({ ...prev, chicken_loss_max_percent: e.target.value }))} placeholder={tx(lang, 'Max itki %', 'Макс потеря %', 'Max loss %')} />
             </div>
           </div>
         </div>
+        {suggestedYieldItems.length > 0 ? (
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
+            <div className="font-semibold text-emerald-200">{tx(lang, 'Ağıllı inventar təklifləri', 'Умные подсказки по инвентарю', 'Smart inventory suggestions')}</div>
+            <p className="text-xs text-emerald-100/80">
+              {tx(
+                lang,
+                'Sistem adı üzrə dönər, mal əti və toyuq məhsullarını avtomatik təklif edir. Bir kliklə izlənən inventara əlavə edə bilərsiniz.',
+                'Система автоматически предлагает позиции по названию. Вы можете добавить их в отслеживаемый список одним кликом.',
+                'The system suggests likely doner/beef/chicken inventory by name. Add them to tracked inventory with one click.',
+              )}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {suggestedYieldItems.map((item: any) => {
+                const alreadyTracked = yieldManagement.tracked_items.some((row) => row.inventory_name === item.name);
+                return (
+                  <button
+                    key={`suggest-${item.id || item.name}`}
+                    type="button"
+                    disabled={alreadyTracked}
+                    onClick={() => applySmartYieldSuggestion(String(item.name || ''))}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                      alreadyTracked
+                        ? 'border-slate-600/60 bg-slate-800/60 text-slate-400'
+                        : 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20'
+                    }`}
+                  >
+                    {item.name}
+                    {alreadyTracked ? ` · ${tx(lang, 'əlavə edilib', 'добавлено', 'added')}` : ''}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
         <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 space-y-3">
           <div className="font-semibold text-slate-100">{tx(lang, 'İzlənəcək inventar', 'Отслеживаемый инвентарь', 'Tracked inventory')}</div>
           <div className="space-y-2 max-h-64 overflow-y-auto pr-1">

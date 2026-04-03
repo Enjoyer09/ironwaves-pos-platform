@@ -4,16 +4,22 @@ import { useAppStore } from '../../store';
 import { get_sales_summary_live, get_sales_list_live } from '../../api/analytics';
 import {
   accept_shift_handover_live,
+  close_doner_batch_live,
+  get_active_doner_batches_live,
   get_expected_cash,
   get_pending_handover_for_user_live,
   get_shift_handover_users,
   get_shift_handover_users_live,
   refresh_expected_cash,
   refresh_shift_status,
+  get_yield_waste_logs_live,
   get_shift_handover_history_live,
   get_shift_status,
   handover_shift_live,
+  open_doner_batch_live,
   open_shift,
+  YieldBatchRow,
+  YieldWasteLogRow,
   x_report,
   z_report,
 } from '../../api/reports';
@@ -56,11 +62,20 @@ export default function ZReportPanel() {
   });
   const [reportRefreshKey, setReportRefreshKey] = useState(0);
   const [salesPageSize, setSalesPageSize] = useState(10);
+  const [activeYieldBatches, setActiveYieldBatches] = useState<YieldBatchRow[]>([]);
+  const [yieldWasteLogs, setYieldWasteLogs] = useState<YieldWasteLogRow[]>([]);
+  const [yieldOpenInventoryName, setYieldOpenInventoryName] = useState('');
+  const [yieldOpenMeatType, setYieldOpenMeatType] = useState<'beef' | 'chicken'>('beef');
+  const [yieldOpenRawWeight, setYieldOpenRawWeight] = useState('');
+  const [yieldOpenNotes, setYieldOpenNotes] = useState('');
+  const [yieldCloseValues, setYieldCloseValues] = useState<Record<string, { remaining: string; notes: string }>>({});
   const zReceiptRef = React.useRef<HTMLIFrameElement | null>(null);
   const previousShiftStatusRef = useRef<string>(shiftStatusState.status);
   const refreshTimerRef = useRef<number | null>(null);
   const lastRefreshAtRef = useRef(0);
   const printSettings = get_settings(tenant_id).print_settings || { use_qz: false, printer_name: '' };
+  const yieldSettings = get_settings(tenant_id).yield_management_settings;
+  const trackedYieldItems = Array.isArray(yieldSettings?.tracked_items) ? yieldSettings!.tracked_items!.filter((row: any) => row.enabled !== false) : [];
 
   const carryoverCash = new Decimal(currentBalances.cash_balance || 0);
   const targetCash = new Decimal(openingTarget || '0');
@@ -109,6 +124,8 @@ export default function ZReportPanel() {
       .map(([cashier, stats]) => ({ cashier, ...stats }))
       .sort((a, b) => b.total.minus(a.total).toNumber());
   }, [sales]);
+  const yieldEnabled = Boolean(yieldSettings?.enabled);
+  const totalYieldFlags = useMemo(() => yieldWasteLogs.filter((row) => row.flagged).length, [yieldWasteLogs]);
 
   const buildZReceiptHtml = (result: any) => {
     const cashierRows = cashierBreakdown
@@ -288,6 +305,33 @@ export default function ZReportPanel() {
   }, [tenant_id, start, end, user?.role, user?.username, reportRefreshKey]);
 
   React.useEffect(() => {
+    let mounted = true;
+    if (!yieldEnabled) {
+      setActiveYieldBatches([]);
+      setYieldWasteLogs([]);
+      return;
+    }
+    (async () => {
+      try {
+        const [batches, wasteRows] = await Promise.all([
+          get_active_doner_batches_live(tenant_id),
+          get_yield_waste_logs_live(tenant_id),
+        ]);
+        if (!mounted) return;
+        setActiveYieldBatches(batches || []);
+        setYieldWasteLogs(wasteRows || []);
+      } catch {
+        if (!mounted) return;
+        setActiveYieldBatches([]);
+        setYieldWasteLogs([]);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [tenant_id, reportRefreshKey, yieldEnabled]);
+
+  React.useEffect(() => {
     const onFocusRefresh = () => setReportRefreshKey((prev) => prev + 1);
     const onFinanceRefresh = (event: Event) => {
       const detail = (event as CustomEvent<{ tenant_id?: string }>).detail;
@@ -462,6 +506,60 @@ export default function ZReportPanel() {
       }
     } catch (e: any) {
       notify('error', tx(lang, `Xəta: ${e.message}`, `Ошибка: ${e.message}`));
+    }
+  };
+
+  const handleOpenYieldBatch = async () => {
+    if (!yieldOpenInventoryName || !yieldOpenRawWeight) {
+      notify('error', tx(lang, 'İnventar və çiy çəki yazın', 'Укажите инвентарь и сырой вес', 'Enter inventory and raw weight'));
+      return;
+    }
+    try {
+      await open_doner_batch_live({
+        inventory_name: yieldOpenInventoryName,
+        meat_type: yieldOpenMeatType,
+        raw_weight_kg: yieldOpenRawWeight,
+        raw_to_ready_ratio: String(
+          trackedYieldItems.find((row: any) => row.inventory_name === yieldOpenInventoryName)?.raw_to_ready_ratio ||
+            (yieldOpenMeatType === 'chicken' ? yieldSettings?.profiles?.chicken?.raw_to_ready_ratio : yieldSettings?.profiles?.beef?.raw_to_ready_ratio) ||
+            1,
+        ),
+        notes: yieldOpenNotes,
+      });
+      setYieldOpenRawWeight('');
+      setYieldOpenNotes('');
+      setReportRefreshKey((prev) => prev + 1);
+      notify('success', tx(lang, 'Şiş açıldı', 'Шампур открыт', 'Batch opened'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Şiş açılmadı', 'Не удалось открыть batch', 'Failed to open batch'));
+    }
+  };
+
+  const handleCloseYieldBatch = async (batch: YieldBatchRow) => {
+    const form = yieldCloseValues[batch.id] || { remaining: '', notes: '' };
+    if (form.remaining === '') {
+      notify('error', tx(lang, 'Qalan çiy çəkini yazın', 'Укажите оставшийся сырой вес', 'Enter remaining raw weight'));
+      return;
+    }
+    try {
+      const result = await close_doner_batch_live(batch.id, {
+        actual_remaining_raw_weight_kg: form.remaining,
+        notes: form.notes,
+      });
+      setYieldCloseValues((prev) => {
+        const next = { ...prev };
+        delete next[batch.id];
+        return next;
+      });
+      setReportRefreshKey((prev) => prev + 1);
+      notify(
+        result.flagged ? 'error' : 'success',
+        result.flagged
+          ? tx(lang, `Şübhəli fərq aşkarlandı: ${result.variance_percent}%`, `Обнаружено подозрительное отклонение: ${result.variance_percent}%`, `Flagged variance detected: ${result.variance_percent}%`)
+          : tx(lang, 'Şiş uğurla bağlandı', 'Batch успешно закрыт', 'Batch closed successfully'),
+      );
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Şiş bağlanmadı', 'Не удалось закрыть batch', 'Failed to close batch'));
     }
   };
 
@@ -751,6 +849,158 @@ export default function ZReportPanel() {
           </button>
         </div>
       </div>
+
+      {yieldEnabled ? (
+        <div className="metal-panel p-4 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold">{tx(lang, 'Gün sonu şiş auditi', 'Аудит шампура в конце дня', 'Day-end batch audit')}</h3>
+              <p className="text-xs text-slate-400">
+                {tx(
+                  lang,
+                  'Səhər açılan şişləri burada qeyd edin. Gün sonu qalan çiy çəkini yazanda sistem gözlənilən sərflə faktiki sərfi müqayisə edir.',
+                  'Здесь фиксируются утренние партии. В конце дня система сравнивает ожидаемый и фактический расход.',
+                  'Track morning batches here. At day end, the system compares expected and actual raw consumption.',
+                )}
+              </p>
+            </div>
+            <div className="text-xs text-slate-300">
+              {tx(lang, 'Şübhəli fərqlər', 'Подозрительные отклонения', 'Flagged variances')}: <b>{totalYieldFlags}</b>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4">
+            <div className="mb-3 font-semibold text-slate-100">{tx(lang, 'Yeni şiş aç', 'Открыть новую партию', 'Open new batch')}</div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+              <select
+                className="neon-input"
+                value={yieldOpenInventoryName}
+                onChange={(e) => {
+                  const nextName = e.target.value;
+                  const tracked = trackedYieldItems.find((row: any) => row.inventory_name === nextName);
+                  setYieldOpenInventoryName(nextName);
+                  setYieldOpenMeatType((tracked?.meat_type || 'beef') as 'beef' | 'chicken');
+                }}
+              >
+                <option value="">{tx(lang, 'İzlənən inventarı seçin', 'Выберите отслеживаемый инвентарь', 'Select tracked inventory')}</option>
+                {trackedYieldItems.map((row: any) => (
+                  <option key={row.inventory_name} value={row.inventory_name}>
+                    {row.inventory_name}
+                  </option>
+                ))}
+              </select>
+              <select className="neon-input" value={yieldOpenMeatType} onChange={(e) => setYieldOpenMeatType(e.target.value as 'beef' | 'chicken')}>
+                <option value="beef">{tx(lang, 'Mal əti', 'Говядина', 'Beef')}</option>
+                <option value="chicken">{tx(lang, 'Toyuq əti', 'Курица', 'Chicken')}</option>
+              </select>
+              <input
+                className="neon-input"
+                type="number"
+                min={0}
+                step="0.001"
+                value={yieldOpenRawWeight}
+                onChange={(e) => setYieldOpenRawWeight(e.target.value)}
+                placeholder={tx(lang, 'Asılan çiy çəki (kq)', 'Сырой вес на старте (кг)', 'Opening raw weight (kg)')}
+              />
+              <button onClick={handleOpenYieldBatch} className="glossy-gold rounded-lg px-4 py-2 font-semibold">
+                {tx(lang, 'Şişi aç', 'Открыть партию', 'Open batch')}
+              </button>
+            </div>
+            <input
+              className="neon-input mt-3"
+              value={yieldOpenNotes}
+              onChange={(e) => setYieldOpenNotes(e.target.value)}
+              placeholder={tx(lang, 'Qeyd (opsional)', 'Заметка (необязательно)', 'Notes (optional)')}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 space-y-3">
+              <div className="font-semibold text-slate-100">{tx(lang, 'Aktiv şişlər', 'Активные партии', 'Active batches')}</div>
+              {activeYieldBatches.length === 0 ? (
+                <div className="text-sm text-slate-400">{tx(lang, 'Hazırda açıq şiş yoxdur', 'Сейчас нет открытых партий', 'There are no open batches right now')}</div>
+              ) : (
+                activeYieldBatches.map((batch) => {
+                  const form = yieldCloseValues[batch.id] || { remaining: '', notes: '' };
+                  return (
+                    <div key={batch.id} className="rounded-2xl border border-slate-700/50 bg-slate-900/40 p-4 space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="font-semibold text-slate-100">{batch.inventory_name}</div>
+                          <div className="text-xs text-slate-400">
+                            {tx(lang, 'Açan', 'Открыл', 'Opened by')}: {batch.opened_by} · {new Date(batch.opened_at || '').toLocaleString()}
+                          </div>
+                        </div>
+                        <span className="rounded-full border border-cyan-300/30 bg-cyan-500/10 px-2.5 py-1 text-xs font-semibold text-cyan-100">
+                          {batch.meat_type === 'chicken' ? tx(lang, 'Toyuq', 'Курица', 'Chicken') : tx(lang, 'Mal əti', 'Говядина', 'Beef')}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+                        <div><span className="text-slate-400">{tx(lang, 'Çiy çəki', 'Сырой вес', 'Raw weight')}:</span> <b>{batch.raw_weight_kg} kq</b></div>
+                        <div><span className="text-slate-400">{tx(lang, 'Hazır gözlənti', 'Готовый эквивалент', 'Expected ready')}:</span> <b>{batch.expected_ready_weight_kg} kq</b></div>
+                        <div><span className="text-slate-400">{tx(lang, 'Satılan hazır', 'Продано готового', 'Sold ready')}:</span> <b>{batch.sold_ready_weight_kg} kq</b></div>
+                        <div><span className="text-slate-400">{tx(lang, 'Silinən çiy', 'Списано сырого', 'Deducted raw')}:</span> <b>{batch.deducted_raw_weight_kg} kq</b></div>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto]">
+                        <input
+                          className="neon-input"
+                          type="number"
+                          min={0}
+                          step="0.001"
+                          value={form.remaining}
+                          onChange={(e) => setYieldCloseValues((prev) => ({ ...prev, [batch.id]: { ...form, remaining: e.target.value } }))}
+                          placeholder={tx(lang, 'Gün sonu qalan çiy çəki (kq)', 'Остаток сырого веса в конце дня (кг)', 'Remaining raw weight at day end (kg)')}
+                        />
+                        <input
+                          className="neon-input"
+                          value={form.notes}
+                          onChange={(e) => setYieldCloseValues((prev) => ({ ...prev, [batch.id]: { ...form, notes: e.target.value } }))}
+                          placeholder={tx(lang, 'Qeyd / səbəb', 'Заметка / причина', 'Notes / reason')}
+                        />
+                        <button onClick={() => handleCloseYieldBatch(batch)} className="neon-btn rounded-lg px-4 py-2">
+                          {tx(lang, 'Bağla', 'Закрыть', 'Close')}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 space-y-3">
+              <div className="font-semibold text-slate-100">{tx(lang, 'Son audit qeydləri', 'Последние записи аудита', 'Recent audit records')}</div>
+              {yieldWasteLogs.length === 0 ? (
+                <div className="text-sm text-slate-400">{tx(lang, 'Hələ audit qeydi yoxdur', 'Записей аудита пока нет', 'No audit records yet')}</div>
+              ) : (
+                yieldWasteLogs.slice(0, 6).map((row) => (
+                  <div
+                    key={row.id}
+                    className={`rounded-2xl border p-4 ${
+                      row.flagged
+                        ? 'border-red-400/30 bg-red-500/10'
+                        : 'border-emerald-400/20 bg-emerald-500/5'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="font-semibold text-slate-100">{row.inventory_name}</div>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${row.flagged ? 'bg-red-500/20 text-red-100' : 'bg-emerald-500/20 text-emerald-100'}`}>
+                        {row.flagged ? tx(lang, 'Şübhəli fərq', 'Подозрительное отклонение', 'Flagged') : tx(lang, 'Normal', 'Норма', 'Normal')}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+                      <div><span className="text-slate-400">{tx(lang, 'Gözlənilən çiy sərf', 'Ожидаемый сырой расход', 'Expected raw consumption')}:</span> <b>{row.expected_raw_consumption_kg} kq</b></div>
+                      <div><span className="text-slate-400">{tx(lang, 'Faktiki çiy sərf', 'Фактический сырой расход', 'Actual raw consumption')}:</span> <b>{row.actual_raw_consumption_kg} kq</b></div>
+                      <div><span className="text-slate-400">{tx(lang, 'Fərq', 'Отклонение', 'Variance')}:</span> <b>{row.variance_percent}%</b></div>
+                      <div><span className="text-slate-400">{tx(lang, 'İcazə həddi', 'Допустимый порог', 'Tolerance')}:</span> <b>{row.tolerance_percent}%</b></div>
+                    </div>
+                    {row.notes ? <div className="mt-2 text-xs text-slate-300">{row.notes}</div> : null}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {latestReceived && (
         <div className="metal-panel p-4">
