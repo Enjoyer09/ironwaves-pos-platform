@@ -537,7 +537,7 @@ export default function SettingsPanel() {
         enabled: row.enabled,
       })),
     });
-    flashSuccess(tx(lang, 'Yield management ayarları yadda saxlanıldı', 'Настройки yield management сохранены', 'Yield management settings saved'));
+    flashSuccess(tx(lang, 'Standart itki ayarları yadda saxlanıldı', 'Настройки yield management сохранены', 'Yield management settings saved'));
   };
 
 
@@ -777,7 +777,7 @@ export default function SettingsPanel() {
       </div>
 
       <div className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Yield Management', 'Yield Management', 'Yield Management')}</h2>
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Standart İtki Faizi', 'Настройки yield management', 'Yield management')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
             lang,
@@ -792,7 +792,7 @@ export default function SettingsPanel() {
             checked={yieldManagement.enabled}
             onChange={(e) => setYieldManagement((prev) => ({ ...prev, enabled: e.target.checked }))}
           />
-          {tx(lang, 'Yield management aktiv olsun', 'Включить yield management', 'Enable yield management')}
+          {tx(lang, 'Standart itki faizi aktiv olsun', 'Включить yield management', 'Enable yield management')}
         </label>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <input
@@ -802,7 +802,7 @@ export default function SettingsPanel() {
             step="0.01"
             value={yieldManagement.variance_tolerance_percent}
             onChange={(e) => setYieldManagement((prev) => ({ ...prev, variance_tolerance_percent: e.target.value }))}
-            placeholder={tx(lang, 'Variance tolerance (%)', 'Variance tolerance (%)', 'Variance tolerance (%)')}
+            placeholder={tx(lang, 'İcazə verilən fərq (%)', 'Допустимое отклонение (%)', 'Variance tolerance (%)')}
           />
           <input
             className="neon-input"
@@ -885,7 +885,7 @@ export default function SettingsPanel() {
                         ),
                       }))
                     }
-                    placeholder={tx(lang, 'Raw ratio', 'Raw ratio', 'Raw ratio')}
+                    placeholder={tx(lang, 'Çiy / hazır nisbəti', 'Соотношение сырой / готовой', 'Raw ratio')}
                   />
                 </div>
               );
