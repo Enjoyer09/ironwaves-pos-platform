@@ -144,6 +144,29 @@ export default function SettingsPanel() {
       hay.includes('chicken')
     );
   });
+  const preferredYieldInventory = inventoryCatalog.filter((item: any) => {
+    const hay = `${String(item?.name || '')} ${String(item?.category || '')}`.toLowerCase();
+    return (
+      hay.includes('dönər') ||
+      hay.includes('doner') ||
+      hay.includes('ət') ||
+      hay.includes('et') ||
+      hay.includes('dana') ||
+      hay.includes('mal ') ||
+      hay.includes('mal əti') ||
+      hay.includes('toyuq') ||
+      hay.includes('chicken') ||
+      hay.includes('shawarma') ||
+      hay.includes('gyro') ||
+      hay.includes('kebab')
+    );
+  });
+  const remainingYieldInventory = inventoryCatalog.filter(
+    (item: any) => !preferredYieldInventory.some((preferred: any) => preferred.id === item.id || preferred.name === item.name),
+  );
+  const selectableYieldInventory = [...preferredYieldInventory, ...remainingYieldInventory].filter(
+    (item: any) => !yieldManagement.tracked_items.some((row) => row.inventory_name === item.name),
+  );
 
   const requiresPasswordForNewUser = ['admin', 'manager'].includes(newUserRole);
   const pinUsers = users.filter((u) => ['staff', 'kitchen'].includes(String(u.role || '').toLowerCase()));
@@ -969,14 +992,30 @@ export default function SettingsPanel() {
               onChange={(e) => setYieldInventoryCandidate(e.target.value)}
             >
               <option value="">{tx(lang, 'Anbardan məhsul seçin', 'Выберите товар со склада', 'Select inventory item')}</option>
-              {inventoryCatalog
-                .filter((item: any) => !yieldManagement.tracked_items.some((row) => row.inventory_name === item.name))
-                .sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
-                .map((item: any) => (
-                  <option key={item.id || item.name} value={String(item.name || '')}>
-                    {item.name}
-                  </option>
-                ))}
+              {preferredYieldInventory.length > 0 ? (
+                <optgroup label={tx(lang, 'Ət / dönər üçün uyğun məhsullar', 'Подходящие мясные позиции', 'Preferred meat items')}>
+                  {selectableYieldInventory
+                    .filter((item: any) => preferredYieldInventory.some((preferred: any) => preferred.id === item.id || preferred.name === item.name))
+                    .sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
+                    .map((item: any) => (
+                      <option key={item.id || item.name} value={String(item.name || '')}>
+                        {item.name}
+                      </option>
+                    ))}
+                </optgroup>
+              ) : null}
+              {remainingYieldInventory.length > 0 ? (
+                <optgroup label={tx(lang, 'Digər inventar', 'Прочий инвентарь', 'Other inventory')}>
+                  {selectableYieldInventory
+                    .filter((item: any) => remainingYieldInventory.some((rest: any) => rest.id === item.id || rest.name === item.name))
+                    .sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
+                    .map((item: any) => (
+                      <option key={item.id || item.name} value={String(item.name || '')}>
+                        {item.name}
+                      </option>
+                    ))}
+                </optgroup>
+              ) : null}
             </select>
             <button type="button" onClick={addYieldTrackedInventory} className="glossy-gold rounded-xl px-4 py-2 font-bold">
               {tx(lang, 'Siyahıya əlavə et', 'Добавить в список', 'Add to list')}
