@@ -9,11 +9,22 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import AuditLog, Customer, FinanceEntry, InventoryItem, LoyaltyLedgerEntry, MenuItem, Recipe, RewardClaim, Sale, Setting, Tenant
+from app.models import AuditLog, Customer, DonerBatch, FinanceEntry, InventoryItem, LoyaltyLedgerEntry, MenuItem, Recipe, RewardClaim, Sale, Setting, Tenant
 from app.schemas import SaleCreateIn, SaleCreateOut
 
 
 router = APIRouter(prefix="/api/v1/pos", tags=["pos"])
+
+
+DEFAULT_YIELD_SETTINGS = {
+    "enabled": False,
+    "variance_tolerance_percent": 5,
+    "profiles": {
+        "beef": {"raw_to_ready_ratio": 1.4, "loss_min_percent": 30, "loss_max_percent": 40},
+        "chicken": {"raw_to_ready_ratio": 1.33, "loss_min_percent": 25, "loss_max_percent": 35},
+    },
+    "tracked_items": [],
+}
 
 
 def _is_coffee_like(item_name: str | None, category: str | None, is_coffee: bool | None) -> bool:
@@ -27,6 +38,65 @@ def _setting_value(db: Session, tenant_id: str, key: str, default):
     row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
     if not row or row.value is None:
         return default
+
+
+def _normalize_inventory_key(value: str | None) -> str:
+    return str(value or "").strip().lower()
+
+
+def _yield_settings(db: Session, tenant_id: str) -> dict:
+    raw = _setting_value(db, tenant_id, "yield_management_settings", DEFAULT_YIELD_SETTINGS)
+    if not isinstance(raw, dict):
+        return DEFAULT_YIELD_SETTINGS
+    merged = {
+        **DEFAULT_YIELD_SETTINGS,
+        **raw,
+        "profiles": {**DEFAULT_YIELD_SETTINGS["profiles"], **dict(raw.get("profiles") or {})},
+    }
+    merged["tracked_items"] = list(raw.get("tracked_items") or [])
+    return merged
+
+
+def _find_yield_rule(db: Session, tenant_id: str, inventory: InventoryItem) -> dict | None:
+    settings = _yield_settings(db, tenant_id)
+    if not settings.get("enabled"):
+        return None
+    inventory_name = _normalize_inventory_key(inventory.name)
+    for row in settings.get("tracked_items") or []:
+        if not isinstance(row, dict):
+            continue
+        if not bool(row.get("enabled", True)):
+            continue
+        if _normalize_inventory_key(row.get("inventory_name")) != inventory_name:
+            continue
+        meat_type = str(row.get("meat_type") or "beef").strip().lower()
+        profile = dict((settings.get("profiles") or {}).get(meat_type) or {})
+        ratio = Decimal(str(row.get("raw_to_ready_ratio") or profile.get("raw_to_ready_ratio") or "1"))
+        return {"inventory_name": inventory.name, "meat_type": meat_type, "raw_to_ready_ratio": ratio}
+    return None
+
+
+def _record_doner_batch_consumption(
+    db: Session,
+    tenant_id: str,
+    inventory_name: str,
+    sold_ready_qty: Decimal,
+    deducted_raw_qty: Decimal,
+):
+    batch = (
+        db.query(DonerBatch)
+        .filter(
+            DonerBatch.tenant_id == tenant_id,
+            func.lower(DonerBatch.inventory_name) == inventory_name.lower(),
+            DonerBatch.status == "OPEN",
+        )
+        .order_by(DonerBatch.opened_at.desc())
+        .first()
+    )
+    if not batch:
+        return
+    batch.sold_ready_weight_kg = (Decimal(str(batch.sold_ready_weight_kg or 0)) + sold_ready_qty).quantize(Decimal("0.001"))
+    batch.deducted_raw_weight_kg = (Decimal(str(batch.deducted_raw_weight_kg or 0)) + deducted_raw_qty).quantize(Decimal("0.001"))
     try:
         return json.loads(row.value)
     except Exception:
@@ -209,11 +279,26 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
             )
             if not inventory:
                 continue
-            qty_required = (Decimal(str(recipe.quantity_required)) * Decimal(str(item.qty or 0))).quantize(Decimal("0.0001"))
+            base_qty_required = (Decimal(str(recipe.quantity_required)) * Decimal(str(item.qty or 0))).quantize(Decimal("0.0001"))
+            yield_rule = _find_yield_rule(db, tenant.id, inventory)
+            sold_ready_qty = base_qty_required.quantize(Decimal("0.0001"))
+            qty_required = (
+                (base_qty_required * Decimal(str(yield_rule.get("raw_to_ready_ratio") or 1))).quantize(Decimal("0.0001"))
+                if yield_rule
+                else base_qty_required
+            )
             if Decimal(str(inventory.stock_qty)) < qty_required:
                 raise HTTPException(status_code=400, detail=f"{inventory.name} üçün anbarda kifayət qədər qalıq yoxdur")
             stock_ops.append((inventory, qty_required))
             cogs_total += (qty_required * Decimal(str(inventory.unit_cost or 0))).quantize(Decimal("0.0001"))
+            if yield_rule:
+                _record_doner_batch_consumption(
+                    db,
+                    tenant.id,
+                    inventory.name,
+                    sold_ready_qty.quantize(Decimal("0.001")),
+                    qty_required.quantize(Decimal("0.001")),
+                )
 
     receipt_code = secrets.token_hex(5).upper()
     receipt_token = secrets.token_hex(10)

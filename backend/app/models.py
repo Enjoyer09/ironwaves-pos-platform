@@ -294,3 +294,43 @@ class HappyHour(Base):
     categories: Mapped[str] = mapped_column(String(255), nullable=False, default="ALL")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class DonerBatch(Base):
+    __tablename__ = "doner_batches"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    inventory_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    meat_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    opened_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    opened_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    raw_weight_kg: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=Decimal("0.000"))
+    raw_to_ready_ratio: Mapped[Decimal] = mapped_column(Numeric(10, 4), default=Decimal("1.0000"))
+    expected_ready_weight_kg: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=Decimal("0.000"))
+    sold_ready_weight_kg: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=Decimal("0.000"))
+    deducted_raw_weight_kg: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=Decimal("0.000"))
+    actual_remaining_raw_weight_kg: Mapped[Decimal | None] = mapped_column(Numeric(14, 3), nullable=True)
+    variance_percent: Mapped[Decimal | None] = mapped_column(Numeric(8, 2), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="OPEN")
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class WasteLog(Base):
+    __tablename__ = "waste_logs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    batch_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    inventory_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    meat_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    expected_raw_consumption_kg: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=Decimal("0.000"))
+    actual_raw_consumption_kg: Mapped[Decimal] = mapped_column(Numeric(14, 3), default=Decimal("0.000"))
+    variance_percent: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=Decimal("0.00"))
+    tolerance_percent: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=Decimal("5.00"))
+    flagged: Mapped[bool] = mapped_column(Boolean, default=False)
+    reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

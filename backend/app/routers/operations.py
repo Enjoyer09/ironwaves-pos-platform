@@ -16,6 +16,7 @@ from app.models import (
     AuditLog,
     BusinessProfile,
     Customer,
+    DonerBatch,
     FinanceEntry,
     HappyHour,
     InventoryItem,
@@ -32,12 +33,24 @@ from app.models import (
     Table,
     Tenant,
     User,
+    WasteLog,
 )
 from app.core.config import settings as app_settings
 from app.security import verify_password
 
 
 router = APIRouter(prefix="/api/v1/ops", tags=["operations"])
+
+
+DEFAULT_YIELD_SETTINGS = {
+    "enabled": False,
+    "variance_tolerance_percent": 5,
+    "profiles": {
+        "beef": {"raw_to_ready_ratio": 1.4, "loss_min_percent": 30, "loss_max_percent": 40},
+        "chicken": {"raw_to_ready_ratio": 1.33, "loss_min_percent": 25, "loss_max_percent": 35},
+    },
+    "tracked_items": [],
+}
 
 
 def _ensure_manager(user: User):
@@ -143,6 +156,79 @@ def _notify_front_of_house(
         )
 
 
+def _normalize_inventory_key(value: str | None) -> str:
+    return str(value or "").strip().lower()
+
+
+def _yield_settings(db: Session, tenant_id: str) -> dict:
+    raw = _setting_value(db, tenant_id, "yield_management_settings", DEFAULT_YIELD_SETTINGS)
+    if not isinstance(raw, dict):
+        return DEFAULT_YIELD_SETTINGS
+    merged = {
+        **DEFAULT_YIELD_SETTINGS,
+        **raw,
+        "profiles": {**DEFAULT_YIELD_SETTINGS["profiles"], **dict(raw.get("profiles") or {})},
+    }
+    merged["tracked_items"] = list(raw.get("tracked_items") or [])
+    return merged
+
+
+def _find_yield_rule(db: Session, tenant_id: str, inventory: InventoryItem) -> dict | None:
+    settings = _yield_settings(db, tenant_id)
+    if not settings.get("enabled"):
+        return None
+    inventory_name = _normalize_inventory_key(inventory.name)
+    for row in settings.get("tracked_items") or []:
+        if not isinstance(row, dict):
+            continue
+        if not bool(row.get("enabled", True)):
+            continue
+        if _normalize_inventory_key(row.get("inventory_name")) != inventory_name:
+            continue
+        meat_type = str(row.get("meat_type") or "beef").strip().lower()
+        profile = dict((settings.get("profiles") or {}).get(meat_type) or {})
+        ratio = Decimal(str(row.get("raw_to_ready_ratio") or profile.get("raw_to_ready_ratio") or "1"))
+        return {
+            "inventory_name": inventory.name,
+            "meat_type": meat_type,
+            "raw_to_ready_ratio": ratio,
+            "loss_min_percent": Decimal(str(profile.get("loss_min_percent") or 0)),
+            "loss_max_percent": Decimal(str(profile.get("loss_max_percent") or 0)),
+        }
+    return None
+
+
+def _apply_yield_to_qty(base_qty: Decimal, yield_rule: dict | None) -> tuple[Decimal, Decimal]:
+    if not yield_rule:
+        return base_qty.quantize(Decimal("0.0001")), base_qty.quantize(Decimal("0.0001"))
+    ratio = Decimal(str(yield_rule.get("raw_to_ready_ratio") or 1))
+    return base_qty.quantize(Decimal("0.0001")), (base_qty * ratio).quantize(Decimal("0.0001"))
+
+
+def _record_doner_batch_consumption(
+    db: Session,
+    tenant_id: str,
+    inventory_name: str,
+    meat_type: str,
+    sold_ready_qty: Decimal,
+    deducted_raw_qty: Decimal,
+):
+    batch = (
+        db.query(DonerBatch)
+        .filter(
+            DonerBatch.tenant_id == tenant_id,
+            func.lower(DonerBatch.inventory_name) == inventory_name.lower(),
+            DonerBatch.status == "OPEN",
+        )
+        .order_by(DonerBatch.opened_at.desc())
+        .first()
+    )
+    if not batch:
+        return
+    batch.sold_ready_weight_kg = (Decimal(str(batch.sold_ready_weight_kg or 0)) + sold_ready_qty).quantize(Decimal("0.001"))
+    batch.deducted_raw_weight_kg = (Decimal(str(batch.deducted_raw_weight_kg or 0)) + deducted_raw_qty).quantize(Decimal("0.001"))
+
+
 def _collect_stock_ops(db: Session, tenant_id: str, items: list[dict]) -> tuple[list[tuple[InventoryItem, Decimal]], Decimal]:
     stock_ops: list[tuple[InventoryItem, Decimal]] = []
     cogs_total = Decimal("0.0000")
@@ -160,11 +246,22 @@ def _collect_stock_ops(db: Session, tenant_id: str, items: list[dict]) -> tuple[
             )
             if not inventory:
                 continue
-            qty_required = (Decimal(str(recipe.quantity_required or 0)) * Decimal(str(item.get("qty") or 0))).quantize(Decimal("0.0001"))
+            base_qty_required = (Decimal(str(recipe.quantity_required or 0)) * Decimal(str(item.get("qty") or 0))).quantize(Decimal("0.0001"))
+            yield_rule = _find_yield_rule(db, tenant_id, inventory)
+            sold_ready_qty, qty_required = _apply_yield_to_qty(base_qty_required, yield_rule)
             if Decimal(str(inventory.stock_qty or 0)) < qty_required:
                 raise HTTPException(status_code=400, detail=f"{inventory.name} üçün anbarda kifayət qədər qalıq yoxdur")
             stock_ops.append((inventory, qty_required))
             cogs_total += (qty_required * Decimal(str(inventory.unit_cost or 0))).quantize(Decimal("0.0001"))
+            if yield_rule:
+                _record_doner_batch_consumption(
+                    db,
+                    tenant_id,
+                    inventory.name,
+                    str(yield_rule.get("meat_type") or "beef"),
+                    sold_ready_qty.quantize(Decimal("0.001")),
+                    qty_required.quantize(Decimal("0.001")),
+                )
     return stock_ops, cogs_total.quantize(Decimal("0.0001"))
 
 
@@ -220,6 +317,19 @@ class BusinessProfileIn(BaseModel):
     website: str | None = None
     logo_url: str | None = None
     receipt_footer: str | None = None
+
+
+class DonerBatchOpenIn(BaseModel):
+    inventory_name: str
+    meat_type: str
+    raw_weight_kg: Decimal
+    raw_to_ready_ratio: Decimal | None = None
+    notes: str | None = None
+
+
+class DonerBatchCloseIn(BaseModel):
+    actual_remaining_raw_weight_kg: Decimal
+    notes: str | None = None
     voen: str | None = None
 
 
@@ -478,6 +588,7 @@ def get_app_settings(
         "tenant_id": tenant.id,
         "service_fee_percent": _setting_value(db, tenant.id, "service_fee_percent", 0),
         "table_service_settings": _setting_value(db, tenant.id, "table_service_settings", {"deposit_per_guest_azn": 0}),
+        "yield_management_settings": _yield_settings(db, tenant.id),
         "ui_visibility": {"staff_show_tables": True, "manager_show_tables": True, "staff_show_kitchen": True},
         "time_settings": {"shift_start_time": "08:00", "shift_end_time": "23:00", "utc_offset": 4, "timezone": "Asia/Baku"},
         "session_settings": session_settings,
@@ -528,6 +639,54 @@ def update_role_modules(
     _set_setting_value(db, tenant.id, "role_modules", payload)
     db.commit()
     return {"success": True}
+
+
+@router.patch("/settings/yield-management")
+def update_yield_management_settings(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    current = _yield_settings(db, tenant.id)
+    profiles = dict(current.get("profiles") or {})
+    payload_profiles = dict(payload.get("profiles") or {})
+    for key, value in payload_profiles.items():
+        if not isinstance(value, dict):
+            continue
+        safe_key = str(key or "").strip().lower()
+        if not safe_key:
+            continue
+        profiles[safe_key] = {
+            "raw_to_ready_ratio": max(1, float(value.get("raw_to_ready_ratio") or profiles.get(safe_key, {}).get("raw_to_ready_ratio") or 1)),
+            "loss_min_percent": max(0, float(value.get("loss_min_percent") or profiles.get(safe_key, {}).get("loss_min_percent") or 0)),
+            "loss_max_percent": max(0, float(value.get("loss_max_percent") or profiles.get(safe_key, {}).get("loss_max_percent") or 0)),
+        }
+    tracked_items = []
+    for row in payload.get("tracked_items") or current.get("tracked_items") or []:
+        if not isinstance(row, dict):
+            continue
+        inventory_name = str(row.get("inventory_name") or "").strip()
+        if not inventory_name:
+            continue
+        tracked_items.append(
+            {
+                "inventory_name": inventory_name,
+                "meat_type": str(row.get("meat_type") or "beef").strip().lower() or "beef",
+                "raw_to_ready_ratio": max(1, float(row.get("raw_to_ready_ratio") or 1)),
+                "enabled": bool(row.get("enabled", True)),
+            }
+        )
+    cleaned = {
+        "enabled": bool(payload.get("enabled", current.get("enabled", False))),
+        "variance_tolerance_percent": max(0, float(payload.get("variance_tolerance_percent") or current.get("variance_tolerance_percent") or 5)),
+        "profiles": profiles,
+        "tracked_items": tracked_items,
+    }
+    _set_setting_value(db, tenant.id, "yield_management_settings", cleaned)
+    db.commit()
+    return {"success": True, "yield_management_settings": cleaned}
 
 
 @router.patch("/settings/pos-layout-draft")
@@ -918,6 +1077,208 @@ def update_staff_benefits(
     _set_setting_value(db, tenant.id, "staff_benefits", cleaned)
     db.commit()
     return {"success": True}
+
+
+@router.get("/yield/batches/active")
+def list_active_doner_batches(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    rows = (
+        db.query(DonerBatch)
+        .filter(DonerBatch.tenant_id == tenant.id, DonerBatch.status == "OPEN")
+        .order_by(DonerBatch.opened_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": row.id,
+            "inventory_name": row.inventory_name,
+            "meat_type": row.meat_type,
+            "opened_by": row.opened_by,
+            "opened_at": row.opened_at.isoformat() if row.opened_at else None,
+            "raw_weight_kg": str(row.raw_weight_kg or 0),
+            "raw_to_ready_ratio": str(row.raw_to_ready_ratio or 1),
+            "expected_ready_weight_kg": str(row.expected_ready_weight_kg or 0),
+            "sold_ready_weight_kg": str(row.sold_ready_weight_kg or 0),
+            "deducted_raw_weight_kg": str(row.deducted_raw_weight_kg or 0),
+            "notes": row.notes,
+        }
+        for row in rows
+    ]
+
+
+@router.post("/yield/batches/open")
+def open_doner_batch(
+    payload: DonerBatchOpenIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_manager(user)
+    inventory_name = str(payload.inventory_name or "").strip()
+    if not inventory_name:
+        raise HTTPException(status_code=400, detail="Inventory name is required")
+    if Decimal(str(payload.raw_weight_kg or 0)) <= 0:
+        raise HTTPException(status_code=400, detail="Raw weight must be > 0")
+    settings = _yield_settings(db, tenant.id)
+    profile = dict((settings.get("profiles") or {}).get(str(payload.meat_type or "beef").strip().lower()) or {})
+    ratio = Decimal(str(payload.raw_to_ready_ratio or profile.get("raw_to_ready_ratio") or 1)).quantize(Decimal("0.0001"))
+    raw_weight = Decimal(str(payload.raw_weight_kg)).quantize(Decimal("0.001"))
+    expected_ready_weight = (raw_weight / ratio).quantize(Decimal("0.001")) if ratio > 0 else Decimal("0.000")
+    row = DonerBatch(
+        tenant_id=tenant.id,
+        inventory_name=inventory_name,
+        meat_type=str(payload.meat_type or "beef").strip().lower() or "beef",
+        opened_by=user.username,
+        raw_weight_kg=raw_weight,
+        raw_to_ready_ratio=ratio,
+        expected_ready_weight_kg=expected_ready_weight,
+        sold_ready_weight_kg=Decimal("0.000"),
+        deducted_raw_weight_kg=Decimal("0.000"),
+        notes=str(payload.notes or "").strip() or None,
+        status="OPEN",
+    )
+    db.add(row)
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="DONER_BATCH_OPENED",
+            details=json.dumps(
+                {
+                    "inventory_name": inventory_name,
+                    "meat_type": row.meat_type,
+                    "raw_weight_kg": str(raw_weight),
+                    "raw_to_ready_ratio": str(ratio),
+                    "expected_ready_weight_kg": str(expected_ready_weight),
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    db.commit()
+    db.refresh(row)
+    return {
+        "success": True,
+        "id": row.id,
+        "expected_ready_weight_kg": str(expected_ready_weight),
+    }
+
+
+@router.post("/yield/batches/{batch_id}/close")
+def close_doner_batch(
+    batch_id: str,
+    payload: DonerBatchCloseIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_manager(user)
+    row = db.query(DonerBatch).filter(DonerBatch.id == batch_id, DonerBatch.tenant_id == tenant.id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    if str(row.status or "").upper() == "CLOSED":
+        raise HTTPException(status_code=400, detail="Batch already closed")
+    actual_remaining = Decimal(str(payload.actual_remaining_raw_weight_kg or 0)).quantize(Decimal("0.001"))
+    if actual_remaining < 0:
+        raise HTTPException(status_code=400, detail="Remaining raw weight cannot be negative")
+
+    expected_raw_consumption = Decimal(str(row.deducted_raw_weight_kg or 0)).quantize(Decimal("0.001"))
+    actual_raw_consumption = max(Decimal("0.000"), Decimal(str(row.raw_weight_kg or 0)) - actual_remaining).quantize(Decimal("0.001"))
+    variance_percent = (
+        Decimal("0.00")
+        if expected_raw_consumption <= 0
+        else ((actual_raw_consumption - expected_raw_consumption) / expected_raw_consumption * Decimal("100")).quantize(Decimal("0.01"))
+    )
+    tolerance = Decimal(str(_yield_settings(db, tenant.id).get("variance_tolerance_percent") or 5)).quantize(Decimal("0.01"))
+    flagged = variance_percent.copy_abs() > tolerance
+    reason = "israf/oğurluq" if flagged else "normal"
+
+    row.actual_remaining_raw_weight_kg = actual_remaining
+    row.variance_percent = variance_percent
+    row.status = "CLOSED"
+    row.closed_at = datetime.utcnow()
+    row.notes = str(payload.notes or row.notes or "").strip() or None
+
+    db.add(
+        WasteLog(
+            tenant_id=tenant.id,
+            batch_id=row.id,
+            inventory_name=row.inventory_name,
+            meat_type=row.meat_type,
+            expected_raw_consumption_kg=expected_raw_consumption,
+            actual_raw_consumption_kg=actual_raw_consumption,
+            variance_percent=variance_percent,
+            tolerance_percent=tolerance,
+            flagged=flagged,
+            reason=reason,
+            notes=row.notes,
+            created_by=user.username,
+        )
+    )
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="DONER_BATCH_CLOSED",
+            details=json.dumps(
+                {
+                    "batch_id": row.id,
+                    "inventory_name": row.inventory_name,
+                    "expected_raw_consumption_kg": str(expected_raw_consumption),
+                    "actual_raw_consumption_kg": str(actual_raw_consumption),
+                    "variance_percent": str(variance_percent),
+                    "tolerance_percent": str(tolerance),
+                    "flagged": flagged,
+                    "reason": reason,
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    db.commit()
+    return {
+        "success": True,
+        "flagged": flagged,
+        "reason": reason,
+        "variance_percent": str(variance_percent),
+        "expected_raw_consumption_kg": str(expected_raw_consumption),
+        "actual_raw_consumption_kg": str(actual_raw_consumption),
+    }
+
+
+@router.get("/yield/waste-logs")
+def list_yield_waste_logs(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    rows = (
+        db.query(WasteLog)
+        .filter(WasteLog.tenant_id == tenant.id)
+        .order_by(WasteLog.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    return [
+        {
+            "id": row.id,
+            "batch_id": row.batch_id,
+            "inventory_name": row.inventory_name,
+            "meat_type": row.meat_type,
+            "expected_raw_consumption_kg": str(row.expected_raw_consumption_kg or 0),
+            "actual_raw_consumption_kg": str(row.actual_raw_consumption_kg or 0),
+            "variance_percent": str(row.variance_percent or 0),
+            "tolerance_percent": str(row.tolerance_percent or 0),
+            "flagged": bool(row.flagged),
+            "reason": row.reason,
+            "notes": row.notes,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+        for row in rows
+    ]
 
 
 @router.post("/emails/send")
