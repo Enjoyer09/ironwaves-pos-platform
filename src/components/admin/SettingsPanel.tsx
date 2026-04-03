@@ -17,6 +17,7 @@ import {
   update_service_fee_live,
   update_session_settings_live,
   update_table_service_settings_live,
+  update_yield_management_settings_live,
   update_business_profile_live,
   update_print_settings,
   update_qr_settings_live,
@@ -26,6 +27,7 @@ import {
   verify_totp_live,
 } from '../../api/settings';
 import { get_menu_items_live } from '../../api/menu';
+import { get_inventory_items_live } from '../../api/inventory';
 import ConfirmModal from '../ConfirmModal';
 
 type RoleModules = { staff: string[]; manager: string[]; kitchen: string[] };
@@ -71,6 +73,17 @@ export default function SettingsPanel() {
     service_fee_percent: '0',
     deposit_per_guest_azn: '0',
   });
+  const [yieldManagement, setYieldManagement] = useState({
+    enabled: false,
+    variance_tolerance_percent: '5',
+    beef_ratio: '1.4',
+    beef_loss_min_percent: '30',
+    beef_loss_max_percent: '40',
+    chicken_ratio: '1.33',
+    chicken_loss_min_percent: '25',
+    chicken_loss_max_percent: '35',
+    tracked_items: [] as Array<{ inventory_name: string; meat_type: 'beef' | 'chicken'; raw_to_ready_ratio: string; enabled: boolean }>,
+  });
   const [staffBenefits, setStaffBenefits] = useState({
     daily_limit_azn: '6',
     allowed_scope: 'all' as 'all' | 'categories' | 'items',
@@ -79,6 +92,7 @@ export default function SettingsPanel() {
     item_unit_cap_azn: '6',
   });
   const [menuCatalog, setMenuCatalog] = useState<any[]>([]);
+  const [inventoryCatalog, setInventoryCatalog] = useState<any[]>([]);
 
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<'staff' | 'kitchen' | 'manager' | 'admin'>('staff');
@@ -122,6 +136,7 @@ export default function SettingsPanel() {
       get_settings_live(tenantId),
     ]);
     void get_menu_items_live(tenantId).then(setMenuCatalog).catch(() => setMenuCatalog([]));
+    void get_inventory_items_live(tenantId).then(setInventoryCatalog).catch(() => setInventoryCatalog([]));
 
     if (profileRes.status === 'fulfilled') {
       const nextProfile = {
@@ -160,6 +175,24 @@ export default function SettingsPanel() {
       setTableServiceSettings({
         service_fee_percent: String(settingsRes.value.service_fee_percent ?? 0),
         deposit_per_guest_azn: String(settingsRes.value.table_service_settings?.deposit_per_guest_azn ?? 0),
+      });
+      setYieldManagement({
+        enabled: Boolean(settingsRes.value.yield_management_settings?.enabled),
+        variance_tolerance_percent: String(settingsRes.value.yield_management_settings?.variance_tolerance_percent ?? 5),
+        beef_ratio: String(settingsRes.value.yield_management_settings?.profiles?.beef?.raw_to_ready_ratio ?? 1.4),
+        beef_loss_min_percent: String(settingsRes.value.yield_management_settings?.profiles?.beef?.loss_min_percent ?? 30),
+        beef_loss_max_percent: String(settingsRes.value.yield_management_settings?.profiles?.beef?.loss_max_percent ?? 40),
+        chicken_ratio: String(settingsRes.value.yield_management_settings?.profiles?.chicken?.raw_to_ready_ratio ?? 1.33),
+        chicken_loss_min_percent: String(settingsRes.value.yield_management_settings?.profiles?.chicken?.loss_min_percent ?? 25),
+        chicken_loss_max_percent: String(settingsRes.value.yield_management_settings?.profiles?.chicken?.loss_max_percent ?? 35),
+        tracked_items: Array.isArray(settingsRes.value.yield_management_settings?.tracked_items)
+          ? settingsRes.value.yield_management_settings!.tracked_items!.map((row: any) => ({
+              inventory_name: String(row.inventory_name || ''),
+              meat_type: String(row.meat_type || 'beef') === 'chicken' ? 'chicken' : 'beef',
+              raw_to_ready_ratio: String(row.raw_to_ready_ratio ?? (String(row.meat_type || 'beef') === 'chicken' ? 1.33 : 1.4)),
+              enabled: row.enabled !== false,
+            }))
+          : [],
       });
       setStaffBenefits({
         daily_limit_azn: String(settingsRes.value.staff_benefits?.daily_limit_azn ?? 6),
@@ -454,6 +487,59 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Masa xidməti ayarları yadda saxlanıldı', 'Настройки столов сохранены', 'Table service settings saved'));
   };
 
+  const toggleYieldTrackedItem = (inventory_name: string, enabled: boolean) => {
+    setYieldManagement((prev) => {
+      const existing = prev.tracked_items.find((row) => row.inventory_name === inventory_name);
+      if (enabled) {
+        if (existing) {
+          return {
+            ...prev,
+            tracked_items: prev.tracked_items.map((row) =>
+              row.inventory_name === inventory_name ? { ...row, enabled: true } : row,
+            ),
+          };
+        }
+        return {
+          ...prev,
+          tracked_items: [
+            ...prev.tracked_items,
+            { inventory_name, meat_type: 'beef', raw_to_ready_ratio: prev.beef_ratio || '1.4', enabled: true },
+          ],
+        };
+      }
+      return {
+        ...prev,
+        tracked_items: prev.tracked_items.filter((row) => row.inventory_name !== inventory_name),
+      };
+    });
+  };
+
+  const saveYieldManagement = async () => {
+    await update_yield_management_settings_live({
+      enabled: yieldManagement.enabled,
+      variance_tolerance_percent: Number(yieldManagement.variance_tolerance_percent || 5),
+      profiles: {
+        beef: {
+          raw_to_ready_ratio: Number(yieldManagement.beef_ratio || 1.4),
+          loss_min_percent: Number(yieldManagement.beef_loss_min_percent || 30),
+          loss_max_percent: Number(yieldManagement.beef_loss_max_percent || 40),
+        },
+        chicken: {
+          raw_to_ready_ratio: Number(yieldManagement.chicken_ratio || 1.33),
+          loss_min_percent: Number(yieldManagement.chicken_loss_min_percent || 25),
+          loss_max_percent: Number(yieldManagement.chicken_loss_max_percent || 35),
+        },
+      },
+      tracked_items: yieldManagement.tracked_items.map((row) => ({
+        inventory_name: row.inventory_name,
+        meat_type: row.meat_type,
+        raw_to_ready_ratio: Number(row.raw_to_ready_ratio || (row.meat_type === 'chicken' ? yieldManagement.chicken_ratio : yieldManagement.beef_ratio)),
+        enabled: row.enabled,
+      })),
+    });
+    flashSuccess(tx(lang, 'Yield management ayarları yadda saxlanıldı', 'Настройки yield management сохранены', 'Yield management settings saved'));
+  };
+
 
   const saveStaffBenefits = async () => {
     await update_staff_benefits_live({
@@ -687,6 +773,127 @@ export default function SettingsPanel() {
         </div>
         <div className="flex justify-end">
           <button onClick={() => { void saveBankCommission(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+        </div>
+      </div>
+
+      <div className="metal-panel p-6 space-y-4">
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Yield Management', 'Yield Management', 'Yield Management')}</h2>
+        <p className="text-sm text-slate-400">
+          {tx(
+            lang,
+            'Dönər və oxşar məhsullarda hazır porsiya satışını çiy xammal sərfinə çevirin. Gün sonu fərq tolerance-dan çox olarsa sistem waste/scam flag yaradır.',
+            'Преобразуйте продажу готовой порции в расход сырого мяса. В конце дня система пометит отклонение выше tolerance как waste/scam.',
+            'Convert ready-portion sales into raw-meat consumption. At day end, variance beyond tolerance is flagged as waste/scam.',
+          )}
+        </p>
+        <label className="flex items-center gap-3 text-sm text-slate-200">
+          <input
+            type="checkbox"
+            checked={yieldManagement.enabled}
+            onChange={(e) => setYieldManagement((prev) => ({ ...prev, enabled: e.target.checked }))}
+          />
+          {tx(lang, 'Yield management aktiv olsun', 'Включить yield management', 'Enable yield management')}
+        </label>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <input
+            className="neon-input"
+            type="number"
+            min={0}
+            step="0.01"
+            value={yieldManagement.variance_tolerance_percent}
+            onChange={(e) => setYieldManagement((prev) => ({ ...prev, variance_tolerance_percent: e.target.value }))}
+            placeholder={tx(lang, 'Variance tolerance (%)', 'Variance tolerance (%)', 'Variance tolerance (%)')}
+          />
+          <input
+            className="neon-input"
+            type="number"
+            min={1}
+            step="0.01"
+            value={yieldManagement.beef_ratio}
+            onChange={(e) => setYieldManagement((prev) => ({ ...prev, beef_ratio: e.target.value }))}
+            placeholder={tx(lang, 'Mal əti ratio', 'Ratio говядины', 'Beef ratio')}
+          />
+          <input
+            className="neon-input"
+            type="number"
+            min={1}
+            step="0.01"
+            value={yieldManagement.chicken_ratio}
+            onChange={(e) => setYieldManagement((prev) => ({ ...prev, chicken_ratio: e.target.value }))}
+            placeholder={tx(lang, 'Toyuq ratio', 'Ratio курицы', 'Chicken ratio')}
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 space-y-2">
+            <div className="font-semibold text-slate-100">{tx(lang, 'Mal əti standartı', 'Стандарт говядины', 'Beef standard')}</div>
+            <div className="grid grid-cols-2 gap-2">
+              <input className="neon-input" type="number" min={0} step="0.01" value={yieldManagement.beef_loss_min_percent} onChange={(e) => setYieldManagement((prev) => ({ ...prev, beef_loss_min_percent: e.target.value }))} placeholder={tx(lang, 'Min itki %', 'Мин потеря %', 'Min loss %')} />
+              <input className="neon-input" type="number" min={0} step="0.01" value={yieldManagement.beef_loss_max_percent} onChange={(e) => setYieldManagement((prev) => ({ ...prev, beef_loss_max_percent: e.target.value }))} placeholder={tx(lang, 'Max itki %', 'Макс потеря %', 'Max loss %')} />
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 space-y-2">
+            <div className="font-semibold text-slate-100">{tx(lang, 'Toyuq standartı', 'Стандарт курицы', 'Chicken standard')}</div>
+            <div className="grid grid-cols-2 gap-2">
+              <input className="neon-input" type="number" min={0} step="0.01" value={yieldManagement.chicken_loss_min_percent} onChange={(e) => setYieldManagement((prev) => ({ ...prev, chicken_loss_min_percent: e.target.value }))} placeholder={tx(lang, 'Min itki %', 'Мин потеря %', 'Min loss %')} />
+              <input className="neon-input" type="number" min={0} step="0.01" value={yieldManagement.chicken_loss_max_percent} onChange={(e) => setYieldManagement((prev) => ({ ...prev, chicken_loss_max_percent: e.target.value }))} placeholder={tx(lang, 'Max itki %', 'Макс потеря %', 'Max loss %')} />
+            </div>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 space-y-3">
+          <div className="font-semibold text-slate-100">{tx(lang, 'Track olunacaq inventar', 'Отслеживаемый инвентарь', 'Tracked inventory')}</div>
+          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+            {inventoryCatalog.map((item: any) => {
+              const tracked = yieldManagement.tracked_items.find((row) => row.inventory_name === item.name);
+              return (
+                <div key={item.id || item.name} className="grid grid-cols-1 gap-2 rounded-xl border border-slate-700/50 bg-slate-900/40 p-3 md:grid-cols-[1fr_120px_130px] md:items-center">
+                  <label className="flex items-center gap-3 text-sm text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(tracked)}
+                      onChange={(e) => toggleYieldTrackedItem(String(item.name || ''), e.target.checked)}
+                    />
+                    <span>{item.name}</span>
+                  </label>
+                  <select
+                    className="neon-input"
+                    value={tracked?.meat_type || 'beef'}
+                    disabled={!tracked}
+                    onChange={(e) =>
+                      setYieldManagement((prev) => ({
+                        ...prev,
+                        tracked_items: prev.tracked_items.map((row) =>
+                          row.inventory_name === item.name ? { ...row, meat_type: e.target.value as 'beef' | 'chicken' } : row,
+                        ),
+                      }))
+                    }
+                  >
+                    <option value="beef">{tx(lang, 'Mal əti', 'Говядина', 'Beef')}</option>
+                    <option value="chicken">{tx(lang, 'Toyuq', 'Курица', 'Chicken')}</option>
+                  </select>
+                  <input
+                    className="neon-input"
+                    type="number"
+                    min={1}
+                    step="0.01"
+                    disabled={!tracked}
+                    value={tracked?.raw_to_ready_ratio || ''}
+                    onChange={(e) =>
+                      setYieldManagement((prev) => ({
+                        ...prev,
+                        tracked_items: prev.tracked_items.map((row) =>
+                          row.inventory_name === item.name ? { ...row, raw_to_ready_ratio: e.target.value } : row,
+                        ),
+                      }))
+                    }
+                    placeholder={tx(lang, 'Raw ratio', 'Raw ratio', 'Raw ratio')}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <button onClick={() => { void saveYieldManagement(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 

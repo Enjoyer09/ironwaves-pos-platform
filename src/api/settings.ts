@@ -184,6 +184,39 @@ export function update_table_service_settings(payload: { deposit_per_guest_azn: 
   return { success: true };
 }
 
+export function update_yield_management_settings(payload: NonNullable<Settings['yield_management_settings']>) {
+  const settings = getSettings();
+  settings.yield_management_settings = {
+    enabled: Boolean(payload?.enabled),
+    variance_tolerance_percent: Math.max(0, Number(payload?.variance_tolerance_percent || 0)),
+    profiles: {
+      beef: {
+        raw_to_ready_ratio: Math.max(1, Number(payload?.profiles?.beef?.raw_to_ready_ratio || 1.4)),
+        loss_min_percent: Math.max(0, Number(payload?.profiles?.beef?.loss_min_percent || 30)),
+        loss_max_percent: Math.max(0, Number(payload?.profiles?.beef?.loss_max_percent || 40)),
+      },
+      chicken: {
+        raw_to_ready_ratio: Math.max(1, Number(payload?.profiles?.chicken?.raw_to_ready_ratio || 1.33)),
+        loss_min_percent: Math.max(0, Number(payload?.profiles?.chicken?.loss_min_percent || 25)),
+        loss_max_percent: Math.max(0, Number(payload?.profiles?.chicken?.loss_max_percent || 35)),
+      },
+    },
+    tracked_items: Array.isArray(payload?.tracked_items)
+      ? payload.tracked_items
+          .map((row) => ({
+            inventory_name: String(row.inventory_name || '').trim(),
+            meat_type: String(row.meat_type || 'beef').trim().toLowerCase() || 'beef',
+            raw_to_ready_ratio: Math.max(1, Number(row.raw_to_ready_ratio || 1)),
+            enabled: row.enabled !== false,
+          }))
+          .filter((row) => row.inventory_name)
+      : [],
+  };
+  saveSettings(settings);
+  logEvent('admin', 'YIELD_MANAGEMENT_UPDATE', settings.yield_management_settings);
+  return { success: true, yield_management_settings: settings.yield_management_settings };
+}
+
 export function update_ui_visibility(payload: { staff_show_tables: boolean; manager_show_tables: boolean; staff_show_kitchen: boolean }) {
   const settings = getSettings();
   settings.ui_visibility = payload;
@@ -820,6 +853,13 @@ export async function update_table_service_settings_live(payload: { deposit_per_
   if (!isBackendEnabled()) return update_table_service_settings(payload);
   await apiRequest('/api/v1/ops/settings/table-service', { method: 'PATCH', tenantId: null, body: payload });
   update_table_service_settings(payload);
+  return { success: true };
+}
+
+export async function update_yield_management_settings_live(payload: NonNullable<Settings['yield_management_settings']>) {
+  if (!isBackendEnabled()) return update_yield_management_settings(payload);
+  await apiRequest('/api/v1/ops/settings/yield-management', { method: 'PATCH', tenantId: null, body: payload });
+  update_yield_management_settings(payload);
   return { success: true };
 }
 
