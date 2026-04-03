@@ -89,6 +89,62 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const syncFieldHelpers = () => {
+      const fields = Array.from(
+        document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input.neon-input[placeholder], textarea.neon-input[placeholder]'),
+      );
+
+      fields.forEach((field) => {
+        const originalPlaceholder = field.getAttribute('data-original-placeholder') || field.getAttribute('placeholder') || '';
+        const parent = field.parentElement;
+        if (!originalPlaceholder || !parent) return;
+
+        const formControlsInParent = Array.from(parent.children).filter((node) => {
+          if (!(node instanceof HTMLElement)) return false;
+          if (node.classList.contains('neon-auto-helper')) return false;
+          return node.matches('input, textarea, select');
+        });
+
+        if (formControlsInParent.length !== 1) return;
+
+        field.setAttribute('data-original-placeholder', originalPlaceholder);
+        field.setAttribute('placeholder', '');
+        field.classList.add('neon-input-with-helper');
+        parent.classList.add('neon-helper-host');
+
+        let helper = parent.querySelector<HTMLElement>(`.neon-auto-helper[data-for-id="${field.dataset.helperId || ''}"]`);
+        if (!field.dataset.helperId) {
+          field.dataset.helperId = `helper-${Math.random().toString(36).slice(2, 10)}`;
+        }
+        if (!helper) {
+          helper = document.createElement('div');
+          helper.className = 'neon-auto-helper';
+          helper.dataset.forId = field.dataset.helperId;
+          parent.appendChild(helper);
+        }
+        helper.textContent = originalPlaceholder;
+      });
+    };
+
+    syncFieldHelpers();
+    const observer = new MutationObserver(() => {
+      syncFieldHelpers();
+    });
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['placeholder', 'class'],
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!hasValidUser || !user?.tenant_id) return;
     void get_business_profile_live(user.tenant_id).catch(() => {});
     void get_settings_live(user.tenant_id).catch(() => {});

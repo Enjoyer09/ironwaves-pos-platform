@@ -107,6 +107,26 @@ html {
     box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.55);
   }
 
+  .neon-helper-host {
+    position: relative;
+  }
+
+  .neon-input-with-helper {
+    margin-bottom: 1.15rem;
+  }
+
+  .neon-auto-helper {
+    position: absolute;
+    left: 0.2rem;
+    right: 0.2rem;
+    bottom: 0;
+    pointer-events: none;
+    font-size: 0.72rem;
+    line-height: 1.15;
+    color: #94a3b8;
+    opacity: 0.95;
+  }
+
   .neon-input::placeholder {
     color: #94a3b8;
   }
