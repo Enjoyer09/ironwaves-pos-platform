@@ -51,6 +51,15 @@ function getSettings(tenant_id?: string): Settings {
       tenant_id: resolvedTenant,
       service_fee_percent: 0,
       table_service_settings: { deposit_per_guest_azn: 0 },
+      yield_management_settings: {
+        enabled: false,
+        variance_tolerance_percent: 5,
+        profiles: {
+          beef: { raw_to_ready_ratio: 1.4, loss_min_percent: 30, loss_max_percent: 40 },
+          chicken: { raw_to_ready_ratio: 1.33, loss_min_percent: 25, loss_max_percent: 35 },
+        },
+        tracked_items: [],
+      },
       ui_visibility: { staff_show_tables: true, manager_show_tables: true, staff_show_kitchen: true },
       time_settings: { shift_start_time: '08:00', shift_end_time: '23:00', utc_offset: 4, timezone: 'Asia/Baku' },
       session_settings: { idle_logout_minutes: 0 },
@@ -444,6 +453,18 @@ export function get_settings(tenant_id?: string) {
   }
   if (!s.table_service_settings) {
     s.table_service_settings = { deposit_per_guest_azn: 0 };
+    saveSettings(s);
+  }
+  if (!s.yield_management_settings) {
+    s.yield_management_settings = {
+      enabled: false,
+      variance_tolerance_percent: 5,
+      profiles: {
+        beef: { raw_to_ready_ratio: 1.4, loss_min_percent: 30, loss_max_percent: 40 },
+        chicken: { raw_to_ready_ratio: 1.33, loss_min_percent: 25, loss_max_percent: 35 },
+      },
+      tracked_items: [],
+    };
     saveSettings(s);
   }
   if (!s.session_settings) {

@@ -150,6 +150,17 @@ export interface Settings {
   table_service_settings?: {
     deposit_per_guest_azn: number;
   };
+  yield_management_settings?: {
+    enabled: boolean;
+    variance_tolerance_percent: number;
+    profiles?: Record<string, { raw_to_ready_ratio: number; loss_min_percent: number; loss_max_percent: number }>;
+    tracked_items?: Array<{
+      inventory_name: string;
+      meat_type: string;
+      raw_to_ready_ratio: number;
+      enabled?: boolean;
+    }>;
+  };
   ui_visibility: {
     staff_show_tables: boolean;
     manager_show_tables: boolean;
