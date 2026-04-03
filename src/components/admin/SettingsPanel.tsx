@@ -107,6 +107,7 @@ export default function SettingsPanel() {
   const [menuCatalog, setMenuCatalog] = useState<any[]>([]);
   const [inventoryCatalog, setInventoryCatalog] = useState<any[]>([]);
   const [yieldInventoryCandidate, setYieldInventoryCandidate] = useState('');
+  const [yieldInventorySearch, setYieldInventorySearch] = useState('');
 
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<'staff' | 'kitchen' | 'manager' | 'admin'>('staff');
@@ -167,6 +168,12 @@ export default function SettingsPanel() {
   const selectableYieldInventory = [...preferredYieldInventory, ...remainingYieldInventory].filter(
     (item: any) => !yieldManagement.tracked_items.some((row) => row.inventory_name === item.name),
   );
+  const normalizedYieldInventorySearch = String(yieldInventorySearch || '').trim().toLowerCase();
+  const filteredYieldInventory = selectableYieldInventory.filter((item: any) => {
+    if (!normalizedYieldInventorySearch) return true;
+    const hay = `${String(item?.name || '')} ${String(item?.category || '')}`.toLowerCase();
+    return hay.includes(normalizedYieldInventorySearch);
+  });
 
   const requiresPasswordForNewUser = ['admin', 'manager'].includes(newUserRole);
   const pinUsers = users.filter((u) => ['staff', 'kitchen'].includes(String(u.role || '').toLowerCase()));
@@ -985,6 +992,14 @@ export default function SettingsPanel() {
               'Add only inventory that truly needs yield audit, such as raw meat. For fruit and vegetables, use this only if you run a separate daily waste audit.',
             )}
           </p>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <input
+              className="neon-input"
+              value={yieldInventorySearch}
+              onChange={(e) => setYieldInventorySearch(e.target.value)}
+              placeholder={tx(lang, 'Məhsul axtar...', 'Поиск товара...', 'Search inventory...')}
+            />
+          </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
             <select
               className="neon-input"
@@ -994,7 +1009,7 @@ export default function SettingsPanel() {
               <option value="">{tx(lang, 'Anbardan məhsul seçin', 'Выберите товар со склада', 'Select inventory item')}</option>
               {preferredYieldInventory.length > 0 ? (
                 <optgroup label={tx(lang, 'Ət / dönər üçün uyğun məhsullar', 'Подходящие мясные позиции', 'Preferred meat items')}>
-                  {selectableYieldInventory
+                  {filteredYieldInventory
                     .filter((item: any) => preferredYieldInventory.some((preferred: any) => preferred.id === item.id || preferred.name === item.name))
                     .sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
                     .map((item: any) => (
@@ -1006,7 +1021,7 @@ export default function SettingsPanel() {
               ) : null}
               {remainingYieldInventory.length > 0 ? (
                 <optgroup label={tx(lang, 'Digər inventar', 'Прочий инвентарь', 'Other inventory')}>
-                  {selectableYieldInventory
+                  {filteredYieldInventory
                     .filter((item: any) => remainingYieldInventory.some((rest: any) => rest.id === item.id || rest.name === item.name))
                     .sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
                     .map((item: any) => (
