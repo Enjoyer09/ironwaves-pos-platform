@@ -781,7 +781,7 @@ export default function SettingsPanel() {
         <p className="text-sm text-slate-400">
           {tx(
             lang,
-            'Dönər və oxşar məhsullarda hazır porsiya satışını çiy xammal sərfinə çevirin. Gün sonu fərq tolerance-dan çox olarsa sistem waste/scam flag yaradır.',
+            'Dönər və oxşar məhsullarda hazır porsiya satışını çiy xammal sərfinə çevirin. Gün sonu faktiki fərq icazə verilən həddi keçərsə, sistem bunu israf və ya şübhəli fərq kimi qeyd edir.',
             'Преобразуйте продажу готовой порции в расход сырого мяса. В конце дня система пометит отклонение выше tolerance как waste/scam.',
             'Convert ready-portion sales into raw-meat consumption. At day end, variance beyond tolerance is flagged as waste/scam.',
           )}
@@ -811,7 +811,7 @@ export default function SettingsPanel() {
             step="0.01"
             value={yieldManagement.beef_ratio}
             onChange={(e) => setYieldManagement((prev) => ({ ...prev, beef_ratio: e.target.value }))}
-            placeholder={tx(lang, 'Mal əti ratio', 'Ratio говядины', 'Beef ratio')}
+            placeholder={tx(lang, 'Mal əti üçün çiy / hazır nisbəti', 'Ratio говядины', 'Beef ratio')}
           />
           <input
             className="neon-input"
@@ -820,7 +820,7 @@ export default function SettingsPanel() {
             step="0.01"
             value={yieldManagement.chicken_ratio}
             onChange={(e) => setYieldManagement((prev) => ({ ...prev, chicken_ratio: e.target.value }))}
-            placeholder={tx(lang, 'Toyuq ratio', 'Ratio курицы', 'Chicken ratio')}
+            placeholder={tx(lang, 'Toyuq əti üçün çiy / hazır nisbəti', 'Ratio курицы', 'Chicken ratio')}
           />
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -840,7 +840,7 @@ export default function SettingsPanel() {
           </div>
         </div>
         <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 space-y-3">
-          <div className="font-semibold text-slate-100">{tx(lang, 'Track olunacaq inventar', 'Отслеживаемый инвентарь', 'Tracked inventory')}</div>
+          <div className="font-semibold text-slate-100">{tx(lang, 'İzlənəcək inventar', 'Отслеживаемый инвентарь', 'Tracked inventory')}</div>
           <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
             {inventoryCatalog.map((item: any) => {
               const tracked = yieldManagement.tracked_items.find((row) => row.inventory_name === item.name);
@@ -868,7 +868,7 @@ export default function SettingsPanel() {
                     }
                   >
                     <option value="beef">{tx(lang, 'Mal əti', 'Говядина', 'Beef')}</option>
-                    <option value="chicken">{tx(lang, 'Toyuq', 'Курица', 'Chicken')}</option>
+                    <option value="chicken">{tx(lang, 'Toyuq əti', 'Курица', 'Chicken')}</option>
                   </select>
                   <input
                     className="neon-input"
