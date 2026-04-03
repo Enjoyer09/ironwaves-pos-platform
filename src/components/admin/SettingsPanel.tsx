@@ -106,6 +106,7 @@ export default function SettingsPanel() {
   });
   const [menuCatalog, setMenuCatalog] = useState<any[]>([]);
   const [inventoryCatalog, setInventoryCatalog] = useState<any[]>([]);
+  const [yieldInventoryCandidate, setYieldInventoryCandidate] = useState('');
 
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<'staff' | 'kitchen' | 'manager' | 'admin'>('staff');
@@ -513,33 +514,6 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Masa xidməti ayarları yadda saxlanıldı', 'Настройки столов сохранены', 'Table service settings saved'));
   };
 
-  const toggleYieldTrackedItem = (inventory_name: string, enabled: boolean) => {
-    setYieldManagement((prev) => {
-      const existing = prev.tracked_items.find((row) => row.inventory_name === inventory_name);
-      if (enabled) {
-        if (existing) {
-          return {
-            ...prev,
-            tracked_items: prev.tracked_items.map((row) =>
-              row.inventory_name === inventory_name ? { ...row, enabled: true } : row,
-            ),
-          };
-        }
-        return {
-          ...prev,
-          tracked_items: [
-            ...prev.tracked_items,
-            { inventory_name, meat_type: 'beef', raw_to_ready_ratio: prev.beef_ratio || '1.4', enabled: true },
-          ],
-        };
-      }
-      return {
-        ...prev,
-        tracked_items: prev.tracked_items.filter((row) => row.inventory_name !== inventory_name),
-      };
-    });
-  };
-
   const saveYieldManagement = async () => {
     await update_yield_management_settings_live({
       enabled: yieldManagement.enabled,
@@ -619,6 +593,20 @@ export default function SettingsPanel() {
         ],
       };
     });
+  };
+
+  const addYieldTrackedInventory = () => {
+    const inventoryName = String(yieldInventoryCandidate || '').trim();
+    if (!inventoryName) return;
+    applySmartYieldSuggestion(inventoryName);
+    setYieldInventoryCandidate('');
+  };
+
+  const removeYieldTrackedInventory = (inventoryName: string) => {
+    setYieldManagement((prev) => ({
+      ...prev,
+      tracked_items: prev.tracked_items.filter((row) => row.inventory_name !== inventoryName),
+    }));
   };
 
 
@@ -966,28 +954,51 @@ export default function SettingsPanel() {
         ) : null}
         <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 space-y-3">
           <div className="font-semibold text-slate-100">{tx(lang, 'İzlənəcək inventar', 'Отслеживаемый инвентарь', 'Tracked inventory')}</div>
-          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-            {inventoryCatalog.map((item: any) => {
-              const tracked = yieldManagement.tracked_items.find((row) => row.inventory_name === item.name);
-              return (
-                <div key={item.id || item.name} className="grid grid-cols-1 gap-2 rounded-xl border border-slate-700/50 bg-slate-900/40 p-3 md:grid-cols-[1fr_120px_130px] md:items-center">
-                  <label className="flex items-center gap-3 text-sm text-slate-200">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(tracked)}
-                      onChange={(e) => toggleYieldTrackedItem(String(item.name || ''), e.target.checked)}
-                    />
-                    <span>{item.name}</span>
-                  </label>
+          <p className="text-xs text-slate-400">
+            {tx(
+              lang,
+              'Bura yalnız çiy ət kimi ciddi yield izləmək istədiyiniz məhsulları əlavə edin. Meyvə-tərəvəz üçün yalnız ayrıca gündəlik itki auditi aparırsınızsa istifadə etmək məntiqlidir.',
+              'Сюда добавляйте только позиции, по которым реально нужен yield-аудит. Для овощей и фруктов имеет смысл только при отдельном ежедневном учете потерь.',
+              'Add only inventory that truly needs yield audit, such as raw meat. For fruit and vegetables, use this only if you run a separate daily waste audit.',
+            )}
+          </p>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
+            <select
+              className="neon-input"
+              value={yieldInventoryCandidate}
+              onChange={(e) => setYieldInventoryCandidate(e.target.value)}
+            >
+              <option value="">{tx(lang, 'Anbardan məhsul seçin', 'Выберите товар со склада', 'Select inventory item')}</option>
+              {inventoryCatalog
+                .filter((item: any) => !yieldManagement.tracked_items.some((row) => row.inventory_name === item.name))
+                .sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || '')))
+                .map((item: any) => (
+                  <option key={item.id || item.name} value={String(item.name || '')}>
+                    {item.name}
+                  </option>
+                ))}
+            </select>
+            <button type="button" onClick={addYieldTrackedInventory} className="glossy-gold rounded-xl px-4 py-2 font-bold">
+              {tx(lang, 'Siyahıya əlavə et', 'Добавить в список', 'Add to list')}
+            </button>
+          </div>
+          <div className="space-y-2">
+            {yieldManagement.tracked_items.length === 0 ? (
+              <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 p-3 text-sm text-slate-400">
+                {tx(lang, 'Hələ izlənən inventar seçilməyib', 'Пока не выбрана отслеживаемая позиция', 'No tracked inventory selected yet')}
+              </div>
+            ) : (
+              yieldManagement.tracked_items.map((tracked) => (
+                <div key={tracked.inventory_name} className="grid grid-cols-1 gap-2 rounded-xl border border-slate-700/50 bg-slate-900/40 p-3 md:grid-cols-[1fr_120px_130px_auto] md:items-center">
+                  <div className="text-sm text-slate-200">{tracked.inventory_name}</div>
                   <select
                     className="neon-input"
-                    value={tracked?.meat_type || 'beef'}
-                    disabled={!tracked}
+                    value={tracked.meat_type || 'beef'}
                     onChange={(e) =>
                       setYieldManagement((prev) => ({
                         ...prev,
                         tracked_items: prev.tracked_items.map((row) =>
-                          row.inventory_name === item.name ? { ...row, meat_type: e.target.value as 'beef' | 'chicken' } : row,
+                          row.inventory_name === tracked.inventory_name ? { ...row, meat_type: e.target.value as 'beef' | 'chicken' } : row,
                         ),
                       }))
                     }
@@ -1000,21 +1011,27 @@ export default function SettingsPanel() {
                     type="number"
                     min={1}
                     step="0.01"
-                    disabled={!tracked}
-                    value={tracked?.raw_to_ready_ratio || ''}
+                    value={tracked.raw_to_ready_ratio || ''}
                     onChange={(e) =>
                       setYieldManagement((prev) => ({
                         ...prev,
                         tracked_items: prev.tracked_items.map((row) =>
-                          row.inventory_name === item.name ? { ...row, raw_to_ready_ratio: e.target.value } : row,
+                          row.inventory_name === tracked.inventory_name ? { ...row, raw_to_ready_ratio: e.target.value } : row,
                         ),
                       }))
                     }
                     placeholder={tx(lang, 'Çiy / hazır nisbəti', 'Соотношение сырой / готовой', 'Raw ratio')}
                   />
+                  <button
+                    type="button"
+                    onClick={() => removeYieldTrackedInventory(tracked.inventory_name)}
+                    className="rounded-lg border border-red-400/40 px-3 py-2 text-xs font-semibold text-red-200 hover:bg-red-500/10"
+                  >
+                    {tx(lang, 'Çıxar', 'Убрать', 'Remove')}
+                  </button>
                 </div>
-              );
-            })}
+              ))
+            )}
           </div>
         </div>
         <div className="flex justify-end">
