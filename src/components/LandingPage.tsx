@@ -19,9 +19,15 @@ type LandingCopy = {
   screenshotTitle: string;
   screenshotBody: string;
   screenshots: { title: string; text: string }[];
+  featuresTitle: string;
+  featuresBody: string;
+  features: { title: string; text: string }[];
   testimonialTitle: string;
   testimonialBody: string;
   testimonials: { quote: string; author: string; role: string }[];
+  faqTitle: string;
+  faqBody: string;
+  faqs: { q: string; a: string }[];
   contactTitle: string;
   contactBody: string;
   contactCards: { title: string; text: string }[];
@@ -33,7 +39,7 @@ type LandingCopy = {
 
 const content: Record<LandingLang, LandingCopy> = {
   az: {
-    nav: ['Haqqında', 'Əlaqə'],
+    nav: ['Haqqında', 'Funksiyalar', 'FAQ', 'Əlaqə'],
     badge: 'iRonWaves POS RC',
     heroTitle: 'Azərbaycan bazarı üçün müasir POS və idarəetmə sistemi',
     heroBody:
@@ -93,6 +99,16 @@ const content: Record<LandingLang, LandingCopy> = {
       { title: 'Maliyyə paneli', text: 'Pul axını, hesabatlar və gündəlik nəzarət görünüşü.' },
       { title: 'Üzvlük kartları', text: 'Golden və Elite kimi loyalty kart dizaynları.' },
     ],
+    featuresTitle: 'Əsas funksiyalar',
+    featuresBody: 'Proqram gündəlik əməliyyatı sürətləndirmək və sahibkarın rəqəmlərə nəzarətini gücləndirmək üçün qurulub.',
+    features: [
+      { title: 'POS və sürətli satış', text: 'Nağd, kart və split ödəniş, sürətli səbət axını və çek çapı.' },
+      { title: 'Masa xidməti və KDS', text: 'Masadan POS-a keçid, mətbəx statusları, hazır sifariş popup-ları.' },
+      { title: 'Maliyyə və hesabat', text: 'Gün açılışı, X/Z-Hesabat, xərclər, transferlər, investor və depozit nəzarəti.' },
+      { title: 'Anbar və resept', text: 'Xammal azalması, maya dəyəri, resept sərfi və yield nəzarəti.' },
+      { title: 'CRM və loyallıq', text: 'QR kartlar, rewards, cashback, kampaniyalar və müştəri tətbiqi.' },
+      { title: 'QR Menu və public səhifələr', text: 'Müştəri QR skan edib menyunu login olmadan görə bilir.' },
+    ],
     testimonialTitle: 'Əsas məqsəd rahat işdir',
     testimonialBody:
       'Sistem həm sahib, həm kassir, həm də servis komandası üçün işi yüngülləşdirmək üçün qurulub.',
@@ -112,6 +128,15 @@ const content: Record<LandingLang, LandingCopy> = {
         author: 'Nigar S.',
         role: 'Brand consultant',
       },
+    ],
+    faqTitle: 'Tez-tez verilən suallar',
+    faqBody: 'Müştərilərin təqdimat zamanı ən çox soruşduğu sualları əvvəlcədən cavablandırın.',
+    faqs: [
+      { q: 'Bu sistem kimlər üçündür?', a: 'Restoran, coffee shop, dönər, fast food və retail formatlı obyektlər üçün uyğundur.' },
+      { q: 'Masa xidməti və al-apar ayrı işləyirmi?', a: 'Bəli. POS əsasən al-apar üçün, Masalar modulu isə dine-in və ofisiant axını üçün işləyir.' },
+      { q: 'Maliyyə ayrıca idarə olunurmu?', a: 'Bəli. Kassa, kart, seyf, investor borcu, depozit və gündəlik hesabatlar ayrıca izlənir.' },
+      { q: 'QR menyu yaratmaq olurmu?', a: 'Bəli. Hər tenant üçün ayrıca public QR Menu səhifəsi qurmaq olur.' },
+      { q: 'Demo göstərmək mümkündürmü?', a: 'Bəli. Demo tenant ilə sistem canlı şəkildə təqdim oluna bilir.' },
     ],
     contactTitle: 'Əlaqə və demo',
     contactBody:
@@ -133,7 +158,7 @@ const content: Record<LandingLang, LandingCopy> = {
     ],
   },
   ru: {
-    nav: ['О продукте', 'Контакты'],
+    nav: ['О продукте', 'Функции', 'FAQ', 'Контакты'],
     badge: 'iRonWaves POS RC',
     heroTitle: 'Премиальная POS-платформа для ресторанов, coffee shop и retail',
     heroBody:
@@ -170,6 +195,16 @@ const content: Record<LandingLang, LandingCopy> = {
       { title: 'Finance и контроль', text: 'Денежный поток, отчеты и ежедневная управленческая картина.' },
       { title: 'Карты лояльности', text: 'Дизайн клубных карт уровня Golden и Elite.' },
     ],
+    featuresTitle: 'Ключевые функции',
+    featuresBody: 'Платформа создана для ускорения ежедневной работы и усиления контроля владельца над цифрами.',
+    features: [
+      { title: 'POS и быстрые продажи', text: 'Наличные, карта, split payment, быстрый чек и печать.' },
+      { title: 'Столы и KDS', text: 'Переход из стола в POS, кухонные статусы и ready popup для официанта.' },
+      { title: 'Финансы и отчеты', text: 'Открытие дня, X/Z-отчеты, расходы, переводы, инвестор и депозиты.' },
+      { title: 'Склад и рецепты', text: 'Списание сырья, себестоимость, рецептуры и контроль yield.' },
+      { title: 'CRM и loyalty', text: 'QR-карты, rewards, cashback, кампании и customer app.' },
+      { title: 'QR Menu и public pages', text: 'Гость может открыть меню по QR без логина.' },
+    ],
     testimonialTitle: 'Система должна быть не только красивой',
     testimonialBody: 'Главная цель - чтобы owner, cashier и service team работали быстрее и спокойнее.',
     testimonials: [
@@ -188,6 +223,15 @@ const content: Record<LandingLang, LandingCopy> = {
         author: 'Nigar S.',
         role: 'Brand consultant',
       },
+    ],
+    faqTitle: 'Часто задаваемые вопросы',
+    faqBody: 'Ответы на вопросы, которые чаще всего задают во время презентации продукта.',
+    faqs: [
+      { q: 'Для кого подходит система?', a: 'Для ресторанов, coffee shop, fast food, донерных и retail-концепций.' },
+      { q: 'POS и обслуживание столов работают отдельно?', a: 'Да. POS в основном для take-away, а модуль столов для dine-in и официантов.' },
+      { q: 'Финансы ведутся отдельно?', a: 'Да. Касса, карта, сейф, долг инвестору, депозиты и ежедневные отчеты отслеживаются отдельно.' },
+      { q: 'Можно сделать QR-меню?', a: 'Да. Для каждого tenant можно открыть отдельную public QR Menu страницу.' },
+      { q: 'Есть ли demo для показа клиенту?', a: 'Да. Demo tenant позволяет показывать систему вживую.' },
     ],
     contactTitle: 'Запускайте demo, открывайте tenant, начинайте продажи',
     contactBody:
@@ -209,7 +253,7 @@ const content: Record<LandingLang, LandingCopy> = {
     ],
   },
   en: {
-    nav: ['About', 'Contact'],
+    nav: ['About', 'Features', 'FAQ', 'Contact'],
     badge: 'iRonWaves POS RC',
     heroTitle: 'A premium POS platform for restaurants, coffee shops, and retail concepts',
     heroBody:
@@ -246,6 +290,16 @@ const content: Record<LandingLang, LandingCopy> = {
       { title: 'Finance and control panel', text: 'Cash flow, reports, and daily operational visibility.' },
       { title: 'Loyalty card designs', text: 'Golden and Elite style club card experiences.' },
     ],
+    featuresTitle: 'Core Features',
+    featuresBody: 'The platform is built to speed up daily operations and give owners cleaner control over numbers.',
+    features: [
+      { title: 'POS and fast checkout', text: 'Cash, card, split payments, faster cart flow, and receipt printing.' },
+      { title: 'Tables and KDS', text: 'Move from table to POS, kitchen statuses, and ready popups for staff.' },
+      { title: 'Finance and reports', text: 'Day opening, X/Z reports, expenses, transfers, investor and deposit tracking.' },
+      { title: 'Inventory and recipes', text: 'Ingredient consumption, costing, recipe usage, and yield control.' },
+      { title: 'CRM and loyalty', text: 'QR cards, rewards, cashback, campaigns, and customer app flows.' },
+      { title: 'QR Menu and public pages', text: 'Guests can open the menu by QR without logging in.' },
+    ],
     testimonialTitle: 'The product should do more than look good',
     testimonialBody:
       'The real goal is to make daily work smoother for owners, cashiers, and floor teams.',
@@ -265,6 +319,15 @@ const content: Record<LandingLang, LandingCopy> = {
         author: 'Nigar S.',
         role: 'Brand consultant',
       },
+    ],
+    faqTitle: 'Frequently Asked Questions',
+    faqBody: 'Clear answers to the questions prospects ask most often during a product demo.',
+    faqs: [
+      { q: 'Who is this system for?', a: 'It fits restaurants, coffee shops, doner shops, fast food concepts, and retail-style operations.' },
+      { q: 'Are POS and table service separate?', a: 'Yes. POS is primarily for take-away flow, while Tables handles dine-in and waiter operations.' },
+      { q: 'Is finance managed separately?', a: 'Yes. Cash, card, safe, investor debt, deposits, and daily reporting are tracked separately.' },
+      { q: 'Can we create a QR menu?', a: 'Yes. Every tenant can have its own public QR Menu page.' },
+      { q: 'Is there a live demo?', a: 'Yes. A demo tenant can be used for live presentations and onboarding.' },
     ],
     contactTitle: 'Launch the demo, open a tenant, start selling',
     contactBody:
@@ -442,7 +505,7 @@ export default function LandingPage() {
                 {copy.nav.map((item, idx) => (
                   <a
                     key={item}
-                    href={idx === 0 ? '#about' : '#contact'}
+                    href={idx === 0 ? '#about' : idx === 1 ? '#features' : idx === 2 ? '#faq' : '#contact'}
                     className="transition hover:text-indigo-600"
                   >
                     {item}
@@ -553,6 +616,22 @@ export default function LandingPage() {
             </div>
           </section>
 
+          <section id="features" className="pb-20">
+            <div className="mb-10 max-w-3xl">
+              <div className="text-sm font-bold uppercase tracking-[0.22em] text-indigo-600">{copy.featuresTitle}</div>
+              <h2 className="mt-4 text-4xl font-black leading-tight text-slate-900">{copy.featuresBody}</h2>
+            </div>
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {copy.features.map((item) => (
+                <div key={item.title} className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_16px_36px_rgba(15,23,42,0.05)]">
+                  <div className="text-xs font-bold uppercase tracking-[0.22em] text-sky-600">Feature</div>
+                  <h3 className="mt-4 text-2xl font-black text-slate-900">{item.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-slate-600">{item.text}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
           <section className="pb-20">
             <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
               <div>
@@ -570,6 +649,21 @@ export default function LandingPage() {
                   </div>
                 ))}
               </div>
+            </div>
+          </section>
+
+          <section id="faq" className="pb-20">
+            <div className="mb-10 max-w-3xl">
+              <div className="text-sm font-bold uppercase tracking-[0.22em] text-indigo-600">{copy.faqTitle}</div>
+              <h2 className="mt-4 text-4xl font-black leading-tight text-slate-900">{copy.faqBody}</h2>
+            </div>
+            <div className="grid gap-5 lg:grid-cols-2">
+              {copy.faqs.map((item) => (
+                <div key={item.q} className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_16px_36px_rgba(15,23,42,0.05)]">
+                  <h3 className="text-xl font-black text-slate-900">{item.q}</h3>
+                  <p className="mt-3 text-sm leading-7 text-slate-600">{item.a}</p>
+                </div>
+              ))}
             </div>
           </section>
 
