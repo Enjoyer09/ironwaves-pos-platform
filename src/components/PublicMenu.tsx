@@ -78,13 +78,19 @@ export default function PublicMenu() {
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="overflow-hidden rounded-[2rem] border shadow-[0_20px_60px_rgba(55,31,8,0.18)]" style={{ borderColor: `${textColor}22`, backgroundColor: surfaceColor }}>
           <div
-            className="relative px-6 py-8 md:px-10"
+            className="relative overflow-hidden px-6 py-8 md:px-10"
             style={{
               background: `radial-gradient(circle at top right, ${accentColor}44 0%, transparent 38%), linear-gradient(135deg, ${primaryColor}30, transparent 60%)`,
             }}
           >
+            {heroImageUrl ? (
+              <div className="absolute inset-x-0 top-0 h-56 md:h-72">
+                <img src={heroImageUrl} alt={heroTitle} className="h-full w-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/15 to-transparent" />
+              </div>
+            ) : null}
             <div className="grid grid-cols-1 gap-6 md:grid-cols-[1.05fr_0.95fr] md:items-center">
-              <div className="flex flex-col gap-4">
+              <div className="relative z-10 flex flex-col gap-4">
                 <div className="flex items-center gap-4">
                 {logoUrl ? (
                   <img
@@ -113,7 +119,7 @@ export default function PublicMenu() {
                 />
               </div>
             </div>
-              <div className="flex justify-center md:justify-end">
+              <div className="relative z-10 flex justify-center md:justify-end">
                 <div className="relative mt-2 w-full max-w-[320px] rounded-[2rem] p-4 shadow-[0_24px_50px_rgba(40,22,6,0.18)]" style={{ backgroundColor: String(branding.poster_background_color || primaryColor) }}>
                   <div className="rounded-[1.6rem] border px-4 pb-4 pt-5" style={{ backgroundColor: surfaceColor, borderColor: `${textColor}18` }}>
                     <div className="mb-3 flex items-center gap-3">

@@ -190,6 +190,16 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     setDeleteMenuId(null);
   };
 
+  const handleMenuImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setNewItemImageUrl(String(reader.result || ''));
+    };
+    reader.readAsDataURL(file);
+  };
+
   const removeNote = (noteId: number) => {
     const next = notes.filter((n) => n.id !== noteId);
     setNotes(next);
@@ -536,6 +546,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                 />
               )}
               <input type="text" placeholder={tx(lang, 'Şəkil linki', 'Ссылка на изображение', 'Image URL')} value={newItemImageUrl} onChange={e => setNewItemImageUrl(e.target.value)} className="neon-input min-w-[220px]"/>
+              <input type="file" accept="image/*" onChange={handleMenuImageUpload} className="neon-input min-w-[220px]"/>
               <input type="text" placeholder={tx(lang, 'Qısa təsvir', 'Краткое описание', 'Short description')} value={newItemDescription} onChange={e => setNewItemDescription(e.target.value)} className="neon-input min-w-[220px] flex-1"/>
               <button
                 onClick={() => { void handleAddMenu(); }}

@@ -354,6 +354,14 @@ export default function SettingsPanel() {
     reader.readAsDataURL(file);
   };
 
+  const handleQrHeroUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setQrMenuSettings((prev) => ({ ...prev, hero_image_url: String(reader.result || '') }));
+    reader.readAsDataURL(file);
+  };
+
   const saveBusinessProfile = async () => {
     if (!profile) return;
     await update_business_profile_live(tenantId, {
@@ -974,6 +982,10 @@ export default function SettingsPanel() {
           <div className="field-stack form-card md:col-span-2">
             <label className="field-label">{tx(lang, 'Hero şəkil linki', 'Ссылка hero-изображения', 'Hero image URL')}</label>
             <input className="neon-input" value={qrMenuSettings.hero_image_url} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, hero_image_url: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card md:col-span-2">
+            <label className="field-label">{tx(lang, 'Hero şəkil yüklə', 'Загрузить hero-изображение', 'Upload hero image')}</label>
+            <input className="neon-input" type="file" accept="image/*" onChange={handleQrHeroUpload} />
           </div>
           <div className="field-stack form-card">
             <label className="field-label">{tx(lang, 'Logo forması', 'Форма логотипа', 'Logo shape')}</label>
