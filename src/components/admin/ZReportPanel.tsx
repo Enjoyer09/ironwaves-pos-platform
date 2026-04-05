@@ -158,8 +158,11 @@ export default function ZReportPanel() {
           <div class="line"><span>Kart Satış</span><span>${new Decimal(summary.card_sales || 0).toFixed(2)} ₼</span></div>
           <div class="line"><span>Maya (COGS)</span><span>${new Decimal(summary.total_cogs || 0).toFixed(2)} ₼</span></div>
           <div class="line"><span>Brutto Mənfəət</span><span>${new Decimal(summary.gross_profit || 0).toFixed(2)} ₼</span></div>
-          <div class="line"><span>Maaş Çıxışı</span><span>${new Decimal(result?.wage || zWage || 0).toFixed(2)} ₼</span></div>
-          <div class="line"><span>Növbə Açılışı</span><span>${new Decimal(result?.total_sales || 0).gte(0) ? new Decimal(zActualCash || 0).toFixed(2) : new Decimal(zActualCash || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Maaş Çıxışı</span><span>${new Decimal(result?.wage_amount || result?.wage || zWage || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Növbə Açılışı</span><span>${new Decimal(result?.opening_cash || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Kassa hərəkətləri giriş</span><span>${new Decimal(result?.cash_movements_in || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Kassa hərəkətləri çıxış</span><span>${new Decimal(result?.cash_movements_out || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Faktiki bağlanış</span><span>${new Decimal(result?.actual_cash || zActualCash || 0).toFixed(2)} ₼</span></div>
           <hr />
           <div class="section-title">Kassir Breakdown</div>
           ${cashierRows || '<div class="muted">No cashier activity</div>'}
@@ -471,8 +474,11 @@ export default function ZReportPanel() {
         }
       }
 
-      // Open shift only after successful top-up flow.
-      await open_shift(user?.username || 'staff', tenant_id);
+      // Open shift only after successful top-up flow, and snapshot the actual
+      // cash that is physically in the drawer at this moment.
+      const openingBalances = await fetch_finance_balances(tenant_id).catch(() => get_balance(tenant_id, 'all', false) as any);
+      const openingCashAmount = new Decimal(openingBalances.cash_balance || 0).toFixed(2);
+      await open_shift(user?.username || 'staff', tenant_id, openingCashAmount);
       const cash = await refresh_expected_cash(tenant_id).catch(() => expectedCashNow);
       await refreshOperationalState(true).catch(() => undefined);
       const nextCash = cash.toFixed(2);
