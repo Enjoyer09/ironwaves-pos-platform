@@ -129,6 +129,11 @@ export default function ZReportPanel() {
   const totalYieldFlags = useMemo(() => yieldWasteLogs.filter((row) => row.flagged).length, [yieldWasteLogs]);
 
   const buildZReceiptHtml = (result: any) => {
+    const expectedCash = new Decimal(result?.expected_cash || 0);
+    const actualCash = new Decimal(result?.actual_cash || zActualCash || 0);
+    const closingDifference = actualCash.minus(expectedCash);
+    const depositCollected = new Decimal(result?.deposit_total || 0);
+    const activeDepositLiability = new Decimal(currentBalances.deposit_balance || 0);
     const cashierRows = cashierBreakdown
       .map((row) => `
         <div class="line"><span>${row.cashier} (${row.salesCount})</span><span>${row.total.toFixed(2)} ₼</span></div>
@@ -163,7 +168,15 @@ export default function ZReportPanel() {
           <div class="line"><span>Növbə Açılışı</span><span>${new Decimal(result?.opening_cash || 0).toFixed(2)} ₼</span></div>
           <div class="line"><span>Kassa hərəkətləri giriş</span><span>${new Decimal(result?.cash_movements_in || 0).toFixed(2)} ₼</span></div>
           <div class="line"><span>Kassa hərəkətləri çıxış</span><span>${new Decimal(result?.cash_movements_out || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Olmalı kassa</span><span>${expectedCash.toFixed(2)} ₼</span></div>
           <div class="line"><span>Faktiki bağlanış</span><span>${new Decimal(result?.actual_cash || zActualCash || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Bağlanış fərqi</span><span>${closingDifference.toFixed(2)} ₼</span></div>
+          <hr />
+          <div class="section-title">Source of Truth</div>
+          <div class="line"><span>Bu növbədə toplanan depozit</span><span>${depositCollected.toFixed(2)} ₼</span></div>
+          <div class="line"><span>Aktiv depozit öhdəliyi</span><span>${activeDepositLiability.toFixed(2)} ₼</span></div>
+          <div class="muted">Kassa satış və hərəkətləri yalnız aktiv növbənin cash ledger yazılarından hesablanır.</div>
+          <div class="muted">Depozit ayrıca öhdəlik ledger-də izlənir; bu rəqəm satış gəliri deyil.</div>
           <hr />
           <div class="section-title">Kassir Breakdown</div>
           ${cashierRows || '<div class="muted">No cashier activity</div>'}
