@@ -88,6 +88,12 @@ export default function SettingsPanel() {
     show_descriptions: true,
     poster_title: 'Menyuya baxmaq üçün skan et',
     poster_subtitle: 'Telefon kameranızı QR üzərinə yönəldin',
+    background_color: '#efe2c1',
+    surface_color: '#fff7e8',
+    text_color: '#2b1708',
+    hero_image_url: '',
+    poster_background_color: '#d59b2d',
+    logo_shape: 'rounded' as 'rounded' | 'circle' | 'square',
   });
   const [qrMenuPosterDataUrl, setQrMenuPosterDataUrl] = useState('');
   const [bankCommission, setBankCommission] = useState({
@@ -246,6 +252,12 @@ export default function SettingsPanel() {
         show_descriptions: settingsRes.value.qr_menu_settings?.show_descriptions !== false,
         poster_title: String(settingsRes.value.qr_menu_settings?.poster_title || 'Menyuya baxmaq üçün skan et'),
         poster_subtitle: String(settingsRes.value.qr_menu_settings?.poster_subtitle || 'Telefon kameranızı QR üzərinə yönəldin'),
+        background_color: String(settingsRes.value.qr_menu_settings?.background_color || '#efe2c1'),
+        surface_color: String(settingsRes.value.qr_menu_settings?.surface_color || '#fff7e8'),
+        text_color: String(settingsRes.value.qr_menu_settings?.text_color || '#2b1708'),
+        hero_image_url: String(settingsRes.value.qr_menu_settings?.hero_image_url || ''),
+        poster_background_color: String(settingsRes.value.qr_menu_settings?.poster_background_color || '#d59b2d'),
+        logo_shape: (String(settingsRes.value.qr_menu_settings?.logo_shape || 'rounded') as any),
       });
       setBankCommission({
         card_sale_percent: String((settingsRes.value.bank_commission as any)?.card_sale_percent ?? settingsRes.value.bank_commission?.percent ?? 2),
@@ -299,27 +311,27 @@ export default function SettingsPanel() {
         canvas.height = 1200;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        ctx.fillStyle = '#0b1220';
+        ctx.fillStyle = String(qrMenuSettings.background_color || '#efe2c1');
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#f8fafc';
+        ctx.fillStyle = String(qrMenuSettings.text_color || '#2b1708');
         ctx.textAlign = 'center';
         ctx.font = 'bold 56px Arial';
         ctx.fillText(String(qrMenuSettings.poster_title || 'Menyuya baxmaq üçün skan et'), canvas.width / 2, 120);
         ctx.font = '28px Arial';
-        ctx.fillStyle = '#cbd5e1';
+        ctx.fillStyle = String(qrMenuSettings.text_color || '#2b1708');
         ctx.fillText(String(qrMenuSettings.poster_subtitle || 'Telefon kameranızı QR üzərinə yönəldin'), canvas.width / 2, 170);
         if (profile?.company_name) {
           ctx.font = 'bold 36px Arial';
-          ctx.fillStyle = '#facc15';
+          ctx.fillStyle = String(qrMenuSettings.poster_background_color || '#d59b2d');
           ctx.fillText(String(profile.company_name), canvas.width / 2, 240);
         }
         const qrImage = new Image();
         qrImage.onload = () => {
-          ctx.fillStyle = '#ffffff';
+          ctx.fillStyle = String(qrMenuSettings.surface_color || '#fff7e8');
           ctx.fillRect(190, 300, 520, 520);
           ctx.drawImage(qrImage, 220, 330, 460, 460);
           ctx.font = '24px Arial';
-          ctx.fillStyle = '#94a3b8';
+          ctx.fillStyle = String(qrMenuSettings.text_color || '#2b1708');
           ctx.fillText(menuUrl.replace(/^https?:\/\//, ''), canvas.width / 2, 910);
           const posterUrl = canvas.toDataURL('image/png');
           if (!cancelled) setQrMenuPosterDataUrl(posterUrl);
@@ -332,7 +344,7 @@ export default function SettingsPanel() {
     return () => {
       cancelled = true;
     };
-  }, [profile?.company_name, profile?.qr_base_url, qrMenuSettings.poster_title, qrMenuSettings.poster_subtitle]);
+  }, [profile?.company_name, profile?.qr_base_url, qrMenuSettings.poster_title, qrMenuSettings.poster_subtitle, qrMenuSettings.background_color, qrMenuSettings.surface_color, qrMenuSettings.text_color, qrMenuSettings.poster_background_color]);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -605,6 +617,12 @@ export default function SettingsPanel() {
       show_descriptions: qrMenuSettings.show_descriptions,
       poster_title: qrMenuSettings.poster_title,
       poster_subtitle: qrMenuSettings.poster_subtitle,
+      background_color: qrMenuSettings.background_color,
+      surface_color: qrMenuSettings.surface_color,
+      text_color: qrMenuSettings.text_color,
+      hero_image_url: qrMenuSettings.hero_image_url,
+      poster_background_color: qrMenuSettings.poster_background_color,
+      logo_shape: qrMenuSettings.logo_shape,
     });
     flashSuccess(tx(lang, 'QR Menu ayarları yadda saxlanıldı', 'Настройки QR Menu сохранены', 'QR Menu settings saved'));
   };
@@ -936,6 +954,34 @@ export default function SettingsPanel() {
           <div className="field-stack form-card">
             <label className="field-label">{tx(lang, 'Poster alt mətni', 'Подзаголовок постера', 'Poster subtitle')}</label>
             <input className="neon-input" value={qrMenuSettings.poster_subtitle} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_subtitle: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Arxa fon rəngi', 'Цвет фона', 'Background color')}</label>
+            <input className="neon-input h-12" type="color" value={qrMenuSettings.background_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, background_color: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Kart fonu', 'Цвет карточек', 'Surface color')}</label>
+            <input className="neon-input h-12" type="color" value={qrMenuSettings.surface_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, surface_color: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Yazı rəngi', 'Цвет текста', 'Text color')}</label>
+            <input className="neon-input h-12" type="color" value={qrMenuSettings.text_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, text_color: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Poster vurğu rəngi', 'Акцент постера', 'Poster accent color')}</label>
+            <input className="neon-input h-12" type="color" value={qrMenuSettings.poster_background_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_background_color: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card md:col-span-2">
+            <label className="field-label">{tx(lang, 'Hero şəkil linki', 'Ссылка hero-изображения', 'Hero image URL')}</label>
+            <input className="neon-input" value={qrMenuSettings.hero_image_url} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, hero_image_url: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Logo forması', 'Форма логотипа', 'Logo shape')}</label>
+            <select className="neon-input" value={qrMenuSettings.logo_shape} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, logo_shape: e.target.value as any }))}>
+              <option value="rounded">{tx(lang, 'Yumru künc', 'Скругленный', 'Rounded')}</option>
+              <option value="circle">{tx(lang, 'Dairəvi', 'Круглый', 'Circle')}</option>
+              <option value="square">{tx(lang, 'Kvadrat', 'Квадратный', 'Square')}</option>
+            </select>
           </div>
           <label className="flex items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" checked={qrMenuSettings.show_prices} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, show_prices: e.target.checked }))} />

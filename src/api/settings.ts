@@ -95,6 +95,12 @@ function getSettings(tenant_id?: string): Settings {
         show_descriptions: true,
         poster_title: 'Menyuya baxmaq üçün skan et',
         poster_subtitle: 'Telefon kameranızı QR üzərinə yönəldin',
+        background_color: '#efe2c1',
+        surface_color: '#fff7e8',
+        text_color: '#2b1708',
+        hero_image_url: '',
+        poster_background_color: '#d59b2d',
+        logo_shape: 'rounded',
       },
       customer_app_settings: {
         enabled: true,
@@ -388,6 +394,12 @@ export function get_settings(tenant_id?: string) {
       show_descriptions: true,
       poster_title: 'Menyuya baxmaq üçün skan et',
       poster_subtitle: 'Telefon kameranızı QR üzərinə yönəldin',
+      background_color: '#efe2c1',
+      surface_color: '#fff7e8',
+      text_color: '#2b1708',
+      hero_image_url: '',
+      poster_background_color: '#d59b2d',
+      logo_shape: 'rounded',
     };
     saveSettings(s);
   }
@@ -603,6 +615,12 @@ export function update_qr_menu_settings(payload: NonNullable<Settings['qr_menu_s
     show_descriptions: payload.show_descriptions !== false,
     poster_title: String(payload.poster_title || '').trim() || 'Menyuya baxmaq üçün skan et',
     poster_subtitle: String(payload.poster_subtitle || '').trim() || 'Telefon kameranızı QR üzərinə yönəldin',
+    background_color: String(payload.background_color || '').trim() || '#efe2c1',
+    surface_color: String(payload.surface_color || '').trim() || '#fff7e8',
+    text_color: String(payload.text_color || '').trim() || '#2b1708',
+    hero_image_url: String(payload.hero_image_url || '').trim(),
+    poster_background_color: String(payload.poster_background_color || '').trim() || '#d59b2d',
+    logo_shape: payload.logo_shape === 'circle' || payload.logo_shape === 'square' ? payload.logo_shape : 'rounded',
   };
   saveSettings(settings);
   logEvent('admin', 'QR_MENU_SETTINGS_UPDATED', settings.qr_menu_settings);
@@ -807,6 +825,11 @@ export async function get_public_qr_menu_bootstrap_live() {
       poster_title: string;
       poster_subtitle: string;
       background_color: string;
+      surface_color: string;
+      text_color: string;
+      hero_image_url: string;
+      poster_background_color: string;
+      logo_shape: string;
       primary_color: string;
       accent_color: string;
     };
