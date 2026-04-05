@@ -186,6 +186,7 @@ export const get_balance = (tenant_id: string, view_mode?: string, is_test_activ
   let debt_balance = new Decimal(0);
   let investor_balance = new Decimal(0);
   let safe_balance = new Decimal(0);
+  let deposit_balance = new Decimal(0);
 
   finances.forEach(f => {
     const amount = new Decimal(f.amount);
@@ -195,6 +196,7 @@ export const get_balance = (tenant_id: string, view_mode?: string, is_test_activ
     if (source === 'debt') debt_balance = f.type === 'in' ? debt_balance.plus(amount) : debt_balance.minus(amount);
     if (source === 'investor') investor_balance = f.type === 'in' ? investor_balance.plus(amount) : investor_balance.minus(amount);
     if (source === 'safe') safe_balance = f.type === 'in' ? safe_balance.plus(amount) : safe_balance.minus(amount);
+    if (source === 'deposit') deposit_balance = f.type === 'in' ? deposit_balance.plus(amount) : deposit_balance.minus(amount);
   });
 
   return {
@@ -202,7 +204,8 @@ export const get_balance = (tenant_id: string, view_mode?: string, is_test_activ
     card_balance: card_balance.toString(),
     debt_balance: debt_balance.toString(),
     investor_balance: investor_balance.toString(),
-    safe_balance: safe_balance.toString()
+    safe_balance: safe_balance.toString(),
+    deposit_balance: deposit_balance.toString(),
   };
 };
 
@@ -564,6 +567,7 @@ export const fetch_finance_balances = async (tenant_id: string) => {
     debt_balance: String(data?.debt ?? '0'),
     investor_balance: String(data?.investor ?? '0'),
     safe_balance: String(data?.safe ?? '0'),
+    deposit_balance: String(data?.deposit ?? '0'),
   };
   return balances;
 };
