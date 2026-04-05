@@ -96,11 +96,16 @@ export function get_sales_summary(tenant_id: string, date_from: string, date_to:
   }
 
   const gross_profit = total_revenue.minus(total_cogs);
+  const ledger_sales_total = cash_sales.plus(card_sales);
+  const reconciliation_gap = total_revenue.minus(ledger_sales_total).toDecimalPlaces(2);
 
   return {
     total_revenue: total_revenue.toString(),
     cash_sales: cash_sales.toString(),
     card_sales: card_sales.toString(),
+    ledger_sales_total: ledger_sales_total.toString(),
+    reconciliation_gap: reconciliation_gap.toString(),
+    has_reconciliation_issue: reconciliation_gap.abs().greaterThan(new Decimal('0.01')),
     total_cogs: total_cogs.toString(),
     gross_profit: gross_profit.toString(),
     void_count

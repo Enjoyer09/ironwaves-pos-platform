@@ -345,6 +345,12 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
     }, new Decimal(0));
   }, [snapshot.financeEntries]);
 
+  const reconciliationGap = useMemo(
+    () => new Decimal(snapshot.summary?.reconciliation_gap || 0),
+    [snapshot.summary?.reconciliation_gap],
+  );
+  const hasReconciliationIssue = Boolean(snapshot.summary?.has_reconciliation_issue) || reconciliationGap.abs().greaterThan(new Decimal(0.01));
+
   const financeTrend = useMemo(() => {
     const start = new Date(activeRange.fromIso);
     const end = new Date(activeRange.toIso);
@@ -536,6 +542,30 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
               onClick={() => onOpenTab('finance')}
             />
           </div>
+
+          {hasReconciliationIssue && (
+            <div className="rounded-[28px] border border-rose-300/50 bg-[linear-gradient(135deg,#fff1f2,#ffe4e6)] p-5 text-rose-950 shadow-[0_16px_40px_rgba(244,63,94,0.18)]">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-[0.22em] text-rose-700">
+                    {tx(lang, 'Satış Uzlaşma Xəbərdarlığı', 'Предупреждение сверки продаж', 'Sales Reconciliation Warning')}
+                  </div>
+                  <div className="mt-2 text-2xl font-black">
+                    {tx(lang, 'Satış gəliri ilə maliyyə daxilolmaları üst-üstə düşmür', 'Выручка и финансовые поступления не совпадают', 'Revenue and finance inflow do not match')}
+                  </div>
+                  <div className="mt-2 text-sm text-rose-900/80">
+                    {tx(lang, 'Fərq', 'Разница', 'Gap')}: {reconciliationGap.toFixed(2)} ₼ · {tx(lang, 'Satış gəliri', 'Выручка', 'Revenue')}: {new Decimal(snapshot.summary?.total_revenue || 0).toFixed(2)} ₼ · {tx(lang, 'Ledger satış daxilolması', 'Поступление по ledger', 'Ledger sales inflow')}: {new Decimal(snapshot.summary?.ledger_sales_total || 0).toFixed(2)} ₼
+                  </div>
+                </div>
+                <button
+                  onClick={() => onOpenTab('analytics')}
+                  className="rounded-2xl bg-rose-950 px-4 py-3 text-sm font-semibold text-white"
+                >
+                  {tx(lang, 'Analitikaya keç', 'Открыть аналитику', 'Open analytics')}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <SoftTile
