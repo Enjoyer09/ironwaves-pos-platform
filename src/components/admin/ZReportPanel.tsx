@@ -23,7 +23,7 @@ import {
   x_report,
   z_report,
 } from '../../api/reports';
-import { create_finance_entry_async, fetch_finance_balances, get_balance, transfer_funds_async } from '../../api/finance';
+import { create_finance_entry_async, fetch_finance_anomalies, fetch_finance_balances, get_balance, transfer_funds_async, type FinanceAnomalies } from '../../api/finance';
 import { get_settings, get_users_live } from '../../api/settings';
 import { qzListPrinters, qzPrintHtml } from '../../lib/qz';
 import { tx } from '../../i18n';
@@ -61,6 +61,7 @@ export default function ZReportPanel() {
     safe_balance: '0',
     deposit_balance: '0',
   });
+  const [financeAnomalies, setFinanceAnomalies] = useState<FinanceAnomalies | null>(null);
   const [reportRefreshKey, setReportRefreshKey] = useState(0);
   const [salesPageSize, setSalesPageSize] = useState(10);
   const [activeYieldBatches, setActiveYieldBatches] = useState<YieldBatchRow[]>([]);
@@ -130,10 +131,12 @@ export default function ZReportPanel() {
   const zAuditExceptions = useMemo(() => {
     const items: Array<{ title: string; body: string; tone: 'rose' | 'amber' | 'sky' }> = [];
     const cashBalance = new Decimal(currentBalances.cash_balance || 0);
-    const depositLiability = new Decimal(currentBalances.deposit_balance || 0);
-    const shiftCashGap = cashBalance.minus(expectedCashNow).abs();
+    const depositLiability = new Decimal(financeAnomalies?.deposit_balance || currentBalances.deposit_balance || 0);
+    const shiftCashGap = financeAnomalies
+      ? new Decimal(financeAnomalies.shift_cash_gap || 0)
+      : cashBalance.minus(expectedCashNow).abs();
 
-    if (shiftStatus.status === 'Open' && shiftCashGap.greaterThan(0.01)) {
+    if ((financeAnomalies?.has_shift_cash_mismatch || shiftStatus.status === 'Open') && shiftCashGap.greaterThan(0.01)) {
       items.push({
         title: tx(lang, 'Shift kassa fərqi', 'Разница кассы по смене', 'Shift cash mismatch'),
         body: tx(
@@ -157,7 +160,7 @@ export default function ZReportPanel() {
         tone: 'amber',
       });
     }
-    if (shiftStatus.status === 'Closed' && depositLiability.greaterThan(0)) {
+    if ((financeAnomalies?.has_closed_shift_open_deposit || shiftStatus.status === 'Closed') && depositLiability.greaterThan(0)) {
       items.push({
         title: tx(lang, 'Bağlı növbədə açıq depozit var', 'При закрытой смене есть активный депозит', 'Closed shift has active deposits'),
         body: tx(
@@ -170,7 +173,7 @@ export default function ZReportPanel() {
       });
     }
     return items;
-  }, [currentBalances.cash_balance, currentBalances.deposit_balance, expectedCashNow, lang, shiftStatus.status]);
+  }, [currentBalances.cash_balance, currentBalances.deposit_balance, expectedCashNow, financeAnomalies, lang, shiftStatus.status]);
 
   const buildZReceiptHtml = (result: any) => {
     const expectedCash = new Decimal(result?.expected_cash || 0);
@@ -238,30 +241,33 @@ export default function ZReportPanel() {
       return;
     }
     lastRefreshAtRef.current = now;
-    const [status, cash, nextHandovers, nextPending, balances] = await Promise.all([
+    const [status, cash, nextHandovers, nextPending, balances, anomalies] = await Promise.all([
       refresh_shift_status(tenant_id),
       refresh_expected_cash(tenant_id),
       get_shift_handover_history_live(tenant_id, user?.username || undefined),
       get_pending_handover_for_user_live(tenant_id, user?.username || ''),
       fetch_finance_balances(tenant_id),
+      fetch_finance_anomalies(tenant_id).catch(() => null),
     ]);
     setShiftStatusState(status);
     setExpectedCashState(cash);
     setHandovers(nextHandovers);
     setPendingReceived(nextPending);
     setCurrentBalances(balances);
+    setFinanceAnomalies(anomalies);
   }, [tenant_id, user?.username]);
 
   React.useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const [status, cash, nextHandovers, nextPending, balances] = await Promise.all([
+        const [status, cash, nextHandovers, nextPending, balances, anomalies] = await Promise.all([
           refresh_shift_status(tenant_id),
           refresh_expected_cash(tenant_id),
           get_shift_handover_history_live(tenant_id, user?.username || undefined),
           get_pending_handover_for_user_live(tenant_id, user?.username || ''),
           fetch_finance_balances(tenant_id),
+          fetch_finance_anomalies(tenant_id).catch(() => null),
         ]);
         if (!mounted) return;
         lastRefreshAtRef.current = Date.now();
@@ -270,6 +276,7 @@ export default function ZReportPanel() {
         setHandovers(nextHandovers);
         setPendingReceived(nextPending);
         setCurrentBalances(balances);
+        setFinanceAnomalies(anomalies);
       } catch {
         // Keep cached/local fallback.
       }
