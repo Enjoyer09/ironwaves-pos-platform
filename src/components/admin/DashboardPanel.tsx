@@ -543,6 +543,28 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
             />
           </div>
 
+          <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.88),rgba(246,248,252,0.82))] p-4 text-slate-900 shadow-[0_10px_30px_rgba(0,0,0,0.16)]">
+            <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">{tx(lang, 'Source Of Truth', 'Источник данных', 'Source Of Truth')}</div>
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-slate-200 bg-white/80 p-3">
+                <div className="font-semibold">{tx(lang, 'Gəlir', 'Выручка', 'Revenue')}</div>
+                <div className="mt-1 text-xs text-slate-500">{tx(lang, 'Sale cədvəlindən gəlir. Ledger warning varsa ayrıca göstərilir.', 'Берется из таблицы Sale. Если ledger не совпадает, показывается warning.', 'Comes from Sale table. If ledger differs, a warning is shown.')}</div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white/80 p-3">
+                <div className="font-semibold">{tx(lang, 'Kassa + Kart', 'Касса + карта', 'Cash + Card')}</div>
+                <div className="mt-1 text-xs text-slate-500">{tx(lang, 'Finance ledger balanslarından gəlir.', 'Берется из балансов finance ledger.', 'Comes from finance ledger balances.')}</div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white/80 p-3">
+                <div className="font-semibold">{tx(lang, 'Investor Borcu', 'Долг инвестору', 'Investor Debt')}</div>
+                <div className="mt-1 text-xs text-slate-500">{tx(lang, 'Investor liability ledger-dən oxunur.', 'Читается из investor liability ledger.', 'Read from investor liability ledger.')}</div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white/80 p-3">
+                <div className="font-semibold">{tx(lang, 'Depozitlər', 'Депозиты', 'Deposits')}</div>
+                <div className="mt-1 text-xs text-slate-500">{tx(lang, 'Dashboard kartı yığılmış depoziti, Finance isə aktiv depozit öhdəliyini göstərir.', 'Карточка dashboard показывает собранные депозиты, Finance — активное обязательство.', 'Dashboard card shows collected deposits; Finance shows active deposit liability.')}</div>
+              </div>
+            </div>
+          </div>
+
           {hasReconciliationIssue && (
             <div className="rounded-[28px] border border-rose-300/50 bg-[linear-gradient(135deg,#fff1f2,#ffe4e6)] p-5 text-rose-950 shadow-[0_16px_40px_rgba(244,63,94,0.18)]">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

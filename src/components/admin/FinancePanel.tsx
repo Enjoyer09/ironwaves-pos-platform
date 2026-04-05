@@ -695,6 +695,28 @@ export default function FinancePanel() {
         <WalletCard title={tx(lang, 'Aktiv Masa Depoziti', 'Активные депозиты столов', 'Active Table Deposits')} value={new Decimal(balance.deposit_balance || 0).toFixed(2)} helper={tx(lang, 'Hazırda açıq masalarda saxlanan depozit öhdəliyi', 'Текущие депозиты по открытым столам', 'Deposit liability currently held on open tables')} accent="amber" />
       </div>
 
+      <div className="rounded-[24px] border border-slate-700/70 bg-slate-950/40 p-4 text-sm text-slate-300 shadow-[0_10px_30px_rgba(0,0,0,0.2)]">
+        <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">{tx(lang, 'Source Of Truth', 'Источник данных', 'Source Of Truth')}</div>
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-3">
+            <div className="font-semibold text-slate-100">{tx(lang, 'Nağd / Kart / Seyf', 'Касса / карта / сейф', 'Cash / Card / Safe')}</div>
+            <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Finance ledger balanslarından hesablanır.', 'Считается по балансам finance ledger.', 'Calculated from finance ledger balances.')}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-3">
+            <div className="font-semibold text-slate-100">{tx(lang, 'Investor Borcu', 'Долг инвестору', 'Investor Debt')}</div>
+            <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Founder investment və investor repayment yazılarından çıxır.', 'Формируется из founder investment и investor repayment записей.', 'Derived from founder investment and investor repayment entries.')}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-3">
+            <div className="font-semibold text-slate-100">{tx(lang, 'Aktiv Masa Depoziti', 'Активные депозиты столов', 'Active Table Deposits')}</div>
+            <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Depozit liability ledger-dən oxunur, masa bağlandıqca azalır.', 'Читается из deposit liability ledger и уменьшается при закрытии стола.', 'Read from deposit liability ledger and reduced on table settlement.')}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-3">
+            <div className="font-semibold text-slate-100">{tx(lang, 'Net Cashflow', 'Нетто поток', 'Net Cashflow')}</div>
+            <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Operativ hərəkətlərdir; açılış, investor, depozit və daxili transfer xaricdir.', 'Только операционные движения; без открытия, инвестора, депозитов и внутренних переводов.', 'Operational only; excludes opening, investor, deposits, and transfers.')}</div>
+          </div>
+        </div>
+      </div>
+
       <div className="metal-panel p-5">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="space-y-3">

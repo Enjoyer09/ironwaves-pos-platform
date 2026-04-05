@@ -59,6 +59,7 @@ export default function ZReportPanel() {
     debt_balance: '0',
     investor_balance: '0',
     safe_balance: '0',
+    deposit_balance: '0',
   });
   const [reportRefreshKey, setReportRefreshKey] = useState(0);
   const [salesPageSize, setSalesPageSize] = useState(10);
@@ -1135,6 +1136,22 @@ export default function ZReportPanel() {
             <option value={10}>10</option>
             <option value={20}>20</option>
           </select>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="rounded-2xl border border-slate-700/70 bg-slate-900/40 p-3 text-sm text-slate-300">
+            <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">{tx(lang, 'Source Of Truth', 'Источник данных', 'Source Of Truth')}</div>
+            <div className="mt-2 font-semibold text-slate-100">{tx(lang, 'Olmalı Kassa', 'Ожидаемая касса', 'Expected cash')}</div>
+            <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Aktiv növbənin açılış məbləği + növbə ərzindəki cash in/out.', 'Открытие активной смены + cash in/out в рамках смены.', 'Active shift opening cash + cash in/out within the shift.')}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-700/70 bg-slate-900/40 p-3 text-sm text-slate-300">
+            <div className="mt-5 font-semibold text-slate-100">{tx(lang, 'Kassada qalan', 'Остаток в кассе', 'Carryover cash')}</div>
+            <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Finance ledger üzrə cari cash wallet balansı.', 'Текущий баланс cash wallet по finance ledger.', 'Current cash wallet balance from finance ledger.')}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-700/70 bg-slate-900/40 p-3 text-sm text-slate-300">
+            <div className="mt-5 font-semibold text-slate-100">{tx(lang, 'Aktiv depozit öhdəliyi', 'Активный депозитный долг', 'Active deposit liability')}</div>
+            <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Açıq masalarda saxlanan depozitlər ayrıca liability kimi izlənir.', 'Депозиты по открытым столам отслеживаются как отдельное обязательство.', 'Deposits on open tables are tracked as a separate liability.')}</div>
+            <div className="mt-2 text-sm font-bold text-amber-200">{new Decimal(currentBalances.deposit_balance || 0).toFixed(2)} ₼</div>
+          </div>
         </div>
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-900/50 text-slate-300">
