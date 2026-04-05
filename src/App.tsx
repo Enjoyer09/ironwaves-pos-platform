@@ -91,6 +91,8 @@ export default function App() {
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
+    let rafId = 0;
+
     const syncFieldHelpers = () => {
       const fields = Array.from(
         document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input.neon-input[placeholder], textarea.neon-input[placeholder]'),
@@ -110,7 +112,9 @@ export default function App() {
         if (formControlsInParent.length !== 1) return;
 
         field.setAttribute('data-original-placeholder', originalPlaceholder);
-        field.setAttribute('placeholder', '');
+        if (field.getAttribute('placeholder') !== '') {
+          field.setAttribute('placeholder', '');
+        }
         field.classList.add('neon-input-with-helper');
         parent.classList.add('neon-helper-host');
 
@@ -128,19 +132,28 @@ export default function App() {
       });
     };
 
+    const scheduleSync = () => {
+      if (rafId) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = 0;
+        syncFieldHelpers();
+      });
+    };
+
     syncFieldHelpers();
     const observer = new MutationObserver(() => {
-      syncFieldHelpers();
+      scheduleSync();
     });
     observer.observe(document.body, {
       subtree: true,
       childList: true,
-      attributes: true,
-      attributeFilter: ['placeholder', 'class'],
     });
 
     return () => {
       observer.disconnect();
+      if (rafId) {
+        window.cancelAnimationFrame(rafId);
+      }
     };
   }, []);
 
