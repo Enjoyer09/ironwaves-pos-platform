@@ -10,6 +10,7 @@ import {
   repay_investor_async,
   transfer_funds_async,
 } from '../../api/finance';
+import { get_tables, get_tables_live } from '../../api/tables';
 import { get_settings_live } from '../../api/settings';
 import { send_email } from '../../api/email';
 import { tx } from '../../i18n';
@@ -196,11 +197,6 @@ export default function FinancePanel() {
           label: tx(lang, 'Seyf', 'Сейф', 'Safe'),
           helper: tx(lang, 'Xərc seyfdən ödənilir.', 'Расход оплачивается из сейфа.', 'Expense is paid from safe.'),
         },
-        {
-          value: 'investor',
-          label: tx(lang, 'İnvestor', 'Инвестор', 'Investor'),
-          helper: tx(lang, 'İnvestor vəsaiti ilə birbaşa ödəniş.', 'Прямая оплата средствами инвестора.', 'Direct payment by investor funds.'),
-        },
       ];
 
   const selectedCategory = categoryOptions.find((c) => c.value === category) || categoryOptions[0];
@@ -231,6 +227,7 @@ export default function FinancePanel() {
     safe_balance: '0',
   });
   const [entries, setEntries] = useState<any[]>([]);
+  const [activeTableDepositLiability, setActiveTableDepositLiability] = useState(new Decimal(0));
   const [ledgerPageSize, setLedgerPageSize] = useState(10);
   const [bankCommissionConfig, setBankCommissionConfig] = useState<{ card_sale_percent: number; card_transfer_percent: number }>({
     card_sale_percent: 2,
@@ -302,6 +299,12 @@ export default function FinancePanel() {
         fetch_finance_entries(tenant_id),
         get_settings_live(tenant_id),
       ]);
+      let tableRows: any[] = [];
+      try {
+        tableRows = isBackendEnabled() ? await get_tables_live(tenant_id) : get_tables(tenant_id);
+      } catch {
+        tableRows = get_tables(tenant_id);
+      }
       setBalance(b || {
         cash_balance: '0',
         card_balance: '0',
@@ -310,6 +313,12 @@ export default function FinancePanel() {
         safe_balance: '0',
       });
       setEntries(e || []);
+      setActiveTableDepositLiability(
+        (tableRows || []).reduce((sum: Decimal, table: any) => {
+          if (!table?.is_occupied) return sum;
+          return sum.plus(new Decimal(table?.deposit_amount || 0));
+        }, new Decimal(0)),
+      );
       setBankCommissionConfig({
         card_sale_percent: Number((settings.bank_commission as any)?.card_sale_percent ?? settings.bank_commission?.percent ?? 2),
         card_transfer_percent: Number((settings.bank_commission as any)?.card_transfer_percent ?? 0.5),
@@ -674,7 +683,7 @@ export default function FinancePanel() {
               label={tx(lang, 'Likvidlik', 'Ликвидность', 'Liquidity')}
               value={`${cashCoverage}%`}
               tone="text-sky-300"
-              helper={tx(lang, 'Likvid vəsait / öhdəlik', 'Ликвидные средства / обязательства', 'Liquid cash / obligations')}
+              helper={cashCoverage === 'N/A' ? tx(lang, 'Öhdəlik yoxdur', 'Обязательств нет', 'No obligations') : tx(lang, 'Likvid vəsait / öhdəlik', 'Ликвидные средства / обязательства', 'Liquid cash / obligations')}
             />
             <HighlightStat
               label={tx(lang, 'Qeyd sayı', 'Кол-во записей', 'Entries')}
@@ -686,7 +695,7 @@ export default function FinancePanel() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         <WalletCard title={tx(lang, 'Nağd Kassa', 'Наличная касса', 'Cash Drawer')} value={balance.cash_balance} helper={tx(lang, 'Birbaşa işlək nağd pul', 'Оперативная наличность', 'Operational cash on hand')} />
         <WalletCard title={tx(lang, 'Bank/Kart Hesabı', 'Банк/карта', 'Bank/Card Wallet')} value={balance.card_balance} helper={tx(lang, 'Kart və bank qalıqları', 'Остатки на карте и в банке', 'Card and bank holdings')} />
         <WalletCard
@@ -696,6 +705,7 @@ export default function FinancePanel() {
           accent="rose"
         />
         <WalletCard title={tx(lang, 'Seyf', 'Сейф', 'Safe')} value={balance.safe_balance || '0'} helper={tx(lang, 'Rezerv vəsait', 'Резервные средства', 'Reserved funds')} accent="sky" />
+        <WalletCard title={tx(lang, 'Aktiv Masa Depoziti', 'Активные депозиты столов', 'Active Table Deposits')} value={activeTableDepositLiability.toFixed(2)} helper={tx(lang, 'Hazırda açıq masalarda saxlanan depozit öhdəliyi', 'Текущие депозиты по открытым столам', 'Deposit liability currently held on open tables')} accent="amber" />
       </div>
 
       <div className="metal-panel p-5">
