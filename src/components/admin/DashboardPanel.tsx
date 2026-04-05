@@ -12,6 +12,7 @@ import { getPendingOfflineSalesCount } from '../../lib/offline';
 import { get_business_profile } from '../../api/settings';
 import { generate_finance_insight, generate_shift_summary, generate_stock_forecast, type AiInsightResult } from '../../api/ai_manager';
 import { hostScopedKey } from '../../lib/storage_keys';
+import { get_logs_live } from '../../api/logs';
 
 type DashboardSnapshot = {
   summary: any;
@@ -54,6 +55,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
     pendingOffline: 0,
   });
   const [financeAnomalies, setFinanceAnomalies] = useState<FinanceAnomalies | null>(null);
+  const [recentFinanceAuditLogs, setRecentFinanceAuditLogs] = useState<any[]>([]);
   const [aiInsights, setAiInsights] = useState<{
     shift: AiInsightResult | null;
     finance: AiInsightResult | null;
@@ -110,6 +112,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
           tables,
           financeEntries,
           pendingOffline,
+          logs,
         ] = await Promise.all([
           getSalesSummarySafe(),
           getSalesListSafe(),
@@ -117,6 +120,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
           getTablesSafe(),
           getFinanceEntriesSafe(),
           getPendingOfflineSalesCount(tenant_id),
+          get_logs_live(tenant_id, 50).catch(() => []),
         ]);
 
         const lowStock = get_low_stock_items(tenant_id, 5);
@@ -137,6 +141,9 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
           pendingOffline,
         });
         setFinanceAnomalies(anomalies);
+        setRecentFinanceAuditLogs(
+          (logs || []).filter((row: any) => String(row.action || '').toUpperCase() === 'FINANCE_ANOMALY_SNAPSHOT').slice(0, 3),
+        );
       } catch (error: any) {
         if (!mounted) return;
         notify('error', error?.message || tx(lang, 'Dashboard yüklənmədi', 'Не удалось загрузить dashboard', 'Failed to load dashboard'));
@@ -250,13 +257,17 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
       const detail = (event as CustomEvent<{ tenant_id?: string }>).detail;
       if (!detail?.tenant_id || detail.tenant_id === tenant_id) {
         try {
-          const [balances, financeEntries, anomalies] = await Promise.all([
+          const [balances, financeEntries, anomalies, logs] = await Promise.all([
             fetch_finance_balances(tenant_id).catch(() => get_balance(tenant_id, 'all', false) as any),
             fetch_finance_entries(tenant_id).catch(() => []),
             fetch_finance_anomalies(tenant_id).catch(() => null),
+            get_logs_live(tenant_id, 50).catch(() => []),
           ]);
           setSnapshot((prev) => ({ ...prev, balances, financeEntries }));
           setFinanceAnomalies(anomalies);
+          setRecentFinanceAuditLogs(
+            (logs || []).filter((row: any) => String(row.action || '').toUpperCase() === 'FINANCE_ANOMALY_SNAPSHOT').slice(0, 3),
+          );
         } catch {
           // Finance ping should never break dashboard rendering.
         }
@@ -427,6 +438,28 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
     }
     return items;
   }, [financeAnomalies, hasReconciliationIssue, lang, reconciliationGap, snapshot.balances.cash_balance, snapshot.balances.deposit_balance, snapshot.balances.investor_balance]);
+
+  const recentFinanceAlerts = useMemo(() => {
+    return recentFinanceAuditLogs.map((log: any) => {
+      let parsed: any = {};
+      try {
+        parsed = typeof log.details === 'string' ? JSON.parse(log.details) : (log.details || {});
+      } catch {
+        parsed = {};
+      }
+      const flags: string[] = [];
+      if (parsed.has_reconciliation_issue) flags.push(tx(lang, 'sales vs ledger', 'sales vs ledger', 'sales vs ledger'));
+      if (parsed.has_investor_mismatch) flags.push(tx(lang, 'investor', 'investor', 'investor'));
+      if (parsed.has_shift_cash_mismatch) flags.push(tx(lang, 'shift cash', 'shift cash', 'shift cash'));
+      if (parsed.has_deposit_risk) flags.push(tx(lang, 'deposit', 'deposit', 'deposit'));
+      if (parsed.has_closed_shift_open_deposit) flags.push(tx(lang, 'closed shift deposit', 'closed shift deposit', 'closed shift deposit'));
+      return {
+        id: log.id,
+        created_at: log.created_at,
+        flags: flags.length > 0 ? flags.join(' • ') : tx(lang, 'warning yoxdur', 'нет warning', 'no warning'),
+      };
+    });
+  }, [lang, recentFinanceAuditLogs]);
 
   const financeTrend = useMemo(() => {
     const start = new Date(activeRange.fromIso);
@@ -942,6 +975,34 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
                     value={String(readyOrders)}
                     helper={tx(lang, 'Servisə çağırılmalıdır', 'Нужно выдать в зал', 'Needs front-of-house action')}
                   />
+                </div>
+              </div>
+
+              <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.93),rgba(246,248,252,0.88))] p-5 text-slate-900 shadow-[0_16px_45px_rgba(0,0,0,0.22)]">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-bold">{tx(lang, 'Son Maliyyə Auditləri', 'Последние финансовые аудиты', 'Recent Finance Audits')}</h3>
+                    <p className="mt-1 text-sm text-slate-500">{tx(lang, 'Backend anomaly snapshot tarixçəsi', 'История backend anomaly snapshot', 'Backend anomaly snapshot history')}</p>
+                  </div>
+                  <button
+                    onClick={() => onOpenTab('finance')}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm"
+                  >
+                    {tx(lang, 'Maliyyəyə keç', 'Открыть финансы', 'Open finance')}
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {recentFinanceAlerts.map((row) => (
+                    <div key={row.id} className="rounded-2xl border border-rose-200 bg-rose-50/80 px-4 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="font-semibold text-rose-950">{row.flags}</div>
+                        <div className="text-xs text-rose-700">{new Date(row.created_at).toLocaleString(lang === 'ru' ? 'ru-RU' : 'az-AZ')}</div>
+                      </div>
+                    </div>
+                  ))}
+                  {recentFinanceAlerts.length === 0 && (
+                    <EmptyDash text={tx(lang, 'Hələ maliyyə audit warning tarixçəsi yoxdur', 'Пока нет истории финансовых audit warning', 'No finance audit warning history yet')} />
+                  )}
                 </div>
               </div>
 
