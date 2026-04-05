@@ -171,6 +171,12 @@ class TransferIn(BaseModel):
     description: str | None = None
 
 
+class InvestorRepayIn(BaseModel):
+    amount: Decimal
+    pay_from: str
+    description: str | None = None
+
+
 class TenantCreateIn(BaseModel):
     name: str
     slug: str
