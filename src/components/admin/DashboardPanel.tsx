@@ -4,7 +4,7 @@ import { ArrowRight, ChefHat, CreditCard, PackageSearch, Receipt, SignalHigh, Sh
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 import { get_sales_list, get_sales_list_live, get_sales_summary, get_sales_summary_live } from '../../api/analytics';
-import { fetch_finance_balances, fetch_finance_entries, get_balance } from '../../api/finance';
+import { fetch_finance_anomalies, fetch_finance_balances, fetch_finance_entries, get_balance, type FinanceAnomalies } from '../../api/finance';
 import { get_low_stock_items } from '../../api/inventory';
 import { get_kitchen_orders, get_kitchen_orders_live } from '../../api/kds';
 import { get_tables, get_tables_live } from '../../api/tables';
@@ -53,6 +53,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
     lowStock: [],
     pendingOffline: 0,
   });
+  const [financeAnomalies, setFinanceAnomalies] = useState<FinanceAnomalies | null>(null);
   const [aiInsights, setAiInsights] = useState<{
     shift: AiInsightResult | null;
     finance: AiInsightResult | null;
@@ -119,7 +120,10 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
         ]);
 
         const lowStock = get_low_stock_items(tenant_id, 5);
-        const balances = await getBalancesSafe();
+        const [balances, anomalies] = await Promise.all([
+          getBalancesSafe(),
+          fetch_finance_anomalies(tenant_id).catch(() => null),
+        ]);
 
         if (!mounted) return;
         setSnapshot({
@@ -132,6 +136,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
           lowStock,
           pendingOffline,
         });
+        setFinanceAnomalies(anomalies);
       } catch (error: any) {
         if (!mounted) return;
         notify('error', error?.message || tx(lang, 'Dashboard yüklənmədi', 'Не удалось загрузить dashboard', 'Failed to load dashboard'));
@@ -245,11 +250,13 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
       const detail = (event as CustomEvent<{ tenant_id?: string }>).detail;
       if (!detail?.tenant_id || detail.tenant_id === tenant_id) {
         try {
-          const [balances, financeEntries] = await Promise.all([
+          const [balances, financeEntries, anomalies] = await Promise.all([
             fetch_finance_balances(tenant_id).catch(() => get_balance(tenant_id, 'all', false) as any),
             fetch_finance_entries(tenant_id).catch(() => []),
+            fetch_finance_anomalies(tenant_id).catch(() => null),
           ]);
           setSnapshot((prev) => ({ ...prev, balances, financeEntries }));
+          setFinanceAnomalies(anomalies);
         } catch {
           // Finance ping should never break dashboard rendering.
         }
@@ -353,18 +360,18 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
   const hasReconciliationIssue = Boolean(snapshot.summary?.has_reconciliation_issue) || reconciliationGap.abs().greaterThan(new Decimal(0.01));
   const dashboardExceptions = useMemo(() => {
     const items: Array<{ title: string; body: string; tone: 'rose' | 'amber' | 'sky' }> = [];
-    const depositLiability = new Decimal(snapshot.balances.deposit_balance || 0);
+    const depositLiability = new Decimal(financeAnomalies?.deposit_balance || snapshot.balances.deposit_balance || 0);
     const cashBalance = new Decimal(snapshot.balances.cash_balance || 0);
-    const investorBalance = new Decimal(snapshot.balances.investor_balance || 0);
+    const investorBalance = new Decimal(financeAnomalies?.investor_ledger_balance || snapshot.balances.investor_balance || 0);
 
-    if (hasReconciliationIssue) {
+    if (Boolean(financeAnomalies?.has_reconciliation_issue) || hasReconciliationIssue) {
       items.push({
         title: tx(lang, 'Satış və ledger fərqi', 'Расхождение продаж и ledger', 'Sales vs ledger gap'),
         body: tx(
           lang,
-          `Satış gəliri ilə ledger satış daxilolması arasında ${reconciliationGap.toFixed(2)} ₼ fərq var.`,
-          `Между выручкой и поступлением по ledger есть расхождение ${reconciliationGap.toFixed(2)} ₼.`,
-          `There is a ${reconciliationGap.toFixed(2)} ₼ gap between revenue and ledger sales inflow.`,
+          `Satış gəliri ilə ledger satış daxilolması arasında ${new Decimal(financeAnomalies?.reconciliation_gap || reconciliationGap).toFixed(2)} ₼ fərq var.`,
+          `Между выручкой и поступлением по ledger есть расхождение ${new Decimal(financeAnomalies?.reconciliation_gap || reconciliationGap).toFixed(2)} ₼.`,
+          `There is a ${new Decimal(financeAnomalies?.reconciliation_gap || reconciliationGap).toFixed(2)} ₼ gap between revenue and ledger sales inflow.`,
         ),
         tone: 'rose',
       });
@@ -394,7 +401,32 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
       });
     }
     return items;
-  }, [hasReconciliationIssue, lang, reconciliationGap, snapshot.balances.cash_balance, snapshot.balances.deposit_balance, snapshot.balances.investor_balance]);
+    if (financeAnomalies?.has_shift_cash_mismatch) {
+      items.push({
+        title: tx(lang, 'Shift kassa uyğunsuzluğu', 'Несовпадение кассы смены', 'Shift cash mismatch'),
+        body: tx(
+          lang,
+          `Backend audit aktiv növbə üçün ${new Decimal(financeAnomalies.shift_cash_gap || 0).toFixed(2)} ₼ kassa fərqi göstərir.`,
+          `Backend audit показывает расхождение кассы смены ${new Decimal(financeAnomalies.shift_cash_gap || 0).toFixed(2)} ₼.`,
+          `Backend audit shows a ${new Decimal(financeAnomalies.shift_cash_gap || 0).toFixed(2)} ₼ shift cash gap.`,
+        ),
+        tone: 'rose',
+      });
+    }
+    if (financeAnomalies?.has_closed_shift_open_deposit) {
+      items.push({
+        title: tx(lang, 'Bağlı növbədə açıq depozit var', 'При закрытой смене есть активный депозит', 'Closed shift has active deposits'),
+        body: tx(
+          lang,
+          `Backend audit bağlı növbədə ${new Decimal(financeAnomalies.deposit_balance || 0).toFixed(2)} ₼ aktiv depozit öhdəliyi göstərir.`,
+          `Backend audit показывает ${new Decimal(financeAnomalies.deposit_balance || 0).toFixed(2)} ₼ активного депозитного обязательства при закрытой смене.`,
+          `Backend audit shows ${new Decimal(financeAnomalies.deposit_balance || 0).toFixed(2)} ₼ of active deposit liability while shift is closed.`,
+        ),
+        tone: 'amber',
+      });
+    }
+    return items;
+  }, [financeAnomalies, hasReconciliationIssue, lang, reconciliationGap, snapshot.balances.cash_balance, snapshot.balances.deposit_balance, snapshot.balances.investor_balance]);
 
   const financeTrend = useMemo(() => {
     const start = new Date(activeRange.fromIso);
