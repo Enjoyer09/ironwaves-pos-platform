@@ -109,6 +109,9 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
     if payload.source not in valid_sources:
         raise HTTPException(status_code=400, detail="Invalid wallet source")
 
+    if payload.source == "investor":
+        raise HTTPException(status_code=400, detail="Investor wallet can only be changed via dedicated investor flows")
+
     if payload.type == "out":
         bal = _wallet_balance(db, tenant.id, payload.source)
         if bal < amount:

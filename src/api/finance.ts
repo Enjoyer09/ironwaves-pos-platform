@@ -109,6 +109,9 @@ const validateFinanceEntryMatrix = (
   if (type === 'out' && source === 'debt') {
     throw new Error('Nisyə/Borc mənbəsindən birbaşa məxaric olmaz. Əvvəl kassaya vəsait köçürün.');
   }
+  if (source === 'investor') {
+    throw new Error('İnvestor wallet yalnız xüsusi investor axınları ilə dəyişdirilə bilər.');
+  }
 };
 
 export const get_investor_summary = (tenant_id: string) => {
