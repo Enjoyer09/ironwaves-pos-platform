@@ -86,6 +86,16 @@ function getSettings(tenant_id?: string): Settings {
       },
       print_settings: { use_qz: false, printer_name: '' },
       qr_settings: { base_url: '' },
+      qr_menu_settings: {
+        enabled: true,
+        hero_title: 'QR Menu',
+        hero_subtitle: 'Telefonunuzdan menyuya baxın',
+        show_prices: true,
+        show_images: true,
+        show_descriptions: true,
+        poster_title: 'Menyuya baxmaq üçün skan et',
+        poster_subtitle: 'Telefon kameranızı QR üzərinə yönəldin',
+      },
       customer_app_settings: {
         enabled: true,
         program_mode: 'points',
@@ -368,6 +378,19 @@ export function get_settings(tenant_id?: string) {
     s.qr_settings = { base_url: '' };
     saveSettings(s);
   }
+  if (!s.qr_menu_settings) {
+    s.qr_menu_settings = {
+      enabled: true,
+      hero_title: 'QR Menu',
+      hero_subtitle: 'Telefonunuzdan menyuya baxın',
+      show_prices: true,
+      show_images: true,
+      show_descriptions: true,
+      poster_title: 'Menyuya baxmaq üçün skan et',
+      poster_subtitle: 'Telefon kameranızı QR üzərinə yönəldin',
+    };
+    saveSettings(s);
+  }
   if (!s.customer_app_settings) {
     s.customer_app_settings = {
       enabled: true,
@@ -569,6 +592,23 @@ export function update_qr_settings(payload: { base_url: string }) {
   return { success: true };
 }
 
+export function update_qr_menu_settings(payload: NonNullable<Settings['qr_menu_settings']>) {
+  const settings = getSettings();
+  settings.qr_menu_settings = {
+    enabled: payload.enabled !== false,
+    hero_title: String(payload.hero_title || '').trim() || 'QR Menu',
+    hero_subtitle: String(payload.hero_subtitle || '').trim() || 'Telefonunuzdan menyuya baxın',
+    show_prices: payload.show_prices !== false,
+    show_images: payload.show_images !== false,
+    show_descriptions: payload.show_descriptions !== false,
+    poster_title: String(payload.poster_title || '').trim() || 'Menyuya baxmaq üçün skan et',
+    poster_subtitle: String(payload.poster_subtitle || '').trim() || 'Telefon kameranızı QR üzərinə yönəldin',
+  };
+  saveSettings(settings);
+  logEvent('admin', 'QR_MENU_SETTINGS_UPDATED', settings.qr_menu_settings);
+  return { success: true, qr_menu_settings: settings.qr_menu_settings };
+}
+
 export function update_customer_app_settings(payload: {
   enabled: boolean;
   program_mode?: 'points' | 'cashback';
@@ -746,6 +786,38 @@ export async function update_qr_settings_live(payload: { base_url: string }) {
   await apiRequest('/api/v1/ops/settings/qr-settings', { method: 'PATCH', tenantId: null, body: payload });
   update_qr_settings(payload);
   return { success: true };
+}
+
+export async function update_qr_menu_settings_live(payload: NonNullable<Settings['qr_menu_settings']>) {
+  if (!isBackendEnabled()) return update_qr_menu_settings(payload);
+  await apiRequest('/api/v1/ops/settings/qr-menu', { method: 'PATCH', tenantId: null, body: payload });
+  update_qr_menu_settings(payload);
+  return { success: true };
+}
+
+export async function get_public_qr_menu_bootstrap_live() {
+  return apiRequest<{
+    tenant_id: string;
+    enabled: boolean;
+    branding: {
+      company_name: string;
+      logo_url: string;
+      hero_title: string;
+      hero_subtitle: string;
+      poster_title: string;
+      poster_subtitle: string;
+      background_color: string;
+      primary_color: string;
+      accent_color: string;
+    };
+    show_prices: boolean;
+    show_images: boolean;
+    show_descriptions: boolean;
+  }>('/api/v1/ops/public-menu-bootstrap', {
+    method: 'GET',
+    tenantId: null,
+    auth: false,
+  });
 }
 
 export async function update_customer_app_settings_live(payload: {

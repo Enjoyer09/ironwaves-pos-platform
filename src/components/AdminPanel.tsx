@@ -49,6 +49,8 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   const [newItemName, setNewItemName] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
   const [newItemCategory, setNewItemCategory] = useState('Qəhvə');
+  const [newItemDescription, setNewItemDescription] = useState('');
+  const [newItemImageUrl, setNewItemImageUrl] = useState('');
   const [customCategory, setCustomCategory] = useState('');
   const [adminNote, setAdminNote] = useState('');
   const [notes, setNotes] = useState<Array<{ id: number; text: string; by?: string; created_at: string }>>([]);
@@ -167,13 +169,17 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
       price: new Decimal(newItemPrice),
       category: finalCategory,
       is_coffee: /q[eə]hv[əe]|coffee|kofe/i.test(finalCategory),
+      description: newItemDescription.trim(),
+      image_url: newItemImageUrl.trim(),
     }, user?.username);
     setNewItemName('');
     setNewItemPrice('');
-              setCustomCategory('');
-              window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { scope: 'menu' } }));
-              delete fetchCacheRef.current[`menu:${tenant_id}`];
-              await fetchData();
+    setNewItemDescription('');
+    setNewItemImageUrl('');
+    setCustomCategory('');
+    window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { scope: 'menu' } }));
+    delete fetchCacheRef.current[`menu:${tenant_id}`];
+    await fetchData();
   };
 
   const handleDeleteMenu = async (id: string) => {
@@ -529,6 +535,8 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                   className="neon-input w-40"
                 />
               )}
+              <input type="text" placeholder={tx(lang, 'Şəkil linki', 'Ссылка на изображение', 'Image URL')} value={newItemImageUrl} onChange={e => setNewItemImageUrl(e.target.value)} className="neon-input min-w-[220px]"/>
+              <input type="text" placeholder={tx(lang, 'Qısa təsvir', 'Краткое описание', 'Short description')} value={newItemDescription} onChange={e => setNewItemDescription(e.target.value)} className="neon-input min-w-[220px] flex-1"/>
               <button
                 onClick={() => { void handleAddMenu(); }}
                 disabled={!newItemName.trim() || !newItemPrice || (newItemCategory === '__custom__' && !customCategory.trim())}
@@ -542,9 +550,15 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
             <div className="flex-1 overflow-y-auto p-6 space-y-3">
               {menu.map(item => (
                 <div key={item.id} className="flex justify-between items-center p-4 rounded-xl border border-slate-700/70 bg-slate-900/35">
-                  <div>
+                  <div className="flex min-w-0 items-center gap-4">
+                    {item.image_url ? (
+                      <img src={String(item.image_url)} alt={String(item.item_name)} className="h-16 w-16 rounded-xl object-cover ring-1 ring-slate-700/60" />
+                    ) : null}
+                    <div className="min-w-0">
                     <div className="font-bold text-lg text-slate-100">{item.item_name}</div>
                     <div className="text-sm font-semibold text-yellow-300 bg-yellow-500/20 px-2 py-0.5 rounded inline-block mt-1">{item.category}</div>
+                    {item.description ? <div className="mt-2 max-w-xl truncate text-sm text-slate-400">{String(item.description)}</div> : null}
+                    </div>
                   </div>
                   <div className="flex items-center space-x-6">
                     <div className="font-bold text-xl text-slate-100">{parseFloat(item.price).toFixed(2)} ₼</div>

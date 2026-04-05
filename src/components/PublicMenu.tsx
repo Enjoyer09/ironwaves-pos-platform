@@ -1,6 +1,6 @@
 import React from 'react';
 import { get_public_menu_live } from '../api/menu';
-import { get_customer_app_bootstrap_live } from '../api/crm';
+import { get_public_qr_menu_bootstrap_live } from '../api/settings';
 
 export default function PublicMenu() {
   const [loading, setLoading] = React.useState(true);
@@ -15,7 +15,7 @@ export default function PublicMenu() {
       try {
         const [menu, brand] = await Promise.all([
           get_public_menu_live(),
-          get_customer_app_bootstrap_live().catch(() => null),
+          get_public_qr_menu_bootstrap_live().catch(() => null),
         ]);
         if (!mounted) return;
         setMenuItems(Array.isArray(menu) ? menu : []);
@@ -34,6 +34,9 @@ export default function PublicMenu() {
   }, []);
 
   const branding = bootstrap?.branding || {};
+  const showPrices = bootstrap?.show_prices !== false;
+  const showImages = bootstrap?.show_images !== false;
+  const showDescriptions = bootstrap?.show_descriptions !== false;
   const companyName = String(branding.company_name || 'iRonWaves Menu');
   const logoUrl = String(branding.logo_url || '');
   const primaryColor = String(branding.primary_color || '#facc15');
@@ -129,16 +132,28 @@ export default function PublicMenu() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filteredItems.map((item) => (
               <div key={item.id} className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.22)] backdrop-blur">
+                {showImages && item.image_url ? (
+                  <img
+                    src={String(item.image_url)}
+                    alt={String(item.item_name || 'Menu item')}
+                    className="mb-4 h-48 w-full rounded-[1.25rem] object-cover ring-1 ring-white/10"
+                  />
+                ) : null}
                 <div className="mb-4 flex items-start justify-between gap-4">
-                  <div>
+                  <div className="min-w-0">
                     <div className="rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75" style={{ backgroundColor: `${accentColor}33` }}>
                       {item.category}
                     </div>
                     <h3 className="mt-3 text-2xl font-bold text-white">{item.item_name}</h3>
+                    {showDescriptions && item.description ? (
+                      <p className="mt-2 text-sm leading-6 text-slate-300">{String(item.description)}</p>
+                    ) : null}
                   </div>
-                  <div className="rounded-2xl px-3 py-2 text-lg font-black text-slate-900" style={{ backgroundColor: primaryColor }}>
-                    {Number(item.price || 0).toFixed(2)} ₼
-                  </div>
+                  {showPrices ? (
+                    <div className="shrink-0 rounded-2xl px-3 py-2 text-lg font-black text-slate-900" style={{ backgroundColor: primaryColor }}>
+                      {Number(item.price || 0).toFixed(2)} ₼
+                    </div>
+                  ) : null}
                 </div>
                 {item.is_coffee ? (
                   <div className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: accentColor }}>

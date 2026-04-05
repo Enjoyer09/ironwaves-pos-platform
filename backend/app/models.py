@@ -87,6 +87,8 @@ class MenuItem(Base):
     category: Mapped[str] = mapped_column(String(120), nullable=False)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     is_coffee: Mapped[bool] = mapped_column(Boolean, default=False)
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 

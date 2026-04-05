@@ -140,6 +140,8 @@ def list_public_menu_items(
             "category": row.category,
             "price": str(row.price),
             "is_coffee": bool(row.is_coffee),
+            "image_url": row.image_url or "",
+            "description": row.description or "",
             "is_active": bool(row.is_active),
         }
         for row in rows
@@ -205,6 +207,8 @@ def create_menu_item(
         category=category,
         price=Decimal(str(payload.price)),
         is_coffee=bool(payload.is_coffee),
+        image_url=str(payload.image_url or "").strip() or None,
+        description=str(payload.description or "").strip() or None,
         is_active=True,
     )
     db.add(row)
@@ -217,6 +221,8 @@ def create_menu_item(
         "category": row.category,
         "price": str(row.price),
         "is_coffee": bool(row.is_coffee),
+        "image_url": row.image_url or "",
+        "description": row.description or "",
         "is_active": bool(row.is_active),
     }
 

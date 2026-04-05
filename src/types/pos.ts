@@ -208,6 +208,16 @@ export interface Settings {
   qr_settings?: {
     base_url: string;
   };
+  qr_menu_settings?: {
+    enabled: boolean;
+    hero_title: string;
+    hero_subtitle: string;
+    show_prices: boolean;
+    show_images: boolean;
+    show_descriptions: boolean;
+    poster_title: string;
+    poster_subtitle: string;
+  };
   customer_app_settings?: {
     enabled: boolean;
     program_mode?: 'points' | 'cashback';
