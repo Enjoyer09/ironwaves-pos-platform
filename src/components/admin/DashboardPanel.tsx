@@ -32,6 +32,7 @@ const emptyBalances = {
   debt_balance: '0',
   investor_balance: '0',
   safe_balance: '0',
+  deposit_balance: '0',
 };
 
 export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'inventory' | 'finance' | 'analytics' | 'tables' | 'crm' | 'ai') => void }) {
@@ -350,6 +351,50 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
     [snapshot.summary?.reconciliation_gap],
   );
   const hasReconciliationIssue = Boolean(snapshot.summary?.has_reconciliation_issue) || reconciliationGap.abs().greaterThan(new Decimal(0.01));
+  const dashboardExceptions = useMemo(() => {
+    const items: Array<{ title: string; body: string; tone: 'rose' | 'amber' | 'sky' }> = [];
+    const depositLiability = new Decimal(snapshot.balances.deposit_balance || 0);
+    const cashBalance = new Decimal(snapshot.balances.cash_balance || 0);
+    const investorBalance = new Decimal(snapshot.balances.investor_balance || 0);
+
+    if (hasReconciliationIssue) {
+      items.push({
+        title: tx(lang, 'Satış və ledger fərqi', 'Расхождение продаж и ledger', 'Sales vs ledger gap'),
+        body: tx(
+          lang,
+          `Satış gəliri ilə ledger satış daxilolması arasında ${reconciliationGap.toFixed(2)} ₼ fərq var.`,
+          `Между выручкой и поступлением по ledger есть расхождение ${reconciliationGap.toFixed(2)} ₼.`,
+          `There is a ${reconciliationGap.toFixed(2)} ₼ gap between revenue and ledger sales inflow.`,
+        ),
+        tone: 'rose',
+      });
+    }
+    if (depositLiability.greaterThan(cashBalance)) {
+      items.push({
+        title: tx(lang, 'Depozit öhdəliyi yüksəkdir', 'Высокое обязательство по депозитам', 'Deposit liability is high'),
+        body: tx(
+          lang,
+          `Aktiv depozit öhdəliyi kassadakı nağddan ${depositLiability.minus(cashBalance).toFixed(2)} ₼ çoxdur.`,
+          `Активное обязательство по депозитам на ${depositLiability.minus(cashBalance).toFixed(2)} ₼ выше наличности в кассе.`,
+          `Active deposit liability exceeds cash drawer by ${depositLiability.minus(cashBalance).toFixed(2)} ₼.`,
+        ),
+        tone: 'amber',
+      });
+    }
+    if (investorBalance.greaterThan(0)) {
+      items.push({
+        title: tx(lang, 'İnvestor borcu açıqdır', 'Открыт долг инвестору', 'Investor debt is open'),
+        body: tx(
+          lang,
+          `Cari investor öhdəliyi ${investorBalance.toFixed(2)} ₼-dir.`,
+          `Текущее обязательство перед инвестором составляет ${investorBalance.toFixed(2)} ₼.`,
+          `Current investor liability is ${investorBalance.toFixed(2)} ₼.`,
+        ),
+        tone: 'sky',
+      });
+    }
+    return items;
+  }, [hasReconciliationIssue, lang, reconciliationGap, snapshot.balances.cash_balance, snapshot.balances.deposit_balance, snapshot.balances.investor_balance]);
 
   const financeTrend = useMemo(() => {
     const start = new Date(activeRange.fromIso);
@@ -564,6 +609,20 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
               </div>
             </div>
           </div>
+
+          {dashboardExceptions.length > 0 && (
+            <div className="rounded-[24px] border border-rose-500/15 bg-slate-950/50 p-4">
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-rose-300">{tx(lang, 'Audit Exceptions', 'Аудит-исключения', 'Audit Exceptions')}</div>
+              <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-3">
+                {dashboardExceptions.map((item) => (
+                  <div key={item.title} className={`rounded-2xl border p-3 ${item.tone === 'rose' ? 'border-rose-500/30 bg-rose-950/30' : item.tone === 'amber' ? 'border-amber-500/30 bg-amber-950/20' : 'border-sky-500/30 bg-sky-950/20'}`}>
+                    <div className="font-semibold text-slate-100">{item.title}</div>
+                    <div className="mt-1 text-xs text-slate-300">{item.body}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {hasReconciliationIssue && (
             <div className="rounded-[28px] border border-rose-300/50 bg-[linear-gradient(135deg,#fff1f2,#ffe4e6)] p-5 text-rose-950 shadow-[0_16px_40px_rgba(244,63,94,0.18)]">

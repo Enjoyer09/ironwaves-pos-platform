@@ -127,6 +127,50 @@ export default function ZReportPanel() {
   }, [sales]);
   const yieldEnabled = Boolean(yieldSettings?.enabled);
   const totalYieldFlags = useMemo(() => yieldWasteLogs.filter((row) => row.flagged).length, [yieldWasteLogs]);
+  const zAuditExceptions = useMemo(() => {
+    const items: Array<{ title: string; body: string; tone: 'rose' | 'amber' | 'sky' }> = [];
+    const cashBalance = new Decimal(currentBalances.cash_balance || 0);
+    const depositLiability = new Decimal(currentBalances.deposit_balance || 0);
+    const shiftCashGap = cashBalance.minus(expectedCashNow).abs();
+
+    if (shiftStatus.status === 'Open' && shiftCashGap.greaterThan(0.01)) {
+      items.push({
+        title: tx(lang, 'Shift kassa fərqi', 'Разница кассы по смене', 'Shift cash mismatch'),
+        body: tx(
+          lang,
+          `Olmalı kassa ilə cari cash wallet arasında ${shiftCashGap.toFixed(2)} ₼ fərq var.`,
+          `Между ожидаемой кассой и текущим cash wallet есть расхождение ${shiftCashGap.toFixed(2)} ₼.`,
+          `There is a ${shiftCashGap.toFixed(2)} ₼ gap between expected cash and current cash wallet.`,
+        ),
+        tone: 'rose',
+      });
+    }
+    if (depositLiability.greaterThan(cashBalance)) {
+      items.push({
+        title: tx(lang, 'Depozit öhdəliyi kassadan çoxdur', 'Обязательство по депозитам выше кассы', 'Deposit liability exceeds cash'),
+        body: tx(
+          lang,
+          `Aktiv depozit öhdəliyi kassadakı nağddan ${depositLiability.minus(cashBalance).toFixed(2)} ₼ çoxdur.`,
+          `Активное обязательство по депозитам на ${depositLiability.minus(cashBalance).toFixed(2)} ₼ выше наличности в кассе.`,
+          `Active deposit liability exceeds cash drawer by ${depositLiability.minus(cashBalance).toFixed(2)} ₼.`,
+        ),
+        tone: 'amber',
+      });
+    }
+    if (shiftStatus.status === 'Closed' && depositLiability.greaterThan(0)) {
+      items.push({
+        title: tx(lang, 'Bağlı növbədə açıq depozit var', 'При закрытой смене есть активный депозит', 'Closed shift has active deposits'),
+        body: tx(
+          lang,
+          `Növbə bağlı olsa da ${depositLiability.toFixed(2)} ₼ aktiv depozit öhdəliyi qalır.`,
+          `Смена закрыта, но остается активное обязательство по депозитам ${depositLiability.toFixed(2)} ₼.`,
+          `The shift is closed but ${depositLiability.toFixed(2)} ₼ of active deposit liability remains.`,
+        ),
+        tone: 'sky',
+      });
+    }
+    return items;
+  }, [currentBalances.cash_balance, currentBalances.deposit_balance, expectedCashNow, lang, shiftStatus.status]);
 
   const buildZReceiptHtml = (result: any) => {
     const expectedCash = new Decimal(result?.expected_cash || 0);
@@ -1166,6 +1210,16 @@ export default function ZReportPanel() {
             <div className="mt-2 text-sm font-bold text-amber-200">{new Decimal(currentBalances.deposit_balance || 0).toFixed(2)} ₼</div>
           </div>
         </div>
+        {zAuditExceptions.length > 0 && (
+          <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-3">
+            {zAuditExceptions.map((item) => (
+              <div key={item.title} className={`rounded-2xl border p-3 text-sm ${item.tone === 'rose' ? 'border-rose-500/30 bg-rose-950/20 text-rose-100' : item.tone === 'amber' ? 'border-amber-500/30 bg-amber-950/20 text-amber-100' : 'border-sky-500/30 bg-sky-950/20 text-sky-100'}`}>
+                <div className="font-semibold">{item.title}</div>
+                <div className="mt-1 text-xs opacity-90">{item.body}</div>
+              </div>
+            ))}
+          </div>
+        )}
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-900/50 text-slate-300">
             <tr>

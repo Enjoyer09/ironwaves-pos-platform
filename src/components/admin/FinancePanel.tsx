@@ -474,6 +474,54 @@ export default function FinancePanel() {
     return liquid.div(obligations).times(100).toFixed(0);
   }, [balance.cash_balance, balance.card_balance, balance.safe_balance, balance.debt_balance, investorSummary.debt_remaining]);
 
+  const financeExceptions = useMemo(() => {
+    const items: Array<{ title: string; body: string; tone: 'rose' | 'amber' | 'sky' }> = [];
+    const investorLedgerGap = new Decimal(balance.investor_balance || 0).minus(new Decimal(investorSummary.debt_remaining || 0)).abs();
+    const depositLiability = new Decimal(balance.deposit_balance || 0);
+    const cashBalance = new Decimal(balance.cash_balance || 0);
+
+    if (investorLedgerGap.greaterThan(0.01)) {
+      items.push({
+        title: tx(lang, 'Investor borcu uyğunsuzluğu', 'Несовпадение долга инвестору', 'Investor debt mismatch'),
+        body: tx(
+          lang,
+          `Investor ledger balansı ilə hesablanan borc arasında ${investorLedgerGap.toFixed(2)} ₼ fərq var.`,
+          `Есть расхождение ${investorLedgerGap.toFixed(2)} ₼ между investor ledger и расчетным долгом.`,
+          `There is a ${investorLedgerGap.toFixed(2)} ₼ gap between investor ledger and calculated debt.`,
+        ),
+        tone: 'rose',
+      });
+    }
+
+    if (depositLiability.greaterThan(cashBalance)) {
+      items.push({
+        title: tx(lang, 'Depozit riski', 'Риск депозитов', 'Deposit risk'),
+        body: tx(
+          lang,
+          `Aktiv depozit öhdəliyi kassadakı nağddan ${depositLiability.minus(cashBalance).toFixed(2)} ₼ çoxdur.`,
+          `Активное обязательство по депозитам на ${depositLiability.minus(cashBalance).toFixed(2)} ₼ выше наличности в кассе.`,
+          `Active deposit liability exceeds cash drawer by ${depositLiability.minus(cashBalance).toFixed(2)} ₼.`,
+        ),
+        tone: 'amber',
+      });
+    }
+
+    if (financeSummary.net.lessThan(0)) {
+      items.push({
+        title: tx(lang, 'Mənfi operativ nəticə', 'Отрицательный операционный итог', 'Negative operational net'),
+        body: tx(
+          lang,
+          `Seçilmiş dövrdə operativ net nəticə ${financeSummary.net.toFixed(2)} ₼-dir.`,
+          `Операционный нетто итог за период составляет ${financeSummary.net.toFixed(2)} ₼.`,
+          `Operational net for the selected period is ${financeSummary.net.toFixed(2)} ₼.`,
+        ),
+        tone: 'sky',
+      });
+    }
+
+    return items;
+  }, [balance.cash_balance, balance.deposit_balance, balance.investor_balance, financeSummary.net, investorSummary.debt_remaining, lang]);
+
   const exportCsv = () => {
     if (!filteredEntries.length) {
       notify('error', tx(lang, 'Export üçün məlumat yoxdur', 'Нет данных для экспорта', 'No data to export'));
@@ -719,6 +767,20 @@ export default function FinancePanel() {
           </div>
         </div>
       </div>
+
+      {financeExceptions.length > 0 && (
+        <div className="rounded-[24px] border border-rose-500/20 bg-rose-500/5 p-4 text-sm shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
+          <div className="text-xs font-black uppercase tracking-[0.22em] text-rose-300">{tx(lang, 'Audit Exceptions', 'Аудит-исключения', 'Audit Exceptions')}</div>
+          <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-3">
+            {financeExceptions.map((item) => (
+              <div key={item.title} className={`rounded-2xl border p-3 ${item.tone === 'rose' ? 'border-rose-500/30 bg-rose-950/30' : item.tone === 'amber' ? 'border-amber-500/30 bg-amber-950/20' : 'border-sky-500/30 bg-sky-950/20'}`}>
+                <div className="font-semibold text-slate-100">{item.title}</div>
+                <div className="mt-1 text-xs text-slate-300">{item.body}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="metal-panel p-5">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
