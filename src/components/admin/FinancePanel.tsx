@@ -56,6 +56,7 @@ const isOperationalFinanceEntry = (entry: any) => {
   const category = normalizeFinanceText(entry?.category);
   const source = normalizeFinanceText(entry?.source);
   const description = normalizeFinanceText(entry?.description);
+  const isDeposit = category.includes('depozit') || description.includes('depozit') || description.includes('deposit');
 
   if (category.includes('daxili transfer')) return false;
   if (category.includes('tesisci investisiyasi')) return false;
@@ -63,6 +64,7 @@ const isOperationalFinanceEntry = (entry: any) => {
   if (category.includes('borcdan kassaya daxilolma')) return false;
   if (category.includes('borc alindi')) return false;
   if (category.includes('kassa acilisi')) return false;
+  if (isDeposit) return false;
   if (source === 'investor' || source === 'debt') return false;
   if (description.includes('auto liability mirror')) return false;
   if (description.includes('auto mirror')) return false;
@@ -472,7 +474,7 @@ export default function FinancePanel() {
       .plus(new Decimal(balance.safe_balance || 0));
     const obligations = new Decimal(investorSummary.debt_remaining || 0)
       .plus(new Decimal(balance.debt_balance || 0));
-    if (obligations.lte(0)) return '100';
+    if (obligations.lte(0)) return 'N/A';
     return liquid.div(obligations).times(100).toFixed(0);
   }, [balance.cash_balance, balance.card_balance, balance.safe_balance, balance.debt_balance, investorSummary.debt_remaining]);
 
@@ -487,14 +489,6 @@ export default function FinancePanel() {
       return `"${s.replace(/"/g, '""')}"`;
     };
 
-    const incomingTotal = filteredEntries
-      .filter((e: any) => e.type === 'in')
-      .reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0));
-    const outgoingTotal = filteredEntries
-      .filter((e: any) => e.type === 'out')
-      .reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0));
-    const netTotal = incomingTotal.minus(outgoingTotal);
-
     const header = ['created_at', 'direction', 'category', 'source', 'amount', 'counterparty', 'description'];
     const rows = filteredEntries.map((e: any) => [
       esc(e.created_at),
@@ -506,9 +500,10 @@ export default function FinancePanel() {
       esc(e.description),
     ]);
     const summaryRows = [
-      [esc('SUMMARY'), esc('in_total'), esc(''), esc(''), esc(incomingTotal.toFixed(2)), esc('')],
-      [esc('SUMMARY'), esc('out_total'), esc(''), esc(''), esc(outgoingTotal.toFixed(2)), esc('')],
-      [esc('SUMMARY'), esc('net_total'), esc(''), esc(''), esc(netTotal.toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc('operational_in_total'), esc(''), esc(''), esc(financeSummary.incoming.toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc('operational_out_total'), esc(''), esc(''), esc(financeSummary.outgoing.toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc('operational_net_total'), esc(''), esc(''), esc(financeSummary.net.toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc('deposits_total'), esc(''), esc(''), esc(depositsInRange.toFixed(2)), esc('')],
       [esc('SUMMARY'), esc('cash_balance'), esc(''), esc(''), esc(new Decimal(balance.cash_balance || 0).toFixed(2)), esc('')],
       [esc('SUMMARY'), esc('card_balance'), esc(''), esc(''), esc(new Decimal(balance.card_balance || 0).toFixed(2)), esc('')],
       [esc('SUMMARY'), esc('safe_balance'), esc(''), esc(''), esc(new Decimal(balance.safe_balance || 0).toFixed(2)), esc('')],
@@ -530,13 +525,14 @@ export default function FinancePanel() {
     const html = `
       <h2>Finance Summary</h2>
       <p><b>Period:</b> ${fromDate} - ${toDate}</p>
-      <p><b>Incoming:</b> ${filteredEntries.filter((e: any) => e.type === 'in').reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0)).toFixed(2)} ₼</p>
-      <p><b>Outgoing:</b> ${filteredEntries.filter((e: any) => e.type === 'out').reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.amount || 0)), new Decimal(0)).toFixed(2)} ₼</p>
-      <p><b>Net:</b> ${filteredEntries.reduce((sum: Decimal, e: any) => sum.plus(new Decimal(e.type === 'in' ? e.amount || 0 : new Decimal(0).minus(new Decimal(e.amount || 0)))), new Decimal(0)).toFixed(2)} ₼</p>
+      <p><b>Operational Incoming:</b> ${financeSummary.incoming.toFixed(2)} ₼</p>
+      <p><b>Operational Outgoing:</b> ${financeSummary.outgoing.toFixed(2)} ₼</p>
+      <p><b>Operational Net:</b> ${financeSummary.net.toFixed(2)} ₼</p>
+      <p><b>Deposits:</b> ${depositsInRange.toFixed(2)} ₼</p>
       <p><b>Cash Balance:</b> ${new Decimal(balance.cash_balance || 0).toFixed(2)} ₼</p>
       <p><b>Card Balance:</b> ${new Decimal(balance.card_balance || 0).toFixed(2)} ₼</p>
       <p><b>Investor Debt:</b> ${new Decimal(investorSummary.debt_remaining || 0).toFixed(2)} ₼</p>
-      <p><b>Entries:</b> ${filteredEntries.length}</p>
+      <p><b>Operational Entries:</b> ${financeSummary.entriesCount}</p>
     `;
     try {
       const sent = await send_email({
@@ -672,7 +668,7 @@ export default function FinancePanel() {
               label={tx(lang, 'Net Cashflow', 'Нетто поток', 'Net Cashflow')}
               value={`${financeSummary.net.toFixed(2)} ₼`}
               tone={financeHealthTone}
-              helper={tx(lang, 'İnvestor, açılış və daxili transfer xaric', 'Без инвестора, открытия и внутренних переводов', 'Excluding investor, opening, and internal transfers')}
+              helper={tx(lang, 'İnvestor, açılış, depozit və daxili transfer xaric', 'Без инвестора, открытия, депозитов и внутренних переводов', 'Excluding investor, opening, deposits, and internal transfers')}
             />
             <HighlightStat
               label={tx(lang, 'Likvidlik', 'Ликвидность', 'Liquidity')}
