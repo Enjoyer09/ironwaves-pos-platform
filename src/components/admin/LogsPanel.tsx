@@ -8,6 +8,7 @@ export default function LogsPanel() {
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [limit, setLimit] = useState(100);
   const [pageSize, setPageSize] = useState(10);
+  const [quickFilter, setQuickFilter] = useState<'all' | 'finance_audit'>('all');
   const [query, setQuery] = useState('');
   const [fromDate, setFromDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -35,12 +36,15 @@ export default function LogsPanel() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return logs;
     return logs.filter((l: any) => {
+      if (quickFilter === 'finance_audit' && String(l.action || '').toUpperCase() !== 'FINANCE_ANOMALY_SNAPSHOT') {
+        return false;
+      }
+      if (!q) return true;
       const row = `${l.user} ${l.action} ${JSON.stringify(l.details || {})}`.toLowerCase();
       return row.includes(q);
     });
-  }, [logs, query]);
+  }, [logs, query, quickFilter]);
 
   const visibleLogs = useMemo(() => filtered.slice(0, pageSize), [filtered, pageSize]);
 
@@ -91,6 +95,7 @@ export default function LogsPanel() {
       CRM_SEND: tx(lang, 'CRM email göndərişi edildi', 'CRM-рассылка отправлена', 'CRM email sent'),
       QR_GENERATED: tx(lang, 'Yeni QR yaradıldı', 'Создан новый QR', 'New QR generated'),
       OFFLINE_SALES_SYNCED: tx(lang, 'Offline satışlar serverə göndərildi', 'Оффлайн продажи синхронизированы', 'Offline sales synced'),
+      FINANCE_ANOMALY_SNAPSHOT: tx(lang, 'Maliyyə audit snapshot-u', 'Снимок финансового аудита', 'Finance audit snapshot'),
     };
     return labels[action] || action.replace(/_/g, ' ').toLowerCase();
   };
@@ -109,6 +114,15 @@ export default function LogsPanel() {
     if (action === 'SALE_VOIDED' && details.sale_id) return `sale_id: ${details.sale_id}`;
     if (action === 'SALE_PARTIAL_REFUND' && amount) return `${tx(lang, 'Refund məbləği', 'Сумма возврата', 'Refund amount')}: ${amount}`;
     if ((action === 'SHIFT_HANDOVER' || action === 'SHIFT_HANDOVER_ACCEPTED') && targetUser) return `${tx(lang, 'İşçi', 'Сотрудник', 'Staff')}: ${targetUser}`;
+    if (action === 'FINANCE_ANOMALY_SNAPSHOT') {
+      const bits: string[] = [];
+      if (details.has_reconciliation_issue) bits.push(tx(lang, 'sales vs ledger fərqi', 'разница sales vs ledger', 'sales vs ledger gap'));
+      if (details.has_investor_mismatch) bits.push(tx(lang, 'investor uyğunsuzluğu', 'несовпадение инвестора', 'investor mismatch'));
+      if (details.has_shift_cash_mismatch) bits.push(tx(lang, 'shift kassa fərqi', 'разница кассы смены', 'shift cash gap'));
+      if (details.has_deposit_risk) bits.push(tx(lang, 'depozit riski', 'риск депозитов', 'deposit risk'));
+      if (details.has_closed_shift_open_deposit) bits.push(tx(lang, 'bağlı növbədə depozit', 'депозит при закрытой смене', 'deposit on closed shift'));
+      return bits.length > 0 ? bits.join(' • ') : tx(lang, 'Audit warning yoxdur', 'Нет audit warning', 'No audit warning');
+    }
     if (amount) return `${tx(lang, 'Məbləğ', 'Сумма', 'Amount')}: ${amount}`;
     if (itemName) return itemName;
     return details.message || '-';
@@ -117,6 +131,48 @@ export default function LogsPanel() {
   const renderDetails = (details: any) => {
     const parsed = parseDetails(details);
     if (!parsed || Object.keys(parsed).length === 0) return '-';
+    if (parsed.has_reconciliation_issue !== undefined || parsed.has_investor_mismatch !== undefined || parsed.has_shift_cash_mismatch !== undefined) {
+      const riskRows = [
+        {
+          label: tx(lang, 'Sales vs ledger fərqi', 'Разница sales vs ledger', 'Sales vs ledger gap'),
+          active: Boolean(parsed.has_reconciliation_issue),
+          value: parsed.reconciliation_gap,
+        },
+        {
+          label: tx(lang, 'Investor ledger fərqi', 'Разница investor ledger', 'Investor ledger gap'),
+          active: Boolean(parsed.has_investor_mismatch),
+          value: parsed.investor_ledger_gap,
+        },
+        {
+          label: tx(lang, 'Shift kassa fərqi', 'Разница кассы смены', 'Shift cash gap'),
+          active: Boolean(parsed.has_shift_cash_mismatch),
+          value: parsed.shift_cash_gap,
+        },
+        {
+          label: tx(lang, 'Depozit və kassa fərqi', 'Разница депозита и кассы', 'Deposit vs cash gap'),
+          active: Boolean(parsed.has_deposit_risk),
+          value: parsed.deposit_cash_gap,
+        },
+      ];
+      return (
+        <div className="space-y-2 rounded-md border border-rose-400/30 bg-rose-950/20 p-2">
+          <div className="text-[11px] font-semibold text-rose-200">{tx(lang, 'Maliyyə audit nəticəsi', 'Результат финансового аудита', 'Finance audit result')}</div>
+          {riskRows.map((row) => (
+            <div key={row.label} className="flex items-center justify-between gap-3 text-[11px]">
+              <span className={row.active ? 'text-rose-100' : 'text-slate-400'}>{row.label}</span>
+              <span className={row.active ? 'font-mono text-rose-200' : 'font-mono text-slate-500'}>
+                {row.active ? `${String(row.value || '0')} ₼` : tx(lang, 'yoxdur', 'нет', 'none')}
+              </span>
+            </div>
+          ))}
+          <div className="border-t border-rose-300/20 pt-2 text-[11px] text-slate-300">
+            <div>{tx(lang, 'Nağd kassa', 'Касса', 'Cash')}: <span className="font-mono">{String(parsed.cash_balance || '0')} ₼</span></div>
+            <div>{tx(lang, 'Aktiv depozit öhdəliyi', 'Активное депозитное обязательство', 'Active deposit liability')}: <span className="font-mono">{String(parsed.deposit_balance || '0')} ₼</span></div>
+            <div>{tx(lang, 'İnvestor borcu', 'Долг инвестору', 'Investor debt')}: <span className="font-mono">{String(parsed.investor_calculated_debt || parsed.investor_ledger_balance || '0')} ₼</span></div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="space-y-1 rounded-md border border-slate-700/70 bg-slate-900/40 p-2">
         {Object.entries(parsed).map(([k, v]) => (
@@ -152,6 +208,10 @@ export default function LogsPanel() {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">{tx(lang, 'Sistem Loqları', 'Системные логи')}</h2>
         <div className="flex items-center gap-2">
+          <select value={quickFilter} onChange={(e) => setQuickFilter(e.target.value as 'all' | 'finance_audit')} className="neon-input">
+            <option value="all">{tx(lang, 'Bütün loqlar', 'Все логи', 'All logs')}</option>
+            <option value="finance_audit">{tx(lang, 'Maliyyə auditləri', 'Финансовые аудиты', 'Finance audits')}</option>
+          </select>
           <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="neon-input" />
           <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="neon-input" />
           <input

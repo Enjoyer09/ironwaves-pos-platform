@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,7 +8,7 @@ from app.db import get_db
 from app.deps import get_current_user, get_tenant
 import json
 
-from app.models import FinanceEntry, Sale, Setting, Shift, Tenant
+from app.models import AuditLog, FinanceEntry, Sale, Setting, Shift, Tenant
 from app.schemas import FinanceEntryIn, InvestorRepayIn, TransferIn
 
 
@@ -118,6 +119,61 @@ def _shift_rows(db: Session, tenant_id: str, shift: Shift | None) -> list[Financ
     return query.all()
 
 
+def _log_finance_anomaly_snapshot(
+    db: Session,
+    tenant_id: str,
+    username: str,
+    payload: dict,
+):
+    has_any_issue = any(
+        [
+            payload.get("has_investor_mismatch"),
+            payload.get("has_reconciliation_issue"),
+            payload.get("has_shift_cash_mismatch"),
+            payload.get("has_deposit_risk"),
+            payload.get("has_closed_shift_open_deposit"),
+        ]
+    )
+    if not has_any_issue:
+        return
+
+    cutoff = datetime.utcnow() - timedelta(minutes=15)
+    recent = (
+        db.query(AuditLog)
+        .filter(
+            AuditLog.tenant_id == tenant_id,
+            AuditLog.action == "FINANCE_ANOMALY_SNAPSHOT",
+            AuditLog.created_at >= cutoff,
+        )
+        .order_by(AuditLog.created_at.desc())
+        .first()
+    )
+    if recent:
+        try:
+            recent_details = json.loads(recent.details or "{}")
+        except Exception:
+            recent_details = {}
+        same_flags = (
+            bool(recent_details.get("has_investor_mismatch")) == bool(payload.get("has_investor_mismatch"))
+            and bool(recent_details.get("has_reconciliation_issue")) == bool(payload.get("has_reconciliation_issue"))
+            and bool(recent_details.get("has_shift_cash_mismatch")) == bool(payload.get("has_shift_cash_mismatch"))
+            and bool(recent_details.get("has_deposit_risk")) == bool(payload.get("has_deposit_risk"))
+            and bool(recent_details.get("has_closed_shift_open_deposit")) == bool(payload.get("has_closed_shift_open_deposit"))
+        )
+        if same_flags:
+            return
+
+    db.add(
+        AuditLog(
+            tenant_id=tenant_id,
+            user=username,
+            action="FINANCE_ANOMALY_SNAPSHOT",
+            details=json.dumps(payload, ensure_ascii=False),
+        )
+    )
+    db.commit()
+
+
 @router.get("/balances")
 def get_balances(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     return {
@@ -162,7 +218,7 @@ def get_finance_anomalies(db: Session = Depends(get_db), tenant: Tenant = Depend
         expected_cash = Decimal(str(active_shift.opening_cash or 0)) + cash_in - cash_out
         shift_cash_gap = abs(cash_balance - expected_cash)
 
-    return {
+    result = {
         "cash_balance": str(cash_balance.quantize(Decimal("0.01"))),
         "deposit_balance": str(deposit_balance.quantize(Decimal("0.01"))),
         "investor_ledger_balance": str(investor_ledger_balance.quantize(Decimal("0.01"))),
@@ -181,6 +237,8 @@ def get_finance_anomalies(db: Session = Depends(get_db), tenant: Tenant = Depend
         "has_closed_shift_open_deposit": active_shift is None and deposit_balance > Decimal("0.01"),
         "shift_open": active_shift is not None,
     }
+    _log_finance_anomaly_snapshot(db, tenant.id, user.username, result)
+    return result
 
 
 @router.get("/entries")
