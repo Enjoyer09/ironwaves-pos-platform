@@ -127,6 +127,22 @@ html {
     opacity: 0.95;
   }
 
+  .field-stack {
+    @apply space-y-1.5;
+  }
+
+  .field-label {
+    @apply text-xs font-semibold tracking-wide text-slate-200;
+  }
+
+  .field-hint {
+    @apply text-xs leading-relaxed text-slate-400;
+  }
+
+  .form-card {
+    @apply rounded-2xl border border-slate-700/60 bg-slate-950/25 p-4;
+  }
+
   .neon-input::placeholder {
     color: #94a3b8;
   }
