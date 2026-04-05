@@ -280,12 +280,12 @@ const saveShiftState = (tenant_id: string, payload: any) => {
 };
 
 // FUNKSIYA: open_shift
-export const open_shift = async (opened_by: string, tenant_id: string) => {
+export const open_shift = async (opened_by: string, tenant_id: string, opening_cash: string = '0') => {
   if (isBackendEnabled()) {
     const res = await apiRequest<any>('/api/v1/reports/open-shift', {
       method: 'POST',
       tenantId: tenant_id,
-      body: { opening_cash: '0' },
+      body: { opening_cash },
     });
     const next = {
       id: String(res?.shift_id || uuidv4()),
@@ -293,6 +293,7 @@ export const open_shift = async (opened_by: string, tenant_id: string) => {
       opened_by,
       status: 'Open',
       timestamp: new Date().toISOString(),
+      opening_cash,
     };
     saveShiftState(tenant_id, next);
     shiftStatusCache[tenant_id] = {
@@ -313,7 +314,8 @@ export const open_shift = async (opened_by: string, tenant_id: string) => {
     tenant_id,
     opened_by,
     status: 'Open',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    opening_cash,
   };
 
   saveShiftState(tenant_id, next);
@@ -529,6 +531,7 @@ export const refresh_shift_status = async (tenant_id: string) => {
       status: String(res?.status || 'Closed') === 'Open' ? 'Open' : 'Closed',
       opened_by: res?.opened_by,
       timestamp: res?.opened_at || res?.timestamp,
+      opening_cash: String(res?.opening_cash || '0'),
     };
     shiftStatusCache[tenant_id] = normalized;
     return { tenant_id, ...normalized };
@@ -541,9 +544,19 @@ export const get_expected_cash = (tenant_id: string) => {
   if (isBackendEnabled() && expectedCashCache[tenant_id]) {
     return expectedCashCache[tenant_id];
   }
-  const finances = getFinanceRows(tenant_id).filter((f) => f.source === 'cash' && !f.is_deleted);
+  const shift = getShiftState(tenant_id);
+  if (!shift || shift.status !== 'Open') {
+    return new Decimal(0);
+  }
+  const openedAt = shift.timestamp ? new Date(shift.timestamp).getTime() : 0;
+  const openingCash = new Decimal(shift.opening_cash || '0');
+  const finances = getFinanceRows(tenant_id).filter((f) => {
+    if (f.source !== 'cash' || f.is_deleted) return false;
+    const createdAt = f.created_at ? new Date(f.created_at).getTime() : 0;
+    return !openedAt || createdAt >= openedAt;
+  });
 
-  let expected_cash = new Decimal(0);
+  let expected_cash = openingCash;
   finances.forEach((f) => {
     if (f.type === 'in') expected_cash = expected_cash.plus(new Decimal(f.amount || 0));
     else expected_cash = expected_cash.minus(new Decimal(f.amount || 0));
@@ -685,7 +698,10 @@ export const z_report = async (
           <div class="line"><span>Nağd Satış</span><span>${new Decimal(res?.cash_sales || 0).toFixed(2)} ₼</span></div>
           <div class="line"><span>Kart Satış</span><span>${new Decimal(res?.card_sales || 0).toFixed(2)} ₼</span></div>
           <div class="line"><span>Maaş Çıxışı</span><span>${new Decimal(res?.wage_amount || 0).toFixed(2)} ₼</span></div>
-          <div class="line"><span>Açılış (sabah)</span><span>${new Decimal(res?.actual_cash || actual_cash || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Açılış (növbə)</span><span>${new Decimal(res?.opening_cash || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Kassa girişləri</span><span>${new Decimal(res?.cash_movements_in || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Kassa çıxışları</span><span>${new Decimal(res?.cash_movements_out || 0).toFixed(2)} ₼</span></div>
+          <div class="line"><span>Faktiki bağlanış</span><span>${new Decimal(res?.actual_cash || actual_cash || 0).toFixed(2)} ₼</span></div>
           <hr />
           <div class="muted">${profile?.receipt_footer || 'Bizi seçdiyiniz üçün təşəkkür edirik!'}</div>
         </body>
@@ -830,7 +846,8 @@ export const z_report = async (
         <div class="line"><span>Kart Satış</span><span>${card_sales.toFixed(2)} ₼</span></div>
         <div class="line"><span>Ümumi Satış</span><span>${total_sales.toFixed(2)} ₼</span></div>
         <div class="line"><span>Maaş Çıxışı</span><span>${wage.toFixed(2)} ₼</span></div>
-        <div class="line"><span>Açılış (sabah)</span><span>${actual.toFixed(2)} ₼</span></div>
+        <div class="line"><span>Açılış (növbə)</span><span>${new Decimal(shift.opening_cash || 0).toFixed(2)} ₼</span></div>
+        <div class="line"><span>Faktiki bağlanış</span><span>${actual.toFixed(2)} ₼</span></div>
         <hr />
         <div class="muted">${profile?.receipt_footer || 'Bizi seçdiyiniz üçün təşəkkür edirik!'}</div>
       </body>

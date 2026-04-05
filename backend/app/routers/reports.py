@@ -14,11 +14,6 @@ from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XRe
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
 
 
-def _sum_source(db: Session, tenant_id: str, source: str, typ: str) -> Decimal:
-    rows = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant_id, FinanceEntry.source == source, FinanceEntry.type == typ).all()
-    return sum((Decimal(str(r.amount)) for r in rows), Decimal("0"))
-
-
 def _rows_since(db: Session, tenant_id: str, opened_at: datetime | None) -> list[FinanceEntry]:
     query = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant_id)
     if opened_at:
@@ -43,9 +38,41 @@ def _is_shift_deposit_entry(row: FinanceEntry) -> bool:
     return row.type == "in" and ("depozit" in category or "depozit" in description or "deposit" in description)
 
 
+def _get_active_shift(db: Session, tenant_id: str) -> Shift | None:
+    return db.query(Shift).filter(Shift.tenant_id == tenant_id, Shift.status == "open").first()
+
+
+def _shift_cash_breakdown(db: Session, tenant_id: str, shift: Shift | None) -> dict[str, Decimal]:
+    if not shift:
+        return {
+            "opening_cash": Decimal("0"),
+            "cash_in": Decimal("0"),
+            "cash_out": Decimal("0"),
+            "expected_cash": Decimal("0"),
+        }
+
+    shift_rows = _rows_since(db, tenant_id, shift.opened_at)
+    cash_in = sum(
+        (Decimal(str(row.amount)) for row in shift_rows if row.source == "cash" and row.type == "in"),
+        Decimal("0"),
+    )
+    cash_out = sum(
+        (Decimal(str(row.amount)) for row in shift_rows if row.source == "cash" and row.type == "out"),
+        Decimal("0"),
+    )
+    opening_cash = Decimal(str(shift.opening_cash or 0))
+    expected_cash = opening_cash + cash_in - cash_out
+    return {
+        "opening_cash": opening_cash,
+        "cash_in": cash_in,
+        "cash_out": cash_out,
+        "expected_cash": expected_cash,
+    }
+
+
 @router.get("/status")
 def report_status(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
-    active = db.query(Shift).filter(Shift.tenant_id == tenant.id, Shift.status == "open").first()
+    active = _get_active_shift(db, tenant.id)
     if not active:
         return {"status": "Closed", "tenant_id": tenant.id}
     return {
@@ -53,19 +80,26 @@ def report_status(db: Session = Depends(get_db), tenant: Tenant = Depends(get_te
         "tenant_id": tenant.id,
         "opened_by": active.opened_by,
         "opened_at": active.opened_at.isoformat() if active.opened_at else None,
+        "opening_cash": str(Decimal(str(active.opening_cash or 0)).quantize(Decimal("0.01"))),
     }
 
 
 @router.get("/expected-cash")
 def expected_cash(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
-    cash_in = _sum_source(db, tenant.id, "cash", "in")
-    cash_out = _sum_source(db, tenant.id, "cash", "out")
-    return {"expected_cash": str(cash_in - cash_out)}
+    active = _get_active_shift(db, tenant.id)
+    breakdown = _shift_cash_breakdown(db, tenant.id, active)
+    return {
+        "expected_cash": str(breakdown["expected_cash"].quantize(Decimal("0.01"))),
+        "opening_cash": str(breakdown["opening_cash"].quantize(Decimal("0.01"))),
+        "cash_in": str(breakdown["cash_in"].quantize(Decimal("0.01"))),
+        "cash_out": str(breakdown["cash_out"].quantize(Decimal("0.01"))),
+        "shift_open": bool(active),
+    }
 
 
 @router.post("/open-shift")
 def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
-    active = db.query(Shift).filter(Shift.tenant_id == tenant.id, Shift.status == "open").first()
+    active = _get_active_shift(db, tenant.id)
     if active:
         raise HTTPException(status_code=400, detail="Shift already open")
 
@@ -83,13 +117,12 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
 
 @router.post("/x-report")
 def x_report(payload: XReportIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
-    active = db.query(Shift).filter(Shift.tenant_id == tenant.id, Shift.status == "open").first()
+    active = _get_active_shift(db, tenant.id)
     if not active:
         raise HTTPException(status_code=400, detail="Shift is closed")
 
-    cash_in = _sum_source(db, tenant.id, "cash", "in")
-    cash_out = _sum_source(db, tenant.id, "cash", "out")
-    expected = cash_in - cash_out
+    breakdown = _shift_cash_breakdown(db, tenant.id, active)
+    expected = breakdown["expected_cash"]
     diff = Decimal(str(payload.actual_cash)) - expected
 
     if diff != 0:
@@ -106,12 +139,19 @@ def x_report(payload: XReportIn, db: Session = Depends(get_db), tenant: Tenant =
         )
         db.commit()
 
-    return {"expected_cash": str(expected), "actual_cash": str(payload.actual_cash), "difference": str(diff)}
+    return {
+        "expected_cash": str(expected.quantize(Decimal("0.01"))),
+        "actual_cash": str(Decimal(str(payload.actual_cash)).quantize(Decimal("0.01"))),
+        "difference": str(diff.quantize(Decimal("0.01"))),
+        "opening_cash": str(breakdown["opening_cash"].quantize(Decimal("0.01"))),
+        "cash_in": str(breakdown["cash_in"].quantize(Decimal("0.01"))),
+        "cash_out": str(breakdown["cash_out"].quantize(Decimal("0.01"))),
+    }
 
 
 @router.post("/z-report")
 def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
-    active = db.query(Shift).filter(Shift.tenant_id == tenant.id, Shift.status == "open").first()
+    active = _get_active_shift(db, tenant.id)
     if not active:
         raise HTTPException(status_code=400, detail="Shift is closed")
 
@@ -128,9 +168,8 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
             )
         )
 
-    cash_in = _sum_source(db, tenant.id, "cash", "in")
-    cash_out = _sum_source(db, tenant.id, "cash", "out")
-    expected = cash_in - cash_out
+    breakdown = _shift_cash_breakdown(db, tenant.id, active)
+    expected = breakdown["expected_cash"]
     shift_rows = _rows_since(db, tenant.id, active.opened_at)
     cash_sales = sum(
         (Decimal(str(row.amount)) for row in shift_rows if _is_shift_sale_entry(row) and row.source == "cash"),
@@ -157,9 +196,12 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         "cash_sales": str(cash_sales.quantize(Decimal("0.01"))),
         "card_sales": str(card_sales.quantize(Decimal("0.01"))),
         "deposit_total": str(deposit_total.quantize(Decimal("0.01"))),
-        "expected_cash": str(expected),
-        "actual_cash": str(payload.actual_cash),
-        "wage_amount": str(payload.wage_amount),
+        "expected_cash": str(expected.quantize(Decimal("0.01"))),
+        "actual_cash": str(Decimal(str(payload.actual_cash)).quantize(Decimal("0.01"))),
+        "wage_amount": str(Decimal(str(payload.wage_amount)).quantize(Decimal("0.01"))),
+        "opening_cash": str(breakdown["opening_cash"].quantize(Decimal("0.01"))),
+        "cash_movements_in": str(breakdown["cash_in"].quantize(Decimal("0.01"))),
+        "cash_movements_out": str(breakdown["cash_out"].quantize(Decimal("0.01"))),
     }
 
 
