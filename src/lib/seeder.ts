@@ -28,10 +28,10 @@ function seedTenantRegistry() {
   };
 
   ensureTenant('tenant_default', 'Default Tenant', 'default');
-  ensureTenant('tenant_socialbee', 'Social Bee', 'socialbee');
+  ensureTenant('tenant_socialbee', 'iRonWaves POS Demo', 'demo');
   ensureTenant('tenant_emalatxana', 'Emalatxana', 'emalatxana');
 
-  ensureDomain('tenant_socialbee', 'socialbee.ironwaves.store');
+  ensureDomain('tenant_socialbee', 'demo.ironwaves.store');
   ensureDomain('tenant_emalatxana', 'emalatxana.ironwaves.store');
   ensureDomain('tenant_emalatxana', 'emalatkhana.ironwaves.store');
   ensureDomain('tenant_default', 'www.ironwaves.store');
