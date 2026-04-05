@@ -597,6 +597,84 @@ export const fetch_finance_entries = async (tenant_id: string): Promise<FinanceE
   return mapped;
 };
 
+export type FinanceAnomalies = {
+  cash_balance: string;
+  deposit_balance: string;
+  investor_ledger_balance: string;
+  investor_calculated_debt: string;
+  investor_ledger_gap: string;
+  has_investor_mismatch: boolean;
+  total_revenue: string;
+  ledger_sales_total: string;
+  reconciliation_gap: string;
+  has_reconciliation_issue: boolean;
+  expected_cash: string;
+  shift_cash_gap: string;
+  has_shift_cash_mismatch: boolean;
+  has_deposit_risk: boolean;
+  deposit_cash_gap: string;
+  has_closed_shift_open_deposit: boolean;
+  shift_open: boolean;
+};
+
+export const get_finance_anomalies = (tenant_id: string): FinanceAnomalies => {
+  const balances = get_balance(tenant_id, 'all', false) as any;
+  const investorSummary = get_investor_summary(tenant_id);
+  const investorLedgerBalance = new Decimal(balances.investor_balance || 0);
+  const investorCalculatedDebt = new Decimal(investorSummary.debt_remaining || 0);
+  const investorLedgerGap = investorLedgerBalance.minus(investorCalculatedDebt).abs();
+  const cashBalance = new Decimal(balances.cash_balance || 0);
+  const depositBalance = new Decimal(balances.deposit_balance || 0);
+  return {
+    cash_balance: cashBalance.toFixed(2),
+    deposit_balance: depositBalance.toFixed(2),
+    investor_ledger_balance: investorLedgerBalance.toFixed(2),
+    investor_calculated_debt: investorCalculatedDebt.toFixed(2),
+    investor_ledger_gap: investorLedgerGap.toFixed(2),
+    has_investor_mismatch: investorLedgerGap.greaterThan(0.01),
+    total_revenue: '0.00',
+    ledger_sales_total: '0.00',
+    reconciliation_gap: '0.00',
+    has_reconciliation_issue: false,
+    expected_cash: cashBalance.toFixed(2),
+    shift_cash_gap: '0.00',
+    has_shift_cash_mismatch: false,
+    has_deposit_risk: depositBalance.greaterThan(cashBalance),
+    deposit_cash_gap: Decimal.max(new Decimal(0), depositBalance.minus(cashBalance)).toFixed(2),
+    has_closed_shift_open_deposit: depositBalance.greaterThan(0.01),
+    shift_open: false,
+  };
+};
+
+export const fetch_finance_anomalies = async (tenant_id: string): Promise<FinanceAnomalies> => {
+  if (!isBackendEnabled()) {
+    return get_finance_anomalies(tenant_id);
+  }
+  const data = await apiRequest<any>('/api/v1/finance/anomalies', {
+    method: 'GET',
+    tenantId: tenant_id,
+  });
+  return {
+    cash_balance: String(data?.cash_balance ?? '0'),
+    deposit_balance: String(data?.deposit_balance ?? '0'),
+    investor_ledger_balance: String(data?.investor_ledger_balance ?? '0'),
+    investor_calculated_debt: String(data?.investor_calculated_debt ?? '0'),
+    investor_ledger_gap: String(data?.investor_ledger_gap ?? '0'),
+    has_investor_mismatch: Boolean(data?.has_investor_mismatch),
+    total_revenue: String(data?.total_revenue ?? '0'),
+    ledger_sales_total: String(data?.ledger_sales_total ?? '0'),
+    reconciliation_gap: String(data?.reconciliation_gap ?? '0'),
+    has_reconciliation_issue: Boolean(data?.has_reconciliation_issue),
+    expected_cash: String(data?.expected_cash ?? '0'),
+    shift_cash_gap: String(data?.shift_cash_gap ?? '0'),
+    has_shift_cash_mismatch: Boolean(data?.has_shift_cash_mismatch),
+    has_deposit_risk: Boolean(data?.has_deposit_risk),
+    deposit_cash_gap: String(data?.deposit_cash_gap ?? '0'),
+    has_closed_shift_open_deposit: Boolean(data?.has_closed_shift_open_deposit),
+    shift_open: Boolean(data?.shift_open),
+  };
+};
+
 export const create_finance_entry_async = async (
   tenant_id: string,
   type: 'in' | 'out',
