@@ -496,15 +496,16 @@ export default function FinancePanel() {
       esc(e.description),
     ]);
     const summaryRows = [
-      [esc('SUMMARY'), esc('operational_in_total'), esc(''), esc(''), esc(financeSummary.incoming.toFixed(2)), esc('')],
-      [esc('SUMMARY'), esc('operational_out_total'), esc(''), esc(''), esc(financeSummary.outgoing.toFixed(2)), esc('')],
-      [esc('SUMMARY'), esc('operational_net_total'), esc(''), esc(''), esc(financeSummary.net.toFixed(2)), esc('')],
-      [esc('SUMMARY'), esc('deposits_total'), esc(''), esc(''), esc(depositsInRange.toFixed(2)), esc('')],
-      [esc('SUMMARY'), esc('cash_balance'), esc(''), esc(''), esc(new Decimal(balance.cash_balance || 0).toFixed(2)), esc('')],
-      [esc('SUMMARY'), esc('card_balance'), esc(''), esc(''), esc(new Decimal(balance.card_balance || 0).toFixed(2)), esc('')],
-      [esc('SUMMARY'), esc('safe_balance'), esc(''), esc(''), esc(new Decimal(balance.safe_balance || 0).toFixed(2)), esc('')],
-      [esc('SUMMARY'), esc('debt_balance'), esc(''), esc(''), esc(new Decimal(balance.debt_balance || 0).toFixed(2)), esc('')],
-      [esc('SUMMARY'), esc('investor_balance'), esc(''), esc(''), esc(new Decimal(balance.investor_balance || 0).toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc(tx(lang, 'Operativ girişlər', 'Операционные поступления', 'Operational Incoming')), esc(''), esc(''), esc(financeSummary.incoming.toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc(tx(lang, 'Operativ çıxışlar', 'Операционные расходы', 'Operational Outgoing')), esc(''), esc(''), esc(financeSummary.outgoing.toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc(tx(lang, 'Operativ net nəticə', 'Операционный нетто итог', 'Operational Net')), esc(''), esc(''), esc(financeSummary.net.toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc(tx(lang, 'Toplanan depozit', 'Собранные депозиты', 'Collected Deposits')), esc(''), esc(''), esc(depositsInRange.toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc(tx(lang, 'Nağd kassa qalığı', 'Остаток кассы', 'Cash Balance')), esc(''), esc(''), esc(new Decimal(balance.cash_balance || 0).toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc(tx(lang, 'Kart qalığı', 'Остаток карты', 'Card Balance')), esc(''), esc(''), esc(new Decimal(balance.card_balance || 0).toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc(tx(lang, 'Seyf qalığı', 'Остаток сейфа', 'Safe Balance')), esc(''), esc(''), esc(new Decimal(balance.safe_balance || 0).toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc(tx(lang, 'Digər borc öhdəliyi', 'Прочие долговые обязательства', 'Other Debt Liability')), esc(''), esc(''), esc(new Decimal(balance.debt_balance || 0).toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc(tx(lang, 'İnvestor borcu', 'Долг инвестору', 'Investor Debt')), esc(''), esc(''), esc(new Decimal(balance.investor_balance || 0).toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc(tx(lang, 'Aktiv masa depozit öhdəliyi', 'Активное обязательство по депозитам столов', 'Active Table Deposit Liability')), esc(''), esc(''), esc(new Decimal(balance.deposit_balance || 0).toFixed(2)), esc('')],
     ];
     // Use semicolon delimiter + UTF-8 BOM for Excel locale compatibility.
     const csv = [header.map(esc).join(';'), ...rows.map((r) => r.join(';')), ...summaryRows.map((r) => r.join(';'))].join('\n');
@@ -519,21 +520,23 @@ export default function FinancePanel() {
 
   const sendFinanceSummary = async () => {
     const html = `
-      <h2>Finance Summary</h2>
-      <p><b>Period:</b> ${fromDate} - ${toDate}</p>
-      <p><b>Operational Incoming:</b> ${financeSummary.incoming.toFixed(2)} ₼</p>
-      <p><b>Operational Outgoing:</b> ${financeSummary.outgoing.toFixed(2)} ₼</p>
-      <p><b>Operational Net:</b> ${financeSummary.net.toFixed(2)} ₼</p>
-      <p><b>Deposits:</b> ${depositsInRange.toFixed(2)} ₼</p>
-      <p><b>Cash Balance:</b> ${new Decimal(balance.cash_balance || 0).toFixed(2)} ₼</p>
-      <p><b>Card Balance:</b> ${new Decimal(balance.card_balance || 0).toFixed(2)} ₼</p>
-      <p><b>Investor Debt:</b> ${new Decimal(investorSummary.debt_remaining || 0).toFixed(2)} ₼</p>
-      <p><b>Operational Entries:</b> ${financeSummary.entriesCount}</p>
+      <h2>${tx(lang, 'Maliyyə Xülasəsi', 'Финансовая сводка', 'Finance Summary')}</h2>
+      <p><b>${tx(lang, 'Dövr', 'Период', 'Period')}:</b> ${fromDate} - ${toDate}</p>
+      <p><b>${tx(lang, 'Operativ girişlər', 'Операционные поступления', 'Operational Incoming')}:</b> ${financeSummary.incoming.toFixed(2)} ₼</p>
+      <p><b>${tx(lang, 'Operativ çıxışlar', 'Операционные расходы', 'Operational Outgoing')}:</b> ${financeSummary.outgoing.toFixed(2)} ₼</p>
+      <p><b>${tx(lang, 'Operativ net nəticə', 'Операционный нетто итог', 'Operational Net')}:</b> ${financeSummary.net.toFixed(2)} ₼</p>
+      <p><b>${tx(lang, 'Toplanan depozit', 'Собранные депозиты', 'Collected Deposits')}:</b> ${depositsInRange.toFixed(2)} ₼</p>
+      <p><b>${tx(lang, 'Nağd kassa qalığı', 'Остаток кассы', 'Cash Balance')}:</b> ${new Decimal(balance.cash_balance || 0).toFixed(2)} ₼</p>
+      <p><b>${tx(lang, 'Kart qalığı', 'Остаток карты', 'Card Balance')}:</b> ${new Decimal(balance.card_balance || 0).toFixed(2)} ₼</p>
+      <p><b>${tx(lang, 'Aktiv masa depozit öhdəliyi', 'Активное обязательство по депозитам столов', 'Active Table Deposit Liability')}:</b> ${new Decimal(balance.deposit_balance || 0).toFixed(2)} ₼</p>
+      <p><b>${tx(lang, 'İnvestor borcu', 'Долг инвестору', 'Investor Debt')}:</b> ${new Decimal(investorSummary.debt_remaining || 0).toFixed(2)} ₼</p>
+      <p><b>${tx(lang, 'Operativ qeyd sayı', 'Количество операционных записей', 'Operational Entries')}:</b> ${financeSummary.entriesCount}</p>
+      <p style="color:#64748b;font-size:12px">${tx(lang, 'Qeyd: operativ net nəticəyə açılış, investor, depozit və daxili transferlər daxil deyil.', 'Примечание: в операционный нетто итог не входят открытие смены, инвестор, депозиты и внутренние переводы.', 'Note: operational net excludes opening, investor, deposits, and internal transfers.')}</p>
     `;
     try {
       const sent = await send_email({
         tenant_id,
-        subject: `Finance Summary ${fromDate} - ${toDate}`,
+        subject: tx(lang, 'Maliyyə Xülasəsi', 'Финансовая сводка', 'Finance Summary') + ` ${fromDate} - ${toDate}`,
         html,
       });
       notify(sent.success ? 'success' : 'error', sent.message);
