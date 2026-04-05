@@ -250,6 +250,17 @@ export const open_table = (table_id: string, payload: TableOpenPayload) => {
       created_at: new Date().toISOString(),
       is_deleted: false,
     });
+    finance.push({
+      id: uuidv4(),
+      tenant_id: table.tenant_id,
+      type: 'in',
+      category: 'Depozit Öhdəliyi',
+      amount: depositAmount,
+      source: 'deposit',
+      description: `${table.label} üçün depozit öhdəliyi (${depositGuestCount} nəfər)`,
+      created_at: new Date().toISOString(),
+      is_deleted: false,
+    });
     setDB('finance', finance);
   }
 
@@ -367,6 +378,20 @@ export const pay_table = (
         is_deleted: false,
       });
     }
+  }
+  if (depositAmount.greaterThan(0)) {
+    finance.push({
+      id: uuidv4(),
+      tenant_id: table.tenant_id,
+      sale_id: result.sale_id,
+      type: 'out',
+      category: 'Depozit Öhdəliyi Azaldılması',
+      amount: depositAmount.toFixed(2),
+      source: 'deposit',
+      description: 'Table payment deposit settlement',
+      created_at: new Date().toISOString(),
+      is_deleted: false,
+    });
   }
   setDB('finance', finance);
 

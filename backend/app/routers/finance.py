@@ -73,6 +73,7 @@ def get_balances(db: Session = Depends(get_db), tenant: Tenant = Depends(get_ten
         "safe": str(_wallet_balance(db, tenant.id, "safe")),
         "investor": str(_wallet_balance(db, tenant.id, "investor")),
         "debt": str(_wallet_balance(db, tenant.id, "debt")),
+        "deposit": str(_wallet_balance(db, tenant.id, "deposit")),
     }
 
 

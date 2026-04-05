@@ -2063,6 +2063,17 @@ def open_table(
                 created_by=user.username,
             )
         )
+        db.add(
+            FinanceEntry(
+                tenant_id=tenant.id,
+                type="in",
+                category="Depozit Öhdəliyi",
+                source="deposit",
+                amount=deposit_amount,
+                description=f"{row.label} üçün depozit öhdəliyi ({deposit_guest_count} nəfər)",
+                created_by=user.username,
+            )
+        )
     db.add(
         AuditLog(
             tenant_id=tenant.id,
@@ -2543,6 +2554,19 @@ def pay_table(
         category = "Satış (Nağd)" if source == "cash" else "Satış (Kart)"
         if extra_due > 0:
             db.add(FinanceEntry(tenant_id=tenant.id, type="in", category=category, source=source, amount=extra_due, description=f"Table payment {sale.id}", created_by=user.username))
+
+    if seat_deposit_amount > 0:
+        db.add(
+            FinanceEntry(
+                tenant_id=tenant.id,
+                type="out",
+                category="Depozit Öhdəliyi Azaldılması",
+                source="deposit",
+                amount=seat_deposit_amount,
+                description=f"Table payment {sale.id}",
+                created_by=user.username,
+            )
+        )
 
     if pay_scope == "seat":
         remaining_guest_count = max(0, int(row.guest_count or 0) - 1)
