@@ -3,6 +3,7 @@ import { logEvent } from '../lib/logger';
 import { Decimal } from 'decimal.js';
 import { getDB, setDB } from '../lib/db_sim';
 import { apiRequest, isBackendEnabled } from './client';
+import { getResolvedTenantIdFromHost } from '../lib/tenant';
 
 const isRecoverableNetworkFailure = (error: unknown) => {
   const message = String((error as any)?.message || error || '').toLowerCase();
@@ -113,6 +114,21 @@ export async function get_menu_items_live(tenant_id: string, search?: string, ca
   if (search) {
     items = items.filter((i) => String(i.item_name || '').toLowerCase().includes(search.toLowerCase()));
   }
+  return items;
+}
+
+export async function get_public_menu_live() {
+  const tenantId = getResolvedTenantIdFromHost() || 'tenant_default';
+  if (!isBackendEnabled()) {
+    return get_menu_items(tenantId);
+  }
+  let items = await apiRequest<any[]>('/api/v1/catalog/public-menu', {
+    method: 'GET',
+    tenantId: null,
+    auth: false,
+  });
+  const all = getDB<any>('menu_items').filter((i) => i.tenant_id !== tenantId);
+  setDB('menu_items', [...all, ...items.map((i) => ({ ...i, tenant_id: i?.tenant_id || tenantId }))]);
   return items;
 }
 

@@ -7,6 +7,7 @@ import KDS from './components/KDS';
 import AdminPanel from './components/AdminPanel';
 import TablesPage from './components/TablesPage';
 import PublicReceipt from './components/PublicReceipt';
+import PublicMenu from './components/PublicMenu';
 import CustomerApp from './components/CustomerApp';
 import LandingPage from './components/LandingPage';
 import { LogOut, Wifi, WifiOff, Languages, RotateCcw } from 'lucide-react';
@@ -230,6 +231,11 @@ export default function App() {
       receiptId: params.get('r') || params.get('receipt') || params.get('sale_id') || '',
       token: params.get('t') || params.get('token') || '',
     };
+  }, []);
+
+  const publicPathname = useMemo(() => {
+    if (typeof window === 'undefined') return '/';
+    return String(window.location.pathname || '/');
   }, []);
 
   const customerAppParams = useMemo(() => {
@@ -675,6 +681,10 @@ export default function App() {
   // Public receipt route should not redirect to login even if token is missing/invalid.
   if (publicReceiptParams.receiptId) {
     return <PublicReceipt receiptId={publicReceiptParams.receiptId} token={publicReceiptParams.token} />;
+  }
+
+  if (publicPathname === '/menu' || publicPathname === '/menu/') {
+    return <PublicMenu />;
   }
 
   if (customerAppParams.join || (customerAppParams.cardId && customerAppParams.token)) {

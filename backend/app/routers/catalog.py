@@ -121,6 +121,31 @@ class RecipeReplaceIn(BaseModel):
     ingredients: list[RecipeIngredientReplaceIn]
 
 
+@router.get("/public-menu", response_model=list[MenuItemOut])
+def list_public_menu_items(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    rows = (
+        db.query(MenuItem)
+        .filter(MenuItem.tenant_id == tenant.id, MenuItem.is_active == True)
+        .order_by(MenuItem.category.asc(), MenuItem.item_name.asc())
+        .all()
+    )
+    return [
+        {
+            "id": row.id,
+            "tenant_id": row.tenant_id,
+            "item_name": row.item_name,
+            "category": row.category,
+            "price": str(row.price),
+            "is_coffee": bool(row.is_coffee),
+            "is_active": bool(row.is_active),
+        }
+        for row in rows
+    ]
+
+
 @router.get("/menu", response_model=list[MenuItemOut])
 def list_menu_items(
     db: Session = Depends(get_db),
