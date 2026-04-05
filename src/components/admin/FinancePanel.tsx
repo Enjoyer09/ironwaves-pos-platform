@@ -3,8 +3,10 @@ import { Decimal } from 'decimal.js';
 import { useAppStore } from '../../store';
 import {
   create_finance_entry_async,
+  fetch_finance_anomalies,
   fetch_finance_balances,
   fetch_finance_entries,
+  type FinanceAnomalies,
   get_balance,
   get_finance_entries,
   repay_investor_async,
@@ -225,6 +227,7 @@ export default function FinancePanel() {
     safe_balance: '0',
     deposit_balance: '0',
   });
+  const [anomalies, setAnomalies] = useState<FinanceAnomalies | null>(null);
   const [entries, setEntries] = useState<any[]>([]);
   const [ledgerPageSize, setLedgerPageSize] = useState(10);
   const [bankCommissionConfig, setBankCommissionConfig] = useState<{ card_sale_percent: number; card_transfer_percent: number }>({
@@ -292,10 +295,11 @@ export default function FinancePanel() {
     }
     lastReloadAtRef.current = now;
     try {
-      const [b, e, settings] = await Promise.all([
+      const [b, e, settings, serverAnomalies] = await Promise.all([
         fetch_finance_balances(tenant_id),
         fetch_finance_entries(tenant_id),
         get_settings_live(tenant_id),
+        fetch_finance_anomalies(tenant_id).catch(() => null),
       ]);
       setBalance(b || {
         cash_balance: '0',
@@ -306,6 +310,7 @@ export default function FinancePanel() {
         deposit_balance: '0',
       });
       setEntries(e || []);
+      setAnomalies(serverAnomalies);
       setBankCommissionConfig({
         card_sale_percent: Number((settings.bank_commission as any)?.card_sale_percent ?? settings.bank_commission?.percent ?? 2),
         card_transfer_percent: Number((settings.bank_commission as any)?.card_transfer_percent ?? 0.5),
@@ -325,6 +330,7 @@ export default function FinancePanel() {
       if (!detail?.tenant_id || detail.tenant_id === tenant_id) {
         setBalance(get_balance(tenant_id, 'all', false) as any);
         setEntries(get_finance_entries(tenant_id));
+        setAnomalies(null);
         if (reloadTimerRef.current) {
           window.clearTimeout(reloadTimerRef.current);
         }
@@ -476,8 +482,10 @@ export default function FinancePanel() {
 
   const financeExceptions = useMemo(() => {
     const items: Array<{ title: string; body: string; tone: 'rose' | 'amber' | 'sky' }> = [];
-    const investorLedgerGap = new Decimal(balance.investor_balance || 0).minus(new Decimal(investorSummary.debt_remaining || 0)).abs();
-    const depositLiability = new Decimal(balance.deposit_balance || 0);
+    const investorLedgerGap = anomalies
+      ? new Decimal(anomalies.investor_ledger_gap || 0)
+      : new Decimal(balance.investor_balance || 0).minus(new Decimal(investorSummary.debt_remaining || 0)).abs();
+    const depositLiability = new Decimal(anomalies?.deposit_balance || balance.deposit_balance || 0);
     const cashBalance = new Decimal(balance.cash_balance || 0);
 
     if (investorLedgerGap.greaterThan(0.01)) {
@@ -519,8 +527,47 @@ export default function FinancePanel() {
       });
     }
 
+    if (anomalies?.has_reconciliation_issue) {
+      items.push({
+        title: tx(lang, 'Satış və ledger fərqi', 'Расхождение продаж и ledger', 'Sales vs ledger gap'),
+        body: tx(
+          lang,
+          `Backend audit satış gəliri ilə ledger satış daxilolması arasında ${new Decimal(anomalies.reconciliation_gap || 0).toFixed(2)} ₼ fərq göstərir.`,
+          `Backend audit показывает расхождение ${new Decimal(anomalies.reconciliation_gap || 0).toFixed(2)} ₼ между выручкой и ledger.`,
+          `Backend audit shows a ${new Decimal(anomalies.reconciliation_gap || 0).toFixed(2)} ₼ gap between revenue and ledger.`,
+        ),
+        tone: 'rose',
+      });
+    }
+
+    if (anomalies?.has_shift_cash_mismatch) {
+      items.push({
+        title: tx(lang, 'Shift kassa uyğunsuzluğu', 'Несовпадение кассы смены', 'Shift cash mismatch'),
+        body: tx(
+          lang,
+          `Backend audit aktiv növbə üçün ${new Decimal(anomalies.shift_cash_gap || 0).toFixed(2)} ₼ kassa fərqi göstərir.`,
+          `Backend audit показывает расхождение кассы смены ${new Decimal(anomalies.shift_cash_gap || 0).toFixed(2)} ₼.`,
+          `Backend audit shows a ${new Decimal(anomalies.shift_cash_gap || 0).toFixed(2)} ₼ shift cash gap.`,
+        ),
+        tone: 'rose',
+      });
+    }
+
+    if (anomalies?.has_closed_shift_open_deposit) {
+      items.push({
+        title: tx(lang, 'Bağlı növbədə açıq depozit var', 'При закрытой смене есть активный депозит', 'Closed shift has active deposits'),
+        body: tx(
+          lang,
+          `Backend audit bağlı növbədə ${new Decimal(anomalies.deposit_balance || 0).toFixed(2)} ₼ aktiv depozit öhdəliyi göstərir.`,
+          `Backend audit показывает ${new Decimal(anomalies.deposit_balance || 0).toFixed(2)} ₼ активного депозитного обязательства при закрытой смене.`,
+          `Backend audit shows ${new Decimal(anomalies.deposit_balance || 0).toFixed(2)} ₼ of active deposit liability while shift is closed.`,
+        ),
+        tone: 'amber',
+      });
+    }
+
     return items;
-  }, [balance.cash_balance, balance.deposit_balance, balance.investor_balance, financeSummary.net, investorSummary.debt_remaining, lang]);
+  }, [anomalies, balance.cash_balance, balance.deposit_balance, balance.investor_balance, financeSummary.net, investorSummary.debt_remaining, lang]);
 
   const exportCsv = () => {
     if (!filteredEntries.length) {

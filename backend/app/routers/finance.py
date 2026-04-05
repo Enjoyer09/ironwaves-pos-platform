@@ -7,7 +7,7 @@ from app.db import get_db
 from app.deps import get_current_user, get_tenant
 import json
 
-from app.models import FinanceEntry, Setting, Tenant
+from app.models import FinanceEntry, Sale, Setting, Shift, Tenant
 from app.schemas import FinanceEntryIn, InvestorRepayIn, TransferIn
 
 
@@ -65,6 +65,59 @@ def _investor_debt_balance(db: Session, tenant_id: str) -> Decimal:
     return _wallet_balance(db, tenant_id, "investor")
 
 
+def _is_investor_liability_reduction(row: FinanceEntry) -> bool:
+    category = _normalize_text(row.category)
+    return (
+        "investor borcu azaldilmasi" in category
+        or "investor liability reduction" in category
+        or "dolg investoru umenshen" in category
+    ) and _normalize_text(row.source) == "investor"
+
+
+def _investor_summary(db: Session, tenant_id: str) -> dict[str, Decimal]:
+    entries = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant_id).all()
+    invested = sum(
+        (
+            Decimal(str(row.amount))
+            for row in entries
+            if row.type == "in" and _is_founder_investment_category(row.category or "")
+        ),
+        Decimal("0"),
+    )
+    repaid = sum(
+        (
+            Decimal(str(row.amount))
+            for row in entries
+            if row.type == "out" and _is_investor_liability_reduction(row)
+        ),
+        Decimal("0"),
+    )
+    debt = Decimal.max(Decimal("0"), invested - repaid)
+    return {
+        "invested_total": invested,
+        "repaid_total": repaid,
+        "debt_remaining": debt,
+    }
+
+
+def _is_sale_ledger_entry(row: FinanceEntry) -> bool:
+    category = _normalize_text(row.category)
+    return row.type == "in" and (
+        category == "satis (nagd)" or category == "satis (kart)" or category == "staff odenisi"
+    )
+
+
+def _active_shift(db: Session, tenant_id: str) -> Shift | None:
+    return db.query(Shift).filter(Shift.tenant_id == tenant_id, Shift.status == "open").first()
+
+
+def _shift_rows(db: Session, tenant_id: str, shift: Shift | None) -> list[FinanceEntry]:
+    query = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant_id)
+    if shift and shift.opened_at:
+        query = query.filter(FinanceEntry.created_at >= shift.opened_at)
+    return query.all()
+
+
 @router.get("/balances")
 def get_balances(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     return {
@@ -74,6 +127,59 @@ def get_balances(db: Session = Depends(get_db), tenant: Tenant = Depends(get_ten
         "investor": str(_wallet_balance(db, tenant.id, "investor")),
         "debt": str(_wallet_balance(db, tenant.id, "debt")),
         "deposit": str(_wallet_balance(db, tenant.id, "deposit")),
+    }
+
+
+@router.get("/anomalies")
+def get_finance_anomalies(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    cash_balance = _wallet_balance(db, tenant.id, "cash")
+    deposit_balance = _wallet_balance(db, tenant.id, "deposit")
+    investor_ledger_balance = _wallet_balance(db, tenant.id, "investor")
+    investor_summary = _investor_summary(db, tenant.id)
+    investor_gap = abs(investor_ledger_balance - investor_summary["debt_remaining"])
+
+    total_revenue = sum(
+        (Decimal(str(row.total)) for row in db.query(Sale).filter(Sale.tenant_id == tenant.id).all()),
+        Decimal("0"),
+    )
+    ledger_sales_total = sum(
+        (
+            Decimal(str(row.amount))
+            for row in db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant.id).all()
+            if _is_sale_ledger_entry(row)
+        ),
+        Decimal("0"),
+    )
+    reconciliation_gap = total_revenue - ledger_sales_total
+
+    active_shift = _active_shift(db, tenant.id)
+    expected_cash = Decimal("0")
+    shift_cash_gap = Decimal("0")
+    if active_shift:
+        shift_rows = _shift_rows(db, tenant.id, active_shift)
+        cash_in = sum((Decimal(str(row.amount)) for row in shift_rows if row.source == "cash" and row.type == "in"), Decimal("0"))
+        cash_out = sum((Decimal(str(row.amount)) for row in shift_rows if row.source == "cash" and row.type == "out"), Decimal("0"))
+        expected_cash = Decimal(str(active_shift.opening_cash or 0)) + cash_in - cash_out
+        shift_cash_gap = abs(cash_balance - expected_cash)
+
+    return {
+        "cash_balance": str(cash_balance.quantize(Decimal("0.01"))),
+        "deposit_balance": str(deposit_balance.quantize(Decimal("0.01"))),
+        "investor_ledger_balance": str(investor_ledger_balance.quantize(Decimal("0.01"))),
+        "investor_calculated_debt": str(investor_summary["debt_remaining"].quantize(Decimal("0.01"))),
+        "investor_ledger_gap": str(investor_gap.quantize(Decimal("0.01"))),
+        "has_investor_mismatch": investor_gap > Decimal("0.01"),
+        "total_revenue": str(total_revenue.quantize(Decimal("0.01"))),
+        "ledger_sales_total": str(ledger_sales_total.quantize(Decimal("0.01"))),
+        "reconciliation_gap": str(reconciliation_gap.quantize(Decimal("0.01"))),
+        "has_reconciliation_issue": abs(reconciliation_gap) > Decimal("0.01"),
+        "expected_cash": str(expected_cash.quantize(Decimal("0.01"))),
+        "shift_cash_gap": str(shift_cash_gap.quantize(Decimal("0.01"))),
+        "has_shift_cash_mismatch": shift_cash_gap > Decimal("0.01"),
+        "has_deposit_risk": deposit_balance > cash_balance,
+        "deposit_cash_gap": str(Decimal.max(Decimal("0"), deposit_balance - cash_balance).quantize(Decimal("0.01"))),
+        "has_closed_shift_open_deposit": active_shift is None and deposit_balance > Decimal("0.01"),
+        "shift_open": active_shift is not None,
     }
 
 
