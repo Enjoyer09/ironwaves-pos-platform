@@ -3,7 +3,7 @@ import { logEvent } from './logger';
 
 const getDbName = () => {
   const host = typeof window !== 'undefined' ? window.location.host.toLowerCase().replace(/[^a-z0-9.-]/g, '_') : 'global';
-  return `socialbee-pos-offline__${host}`;
+  return `ironwaves-pos-offline__${host}`;
 };
 const DB_VERSION = 1;
 const MENU_STORE = 'menu_cache';

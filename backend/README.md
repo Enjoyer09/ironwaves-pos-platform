@@ -55,6 +55,6 @@ Run the backend smoke test after deploy:
 BASE_URL="https://<your-backend-domain>" \
 SUPERADMIN_USERNAME="ironwaves_owner" \
 SUPERADMIN_PASSWORD="<your-superadmin-password>" \
-TENANT_DOMAIN="socialbee.ironwaves.store" \
+TENANT_DOMAIN="demo.ironwaves.store" \
 python scripts/smoke_test.py
 ```

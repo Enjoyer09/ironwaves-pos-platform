@@ -1,10 +1,10 @@
-"""Simple backend smoke test for Social Bee POS.
+"""Simple backend smoke test for iRonWaves POS.
 
 Usage:
   BASE_URL=http://localhost:8000 \
   SUPERADMIN_USERNAME=ironwaves_owner \
   SUPERADMIN_PASSWORD=<your-superadmin-password> \
-  TENANT_DOMAIN=socialbee.ironwaves.store \
+  TENANT_DOMAIN=demo.ironwaves.store \
   python scripts/smoke_test.py
 """
 
@@ -64,7 +64,7 @@ def main():
     base = _env("BASE_URL", "http://localhost:8000").rstrip("/")
     username = _env("SUPERADMIN_USERNAME", "ironwaves_owner")
     password = _env("SUPERADMIN_PASSWORD", "change_this_superadmin_password")
-    tenant_domain = _env("TENANT_DOMAIN", "socialbee.ironwaves.store")
+    tenant_domain = _env("TENANT_DOMAIN", "demo.ironwaves.store")
 
     # 1) Health
     st, payload = _request("GET", f"{base}/health")
