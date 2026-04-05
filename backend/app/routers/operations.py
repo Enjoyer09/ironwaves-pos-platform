@@ -496,6 +496,12 @@ def get_app_settings(
             "show_descriptions": True,
             "poster_title": "Menyuya baxmaq üçün skan et",
             "poster_subtitle": "Telefon kameranızı QR üzərinə yönəldin",
+            "background_color": "#efe2c1",
+            "surface_color": "#fff7e8",
+            "text_color": "#2b1708",
+            "hero_image_url": "",
+            "poster_background_color": "#d59b2d",
+            "logo_shape": "rounded",
         },
     )
     customer_app_settings = _setting_value(
@@ -833,6 +839,12 @@ def update_qr_menu_settings(
             "show_descriptions": True,
             "poster_title": "Menyuya baxmaq üçün skan et",
             "poster_subtitle": "Telefon kameranızı QR üzərinə yönəldin",
+            "background_color": "#efe2c1",
+            "surface_color": "#fff7e8",
+            "text_color": "#2b1708",
+            "hero_image_url": "",
+            "poster_background_color": "#d59b2d",
+            "logo_shape": "rounded",
         },
     )
     cleaned = {
@@ -844,6 +856,12 @@ def update_qr_menu_settings(
         "show_descriptions": bool(payload.get("show_descriptions", current.get("show_descriptions", True))),
         "poster_title": str(payload.get("poster_title") or current.get("poster_title") or "Menyuya baxmaq üçün skan et").strip() or "Menyuya baxmaq üçün skan et",
         "poster_subtitle": str(payload.get("poster_subtitle") or current.get("poster_subtitle") or "Telefon kameranızı QR üzərinə yönəldin").strip() or "Telefon kameranızı QR üzərinə yönəldin",
+        "background_color": str(payload.get("background_color") or current.get("background_color") or "#efe2c1").strip() or "#efe2c1",
+        "surface_color": str(payload.get("surface_color") or current.get("surface_color") or "#fff7e8").strip() or "#fff7e8",
+        "text_color": str(payload.get("text_color") or current.get("text_color") or "#2b1708").strip() or "#2b1708",
+        "hero_image_url": str(payload.get("hero_image_url") or current.get("hero_image_url") or "").strip(),
+        "poster_background_color": str(payload.get("poster_background_color") or current.get("poster_background_color") or "#d59b2d").strip() or "#d59b2d",
+        "logo_shape": str(payload.get("logo_shape") or current.get("logo_shape") or "rounded").strip() or "rounded",
     }
     _set_setting_value(db, tenant.id, "qr_menu_settings", cleaned)
     db.commit()
@@ -1531,6 +1549,12 @@ def get_public_menu_bootstrap(
             "show_descriptions": True,
             "poster_title": "Menyuya baxmaq üçün skan et",
             "poster_subtitle": "Telefon kameranızı QR üzərinə yönəldin",
+            "background_color": "#efe2c1",
+            "surface_color": "#fff7e8",
+            "text_color": "#2b1708",
+            "hero_image_url": "",
+            "poster_background_color": "#d59b2d",
+            "logo_shape": "rounded",
         },
     )
     app_settings = _setting_value(
@@ -1553,7 +1577,12 @@ def get_public_menu_bootstrap(
             "hero_subtitle": str(qr_menu_settings.get("hero_subtitle") or "Telefonunuzdan menyuya baxın"),
             "poster_title": str(qr_menu_settings.get("poster_title") or "Menyuya baxmaq üçün skan et"),
             "poster_subtitle": str(qr_menu_settings.get("poster_subtitle") or "Telefon kameranızı QR üzərinə yönəldin"),
-            "background_color": str(app_settings.get("background_color") or "#0b1220"),
+            "background_color": str(qr_menu_settings.get("background_color") or "#efe2c1"),
+            "surface_color": str(qr_menu_settings.get("surface_color") or "#fff7e8"),
+            "text_color": str(qr_menu_settings.get("text_color") or "#2b1708"),
+            "hero_image_url": str(qr_menu_settings.get("hero_image_url") or ""),
+            "poster_background_color": str(qr_menu_settings.get("poster_background_color") or "#d59b2d"),
+            "logo_shape": str(qr_menu_settings.get("logo_shape") or "rounded"),
             "primary_color": str(app_settings.get("primary_color") or "#facc15"),
             "accent_color": str(app_settings.get("accent_color") or "#22d3ee"),
         },

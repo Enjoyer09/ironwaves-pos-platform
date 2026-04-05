@@ -217,6 +217,12 @@ export interface Settings {
     show_descriptions: boolean;
     poster_title: string;
     poster_subtitle: string;
+    background_color?: string;
+    surface_color?: string;
+    text_color?: string;
+    hero_image_url?: string;
+    poster_background_color?: string;
+    logo_shape?: 'rounded' | 'circle' | 'square';
   };
   customer_app_settings?: {
     enabled: boolean;
