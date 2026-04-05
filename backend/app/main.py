@@ -280,6 +280,8 @@ def _seed_demo_tenant(db: Session):
 
 def _run_startup_migrations():
     with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS image_url TEXT"))
+        conn.execute(text("ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS description TEXT"))
         conn.execute(text("ALTER TABLE tables ADD COLUMN IF NOT EXISTS assigned_to VARCHAR(80)"))
         conn.execute(text("ALTER TABLE tables ADD COLUMN IF NOT EXISTS guest_count INTEGER DEFAULT 0"))
         conn.execute(text("ALTER TABLE tables ADD COLUMN IF NOT EXISTS deposit_guest_count INTEGER DEFAULT 0"))
