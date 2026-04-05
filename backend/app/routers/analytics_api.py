@@ -94,10 +94,15 @@ def get_sales_summary(
             card_total += Decimal(str(row.amount))
     cash_sales = cash_total
     card_sales = card_total
+    ledger_total = cash_sales + card_sales
+    reconciliation_gap = (total_revenue - ledger_total).quantize(Decimal("0.01"))
     return {
         "total_revenue": str(total_revenue.quantize(Decimal("0.01"))),
         "cash_sales": str(cash_sales.quantize(Decimal("0.01"))),
         "card_sales": str(card_sales.quantize(Decimal("0.01"))),
+        "ledger_sales_total": str(ledger_total.quantize(Decimal("0.01"))),
+        "reconciliation_gap": str(reconciliation_gap),
+        "has_reconciliation_issue": abs(reconciliation_gap) > Decimal("0.01"),
         "total_cogs": str(total_cogs.quantize(Decimal("0.01"))),
         "gross_profit": str((total_revenue - total_cogs).quantize(Decimal("0.01"))),
         "void_count": void_count,
