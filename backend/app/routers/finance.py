@@ -8,7 +8,7 @@ from app.deps import get_current_user, get_tenant
 import json
 
 from app.models import FinanceEntry, Setting, Tenant
-from app.schemas import FinanceEntryIn, TransferIn
+from app.schemas import FinanceEntryIn, InvestorRepayIn, TransferIn
 
 
 router = APIRouter(prefix="/api/v1/finance", tags=["finance"])
@@ -59,6 +59,10 @@ def _setting_value(db: Session, tenant_id: str, key: str, default):
         return json.loads(row.value)
     except Exception:
         return default
+
+
+def _investor_debt_balance(db: Session, tenant_id: str) -> Decimal:
+    return _wallet_balance(db, tenant_id, "investor")
 
 
 @router.get("/balances")
@@ -215,3 +219,57 @@ def transfer(payload: TransferIn, db: Session = Depends(get_db), tenant: Tenant 
         )
     db.commit()
     return {"success": True, "commission": str(commission)}
+
+
+@router.post("/repay-investor")
+def repay_investor(payload: InvestorRepayIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    amount = Decimal(str(payload.amount))
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be > 0")
+
+    pay_from = str(payload.pay_from or "").strip().lower()
+    if pay_from not in {"cash", "card", "safe"}:
+        raise HTTPException(status_code=400, detail="Invalid repayment source")
+
+    available = _wallet_balance(db, tenant.id, pay_from)
+    if available <= 0:
+        raise HTTPException(status_code=400, detail="Selected wallet has no balance")
+
+    debt = _investor_debt_balance(db, tenant.id)
+    if debt <= 0:
+        raise HTTPException(status_code=400, detail="No investor debt to repay")
+
+    payable = min(amount, available, debt)
+    if payable <= 0:
+        raise HTTPException(status_code=400, detail="Nothing payable")
+
+    payment_row = FinanceEntry(
+        tenant_id=tenant.id,
+        type="out",
+        category="İnvestora Geri Ödəniş",
+        source=pay_from,
+        amount=payable,
+        description=payload.description or "İnvestora ödəniş",
+        created_by=user.username,
+    )
+    liability_row = FinanceEntry(
+        tenant_id=tenant.id,
+        type="out",
+        category="İnvestor Borcu Azaldılması",
+        source="investor",
+        amount=payable,
+        description=f"Liability reduced via {pay_from}",
+        created_by=user.username,
+    )
+    db.add(payment_row)
+    db.add(liability_row)
+    db.commit()
+
+    remaining_debt = _investor_debt_balance(db, tenant.id)
+    return {
+        "success": True,
+        "payment_entry_id": payment_row.id,
+        "liability_entry_id": liability_row.id,
+        "paid": str(payable),
+        "remaining_debt": str(remaining_debt),
+    }

@@ -474,29 +474,50 @@ export const repay_investor_async = async (
   const amountDec = new Decimal(amount || '0');
   if (amountDec.lte(0)) throw new Error('Məbləğ düzgün deyil');
 
-  await create_finance_entry_async(
-    tenant_id,
-    'out',
-    'İnvestora Geri Ödəniş',
-    amountDec.toString(),
-    pay_from,
-    description || 'İnvestora ödəniş',
-    created_by,
-  );
+  const res = await apiRequest<any>('/api/v1/finance/repay-investor', {
+    method: 'POST',
+    tenantId: tenant_id,
+    body: {
+      amount: amountDec.toString(),
+      pay_from,
+      description: description || 'İnvestora ödəniş',
+    },
+  });
 
-  await create_finance_entry_async(
-    tenant_id,
-    'out',
-    'İnvestor Borcu Azaldılması',
-    amountDec.toString(),
-    'investor',
-    `Liability reduced via ${pay_from}`,
-    created_by,
-  );
+  const now = new Date().toISOString();
+  const paid = new Decimal(String(res?.paid ?? amountDec.toString()));
+  pushFinanceLocalEntries(tenant_id, [
+    {
+      id: String(res?.payment_entry_id || uuidv4()),
+      tenant_id,
+      type: 'out',
+      category: 'İnvestora Geri Ödəniş',
+      amount: paid.toString(),
+      source: pay_from,
+      description: description || 'İnvestora ödəniş',
+      created_at: now,
+      is_deleted: false,
+    },
+    {
+      id: String(res?.liability_entry_id || uuidv4()),
+      tenant_id,
+      type: 'out',
+      category: 'İnvestor Borcu Azaldılması',
+      amount: paid.toString(),
+      source: 'investor',
+      description: `Liability reduced via ${pay_from}`,
+      created_at: now,
+      is_deleted: false,
+    },
+  ]);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('finance-updated', { detail: { tenant_id, repayment: true, amount: paid.toString() } }));
+  }
 
   return {
     success: true,
-    paid: amountDec.toString(),
+    paid: paid.toString(),
+    remaining_debt: String(res?.remaining_debt ?? get_investor_summary(tenant_id).debt_remaining),
   };
 };
 
