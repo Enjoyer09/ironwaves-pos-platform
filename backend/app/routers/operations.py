@@ -483,6 +483,21 @@ def get_app_settings(
     print_settings = _setting_value(db, tenant.id, "print_settings", {"use_qz": False, "printer_name": ""})
     session_settings = _setting_value(db, tenant.id, "session_settings", {"idle_logout_minutes": 0})
     qr_settings = _setting_value(db, tenant.id, "qr_settings", {"base_url": f"https://{tenant.domain}"})
+    qr_menu_settings = _setting_value(
+        db,
+        tenant.id,
+        "qr_menu_settings",
+        {
+            "enabled": True,
+            "hero_title": "QR Menu",
+            "hero_subtitle": "Telefonunuzdan menyuya baxın",
+            "show_prices": True,
+            "show_images": True,
+            "show_descriptions": True,
+            "poster_title": "Menyuya baxmaq üçün skan et",
+            "poster_subtitle": "Telefon kameranızı QR üzərinə yönəldin",
+        },
+    )
     customer_app_settings = _setting_value(
         db,
         tenant.id,
@@ -598,6 +613,7 @@ def get_app_settings(
         "staff_benefits": staff_benefits,
         "print_settings": print_settings,
         "qr_settings": qr_settings,
+        "qr_menu_settings": qr_menu_settings,
         "customer_app_settings": customer_app_settings,
         "pos_layout": pos_layout,
         "landing_settings": _setting_value(
@@ -792,6 +808,44 @@ def update_qr_settings(
     _ensure_admin(user)
     base_url = str(payload.get("base_url") or "").strip()
     _set_setting_value(db, tenant.id, "qr_settings", {"base_url": base_url})
+    db.commit()
+    return {"success": True}
+
+
+@router.patch("/settings/qr-menu")
+def update_qr_menu_settings(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    current = _setting_value(
+        db,
+        tenant.id,
+        "qr_menu_settings",
+        {
+            "enabled": True,
+            "hero_title": "QR Menu",
+            "hero_subtitle": "Telefonunuzdan menyuya baxın",
+            "show_prices": True,
+            "show_images": True,
+            "show_descriptions": True,
+            "poster_title": "Menyuya baxmaq üçün skan et",
+            "poster_subtitle": "Telefon kameranızı QR üzərinə yönəldin",
+        },
+    )
+    cleaned = {
+        "enabled": bool(payload.get("enabled", current.get("enabled", True))),
+        "hero_title": str(payload.get("hero_title") or current.get("hero_title") or "QR Menu").strip() or "QR Menu",
+        "hero_subtitle": str(payload.get("hero_subtitle") or current.get("hero_subtitle") or "Telefonunuzdan menyuya baxın").strip() or "Telefonunuzdan menyuya baxın",
+        "show_prices": bool(payload.get("show_prices", current.get("show_prices", True))),
+        "show_images": bool(payload.get("show_images", current.get("show_images", True))),
+        "show_descriptions": bool(payload.get("show_descriptions", current.get("show_descriptions", True))),
+        "poster_title": str(payload.get("poster_title") or current.get("poster_title") or "Menyuya baxmaq üçün skan et").strip() or "Menyuya baxmaq üçün skan et",
+        "poster_subtitle": str(payload.get("poster_subtitle") or current.get("poster_subtitle") or "Telefon kameranızı QR üzərinə yönəldin").strip() or "Telefon kameranızı QR üzərinə yönəldin",
+    }
+    _set_setting_value(db, tenant.id, "qr_menu_settings", cleaned)
     db.commit()
     return {"success": True}
 
@@ -1455,6 +1509,57 @@ def get_customer_app_bootstrap(
         "consent_text": str(app_settings.get("consent_text") or "Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam."),
         "join_customer_type": str(app_settings.get("join_customer_type") or "golden"),
         "join_discount_percent": float(app_settings.get("join_discount_percent") or 5),
+    }
+
+
+@router.get("/public-menu-bootstrap")
+def get_public_menu_bootstrap(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    branding = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant.id).first()
+    qr_menu_settings = _setting_value(
+        db,
+        tenant.id,
+        "qr_menu_settings",
+        {
+            "enabled": True,
+            "hero_title": "QR Menu",
+            "hero_subtitle": "Telefonunuzdan menyuya baxın",
+            "show_prices": True,
+            "show_images": True,
+            "show_descriptions": True,
+            "poster_title": "Menyuya baxmaq üçün skan et",
+            "poster_subtitle": "Telefon kameranızı QR üzərinə yönəldin",
+        },
+    )
+    app_settings = _setting_value(
+        db,
+        tenant.id,
+        "customer_app_settings",
+        {
+            "background_color": "#0b1220",
+            "primary_color": "#facc15",
+            "accent_color": "#22d3ee",
+        },
+    )
+    return {
+        "tenant_id": tenant.id,
+        "enabled": bool(qr_menu_settings.get("enabled", True)),
+        "branding": {
+            "company_name": branding.company_name if branding else tenant.name,
+            "logo_url": (branding.logo_url if branding else "") or "",
+            "hero_title": str(qr_menu_settings.get("hero_title") or "QR Menu"),
+            "hero_subtitle": str(qr_menu_settings.get("hero_subtitle") or "Telefonunuzdan menyuya baxın"),
+            "poster_title": str(qr_menu_settings.get("poster_title") or "Menyuya baxmaq üçün skan et"),
+            "poster_subtitle": str(qr_menu_settings.get("poster_subtitle") or "Telefon kameranızı QR üzərinə yönəldin"),
+            "background_color": str(app_settings.get("background_color") or "#0b1220"),
+            "primary_color": str(app_settings.get("primary_color") or "#facc15"),
+            "accent_color": str(app_settings.get("accent_color") or "#22d3ee"),
+        },
+        "show_prices": bool(qr_menu_settings.get("show_prices", True)),
+        "show_images": bool(qr_menu_settings.get("show_images", True)),
+        "show_descriptions": bool(qr_menu_settings.get("show_descriptions", True)),
     }
 
 

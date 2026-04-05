@@ -20,6 +20,7 @@ import {
   update_yield_management_settings_live,
   update_business_profile_live,
   update_print_settings,
+  update_qr_menu_settings_live,
   update_qr_settings_live,
   update_role_modules_live,
   update_staff_benefits_live,
@@ -78,6 +79,17 @@ export default function SettingsPanel() {
     use_qz: false,
     printer_name: '',
   });
+  const [qrMenuSettings, setQrMenuSettings] = useState({
+    enabled: true,
+    hero_title: 'QR Menu',
+    hero_subtitle: 'Telefonunuzdan menyuya baxın',
+    show_prices: true,
+    show_images: true,
+    show_descriptions: true,
+    poster_title: 'Menyuya baxmaq üçün skan et',
+    poster_subtitle: 'Telefon kameranızı QR üzərinə yönəldin',
+  });
+  const [qrMenuPosterDataUrl, setQrMenuPosterDataUrl] = useState('');
   const [bankCommission, setBankCommission] = useState({
     card_sale_percent: '2',
     card_transfer_percent: '0.5',
@@ -225,6 +237,16 @@ export default function SettingsPanel() {
         use_qz: Boolean(settingsRes.value.print_settings?.use_qz),
         printer_name: String(settingsRes.value.print_settings?.printer_name || ''),
       });
+      setQrMenuSettings({
+        enabled: settingsRes.value.qr_menu_settings?.enabled !== false,
+        hero_title: String(settingsRes.value.qr_menu_settings?.hero_title || 'QR Menu'),
+        hero_subtitle: String(settingsRes.value.qr_menu_settings?.hero_subtitle || 'Telefonunuzdan menyuya baxın'),
+        show_prices: settingsRes.value.qr_menu_settings?.show_prices !== false,
+        show_images: settingsRes.value.qr_menu_settings?.show_images !== false,
+        show_descriptions: settingsRes.value.qr_menu_settings?.show_descriptions !== false,
+        poster_title: String(settingsRes.value.qr_menu_settings?.poster_title || 'Menyuya baxmaq üçün skan et'),
+        poster_subtitle: String(settingsRes.value.qr_menu_settings?.poster_subtitle || 'Telefon kameranızı QR üzərinə yönəldin'),
+      });
       setBankCommission({
         card_sale_percent: String((settingsRes.value.bank_commission as any)?.card_sale_percent ?? settingsRes.value.bank_commission?.percent ?? 2),
         card_transfer_percent: String((settingsRes.value.bank_commission as any)?.card_transfer_percent ?? 0.5),
@@ -264,6 +286,53 @@ export default function SettingsPanel() {
   useEffect(() => {
     void loadData();
   }, [tenantId, user?.username]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const baseUrl = String(profile?.qr_base_url || '').trim() || window.location.origin;
+        const menuUrl = `${baseUrl.replace(/\/+$/, '')}/menu`;
+        const qrDataUrl = await QRCode.toDataURL(menuUrl, { margin: 1, width: 220 });
+        const canvas = document.createElement('canvas');
+        canvas.width = 900;
+        canvas.height = 1200;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.fillStyle = '#0b1220';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#f8fafc';
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 56px Arial';
+        ctx.fillText(String(qrMenuSettings.poster_title || 'Menyuya baxmaq üçün skan et'), canvas.width / 2, 120);
+        ctx.font = '28px Arial';
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fillText(String(qrMenuSettings.poster_subtitle || 'Telefon kameranızı QR üzərinə yönəldin'), canvas.width / 2, 170);
+        if (profile?.company_name) {
+          ctx.font = 'bold 36px Arial';
+          ctx.fillStyle = '#facc15';
+          ctx.fillText(String(profile.company_name), canvas.width / 2, 240);
+        }
+        const qrImage = new Image();
+        qrImage.onload = () => {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(190, 300, 520, 520);
+          ctx.drawImage(qrImage, 220, 330, 460, 460);
+          ctx.font = '24px Arial';
+          ctx.fillStyle = '#94a3b8';
+          ctx.fillText(menuUrl.replace(/^https?:\/\//, ''), canvas.width / 2, 910);
+          const posterUrl = canvas.toDataURL('image/png');
+          if (!cancelled) setQrMenuPosterDataUrl(posterUrl);
+        };
+        qrImage.src = qrDataUrl;
+      } catch {
+        if (!cancelled) setQrMenuPosterDataUrl('');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.company_name, profile?.qr_base_url, qrMenuSettings.poster_title, qrMenuSettings.poster_subtitle]);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -524,6 +593,28 @@ export default function SettingsPanel() {
       printer_name: printSettings.printer_name.trim(),
     });
     flashSuccess(tx(lang, 'Çap ayarları yadda saxlanıldı', 'Настройки печати сохранены', 'Print settings saved'));
+  };
+
+  const saveQrMenuSettings = async () => {
+    await update_qr_menu_settings_live({
+      enabled: qrMenuSettings.enabled,
+      hero_title: qrMenuSettings.hero_title,
+      hero_subtitle: qrMenuSettings.hero_subtitle,
+      show_prices: qrMenuSettings.show_prices,
+      show_images: qrMenuSettings.show_images,
+      show_descriptions: qrMenuSettings.show_descriptions,
+      poster_title: qrMenuSettings.poster_title,
+      poster_subtitle: qrMenuSettings.poster_subtitle,
+    });
+    flashSuccess(tx(lang, 'QR Menu ayarları yadda saxlanıldı', 'Настройки QR Menu сохранены', 'QR Menu settings saved'));
+  };
+
+  const downloadQrPoster = () => {
+    if (!qrMenuPosterDataUrl) return;
+    const link = document.createElement('a');
+    link.href = qrMenuPosterDataUrl;
+    link.download = `qr-menu-poster-${tenantId}.png`;
+    link.click();
   };
 
   const saveBankCommission = async () => {
@@ -812,6 +903,86 @@ export default function SettingsPanel() {
         </div>
         <div className="flex justify-end">
           <button onClick={savePrintSettings} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+        </div>
+      </div>
+
+      <div className="metal-panel p-6 space-y-4">
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'QR Menu Settings', 'QR Menu Settings', 'QR Menu Settings')}</h2>
+        <p className="text-sm text-slate-400">
+          {tx(
+            lang,
+            'Müştərilər QR skan edib login olmadan public menyunu görə bilərlər. Buradan başlıq, poster və görünəcək məlumatları idarə edin.',
+            'Клиенты могут открыть публичное меню по QR без логина. Здесь управляются заголовки, постер и видимые поля.',
+            'Customers can open the public menu via QR without logging in. Manage title, poster, and visible fields here.',
+          )}
+        </p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
+            <input type="checkbox" checked={qrMenuSettings.enabled} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, enabled: e.target.checked }))} />
+            <span>{tx(lang, 'Public QR Menu aktiv olsun', 'Публичное QR меню активно', 'Enable public QR Menu')}</span>
+          </label>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Başlıq', 'Заголовок', 'Hero title')}</label>
+            <input className="neon-input" value={qrMenuSettings.hero_title} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, hero_title: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Alt başlıq', 'Подзаголовок', 'Hero subtitle')}</label>
+            <input className="neon-input" value={qrMenuSettings.hero_subtitle} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, hero_subtitle: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Poster başlığı', 'Заголовок постера', 'Poster title')}</label>
+            <input className="neon-input" value={qrMenuSettings.poster_title} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_title: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Poster alt mətni', 'Подзаголовок постера', 'Poster subtitle')}</label>
+            <input className="neon-input" value={qrMenuSettings.poster_subtitle} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_subtitle: e.target.value }))} />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={qrMenuSettings.show_prices} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, show_prices: e.target.checked }))} />
+            <span>{tx(lang, 'Qiymətləri göstər', 'Показывать цены', 'Show prices')}</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={qrMenuSettings.show_images} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, show_images: e.target.checked }))} />
+            <span>{tx(lang, 'Şəkilləri göstər', 'Показывать фото', 'Show images')}</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
+            <input type="checkbox" checked={qrMenuSettings.show_descriptions} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, show_descriptions: e.target.checked }))} />
+            <span>{tx(lang, 'Təsvirləri göstər', 'Показывать описания', 'Show descriptions')}</span>
+          </label>
+        </div>
+        <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-300">
+          <div className="font-semibold text-slate-100">{tx(lang, 'QR Menu linki', 'Ссылка QR Menu', 'QR Menu link')}</div>
+          <div className="mt-2 break-all text-cyan-300">{`${String(profile?.qr_base_url || '').trim() || window.location.origin}`.replace(/\/+$/, '')}/menu</div>
+        </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-3xl border border-slate-700/60 bg-slate-950/30 p-5">
+            <div className="text-sm font-semibold text-slate-100">{tx(lang, 'Poster preview', 'Превью постера', 'Poster preview')}</div>
+            {qrMenuPosterDataUrl ? (
+              <img src={qrMenuPosterDataUrl} alt="QR Menu poster" className="mx-auto mt-4 w-full max-w-xs rounded-2xl ring-1 ring-white/10" />
+            ) : (
+              <div className="mt-4 rounded-2xl border border-dashed border-slate-700/60 p-8 text-center text-slate-400">
+                {tx(lang, 'Poster hazırlanır...', 'Постер готовится...', 'Poster is being prepared...')}
+              </div>
+            )}
+          </div>
+          <div className="rounded-3xl border border-slate-700/60 bg-slate-950/30 p-5 text-sm text-slate-300">
+            <div className="font-semibold text-slate-100">{tx(lang, 'Public menyuda nələr görünəcək', 'Что будет видно в публичном меню', 'What will be visible in public menu')}</div>
+            <ul className="mt-4 space-y-2">
+              <li>{tx(lang, 'Tenant logo və rəngləri', 'Логотип и цвета tenant', 'Tenant logo and colors')}</li>
+              <li>{tx(lang, 'Kateqoriya filtri və axtarış', 'Фильтр категорий и поиск', 'Category filter and search')}</li>
+              <li>{tx(lang, 'Məhsul şəkli', 'Фото товара', 'Product image')}: {qrMenuSettings.show_images ? tx(lang, 'aktiv', 'вкл', 'on') : tx(lang, 'söndürülüb', 'выкл', 'off')}</li>
+              <li>{tx(lang, 'Məhsul təsviri', 'Описание товара', 'Product description')}: {qrMenuSettings.show_descriptions ? tx(lang, 'aktiv', 'вкл', 'on') : tx(lang, 'söndürülüb', 'выкл', 'off')}</li>
+              <li>{tx(lang, 'Qiymət', 'Цена', 'Price')}: {qrMenuSettings.show_prices ? tx(lang, 'aktiv', 'вкл', 'on') : tx(lang, 'söndürülüb', 'выкл', 'off')}</li>
+            </ul>
+          </div>
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          <button onClick={downloadQrPoster} className="neon-btn rounded-xl px-5 py-2 font-semibold">
+            {tx(lang, 'Poster yüklə', 'Скачать постер', 'Download poster')}
+          </button>
+          <button onClick={() => { void saveQrMenuSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">
+            {tx(lang, 'QR Menu ayarlarını saxla', 'Сохранить QR Menu', 'Save QR Menu settings')}
+          </button>
         </div>
       </div>
 

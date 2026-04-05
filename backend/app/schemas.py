@@ -67,6 +67,8 @@ class MenuItemOut(BaseModel):
     category: str
     price: Decimal
     is_coffee: bool
+    image_url: str | None = None
+    description: str | None = None
 
 
 class MenuItemCreateIn(BaseModel):
@@ -74,6 +76,8 @@ class MenuItemCreateIn(BaseModel):
     price: Decimal
     category: str
     is_coffee: bool = False
+    image_url: str | None = None
+    description: str | None = None
 
 
 class InventoryItemCreateIn(BaseModel):

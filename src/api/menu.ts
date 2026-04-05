@@ -26,6 +26,7 @@ export interface MenuItem {
   is_coffee: boolean;
   is_active: boolean;
   image_url?: string;
+  description?: string;
 }
 
 export function get_menu_items(tenant_id: string, search?: string, category_filter?: string) {
@@ -41,7 +42,7 @@ export function get_menu_items(tenant_id: string, search?: string, category_filt
 
 export function create_menu_item(
   tenant_id: string,
-  data: { item_name: string; price: Decimal; category: string; is_coffee: boolean; image_url?: string },
+  data: { item_name: string; price: Decimal; category: string; is_coffee: boolean; image_url?: string; description?: string },
   user: string = 'system'
 ) {
   const menuItems = getDB<any>('menu_items');
@@ -134,7 +135,7 @@ export async function get_public_menu_live() {
 
 export async function create_menu_item_live(
   tenant_id: string,
-  data: { item_name: string; price: Decimal; category: string; is_coffee: boolean; image_url?: string },
+  data: { item_name: string; price: Decimal; category: string; is_coffee: boolean; image_url?: string; description?: string },
   user: string = 'system'
 ) {
   if (!isBackendEnabled()) {
@@ -149,6 +150,8 @@ export async function create_menu_item_live(
         price: new Decimal(data.price).toFixed(2),
         category: data.category,
         is_coffee: data.is_coffee,
+        image_url: data.image_url || '',
+        description: data.description || '',
       },
     });
     const menuItems = getDB<any>('menu_items').filter((i) => !(i.tenant_id === tenant_id && String(i.id) === String(created?.id)));
