@@ -265,24 +265,57 @@ export default function CustomerAppPanel() {
             <input type="checkbox" checked={form.enabled} onChange={(e) => setForm((prev) => ({ ...prev, enabled: e.target.checked }))} />
             <span>{tx(lang, 'Customer app aktiv olsun', 'Включить customer app', 'Enable customer app')}</span>
           </label>
-          <select className="neon-input" value={form.program_mode} onChange={(e) => setForm((prev) => ({ ...prev, program_mode: e.target.value as 'points' | 'cashback' }))}>
-            <option value="points">{tx(lang, 'Point / Ulduz sistemi', 'Баллы / звезды', 'Points / stars program')}</option>
-            <option value="cashback">{tx(lang, 'Cashback sistemi', 'Система cashback', 'Cashback program')}</option>
-          </select>
-          <input className="neon-input" value={form.app_name} onChange={(e) => setForm((prev) => ({ ...prev, app_name: e.target.value }))} placeholder={tx(lang, 'App adı', 'Название приложения', 'App name')} />
-          <input className="neon-input" value={form.hero_title} onChange={(e) => setForm((prev) => ({ ...prev, hero_title: e.target.value }))} placeholder={tx(lang, 'Başlıq', 'Заголовок', 'Hero title')} />
-          <input className="neon-input" value={form.hero_subtitle} onChange={(e) => setForm((prev) => ({ ...prev, hero_subtitle: e.target.value }))} placeholder={tx(lang, 'Qısa izah', 'Краткое описание', 'Hero subtitle')} />
-          <textarea className="neon-input min-h-28 md:col-span-2" value={form.consent_text} onChange={(e) => setForm((prev) => ({ ...prev, consent_text: e.target.value }))} placeholder={tx(lang, 'Müştəri razılaşma mətni', 'Текст согласия клиента', 'Customer consent text')} />
-          <input className="neon-input" value={form.points_label} onChange={(e) => setForm((prev) => ({ ...prev, points_label: e.target.value }))} placeholder={tx(lang, 'Balans adı', 'Название баланса', 'Balance label')} />
-          <input className="neon-input" value={form.reward_name} onChange={(e) => setForm((prev) => ({ ...prev, reward_name: e.target.value }))} placeholder={tx(lang, 'Reward adı', 'Название награды', 'Reward name')} />
-          <input className="neon-input" type="number" min={1} value={form.reward_threshold} onChange={(e) => setForm((prev) => ({ ...prev, reward_threshold: e.target.value }))} placeholder={tx(lang, 'Reward həddi', 'Порог награды', 'Reward threshold')} />
-          <input className="neon-input" type="number" min={0} value={form.cashback_percent} onChange={(e) => setForm((prev) => ({ ...prev, cashback_percent: e.target.value }))} placeholder={tx(lang, 'Cashback %', 'Cashback %', 'Cashback %')} />
-          <input className="neon-input md:col-span-2" value={form.reward_description} onChange={(e) => setForm((prev) => ({ ...prev, reward_description: e.target.value }))} placeholder={tx(lang, 'Reward izahı', 'Описание награды', 'Reward description')} />
-          <select className="neon-input" value={form.reward_card_style} onChange={(e) => setForm((prev) => ({ ...prev, reward_card_style: e.target.value as 'rounded' | 'soft-square' | 'glass' }))}>
-            <option value="rounded">{tx(lang, 'Reward kartı: Yumru', 'Карточка: круглая', 'Reward card: rounded')}</option>
-            <option value="soft-square">{tx(lang, 'Reward kartı: Soft square', 'Карточка: soft square', 'Reward card: soft square')}</option>
-            <option value="glass">{tx(lang, 'Reward kartı: Glass', 'Карточка: glass', 'Reward card: glass')}</option>
-          </select>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Proqram tipi', 'Тип программы', 'Program mode')}</label>
+            <select className="neon-input" value={form.program_mode} onChange={(e) => setForm((prev) => ({ ...prev, program_mode: e.target.value as 'points' | 'cashback' }))}>
+              <option value="points">{tx(lang, 'Point / Ulduz sistemi', 'Баллы / звезды', 'Points / stars program')}</option>
+              <option value="cashback">{tx(lang, 'Cashback sistemi', 'Система cashback', 'Cashback program')}</option>
+            </select>
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'App adı', 'Название приложения', 'App name')}</label>
+            <input className="neon-input" value={form.app_name} onChange={(e) => setForm((prev) => ({ ...prev, app_name: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Başlıq', 'Заголовок', 'Hero title')}</label>
+            <input className="neon-input" value={form.hero_title} onChange={(e) => setForm((prev) => ({ ...prev, hero_title: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Qısa izah', 'Краткое описание', 'Hero subtitle')}</label>
+            <input className="neon-input" value={form.hero_subtitle} onChange={(e) => setForm((prev) => ({ ...prev, hero_subtitle: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card md:col-span-2">
+            <label className="field-label">{tx(lang, 'Müştəri razılaşma mətni', 'Текст согласия клиента', 'Customer consent text')}</label>
+            <textarea className="neon-input min-h-28" value={form.consent_text} onChange={(e) => setForm((prev) => ({ ...prev, consent_text: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Balans adı', 'Название баланса', 'Balance label')}</label>
+            <input className="neon-input" value={form.points_label} onChange={(e) => setForm((prev) => ({ ...prev, points_label: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Reward adı', 'Название награды', 'Reward name')}</label>
+            <input className="neon-input" value={form.reward_name} onChange={(e) => setForm((prev) => ({ ...prev, reward_name: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Reward həddi', 'Порог награды', 'Reward threshold')}</label>
+            <input className="neon-input" type="number" min={1} value={form.reward_threshold} onChange={(e) => setForm((prev) => ({ ...prev, reward_threshold: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Cashback %', 'Cashback %', 'Cashback %')}</label>
+            <input className="neon-input" type="number" min={0} value={form.cashback_percent} onChange={(e) => setForm((prev) => ({ ...prev, cashback_percent: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card md:col-span-2">
+            <label className="field-label">{tx(lang, 'Reward izahı', 'Описание награды', 'Reward description')}</label>
+            <input className="neon-input" value={form.reward_description} onChange={(e) => setForm((prev) => ({ ...prev, reward_description: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Reward kart dizaynı', 'Стиль карточки награды', 'Reward card style')}</label>
+            <select className="neon-input" value={form.reward_card_style} onChange={(e) => setForm((prev) => ({ ...prev, reward_card_style: e.target.value as 'rounded' | 'soft-square' | 'glass' }))}>
+              <option value="rounded">{tx(lang, 'Reward kartı: Yumru', 'Карточка: круглая', 'Reward card: rounded')}</option>
+              <option value="soft-square">{tx(lang, 'Reward kartı: Soft square', 'Карточка: soft square', 'Reward card: soft square')}</option>
+              <option value="glass">{tx(lang, 'Reward kartı: Glass', 'Карточка: glass', 'Reward card: glass')}</option>
+            </select>
+          </div>
           <label className="rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3">
             <div className="mb-2 text-sm text-slate-300">{tx(lang, 'Primary rəng', 'Primary цвет', 'Primary color')}</div>
             <div className="flex items-center gap-3">

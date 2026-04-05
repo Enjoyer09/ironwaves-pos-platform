@@ -779,19 +779,19 @@ export default function FinancePanel() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-xs text-slate-300">{tx(lang, 'Növ', 'Тип', 'Type')}</label>
+            <div className="field-stack form-card">
+              <label className="field-label">{tx(lang, 'Növ', 'Тип', 'Type')}</label>
               <select className="neon-input" value={type} onChange={(e) => setType(e.target.value as 'in' | 'out')}>
                 <option value="out">{tx(lang, 'Məxaric (Çıxış)', 'Расход', 'Expense (Out)')}</option>
                 <option value="in">{tx(lang, 'Mədaxil (Giriş)', 'Приход', 'Income (In)')}</option>
               </select>
-              <p className="text-xs text-slate-400">
+              <p className="field-hint">
                 {tx(lang, 'in = pul daxil olur, out = pul çıxır.', 'in = приход, out = расход.', 'in = money in, out = money out.')}
               </p>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs text-slate-300">{tx(lang, 'Mənbə', 'Источник', 'Source')}</label>
+            <div className="field-stack form-card">
+              <label className="field-label">{tx(lang, 'Mənbə', 'Источник', 'Source')}</label>
               <select className="neon-input" value={source} onChange={(e) => setSource(e.target.value as WalletSource)}>
                 {sourceOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -799,13 +799,13 @@ export default function FinancePanel() {
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-slate-400">
+              <p className="field-hint">
                 {selectedSource?.helper}
               </p>
             </div>
 
-            <div className="space-y-1 md:col-span-2">
-              <label className="text-xs text-slate-300">{tx(lang, 'Kateqoriya', 'Категория', 'Category')}</label>
+            <div className="field-stack form-card md:col-span-2">
+              <label className="field-label">{tx(lang, 'Kateqoriya', 'Категория', 'Category')}</label>
               <select className="neon-input" value={category} onChange={(e) => setCategory(e.target.value)}>
                 {categoryOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -813,11 +813,11 @@ export default function FinancePanel() {
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-slate-400">{selectedCategory.helper}</p>
+              <p className="field-hint">{selectedCategory.helper}</p>
             </div>
 
-            <div className="space-y-1 md:col-span-2">
-              <label className="text-xs text-slate-300">{tx(lang, 'Subyekt', 'Субъект', 'Subject')}</label>
+            <div className="field-stack form-card md:col-span-2">
+              <label className="field-label">{tx(lang, 'Subyekt', 'Субъект', 'Subject')}</label>
               <select
                 className="neon-input"
                 value={subject}
@@ -841,7 +841,7 @@ export default function FinancePanel() {
                   {tx(lang, 'Preset əlavə et', 'Добавить пресет', 'Add Preset')}
                 </button>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="field-hint">
                 {type === 'out'
                   ? tx(
                       lang,
@@ -858,8 +858,8 @@ export default function FinancePanel() {
               </p>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs text-slate-300">{tx(lang, 'Məbləğ (AZN)', 'Сумма (AZN)', 'Amount (AZN)')}</label>
+            <div className="field-stack form-card">
+              <label className="field-label">{tx(lang, 'Məbləğ (AZN)', 'Сумма (AZN)', 'Amount (AZN)')}</label>
               <input
                 className="neon-input"
                 type="number"
@@ -867,18 +867,18 @@ export default function FinancePanel() {
                 step="0.01"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                placeholder="0.00"
               />
+              <p className="field-hint">{tx(lang, 'Məbləği AZN ilə yazın.', 'Введите сумму в AZN.', 'Enter the amount in AZN.')}</p>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs text-slate-300">{tx(lang, 'Açıqlama', 'Описание', 'Description')}</label>
+            <div className="field-stack form-card">
+              <label className="field-label">{tx(lang, 'Açıqlama', 'Описание', 'Description')}</label>
               <input
                 className="neon-input"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder={tx(lang, 'Qısa qeyd', 'Краткая заметка', 'Short note')}
               />
+              <p className="field-hint">{tx(lang, 'Əməliyyatın qısa səbəbini qeyd edin.', 'Кратко укажите причину операции.', 'Briefly describe the reason for this operation.')}</p>
             </div>
           </div>
 
@@ -896,25 +896,34 @@ export default function FinancePanel() {
               </p>
             </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <select className="neon-input" value={transferDirection} onChange={(e) => setTransferDirection(e.target.value as any)}>
-              <option value="card_to_cash">{tx(lang, 'Kartdan Kassaya', 'С карты в кассу')}</option>
-              <option value="cash_to_card">{tx(lang, 'Kassadan Karta', 'Из кассы на карту')}</option>
-              <option value="cash_to_safe">{tx(lang, 'Kassadan Seyfə', 'Из кассы в сейф', 'Cash to Safe')}</option>
-              <option value="safe_to_cash">{tx(lang, 'Seyfdən Kassaya', 'Из сейфа в кассу', 'Safe to Cash')}</option>
-              <option value="cash_to_debt">{tx(lang, 'Kassadan Borca', 'Из кассы в долг')}</option>
-              <option value="card_to_debt">{tx(lang, 'Kartdan Borca', 'С карты в долг')}</option>
-            </select>
-            <input className="neon-input" type="number" min={0} step="0.01" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} placeholder={tx(lang, 'Məbləğ', 'Сумма')} />
-            <input
-              className="neon-input"
-              type="number"
-              min={0}
-              step="0.01"
-              value={computedTransferCommission.toString()}
-              onChange={(e) => setTransferCommission(e.target.value)}
-              placeholder={tx(lang, 'Komissiya', 'Комиссия')}
-              readOnly={transferDirection === 'card_to_cash'}
-            />
+            <div className="field-stack form-card">
+              <label className="field-label">{tx(lang, 'Transfer istiqaməti', 'Направление перевода', 'Transfer direction')}</label>
+              <select className="neon-input" value={transferDirection} onChange={(e) => setTransferDirection(e.target.value as any)}>
+                <option value="card_to_cash">{tx(lang, 'Kartdan Kassaya', 'С карты в кассу')}</option>
+                <option value="cash_to_card">{tx(lang, 'Kassadan Karta', 'Из кассы на карту')}</option>
+                <option value="cash_to_safe">{tx(lang, 'Kassadan Seyfə', 'Из кассы в сейф', 'Cash to Safe')}</option>
+                <option value="safe_to_cash">{tx(lang, 'Seyfdən Kassaya', 'Из сейфа в кассу', 'Safe to Cash')}</option>
+                <option value="cash_to_debt">{tx(lang, 'Kassadan Borca', 'Из кассы в долг')}</option>
+                <option value="card_to_debt">{tx(lang, 'Kartdan Borca', 'С карты в долг')}</option>
+              </select>
+            </div>
+            <div className="field-stack form-card">
+              <label className="field-label">{tx(lang, 'Məbləğ', 'Сумма', 'Amount')}</label>
+              <input className="neon-input" type="number" min={0} step="0.01" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} />
+            </div>
+            <div className="field-stack form-card md:col-span-2">
+              <label className="field-label">{tx(lang, 'Komissiya', 'Комиссия', 'Commission')}</label>
+              <input
+                className="neon-input"
+                type="number"
+                min={0}
+                step="0.01"
+                value={computedTransferCommission.toString()}
+                onChange={(e) => setTransferCommission(e.target.value)}
+                readOnly={transferDirection === 'card_to_cash'}
+              />
+              <p className="field-hint">{tx(lang, 'Kartdan çıxan hərəkətlərdə komissiya burada görünür.', 'Комиссия по карточным исходящим операциям отображается здесь.', 'Outgoing card transfer commission is shown here.')}</p>
+            </div>
           </div>
           {(transferDirection === 'card_to_cash' || transferDirection === 'card_to_debt') && (
             <p className="mt-2 text-xs text-slate-300">
@@ -943,26 +952,33 @@ export default function FinancePanel() {
               )}
             </p>
             <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-              <select className="neon-input" value={repayFrom} onChange={(e) => setRepayFrom(e.target.value as any)}>
-                <option value="cash">{tx(lang, 'Kassa', 'Касса', 'Cash')}</option>
-                <option value="card">{tx(lang, 'Kart', 'Карта', 'Card')}</option>
-                <option value="safe">{tx(lang, 'Seyf', 'Сейф', 'Safe')}</option>
-              </select>
-              <input
-                className="neon-input"
-                type="number"
-                min={0}
-                step="0.01"
-                value={repayAmount}
-                onChange={(e) => setRepayAmount(e.target.value)}
-                placeholder={tx(lang, 'Məbləğ', 'Сумма', 'Amount')}
-              />
-              <input
-                className="neon-input"
-                value={repayNote}
-                onChange={(e) => setRepayNote(e.target.value)}
-                placeholder={tx(lang, 'Qeyd', 'Комментарий', 'Note')}
-              />
+              <div className="field-stack form-card">
+                <label className="field-label">{tx(lang, 'Ödəniş mənbəyi', 'Источник оплаты', 'Repay from')}</label>
+                <select className="neon-input" value={repayFrom} onChange={(e) => setRepayFrom(e.target.value as any)}>
+                  <option value="cash">{tx(lang, 'Kassa', 'Касса', 'Cash')}</option>
+                  <option value="card">{tx(lang, 'Kart', 'Карта', 'Card')}</option>
+                  <option value="safe">{tx(lang, 'Seyf', 'Сейф', 'Safe')}</option>
+                </select>
+              </div>
+              <div className="field-stack form-card">
+                <label className="field-label">{tx(lang, 'Məbləğ', 'Сумма', 'Amount')}</label>
+                <input
+                  className="neon-input"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={repayAmount}
+                  onChange={(e) => setRepayAmount(e.target.value)}
+                />
+              </div>
+              <div className="field-stack form-card">
+                <label className="field-label">{tx(lang, 'Qeyd', 'Комментарий', 'Note')}</label>
+                <input
+                  className="neon-input"
+                  value={repayNote}
+                  onChange={(e) => setRepayNote(e.target.value)}
+                />
+              </div>
             </div>
             <button onClick={() => void doRepayInvestor()} className="glossy-gold mt-3 rounded-lg px-4 py-2 font-semibold">
               {tx(lang, 'İnvestora Ödə', 'Оплатить инвестору', 'Pay Investor')}

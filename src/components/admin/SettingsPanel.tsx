@@ -714,12 +714,30 @@ export default function SettingsPanel() {
       <div className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Biznes Profili', 'Профиль бизнеса', 'Business Profile')}</h2>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <input className="neon-input" value={profile?.company_name || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), company_name: e.target.value }))} placeholder={tx(lang, 'Şirkət adı', 'Название компании', 'Company name')} />
-          <input className="neon-input" value={profile?.phone || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), phone: e.target.value }))} placeholder={tx(lang, 'Telefon', 'Телефон', 'Phone')} />
-          <input className="neon-input" value={profile?.address || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), address: e.target.value }))} placeholder={tx(lang, 'Ünvan', 'Адрес', 'Address')} />
-          <input className="neon-input" value={profile?.website || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), website: e.target.value }))} placeholder={tx(lang, 'Website', 'Сайт', 'Website')} />
-          <input className="neon-input" value={profile?.qr_base_url || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), qr_base_url: e.target.value }))} placeholder={tx(lang, 'QR Base URL', 'QR Base URL', 'QR Base URL')} />
-          <input className="neon-input md:col-span-2" value={profile?.receipt_footer || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), receipt_footer: e.target.value }))} placeholder={tx(lang, 'Qəbz alt mətni', 'Текст внизу чека', 'Receipt footer')} />
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Şirkət adı', 'Название компании', 'Company name')}</label>
+            <input className="neon-input" value={profile?.company_name || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), company_name: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Telefon', 'Телефон', 'Phone')}</label>
+            <input className="neon-input" value={profile?.phone || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), phone: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Ünvan', 'Адрес', 'Address')}</label>
+            <input className="neon-input" value={profile?.address || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), address: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Website', 'Сайт', 'Website')}</label>
+            <input className="neon-input" value={profile?.website || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), website: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'QR Base URL', 'QR Base URL', 'QR Base URL')}</label>
+            <input className="neon-input" value={profile?.qr_base_url || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), qr_base_url: e.target.value }))} />
+          </div>
+          <div className="field-stack form-card md:col-span-2">
+            <label className="field-label">{tx(lang, 'Qəbz alt mətni', 'Текст внизу чека', 'Receipt footer')}</label>
+            <input className="neon-input" value={profile?.receipt_footer || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), receipt_footer: e.target.value }))} />
+          </div>
           <input className="neon-input md:col-span-2" type="file" accept="image/*" onChange={handleLogoUpload} />
         </div>
         <div className="flex justify-end">
@@ -808,24 +826,28 @@ export default function SettingsPanel() {
           )}
         </p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <input
-            className="neon-input"
-            type="number"
-            min={0}
-            step="0.01"
-            value={tableServiceSettings.service_fee_percent}
-            onChange={(e) => setTableServiceSettings((prev) => ({ ...prev, service_fee_percent: e.target.value }))}
-            placeholder={tx(lang, 'Servis haqqı (%)', 'Сервисный сбор (%)', 'Service fee (%)')}
-          />
-          <input
-            className="neon-input"
-            type="number"
-            min={0}
-            step="0.01"
-            value={tableServiceSettings.deposit_per_guest_azn}
-            onChange={(e) => setTableServiceSettings((prev) => ({ ...prev, deposit_per_guest_azn: e.target.value }))}
-            placeholder={tx(lang, 'Nəfər başı depozit (AZN)', 'Депозит с человека (AZN)', 'Deposit per guest (AZN)')}
-          />
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Servis haqqı (%)', 'Сервисный сбор (%)', 'Service fee (%)')}</label>
+            <input
+              className="neon-input"
+              type="number"
+              min={0}
+              step="0.01"
+              value={tableServiceSettings.service_fee_percent}
+              onChange={(e) => setTableServiceSettings((prev) => ({ ...prev, service_fee_percent: e.target.value }))}
+            />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Nəfər başı depozit (AZN)', 'Депозит с человека (AZN)', 'Deposit per guest (AZN')}</label>
+            <input
+              className="neon-input"
+              type="number"
+              min={0}
+              step="0.01"
+              value={tableServiceSettings.deposit_per_guest_azn}
+              onChange={(e) => setTableServiceSettings((prev) => ({ ...prev, deposit_per_guest_azn: e.target.value }))}
+            />
+          </div>
         </div>
         <div className="flex justify-end">
           <button onClick={() => { void saveTableServiceSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
@@ -843,24 +865,28 @@ export default function SettingsPanel() {
           )}
         </p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <input
-            className="neon-input"
-            type="number"
-            min={0}
-            step="0.01"
-            value={bankCommission.card_sale_percent}
-            onChange={(e) => setBankCommission((prev) => ({ ...prev, card_sale_percent: e.target.value }))}
-            placeholder={tx(lang, 'Kartla satış faizi (%)', 'Комиссия за карточную продажу (%)', 'Card sale fee (%)')}
-          />
-          <input
-            className="neon-input"
-            type="number"
-            min={0}
-            step="0.01"
-            value={bankCommission.card_transfer_percent}
-            onChange={(e) => setBankCommission((prev) => ({ ...prev, card_transfer_percent: e.target.value }))}
-            placeholder={tx(lang, 'Kartdan çıxış/köçürmə faizi (%)', 'Комиссия за вывод/перевод с карты (%)', 'Card transfer-out fee (%)')}
-          />
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Kartla satış faizi (%)', 'Комиссия за карточную продажу (%)', 'Card sale fee (%)')}</label>
+            <input
+              className="neon-input"
+              type="number"
+              min={0}
+              step="0.01"
+              value={bankCommission.card_sale_percent}
+              onChange={(e) => setBankCommission((prev) => ({ ...prev, card_sale_percent: e.target.value }))}
+            />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Kartdan çıxış/köçürmə faizi (%)', 'Комиссия за вывод/перевод с карты (%)', 'Card transfer-out fee (%)')}</label>
+            <input
+              className="neon-input"
+              type="number"
+              min={0}
+              step="0.01"
+              value={bankCommission.card_transfer_percent}
+              onChange={(e) => setBankCommission((prev) => ({ ...prev, card_transfer_percent: e.target.value }))}
+            />
+          </div>
         </div>
         <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-xs text-slate-300">
           {tx(

@@ -803,22 +803,28 @@ export default function ZReportPanel() {
       )}
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="neon-input" />
-        <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="neon-input" />
+        <div className="field-stack form-card">
+          <label className="field-label">{tx(lang, 'Başlanğıc tarix', 'Дата начала', 'From date')}</label>
+          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="neon-input" />
+        </div>
+        <div className="field-stack form-card">
+          <label className="field-label">{tx(lang, 'Bitiş tarix', 'Дата окончания', 'To date')}</label>
+          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="neon-input" />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="metal-panel p-4">
           <h3 className="mb-3 text-lg font-semibold">{tx(lang, 'X-Hesabat', 'X-отчет', 'X Report')}</h3>
-          <label className="mb-2 block text-xs text-slate-300">{tx(lang, 'Kassadakı faktiki məbləğ', 'Фактическая сумма в кассе', 'Actual cash in drawer')}</label>
+          <label className="field-label mb-2 block">{tx(lang, 'Kassadakı faktiki məbləğ', 'Фактическая сумма в кассе', 'Actual cash in drawer')}</label>
           <input
             type="number"
             min={0}
             value={xActualCash}
             onChange={(e) => setXActualCash(e.target.value)}
             className="neon-input"
-            placeholder="0.00"
           />
+          <p className="field-hint mt-2">{tx(lang, 'Hazırda kassada saydığınız real məbləği yazın.', 'Введите фактически пересчитанную сумму в кассе.', 'Enter the real counted cash in the drawer.')}</p>
           <button onClick={handleX} className="neon-btn mt-3 px-4 py-2">
             {tx(lang, 'X-Hesabatı Təsdiqlə', 'Подтвердить X-отчет', 'Confirm X Report')}
           </button>
@@ -826,24 +832,24 @@ export default function ZReportPanel() {
 
         <div className="metal-panel p-4">
           <h3 className="mb-3 text-lg font-semibold">{tx(lang, 'Z-Hesabat', 'Z-отчет', 'Z Report')}</h3>
-          <label className="mb-2 block text-xs text-slate-300">{tx(lang, 'Sabahkı açılış məbləği', 'Сумма открытия на завтра', 'Opening amount for tomorrow')}</label>
+          <label className="field-label mb-2 block">{tx(lang, 'Sabahkı açılış məbləği', 'Сумма открытия на завтра', 'Opening amount for tomorrow')}</label>
           <input
             type="number"
             min={0}
             value={zActualCash}
             onChange={(e) => setZActualCash(e.target.value)}
             className="neon-input"
-            placeholder="0.00"
           />
-          <label className="mb-2 mt-3 block text-xs text-slate-300">{tx(lang, 'Maaş məbləği', 'Сумма зарплаты', 'Wage amount')}</label>
+          <p className="field-hint mt-2">{tx(lang, 'Növbəti gün kassada qalmasını istədiyiniz açılış məbləğidir.', 'Это сумма, которая должна остаться в кассе на следующий день.', 'This is the opening cash you want to keep for the next day.')}</p>
+          <label className="field-label mb-2 mt-3 block">{tx(lang, 'Maaş məbləği', 'Сумма зарплаты', 'Wage amount')}</label>
           <input
             type="number"
             min={0}
             value={zWage}
             onChange={(e) => setZWage(e.target.value)}
             className="neon-input"
-            placeholder="0.00"
           />
+          <p className="field-hint mt-2">{tx(lang, 'Bu Z-Hesabat zamanı çıxılan əməkhaqqı məbləğidir.', 'Это сумма зарплаты, списываемая во время Z-отчета.', 'This is the wage amount deducted during the Z-report.')}</p>
           <button onClick={handleZ} className="glossy-gold mt-3 rounded-lg px-4 py-2 font-semibold">
             {tx(lang, 'Z-Hesabatı Yarat', 'Создать Z-отчет', 'Create Z Report')}
           </button>
@@ -872,46 +878,56 @@ export default function ZReportPanel() {
           <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4">
             <div className="mb-3 font-semibold text-slate-100">{tx(lang, 'Yeni şiş aç', 'Открыть новую партию', 'Open new batch')}</div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-              <select
-                className="neon-input"
-                value={yieldOpenInventoryName}
-                onChange={(e) => {
-                  const nextName = e.target.value;
-                  const tracked = trackedYieldItems.find((row: any) => row.inventory_name === nextName);
-                  setYieldOpenInventoryName(nextName);
-                  setYieldOpenMeatType((tracked?.meat_type || 'beef') as 'beef' | 'chicken');
-                }}
-              >
-                <option value="">{tx(lang, 'İzlənən inventarı seçin', 'Выберите отслеживаемый инвентарь', 'Select tracked inventory')}</option>
-                {trackedYieldItems.map((row: any) => (
-                  <option key={row.inventory_name} value={row.inventory_name}>
-                    {row.inventory_name}
-                  </option>
-                ))}
-              </select>
-              <select className="neon-input" value={yieldOpenMeatType} onChange={(e) => setYieldOpenMeatType(e.target.value as 'beef' | 'chicken')}>
-                <option value="beef">{tx(lang, 'Mal əti', 'Говядина', 'Beef')}</option>
-                <option value="chicken">{tx(lang, 'Toyuq əti', 'Курица', 'Chicken')}</option>
-              </select>
-              <input
-                className="neon-input"
-                type="number"
-                min={0}
-                step="0.001"
-                value={yieldOpenRawWeight}
-                onChange={(e) => setYieldOpenRawWeight(e.target.value)}
-                placeholder={tx(lang, 'Asılan çiy çəki (kq)', 'Сырой вес на старте (кг)', 'Opening raw weight (kg)')}
-              />
+              <div className="field-stack form-card">
+                <label className="field-label">{tx(lang, 'İzlənən inventar', 'Отслеживаемый инвентарь', 'Tracked inventory')}</label>
+                <select
+                  className="neon-input"
+                  value={yieldOpenInventoryName}
+                  onChange={(e) => {
+                    const nextName = e.target.value;
+                    const tracked = trackedYieldItems.find((row: any) => row.inventory_name === nextName);
+                    setYieldOpenInventoryName(nextName);
+                    setYieldOpenMeatType((tracked?.meat_type || 'beef') as 'beef' | 'chicken');
+                  }}
+                >
+                  <option value="">{tx(lang, 'İzlənən inventarı seçin', 'Выберите отслеживаемый инвентарь', 'Select tracked inventory')}</option>
+                  {trackedYieldItems.map((row: any) => (
+                    <option key={row.inventory_name} value={row.inventory_name}>
+                      {row.inventory_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field-stack form-card">
+                <label className="field-label">{tx(lang, 'Ət tipi', 'Тип мяса', 'Meat type')}</label>
+                <select className="neon-input" value={yieldOpenMeatType} onChange={(e) => setYieldOpenMeatType(e.target.value as 'beef' | 'chicken')}>
+                  <option value="beef">{tx(lang, 'Mal əti', 'Говядина', 'Beef')}</option>
+                  <option value="chicken">{tx(lang, 'Toyuq əti', 'Курица', 'Chicken')}</option>
+                </select>
+              </div>
+              <div className="field-stack form-card">
+                <label className="field-label">{tx(lang, 'Asılan çiy çəki (kq)', 'Сырой вес на старте (кг)', 'Opening raw weight (kg)')}</label>
+                <input
+                  className="neon-input"
+                  type="number"
+                  min={0}
+                  step="0.001"
+                  value={yieldOpenRawWeight}
+                  onChange={(e) => setYieldOpenRawWeight(e.target.value)}
+                />
+              </div>
               <button onClick={handleOpenYieldBatch} className="glossy-gold rounded-lg px-4 py-2 font-semibold">
                 {tx(lang, 'Şişi aç', 'Открыть партию', 'Open batch')}
               </button>
             </div>
-            <input
-              className="neon-input mt-3"
-              value={yieldOpenNotes}
-              onChange={(e) => setYieldOpenNotes(e.target.value)}
-              placeholder={tx(lang, 'Qeyd (opsional)', 'Заметка (необязательно)', 'Notes (optional)')}
-            />
+            <div className="field-stack mt-3">
+              <label className="field-label">{tx(lang, 'Qeyd', 'Заметка', 'Notes')}</label>
+              <input
+                className="neon-input"
+                value={yieldOpenNotes}
+                onChange={(e) => setYieldOpenNotes(e.target.value)}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -942,21 +958,25 @@ export default function ZReportPanel() {
                         <div><span className="text-slate-400">{tx(lang, 'Silinən çiy', 'Списано сырого', 'Deducted raw')}:</span> <b>{batch.deducted_raw_weight_kg} kq</b></div>
                       </div>
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto]">
-                        <input
-                          className="neon-input"
-                          type="number"
-                          min={0}
-                          step="0.001"
-                          value={form.remaining}
-                          onChange={(e) => setYieldCloseValues((prev) => ({ ...prev, [batch.id]: { ...form, remaining: e.target.value } }))}
-                          placeholder={tx(lang, 'Gün sonu qalan çiy çəki (kq)', 'Остаток сырого веса в конце дня (кг)', 'Remaining raw weight at day end (kg)')}
-                        />
-                        <input
-                          className="neon-input"
-                          value={form.notes}
-                          onChange={(e) => setYieldCloseValues((prev) => ({ ...prev, [batch.id]: { ...form, notes: e.target.value } }))}
-                          placeholder={tx(lang, 'Qeyd / səbəb', 'Заметка / причина', 'Notes / reason')}
-                        />
+                        <div className="field-stack">
+                          <label className="field-label">{tx(lang, 'Gün sonu qalan çiy çəki (kq)', 'Остаток сырого веса в конце дня (кг)', 'Remaining raw weight at day end (kg)')}</label>
+                          <input
+                            className="neon-input"
+                            type="number"
+                            min={0}
+                            step="0.001"
+                            value={form.remaining}
+                            onChange={(e) => setYieldCloseValues((prev) => ({ ...prev, [batch.id]: { ...form, remaining: e.target.value } }))}
+                          />
+                        </div>
+                        <div className="field-stack">
+                          <label className="field-label">{tx(lang, 'Qeyd / səbəb', 'Заметка / причина', 'Notes / reason')}</label>
+                          <input
+                            className="neon-input"
+                            value={form.notes}
+                            onChange={(e) => setYieldCloseValues((prev) => ({ ...prev, [batch.id]: { ...form, notes: e.target.value } }))}
+                          />
+                        </div>
                         <button onClick={() => handleCloseYieldBatch(batch)} className="neon-btn rounded-lg px-4 py-2">
                           {tx(lang, 'Bağla', 'Закрыть', 'Close')}
                         </button>
