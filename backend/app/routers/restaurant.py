@@ -551,7 +551,9 @@ def _sync_round_status_from_items(db: Session, tenant_id: str, round_id: str | N
         return
     items = db.query(OrderItem).filter(OrderItem.tenant_id == tenant_id, OrderItem.round_id == round_id).all()
     active_statuses = {str(item.status or "").upper() for item in items}
-    if active_statuses & {"NEW", "SENT"}:
+    if active_statuses & {"VOID_REQUESTED"}:
+        round_row.status = "VOID_REQUESTED"
+    elif active_statuses & {"NEW", "SENT"}:
         round_row.status = "SENT"
     elif active_statuses & {"IN_PREP", "PREPARING"}:
         round_row.status = "PREPARING"
@@ -647,7 +649,12 @@ def _apply_order_item_action(
             item.status_reason = reason
             item.action_by = user.username
             return {"final_status": "VOIDED", "manager": None}
-        if current_status in {"SENT", "IN_PREP", "PREPARING", "READY", "SERVED", "COMPED", "WASTE", "VOIDED"}:
+        if current_status in {"SENT", "IN_PREP", "PREPARING"}:
+            item.status = "VOID_REQUESTED"
+            item.status_reason = reason
+            item.action_by = user.username
+            return {"final_status": "VOID_REQUESTED", "manager": None}
+        if current_status in {"VOID_REQUESTED", "READY", "SERVED", "COMPED", "WASTE", "VOIDED"}:
             manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
             item.status = "VOIDED"
             item.status_reason = reason
@@ -1604,6 +1611,7 @@ def act_on_order_item(
         if str(item.status or "").upper() in {"VOIDED", "VOID_REQUESTED"}:
             item.cancelled_at = datetime.utcnow()
         _log_item_status(db, tenant.id, item, old_status, item.status, user.username, payload.reason)
+        _sync_round_status_from_items(db, tenant.id, item.round_id)
     active_check = db.query(Check).filter(Check.id == item.check_id, Check.tenant_id == tenant.id).first()
     if table and active_check:
         _sync_check_and_table_from_items(db, tenant.id, table, active_check)
@@ -1837,7 +1845,7 @@ def get_kitchen_feed(
         .join(Check, Check.id == OrderRound.check_id)
         .join(TableSession, TableSession.id == Check.table_session_id)
         .join(Table, Table.id == TableSession.table_id)
-        .filter(OrderRound.tenant_id == tenant.id, OrderRound.status.in_(["NEW", "SENT", "PREPARING", "READY"]))
+        .filter(OrderRound.tenant_id == tenant.id, OrderRound.status.in_(["NEW", "SENT", "PREPARING", "READY", "VOID_REQUESTED"]))
         .order_by(OrderRound.sent_at.desc())
         .all()
     )
