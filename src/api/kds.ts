@@ -3,7 +3,7 @@ import { KitchenOrder } from '../types/pos';
 
 import { getDB, setDB } from '../lib/db_sim';
 import { apiRequest, isBackendEnabled } from './client';
-import { accept_kitchen_round_live, complete_kitchen_round_live, get_kitchen_feed_live } from './restaurant';
+import { accept_kitchen_round_live, complete_kitchen_round_live, get_kitchen_feed_live, ready_kitchen_item_live, serve_kitchen_item_live, start_kitchen_item_live } from './restaurant';
 
 const isRecoverableNetworkFailure = (error: unknown) => {
   const message = String((error as any)?.message || error || '').toLowerCase();
@@ -127,4 +127,19 @@ export const complete_order_live = async (order_id: string, completed_by: string
     }
     throw error;
   }
+};
+
+export const start_kitchen_item_status_live = async (item_id: string) => {
+  if (!isBackendEnabled()) return { success: true };
+  return start_kitchen_item_live(item_id);
+};
+
+export const ready_kitchen_item_status_live = async (item_id: string) => {
+  if (!isBackendEnabled()) return { success: true };
+  return ready_kitchen_item_live(item_id);
+};
+
+export const serve_kitchen_item_status_live = async (item_id: string) => {
+  if (!isBackendEnabled()) return { success: true };
+  return serve_kitchen_item_live(item_id);
 };

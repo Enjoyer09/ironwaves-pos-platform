@@ -487,6 +487,30 @@ export async function complete_kitchen_round_live(roundId: string, ready_items: 
   });
 }
 
+export async function start_kitchen_item_live(itemId: string) {
+  if (!isBackendEnabled()) return { success: true, item_id: itemId, new_status: 'PREPARING' };
+  return apiRequest(`/api/v1/restaurant/kitchen/items/${encodeURIComponent(itemId)}/start`, {
+    method: 'POST',
+    tenantId: null,
+  });
+}
+
+export async function ready_kitchen_item_live(itemId: string) {
+  if (!isBackendEnabled()) return { success: true, item_id: itemId, new_status: 'READY' };
+  return apiRequest(`/api/v1/restaurant/kitchen/items/${encodeURIComponent(itemId)}/ready`, {
+    method: 'POST',
+    tenantId: null,
+  });
+}
+
+export async function serve_kitchen_item_live(itemId: string) {
+  if (!isBackendEnabled()) return { success: true, item_id: itemId, new_status: 'SERVED' };
+  return apiRequest(`/api/v1/restaurant/kitchen/items/${encodeURIComponent(itemId)}/serve`, {
+    method: 'POST',
+    tenantId: null,
+  });
+}
+
 export async function settle_table_check_live(
   tableId: string,
   payload: {

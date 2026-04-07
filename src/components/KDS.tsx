@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { get_kitchen_orders_live, accept_order_live, complete_order_live } from '../api/kds';
+import { get_kitchen_orders_live, accept_order_live, complete_order_live, ready_kitchen_item_status_live, serve_kitchen_item_status_live, start_kitchen_item_status_live } from '../api/kds';
 import { subscribeTenantRealtime } from '../api/realtime';
 import { Clock, CheckCircle, ChefHat, AlertCircle } from 'lucide-react';
 import { KitchenOrder } from '../types/pos';
@@ -148,7 +148,7 @@ export default function KDS() {
     newIds: string[];
     preparingIds: string[];
     readyIds: string[];
-    items: Array<{ item_name: string; qty: number; seat_label?: string; action?: string | null; reason?: string }>;
+    items: Array<{ ids: string[]; item_name: string; qty: number; seat_label?: string; action?: string | null; status?: string; reason?: string }>;
     batchCount: number;
   }>>((acc, order) => {
     const key = order.table_label ? `table:${order.table_label}` : `order:${order.id}`;
@@ -168,10 +168,12 @@ export default function KDS() {
         preparingIds: order.status === 'PREPARING' ? [order.id] : [],
         readyIds: order.status === 'READY' ? [order.id] : [],
         items: normalizedItems.map((item: any) => ({
+          ids: item.id ? [String(item.id)] : [],
           item_name: item.item_name,
           qty: Number(item.qty || 0),
           seat_label: item.seat_label ? String(item.seat_label) : undefined,
           action: String(item.action || '').toUpperCase() || null,
+          status: String(item.status || item.action || order.status || '').toUpperCase(),
           reason: item.reason || '',
         })),
         batchCount: 1,
@@ -198,10 +200,15 @@ export default function KDS() {
 
     normalizedItems.forEach((item: any) => {
       const itemAction = String(item.action || '').toUpperCase() || null;
+      const itemStatus = String(item.status || item.action || order.status || '').toUpperCase();
       const itemSeat = item.seat_label ? String(item.seat_label) : undefined;
-      const idx = existing.items.findIndex((row) => row.item_name === item.item_name && (row.action || null) === itemAction && (row.seat_label || '') === (itemSeat || ''));
-      if (idx >= 0) existing.items[idx].qty += Number(item.qty || 0);
-      else existing.items.push({ item_name: item.item_name, qty: Number(item.qty || 0), seat_label: itemSeat, action: itemAction, reason: item.reason || '' });
+      const idx = existing.items.findIndex((row) => row.item_name === item.item_name && (row.action || null) === itemAction && (row.status || '') === itemStatus && (row.seat_label || '') === (itemSeat || ''));
+      if (idx >= 0) {
+        existing.items[idx].qty += Number(item.qty || 0);
+        if (item.id) existing.items[idx].ids.push(String(item.id));
+      } else {
+        existing.items.push({ ids: item.id ? [String(item.id)] : [], item_name: item.item_name, qty: Number(item.qty || 0), seat_label: itemSeat, action: itemAction, status: itemStatus, reason: item.reason || '' });
+      }
     });
     return acc;
   }, []);
@@ -219,10 +226,6 @@ export default function KDS() {
   const handleCompleteGroup = async (group: { key: string; preparingIds: string[] }) => {
     try {
       const selectedReadyKeys = readySelections[group.key] || [];
-      if (selectedReadyKeys.length === 0) {
-        useAppStore.getState().notify('error', tx(lang, 'Hazır olan məhsulları seçin', 'Выберите готовые позиции', 'Select ready items'));
-        return;
-      }
       const selectedReady = selectedReadyKeys.map((entry) => {
         const [itemName, seatLabel] = String(entry).split('::');
         return seatLabel ? `${itemName} · ${seatLabel}` : itemName;
@@ -237,6 +240,23 @@ export default function KDS() {
     } catch (e: any) {
       logUiError(tenant_id, 'kds', e?.message || String(e), { phase: 'complete_group', ids: group.preparingIds });
       useAppStore.getState().notify('error', e.message);
+    }
+  };
+
+  const handleItemStatus = async (itemIds: string[], nextStatus: 'PREPARING' | 'READY' | 'SERVED') => {
+    try {
+      const ids = itemIds.filter(Boolean);
+      if (ids.length === 0) return;
+      const runner = nextStatus === 'PREPARING'
+        ? start_kitchen_item_status_live
+        : nextStatus === 'READY'
+          ? ready_kitchen_item_status_live
+          : serve_kitchen_item_status_live;
+      await Promise.all(ids.map((itemId) => runner(itemId)));
+      setOrders(await get_kitchen_orders_live(tenant_id));
+    } catch (e: any) {
+      logUiError(tenant_id, 'kds', e?.message || String(e), { phase: 'item_status', nextStatus, itemIds });
+      useAppStore.getState().notify('error', e.message || tx(lang, 'Item statusu dəyişmədi', 'Статус позиции не изменился', 'Item status was not updated'));
     }
   };
 
@@ -306,41 +326,52 @@ export default function KDS() {
 
             <div className="flex-1 p-4 bg-slate-900/15">
               <ul className="space-y-3">
-                {order.items.map((item: any, idx: number) => (
-                  <li key={idx} className={`flex justify-between items-center text-lg font-medium ${item.action === 'CANCEL' ? 'text-rose-300' : 'text-slate-100'}`}>
-                    <span className="flex items-center">
-                      <span className={`w-6 h-6 rounded flex items-center justify-center text-sm mr-3 ${item.action === 'CANCEL' ? 'bg-rose-900/60 text-rose-100' : 'bg-slate-700 text-slate-100'}`}>
-                        {item.qty}
-                      </span>
-                      <span>
-                        {item.action === 'CANCEL' ? `${tx(lang, 'LƏĞV', 'ОТМЕНА', 'CANCEL')} · ` : ''}
-                        {item.item_name}
-                        {item.seat_label ? <span className="ml-2 text-xs font-medium text-cyan-200/80">[{item.seat_label}]</span> : null}
-                        {item.action === 'CANCEL' && item.reason ? (
-                          <span className="ml-2 text-xs font-medium text-rose-200/80">({item.reason})</span>
-                        ) : null}
-                      </span>
-                    </span>
-                    {item.action !== 'CANCEL' && order.status === 'PREPARING' && (
-                      <label className="ml-3 flex items-center gap-2 text-xs text-slate-300">
-                        <input
-                          type="checkbox"
-                          checked={(readySelections[order.key] || []).includes(`${item.item_name}::${item.seat_label || ''}`)}
-                          onChange={(e) => {
-                            setReadySelections((prev) => {
-                              const current = new Set(prev[order.key] || []);
-                              const readyKey = `${item.item_name}::${item.seat_label || ''}`;
-                              if (e.target.checked) current.add(readyKey);
-                              else current.delete(readyKey);
-                              return { ...prev, [order.key]: Array.from(current) };
-                            });
-                          }}
-                        />
-                        {tx(lang, 'Hazırdır', 'Готово', 'Ready')}
-                      </label>
-                    )}
-                  </li>
-                ))}
+                {order.items.map((item: any, idx: number) => {
+                  const itemStatus = String(item.status || order.status || '').toUpperCase();
+                  const canStart = ['NEW', 'SENT'].includes(itemStatus);
+                  const canReady = ['NEW', 'SENT', 'PREPARING'].includes(itemStatus);
+                  const canServe = itemStatus === 'READY';
+                  const isCancelled = ['CANCEL', 'VOIDED', 'VOID_REQUESTED', 'WASTE', 'COMPED'].includes(String(item.action || itemStatus || '').toUpperCase());
+                  return (
+                    <li key={idx} className={`flex flex-col gap-3 rounded-xl border border-slate-700/50 bg-slate-950/25 px-3 py-3 text-lg font-medium ${isCancelled ? 'text-rose-300' : 'text-slate-100'}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="flex min-w-0 items-start">
+                          <span className={`mr-3 flex h-7 w-7 shrink-0 items-center justify-center rounded text-sm ${isCancelled ? 'bg-rose-900/60 text-rose-100' : 'bg-slate-700 text-slate-100'}`}>
+                            {item.qty}
+                          </span>
+                          <span className="min-w-0">
+                            {isCancelled ? `${tx(lang, 'LƏĞV', 'ОТМЕНА', 'CANCEL')} · ` : ''}
+                            {item.item_name}
+                            {item.seat_label ? <span className="ml-2 text-xs font-medium text-cyan-200/80">[{item.seat_label}]</span> : null}
+                            {item.reason ? (
+                              <span className="ml-2 text-xs font-medium text-rose-200/80">({item.reason})</span>
+                            ) : null}
+                          </span>
+                        </span>
+                        {getStatusBadge(itemStatus)}
+                      </div>
+                      {!isCancelled && item.ids?.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 pl-10">
+                          {canStart ? (
+                            <button type="button" onClick={() => { void handleItemStatus(item.ids, 'PREPARING'); }} className="min-h-10 rounded-xl border border-blue-300/35 bg-blue-500/10 px-3 py-2 text-xs font-black text-blue-100">
+                              {tx(lang, 'Başla', 'Начать', 'Start')}
+                            </button>
+                          ) : null}
+                          {canReady ? (
+                            <button type="button" onClick={() => { void handleItemStatus(item.ids, 'READY'); }} className="min-h-10 rounded-xl border border-yellow-300/40 bg-yellow-400/15 px-3 py-2 text-xs font-black text-yellow-100">
+                              {tx(lang, 'Hazırdır', 'Готово', 'Ready')}
+                            </button>
+                          ) : null}
+                          {canServe ? (
+                            <button type="button" onClick={() => { void handleItemStatus(item.ids, 'SERVED'); }} className="min-h-10 rounded-xl border border-emerald-300/40 bg-emerald-500/15 px-3 py-2 text-xs font-black text-emerald-100">
+                              {tx(lang, 'Servis edildi', 'Подано', 'Served')}
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
 
