@@ -1288,6 +1288,32 @@ export default function TablesPage() {
         {tables.map(t => (
           (() => {
             const kitchen = kitchenBadge((t as any).kitchen_status);
+            const tableKitchenOrders = kitchenOrders.filter((row) => row.table_label === t.label);
+            const rawReadyCount = tableKitchenOrders
+              .filter((row) => String(row.status || '') === 'READY')
+              .reduce(
+                (acc, row) =>
+                  acc +
+                  (Array.isArray(row.items)
+                    ? row.items.filter((item: any) => String(item.action || '').toUpperCase() !== 'CANCEL').length
+                    : 0),
+                0
+              );
+            const servedCount = Object.values(servedItemsMap[t.id] || {}).reduce(
+              (acc, qty) => acc + Number(qty || 0),
+              0
+            );
+            const readyCount = Math.max(0, rawReadyCount - servedCount);
+            const waitingCount = tableKitchenOrders
+              .filter((row) => ['NEW', 'PREPARING'].includes(String(row.status || '')))
+              .reduce(
+                (acc, row) =>
+                  acc +
+                  (Array.isArray(row.items)
+                    ? row.items.filter((item: any) => String(item.action || '').toUpperCase() !== 'CANCEL').length
+                    : 0),
+                0
+              );
             return (
           <div
             key={t.id}
@@ -1295,7 +1321,7 @@ export default function TablesPage() {
               if (!t.is_occupied) {
                 setOpenTableId(t.id);
                 setGuestCount(String(Math.max(1, Number(t.guest_count || 1))));
-                setDepositSelections(Array.from({ length: Math.max(1, Number(t.guest_count || 1)) }, (_, idx) => idx < Number(t.deposit_guest_count || 0)));
+                setDepositGuestCount(String(Math.max(0, Number(t.deposit_guest_count || 0))));
                 return;
               }
               setViewTableId(t.id);
@@ -1321,6 +1347,20 @@ export default function TablesPage() {
               <span className={`mt-2 rounded-full px-3 py-1 text-[11px] font-semibold ${kitchen.className}`}>
                 {kitchen.label}
               </span>
+            )}
+            {t.is_occupied && (readyCount > 0 || waitingCount > 0) && (
+              <div className="mt-3 flex flex-wrap justify-center gap-2">
+                {readyCount > 0 && (
+                  <span className="rounded-full border border-emerald-300/50 bg-emerald-400/20 px-3 py-1 text-xs font-bold text-emerald-100 shadow-[0_0_18px_rgba(74,222,128,0.18)]">
+                    {tx(lang, 'Servisə hazır', 'Готово к подаче', 'Ready to serve')}: {readyCount}
+                  </span>
+                )}
+                {waitingCount > 0 && (
+                  <span className="rounded-full border border-blue-300/40 bg-blue-400/15 px-3 py-1 text-xs font-semibold text-blue-100">
+                    {tx(lang, 'Mətbəxdə', 'На кухне', 'In kitchen')}: {waitingCount}
+                  </span>
+                )}
+              </div>
             )}
             {!t.is_occupied && ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
               <button onClick={(e) => { e.stopPropagation(); setDeleteTableId(t.id); }} className="absolute top-3 right-3 text-slate-400 hover:text-red-300 transition-colors">
