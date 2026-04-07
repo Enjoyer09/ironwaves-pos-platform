@@ -344,7 +344,16 @@ export async function transfer_table_lock_live(tableId: string, newOwner: string
 
 export async function act_on_order_item_live(
   itemId: string,
-  payload: { action: string; reason: string; manager_password?: string | null; remake_note?: string | null },
+  payload: {
+    action: string;
+    reason?: string | null;
+    reason_code?: string | null;
+    quantity_delta?: number | null;
+    note?: string | null;
+    modifier_json?: string | null;
+    manager_password?: string | null;
+    remake_note?: string | null;
+  },
 ) {
   if (!isBackendEnabled()) {
     return { ok: true, item_id: itemId, status: payload.action };

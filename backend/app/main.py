@@ -315,15 +315,37 @@ def _run_startup_migrations():
                 id VARCHAR(36) PRIMARY KEY,
                 tenant_id VARCHAR(36) REFERENCES tenants(id),
                 order_item_id VARCHAR(36) REFERENCES order_items(id),
+                check_id VARCHAR(36),
+                round_id VARCHAR(36),
+                action_type VARCHAR(40),
                 old_status VARCHAR(24),
                 new_status VARCHAR(24) NOT NULL,
+                quantity_before INTEGER,
+                quantity_after INTEGER,
                 changed_by VARCHAR(80),
+                approved_by VARCHAR(80),
+                reason_code VARCHAR(80),
                 reason TEXT,
+                billing_effect VARCHAR(80),
+                kitchen_effect VARCHAR(80),
+                meta_json TEXT,
                 changed_at TIMESTAMP
             )
         """))
+        conn.execute(text("ALTER TABLE item_status_logs ADD COLUMN IF NOT EXISTS check_id VARCHAR(36)"))
+        conn.execute(text("ALTER TABLE item_status_logs ADD COLUMN IF NOT EXISTS round_id VARCHAR(36)"))
+        conn.execute(text("ALTER TABLE item_status_logs ADD COLUMN IF NOT EXISTS action_type VARCHAR(40)"))
+        conn.execute(text("ALTER TABLE item_status_logs ADD COLUMN IF NOT EXISTS quantity_before INTEGER"))
+        conn.execute(text("ALTER TABLE item_status_logs ADD COLUMN IF NOT EXISTS quantity_after INTEGER"))
+        conn.execute(text("ALTER TABLE item_status_logs ADD COLUMN IF NOT EXISTS approved_by VARCHAR(80)"))
+        conn.execute(text("ALTER TABLE item_status_logs ADD COLUMN IF NOT EXISTS reason_code VARCHAR(80)"))
+        conn.execute(text("ALTER TABLE item_status_logs ADD COLUMN IF NOT EXISTS billing_effect VARCHAR(80)"))
+        conn.execute(text("ALTER TABLE item_status_logs ADD COLUMN IF NOT EXISTS kitchen_effect VARCHAR(80)"))
+        conn.execute(text("ALTER TABLE item_status_logs ADD COLUMN IF NOT EXISTS meta_json TEXT"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_item_status_logs_tenant_id ON item_status_logs (tenant_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_item_status_logs_order_item_id ON item_status_logs (order_item_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_item_status_logs_check_id ON item_status_logs (check_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_item_status_logs_round_id ON item_status_logs (round_id)"))
         conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS cogs NUMERIC(12,4) DEFAULT 0"))
         conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS offline_request_id VARCHAR(64)"))
         conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS reward_claim_code VARCHAR(32)"))

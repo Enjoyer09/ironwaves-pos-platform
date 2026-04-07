@@ -315,7 +315,11 @@ class DraftItemUpdateIn(BaseModel):
 
 class OrderItemActionIn(BaseModel):
     action: str
-    reason: str
+    reason: str | None = None
+    reason_code: str | None = None
+    quantity_delta: int | None = Field(default=None, ge=1)
+    note: str | None = None
+    modifier_json: str | None = None
     manager_password: str | None = None
     remake_note: str | None = None
 
