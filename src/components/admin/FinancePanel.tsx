@@ -407,6 +407,12 @@ export default function FinancePanel() {
     };
   }, [entries]);
 
+  const effectiveInvestorDebt = useMemo(() => {
+    const ledgerDebt = new Decimal(anomalies?.investor_ledger_balance || balance.investor_balance || 0);
+    const derivedDebt = new Decimal(investorSummary.debt_remaining || 0);
+    return Decimal.max(ledgerDebt, derivedDebt);
+  }, [anomalies?.investor_ledger_balance, balance.investor_balance, investorSummary.debt_remaining]);
+
   const filteredEntries = useMemo(() => {
     const start = new Date(fromDate);
     start.setHours(0, 0, 0, 0);
@@ -474,17 +480,17 @@ export default function FinancePanel() {
     const liquid = new Decimal(balance.cash_balance || 0)
       .plus(new Decimal(balance.card_balance || 0))
       .plus(new Decimal(balance.safe_balance || 0));
-    const obligations = new Decimal(investorSummary.debt_remaining || 0)
+    const obligations = effectiveInvestorDebt
       .plus(new Decimal(balance.debt_balance || 0));
     if (obligations.lte(0)) return 'N/A';
     return liquid.div(obligations).times(100).toFixed(0);
-  }, [balance.cash_balance, balance.card_balance, balance.safe_balance, balance.debt_balance, investorSummary.debt_remaining]);
+  }, [balance.cash_balance, balance.card_balance, balance.safe_balance, balance.debt_balance, effectiveInvestorDebt]);
 
   const financeExceptions = useMemo(() => {
     const items: Array<{ title: string; body: string; tone: 'rose' | 'amber' | 'sky' }> = [];
     const investorLedgerGap = anomalies
       ? new Decimal(anomalies.investor_ledger_gap || 0)
-      : new Decimal(balance.investor_balance || 0).minus(new Decimal(investorSummary.debt_remaining || 0)).abs();
+      : new Decimal(balance.investor_balance || 0).minus(effectiveInvestorDebt).abs();
     const depositLiability = new Decimal(anomalies?.deposit_balance || balance.deposit_balance || 0);
     const cashBalance = new Decimal(balance.cash_balance || 0);
 
@@ -567,7 +573,7 @@ export default function FinancePanel() {
     }
 
     return items;
-  }, [anomalies, balance.cash_balance, balance.deposit_balance, balance.investor_balance, financeSummary.net, investorSummary.debt_remaining, lang]);
+  }, [anomalies, balance.cash_balance, balance.deposit_balance, balance.investor_balance, effectiveInvestorDebt, financeSummary.net, lang]);
 
   const exportCsv = () => {
     if (!filteredEntries.length) {
@@ -599,7 +605,7 @@ export default function FinancePanel() {
       [esc('SUMMARY'), esc(tx(lang, 'Kart qalığı', 'Остаток карты', 'Card Balance')), esc(''), esc(''), esc(new Decimal(balance.card_balance || 0).toFixed(2)), esc('')],
       [esc('SUMMARY'), esc(tx(lang, 'Seyf qalığı', 'Остаток сейфа', 'Safe Balance')), esc(''), esc(''), esc(new Decimal(balance.safe_balance || 0).toFixed(2)), esc('')],
       [esc('SUMMARY'), esc(tx(lang, 'Digər borc öhdəliyi', 'Прочие долговые обязательства', 'Other Debt Liability')), esc(''), esc(''), esc(new Decimal(balance.debt_balance || 0).toFixed(2)), esc('')],
-      [esc('SUMMARY'), esc(tx(lang, 'İnvestor borcu', 'Долг инвестору', 'Investor Debt')), esc(''), esc(''), esc(new Decimal(balance.investor_balance || 0).toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc(tx(lang, 'İnvestor borcu', 'Долг инвестору', 'Investor Debt')), esc(''), esc(''), esc(effectiveInvestorDebt.toFixed(2)), esc('')],
       [esc('SUMMARY'), esc(tx(lang, 'Aktiv masa depozit öhdəliyi', 'Активное обязательство по депозитам столов', 'Active Table Deposit Liability')), esc(''), esc(''), esc(new Decimal(balance.deposit_balance || 0).toFixed(2)), esc('')],
     ];
     // Use semicolon delimiter + UTF-8 BOM for Excel locale compatibility.
@@ -624,7 +630,7 @@ export default function FinancePanel() {
       <p><b>${tx(lang, 'Nağd kassa qalığı', 'Остаток кассы', 'Cash Balance')}:</b> ${new Decimal(balance.cash_balance || 0).toFixed(2)} ₼</p>
       <p><b>${tx(lang, 'Kart qalığı', 'Остаток карты', 'Card Balance')}:</b> ${new Decimal(balance.card_balance || 0).toFixed(2)} ₼</p>
       <p><b>${tx(lang, 'Aktiv masa depozit öhdəliyi', 'Активное обязательство по депозитам столов', 'Active Table Deposit Liability')}:</b> ${new Decimal(balance.deposit_balance || 0).toFixed(2)} ₼</p>
-      <p><b>${tx(lang, 'İnvestor borcu', 'Долг инвестору', 'Investor Debt')}:</b> ${new Decimal(investorSummary.debt_remaining || 0).toFixed(2)} ₼</p>
+      <p><b>${tx(lang, 'İnvestor borcu', 'Долг инвестору', 'Investor Debt')}:</b> ${effectiveInvestorDebt.toFixed(2)} ₼</p>
       <p><b>${tx(lang, 'Operativ qeyd sayı', 'Количество операционных записей', 'Operational Entries')}:</b> ${financeSummary.entriesCount}</p>
       <p style="color:#64748b;font-size:12px">${tx(lang, 'Qeyd: operativ net nəticəyə açılış, investor, depozit və daxili transferlər daxil deyil.', 'Примечание: в операционный нетто итог не входят открытие смены, инвестор, депозиты и внутренние переводы.', 'Note: operational net excludes opening, investor, deposits, and internal transfers.')}</p>
     `;
@@ -785,7 +791,7 @@ export default function FinancePanel() {
         <WalletCard title={tx(lang, 'Bank/Kart Hesabı', 'Банк/карта', 'Bank/Card Wallet')} value={balance.card_balance} helper={tx(lang, 'Kart və bank qalıqları', 'Остатки на карте и в банке', 'Card and bank holdings')} />
         <WalletCard
           title={tx(lang, 'İnvestora Borcumuz', 'Наш долг инвестору', 'Debt To Investor')}
-          value={investorSummary.debt_remaining || '0'}
+          value={effectiveInvestorDebt.toFixed(2)}
           helper={tx(lang, 'Qalan investor öhdəliyi', 'Оставшееся обязательство перед инвестором', 'Remaining investor liability')}
           accent="rose"
         />
@@ -1118,7 +1124,7 @@ export default function FinancePanel() {
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <MiniSummaryCard label={tx(lang, 'Investor yatırımı', 'Инвестиции инвестора', 'Investor Inflow')} value={`${new Decimal(investorSummary.invested_total || 0).toFixed(2)} ₼`} tone="sky" />
               <MiniSummaryCard label={tx(lang, 'Ödənən hissə', 'Погашено', 'Repaid')} value={`${new Decimal(investorSummary.repaid_total || 0).toFixed(2)} ₼`} tone="emerald" />
-              <MiniSummaryCard label={tx(lang, 'Qalan investor borcu', 'Остаток долга инвестору', 'Remaining Investor Debt')} value={`${new Decimal(investorSummary.debt_remaining || 0).toFixed(2)} ₼`} tone="rose" />
+              <MiniSummaryCard label={tx(lang, 'Qalan investor borcu', 'Остаток долга инвестору', 'Remaining Investor Debt')} value={`${effectiveInvestorDebt.toFixed(2)} ₼`} tone="rose" />
               <MiniSummaryCard label={tx(lang, 'Nisyə borc balansı', 'Баланс долга', 'Debt Wallet Balance')} value={`${new Decimal(balance.debt_balance || 0).toFixed(2)} ₼`} tone="amber" />
             </div>
           </div>
