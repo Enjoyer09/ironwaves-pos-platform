@@ -1,6 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
 import { apiRequest, isBackendEnabled } from './client';
 import { getDB, setDB } from '../lib/db_sim';
+import { Decimal } from 'decimal.js';
+import { PaymentMethod } from '../types/pos';
+import { pay_table } from './tables';
 
 export type FloorPlanRecord = {
   id: string;
@@ -65,7 +68,18 @@ export type TableDetailRecord = {
     service_charge: string;
     tax_amount: string;
     total: string;
+    amount_paid?: string;
+    balance_due?: string;
     opened_at?: string | null;
+    payments?: Array<{
+      id: string;
+      method: string;
+      amount: string;
+      status: string;
+      split_group?: string | null;
+      paid_by?: string | null;
+      paid_at?: string | null;
+    }>;
   } | null;
   rounds?: Array<{
     id: string;
@@ -215,6 +229,40 @@ export async function complete_kitchen_round_live(roundId: string, ready_items: 
     method: 'POST',
     tenantId: null,
     body: { ready_items },
+  });
+}
+
+export async function settle_table_check_live(
+  tableId: string,
+  payload: {
+    payment_method: PaymentMethod;
+    split_cash?: Decimal | null;
+    split_card?: Decimal | null;
+    parts?: Array<{ method: 'Nəğd' | 'Kart'; amount: string }>;
+  },
+) {
+  if (!isBackendEnabled()) {
+    return pay_table(
+      tableId,
+      payload.payment_method,
+      'staff',
+      payload.split_cash || null,
+      payload.split_card || null,
+      { pay_scope: 'full' },
+    );
+  }
+  return apiRequest(`/api/v1/restaurant/tables/${encodeURIComponent(tableId)}/settle-check`, {
+    method: 'POST',
+    tenantId: null,
+    body: {
+      payment_method: payload.payment_method,
+      split_cash: payload.split_cash ? payload.split_cash.toFixed(2) : null,
+      split_card: payload.split_card ? payload.split_card.toFixed(2) : null,
+      parts: (payload.parts || []).map((row) => ({
+        method: row.method,
+        amount: row.amount,
+      })),
+    },
   });
 }
 
