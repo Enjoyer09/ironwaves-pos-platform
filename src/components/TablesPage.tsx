@@ -53,10 +53,14 @@ export default function TablesPage() {
   const [floorTables, setFloorTables] = useState<FloorTableState[]>([]);
   const [floorEditMode, setFloorEditMode] = useState(false);
   const [draggingTableId, setDraggingTableId] = useState<string | null>(null);
+  const [draggingTableIds, setDraggingTableIds] = useState<string[]>([]);
   const [floorDropPreview, setFloorDropPreview] = useState<{ x: number; y: number } | null>(null);
   const [draggingReservationId, setDraggingReservationId] = useState<string | null>(null);
+  const [reservationDropPreview, setReservationDropPreview] = useState<{ lane: number; top: number; reservationAt: string; assignedTableId: string | null; hasConflict: boolean } | null>(null);
   const [selectedFloorTableId, setSelectedFloorTableId] = useState<string | null>(null);
   const [selectedFloorGroupId, setSelectedFloorGroupId] = useState<string | null>(null);
+  const [floorMultiSelectMode, setFloorMultiSelectMode] = useState(false);
+  const [selectedFloorTableIds, setSelectedFloorTableIds] = useState<string[]>([]);
   const [reservationDurationDrafts, setReservationDurationDrafts] = useState<Record<string, number>>({});
   const [resizingReservation, setResizingReservation] = useState<{ id: string; startY: number; startDuration: number } | null>(null);
   const [reservationDate, setReservationDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -161,6 +165,11 @@ export default function TablesPage() {
     return mergedGroups.find((group) => group.id === mergedGroupId) || null;
   }, [mergedGroups, selectedFloorGroupId, selectedFloorTable]);
 
+  const selectedFloorTables = useMemo(
+    () => floorTables.filter((row) => selectedFloorTableIds.includes(row.id)),
+    [floorTables, selectedFloorTableIds],
+  );
+
   const reservationTimeline = useMemo(() => {
     const hourStart = 8;
     const hourEnd = 24;
@@ -241,6 +250,8 @@ export default function TablesPage() {
     if (!floorEditMode) {
       setSelectedFloorTableId(null);
       setFloorDropPreview(null);
+      setSelectedFloorTableIds([]);
+      setFloorMultiSelectMode(false);
     }
   }, [floorEditMode]);
 
@@ -250,6 +261,10 @@ export default function TablesPage() {
       setSelectedFloorTableId(null);
     }
   }, [floorTables, selectedFloorTableId]);
+
+  useEffect(() => {
+    setSelectedFloorTableIds((prev) => prev.filter((id) => floorTables.some((row) => row.id === id)));
+  }, [floorTables]);
 
   useEffect(() => {
     if (!selectedFloorTable) {
@@ -648,11 +663,26 @@ export default function TablesPage() {
     const rowHeight = 70;
     const nextX = Math.max(0, Math.min(maxCols - Math.max(1, Number(draggingTable.w || 2)), Math.floor((event.clientX - rect.left) / columnWidth)));
     const nextY = Math.max(0, Math.floor((event.clientY - rect.top) / rowHeight));
+    const activeDragIds = draggingTableIds.length > 0 ? draggingTableIds : [draggingTableId];
+    const dragTables = floorTables.filter((row) => activeDragIds.includes(row.id));
+    const anchor = dragTables.find((row) => row.id === draggingTableId) || draggingTable;
+    const deltaX = nextX - Number(anchor.x || 0);
+    const deltaY = nextY - Number(anchor.y || 0);
     try {
-      await persistFloorLayout(draggingTable.id, { floor_plan_id: activeFloorId, pos_x: nextX, pos_y: nextY });
+      await Promise.all(
+        dragTables.map((row) =>
+          update_table_layout_live(row.id, {
+            floor_plan_id: activeFloorId,
+            pos_x: Math.max(0, Number(row.x || 0) + deltaX),
+            pos_y: Math.max(0, Number(row.y || 0) + deltaY),
+          }),
+        ),
+      );
+      await Promise.all([loadFloorState(activeFloorId), loadData()]);
       setSelectedFloorTableId(draggingTable.id);
     } finally {
       setDraggingTableId(null);
+      setDraggingTableIds([]);
       setFloorDropPreview(null);
     }
   };
@@ -694,6 +724,23 @@ export default function TablesPage() {
       await Promise.all([activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(), loadData()]);
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Qrup hərəkət etmədi', 'Группа не переместилась', 'Group did not move'));
+    }
+  };
+
+  const handleNudgeSelectedTables = async (deltaX: number, deltaY: number) => {
+    if (selectedFloorTables.length === 0) return;
+    try {
+      await Promise.all(
+        selectedFloorTables.map((row) =>
+          update_table_layout_live(row.id, {
+            pos_x: Math.max(0, Number(row.x || 0) + deltaX),
+            pos_y: Math.max(0, Number(row.y || 0) + deltaY),
+          }),
+        ),
+      );
+      await Promise.all([activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(), loadData()]);
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Seçilmiş masalar hərəkət etmədi', 'Выбранные столы не переместились', 'Selected tables did not move'));
     }
   };
 
@@ -1917,16 +1964,59 @@ export default function TablesPage() {
                 </select>
               )}
               {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
-                <button
-                  type="button"
-                  onClick={() => setFloorEditMode((prev) => !prev)}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold ${floorEditMode ? 'bg-cyan-300 text-slate-950' : 'border border-slate-600 bg-slate-800/50 text-slate-200'}`}
-                >
-                  {floorEditMode ? tx(lang, 'Editor açıqdır', 'Редактор включен', 'Editor on') : tx(lang, 'Floor editor', 'Редактор зала', 'Floor editor')}
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setFloorEditMode((prev) => !prev)}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold ${floorEditMode ? 'bg-cyan-300 text-slate-950' : 'border border-slate-600 bg-slate-800/50 text-slate-200'}`}
+                  >
+                    {floorEditMode ? tx(lang, 'Editor açıqdır', 'Редактор включен', 'Editor on') : tx(lang, 'Floor editor', 'Редактор зала', 'Floor editor')}
+                  </button>
+                  {floorEditMode && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFloorMultiSelectMode((prev) => !prev);
+                        setSelectedFloorTableIds([]);
+                      }}
+                      className={`rounded-full px-4 py-2 text-sm font-semibold ${floorMultiSelectMode ? 'bg-violet-300 text-slate-950' : 'border border-violet-300/30 bg-violet-500/10 text-violet-100'}`}
+                    >
+                      {floorMultiSelectMode ? tx(lang, 'Çoxlu seçim aktivdir', 'Множественный выбор активен', 'Multi-select on') : tx(lang, 'Çoxlu seçim', 'Множественный выбор', 'Multi-select')}
+                    </button>
+                  )}
+                </>
               )}
             </div>
           </div>
+          {floorEditMode && floorMultiSelectMode && selectedFloorTables.length > 0 && (
+            <div className="mb-3 rounded-2xl border border-violet-300/20 bg-violet-500/10 p-3">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="text-sm font-bold text-violet-100">
+                    {tx(lang, 'Çoxlu seçim', 'Множественный выбор', 'Multi-select')} · {selectedFloorTables.length}
+                  </div>
+                  <div className="mt-1 text-xs text-violet-200/80">
+                    {selectedFloorTables.map((table) => table.label).join(', ')}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <div className="flex items-center gap-1 rounded-xl border border-violet-300/30 bg-slate-950/30 px-2 py-1 text-xs text-violet-100">
+                    <button type="button" className="rounded-md border border-violet-300/30 px-2 py-1" onClick={() => { void handleNudgeSelectedTables(-1, 0); }}>←</button>
+                    <button type="button" className="rounded-md border border-violet-300/30 px-2 py-1" onClick={() => { void handleNudgeSelectedTables(0, -1); }}>↑</button>
+                    <button type="button" className="rounded-md border border-violet-300/30 px-2 py-1" onClick={() => { void handleNudgeSelectedTables(0, 1); }}>↓</button>
+                    <button type="button" className="rounded-md border border-violet-300/30 px-2 py-1" onClick={() => { void handleNudgeSelectedTables(1, 0); }}>→</button>
+                  </div>
+                  <button
+                    type="button"
+                    className="rounded-xl border border-violet-300/30 bg-violet-500/15 px-4 py-2 text-sm font-semibold text-violet-100"
+                    onClick={() => setSelectedFloorTableIds([])}
+                  >
+                    {tx(lang, 'Seçimi təmizlə', 'Очистить выбор', 'Clear selection')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           {floorEditMode && selectedFloorTable && (
             <div className="mb-3 rounded-2xl border border-cyan-300/20 bg-cyan-500/10 p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -2121,15 +2211,33 @@ export default function TablesPage() {
                   key={table.id}
                   type="button"
                   draggable={floorEditMode}
-                  onDragStart={() => setDraggingTableId(table.id)}
-                  onDragEnd={() => setDraggingTableId(null)}
+                  onDragStart={() => {
+                    const mergedGroupId = String((table as any).merged_group_id || '').trim();
+                    const nextDragIds =
+                      mergedGroupId && selectedFloorGroupId === mergedGroupId
+                        ? (selectedFloorGroup?.tables.map((row) => row.id) || [table.id])
+                        : (floorMultiSelectMode && selectedFloorTableIds.includes(table.id) ? selectedFloorTableIds : [table.id]);
+                    setDraggingTableId(table.id);
+                    setDraggingTableIds(nextDragIds);
+                  }}
+                  onDragEnd={() => {
+                    setDraggingTableId(null);
+                    setDraggingTableIds([]);
+                    setFloorDropPreview(null);
+                  }}
                   onDrop={(e) => {
                     e.preventDefault();
                   }}
                   onClick={() => {
                     if (floorEditMode) {
-                      setSelectedFloorTableId(table.id);
-                      setSelectedFloorGroupId(String((table as any).merged_group_id || '').trim() || null);
+                      if (floorMultiSelectMode) {
+                        setSelectedFloorTableIds((prev) => (
+                          prev.includes(table.id) ? prev.filter((id) => id !== table.id) : [...prev, table.id]
+                        ));
+                      } else {
+                        setSelectedFloorTableId(table.id);
+                        setSelectedFloorGroupId(String((table as any).merged_group_id || '').trim() || null);
+                      }
                       return;
                     }
                     if (String(table.status || '').toUpperCase() === 'DIRTY') return;
@@ -2154,7 +2262,7 @@ export default function TablesPage() {
                       setDepositGuestCount('0');
                     }
                   }}
-                  className={`border p-3 text-left shadow-sm transition hover:scale-[1.01] ${String(table.shape || '').toLowerCase() === 'circle' ? 'rounded-[999px]' : String(table.shape || '').toLowerCase() === 'square' ? 'rounded-xl' : 'rounded-2xl'} ${draggingTableId === table.id ? 'opacity-60' : ''} ${selectedFloorTableId === table.id ? 'ring-2 ring-cyan-300/80' : ''} ${String((table as any).merged_group_id || '').trim() ? 'shadow-[0_0_0_2px_rgba(167,139,250,0.45)]' : ''} ${statusColors[String(table.status || 'AVAILABLE').toUpperCase()] || statusColors.AVAILABLE}`}
+                  className={`border p-3 text-left shadow-sm transition hover:scale-[1.01] ${String(table.shape || '').toLowerCase() === 'circle' ? 'rounded-[999px]' : String(table.shape || '').toLowerCase() === 'square' ? 'rounded-xl' : 'rounded-2xl'} ${draggingTableIds.includes(table.id) ? 'opacity-60' : ''} ${selectedFloorTableId === table.id ? 'ring-2 ring-cyan-300/80' : ''} ${selectedFloorTableIds.includes(table.id) ? 'ring-2 ring-violet-300/80' : ''} ${String((table as any).merged_group_id || '').trim() ? 'shadow-[0_0_0_2px_rgba(167,139,250,0.45)]' : ''} ${statusColors[String(table.status || 'AVAILABLE').toUpperCase()] || statusColors.AVAILABLE}`}
                   style={{
                     gridColumn: `${Math.max(1, Number(table.x || 0) + 1)} / span ${Math.max(1, Number(table.w || 2))}`,
                     gridRow: `${Math.max(1, Number(table.y || 0) + 1)} / span ${Math.max(1, Number(table.h || 2))}`,
@@ -2281,6 +2389,34 @@ export default function TablesPage() {
                   onDragOver={(e) => {
                     if (!draggingReservationId) return;
                     e.preventDefault();
+                    const host = e.currentTarget;
+                    const rect = host.getBoundingClientRect();
+                    const rawMinutes = ((e.clientY - rect.top) / reservationTimeline.minuteHeight) + reservationTimeline.hourStart * 60;
+                    const snappedMinutes = Math.max(reservationTimeline.hourStart * 60, Math.min((reservationTimeline.hourEnd * 60) - 15, Math.round(rawMinutes / 15) * 15));
+                    const hours = Math.floor(snappedMinutes / 60);
+                    const minutes = snappedMinutes % 60;
+                    const laneIndex = Math.max(0, Math.min(reservationTimeline.lanes.length - 1, Math.floor((e.clientX - rect.left) / reservationTimeline.laneWidth)));
+                    const assignedTableId = reservationTimeline.lanes[laneIndex]?.id || null;
+                    const nextReservationAt = `${reservationDate}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+                    const dragged = reservations.find((row) => row.id === draggingReservationId);
+                    const draggedDuration = Math.max(30, Number(reservationDurationDrafts[draggingReservationId] ?? (dragged?.duration_minutes || 90)));
+                    const previewStart = new Date(nextReservationAt).getTime();
+                    const previewEnd = previewStart + (draggedDuration * 60 * 1000);
+                    const hasConflict = Boolean(assignedTableId) && reservations.some((row) => {
+                      if (row.id === draggingReservationId) return false;
+                      if (String(row.assigned_table_id || '') !== String(assignedTableId || '')) return false;
+                      if (String(row.status || '').toUpperCase() === 'CANCELLED') return false;
+                      const start = new Date(row.reservation_at).getTime();
+                      const end = start + (Math.max(30, Number(row.duration_minutes || 90)) * 60 * 1000);
+                      return previewStart < end && previewEnd > start;
+                    });
+                    setReservationDropPreview({
+                      lane: laneIndex,
+                      top: Math.max(0, snappedMinutes - reservationTimeline.hourStart * 60) * reservationTimeline.minuteHeight,
+                      reservationAt: nextReservationAt,
+                      assignedTableId,
+                      hasConflict,
+                    });
                   }}
                   onDrop={(e) => {
                     if (!draggingReservationId) return;
@@ -2303,8 +2439,12 @@ export default function TablesPage() {
                         notify('error', error?.message || tx(lang, 'Rezervasiya dəyişmədi', 'Бронь не изменилась', 'Reservation was not updated'));
                       } finally {
                         setDraggingReservationId(null);
+                        setReservationDropPreview(null);
                       }
                     })();
+                  }}
+                  onDragLeave={() => {
+                    setReservationDropPreview(null);
                   }}
                 >
                   <div className="sticky top-0 z-10 flex border-b border-slate-800/80 bg-slate-950/90">
@@ -2325,6 +2465,27 @@ export default function TablesPage() {
                       style={{ top: `${idx * 60 * reservationTimeline.minuteHeight + 34}px` }}
                     />
                   ))}
+                  {draggingReservationId && reservationDropPreview && (
+                    <>
+                      <div
+                        className={`pointer-events-none absolute rounded-2xl border-2 border-dashed ${reservationDropPreview.hasConflict ? 'border-rose-300/80 bg-rose-500/10' : 'border-cyan-300/80 bg-cyan-400/10'}`}
+                        style={{
+                          top: `${reservationDropPreview.top + 40}px`,
+                          left: `${reservationDropPreview.lane * reservationTimeline.laneWidth + 8}px`,
+                          width: `${reservationTimeline.laneWidth - 16}px`,
+                          height: `${Math.max(62, (Math.max(30, Number(reservationDurationDrafts[draggingReservationId] ?? (reservations.find((row) => row.id === draggingReservationId)?.duration_minutes || 90))) * reservationTimeline.minuteHeight))}px`,
+                        }}
+                      />
+                      <div
+                        className={`pointer-events-none absolute right-3 top-3 rounded-full px-3 py-1 text-xs font-semibold ${reservationDropPreview.hasConflict ? 'bg-rose-500/20 text-rose-100' : 'bg-cyan-400/20 text-cyan-100'}`}
+                      >
+                        {new Date(reservationDropPreview.reservationAt).toLocaleTimeString(lang === 'ru' ? 'ru-RU' : 'az-AZ', { hour: '2-digit', minute: '2-digit' })}
+                        {' · '}
+                        {reservationDropPreview.assignedTableId ? (floorTables.find((table) => table.id === reservationDropPreview.assignedTableId)?.label || reservationDropPreview.assignedTableId) : tx(lang, 'Təyin edilməyib', 'Не назначено', 'Unassigned')}
+                        {reservationDropPreview.hasConflict ? ` · ${tx(lang, 'Konflikt var', 'Есть конфликт', 'Conflict')}` : ''}
+                      </div>
+                    </>
+                  )}
                   {reservationTimeline.entries.map((entry) => {
                     const reservation = entry.reservation;
                     const availableTables = floorTables.filter((row) => String(row.status).toUpperCase() === 'AVAILABLE');
@@ -2335,7 +2496,10 @@ export default function TablesPage() {
                         key={reservation.id}
                         draggable={reservation.status === 'BOOKED'}
                         onDragStart={() => setDraggingReservationId(reservation.id)}
-                        onDragEnd={() => setDraggingReservationId(null)}
+                        onDragEnd={() => {
+                          setDraggingReservationId(null);
+                          setReservationDropPreview(null);
+                        }}
                         className={`absolute rounded-2xl border border-amber-300/30 bg-gradient-to-br from-amber-400/15 to-slate-900/90 p-3 pb-8 shadow-[0_10px_30px_rgba(0,0,0,0.18)] ${isResizing ? 'ring-2 ring-cyan-300/80' : ''}`}
                         style={{
                           top: `${entry.top + 40}px`,
