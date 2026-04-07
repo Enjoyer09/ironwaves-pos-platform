@@ -534,7 +534,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
                 </div>
               )}
               <div>
-                <div className="text-sm font-bold text-slate-900">{branding?.company_name || 'iRonWaves POS RC'}</div>
+                <div className="text-sm font-bold text-slate-900">{branding?.company_name || 'iRonWaves POS'}</div>
                 <div className="text-xs text-slate-500">{branding?.website || (typeof window !== 'undefined' ? window.location.host : '')}</div>
               </div>
             </div>

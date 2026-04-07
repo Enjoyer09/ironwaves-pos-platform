@@ -1288,6 +1288,10 @@ export default function TablesPage() {
         {tables.map(t => (
           (() => {
             const kitchen = kitchenBadge((t as any).kitchen_status);
+            const currentBill = Decimal.max(
+              new Decimal(t.total || 0).plus(new Decimal(t.total || 0).times(serviceFeePercent).div(100)),
+              new Decimal(t.deposit_amount || 0)
+            );
             const tableKitchenOrders = kitchenOrders.filter((row) => row.table_label === t.label);
             const rawReadyCount = tableKitchenOrders
               .filter((row) => String(row.status || '') === 'READY')
@@ -1314,6 +1318,8 @@ export default function TablesPage() {
                     : 0),
                 0
               );
+            const hasDeposit = new Decimal(t.deposit_amount || 0).greaterThan(0);
+            const readyToClose = t.is_occupied && currentBill.greaterThan(0) && readyCount === 0 && waitingCount === 0;
             return (
           <div
             key={t.id}
@@ -1336,6 +1342,20 @@ export default function TablesPage() {
               <span className="mt-2 rounded-full border border-cyan-300/40 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold text-cyan-100">
                 {tx(lang, 'Sahib', 'Ответственный', 'Owner')}: {t.assigned_to}
               </span>
+            )}
+            {t.is_occupied && (hasDeposit || readyToClose) && (
+              <div className="mt-2 flex flex-wrap justify-center gap-2">
+                {hasDeposit && (
+                  <span className="rounded-full border border-amber-300/50 bg-amber-400/15 px-3 py-1 text-[11px] font-semibold text-amber-100">
+                    {tx(lang, 'Depozit var', 'Есть депозит', 'Has deposit')}
+                  </span>
+                )}
+                {readyToClose && (
+                  <span className="rounded-full border border-violet-300/50 bg-violet-400/15 px-3 py-1 text-[11px] font-semibold text-violet-100">
+                    {tx(lang, 'Hesaba hazır', 'Готов к счету', 'Ready to bill')}
+                  </span>
+                )}
+              </div>
             )}
             {(Number(t.guest_count || 0) > 0 || new Decimal(t.deposit_amount || 0).greaterThan(0)) && (
               <div className="mt-2 text-center text-[11px] text-slate-300">

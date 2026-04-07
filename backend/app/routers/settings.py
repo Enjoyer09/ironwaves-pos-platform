@@ -242,7 +242,7 @@ def setup_totp(
     current_user.totp_secret = secret
     current_user.totp_enabled = False
     db.commit()
-    issuer = tenant.name or "iRonWaves POS RC"
+    issuer = tenant.name or "iRonWaves POS"
     otpauth_url = pyotp.TOTP(secret).provisioning_uri(name=current_user.username, issuer_name=issuer)
     return TotpSetupOut(secret=secret, otpauth_url=otpauth_url)
 

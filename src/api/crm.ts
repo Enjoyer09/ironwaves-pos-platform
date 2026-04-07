@@ -221,7 +221,7 @@ export async function get_customer_app_session_live(card_id: string, token: stri
     return {
       tenant_id: tenantId,
       branding: {
-        company_name: profile?.company_name || 'iRonWaves POS RC',
+        company_name: profile?.company_name || 'iRonWaves POS',
         website: profile?.website || (typeof window !== 'undefined' ? window.location.origin : ''),
         logo_url: profile?.logo_url || '',
         receipt_footer: profile?.receipt_footer || '',
@@ -298,7 +298,7 @@ export async function get_customer_app_bootstrap_live(tenant_id?: string) {
       tenant_id: tenantId,
       enabled: settings.enabled !== false,
       branding: {
-        company_name: profile?.company_name || 'iRonWaves POS RC',
+        company_name: profile?.company_name || 'iRonWaves POS',
         website: profile?.website || (typeof window !== 'undefined' ? window.location.origin : ''),
         logo_url: profile?.logo_url || '',
         app_name: settings.app_name || 'Loyalty Club',

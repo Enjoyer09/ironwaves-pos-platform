@@ -271,7 +271,7 @@ def _seed_demo_tenant(db: Session):
                 website=f"https://{tenant.domain}",
                 phone="+994 00 000 00 00",
                 address="Demo Showroom",
-                receipt_footer="Demo environment for iRonWaves POS RC",
+                receipt_footer="Demo environment for iRonWaves POS",
             )
         )
 

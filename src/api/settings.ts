@@ -1053,7 +1053,7 @@ export function get_business_profile(tenant_id?: string) {
 
   const created = {
     tenant_id: resolvedTenant,
-    company_name: 'iRonWaves POS RC',
+    company_name: 'iRonWaves POS',
     voen: '',
     phone: '',
     address: '',
