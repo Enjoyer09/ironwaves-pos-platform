@@ -231,6 +231,7 @@ class ReservationCreateIn(BaseModel):
     party_size: int = 2
     special_note: str | None = None
     assigned_table_id: str | None = None
+    status: str | None = None
 
 
 class ReservationUpdateIn(BaseModel):
