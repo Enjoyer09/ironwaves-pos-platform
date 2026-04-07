@@ -467,7 +467,7 @@ export default function TablesPage() {
         <div className="fixed inset-0 z-[130] flex items-end justify-center bg-black/65 p-0 md:items-center md:p-4">
           <div className="metal-panel w-full max-w-md rounded-t-[28px] p-5 md:rounded-2xl">
             <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-600 md:hidden" />
-            <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Masa hesabını bağla', 'Закрыть счет стола')}</h3>
+            <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Open check hesabını bağla', 'Закрыть открытый чек', 'Close open check')}</h3>
             <div className="mt-3 text-sm text-slate-300">
               {(() => {
                 const t = tables.find((x) => x.id === payTableId);
@@ -490,7 +490,11 @@ export default function TablesPage() {
                 </div>
               );
             })()}
-            <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="mt-4">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                {tx(lang, 'Ödəniş ssenarisi', 'Сценарий оплаты', 'Payment scenario')}
+              </div>
+            <div className="grid grid-cols-3 gap-2">
               {(['Nəğd', 'Kart', 'Split'] as const).map((m) => (
                 <button
                   key={m}
@@ -508,9 +512,14 @@ export default function TablesPage() {
                   }}
                   className={`pay-btn h-11 ${paymentMethod === m ? 'pay-btn-active' : ''}`}
                 >
-                  {m}
+                  {m === 'Nəğd'
+                    ? tx(lang, 'Tam nəğd', 'Полностью наличными', 'All cash')
+                    : m === 'Kart'
+                      ? tx(lang, 'Tam kart', 'Полностью картой', 'All card')
+                      : tx(lang, 'Split ödə', 'Split оплата', 'Split payment')}
                 </button>
               ))}
+            </div>
             </div>
             {paymentMethod === 'Split' && (
               (() => {
@@ -541,7 +550,7 @@ export default function TablesPage() {
                       </div>
                     </div>
                     <label className="block text-sm text-slate-300">
-                      {tx(lang, 'Neçə hissəyə bölünsün?', 'На сколько частей разделить?', 'How many parts?')}
+                      {tx(lang, 'Check neçə hissəyə bölünsün?', 'На сколько частей разделить чек?', 'How many parts should the check be split into?')}
                       <input
                         className="neon-input mt-2"
                         type="number"
@@ -556,7 +565,7 @@ export default function TablesPage() {
                       />
                     </label>
                     <div className="mt-2 text-xs text-slate-400">
-                      {tx(lang, 'Split hissələrinin sayı masa qonaq sayından çox ola bilməz.', 'Количество частей split не может превышать число гостей за столом.', 'Split parts cannot exceed the guest count for the table.')}
+                      {tx(lang, 'Split hissələrinin sayı masa qonaq sayından çox ola bilməz. Hər hissə ayrıca ödəyən qrup kimi işləyir.', 'Количество частей split не может превышать число гостей за столом. Каждая часть считается отдельной оплачивающей группой.', 'Split parts cannot exceed guest count. Each part acts like a separate paying group.')}
                     </div>
                     <div className="mt-3 space-y-2">
                       {(splitParts.length === participantCount ? splitParts : buildEqualSplitParts(participantCount, splitBasis)).map((part, idx) => (
@@ -589,7 +598,7 @@ export default function TablesPage() {
                       ))}
                     </div>
                     <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-                      <span>{tx(lang, 'Bölünəcək məbləğ', 'Сумма к разделению', 'Amount to split')}: {splitBasis.toFixed(2)} ₼</span>
+                      <span>{tx(lang, 'Bölünəcək check məbləği', 'Сумма чека к разделению', 'Check amount to split')}: {splitBasis.toFixed(2)} ₼</span>
                       <span className={diff.abs().greaterThan(0.01) ? 'text-rose-300' : 'text-emerald-300'}>
                         {tx(lang, 'Fərq', 'Разница', 'Diff')}: {diff.toFixed(2)} ₼
                       </span>
@@ -951,10 +960,10 @@ export default function TablesPage() {
                       </div>
                       <button
                         onClick={() => openTableInPos(t)}
-                        className="glossy-gold inline-flex min-h-14 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold"
+                        className="neon-btn inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold"
                       >
                         <ArrowRightCircle size={20} />
-                        {tx(lang, 'Yeni raund əlavə et', 'Добавить раунд', 'Add new round')}
+                        {tx(lang, 'POS-da aç', 'Открыть в POS', 'Open in POS')}
                       </button>
                     </div>
                   </div>
