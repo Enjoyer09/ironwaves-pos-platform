@@ -2007,3 +2007,34 @@ def serve_kitchen_item(
     _emit_realtime(tenant.id, "kitchen.updated", {"item_id": item.id, "round_id": item.round_id, "table_id": table.id if table else None, "status": item.status})
     _emit_realtime(tenant.id, "table.updated", {"item_id": item.id, "round_id": item.round_id, "table_id": table.id if table else None, "action": "item-served"})
     return {"success": True, "item_id": item.id, **result}
+
+
+@router.get("/order-items/{item_id}/status-logs")
+def get_order_item_status_logs(
+    item_id: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_floor_admin(user)
+    item = db.query(OrderItem).filter(OrderItem.id == item_id, OrderItem.tenant_id == tenant.id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Order item not found")
+    rows = (
+        db.query(ItemStatusLog)
+        .filter(ItemStatusLog.tenant_id == tenant.id, ItemStatusLog.order_item_id == item.id)
+        .order_by(ItemStatusLog.changed_at.asc())
+        .all()
+    )
+    return [
+        {
+            "id": row.id,
+            "order_item_id": row.order_item_id,
+            "old_status": row.old_status,
+            "new_status": row.new_status,
+            "changed_by": row.changed_by,
+            "reason": row.reason,
+            "changed_at": row.changed_at.isoformat() if row.changed_at else None,
+        }
+        for row in rows
+    ]

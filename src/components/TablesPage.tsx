@@ -3,7 +3,7 @@ import { get_tables_live, create_table_live, delete_table_live, open_table_live,
 import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
 import { subscribeTenantRealtime } from '../api/realtime';
-import { act_on_order_item_live, add_check_draft_item_live, combine_tables_live, create_reservation_live, delete_draft_item_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, get_table_detail_live, seat_reservation_live, send_check_drafts_live, send_table_round_live, settle_table_check_live, split_table_group_live, transfer_table_lock_live, unlock_table_live, update_draft_item_live, update_reservation_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
+import { act_on_order_item_live, add_check_draft_item_live, combine_tables_live, create_reservation_live, delete_draft_item_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_order_item_status_logs_live, get_reservations_live, get_table_detail_live, seat_reservation_live, send_check_drafts_live, send_table_round_live, settle_table_check_live, split_table_group_live, transfer_table_lock_live, unlock_table_live, update_draft_item_live, update_reservation_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
 import { LayoutGrid, Plus, CalendarClock, Users, MapPinned } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
@@ -55,6 +55,9 @@ export default function TablesPage() {
   const [roundSearch, setRoundSearch] = useState('');
   const [roundCategory, setRoundCategory] = useState('ALL');
   const [roundDraft, setRoundDraft] = useState<any[]>([]);
+  const [draftSendError, setDraftSendError] = useState<string | null>(null);
+  const [statusLogTarget, setStatusLogTarget] = useState<any | null>(null);
+  const [statusLogRows, setStatusLogRows] = useState<any[]>([]);
   const [servedItemsMap, setServedItemsMap] = useState<Record<string, Record<string, number>>>({});
   const [tableWorkspaceTab, setTableWorkspaceTab] = useState<'compose' | 'service' | 'history' | 'ops'>('compose');
   const [floorPlans, setFloorPlans] = useState<FloorPlanRecord[]>([]);
@@ -371,6 +374,7 @@ export default function TablesPage() {
 
   useEffect(() => {
     if (viewTableId) setTableWorkspaceTab('compose');
+    setDraftSendError(null);
   }, [viewTableId]);
 
   useEffect(() => {
@@ -550,6 +554,7 @@ export default function TablesPage() {
             course_no: 1,
           });
         }
+        setDraftSendError(null);
         await refreshActiveTableDetail(viewTableId);
         return;
       } catch (e: any) {
@@ -642,11 +647,14 @@ export default function TablesPage() {
           course_no: 1,
         });
         notify('success', tx(lang, 'Yeni sifariş mətbəxə göndərildi', 'Новый заказ отправлен на кухню', 'New order sent to kitchen'));
+        setDraftSendError(null);
         setRoundDraft([]);
         await refreshActiveTableDetail(table.id);
         return;
       } catch (e: any) {
-        notify('error', e?.message || tx(lang, 'Mətbəxə göndərilmədi. Məhsullar göndərilmiş kimi işarələnmədi.', 'Не отправлено на кухню. Позиции не отмечены отправленными.', 'Kitchen send failed. Items were not marked as sent.'));
+        const message = e?.message || tx(lang, 'Mətbəxə göndərilmədi. Məhsullar göndərilmiş kimi işarələnmədi.', 'Не отправлено на кухню. Позиции не отмечены отправленными.', 'Kitchen send failed. Items were not marked as sent.');
+        setDraftSendError(message);
+        notify('error', message);
         return;
       }
     }
@@ -1764,6 +1772,53 @@ export default function TablesPage() {
         </div>
       )}
 
+      {statusLogTarget && (
+        <div className="fixed inset-0 z-[136] flex items-center justify-center bg-black/70 p-4">
+          <div className="metal-panel flex max-h-[82vh] w-full max-w-lg flex-col overflow-hidden p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-black text-slate-100">{tx(lang, 'Status tarixçəsi', 'История статуса', 'Status history')}</h3>
+                <div className="mt-1 text-sm text-slate-400">{statusLogTarget.item_name}</div>
+              </div>
+              <button
+                type="button"
+                className="neon-btn rounded-xl px-4 py-2 text-sm font-bold"
+                onClick={() => {
+                  setStatusLogTarget(null);
+                  setStatusLogRows([]);
+                }}
+              >
+                {tx(lang, 'Bağla', 'Закрыть', 'Close')}
+              </button>
+            </div>
+            <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/70 bg-slate-950/35 p-3">
+              {statusLogRows.length === 0 ? (
+                <div className="py-8 text-center text-sm text-slate-400">{tx(lang, 'Status tarixçəsi yoxdur', 'Истории статуса нет', 'No status history')}</div>
+              ) : (
+                <div className="space-y-2">
+                  {statusLogRows.map((row: any) => (
+                    <div key={row.id} className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="font-black text-slate-100">
+                          {row.old_status || '-'} → {row.new_status}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {row.changed_at ? new Date(row.changed_at).toLocaleString(lang === 'ru' ? 'ru-RU' : 'az-AZ') : '-'}
+                        </div>
+                      </div>
+                      <div className="mt-1 text-xs text-slate-400">
+                        {tx(lang, 'İstifadəçi', 'Пользователь', 'User')}: {row.changed_by || '-'}
+                      </div>
+                      {row.reason ? <div className="mt-1 text-xs text-slate-500">{row.reason}</div> : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {viewTableId && (
         <div
 	          ref={detailPanelRef}
@@ -2065,6 +2120,23 @@ export default function TablesPage() {
                           <div>{it.item_name}</div>
                           <div className="mt-1 text-xs text-slate-500">x{it.qty}{it.status ? ` · ${it.status}` : ''}</div>
                           {it.status_reason ? <div className="mt-1 text-[11px] text-slate-500">{it.status_reason}</div> : null}
+                          {it.id ? (
+                            <button
+                              type="button"
+                              className="mt-1 text-[11px] font-semibold text-cyan-200 hover:text-cyan-100"
+                              onClick={async (event) => {
+                                event.stopPropagation();
+                                try {
+                                  setStatusLogTarget(it);
+                                  setStatusLogRows(await get_order_item_status_logs_live(it.id));
+                                } catch (e: any) {
+                                  notify('error', e?.message || tx(lang, 'Status tarixçəsi açılmadı', 'История статуса не открылась', 'Status history did not open'));
+                                }
+                              }}
+                            >
+                              {tx(lang, 'Status tarixçəsi', 'История статуса', 'Status history')}
+                            </button>
+                          ) : null}
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           <button
@@ -2136,6 +2208,12 @@ export default function TablesPage() {
                       </div>
 
                       <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950/30 p-4">
+                        {draftSendError ? (
+                          <div className="mb-3 rounded-xl border border-rose-300/35 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100">
+                            <div>{tx(lang, 'Göndərmə alınmadı. Məhsullar hələ göndərilməmiş kimi saxlanıldı.', 'Отправка не удалась. Позиции остались неотправленными.', 'Send failed. Items are still kept as unsent.')}</div>
+                            <div className="mt-1 text-rose-100/80">{draftSendError}</div>
+                          </div>
+                        ) : null}
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-sm font-semibold text-slate-100">{tx(lang, 'Göndərilməmişlər', 'Неотправленные', 'Unsent items')}</div>
                           {draftRows.length > 0 ? (
