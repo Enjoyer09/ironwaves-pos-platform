@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { get_tables_live, create_table_live, delete_table_live, open_table_live, transfer_table_live, revise_table_items_live } from '../api/tables';
 import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
@@ -14,6 +14,9 @@ import { getDB } from '../lib/db_sim';
 import { logEvent } from '../lib/logger';
 import { qzPrintHtml } from '../lib/qz';
 import { hostScopedKey } from '../lib/storage_keys';
+import TableGrid from './tables/TableGrid';
+import MenuGrid from './tables/MenuGrid';
+import StickyActionBar from './tables/StickyActionBar';
 
 export default function TablesPage() {
   const [tables, setTables] = useState<any[]>([]);
@@ -244,6 +247,25 @@ export default function TablesPage() {
     const base = 160;
     return Math.max(145, Math.min(220, Math.round((base * tableGridScale) / 100)));
   }, [tableGridScale]);
+
+  const tablesById = useMemo(
+    () => Object.fromEntries(tables.map((row) => [String(row.id), row])),
+    [tables],
+  );
+
+  const readyCountsByLabel = useMemo(() => {
+    const counts: Record<string, number> = {};
+    kitchenOrders.forEach((row: any) => {
+      if (String(row.status || '').toUpperCase() !== 'READY') return;
+      const label = String(row.table_label || '').trim();
+      if (!label) return;
+      const qty = Array.isArray(row.items)
+        ? row.items.filter((item: any) => String(item.action || '').toUpperCase() !== 'CANCEL').length
+        : 0;
+      counts[label] = Number(counts[label] || 0) + qty;
+    });
+    return counts;
+  }, [kitchenOrders]);
 
   useEffect(() => {
     void loadData();
@@ -612,6 +634,49 @@ export default function TablesPage() {
       notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message);
     }
   };
+
+  const handleSelectWaiterTable = useCallback((table: any) => {
+    const status = String(table?.status || '').toUpperCase();
+    const localTable = tablesById[String(table?.id || '')];
+    const tableLockHolder = String((table as any)?.locked_by || localTable?.assigned_to || '').trim();
+    const isManagerUser = ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase());
+    const lockedByAnother = Boolean(localTable?.is_occupied && tableLockHolder && tableLockHolder !== user?.username && !isManagerUser);
+
+    if (status === 'DIRTY') return;
+    if (status === 'RESERVED' && !localTable?.is_occupied) {
+      notify(
+        'error',
+        tx(
+          lang,
+          `Bu masa yaxın ${reservationLockHours} saat üçün rezervdədir`,
+          `Этот стол забронирован на ближайшие ${reservationLockHours} ч.`,
+          `This table is reserved for the next ${reservationLockHours} hours`,
+        ),
+      );
+      return;
+    }
+    if (lockedByAnother) {
+      notify('error', tx(lang, 'Bu masa artıq istifadə olunur', 'Этот стол уже используется', 'This table is already in use'));
+      return;
+    }
+    if (localTable?.is_occupied) {
+      setViewTableId(localTable.id);
+      return;
+    }
+    setOpenTableId(table.id);
+    setGuestCount(String(Math.max(1, Number(table.guest_count || 1))));
+    setDepositGuestCount('0');
+  }, [tablesById, user?.role, user?.username, notify, lang, reservationLockHours]);
+
+  const handleMarkTableClean = useCallback(async (tableId: string) => {
+    try {
+      await update_table_layout_live(tableId, { status: 'AVAILABLE' });
+      await Promise.all([loadFloorState(activeFloorId), loadData()]);
+      notify('success', tx(lang, 'Masa təmiz kimi qeyd olundu', 'Стол отмечен как чистый', 'Table marked as clean'));
+    } catch (error: any) {
+      notify('error', error?.message || tx(lang, 'Masa təmizlənmədi', 'Стол не очищен', 'Table was not cleaned'));
+    }
+  }, [activeFloorId, notify, lang]);
 
   const handleDeleteTable = async (id: string) => {
     try {
@@ -1929,46 +1994,16 @@ export default function TablesPage() {
                     </div>
 
                     <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-                      <div className="space-y-3">
-                        <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-                          <input
-                            className="neon-input"
-                            value={roundSearch}
-                            onChange={(e) => setRoundSearch(e.target.value)}
-                            placeholder={tx(lang, 'Məhsul axtar...', 'Поиск товара...', 'Search item...')}
-                          />
-                          <select className="neon-input min-w-[180px]" value={roundCategory} onChange={(e) => setRoundCategory(e.target.value)}>
-                            {roundCategories.map((category) => (
-                              <option key={category} value={category}>{category === 'ALL' ? tx(lang, 'Bütün kateqoriyalar', 'Все категории', 'All categories') : category}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="grid max-h-[48vh] grid-cols-2 gap-3 overflow-auto rounded-xl border border-slate-700/70 bg-slate-950/25 p-3 xl:grid-cols-3">
-                          {filteredRoundMenu.map((item: any) => (
-                            <button
-                              key={item.id}
-                              type="button"
-                              onClick={() => addMenuItemToRound(item)}
-                              className="min-h-[108px] rounded-2xl border border-slate-700/60 bg-slate-900/55 p-4 text-left transition hover:border-yellow-300/30 hover:bg-slate-900/80 active:scale-[0.99]"
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="line-clamp-2 text-base font-bold text-slate-100">{item.item_name}</div>
-                                  <div className="mt-2 text-xs text-slate-400">{item.category}</div>
-                                </div>
-                                <div className="rounded-xl bg-yellow-400/15 px-3 py-2 text-base font-black text-yellow-200">
-                                  {Number(item.price || 0).toFixed(2)} ₼
-                                </div>
-                              </div>
-                            </button>
-                          ))}
-                          {filteredRoundMenu.length === 0 ? (
-                            <div className="rounded-xl border border-dashed border-slate-700/60 px-4 py-6 text-center text-sm text-slate-400 md:col-span-2">
-                              {tx(lang, 'Bu filtrlə məhsul tapılmadı', 'По этому фильтру товары не найдены', 'No items found for this filter')}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
+                      <MenuGrid
+                        items={filteredRoundMenu}
+                        categories={roundCategories}
+                        search={roundSearch}
+                        selectedCategory={roundCategory}
+                        lang={lang}
+                        onSearchChange={setRoundSearch}
+                        onCategoryChange={setRoundCategory}
+                        onSelectItem={addMenuItemToRound}
+                      />
 
                       <div className="flex flex-col rounded-xl border border-slate-700/70 bg-slate-950/30 p-4">
                         <div className="flex items-center justify-between gap-3">
@@ -2000,20 +2035,13 @@ export default function TablesPage() {
                             ))
                           )}
                         </div>
-                        <div className="sticky bottom-0 mt-4 space-y-3 rounded-2xl border border-yellow-300/20 bg-slate-950/95 p-3 shadow-[0_-12px_30px_rgba(0,0,0,0.35)]">
-                          <div className="flex items-center justify-between text-sm text-slate-300">
-                            <span>{tx(lang, 'Yeni sifariş cəmi', 'Сумма нового заказа', 'New order total')}</span>
-                            <span className="text-base font-black text-slate-100">{roundDraft.reduce((acc, row) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0)).toFixed(2)} ₼</span>
-                          </div>
-                          <button
-                            type="button"
-                            disabled={roundDraft.length === 0 || !userCanEditTable}
-                            onClick={() => { void sendRoundDirectly(t); }}
-                            className="glossy-gold inline-flex min-h-14 w-full items-center justify-center rounded-2xl px-4 py-3 text-base font-black disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {tx(lang, 'Göndər', 'Отправить', 'Send')}
-                          </button>
-                        </div>
+                        <StickyActionBar
+                          lang={lang}
+                          total={roundDraft.reduce((acc, row) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0)).toFixed(2)}
+                          disabled={roundDraft.length === 0 || !userCanEditTable}
+                          onClear={roundDraft.length > 0 ? clearRoundComposer : undefined}
+                          onSend={() => { void sendRoundDirectly(t); }}
+                        />
                       </div>
                     </div>
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700/60 bg-slate-950/25 px-4 py-3">
@@ -2552,97 +2580,18 @@ export default function TablesPage() {
                 className={`rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3 ${viewTableId ? 'lg:pr-2' : ''}`}
                 style={{ marginRight: viewTableId ? 'min(44vw, 580px)' : '0' }}
               >
-                <div
-                  className="grid gap-3"
-                  style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${tableGridMinWidth}px, 1fr))` }}
-                >
-                  {floorTables.map((table) => {
-                    const tableLockHolder = String((table as any).locked_by || '').trim();
-                    const statusTone: Record<string, string> = {
-                      AVAILABLE: 'border-emerald-300/35 bg-emerald-500/12',
-                      RESERVED: 'border-amber-300/35 bg-amber-500/12',
-                      SEATED: 'border-rose-300/35 bg-rose-500/12',
-                      ACTIVE_CHECK: 'border-violet-300/35 bg-violet-500/12',
-                      DIRTY: 'border-slate-300/25 bg-slate-500/20',
-                    };
-                    const statusDot: Record<string, string> = {
-                      AVAILABLE: 'bg-emerald-400',
-                      RESERVED: 'bg-amber-400',
-                      SEATED: 'bg-rose-400',
-                      ACTIVE_CHECK: 'bg-violet-400',
-                      DIRTY: 'bg-slate-300',
-                    };
-                    const status = String(table.status || 'AVAILABLE').toUpperCase();
-                    const localTable = tables.find((row) => row.id === table.id);
-                    const otherOwner = tableLockHolder && tableLockHolder !== user?.username && !['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase());
-                    const readyCount = kitchenOrders.filter((row) => row.table_label === table.label && String(row.status || '').toUpperCase() === 'READY').reduce((acc, row) => acc + (Array.isArray(row.items) ? row.items.length : 0), 0);
-                    return (
-                      <button
-                        key={table.id}
-                        type="button"
-                        onClick={() => {
-                          if (status === 'DIRTY') return;
-                          if (status === 'RESERVED' && !localTable?.is_occupied) {
-                            notify('error', tx(lang, `Bu masa yaxın ${reservationLockHours} saat üçün rezervdədir`, `Этот стол забронирован на ближайшие ${reservationLockHours} ч.`, `This table is reserved for the next ${reservationLockHours} hours`));
-                            return;
-                          }
-                          if (otherOwner) {
-                            notify('error', tx(lang, 'Bu masa artıq istifadə olunur', 'Этот стол уже используется', 'This table is already in use'));
-                          }
-                          if (localTable?.is_occupied) {
-                            setViewTableId(localTable.id);
-                          } else {
-                            setOpenTableId(table.id);
-                            setGuestCount(String(Math.max(1, Number(table.guest_count || 1))));
-                            setDepositGuestCount('0');
-                          }
-                        }}
-                        className={`min-h-[120px] rounded-[26px] border p-4 text-left transition active:scale-[0.99] ${statusTone[status] || statusTone.AVAILABLE} ${viewTableId === table.id ? 'ring-2 ring-yellow-300/80' : ''}`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-lg font-black text-slate-100">{table.label}</div>
-                            <div className="mt-2 flex items-center gap-2 text-sm text-slate-300">
-                              <span className={`h-3.5 w-3.5 rounded-full ${statusDot[status] || statusDot.AVAILABLE}`} />
-                              <span>{Number(table.guest_count || 0)} / {Number(table.capacity || 0)}</span>
-                            </div>
-                          </div>
-                          {new Decimal(table.check_total || 0).greaterThan(0) ? (
-                            <div className="rounded-xl bg-black/20 px-3 py-2 text-sm font-bold text-slate-100">{new Decimal(table.check_total || 0).toFixed(2)} ₼</div>
-                          ) : null}
-                        </div>
-                        {tableLockHolder ? (
-                          <div className="mt-3 rounded-full border border-cyan-300/20 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100">
-                            👤 {tableLockHolder} {tx(lang, 'istifadə edir', 'использует', 'is using')}
-                          </div>
-                        ) : null}
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {readyCount > 0 ? <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-semibold text-emerald-100">{readyCount} {tx(lang, 'hazır', 'готово', 'ready')}</span> : null}
-                          {String((table as any).merged_group_id || '').trim() ? <span className="rounded-full bg-violet-500/15 px-3 py-1 text-[11px] font-semibold text-violet-100">{tx(lang, 'qrup', 'группа', 'group')}</span> : null}
-                          {status === 'DIRTY' ? <span className="rounded-full bg-slate-200/10 px-3 py-1 text-[11px] font-semibold text-slate-100">{tx(lang, 'təmizlik', 'уборка', 'cleaning')}</span> : null}
-                        </div>
-                        {status === 'DIRTY' && (
-                          <button
-                            type="button"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              try {
-                                await update_table_layout_live(table.id, { status: 'AVAILABLE' });
-                                await Promise.all([loadFloorState(activeFloorId), loadData()]);
-                                notify('success', tx(lang, 'Masa təmiz kimi qeyd olundu', 'Стол отмечен как чистый', 'Table marked as clean'));
-                              } catch (error: any) {
-                                notify('error', error?.message || tx(lang, 'Masa təmizlənmədi', 'Стол не очищен', 'Table was not cleaned'));
-                              }
-                            }}
-                            className="mt-3 inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200/40 bg-slate-100/15 px-4 py-2 text-sm font-bold text-slate-100"
-                          >
-                            {tx(lang, 'Təmizlə', 'Очистить', 'Mark clean')}
-                          </button>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+                <TableGrid
+                  floorTables={floorTables}
+                  tablesById={tablesById}
+                  readyCountsByLabel={readyCountsByLabel}
+                  viewTableId={viewTableId}
+                  tableGridMinWidth={tableGridMinWidth}
+                  lang={lang}
+                  currentUsername={user?.username}
+                  currentUserRole={String(user?.role || '')}
+                  onSelectTable={handleSelectWaiterTable}
+                  onMarkClean={(tableId) => { void handleMarkTableClean(tableId); }}
+                />
               </div>
               <div className="hidden lg:block" />
             </div>
