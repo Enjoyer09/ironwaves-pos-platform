@@ -69,6 +69,68 @@ def _normalize_payment_method(value: str | None) -> str:
     return str(value or "").strip().lower()
 
 
+def _reservation_lock_hours(db: Session, tenant_id: str) -> float:
+    table_service = _setting_value(db, tenant_id, "table_service_settings", {"deposit_per_guest_azn": 0, "reservation_lock_hours": 2})
+    try:
+        return max(0.0, float(table_service.get("reservation_lock_hours") or 2))
+    except Exception:
+        return 2.0
+
+
+def _find_locked_reservation(db: Session, tenant_id: str, table_id: str) -> Reservation | None:
+    now = datetime.utcnow()
+    lock_until = now + timedelta(hours=_reservation_lock_hours(db, tenant_id))
+    return (
+        db.query(Reservation)
+        .filter(
+            Reservation.tenant_id == tenant_id,
+            Reservation.assigned_table_id == table_id,
+            Reservation.status == "BOOKED",
+            Reservation.reservation_at >= now,
+            Reservation.reservation_at <= lock_until,
+        )
+        .order_by(Reservation.reservation_at.asc())
+        .first()
+    )
+
+
+def _validate_reservation_table(
+    db: Session,
+    tenant_id: str,
+    table_id: str | None,
+    reservation_at: datetime,
+    exclude_reservation_id: str | None = None,
+) -> None:
+    if not table_id:
+        return
+    table = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant_id).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Assigned table not found")
+    if str(table.status or "").upper() == "DIRTY":
+        raise HTTPException(status_code=400, detail="Dirty table cannot be assigned to reservation")
+    active_session, active_check = _ensure_active_session_and_check(db, tenant_id, table)
+    if active_session or active_check or bool(table.is_occupied):
+        raise HTTPException(status_code=400, detail="Table already has an active session")
+    overlap_start = reservation_at - timedelta(hours=_reservation_lock_hours(db, tenant_id))
+    overlap_end = reservation_at + timedelta(hours=_reservation_lock_hours(db, tenant_id))
+    overlaps = (
+        db.query(Reservation)
+        .filter(
+            Reservation.tenant_id == tenant_id,
+            Reservation.assigned_table_id == table_id,
+            Reservation.status == "BOOKED",
+            Reservation.reservation_at >= overlap_start,
+            Reservation.reservation_at <= overlap_end,
+        )
+        .order_by(Reservation.reservation_at.asc())
+        .all()
+    )
+    for reservation in overlaps:
+        if exclude_reservation_id and reservation.id == exclude_reservation_id:
+            continue
+        raise HTTPException(status_code=400, detail="Table already has an upcoming reservation")
+
+
 def _merge_table_items(existing: list[dict], incoming: list[dict]) -> list[dict]:
     merged = list(existing)
     for item in incoming:
@@ -208,16 +270,7 @@ def _compute_table_status(db: Session, tenant_id: str, table: Table) -> str:
         if active_check:
             return "ACTIVE_CHECK"
         return "SEATED"
-    reserved = (
-        db.query(Reservation)
-        .filter(
-            Reservation.tenant_id == tenant_id,
-            Reservation.assigned_table_id == table.id,
-            Reservation.status == "BOOKED",
-        )
-        .order_by(Reservation.reservation_at.asc())
-        .first()
-    )
+    reserved = _find_locked_reservation(db, tenant_id, table.id)
     if reserved:
         return "RESERVED"
     return "AVAILABLE"
@@ -225,16 +278,7 @@ def _compute_table_status(db: Session, tenant_id: str, table: Table) -> str:
 
 def _table_state_payload(db: Session, tenant_id: str, table: Table) -> dict:
     active_session, active_check = _ensure_active_session_and_check(db, tenant_id, table)
-    reserved = (
-        db.query(Reservation)
-        .filter(
-            Reservation.tenant_id == tenant_id,
-            Reservation.assigned_table_id == table.id,
-            Reservation.status == "BOOKED",
-        )
-        .order_by(Reservation.reservation_at.asc())
-        .first()
-    )
+    reserved = _find_locked_reservation(db, tenant_id, table.id)
     minutes_seated = None
     if active_session and active_session.seated_at:
         minutes_seated = int(max(0, (datetime.utcnow() - active_session.seated_at).total_seconds() // 60))
@@ -598,6 +642,7 @@ def create_reservation(
     user: User = Depends(get_current_user),
 ):
     _ensure_floor_admin(user)
+    _validate_reservation_table(db, tenant.id, payload.assigned_table_id, payload.reservation_at)
     guest = Guest(
         tenant_id=tenant.id,
         full_name=payload.guest_name.strip(),
@@ -619,10 +664,6 @@ def create_reservation(
         created_by=user.username,
     )
     db.add(row)
-    if payload.assigned_table_id:
-        table = db.query(Table).filter(Table.id == payload.assigned_table_id, Table.tenant_id == tenant.id).first()
-        if table and _compute_table_status(db, tenant.id, table) == "AVAILABLE":
-            table.status = "RESERVED"
     db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="RESERVATION_CREATED", details=payload.guest_name))
     db.commit()
     _emit_realtime(tenant.id, "reservation.updated", {"reservation_id": row.id, "action": "created"})
@@ -661,7 +702,9 @@ def update_reservation(
         row.special_note = payload.special_note
         if guest:
             guest.notes = payload.special_note
+    next_reservation_at = payload.reservation_at if payload.reservation_at is not None else row.reservation_at
     if payload.assigned_table_id is not None:
+        _validate_reservation_table(db, tenant.id, payload.assigned_table_id, next_reservation_at, exclude_reservation_id=row.id)
         row.assigned_table_id = payload.assigned_table_id
     if payload.status is not None:
         row.status = str(payload.status).upper()

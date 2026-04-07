@@ -50,7 +50,7 @@ function getSettings(tenant_id?: string): Settings {
     const defaultSettings: Settings = {
       tenant_id: resolvedTenant,
       service_fee_percent: 0,
-      table_service_settings: { deposit_per_guest_azn: 0 },
+      table_service_settings: { deposit_per_guest_azn: 0, reservation_lock_hours: 2 },
       yield_management_settings: {
         enabled: false,
         variance_tolerance_percent: 5,
@@ -190,10 +190,11 @@ export function update_service_fee(percent: number) {
   return { success: true, service_fee_percent: percent };
 }
 
-export function update_table_service_settings(payload: { deposit_per_guest_azn: number }) {
+export function update_table_service_settings(payload: { deposit_per_guest_azn: number; reservation_lock_hours?: number }) {
   const settings = getSettings();
   settings.table_service_settings = {
     deposit_per_guest_azn: Math.max(0, Number(payload.deposit_per_guest_azn || 0)),
+    reservation_lock_hours: Math.max(0, Number(payload.reservation_lock_hours ?? settings.table_service_settings?.reservation_lock_hours ?? 2)),
   };
   saveSettings(settings);
   logEvent('admin', 'TABLE_SERVICE_SETTINGS_UPDATE', settings.table_service_settings);
@@ -520,7 +521,14 @@ export function get_settings(tenant_id?: string) {
     saveSettings(s);
   }
   if (!s.table_service_settings) {
-    s.table_service_settings = { deposit_per_guest_azn: 0 };
+    s.table_service_settings = { deposit_per_guest_azn: 0, reservation_lock_hours: 2 };
+    saveSettings(s);
+  }
+  if (typeof s.table_service_settings.reservation_lock_hours !== 'number') {
+    s.table_service_settings = {
+      ...s.table_service_settings,
+      reservation_lock_hours: 2,
+    };
     saveSettings(s);
   }
   if (!s.yield_management_settings) {
@@ -944,7 +952,7 @@ export async function update_service_fee_live(payload: { service_fee_percent: nu
   return { success: true };
 }
 
-export async function update_table_service_settings_live(payload: { deposit_per_guest_azn: number }) {
+export async function update_table_service_settings_live(payload: { deposit_per_guest_azn: number; reservation_lock_hours?: number }) {
   if (!isBackendEnabled()) return update_table_service_settings(payload);
   await apiRequest('/api/v1/ops/settings/table-service', { method: 'PATCH', tenantId: null, body: payload });
   update_table_service_settings(payload);

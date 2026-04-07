@@ -61,6 +61,7 @@ export default function TablesPage() {
   const [reservationTime, setReservationTime] = useState('19:00');
   const [reservationPartySize, setReservationPartySize] = useState('2');
   const [reservationNote, setReservationNote] = useState('');
+  const [reservationAssignedTableId, setReservationAssignedTableId] = useState('');
   const [tableDetailRecord, setTableDetailRecord] = useState<TableDetailRecord | null>(null);
   const receiptRef = useRef<HTMLIFrameElement | null>(null);
   const detailPanelRef = useRef<HTMLDivElement | null>(null);
@@ -68,6 +69,7 @@ export default function TablesPage() {
   const tenantSettings = get_settings(tenant_id);
   const printSettings = tenantSettings.print_settings || { use_qz: false, printer_name: '' };
   const depositPerGuest = new Decimal((tenantSettings as any).table_service_settings?.deposit_per_guest_azn || 0);
+  const reservationLockHours = Math.max(0, Number((tenantSettings as any).table_service_settings?.reservation_lock_hours ?? 2));
   const serviceFeePercent = new Decimal(tenantSettings.service_fee_percent || 0);
 
   const formatDisplayId = (id: string) => (id ? id.split('-')[0].toUpperCase() : '-');
@@ -114,6 +116,23 @@ export default function TablesPage() {
     });
     return counts;
   }, [floorTables]);
+
+  const reservationCandidateTables = useMemo(
+    () => floorTables.filter((row) => {
+      const status = String(row.status || '').toUpperCase();
+      return status === 'AVAILABLE' || (Boolean(reservationAssignedTableId) && row.id === reservationAssignedTableId);
+    }),
+    [floorTables, reservationAssignedTableId],
+  );
+
+  const reservedTableIds = useMemo(
+    () => new Set(
+      floorTables
+        .filter((row) => String(row.status || '').toUpperCase() === 'RESERVED')
+        .map((row) => String(row.id)),
+    ),
+    [floorTables],
+  );
 
   useEffect(() => {
     void loadData();
@@ -388,6 +407,7 @@ export default function TablesPage() {
         reservation_at: `${reservationDate}T${reservationTime}:00`,
         party_size: Math.max(1, Number(reservationPartySize || 2)),
         special_note: reservationNote.trim(),
+        assigned_table_id: reservationAssignedTableId || null,
       });
       notify('success', tx(lang, 'Rezervasiya yaradıldı', 'Бронь создана', 'Reservation created'));
       setShowReservationCreate(false);
@@ -396,6 +416,7 @@ export default function TablesPage() {
       setReservationTime('19:00');
       setReservationPartySize('2');
       setReservationNote('');
+      setReservationAssignedTableId('');
       await loadRestaurantData();
     } catch (e: any) {
       notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message);
@@ -1053,13 +1074,31 @@ export default function TablesPage() {
                 {tx(lang, 'Nəfər sayı', 'Количество гостей', 'Party size')}
                 <input className="neon-input mt-1" type="number" min={1} max={20} value={reservationPartySize} onChange={(e) => setReservationPartySize(e.target.value)} />
               </label>
+              <label className="text-sm text-slate-300">
+                {tx(lang, 'Masa seçimi', 'Выбор стола', 'Table selection')}
+                <select className="neon-input mt-1" value={reservationAssignedTableId} onChange={(e) => setReservationAssignedTableId(e.target.value)}>
+                  <option value="">{tx(lang, 'Sonra təyin et', 'Назначить позже', 'Assign later')}</option>
+                  {reservationCandidateTables.map((table) => (
+                    <option key={table.id} value={table.id}>
+                      {table.label} · {tx(lang, 'Tutum', 'Вместимость', 'Capacity')} {table.capacity}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
             <label className="mt-3 block text-sm text-slate-300">
               {tx(lang, 'Qeyd', 'Примечание', 'Note')}
               <textarea className="neon-input mt-1 min-h-[88px]" value={reservationNote} onChange={(e) => setReservationNote(e.target.value)} />
             </label>
             <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="neon-btn rounded-lg px-4 py-2" onClick={() => setShowReservationCreate(false)}>
+              <button
+                type="button"
+                className="neon-btn rounded-lg px-4 py-2"
+                onClick={() => {
+                  setShowReservationCreate(false);
+                  setReservationAssignedTableId('');
+                }}
+              >
                 {tx(lang, 'Bağla', 'Закрыть', 'Close')}
               </button>
               <button type="button" className="glossy-gold rounded-lg px-4 py-2 font-semibold" onClick={() => { void handleCreateReservation(); }}>
@@ -1680,6 +1719,18 @@ export default function TablesPage() {
                   onClick={() => {
                     if (floorEditMode) return;
                     if (String(table.status || '').toUpperCase() === 'DIRTY') return;
+                    if (String(table.status || '').toUpperCase() === 'RESERVED') {
+                      notify(
+                        'error',
+                        tx(
+                          lang,
+                          `Bu masa yaxın ${reservationLockHours} saat üçün rezervdədir`,
+                          `Этот стол забронирован на ближайшие ${reservationLockHours} ч.`,
+                          `This table is reserved for the next ${reservationLockHours} hours`,
+                        ),
+                      );
+                      return;
+                    }
                     const localTable = tables.find((row) => row.id === table.id);
                     if (localTable?.is_occupied) {
                       setViewTableId(localTable.id);
@@ -1765,6 +1816,7 @@ export default function TablesPage() {
                         {' · '}
                         {reservation.party_size} {tx(lang, 'nəfər', 'гостя', 'guests')}
                         {reservation.special_note ? ` · ${reservation.special_note}` : ''}
+                        {reservation.assigned_table_id ? ` · ${tx(lang, 'Masa', 'Стол', 'Table')}: ${floorTables.find((table) => table.id === reservation.assigned_table_id)?.label || reservation.assigned_table_id}` : ''}
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -1831,11 +1883,24 @@ export default function TablesPage() {
               );
             const hasDeposit = new Decimal(t.deposit_amount || 0).greaterThan(0);
             const readyToClose = t.is_occupied && currentBill.greaterThan(0) && readyCount === 0 && waitingCount === 0;
+            const isReservedTable = reservedTableIds.has(String(t.id));
             return (
           <div
             key={t.id}
             onClick={() => {
               if (isDirtyTable) return;
+              if (isReservedTable && !t.is_occupied) {
+                notify(
+                  'error',
+                  tx(
+                    lang,
+                    `Bu masa yaxın ${reservationLockHours} saat üçün rezervdədir`,
+                    `Этот стол забронирован на ближайшие ${reservationLockHours} ч.`,
+                    `This table is reserved for the next ${reservationLockHours} hours`,
+                  ),
+                );
+                return;
+              }
               if (!t.is_occupied) {
                 setOpenTableId(t.id);
                 setGuestCount(String(Math.max(1, Number(t.guest_count || 1))));
@@ -1844,11 +1909,11 @@ export default function TablesPage() {
               }
               setViewTableId(t.id);
             }}
-            className={`min-h-52 p-6 rounded-3xl border-2 flex flex-col items-center justify-center relative transition-all shadow-sm ${isDirtyTable ? 'bg-slate-700/40 border-slate-400/60' : t.is_occupied ? 'bg-red-900/25 border-red-400/70 cursor-pointer' : 'bg-slate-800/50 border-slate-600/70 hover:border-yellow-300/60 cursor-pointer'} ${viewTableId === t.id ? 'ring-2 ring-yellow-300/70 shadow-[0_0_26px_rgba(250,204,21,0.2)]' : ''}`}
+            className={`min-h-52 p-6 rounded-3xl border-2 flex flex-col items-center justify-center relative transition-all shadow-sm ${isDirtyTable ? 'bg-slate-700/40 border-slate-400/60' : isReservedTable && !t.is_occupied ? 'bg-amber-900/20 border-amber-300/70 cursor-not-allowed' : t.is_occupied ? 'bg-red-900/25 border-red-400/70 cursor-pointer' : 'bg-slate-800/50 border-slate-600/70 hover:border-yellow-300/60 cursor-pointer'} ${viewTableId === t.id ? 'ring-2 ring-yellow-300/70 shadow-[0_0_26px_rgba(250,204,21,0.2)]' : ''}`}
           >
             <span className="font-bold text-xl text-slate-100">{t.label}</span>
-            <span className={`mt-3 min-h-10 rounded-full px-5 py-2 text-sm font-bold ${isDirtyTable ? 'bg-slate-300/20 text-slate-100 border border-slate-300/40' : t.is_occupied ? 'bg-red-400/20 text-red-200 border border-red-300/50' : 'bg-green-400/20 text-green-200 border border-green-300/50'}`}>
-                {isDirtyTable ? tx(lang, 'Təmizlik', 'Уборка', 'Dirty') : t.is_occupied ? tx(lang, 'Dolu', 'Занято', 'Occupied') : tx(lang, 'Boş', 'Свободно', 'Available')}
+            <span className={`mt-3 min-h-10 rounded-full px-5 py-2 text-sm font-bold ${isDirtyTable ? 'bg-slate-300/20 text-slate-100 border border-slate-300/40' : isReservedTable && !t.is_occupied ? 'bg-amber-400/20 text-amber-100 border border-amber-300/50' : t.is_occupied ? 'bg-red-400/20 text-red-200 border border-red-300/50' : 'bg-green-400/20 text-green-200 border border-green-300/50'}`}>
+                {isDirtyTable ? tx(lang, 'Təmizlik', 'Уборка', 'Dirty') : isReservedTable && !t.is_occupied ? tx(lang, 'Rezerv', 'Резерв', 'Reserved') : t.is_occupied ? tx(lang, 'Dolu', 'Занято', 'Occupied') : tx(lang, 'Boş', 'Свободно', 'Available')}
             </span>
             {t.assigned_to && (
               <span className="mt-2 rounded-full border border-cyan-300/40 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold text-cyan-100">
