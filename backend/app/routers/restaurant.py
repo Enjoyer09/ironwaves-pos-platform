@@ -544,7 +544,7 @@ def _apply_order_item_action(
             item.status_reason = reason
             item.action_by = user.username
             return {"final_status": "VOIDED", "manager": None}
-        if current_status in {"PREPARING", "READY", "SERVED", "COMPED", "WASTE", "VOIDED"}:
+        if current_status in {"SENT", "IN_PREP", "PREPARING", "READY", "SERVED", "COMPED", "WASTE", "VOIDED"}:
             manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
             item.status = "VOIDED"
             item.status_reason = reason
@@ -786,7 +786,17 @@ def update_table_layout(
     if payload.shape is not None:
         table.shape = payload.shape
     if payload.status is not None:
-        table.status = str(payload.status).upper()
+        next_status = str(payload.status).upper()
+        table.status = next_status
+        if next_status == "AVAILABLE":
+            table.is_occupied = False
+            table.guest_count = 0
+            table.deposit_guest_count = 0
+            table.deposit_amount = Decimal("0.00")
+            table.deposit_seats_json = "[]"
+            table.items_json = "[]"
+            table.total = Decimal("0.00")
+            _release_table_lock(table)
     db.commit()
     _emit_realtime(tenant.id, "floor.updated", {"table_id": table.id, "floor_id": table.floor_plan_id, "action": "layout"})
     return {"ok": True, "table": _table_state_payload(db, tenant.id, table)}
@@ -1180,7 +1190,7 @@ def send_round(
             item_name=item.item_name,
             qty=item.qty,
             price=item.price,
-            status="NEW",
+            status="SENT",
             modifier_json=item.modifier_json,
             note=item.note,
         )
@@ -1467,7 +1477,7 @@ def settle_check(
     active_session.status = "CLOSED"
     active_session.closed_at = done_time
     db.query(OrderRound).filter(OrderRound.tenant_id == tenant.id, OrderRound.check_id == active_check.id).update({"status": "DONE"}, synchronize_session=False)
-    db.query(OrderItem).filter(OrderItem.tenant_id == tenant.id, OrderItem.check_id == active_check.id, OrderItem.status.in_(["NEW", "PREPARING", "READY"])).update({"status": "SERVED"}, synchronize_session=False)
+    db.query(OrderItem).filter(OrderItem.tenant_id == tenant.id, OrderItem.check_id == active_check.id, OrderItem.status.in_(["NEW", "SENT", "PREPARING", "READY"])).update({"status": "SERVED"}, synchronize_session=False)
     kitchen_rows = (
         db.query(KitchenOrder)
         .filter(KitchenOrder.tenant_id == tenant.id, KitchenOrder.table_label == table.label, KitchenOrder.status.in_(["NEW", "PREPARING", "READY"]))
@@ -1528,7 +1538,7 @@ def get_kitchen_feed(
     if round_ids:
         for item in (
             db.query(OrderItem)
-            .filter(OrderItem.tenant_id == tenant.id, OrderItem.round_id.in_(round_ids), OrderItem.status.in_(["NEW", "PREPARING", "READY", "SERVED", "VOID_REQUESTED", "VOIDED", "COMPED", "WASTE"]))
+            .filter(OrderItem.tenant_id == tenant.id, OrderItem.round_id.in_(round_ids), OrderItem.status.in_(["NEW", "SENT", "PREPARING", "READY", "SERVED", "VOID_REQUESTED", "VOIDED", "COMPED", "WASTE"]))
             .order_by(OrderItem.created_at.asc())
             .all()
         ):
@@ -1573,7 +1583,7 @@ def accept_kitchen_round(
     if not row:
         raise HTTPException(status_code=404, detail="Round not found")
     row.status = "PREPARING"
-    db.query(OrderItem).filter(OrderItem.tenant_id == tenant.id, OrderItem.round_id == row.id, OrderItem.status == "NEW").update({"status": "PREPARING"}, synchronize_session=False)
+    db.query(OrderItem).filter(OrderItem.tenant_id == tenant.id, OrderItem.round_id == row.id, OrderItem.status.in_(["NEW", "SENT"])).update({"status": "PREPARING"}, synchronize_session=False)
     check = db.query(Check).filter(Check.id == row.check_id, Check.tenant_id == tenant.id).first()
     table = None
     if check:

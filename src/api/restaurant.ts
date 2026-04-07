@@ -221,6 +221,7 @@ export async function update_table_layout_live(tableId: string, payload: TableLa
     const tables = getDB<any>('tables');
     const idx = tables.findIndex((row) => row.id === tableId);
     if (idx < 0) throw new Error('Table not found');
+    const nextStatus = payload.status ?? tables[idx].status ?? 'AVAILABLE';
     tables[idx] = {
       ...tables[idx],
       floor_plan_id: payload.floor_plan_id ?? tables[idx].floor_plan_id,
@@ -230,8 +231,25 @@ export async function update_table_layout_live(tableId: string, payload: TableLa
       height_units: payload.height_units ?? tables[idx].height_units ?? 2,
       capacity: payload.capacity ?? tables[idx].capacity ?? 4,
       shape: payload.shape ?? tables[idx].shape ?? 'rectangle',
-      status: payload.status ?? tables[idx].status ?? 'AVAILABLE',
+      status: nextStatus,
     };
+    if (String(nextStatus).toUpperCase() === 'AVAILABLE') {
+      tables[idx] = {
+        ...tables[idx],
+        is_occupied: false,
+        guest_count: 0,
+        deposit_guest_count: 0,
+        deposit_amount: '0.00',
+        deposit_seats_json: '[]',
+        items: [],
+        items_json: '[]',
+        total: '0.00',
+        assigned_to: null,
+        locked_by: null,
+        active_session_id: null,
+        locked_at: null,
+      };
+    }
     setDB('tables', tables);
     return { ok: true, table: tables[idx] };
   }

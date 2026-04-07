@@ -78,14 +78,28 @@ function TableGrid({
         const readyCount = Number(readyCountsByLabel[String(table.label || '').trim()] || 0);
         const showQuickActions = quickActionsTableId === table.id;
 
+        const handleSelect = () => {
+          tapFeedback();
+          setQuickActionsTableId(null);
+          onSelectTable(table);
+        };
+        const handleClean = (event: React.MouseEvent<HTMLButtonElement>) => {
+          event.stopPropagation();
+          tapFeedback();
+          setQuickActionsTableId(null);
+          onMarkClean(table.id);
+        };
+
         return (
-          <button
+          <div
             key={table.id}
-            type="button"
-            onClick={() => {
-              tapFeedback();
-              setQuickActionsTableId(null);
-              onSelectTable(table);
+            role="button"
+            tabIndex={0}
+            onClick={handleSelect}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return;
+              event.preventDefault();
+              handleSelect();
             }}
             onMouseDown={() => {
               clearLongPress();
@@ -148,22 +162,19 @@ function TableGrid({
               ) : null}
             </div>
 
+            {status === 'DIRTY' ? (
+              <button
+                type="button"
+                onClick={handleClean}
+                className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200/40 bg-slate-100/15 px-4 py-2 text-sm font-black text-slate-100 transition hover:bg-slate-100/25 active:scale-[0.99]"
+              >
+                {tx(lang, 'Təmizlə', 'Очистить', 'Mark clean')}
+              </button>
+            ) : null}
+
             {showQuickActions && (
               <div className="mt-3 flex flex-wrap gap-2">
-                {status === 'DIRTY' ? (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      tapFeedback();
-                      setQuickActionsTableId(null);
-                      onMarkClean(table.id);
-                    }}
-                    className="rounded-2xl border border-slate-200/40 bg-slate-100/15 px-4 py-2 text-xs font-bold text-slate-100"
-                  >
-                    {tx(lang, 'Təmizlə', 'Очистить', 'Mark clean')}
-                  </button>
-                ) : localTable?.is_occupied ? (
+                {localTable?.is_occupied ? (
                   <span className="rounded-2xl border border-yellow-300/20 bg-yellow-500/10 px-4 py-2 text-xs font-semibold text-yellow-100">
                     {tx(lang, 'Uzun toxunuş: sürətli giriş', 'Долгое нажатие: быстрый доступ', 'Long press: quick access')}
                   </span>
@@ -174,7 +185,7 @@ function TableGrid({
                 )}
               </div>
             )}
-          </button>
+          </div>
         );
       })}
     </div>
