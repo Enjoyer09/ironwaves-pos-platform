@@ -1,6 +1,7 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { get_tables_live, create_table_live, delete_table_live, open_table_live, pay_table_live, transfer_table_live, merge_tables_live, revise_table_items_live } from '../api/tables';
 import { get_kitchen_orders_live } from '../api/kds';
+import { get_menu_items_live } from '../api/menu';
 import { LayoutGrid, Plus, Trash2, ArrowRightCircle } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
@@ -14,6 +15,7 @@ import { hostScopedKey } from '../lib/storage_keys';
 export default function TablesPage() {
   const [tables, setTables] = useState<any[]>([]);
   const [kitchenOrders, setKitchenOrders] = useState<any[]>([]);
+  const [menuCatalog, setMenuCatalog] = useState<any[]>([]);
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -37,6 +39,9 @@ export default function TablesPage() {
   const [splitCash, setSplitCash] = useState('0');
   const [splitCount, setSplitCount] = useState('2');
   const [splitParts, setSplitParts] = useState<Array<{ amount: string; method: 'Nəğd' | 'Kart' }>>([]);
+  const [roundSearch, setRoundSearch] = useState('');
+  const [roundCategory, setRoundCategory] = useState('ALL');
+  const [roundDraft, setRoundDraft] = useState<any[]>([]);
   const receiptRef = useRef<HTMLIFrameElement | null>(null);
   const businessProfile = get_business_profile(tenant_id);
   const tenantSettings = get_settings(tenant_id);
@@ -57,6 +62,20 @@ export default function TablesPage() {
         return null;
     }
   };
+
+  const roundCategories = useMemo(
+    () => ['ALL', ...Array.from(new Set(menuCatalog.map((row) => String(row.category || '').trim()).filter(Boolean)))],
+    [menuCatalog],
+  );
+
+  const filteredRoundMenu = useMemo(() => {
+    return menuCatalog.filter((item) => {
+      const categoryOk = roundCategory === 'ALL' || String(item.category || '') === roundCategory;
+      const hay = `${String(item.item_name || '')} ${String(item.description || '')} ${String(item.category || '')}`.toLowerCase();
+      const searchOk = !roundSearch.trim() || hay.includes(roundSearch.trim().toLowerCase());
+      return categoryOk && searchOk;
+    });
+  }, [menuCatalog, roundCategory, roundSearch]);
 
   useEffect(() => {
     void loadData();
@@ -86,13 +105,61 @@ export default function TablesPage() {
     };
   }, [tenant_id]);
 
+  useEffect(() => {
+    clearRoundComposer();
+  }, [viewTableId]);
+
   const loadData = async () => {
-    const [nextTables, nextKitchenOrders] = await Promise.all([
+    const [nextTables, nextKitchenOrders, nextMenu] = await Promise.all([
       get_tables_live(tenant_id),
       get_kitchen_orders_live(tenant_id),
+      get_menu_items_live(tenant_id).catch(() => []),
     ]);
     setTables(nextTables);
     setKitchenOrders(Array.isArray(nextKitchenOrders) ? nextKitchenOrders : []);
+    setMenuCatalog(Array.isArray(nextMenu) ? nextMenu : []);
+  };
+
+  const addMenuItemToRound = (item: any) => {
+    setRoundDraft((prev) => {
+      const existing = prev.find((row: any) => String(row.id) === String(item.id));
+      if (existing) {
+        return prev.map((row: any) => String(row.id) === String(item.id) ? { ...row, qty: Number(row.qty || 0) + 1 } : row);
+      }
+      return [
+        ...prev,
+        {
+          id: item.id,
+          item_name: item.item_name,
+          price: String(item.price),
+          category: item.category,
+          is_coffee: Boolean(item.is_coffee),
+          qty: 1,
+        },
+      ];
+    });
+  };
+
+  const updateRoundDraftQty = (itemId: string, nextQty: number) => {
+    setRoundDraft((prev) => (
+      nextQty <= 0
+        ? prev.filter((row: any) => String(row.id) !== String(itemId))
+        : prev.map((row: any) => String(row.id) === String(itemId) ? { ...row, qty: nextQty } : row)
+    ));
+  };
+
+  const clearRoundComposer = () => {
+    setRoundDraft([]);
+    setRoundSearch('');
+    setRoundCategory('ALL');
+  };
+
+  const sendRoundDirectly = async (table: any) => {
+    if (!table?.id || roundDraft.length === 0) return;
+    await send_to_kitchen_live(table.id, roundDraft, user?.username || 'staff', { cup_mode: table.cup_mode || 'paper' });
+    notify('success', tx(lang, 'Yeni raund mətbəxə göndərildi', 'Новый раунд отправлен на кухню', 'New round sent to kitchen'));
+    clearRoundComposer();
+    await loadData();
   };
 
   const handleAddTable = async () => {
@@ -889,6 +956,108 @@ export default function TablesPage() {
                         <ArrowRightCircle size={20} />
                         {tx(lang, 'Yeni raund əlavə et', 'Добавить раунд', 'Add new round')}
                       </button>
+                    </div>
+                  </div>
+                  <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/35 p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <div className="text-base font-semibold text-slate-100">{tx(lang, 'Masa detail içindən birbaşa raund qur', 'Соберите раунд прямо в деталях стола', 'Build a round directly inside the table detail')}</div>
+                        <div className="mt-1 text-sm text-slate-400">
+                          {tx(
+                            lang,
+                            'Oracle məntiqinə yaxın olaraq ofisiant burada məhsulları yığa, sonra bir kliklə həmin raundu mətbəxə göndərə bilər.',
+                            'Ближе к логике Oracle: официант может собрать позиции здесь и одним кликом отправить раунд на кухню.',
+                            'Closer to Oracle-style flow: the waiter can build items here and send the round to the kitchen in one click.',
+                          )}
+                        </div>
+                      </div>
+                      <div className="rounded-full border border-slate-700/70 bg-slate-950/40 px-3 py-1 text-xs font-semibold text-slate-200">
+                        {tx(lang, 'Draft raund cəmi', 'Сумма draft-раунда', 'Draft round total')}: {roundDraft.reduce((acc, row) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0)).toFixed(2)} ₼
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+                      <div className="space-y-3">
+                        <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                          <input
+                            className="neon-input"
+                            value={roundSearch}
+                            onChange={(e) => setRoundSearch(e.target.value)}
+                            placeholder={tx(lang, 'Raund üçün məhsul axtar...', 'Поиск товара для раунда...', 'Search items for this round...')}
+                          />
+                          <select className="neon-input min-w-[180px]" value={roundCategory} onChange={(e) => setRoundCategory(e.target.value)}>
+                            {roundCategories.map((category) => (
+                              <option key={category} value={category}>{category === 'ALL' ? tx(lang, 'Bütün kateqoriyalar', 'Все категории', 'All categories') : category}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="grid max-h-80 grid-cols-1 gap-3 overflow-auto rounded-xl border border-slate-700/70 bg-slate-950/25 p-3 md:grid-cols-2">
+                          {filteredRoundMenu.map((item: any) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => addMenuItemToRound(item)}
+                              className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-3 text-left transition hover:border-yellow-300/30 hover:bg-slate-900/70"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="truncate font-semibold text-slate-100">{item.item_name}</div>
+                                  <div className="mt-1 text-xs text-slate-400">{item.category}</div>
+                                  {item.description ? <div className="mt-2 line-clamp-2 text-xs text-slate-500">{String(item.description)}</div> : null}
+                                </div>
+                                <div className="rounded-lg bg-yellow-400/15 px-2 py-1 text-sm font-bold text-yellow-200">
+                                  {Number(item.price || 0).toFixed(2)} ₼
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                          {filteredRoundMenu.length === 0 ? (
+                            <div className="rounded-xl border border-dashed border-slate-700/60 px-4 py-6 text-center text-sm text-slate-400 md:col-span-2">
+                              {tx(lang, 'Bu filtrlə məhsul tapılmadı', 'По этому фильтру товары не найдены', 'No items found for this filter')}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-700/70 bg-slate-950/30 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-semibold text-slate-100">{tx(lang, 'Raund draft-i', 'Draft раунда', 'Round draft')}</div>
+                          {roundDraft.length > 0 ? (
+                            <button type="button" onClick={clearRoundComposer} className="text-xs font-semibold text-slate-400 hover:text-slate-200">
+                              {tx(lang, 'Təmizlə', 'Очистить', 'Clear')}
+                            </button>
+                          ) : null}
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          {roundDraft.length === 0 ? (
+                            <div className="rounded-lg border border-dashed border-slate-700/60 px-4 py-6 text-center text-sm text-slate-400">
+                              {tx(lang, 'Burada yığdığınız məhsullar növbəti raund kimi göndəriləcək', 'Собранные здесь позиции будут отправлены как следующий раунд', 'Items gathered here will be sent as the next round')}
+                            </div>
+                          ) : (
+                            roundDraft.map((row: any) => (
+                              <div key={row.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-700/60 bg-slate-900/40 px-3 py-2">
+                                <div className="min-w-0">
+                                  <div className="truncate text-sm font-semibold text-slate-100">{row.item_name}</div>
+                                  <div className="text-xs text-slate-400">{Number(row.price || 0).toFixed(2)} ₼</div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button type="button" className="rounded-md border border-slate-600 px-2 py-1 text-xs text-slate-200" onClick={() => updateRoundDraftQty(String(row.id), Number(row.qty || 0) - 1)}>-</button>
+                                  <div className="min-w-7 text-center text-sm font-semibold text-slate-100">{row.qty}</div>
+                                  <button type="button" className="rounded-md border border-slate-600 px-2 py-1 text-xs text-slate-200" onClick={() => updateRoundDraftQty(String(row.id), Number(row.qty || 0) + 1)}>+</button>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={roundDraft.length === 0}
+                          onClick={() => { void sendRoundDirectly(t); }}
+                          className="glossy-gold mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-xl px-4 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {tx(lang, 'Bu raundu mətbəxə göndər', 'Отправить этот раунд на кухню', 'Send this round to kitchen')}
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
