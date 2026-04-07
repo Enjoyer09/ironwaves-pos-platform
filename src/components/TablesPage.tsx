@@ -1,8 +1,8 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { get_tables_live, create_table_live, delete_table_live, open_table_live, pay_table_live, transfer_table_live, merge_tables_live, revise_table_items_live, send_to_kitchen_live } from '../api/tables';
+import { get_tables_live, create_table_live, delete_table_live, open_table_live, pay_table_live, transfer_table_live, merge_tables_live, revise_table_items_live } from '../api/tables';
 import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
-import { create_reservation_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, get_table_detail_live, seat_reservation_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
+import { create_reservation_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, get_table_detail_live, seat_reservation_live, send_table_round_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
 import { LayoutGrid, Plus, Trash2, ArrowRightCircle, CalendarClock, Users, MapPinned } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
@@ -266,10 +266,21 @@ export default function TablesPage() {
 
   const sendRoundDirectly = async (table: any) => {
     if (!table?.id || roundDraft.length === 0) return;
-    await send_to_kitchen_live(table.id, roundDraft, user?.username || 'staff', { cup_mode: table.cup_mode || 'paper' });
+    await send_table_round_live(table.id, {
+      sent_by: user?.username || 'staff',
+      course_no: 1,
+      items: roundDraft.map((row: any) => ({
+        id: row.id,
+        item_name: row.item_name,
+        price: String(row.price),
+        qty: Number(row.qty || 0),
+        category: row.category,
+        is_coffee: Boolean(row.is_coffee),
+      })),
+    });
     notify('success', tx(lang, 'Yeni raund mətbəxə göndərildi', 'Новый раунд отправлен на кухню', 'New round sent to kitchen'));
     clearRoundComposer();
-    await loadData();
+    await Promise.all([loadData(), get_table_detail_live(tenant_id, table.id).then((next) => setTableDetailRecord(next)).catch(() => {})]);
   };
 
   const handleAddTable = async () => {
@@ -1010,14 +1021,39 @@ export default function TablesPage() {
               if (!t) return null;
               const items = Array.isArray(t.items) ? t.items : [];
               const activeKitchenOrders = kitchenOrders.filter((row) => row.table_label === t.label);
-              const waitingItems = activeKitchenOrders
-                .filter((row) => ['NEW', 'PREPARING'].includes(String(row.status || '')))
-                .flatMap((row) => (Array.isArray(row.items) ? row.items : []))
-                .filter((row: any) => String(row.action || '').toUpperCase() !== 'CANCEL');
-              const readyItemsRaw = activeKitchenOrders
-                .filter((row) => String(row.status || '') === 'READY')
-                .flatMap((row) => Array.isArray(row.items) ? row.items : [])
-                .filter((row: any) => String(row.action || '').toUpperCase() !== 'CANCEL');
+              const detailRounds = tableDetailRecord?.table?.id === t.id ? (tableDetailRecord.rounds || []) : [];
+              const kitchenRows = detailRounds.length > 0
+                ? detailRounds.map((row) => ({
+                    id: row.id,
+                    round_no: row.round_no,
+                    status: row.status,
+                    created_at: row.sent_at,
+                    items: row.items.map((item) => ({
+                      item_name: item.item_name,
+                      qty: item.qty,
+                      seat_label: item.seat_no ? `Seat ${item.seat_no}` : undefined,
+                      action: item.status === 'VOIDED' ? 'CANCEL' : null,
+                      reason: item.note || '',
+                      raw_status: item.status,
+                    })),
+                  }))
+                : activeKitchenOrders;
+              const waitingItems = kitchenRows
+                .filter((row: any) => ['NEW', 'PREPARING', 'SENT'].includes(String(row.status || '').toUpperCase()))
+                .flatMap((row: any) => (Array.isArray(row.items) ? row.items : []))
+                .filter((row: any) => {
+                  const rawStatus = String(row.raw_status || '').toUpperCase();
+                  const action = String(row.action || '').toUpperCase();
+                  return action !== 'CANCEL' && !['READY', 'SERVED', 'VOIDED'].includes(rawStatus);
+                });
+              const readyItemsRaw = kitchenRows
+                .filter((row: any) => String(row.status || '').toUpperCase() === 'READY')
+                .flatMap((row: any) => Array.isArray(row.items) ? row.items : [])
+                .filter((row: any) => {
+                  const rawStatus = String(row.raw_status || '').toUpperCase();
+                  const action = String(row.action || '').toUpperCase();
+                  return action !== 'CANCEL' && (rawStatus === '' || rawStatus === 'READY');
+                });
               const servedForTable = servedItemsMap[t.id] || {};
               const readyItems = readyItemsRaw
                 .map((row: any) => {
@@ -1029,18 +1065,32 @@ export default function TablesPage() {
               const servedItems = Object.entries(servedForTable)
                 .filter(([, qty]) => Number(qty || 0) > 0)
                 .map(([item_name, qty]) => ({ item_name, qty }));
-              const revisionItems = activeKitchenOrders
-                .flatMap((row) => Array.isArray(row.items) ? row.items : [])
+              const revisionItems = kitchenRows
+                .flatMap((row: any) => Array.isArray(row.items) ? row.items : [])
                 .filter((row: any) => String(row.action || '').toUpperCase() === 'CANCEL');
               const otherTables = tables.filter((row) => row.id !== t.id);
               const detailSession = tableDetailRecord?.table?.id === t.id ? tableDetailRecord.session : null;
               const detailCheck = tableDetailRecord?.table?.id === t.id ? tableDetailRecord.check : null;
-              const rounds = [...activeKitchenOrders]
-                .sort((a, b) => new Date(String(a.created_at || 0)).getTime() - new Date(String(b.created_at || 0)).getTime())
-                .map((row, idx) => ({
-                  ...row,
-                  round_no: Number((row as any).round_no || idx + 1),
-                }));
+              const rounds = detailRounds.length > 0
+                ? detailRounds.map((row) => ({
+                    id: row.id,
+                    round_no: row.round_no,
+                    status: row.status,
+                    created_at: row.sent_at,
+                    items: row.items.map((item) => ({
+                      item_name: item.item_name,
+                      qty: item.qty,
+                      seat_label: item.seat_no ? `Seat ${item.seat_no}` : undefined,
+                      action: item.status === 'VOIDED' ? 'CANCEL' : null,
+                      reason: item.note || '',
+                    })),
+                  }))
+                : [...activeKitchenOrders]
+                    .sort((a, b) => new Date(String(a.created_at || 0)).getTime() - new Date(String(b.created_at || 0)).getTime())
+                    .map((row, idx) => ({
+                      ...row,
+                      round_no: Number((row as any).round_no || idx + 1),
+                    }));
               return (
                 <>
                   <h3 className="text-lg font-bold text-slate-100">{t.label}</h3>

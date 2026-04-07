@@ -7,13 +7,14 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import AuditLog, Check, FloorPlan, Guest, Reservation, Table, TableSession, Tenant, User
+from app.models import AuditLog, Check, FloorPlan, Guest, KitchenOrder, OrderItem, OrderRound, Reservation, Table, TableSession, Tenant, User
 from app.schemas import (
     FloorPlanCreateIn,
     FloorPlanUpdateIn,
     ReservationCreateIn,
     ReservationSeatIn,
     ReservationUpdateIn,
+    SendRoundIn,
     TableCombineIn,
     TableLayoutUpdateIn,
     TableSplitIn,
@@ -195,6 +196,50 @@ def _table_detail_payload(db: Session, tenant_id: str, table: Table) -> dict:
             .order_by(Check.opened_at.desc())
             .first()
         )
+    rounds_payload: list[dict] = []
+    if active_check:
+        rounds = (
+            db.query(OrderRound)
+            .filter(OrderRound.tenant_id == tenant_id, OrderRound.check_id == active_check.id)
+            .order_by(OrderRound.round_no.asc(), OrderRound.sent_at.asc())
+            .all()
+        )
+        round_ids = [row.id for row in rounds]
+        items_map: dict[str, list[dict]] = {}
+        if round_ids:
+            items = (
+                db.query(OrderItem)
+                .filter(OrderItem.tenant_id == tenant_id, OrderItem.round_id.in_(round_ids))
+                .order_by(OrderItem.created_at.asc())
+                .all()
+            )
+            for item in items:
+                items_map.setdefault(item.round_id or "", []).append(
+                    {
+                        "id": item.id,
+                        "item_name": item.item_name,
+                        "qty": item.qty,
+                        "price": str(item.price or Decimal("0.00")),
+                        "seat_no": item.seat_no,
+                        "course_no": item.course_no,
+                        "status": item.status,
+                        "note": item.note,
+                        "modifier_json": item.modifier_json,
+                    }
+                )
+        rounds_payload = [
+            {
+                "id": row.id,
+                "round_no": row.round_no,
+                "course_no": row.course_no,
+                "status": row.status,
+                "sent_by": row.sent_by,
+                "sent_at": row.sent_at.isoformat() if row.sent_at else None,
+                "items": items_map.get(row.id, []),
+            }
+            for row in rounds
+        ]
+
     return {
         "table": _table_state_payload(db, tenant_id, table),
         "session": None if not active_session else {
@@ -216,6 +261,7 @@ def _table_detail_payload(db: Session, tenant_id: str, table: Table) -> dict:
             "total": str(active_check.total or Decimal("0.00")),
             "opened_at": active_check.opened_at.isoformat() if active_check.opened_at else None,
         },
+        "rounds": rounds_payload,
     }
 
 
@@ -585,3 +631,211 @@ def seat_reservation(
     db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="RESERVATION_SEATED", details=f"{reservation.id}:{table.label}"))
     db.commit()
     return {"ok": True, "table_session_id": session.id, "check_id": check.id}
+
+
+@router.post("/tables/{table_id}/send-round")
+def send_round(
+    table_id: str,
+    payload: SendRoundIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_floor_admin(user)
+    table = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    active_session = (
+        db.query(TableSession)
+        .filter(TableSession.tenant_id == tenant.id, TableSession.table_id == table.id, TableSession.closed_at.is_(None))
+        .order_by(TableSession.seated_at.desc())
+        .first()
+    )
+    if not active_session:
+        raise HTTPException(status_code=400, detail="Table does not have an active session")
+    active_check = (
+        db.query(Check)
+        .filter(Check.tenant_id == tenant.id, Check.table_session_id == active_session.id, Check.status.in_(["OPEN", "PARTIALLY_PAID"]))
+        .order_by(Check.opened_at.desc())
+        .first()
+    )
+    if not active_check:
+        raise HTTPException(status_code=400, detail="Open check not found")
+    next_round_no = (db.query(OrderRound).filter(OrderRound.tenant_id == tenant.id, OrderRound.check_id == active_check.id).count() or 0) + 1
+    round_row = OrderRound(
+        tenant_id=tenant.id,
+        check_id=active_check.id,
+        round_no=next_round_no,
+        course_no=max(1, payload.course_no or 1),
+        status="NEW",
+        sent_by=payload.sent_by or user.username,
+    )
+    db.add(round_row)
+    db.flush()
+
+    items_payload: list[dict] = []
+    round_total = Decimal("0.00")
+    for item in payload.items:
+        line_total = (Decimal(str(item.price or 0)) * Decimal(str(item.qty or 0))).quantize(Decimal("0.01"))
+        round_total += line_total
+        row = OrderItem(
+            tenant_id=tenant.id,
+            check_id=active_check.id,
+            round_id=round_row.id,
+            table_id=table.id,
+            menu_item_id=item.id,
+            seat_no=item.seat_no,
+            course_no=max(1, item.course_no or payload.course_no or 1),
+            item_name=item.item_name,
+            qty=item.qty,
+            price=item.price,
+            status="NEW",
+            modifier_json=item.modifier_json,
+            note=item.note,
+        )
+        db.add(row)
+        items_payload.append(
+            {
+                "item_name": item.item_name,
+                "qty": item.qty,
+                "price": str(item.price),
+                "seat_no": item.seat_no,
+                "course_no": item.course_no or payload.course_no or 1,
+                "note": item.note,
+                "modifier_json": item.modifier_json,
+            }
+        )
+
+    active_check.subtotal = (Decimal(str(active_check.subtotal or 0)) + round_total).quantize(Decimal("0.01"))
+    active_check.service_charge = Decimal("0.00")
+    active_check.tax_amount = Decimal("0.00")
+    active_check.total = (Decimal(str(active_check.total or 0)) + round_total).quantize(Decimal("0.01"))
+    table.total = active_check.total
+    table.is_occupied = True
+    table.status = "ACTIVE_CHECK"
+    if not table.assigned_to:
+        table.assigned_to = active_session.assigned_waiter or payload.sent_by or user.username
+
+    kitchen_row = KitchenOrder(
+        tenant_id=tenant.id,
+        sale_id=active_check.id,
+        table_label=table.label,
+        order_type="DINE_IN",
+        status="NEW",
+        priority="NORMAL",
+        items_json=__import__("json").dumps(
+            [
+                {
+                    "item_name": row["item_name"],
+                    "qty": row["qty"],
+                    "price": row["price"],
+                    "seat_label": f"Seat {row['seat_no']}" if row.get("seat_no") else None,
+                    "course_no": row.get("course_no"),
+                    "note": row.get("note"),
+                }
+                for row in items_payload
+            ],
+            ensure_ascii=False,
+        ),
+    )
+    db.add(kitchen_row)
+    db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="ROUND_SENT", details=f"{table.label}:#{next_round_no}"))
+    db.commit()
+    return {
+        "ok": True,
+        "round_id": round_row.id,
+        "check_id": active_check.id,
+        "round_no": next_round_no,
+        "check_total": str(active_check.total),
+    }
+
+
+@router.get("/kitchen-feed")
+def get_kitchen_feed(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    rows = (
+        db.query(OrderRound, Table, Check)
+        .join(Check, Check.id == OrderRound.check_id)
+        .join(TableSession, TableSession.id == Check.table_session_id)
+        .join(Table, Table.id == TableSession.table_id)
+        .filter(OrderRound.tenant_id == tenant.id, OrderRound.status.in_(["NEW", "PREPARING", "READY"]))
+        .order_by(OrderRound.sent_at.desc())
+        .all()
+    )
+    round_ids = [round_row.id for round_row, _, _ in rows]
+    item_rows = {}
+    if round_ids:
+        for item in (
+            db.query(OrderItem)
+            .filter(OrderItem.tenant_id == tenant.id, OrderItem.round_id.in_(round_ids), OrderItem.status.in_(["NEW", "PREPARING", "READY", "SERVED"]))
+            .order_by(OrderItem.created_at.asc())
+            .all()
+        ):
+            item_rows.setdefault(item.round_id, []).append(
+                {
+                    "item_name": item.item_name,
+                    "qty": item.qty,
+                    "price": str(item.price or Decimal("0.00")),
+                    "seat_label": f"Seat {item.seat_no}" if item.seat_no else None,
+                    "action": None,
+                    "status": item.status,
+                    "course_no": item.course_no,
+                    "note": item.note,
+                }
+            )
+    return [
+        {
+            "id": round_row.id,
+            "sale_id": check.id,
+            "table_label": table.label,
+            "order_type": "DINE_IN",
+            "status": round_row.status,
+            "priority": "NORMAL",
+            "round_no": round_row.round_no,
+            "course_no": round_row.course_no,
+            "items": item_rows.get(round_row.id, []),
+            "created_at": round_row.sent_at.isoformat() if round_row.sent_at else datetime.utcnow().isoformat(),
+        }
+        for round_row, table, check in rows
+    ]
+
+
+@router.post("/kitchen-feed/{round_id}/accept")
+def accept_kitchen_round(
+    round_id: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    row = db.query(OrderRound).filter(OrderRound.id == round_id, OrderRound.tenant_id == tenant.id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Round not found")
+    row.status = "PREPARING"
+    db.query(OrderItem).filter(OrderItem.tenant_id == tenant.id, OrderItem.round_id == row.id).update({"status": "PREPARING"}, synchronize_session=False)
+    db.commit()
+    return {"success": True}
+
+
+@router.post("/kitchen-feed/{round_id}/complete")
+def complete_kitchen_round(
+    round_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    row = db.query(OrderRound).filter(OrderRound.id == round_id, OrderRound.tenant_id == tenant.id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Round not found")
+    ready_items = list(payload.get("ready_items") or [])
+    row.status = "READY"
+    items = db.query(OrderItem).filter(OrderItem.tenant_id == tenant.id, OrderItem.round_id == row.id).all()
+    for item in items:
+        ready_key = f"{item.item_name} · Seat {item.seat_no}" if item.seat_no else item.item_name
+        if not ready_items or ready_key in ready_items or item.item_name in ready_items:
+            item.status = "READY"
+    db.commit()
+    return {"success": True}

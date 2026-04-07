@@ -3,6 +3,7 @@ import { KitchenOrder } from '../types/pos';
 
 import { getDB, setDB } from '../lib/db_sim';
 import { apiRequest, isBackendEnabled } from './client';
+import { accept_kitchen_round_live, complete_kitchen_round_live, get_kitchen_feed_live } from './restaurant';
 
 const isRecoverableNetworkFailure = (error: unknown) => {
   const message = String((error as any)?.message || error || '').toLowerCase();
@@ -95,7 +96,7 @@ export const reset_kitchen_orders = (tenant_id: string, reset_by: string) => {
 export const get_kitchen_orders_live = async (tenant_id: string) => {
   if (!isBackendEnabled()) return get_kitchen_orders(tenant_id);
   try {
-    return await apiRequest<any[]>('/api/v1/ops/kitchen-orders', { tenantId: null });
+    return await get_kitchen_feed_live(tenant_id);
   } catch (error) {
     if (isRecoverableNetworkFailure(error)) {
       return get_kitchen_orders(tenant_id);
@@ -106,10 +107,24 @@ export const get_kitchen_orders_live = async (tenant_id: string) => {
 
 export const accept_order_live = async (order_id: string, accepted_by: string) => {
   if (!isBackendEnabled()) return accept_order(order_id, accepted_by);
-  return apiRequest<{ success: boolean }>(`/api/v1/ops/kitchen-orders/${encodeURIComponent(order_id)}/accept`, { method: 'POST', tenantId: null, body: {} });
+  try {
+    return await accept_kitchen_round_live(order_id);
+  } catch (error) {
+    if (isRecoverableNetworkFailure(error)) {
+      return accept_order(order_id, accepted_by);
+    }
+    throw error;
+  }
 };
 
 export const complete_order_live = async (order_id: string, completed_by: string, ready_items: string[] = []) => {
   if (!isBackendEnabled()) return complete_order(order_id, completed_by, ready_items);
-  return apiRequest<{ success: boolean }>(`/api/v1/ops/kitchen-orders/${encodeURIComponent(order_id)}/complete`, { method: 'POST', tenantId: null, body: { ready_items } });
+  try {
+    return await complete_kitchen_round_live(order_id, ready_items);
+  } catch (error) {
+    if (isRecoverableNetworkFailure(error)) {
+      return complete_order(order_id, completed_by, ready_items);
+    }
+    throw error;
+  }
 };
