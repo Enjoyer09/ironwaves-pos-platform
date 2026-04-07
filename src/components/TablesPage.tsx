@@ -1,8 +1,8 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { get_tables_live, create_table_live, delete_table_live, open_table_live, pay_table_live, transfer_table_live, merge_tables_live, revise_table_items_live } from '../api/tables';
+import { get_tables_live, create_table_live, delete_table_live, open_table_live, transfer_table_live, merge_tables_live, revise_table_items_live } from '../api/tables';
 import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
-import { create_reservation_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, get_table_detail_live, seat_reservation_live, send_table_round_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
+import { create_reservation_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, get_table_detail_live, seat_reservation_live, send_table_round_live, settle_table_check_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
 import { LayoutGrid, Plus, Trash2, ArrowRightCircle, CalendarClock, Users, MapPinned } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
@@ -803,8 +803,17 @@ export default function TablesPage() {
                         ? normalized.filter((row) => row.method === 'Kart').reduce((acc, row) => acc.plus(new Decimal(row.amount || 0)), new Decimal(0)).toDecimalPlaces(2)
                         : new Decimal(0);
                     }
-                    const result = await pay_table_live(table.id, paymentMethod, user?.username || 'Staff', cash, card, {
-                      pay_scope: 'full',
+                    const result = await settle_table_check_live(table.id, {
+                      payment_method: paymentMethod,
+                      split_cash: cash,
+                      split_card: card,
+                      parts: paymentMethod === 'Split'
+                        ? (
+                            splitParts.length === normalizeSplitCount(table, splitCount)
+                              ? splitParts
+                              : buildEqualSplitParts(normalizeSplitCount(table, splitCount), splitBasis)
+                          )
+                        : undefined,
                     });
                     window.dispatchEvent(new CustomEvent('table-paid', { detail: { tenant_id, table_id: table.id } }));
                     const sales = getDB<any>('sales');

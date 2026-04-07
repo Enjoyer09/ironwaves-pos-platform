@@ -1,3 +1,5 @@
+import json
+import secrets
 import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -7,13 +9,15 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import AuditLog, Check, FloorPlan, Guest, KitchenOrder, OrderItem, OrderRound, Reservation, Table, TableSession, Tenant, User
+from app.models import AuditLog, Check, FinanceEntry, FloorPlan, Guest, KitchenOrder, OrderItem, OrderRound, Payment, Reservation, Sale, Setting, Table, TableSession, Tenant, User
+from app.routers.operations import _collect_stock_ops
 from app.schemas import (
     FloorPlanCreateIn,
     FloorPlanUpdateIn,
     ReservationCreateIn,
     ReservationSeatIn,
     ReservationUpdateIn,
+    SettleCheckIn,
     SendRoundIn,
     TableCombineIn,
     TableLayoutUpdateIn,
@@ -27,6 +31,57 @@ router = APIRouter(prefix="/api/v1/restaurant", tags=["restaurant"])
 def _ensure_floor_admin(user: User):
     if str(user.role or "").lower() not in {"admin", "manager", "super_admin", "host"}:
         raise HTTPException(status_code=403, detail="Restaurant access required")
+
+
+def _json_load(value: str | None, default):
+    try:
+        return json.loads(value or "")
+    except Exception:
+        return default
+
+
+def _setting_value(db: Session, tenant_id: str, key: str, default):
+    row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
+    if not row or row.value is None:
+        return default
+    if isinstance(default, (dict, list)):
+        return _json_load(row.value, default)
+    if isinstance(default, bool):
+        return str(row.value).lower() in {"1", "true", "yes"}
+    if isinstance(default, int):
+        try:
+            return int(row.value)
+        except Exception:
+            return default
+    return row.value
+
+
+def _normalize_payment_method(value: str | None) -> str:
+    return str(value or "").strip().lower()
+
+
+def _merge_table_items(existing: list[dict], incoming: list[dict]) -> list[dict]:
+    merged = list(existing)
+    for item in incoming:
+        idx = next(
+            (
+                i
+                for i, row in enumerate(merged)
+                if (
+                    str(row.get("id") or "") == str(item.get("id") or "")
+                    or (
+                        str(row.get("item_name") or "").strip() == str(item.get("item_name") or "").strip()
+                        and str(row.get("seat_label") or "").strip() == str(item.get("seat_label") or "").strip()
+                    )
+                )
+            ),
+            -1,
+        )
+        if idx >= 0:
+            merged[idx]["qty"] = int(merged[idx].get("qty") or 0) + int(item.get("qty") or 0)
+        else:
+            merged.append(item)
+    return merged
 
 
 def _ensure_default_floor(db: Session, tenant_id: str) -> FloorPlan:
@@ -196,8 +251,29 @@ def _table_detail_payload(db: Session, tenant_id: str, table: Table) -> dict:
             .order_by(Check.opened_at.desc())
             .first()
         )
+    payments_payload: list[dict] = []
+    amount_paid = Decimal("0.00")
     rounds_payload: list[dict] = []
     if active_check:
+        payments = (
+            db.query(Payment)
+            .filter(Payment.tenant_id == tenant_id, Payment.check_id == active_check.id)
+            .order_by(Payment.paid_at.asc())
+            .all()
+        )
+        amount_paid = sum((Decimal(str(row.amount or 0)) for row in payments if str(row.status or "").upper() == "POSTED"), Decimal("0.00")).quantize(Decimal("0.01"))
+        payments_payload = [
+            {
+                "id": row.id,
+                "method": row.method,
+                "amount": str(row.amount or Decimal("0.00")),
+                "status": row.status,
+                "split_group": row.split_group,
+                "paid_by": row.paid_by,
+                "paid_at": row.paid_at.isoformat() if row.paid_at else None,
+            }
+            for row in payments
+        ]
         rounds = (
             db.query(OrderRound)
             .filter(OrderRound.tenant_id == tenant_id, OrderRound.check_id == active_check.id)
@@ -259,7 +335,10 @@ def _table_detail_payload(db: Session, tenant_id: str, table: Table) -> dict:
             "service_charge": str(active_check.service_charge or Decimal("0.00")),
             "tax_amount": str(active_check.tax_amount or Decimal("0.00")),
             "total": str(active_check.total or Decimal("0.00")),
+            "amount_paid": str(amount_paid),
+            "balance_due": str(max(Decimal(str(active_check.total or 0)) - amount_paid, Decimal("0.00")).quantize(Decimal("0.01"))),
             "opened_at": active_check.opened_at.isoformat() if active_check.opened_at else None,
+            "payments": payments_payload,
         },
         "rounds": rounds_payload,
     }
@@ -711,6 +790,24 @@ def send_round(
     active_check.tax_amount = Decimal("0.00")
     active_check.total = (Decimal(str(active_check.total or 0)) + round_total).quantize(Decimal("0.01"))
     table.total = active_check.total
+    table.items_json = json.dumps(
+        _merge_table_items(
+            _json_load(table.items_json, []),
+            [
+                {
+                    "id": row.get("id"),
+                    "item_name": row["item_name"],
+                    "qty": row["qty"],
+                    "price": row["price"],
+                    "category": row.get("category"),
+                    "is_coffee": bool(row.get("is_coffee")),
+                    "seat_label": f"Seat {row['seat_no']}" if row.get("seat_no") else None,
+                }
+                for row in items_payload
+            ],
+        ),
+        ensure_ascii=False,
+    )
     table.is_occupied = True
     table.status = "ACTIVE_CHECK"
     if not table.assigned_to:
@@ -747,6 +844,204 @@ def send_round(
         "check_id": active_check.id,
         "round_no": next_round_no,
         "check_total": str(active_check.total),
+    }
+
+
+@router.post("/tables/{table_id}/settle-check")
+def settle_check(
+    table_id: str,
+    payload: SettleCheckIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_floor_admin(user)
+    table = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    active_session = (
+        db.query(TableSession)
+        .filter(TableSession.tenant_id == tenant.id, TableSession.table_id == table.id, TableSession.closed_at.is_(None))
+        .order_by(TableSession.seated_at.desc())
+        .first()
+    )
+    if not active_session:
+        raise HTTPException(status_code=400, detail="Table does not have an active session")
+    active_check = (
+        db.query(Check)
+        .filter(Check.tenant_id == tenant.id, Check.table_session_id == active_session.id, Check.status.in_(["OPEN", "PARTIALLY_PAID"]))
+        .order_by(Check.opened_at.desc())
+        .first()
+    )
+    if not active_check:
+        raise HTTPException(status_code=400, detail="Open check not found")
+
+    items = _json_load(table.items_json, [])
+    deposit_amount = Decimal(str(table.deposit_amount or 0)).quantize(Decimal("0.01"))
+    items_total = sum((Decimal(str(item.get("price") or 0)) * Decimal(str(item.get("qty") or 0)) for item in items), Decimal("0.00")).quantize(Decimal("0.01"))
+    service_fee_percent = Decimal(str(_setting_value(db, tenant.id, "service_fee_percent", 0) or 0))
+    service_fee_amount = (items_total * service_fee_percent / Decimal("100")).quantize(Decimal("0.01"))
+    final_total = max(items_total + service_fee_amount, deposit_amount).quantize(Decimal("0.01"))
+    extra_due = max(final_total - deposit_amount, Decimal("0.00")).quantize(Decimal("0.01"))
+
+    existing_payments = (
+        db.query(Payment)
+        .filter(Payment.tenant_id == tenant.id, Payment.check_id == active_check.id, Payment.status == "POSTED")
+        .all()
+    )
+    already_paid = sum((Decimal(str(row.amount or 0)) for row in existing_payments), Decimal("0.00")).quantize(Decimal("0.01"))
+    balance_due = max(extra_due - already_paid, Decimal("0.00")).quantize(Decimal("0.01"))
+
+    payment_parts: list[tuple[str, Decimal]] = []
+    if payload.parts:
+      for row in payload.parts:
+        amount = Decimal(str(row.amount or 0)).quantize(Decimal("0.01"))
+        if amount > 0:
+            payment_parts.append((_normalize_payment_method(row.method), amount))
+    else:
+        payment_method = _normalize_payment_method(payload.payment_method)
+        if payment_method == "split":
+            split_cash = Decimal(str(payload.split_cash or 0)).quantize(Decimal("0.01"))
+            split_card = Decimal(str(payload.split_card or 0)).quantize(Decimal("0.01"))
+            if split_cash > 0:
+                payment_parts.append(("cash", split_cash))
+            if split_card > 0:
+                payment_parts.append(("card", split_card))
+        elif balance_due > 0:
+            payment_parts.append((payment_method, balance_due))
+
+    payment_total = sum((amount for _, amount in payment_parts), Decimal("0.00")).quantize(Decimal("0.01"))
+    if payment_total != balance_due:
+        raise HTTPException(status_code=400, detail="Payment parts must match the outstanding balance")
+
+    stock_ops, cogs_total = _collect_stock_ops(db, tenant.id, items)
+    receipt_code = secrets.token_hex(5).upper()
+    receipt_token = secrets.token_hex(10)
+    sale = Sale(
+        tenant_id=tenant.id,
+        cashier=user.username,
+        customer_card_id=None,
+        payment_method=payload.payment_method,
+        order_type="Dine In",
+        receipt_code=receipt_code,
+        receipt_token=receipt_token,
+        total=final_total,
+        discount_amount=Decimal("0.00"),
+        cogs=cogs_total,
+        items_json=json.dumps(items, ensure_ascii=False),
+        status="COMPLETED",
+        created_at=datetime.utcnow(),
+    )
+    db.add(sale)
+    db.flush()
+
+    split_group = str(uuid.uuid4()) if len(payment_parts) > 1 else None
+    for method, amount in payment_parts:
+        normalized = "cash" if method in {"cash", "nəğd", "staff"} else "card"
+        db.add(
+            Payment(
+                tenant_id=tenant.id,
+                check_id=active_check.id,
+                method=normalized.upper(),
+                amount=amount,
+                status="POSTED",
+                split_group=split_group,
+                paid_by=user.username,
+            )
+        )
+        db.add(
+            FinanceEntry(
+                tenant_id=tenant.id,
+                type="in",
+                category="Satış (Nağd)" if normalized == "cash" else "Satış (Kart)",
+                source=normalized,
+                amount=amount,
+                description=f"Restaurant check payment {sale.id}",
+                created_by=user.username,
+            )
+        )
+
+    if deposit_amount > 0:
+        db.add(
+            FinanceEntry(
+                tenant_id=tenant.id,
+                type="out",
+                category="Depozit Öhdəliyi Azaldılması",
+                source="deposit",
+                amount=deposit_amount,
+                description=f"Restaurant check deposit settlement {sale.id}",
+                created_by=user.username,
+            )
+        )
+
+    for inventory, qty_required in stock_ops:
+        inventory.stock_qty = (Decimal(str(inventory.stock_qty or 0)) - qty_required).quantize(Decimal("0.001"))
+        db.add(
+            AuditLog(
+                tenant_id=tenant.id,
+                user=user.username,
+                action="INVENTORY_CONSUMED",
+                details=json.dumps(
+                    {
+                        "item_name": inventory.name,
+                        "qty_removed": str(qty_required),
+                        "unit": inventory.unit,
+                        "remaining_qty": str(inventory.stock_qty),
+                        "sale_id": sale.id,
+                        "source": "restaurant_settlement",
+                        "table_id": table.id,
+                        "table_label": table.label,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
+
+    done_time = datetime.utcnow()
+    active_check.subtotal = items_total
+    active_check.service_charge = service_fee_amount
+    active_check.tax_amount = Decimal("0.00")
+    active_check.total = final_total
+    active_check.status = "CLOSED"
+    active_check.closed_at = done_time
+    active_session.status = "CLOSED"
+    active_session.closed_at = done_time
+    db.query(OrderRound).filter(OrderRound.tenant_id == tenant.id, OrderRound.check_id == active_check.id).update({"status": "DONE"}, synchronize_session=False)
+    db.query(OrderItem).filter(OrderItem.tenant_id == tenant.id, OrderItem.check_id == active_check.id, OrderItem.status != "VOIDED").update({"status": "SERVED"}, synchronize_session=False)
+    kitchen_rows = (
+        db.query(KitchenOrder)
+        .filter(KitchenOrder.tenant_id == tenant.id, KitchenOrder.table_label == table.label, KitchenOrder.status.in_(["NEW", "PREPARING", "READY"]))
+        .all()
+    )
+    for kitchen_row in kitchen_rows:
+        kitchen_row.status = "DONE"
+        kitchen_row.completed_at = done_time
+
+    table.is_occupied = False
+    table.assigned_to = None
+    table.guest_count = 0
+    table.deposit_guest_count = 0
+    table.deposit_amount = Decimal("0.00")
+    table.deposit_seats_json = "[]"
+    table.items_json = "[]"
+    table.total = Decimal("0.00")
+    table.status = "DIRTY"
+
+    db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="CHECK_SETTLED", details=f"{table.label}:{active_check.check_number}"))
+    db.commit()
+    return {
+        "ok": True,
+        "sale_id": sale.id,
+        "check_id": active_check.id,
+        "check_number": active_check.check_number,
+        "items_total": str(items_total),
+        "service_fee_amount": str(service_fee_amount),
+        "deposit_amount": str(deposit_amount),
+        "extra_due": str(extra_due),
+        "final_total": str(final_total),
+        "payment_total": str(payment_total),
+        "payment_count": len(payment_parts),
+        "check_status": active_check.status,
     }
 
 

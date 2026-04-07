@@ -287,3 +287,15 @@ class SendRoundIn(BaseModel):
     items: list[RestaurantRoundItemIn]
     sent_by: str | None = None
     course_no: int | None = 1
+
+
+class RestaurantPaymentPartIn(BaseModel):
+    method: str
+    amount: Decimal
+
+
+class SettleCheckIn(BaseModel):
+    payment_method: str
+    split_cash: Decimal | None = None
+    split_card: Decimal | None = None
+    parts: list[RestaurantPaymentPartIn] | None = None
