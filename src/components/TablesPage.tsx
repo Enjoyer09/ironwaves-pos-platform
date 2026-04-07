@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { get_tables_live, create_table_live, delete_table_live, open_table_live, pay_table_live, transfer_table_live, merge_tables_live, revise_table_items_live, send_to_kitchen_live } from '../api/tables';
 import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
-import { create_reservation_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, seat_reservation_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord } from '../api/restaurant';
+import { create_reservation_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, get_table_detail_live, seat_reservation_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
 import { LayoutGrid, Plus, Trash2, ArrowRightCircle, CalendarClock, Users, MapPinned } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
@@ -58,6 +58,7 @@ export default function TablesPage() {
   const [reservationTime, setReservationTime] = useState('19:00');
   const [reservationPartySize, setReservationPartySize] = useState('2');
   const [reservationNote, setReservationNote] = useState('');
+  const [tableDetailRecord, setTableDetailRecord] = useState<TableDetailRecord | null>(null);
   const receiptRef = useRef<HTMLIFrameElement | null>(null);
   const detailPanelRef = useRef<HTMLDivElement | null>(null);
   const businessProfile = get_business_profile(tenant_id);
@@ -146,6 +147,16 @@ export default function TablesPage() {
   useEffect(() => {
     if (viewTableId) setTableWorkspaceTab('compose');
   }, [viewTableId]);
+
+  useEffect(() => {
+    if (!viewTableId) {
+      setTableDetailRecord(null);
+      return;
+    }
+    void get_table_detail_live(tenant_id, viewTableId)
+      .then((next) => setTableDetailRecord(next))
+      .catch(() => setTableDetailRecord(null));
+  }, [tenant_id, viewTableId]);
 
   useEffect(() => {
     if (!viewTableId || !detailPanelRef.current) return;
@@ -1022,6 +1033,8 @@ export default function TablesPage() {
                 .flatMap((row) => Array.isArray(row.items) ? row.items : [])
                 .filter((row: any) => String(row.action || '').toUpperCase() === 'CANCEL');
               const otherTables = tables.filter((row) => row.id !== t.id);
+              const detailSession = tableDetailRecord?.table?.id === t.id ? tableDetailRecord.session : null;
+              const detailCheck = tableDetailRecord?.table?.id === t.id ? tableDetailRecord.check : null;
               const rounds = [...activeKitchenOrders]
                 .sort((a, b) => new Date(String(a.created_at || 0)).getTime() - new Date(String(b.created_at || 0)).getTime())
                 .map((row, idx) => ({
@@ -1032,6 +1045,44 @@ export default function TablesPage() {
                 <>
                   <h3 className="text-lg font-bold text-slate-100">{t.label}</h3>
                   <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Masa sifariş detalı', 'Детали заказа стола', 'Table order detail')}</div>
+                  <div className="mt-3 rounded-2xl border border-yellow-300/20 bg-yellow-500/10 p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-yellow-200">
+                          {tx(lang, 'Open Check', 'Открытый чек', 'Open Check')}
+                        </div>
+                        <div className="mt-2 text-lg font-black text-slate-100">
+                          {detailCheck?.check_number || tx(lang, 'Check açılır...', 'Чек открывается...', 'Check is initializing...')}
+                        </div>
+                        <div className="mt-1 text-sm text-slate-300">
+                          {detailSession?.assigned_waiter
+                            ? `${tx(lang, 'Ofisiant', 'Официант', 'Waiter')}: ${detailSession.assigned_waiter}`
+                            : tx(lang, 'Ofisiant təyin edilməyib', 'Официант не назначен', 'Waiter not assigned')}
+                          {detailSession?.seated_at
+                            ? ` · ${tx(lang, 'Oturma', 'Посадка', 'Seated')}: ${new Date(detailSession.seated_at).toLocaleTimeString(lang === 'ru' ? 'ru-RU' : 'az-AZ', { hour: '2-digit', minute: '2-digit' })}`
+                            : ''}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                        <div className="rounded-xl border border-slate-700/60 bg-slate-950/35 px-3 py-2 text-sm text-slate-200">
+                          <div className="text-[11px] uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Status', 'Статус', 'Status')}</div>
+                          <div className="mt-1 font-bold text-slate-100">{detailCheck?.status || 'OPEN'}</div>
+                        </div>
+                        <div className="rounded-xl border border-slate-700/60 bg-slate-950/35 px-3 py-2 text-sm text-slate-200">
+                          <div className="text-[11px] uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Qonaq', 'Гости', 'Guests')}</div>
+                          <div className="mt-1 font-bold text-slate-100">{detailSession?.guest_count ?? Number(t.guest_count || 0)}</div>
+                        </div>
+                        <div className="rounded-xl border border-slate-700/60 bg-slate-950/35 px-3 py-2 text-sm text-slate-200">
+                          <div className="text-[11px] uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Subtotal', 'Сумма', 'Subtotal')}</div>
+                          <div className="mt-1 font-bold text-slate-100">{new Decimal(detailCheck?.subtotal || t.total || 0).toFixed(2)} ₼</div>
+                        </div>
+                        <div className="rounded-xl border border-emerald-300/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
+                          <div className="text-[11px] uppercase tracking-[0.14em] text-emerald-200">{tx(lang, 'Toplam', 'Итого', 'Total')}</div>
+                          <div className="mt-1 font-bold">{new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <div className="rounded-full border border-slate-700/60 bg-slate-950/30 px-4 py-2 text-sm text-slate-200">
                       {tx(lang, 'Qonaq', 'Гости', 'Guests')}: <span className="font-bold text-slate-100">{Number(t.guest_count || 0)}</span>
