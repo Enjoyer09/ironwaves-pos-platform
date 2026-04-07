@@ -1692,12 +1692,12 @@ export default function TablesPage() {
 
       {viewTableId && (
         <div
-          ref={detailPanelRef}
-          className={`${
-            workspaceView === 'floor'
-              ? 'fixed inset-y-4 right-4 z-[90] h-[calc(100vh-2rem)] w-[min(560px,42vw)] overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur'
-              : 'mt-6'
-          }`}
+	          ref={detailPanelRef}
+	          className={`${
+	            workspaceView === 'floor'
+	              ? 'fixed inset-y-3 right-3 z-[90] h-[calc(100vh-1.5rem)] w-[calc(100vw-1.5rem)] overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur lg:w-[min(70vw,1240px)]'
+	              : 'mt-6'
+	          }`}
         >
           <div className={`metal-panel ${workspaceView === 'floor' ? 'flex h-full flex-col overflow-hidden rounded-[30px] p-4' : 'w-full rounded-[30px] p-5'}`}>
             {(() => {
@@ -1758,10 +1758,33 @@ export default function TablesPage() {
               const tableLockHolder = String((tableDetailRecord?.table?.id === t.id ? tableDetailRecord.table.locked_by : null) || t.assigned_to || '').trim() || null;
               const isManagerUser = ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase());
               const userCanEditTable = !tableLockHolder || tableLockHolder === user?.username || isManagerUser;
-              const detailActiveItems = detailRounds.length > 0
-                ? detailRounds.flatMap((round) => round.items.map((item) => ({ ...item, round_no: round.round_no })))
-                : [];
-              const rounds = detailRounds.length > 0
+	              const detailActiveItems = detailRounds.length > 0
+	                ? detailRounds.flatMap((round) => round.items.map((item) => ({ ...item, round_no: round.round_no })))
+	                : [];
+	              const revisionBaseItems = items.length > 0 ? items : detailActiveItems;
+	              const buildRevisionNextItems = (targetItemName: string, qtyToRemove: number | null) => {
+	                let remainingToRemove = qtyToRemove === null ? Number.MAX_SAFE_INTEGER : Math.max(1, Number(qtyToRemove || 1));
+	                return revisionBaseItems
+	                  .map((row: any) => {
+	                    const isTarget = String(row.item_name || '').trim() === String(targetItemName || '').trim();
+	                    if (!isTarget || remainingToRemove <= 0) return row;
+	                    const currentQty = Number(row.qty || 0);
+	                    const removeQty = Math.min(currentQty, remainingToRemove);
+	                    remainingToRemove -= removeQty;
+	                    return { ...row, qty: currentQty - removeQty };
+	                  })
+	                  .filter((row: any) => Number(row.qty || 0) > 0)
+	                  .map((row: any) => ({
+	                    id: row.id,
+	                    item_name: row.item_name,
+	                    price: String(row.price || 0),
+	                    qty: Number(row.qty || 0),
+	                    is_coffee: Boolean(row.is_coffee),
+	                    category: row.category || '',
+	                    seat_label: row.seat_label,
+	                  }));
+	              };
+	              const rounds = detailRounds.length > 0
                 ? detailRounds.map((row) => ({
                     id: row.id,
                     round_no: row.round_no,
@@ -1888,7 +1911,7 @@ export default function TablesPage() {
                       {tx(lang, 'Bir anda yalnız bir iş sahəsi açılır. Bu, 15-inch touch ekranda səhifəni daha yığcam saxlayır.', 'Одновременно открыта только одна рабочая зона. Так 15-дюймовый touch экран остается компактнее.', 'Only one workspace stays open at a time. This keeps the 15-inch touch screen more compact.')}
                     </div>
                   </div>
-                  <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
+	                  <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden">
                   {tableWorkspaceTab === 'history' && (
                   <div className="min-h-0 overflow-y-auto rounded-xl border border-slate-700/70 bg-slate-900/35 p-4">
                     <div className="flex items-center justify-between gap-3">
@@ -1931,14 +1954,14 @@ export default function TablesPage() {
                     </div>
                   </div>
                   )}
-                  <div className={`min-h-0 flex-none overflow-auto rounded-lg border border-slate-700/70 bg-slate-900/40 p-3 ${tableWorkspaceTab === 'compose' ? '' : 'hidden'}`}>
+	                  <div className={`max-h-[18vh] min-h-[72px] flex-none overflow-y-auto overscroll-y-contain rounded-lg border border-slate-700/70 bg-slate-900/40 p-3 ${tableWorkspaceTab === 'compose' ? '' : 'hidden'}`}>
                     {!userCanEditTable && (
                       <div className="mb-3 rounded-lg border border-rose-300/30 bg-rose-500/10 px-3 py-3 text-sm text-rose-100">
                         {tx(lang, 'Bu masa read-only görünüşdədir. Yalnız owner və ya manager əməliyyat edə bilər.', 'Этот стол открыт только для просмотра. Операции доступны только владельцу или менеджеру.', 'This table is read-only. Only the owner or a manager can perform actions.')}
                       </div>
                     )}
                     {(detailActiveItems.length === 0 && items.length === 0) && <div className="text-sm text-slate-400">{tx(lang, 'Masa boşdur', 'Стол пуст', 'Table is empty')}</div>}
-                    {(detailActiveItems.length > 0 ? detailActiveItems : items).map((it: any, idx: number) => (
+	                    {(detailActiveItems.length > 0 ? detailActiveItems : items).map((it: any, idx: number) => (
                       <div key={`${it.item_name}_${idx}`} className="flex items-center justify-between gap-3 border-b border-slate-700/40 py-2 text-sm last:border-b-0">
                         <div>
                           <div>{it.item_name}</div>
@@ -1949,24 +1972,31 @@ export default function TablesPage() {
                           <button
                             disabled={!userCanEditTable}
                             className="rounded-md border border-amber-300/40 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-100"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const nextItems = items
-                                .map((row: any, rowIdx: number) => rowIdx === idx ? { ...row, qty: Number(row.qty || 0) - 1 } : row)
-                                .filter((row: any) => Number(row.qty || 0) > 0);
-                              setRevisionTarget({ tableId: t.id, itemName: it.item_name, nextItems });
-                            }}
+	                            onClick={async (e) => {
+	                              e.stopPropagation();
+	                              const hasLegacyMatch = items.some((row: any) => String(row.item_name || '').trim() === String(it.item_name || '').trim());
+	                              if (it.id && detailActiveItems.length > 0 && !hasLegacyMatch) {
+	                                setItemActionTarget({ item: it, action: 'VOID' });
+	                                return;
+	                              }
+	                              const nextItems = buildRevisionNextItems(it.item_name, 1);
+	                              setRevisionTarget({ tableId: t.id, itemName: it.item_name, nextItems });
+	                            }}
                           >
                             -1
                           </button>
                           <button
                             disabled={!userCanEditTable}
                             className="rounded-md border border-rose-300/40 bg-rose-500/10 px-2 py-1 text-xs font-semibold text-rose-100"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const nextItems = items.filter((_: any, rowIdx: number) => rowIdx !== idx);
-                              setRevisionTarget({ tableId: t.id, itemName: it.item_name, nextItems });
-                            }}
+	                            onClick={(e) => {
+	                              e.stopPropagation();
+	                              if (it.id && detailActiveItems.length > 0) {
+	                                setItemActionTarget({ item: it, action: 'VOID' });
+	                                return;
+	                              }
+	                              const nextItems = buildRevisionNextItems(it.item_name, null);
+	                              setRevisionTarget({ tableId: t.id, itemName: it.item_name, nextItems });
+	                            }}
                           >
                             {tx(lang, 'Sil', 'Убрать', 'Remove')}
                           </button>
@@ -1983,7 +2013,7 @@ export default function TablesPage() {
                     ))}
                   </div>
                   {tableWorkspaceTab === 'compose' && (
-                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/35 p-4">
+	                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/35 p-3 lg:p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div>
                         <div className="text-base font-semibold text-slate-100">{tx(lang, 'Yeni sifariş', 'Новый заказ', 'New order')}</div>
@@ -1994,7 +2024,7 @@ export default function TablesPage() {
                       </div>
                     </div>
 
-                    <div className="mt-4 grid min-h-0 flex-1 gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+	                    <div className="mt-3 grid min-h-0 flex-1 gap-4 lg:grid-cols-[1.25fr_0.75fr]">
                       <div className="flex min-h-0 flex-col overflow-hidden">
                         <MenuGrid
                           items={filteredRoundMenu}
@@ -2586,10 +2616,10 @@ export default function TablesPage() {
             </div>
           ) : (
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
-              <div
-                className={`rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3 ${viewTableId ? 'lg:pr-2' : ''}`}
-                style={{ marginRight: viewTableId ? 'min(44vw, 580px)' : '0' }}
-              >
+	              <div
+	                className={`rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3 ${viewTableId ? 'lg:pr-2' : ''}`}
+	                style={{ marginRight: viewTableId ? 'min(72vw, 1260px)' : '0' }}
+	              >
                 <TableGrid
                   floorTables={floorTables}
                   tablesById={tablesById}

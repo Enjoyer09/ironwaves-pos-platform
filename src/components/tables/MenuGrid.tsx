@@ -31,7 +31,7 @@ function MenuGrid({
   onSelectItem,
 }: MenuGridProps) {
   return (
-    <div className="space-y-3">
+    <div className="flex min-h-0 flex-1 flex-col space-y-3">
       <div className="grid gap-3 md:grid-cols-[1fr_auto]">
         <input
           className="neon-input"
@@ -47,7 +47,7 @@ function MenuGrid({
           ))}
         </select>
       </div>
-      <div className="grid max-h-[48vh] grid-cols-2 gap-3 overflow-auto rounded-xl border border-slate-700/70 bg-slate-950/25 p-3 xl:grid-cols-3">
+      <div className="grid min-h-[220px] flex-1 grid-cols-2 gap-3 overflow-y-auto overscroll-y-contain rounded-xl border border-slate-700/70 bg-slate-950/25 p-3 xl:grid-cols-3">
         {items.map((item: any) => (
           <button
             key={item.id}
