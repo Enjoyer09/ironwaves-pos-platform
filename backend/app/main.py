@@ -307,6 +307,23 @@ def _run_startup_migrations():
         conn.execute(text("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS action_by VARCHAR(80)"))
         conn.execute(text("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS manager_approved_by VARCHAR(80)"))
         conn.execute(text("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS parent_item_id VARCHAR(36)"))
+        conn.execute(text("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP"))
+        conn.execute(text("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS served_at TIMESTAMP"))
+        conn.execute(text("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS item_status_logs (
+                id VARCHAR(36) PRIMARY KEY,
+                tenant_id VARCHAR(36) REFERENCES tenants(id),
+                order_item_id VARCHAR(36) REFERENCES order_items(id),
+                old_status VARCHAR(24),
+                new_status VARCHAR(24) NOT NULL,
+                changed_by VARCHAR(80),
+                reason TEXT,
+                changed_at TIMESTAMP
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_item_status_logs_tenant_id ON item_status_logs (tenant_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_item_status_logs_order_item_id ON item_status_logs (order_item_id)"))
         conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS cogs NUMERIC(12,4) DEFAULT 0"))
         conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS offline_request_id VARCHAR(64)"))
         conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS reward_claim_code VARCHAR(32)"))

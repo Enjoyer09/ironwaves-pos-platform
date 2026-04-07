@@ -302,6 +302,11 @@ class SendRoundIn(BaseModel):
     course_no: int | None = 1
 
 
+class SendDraftItemsIn(BaseModel):
+    sent_by: str | None = None
+    course_no: int | None = 1
+
+
 class OrderItemActionIn(BaseModel):
     action: str
     reason: str

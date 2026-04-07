@@ -221,14 +221,30 @@ class OrderItem(Base):
     item_name: Mapped[str] = mapped_column(String(255), nullable=False)
     qty: Mapped[int] = mapped_column(Integer, default=1)
     price: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
-    status: Mapped[str] = mapped_column(String(24), default="NEW")
+    status: Mapped[str] = mapped_column(String(24), default="DRAFT")
     status_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     action_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
     manager_approved_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
     parent_item_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     modifier_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    served_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ItemStatusLog(Base):
+    __tablename__ = "item_status_logs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    order_item_id: Mapped[str] = mapped_column(String(36), ForeignKey("order_items.id"), index=True)
+    old_status: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    new_status: Mapped[str] = mapped_column(String(24), nullable=False)
+    changed_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class Payment(Base):

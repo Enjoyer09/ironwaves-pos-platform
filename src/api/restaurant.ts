@@ -120,6 +120,18 @@ export type TableDetailRecord = {
       modifier_json?: string | null;
     }>;
   }>;
+  draft_items?: Array<{
+    id: string;
+    item_name: string;
+    qty: number;
+    price: string;
+    seat_no?: number | null;
+    course_no?: number;
+    status: string;
+    status_reason?: string | null;
+    note?: string | null;
+    modifier_json?: string | null;
+  }>;
 };
 
 const localReservationKey = 'restaurant_reservations';
@@ -344,6 +356,34 @@ export async function act_on_order_item_live(
   });
 }
 
+export async function add_check_draft_item_live(
+  checkId: string,
+  payload: { id?: string; item_name: string; price: string; qty: number; category?: string; is_coffee?: boolean; seat_no?: number | null; course_no?: number; note?: string | null; modifier_json?: string | null },
+) {
+  if (!isBackendEnabled()) {
+    return { ok: true, item_id: uuidv4(), status: 'DRAFT' };
+  }
+  return apiRequest(`/api/v1/restaurant/checks/${encodeURIComponent(checkId)}/draft-items`, {
+    method: 'POST',
+    tenantId: null,
+    body: payload,
+  });
+}
+
+export async function send_check_drafts_live(
+  checkId: string,
+  payload: { sent_by?: string; course_no?: number } = {},
+) {
+  if (!isBackendEnabled()) {
+    return { ok: true, round_id: uuidv4(), round_no: 1, sent_count: 0, check_total: '0.00' };
+  }
+  return apiRequest(`/api/v1/restaurant/checks/${encodeURIComponent(checkId)}/send`, {
+    method: 'POST',
+    tenantId: null,
+    body: payload,
+  });
+}
+
 export async function get_table_detail_live(tenant_id: string, tableId: string): Promise<TableDetailRecord | null> {
   if (!isBackendEnabled()) {
     const row = getDB<any>('tables').find((table) => table.tenant_id === tenant_id && table.id === tableId);
@@ -379,6 +419,7 @@ export async function get_table_detail_live(tenant_id: string, tableId: string):
         tax_amount: '0',
         total: row.total || '0',
       } : null,
+      draft_items: [],
     };
   }
   return apiRequest<TableDetailRecord>(`/api/v1/restaurant/tables/${encodeURIComponent(tableId)}/detail`, { tenantId: null });
