@@ -199,3 +199,72 @@ class TenantOut(BaseModel):
     slug: str
     domain: str
     status: str
+
+
+class FloorPlanCreateIn(BaseModel):
+    name: str
+    width_units: int = 12
+    height_units: int = 8
+    is_active: bool = True
+
+
+class FloorPlanUpdateIn(BaseModel):
+    name: str | None = None
+    width_units: int | None = None
+    height_units: int | None = None
+    is_active: bool | None = None
+
+
+class GuestCreateIn(BaseModel):
+    full_name: str
+    phone: str | None = None
+    email: str | None = None
+    notes: str | None = None
+
+
+class ReservationCreateIn(BaseModel):
+    guest_name: str
+    phone: str | None = None
+    email: str | None = None
+    reservation_at: datetime
+    duration_minutes: int = 90
+    party_size: int = 2
+    special_note: str | None = None
+    assigned_table_id: str | None = None
+
+
+class ReservationUpdateIn(BaseModel):
+    guest_name: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    reservation_at: datetime | None = None
+    duration_minutes: int | None = None
+    party_size: int | None = None
+    special_note: str | None = None
+    assigned_table_id: str | None = None
+    status: str | None = None
+
+
+class ReservationSeatIn(BaseModel):
+    table_id: str
+    guest_count: int | None = None
+    assigned_waiter: str | None = None
+
+
+class TableLayoutUpdateIn(BaseModel):
+    floor_plan_id: str | None = None
+    pos_x: int | None = None
+    pos_y: int | None = None
+    width_units: int | None = None
+    height_units: int | None = None
+    capacity: int | None = None
+    shape: str | None = None
+    status: str | None = None
+
+
+class TableCombineIn(BaseModel):
+    target_table_id: str
+
+
+class TableSplitIn(BaseModel):
+    merged_group_id: str | None = None
