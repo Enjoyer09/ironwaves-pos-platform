@@ -989,9 +989,9 @@ export default function TablesPage() {
               <div className="mt-2 text-xs text-slate-400">
                 {tx(
                   lang,
-                  'Oracle məntiqinə uyğun olaraq masa bir açıq check kimi qalır. Sadəcə neçə qonaq üçün depozit alındığını yazın.',
-                  'По логике Oracle стол остается одним открытым чеком. Просто укажите, за скольких гостей взят депозит.',
-                  'In Oracle-style flow the table stays as one open check. Just enter how many guests paid a deposit.',
+                  'Masa bir açıq check kimi qalır. Sadəcə neçə qonaq üçün depozit alındığını yazın.',
+                  'Стол остается одним открытым чеком. Просто укажите, за скольких гостей взят депозит.',
+                  'The table stays as one open check. Just enter how many guests paid a deposit.',
                 )}
               </div>
               <label className="mt-3 block text-sm text-slate-300">
@@ -1601,7 +1601,7 @@ export default function TablesPage() {
                 {floorPlans.find((row) => row.id === activeFloorId)?.name || tx(lang, 'Main Floor', 'Main Floor', 'Main Floor')}
               </div>
               <div className="mt-1 text-sm text-slate-400">
-                {tx(lang, 'OpenTable tipli floor plan görünüşü. Masaya toxunaraq seating və open check axınına keçin.', 'План зала в стиле OpenTable. Нажмите на стол, чтобы перейти к seating и открытому чеку.', 'OpenTable-style floor plan. Tap a table to continue into seating and open check flow.')}
+                {tx(lang, 'Floor plan görünüşü. Masaya toxunaraq seating və açıq check axınına keçin.', 'План зала. Нажмите на стол, чтобы перейти к seating и открытому чеку.', 'Floor plan view. Tap a table to continue into seating and open check flow.')}
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -1679,6 +1679,7 @@ export default function TablesPage() {
                   }}
                   onClick={() => {
                     if (floorEditMode) return;
+                    if (String(table.status || '').toUpperCase() === 'DIRTY') return;
                     const localTable = tables.find((row) => row.id === table.id);
                     if (localTable?.is_occupied) {
                       setViewTableId(localTable.id);
@@ -1702,6 +1703,24 @@ export default function TablesPage() {
                   </div>
                   {new Decimal(table.check_total || 0).greaterThan(0) && (
                     <div className="mt-2 text-xs font-semibold">{new Decimal(table.check_total || 0).toFixed(2)} ₼</div>
+                  )}
+                  {String(table.status || '').toUpperCase() === 'DIRTY' && (
+                    <button
+                      type="button"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          await update_table_layout_live(table.id, { status: 'AVAILABLE' });
+                          await Promise.all([loadFloorState(activeFloorId), loadData()]);
+                          notify('success', tx(lang, 'Masa təmiz kimi qeyd olundu', 'Стол отмечен как чистый', 'Table marked as clean'));
+                        } catch (error: any) {
+                          notify('error', error?.message || tx(lang, 'Masa təmizlənmədi', 'Стол не очищен', 'Table was not cleaned'));
+                        }
+                      }}
+                      className="mt-2 rounded-lg border border-slate-200/40 bg-slate-100/15 px-2 py-1 text-[11px] font-semibold text-slate-100"
+                    >
+                      {tx(lang, 'Təmizlə', 'Очистить', 'Mark clean')}
+                    </button>
                   )}
                   {floorEditMode && (
                     <div className="mt-2 text-[11px] font-semibold opacity-80">
@@ -1779,6 +1798,7 @@ export default function TablesPage() {
         {tables.map(t => (
           (() => {
             const kitchen = kitchenBadge((t as any).kitchen_status);
+            const isDirtyTable = String((t as any).status || '').toUpperCase() === 'DIRTY';
             const currentBill = Decimal.max(
               new Decimal(t.total || 0).plus(new Decimal(t.total || 0).times(serviceFeePercent).div(100)),
               new Decimal(t.deposit_amount || 0)
@@ -1815,6 +1835,7 @@ export default function TablesPage() {
           <div
             key={t.id}
             onClick={() => {
+              if (isDirtyTable) return;
               if (!t.is_occupied) {
                 setOpenTableId(t.id);
                 setGuestCount(String(Math.max(1, Number(t.guest_count || 1))));
@@ -1823,11 +1844,11 @@ export default function TablesPage() {
               }
               setViewTableId(t.id);
             }}
-            className={`min-h-52 p-6 rounded-3xl border-2 flex flex-col items-center justify-center relative transition-all shadow-sm cursor-pointer ${viewTableId === t.id ? 'ring-2 ring-yellow-300/70 shadow-[0_0_26px_rgba(250,204,21,0.2)]' : ''} ${t.is_occupied ? 'bg-red-900/25 border-red-400/70' : 'bg-slate-800/50 border-slate-600/70 hover:border-yellow-300/60'}`}
+            className={`min-h-52 p-6 rounded-3xl border-2 flex flex-col items-center justify-center relative transition-all shadow-sm ${isDirtyTable ? 'bg-slate-700/40 border-slate-400/60' : t.is_occupied ? 'bg-red-900/25 border-red-400/70 cursor-pointer' : 'bg-slate-800/50 border-slate-600/70 hover:border-yellow-300/60 cursor-pointer'} ${viewTableId === t.id ? 'ring-2 ring-yellow-300/70 shadow-[0_0_26px_rgba(250,204,21,0.2)]' : ''}`}
           >
             <span className="font-bold text-xl text-slate-100">{t.label}</span>
-            <span className={`mt-3 min-h-10 rounded-full px-5 py-2 text-sm font-bold ${t.is_occupied ? 'bg-red-400/20 text-red-200 border border-red-300/50' : 'bg-green-400/20 text-green-200 border border-green-300/50'}`}>
-                {t.is_occupied ? tx(lang, 'Dolu', 'Занято', 'Occupied') : tx(lang, 'Boş', 'Свободно', 'Available')}
+            <span className={`mt-3 min-h-10 rounded-full px-5 py-2 text-sm font-bold ${isDirtyTable ? 'bg-slate-300/20 text-slate-100 border border-slate-300/40' : t.is_occupied ? 'bg-red-400/20 text-red-200 border border-red-300/50' : 'bg-green-400/20 text-green-200 border border-green-300/50'}`}>
+                {isDirtyTable ? tx(lang, 'Təmizlik', 'Уборка', 'Dirty') : t.is_occupied ? tx(lang, 'Dolu', 'Занято', 'Occupied') : tx(lang, 'Boş', 'Свободно', 'Available')}
             </span>
             {t.assigned_to && (
               <span className="mt-2 rounded-full border border-cyan-300/40 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold text-cyan-100">
@@ -1876,6 +1897,23 @@ export default function TablesPage() {
             {!t.is_occupied && ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
               <button onClick={(e) => { e.stopPropagation(); setDeleteTableId(t.id); }} className="absolute top-3 right-3 text-slate-400 hover:text-red-300 transition-colors">
                 <Trash2 size={18}/>
+              </button>
+            )}
+            {isDirtyTable && (
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    await update_table_layout_live(t.id, { status: 'AVAILABLE' });
+                    await Promise.all([loadFloorState(activeFloorId), loadData()]);
+                    notify('success', tx(lang, 'Masa təmiz kimi qeyd olundu', 'Стол отмечен как чистый', 'Table marked as clean'));
+                  } catch (error: any) {
+                    notify('error', error?.message || tx(lang, 'Masa təmizlənmədi', 'Стол не очищен', 'Table was not cleaned'));
+                  }
+                }}
+                className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-2xl border border-slate-200/50 bg-slate-100/15 px-4 py-3 text-sm font-bold text-slate-100"
+              >
+                {tx(lang, 'Təmiz kimi işarələ', 'Отметить чистым', 'Mark clean')}
               </button>
             )}
             {t.is_occupied && (
