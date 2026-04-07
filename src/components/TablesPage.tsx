@@ -45,6 +45,7 @@ export default function TablesPage() {
   const [roundDraft, setRoundDraft] = useState<any[]>([]);
   const [servedItemsMap, setServedItemsMap] = useState<Record<string, Record<string, number>>>({});
   const receiptRef = useRef<HTMLIFrameElement | null>(null);
+  const detailPanelRef = useRef<HTMLDivElement | null>(null);
   const businessProfile = get_business_profile(tenant_id);
   const tenantSettings = get_settings(tenant_id);
   const printSettings = tenantSettings.print_settings || { use_qz: false, printer_name: '' };
@@ -111,6 +112,13 @@ export default function TablesPage() {
 
   useEffect(() => {
     clearRoundComposer();
+  }, [viewTableId]);
+
+  useEffect(() => {
+    if (!viewTableId || !detailPanelRef.current) return;
+    requestAnimationFrame(() => {
+      detailPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   }, [viewTableId]);
 
   useEffect(() => {
@@ -862,9 +870,8 @@ export default function TablesPage() {
       )}
 
       {viewTableId && (
-        <div className="fixed inset-0 z-[130] flex items-end justify-center bg-black/65 p-0 md:items-center md:p-4">
-          <div className="metal-panel w-full max-w-5xl rounded-t-[30px] p-5 md:rounded-2xl">
-            <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-600 md:hidden" />
+        <div ref={detailPanelRef} className="mt-6">
+          <div className="metal-panel w-full rounded-[30px] p-5">
             {(() => {
               const t = tables.find((x) => x.id === viewTableId);
               if (!t) return null;
@@ -1001,37 +1008,15 @@ export default function TablesPage() {
                     ))}
                   </div>
                   <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/35 p-4">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <div className="text-base font-semibold text-slate-100">{tx(lang, 'Bu masa üçün yeni raund əlavə et', 'Добавить новый раунд для этого стола', 'Add a new round for this table')}</div>
-                        <div className="mt-1 text-sm text-slate-400">
-                          {tx(
-                            lang,
-                            'Sistem sizi avtomatik POS-a keçirəcək. Orada bu masa üçün yeni sifariş raundu yığacaqsınız və Masaya Göndər etdikdən sonra raund tarixçəyə düşəcək.',
-                            'Система автоматически переведет вас в POS. Там вы соберете новый раунд для этого стола, и после отправки он появится в истории раундов.',
-                            'The system will switch you to POS automatically. You will build a new order round for this table, and after sending it will appear in the round history.',
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => openTableInPos(t)}
-                        className="neon-btn inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold"
-                      >
-                        <ArrowRightCircle size={20} />
-                        {tx(lang, 'POS-da aç', 'Открыть в POS', 'Open in POS')}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/35 p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div>
-                        <div className="text-base font-semibold text-slate-100">{tx(lang, 'Masa detail içindən birbaşa raund qur', 'Соберите раунд прямо в деталях стола', 'Build a round directly inside the table detail')}</div>
+                        <div className="text-base font-semibold text-slate-100">{tx(lang, 'Seçilmiş masa üçün sifarişləri burada yaz', 'Введите заказ для выбранного стола здесь', 'Write the order for the selected table here')}</div>
                         <div className="mt-1 text-sm text-slate-400">
                           {tx(
                             lang,
-                            'Oracle məntiqinə yaxın olaraq ofisiant burada məhsulları yığa, sonra bir kliklə həmin raundu mətbəxə göndərə bilər.',
-                            'Ближе к логике Oracle: официант может собрать позиции здесь и одним кликом отправить раунд на кухню.',
-                            'Closer to Oracle-style flow: the waiter can build items here and send the round to the kitchen in one click.',
+                            'Popup açılmır. Masanı seçdikdən sonra menyu birbaşa burada açılır və ofisiant məhsulları yığıb həmin raundu mətbəxə göndərir.',
+                            'Без popup. После выбора стола меню открывается прямо здесь, и официант собирает позиции и отправляет раунд на кухню.',
+                            'No popup. After selecting a table, the menu opens right here and the waiter builds the items and sends the round to the kitchen.',
                           )}
                         </div>
                       </div>
@@ -1122,6 +1107,18 @@ export default function TablesPage() {
                           {tx(lang, 'Bu raundu mətbəxə göndər', 'Отправить этот раунд на кухню', 'Send this round to kitchen')}
                         </button>
                       </div>
+                    </div>
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700/60 bg-slate-950/25 px-4 py-3">
+                      <div className="text-sm text-slate-300">
+                        {tx(lang, 'Bu panel əsas masa sifarişi axınıdır. POS yalnız ehtiyat variant kimi qalır.', 'Эта панель теперь основной сценарий заказа по столу. POS остается запасным вариантом.', 'This panel is now the main table-order flow. POS remains only as a fallback.')}
+                      </div>
+                      <button
+                        onClick={() => openTableInPos(t)}
+                        className="neon-btn inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold"
+                      >
+                        <ArrowRightCircle size={18} />
+                        {tx(lang, 'Lazım olsa POS-da aç', 'При необходимости открыть в POS', 'Open in POS if needed')}
+                      </button>
                     </div>
                   </div>
                   <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-4">
@@ -1237,7 +1234,7 @@ export default function TablesPage() {
                     </div>
                   )}
                   <div className="mt-4 flex justify-end gap-2">
-                    <button className="neon-btn rounded-lg px-4 py-2" onClick={() => setViewTableId(null)}>{tx(lang, 'Bağla', 'Закрыть')}</button>
+                    <button className="neon-btn rounded-lg px-4 py-2" onClick={() => setViewTableId(null)}>{tx(lang, 'Paneli gizlət', 'Скрыть панель', 'Hide panel')}</button>
                     {t.is_occupied && (
                       <button
                         className="glossy-gold min-h-12 rounded-xl px-5 py-3 font-semibold"
@@ -1332,7 +1329,7 @@ export default function TablesPage() {
               }
               setViewTableId(t.id);
             }}
-            className={`min-h-52 p-6 rounded-3xl border-2 flex flex-col items-center justify-center relative transition-all shadow-sm cursor-pointer ${t.is_occupied ? 'bg-red-900/25 border-red-400/70' : 'bg-slate-800/50 border-slate-600/70 hover:border-yellow-300/60'}`}
+            className={`min-h-52 p-6 rounded-3xl border-2 flex flex-col items-center justify-center relative transition-all shadow-sm cursor-pointer ${viewTableId === t.id ? 'ring-2 ring-yellow-300/70 shadow-[0_0_26px_rgba(250,204,21,0.2)]' : ''} ${t.is_occupied ? 'bg-red-900/25 border-red-400/70' : 'bg-slate-800/50 border-slate-600/70 hover:border-yellow-300/60'}`}
           >
             <span className="font-bold text-xl text-slate-100">{t.label}</span>
             <span className={`mt-3 min-h-10 rounded-full px-5 py-2 text-sm font-bold ${t.is_occupied ? 'bg-red-400/20 text-red-200 border border-red-300/50' : 'bg-green-400/20 text-green-200 border border-green-300/50'}`}>
