@@ -3,7 +3,7 @@ import { get_tables_live, create_table_live, delete_table_live, open_table_live,
 import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
 import { subscribeTenantRealtime } from '../api/realtime';
-import { create_reservation_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, get_table_detail_live, seat_reservation_live, send_table_round_live, settle_table_check_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
+import { create_reservation_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, get_table_detail_live, seat_reservation_live, send_table_round_live, settle_table_check_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
 import { LayoutGrid, Plus, Trash2, ArrowRightCircle, CalendarClock, Users, MapPinned } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
@@ -51,6 +51,8 @@ export default function TablesPage() {
   const [floorPlans, setFloorPlans] = useState<FloorPlanRecord[]>([]);
   const [activeFloorId, setActiveFloorId] = useState<string>('');
   const [floorTables, setFloorTables] = useState<FloorTableState[]>([]);
+  const [floorEditMode, setFloorEditMode] = useState(false);
+  const [draggingTableId, setDraggingTableId] = useState<string | null>(null);
   const [reservationDate, setReservationDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [reservations, setReservations] = useState<ReservationRecord[]>([]);
   const [showReservationCreate, setShowReservationCreate] = useState(false);
@@ -180,6 +182,15 @@ export default function TablesPage() {
       detailPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }, [viewTableId]);
+
+  useEffect(() => {
+    if (!viewTableId) return;
+    const selected = tables.find((row) => row.id === viewTableId);
+    if (selected && !selected.is_occupied) {
+      setViewTableId(null);
+      setTableDetailRecord(null);
+    }
+  }, [tables, viewTableId]);
 
   useEffect(() => {
     const unsubscribe = subscribeTenantRealtime(tenant_id, (message) => {
@@ -928,7 +939,8 @@ export default function TablesPage() {
                     window.dispatchEvent(new CustomEvent('logs-updated', { detail: { tenant_id, sale_id: result.sale_id, source: 'table' } }));
                     clearServedStateForTable(table.id);
                     setPayTableId(null);
-                    setViewTableId(table.id);
+                    setViewTableId(null);
+                    setTableDetailRecord(null);
                     setPaymentMethod('Nəğd');
                     setSplitCount('2');
                     setSplitParts([]);
@@ -1592,11 +1604,22 @@ export default function TablesPage() {
                 {tx(lang, 'OpenTable tipli floor plan görünüşü. Masaya toxunaraq seating və open check axınına keçin.', 'План зала в стиле OpenTable. Нажмите на стол, чтобы перейти к seating и открытому чеку.', 'OpenTable-style floor plan. Tap a table to continue into seating and open check flow.')}
               </div>
             </div>
-            {floorPlans.length > 1 && (
-              <select className="neon-input min-w-[220px]" value={activeFloorId} onChange={(e) => setActiveFloorId(e.target.value)}>
-                {floorPlans.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-              </select>
-            )}
+            <div className="flex flex-wrap gap-2">
+              {floorPlans.length > 1 && (
+                <select className="neon-input min-w-[220px]" value={activeFloorId} onChange={(e) => setActiveFloorId(e.target.value)}>
+                  {floorPlans.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+                </select>
+              )}
+              {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
+                <button
+                  type="button"
+                  onClick={() => setFloorEditMode((prev) => !prev)}
+                  className={`rounded-full px-4 py-2 text-sm font-semibold ${floorEditMode ? 'bg-cyan-300 text-slate-950' : 'border border-slate-600 bg-slate-800/50 text-slate-200'}`}
+                >
+                  {floorEditMode ? tx(lang, 'Editor açıqdır', 'Редактор включен', 'Editor on') : tx(lang, 'Floor editor', 'Редактор зала', 'Floor editor')}
+                </button>
+              )}
+            </div>
           </div>
           <div className="mb-3 flex flex-wrap gap-2">
             {[
@@ -1616,8 +1639,13 @@ export default function TablesPage() {
               gridTemplateColumns: `repeat(${Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12)}, minmax(0, 1fr))`,
               gridAutoRows: '70px',
             }}
+            onDragOver={(e) => {
+              if (!floorEditMode) return;
+              e.preventDefault();
+            }}
           >
             {floorTables.map((table) => {
+              const maxCols = Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12);
               const statusColors: Record<string, string> = {
                 AVAILABLE: 'bg-emerald-500/15 border-emerald-300/40 text-emerald-100',
                 RESERVED: 'bg-amber-500/15 border-amber-300/40 text-amber-100',
@@ -1629,7 +1657,28 @@ export default function TablesPage() {
                 <button
                   key={table.id}
                   type="button"
+                  draggable={floorEditMode}
+                  onDragStart={() => setDraggingTableId(table.id)}
+                  onDragEnd={() => setDraggingTableId(null)}
+                  onDrop={async (e) => {
+                    if (!floorEditMode || draggingTableId !== table.id) return;
+                    e.preventDefault();
+                    const host = e.currentTarget.parentElement;
+                    if (!host) return;
+                    const rect = host.getBoundingClientRect();
+                    const columnWidth = rect.width / maxCols;
+                    const rowHeight = 70;
+                    const nextX = Math.max(0, Math.min(maxCols - Math.max(1, Number(table.w || 2)), Math.floor((e.clientX - rect.left) / columnWidth)));
+                    const nextY = Math.max(0, Math.floor((e.clientY - rect.top) / rowHeight));
+                    try {
+                      await update_table_layout_live(table.id, { floor_plan_id: activeFloorId, pos_x: nextX, pos_y: nextY });
+                      await loadFloorState(activeFloorId);
+                    } finally {
+                      setDraggingTableId(null);
+                    }
+                  }}
                   onClick={() => {
+                    if (floorEditMode) return;
                     const localTable = tables.find((row) => row.id === table.id);
                     if (localTable?.is_occupied) {
                       setViewTableId(localTable.id);
@@ -1639,7 +1688,7 @@ export default function TablesPage() {
                       setDepositGuestCount('0');
                     }
                   }}
-                  className={`rounded-2xl border p-3 text-left shadow-sm transition hover:scale-[1.01] ${statusColors[String(table.status || 'AVAILABLE').toUpperCase()] || statusColors.AVAILABLE}`}
+                  className={`rounded-2xl border p-3 text-left shadow-sm transition hover:scale-[1.01] ${draggingTableId === table.id ? 'opacity-60' : ''} ${statusColors[String(table.status || 'AVAILABLE').toUpperCase()] || statusColors.AVAILABLE}`}
                   style={{
                     gridColumn: `${Math.max(1, Number(table.x || 0) + 1)} / span ${Math.max(1, Number(table.w || 2))}`,
                     gridRow: `${Math.max(1, Number(table.y || 0) + 1)} / span ${Math.max(1, Number(table.h || 2))}`,
@@ -1653,6 +1702,11 @@ export default function TablesPage() {
                   </div>
                   {new Decimal(table.check_total || 0).greaterThan(0) && (
                     <div className="mt-2 text-xs font-semibold">{new Decimal(table.check_total || 0).toFixed(2)} ₼</div>
+                  )}
+                  {floorEditMode && (
+                    <div className="mt-2 text-[11px] font-semibold opacity-80">
+                      {tx(lang, 'Sürüşdürüb yerləşdir', 'Перетащите для размещения', 'Drag to place')}
+                    </div>
                   )}
                 </button>
               );
