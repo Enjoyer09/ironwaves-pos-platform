@@ -22,7 +22,7 @@ export default function TablesPage() {
   const [deleteTableId, setDeleteTableId] = useState<string | null>(null);
   const [openTableId, setOpenTableId] = useState<string | null>(null);
   const [guestCount, setGuestCount] = useState('1');
-  const [depositSelections, setDepositSelections] = useState<boolean[]>([false]);
+  const [depositGuestCount, setDepositGuestCount] = useState('0');
   const [showDeleteAuth, setShowDeleteAuth] = useState(false);
   const [deleteAdminPass, setDeleteAdminPass] = useState('');
   const [payTableId, setPayTableId] = useState<string | null>(null);
@@ -45,12 +45,6 @@ export default function TablesPage() {
   const serviceFeePercent = new Decimal(tenantSettings.service_fee_percent || 0);
 
   const formatDisplayId = (id: string) => (id ? id.split('-')[0].toUpperCase() : '-');
-  const deriveConfiguredSeatLabels = (table: any) => Array.from({ length: Math.max(1, Number(table?.guest_count || 1)) }, (_, idx) => `Adam-${idx + 1}`);
-  const deriveDepositSeatLabels = (table: any) => {
-    const explicit = Array.isArray(table?.deposit_seat_labels) ? table.deposit_seat_labels.map((label: any) => String(label || '').trim()).filter(Boolean) : [];
-    if (explicit.length > 0) return explicit;
-    return deriveConfiguredSeatLabels(table).slice(0, Math.max(0, Number(table?.deposit_guest_count || 0)));
-  };
   const kitchenBadge = (status?: string | null) => {
     switch (String(status || '').toUpperCase()) {
       case 'NEW':
@@ -78,11 +72,6 @@ export default function TablesPage() {
       window.removeEventListener('offline', onOffline);
     };
   }, []);
-
-  useEffect(() => {
-    const count = Math.max(1, Number(guestCount || 1));
-    setDepositSelections((prev) => Array.from({ length: count }, (_, idx) => Boolean(prev[idx])));
-  }, [guestCount]);
 
   useEffect(() => {
     const handleTableOrderSent = async (event: Event) => {
@@ -121,14 +110,12 @@ export default function TablesPage() {
   const handleOpenTable = async () => {
     if (!openTableId) return;
     const normalizedGuestCount = Math.max(1, Number(guestCount || 1));
-    const depositSeatLabels = Array.from({ length: normalizedGuestCount }, (_, idx) => idx)
-      .filter((idx) => Boolean(depositSelections[idx]))
-      .map((idx) => `Adam-${idx + 1}`);
-    const depositGuestCount = depositSeatLabels.length;
+    const normalizedDepositGuestCount = Math.max(0, Math.min(normalizedGuestCount, Number(depositGuestCount || 0)));
+    const depositSeatLabels = Array.from({ length: normalizedDepositGuestCount }, (_, idx) => `Adam-${idx + 1}`);
     try {
       await open_table_live(openTableId, {
         guest_count: normalizedGuestCount,
-        deposit_guest_count: depositGuestCount,
+        deposit_guest_count: normalizedDepositGuestCount,
         deposit_seat_labels: depositSeatLabels,
         opened_by: user?.username || 'staff',
       });
@@ -139,7 +126,7 @@ export default function TablesPage() {
       const currentTableId = openTableId;
       setOpenTableId(null);
       setGuestCount('1');
-      setDepositSelections([false]);
+      setDepositGuestCount('0');
       await loadData();
       setViewTableId(currentTableId);
     } catch (e: any) {
@@ -708,28 +695,31 @@ export default function TablesPage() {
               </label>
             </div>
             <div className="mt-4 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3">
-              <div className="text-sm font-semibold text-slate-100">{tx(lang, 'Depozit seçimi', 'Выбор депозита', 'Deposit selection')}</div>
-              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {depositSelections.map((checked, idx) => (
-                  <label key={idx} className="flex items-center justify-between rounded-lg border border-slate-700/60 bg-slate-900/50 px-3 py-2 text-sm text-slate-200">
-                    <span>{`Adam-${idx + 1}`}</span>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(e) => {
-                        const next = [...depositSelections];
-                        next[idx] = e.target.checked;
-                        setDepositSelections(next);
-                      }}
-                    />
-                  </label>
-                ))}
+              <div className="text-sm font-semibold text-slate-100">{tx(lang, 'Depozit qaydası', 'Правило депозита', 'Deposit rule')}</div>
+              <div className="mt-2 text-xs text-slate-400">
+                {tx(
+                  lang,
+                  'Oracle məntiqinə uyğun olaraq masa bir açıq check kimi qalır. Sadəcə neçə qonaq üçün depozit alındığını yazın.',
+                  'По логике Oracle стол остается одним открытым чеком. Просто укажите, за скольких гостей взят депозит.',
+                  'In Oracle-style flow the table stays as one open check. Just enter how many guests paid a deposit.',
+                )}
               </div>
+              <label className="mt-3 block text-sm text-slate-300">
+                {tx(lang, 'Depozitli qonaq sayı', 'Количество гостей с депозитом', 'Deposited guest count')}
+                <input
+                  className="neon-input mt-1"
+                  type="number"
+                  min={0}
+                  max={Math.max(1, Number(guestCount || 1))}
+                  value={depositGuestCount}
+                  onChange={(e) => setDepositGuestCount(String(Math.max(0, Math.min(Math.max(1, Number(guestCount || 1)), Number(e.target.value || 0)))))}
+                />
+              </label>
               <div className="mt-3 text-xs text-slate-400">
                 {tx(lang, 'Nəfər başı depozit', 'Депозит с человека', 'Deposit per guest')}: {depositPerGuest.toFixed(2)} ₼
               </div>
               <div className="mt-1 text-sm font-semibold text-emerald-200">
-                {tx(lang, 'Toplam depozit', 'Итоговый депозит', 'Total deposit')}: {depositPerGuest.times(depositSelections.filter(Boolean).length).toFixed(2)} ₼
+                {tx(lang, 'Toplam depozit', 'Итоговый депозит', 'Total deposit')}: {depositPerGuest.times(Math.max(0, Number(depositGuestCount || 0))).toFixed(2)} ₼
               </div>
             </div>
             <div className="mt-4 flex justify-end gap-2">
@@ -738,7 +728,7 @@ export default function TablesPage() {
                 onClick={() => {
                   setOpenTableId(null);
                   setGuestCount('1');
-                  setDepositSelections([false]);
+                  setDepositGuestCount('0');
                 }}
               >
                 {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
@@ -772,6 +762,12 @@ export default function TablesPage() {
                 .flatMap((row) => Array.isArray(row.items) ? row.items : [])
                 .filter((row: any) => String(row.action || '').toUpperCase() === 'CANCEL');
               const otherTables = tables.filter((row) => row.id !== t.id);
+              const rounds = [...activeKitchenOrders]
+                .sort((a, b) => new Date(String(a.created_at || 0)).getTime() - new Date(String(b.created_at || 0)).getTime())
+                .map((row, idx) => ({
+                  ...row,
+                  round_no: Number((row as any).round_no || idx + 1),
+                }));
               return (
                 <>
                   <h3 className="text-lg font-bold text-slate-100">{t.label}</h3>
@@ -792,10 +788,50 @@ export default function TablesPage() {
                   </div>
                   <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/35 p-3">
                     <div className="rounded-lg border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-300">
-                      <div className="font-semibold text-slate-100">{tx(lang, 'Masa sifarişləri', 'Заказы стола', 'Table orders')}</div>
+                      <div className="font-semibold text-slate-100">{tx(lang, 'Açıq check və sifarişlər', 'Открытый чек и заказы', 'Open check and orders')}</div>
                       <div className="mt-1 text-xs text-slate-400">
-                        {tx(lang, 'Bu masanın bütün məhsulları burada bir yerdə görünür. Artıq ayrıca adam/seat bölünməsi yoxdur.', 'Все позиции этого стола показаны вместе. Деление по гостям больше не используется.', 'All table items are shown together. Per-person seat splitting is no longer used.')}
+                        {tx(lang, 'Bu masa Oracle məntiqinə yaxın olaraq tək açıq check kimi işləyir. Mətbəxə hər əlavə göndəriş ayrıca raund kimi tarixçədə görünür.', 'Этот стол работает как один открытый чек в логике Oracle. Каждая отправка на кухню отображается как отдельный раунд.', 'This table behaves as a single open check, closer to Oracle-style flow. Every send to kitchen appears as a separate round in history.')}
                       </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/35 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-100">{tx(lang, 'Raund tarixçəsi', 'История раундов', 'Round history')}</div>
+                        <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Mətbəxə göndərilən hər əlavə sifariş ayrıca raund kimi görünür.', 'Каждая дополнительная отправка на кухню показывается отдельным раундом.', 'Each additional send to kitchen appears as a separate round.')}</div>
+                      </div>
+                      <div className="rounded-full border border-slate-700/70 bg-slate-950/40 px-3 py-1 text-xs font-semibold text-slate-200">
+                        {tx(lang, 'Növbəti raund', 'Следующий раунд', 'Next round')}: {rounds.length + 1}
+                      </div>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {rounds.length === 0 ? (
+                        <div className="rounded-lg bg-slate-950/30 px-3 py-3 text-sm text-slate-400">{tx(lang, 'Hələ mətbəxə göndərilmiş raund yoxdur', 'Пока нет отправленных на кухню раундов', 'No rounds have been sent to the kitchen yet')}</div>
+                      ) : (
+                        rounds.map((round: any) => {
+                          const badge = kitchenBadge(round.status);
+                          return (
+                            <div key={round.id} className="rounded-xl border border-slate-700/60 bg-slate-950/30 px-3 py-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="text-sm font-semibold text-slate-100">
+                                  {tx(lang, 'Raund', 'Раунд', 'Round')} {round.round_no}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {badge ? <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${badge.className}`}>{badge.label}</span> : null}
+                                  <span className="text-[11px] text-slate-400">{new Date(round.created_at).toLocaleTimeString(lang === 'ru' ? 'ru-RU' : 'az-AZ', { hour: '2-digit', minute: '2-digit' })}</span>
+                                </div>
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {(Array.isArray(round.items) ? round.items : []).map((row: any, idx: number) => (
+                                  <div key={`${round.id}_${idx}`} className="rounded-lg bg-black/20 px-3 py-2 text-xs text-slate-200">
+                                    {row.qty}x {row.item_name}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
                   </div>
                   <div className="mt-3 max-h-72 overflow-auto rounded-lg border border-slate-700/70 bg-slate-900/40 p-3">
@@ -836,13 +872,13 @@ export default function TablesPage() {
                   <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/35 p-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div>
-                        <div className="text-base font-semibold text-slate-100">{tx(lang, 'Bu masa üçün sifarişi POS ekranında vur', 'Добавляйте заказ для этого стола через POS', 'Add this table order in POS')}</div>
+                        <div className="text-base font-semibold text-slate-100">{tx(lang, 'Bu masa üçün yeni raund əlavə et', 'Добавить новый раунд для этого стола', 'Add a new round for this table')}</div>
                         <div className="mt-1 text-sm text-slate-400">
                           {tx(
                             lang,
-                            'Sistem sizi avtomatik POS-a keçirəcək. Orada “bu seçim Masa üçündür” bildirişi çıxacaq və seçdiyiniz item-lər Masaya Göndər ilə buraya düşəcək.',
-                            'Система автоматически переведет вас в POS. Там появится заметка, что заказ идет на этот стол, и позиции после отправки на кухню вернутся сюда.',
-                            'The system will switch you to POS automatically. You will see a notice that the order is for this table, and sent items will appear here after Send to Kitchen.',
+                            'Sistem sizi avtomatik POS-a keçirəcək. Orada bu masa üçün yeni sifariş raundu yığacaqsınız və Masaya Göndər etdikdən sonra raund tarixçəyə düşəcək.',
+                            'Система автоматически переведет вас в POS. Там вы соберете новый раунд для этого стола, и после отправки он появится в истории раундов.',
+                            'The system will switch you to POS automatically. You will build a new order round for this table, and after sending it will appear in the round history.',
                           )}
                         </div>
                       </div>
@@ -851,7 +887,7 @@ export default function TablesPage() {
                         className="glossy-gold inline-flex min-h-14 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold"
                       >
                         <ArrowRightCircle size={20} />
-                        {tx(lang, 'POS-da sifariş yaz', 'Открыть POS для стола', 'Open in POS')}
+                        {tx(lang, 'Yeni raund əlavə et', 'Добавить раунд', 'Add new round')}
                       </button>
                     </div>
                   </div>
