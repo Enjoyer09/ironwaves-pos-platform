@@ -1,9 +1,9 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { get_tables_live, create_table_live, delete_table_live, open_table_live, transfer_table_live, merge_tables_live, revise_table_items_live } from '../api/tables';
+import { get_tables_live, create_table_live, delete_table_live, open_table_live, transfer_table_live, revise_table_items_live } from '../api/tables';
 import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
 import { subscribeTenantRealtime } from '../api/realtime';
-import { create_reservation_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, get_table_detail_live, seat_reservation_live, send_table_round_live, settle_table_check_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
+import { combine_tables_live, create_reservation_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, get_table_detail_live, seat_reservation_live, send_table_round_live, settle_table_check_live, split_table_group_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
 import { LayoutGrid, Plus, Trash2, ArrowRightCircle, CalendarClock, Users, MapPinned } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
@@ -53,6 +53,7 @@ export default function TablesPage() {
   const [floorTables, setFloorTables] = useState<FloorTableState[]>([]);
   const [floorEditMode, setFloorEditMode] = useState(false);
   const [draggingTableId, setDraggingTableId] = useState<string | null>(null);
+  const [selectedFloorTableId, setSelectedFloorTableId] = useState<string | null>(null);
   const [reservationDate, setReservationDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [reservations, setReservations] = useState<ReservationRecord[]>([]);
   const [showReservationCreate, setShowReservationCreate] = useState(false);
@@ -134,6 +135,46 @@ export default function TablesPage() {
     [floorTables],
   );
 
+  const selectedFloorTable = useMemo(
+    () => floorTables.find((row) => row.id === selectedFloorTableId) || null,
+    [floorTables, selectedFloorTableId],
+  );
+
+  const reservationTimeline = useMemo(() => {
+    const hourStart = 8;
+    const hourEnd = 24;
+    const minuteHeight = 1.25;
+    const sorted = [...reservations].sort((a, b) => a.reservation_at.localeCompare(b.reservation_at));
+    const laneEnds: number[] = [];
+    const entries = sorted.map((reservation) => {
+      const startAt = new Date(reservation.reservation_at);
+      const startMinutes = startAt.getHours() * 60 + startAt.getMinutes();
+      const duration = Math.max(30, Number(reservation.duration_minutes || 90));
+      let lane = laneEnds.findIndex((end) => startMinutes >= end);
+      if (lane < 0) {
+        lane = laneEnds.length;
+        laneEnds.push(0);
+      }
+      laneEnds[lane] = startMinutes + duration;
+      return {
+        reservation,
+        lane,
+        startMinutes,
+        duration,
+        top: Math.max(0, startMinutes - hourStart * 60) * minuteHeight,
+        height: Math.max(62, duration * minuteHeight),
+      };
+    });
+    return {
+      hourStart,
+      hourEnd,
+      minuteHeight,
+      lanes: Math.max(1, laneEnds.length),
+      entries,
+      totalHeight: (hourEnd - hourStart) * 60 * minuteHeight,
+    };
+  }, [reservations]);
+
   useEffect(() => {
     void loadData();
   }, [tenant_id]);
@@ -152,6 +193,19 @@ export default function TablesPage() {
     if (!activeFloorId) return;
     void loadFloorState(activeFloorId);
   }, [activeFloorId]);
+
+  useEffect(() => {
+    if (!floorEditMode) {
+      setSelectedFloorTableId(null);
+    }
+  }, [floorEditMode]);
+
+  useEffect(() => {
+    if (!selectedFloorTableId) return;
+    if (!floorTables.some((row) => row.id === selectedFloorTableId)) {
+      setSelectedFloorTableId(null);
+    }
+  }, [floorTables, selectedFloorTableId]);
 
   useEffect(() => {
     const onOnline = () => setIsOnline(true);
@@ -270,6 +324,11 @@ export default function TablesPage() {
     const state = await get_floor_state_live(tenant_id, floorId).catch(() => null);
     if (!state) return;
     setFloorTables(Array.isArray(state.tables) ? state.tables : []);
+  };
+
+  const persistFloorLayout = async (tableId: string, payload: any) => {
+    await update_table_layout_live(tableId, payload);
+    await Promise.all([loadFloorState(activeFloorId), loadData()]);
   };
 
   const addMenuItemToRound = (item: any) => {
@@ -431,6 +490,28 @@ export default function TablesPage() {
       await Promise.all([loadRestaurantData(), activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(), loadData()]);
     } catch (e: any) {
       notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message);
+    }
+  };
+
+  const handleCombineTables = async (sourceTableId: string, targetTableId: string) => {
+    if (!targetTableId) return;
+    try {
+      await combine_tables_live(sourceTableId, targetTableId);
+      notify('success', tx(lang, 'Masalar birləşdirildi', 'Столы объединены', 'Tables combined'));
+      setMergeTargetId('');
+      await Promise.all([activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(), loadData()]);
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Masalar birləşdirilmədi', 'Столы не объединены', 'Tables were not combined'));
+    }
+  };
+
+  const handleSplitTables = async (tableId: string, mergedGroupId?: string | null) => {
+    try {
+      await split_table_group_live(tableId, mergedGroupId || null);
+      notify('success', tx(lang, 'Masalar ayrıldı', 'Столы разделены', 'Tables split'));
+      await Promise.all([activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(), loadData()]);
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Masalar ayrılmadı', 'Столы не разделены', 'Tables were not split'));
     }
   };
 
@@ -1508,59 +1589,63 @@ export default function TablesPage() {
                   )}
                   {tableWorkspaceTab === 'ops' && t.is_occupied && (
                     <div className="mt-4 grid gap-3 rounded-lg border border-slate-700/70 bg-slate-900/40 p-3">
-                      <div>
-                        <div className="mb-1 text-xs font-semibold text-slate-400">{tx(lang, 'Masanı köçür', 'Перенести стол', 'Transfer table')}</div>
-                        <div className="flex gap-2">
-                          <select className="neon-input flex-1" value={transferTargetId} onChange={(e) => setTransferTargetId(e.target.value)}>
-                            <option value="">{tx(lang, 'Boş masa seçin', 'Выберите свободный стол', 'Select empty table')}</option>
-                            {otherTables.filter((row) => !row.is_occupied).map((row) => (
-                              <option key={row.id} value={row.id}>{row.label}</option>
-                            ))}
-                          </select>
-                          <button
-                            className="rounded-lg border border-blue-300/40 bg-blue-500/15 px-3 py-2 text-sm font-semibold text-blue-100"
-                            onClick={async () => {
-                              if (!transferTargetId) return;
-                              try {
-                                await transfer_table_live(t.id, transferTargetId, user?.username || 'staff');
-                                notify('success', tx(lang, 'Masa köçürüldü', 'Стол перенесен', 'Table transferred'));
-                                setTransferTargetId('');
-                                setViewTableId(null);
-                                await loadData();
-                              } catch (e: any) {
-                                notify('error', e.message);
-                              }
-                            }}
-                          >
-                            {tx(lang, 'Köçür', 'Перенести', 'Transfer')}
-                          </button>
+                      <div className="grid gap-3 lg:grid-cols-3">
+                        <div className="rounded-xl border border-blue-300/20 bg-blue-500/10 p-3">
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">{tx(lang, 'Masanı köçür', 'Перенести стол', 'Transfer table')}</div>
+                          <div className="text-xs text-slate-300">{tx(lang, 'Açıq check-i başqa boş masaya keçir', 'Переносит открытый чек на другой свободный стол', 'Move the open check to another empty table')}</div>
+                          <div className="mt-3 flex gap-2">
+                            <select className="neon-input flex-1" value={transferTargetId} onChange={(e) => setTransferTargetId(e.target.value)}>
+                              <option value="">{tx(lang, 'Boş masa seçin', 'Выберите свободный стол', 'Select empty table')}</option>
+                              {otherTables.filter((row) => !row.is_occupied).map((row) => (
+                                <option key={row.id} value={row.id}>{row.label}</option>
+                              ))}
+                            </select>
+                            <button
+                              className="rounded-lg border border-blue-300/40 bg-blue-500/15 px-3 py-2 text-sm font-semibold text-blue-100"
+                              onClick={async () => {
+                                if (!transferTargetId) return;
+                                try {
+                                  await transfer_table_live(t.id, transferTargetId, user?.username || 'staff');
+                                  notify('success', tx(lang, 'Masa köçürüldü', 'Стол перенесен', 'Table transferred'));
+                                  setTransferTargetId('');
+                                  setViewTableId(null);
+                                  await loadData();
+                                } catch (e: any) {
+                                  notify('error', e.message);
+                                }
+                              }}
+                            >
+                              {tx(lang, 'Köçür', 'Перенести', 'Transfer')}
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                      <div>
-                        <div className="mb-1 text-xs font-semibold text-slate-400">{tx(lang, 'Masaları birləşdir', 'Объединить столы', 'Merge tables')}</div>
-                        <div className="flex gap-2">
-                          <select className="neon-input flex-1" value={mergeTargetId} onChange={(e) => setMergeTargetId(e.target.value)}>
-                            <option value="">{tx(lang, 'Hədəf masa seçin', 'Выберите целевой стол', 'Select target table')}</option>
-                            {otherTables.map((row) => (
-                              <option key={row.id} value={row.id}>{row.label}{row.is_occupied ? ` (${tx(lang, 'dolu', 'занят', 'occupied')})` : ''}</option>
-                            ))}
-                          </select>
+                        <div className="rounded-xl border border-amber-300/20 bg-amber-500/10 p-3">
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-amber-200">{tx(lang, 'Masaları birləşdir', 'Объединить столы', 'Combine tables')}</div>
+                          <div className="text-xs text-slate-300">{tx(lang, 'Yanaşı masaları bir check altında birləşdir', 'Объединяет соседние столы под одним чеком', 'Combine nearby tables under one check')}</div>
+                          <div className="mt-3 flex gap-2">
+                            <select className="neon-input flex-1" value={mergeTargetId} onChange={(e) => setMergeTargetId(e.target.value)}>
+                              <option value="">{tx(lang, 'Hədəf masa seçin', 'Выберите целевой стол', 'Select target table')}</option>
+                              {otherTables.map((row) => (
+                                <option key={row.id} value={row.id}>{row.label}{row.is_occupied ? ` (${tx(lang, 'dolu', 'занят', 'occupied')})` : ''}</option>
+                              ))}
+                            </select>
+                            <button
+                              className="rounded-lg border border-amber-300/40 bg-amber-500/15 px-3 py-2 text-sm font-semibold text-amber-100"
+                              onClick={() => { void handleCombineTables(t.id, mergeTargetId); }}
+                            >
+                              {tx(lang, 'Birləşdir', 'Объединить', 'Combine')}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-violet-300/20 bg-violet-500/10 p-3">
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-violet-200">{tx(lang, 'Masanı ayır', 'Разделить столы', 'Split tables')}</div>
+                          <div className="text-xs text-slate-300">{t.merged_group_id ? tx(lang, 'Bu birləşmiş qrupu yenidən ayrıca masalara ayırır', 'Разделяет объединенную группу обратно на отдельные столы', 'Split the merged group back into separate tables') : tx(lang, 'Masa hələ birləşdirilməyib', 'Стол еще не объединен', 'This table is not merged yet')}</div>
                           <button
-                            className="rounded-lg border border-amber-300/40 bg-amber-500/15 px-3 py-2 text-sm font-semibold text-amber-100"
-                            onClick={async () => {
-                              if (!mergeTargetId) return;
-                              try {
-                                await merge_tables_live(t.id, mergeTargetId, user?.username || 'staff');
-                                notify('success', tx(lang, 'Masalar birləşdirildi', 'Столы объединены', 'Tables merged'));
-                                setMergeTargetId('');
-                                setViewTableId(null);
-                                await loadData();
-                              } catch (e: any) {
-                                notify('error', e.message);
-                              }
-                            }}
+                            className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-violet-300/40 bg-violet-500/15 px-3 py-2 text-sm font-semibold text-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={!t.merged_group_id}
+                            onClick={() => { void handleSplitTables(t.id, (t as any).merged_group_id || null); }}
                           >
-                            {tx(lang, 'Birləşdir', 'Объединить', 'Merge')}
+                            {tx(lang, 'Ayır', 'Разделить', 'Split')}
                           </button>
                         </div>
                       </div>
@@ -1660,6 +1745,49 @@ export default function TablesPage() {
               )}
             </div>
           </div>
+          {floorEditMode && selectedFloorTable && (
+            <div className="mb-3 rounded-2xl border border-cyan-300/20 bg-cyan-500/10 p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="text-sm font-bold text-cyan-100">
+                    {tx(lang, 'Floor editor: seçilmiş masa', 'Редактор зала: выбранный стол', 'Floor editor: selected table')} · {selectedFloorTable.label}
+                  </div>
+                  <div className="mt-1 text-xs text-cyan-200/80">
+                    {tx(lang, 'Ölçü, forma və tutumu buradan dəyişin. Küncdəki handle-lər ilə sürətli resize də edə bilərsiniz.', 'Меняйте размер, форму и вместимость здесь. Быстрый resize доступен через handle в углах.', 'Change size, shape, and capacity here. You can also resize quickly with the corner handles.')}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    className="neon-input min-w-[150px]"
+                    value={String(selectedFloorTable.shape || 'rectangle')}
+                    onChange={(e) => { void persistFloorLayout(selectedFloorTable.id, { shape: e.target.value }); }}
+                  >
+                    <option value="rectangle">{tx(lang, 'Düzbucaqlı', 'Прямоугольник', 'Rectangle')}</option>
+                    <option value="square">{tx(lang, 'Kvadrat', 'Квадрат', 'Square')}</option>
+                    <option value="circle">{tx(lang, 'Dairəvi', 'Круглый', 'Circle')}</option>
+                  </select>
+                  <div className="flex items-center gap-1 rounded-xl border border-slate-600 bg-slate-900/40 px-2 py-1 text-xs text-slate-200">
+                    <span>{tx(lang, 'En', 'Ширина', 'Width')}</span>
+                    <button type="button" className="rounded-md border border-slate-600 px-2 py-1" onClick={() => { void persistFloorLayout(selectedFloorTable.id, { width_units: Math.max(1, Number(selectedFloorTable.w || 1) - 1) }); }}>-</button>
+                    <span className="min-w-6 text-center font-semibold">{selectedFloorTable.w}</span>
+                    <button type="button" className="rounded-md border border-slate-600 px-2 py-1" onClick={() => { void persistFloorLayout(selectedFloorTable.id, { width_units: Math.min(6, Number(selectedFloorTable.w || 1) + 1) }); }}>+</button>
+                  </div>
+                  <div className="flex items-center gap-1 rounded-xl border border-slate-600 bg-slate-900/40 px-2 py-1 text-xs text-slate-200">
+                    <span>{tx(lang, 'Hündürlük', 'Высота', 'Height')}</span>
+                    <button type="button" className="rounded-md border border-slate-600 px-2 py-1" onClick={() => { void persistFloorLayout(selectedFloorTable.id, { height_units: Math.max(1, Number(selectedFloorTable.h || 1) - 1) }); }}>-</button>
+                    <span className="min-w-6 text-center font-semibold">{selectedFloorTable.h}</span>
+                    <button type="button" className="rounded-md border border-slate-600 px-2 py-1" onClick={() => { void persistFloorLayout(selectedFloorTable.id, { height_units: Math.min(6, Number(selectedFloorTable.h || 1) + 1) }); }}>+</button>
+                  </div>
+                  <div className="flex items-center gap-1 rounded-xl border border-slate-600 bg-slate-900/40 px-2 py-1 text-xs text-slate-200">
+                    <span>{tx(lang, 'Tutum', 'Вместимость', 'Capacity')}</span>
+                    <button type="button" className="rounded-md border border-slate-600 px-2 py-1" onClick={() => { void persistFloorLayout(selectedFloorTable.id, { capacity: Math.max(1, Number(selectedFloorTable.capacity || 1) - 1) }); }}>-</button>
+                    <span className="min-w-6 text-center font-semibold">{selectedFloorTable.capacity}</span>
+                    <button type="button" className="rounded-md border border-slate-600 px-2 py-1" onClick={() => { void persistFloorLayout(selectedFloorTable.id, { capacity: Math.min(20, Number(selectedFloorTable.capacity || 1) + 1) }); }}>+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="mb-3 flex flex-wrap gap-2">
             {[
               ['AVAILABLE', tx(lang, 'Boş', 'Свободно', 'Available'), 'border-emerald-300/40 bg-emerald-500/10 text-emerald-100'],
@@ -1717,7 +1845,10 @@ export default function TablesPage() {
                     }
                   }}
                   onClick={() => {
-                    if (floorEditMode) return;
+                    if (floorEditMode) {
+                      setSelectedFloorTableId(table.id);
+                      return;
+                    }
                     if (String(table.status || '').toUpperCase() === 'DIRTY') return;
                     if (String(table.status || '').toUpperCase() === 'RESERVED') {
                       notify(
@@ -1740,7 +1871,7 @@ export default function TablesPage() {
                       setDepositGuestCount('0');
                     }
                   }}
-                  className={`rounded-2xl border p-3 text-left shadow-sm transition hover:scale-[1.01] ${draggingTableId === table.id ? 'opacity-60' : ''} ${statusColors[String(table.status || 'AVAILABLE').toUpperCase()] || statusColors.AVAILABLE}`}
+                  className={`border p-3 text-left shadow-sm transition hover:scale-[1.01] ${String(table.shape || '').toLowerCase() === 'circle' ? 'rounded-[999px]' : String(table.shape || '').toLowerCase() === 'square' ? 'rounded-xl' : 'rounded-2xl'} ${draggingTableId === table.id ? 'opacity-60' : ''} ${selectedFloorTableId === table.id ? 'ring-2 ring-cyan-300/80' : ''} ${statusColors[String(table.status || 'AVAILABLE').toUpperCase()] || statusColors.AVAILABLE}`}
                   style={{
                     gridColumn: `${Math.max(1, Number(table.x || 0) + 1)} / span ${Math.max(1, Number(table.w || 2))}`,
                     gridRow: `${Math.max(1, Number(table.y || 0) + 1)} / span ${Math.max(1, Number(table.h || 2))}`,
@@ -1752,6 +1883,11 @@ export default function TablesPage() {
                     <Users size={12} className="mr-1 inline" />
                     {Number(table.guest_count || 0)} / {Number(table.capacity || 0)}
                   </div>
+                  {table.merged_group_id ? (
+                    <div className="mt-2 rounded-full border border-violet-300/40 bg-violet-500/15 px-2 py-1 text-[11px] font-semibold text-violet-100">
+                      {tx(lang, 'Birləşmiş qrup', 'Объединенная группа', 'Merged group')}
+                    </div>
+                  ) : null}
                   {new Decimal(table.check_total || 0).greaterThan(0) && (
                     <div className="mt-2 text-xs font-semibold">{new Decimal(table.check_total || 0).toFixed(2)} ₼</div>
                   )}
@@ -1774,9 +1910,53 @@ export default function TablesPage() {
                     </button>
                   )}
                   {floorEditMode && (
-                    <div className="mt-2 text-[11px] font-semibold opacity-80">
-                      {tx(lang, 'Sürüşdürüb yerləşdir', 'Перетащите для размещения', 'Drag to place')}
-                    </div>
+                    <>
+                      <div className="mt-2 text-[11px] font-semibold opacity-80">
+                        {tx(lang, 'Sürüşdürüb yerləşdir', 'Перетащите для размещения', 'Drag to place')}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void persistFloorLayout(table.id, { width_units: Math.max(1, Number(table.w || 1) - 1) });
+                          }}
+                          className="rounded-md border border-slate-300/30 bg-black/20 px-2 py-1 text-[10px] font-semibold text-slate-100"
+                        >
+                          W-
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void persistFloorLayout(table.id, { width_units: Math.min(6, Number(table.w || 1) + 1) });
+                          }}
+                          className="rounded-md border border-slate-300/30 bg-black/20 px-2 py-1 text-[10px] font-semibold text-slate-100"
+                        >
+                          W+
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void persistFloorLayout(table.id, { height_units: Math.max(1, Number(table.h || 1) - 1) });
+                          }}
+                          className="rounded-md border border-slate-300/30 bg-black/20 px-2 py-1 text-[10px] font-semibold text-slate-100"
+                        >
+                          H-
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void persistFloorLayout(table.id, { height_units: Math.min(6, Number(table.h || 1) + 1) });
+                          }}
+                          className="rounded-md border border-slate-300/30 bg-black/20 px-2 py-1 text-[10px] font-semibold text-slate-100"
+                        >
+                          H+
+                        </button>
+                      </div>
+                    </>
                   )}
                 </button>
               );
@@ -1798,51 +1978,87 @@ export default function TablesPage() {
               </button>
             </div>
           </div>
-          <div className="space-y-3">
-            {reservations.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-slate-700/70 px-4 py-6 text-center text-sm text-slate-400">
+          <div className="overflow-auto rounded-2xl border border-slate-700/60 bg-slate-950/30">
+            {reservations.length === 0 ? (
+              <div className="px-4 py-8 text-center text-sm text-slate-400">
                 {tx(lang, 'Bu gün üçün rezervasiya yoxdur', 'На этот день броней нет', 'No reservations for this day')}
               </div>
-            )}
-            {reservations.map((reservation) => {
-              const availableTables = floorTables.filter((row) => String(row.status).toUpperCase() === 'AVAILABLE');
-              return (
-                <div key={reservation.id} className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <div className="font-semibold text-slate-100">{reservation.guest?.full_name || tx(lang, 'Adsız qonaq', 'Гость без имени', 'Guest without name')}</div>
-                      <div className="mt-1 text-sm text-slate-400">
-                        {new Date(reservation.reservation_at).toLocaleTimeString(lang === 'ru' ? 'ru-RU' : 'az-AZ', { hour: '2-digit', minute: '2-digit' })}
-                        {' · '}
-                        {reservation.party_size} {tx(lang, 'nəfər', 'гостя', 'guests')}
-                        {reservation.special_note ? ` · ${reservation.special_note}` : ''}
-                        {reservation.assigned_table_id ? ` · ${tx(lang, 'Masa', 'Стол', 'Table')}: ${floorTables.find((table) => table.id === reservation.assigned_table_id)?.label || reservation.assigned_table_id}` : ''}
-                      </div>
+            ) : (
+              <div className="flex min-w-[980px]">
+                <div className="w-24 shrink-0 border-r border-slate-800/80 bg-slate-950/60">
+                  {Array.from({ length: reservationTimeline.hourEnd - reservationTimeline.hourStart + 1 }, (_, idx) => reservationTimeline.hourStart + idx).map((hour) => (
+                    <div key={hour} className="h-[75px] border-b border-slate-800/70 px-3 py-2 text-xs font-semibold text-slate-400">
+                      {String(hour).padStart(2, '0')}:00
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full border border-slate-600 bg-slate-800/50 px-3 py-1 text-xs font-semibold text-slate-200">{reservation.status}</span>
-                      {reservation.status === 'BOOKED' && availableTables.slice(0, 3).map((table) => (
-                        <button
-                          key={table.id}
-                          type="button"
-                          onClick={() => { void handleSeatReservation(reservation.id, table.id, reservation.party_size); }}
-                          className="rounded-full border border-emerald-300/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-100"
-                        >
-                          {tx(lang, 'Seat et', 'Посадить', 'Seat')} · {table.label}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => { void delete_reservation_live(reservation.id).then(() => loadRestaurantData()); }}
-                        className="rounded-full border border-rose-300/40 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-100"
-                      >
-                        {tx(lang, 'Ləğv et', 'Отменить', 'Cancel')}
-                      </button>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              );
-            })}
+                <div className="relative min-w-0 flex-1" style={{ height: `${reservationTimeline.totalHeight}px` }}>
+                  {Array.from({ length: reservationTimeline.hourEnd - reservationTimeline.hourStart + 1 }, (_, idx) => idx).map((idx) => (
+                    <div
+                      key={`line_${idx}`}
+                      className="pointer-events-none absolute inset-x-0 border-t border-dashed border-slate-700/60"
+                      style={{ top: `${idx * 60 * reservationTimeline.minuteHeight}px` }}
+                    />
+                  ))}
+                  {reservationTimeline.entries.map((entry) => {
+                    const reservation = entry.reservation;
+                    const availableTables = floorTables.filter((row) => String(row.status).toUpperCase() === 'AVAILABLE');
+                    const laneWidth = 100 / reservationTimeline.lanes;
+                    return (
+                      <div
+                        key={reservation.id}
+                        className="absolute rounded-2xl border border-amber-300/30 bg-gradient-to-br from-amber-400/15 to-slate-900/90 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]"
+                        style={{
+                          top: `${entry.top}px`,
+                          left: `calc(${entry.lane * laneWidth}% + 8px)`,
+                          width: `calc(${laneWidth}% - 16px)`,
+                          minHeight: `${entry.height}px`,
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-bold text-slate-100">{reservation.guest?.full_name || tx(lang, 'Adsız qonaq', 'Гость без имени', 'Guest without name')}</div>
+                            <div className="mt-1 text-xs text-amber-100/90">
+                              {new Date(reservation.reservation_at).toLocaleTimeString(lang === 'ru' ? 'ru-RU' : 'az-AZ', { hour: '2-digit', minute: '2-digit' })}
+                              {' · '}
+                              {reservation.party_size} {tx(lang, 'nəfər', 'гостя', 'guests')}
+                            </div>
+                          </div>
+                          <span className="rounded-full border border-slate-600 bg-slate-900/70 px-2 py-1 text-[10px] font-semibold text-slate-200">
+                            {reservation.status}
+                          </span>
+                        </div>
+                        <div className="mt-2 text-xs text-slate-300">
+                          {reservation.assigned_table_id ? `${tx(lang, 'Masa', 'Стол', 'Table')}: ${floorTables.find((table) => table.id === reservation.assigned_table_id)?.label || reservation.assigned_table_id}` : tx(lang, 'Masa hələ təyin edilməyib', 'Стол еще не назначен', 'No table assigned yet')}
+                        </div>
+                        {reservation.special_note ? (
+                          <div className="mt-2 line-clamp-2 text-xs text-slate-400">{reservation.special_note}</div>
+                        ) : null}
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {reservation.status === 'BOOKED' && availableTables.slice(0, 2).map((table) => (
+                            <button
+                              key={table.id}
+                              type="button"
+                              onClick={() => { void handleSeatReservation(reservation.id, table.id, reservation.party_size); }}
+                              className="rounded-full border border-emerald-300/40 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-100"
+                            >
+                              {tx(lang, 'Seat et', 'Посадить', 'Seat')} · {table.label}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => { void delete_reservation_live(reservation.id).then(() => loadRestaurantData()); }}
+                            className="rounded-full border border-rose-300/40 bg-rose-500/10 px-3 py-1 text-[11px] font-semibold text-rose-100"
+                          >
+                            {tx(lang, 'Ləğv et', 'Отменить', 'Cancel')}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
