@@ -1695,7 +1695,7 @@ export default function TablesPage() {
           ref={detailPanelRef}
           className={`${
             workspaceView === 'floor'
-              ? 'fixed inset-y-4 right-4 z-[90] w-[min(560px,42vw)] overflow-y-auto rounded-[30px] border border-white/10 bg-slate-950/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur'
+              ? 'fixed inset-y-4 right-4 z-[90] h-[calc(100vh-2rem)] w-[min(560px,42vw)] overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur'
               : 'mt-6'
           }`}
         >
@@ -1888,8 +1888,9 @@ export default function TablesPage() {
                       {tx(lang, 'Bir anda yalnız bir iş sahəsi açılır. Bu, 15-inch touch ekranda səhifəni daha yığcam saxlayır.', 'Одновременно открыта только одна рабочая зона. Так 15-дюймовый touch экран остается компактнее.', 'Only one workspace stays open at a time. This keeps the 15-inch touch screen more compact.')}
                     </div>
                   </div>
+                  <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden">
                   {tableWorkspaceTab === 'history' && (
-                  <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/35 p-4">
+                  <div className="min-h-0 overflow-y-auto rounded-xl border border-slate-700/70 bg-slate-900/35 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-100">{tx(lang, 'Raund tarixçəsi', 'История раундов', 'Round history')}</div>
@@ -1930,7 +1931,7 @@ export default function TablesPage() {
                     </div>
                   </div>
                   )}
-                  <div className={`mt-3 max-h-72 overflow-auto rounded-lg border border-slate-700/70 bg-slate-900/40 p-3 ${tableWorkspaceTab === 'compose' ? '' : 'hidden'}`}>
+                  <div className={`min-h-0 flex-none overflow-auto rounded-lg border border-slate-700/70 bg-slate-900/40 p-3 ${tableWorkspaceTab === 'compose' ? '' : 'hidden'}`}>
                     {!userCanEditTable && (
                       <div className="mb-3 rounded-lg border border-rose-300/30 bg-rose-500/10 px-3 py-3 text-sm text-rose-100">
                         {tx(lang, 'Bu masa read-only görünüşdədir. Yalnız owner və ya manager əməliyyat edə bilər.', 'Этот стол открыт только для просмотра. Операции доступны только владельцу или менеджеру.', 'This table is read-only. Only the owner or a manager can perform actions.')}
@@ -1982,7 +1983,7 @@ export default function TablesPage() {
                     ))}
                   </div>
                   {tableWorkspaceTab === 'compose' && (
-                  <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/35 p-4">
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/35 p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div>
                         <div className="text-base font-semibold text-slate-100">{tx(lang, 'Yeni sifariş', 'Новый заказ', 'New order')}</div>
@@ -1993,19 +1994,21 @@ export default function TablesPage() {
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-                      <MenuGrid
-                        items={filteredRoundMenu}
-                        categories={roundCategories}
-                        search={roundSearch}
-                        selectedCategory={roundCategory}
-                        lang={lang}
-                        onSearchChange={setRoundSearch}
-                        onCategoryChange={setRoundCategory}
-                        onSelectItem={addMenuItemToRound}
-                      />
+                    <div className="mt-4 grid min-h-0 flex-1 gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+                      <div className="flex min-h-0 flex-col overflow-hidden">
+                        <MenuGrid
+                          items={filteredRoundMenu}
+                          categories={roundCategories}
+                          search={roundSearch}
+                          selectedCategory={roundCategory}
+                          lang={lang}
+                          onSearchChange={setRoundSearch}
+                          onCategoryChange={setRoundCategory}
+                          onSelectItem={addMenuItemToRound}
+                        />
+                      </div>
 
-                      <div className="flex flex-col rounded-xl border border-slate-700/70 bg-slate-950/30 p-4">
+                      <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950/30 p-4">
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-sm font-semibold text-slate-100">{tx(lang, 'Göndərilməmişlər', 'Неотправленные', 'Unsent items')}</div>
                           {roundDraft.length > 0 ? (
@@ -2014,7 +2017,8 @@ export default function TablesPage() {
                             </button>
                           ) : null}
                         </div>
-                        <div className="mt-3 space-y-2">
+                        <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-y-contain pr-1">
+                          <div className="space-y-3 pb-3">
                           {roundDraft.length === 0 ? (
                             <div className="rounded-lg border border-dashed border-slate-700/60 px-4 py-6 text-center text-sm text-slate-400">
                               {tx(lang, 'Buradakı məhsullar bir toxunuşla mətbəxə gedəcək', 'Эти позиции одним нажатием уйдут на кухню', 'Items here will go to the kitchen in one tap')}
@@ -2034,6 +2038,7 @@ export default function TablesPage() {
                               </div>
                             ))
                           )}
+                          </div>
                         </div>
                         <StickyActionBar
                           lang={lang}
@@ -2059,7 +2064,8 @@ export default function TablesPage() {
                   </div>
                   )}
                   {tableWorkspaceTab === 'service' && (
-                  <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-4">
+                  <div className="min-h-0 overflow-y-auto">
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-4">
                     <div className="rounded-lg border border-blue-300/30 bg-blue-500/10 p-3">
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">{tx(lang, 'Mətbəxdə gözləyənlər', 'Ожидают на кухне', 'Waiting in kitchen')}</div>
                       <div className="space-y-2 text-sm text-slate-100">
@@ -2102,9 +2108,11 @@ export default function TablesPage() {
                       </div>
                     </div>
                   </div>
+                  </div>
                   )}
                   {tableWorkspaceTab === 'ops' && t.is_occupied && (
-                    <div className="mt-4 grid gap-3 rounded-lg border border-slate-700/70 bg-slate-900/40 p-3">
+                    <div className="min-h-0 overflow-y-auto">
+                    <div className="grid gap-3 rounded-lg border border-slate-700/70 bg-slate-900/40 p-3">
                       <div className="grid gap-3 lg:grid-cols-3">
                         <div className="rounded-xl border border-blue-300/20 bg-blue-500/10 p-3">
                           <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">{tx(lang, 'Masanı köçür', 'Перенести стол', 'Transfer table')}</div>
@@ -2166,7 +2174,9 @@ export default function TablesPage() {
                         </div>
                       </div>
                     </div>
+                    </div>
                   )}
+                  </div>
                   <div className="mt-4 flex justify-end gap-2">
                     <button className="neon-btn rounded-lg px-4 py-2" onClick={() => setViewTableId(null)}>{tx(lang, 'Paneli gizlət', 'Скрыть панель', 'Hide panel')}</button>
                     {t.is_occupied && (
