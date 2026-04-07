@@ -3,7 +3,7 @@ import { get_tables_live, create_table_live, delete_table_live, open_table_live,
 import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
 import { subscribeTenantRealtime } from '../api/realtime';
-import { act_on_order_item_live, combine_tables_live, create_reservation_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, get_table_detail_live, seat_reservation_live, send_table_round_live, settle_table_check_live, split_table_group_live, transfer_table_lock_live, unlock_table_live, update_reservation_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
+import { act_on_order_item_live, add_check_draft_item_live, combine_tables_live, create_reservation_live, delete_draft_item_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, get_table_detail_live, seat_reservation_live, send_check_drafts_live, send_table_round_live, settle_table_check_live, split_table_group_live, transfer_table_lock_live, unlock_table_live, update_draft_item_live, update_reservation_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
 import { LayoutGrid, Plus, CalendarClock, Users, MapPinned } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
@@ -522,7 +522,41 @@ export default function TablesPage() {
     await Promise.all([loadFloorState(activeFloorId), loadData()]);
   };
 
-  const addMenuItemToRound = (item: any) => {
+  const refreshActiveTableDetail = async (tableId: string) => {
+    await Promise.all([
+      loadData(),
+      get_table_detail_live(tenant_id, tableId).then((next) => setTableDetailRecord(next)).catch(() => {}),
+    ]);
+  };
+
+  const addMenuItemToRound = async (item: any) => {
+    const activeDetail = tableDetailRecord?.table?.id === viewTableId ? tableDetailRecord : null;
+    if (activeDetail?.check?.id && viewTableId) {
+      try {
+        const existingDraft = (activeDetail.draft_items || []).find((row: any) => (
+          String(row.item_name || '').trim() === String(item.item_name || '').trim()
+          && new Decimal(row.price || 0).equals(new Decimal(item.price || 0))
+        ));
+        if (existingDraft) {
+          await update_draft_item_live(existingDraft.id, { qty: Number(existingDraft.qty || 0) + 1 });
+        } else {
+          await add_check_draft_item_live(activeDetail.check.id, {
+            id: item.id,
+            item_name: item.item_name,
+            price: String(item.price),
+            qty: 1,
+            category: item.category,
+            is_coffee: Boolean(item.is_coffee),
+            course_no: 1,
+          });
+        }
+        await refreshActiveTableDetail(viewTableId);
+        return;
+      } catch (e: any) {
+        notify('error', e?.message || tx(lang, 'Məhsul əlavə olunmadı', 'Позиция не добавлена', 'Item was not added'));
+        return;
+      }
+    }
     setRoundDraft((prev) => {
       const existing = prev.find((row: any) => String(row.id) === String(item.id));
       if (existing) {
@@ -542,7 +576,23 @@ export default function TablesPage() {
     });
   };
 
-  const updateRoundDraftQty = (itemId: string, nextQty: number) => {
+  const updateRoundDraftQty = async (itemId: string, nextQty: number) => {
+    const activeDetail = tableDetailRecord?.table?.id === viewTableId ? tableDetailRecord : null;
+    const serverDraft = (activeDetail?.draft_items || []).find((row: any) => String(row.id) === String(itemId));
+    if (activeDetail?.check?.id && serverDraft && viewTableId) {
+      try {
+        if (nextQty <= 0) {
+          await delete_draft_item_live(itemId);
+        } else {
+          await update_draft_item_live(itemId, { qty: nextQty });
+        }
+        await refreshActiveTableDetail(viewTableId);
+        return;
+      } catch (e: any) {
+        notify('error', e?.message || tx(lang, 'Göndərilməmiş məhsul yenilənmədi', 'Неотправленная позиция не обновлена', 'Draft item was not updated'));
+        return;
+      }
+    }
     setRoundDraft((prev) => (
       nextQty <= 0
         ? prev.filter((row: any) => String(row.id) !== String(itemId))
@@ -581,7 +631,26 @@ export default function TablesPage() {
   };
 
   const sendRoundDirectly = async (table: any) => {
-    if (!table?.id || roundDraft.length === 0) return;
+    if (!table?.id) return;
+    const activeDetail = tableDetailRecord?.table?.id === table.id ? tableDetailRecord : null;
+    const serverDraftItems = activeDetail?.draft_items || [];
+    if (activeDetail?.check?.id) {
+      if (serverDraftItems.length === 0) return;
+      try {
+        await send_check_drafts_live(activeDetail.check.id, {
+          sent_by: user?.username || 'staff',
+          course_no: 1,
+        });
+        notify('success', tx(lang, 'Yeni sifariş mətbəxə göndərildi', 'Новый заказ отправлен на кухню', 'New order sent to kitchen'));
+        setRoundDraft([]);
+        await refreshActiveTableDetail(table.id);
+        return;
+      } catch (e: any) {
+        notify('error', e?.message || tx(lang, 'Mətbəxə göndərilmədi. Məhsullar göndərilmiş kimi işarələnmədi.', 'Не отправлено на кухню. Позиции не отмечены отправленными.', 'Kitchen send failed. Items were not marked as sent.'));
+        return;
+      }
+    }
+    if (roundDraft.length === 0) return;
     await send_table_round_live(table.id, {
       sent_by: user?.username || 'staff',
       course_no: 1,
@@ -1766,6 +1835,23 @@ export default function TablesPage() {
 	              const detailActiveItems = detailRounds.length > 0
 	                ? detailRounds.flatMap((round) => round.items.map((item) => ({ ...item, round_no: round.round_no })))
 	                : [];
+	              const serverDraftItems = tableDetailRecord?.table?.id === t.id ? (tableDetailRecord.draft_items || []) : [];
+	              const draftRows = detailCheck?.id ? serverDraftItems : roundDraft;
+	              const draftTotal = draftRows.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0)).toFixed(2);
+	              const sentDisplayItems = detailCheck?.id ? detailActiveItems : (detailActiveItems.length > 0 ? detailActiveItems : items);
+	              const fullOrderRows = detailCheck?.id ? [...draftRows, ...detailActiveItems] : (detailActiveItems.length > 0 ? detailActiveItems : items);
+	              const clearVisibleDrafts = async () => {
+	                if (detailCheck?.id && serverDraftItems.length > 0) {
+	                  try {
+	                    await Promise.all(serverDraftItems.map((row: any) => delete_draft_item_live(row.id)));
+	                    await refreshActiveTableDetail(t.id);
+	                  } catch (e: any) {
+	                    notify('error', e?.message || tx(lang, 'Göndərilməmişlər təmizlənmədi', 'Неотправленные позиции не очищены', 'Draft items were not cleared'));
+	                  }
+	                  return;
+	                }
+	                clearRoundComposer();
+	              };
 	              const revisionBaseItems = items.length > 0 ? items : detailActiveItems;
 	              const buildRevisionNextItems = (targetItemName: string, qtyToRemove: number | null) => {
 	                let remainingToRemove = qtyToRemove === null ? Number.MAX_SAFE_INTEGER : Math.max(1, Number(qtyToRemove || 1));
@@ -1963,7 +2049,7 @@ export default function TablesPage() {
 	                      </div>
 	                    )}
 	                    <div className="mb-2 flex items-center justify-between gap-2">
-	                      <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">{tx(lang, 'Yığılmış sifarişlər', 'Собранные заказы', 'Current order')}</div>
+	                      <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent items')}</div>
 	                      <button
 	                        type="button"
 	                        onClick={() => setShowFullOrderList(true)}
@@ -1972,8 +2058,8 @@ export default function TablesPage() {
 	                        {tx(lang, 'Tam siyahı', 'Полный список', 'Full list')}
 	                      </button>
 	                    </div>
-	                    {(detailActiveItems.length === 0 && items.length === 0) && <div className="text-sm text-slate-400">{tx(lang, 'Masa boşdur', 'Стол пуст', 'Table is empty')}</div>}
-	                    {(detailActiveItems.length > 0 ? detailActiveItems : items).map((it: any, idx: number) => (
+	                    {sentDisplayItems.length === 0 && <div className="text-sm text-slate-400">{tx(lang, 'Hələ mətbəxə göndərilmiş sifariş yoxdur', 'Пока нет отправленных на кухню заказов', 'No sent kitchen orders yet')}</div>}
+	                    {sentDisplayItems.map((it: any, idx: number) => (
                       <div key={`${it.item_name}_${idx}`} className="flex items-center justify-between gap-3 border-b border-slate-700/40 py-2 text-sm last:border-b-0">
                         <div>
                           <div>{it.item_name}</div>
@@ -2031,7 +2117,7 @@ export default function TablesPage() {
 	                        <div className="text-lg font-black text-slate-100">{tx(lang, 'Yeni sifariş', 'Новый заказ', 'New order')}</div>
                       </div>
                       <div className="rounded-full border border-slate-700/70 bg-slate-950/40 px-3 py-1 text-xs font-semibold text-slate-200">
-                        {tx(lang, 'Göndərilməmişlər', 'Неотправленные', 'Unsent items')}: {roundDraft.reduce((acc, row) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0)).toFixed(2)} ₼
+                        {tx(lang, 'Göndərilməmişlər', 'Неотправленные', 'Unsent items')}: {draftTotal} ₼
                       </div>
                     </div>
 
@@ -2052,20 +2138,20 @@ export default function TablesPage() {
                       <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-slate-950/30 p-4">
                         <div className="flex items-center justify-between gap-3">
                           <div className="text-sm font-semibold text-slate-100">{tx(lang, 'Göndərilməmişlər', 'Неотправленные', 'Unsent items')}</div>
-                          {roundDraft.length > 0 ? (
-                            <button type="button" onClick={clearRoundComposer} className="text-xs font-semibold text-slate-400 hover:text-slate-200">
+                          {draftRows.length > 0 ? (
+                            <button type="button" onClick={() => { void clearVisibleDrafts(); }} className="text-xs font-semibold text-slate-400 hover:text-slate-200">
                               {tx(lang, 'Təmizlə', 'Очистить', 'Clear')}
                             </button>
                           ) : null}
                         </div>
                         <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-y-contain pr-1">
                           <div className="space-y-3 pb-3">
-                          {roundDraft.length === 0 ? (
+                          {draftRows.length === 0 ? (
                             <div className="rounded-lg border border-dashed border-slate-700/60 px-4 py-6 text-center text-sm text-slate-400">
                               {tx(lang, 'Buradakı məhsullar bir toxunuşla mətbəxə gedəcək', 'Эти позиции одним нажатием уйдут на кухню', 'Items here will go to the kitchen in one tap')}
                             </div>
                           ) : (
-                            roundDraft.map((row: any) => (
+                            draftRows.map((row: any) => (
                               <div key={row.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-700/60 bg-slate-900/40 px-3 py-2">
                                 <div className="min-w-0">
                                   <div className="truncate text-sm font-semibold text-slate-100">{row.item_name}</div>
@@ -2083,9 +2169,9 @@ export default function TablesPage() {
                         </div>
                         <StickyActionBar
                           lang={lang}
-                          total={roundDraft.reduce((acc, row) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0)).toFixed(2)}
-                          disabled={roundDraft.length === 0 || !userCanEditTable}
-                          onClear={roundDraft.length > 0 ? clearRoundComposer : undefined}
+                          total={draftTotal}
+                          disabled={draftRows.length === 0 || !userCanEditTable}
+                          onClear={draftRows.length > 0 ? clearVisibleDrafts : undefined}
                           onSend={() => { void sendRoundDirectly(t); }}
                         />
                       </div>
@@ -2105,11 +2191,11 @@ export default function TablesPage() {
 	                          </button>
 	                        </div>
 	                        <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/70 bg-slate-950/35 p-3">
-	                          {(detailActiveItems.length > 0 ? detailActiveItems : items).length === 0 ? (
+	                          {fullOrderRows.length === 0 ? (
 	                            <div className="py-8 text-center text-sm text-slate-400">{tx(lang, 'Sifariş yoxdur', 'Заказов нет', 'No order items')}</div>
 	                          ) : (
 	                            <div className="space-y-2">
-	                              {(detailActiveItems.length > 0 ? detailActiveItems : items).map((row: any, idx: number) => (
+	                              {fullOrderRows.map((row: any, idx: number) => (
 	                                <div key={`full_${row.id || row.item_name}_${idx}`} className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3">
 	                                  <div className="min-w-0">
 	                                    <div className="truncate font-bold text-slate-100">{row.item_name}</div>

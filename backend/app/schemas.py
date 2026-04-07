@@ -307,6 +307,12 @@ class SendDraftItemsIn(BaseModel):
     course_no: int | None = 1
 
 
+class DraftItemUpdateIn(BaseModel):
+    qty: int | None = Field(default=None, ge=1)
+    note: str | None = None
+    modifier_json: str | None = None
+
+
 class OrderItemActionIn(BaseModel):
     action: str
     reason: str
