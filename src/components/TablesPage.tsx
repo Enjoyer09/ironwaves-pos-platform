@@ -100,6 +100,8 @@ export default function TablesPage() {
     switch (String(status || '').toUpperCase()) {
       case 'NEW':
         return { label: tx(lang, 'Mətbəxə göndərildi', 'Отправлено на кухню', 'Sent to kitchen'), className: 'bg-blue-400/20 text-blue-200 border border-blue-300/40' };
+      case 'SENT':
+        return { label: tx(lang, 'Mətbəxə göndərildi', 'Отправлено на кухню', 'Sent to kitchen'), className: 'bg-blue-400/20 text-blue-200 border border-blue-300/40' };
       case 'PREPARING':
         return { label: tx(lang, 'Hazırlanır', 'Готовится', 'Preparing'), className: 'bg-orange-400/20 text-orange-200 border border-orange-300/40' };
       case 'READY':
@@ -1610,6 +1612,11 @@ export default function TablesPage() {
             {(() => {
               const actionStatus = String(itemActionTarget.item?.status || 'NEW').toUpperCase();
               const quickAction = actionStatus === 'NEW';
+              const actionName = String(itemActionTarget.action || '').toUpperCase();
+              const actionRequiresManager = !quickAction && (
+                ['COMP', 'WASTE', 'REMAKE'].includes(actionName)
+                || (actionName === 'VOID' && ['SENT', 'IN_PREP', 'PREPARING', 'READY', 'SERVED', 'COMPED', 'WASTE', 'VOIDED'].includes(actionStatus))
+              );
               return (
                 <>
             <h3 className="text-lg font-bold text-slate-100">
@@ -1628,7 +1635,7 @@ export default function TablesPage() {
               {tx(lang, 'Səbəb', 'Причина', 'Reason')}
               <textarea className="neon-input mt-1 min-h-[84px]" value={itemActionReason} onChange={(e) => setItemActionReason(e.target.value)} />
             </label>}
-            {!quickAction && ['COMP', 'WASTE', 'REMAKE'].includes(String(itemActionTarget.action || '').toUpperCase()) && (
+            {actionRequiresManager && (
               <label className="mt-3 block text-sm text-slate-300">
                 {tx(lang, 'Manager/Admin şifrəsi', 'Пароль менеджера/админа', 'Manager/Admin password')}
                 <input type="password" className="neon-input mt-1" value={itemActionManagerPassword} onChange={(e) => setItemActionManagerPassword(e.target.value)} />
@@ -1655,11 +1662,15 @@ export default function TablesPage() {
                       notify('error', tx(lang, 'Səbəb yazın', 'Укажите причину', 'Enter a reason'));
                       return;
                     }
+                    if (actionRequiresManager && !itemActionManagerPassword.trim()) {
+                      notify('error', tx(lang, 'Manager/Admin şifrəsini yazın', 'Введите пароль менеджера/админа', 'Enter manager/admin password'));
+                      return;
+                    }
                     const nextReason = quickAction ? tx(lang, 'Sürətli düzəliş', 'Быстрое изменение', 'Quick change') : itemActionReason.trim();
                     await act_on_order_item_live(itemActionTarget.item.id, {
                       action: itemActionTarget.action,
                       reason: nextReason,
-                      manager_password: quickAction ? undefined : (itemActionManagerPassword.trim() || undefined),
+                      manager_password: actionRequiresManager ? itemActionManagerPassword.trim() : undefined,
                       remake_note: itemActionTarget.action === 'REMAKE' ? nextReason : undefined,
                     });
                     setItemActionTarget(null);
