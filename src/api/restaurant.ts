@@ -29,6 +29,7 @@ export type FloorTableState = {
   id: string;
   label: string;
   floor_plan_id?: string | null;
+  shape?: string;
   x: number;
   y: number;
   w: number;
@@ -125,6 +126,30 @@ function saveLocalReservations(rows: any[]) {
   setDB(localReservationKey, rows);
 }
 
+function assertLocalReservationSlotAvailable(
+  tenant_id: string,
+  reservationAt: string,
+  durationMinutes: number,
+  assignedTableId?: string | null,
+  excludeReservationId?: string | null,
+) {
+  if (!assignedTableId) return;
+  const rows = getLocalReservations(tenant_id);
+  const nextStart = new Date(reservationAt).getTime();
+  const nextEnd = nextStart + (Math.max(15, Number(durationMinutes || 90)) * 60 * 1000);
+  const conflict = rows.find((row) => {
+    if (excludeReservationId && row.id === excludeReservationId) return false;
+    if (String(row.status || '').toUpperCase() !== 'BOOKED') return false;
+    if (String(row.assigned_table_id || '') !== String(assignedTableId || '')) return false;
+    const rowStart = new Date(row.reservation_at).getTime();
+    const rowEnd = rowStart + (Math.max(15, Number(row.duration_minutes || 90)) * 60 * 1000);
+    return nextStart < rowEnd && nextEnd > rowStart;
+  });
+  if (conflict) {
+    throw new Error('Table already has a conflicting reservation');
+  }
+}
+
 function getLocalFloorPlans(tenant_id: string): FloorPlanRecord[] {
   const existing = getDB<any>(localFloorKey).filter((row) => row.tenant_id === tenant_id);
   if (existing.length > 0) return existing;
@@ -158,6 +183,7 @@ export async function get_floor_state_live(tenant_id: string, floorId: string): 
           id: row.id,
           label: row.label,
           floor_plan_id: floor.id,
+          shape: row.shape || 'rectangle',
           x: (idx % 4) * 3,
           y: Math.floor(idx / 4) * 3,
           w: 2,
@@ -376,6 +402,13 @@ export async function create_reservation_live(
   },
 ) {
   if (!isBackendEnabled()) {
+    assertLocalReservationSlotAvailable(
+      tenant_id,
+      payload.reservation_at,
+      payload.duration_minutes || 90,
+      payload.assigned_table_id || null,
+      null,
+    );
     const rows = getDB<any>(localReservationKey);
     const created = {
       id: uuidv4(),
@@ -404,6 +437,14 @@ export async function update_reservation_live(reservationId: string, payload: Re
     const rows = getDB<any>(localReservationKey);
     const idx = rows.findIndex((row) => row.id === reservationId);
     if (idx >= 0) {
+      const current = rows[idx];
+      assertLocalReservationSlotAvailable(
+        current.tenant_id,
+        payload.reservation_at ?? current.reservation_at,
+        payload.duration_minutes ?? current.duration_minutes ?? 90,
+        payload.assigned_table_id !== undefined ? payload.assigned_table_id : current.assigned_table_id,
+        reservationId,
+      );
       rows[idx] = { ...rows[idx], ...payload };
       saveLocalReservations(rows);
       return rows[idx];

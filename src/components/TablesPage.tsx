@@ -61,8 +61,10 @@ export default function TablesPage() {
   const [selectedFloorGroupId, setSelectedFloorGroupId] = useState<string | null>(null);
   const [floorMultiSelectMode, setFloorMultiSelectMode] = useState(false);
   const [selectedFloorTableIds, setSelectedFloorTableIds] = useState<string[]>([]);
+  const [copyLayoutSourceFloorId, setCopyLayoutSourceFloorId] = useState<string>('');
   const [reservationDurationDrafts, setReservationDurationDrafts] = useState<Record<string, number>>({});
   const [resizingReservation, setResizingReservation] = useState<{ id: string; startY: number; startDuration: number } | null>(null);
+  const [reservationZoom, setReservationZoom] = useState<15 | 30>(15);
   const [reservationDate, setReservationDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [reservations, setReservations] = useState<ReservationRecord[]>([]);
   const [showReservationCreate, setShowReservationCreate] = useState(false);
@@ -173,7 +175,7 @@ export default function TablesPage() {
   const reservationTimeline = useMemo(() => {
     const hourStart = 8;
     const hourEnd = 24;
-    const minuteHeight = 1.25;
+    const minuteHeight = reservationZoom === 15 ? 1.25 : 0.8;
     const laneDefinitions = [
       { id: '', label: tx(lang, 'Təyin edilməyib', 'Не назначено', 'Unassigned') },
       ...[...floorTables]
@@ -207,7 +209,7 @@ export default function TablesPage() {
       totalHeight: (hourEnd - hourStart) * 60 * minuteHeight,
       totalWidth: laneDefinitions.length * laneWidth,
     };
-  }, [reservations, floorTables, lang, reservationDurationDrafts]);
+  }, [reservations, floorTables, lang, reservationDurationDrafts, reservationZoom]);
 
   const mergedGroupOutlines = useMemo(() => {
     const maxCols = Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12);
@@ -240,6 +242,18 @@ export default function TablesPage() {
       setActiveFloorId(floorPlans.find((row) => row.is_active)?.id || floorPlans[0].id);
     }
   }, [floorPlans, activeFloorId]);
+
+  useEffect(() => {
+    if (!copyLayoutSourceFloorId) {
+      const fallback = floorPlans.find((row) => row.id !== activeFloorId)?.id || '';
+      setCopyLayoutSourceFloorId(fallback);
+      return;
+    }
+    if (!floorPlans.some((row) => row.id === copyLayoutSourceFloorId && row.id !== activeFloorId)) {
+      const fallback = floorPlans.find((row) => row.id !== activeFloorId)?.id || '';
+      setCopyLayoutSourceFloorId(fallback);
+    }
+  }, [floorPlans, activeFloorId, copyLayoutSourceFloorId]);
 
   useEffect(() => {
     if (!activeFloorId) return;
@@ -383,18 +397,18 @@ export default function TablesPage() {
     if (!resizingReservation) return;
     const handleMove = (event: MouseEvent) => {
       const deltaY = event.clientY - resizingReservation.startY;
-      const stepPx = reservationTimeline.minuteHeight * 15;
+      const stepPx = reservationTimeline.minuteHeight * reservationZoom;
       const stepCount = Math.round(deltaY / stepPx);
-      const nextDuration = Math.max(30, Math.min(240, resizingReservation.startDuration + (stepCount * 15)));
+      const nextDuration = Math.max(30, Math.min(240, resizingReservation.startDuration + (stepCount * reservationZoom)));
       setReservationDurationDrafts((prev) => ({ ...prev, [resizingReservation.id]: nextDuration }));
     };
     const handleTouchMove = (event: TouchEvent) => {
       const touch = event.touches[0];
       if (!touch) return;
       const deltaY = touch.clientY - resizingReservation.startY;
-      const stepPx = reservationTimeline.minuteHeight * 15;
+      const stepPx = reservationTimeline.minuteHeight * reservationZoom;
       const stepCount = Math.round(deltaY / stepPx);
-      const nextDuration = Math.max(30, Math.min(240, resizingReservation.startDuration + (stepCount * 15)));
+      const nextDuration = Math.max(30, Math.min(240, resizingReservation.startDuration + (stepCount * reservationZoom)));
       setReservationDurationDrafts((prev) => ({ ...prev, [resizingReservation.id]: nextDuration }));
     };
     const handleUp = () => {
@@ -434,7 +448,7 @@ export default function TablesPage() {
       window.removeEventListener('mouseup', handleUp);
       window.removeEventListener('touchend', handleUp);
     };
-  }, [resizingReservation, reservationDurationDrafts, reservationTimeline.minuteHeight, lang]);
+  }, [resizingReservation, reservationDurationDrafts, reservationTimeline.minuteHeight, lang, reservationZoom]);
 
   const loadData = async () => {
     const [nextTables, nextKitchenOrders, nextMenu] = await Promise.all([
@@ -741,6 +755,57 @@ export default function TablesPage() {
       await Promise.all([activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(), loadData()]);
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Seçilmiş masalar hərəkət etmədi', 'Выбранные столы не переместились', 'Selected tables did not move'));
+    }
+  };
+
+  const handleResetFloorLayout = async () => {
+    if (!activeFloorId || floorTables.length === 0) return;
+    try {
+      const maxCols = Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12);
+      const sortedTables = [...floorTables].sort((a, b) => String(a.label || '').localeCompare(String(b.label || '')));
+      let cursorX = 0;
+      let cursorY = 0;
+      await Promise.all(sortedTables.map(async (table) => {
+        const widthUnits = Math.max(1, Number(table.w || 2));
+        if (cursorX + widthUnits > maxCols) {
+          cursorX = 0;
+          cursorY += 3;
+        }
+        const payload = { pos_x: cursorX, pos_y: cursorY };
+        cursorX += Math.max(2, widthUnits + 1);
+        await update_table_layout_live(table.id, payload);
+      }));
+      await Promise.all([loadFloorState(activeFloorId), loadData()]);
+      notify('success', tx(lang, 'Floor layout sıfırlandı', 'План зала сброшен', 'Floor layout reset'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Floor layout sıfırlanmadı', 'План зала не сброшен', 'Floor layout was not reset'));
+    }
+  };
+
+  const handleCopyFloorLayout = async (sourceFloorId: string) => {
+    if (!activeFloorId || !sourceFloorId || sourceFloorId === activeFloorId) return;
+    try {
+      const sourceState = await get_floor_state_live(tenant_id, sourceFloorId);
+      const sourceByLabel = new Map(sourceState.tables.map((table) => [String(table.label || '').trim(), table]));
+      const updates = floorTables
+        .map((table) => {
+          const source = sourceByLabel.get(String(table.label || '').trim());
+          if (!source) return null;
+          return update_table_layout_live(table.id, {
+            pos_x: Number(source.x || 0),
+            pos_y: Number(source.y || 0),
+            width_units: Number(source.w || 2),
+            height_units: Number(source.h || 2),
+            capacity: Number(source.capacity || table.capacity || 4),
+            shape: source.shape || 'rectangle',
+          });
+        })
+        .filter(Boolean) as Promise<any>[];
+      await Promise.all(updates);
+      await Promise.all([loadFloorState(activeFloorId), loadData()]);
+      notify('success', tx(lang, 'Layout başqa floor-dan kopyalandı', 'Макет скопирован с другого зала', 'Layout copied from another floor'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Layout kopyalanmadı', 'Макет не скопирован', 'Layout was not copied'));
     }
   };
 
@@ -2142,6 +2207,37 @@ export default function TablesPage() {
               ))}
             </div>
           )}
+          {floorEditMode && (
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              {floorPlans.length > 1 && (
+                <select
+                  className="neon-input min-w-[220px]"
+                  value={copyLayoutSourceFloorId}
+                  onChange={(e) => setCopyLayoutSourceFloorId(e.target.value)}
+                >
+                  <option value="">{tx(lang, 'Layout mənbəyi seçin', 'Выберите источник макета', 'Choose layout source')}</option>
+                  {floorPlans.filter((row) => row.id !== activeFloorId).map((row) => (
+                    <option key={row.id} value={row.id}>{row.name}</option>
+                  ))}
+                </select>
+              )}
+              <button
+                type="button"
+                className="rounded-full border border-cyan-300/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-100"
+                onClick={() => { void handleCopyFloorLayout(copyLayoutSourceFloorId); }}
+                disabled={!copyLayoutSourceFloorId}
+              >
+                {tx(lang, 'Layout kopyala', 'Копировать макет', 'Copy layout')}
+              </button>
+              <button
+                type="button"
+                className="rounded-full border border-rose-300/30 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-100"
+                onClick={() => { void handleResetFloorLayout(); }}
+              >
+                {tx(lang, 'Layout sıfırla', 'Сбросить макет', 'Reset layout')}
+              </button>
+            </div>
+          )}
           <div
             className="relative grid gap-3 rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3"
             style={{
@@ -2363,6 +2459,22 @@ export default function TablesPage() {
               <div className="mt-1 text-sm text-slate-400">{tx(lang, 'Saat xətti üzrə rezervasiyalar və seat axını', 'Брони по временной линии и сценарий посадки', 'Reservations timeline and seating flow')}</div>
             </div>
             <div className="flex flex-wrap gap-2">
+              <div className="flex items-center gap-1 rounded-full border border-slate-600 bg-slate-800/50 p-1 text-xs text-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setReservationZoom(15)}
+                  className={`rounded-full px-3 py-1 font-semibold ${reservationZoom === 15 ? 'bg-cyan-300 text-slate-950' : ''}`}
+                >
+                  15m
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReservationZoom(30)}
+                  className={`rounded-full px-3 py-1 font-semibold ${reservationZoom === 30 ? 'bg-cyan-300 text-slate-950' : ''}`}
+                >
+                  30m
+                </button>
+              </div>
               <input className="neon-input" type="date" value={reservationDate} onChange={(e) => setReservationDate(e.target.value)} />
               <button type="button" onClick={() => setShowReservationCreate(true)} className="glossy-gold rounded-xl px-4 py-2 font-semibold">
                 {tx(lang, 'Rezervasiya yarat', 'Создать бронь', 'Create reservation')}
@@ -2392,7 +2504,7 @@ export default function TablesPage() {
                     const host = e.currentTarget;
                     const rect = host.getBoundingClientRect();
                     const rawMinutes = ((e.clientY - rect.top) / reservationTimeline.minuteHeight) + reservationTimeline.hourStart * 60;
-                    const snappedMinutes = Math.max(reservationTimeline.hourStart * 60, Math.min((reservationTimeline.hourEnd * 60) - 15, Math.round(rawMinutes / 15) * 15));
+                    const snappedMinutes = Math.max(reservationTimeline.hourStart * 60, Math.min((reservationTimeline.hourEnd * 60) - reservationZoom, Math.round(rawMinutes / reservationZoom) * reservationZoom));
                     const hours = Math.floor(snappedMinutes / 60);
                     const minutes = snappedMinutes % 60;
                     const laneIndex = Math.max(0, Math.min(reservationTimeline.lanes.length - 1, Math.floor((e.clientX - rect.left) / reservationTimeline.laneWidth)));
@@ -2424,7 +2536,7 @@ export default function TablesPage() {
                     const host = e.currentTarget;
                     const rect = host.getBoundingClientRect();
                     const rawMinutes = ((e.clientY - rect.top) / reservationTimeline.minuteHeight) + reservationTimeline.hourStart * 60;
-                    const snappedMinutes = Math.max(reservationTimeline.hourStart * 60, Math.min((reservationTimeline.hourEnd * 60) - 15, Math.round(rawMinutes / 15) * 15));
+                    const snappedMinutes = Math.max(reservationTimeline.hourStart * 60, Math.min((reservationTimeline.hourEnd * 60) - reservationZoom, Math.round(rawMinutes / reservationZoom) * reservationZoom));
                     const hours = Math.floor(snappedMinutes / 60);
                     const minutes = snappedMinutes % 60;
                     const laneIndex = Math.max(0, Math.min(reservationTimeline.lanes.length - 1, Math.floor((e.clientX - rect.left) / reservationTimeline.laneWidth)));
