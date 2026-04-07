@@ -56,6 +56,9 @@ export default function TablesPage() {
   const [floorDropPreview, setFloorDropPreview] = useState<{ x: number; y: number } | null>(null);
   const [draggingReservationId, setDraggingReservationId] = useState<string | null>(null);
   const [selectedFloorTableId, setSelectedFloorTableId] = useState<string | null>(null);
+  const [selectedFloorGroupId, setSelectedFloorGroupId] = useState<string | null>(null);
+  const [reservationDurationDrafts, setReservationDurationDrafts] = useState<Record<string, number>>({});
+  const [resizingReservation, setResizingReservation] = useState<{ id: string; startY: number; startDuration: number } | null>(null);
   const [reservationDate, setReservationDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [reservations, setReservations] = useState<ReservationRecord[]>([]);
   const [showReservationCreate, setShowReservationCreate] = useState(false);
@@ -153,10 +156,10 @@ export default function TablesPage() {
   );
 
   const selectedFloorGroup = useMemo(() => {
-    const mergedGroupId = String((selectedFloorTable as any)?.merged_group_id || '').trim();
+    const mergedGroupId = String(selectedFloorGroupId || (selectedFloorTable as any)?.merged_group_id || '').trim();
     if (!mergedGroupId) return null;
     return mergedGroups.find((group) => group.id === mergedGroupId) || null;
-  }, [mergedGroups, selectedFloorTable]);
+  }, [mergedGroups, selectedFloorGroupId, selectedFloorTable]);
 
   const reservationTimeline = useMemo(() => {
     const hourStart = 8;
@@ -174,7 +177,7 @@ export default function TablesPage() {
       .map((reservation) => {
       const startAt = new Date(reservation.reservation_at);
       const startMinutes = startAt.getHours() * 60 + startAt.getMinutes();
-      const duration = Math.max(30, Number(reservation.duration_minutes || 90));
+      const duration = Math.max(30, Number(reservationDurationDrafts[reservation.id] ?? (reservation.duration_minutes || 90)));
       const lane = Math.max(0, laneDefinitions.findIndex((laneRow) => laneRow.id === String(reservation.assigned_table_id || '')));
       return {
         reservation,
@@ -195,7 +198,7 @@ export default function TablesPage() {
       totalHeight: (hourEnd - hourStart) * 60 * minuteHeight,
       totalWidth: laneDefinitions.length * laneWidth,
     };
-  }, [reservations, floorTables, lang]);
+  }, [reservations, floorTables, lang, reservationDurationDrafts]);
 
   const mergedGroupOutlines = useMemo(() => {
     const maxCols = Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12);
@@ -247,6 +250,26 @@ export default function TablesPage() {
       setSelectedFloorTableId(null);
     }
   }, [floorTables, selectedFloorTableId]);
+
+  useEffect(() => {
+    if (!selectedFloorTable) {
+      setSelectedFloorGroupId(null);
+      return;
+    }
+    const mergedGroupId = String((selectedFloorTable as any)?.merged_group_id || '').trim();
+    if (!mergedGroupId) {
+      setSelectedFloorGroupId(null);
+      return;
+    }
+    setSelectedFloorGroupId((prev) => prev || mergedGroupId);
+  }, [selectedFloorTable]);
+
+  useEffect(() => {
+    if (!selectedFloorGroupId) return;
+    if (!mergedGroups.some((group) => group.id === selectedFloorGroupId)) {
+      setSelectedFloorGroupId(null);
+    }
+  }, [mergedGroups, selectedFloorGroupId]);
 
   useEffect(() => {
     const onOnline = () => setIsOnline(true);
@@ -340,6 +363,63 @@ export default function TablesPage() {
   useEffect(() => {
     localStorage.setItem(servedStorageKey, JSON.stringify(servedItemsMap));
   }, [servedItemsMap, servedStorageKey]);
+
+  useEffect(() => {
+    if (!resizingReservation) return;
+    const handleMove = (event: MouseEvent) => {
+      const deltaY = event.clientY - resizingReservation.startY;
+      const stepPx = reservationTimeline.minuteHeight * 15;
+      const stepCount = Math.round(deltaY / stepPx);
+      const nextDuration = Math.max(30, Math.min(240, resizingReservation.startDuration + (stepCount * 15)));
+      setReservationDurationDrafts((prev) => ({ ...prev, [resizingReservation.id]: nextDuration }));
+    };
+    const handleTouchMove = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!touch) return;
+      const deltaY = touch.clientY - resizingReservation.startY;
+      const stepPx = reservationTimeline.minuteHeight * 15;
+      const stepCount = Math.round(deltaY / stepPx);
+      const nextDuration = Math.max(30, Math.min(240, resizingReservation.startDuration + (stepCount * 15)));
+      setReservationDurationDrafts((prev) => ({ ...prev, [resizingReservation.id]: nextDuration }));
+    };
+    const handleUp = () => {
+      const nextDuration = Number(reservationDurationDrafts[resizingReservation.id] ?? resizingReservation.startDuration);
+      setResizingReservation(null);
+      if (nextDuration === resizingReservation.startDuration) {
+        setReservationDurationDrafts((prev) => {
+          const next = { ...prev };
+          delete next[resizingReservation.id];
+          return next;
+        });
+        return;
+      }
+      void update_reservation_live(resizingReservation.id, { duration_minutes: nextDuration })
+        .then(async () => {
+          notify('success', tx(lang, 'Rezervasiya müddəti yeniləndi', 'Длительность брони обновлена', 'Reservation duration updated'));
+          await loadRestaurantData();
+        })
+        .catch((error: any) => {
+          notify('error', error?.message || tx(lang, 'Rezervasiya müddəti dəyişmədi', 'Длительность брони не изменилась', 'Reservation duration was not updated'));
+        })
+        .finally(() => {
+          setReservationDurationDrafts((prev) => {
+            const next = { ...prev };
+            delete next[resizingReservation.id];
+            return next;
+          });
+        });
+    };
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('mouseup', handleUp, { once: true });
+    window.addEventListener('touchend', handleUp, { once: true });
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('mouseup', handleUp);
+      window.removeEventListener('touchend', handleUp);
+    };
+  }, [resizingReservation, reservationDurationDrafts, reservationTimeline.minuteHeight, lang]);
 
   const loadData = async () => {
     const [nextTables, nextKitchenOrders, nextMenu] = await Promise.all([
@@ -596,6 +676,24 @@ export default function TablesPage() {
       await Promise.all([activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(), loadData()]);
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Masalar ayrılmadı', 'Столы не разделены', 'Tables were not split'));
+    }
+  };
+
+  const handleNudgeGroup = async (groupId: string, deltaX: number, deltaY: number) => {
+    const group = mergedGroups.find((row) => row.id === groupId);
+    if (!group) return;
+    try {
+      await Promise.all(
+        group.tables.map((table) =>
+          update_table_layout_live(table.id, {
+            pos_x: Math.max(0, Number(table.x || 0) + deltaX),
+            pos_y: Math.max(0, Number(table.y || 0) + deltaY),
+          }),
+        ),
+      );
+      await Promise.all([activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(), loadData()]);
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Qrup hərəkət etmədi', 'Группа не переместилась', 'Group did not move'));
     }
   };
 
@@ -1862,6 +1960,18 @@ export default function TablesPage() {
                     <option value="square">{tx(lang, 'Kvadrat', 'Квадрат', 'Square')}</option>
                     <option value="circle">{tx(lang, 'Dairəvi', 'Круглый', 'Circle')}</option>
                   </select>
+                  <button
+                    type="button"
+                    className="rounded-xl border border-slate-600 bg-slate-900/40 px-3 py-2 text-xs font-semibold text-slate-100"
+                    onClick={() => {
+                      void persistFloorLayout(selectedFloorTable.id, {
+                        width_units: Math.max(1, Number(selectedFloorTable.h || 1)),
+                        height_units: Math.max(1, Number(selectedFloorTable.w || 1)),
+                      });
+                    }}
+                  >
+                    {tx(lang, '90° döndər', 'Повернуть на 90°', 'Rotate 90°')}
+                  </button>
                   <div className="flex items-center gap-1 rounded-xl border border-slate-600 bg-slate-900/40 px-2 py-1 text-xs text-slate-200">
                     <span>{tx(lang, 'En', 'Ширина', 'Width')}</span>
                     <button type="button" className="rounded-md border border-slate-600 px-2 py-1" onClick={() => { void persistFloorLayout(selectedFloorTable.id, { width_units: Math.max(1, Number(selectedFloorTable.w || 1) - 1) }); }}>-</button>
@@ -1893,13 +2003,21 @@ export default function TablesPage() {
                         {selectedFloorGroup.tables.map((table) => table.label).join(' + ')}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      className="rounded-xl border border-violet-300/40 bg-violet-500/15 px-4 py-2 text-sm font-semibold text-violet-100"
-                      onClick={() => { void handleSplitTables(selectedFloorTable.id, selectedFloorGroup.id); }}
-                    >
-                      {tx(lang, 'Qrupu ayır', 'Разделить группу', 'Split group')}
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <div className="flex items-center gap-1 rounded-xl border border-violet-300/30 bg-slate-950/30 px-2 py-1 text-xs text-violet-100">
+                        <button type="button" className="rounded-md border border-violet-300/30 px-2 py-1" onClick={() => { void handleNudgeGroup(selectedFloorGroup.id, -1, 0); }}>←</button>
+                        <button type="button" className="rounded-md border border-violet-300/30 px-2 py-1" onClick={() => { void handleNudgeGroup(selectedFloorGroup.id, 0, -1); }}>↑</button>
+                        <button type="button" className="rounded-md border border-violet-300/30 px-2 py-1" onClick={() => { void handleNudgeGroup(selectedFloorGroup.id, 0, 1); }}>↓</button>
+                        <button type="button" className="rounded-md border border-violet-300/30 px-2 py-1" onClick={() => { void handleNudgeGroup(selectedFloorGroup.id, 1, 0); }}>→</button>
+                      </div>
+                      <button
+                        type="button"
+                        className="rounded-xl border border-violet-300/40 bg-violet-500/15 px-4 py-2 text-sm font-semibold text-violet-100"
+                        onClick={() => { void handleSplitTables(selectedFloorTable.id, selectedFloorGroup.id); }}
+                      >
+                        {tx(lang, 'Qrupu ayır', 'Разделить группу', 'Split group')}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1920,9 +2038,17 @@ export default function TablesPage() {
           {mergedGroups.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-2">
               {mergedGroups.map((group, index) => (
-                <div key={group.id} className="rounded-full border border-violet-300/40 bg-violet-500/12 px-3 py-1 text-xs font-semibold text-violet-100">
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedFloorGroupId(group.id);
+                    setSelectedFloorTableId(group.tables[0]?.id || null);
+                  }}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${selectedFloorGroupId === group.id ? 'border-violet-200 bg-violet-500/25 text-violet-50' : 'border-violet-300/40 bg-violet-500/12 text-violet-100'}`}
+                >
                   {tx(lang, 'Birləşmiş qrup', 'Объединенная группа', 'Merged group')} {index + 1}: {group.tables.map((table) => table.label).join(' + ')}
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -1948,9 +2074,15 @@ export default function TablesPage() {
             onDrop={(e) => { void handleFloorGridDrop(e); }}
           >
             {mergedGroupOutlines.map((outline) => (
-              <div
+              <button
                 key={outline.id}
-                className="pointer-events-none absolute rounded-[26px] border-2 border-dashed border-violet-300/45 bg-violet-500/5"
+                type="button"
+                onClick={() => {
+                  const group = mergedGroups.find((row) => row.id === outline.id);
+                  setSelectedFloorGroupId(outline.id);
+                  setSelectedFloorTableId(group?.tables[0]?.id || null);
+                }}
+                className={`absolute rounded-[26px] border-2 border-dashed bg-violet-500/5 text-left ${selectedFloorGroupId === outline.id ? 'border-violet-100/90' : 'border-violet-300/45'}`}
                 style={{
                   left: outline.left,
                   width: outline.width,
@@ -1961,7 +2093,7 @@ export default function TablesPage() {
                 <div className="absolute -top-5 left-2 rounded-full bg-violet-500/20 px-2 py-0.5 text-[10px] font-semibold text-violet-100">
                   {outline.label}
                 </div>
-              </div>
+              </button>
             ))}
             {floorEditMode && floorDropPreview && (
               <>
@@ -1997,6 +2129,7 @@ export default function TablesPage() {
                   onClick={() => {
                     if (floorEditMode) {
                       setSelectedFloorTableId(table.id);
+                      setSelectedFloorGroupId(String((table as any).merged_group_id || '').trim() || null);
                       return;
                     }
                     if (String(table.status || '').toUpperCase() === 'DIRTY') return;
@@ -2195,13 +2328,15 @@ export default function TablesPage() {
                   {reservationTimeline.entries.map((entry) => {
                     const reservation = entry.reservation;
                     const availableTables = floorTables.filter((row) => String(row.status).toUpperCase() === 'AVAILABLE');
+                    const effectiveDuration = Number(reservationDurationDrafts[reservation.id] ?? (reservation.duration_minutes || 90));
+                    const isResizing = resizingReservation?.id === reservation.id;
                     return (
                       <div
                         key={reservation.id}
                         draggable={reservation.status === 'BOOKED'}
                         onDragStart={() => setDraggingReservationId(reservation.id)}
                         onDragEnd={() => setDraggingReservationId(null)}
-                        className="absolute rounded-2xl border border-amber-300/30 bg-gradient-to-br from-amber-400/15 to-slate-900/90 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]"
+                        className={`absolute rounded-2xl border border-amber-300/30 bg-gradient-to-br from-amber-400/15 to-slate-900/90 p-3 pb-8 shadow-[0_10px_30px_rgba(0,0,0,0.18)] ${isResizing ? 'ring-2 ring-cyan-300/80' : ''}`}
                         style={{
                           top: `${entry.top + 40}px`,
                           left: `${entry.lane * reservationTimeline.laneWidth + 8}px`,
@@ -2226,7 +2361,7 @@ export default function TablesPage() {
                           {reservation.assigned_table_id ? `${tx(lang, 'Masa', 'Стол', 'Table')}: ${floorTables.find((table) => table.id === reservation.assigned_table_id)?.label || reservation.assigned_table_id}` : tx(lang, 'Masa hələ təyin edilməyib', 'Стол еще не назначен', 'No table assigned yet')}
                         </div>
                         <div className="mt-1 text-xs text-slate-400">
-                          {tx(lang, 'Müddət', 'Длительность', 'Duration')}: {reservation.duration_minutes || 90} {tx(lang, 'dəqiqə', 'мин', 'min')}
+                          {tx(lang, 'Müddət', 'Длительность', 'Duration')}: {effectiveDuration} {tx(lang, 'dəqiqə', 'мин', 'min')}
                         </div>
                         {reservation.special_note ? (
                           <div className="mt-2 line-clamp-2 text-xs text-slate-400">{reservation.special_note}</div>
@@ -2273,6 +2408,35 @@ export default function TablesPage() {
                             {tx(lang, 'Ləğv et', 'Отменить', 'Cancel')}
                           </button>
                         </div>
+                        {reservation.status === 'BOOKED' && (
+                          <button
+                            type="button"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setResizingReservation({
+                                id: reservation.id,
+                                startY: e.clientY,
+                                startDuration: effectiveDuration,
+                              });
+                              setReservationDurationDrafts((prev) => ({ ...prev, [reservation.id]: effectiveDuration }));
+                            }}
+                            onTouchStart={(e) => {
+                              const touch = e.touches[0];
+                              if (!touch) return;
+                              e.stopPropagation();
+                              setResizingReservation({
+                                id: reservation.id,
+                                startY: touch.clientY,
+                                startDuration: effectiveDuration,
+                              });
+                              setReservationDurationDrafts((prev) => ({ ...prev, [reservation.id]: effectiveDuration }));
+                            }}
+                            className="absolute inset-x-4 bottom-1 flex cursor-ns-resize items-center justify-center rounded-full border border-cyan-300/25 bg-cyan-400/10 px-2 py-1 text-[10px] font-semibold text-cyan-100"
+                          >
+                            {tx(lang, 'Sürüşdür: müddəti dəyiş', 'Тяните: менять длительность', 'Drag to resize duration')}
+                          </button>
+                        )}
                       </div>
                     );
                   })}
