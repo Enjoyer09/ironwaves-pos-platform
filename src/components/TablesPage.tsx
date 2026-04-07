@@ -74,6 +74,7 @@ export default function TablesPage() {
   const [reservationPartySize, setReservationPartySize] = useState('2');
   const [reservationNote, setReservationNote] = useState('');
   const [reservationAssignedTableId, setReservationAssignedTableId] = useState('');
+  const [reservationStatusDraft, setReservationStatusDraft] = useState<'BOOKED' | 'WAITLIST'>('BOOKED');
   const [tableDetailRecord, setTableDetailRecord] = useState<TableDetailRecord | null>(null);
   const receiptRef = useRef<HTMLIFrameElement | null>(null);
   const detailPanelRef = useRef<HTMLDivElement | null>(null);
@@ -136,6 +137,19 @@ export default function TablesPage() {
     }),
     [floorTables, reservationAssignedTableId],
   );
+
+  const suggestedReservationTables = useMemo(() => {
+    const partySize = Math.max(1, Number(reservationPartySize || 1));
+    return [...reservationCandidateTables]
+      .filter((row) => Number(row.capacity || 0) >= partySize)
+      .sort((a, b) => {
+        const gapA = Math.abs(Number(a.capacity || 0) - partySize);
+        const gapB = Math.abs(Number(b.capacity || 0) - partySize);
+        if (gapA !== gapB) return gapA - gapB;
+        return String(a.label || '').localeCompare(String(b.label || ''));
+      })
+      .slice(0, 3);
+  }, [reservationCandidateTables, reservationPartySize]);
 
   const reservedTableIds = useMemo(
     () => new Set(
@@ -616,7 +630,8 @@ export default function TablesPage() {
         reservation_at: `${reservationDate}T${reservationTime}:00`,
         party_size: Math.max(1, Number(reservationPartySize || 2)),
         special_note: reservationNote.trim(),
-        assigned_table_id: reservationAssignedTableId || null,
+        assigned_table_id: reservationStatusDraft === 'WAITLIST' ? null : (reservationAssignedTableId || null),
+        status: reservationStatusDraft,
       });
       notify('success', tx(lang, 'Rezervasiya yaradıldı', 'Бронь создана', 'Reservation created'));
       setShowReservationCreate(false);
@@ -626,9 +641,20 @@ export default function TablesPage() {
       setReservationPartySize('2');
       setReservationNote('');
       setReservationAssignedTableId('');
+      setReservationStatusDraft('BOOKED');
       await loadRestaurantData();
     } catch (e: any) {
       notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message);
+    }
+  };
+
+  const handleReservationStatusChange = async (reservationId: string, status: string) => {
+    try {
+      await update_reservation_live(reservationId, { status });
+      notify('success', tx(lang, 'Rezervasiya statusu yeniləndi', 'Статус брони обновлен', 'Reservation status updated'));
+      await Promise.all([loadRestaurantData(), activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve()]);
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Rezervasiya statusu dəyişmədi', 'Статус брони не изменился', 'Reservation status was not updated'));
     }
   };
 
@@ -1432,6 +1458,25 @@ export default function TablesPage() {
           <div className="metal-panel w-full max-w-xl rounded-t-[28px] p-5 md:rounded-2xl">
             <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-600 md:hidden" />
             <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Yeni rezervasiya', 'Новая бронь', 'New reservation')}</h3>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setReservationStatusDraft('BOOKED')}
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${reservationStatusDraft === 'BOOKED' ? 'bg-amber-300 text-slate-950' : 'border border-amber-300/30 bg-amber-500/10 text-amber-100'}`}
+              >
+                {tx(lang, 'Rezerv', 'Бронь', 'Booked')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setReservationStatusDraft('WAITLIST');
+                  setReservationAssignedTableId('');
+                }}
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${reservationStatusDraft === 'WAITLIST' ? 'bg-violet-300 text-slate-950' : 'border border-violet-300/30 bg-violet-500/10 text-violet-100'}`}
+              >
+                {tx(lang, 'Gözləmə siyahısı', 'Лист ожидания', 'Waitlist')}
+              </button>
+            </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <label className="text-sm text-slate-300">
                 {tx(lang, 'Qonaq adı', 'Имя гостя', 'Guest name')}
@@ -1451,7 +1496,12 @@ export default function TablesPage() {
               </label>
               <label className="text-sm text-slate-300">
                 {tx(lang, 'Masa seçimi', 'Выбор стола', 'Table selection')}
-                <select className="neon-input mt-1" value={reservationAssignedTableId} onChange={(e) => setReservationAssignedTableId(e.target.value)}>
+                <select
+                  className="neon-input mt-1"
+                  value={reservationAssignedTableId}
+                  onChange={(e) => setReservationAssignedTableId(e.target.value)}
+                  disabled={reservationStatusDraft === 'WAITLIST'}
+                >
                   <option value="">{tx(lang, 'Sonra təyin et', 'Назначить позже', 'Assign later')}</option>
                   {reservationCandidateTables.map((table) => (
                     <option key={table.id} value={table.id}>
@@ -1461,6 +1511,25 @@ export default function TablesPage() {
                 </select>
               </label>
             </div>
+            {reservationStatusDraft !== 'WAITLIST' && suggestedReservationTables.length > 0 && (
+              <div className="mt-3">
+                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">
+                  {tx(lang, 'Təklif olunan masalar', 'Рекомендуемые столы', 'Suggested tables')}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {suggestedReservationTables.map((table) => (
+                    <button
+                      key={table.id}
+                      type="button"
+                      onClick={() => setReservationAssignedTableId(table.id)}
+                      className={`rounded-full border px-3 py-1 text-xs font-semibold ${reservationAssignedTableId === table.id ? 'border-cyan-200 bg-cyan-300 text-slate-950' : 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100'}`}
+                    >
+                      {table.label} · {tx(lang, 'Tutum', 'Вместимость', 'Capacity')} {table.capacity}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <label className="mt-3 block text-sm text-slate-300">
               {tx(lang, 'Qeyd', 'Примечание', 'Note')}
               <textarea className="neon-input mt-1 min-h-[88px]" value={reservationNote} onChange={(e) => setReservationNote(e.target.value)} />
@@ -1472,6 +1541,7 @@ export default function TablesPage() {
                 onClick={() => {
                   setShowReservationCreate(false);
                   setReservationAssignedTableId('');
+                  setReservationStatusDraft('BOOKED');
                 }}
               >
                 {tx(lang, 'Bağla', 'Закрыть', 'Close')}
@@ -2517,7 +2587,7 @@ export default function TablesPage() {
                     const hasConflict = Boolean(assignedTableId) && reservations.some((row) => {
                       if (row.id === draggingReservationId) return false;
                       if (String(row.assigned_table_id || '') !== String(assignedTableId || '')) return false;
-                      if (String(row.status || '').toUpperCase() === 'CANCELLED') return false;
+                      if (!['BOOKED', 'LATE'].includes(String(row.status || '').toUpperCase())) return false;
                       const start = new Date(row.reservation_at).getTime();
                       const end = start + (Math.max(30, Number(row.duration_minutes || 90)) * 60 * 1000);
                       return previewStart < end && previewEnd > start;
@@ -2603,16 +2673,25 @@ export default function TablesPage() {
                     const availableTables = floorTables.filter((row) => String(row.status).toUpperCase() === 'AVAILABLE');
                     const effectiveDuration = Number(reservationDurationDrafts[reservation.id] ?? (reservation.duration_minutes || 90));
                     const isResizing = resizingReservation?.id === reservation.id;
+                    const reservationStatus = String(reservation.status || '').toUpperCase();
+                    const statusTone =
+                      reservationStatus === 'WAITLIST'
+                        ? 'from-violet-400/15'
+                        : reservationStatus === 'LATE'
+                          ? 'from-rose-400/15'
+                          : reservationStatus === 'NO_SHOW'
+                            ? 'from-slate-500/20'
+                            : 'from-amber-400/15';
                     return (
                       <div
                         key={reservation.id}
-                        draggable={reservation.status === 'BOOKED'}
+                        draggable={reservationStatus === 'BOOKED' || reservationStatus === 'LATE' || reservationStatus === 'WAITLIST'}
                         onDragStart={() => setDraggingReservationId(reservation.id)}
                         onDragEnd={() => {
                           setDraggingReservationId(null);
                           setReservationDropPreview(null);
                         }}
-                        className={`absolute rounded-2xl border border-amber-300/30 bg-gradient-to-br from-amber-400/15 to-slate-900/90 p-3 pb-8 shadow-[0_10px_30px_rgba(0,0,0,0.18)] ${isResizing ? 'ring-2 ring-cyan-300/80' : ''}`}
+                        className={`absolute rounded-2xl border border-amber-300/30 bg-gradient-to-br ${statusTone} to-slate-900/90 p-3 pb-8 shadow-[0_10px_30px_rgba(0,0,0,0.18)] ${isResizing ? 'ring-2 ring-cyan-300/80' : ''}`}
                         style={{
                           top: `${entry.top + 40}px`,
                           left: `${entry.lane * reservationTimeline.laneWidth + 8}px`,
@@ -2643,12 +2722,12 @@ export default function TablesPage() {
                           <div className="mt-2 line-clamp-2 text-xs text-slate-400">{reservation.special_note}</div>
                         ) : null}
                         <div className="mt-3 flex flex-wrap gap-2">
-                          {reservation.status === 'BOOKED' && (
+                          {(reservationStatus === 'BOOKED' || reservationStatus === 'LATE' || reservationStatus === 'WAITLIST') && (
                             <span className="rounded-full border border-slate-500/40 bg-slate-800/70 px-3 py-1 text-[11px] font-semibold text-slate-200">
                               {tx(lang, 'Sürüşdürüb vaxtı dəyiş', 'Перетащите, чтобы сменить время', 'Drag to reschedule')}
                             </span>
                           )}
-                          {reservation.status === 'BOOKED' && (
+                          {(reservationStatus === 'BOOKED' || reservationStatus === 'LATE' || reservationStatus === 'WAITLIST') && (
                             <>
                               <button
                                 type="button"
@@ -2666,7 +2745,7 @@ export default function TablesPage() {
                               </button>
                             </>
                           )}
-                          {reservation.status === 'BOOKED' && availableTables.slice(0, 2).map((table) => (
+                          {(reservationStatus === 'BOOKED' || reservationStatus === 'WAITLIST' || reservationStatus === 'LATE') && availableTables.slice(0, 2).map((table) => (
                             <button
                               key={table.id}
                               type="button"
@@ -2676,6 +2755,33 @@ export default function TablesPage() {
                               {tx(lang, 'Seat et', 'Посадить', 'Seat')} · {table.label}
                             </button>
                           ))}
+                          {reservationStatus === 'BOOKED' && (
+                            <button
+                              type="button"
+                              onClick={() => { void handleReservationStatusChange(reservation.id, 'LATE'); }}
+                              className="rounded-full border border-rose-300/40 bg-rose-500/10 px-3 py-1 text-[11px] font-semibold text-rose-100"
+                            >
+                              {tx(lang, 'Gecikir', 'Опаздывает', 'Late')}
+                            </button>
+                          )}
+                          {(reservationStatus === 'BOOKED' || reservationStatus === 'LATE') && (
+                            <button
+                              type="button"
+                              onClick={() => { void handleReservationStatusChange(reservation.id, 'NO_SHOW'); }}
+                              className="rounded-full border border-slate-300/30 bg-slate-500/15 px-3 py-1 text-[11px] font-semibold text-slate-100"
+                            >
+                              {tx(lang, 'No-show', 'Не пришел', 'No-show')}
+                            </button>
+                          )}
+                          {reservationStatus === 'LATE' && (
+                            <button
+                              type="button"
+                              onClick={() => { void handleReservationStatusChange(reservation.id, 'BOOKED'); }}
+                              className="rounded-full border border-cyan-300/40 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold text-cyan-100"
+                            >
+                              {tx(lang, 'Rezervə qaytar', 'Вернуть в бронь', 'Back to booked')}
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => { void delete_reservation_live(reservation.id).then(() => loadRestaurantData()); }}
@@ -2684,7 +2790,7 @@ export default function TablesPage() {
                             {tx(lang, 'Ləğv et', 'Отменить', 'Cancel')}
                           </button>
                         </div>
-                        {reservation.status === 'BOOKED' && (
+                        {(reservationStatus === 'BOOKED' || reservationStatus === 'LATE' || reservationStatus === 'WAITLIST') && (
                           <button
                             type="button"
                             onMouseDown={(e) => {

@@ -85,7 +85,7 @@ def _find_locked_reservation(db: Session, tenant_id: str, table_id: str) -> Rese
         .filter(
             Reservation.tenant_id == tenant_id,
             Reservation.assigned_table_id == table_id,
-            Reservation.status == "BOOKED",
+            Reservation.status.in_(["BOOKED", "LATE"]),
             Reservation.reservation_at >= now,
             Reservation.reservation_at <= lock_until,
         )
@@ -119,7 +119,7 @@ def _validate_reservation_table(
         .filter(
             Reservation.tenant_id == tenant_id,
             Reservation.assigned_table_id == table_id,
-            Reservation.status == "BOOKED",
+            Reservation.status.in_(["BOOKED", "LATE"]),
         )
         .order_by(Reservation.reservation_at.asc())
         .all()
@@ -644,7 +644,13 @@ def create_reservation(
     user: User = Depends(get_current_user),
 ):
     _ensure_floor_admin(user)
-    _validate_reservation_table(db, tenant.id, payload.assigned_table_id, payload.reservation_at, payload.duration_minutes)
+    next_status = str(payload.status or "BOOKED").upper()
+    if next_status not in {"BOOKED", "WAITLIST", "LATE"}:
+        next_status = "BOOKED"
+    assigned_table_id = payload.assigned_table_id
+    if next_status == "WAITLIST":
+        assigned_table_id = None
+    _validate_reservation_table(db, tenant.id, assigned_table_id, payload.reservation_at, payload.duration_minutes)
     guest = Guest(
         tenant_id=tenant.id,
         full_name=payload.guest_name.strip(),
@@ -657,11 +663,11 @@ def create_reservation(
     row = Reservation(
         tenant_id=tenant.id,
         guest_id=guest.id,
-        assigned_table_id=payload.assigned_table_id,
+        assigned_table_id=assigned_table_id,
         reservation_at=payload.reservation_at,
         duration_minutes=max(15, payload.duration_minutes),
         party_size=max(1, payload.party_size),
-        status="BOOKED",
+        status=next_status,
         special_note=payload.special_note,
         created_by=user.username,
     )
@@ -669,8 +675,8 @@ def create_reservation(
     db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="RESERVATION_CREATED", details=payload.guest_name))
     db.commit()
     _emit_realtime(tenant.id, "reservation.updated", {"reservation_id": row.id, "action": "created"})
-    if payload.assigned_table_id:
-        _emit_realtime(tenant.id, "floor.updated", {"table_id": payload.assigned_table_id, "action": "reserved"})
+    if assigned_table_id and next_status in {"BOOKED", "LATE"}:
+        _emit_realtime(tenant.id, "floor.updated", {"table_id": assigned_table_id, "action": "reserved"})
     return {"id": row.id, "status": row.status}
 
 
@@ -713,9 +719,11 @@ def update_reservation(
         _validate_reservation_table(db, tenant.id, row.assigned_table_id, next_reservation_at, next_duration_minutes, exclude_reservation_id=row.id)
     if payload.status is not None:
         row.status = str(payload.status).upper()
+        if row.status == "WAITLIST":
+            row.assigned_table_id = None
     db.commit()
     _emit_realtime(tenant.id, "reservation.updated", {"reservation_id": row.id, "action": "updated"})
-    if row.assigned_table_id:
+    if row.assigned_table_id and row.status in {"BOOKED", "LATE"}:
         _emit_realtime(tenant.id, "floor.updated", {"table_id": row.assigned_table_id, "action": "reservation-updated"})
     return {"ok": True}
 
@@ -753,6 +761,8 @@ def seat_reservation(
     table = db.query(Table).filter(Table.id == payload.table_id, Table.tenant_id == tenant.id).first()
     if not reservation or not table:
         raise HTTPException(status_code=404, detail="Reservation or table not found")
+    if str(reservation.status or "").upper() in {"CANCELLED", "NO_SHOW"}:
+        raise HTTPException(status_code=400, detail="Reservation cannot be seated in its current status")
     active = (
         db.query(TableSession)
         .filter(TableSession.tenant_id == tenant.id, TableSession.table_id == table.id, TableSession.closed_at.is_(None))

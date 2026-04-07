@@ -399,14 +399,17 @@ export async function create_reservation_live(
     party_size?: number;
     special_note?: string;
     assigned_table_id?: string | null;
+    status?: string | null;
   },
 ) {
   if (!isBackendEnabled()) {
+    const nextStatus = String(payload.status || 'BOOKED').toUpperCase();
+    const assignedTableId = nextStatus === 'WAITLIST' ? null : (payload.assigned_table_id || null);
     assertLocalReservationSlotAvailable(
       tenant_id,
       payload.reservation_at,
       payload.duration_minutes || 90,
-      payload.assigned_table_id || null,
+      assignedTableId,
       null,
     );
     const rows = getDB<any>(localReservationKey);
@@ -416,9 +419,9 @@ export async function create_reservation_live(
       reservation_at: payload.reservation_at,
       duration_minutes: payload.duration_minutes || 90,
       party_size: payload.party_size || 2,
-      status: 'BOOKED',
+      status: nextStatus,
       special_note: payload.special_note || '',
-      assigned_table_id: payload.assigned_table_id || null,
+      assigned_table_id: assignedTableId,
       guest: { full_name: payload.guest_name, phone: payload.phone || '', email: payload.email || '' },
     };
     rows.push(created);
@@ -438,14 +441,19 @@ export async function update_reservation_live(reservationId: string, payload: Re
     const idx = rows.findIndex((row) => row.id === reservationId);
     if (idx >= 0) {
       const current = rows[idx];
+      const nextStatus = String(payload.status ?? current.status ?? 'BOOKED').toUpperCase();
+      const nextAssignedTableId =
+        nextStatus === 'WAITLIST'
+          ? null
+          : (payload.assigned_table_id !== undefined ? payload.assigned_table_id : current.assigned_table_id);
       assertLocalReservationSlotAvailable(
         current.tenant_id,
         payload.reservation_at ?? current.reservation_at,
         payload.duration_minutes ?? current.duration_minutes ?? 90,
-        payload.assigned_table_id !== undefined ? payload.assigned_table_id : current.assigned_table_id,
+        nextAssignedTableId,
         reservationId,
       );
-      rows[idx] = { ...rows[idx], ...payload };
+      rows[idx] = { ...rows[idx], ...payload, status: nextStatus, assigned_table_id: nextAssignedTableId };
       saveLocalReservations(rows);
       return rows[idx];
     }
