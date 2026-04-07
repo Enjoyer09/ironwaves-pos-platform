@@ -99,6 +99,7 @@ def _validate_reservation_table(
     tenant_id: str,
     table_id: str | None,
     reservation_at: datetime,
+    duration_minutes: int = 90,
     exclude_reservation_id: str | None = None,
 ) -> None:
     if not table_id:
@@ -111,16 +112,14 @@ def _validate_reservation_table(
     active_session, active_check = _ensure_active_session_and_check(db, tenant_id, table)
     if active_session or active_check or bool(table.is_occupied):
         raise HTTPException(status_code=400, detail="Table already has an active session")
-    overlap_start = reservation_at - timedelta(hours=_reservation_lock_hours(db, tenant_id))
-    overlap_end = reservation_at + timedelta(hours=_reservation_lock_hours(db, tenant_id))
+    new_start = reservation_at
+    new_end = reservation_at + timedelta(minutes=max(15, int(duration_minutes or 90)))
     overlaps = (
         db.query(Reservation)
         .filter(
             Reservation.tenant_id == tenant_id,
             Reservation.assigned_table_id == table_id,
             Reservation.status == "BOOKED",
-            Reservation.reservation_at >= overlap_start,
-            Reservation.reservation_at <= overlap_end,
         )
         .order_by(Reservation.reservation_at.asc())
         .all()
@@ -128,7 +127,10 @@ def _validate_reservation_table(
     for reservation in overlaps:
         if exclude_reservation_id and reservation.id == exclude_reservation_id:
             continue
-        raise HTTPException(status_code=400, detail="Table already has an upcoming reservation")
+        existing_start = reservation.reservation_at
+        existing_end = existing_start + timedelta(minutes=max(15, int(reservation.duration_minutes or 90)))
+        if new_start < existing_end and new_end > existing_start:
+            raise HTTPException(status_code=400, detail="Table already has a conflicting reservation")
 
 
 def _merge_table_items(existing: list[dict], incoming: list[dict]) -> list[dict]:
@@ -642,7 +644,7 @@ def create_reservation(
     user: User = Depends(get_current_user),
 ):
     _ensure_floor_admin(user)
-    _validate_reservation_table(db, tenant.id, payload.assigned_table_id, payload.reservation_at)
+    _validate_reservation_table(db, tenant.id, payload.assigned_table_id, payload.reservation_at, payload.duration_minutes)
     guest = Guest(
         tenant_id=tenant.id,
         full_name=payload.guest_name.strip(),
@@ -692,20 +694,23 @@ def update_reservation(
         guest.phone = payload.phone
     if payload.email is not None and guest:
         guest.email = payload.email
+    next_reservation_at = payload.reservation_at if payload.reservation_at is not None else row.reservation_at
+    next_duration_minutes = max(15, payload.duration_minutes) if payload.duration_minutes is not None else row.duration_minutes
     if payload.reservation_at is not None:
         row.reservation_at = payload.reservation_at
     if payload.duration_minutes is not None:
-        row.duration_minutes = max(15, payload.duration_minutes)
+        row.duration_minutes = next_duration_minutes
     if payload.party_size is not None:
         row.party_size = max(1, payload.party_size)
     if payload.special_note is not None:
         row.special_note = payload.special_note
         if guest:
             guest.notes = payload.special_note
-    next_reservation_at = payload.reservation_at if payload.reservation_at is not None else row.reservation_at
     if payload.assigned_table_id is not None:
-        _validate_reservation_table(db, tenant.id, payload.assigned_table_id, next_reservation_at, exclude_reservation_id=row.id)
+        _validate_reservation_table(db, tenant.id, payload.assigned_table_id, next_reservation_at, next_duration_minutes, exclude_reservation_id=row.id)
         row.assigned_table_id = payload.assigned_table_id
+    elif payload.reservation_at is not None or payload.duration_minutes is not None:
+        _validate_reservation_table(db, tenant.id, row.assigned_table_id, next_reservation_at, next_duration_minutes, exclude_reservation_id=row.id)
     if payload.status is not None:
         row.status = str(payload.status).upper()
     db.commit()
