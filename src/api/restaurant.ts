@@ -202,6 +202,44 @@ export async function update_table_layout_live(tableId: string, payload: TableLa
   });
 }
 
+export async function combine_tables_live(tableId: string, targetTableId: string) {
+  if (!isBackendEnabled()) {
+    const tables = getDB<any>('tables');
+    const source = tables.find((row) => row.id === tableId);
+    const target = tables.find((row) => row.id === targetTableId);
+    if (!source || !target) throw new Error('Table not found');
+    const mergedGroupId = source.merged_group_id || target.merged_group_id || uuidv4();
+    source.merged_group_id = mergedGroupId;
+    target.merged_group_id = mergedGroupId;
+    setDB('tables', tables);
+    return { ok: true, merged_group_id: mergedGroupId };
+  }
+  return apiRequest(`/api/v1/restaurant/tables/${encodeURIComponent(tableId)}/combine`, {
+    method: 'POST',
+    tenantId: null,
+    body: { target_table_id: targetTableId },
+  });
+}
+
+export async function split_table_group_live(tableId: string, mergedGroupId?: string | null) {
+  if (!isBackendEnabled()) {
+    const tables = getDB<any>('tables').map((row) => (
+      mergedGroupId && row.merged_group_id === mergedGroupId
+        ? { ...row, merged_group_id: null }
+        : row.id === tableId
+          ? { ...row, merged_group_id: null }
+          : row
+    ));
+    setDB('tables', tables);
+    return { ok: true };
+  }
+  return apiRequest(`/api/v1/restaurant/tables/${encodeURIComponent(tableId)}/split`, {
+    method: 'POST',
+    tenantId: null,
+    body: { merged_group_id: mergedGroupId || null },
+  });
+}
+
 export async function get_table_detail_live(tenant_id: string, tableId: string): Promise<TableDetailRecord | null> {
   if (!isBackendEnabled()) {
     const row = getDB<any>('tables').find((table) => table.tenant_id === tenant_id && table.id === tableId);
