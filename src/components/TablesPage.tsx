@@ -2,7 +2,8 @@ import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { get_tables_live, create_table_live, delete_table_live, open_table_live, pay_table_live, transfer_table_live, merge_tables_live, revise_table_items_live, send_to_kitchen_live } from '../api/tables';
 import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
-import { LayoutGrid, Plus, Trash2, ArrowRightCircle } from 'lucide-react';
+import { create_reservation_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, seat_reservation_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord } from '../api/restaurant';
+import { LayoutGrid, Plus, Trash2, ArrowRightCircle, CalendarClock, Users, MapPinned } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
@@ -22,6 +23,7 @@ export default function TablesPage() {
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [newTableName, setNewTableName] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [workspaceView, setWorkspaceView] = useState<'floor' | 'reservations'>('floor');
   const [deleteTableId, setDeleteTableId] = useState<string | null>(null);
   const [openTableId, setOpenTableId] = useState<string | null>(null);
   const [guestCount, setGuestCount] = useState('1');
@@ -45,6 +47,17 @@ export default function TablesPage() {
   const [roundDraft, setRoundDraft] = useState<any[]>([]);
   const [servedItemsMap, setServedItemsMap] = useState<Record<string, Record<string, number>>>({});
   const [tableWorkspaceTab, setTableWorkspaceTab] = useState<'compose' | 'service' | 'history' | 'ops'>('compose');
+  const [floorPlans, setFloorPlans] = useState<FloorPlanRecord[]>([]);
+  const [activeFloorId, setActiveFloorId] = useState<string>('');
+  const [floorTables, setFloorTables] = useState<FloorTableState[]>([]);
+  const [reservationDate, setReservationDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [reservations, setReservations] = useState<ReservationRecord[]>([]);
+  const [showReservationCreate, setShowReservationCreate] = useState(false);
+  const [reservationGuestName, setReservationGuestName] = useState('');
+  const [reservationPhone, setReservationPhone] = useState('');
+  const [reservationTime, setReservationTime] = useState('19:00');
+  const [reservationPartySize, setReservationPartySize] = useState('2');
+  const [reservationNote, setReservationNote] = useState('');
   const receiptRef = useRef<HTMLIFrameElement | null>(null);
   const detailPanelRef = useRef<HTMLDivElement | null>(null);
   const businessProfile = get_business_profile(tenant_id);
@@ -86,6 +99,21 @@ export default function TablesPage() {
   useEffect(() => {
     void loadData();
   }, [tenant_id]);
+
+  useEffect(() => {
+    void loadRestaurantData();
+  }, [tenant_id, reservationDate]);
+
+  useEffect(() => {
+    if (!activeFloorId && floorPlans.length > 0) {
+      setActiveFloorId(floorPlans.find((row) => row.is_active)?.id || floorPlans[0].id);
+    }
+  }, [floorPlans, activeFloorId]);
+
+  useEffect(() => {
+    if (!activeFloorId) return;
+    void loadFloorState(activeFloorId);
+  }, [activeFloorId]);
 
   useEffect(() => {
     const onOnline = () => setIsOnline(true);
@@ -150,6 +178,21 @@ export default function TablesPage() {
     setTables(nextTables);
     setKitchenOrders(Array.isArray(nextKitchenOrders) ? nextKitchenOrders : []);
     setMenuCatalog(Array.isArray(nextMenu) ? nextMenu : []);
+  };
+
+  const loadRestaurantData = async () => {
+    const [nextFloors, nextReservations] = await Promise.all([
+      get_floor_plans_live(tenant_id).catch(() => []),
+      get_reservations_live(tenant_id, reservationDate).catch(() => []),
+    ]);
+    setFloorPlans(Array.isArray(nextFloors) ? nextFloors : []);
+    setReservations(Array.isArray(nextReservations) ? nextReservations : []);
+  };
+
+  const loadFloorState = async (floorId: string) => {
+    const state = await get_floor_state_live(tenant_id, floorId).catch(() => null);
+    if (!state) return;
+    setFloorTables(Array.isArray(state.tables) ? state.tables : []);
   };
 
   const addMenuItemToRound = (item: any) => {
@@ -264,6 +307,41 @@ export default function TablesPage() {
       setDeleteTableId(null);
       await loadData();
     } catch(e:any) { notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message); }
+  };
+
+  const handleCreateReservation = async () => {
+    const guest = reservationGuestName.trim();
+    if (!guest) return;
+    try {
+      await create_reservation_live(tenant_id, {
+        guest_name: guest,
+        phone: reservationPhone.trim(),
+        reservation_at: `${reservationDate}T${reservationTime}:00`,
+        party_size: Math.max(1, Number(reservationPartySize || 2)),
+        special_note: reservationNote.trim(),
+      });
+      notify('success', tx(lang, 'Rezervasiya yaradıldı', 'Бронь создана', 'Reservation created'));
+      setShowReservationCreate(false);
+      setReservationGuestName('');
+      setReservationPhone('');
+      setReservationTime('19:00');
+      setReservationPartySize('2');
+      setReservationNote('');
+      await loadRestaurantData();
+    } catch (e: any) {
+      notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message);
+    }
+  };
+
+  const handleSeatReservation = async (reservationId: string, tableId: string, guestCount?: number) => {
+    try {
+      await seat_reservation_live(reservationId, { table_id: tableId, guest_count: guestCount, assigned_waiter: user?.username || 'staff' });
+      notify('success', tx(lang, 'Qonaq masaya oturduldu', 'Гость посажен за стол', 'Guest seated at table'));
+      setWorkspaceView('floor');
+      await Promise.all([loadRestaurantData(), activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(), loadData()]);
+    } catch (e: any) {
+      notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message);
+    }
   };
 
   const openTableInPos = (table: any) => {
@@ -874,6 +952,45 @@ export default function TablesPage() {
         </div>
       )}
 
+      {showReservationCreate && (
+        <div className="fixed inset-0 z-[130] flex items-end justify-center bg-black/65 p-0 md:items-center md:p-4">
+          <div className="metal-panel w-full max-w-xl rounded-t-[28px] p-5 md:rounded-2xl">
+            <div className="mx-auto mb-3 h-1.5 w-14 rounded-full bg-slate-600 md:hidden" />
+            <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Yeni rezervasiya', 'Новая бронь', 'New reservation')}</h3>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <label className="text-sm text-slate-300">
+                {tx(lang, 'Qonaq adı', 'Имя гостя', 'Guest name')}
+                <input className="neon-input mt-1" value={reservationGuestName} onChange={(e) => setReservationGuestName(e.target.value)} />
+              </label>
+              <label className="text-sm text-slate-300">
+                {tx(lang, 'Telefon', 'Телефон', 'Phone')}
+                <input className="neon-input mt-1" value={reservationPhone} onChange={(e) => setReservationPhone(e.target.value)} />
+              </label>
+              <label className="text-sm text-slate-300">
+                {tx(lang, 'Vaxt', 'Время', 'Time')}
+                <input className="neon-input mt-1" type="time" value={reservationTime} onChange={(e) => setReservationTime(e.target.value)} />
+              </label>
+              <label className="text-sm text-slate-300">
+                {tx(lang, 'Nəfər sayı', 'Количество гостей', 'Party size')}
+                <input className="neon-input mt-1" type="number" min={1} max={20} value={reservationPartySize} onChange={(e) => setReservationPartySize(e.target.value)} />
+              </label>
+            </div>
+            <label className="mt-3 block text-sm text-slate-300">
+              {tx(lang, 'Qeyd', 'Примечание', 'Note')}
+              <textarea className="neon-input mt-1 min-h-[88px]" value={reservationNote} onChange={(e) => setReservationNote(e.target.value)} />
+            </label>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" className="neon-btn rounded-lg px-4 py-2" onClick={() => setShowReservationCreate(false)}>
+                {tx(lang, 'Bağla', 'Закрыть', 'Close')}
+              </button>
+              <button type="button" className="glossy-gold rounded-lg px-4 py-2 font-semibold" onClick={() => { void handleCreateReservation(); }}>
+                {tx(lang, 'Yarat', 'Создать', 'Create')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {viewTableId && (
         <div ref={detailPanelRef} className="mt-6">
           <div className="metal-panel w-full rounded-[30px] p-5">
@@ -1294,13 +1411,159 @@ export default function TablesPage() {
 
       <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h2 className="text-2xl font-bold flex items-center gap-2"><LayoutGrid size={28} className="text-yellow-300"/> {tx(lang, 'Masaların İdarəsi', 'Управление столами', 'Table Management')}</h2>
-        {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
-          <button onClick={() => setShowCreate(true)} className="glossy-gold min-h-13 px-4 py-3 rounded-xl flex items-center justify-center gap-2 transition-colors font-bold">
-            <Plus size={20} /> {tx(lang, 'Masa Yarat', 'Создать стол', 'Create Table')}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setWorkspaceView('floor')}
+            className={`rounded-full px-4 py-2 text-sm font-semibold ${workspaceView === 'floor' ? 'bg-yellow-400 text-slate-950' : 'border border-slate-600 bg-slate-800/50 text-slate-200'}`}
+          >
+            <MapPinned size={16} className="mr-2 inline" />
+            {tx(lang, 'Floor', 'Floor', 'Floor')}
           </button>
-        )}
+          <button
+            type="button"
+            onClick={() => setWorkspaceView('reservations')}
+            className={`rounded-full px-4 py-2 text-sm font-semibold ${workspaceView === 'reservations' ? 'bg-yellow-400 text-slate-950' : 'border border-slate-600 bg-slate-800/50 text-slate-200'}`}
+          >
+            <CalendarClock size={16} className="mr-2 inline" />
+            {tx(lang, 'Rezervasiyalar', 'Брони', 'Reservations')}
+          </button>
+          {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
+            <button onClick={() => setShowCreate(true)} className="glossy-gold min-h-13 px-4 py-3 rounded-xl flex items-center justify-center gap-2 transition-colors font-bold">
+              <Plus size={20} /> {tx(lang, 'Masa Yarat', 'Создать стол', 'Create Table')}
+            </button>
+          )}
+        </div>
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5">
+      {workspaceView === 'floor' && activeFloorId && (
+        <div className="mb-6 rounded-[28px] border border-white/10 bg-slate-900/35 p-4">
+          <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="text-lg font-bold text-slate-100">
+                {floorPlans.find((row) => row.id === activeFloorId)?.name || tx(lang, 'Main Floor', 'Main Floor', 'Main Floor')}
+              </div>
+              <div className="mt-1 text-sm text-slate-400">
+                {tx(lang, 'OpenTable tipli floor plan görünüşü. Masaya toxunaraq seating və open check axınına keçin.', 'План зала в стиле OpenTable. Нажмите на стол, чтобы перейти к seating и открытому чеку.', 'OpenTable-style floor plan. Tap a table to continue into seating and open check flow.')}
+              </div>
+            </div>
+            {floorPlans.length > 1 && (
+              <select className="neon-input min-w-[220px]" value={activeFloorId} onChange={(e) => setActiveFloorId(e.target.value)}>
+                {floorPlans.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+              </select>
+            )}
+          </div>
+          <div
+            className="grid gap-3 rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3"
+            style={{
+              gridTemplateColumns: `repeat(${Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12)}, minmax(0, 1fr))`,
+              gridAutoRows: '70px',
+            }}
+          >
+            {floorTables.map((table) => {
+              const statusColors: Record<string, string> = {
+                AVAILABLE: 'bg-emerald-500/15 border-emerald-300/40 text-emerald-100',
+                RESERVED: 'bg-amber-500/15 border-amber-300/40 text-amber-100',
+                SEATED: 'bg-sky-500/15 border-sky-300/40 text-sky-100',
+                ACTIVE_CHECK: 'bg-rose-500/15 border-rose-300/40 text-rose-100',
+                DIRTY: 'bg-slate-500/20 border-slate-300/30 text-slate-100',
+              };
+              return (
+                <button
+                  key={table.id}
+                  type="button"
+                  onClick={() => {
+                    const localTable = tables.find((row) => row.id === table.id);
+                    if (localTable?.is_occupied) {
+                      setViewTableId(localTable.id);
+                    } else {
+                      setOpenTableId(table.id);
+                      setGuestCount(String(Math.max(1, Number(table.guest_count || 1))));
+                      setDepositGuestCount('0');
+                    }
+                  }}
+                  className={`rounded-2xl border p-3 text-left shadow-sm transition hover:scale-[1.01] ${statusColors[String(table.status || 'AVAILABLE').toUpperCase()] || statusColors.AVAILABLE}`}
+                  style={{
+                    gridColumn: `${Math.max(1, Number(table.x || 0) + 1)} / span ${Math.max(1, Number(table.w || 2))}`,
+                    gridRow: `${Math.max(1, Number(table.y || 0) + 1)} / span ${Math.max(1, Number(table.h || 2))}`,
+                  }}
+                >
+                  <div className="font-bold">{table.label}</div>
+                  <div className="mt-1 text-xs opacity-80">{table.status}</div>
+                  <div className="mt-2 text-xs">
+                    <Users size={12} className="mr-1 inline" />
+                    {Number(table.guest_count || 0)} / {Number(table.capacity || 0)}
+                  </div>
+                  {new Decimal(table.check_total || 0).greaterThan(0) && (
+                    <div className="mt-2 text-xs font-semibold">{new Decimal(table.check_total || 0).toFixed(2)} ₼</div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {workspaceView === 'reservations' && (
+        <div className="mb-6 rounded-[28px] border border-white/10 bg-slate-900/35 p-4">
+          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="text-lg font-bold text-slate-100">{tx(lang, 'Günlük rezervasiyalar', 'Брони на день', 'Daily reservations')}</div>
+              <div className="mt-1 text-sm text-slate-400">{tx(lang, 'Saat xətti üzrə rezervasiyalar və seat axını', 'Брони по временной линии и сценарий посадки', 'Reservations timeline and seating flow')}</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <input className="neon-input" type="date" value={reservationDate} onChange={(e) => setReservationDate(e.target.value)} />
+              <button type="button" onClick={() => setShowReservationCreate(true)} className="glossy-gold rounded-xl px-4 py-2 font-semibold">
+                {tx(lang, 'Rezervasiya yarat', 'Создать бронь', 'Create reservation')}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {reservations.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-700/70 px-4 py-6 text-center text-sm text-slate-400">
+                {tx(lang, 'Bu gün üçün rezervasiya yoxdur', 'На этот день броней нет', 'No reservations for this day')}
+              </div>
+            )}
+            {reservations.map((reservation) => {
+              const availableTables = floorTables.filter((row) => String(row.status).toUpperCase() === 'AVAILABLE');
+              return (
+                <div key={reservation.id} className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="font-semibold text-slate-100">{reservation.guest?.full_name || tx(lang, 'Adsız qonaq', 'Гость без имени', 'Guest without name')}</div>
+                      <div className="mt-1 text-sm text-slate-400">
+                        {new Date(reservation.reservation_at).toLocaleTimeString(lang === 'ru' ? 'ru-RU' : 'az-AZ', { hour: '2-digit', minute: '2-digit' })}
+                        {' · '}
+                        {reservation.party_size} {tx(lang, 'nəfər', 'гостя', 'guests')}
+                        {reservation.special_note ? ` · ${reservation.special_note}` : ''}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-slate-600 bg-slate-800/50 px-3 py-1 text-xs font-semibold text-slate-200">{reservation.status}</span>
+                      {reservation.status === 'BOOKED' && availableTables.slice(0, 3).map((table) => (
+                        <button
+                          key={table.id}
+                          type="button"
+                          onClick={() => { void handleSeatReservation(reservation.id, table.id, reservation.party_size); }}
+                          className="rounded-full border border-emerald-300/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-100"
+                        >
+                          {tx(lang, 'Seat et', 'Посадить', 'Seat')} · {table.label}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => { void delete_reservation_live(reservation.id).then(() => loadRestaurantData()); }}
+                        className="rounded-full border border-rose-300/40 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-100"
+                      >
+                        {tx(lang, 'Ləğv et', 'Отменить', 'Cancel')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {workspaceView === 'floor' && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5">
         {tables.map(t => (
           (() => {
             const kitchen = kitchenBadge((t as any).kitchen_status);
@@ -1427,7 +1690,7 @@ export default function TablesPage() {
              {tx(lang, 'Heç bir masa tapılmadı. Zəhmət olmasa "Masa Yarat" düyməsindən istifadə edin.', 'Столы не найдены. Пожалуйста, используйте кнопку "Создать стол".', 'No tables found. Please use the "Create Table" button.')}
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }
