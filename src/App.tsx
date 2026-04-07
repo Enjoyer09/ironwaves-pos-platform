@@ -651,11 +651,11 @@ export default function App() {
   useEffect(() => {
     if (typeof document === 'undefined') return;
     if (hostMode === 'landing') {
-      document.title = 'iRonWaves POS RC';
+      document.title = 'iRonWaves POS';
       return;
     }
     const companyName = String(profile?.company_name || '').trim();
-    document.title = companyName || 'iRonWaves POS RC';
+    document.title = companyName || 'iRonWaves POS';
   }, [hostMode, profile?.company_name]);
 
   useEffect(() => {
@@ -840,7 +840,7 @@ export default function App() {
                 )}
               </div>
               <div>
-                <p className="font-semibold leading-tight">{profile?.company_name || 'iRonWaves POS RC'}</p>
+                <p className="font-semibold leading-tight">{profile?.company_name || 'iRonWaves POS'}</p>
                   <p className="text-xs text-slate-400">{safeUser.username} / {safeUser.role}</p>
               </div>
             </div>
@@ -937,7 +937,7 @@ export default function App() {
         </div>
 
         <div className="hidden md:block shrink-0 border-t border-slate-700/40 px-4 py-2 text-center text-xs text-slate-400">
-          iRonWaves POS RC
+          iRonWaves POS
         </div>
       </div>
       {isPerfDebugEnabled() && (

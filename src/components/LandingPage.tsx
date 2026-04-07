@@ -40,7 +40,7 @@ type LandingCopy = {
 const content: Record<LandingLang, LandingCopy> = {
   az: {
     nav: ['Haqqında', 'Funksiyalar', 'FAQ', 'Əlaqə'],
-    badge: 'iRonWaves POS RC',
+    badge: 'iRonWaves POS',
     heroTitle: 'Azərbaycan bazarı üçün müasir POS və idarəetmə sistemi',
     heroBody:
       'Kassa, masa, mətbəx, anbar, maliyyə, CRM və loyallıq axınlarını bir mərkəzdə birləşdirən yerli və çevik idarəetmə platforması.',
@@ -159,7 +159,7 @@ const content: Record<LandingLang, LandingCopy> = {
   },
   ru: {
     nav: ['О продукте', 'Функции', 'FAQ', 'Контакты'],
-    badge: 'iRonWaves POS RC',
+    badge: 'iRonWaves POS',
     heroTitle: 'Премиальная POS-платформа для ресторанов, coffee shop и retail',
     heroBody:
       'Современная система управления, объединяющая продажи, столы, кухню, финансы, CRM, loyalty и branded customer app в одном продукте.',
@@ -254,7 +254,7 @@ const content: Record<LandingLang, LandingCopy> = {
   },
   en: {
     nav: ['About', 'Features', 'FAQ', 'Contact'],
-    badge: 'iRonWaves POS RC',
+    badge: 'iRonWaves POS',
     heroTitle: 'A premium POS platform for restaurants, coffee shops, and retail concepts',
     heroBody:
       'A modern operations system that connects sales, tables, kitchen, finance, CRM, loyalty, and a branded customer app inside one product.',

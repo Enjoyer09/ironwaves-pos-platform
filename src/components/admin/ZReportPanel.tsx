@@ -201,7 +201,7 @@ export default function ZReportPanel() {
           </style>
         </head>
         <body>
-          <div class="bold" style="font-size:15px">iRonWaves POS RC</div>
+          <div class="bold" style="font-size:15px">iRonWaves POS</div>
           <div class="line"><span>Z-Hesabat</span><span>${new Date().toLocaleDateString()}</span></div>
           <div class="line"><span>Operator</span><span>${user?.username || '-'}</span></div>
           <div class="line"><span>Aralıq</span><span>${fromDate} - ${toDate}</span></div>

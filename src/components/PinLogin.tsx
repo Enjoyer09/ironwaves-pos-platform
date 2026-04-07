@@ -53,7 +53,7 @@ export default function PinLogin() {
 
   React.useEffect(() => {
     if (typeof document === 'undefined') return;
-    document.title = String(branding?.company_name || 'iRonWaves POS RC').trim() || 'iRonWaves POS RC';
+    document.title = String(branding?.company_name || 'iRonWaves POS').trim() || 'iRonWaves POS';
   }, [branding?.company_name]);
 
   React.useEffect(() => {
@@ -165,7 +165,7 @@ export default function PinLogin() {
                 {(branding?.company_name || 'I').trim().slice(0, 1).toUpperCase()}
               </div>
             )}
-            <h1 className="text-4xl font-black tracking-wide text-white md:text-5xl">{branding?.company_name || 'iRonWaves POS RC'}</h1>
+            <h1 className="text-4xl font-black tracking-wide text-white md:text-5xl">{branding?.company_name || 'iRonWaves POS'}</h1>
           </div>
         </div>
 
