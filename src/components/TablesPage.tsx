@@ -4,7 +4,7 @@ import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
 import { subscribeTenantRealtime } from '../api/realtime';
 import { act_on_order_item_live, combine_tables_live, create_reservation_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, get_table_detail_live, seat_reservation_live, send_table_round_live, settle_table_check_live, split_table_group_live, transfer_table_lock_live, unlock_table_live, update_reservation_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
-import { LayoutGrid, Plus, ArrowRightCircle, CalendarClock, Users, MapPinned } from 'lucide-react';
+import { LayoutGrid, Plus, CalendarClock, Users, MapPinned } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
@@ -902,24 +902,6 @@ export default function TablesPage() {
     }
   };
 
-  const openTableInPos = (table: any) => {
-    const storageKey = hostScopedKey(`${tenant_id}_open_table_in_pos`);
-    sessionStorage.setItem(
-      storageKey,
-      JSON.stringify({
-        table_id: table.id,
-        table_label: table.label,
-      }),
-    );
-    window.dispatchEvent(new CustomEvent('open-table-in-pos', {
-      detail: {
-        table_id: table.id,
-        table_label: table.label,
-      },
-    }));
-    setViewTableId(null);
-  };
-
   const buildEqualSplitParts = (count: number, total: Decimal) => {
     if (count <= 0) return [];
     const safeTotal = total.toDecimalPlaces(2);
@@ -1806,38 +1788,38 @@ export default function TablesPage() {
                     }));
               return (
                 <>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <button
-                        type="button"
-                        onClick={() => setViewTableId(null)}
-                        className="inline-flex min-h-11 items-center rounded-full border border-slate-700/70 bg-slate-900/50 px-4 py-2 text-sm font-semibold text-slate-200"
-                      >
-                        ← {tx(lang, 'Masalara qayıt', 'Назад к столам', 'Back to tables')}
-                      </button>
-                      <h3 className="mt-3 text-2xl font-black text-slate-100">{t.label}</h3>
-                    </div>
-                    <div className="rounded-full border border-emerald-300/30 bg-emerald-500/10 px-4 py-2 text-sm font-bold text-emerald-100">
-                      {new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼
-                    </div>
-                  </div>
-                  <div className="mt-3 grid grid-cols-3 gap-2 rounded-2xl border border-slate-800/80 bg-slate-900/45 p-3">
-                    <div className="rounded-xl bg-slate-950/50 px-3 py-3">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{tx(lang, 'Masa', 'Стол', 'Table')}</div>
-                      <div className="mt-1 text-base font-bold text-slate-100">{t.label}</div>
-                    </div>
-                    <div className="rounded-xl bg-slate-950/50 px-3 py-3">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{tx(lang, 'Nəfər', 'Гости', 'Guests')}</div>
-                      <div className="mt-1 text-base font-bold text-slate-100">{detailSession?.guest_count ?? Number(t.guest_count || 0)}</div>
-                    </div>
-                    <div className="rounded-xl bg-slate-950/50 px-3 py-3">
-                      <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{tx(lang, 'Toplam', 'Итого', 'Total')}</div>
-                      <div className="mt-1 text-base font-bold text-slate-100">{new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼</div>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
+	                  <div className="flex items-center justify-between gap-3">
+	                    <div className="flex min-w-0 items-center gap-3">
+	                      <button
+	                        type="button"
+	                        onClick={() => setViewTableId(null)}
+	                        className="inline-flex min-h-9 shrink-0 items-center rounded-full border border-slate-700/70 bg-slate-900/50 px-3 py-1.5 text-xs font-semibold text-slate-200"
+	                      >
+	                        ← {tx(lang, 'Masalara qayıt', 'Назад к столам', 'Back to tables')}
+	                      </button>
+	                      <h3 className="truncate text-xl font-black text-slate-100">{t.label}</h3>
+	                    </div>
+	                    <div className="rounded-full border border-emerald-300/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-bold text-emerald-100">
+	                      {new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼
+	                    </div>
+	                  </div>
+	                  <div className="mt-2 grid grid-cols-3 gap-2 rounded-2xl border border-slate-800/80 bg-slate-900/35 p-2">
+	                    <div className="rounded-xl bg-slate-950/45 px-3 py-2">
+	                      <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Masa', 'Стол', 'Table')}</div>
+	                      <div className="mt-0.5 text-sm font-bold text-slate-100">{t.label}</div>
+	                    </div>
+	                    <div className="rounded-xl bg-slate-950/45 px-3 py-2">
+	                      <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Nəfər', 'Гости', 'Guests')}</div>
+	                      <div className="mt-0.5 text-sm font-bold text-slate-100">{detailSession?.guest_count ?? Number(t.guest_count || 0)}</div>
+	                    </div>
+	                    <div className="rounded-xl bg-slate-950/45 px-3 py-2">
+	                      <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Toplam', 'Итого', 'Total')}</div>
+	                      <div className="mt-0.5 text-sm font-bold text-slate-100">{new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼</div>
+	                    </div>
+	                  </div>
+	                  <div className="mt-2 flex flex-wrap gap-2">
                     {tableLockHolder && (
-                      <div className={`rounded-full border px-4 py-2 text-sm font-semibold ${userCanEditTable ? 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100' : 'border-rose-300/30 bg-rose-500/10 text-rose-100'}`}>
+	                      <div className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${userCanEditTable ? 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100' : 'border-rose-300/30 bg-rose-500/10 text-rose-100'}`}>
                         {`👤 ${tableLockHolder} ${tx(lang, 'istifadə edir', 'использует', 'is using')}`}
                       </div>
                     )}
@@ -1889,8 +1871,8 @@ export default function TablesPage() {
                       <input className="neon-input" value={lockReason} onChange={(e) => setLockReason(e.target.value)} placeholder={tx(lang, 'Override səbəbi', 'Причина override', 'Override reason')} />
                     </div>
                   )}
-                  <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/35 p-3">
-                    <div className="flex flex-wrap gap-2">
+	                  <div className="mt-2 rounded-xl border border-slate-700/70 bg-slate-900/30 p-2">
+	                    <div className="flex flex-wrap gap-2">
                       {([
                         ['compose', tx(lang, 'Sifariş', 'Заказ', 'Order')],
                         ['service', `${tx(lang, 'Servis', 'Сервис', 'Service')}${readyItems.length > 0 ? ` · ${readyItems.length}` : ''}`],
@@ -1901,16 +1883,13 @@ export default function TablesPage() {
                           key={tabKey}
                           type="button"
                           onClick={() => setTableWorkspaceTab(tabKey)}
-                          className={`rounded-full px-4 py-2 text-sm font-semibold transition ${tableWorkspaceTab === tabKey ? 'bg-yellow-400 text-slate-950' : 'border border-slate-700/70 bg-slate-950/35 text-slate-300'}`}
+	                          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${tableWorkspaceTab === tabKey ? 'bg-yellow-400 text-slate-950' : 'border border-slate-700/70 bg-slate-950/35 text-slate-300'}`}
                         >
                           {label}
                         </button>
                       ))}
                     </div>
-                    <div className="mt-3 text-xs text-slate-400">
-                      {tx(lang, 'Bir anda yalnız bir iş sahəsi açılır. Bu, 15-inch touch ekranda səhifəni daha yığcam saxlayır.', 'Одновременно открыта только одна рабочая зона. Так 15-дюймовый touch экран остается компактнее.', 'Only one workspace stays open at a time. This keeps the 15-inch touch screen more compact.')}
-                    </div>
-                  </div>
+	                  </div>
 	                  <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden">
                   {tableWorkspaceTab === 'history' && (
                   <div className="min-h-0 overflow-y-auto rounded-xl border border-slate-700/70 bg-slate-900/35 p-4">
@@ -1983,7 +1962,7 @@ export default function TablesPage() {
 	                              setRevisionTarget({ tableId: t.id, itemName: it.item_name, nextItems });
 	                            }}
                           >
-                            -1
+	                            {tx(lang, 'Azalt', 'Уменьшить', 'Reduce')}
                           </button>
                           <button
                             disabled={!userCanEditTable}
@@ -2002,10 +1981,10 @@ export default function TablesPage() {
                           </button>
                           {it.id && userCanEditTable && (
                             <>
-                              <button type="button" className="rounded-md border border-yellow-300/40 bg-yellow-500/10 px-2 py-1 text-xs font-semibold text-yellow-100" onClick={() => setItemActionTarget({ item: it, action: 'VOID' })}>VOID</button>
-                              <button type="button" className="rounded-md border border-sky-300/40 bg-sky-500/10 px-2 py-1 text-xs font-semibold text-sky-100" onClick={() => setItemActionTarget({ item: it, action: 'COMP' })}>COMP</button>
-                              <button type="button" className="rounded-md border border-slate-300/30 bg-slate-500/15 px-2 py-1 text-xs font-semibold text-slate-100" onClick={() => setItemActionTarget({ item: it, action: 'WASTE' })}>WASTE</button>
-                              <button type="button" className="rounded-md border border-orange-300/40 bg-orange-500/10 px-2 py-1 text-xs font-semibold text-orange-100" onClick={() => setItemActionTarget({ item: it, action: 'REMAKE' })}>REMAKE</button>
+	                              <button type="button" className="rounded-md border border-yellow-300/40 bg-yellow-500/10 px-2 py-1 text-xs font-semibold text-yellow-100" onClick={() => setItemActionTarget({ item: it, action: 'VOID' })}>{tx(lang, 'Ləğv et', 'Аннулировать', 'Void')}</button>
+	                              <button type="button" className="rounded-md border border-sky-300/40 bg-sky-500/10 px-2 py-1 text-xs font-semibold text-sky-100" onClick={() => setItemActionTarget({ item: it, action: 'COMP' })}>{tx(lang, 'Hesabdan sil', 'Списать из счета', 'Comp')}</button>
+	                              <button type="button" className="rounded-md border border-slate-300/30 bg-slate-500/15 px-2 py-1 text-xs font-semibold text-slate-100" onClick={() => setItemActionTarget({ item: it, action: 'WASTE' })}>{tx(lang, 'İsraf', 'Списание', 'Waste')}</button>
+	                              <button type="button" className="rounded-md border border-orange-300/40 bg-orange-500/10 px-2 py-1 text-xs font-semibold text-orange-100" onClick={() => setItemActionTarget({ item: it, action: 'REMAKE' })}>{tx(lang, 'Yenidən hazırla', 'Переделать', 'Remake')}</button>
                             </>
                           )}
                         </div>
@@ -2016,8 +1995,7 @@ export default function TablesPage() {
 	                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/35 p-3 lg:p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div>
-                        <div className="text-base font-semibold text-slate-100">{tx(lang, 'Yeni sifariş', 'Новый заказ', 'New order')}</div>
-                        <div className="mt-1 text-sm text-slate-400">{tx(lang, 'Masanı seçin, məhsulları toxunun və dərhal göndərin.', 'Выберите стол, нажмите товары и сразу отправьте.', 'Pick the table, tap items, and send immediately.')}</div>
+	                        <div className="text-lg font-black text-slate-100">{tx(lang, 'Yeni sifariş', 'Новый заказ', 'New order')}</div>
                       </div>
                       <div className="rounded-full border border-slate-700/70 bg-slate-950/40 px-3 py-1 text-xs font-semibold text-slate-200">
                         {tx(lang, 'Göndərilməmişlər', 'Неотправленные', 'Unsent items')}: {roundDraft.reduce((acc, row) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0)).toFixed(2)} ₼
@@ -2079,19 +2057,7 @@ export default function TablesPage() {
                         />
                       </div>
                     </div>
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700/60 bg-slate-950/25 px-4 py-3">
-                      <div className="text-sm text-slate-300">
-                        {tx(lang, 'Bu panel əsas masa sifarişi axınıdır. POS yalnız ehtiyat variant kimi qalır.', 'Эта панель теперь основной сценарий заказа по столу. POS остается запасным вариантом.', 'This panel is now the main table-order flow. POS remains only as a fallback.')}
-                      </div>
-                      <button
-                        onClick={() => openTableInPos(t)}
-                        className="neon-btn inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold"
-                      >
-                        <ArrowRightCircle size={18} />
-                        {tx(lang, 'Lazım olsa POS-da aç', 'При необходимости открыть в POS', 'Open in POS if needed')}
-                      </button>
-                    </div>
-                  </div>
+	                  </div>
                   )}
                   {tableWorkspaceTab === 'service' && (
                   <div className="min-h-0 overflow-y-auto">
