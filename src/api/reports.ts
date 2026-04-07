@@ -28,6 +28,15 @@ const saveTenantRows = <T extends { tenant_id?: string }>(tenant_id: string, glo
 const getFinanceRows = (tenant_id: string) => getTenantRows<FinanceEntry>(tenant_id, 'finance', 'finance');
 const saveFinanceRows = (tenant_id: string, rows: FinanceEntry[]) => saveTenantRows<FinanceEntry>(tenant_id, 'finance', 'finance', rows);
 
+type ShiftFundingSource = 'cash' | 'safe' | 'card' | 'investor';
+
+type OpenShiftOptions = {
+  opening_cash?: string;
+  funding_source?: ShiftFundingSource;
+  target_cash?: string;
+  topup_amount?: string;
+};
+
 export type StaffNotification = {
   id: string;
   tenant_id: string;
@@ -280,20 +289,41 @@ const saveShiftState = (tenant_id: string, payload: any) => {
 };
 
 // FUNKSIYA: open_shift
-export const open_shift = async (opened_by: string, tenant_id: string, opening_cash: string = '0') => {
+export const open_shift = async (
+  opened_by: string,
+  tenant_id: string,
+  options: string | OpenShiftOptions = '0',
+) => {
+  const normalizedOptions: OpenShiftOptions =
+    typeof options === 'string'
+      ? { opening_cash: options }
+      : (options || {});
+  const fundingSource = (normalizedOptions.funding_source || 'cash') as ShiftFundingSource;
+  const targetCash = new Decimal(normalizedOptions.target_cash || normalizedOptions.opening_cash || '0');
+  const topupAmount = new Decimal(normalizedOptions.topup_amount || '0');
+
   if (isBackendEnabled()) {
     const res = await apiRequest<any>('/api/v1/reports/open-shift', {
       method: 'POST',
       tenantId: tenant_id,
-      body: { opening_cash },
+      body: {
+        opening_cash: normalizedOptions.opening_cash || targetCash.toFixed(2),
+        funding_source: fundingSource,
+        target_cash: targetCash.toFixed(2),
+        topup_amount: topupAmount.toFixed(2),
+      },
     });
+    const actualOpeningCash = String(res?.opening_cash ?? normalizedOptions.opening_cash ?? targetCash.toFixed(2));
     const next = {
       id: String(res?.shift_id || uuidv4()),
       tenant_id,
       opened_by,
       status: 'Open',
       timestamp: new Date().toISOString(),
-      opening_cash,
+      opening_cash: actualOpeningCash,
+      opening_source: fundingSource,
+      opening_target_cash: targetCash.toFixed(2),
+      opening_topup_amount: topupAmount.toFixed(2),
     };
     saveShiftState(tenant_id, next);
     shiftStatusCache[tenant_id] = {
@@ -301,7 +331,7 @@ export const open_shift = async (opened_by: string, tenant_id: string, opening_c
       opened_by,
       timestamp: next.timestamp,
     };
-    logEvent(opened_by, 'SHIFT_OPENED', { tenant_id, backend: true });
+    logEvent(opened_by, 'SHIFT_OPENED', { tenant_id, backend: true, funding_source: fundingSource, topup_amount: topupAmount.toFixed(2) });
     return next;
   }
   const current_shift = getShiftState(tenant_id);
@@ -309,13 +339,94 @@ export const open_shift = async (opened_by: string, tenant_id: string, opening_c
     throw new Error('Açıq növbə mövcuddur!');
   }
 
+  const financeRows = getFinanceRows(tenant_id);
+  const now = new Date().toISOString();
+  const currentCash = financeRows.reduce((sum, row) => {
+    if (row.source !== 'cash') return sum;
+    const amount = new Decimal(row.amount || 0);
+    return row.type === 'in' ? sum.plus(amount) : sum.minus(amount);
+  }, new Decimal(0));
+
+  if (topupAmount.gt(0)) {
+    if (fundingSource === 'investor') {
+      financeRows.push(
+        {
+          id: uuidv4(),
+          tenant_id,
+          type: 'in',
+          category: 'Təsisçi İnvestisiyası',
+          amount: topupAmount.toString(),
+          source: 'cash',
+          description: `Gün açılışı tamamlanması (${targetCash.toFixed(2)} ₼ hədəf). Mənbə: investor`,
+          created_at: now,
+          is_deleted: false,
+        },
+        {
+          id: uuidv4(),
+          tenant_id,
+          type: 'in',
+          category: 'İnvestor Borcu',
+          amount: topupAmount.toString(),
+          source: 'investor',
+          description: `Auto liability mirror: Gün açılışı tamamlanması (${targetCash.toFixed(2)} ₼ hədəf). Mənbə: investor`,
+          created_at: now,
+          is_deleted: false,
+        },
+      );
+    } else if (fundingSource === 'cash') {
+      financeRows.push({
+        id: uuidv4(),
+        tenant_id,
+        type: 'in',
+        category: 'Kassa Açılışı',
+        amount: topupAmount.toString(),
+        source: 'cash',
+        description: `Gün açılışı tamamlanması (hədəf ${targetCash.toFixed(2)} ₼)`,
+        created_at: now,
+        is_deleted: false,
+      });
+    } else {
+      financeRows.push(
+        {
+          id: uuidv4(),
+          tenant_id,
+          type: 'out',
+          category: 'Daxili Transfer',
+          amount: topupAmount.toString(),
+          source: fundingSource,
+          description: `Gün açılışı üçün ${fundingSource} -> cash`,
+          created_at: now,
+          is_deleted: false,
+        },
+        {
+          id: uuidv4(),
+          tenant_id,
+          type: 'in',
+          category: 'Daxili Transfer',
+          amount: topupAmount.toString(),
+          source: 'cash',
+          description: `Gün açılışı üçün ${fundingSource} -> cash`,
+          created_at: now,
+          is_deleted: false,
+        },
+      );
+    }
+    saveFinanceRows(tenant_id, financeRows);
+  }
+
+  const openingCash = currentCash.plus(topupAmount).toFixed(2);
+
+  const nextTimestamp = new Date(Date.now() + 1).toISOString();
   const next = {
     id: uuidv4(),
     tenant_id,
     opened_by,
     status: 'Open',
-    timestamp: new Date().toISOString(),
-    opening_cash,
+    timestamp: nextTimestamp,
+    opening_cash: openingCash,
+    opening_source: fundingSource,
+    opening_target_cash: targetCash.toFixed(2),
+    opening_topup_amount: topupAmount.toFixed(2),
   };
 
   saveShiftState(tenant_id, next);
@@ -325,7 +436,12 @@ export const open_shift = async (opened_by: string, tenant_id: string, opening_c
     timestamp: next.timestamp,
   };
 
-  logEvent(opened_by, 'SHIFT_OPENED', { tenant_id, timestamp: next.timestamp });
+  logEvent(opened_by, 'SHIFT_OPENED', {
+    tenant_id,
+    timestamp: next.timestamp,
+    funding_source: fundingSource,
+    topup_amount: topupAmount.toFixed(2),
+  });
   return next;
 };
 

@@ -137,6 +137,9 @@ class SaleCreateOut(BaseModel):
 
 class OpenShiftIn(BaseModel):
     opening_cash: Decimal = Decimal("0")
+    funding_source: str | None = None
+    target_cash: Decimal | None = None
+    topup_amount: Decimal | None = None
 
 
 class XReportIn(BaseModel):

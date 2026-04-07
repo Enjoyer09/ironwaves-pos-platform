@@ -59,6 +59,9 @@ class Shift(Base):
     opened_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
     opened_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     opening_cash: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    opening_source: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    opening_target_cash: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    opening_topup_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     closed_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

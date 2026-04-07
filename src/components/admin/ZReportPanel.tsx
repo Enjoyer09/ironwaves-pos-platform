@@ -23,7 +23,7 @@ import {
   x_report,
   z_report,
 } from '../../api/reports';
-import { create_finance_entry_async, fetch_finance_anomalies, fetch_finance_balances, get_balance, transfer_funds_async, type FinanceAnomalies } from '../../api/finance';
+import { fetch_finance_anomalies, fetch_finance_balances, get_balance, type FinanceAnomalies } from '../../api/finance';
 import { get_settings, get_users_live } from '../../api/settings';
 import { qzListPrinters, qzPrintHtml } from '../../lib/qz';
 import { tx } from '../../i18n';
@@ -474,76 +474,12 @@ export default function ZReportPanel() {
 
   const handleOpenDay = async () => {
     try {
-      // Bring cash drawer to target opening amount with explicit source trace.
-      // IMPORTANT: top-up is validated/applied BEFORE opening the shift.
-      // If top-up fails (insufficient funds), day should not be opened.
-      if (requiredTopup.greaterThan(0)) {
-        const balances = await fetch_finance_balances(tenant_id);
-
-        if (openingTopupSource === 'investor') {
-          // Investor injects money directly to cash + liability mirror handled by finance API.
-          await create_finance_entry_async(
-            tenant_id,
-            'in',
-            'Təsisçi İnvestisiyası',
-            requiredTopup.toString(),
-            'cash',
-            `Gün açılışı üçün tamamlanma (${targetCash.toFixed(2)} ₼ hədəf). Mənbə: investor`,
-            user?.username || 'staff',
-          );
-        } else if (openingTopupSource === 'cash') {
-          // Cash as source means no cross-wallet movement; just marker event is enough.
-          await create_finance_entry_async(
-            tenant_id,
-            'in',
-            'Kassa Açılışı',
-            requiredTopup.toString(),
-            'cash',
-            `Gün açılışı tamamlanması (hədəf ${targetCash.toFixed(2)} ₼)`,
-            user?.username || 'staff',
-          );
-        } else {
-          if (openingTopupSource === 'safe') {
-            const safeBal = new Decimal(balances.safe_balance || 0);
-            if (safeBal.lessThan(requiredTopup)) {
-              throw new Error(tx(lang, 'Seyfdə kifayət qədər vəsait yoxdur', 'Недостаточно средств в сейфе', 'Insufficient safe balance'));
-            }
-          }
-
-          if (openingTopupSource === 'card') {
-            const cardBal = new Decimal(balances.card_balance || 0);
-            // card_to_cash transfer applies commission rule from finance API
-            const comm = requiredTopup.lte(120) ? new Decimal(0.6) : requiredTopup.times(0.005).toDecimalPlaces(2);
-            const needed = requiredTopup.plus(comm);
-            if (cardBal.lessThan(needed)) {
-              throw new Error(
-                tx(
-                  lang,
-                  `Kart balansı kifayət etmir (lazım: ${needed.toFixed(2)} ₼, komissiya daxil)`,
-                  `Недостаточно баланса карты (нужно: ${needed.toFixed(2)} ₼, включая комиссию)`,
-                  `Insufficient card balance (required: ${needed.toFixed(2)} ₼ incl. commission)`
-                )
-              );
-            }
-          }
-
-          // safe/card -> cash transfer
-          const direction = openingTopupSource === 'safe' ? 'safe_to_cash' : 'card_to_cash';
-          await transfer_funds_async(
-            tenant_id,
-            direction,
-            requiredTopup.toString(),
-            '0',
-            user?.username || 'staff',
-          );
-        }
-      }
-
-      // Open shift only after successful top-up flow, and snapshot the actual
-      // cash that is physically in the drawer at this moment.
-      const openingBalances = await fetch_finance_balances(tenant_id).catch(() => get_balance(tenant_id, 'all', false) as any);
-      const openingCashAmount = new Decimal(openingBalances.cash_balance || 0).toFixed(2);
-      await open_shift(user?.username || 'staff', tenant_id, openingCashAmount);
+      await open_shift(user?.username || 'staff', tenant_id, {
+        opening_cash: targetCash.toFixed(2),
+        funding_source: openingTopupSource,
+        target_cash: targetCash.toFixed(2),
+        topup_amount: requiredTopup.toFixed(2),
+      });
       const cash = await refresh_expected_cash(tenant_id).catch(() => expectedCashNow);
       await refreshOperationalState(true).catch(() => undefined);
       const nextCash = cash.toFixed(2);

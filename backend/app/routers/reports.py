@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import FinanceEntry, Shift, ShiftHandover, Tenant, User
+from app.models import FinanceEntry, Setting, Shift, ShiftHandover, Tenant, User
 from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XReportIn, ZReportIn
 
 
@@ -40,6 +40,34 @@ def _is_shift_deposit_entry(row: FinanceEntry) -> bool:
 
 def _get_active_shift(db: Session, tenant_id: str) -> Shift | None:
     return db.query(Shift).filter(Shift.tenant_id == tenant_id, Shift.status == "open").first()
+
+
+def _wallet_balance(db: Session, tenant_id: str, source: str) -> Decimal:
+    ins = (
+        db.query(FinanceEntry)
+        .filter(FinanceEntry.tenant_id == tenant_id, FinanceEntry.source == source, FinanceEntry.type == "in")
+        .all()
+    )
+    outs = (
+        db.query(FinanceEntry)
+        .filter(FinanceEntry.tenant_id == tenant_id, FinanceEntry.source == source, FinanceEntry.type == "out")
+        .all()
+    )
+    in_total = sum((Decimal(str(row.amount)) for row in ins), Decimal("0"))
+    out_total = sum((Decimal(str(row.amount)) for row in outs), Decimal("0"))
+    return in_total - out_total
+
+
+def _setting_value(db: Session, tenant_id: str, key: str, default):
+    row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
+    if not row or row.value is None:
+        return default
+    try:
+        import json
+
+        return json.loads(row.value)
+    except Exception:
+        return default
 
 
 def _shift_cash_breakdown(db: Session, tenant_id: str, shift: Shift | None) -> dict[str, Decimal]:
@@ -81,6 +109,9 @@ def report_status(db: Session = Depends(get_db), tenant: Tenant = Depends(get_te
         "opened_by": active.opened_by,
         "opened_at": active.opened_at.isoformat() if active.opened_at else None,
         "opening_cash": str(Decimal(str(active.opening_cash or 0)).quantize(Decimal("0.01"))),
+        "opening_source": active.opening_source,
+        "opening_target_cash": str(Decimal(str(active.opening_target_cash or 0)).quantize(Decimal("0.01"))),
+        "opening_topup_amount": str(Decimal(str(active.opening_topup_amount or 0)).quantize(Decimal("0.01"))),
     }
 
 
@@ -103,16 +134,133 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
     if active:
         raise HTTPException(status_code=400, detail="Shift already open")
 
-    row = Shift(
-        tenant_id=tenant.id,
-        status="open",
-        opened_by=user.username,
-        opened_at=datetime.utcnow(),
-        opening_cash=payload.opening_cash,
-    )
-    db.add(row)
-    db.commit()
-    return {"success": True, "shift_id": row.id}
+    funding_source = _normalized(payload.funding_source or "cash") or "cash"
+    valid_sources = {"cash", "safe", "card", "investor"}
+    if funding_source not in valid_sources:
+        raise HTTPException(status_code=400, detail="Invalid funding source")
+
+    target_cash = Decimal(str(payload.target_cash if payload.target_cash is not None else payload.opening_cash or 0))
+    topup_amount = Decimal(str(payload.topup_amount if payload.topup_amount is not None else Decimal("0")))
+    if target_cash < 0 or topup_amount < 0:
+        raise HTTPException(status_code=400, detail="Amounts must be >= 0")
+
+    try:
+        funding_at = datetime.utcnow()
+        if topup_amount > 0:
+            if funding_source == "investor":
+                db.add(
+                    FinanceEntry(
+                        tenant_id=tenant.id,
+                        type="in",
+                        category="Təsisçi İnvestisiyası",
+                        source="cash",
+                        amount=topup_amount,
+                        description=f"Gün açılışı tamamlanması ({target_cash.quantize(Decimal('0.01'))} ₼ hədəf). Mənbə: investor",
+                        created_by=user.username,
+                        created_at=funding_at,
+                    )
+                )
+                db.add(
+                    FinanceEntry(
+                        tenant_id=tenant.id,
+                        type="in",
+                        category="İnvestor Borcu",
+                        source="investor",
+                        amount=topup_amount,
+                        description=f"Auto liability mirror: Gün açılışı tamamlanması ({target_cash.quantize(Decimal('0.01'))} ₼ hədəf). Mənbə: investor",
+                        created_by=user.username,
+                        created_at=funding_at,
+                    )
+                )
+            elif funding_source == "cash":
+                db.add(
+                    FinanceEntry(
+                        tenant_id=tenant.id,
+                        type="in",
+                        category="Kassa Açılışı",
+                        source="cash",
+                        amount=topup_amount,
+                        description=f"Gün açılışı tamamlanması (hədəf {target_cash.quantize(Decimal('0.01'))} ₼)",
+                        created_by=user.username,
+                        created_at=funding_at,
+                    )
+                )
+            else:
+                source_balance = _wallet_balance(db, tenant.id, funding_source)
+                commission = Decimal("0")
+                if funding_source == "card":
+                    commission_cfg = _setting_value(db, tenant.id, "bank_commission", {"card_transfer_percent": 0.5})
+                    card_transfer_percent = Decimal(str(commission_cfg.get("card_transfer_percent", 0.5) or 0.5))
+                    commission = (topup_amount * (card_transfer_percent / Decimal("100"))).quantize(Decimal("0.01"))
+                if source_balance < topup_amount + commission:
+                    raise HTTPException(status_code=400, detail="Insufficient balance")
+                db.add(
+                    FinanceEntry(
+                        tenant_id=tenant.id,
+                        type="out",
+                        category="Daxili Transfer",
+                        source=funding_source,
+                        amount=topup_amount,
+                        description=f"Gün açılışı üçün {funding_source} -> cash",
+                        created_by=user.username,
+                        created_at=funding_at,
+                    )
+                )
+                db.add(
+                    FinanceEntry(
+                        tenant_id=tenant.id,
+                        type="in",
+                        category="Daxili Transfer",
+                        source="cash",
+                        amount=topup_amount,
+                        description=f"Gün açılışı üçün {funding_source} -> cash",
+                        created_by=user.username,
+                        created_at=funding_at,
+                    )
+                )
+                if commission > 0:
+                    db.add(
+                        FinanceEntry(
+                            tenant_id=tenant.id,
+                            type="out",
+                            category="Bank Komissiyası",
+                            source="card",
+                            amount=commission,
+                            description="Gün açılışı üçün kartdan kassaya köçürmə komissiyası",
+                            created_by=user.username,
+                            created_at=funding_at,
+                        )
+                    )
+
+        db.flush()
+        opening_cash = _wallet_balance(db, tenant.id, "cash").quantize(Decimal("0.01"))
+        opened_at = max(datetime.utcnow(), funding_at + timedelta(milliseconds=1))
+        row = Shift(
+            tenant_id=tenant.id,
+            status="open",
+            opened_by=user.username,
+            opened_at=opened_at,
+            opening_cash=opening_cash,
+            opening_source=funding_source,
+            opening_target_cash=target_cash.quantize(Decimal("0.01")),
+            opening_topup_amount=topup_amount.quantize(Decimal("0.01")),
+        )
+        db.add(row)
+        db.flush()
+        db.commit()
+        return {
+            "success": True,
+            "shift_id": row.id,
+            "opening_cash": str(opening_cash),
+            "funding_source": funding_source,
+            "topup_amount": str(topup_amount.quantize(Decimal("0.01"))),
+        }
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.post("/x-report")
