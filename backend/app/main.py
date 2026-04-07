@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db import Base, engine, SessionLocal
 from app.models import BusinessProfile, InventoryItem, MenuItem, Recipe, Setting, Table, Tenant, User
-from app.routers import analytics_api, auth, catalog, finance, operations, pos, reports, settings as settings_router, tenants
+from app.routers import analytics_api, auth, catalog, finance, operations, pos, reports, restaurant, settings as settings_router, tenants
 from app.security import hash_password
 
 
@@ -283,6 +283,15 @@ def _run_startup_migrations():
         conn.execute(text("ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS image_url TEXT"))
         conn.execute(text("ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS description TEXT"))
         conn.execute(text("ALTER TABLE tables ADD COLUMN IF NOT EXISTS assigned_to VARCHAR(80)"))
+        conn.execute(text("ALTER TABLE tables ADD COLUMN IF NOT EXISTS floor_plan_id VARCHAR(36)"))
+        conn.execute(text("ALTER TABLE tables ADD COLUMN IF NOT EXISTS shape VARCHAR(32) DEFAULT 'rectangle'"))
+        conn.execute(text("ALTER TABLE tables ADD COLUMN IF NOT EXISTS pos_x INTEGER DEFAULT 0"))
+        conn.execute(text("ALTER TABLE tables ADD COLUMN IF NOT EXISTS pos_y INTEGER DEFAULT 0"))
+        conn.execute(text("ALTER TABLE tables ADD COLUMN IF NOT EXISTS width_units INTEGER DEFAULT 2"))
+        conn.execute(text("ALTER TABLE tables ADD COLUMN IF NOT EXISTS height_units INTEGER DEFAULT 2"))
+        conn.execute(text("ALTER TABLE tables ADD COLUMN IF NOT EXISTS capacity INTEGER DEFAULT 4"))
+        conn.execute(text("ALTER TABLE tables ADD COLUMN IF NOT EXISTS status VARCHAR(24) DEFAULT 'AVAILABLE'"))
+        conn.execute(text("ALTER TABLE tables ADD COLUMN IF NOT EXISTS merged_group_id VARCHAR(36)"))
         conn.execute(text("ALTER TABLE tables ADD COLUMN IF NOT EXISTS guest_count INTEGER DEFAULT 0"))
         conn.execute(text("ALTER TABLE tables ADD COLUMN IF NOT EXISTS deposit_guest_count INTEGER DEFAULT 0"))
         conn.execute(text("ALTER TABLE tables ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC(12,2) DEFAULT 0"))
@@ -353,6 +362,8 @@ def _run_startup_migrations():
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_staff_notifications_tenant_id ON staff_notifications (tenant_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_staff_notifications_username ON staff_notifications (username)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_loyalty_ledger_tenant_card ON loyalty_ledger (tenant_id, card_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tables_floor_plan_id ON tables (floor_plan_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tables_merged_group_id ON tables (merged_group_id)"))
 
 
 @app.on_event("startup")
@@ -376,5 +387,6 @@ app.include_router(catalog.router)
 app.include_router(operations.router)
 app.include_router(analytics_api.router)
 app.include_router(reports.router)
+app.include_router(restaurant.router)
 app.include_router(tenants.router)
 app.include_router(settings_router.router)

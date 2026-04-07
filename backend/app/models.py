@@ -97,7 +97,16 @@ class Table(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    floor_plan_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("floor_plans.id"), nullable=True, index=True)
     label: Mapped[str] = mapped_column(String(120), nullable=False)
+    shape: Mapped[str] = mapped_column(String(32), default="rectangle")
+    pos_x: Mapped[int] = mapped_column(Integer, default=0)
+    pos_y: Mapped[int] = mapped_column(Integer, default=0)
+    width_units: Mapped[int] = mapped_column(Integer, default=2)
+    height_units: Mapped[int] = mapped_column(Integer, default=2)
+    capacity: Mapped[int] = mapped_column(Integer, default=4)
+    status: Mapped[str] = mapped_column(String(24), default="AVAILABLE")
+    merged_group_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     is_occupied: Mapped[bool] = mapped_column(Boolean, default=False)
     assigned_to: Mapped[str | None] = mapped_column(String(80), nullable=True)
     guest_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -106,6 +115,124 @@ class Table(Base):
     deposit_seats_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     items_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class FloorPlan(Base):
+    __tablename__ = "floor_plans"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    width_units: Mapped[int] = mapped_column(Integer, default=12)
+    height_units: Mapped[int] = mapped_column(Integer, default=8)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Guest(Base):
+    __tablename__ = "guests"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    full_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    phone: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Reservation(Base):
+    __tablename__ = "reservations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    guest_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("guests.id"), nullable=True, index=True)
+    assigned_table_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("tables.id"), nullable=True, index=True)
+    reservation_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    duration_minutes: Mapped[int] = mapped_column(Integer, default=90)
+    party_size: Mapped[int] = mapped_column(Integer, default=2)
+    status: Mapped[str] = mapped_column(String(24), default="BOOKED")
+    special_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class TableSession(Base):
+    __tablename__ = "table_sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    table_id: Mapped[str] = mapped_column(String(36), ForeignKey("tables.id"), index=True)
+    reservation_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("reservations.id"), nullable=True, index=True)
+    assigned_waiter: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    guest_count: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(24), default="SEATED")
+    seated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class Check(Base):
+    __tablename__ = "checks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    table_session_id: Mapped[str] = mapped_column(String(36), ForeignKey("table_sessions.id"), index=True)
+    check_number: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(24), default="OPEN")
+    guest_count: Mapped[int] = mapped_column(Integer, default=0)
+    subtotal: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    service_charge: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    tax_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    total: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    opened_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class OrderRound(Base):
+    __tablename__ = "order_rounds"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    check_id: Mapped[str] = mapped_column(String(36), ForeignKey("checks.id"), index=True)
+    round_no: Mapped[int] = mapped_column(Integer, default=1)
+    course_no: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(24), default="SENT")
+    sent_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    sent_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class OrderItem(Base):
+    __tablename__ = "order_items"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    check_id: Mapped[str] = mapped_column(String(36), ForeignKey("checks.id"), index=True)
+    round_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("order_rounds.id"), nullable=True, index=True)
+    table_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("tables.id"), nullable=True, index=True)
+    menu_item_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("menu_items.id"), nullable=True, index=True)
+    seat_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    course_no: Mapped[int] = mapped_column(Integer, default=1)
+    item_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    qty: Mapped[int] = mapped_column(Integer, default=1)
+    price: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    status: Mapped[str] = mapped_column(String(24), default="NEW")
+    modifier_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Payment(Base):
+    __tablename__ = "payments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    check_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("checks.id"), nullable=True, index=True)
+    method: Mapped[str] = mapped_column(String(24), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    status: Mapped[str] = mapped_column(String(24), default="POSTED")
+    split_group: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    paid_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    paid_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class InventoryItem(Base):
