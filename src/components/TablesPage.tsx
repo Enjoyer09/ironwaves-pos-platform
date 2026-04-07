@@ -44,6 +44,7 @@ export default function TablesPage() {
   const [roundCategory, setRoundCategory] = useState('ALL');
   const [roundDraft, setRoundDraft] = useState<any[]>([]);
   const [servedItemsMap, setServedItemsMap] = useState<Record<string, Record<string, number>>>({});
+  const [tableWorkspaceTab, setTableWorkspaceTab] = useState<'compose' | 'service' | 'history' | 'ops'>('compose');
   const receiptRef = useRef<HTMLIFrameElement | null>(null);
   const detailPanelRef = useRef<HTMLDivElement | null>(null);
   const businessProfile = get_business_profile(tenant_id);
@@ -112,6 +113,10 @@ export default function TablesPage() {
 
   useEffect(() => {
     clearRoundComposer();
+  }, [viewTableId]);
+
+  useEffect(() => {
+    if (viewTableId) setTableWorkspaceTab('compose');
   }, [viewTableId]);
 
   useEffect(() => {
@@ -910,28 +915,46 @@ export default function TablesPage() {
                 <>
                   <h3 className="text-lg font-bold text-slate-100">{t.label}</h3>
                   <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Masa sifariş detalı', 'Детали заказа стола', 'Table order detail')}</div>
-                  <div className="mt-3 grid grid-cols-3 gap-2 overflow-x-auto">
-                    <div className="rounded-lg border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-200">
-                      <div className="text-xs uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Qonaq sayı', 'Гостей', 'Guests')}</div>
-                      <div className="mt-1 text-lg font-bold text-slate-100">{Number(t.guest_count || 0)}</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="rounded-full border border-slate-700/60 bg-slate-950/30 px-4 py-2 text-sm text-slate-200">
+                      {tx(lang, 'Qonaq', 'Гости', 'Guests')}: <span className="font-bold text-slate-100">{Number(t.guest_count || 0)}</span>
                     </div>
-                    <div className="rounded-lg border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-200">
-                      <div className="text-xs uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Depozitli adam', 'Гостей с депозитом', 'Deposited guests')}</div>
-                      <div className="mt-1 text-lg font-bold text-slate-100">{Number(t.deposit_guest_count || 0)}</div>
+                    <div className="rounded-full border border-slate-700/60 bg-slate-950/30 px-4 py-2 text-sm text-slate-200">
+                      {tx(lang, 'Depozitli', 'С депозитом', 'Deposited')}: <span className="font-bold text-slate-100">{Number(t.deposit_guest_count || 0)}</span>
                     </div>
-                    <div className="rounded-lg border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-200">
-                      <div className="text-xs uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Depozit', 'Депозит', 'Deposit')}</div>
-                      <div className="mt-1 text-lg font-bold text-emerald-200">{new Decimal(t.deposit_amount || 0).toFixed(2)} ₼</div>
+                    <div className="rounded-full border border-emerald-300/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-100">
+                      {tx(lang, 'Depozit', 'Депозит', 'Deposit')}: <span className="font-bold">{new Decimal(t.deposit_amount || 0).toFixed(2)} ₼</span>
+                    </div>
+                    <div className="rounded-full border border-yellow-300/30 bg-yellow-500/10 px-4 py-2 text-sm text-yellow-100">
+                      {tx(lang, 'Cari hesab', 'Текущий счет', 'Current bill')}: <span className="font-bold">{Decimal.max(
+                        new Decimal(t.total || 0).plus(new Decimal(t.total || 0).times(serviceFeePercent).div(100)),
+                        new Decimal(t.deposit_amount || 0),
+                      ).toFixed(2)} ₼</span>
                     </div>
                   </div>
                   <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/35 p-3">
-                    <div className="rounded-lg border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-300">
-                      <div className="font-semibold text-slate-100">{tx(lang, 'Açıq check və sifarişlər', 'Открытый чек и заказы', 'Open check and orders')}</div>
-                      <div className="mt-1 text-xs text-slate-400">
-                        {tx(lang, 'Bu masa Oracle məntiqinə yaxın olaraq tək açıq check kimi işləyir. Mətbəxə hər əlavə göndəriş ayrıca raund kimi tarixçədə görünür.', 'Этот стол работает как один открытый чек в логике Oracle. Каждая отправка на кухню отображается как отдельный раунд.', 'This table behaves as a single open check, closer to Oracle-style flow. Every send to kitchen appears as a separate round in history.')}
-                      </div>
+                    <div className="flex flex-wrap gap-2">
+                      {([
+                        ['compose', tx(lang, 'Sifariş', 'Заказ', 'Order')],
+                        ['service', `${tx(lang, 'Servis', 'Сервис', 'Service')}${readyItems.length > 0 ? ` · ${readyItems.length}` : ''}`],
+                        ['history', `${tx(lang, 'Raundlar', 'Раунды', 'Rounds')} · ${rounds.length}`],
+                        ['ops', tx(lang, 'Əməliyyatlar', 'Операции', 'Operations')],
+                      ] as Array<[typeof tableWorkspaceTab, string]>).map(([tabKey, label]) => (
+                        <button
+                          key={tabKey}
+                          type="button"
+                          onClick={() => setTableWorkspaceTab(tabKey)}
+                          className={`rounded-full px-4 py-2 text-sm font-semibold transition ${tableWorkspaceTab === tabKey ? 'bg-yellow-400 text-slate-950' : 'border border-slate-700/70 bg-slate-950/35 text-slate-300'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-3 text-xs text-slate-400">
+                      {tx(lang, 'Bir anda yalnız bir iş sahəsi açılır. Bu, 15-inch touch ekranda səhifəni daha yığcam saxlayır.', 'Одновременно открыта только одна рабочая зона. Так 15-дюймовый touch экран остается компактнее.', 'Only one workspace stays open at a time. This keeps the 15-inch touch screen more compact.')}
                     </div>
                   </div>
+                  {tableWorkspaceTab === 'history' && (
                   <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/35 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -972,7 +995,8 @@ export default function TablesPage() {
                       )}
                     </div>
                   </div>
-                  <div className="mt-3 max-h-72 overflow-auto rounded-lg border border-slate-700/70 bg-slate-900/40 p-3">
+                  )}
+                  <div className={`mt-3 max-h-72 overflow-auto rounded-lg border border-slate-700/70 bg-slate-900/40 p-3 ${tableWorkspaceTab === 'compose' ? '' : 'hidden'}`}>
                     {items.length === 0 && <div className="text-sm text-slate-400">{tx(lang, 'Masa boşdur', 'Стол пуст', 'Table is empty')}</div>}
                     {items.map((it: any, idx: number) => (
                       <div key={`${it.item_name}_${idx}`} className="flex items-center justify-between gap-3 border-b border-slate-700/40 py-2 text-sm last:border-b-0">
@@ -1007,6 +1031,7 @@ export default function TablesPage() {
                       </div>
                     ))}
                   </div>
+                  {tableWorkspaceTab === 'compose' && (
                   <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/35 p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div>
@@ -1025,7 +1050,7 @@ export default function TablesPage() {
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+                    <div className="mt-4 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
                       <div className="space-y-3">
                         <div className="grid gap-3 md:grid-cols-[1fr_auto]">
                           <input
@@ -1121,7 +1146,9 @@ export default function TablesPage() {
                       </button>
                     </div>
                   </div>
-                  <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-4">
+                  )}
+                  {tableWorkspaceTab === 'service' && (
+                  <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-4">
                     <div className="rounded-lg border border-blue-300/30 bg-blue-500/10 p-3">
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">{tx(lang, 'Mətbəxdə gözləyənlər', 'Ожидают на кухне', 'Waiting in kitchen')}</div>
                       <div className="space-y-2 text-sm text-slate-100">
@@ -1164,16 +1191,8 @@ export default function TablesPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="mt-4 flex justify-between text-sm text-slate-300">
-                    <span>{tx(lang, 'Cari hesab', 'Текущий счет', 'Current bill')}</span>
-                    <span className="font-semibold text-slate-100">
-                      {Decimal.max(
-                        new Decimal(t.total || 0).plus(new Decimal(t.total || 0).times(serviceFeePercent).div(100)),
-                        new Decimal(t.deposit_amount || 0),
-                      ).toFixed(2)} ₼
-                    </span>
-                  </div>
-                  {t.is_occupied && (
+                  )}
+                  {tableWorkspaceTab === 'ops' && t.is_occupied && (
                     <div className="mt-4 grid gap-3 rounded-lg border border-slate-700/70 bg-slate-900/40 p-3">
                       <div>
                         <div className="mb-1 text-xs font-semibold text-slate-400">{tx(lang, 'Masanı köçür', 'Перенести стол', 'Transfer table')}</div>
