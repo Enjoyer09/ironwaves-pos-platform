@@ -53,6 +53,7 @@ export default function TablesPage() {
   const [floorTables, setFloorTables] = useState<FloorTableState[]>([]);
   const [floorEditMode, setFloorEditMode] = useState(false);
   const [draggingTableId, setDraggingTableId] = useState<string | null>(null);
+  const [floorDropPreview, setFloorDropPreview] = useState<{ x: number; y: number } | null>(null);
   const [draggingReservationId, setDraggingReservationId] = useState<string | null>(null);
   const [selectedFloorTableId, setSelectedFloorTableId] = useState<string | null>(null);
   const [reservationDate, setReservationDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -136,11 +137,6 @@ export default function TablesPage() {
     [floorTables],
   );
 
-  const selectedFloorTable = useMemo(
-    () => floorTables.find((row) => row.id === selectedFloorTableId) || null,
-    [floorTables, selectedFloorTableId],
-  );
-
   const mergedGroups = useMemo(() => {
     const groups = new Map<string, FloorTableState[]>();
     floorTables.forEach((table) => {
@@ -151,22 +147,35 @@ export default function TablesPage() {
     return Array.from(groups.entries()).map(([id, tablesInGroup]) => ({ id, tables: tablesInGroup }));
   }, [floorTables]);
 
+  const selectedFloorTable = useMemo(
+    () => floorTables.find((row) => row.id === selectedFloorTableId) || null,
+    [floorTables, selectedFloorTableId],
+  );
+
+  const selectedFloorGroup = useMemo(() => {
+    const mergedGroupId = String((selectedFloorTable as any)?.merged_group_id || '').trim();
+    if (!mergedGroupId) return null;
+    return mergedGroups.find((group) => group.id === mergedGroupId) || null;
+  }, [mergedGroups, selectedFloorTable]);
+
   const reservationTimeline = useMemo(() => {
     const hourStart = 8;
     const hourEnd = 24;
     const minuteHeight = 1.25;
-    const sorted = [...reservations].sort((a, b) => a.reservation_at.localeCompare(b.reservation_at));
-    const laneEnds: number[] = [];
-    const entries = sorted.map((reservation) => {
+    const laneDefinitions = [
+      { id: '', label: tx(lang, 'Təyin edilməyib', 'Не назначено', 'Unassigned') },
+      ...[...floorTables]
+        .sort((a, b) => String(a.label || '').localeCompare(String(b.label || '')))
+        .map((table) => ({ id: table.id, label: table.label })),
+    ];
+    const laneWidth = 220;
+    const entries = [...reservations]
+      .sort((a, b) => a.reservation_at.localeCompare(b.reservation_at))
+      .map((reservation) => {
       const startAt = new Date(reservation.reservation_at);
       const startMinutes = startAt.getHours() * 60 + startAt.getMinutes();
       const duration = Math.max(30, Number(reservation.duration_minutes || 90));
-      let lane = laneEnds.findIndex((end) => startMinutes >= end);
-      if (lane < 0) {
-        lane = laneEnds.length;
-        laneEnds.push(0);
-      }
-      laneEnds[lane] = startMinutes + duration;
+      const lane = Math.max(0, laneDefinitions.findIndex((laneRow) => laneRow.id === String(reservation.assigned_table_id || '')));
       return {
         reservation,
         lane,
@@ -180,11 +189,31 @@ export default function TablesPage() {
       hourStart,
       hourEnd,
       minuteHeight,
-      lanes: Math.max(1, laneEnds.length),
+      lanes: laneDefinitions,
+      laneWidth,
       entries,
       totalHeight: (hourEnd - hourStart) * 60 * minuteHeight,
+      totalWidth: laneDefinitions.length * laneWidth,
     };
-  }, [reservations]);
+  }, [reservations, floorTables, lang]);
+
+  const mergedGroupOutlines = useMemo(() => {
+    const maxCols = Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12);
+    return mergedGroups.map((group) => {
+      const minX = Math.min(...group.tables.map((table) => Number(table.x || 0)));
+      const minY = Math.min(...group.tables.map((table) => Number(table.y || 0)));
+      const maxX = Math.max(...group.tables.map((table) => Number(table.x || 0) + Number(table.w || 1)));
+      const maxY = Math.max(...group.tables.map((table) => Number(table.y || 0) + Number(table.h || 1)));
+      return {
+        id: group.id,
+        label: group.tables.map((table) => table.label).join(' + '),
+        left: `${(minX / maxCols) * 100}%`,
+        width: `${((maxX - minX) / maxCols) * 100}%`,
+        top: `${minY * 70}px`,
+        height: `${(maxY - minY) * 70}px`,
+      };
+    });
+  }, [mergedGroups, floorPlans, activeFloorId]);
 
   useEffect(() => {
     void loadData();
@@ -208,6 +237,7 @@ export default function TablesPage() {
   useEffect(() => {
     if (!floorEditMode) {
       setSelectedFloorTableId(null);
+      setFloorDropPreview(null);
     }
   }, [floorEditMode]);
 
@@ -516,6 +546,16 @@ export default function TablesPage() {
     }
   };
 
+  const handleReservationDurationChange = async (reservationId: string, nextDurationMinutes: number) => {
+    try {
+      await update_reservation_live(reservationId, { duration_minutes: Math.max(30, Math.min(240, nextDurationMinutes)) });
+      notify('success', tx(lang, 'Rezervasiya müddəti yeniləndi', 'Длительность брони обновлена', 'Reservation duration updated'));
+      await loadRestaurantData();
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Rezervasiya müddəti dəyişmədi', 'Длительность брони не изменилась', 'Reservation duration was not updated'));
+    }
+  };
+
   const handleFloorGridDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     if (!floorEditMode || !draggingTableId) return;
     event.preventDefault();
@@ -533,6 +573,7 @@ export default function TablesPage() {
       setSelectedFloorTableId(draggingTable.id);
     } finally {
       setDraggingTableId(null);
+      setFloorDropPreview(null);
     }
   };
 
@@ -1800,6 +1841,18 @@ export default function TablesPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-600 bg-slate-900/40 px-2 py-2 text-xs text-slate-200">
+                    <span className="font-semibold text-slate-300">{tx(lang, 'Preset', 'Пресет', 'Preset')}</span>
+                    <button type="button" className="rounded-md border border-slate-600 px-2 py-1" onClick={() => { void persistFloorLayout(selectedFloorTable.id, { shape: 'circle', width_units: 2, height_units: 2, capacity: 2 }); }}>
+                      {tx(lang, '2-seat round', 'Круглый на 2', '2-seat round')}
+                    </button>
+                    <button type="button" className="rounded-md border border-slate-600 px-2 py-1" onClick={() => { void persistFloorLayout(selectedFloorTable.id, { shape: 'square', width_units: 2, height_units: 2, capacity: 4 }); }}>
+                      {tx(lang, '4-seat square', 'Квадрат на 4', '4-seat square')}
+                    </button>
+                    <button type="button" className="rounded-md border border-slate-600 px-2 py-1" onClick={() => { void persistFloorLayout(selectedFloorTable.id, { shape: 'rectangle', width_units: 3, height_units: 2, capacity: 6 }); }}>
+                      {tx(lang, '6-seat banquette', 'Банкетка на 6', '6-seat banquette')}
+                    </button>
+                  </div>
                   <select
                     className="neon-input min-w-[150px]"
                     value={String(selectedFloorTable.shape || 'rectangle')}
@@ -1829,6 +1882,27 @@ export default function TablesPage() {
                   </div>
                 </div>
               </div>
+              {selectedFloorGroup && (
+                <div className="mt-3 rounded-2xl border border-violet-300/25 bg-violet-500/10 p-3">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <div className="text-sm font-bold text-violet-100">
+                        {tx(lang, 'Seçilmiş birləşmiş qrup', 'Выбранная объединенная группа', 'Selected merged group')}
+                      </div>
+                      <div className="mt-1 text-xs text-violet-200/80">
+                        {selectedFloorGroup.tables.map((table) => table.label).join(' + ')}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="rounded-xl border border-violet-300/40 bg-violet-500/15 px-4 py-2 text-sm font-semibold text-violet-100"
+                      onClick={() => { void handleSplitTables(selectedFloorTable.id, selectedFloorGroup.id); }}
+                    >
+                      {tx(lang, 'Qrupu ayır', 'Разделить группу', 'Split group')}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           <div className="mb-3 flex flex-wrap gap-2">
@@ -1853,7 +1927,7 @@ export default function TablesPage() {
             </div>
           )}
           <div
-            className="grid gap-3 rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3"
+            className="relative grid gap-3 rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3"
             style={{
               gridTemplateColumns: `repeat(${Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12)}, minmax(0, 1fr))`,
               gridAutoRows: '70px',
@@ -1861,9 +1935,46 @@ export default function TablesPage() {
             onDragOver={(e) => {
               if (!floorEditMode) return;
               e.preventDefault();
+              if (!draggingTableId) return;
+              const host = e.currentTarget;
+              const rect = host.getBoundingClientRect();
+              const maxCols = Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12);
+              const columnWidth = rect.width / maxCols;
+              const rowHeight = 70;
+              const nextX = Math.max(0, Math.floor((e.clientX - rect.left) / columnWidth));
+              const nextY = Math.max(0, Math.floor((e.clientY - rect.top) / rowHeight));
+              setFloorDropPreview({ x: nextX, y: nextY });
             }}
             onDrop={(e) => { void handleFloorGridDrop(e); }}
           >
+            {mergedGroupOutlines.map((outline) => (
+              <div
+                key={outline.id}
+                className="pointer-events-none absolute rounded-[26px] border-2 border-dashed border-violet-300/45 bg-violet-500/5"
+                style={{
+                  left: outline.left,
+                  width: outline.width,
+                  top: outline.top,
+                  height: outline.height,
+                }}
+              >
+                <div className="absolute -top-5 left-2 rounded-full bg-violet-500/20 px-2 py-0.5 text-[10px] font-semibold text-violet-100">
+                  {outline.label}
+                </div>
+              </div>
+            ))}
+            {floorEditMode && floorDropPreview && (
+              <>
+                <div
+                  className="pointer-events-none absolute inset-y-0 border-l border-cyan-300/60"
+                  style={{ left: `calc(${(floorDropPreview.x / Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12)) * 100}% + 12px)` }}
+                />
+                <div
+                  className="pointer-events-none absolute inset-x-0 border-t border-cyan-300/60"
+                  style={{ top: `${floorDropPreview.y * 70 + 12}px` }}
+                />
+              </>
+            )}
             {floorTables.map((table) => {
               const maxCols = Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12);
               const statusColors: Record<string, string> = {
@@ -2023,7 +2134,7 @@ export default function TablesPage() {
                 {tx(lang, 'Bu gün üçün rezervasiya yoxdur', 'На этот день броней нет', 'No reservations for this day')}
               </div>
             ) : (
-              <div className="flex min-w-[980px]">
+              <div className="flex" style={{ minWidth: `${reservationTimeline.totalWidth + 96}px` }}>
                 <div className="w-24 shrink-0 border-r border-slate-800/80 bg-slate-950/60">
                   {Array.from({ length: reservationTimeline.hourEnd - reservationTimeline.hourStart + 1 }, (_, idx) => reservationTimeline.hourStart + idx).map((hour) => (
                     <div key={hour} className="h-[75px] border-b border-slate-800/70 px-3 py-2 text-xs font-semibold text-slate-400">
@@ -2033,7 +2144,7 @@ export default function TablesPage() {
                 </div>
                 <div
                   className="relative min-w-0 flex-1"
-                  style={{ height: `${reservationTimeline.totalHeight}px` }}
+                  style={{ height: `${reservationTimeline.totalHeight}px`, minWidth: `${reservationTimeline.totalWidth}px` }}
                   onDragOver={(e) => {
                     if (!draggingReservationId) return;
                     e.preventDefault();
@@ -2047,21 +2158,43 @@ export default function TablesPage() {
                     const snappedMinutes = Math.max(reservationTimeline.hourStart * 60, Math.min((reservationTimeline.hourEnd * 60) - 15, Math.round(rawMinutes / 15) * 15));
                     const hours = Math.floor(snappedMinutes / 60);
                     const minutes = snappedMinutes % 60;
+                    const laneIndex = Math.max(0, Math.min(reservationTimeline.lanes.length - 1, Math.floor((e.clientX - rect.left) / reservationTimeline.laneWidth)));
+                    const assignedTableId = reservationTimeline.lanes[laneIndex]?.id || null;
                     const nextReservationAt = `${reservationDate}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
-                    void handleReservationReschedule(draggingReservationId, nextReservationAt);
+                    void (async () => {
+                      try {
+                        await update_reservation_live(draggingReservationId, { reservation_at: nextReservationAt, assigned_table_id: assignedTableId });
+                        notify('success', tx(lang, 'Rezervasiya vaxtı və masası yeniləndi', 'Время и стол брони обновлены', 'Reservation time and table updated'));
+                        await Promise.all([loadRestaurantData(), activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve()]);
+                      } catch (error: any) {
+                        notify('error', error?.message || tx(lang, 'Rezervasiya dəyişmədi', 'Бронь не изменилась', 'Reservation was not updated'));
+                      } finally {
+                        setDraggingReservationId(null);
+                      }
+                    })();
                   }}
                 >
+                  <div className="sticky top-0 z-10 flex border-b border-slate-800/80 bg-slate-950/90">
+                    {reservationTimeline.lanes.map((lane) => (
+                      <div
+                        key={`lane_${lane.id || 'unassigned'}`}
+                        className="shrink-0 border-r border-slate-800/70 px-3 py-2 text-xs font-semibold text-slate-300"
+                        style={{ width: `${reservationTimeline.laneWidth}px` }}
+                      >
+                        {lane.label}
+                      </div>
+                    ))}
+                  </div>
                   {Array.from({ length: reservationTimeline.hourEnd - reservationTimeline.hourStart + 1 }, (_, idx) => idx).map((idx) => (
                     <div
                       key={`line_${idx}`}
                       className="pointer-events-none absolute inset-x-0 border-t border-dashed border-slate-700/60"
-                      style={{ top: `${idx * 60 * reservationTimeline.minuteHeight}px` }}
+                      style={{ top: `${idx * 60 * reservationTimeline.minuteHeight + 34}px` }}
                     />
                   ))}
                   {reservationTimeline.entries.map((entry) => {
                     const reservation = entry.reservation;
                     const availableTables = floorTables.filter((row) => String(row.status).toUpperCase() === 'AVAILABLE');
-                    const laneWidth = 100 / reservationTimeline.lanes;
                     return (
                       <div
                         key={reservation.id}
@@ -2070,9 +2203,9 @@ export default function TablesPage() {
                         onDragEnd={() => setDraggingReservationId(null)}
                         className="absolute rounded-2xl border border-amber-300/30 bg-gradient-to-br from-amber-400/15 to-slate-900/90 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]"
                         style={{
-                          top: `${entry.top}px`,
-                          left: `calc(${entry.lane * laneWidth}% + 8px)`,
-                          width: `calc(${laneWidth}% - 16px)`,
+                          top: `${entry.top + 40}px`,
+                          left: `${entry.lane * reservationTimeline.laneWidth + 8}px`,
+                          width: `${reservationTimeline.laneWidth - 16}px`,
                           minHeight: `${entry.height}px`,
                         }}
                       >
@@ -2092,6 +2225,9 @@ export default function TablesPage() {
                         <div className="mt-2 text-xs text-slate-300">
                           {reservation.assigned_table_id ? `${tx(lang, 'Masa', 'Стол', 'Table')}: ${floorTables.find((table) => table.id === reservation.assigned_table_id)?.label || reservation.assigned_table_id}` : tx(lang, 'Masa hələ təyin edilməyib', 'Стол еще не назначен', 'No table assigned yet')}
                         </div>
+                        <div className="mt-1 text-xs text-slate-400">
+                          {tx(lang, 'Müddət', 'Длительность', 'Duration')}: {reservation.duration_minutes || 90} {tx(lang, 'dəqiqə', 'мин', 'min')}
+                        </div>
                         {reservation.special_note ? (
                           <div className="mt-2 line-clamp-2 text-xs text-slate-400">{reservation.special_note}</div>
                         ) : null}
@@ -2100,6 +2236,24 @@ export default function TablesPage() {
                             <span className="rounded-full border border-slate-500/40 bg-slate-800/70 px-3 py-1 text-[11px] font-semibold text-slate-200">
                               {tx(lang, 'Sürüşdürüb vaxtı dəyiş', 'Перетащите, чтобы сменить время', 'Drag to reschedule')}
                             </span>
+                          )}
+                          {reservation.status === 'BOOKED' && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => { void handleReservationDurationChange(reservation.id, Number(reservation.duration_minutes || 90) - 15); }}
+                                className="rounded-full border border-cyan-300/40 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold text-cyan-100"
+                              >
+                                {tx(lang, '15 dəq azald', 'Минус 15 мин', '-15 min')}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { void handleReservationDurationChange(reservation.id, Number(reservation.duration_minutes || 90) + 15); }}
+                                className="rounded-full border border-cyan-300/40 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold text-cyan-100"
+                              >
+                                {tx(lang, '15 dəq artır', 'Плюс 15 мин', '+15 min')}
+                              </button>
+                            </>
                           )}
                           {reservation.status === 'BOOKED' && availableTables.slice(0, 2).map((table) => (
                             <button
