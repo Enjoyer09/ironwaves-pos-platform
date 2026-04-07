@@ -4,7 +4,7 @@ import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
 import { subscribeTenantRealtime } from '../api/realtime';
 import { act_on_order_item_live, combine_tables_live, create_reservation_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, get_table_detail_live, seat_reservation_live, send_table_round_live, settle_table_check_live, split_table_group_live, transfer_table_lock_live, unlock_table_live, update_reservation_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
-import { LayoutGrid, Plus, Trash2, ArrowRightCircle, CalendarClock, Users, MapPinned } from 'lucide-react';
+import { LayoutGrid, Plus, ArrowRightCircle, CalendarClock, Users, MapPinned } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
@@ -70,6 +70,7 @@ export default function TablesPage() {
   const [reservationDurationDrafts, setReservationDurationDrafts] = useState<Record<string, number>>({});
   const [resizingReservation, setResizingReservation] = useState<{ id: string; startY: number; startDuration: number } | null>(null);
   const [reservationZoom, setReservationZoom] = useState<15 | 30>(15);
+  const [tableGridScale, setTableGridScale] = useState(100);
   const [reservationDate, setReservationDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [reservations, setReservations] = useState<ReservationRecord[]>([]);
   const [showReservationCreate, setShowReservationCreate] = useState(false);
@@ -156,15 +157,6 @@ export default function TablesPage() {
       .slice(0, 3);
   }, [reservationCandidateTables, reservationPartySize]);
 
-  const reservedTableIds = useMemo(
-    () => new Set(
-      floorTables
-        .filter((row) => String(row.status || '').toUpperCase() === 'RESERVED')
-        .map((row) => String(row.id)),
-    ),
-    [floorTables],
-  );
-
   const mergedGroups = useMemo(() => {
     const groups = new Map<string, FloorTableState[]>();
     floorTables.forEach((table) => {
@@ -247,6 +239,11 @@ export default function TablesPage() {
       };
     });
   }, [mergedGroups, floorPlans, activeFloorId]);
+
+  const tableGridMinWidth = useMemo(() => {
+    const base = 160;
+    return Math.max(145, Math.min(220, Math.round((base * tableGridScale) / 100)));
+  }, [tableGridScale]);
 
   useEffect(() => {
     void loadData();
@@ -1629,8 +1626,15 @@ export default function TablesPage() {
       )}
 
       {viewTableId && (
-        <div ref={detailPanelRef} className="mt-6">
-          <div className="metal-panel w-full rounded-[30px] p-5">
+        <div
+          ref={detailPanelRef}
+          className={`${
+            workspaceView === 'floor'
+              ? 'fixed inset-y-4 right-4 z-[90] w-[min(560px,42vw)] overflow-y-auto rounded-[30px] border border-white/10 bg-slate-950/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur'
+              : 'mt-6'
+          }`}
+        >
+          <div className={`metal-panel ${workspaceView === 'floor' ? 'flex h-full flex-col overflow-hidden rounded-[30px] p-4' : 'w-full rounded-[30px] p-5'}`}>
             {(() => {
               const t = tables.find((x) => x.id === viewTableId);
               if (!t) return null;
@@ -1714,69 +1718,41 @@ export default function TablesPage() {
                     }));
               return (
                 <>
-                  <h3 className="text-lg font-bold text-slate-100">{t.label}</h3>
-                  <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Masa sifariş detalı', 'Детали заказа стола', 'Table order detail')}</div>
-                  <div className="mt-3 rounded-2xl border border-yellow-300/20 bg-yellow-500/10 p-4">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-yellow-200">
-                          {tx(lang, 'Open Check', 'Открытый чек', 'Open Check')}
-                        </div>
-                        <div className="mt-2 text-lg font-black text-slate-100">
-                          {detailCheck?.check_number || tx(lang, 'Check açılır...', 'Чек открывается...', 'Check is initializing...')}
-                        </div>
-                        <div className="mt-1 text-sm text-slate-300">
-                          {detailSession?.assigned_waiter
-                            ? `${tx(lang, 'Ofisiant', 'Официант', 'Waiter')}: ${detailSession.assigned_waiter}`
-                            : tx(lang, 'Ofisiant təyin edilməyib', 'Официант не назначен', 'Waiter not assigned')}
-                          {detailSession?.seated_at
-                            ? ` · ${tx(lang, 'Oturma', 'Посадка', 'Seated')}: ${new Date(detailSession.seated_at).toLocaleTimeString(lang === 'ru' ? 'ru-RU' : 'az-AZ', { hour: '2-digit', minute: '2-digit' })}`
-                            : ''}
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-                        <div className="rounded-xl border border-slate-700/60 bg-slate-950/35 px-3 py-2 text-sm text-slate-200">
-                          <div className="text-[11px] uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Status', 'Статус', 'Status')}</div>
-                          <div className="mt-1 font-bold text-slate-100">{detailCheck?.status || 'OPEN'}</div>
-                        </div>
-                        <div className="rounded-xl border border-slate-700/60 bg-slate-950/35 px-3 py-2 text-sm text-slate-200">
-                          <div className="text-[11px] uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Qonaq', 'Гости', 'Guests')}</div>
-                          <div className="mt-1 font-bold text-slate-100">{detailSession?.guest_count ?? Number(t.guest_count || 0)}</div>
-                        </div>
-                        <div className="rounded-xl border border-slate-700/60 bg-slate-950/35 px-3 py-2 text-sm text-slate-200">
-                          <div className="text-[11px] uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Subtotal', 'Сумма', 'Subtotal')}</div>
-                          <div className="mt-1 font-bold text-slate-100">{new Decimal(detailCheck?.subtotal || t.total || 0).toFixed(2)} ₼</div>
-                        </div>
-                        <div className="rounded-xl border border-emerald-300/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100">
-                          <div className="text-[11px] uppercase tracking-[0.14em] text-emerald-200">{tx(lang, 'Toplam', 'Итого', 'Total')}</div>
-                          <div className="mt-1 font-bold">{new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼</div>
-                        </div>
-                      </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setViewTableId(null)}
+                        className="inline-flex min-h-11 items-center rounded-full border border-slate-700/70 bg-slate-900/50 px-4 py-2 text-sm font-semibold text-slate-200"
+                      >
+                        ← {tx(lang, 'Masalara qayıt', 'Назад к столам', 'Back to tables')}
+                      </button>
+                      <h3 className="mt-3 text-2xl font-black text-slate-100">{t.label}</h3>
+                    </div>
+                    <div className="rounded-full border border-emerald-300/30 bg-emerald-500/10 px-4 py-2 text-sm font-bold text-emerald-100">
+                      {new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2 rounded-2xl border border-slate-800/80 bg-slate-900/45 p-3">
+                    <div className="rounded-xl bg-slate-950/50 px-3 py-3">
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{tx(lang, 'Masa', 'Стол', 'Table')}</div>
+                      <div className="mt-1 text-base font-bold text-slate-100">{t.label}</div>
+                    </div>
+                    <div className="rounded-xl bg-slate-950/50 px-3 py-3">
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{tx(lang, 'Nəfər', 'Гости', 'Guests')}</div>
+                      <div className="mt-1 text-base font-bold text-slate-100">{detailSession?.guest_count ?? Number(t.guest_count || 0)}</div>
+                    </div>
+                    <div className="rounded-xl bg-slate-950/50 px-3 py-3">
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{tx(lang, 'Toplam', 'Итого', 'Total')}</div>
+                      <div className="mt-1 text-base font-bold text-slate-100">{new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼</div>
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {tableLockHolder && (
-                      <div className={`rounded-full border px-4 py-2 text-sm ${userCanEditTable ? 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100' : 'border-rose-300/30 bg-rose-500/10 text-rose-100'}`}>
-                        {userCanEditTable
-                          ? `${tx(lang, 'Masa sahibi', 'Ответственный за стол', 'Table owner')}: ${tableLockHolder}`
-                          : `${tx(lang, 'Bu masa artıq', 'Этот стол уже у', 'This table is already used by')} ${tableLockHolder}`}
+                      <div className={`rounded-full border px-4 py-2 text-sm font-semibold ${userCanEditTable ? 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100' : 'border-rose-300/30 bg-rose-500/10 text-rose-100'}`}>
+                        {`👤 ${tableLockHolder} ${tx(lang, 'istifadə edir', 'использует', 'is using')}`}
                       </div>
                     )}
-                    <div className="rounded-full border border-slate-700/60 bg-slate-950/30 px-4 py-2 text-sm text-slate-200">
-                      {tx(lang, 'Qonaq', 'Гости', 'Guests')}: <span className="font-bold text-slate-100">{Number(t.guest_count || 0)}</span>
-                    </div>
-                    <div className="rounded-full border border-slate-700/60 bg-slate-950/30 px-4 py-2 text-sm text-slate-200">
-                      {tx(lang, 'Depozitli', 'С депозитом', 'Deposited')}: <span className="font-bold text-slate-100">{Number(t.deposit_guest_count || 0)}</span>
-                    </div>
-                    <div className="rounded-full border border-emerald-300/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-100">
-                      {tx(lang, 'Depozit', 'Депозит', 'Deposit')}: <span className="font-bold">{new Decimal(t.deposit_amount || 0).toFixed(2)} ₼</span>
-                    </div>
-                    <div className="rounded-full border border-yellow-300/30 bg-yellow-500/10 px-4 py-2 text-sm text-yellow-100">
-                      {tx(lang, 'Cari hesab', 'Текущий счет', 'Current bill')}: <span className="font-bold">{Decimal.max(
-                        new Decimal(t.total || 0).plus(new Decimal(t.total || 0).times(serviceFeePercent).div(100)),
-                        new Decimal(t.deposit_amount || 0),
-                      ).toFixed(2)} ₼</span>
-                    </div>
                     {isManagerUser && tableLockHolder && tableLockHolder !== user?.username && (
                       <>
                         <button
@@ -1944,29 +1920,22 @@ export default function TablesPage() {
                   <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/35 p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div>
-                        <div className="text-base font-semibold text-slate-100">{tx(lang, 'Seçilmiş masa üçün sifarişləri burada yaz', 'Введите заказ для выбранного стола здесь', 'Write the order for the selected table here')}</div>
-                        <div className="mt-1 text-sm text-slate-400">
-                          {tx(
-                            lang,
-                            'Popup açılmır. Masanı seçdikdən sonra menyu birbaşa burada açılır və ofisiant məhsulları yığıb həmin raundu mətbəxə göndərir.',
-                            'Без popup. После выбора стола меню открывается прямо здесь, и официант собирает позиции и отправляет раунд на кухню.',
-                            'No popup. After selecting a table, the menu opens right here and the waiter builds the items and sends the round to the kitchen.',
-                          )}
-                        </div>
+                        <div className="text-base font-semibold text-slate-100">{tx(lang, 'Yeni sifariş', 'Новый заказ', 'New order')}</div>
+                        <div className="mt-1 text-sm text-slate-400">{tx(lang, 'Masanı seçin, məhsulları toxunun və dərhal göndərin.', 'Выберите стол, нажмите товары и сразу отправьте.', 'Pick the table, tap items, and send immediately.')}</div>
                       </div>
                       <div className="rounded-full border border-slate-700/70 bg-slate-950/40 px-3 py-1 text-xs font-semibold text-slate-200">
-                        {tx(lang, 'Draft raund cəmi', 'Сумма draft-раунда', 'Draft round total')}: {roundDraft.reduce((acc, row) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0)).toFixed(2)} ₼
+                        {tx(lang, 'Göndərilməmişlər', 'Неотправленные', 'Unsent items')}: {roundDraft.reduce((acc, row) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0)).toFixed(2)} ₼
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+                    <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
                       <div className="space-y-3">
                         <div className="grid gap-3 md:grid-cols-[1fr_auto]">
                           <input
                             className="neon-input"
                             value={roundSearch}
                             onChange={(e) => setRoundSearch(e.target.value)}
-                            placeholder={tx(lang, 'Raund üçün məhsul axtar...', 'Поиск товара для раунда...', 'Search items for this round...')}
+                            placeholder={tx(lang, 'Məhsul axtar...', 'Поиск товара...', 'Search item...')}
                           />
                           <select className="neon-input min-w-[180px]" value={roundCategory} onChange={(e) => setRoundCategory(e.target.value)}>
                             {roundCategories.map((category) => (
@@ -1974,21 +1943,20 @@ export default function TablesPage() {
                             ))}
                           </select>
                         </div>
-                        <div className="grid max-h-80 grid-cols-1 gap-3 overflow-auto rounded-xl border border-slate-700/70 bg-slate-950/25 p-3 md:grid-cols-2">
+                        <div className="grid max-h-[48vh] grid-cols-2 gap-3 overflow-auto rounded-xl border border-slate-700/70 bg-slate-950/25 p-3 xl:grid-cols-3">
                           {filteredRoundMenu.map((item: any) => (
                             <button
                               key={item.id}
                               type="button"
                               onClick={() => addMenuItemToRound(item)}
-                              className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-3 text-left transition hover:border-yellow-300/30 hover:bg-slate-900/70"
+                              className="min-h-[108px] rounded-2xl border border-slate-700/60 bg-slate-900/55 p-4 text-left transition hover:border-yellow-300/30 hover:bg-slate-900/80 active:scale-[0.99]"
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                  <div className="truncate font-semibold text-slate-100">{item.item_name}</div>
-                                  <div className="mt-1 text-xs text-slate-400">{item.category}</div>
-                                  {item.description ? <div className="mt-2 line-clamp-2 text-xs text-slate-500">{String(item.description)}</div> : null}
+                                  <div className="line-clamp-2 text-base font-bold text-slate-100">{item.item_name}</div>
+                                  <div className="mt-2 text-xs text-slate-400">{item.category}</div>
                                 </div>
-                                <div className="rounded-lg bg-yellow-400/15 px-2 py-1 text-sm font-bold text-yellow-200">
+                                <div className="rounded-xl bg-yellow-400/15 px-3 py-2 text-base font-black text-yellow-200">
                                   {Number(item.price || 0).toFixed(2)} ₼
                                 </div>
                               </div>
@@ -2002,9 +1970,9 @@ export default function TablesPage() {
                         </div>
                       </div>
 
-                      <div className="rounded-xl border border-slate-700/70 bg-slate-950/30 p-4">
+                      <div className="flex flex-col rounded-xl border border-slate-700/70 bg-slate-950/30 p-4">
                         <div className="flex items-center justify-between gap-3">
-                          <div className="text-sm font-semibold text-slate-100">{tx(lang, 'Raund draft-i', 'Draft раунда', 'Round draft')}</div>
+                          <div className="text-sm font-semibold text-slate-100">{tx(lang, 'Göndərilməmişlər', 'Неотправленные', 'Unsent items')}</div>
                           {roundDraft.length > 0 ? (
                             <button type="button" onClick={clearRoundComposer} className="text-xs font-semibold text-slate-400 hover:text-slate-200">
                               {tx(lang, 'Təmizlə', 'Очистить', 'Clear')}
@@ -2014,7 +1982,7 @@ export default function TablesPage() {
                         <div className="mt-3 space-y-2">
                           {roundDraft.length === 0 ? (
                             <div className="rounded-lg border border-dashed border-slate-700/60 px-4 py-6 text-center text-sm text-slate-400">
-                              {tx(lang, 'Burada yığdığınız məhsullar növbəti raund kimi göndəriləcək', 'Собранные здесь позиции будут отправлены как следующий раунд', 'Items gathered here will be sent as the next round')}
+                              {tx(lang, 'Buradakı məhsullar bir toxunuşla mətbəxə gedəcək', 'Эти позиции одним нажатием уйдут на кухню', 'Items here will go to the kitchen in one tap')}
                             </div>
                           ) : (
                             roundDraft.map((row: any) => (
@@ -2032,14 +2000,20 @@ export default function TablesPage() {
                             ))
                           )}
                         </div>
-                        <button
-                          type="button"
-                          disabled={roundDraft.length === 0 || !userCanEditTable}
-                          onClick={() => { void sendRoundDirectly(t); }}
-                          className="glossy-gold mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-xl px-4 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {tx(lang, 'Bu raundu mətbəxə göndər', 'Отправить этот раунд на кухню', 'Send this round to kitchen')}
-                        </button>
+                        <div className="sticky bottom-0 mt-4 space-y-3 rounded-2xl border border-yellow-300/20 bg-slate-950/95 p-3 shadow-[0_-12px_30px_rgba(0,0,0,0.35)]">
+                          <div className="flex items-center justify-between text-sm text-slate-300">
+                            <span>{tx(lang, 'Yeni sifariş cəmi', 'Сумма нового заказа', 'New order total')}</span>
+                            <span className="text-base font-black text-slate-100">{roundDraft.reduce((acc, row) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0)).toFixed(2)} ₼</span>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={roundDraft.length === 0 || !userCanEditTable}
+                            onClick={() => { void sendRoundDirectly(t); }}
+                            className="glossy-gold inline-flex min-h-14 w-full items-center justify-center rounded-2xl px-4 py-3 text-base font-black disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {tx(lang, 'Göndər', 'Отправить', 'Send')}
+                          </button>
+                        </div>
                       </div>
                     </div>
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700/60 bg-slate-950/25 px-4 py-3">
@@ -2248,6 +2222,21 @@ export default function TablesPage() {
                 <select className="neon-input min-w-[220px]" value={activeFloorId} onChange={(e) => setActiveFloorId(e.target.value)}>
                   {floorPlans.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
                 </select>
+              )}
+              {!floorEditMode && (
+                <label className="flex min-w-[210px] items-center gap-3 rounded-full border border-slate-700/70 bg-slate-900/40 px-4 py-2 text-xs font-semibold text-slate-200">
+                  <span>{tx(lang, 'Zoom', 'Зум', 'Zoom')}</span>
+                  <input
+                    type="range"
+                    min={85}
+                    max={115}
+                    step={5}
+                    value={tableGridScale}
+                    onChange={(e) => setTableGridScale(Number(e.target.value))}
+                    className="w-full accent-yellow-300"
+                  />
+                  <span className="min-w-10 text-right">{tableGridScale}%</span>
+                </label>
               )}
               {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
                 <>
@@ -2459,217 +2448,205 @@ export default function TablesPage() {
               </button>
             </div>
           )}
-          <div
-            className="relative grid gap-3 rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3"
-            style={{
-              gridTemplateColumns: `repeat(${Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12)}, minmax(0, 1fr))`,
-              gridAutoRows: '70px',
-            }}
-            onDragOver={(e) => {
-              if (!floorEditMode) return;
-              e.preventDefault();
-              if (!draggingTableId) return;
-              const host = e.currentTarget;
-              const rect = host.getBoundingClientRect();
-              const maxCols = Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12);
-              const columnWidth = rect.width / maxCols;
-              const rowHeight = 70;
-              const nextX = Math.max(0, Math.floor((e.clientX - rect.left) / columnWidth));
-              const nextY = Math.max(0, Math.floor((e.clientY - rect.top) / rowHeight));
-              setFloorDropPreview({ x: nextX, y: nextY });
-            }}
-            onDrop={(e) => { void handleFloorGridDrop(e); }}
-          >
-            {mergedGroupOutlines.map((outline) => (
-              <button
-                key={outline.id}
-                type="button"
-                onClick={() => {
-                  const group = mergedGroups.find((row) => row.id === outline.id);
-                  setSelectedFloorGroupId(outline.id);
-                  setSelectedFloorTableId(group?.tables[0]?.id || null);
-                }}
-                className={`absolute rounded-[26px] border-2 border-dashed bg-violet-500/5 text-left ${selectedFloorGroupId === outline.id ? 'border-violet-100/90' : 'border-violet-300/45'}`}
-                style={{
-                  left: outline.left,
-                  width: outline.width,
-                  top: outline.top,
-                  height: outline.height,
-                }}
-              >
-                <div className="absolute -top-5 left-2 rounded-full bg-violet-500/20 px-2 py-0.5 text-[10px] font-semibold text-violet-100">
-                  {outline.label}
-                </div>
-              </button>
-            ))}
-            {floorEditMode && floorDropPreview && (
-              <>
-                <div
-                  className="pointer-events-none absolute inset-y-0 border-l border-cyan-300/60"
-                  style={{ left: `calc(${(floorDropPreview.x / Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12)) * 100}% + 12px)` }}
-                />
-                <div
-                  className="pointer-events-none absolute inset-x-0 border-t border-cyan-300/60"
-                  style={{ top: `${floorDropPreview.y * 70 + 12}px` }}
-                />
-              </>
-            )}
-            {floorTables.map((table) => {
-              const maxCols = Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12);
-              const statusColors: Record<string, string> = {
-                AVAILABLE: 'bg-emerald-500/15 border-emerald-300/40 text-emerald-100',
-                RESERVED: 'bg-amber-500/15 border-amber-300/40 text-amber-100',
-                SEATED: 'bg-sky-500/15 border-sky-300/40 text-sky-100',
-                ACTIVE_CHECK: 'bg-rose-500/15 border-rose-300/40 text-rose-100',
-                DIRTY: 'bg-slate-500/20 border-slate-300/30 text-slate-100',
-              };
-              return (
+          {floorEditMode ? (
+            <div
+              className="relative grid gap-3 rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3"
+              style={{
+                gridTemplateColumns: `repeat(${Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12)}, minmax(0, 1fr))`,
+                gridAutoRows: '70px',
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (!draggingTableId) return;
+                const host = e.currentTarget;
+                const rect = host.getBoundingClientRect();
+                const maxCols = Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12);
+                const columnWidth = rect.width / maxCols;
+                const rowHeight = 70;
+                const nextX = Math.max(0, Math.floor((e.clientX - rect.left) / columnWidth));
+                const nextY = Math.max(0, Math.floor((e.clientY - rect.top) / rowHeight));
+                setFloorDropPreview({ x: nextX, y: nextY });
+              }}
+              onDrop={(e) => { void handleFloorGridDrop(e); }}
+            >
+              {mergedGroupOutlines.map((outline) => (
                 <button
-                  key={table.id}
+                  key={outline.id}
                   type="button"
-                  draggable={floorEditMode}
-                  onDragStart={() => {
-                    const mergedGroupId = String((table as any).merged_group_id || '').trim();
-                    const nextDragIds =
-                      mergedGroupId && selectedFloorGroupId === mergedGroupId
-                        ? (selectedFloorGroup?.tables.map((row) => row.id) || [table.id])
-                        : (floorMultiSelectMode && selectedFloorTableIds.includes(table.id) ? selectedFloorTableIds : [table.id]);
-                    setDraggingTableId(table.id);
-                    setDraggingTableIds(nextDragIds);
-                  }}
-                  onDragEnd={() => {
-                    setDraggingTableId(null);
-                    setDraggingTableIds([]);
-                    setFloorDropPreview(null);
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                  }}
                   onClick={() => {
-                    if (floorEditMode) {
+                    const group = mergedGroups.find((row) => row.id === outline.id);
+                    setSelectedFloorGroupId(outline.id);
+                    setSelectedFloorTableId(group?.tables[0]?.id || null);
+                  }}
+                  className={`absolute rounded-[26px] border-2 border-dashed bg-violet-500/5 text-left ${selectedFloorGroupId === outline.id ? 'border-violet-100/90' : 'border-violet-300/45'}`}
+                  style={{ left: outline.left, width: outline.width, top: outline.top, height: outline.height }}
+                >
+                  <div className="absolute -top-5 left-2 rounded-full bg-violet-500/20 px-2 py-0.5 text-[10px] font-semibold text-violet-100">
+                    {outline.label}
+                  </div>
+                </button>
+              ))}
+              {floorEditMode && floorDropPreview && (
+                <>
+                  <div className="pointer-events-none absolute inset-y-0 border-l border-cyan-300/60" style={{ left: `calc(${(floorDropPreview.x / Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12)) * 100}% + 12px)` }} />
+                  <div className="pointer-events-none absolute inset-x-0 border-t border-cyan-300/60" style={{ top: `${floorDropPreview.y * 70 + 12}px` }} />
+                </>
+              )}
+              {floorTables.map((table) => {
+                const statusColors: Record<string, string> = {
+                  AVAILABLE: 'bg-emerald-500/15 border-emerald-300/40 text-emerald-100',
+                  RESERVED: 'bg-amber-500/15 border-amber-300/40 text-amber-100',
+                  SEATED: 'bg-sky-500/15 border-sky-300/40 text-sky-100',
+                  ACTIVE_CHECK: 'bg-violet-500/15 border-violet-300/40 text-violet-100',
+                  DIRTY: 'bg-slate-500/20 border-slate-300/30 text-slate-100',
+                };
+                return (
+                  <button
+                    key={table.id}
+                    type="button"
+                    draggable
+                    onDragStart={() => {
+                      const mergedGroupId = String((table as any).merged_group_id || '').trim();
+                      const nextDragIds =
+                        mergedGroupId && selectedFloorGroupId === mergedGroupId
+                          ? (selectedFloorGroup?.tables.map((row) => row.id) || [table.id])
+                          : (floorMultiSelectMode && selectedFloorTableIds.includes(table.id) ? selectedFloorTableIds : [table.id]);
+                      setDraggingTableId(table.id);
+                      setDraggingTableIds(nextDragIds);
+                    }}
+                    onDragEnd={() => {
+                      setDraggingTableId(null);
+                      setDraggingTableIds([]);
+                      setFloorDropPreview(null);
+                    }}
+                    onClick={() => {
                       if (floorMultiSelectMode) {
-                        setSelectedFloorTableIds((prev) => (
-                          prev.includes(table.id) ? prev.filter((id) => id !== table.id) : [...prev, table.id]
-                        ));
+                        setSelectedFloorTableIds((prev) => (prev.includes(table.id) ? prev.filter((id) => id !== table.id) : [...prev, table.id]));
                       } else {
                         setSelectedFloorTableId(table.id);
                         setSelectedFloorGroupId(String((table as any).merged_group_id || '').trim() || null);
                       }
-                      return;
-                    }
-                    if (String(table.status || '').toUpperCase() === 'DIRTY') return;
-                    if (String(table.status || '').toUpperCase() === 'RESERVED') {
-                      notify(
-                        'error',
-                        tx(
-                          lang,
-                          `Bu masa yaxın ${reservationLockHours} saat üçün rezervdədir`,
-                          `Этот стол забронирован на ближайшие ${reservationLockHours} ч.`,
-                          `This table is reserved for the next ${reservationLockHours} hours`,
-                        ),
-                      );
-                      return;
-                    }
-                    const localTable = tables.find((row) => row.id === table.id);
-                    if (localTable?.is_occupied) {
-                      setViewTableId(localTable.id);
-                    } else {
-                      setOpenTableId(table.id);
-                      setGuestCount(String(Math.max(1, Number(table.guest_count || 1))));
-                      setDepositGuestCount('0');
-                    }
-                  }}
-                  className={`border p-3 text-left shadow-sm transition hover:scale-[1.01] ${String(table.shape || '').toLowerCase() === 'circle' ? 'rounded-[999px]' : String(table.shape || '').toLowerCase() === 'square' ? 'rounded-xl' : 'rounded-2xl'} ${draggingTableIds.includes(table.id) ? 'opacity-60' : ''} ${selectedFloorTableId === table.id ? 'ring-2 ring-cyan-300/80' : ''} ${selectedFloorTableIds.includes(table.id) ? 'ring-2 ring-violet-300/80' : ''} ${String((table as any).merged_group_id || '').trim() ? 'shadow-[0_0_0_2px_rgba(167,139,250,0.45)]' : ''} ${statusColors[String(table.status || 'AVAILABLE').toUpperCase()] || statusColors.AVAILABLE}`}
-                  style={{
-                    gridColumn: `${Math.max(1, Number(table.x || 0) + 1)} / span ${Math.max(1, Number(table.w || 2))}`,
-                    gridRow: `${Math.max(1, Number(table.y || 0) + 1)} / span ${Math.max(1, Number(table.h || 2))}`,
-                  }}
-                >
-                  <div className="font-bold">{table.label}</div>
-                  <div className="mt-1 text-xs opacity-80">{table.status}</div>
-                  <div className="mt-2 text-xs">
-                    <Users size={12} className="mr-1 inline" />
-                    {Number(table.guest_count || 0)} / {Number(table.capacity || 0)}
-                  </div>
-                  {table.merged_group_id ? (
-                    <div className="mt-2 rounded-full border border-violet-300/40 bg-violet-500/15 px-2 py-1 text-[11px] font-semibold text-violet-100">
-                      {tx(lang, 'Birləşmiş qrup', 'Объединенная группа', 'Merged group')}
+                    }}
+                    className={`border p-3 text-left shadow-sm transition ${String(table.shape || '').toLowerCase() === 'circle' ? 'rounded-[999px]' : String(table.shape || '').toLowerCase() === 'square' ? 'rounded-xl' : 'rounded-2xl'} ${draggingTableIds.includes(table.id) ? 'opacity-60' : ''} ${selectedFloorTableId === table.id ? 'ring-2 ring-cyan-300/80' : ''} ${selectedFloorTableIds.includes(table.id) ? 'ring-2 ring-violet-300/80' : ''} ${String((table as any).merged_group_id || '').trim() ? 'shadow-[0_0_0_2px_rgba(167,139,250,0.45)]' : ''} ${statusColors[String(table.status || 'AVAILABLE').toUpperCase()] || statusColors.AVAILABLE}`}
+                    style={{
+                      gridColumn: `${Math.max(1, Number(table.x || 0) + 1)} / span ${Math.max(1, Number(table.w || 2))}`,
+                      gridRow: `${Math.max(1, Number(table.y || 0) + 1)} / span ${Math.max(1, Number(table.h || 2))}`,
+                    }}
+                  >
+                    <div className="font-bold">{table.label}</div>
+                    <div className="mt-2 text-xs"><Users size={12} className="mr-1 inline" />{Number(table.guest_count || 0)} / {Number(table.capacity || 0)}</div>
+                    {table.merged_group_id ? <div className="mt-2 rounded-full border border-violet-300/40 bg-violet-500/15 px-2 py-1 text-[11px] font-semibold text-violet-100">{tx(lang, 'Birləşmiş qrup', 'Объединенная группа', 'Merged group')}</div> : null}
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      <button type="button" onClick={(e) => { e.stopPropagation(); void persistFloorLayout(table.id, { width_units: Math.max(1, Number(table.w || 1) - 1) }); }} className="rounded-md border border-slate-300/30 bg-black/20 px-2 py-1 text-[10px] font-semibold text-slate-100">W-</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); void persistFloorLayout(table.id, { width_units: Math.min(6, Number(table.w || 1) + 1) }); }} className="rounded-md border border-slate-300/30 bg-black/20 px-2 py-1 text-[10px] font-semibold text-slate-100">W+</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); void persistFloorLayout(table.id, { height_units: Math.max(1, Number(table.h || 1) - 1) }); }} className="rounded-md border border-slate-300/30 bg-black/20 px-2 py-1 text-[10px] font-semibold text-slate-100">H-</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); void persistFloorLayout(table.id, { height_units: Math.min(6, Number(table.h || 1) + 1) }); }} className="rounded-md border border-slate-300/30 bg-black/20 px-2 py-1 text-[10px] font-semibold text-slate-100">H+</button>
                     </div>
-                  ) : null}
-                  {new Decimal(table.check_total || 0).greaterThan(0) && (
-                    <div className="mt-2 text-xs font-semibold">{new Decimal(table.check_total || 0).toFixed(2)} ₼</div>
-                  )}
-                  {String(table.status || '').toUpperCase() === 'DIRTY' && (
-                    <button
-                      type="button"
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        try {
-                          await update_table_layout_live(table.id, { status: 'AVAILABLE' });
-                          await Promise.all([loadFloorState(activeFloorId), loadData()]);
-                          notify('success', tx(lang, 'Masa təmiz kimi qeyd olundu', 'Стол отмечен как чистый', 'Table marked as clean'));
-                        } catch (error: any) {
-                          notify('error', error?.message || tx(lang, 'Masa təmizlənmədi', 'Стол не очищен', 'Table was not cleaned'));
-                        }
-                      }}
-                      className="mt-2 rounded-lg border border-slate-200/40 bg-slate-100/15 px-2 py-1 text-[11px] font-semibold text-slate-100"
-                    >
-                      {tx(lang, 'Təmizlə', 'Очистить', 'Mark clean')}
-                    </button>
-                  )}
-                  {floorEditMode && (
-                    <>
-                      <div className="mt-2 text-[11px] font-semibold opacity-80">
-                        {tx(lang, 'Sürüşdürüb yerləşdir', 'Перетащите для размещения', 'Drag to place')}
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void persistFloorLayout(table.id, { width_units: Math.max(1, Number(table.w || 1) - 1) });
-                          }}
-                          className="rounded-md border border-slate-300/30 bg-black/20 px-2 py-1 text-[10px] font-semibold text-slate-100"
-                        >
-                          W-
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void persistFloorLayout(table.id, { width_units: Math.min(6, Number(table.w || 1) + 1) });
-                          }}
-                          className="rounded-md border border-slate-300/30 bg-black/20 px-2 py-1 text-[10px] font-semibold text-slate-100"
-                        >
-                          W+
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void persistFloorLayout(table.id, { height_units: Math.max(1, Number(table.h || 1) - 1) });
-                          }}
-                          className="rounded-md border border-slate-300/30 bg-black/20 px-2 py-1 text-[10px] font-semibold text-slate-100"
-                        >
-                          H-
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void persistFloorLayout(table.id, { height_units: Math.min(6, Number(table.h || 1) + 1) });
-                          }}
-                          className="rounded-md border border-slate-300/30 bg-black/20 px-2 py-1 text-[10px] font-semibold text-slate-100"
-                        >
-                          H+
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
+              <div
+                className={`rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3 ${viewTableId ? 'lg:pr-2' : ''}`}
+                style={{ marginRight: viewTableId ? 'min(44vw, 580px)' : '0' }}
+              >
+                <div
+                  className="grid gap-3"
+                  style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${tableGridMinWidth}px, 1fr))` }}
+                >
+                  {floorTables.map((table) => {
+                    const tableLockHolder = String((table as any).locked_by || '').trim();
+                    const statusTone: Record<string, string> = {
+                      AVAILABLE: 'border-emerald-300/35 bg-emerald-500/12',
+                      RESERVED: 'border-amber-300/35 bg-amber-500/12',
+                      SEATED: 'border-rose-300/35 bg-rose-500/12',
+                      ACTIVE_CHECK: 'border-violet-300/35 bg-violet-500/12',
+                      DIRTY: 'border-slate-300/25 bg-slate-500/20',
+                    };
+                    const statusDot: Record<string, string> = {
+                      AVAILABLE: 'bg-emerald-400',
+                      RESERVED: 'bg-amber-400',
+                      SEATED: 'bg-rose-400',
+                      ACTIVE_CHECK: 'bg-violet-400',
+                      DIRTY: 'bg-slate-300',
+                    };
+                    const status = String(table.status || 'AVAILABLE').toUpperCase();
+                    const localTable = tables.find((row) => row.id === table.id);
+                    const otherOwner = tableLockHolder && tableLockHolder !== user?.username && !['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase());
+                    const readyCount = kitchenOrders.filter((row) => row.table_label === table.label && String(row.status || '').toUpperCase() === 'READY').reduce((acc, row) => acc + (Array.isArray(row.items) ? row.items.length : 0), 0);
+                    return (
+                      <button
+                        key={table.id}
+                        type="button"
+                        onClick={() => {
+                          if (status === 'DIRTY') return;
+                          if (status === 'RESERVED' && !localTable?.is_occupied) {
+                            notify('error', tx(lang, `Bu masa yaxın ${reservationLockHours} saat üçün rezervdədir`, `Этот стол забронирован на ближайшие ${reservationLockHours} ч.`, `This table is reserved for the next ${reservationLockHours} hours`));
+                            return;
+                          }
+                          if (otherOwner) {
+                            notify('error', tx(lang, 'Bu masa artıq istifadə olunur', 'Этот стол уже используется', 'This table is already in use'));
+                          }
+                          if (localTable?.is_occupied) {
+                            setViewTableId(localTable.id);
+                          } else {
+                            setOpenTableId(table.id);
+                            setGuestCount(String(Math.max(1, Number(table.guest_count || 1))));
+                            setDepositGuestCount('0');
+                          }
+                        }}
+                        className={`min-h-[120px] rounded-[26px] border p-4 text-left transition active:scale-[0.99] ${statusTone[status] || statusTone.AVAILABLE} ${viewTableId === table.id ? 'ring-2 ring-yellow-300/80' : ''}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-lg font-black text-slate-100">{table.label}</div>
+                            <div className="mt-2 flex items-center gap-2 text-sm text-slate-300">
+                              <span className={`h-3.5 w-3.5 rounded-full ${statusDot[status] || statusDot.AVAILABLE}`} />
+                              <span>{Number(table.guest_count || 0)} / {Number(table.capacity || 0)}</span>
+                            </div>
+                          </div>
+                          {new Decimal(table.check_total || 0).greaterThan(0) ? (
+                            <div className="rounded-xl bg-black/20 px-3 py-2 text-sm font-bold text-slate-100">{new Decimal(table.check_total || 0).toFixed(2)} ₼</div>
+                          ) : null}
+                        </div>
+                        {tableLockHolder ? (
+                          <div className="mt-3 rounded-full border border-cyan-300/20 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100">
+                            👤 {tableLockHolder} {tx(lang, 'istifadə edir', 'использует', 'is using')}
+                          </div>
+                        ) : null}
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {readyCount > 0 ? <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-[11px] font-semibold text-emerald-100">{readyCount} {tx(lang, 'hazır', 'готово', 'ready')}</span> : null}
+                          {String((table as any).merged_group_id || '').trim() ? <span className="rounded-full bg-violet-500/15 px-3 py-1 text-[11px] font-semibold text-violet-100">{tx(lang, 'qrup', 'группа', 'group')}</span> : null}
+                          {status === 'DIRTY' ? <span className="rounded-full bg-slate-200/10 px-3 py-1 text-[11px] font-semibold text-slate-100">{tx(lang, 'təmizlik', 'уборка', 'cleaning')}</span> : null}
+                        </div>
+                        {status === 'DIRTY' && (
+                          <button
+                            type="button"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await update_table_layout_live(table.id, { status: 'AVAILABLE' });
+                                await Promise.all([loadFloorState(activeFloorId), loadData()]);
+                                notify('success', tx(lang, 'Masa təmiz kimi qeyd olundu', 'Стол отмечен как чистый', 'Table marked as clean'));
+                              } catch (error: any) {
+                                notify('error', error?.message || tx(lang, 'Masa təmizlənmədi', 'Стол не очищен', 'Table was not cleaned'));
+                              }
+                            }}
+                            className="mt-3 inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200/40 bg-slate-100/15 px-4 py-2 text-sm font-bold text-slate-100"
+                          >
+                            {tx(lang, 'Təmizlə', 'Очистить', 'Mark clean')}
+                          </button>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="hidden lg:block" />
+            </div>
+          )}
         </div>
       )}
       {workspaceView === 'reservations' && (
@@ -2992,166 +2969,6 @@ export default function TablesPage() {
           </div>
         </div>
       )}
-      {workspaceView === 'floor' && <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5">
-        {tables.map(t => (
-          (() => {
-            const kitchen = kitchenBadge((t as any).kitchen_status);
-            const isDirtyTable = String((t as any).status || '').toUpperCase() === 'DIRTY';
-            const currentBill = Decimal.max(
-              new Decimal(t.total || 0).plus(new Decimal(t.total || 0).times(serviceFeePercent).div(100)),
-              new Decimal(t.deposit_amount || 0)
-            );
-            const tableKitchenOrders = kitchenOrders.filter((row) => row.table_label === t.label);
-            const rawReadyCount = tableKitchenOrders
-              .filter((row) => String(row.status || '') === 'READY')
-              .reduce(
-                (acc, row) =>
-                  acc +
-                  (Array.isArray(row.items)
-                    ? row.items.filter((item: any) => String(item.action || '').toUpperCase() !== 'CANCEL').length
-                    : 0),
-                0
-              );
-            const servedCount = Object.values(servedItemsMap[t.id] || {}).reduce(
-              (acc, qty) => acc + Number(qty || 0),
-              0
-            );
-            const readyCount = Math.max(0, rawReadyCount - servedCount);
-            const waitingCount = tableKitchenOrders
-              .filter((row) => ['NEW', 'PREPARING'].includes(String(row.status || '')))
-              .reduce(
-                (acc, row) =>
-                  acc +
-                  (Array.isArray(row.items)
-                    ? row.items.filter((item: any) => String(item.action || '').toUpperCase() !== 'CANCEL').length
-                    : 0),
-                0
-              );
-            const hasDeposit = new Decimal(t.deposit_amount || 0).greaterThan(0);
-            const readyToClose = t.is_occupied && currentBill.greaterThan(0) && readyCount === 0 && waitingCount === 0;
-            const isReservedTable = reservedTableIds.has(String(t.id));
-            return (
-          <div
-            key={t.id}
-            onClick={() => {
-              if (isDirtyTable) return;
-              if (isReservedTable && !t.is_occupied) {
-                notify(
-                  'error',
-                  tx(
-                    lang,
-                    `Bu masa yaxın ${reservationLockHours} saat üçün rezervdədir`,
-                    `Этот стол забронирован на ближайшие ${reservationLockHours} ч.`,
-                    `This table is reserved for the next ${reservationLockHours} hours`,
-                  ),
-                );
-                return;
-              }
-              if (!t.is_occupied) {
-                setOpenTableId(t.id);
-                setGuestCount(String(Math.max(1, Number(t.guest_count || 1))));
-                setDepositGuestCount(String(Math.max(0, Number(t.deposit_guest_count || 0))));
-                return;
-              }
-              setViewTableId(t.id);
-            }}
-            className={`min-h-52 p-6 rounded-3xl border-2 flex flex-col items-center justify-center relative transition-all shadow-sm ${isDirtyTable ? 'bg-slate-700/40 border-slate-400/60' : isReservedTable && !t.is_occupied ? 'bg-amber-900/20 border-amber-300/70 cursor-not-allowed' : t.is_occupied ? 'bg-red-900/25 border-red-400/70 cursor-pointer' : 'bg-slate-800/50 border-slate-600/70 hover:border-yellow-300/60 cursor-pointer'} ${viewTableId === t.id ? 'ring-2 ring-yellow-300/70 shadow-[0_0_26px_rgba(250,204,21,0.2)]' : ''}`}
-          >
-            <span className="font-bold text-xl text-slate-100">{t.label}</span>
-            <span className={`mt-3 min-h-10 rounded-full px-5 py-2 text-sm font-bold ${isDirtyTable ? 'bg-slate-300/20 text-slate-100 border border-slate-300/40' : isReservedTable && !t.is_occupied ? 'bg-amber-400/20 text-amber-100 border border-amber-300/50' : t.is_occupied ? 'bg-red-400/20 text-red-200 border border-red-300/50' : 'bg-green-400/20 text-green-200 border border-green-300/50'}`}>
-                {isDirtyTable ? tx(lang, 'Təmizlik', 'Уборка', 'Dirty') : isReservedTable && !t.is_occupied ? tx(lang, 'Rezerv', 'Резерв', 'Reserved') : t.is_occupied ? tx(lang, 'Dolu', 'Занято', 'Occupied') : tx(lang, 'Boş', 'Свободно', 'Available')}
-            </span>
-            {t.assigned_to && (
-              <span className="mt-2 rounded-full border border-cyan-300/40 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold text-cyan-100">
-                {tx(lang, 'Sahib', 'Ответственный', 'Owner')}: {t.assigned_to}
-              </span>
-            )}
-            {t.is_occupied && (hasDeposit || readyToClose) && (
-              <div className="mt-2 flex flex-wrap justify-center gap-2">
-                {hasDeposit && (
-                  <span className="rounded-full border border-amber-300/50 bg-amber-400/15 px-3 py-1 text-[11px] font-semibold text-amber-100">
-                    {tx(lang, 'Depozit var', 'Есть депозит', 'Has deposit')}
-                  </span>
-                )}
-                {readyToClose && (
-                  <span className="rounded-full border border-violet-300/50 bg-violet-400/15 px-3 py-1 text-[11px] font-semibold text-violet-100">
-                    {tx(lang, 'Hesaba hazır', 'Готов к счету', 'Ready to bill')}
-                  </span>
-                )}
-              </div>
-            )}
-            {(Number(t.guest_count || 0) > 0 || new Decimal(t.deposit_amount || 0).greaterThan(0)) && (
-              <div className="mt-2 text-center text-[11px] text-slate-300">
-                <div>{tx(lang, 'Qonaq', 'Гости', 'Guests')}: {Number(t.guest_count || 0)}</div>
-                <div>{tx(lang, 'Depozit', 'Депозит', 'Deposit')}: {new Decimal(t.deposit_amount || 0).toFixed(2)} ₼</div>
-              </div>
-            )}
-            {kitchen && (
-              <span className={`mt-2 rounded-full px-3 py-1 text-[11px] font-semibold ${kitchen.className}`}>
-                {kitchen.label}
-              </span>
-            )}
-            {t.is_occupied && (readyCount > 0 || waitingCount > 0) && (
-              <div className="mt-3 flex flex-wrap justify-center gap-2">
-                {readyCount > 0 && (
-                  <span className="rounded-full border border-emerald-300/50 bg-emerald-400/20 px-3 py-1 text-xs font-bold text-emerald-100 shadow-[0_0_18px_rgba(74,222,128,0.18)]">
-                    {tx(lang, 'Servisə hazır', 'Готово к подаче', 'Ready to serve')}: {readyCount}
-                  </span>
-                )}
-                {waitingCount > 0 && (
-                  <span className="rounded-full border border-blue-300/40 bg-blue-400/15 px-3 py-1 text-xs font-semibold text-blue-100">
-                    {tx(lang, 'Mətbəxdə', 'На кухне', 'In kitchen')}: {waitingCount}
-                  </span>
-                )}
-              </div>
-            )}
-            {!t.is_occupied && ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
-              <button onClick={(e) => { e.stopPropagation(); setDeleteTableId(t.id); }} className="absolute top-3 right-3 text-slate-400 hover:text-red-300 transition-colors">
-                <Trash2 size={18}/>
-              </button>
-            )}
-            {isDirtyTable && (
-              <button
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  try {
-                    await update_table_layout_live(t.id, { status: 'AVAILABLE' });
-                    await Promise.all([loadFloorState(activeFloorId), loadData()]);
-                    notify('success', tx(lang, 'Masa təmiz kimi qeyd olundu', 'Стол отмечен как чистый', 'Table marked as clean'));
-                  } catch (error: any) {
-                    notify('error', error?.message || tx(lang, 'Masa təmizlənmədi', 'Стол не очищен', 'Table was not cleaned'));
-                  }
-                }}
-                className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-2xl border border-slate-200/50 bg-slate-100/15 px-4 py-3 text-sm font-bold text-slate-100"
-              >
-                {tx(lang, 'Təmiz kimi işarələ', 'Отметить чистым', 'Mark clean')}
-              </button>
-            )}
-            {t.is_occupied && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPayTableId(t.id);
-                  setPaymentMethod('Nəğd');
-                  setSplitCount('2');
-                  setSplitParts([]);
-                  setSplitCash('0');
-                }}
-                className="mt-4 inline-flex min-h-14 w-full items-center justify-center rounded-2xl border border-yellow-300/60 bg-yellow-400/20 px-4 py-3 text-base font-bold text-yellow-100"
-              >
-                {tx(lang, 'Hesabı Bağla', 'Закрыть счет', 'Close Bill')}
-              </button>
-            )}
-          </div>
-            );
-          })()
-        ))}
-        {tables.length === 0 && (
-          <div className="metal-panel col-span-full py-12 text-center text-slate-400 border-2 border-dashed border-slate-600 rounded-2xl">
-             {tx(lang, 'Heç bir masa tapılmadı. Zəhmət olmasa "Masa Yarat" düyməsindən istifadə edin.', 'Столы не найдены. Пожалуйста, используйте кнопку "Создать стол".', 'No tables found. Please use the "Create Table" button.')}
-          </div>
-        )}
-      </div>}
     </div>
   );
 }
