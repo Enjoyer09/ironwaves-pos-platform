@@ -10,17 +10,19 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import AuditLog, Check, FinanceEntry, FloorPlan, Guest, KitchenOrder, OrderItem, OrderRound, Payment, Reservation, Sale, Setting, Table, TableSession, Tenant, User
+from app.models import AuditLog, Check, FinanceEntry, FloorPlan, Guest, ItemStatusLog, KitchenOrder, OrderItem, OrderRound, Payment, Reservation, Sale, Setting, Table, TableSession, Tenant, User
 from app.realtime import broadcast_tenant_event
 from app.routers.operations import _collect_stock_ops
 from app.schemas import (
     FloorPlanCreateIn,
     FloorPlanUpdateIn,
     OrderItemActionIn,
+    RestaurantRoundItemIn,
     ReservationCreateIn,
     ReservationSeatIn,
     ReservationUpdateIn,
     SettleCheckIn,
+    SendDraftItemsIn,
     SendRoundIn,
     TableCombineIn,
     TableLockTransferIn,
@@ -39,6 +41,27 @@ def _emit_realtime(tenant_id: str, event: str, payload: dict | None = None) -> N
         from_thread.run(broadcast_tenant_event, tenant_id, event, payload or {})
     except Exception:
         pass
+
+
+def _log_item_status(
+    db: Session,
+    tenant_id: str,
+    item: OrderItem,
+    old_status: str | None,
+    new_status: str,
+    changed_by: str | None,
+    reason: str | None = None,
+) -> None:
+    db.add(
+        ItemStatusLog(
+            tenant_id=tenant_id,
+            order_item_id=item.id,
+            old_status=old_status,
+            new_status=new_status,
+            changed_by=changed_by,
+            reason=reason,
+        )
+    )
 
 
 def _ensure_floor_admin(user: User):
@@ -389,6 +412,7 @@ def _table_detail_payload(db: Session, tenant_id: str, table: Table) -> dict:
     payments_payload: list[dict] = []
     amount_paid = Decimal("0.00")
     rounds_payload: list[dict] = []
+    draft_items_payload: list[dict] = []
     if active_check:
         payments = (
             db.query(Payment)
@@ -454,6 +478,32 @@ def _table_detail_payload(db: Session, tenant_id: str, table: Table) -> dict:
             }
             for row in rounds
         ]
+        draft_items = (
+            db.query(OrderItem)
+            .filter(
+                OrderItem.tenant_id == tenant_id,
+                OrderItem.check_id == active_check.id,
+                OrderItem.round_id.is_(None),
+                OrderItem.status == "DRAFT",
+            )
+            .order_by(OrderItem.created_at.asc())
+            .all()
+        )
+        draft_items_payload = [
+            {
+                "id": item.id,
+                "item_name": item.item_name,
+                "qty": item.qty,
+                "price": str(item.price or Decimal("0.00")),
+                "seat_no": item.seat_no,
+                "course_no": item.course_no,
+                "status": item.status,
+                "status_reason": item.status_reason,
+                "note": item.note,
+                "modifier_json": item.modifier_json,
+            }
+            for item in draft_items
+        ]
 
     return {
         "table": _table_state_payload(db, tenant_id, table),
@@ -480,6 +530,7 @@ def _table_detail_payload(db: Session, tenant_id: str, table: Table) -> dict:
             "payments": payments_payload,
         },
         "rounds": rounds_payload,
+        "draft_items": draft_items_payload,
     }
 
 
@@ -539,7 +590,7 @@ def _apply_order_item_action(
     manager_user = None
 
     if normalized_action == "VOID":
-        if current_status == "NEW":
+        if current_status in {"NEW", "DRAFT"}:
             item.status = "VOIDED"
             item.status_reason = reason
             item.action_by = user.username
@@ -557,7 +608,7 @@ def _apply_order_item_action(
         return {"final_status": "VOID_REQUESTED", "manager": None}
 
     if normalized_action == "COMP":
-        if current_status == "NEW":
+        if current_status in {"NEW", "DRAFT"}:
             item.status = "COMPED"
             item.status_reason = reason or "Sürətli düzəliş"
             item.action_by = user.username
@@ -570,7 +621,7 @@ def _apply_order_item_action(
         return {"final_status": "COMPED", "manager": manager_user.username}
 
     if normalized_action == "WASTE":
-        if current_status == "NEW":
+        if current_status in {"NEW", "DRAFT"}:
             item.status = "WASTE"
             item.status_reason = reason or "Sürətli düzəliş"
             item.action_by = user.username
@@ -583,7 +634,7 @@ def _apply_order_item_action(
         return {"final_status": "WASTE", "manager": manager_user.username}
 
     if normalized_action == "REMAKE":
-        if current_status == "NEW":
+        if current_status in {"NEW", "DRAFT"}:
             item.status = "WASTE"
             item.status_reason = reason or "Sürətli düzəliş"
             item.action_by = user.username
@@ -1144,6 +1195,138 @@ def seat_reservation(
     return {"ok": True, "table_session_id": session.id, "check_id": check.id}
 
 
+@router.post("/checks/{check_id}/draft-items")
+def add_check_draft_item(
+    check_id: str,
+    payload: RestaurantRoundItemIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_floor_admin(user)
+    check = db.query(Check).filter(Check.id == check_id, Check.tenant_id == tenant.id, Check.status == "OPEN").first()
+    if not check:
+        raise HTTPException(status_code=404, detail="Open check not found")
+    session = db.query(TableSession).filter(TableSession.id == check.table_session_id, TableSession.tenant_id == tenant.id, TableSession.closed_at.is_(None)).first()
+    if not session:
+        raise HTTPException(status_code=400, detail="Check does not have an active session")
+    table = db.query(Table).filter(Table.id == session.table_id, Table.tenant_id == tenant.id).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    _ensure_table_write_access(table, user)
+
+    row = OrderItem(
+        tenant_id=tenant.id,
+        check_id=check.id,
+        round_id=None,
+        table_id=table.id,
+        menu_item_id=payload.id,
+        seat_no=payload.seat_no,
+        course_no=max(1, payload.course_no or 1),
+        item_name=payload.item_name,
+        qty=payload.qty,
+        price=payload.price,
+        status="DRAFT",
+        modifier_json=payload.modifier_json,
+        note=payload.note,
+    )
+    db.add(row)
+    db.flush()
+    _log_item_status(db, tenant.id, row, None, "DRAFT", user.username, "Draft item added")
+    _sync_check_and_table_from_items(db, tenant.id, table, check)
+    db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="ORDER_DRAFT_ITEM_ADDED", details=json.dumps({"check_id": check.id, "table_id": table.id, "item_id": row.id, "item_name": row.item_name, "qty": row.qty}, ensure_ascii=False)))
+    db.commit()
+    _emit_realtime(tenant.id, "check.updated", {"table_id": table.id, "check_id": check.id, "action": "draft-item-added"})
+    return {"ok": True, "item_id": row.id, "status": row.status}
+
+
+@router.post("/checks/{check_id}/send")
+def send_check_drafts(
+    check_id: str,
+    payload: SendDraftItemsIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_floor_admin(user)
+    check = db.query(Check).filter(Check.id == check_id, Check.tenant_id == tenant.id, Check.status == "OPEN").first()
+    if not check:
+        raise HTTPException(status_code=404, detail="Open check not found")
+    session = db.query(TableSession).filter(TableSession.id == check.table_session_id, TableSession.tenant_id == tenant.id, TableSession.closed_at.is_(None)).first()
+    if not session:
+        raise HTTPException(status_code=400, detail="Check does not have an active session")
+    table = db.query(Table).filter(Table.id == session.table_id, Table.tenant_id == tenant.id).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    _ensure_table_write_access(table, user)
+
+    draft_items = (
+        db.query(OrderItem)
+        .filter(
+            OrderItem.tenant_id == tenant.id,
+            OrderItem.check_id == check.id,
+            OrderItem.round_id.is_(None),
+            OrderItem.status == "DRAFT",
+        )
+        .order_by(OrderItem.created_at.asc())
+        .with_for_update()
+        .all()
+    )
+    if not draft_items:
+        raise HTTPException(status_code=400, detail="No draft items to send")
+
+    next_round_no = (db.query(OrderRound).filter(OrderRound.tenant_id == tenant.id, OrderRound.check_id == check.id).count() or 0) + 1
+    sent_at = datetime.utcnow()
+    round_row = OrderRound(
+        tenant_id=tenant.id,
+        check_id=check.id,
+        round_no=next_round_no,
+        course_no=max(1, payload.course_no or 1),
+        status="SENT",
+        sent_by=payload.sent_by or user.username,
+        sent_at=sent_at,
+    )
+    db.add(round_row)
+    db.flush()
+
+    items_payload: list[dict] = []
+    for item in draft_items:
+        old_status = item.status
+        item.round_id = round_row.id
+        item.status = "SENT"
+        item.sent_at = sent_at
+        item.action_by = user.username
+        _log_item_status(db, tenant.id, item, old_status, "SENT", user.username, f"Round {next_round_no} sent")
+        items_payload.append(
+            {
+                "item_name": item.item_name,
+                "qty": item.qty,
+                "price": str(item.price or Decimal("0.00")),
+                "seat_label": f"Seat {item.seat_no}" if item.seat_no else None,
+                "course_no": item.course_no,
+                "note": item.note,
+                "modifier_json": item.modifier_json,
+            }
+        )
+
+    kitchen_row = KitchenOrder(
+        tenant_id=tenant.id,
+        table_label=table.label,
+        order_type="Dine In",
+        status="NEW",
+        priority="NORMAL",
+        items_json=json.dumps(items_payload, ensure_ascii=False),
+    )
+    db.add(kitchen_row)
+    _sync_check_and_table_from_items(db, tenant.id, table, check)
+    db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="ROUND_SENT", details=json.dumps({"table_id": table.id, "table": table.label, "check_id": check.id, "round_id": round_row.id, "round_no": next_round_no, "item_count": len(draft_items)}, ensure_ascii=False)))
+    db.commit()
+    _emit_realtime(tenant.id, "kitchen.updated", {"table_id": table.id, "round_id": round_row.id, "status": "SENT"})
+    _emit_realtime(tenant.id, "check.updated", {"table_id": table.id, "check_id": check.id, "round_id": round_row.id, "action": "drafts-sent"})
+    _emit_realtime(tenant.id, "table.updated", {"table_id": table.id, "round_id": round_row.id, "action": "round-sent"})
+    return {"ok": True, "round_id": round_row.id, "round_no": round_row.round_no, "sent_count": len(draft_items), "check_total": str(check.total or Decimal("0.00"))}
+
+
 @router.post("/tables/{table_id}/send-round")
 def send_round(
     table_id: str,
@@ -1168,7 +1351,7 @@ def send_round(
         check_id=active_check.id,
         round_no=next_round_no,
         course_no=max(1, payload.course_no or 1),
-        status="NEW",
+        status="SENT",
         sent_by=payload.sent_by or user.username,
     )
     db.add(round_row)
@@ -1191,10 +1374,13 @@ def send_round(
             qty=item.qty,
             price=item.price,
             status="SENT",
+            sent_at=round_row.sent_at or datetime.utcnow(),
             modifier_json=item.modifier_json,
             note=item.note,
         )
         db.add(row)
+        db.flush()
+        _log_item_status(db, tenant.id, row, None, "SENT", user.username, f"Round {next_round_no} sent")
         items_payload.append(
             {
                 "item_name": item.item_name,
@@ -1286,6 +1472,7 @@ def act_on_order_item(
     table = db.query(Table).filter(Table.id == item.table_id, Table.tenant_id == tenant.id).first() if item.table_id else None
     if table:
         _ensure_table_write_access(table, user)
+    old_status = item.status
     result = _apply_order_item_action(
         db,
         tenant.id,
@@ -1296,6 +1483,10 @@ def act_on_order_item(
         manager_password=payload.manager_password,
         remake_note=payload.remake_note,
     )
+    if old_status != item.status:
+        if str(item.status or "").upper() in {"VOIDED", "VOID_REQUESTED"}:
+            item.cancelled_at = datetime.utcnow()
+        _log_item_status(db, tenant.id, item, old_status, item.status, user.username, payload.reason)
     active_check = db.query(Check).filter(Check.id == item.check_id, Check.tenant_id == tenant.id).first()
     if table and active_check:
         _sync_check_and_table_from_items(db, tenant.id, table, active_check)
@@ -1529,7 +1720,7 @@ def get_kitchen_feed(
         .join(Check, Check.id == OrderRound.check_id)
         .join(TableSession, TableSession.id == Check.table_session_id)
         .join(Table, Table.id == TableSession.table_id)
-        .filter(OrderRound.tenant_id == tenant.id, OrderRound.status.in_(["NEW", "PREPARING", "READY"]))
+        .filter(OrderRound.tenant_id == tenant.id, OrderRound.status.in_(["NEW", "SENT", "PREPARING", "READY"]))
         .order_by(OrderRound.sent_at.desc())
         .all()
     )
@@ -1583,7 +1774,15 @@ def accept_kitchen_round(
     if not row:
         raise HTTPException(status_code=404, detail="Round not found")
     row.status = "PREPARING"
-    db.query(OrderItem).filter(OrderItem.tenant_id == tenant.id, OrderItem.round_id == row.id, OrderItem.status.in_(["NEW", "SENT"])).update({"status": "PREPARING"}, synchronize_session=False)
+    items_to_start = (
+        db.query(OrderItem)
+        .filter(OrderItem.tenant_id == tenant.id, OrderItem.round_id == row.id, OrderItem.status.in_(["NEW", "SENT"]))
+        .all()
+    )
+    for item in items_to_start:
+        old_status = item.status
+        item.status = "PREPARING"
+        _log_item_status(db, tenant.id, item, old_status, "PREPARING", user.username, "Kitchen accepted")
     check = db.query(Check).filter(Check.id == row.check_id, Check.tenant_id == tenant.id).first()
     table = None
     if check:
@@ -1615,7 +1814,9 @@ def complete_kitchen_round(
             continue
         ready_key = f"{item.item_name} · Seat {item.seat_no}" if item.seat_no else item.item_name
         if not ready_items or ready_key in ready_items or item.item_name in ready_items:
+            old_status = item.status
             item.status = "READY"
+            _log_item_status(db, tenant.id, item, old_status, "READY", user.username, "Kitchen marked ready")
     check = db.query(Check).filter(Check.id == row.check_id, Check.tenant_id == tenant.id).first()
     table = None
     if check:

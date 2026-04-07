@@ -1611,7 +1611,7 @@ export default function TablesPage() {
           <div className="metal-panel w-full max-w-lg p-5">
             {(() => {
               const actionStatus = String(itemActionTarget.item?.status || 'NEW').toUpperCase();
-              const quickAction = actionStatus === 'NEW';
+              const quickAction = actionStatus === 'NEW' || actionStatus === 'DRAFT';
               const actionName = String(itemActionTarget.action || '').toUpperCase();
               const actionRequiresManager = !quickAction && (
                 ['COMP', 'WASTE', 'REMAKE'].includes(actionName)
