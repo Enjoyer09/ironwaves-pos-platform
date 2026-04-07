@@ -3,6 +3,10 @@ import secrets
 import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
+try:
+    from zoneinfo import ZoneInfo
+except Exception:  # pragma: no cover - Python fallback safety
+    ZoneInfo = None
 
 from anyio import from_thread
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -35,6 +39,12 @@ from app.security import verify_password
 
 
 router = APIRouter(prefix="/api/v1/restaurant", tags=["restaurant"])
+
+
+def _restaurant_now() -> datetime:
+    if ZoneInfo:
+        return datetime.now(ZoneInfo("Asia/Baku")).replace(tzinfo=None)
+    return datetime.utcnow() + timedelta(hours=4)
 
 
 def _emit_realtime(tenant_id: str, event: str, payload: dict | None = None) -> None:
@@ -160,7 +170,7 @@ def _late_release_minutes(db: Session, tenant_id: str) -> int:
 
 
 def _find_locked_reservation(db: Session, tenant_id: str, table_id: str) -> Reservation | None:
-    now = datetime.utcnow()
+    now = _restaurant_now()
     lock_until = now + timedelta(hours=_reservation_lock_hours(db, tenant_id))
     late_release_cutoff = now - timedelta(minutes=_late_release_minutes(db, tenant_id))
     return (
@@ -623,8 +633,11 @@ def _sync_check_and_table_from_items(db: Session, tenant_id: str, table: Table, 
             )
         subtotal += effective_price * Decimal(str(row.qty or 0))
     subtotal = subtotal.quantize(Decimal("0.01"))
+    service_fee_percent = Decimal(str(_setting_value(db, tenant_id, "service_fee_percent", 0) or 0))
+    service_charge = (subtotal * service_fee_percent / Decimal("100")).quantize(Decimal("0.01"))
     active_check.subtotal = subtotal
-    active_check.total = (subtotal + Decimal(str(active_check.service_charge or 0)) + Decimal(str(active_check.tax_amount or 0))).quantize(Decimal("0.01"))
+    active_check.service_charge = service_charge
+    active_check.total = (subtotal + service_charge + Decimal(str(active_check.tax_amount or 0))).quantize(Decimal("0.01"))
     table.total = active_check.total
     table.items_json = json.dumps(visible_items, ensure_ascii=False)
 
@@ -1053,7 +1066,7 @@ def get_reservations(
     if date:
         day_start = datetime.fromisoformat(f"{date}T00:00:00")
     else:
-        now = datetime.utcnow()
+        now = _restaurant_now()
         day_start = datetime(now.year, now.month, now.day)
     day_end = day_start + timedelta(days=1)
     rows = (

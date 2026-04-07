@@ -15,6 +15,7 @@ import {
 import { get_settings_live } from '../../api/settings';
 import { send_email } from '../../api/email';
 import { tx } from '../../i18n';
+import { formatServerUtcDateTime, localDateInputValue } from '../../lib/time';
 
 type WalletSource = 'cash' | 'card' | 'investor' | 'safe' | 'debt';
 
@@ -77,8 +78,8 @@ export default function FinancePanel() {
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
 
-  const [fromDate, setFromDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [fromDate, setFromDate] = useState(() => localDateInputValue());
+  const [toDate, setToDate] = useState(() => localDateInputValue());
   const [rangePreset, setRangePreset] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'>('daily');
 
   const [type, setType] = useState<'in' | 'out'>('out');
@@ -1171,7 +1172,7 @@ export default function FinancePanel() {
             <tbody>
               {visibleEntries.map((e: any) => (
                 <tr key={e.id} className="border-t border-slate-700/40">
-                  <td className="py-2">{new Date(e.created_at).toLocaleString(lang === 'ru' ? 'ru-RU' : 'az-AZ')}</td>
+                  <td className="py-2">{formatServerUtcDateTime(e.created_at, lang)}</td>
                   <td className={`py-2 ${e.type === 'in' ? 'text-emerald-300' : 'text-red-300'}`}>{e.type}</td>
                   <td className="py-2">{e.category}</td>
                   <td className="py-2">{e.source}</td>

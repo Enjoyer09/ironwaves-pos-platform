@@ -2,6 +2,10 @@ import json
 import secrets
 from datetime import datetime, timedelta
 from decimal import Decimal
+try:
+    from zoneinfo import ZoneInfo
+except Exception:  # pragma: no cover
+    ZoneInfo = None
 from urllib import request as urllib_request
 from urllib.error import HTTPError, URLError
 
@@ -41,6 +45,12 @@ from app.security import verify_password
 
 
 router = APIRouter(prefix="/api/v1/ops", tags=["operations"])
+
+
+def _restaurant_now() -> datetime:
+    if ZoneInfo:
+        return datetime.now(ZoneInfo("Asia/Baku")).replace(tzinfo=None)
+    return datetime.utcnow() + timedelta(hours=4)
 
 
 DEFAULT_YIELD_SETTINGS = {
@@ -2032,7 +2042,7 @@ def open_table(
         raise HTTPException(status_code=400, detail="Table is already open")
     table_service = _setting_value(db, tenant.id, "table_service_settings", {"deposit_per_guest_azn": 0, "reservation_lock_hours": 2})
     reservation_lock_hours = max(0, float(table_service.get("reservation_lock_hours") or 2))
-    now = datetime.utcnow()
+    now = _restaurant_now()
     lock_until = now + timedelta(hours=reservation_lock_hours)
     locked_reservation = (
         db.query(Reservation)

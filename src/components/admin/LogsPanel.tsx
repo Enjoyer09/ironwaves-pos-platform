@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { clear_ui_errors, get_logs_live, get_ui_errors } from '../../api/logs';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
+import { formatServerUtcDateTime, localDateInputValue } from '../../lib/time';
 
 export default function LogsPanel() {
   const { user, lang } = useAppStore();
@@ -10,8 +11,8 @@ export default function LogsPanel() {
   const [pageSize, setPageSize] = useState(10);
   const [quickFilter, setQuickFilter] = useState<'all' | 'finance_audit'>('all');
   const [query, setQuery] = useState('');
-  const [fromDate, setFromDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [fromDate, setFromDate] = useState(() => localDateInputValue());
+  const [toDate, setToDate] = useState(() => localDateInputValue());
   const [logs, setLogs] = useState<any[]>([]);
   const uiErrors = useMemo(() => get_ui_errors(tenant_id, 20), [tenant_id, logs.length]);
 
@@ -261,7 +262,7 @@ export default function LogsPanel() {
                   <div key={e.id} className="rounded-md border border-red-300/30 bg-red-900/10 p-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-semibold text-red-200">{e.module}</span>
-                      <span className="text-slate-400">{new Date(e.created_at).toLocaleString(lang === 'ru' ? 'ru-RU' : 'az-AZ')}</span>
+                      <span className="text-slate-400">{formatServerUtcDateTime(e.created_at, lang)}</span>
                     </div>
                     <div className="mt-1 break-all text-slate-200">{e.message}</div>
                   </div>
@@ -283,7 +284,7 @@ export default function LogsPanel() {
           <tbody>
             {visibleLogs.map((log: any) => (
               <tr key={log.id} className="border-t border-slate-700/60 align-top">
-                <td className="px-4 py-3">{new Date(log.created_at).toLocaleString(lang === 'ru' ? 'ru-RU' : 'az-AZ')}</td>
+                <td className="px-4 py-3">{formatServerUtcDateTime(log.created_at, lang)}</td>
                 <td className="px-4 py-3 font-medium">{log.user}</td>
                 <td className="px-4 py-3">
                   <span className="rounded-md border border-yellow-300/40 bg-yellow-400/10 px-2 py-1 text-xs font-semibold text-yellow-200">

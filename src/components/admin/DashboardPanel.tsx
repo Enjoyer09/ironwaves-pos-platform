@@ -13,6 +13,7 @@ import { get_business_profile } from '../../api/settings';
 import { generate_finance_insight, generate_shift_summary, generate_stock_forecast, type AiInsightResult } from '../../api/ai_manager';
 import { hostScopedKey } from '../../lib/storage_keys';
 import { get_logs_live } from '../../api/logs';
+import { formatServerUtcTime, localDateInputValue, parseServerUtcTimestamp } from '../../lib/time';
 
 type DashboardSnapshot = {
   summary: any;
@@ -40,8 +41,8 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [rangePreset, setRangePreset] = useState<RangePreset>('daily');
-  const [fromDate, setFromDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [fromDate, setFromDate] = useState(() => localDateInputValue());
+  const [toDate, setToDate] = useState(() => localDateInputValue());
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [hoveredTrend, setHoveredTrend] = useState<{ label: string; value: string } | null>(null);
   const [snapshot, setSnapshot] = useState<DashboardSnapshot>({
@@ -76,15 +77,15 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
     }
 
     if (rangePreset !== 'custom') {
-      setFromDate(start.toISOString().slice(0, 10));
-      setToDate(now.toISOString().slice(0, 10));
+      setFromDate(localDateInputValue(start));
+      setToDate(localDateInputValue(now));
     }
   }, [rangePreset]);
 
   const activeRange = useMemo(() => {
-    const from = new Date(fromDate || new Date().toISOString().slice(0, 10));
+    const from = new Date(fromDate || localDateInputValue());
     from.setHours(0, 0, 0, 0);
-    const to = new Date(toDate || new Date().toISOString().slice(0, 10));
+    const to = new Date(toDate || localDateInputValue());
     to.setHours(23, 59, 59, 999);
     return {
       fromIso: from.toISOString(),
@@ -232,7 +233,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
   }, [tenant_id, activeRange.fromIso, activeRange.toIso]);
 
   useEffect(() => {
-    const dayKey = new Date().toISOString().slice(0, 10);
+    const dayKey = localDateInputValue();
     const dismissedKey = hostScopedKey(`ai_stock_banner_dismissed_${tenant_id}_${dayKey}`);
     try {
       setStockReminderDismissed(localStorage.getItem(dismissedKey) === '1');
@@ -242,7 +243,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
   }, [tenant_id]);
 
   const dismissStockReminder = () => {
-    const dayKey = new Date().toISOString().slice(0, 10);
+    const dayKey = localDateInputValue();
     const dismissedKey = hostScopedKey(`ai_stock_banner_dismissed_${tenant_id}_${dayKey}`);
     try {
       localStorage.setItem(dismissedKey, '1');
@@ -509,7 +510,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
       return { label: `${String(hour).padStart(2, '0')}:00`, total: new Decimal(0) };
     });
     snapshot.sales.forEach((sale: any) => {
-      const saleDate = new Date(sale.created_at);
+      const saleDate = parseServerUtcTimestamp(sale.created_at) || new Date(sale.created_at);
       const bucket = buckets.find((row) => row.label === `${String(saleDate.getHours()).padStart(2, '0')}:00`);
       if (bucket) bucket.total = bucket.total.plus(new Decimal(sale.total || 0));
     });
@@ -1043,7 +1044,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: 'invent
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <div className="font-semibold text-slate-900">{sale.cashier || '-'}</div>
-                          <div className="text-xs text-slate-500">{new Date(sale.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                          <div className="text-xs text-slate-500">{formatServerUtcTime(sale.created_at, lang)}</div>
                         </div>
                         <div className="text-right">
                           <div className="font-bold text-slate-900">{new Decimal(sale.total || 0).toFixed(2)} ₼</div>

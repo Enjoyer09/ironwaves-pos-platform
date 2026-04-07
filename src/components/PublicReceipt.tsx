@@ -1,6 +1,7 @@
 import React from 'react';
 import { get_public_receipt_live } from '../api/pos';
 import { get_business_profile, get_public_branding_live } from '../api/settings';
+import { formatServerUtcDateTime } from '../lib/time';
 
 type Props = {
   receiptId: string;
@@ -70,7 +71,7 @@ export default function PublicReceipt({ receiptId, token }: Props) {
 
         <div className="mb-4 grid grid-cols-2 gap-2 text-sm text-slate-300">
           <div>Date</div>
-          <div className="text-right">{new Date(receipt.created_at).toLocaleString()}</div>
+          <div className="text-right">{formatServerUtcDateTime(receipt.created_at, 'az')}</div>
           <div>Cashier</div>
           <div className="text-right">{receipt.cashier}</div>
           <div>Payment</div>
