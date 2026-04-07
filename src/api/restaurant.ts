@@ -13,6 +13,17 @@ export type FloorPlanRecord = {
   is_active: boolean;
 };
 
+export type TableLayoutUpdatePayload = {
+  floor_plan_id?: string | null;
+  pos_x?: number;
+  pos_y?: number;
+  width_units?: number;
+  height_units?: number;
+  capacity?: number;
+  shape?: string;
+  status?: string;
+};
+
 export type FloorTableState = {
   id: string;
   label: string;
@@ -149,6 +160,32 @@ export async function get_floor_state_live(tenant_id: string, floorId: string): 
     return { floor, tables };
   }
   return apiRequest<{ floor: FloorPlanRecord; tables: FloorTableState[] }>(`/api/v1/restaurant/floor-plans/${encodeURIComponent(floorId)}/state`, { tenantId: null });
+}
+
+export async function update_table_layout_live(tableId: string, payload: TableLayoutUpdatePayload) {
+  if (!isBackendEnabled()) {
+    const tables = getDB<any>('tables');
+    const idx = tables.findIndex((row) => row.id === tableId);
+    if (idx < 0) throw new Error('Table not found');
+    tables[idx] = {
+      ...tables[idx],
+      floor_plan_id: payload.floor_plan_id ?? tables[idx].floor_plan_id,
+      pos_x: payload.pos_x ?? tables[idx].pos_x ?? 0,
+      pos_y: payload.pos_y ?? tables[idx].pos_y ?? 0,
+      width_units: payload.width_units ?? tables[idx].width_units ?? 2,
+      height_units: payload.height_units ?? tables[idx].height_units ?? 2,
+      capacity: payload.capacity ?? tables[idx].capacity ?? 4,
+      shape: payload.shape ?? tables[idx].shape ?? 'rectangle',
+      status: payload.status ?? tables[idx].status ?? 'AVAILABLE',
+    };
+    setDB('tables', tables);
+    return { ok: true, table: tables[idx] };
+  }
+  return apiRequest(`/api/v1/restaurant/tables/${encodeURIComponent(tableId)}/layout`, {
+    method: 'PATCH',
+    tenantId: null,
+    body: payload,
+  });
 }
 
 export async function get_table_detail_live(tenant_id: string, tableId: string): Promise<TableDetailRecord | null> {
