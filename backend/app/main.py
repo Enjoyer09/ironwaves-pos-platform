@@ -1,7 +1,7 @@
 from datetime import datetime
 import re
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -9,8 +9,9 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db import Base, engine, SessionLocal
 from app.models import BusinessProfile, InventoryItem, MenuItem, Recipe, Setting, Table, Tenant, User
+from app.realtime import realtime_hub
 from app.routers import analytics_api, auth, catalog, finance, operations, pos, reports, restaurant, settings as settings_router, tenants
-from app.security import hash_password
+from app.security import decode_token, hash_password
 
 
 app = FastAPI(title=settings.app_name)
@@ -378,6 +379,33 @@ def on_startup():
 @app.get("/health")
 def health():
     return {"status": "ok", "app": settings.app_name}
+
+
+@app.websocket("/ws/restaurant")
+async def restaurant_ws(websocket: WebSocket):
+    tenant_id = str(websocket.query_params.get("tenant_id") or "").strip()
+    token = str(websocket.query_params.get("token") or "").strip()
+    if not tenant_id or not token:
+        await websocket.close(code=4401)
+        return
+    try:
+        payload = decode_token(token)
+    except Exception:
+        await websocket.close(code=4401)
+        return
+    if payload.get("type") != "access" or str(payload.get("tenant_id") or "") != tenant_id:
+        await websocket.close(code=4403)
+        return
+
+    await realtime_hub.connect(tenant_id, websocket)
+    try:
+        await websocket.send_json({"event": "realtime.connected", "tenant_id": tenant_id, "payload": {}})
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await realtime_hub.disconnect(tenant_id, websocket)
 
 
 app.include_router(auth.router)

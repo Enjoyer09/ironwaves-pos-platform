@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { get_tables_live, create_table_live, delete_table_live, open_table_live, transfer_table_live, merge_tables_live, revise_table_items_live } from '../api/tables';
 import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
+import { subscribeTenantRealtime } from '../api/realtime';
 import { create_reservation_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, get_table_detail_live, seat_reservation_live, send_table_round_live, settle_table_check_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
 import { LayoutGrid, Plus, Trash2, ArrowRightCircle, CalendarClock, Users, MapPinned } from 'lucide-react';
 import { useAppStore } from '../store';
@@ -164,6 +165,26 @@ export default function TablesPage() {
       detailPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }, [viewTableId]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeTenantRealtime(tenant_id, (message) => {
+      const event = String(message.event || '');
+      if (!['floor.updated', 'reservation.updated', 'table.updated', 'check.updated', 'kitchen.updated'].includes(event)) return;
+      void loadData();
+      if (workspaceView === 'reservations' || event === 'reservation.updated') {
+        void loadRestaurantData();
+      }
+      if (activeFloorId) {
+        void loadFloorState(activeFloorId);
+      }
+      if (viewTableId) {
+        void get_table_detail_live(tenant_id, viewTableId)
+          .then((next) => setTableDetailRecord(next))
+          .catch(() => {});
+      }
+    });
+    return unsubscribe;
+  }, [tenant_id, workspaceView, activeFloorId, viewTableId]);
 
   useEffect(() => {
     try {
