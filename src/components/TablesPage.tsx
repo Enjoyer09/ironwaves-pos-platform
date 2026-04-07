@@ -47,6 +47,7 @@ export default function TablesPage() {
   const [revisionTarget, setRevisionTarget] = useState<{ tableId: string; itemName: string; nextItems: any[] } | null>(null);
   const [revisionReason, setRevisionReason] = useState('');
   const [revisionOverridePassword, setRevisionOverridePassword] = useState('');
+  const [showFullOrderList, setShowFullOrderList] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'Nəğd' | 'Kart' | 'Split'>('Nəğd');
   const [splitCash, setSplitCash] = useState('0');
   const [splitCount, setSplitCount] = useState('2');
@@ -1606,21 +1607,28 @@ export default function TablesPage() {
       {itemActionTarget && (
         <div className="fixed inset-0 z-[135] flex items-center justify-center bg-black/70 p-4">
           <div className="metal-panel w-full max-w-lg p-5">
+            {(() => {
+              const actionStatus = String(itemActionTarget.item?.status || 'NEW').toUpperCase();
+              const quickAction = actionStatus === 'NEW';
+              return (
+                <>
             <h3 className="text-lg font-bold text-slate-100">
               {tx(lang, 'Item əməliyyatı', 'Операция по позиции', 'Item action')} · {itemActionTarget.item?.item_name}
             </h3>
             <div className="mt-2 text-sm text-slate-300">
-              {tx(lang, 'Seçilmiş action audit log-a yazılacaq və item izsiz silinməyəcək.', 'Выбранное действие попадет в аудит, позиция не исчезнет бесследно.', 'The selected action will be logged and the item will not disappear without trace.')}
+              {quickAction
+                ? tx(lang, 'Bu item hələ hazırlanma mərhələsinə keçməyib. Sürətli düzəliş admin şifrəsiz işləyəcək.', 'Эта позиция еще не перешла в приготовление. Быстрое изменение пройдет без пароля админа.', 'This item has not moved into prep yet. Quick change will work without admin password.')
+                : tx(lang, 'Seçilmiş action audit log-a yazılacaq və item izsiz silinməyəcək.', 'Выбранное действие попадет в аудит, позиция не исчезнет бесследно.', 'The selected action will be logged and the item will not disappear without trace.')}
             </div>
             <div className="mt-4 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-300">
               <div className="flex justify-between"><span>{tx(lang, 'Cari status', 'Текущий статус', 'Current status')}</span><span>{itemActionTarget.item?.status || '-'}</span></div>
               <div className="mt-1 flex justify-between"><span>{tx(lang, 'Action', 'Действие', 'Action')}</span><span>{itemActionTarget.action}</span></div>
             </div>
-            <label className="mt-4 block text-sm text-slate-300">
+            {!quickAction && <label className="mt-4 block text-sm text-slate-300">
               {tx(lang, 'Səbəb', 'Причина', 'Reason')}
               <textarea className="neon-input mt-1 min-h-[84px]" value={itemActionReason} onChange={(e) => setItemActionReason(e.target.value)} />
-            </label>
-            {['COMP', 'WASTE', 'REMAKE'].includes(String(itemActionTarget.action || '').toUpperCase()) && (
+            </label>}
+            {!quickAction && ['COMP', 'WASTE', 'REMAKE'].includes(String(itemActionTarget.action || '').toUpperCase()) && (
               <label className="mt-3 block text-sm text-slate-300">
                 {tx(lang, 'Manager/Admin şifrəsi', 'Пароль менеджера/админа', 'Manager/Admin password')}
                 <input type="password" className="neon-input mt-1" value={itemActionManagerPassword} onChange={(e) => setItemActionManagerPassword(e.target.value)} />
@@ -1643,15 +1651,16 @@ export default function TablesPage() {
                 className="glossy-gold rounded-lg px-4 py-2 font-semibold"
                 onClick={async () => {
                   try {
-                    if (!itemActionReason.trim()) {
+                    if (!quickAction && !itemActionReason.trim()) {
                       notify('error', tx(lang, 'Səbəb yazın', 'Укажите причину', 'Enter a reason'));
                       return;
                     }
+                    const nextReason = quickAction ? tx(lang, 'Sürətli düzəliş', 'Быстрое изменение', 'Quick change') : itemActionReason.trim();
                     await act_on_order_item_live(itemActionTarget.item.id, {
                       action: itemActionTarget.action,
-                      reason: itemActionReason.trim(),
-                      manager_password: itemActionManagerPassword.trim() || undefined,
-                      remake_note: itemActionTarget.action === 'REMAKE' ? itemActionReason.trim() : undefined,
+                      reason: nextReason,
+                      manager_password: quickAction ? undefined : (itemActionManagerPassword.trim() || undefined),
+                      remake_note: itemActionTarget.action === 'REMAKE' ? nextReason : undefined,
                     });
                     setItemActionTarget(null);
                     setItemActionReason('');
@@ -1668,6 +1677,9 @@ export default function TablesPage() {
                 {tx(lang, 'Təsdiqlə', 'Подтвердить', 'Confirm')}
               </button>
             </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -1933,13 +1945,23 @@ export default function TablesPage() {
                     </div>
                   </div>
                   )}
-	                  <div className={`max-h-[18vh] min-h-[72px] flex-none overflow-y-auto overscroll-y-contain rounded-lg border border-slate-700/70 bg-slate-900/40 p-3 ${tableWorkspaceTab === 'compose' ? '' : 'hidden'}`}>
-                    {!userCanEditTable && (
-                      <div className="mb-3 rounded-lg border border-rose-300/30 bg-rose-500/10 px-3 py-3 text-sm text-rose-100">
-                        {tx(lang, 'Bu masa read-only görünüşdədir. Yalnız owner və ya manager əməliyyat edə bilər.', 'Этот стол открыт только для просмотра. Операции доступны только владельцу или менеджеру.', 'This table is read-only. Only the owner or a manager can perform actions.')}
-                      </div>
-                    )}
-                    {(detailActiveItems.length === 0 && items.length === 0) && <div className="text-sm text-slate-400">{tx(lang, 'Masa boşdur', 'Стол пуст', 'Table is empty')}</div>}
+		                  <div className={`order-2 mt-3 max-h-[14vh] min-h-[64px] flex-none overflow-y-auto overscroll-y-contain rounded-lg border border-slate-700/70 bg-slate-900/40 p-3 ${tableWorkspaceTab === 'compose' ? '' : 'hidden'}`}>
+	                    {!userCanEditTable && (
+	                      <div className="mb-3 rounded-lg border border-rose-300/30 bg-rose-500/10 px-3 py-3 text-sm text-rose-100">
+	                        {tx(lang, 'Bu masa read-only görünüşdədir. Yalnız owner və ya manager əməliyyat edə bilər.', 'Этот стол открыт только для просмотра. Операции доступны только владельцу или менеджеру.', 'This table is read-only. Only the owner or a manager can perform actions.')}
+	                      </div>
+	                    )}
+	                    <div className="mb-2 flex items-center justify-between gap-2">
+	                      <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">{tx(lang, 'Yığılmış sifarişlər', 'Собранные заказы', 'Current order')}</div>
+	                      <button
+	                        type="button"
+	                        onClick={() => setShowFullOrderList(true)}
+	                        className="rounded-full border border-cyan-300/30 bg-cyan-500/10 px-3 py-1 text-xs font-bold text-cyan-100"
+	                      >
+	                        {tx(lang, 'Tam siyahı', 'Полный список', 'Full list')}
+	                      </button>
+	                    </div>
+	                    {(detailActiveItems.length === 0 && items.length === 0) && <div className="text-sm text-slate-400">{tx(lang, 'Masa boşdur', 'Стол пуст', 'Table is empty')}</div>}
 	                    {(detailActiveItems.length > 0 ? detailActiveItems : items).map((it: any, idx: number) => (
                       <div key={`${it.item_name}_${idx}`} className="flex items-center justify-between gap-3 border-b border-slate-700/40 py-2 text-sm last:border-b-0">
                         <div>
@@ -1990,9 +2012,9 @@ export default function TablesPage() {
                         </div>
                       </div>
                     ))}
-                  </div>
-                  {tableWorkspaceTab === 'compose' && (
-	                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/35 p-3 lg:p-4">
+	                  </div>
+	                  {tableWorkspaceTab === 'compose' && (
+		                  <div className="order-1 flex min-h-0 flex-[1.2] flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/35 p-3 lg:p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div>
 	                        <div className="text-lg font-black text-slate-100">{tx(lang, 'Yeni sifariş', 'Новый заказ', 'New order')}</div>
@@ -2057,8 +2079,40 @@ export default function TablesPage() {
                         />
                       </div>
                     </div>
-	                  </div>
-                  )}
+		                  </div>
+	                  )}
+	                  {showFullOrderList && (
+	                    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/70 p-4">
+	                      <div className="metal-panel flex max-h-[86vh] w-full max-w-3xl flex-col overflow-hidden p-5">
+	                        <div className="flex items-center justify-between gap-3">
+	                          <div>
+	                            <div className="text-lg font-black text-slate-100">{tx(lang, 'Tam sifariş siyahısı', 'Полный список заказа', 'Full order list')}</div>
+	                            <div className="mt-1 text-sm text-slate-400">{t.label}</div>
+	                          </div>
+	                          <button type="button" onClick={() => setShowFullOrderList(false)} className="neon-btn rounded-xl px-4 py-2 text-sm font-bold">
+	                            {tx(lang, 'Bağla', 'Закрыть', 'Close')}
+	                          </button>
+	                        </div>
+	                        <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/70 bg-slate-950/35 p-3">
+	                          {(detailActiveItems.length > 0 ? detailActiveItems : items).length === 0 ? (
+	                            <div className="py-8 text-center text-sm text-slate-400">{tx(lang, 'Sifariş yoxdur', 'Заказов нет', 'No order items')}</div>
+	                          ) : (
+	                            <div className="space-y-2">
+	                              {(detailActiveItems.length > 0 ? detailActiveItems : items).map((row: any, idx: number) => (
+	                                <div key={`full_${row.id || row.item_name}_${idx}`} className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3">
+	                                  <div className="min-w-0">
+	                                    <div className="truncate font-bold text-slate-100">{row.item_name}</div>
+	                                    <div className="mt-1 text-xs text-slate-400">x{row.qty}{row.status ? ` · ${row.status}` : ''}</div>
+	                                  </div>
+	                                  <div className="text-sm font-black text-slate-100">{new Decimal(row.price || 0).times(row.qty || 0).toFixed(2)} ₼</div>
+	                                </div>
+	                              ))}
+	                            </div>
+	                          )}
+	                        </div>
+	                      </div>
+	                    </div>
+	                  )}
                   {tableWorkspaceTab === 'service' && (
                   <div className="min-h-0 overflow-y-auto">
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-4">
