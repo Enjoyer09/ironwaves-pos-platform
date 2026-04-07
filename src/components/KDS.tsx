@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { get_kitchen_orders_live, accept_order_live, complete_order_live } from '../api/kds';
+import { subscribeTenantRealtime } from '../api/realtime';
 import { Clock, CheckCircle, ChefHat, AlertCircle } from 'lucide-react';
 import { KitchenOrder } from '../types/pos';
 import { useAppStore } from '../store';
@@ -40,6 +41,16 @@ export default function KDS() {
       clearInterval(interval);
       clearInterval(clock);
     };
+  }, [tenant_id]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeTenantRealtime(tenant_id, (message) => {
+      if (!['kitchen.updated', 'check.updated', 'table.updated'].includes(String(message.event || ''))) return;
+      void get_kitchen_orders_live(tenant_id)
+        .then((activeOrders) => setOrders(Array.isArray(activeOrders) ? activeOrders : []))
+        .catch(() => {});
+    });
+    return unsubscribe;
   }, [tenant_id]);
 
   useEffect(() => {

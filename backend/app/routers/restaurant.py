@@ -4,12 +4,14 @@ import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
 
+from anyio import from_thread
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import AuditLog, Check, FinanceEntry, FloorPlan, Guest, KitchenOrder, OrderItem, OrderRound, Payment, Reservation, Sale, Setting, Table, TableSession, Tenant, User
+from app.realtime import broadcast_tenant_event
 from app.routers.operations import _collect_stock_ops
 from app.schemas import (
     FloorPlanCreateIn,
@@ -26,6 +28,13 @@ from app.schemas import (
 
 
 router = APIRouter(prefix="/api/v1/restaurant", tags=["restaurant"])
+
+
+def _emit_realtime(tenant_id: str, event: str, payload: dict | None = None) -> None:
+    try:
+        from_thread.run(broadcast_tenant_event, tenant_id, event, payload or {})
+    except Exception:
+        pass
 
 
 def _ensure_floor_admin(user: User):
@@ -386,6 +395,7 @@ def create_floor_plan(
     db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="FLOOR_PLAN_CREATED", details=row.name))
     db.commit()
     db.refresh(row)
+    _emit_realtime(tenant.id, "floor.updated", {"floor_id": row.id, "action": "created"})
     return {"id": row.id, "name": row.name, "width_units": row.width_units, "height_units": row.height_units, "is_active": row.is_active}
 
 
@@ -412,6 +422,7 @@ def update_floor_plan(
             db.query(FloorPlan).filter(FloorPlan.tenant_id == tenant.id).update({"is_active": False}, synchronize_session=False)
         row.is_active = payload.is_active
     db.commit()
+    _emit_realtime(tenant.id, "floor.updated", {"floor_id": row.id, "action": "updated"})
     return {"ok": True}
 
 
@@ -468,6 +479,7 @@ def update_table_layout(
     if payload.status is not None:
         table.status = str(payload.status).upper()
     db.commit()
+    _emit_realtime(tenant.id, "floor.updated", {"table_id": table.id, "floor_id": table.floor_plan_id, "action": "layout"})
     return {"ok": True, "table": _table_state_payload(db, tenant.id, table)}
 
 
@@ -503,6 +515,7 @@ def combine_tables(
     target.merged_group_id = merge_id
     db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="TABLES_COMBINED", details=f"{source.label} + {target.label}"))
     db.commit()
+    _emit_realtime(tenant.id, "floor.updated", {"table_id": source.id, "target_table_id": target.id, "action": "combined"})
     return {"ok": True, "merged_group_id": merge_id}
 
 
@@ -524,6 +537,7 @@ def split_tables(
     db.query(Table).filter(Table.tenant_id == tenant.id, Table.merged_group_id == merge_id).update({"merged_group_id": None}, synchronize_session=False)
     db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="TABLES_SPLIT", details=merge_id))
     db.commit()
+    _emit_realtime(tenant.id, "floor.updated", {"table_id": table.id, "merged_group_id": merge_id, "action": "split"})
     return {"ok": True}
 
 
@@ -605,6 +619,9 @@ def create_reservation(
             table.status = "RESERVED"
     db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="RESERVATION_CREATED", details=payload.guest_name))
     db.commit()
+    _emit_realtime(tenant.id, "reservation.updated", {"reservation_id": row.id, "action": "created"})
+    if payload.assigned_table_id:
+        _emit_realtime(tenant.id, "floor.updated", {"table_id": payload.assigned_table_id, "action": "reserved"})
     return {"id": row.id, "status": row.status}
 
 
@@ -643,6 +660,9 @@ def update_reservation(
     if payload.status is not None:
         row.status = str(payload.status).upper()
     db.commit()
+    _emit_realtime(tenant.id, "reservation.updated", {"reservation_id": row.id, "action": "updated"})
+    if row.assigned_table_id:
+        _emit_realtime(tenant.id, "floor.updated", {"table_id": row.assigned_table_id, "action": "reservation-updated"})
     return {"ok": True}
 
 
@@ -660,6 +680,9 @@ def cancel_reservation(
     row.status = "CANCELLED"
     db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="RESERVATION_CANCELLED", details=reservation_id))
     db.commit()
+    _emit_realtime(tenant.id, "reservation.updated", {"reservation_id": reservation_id, "action": "cancelled"})
+    if row.assigned_table_id:
+        _emit_realtime(tenant.id, "floor.updated", {"table_id": row.assigned_table_id, "action": "reservation-cancelled"})
     return {"ok": True}
 
 
@@ -709,6 +732,9 @@ def seat_reservation(
     table.status = "ACTIVE_CHECK"
     db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="RESERVATION_SEATED", details=f"{reservation.id}:{table.label}"))
     db.commit()
+    _emit_realtime(tenant.id, "reservation.updated", {"reservation_id": reservation.id, "action": "seated", "table_id": table.id})
+    _emit_realtime(tenant.id, "table.updated", {"table_id": table.id, "session_id": session.id, "check_id": check.id})
+    _emit_realtime(tenant.id, "floor.updated", {"table_id": table.id, "action": "seated"})
     return {"ok": True, "table_session_id": session.id, "check_id": check.id}
 
 
@@ -838,6 +864,9 @@ def send_round(
     db.add(kitchen_row)
     db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="ROUND_SENT", details=f"{table.label}:#{next_round_no}"))
     db.commit()
+    _emit_realtime(tenant.id, "check.updated", {"table_id": table.id, "check_id": active_check.id, "round_id": round_row.id, "action": "round-sent"})
+    _emit_realtime(tenant.id, "kitchen.updated", {"table_id": table.id, "round_id": round_row.id, "status": "NEW"})
+    _emit_realtime(tenant.id, "floor.updated", {"table_id": table.id, "action": "active-check"})
     return {
         "ok": True,
         "round_id": round_row.id,
@@ -1029,6 +1058,9 @@ def settle_check(
 
     db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="CHECK_SETTLED", details=f"{table.label}:{active_check.check_number}"))
     db.commit()
+    _emit_realtime(tenant.id, "check.updated", {"table_id": table.id, "check_id": active_check.id, "action": "settled"})
+    _emit_realtime(tenant.id, "floor.updated", {"table_id": table.id, "action": "dirty"})
+    _emit_realtime(tenant.id, "kitchen.updated", {"table_id": table.id, "action": "closed"})
     return {
         "ok": True,
         "sale_id": sale.id,
@@ -1110,7 +1142,15 @@ def accept_kitchen_round(
         raise HTTPException(status_code=404, detail="Round not found")
     row.status = "PREPARING"
     db.query(OrderItem).filter(OrderItem.tenant_id == tenant.id, OrderItem.round_id == row.id).update({"status": "PREPARING"}, synchronize_session=False)
+    check = db.query(Check).filter(Check.id == row.check_id, Check.tenant_id == tenant.id).first()
+    table = None
+    if check:
+        session = db.query(TableSession).filter(TableSession.id == check.table_session_id, TableSession.tenant_id == tenant.id).first()
+        if session:
+            table = db.query(Table).filter(Table.id == session.table_id, Table.tenant_id == tenant.id).first()
     db.commit()
+    _emit_realtime(tenant.id, "kitchen.updated", {"round_id": row.id, "table_id": table.id if table else None, "status": "PREPARING"})
+    _emit_realtime(tenant.id, "table.updated", {"table_id": table.id if table else None, "round_id": row.id, "action": "preparing"})
     return {"success": True}
 
 
@@ -1132,5 +1172,13 @@ def complete_kitchen_round(
         ready_key = f"{item.item_name} · Seat {item.seat_no}" if item.seat_no else item.item_name
         if not ready_items or ready_key in ready_items or item.item_name in ready_items:
             item.status = "READY"
+    check = db.query(Check).filter(Check.id == row.check_id, Check.tenant_id == tenant.id).first()
+    table = None
+    if check:
+        session = db.query(TableSession).filter(TableSession.id == check.table_session_id, TableSession.tenant_id == tenant.id).first()
+        if session:
+            table = db.query(Table).filter(Table.id == session.table_id, Table.tenant_id == tenant.id).first()
     db.commit()
+    _emit_realtime(tenant.id, "kitchen.updated", {"round_id": row.id, "table_id": table.id if table else None, "status": "READY"})
+    _emit_realtime(tenant.id, "table.updated", {"table_id": table.id if table else None, "round_id": row.id, "action": "ready"})
     return {"success": True}
