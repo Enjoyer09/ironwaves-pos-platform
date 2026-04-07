@@ -9,6 +9,7 @@ import ConfirmModal from './ConfirmModal';
 import { Decimal } from 'decimal.js';
 import { get_business_profile, get_settings } from '../api/settings';
 import { getDB } from '../lib/db_sim';
+import { logEvent } from '../lib/logger';
 import { qzPrintHtml } from '../lib/qz';
 import { hostScopedKey } from '../lib/storage_keys';
 
@@ -178,6 +179,12 @@ export default function TablesPage() {
       const tableRows = { ...(prev[tableId] || {}) };
       tableRows[itemKey] = Math.max(0, Number(tableRows[itemKey] || 0) + qty);
       return { ...prev, [tableId]: tableRows };
+    });
+    logEvent(user?.username || 'staff', 'TABLE_ITEM_SERVED', {
+      tenant_id,
+      table_id: tableId,
+      item_name: itemKey,
+      qty,
     });
     notify('success', tx(lang, 'Məhsul servis edildi kimi qeyd olundu', 'Позиция отмечена как поданная', 'Item marked as served'));
   };
@@ -1126,7 +1133,7 @@ export default function TablesPage() {
                         ))}
                       </div>
                     </div>
-                    <div className="rounded-lg border border-emerald-300/30 bg-emerald-500/10 p-3">
+                    <div className={`rounded-lg border p-3 ${readyItems.length > 0 ? 'border-emerald-200/60 bg-emerald-400/15 shadow-[0_0_26px_rgba(74,222,128,0.18)] ring-1 ring-emerald-300/30' : 'border-emerald-300/30 bg-emerald-500/10'}`}>
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200">{tx(lang, 'Servisə hazır', 'Готово к подаче', 'Ready to serve')}</div>
                       <div className="space-y-2 text-sm text-slate-100">
                         {readyItems.length === 0 ? <div className="text-xs text-slate-400">{tx(lang, 'Servisə hazır item yoxdur', 'Нет готовых к подаче позиций', 'No ready-to-serve items')}</div> : readyItems.map((row: any, idx: number) => (
