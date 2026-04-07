@@ -268,3 +268,22 @@ class TableCombineIn(BaseModel):
 
 class TableSplitIn(BaseModel):
     merged_group_id: str | None = None
+
+
+class RestaurantRoundItemIn(BaseModel):
+    id: str | None = None
+    item_name: str
+    price: Decimal
+    qty: int = Field(ge=1)
+    category: str | None = None
+    is_coffee: bool = False
+    seat_no: int | None = None
+    course_no: int | None = 1
+    note: str | None = None
+    modifier_json: str | None = None
+
+
+class SendRoundIn(BaseModel):
+    items: list[RestaurantRoundItemIn]
+    sent_by: str | None = None
+    course_no: int | None = 1

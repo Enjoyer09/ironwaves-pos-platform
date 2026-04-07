@@ -67,6 +67,25 @@ export type TableDetailRecord = {
     total: string;
     opened_at?: string | null;
   } | null;
+  rounds?: Array<{
+    id: string;
+    round_no: number;
+    course_no: number;
+    status: string;
+    sent_by?: string | null;
+    sent_at?: string | null;
+    items: Array<{
+      id: string;
+      item_name: string;
+      qty: number;
+      price: string;
+      seat_no?: number | null;
+      course_no?: number;
+      status: string;
+      note?: string | null;
+      modifier_json?: string | null;
+    }>;
+  }>;
 };
 
 const localReservationKey = 'restaurant_reservations';
@@ -156,6 +175,47 @@ export async function get_table_detail_live(tenant_id: string, tableId: string):
     };
   }
   return apiRequest<TableDetailRecord>(`/api/v1/restaurant/tables/${encodeURIComponent(tableId)}/detail`, { tenantId: null });
+}
+
+export async function send_table_round_live(
+  tableId: string,
+  payload: {
+    items: Array<{ id?: string; item_name: string; price: string; qty: number; category?: string; is_coffee?: boolean; seat_no?: number | null; course_no?: number; note?: string; modifier_json?: string }>;
+    sent_by?: string;
+    course_no?: number;
+  }
+) {
+  if (!isBackendEnabled()) {
+    return { ok: true, round_id: uuidv4(), round_no: 1, check_total: '0.00' };
+  }
+  return apiRequest(`/api/v1/restaurant/tables/${encodeURIComponent(tableId)}/send-round`, {
+    method: 'POST',
+    tenantId: null,
+    body: payload,
+  });
+}
+
+export async function get_kitchen_feed_live(tenant_id: string) {
+  if (!isBackendEnabled()) return [];
+  return apiRequest<any[]>('/api/v1/restaurant/kitchen-feed', { tenantId: null });
+}
+
+export async function accept_kitchen_round_live(roundId: string) {
+  if (!isBackendEnabled()) return { success: true };
+  return apiRequest(`/api/v1/restaurant/kitchen-feed/${encodeURIComponent(roundId)}/accept`, {
+    method: 'POST',
+    tenantId: null,
+    body: {},
+  });
+}
+
+export async function complete_kitchen_round_live(roundId: string, ready_items: string[] = []) {
+  if (!isBackendEnabled()) return { success: true };
+  return apiRequest(`/api/v1/restaurant/kitchen-feed/${encodeURIComponent(roundId)}/complete`, {
+    method: 'POST',
+    tenantId: null,
+    body: { ready_items },
+  });
 }
 
 export async function get_reservations_live(tenant_id: string, date: string): Promise<ReservationRecord[]> {
