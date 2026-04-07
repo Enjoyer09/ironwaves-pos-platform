@@ -36,6 +36,9 @@ export type FloorTableState = {
   h: number;
   capacity: number;
   status: string;
+  locked_by?: string | null;
+  active_session_id?: string | null;
+  locked_at?: string | null;
   guest_count?: number;
   assigned_waiter?: string | null;
   minutes_seated?: number | null;
@@ -109,6 +112,10 @@ export type TableDetailRecord = {
       seat_no?: number | null;
       course_no?: number;
       status: string;
+      status_reason?: string | null;
+      action_by?: string | null;
+      manager_approved_by?: string | null;
+      parent_item_id?: string | null;
       note?: string | null;
       modifier_json?: string | null;
     }>;
@@ -168,16 +175,20 @@ export async function get_floor_state_live(tenant_id: string, floorId: string): 
     const floor = getLocalFloorPlans(tenant_id).find((row) => row.id === floorId) || getLocalFloorPlans(tenant_id)[0];
     const reservations = getLocalReservations(tenant_id);
     const lockHours = Math.max(0, Number(get_settings(tenant_id).table_service_settings?.reservation_lock_hours ?? 2));
+    const lateReleaseMinutes = Math.max(5, Number(get_settings(tenant_id).table_service_settings?.late_release_minutes ?? 15));
     const now = new Date();
     const lockUntil = new Date(now.getTime() + lockHours * 60 * 60 * 1000);
+    const lateCutoff = new Date(now.getTime() - lateReleaseMinutes * 60 * 1000);
     const tables = getDB<any>('tables')
       .filter((row) => row.tenant_id === tenant_id)
       .map((row, idx) => {
         const reserved = reservations.find((reservation) => (
-          reservation.status === 'BOOKED'
+          ['BOOKED', 'LATE'].includes(String(reservation.status || '').toUpperCase())
           && reservation.assigned_table_id === row.id
-          && new Date(reservation.reservation_at) >= now
-          && new Date(reservation.reservation_at) <= lockUntil
+          && (
+            (new Date(reservation.reservation_at) >= now && new Date(reservation.reservation_at) <= lockUntil)
+            || (String(reservation.status || '').toUpperCase() === 'LATE' && new Date(reservation.reservation_at) >= lateCutoff && new Date(reservation.reservation_at) <= now)
+          )
         ));
         return {
           id: row.id,
@@ -190,6 +201,9 @@ export async function get_floor_state_live(tenant_id: string, floorId: string): 
           h: 2,
           capacity: Number(row.guest_count || 4) || 4,
           status: row.is_occupied ? (Number(row.total || 0) > 0 ? 'ACTIVE_CHECK' : 'SEATED') : (reserved ? 'RESERVED' : 'AVAILABLE'),
+          locked_by: row.locked_by || row.assigned_to || null,
+          active_session_id: row.active_session_id || null,
+          locked_at: row.locked_at || null,
           guest_count: row.guest_count || 0,
           assigned_waiter: row.assigned_to || null,
           minutes_seated: null,
@@ -263,6 +277,52 @@ export async function split_table_group_live(tableId: string, mergedGroupId?: st
     method: 'POST',
     tenantId: null,
     body: { merged_group_id: mergedGroupId || null },
+  });
+}
+
+export async function unlock_table_live(tableId: string, reason?: string) {
+  if (!isBackendEnabled()) {
+    const tables = getDB<any>('tables');
+    const idx = tables.findIndex((row) => row.id === tableId);
+    if (idx < 0) throw new Error('Table not found');
+    tables[idx] = { ...tables[idx], assigned_to: null, locked_by: null, locked_at: null, active_session_id: null };
+    setDB('tables', tables);
+    return { ok: true };
+  }
+  return apiRequest(`/api/v1/restaurant/tables/${encodeURIComponent(tableId)}/unlock`, {
+    method: 'POST',
+    tenantId: null,
+    body: { reason: reason || '' },
+  });
+}
+
+export async function transfer_table_lock_live(tableId: string, newOwner: string, reason?: string) {
+  if (!isBackendEnabled()) {
+    const tables = getDB<any>('tables');
+    const idx = tables.findIndex((row) => row.id === tableId);
+    if (idx < 0) throw new Error('Table not found');
+    tables[idx] = { ...tables[idx], assigned_to: newOwner, locked_by: newOwner, locked_at: new Date().toISOString() };
+    setDB('tables', tables);
+    return { ok: true, new_owner: newOwner };
+  }
+  return apiRequest(`/api/v1/restaurant/tables/${encodeURIComponent(tableId)}/transfer-lock`, {
+    method: 'POST',
+    tenantId: null,
+    body: { new_owner: newOwner, reason: reason || '' },
+  });
+}
+
+export async function act_on_order_item_live(
+  itemId: string,
+  payload: { action: string; reason: string; manager_password?: string | null; remake_note?: string | null },
+) {
+  if (!isBackendEnabled()) {
+    return { ok: true, item_id: itemId, status: payload.action };
+  }
+  return apiRequest(`/api/v1/restaurant/order-items/${encodeURIComponent(itemId)}/action`, {
+    method: 'POST',
+    tenantId: null,
+    body: payload,
   });
 }
 

@@ -2063,6 +2063,8 @@ def open_table(
 
     row.is_occupied = True
     row.assigned_to = user.username
+    row.locked_by = user.username
+    row.locked_at = datetime.utcnow()
     row.guest_count = guest_count
     row.deposit_guest_count = deposit_guest_count
     row.deposit_amount = deposit_amount
@@ -2660,6 +2662,9 @@ def transfer_table(
     target.total = Decimal(str(source.total or 0)).quantize(Decimal("0.01"))
     target.is_occupied = True
     target.assigned_to = source.assigned_to or target.assigned_to
+    target.locked_by = source.locked_by or source.assigned_to or target.locked_by
+    target.locked_at = datetime.utcnow() if target.locked_by else target.locked_at
+    target.active_session_id = source.active_session_id or target.active_session_id
     target.guest_count = int(source.guest_count or 0)
     target.deposit_guest_count = int(source.deposit_guest_count or 0)
     target.deposit_amount = Decimal(str(source.deposit_amount or 0)).quantize(Decimal("0.01"))
@@ -2669,6 +2674,9 @@ def transfer_table(
     source.total = Decimal("0.00")
     source.is_occupied = False
     source.assigned_to = None
+    source.locked_by = None
+    source.locked_at = None
+    source.active_session_id = None
     source.guest_count = 0
     source.deposit_guest_count = 0
     source.deposit_amount = Decimal("0.00")
@@ -2718,6 +2726,9 @@ def merge_tables(
     target.total = (Decimal(str(target.total or 0)) + Decimal(str(source.total or 0))).quantize(Decimal("0.01"))
     target.is_occupied = True
     target.assigned_to = target.assigned_to or source.assigned_to
+    target.locked_by = target.locked_by or source.locked_by or source.assigned_to
+    target.locked_at = datetime.utcnow() if target.locked_by else target.locked_at
+    target.active_session_id = target.active_session_id or source.active_session_id
     target.guest_count = int(target.guest_count or 0) + int(source.guest_count or 0)
     target.deposit_guest_count = int(target.deposit_guest_count or 0) + int(source.deposit_guest_count or 0)
     target.deposit_amount = (Decimal(str(target.deposit_amount or 0)) + Decimal(str(source.deposit_amount or 0))).quantize(Decimal("0.01"))
@@ -2729,6 +2740,9 @@ def merge_tables(
     source.total = Decimal("0.00")
     source.is_occupied = False
     source.assigned_to = None
+    source.locked_by = None
+    source.locked_at = None
+    source.active_session_id = None
     source.guest_count = 0
     source.deposit_guest_count = 0
     source.deposit_amount = Decimal("0.00")

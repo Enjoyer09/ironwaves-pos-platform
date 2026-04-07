@@ -16,15 +16,19 @@ from app.routers.operations import _collect_stock_ops
 from app.schemas import (
     FloorPlanCreateIn,
     FloorPlanUpdateIn,
+    OrderItemActionIn,
     ReservationCreateIn,
     ReservationSeatIn,
     ReservationUpdateIn,
     SettleCheckIn,
     SendRoundIn,
     TableCombineIn,
+    TableLockTransferIn,
     TableLayoutUpdateIn,
     TableSplitIn,
+    TableUnlockIn,
 )
+from app.security import verify_password
 
 
 router = APIRouter(prefix="/api/v1/restaurant", tags=["restaurant"])
@@ -38,8 +42,54 @@ def _emit_realtime(tenant_id: str, event: str, payload: dict | None = None) -> N
 
 
 def _ensure_floor_admin(user: User):
-    if str(user.role or "").lower() not in {"admin", "manager", "super_admin", "host"}:
+    if str(user.role or "").lower() not in {"admin", "manager", "super_admin", "host", "staff"}:
         raise HTTPException(status_code=403, detail="Restaurant access required")
+
+
+def _is_manager(user: User) -> bool:
+    return str(user.role or "").lower() in {"admin", "manager", "super_admin"}
+
+
+def _table_lock_holder(table: Table) -> str | None:
+    return str(table.locked_by or table.assigned_to or "").strip() or None
+
+
+def _apply_table_lock(table: Table, owner: str | None, session_id: str | None = None) -> None:
+    table.locked_by = owner or None
+    table.assigned_to = owner or None
+    table.active_session_id = session_id or table.active_session_id
+    table.locked_at = datetime.utcnow() if owner else None
+
+
+def _release_table_lock(table: Table) -> None:
+    table.locked_by = None
+    table.assigned_to = None
+    table.active_session_id = None
+    table.locked_at = None
+
+
+def _ensure_table_write_access(table: Table, user: User, allow_manager_override: bool = True) -> str | None:
+    lock_holder = _table_lock_holder(table)
+    if not lock_holder:
+        return None
+    if lock_holder == user.username:
+        return lock_holder
+    if allow_manager_override and _is_manager(user):
+        return lock_holder
+    raise HTTPException(status_code=403, detail=f"Bu masa artıq {lock_holder} tərəfindən istifadə olunur")
+
+
+def _resolve_manager_override_user(db: Session, tenant_id: str, manager_password: str | None) -> User:
+    override_password = str(manager_password or "").strip()
+    if not override_password:
+        raise HTTPException(status_code=403, detail="Manager approval required")
+    candidates = db.query(User).filter(User.tenant_id == tenant_id, User.is_active == True).all()  # noqa: E712
+    for candidate in candidates:
+        if not _is_manager(candidate):
+            continue
+        if candidate.password_hash and verify_password(override_password, candidate.password_hash):
+            return candidate
+    raise HTTPException(status_code=403, detail="Manager/Admin override failed")
 
 
 def _json_load(value: str | None, default):
@@ -77,9 +127,18 @@ def _reservation_lock_hours(db: Session, tenant_id: str) -> float:
         return 2.0
 
 
+def _late_release_minutes(db: Session, tenant_id: str) -> int:
+    table_service = _setting_value(db, tenant_id, "table_service_settings", {"late_release_minutes": 15})
+    try:
+        return max(5, int(table_service.get("late_release_minutes") or 15))
+    except Exception:
+        return 15
+
+
 def _find_locked_reservation(db: Session, tenant_id: str, table_id: str) -> Reservation | None:
     now = datetime.utcnow()
     lock_until = now + timedelta(hours=_reservation_lock_hours(db, tenant_id))
+    late_release_cutoff = now - timedelta(minutes=_late_release_minutes(db, tenant_id))
     return (
         db.query(Reservation)
         .filter(
@@ -88,6 +147,17 @@ def _find_locked_reservation(db: Session, tenant_id: str, table_id: str) -> Rese
             Reservation.status.in_(["BOOKED", "LATE"]),
             Reservation.reservation_at >= now,
             Reservation.reservation_at <= lock_until,
+        )
+        .order_by(Reservation.reservation_at.asc())
+        .first()
+    ) or (
+        db.query(Reservation)
+        .filter(
+            Reservation.tenant_id == tenant_id,
+            Reservation.assigned_table_id == table_id,
+            Reservation.status == "LATE",
+            Reservation.reservation_at >= late_release_cutoff,
+            Reservation.reservation_at <= now,
         )
         .order_by(Reservation.reservation_at.asc())
         .first()
@@ -218,6 +288,7 @@ def _ensure_active_session_and_check(db: Session, tenant_id: str, table: Table) 
             details=f"{table.label}:{active_session.id}",
         )
     )
+    _apply_table_lock(table, table.assigned_to, active_session.id)
     db.commit()
     db.refresh(active_session)
     db.refresh(active_check)
@@ -295,6 +366,9 @@ def _table_state_payload(db: Session, tenant_id: str, table: Table) -> dict:
         "h": table.height_units,
         "capacity": table.capacity,
         "merged_group_id": table.merged_group_id,
+        "locked_by": _table_lock_holder(table),
+        "active_session_id": table.active_session_id,
+        "locked_at": table.locked_at.isoformat() if table.locked_at else None,
         "status": _compute_table_status(db, tenant_id, table),
         "guest_count": active_session.guest_count if active_session else table.guest_count,
         "assigned_waiter": active_session.assigned_waiter if active_session else table.assigned_to,
@@ -360,6 +434,10 @@ def _table_detail_payload(db: Session, tenant_id: str, table: Table) -> dict:
                         "seat_no": item.seat_no,
                         "course_no": item.course_no,
                         "status": item.status,
+                        "status_reason": item.status_reason,
+                        "action_by": item.action_by,
+                        "manager_approved_by": item.manager_approved_by,
+                        "parent_item_id": item.parent_item_id,
                         "note": item.note,
                         "modifier_json": item.modifier_json,
                     }
@@ -403,6 +481,138 @@ def _table_detail_payload(db: Session, tenant_id: str, table: Table) -> dict:
         },
         "rounds": rounds_payload,
     }
+
+
+def _billable_item_price(item: OrderItem) -> Decimal:
+    if str(item.status or "").upper() in {"VOIDED", "WASTE"}:
+        return Decimal("0.00")
+    if str(item.status or "").upper() == "COMPED":
+        return Decimal("0.00")
+    return Decimal(str(item.price or 0)).quantize(Decimal("0.01"))
+
+
+def _sync_check_and_table_from_items(db: Session, tenant_id: str, table: Table, active_check: Check | None) -> None:
+    if not active_check:
+        return
+    rows = (
+        db.query(OrderItem)
+        .filter(OrderItem.tenant_id == tenant_id, OrderItem.check_id == active_check.id)
+        .order_by(OrderItem.created_at.asc())
+        .all()
+    )
+    visible_items: list[dict] = []
+    subtotal = Decimal("0.00")
+    for row in rows:
+        effective_price = _billable_item_price(row)
+        if effective_price > 0:
+            visible_items.append(
+                {
+                    "id": row.menu_item_id or row.id,
+                    "item_name": row.item_name,
+                    "qty": row.qty,
+                    "price": str(effective_price),
+                    "seat_label": f"Seat {row.seat_no}" if row.seat_no else None,
+                    "status": row.status,
+                    "status_reason": row.status_reason,
+                }
+            )
+        subtotal += effective_price * Decimal(str(row.qty or 0))
+    subtotal = subtotal.quantize(Decimal("0.01"))
+    active_check.subtotal = subtotal
+    active_check.total = (subtotal + Decimal(str(active_check.service_charge or 0)) + Decimal(str(active_check.tax_amount or 0))).quantize(Decimal("0.01"))
+    table.total = active_check.total
+    table.items_json = json.dumps(visible_items, ensure_ascii=False)
+
+
+def _apply_order_item_action(
+    db: Session,
+    tenant_id: str,
+    user: User,
+    item: OrderItem,
+    action: str,
+    reason: str,
+    manager_password: str | None = None,
+    remake_note: str | None = None,
+) -> dict:
+    normalized_action = str(action or "").upper().strip()
+    current_status = str(item.status or "NEW").upper().strip()
+    manager_user = None
+
+    if normalized_action == "VOID":
+        if current_status == "NEW":
+            item.status = "VOIDED"
+            item.status_reason = reason
+            item.action_by = user.username
+            return {"final_status": "VOIDED", "manager": None}
+        if current_status in {"PREPARING", "READY", "SERVED", "COMPED", "WASTE", "VOIDED"}:
+            manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
+            item.status = "VOIDED"
+            item.status_reason = reason
+            item.action_by = user.username
+            item.manager_approved_by = manager_user.username
+            return {"final_status": "VOIDED", "manager": manager_user.username}
+        item.status = "VOID_REQUESTED"
+        item.status_reason = reason
+        item.action_by = user.username
+        return {"final_status": "VOID_REQUESTED", "manager": None}
+
+    if normalized_action == "COMP":
+        manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
+        item.status = "COMPED"
+        item.status_reason = reason
+        item.action_by = user.username
+        item.manager_approved_by = manager_user.username
+        return {"final_status": "COMPED", "manager": manager_user.username}
+
+    if normalized_action == "WASTE":
+        manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
+        item.status = "WASTE"
+        item.status_reason = reason
+        item.action_by = user.username
+        item.manager_approved_by = manager_user.username
+        return {"final_status": "WASTE", "manager": manager_user.username}
+
+    if normalized_action == "REMAKE":
+        manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
+        item.status = "WASTE"
+        item.status_reason = reason
+        item.action_by = user.username
+        item.manager_approved_by = manager_user.username
+
+        next_round_no = (db.query(OrderRound).filter(OrderRound.tenant_id == tenant_id, OrderRound.check_id == item.check_id).count() or 0) + 1
+        remake_round = OrderRound(
+            tenant_id=tenant_id,
+            check_id=item.check_id,
+            round_no=next_round_no,
+            course_no=item.course_no or 1,
+            status="NEW",
+            sent_by=user.username,
+        )
+        db.add(remake_round)
+        db.flush()
+        remake_item = OrderItem(
+            tenant_id=tenant_id,
+            check_id=item.check_id,
+            round_id=remake_round.id,
+            table_id=item.table_id,
+            menu_item_id=item.menu_item_id,
+            seat_no=item.seat_no,
+            course_no=item.course_no,
+            item_name=item.item_name,
+            qty=item.qty,
+            price=item.price,
+            status="NEW",
+            status_reason=remake_note or reason,
+            action_by=user.username,
+            manager_approved_by=manager_user.username,
+            parent_item_id=item.id,
+            modifier_json=item.modifier_json,
+            note=item.note,
+        )
+        db.add(remake_item)
+        return {"final_status": "REMAKE", "manager": manager_user.username, "remake_round_id": remake_round.id, "remake_item_id": remake_item.id}
+
+    raise HTTPException(status_code=400, detail="Unsupported item action")
 
 
 @router.get("/floor-plans")
@@ -547,6 +757,78 @@ def get_table_detail(
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
     return _table_detail_payload(db, tenant.id, table)
+
+
+@router.post("/tables/{table_id}/unlock")
+def unlock_table(
+    table_id: str,
+    payload: TableUnlockIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    if not _is_manager(user):
+        raise HTTPException(status_code=403, detail="Manager override required")
+    table = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    previous_owner = _table_lock_holder(table)
+    _release_table_lock(table)
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="TABLE_UNLOCKED",
+            details=json.dumps({"table_id": table.id, "table_label": table.label, "old_owner": previous_owner, "reason": payload.reason or ""}, ensure_ascii=False),
+        )
+    )
+    db.commit()
+    _emit_realtime(tenant.id, "table.updated", {"table_id": table.id, "action": "unlocked"})
+    _emit_realtime(tenant.id, "floor.updated", {"table_id": table.id, "action": "unlocked"})
+    return {"ok": True, "old_owner": previous_owner}
+
+
+@router.post("/tables/{table_id}/transfer-lock")
+def transfer_table_lock(
+    table_id: str,
+    payload: TableLockTransferIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    table = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    old_owner = _table_lock_holder(table)
+    if old_owner and old_owner != user.username and not _is_manager(user):
+        raise HTTPException(status_code=403, detail=f"Bu masa artıq {old_owner} tərəfindən istifadə olunur")
+    new_owner = str(payload.new_owner or "").strip()
+    if not new_owner:
+        raise HTTPException(status_code=400, detail="New owner is required")
+    receiver = db.query(User).filter(User.tenant_id == tenant.id, User.username == new_owner, User.is_active == True).first()  # noqa: E712
+    if not receiver or str(receiver.role or "").lower() not in {"staff", "manager", "admin", "super_admin"}:
+        raise HTTPException(status_code=404, detail="Target user not found")
+    _apply_table_lock(table, receiver.username, table.active_session_id)
+    active_session = None
+    if table.active_session_id:
+        active_session = db.query(TableSession).filter(TableSession.id == table.active_session_id, TableSession.tenant_id == tenant.id).first()
+    if active_session:
+        active_session.assigned_waiter = receiver.username
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="TABLE_LOCK_TRANSFERRED",
+            details=json.dumps(
+                {"table_id": table.id, "table_label": table.label, "old_owner": old_owner, "new_owner": receiver.username, "reason": payload.reason or ""},
+                ensure_ascii=False,
+            ),
+        )
+    )
+    db.commit()
+    _emit_realtime(tenant.id, "table.updated", {"table_id": table.id, "action": "lock-transferred", "old_owner": old_owner, "new_owner": receiver.username})
+    _emit_realtime(tenant.id, "floor.updated", {"table_id": table.id, "action": "lock-transferred"})
+    return {"ok": True, "old_owner": old_owner, "new_owner": receiver.username}
 
 
 @router.post("/tables/{table_id}/combine")
@@ -763,6 +1045,9 @@ def seat_reservation(
         raise HTTPException(status_code=404, detail="Reservation or table not found")
     if str(reservation.status or "").upper() in {"CANCELLED", "NO_SHOW"}:
         raise HTTPException(status_code=400, detail="Reservation cannot be seated in its current status")
+    existing_owner = _table_lock_holder(table)
+    if existing_owner and existing_owner != (payload.assigned_waiter or user.username) and not _is_manager(user):
+        raise HTTPException(status_code=403, detail=f"Bu masa artıq {existing_owner} tərəfindən istifadə olunur")
     active = (
         db.query(TableSession)
         .filter(TableSession.tenant_id == tenant.id, TableSession.table_id == table.id, TableSession.closed_at.is_(None))
@@ -791,7 +1076,7 @@ def seat_reservation(
     reservation.status = "SEATED"
     reservation.assigned_table_id = table.id
     table.is_occupied = True
-    table.assigned_to = session.assigned_waiter
+    _apply_table_lock(table, session.assigned_waiter, session.id)
     table.guest_count = session.guest_count
     table.status = "ACTIVE_CHECK"
     db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="RESERVATION_SEATED", details=f"{reservation.id}:{table.label}"))
@@ -814,6 +1099,7 @@ def send_round(
     table = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
+    _ensure_table_write_access(table, user)
     active_session, active_check = _ensure_active_session_and_check(db, tenant.id, table)
     if not active_session:
         raise HTTPException(status_code=400, detail="Table does not have an active session")
@@ -889,8 +1175,8 @@ def send_round(
     )
     table.is_occupied = True
     table.status = "ACTIVE_CHECK"
-    if not table.assigned_to:
-        table.assigned_to = active_session.assigned_waiter or payload.sent_by or user.username
+    if not _table_lock_holder(table):
+        _apply_table_lock(table, active_session.assigned_waiter or payload.sent_by or user.username, active_session.id)
 
     kitchen_row = KitchenOrder(
         tenant_id=tenant.id,
@@ -929,6 +1215,61 @@ def send_round(
     }
 
 
+@router.post("/order-items/{item_id}/action")
+def act_on_order_item(
+    item_id: str,
+    payload: OrderItemActionIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    item = db.query(OrderItem).filter(OrderItem.id == item_id, OrderItem.tenant_id == tenant.id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Order item not found")
+    table = db.query(Table).filter(Table.id == item.table_id, Table.tenant_id == tenant.id).first() if item.table_id else None
+    if table:
+        _ensure_table_write_access(table, user)
+    result = _apply_order_item_action(
+        db,
+        tenant.id,
+        user,
+        item,
+        payload.action,
+        payload.reason,
+        manager_password=payload.manager_password,
+        remake_note=payload.remake_note,
+    )
+    active_check = db.query(Check).filter(Check.id == item.check_id, Check.tenant_id == tenant.id).first()
+    if table and active_check:
+        _sync_check_and_table_from_items(db, tenant.id, table, active_check)
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="ORDER_ITEM_ACTION",
+            details=json.dumps(
+                {
+                    "item_id": item.id,
+                    "table_id": item.table_id,
+                    "check_id": item.check_id,
+                    "action": str(payload.action or "").upper(),
+                    "final_status": result.get("final_status"),
+                    "reason": payload.reason,
+                    "manager_id": result.get("manager"),
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    db.commit()
+    if table:
+        _emit_realtime(tenant.id, "table.updated", {"table_id": table.id, "action": "item-status", "item_id": item.id, "status": item.status})
+        _emit_realtime(tenant.id, "check.updated", {"table_id": table.id, "check_id": item.check_id, "action": "item-status"})
+        _emit_realtime(tenant.id, "kitchen.updated", {"table_id": table.id, "round_id": item.round_id, "status": item.status})
+    return {"ok": True, "item_id": item.id, "status": item.status, "manager_approved_by": item.manager_approved_by}
+
+
 @router.post("/tables/{table_id}/settle-check")
 def settle_check(
     table_id: str,
@@ -941,6 +1282,7 @@ def settle_check(
     table = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
+    _ensure_table_write_access(table, user)
     active_session, active_check = _ensure_active_session_and_check(db, tenant.id, table)
     if not active_session:
         raise HTTPException(status_code=400, detail="Table does not have an active session")
@@ -1078,7 +1420,7 @@ def settle_check(
     active_session.status = "CLOSED"
     active_session.closed_at = done_time
     db.query(OrderRound).filter(OrderRound.tenant_id == tenant.id, OrderRound.check_id == active_check.id).update({"status": "DONE"}, synchronize_session=False)
-    db.query(OrderItem).filter(OrderItem.tenant_id == tenant.id, OrderItem.check_id == active_check.id, OrderItem.status != "VOIDED").update({"status": "SERVED"}, synchronize_session=False)
+    db.query(OrderItem).filter(OrderItem.tenant_id == tenant.id, OrderItem.check_id == active_check.id, OrderItem.status.in_(["NEW", "PREPARING", "READY"])).update({"status": "SERVED"}, synchronize_session=False)
     kitchen_rows = (
         db.query(KitchenOrder)
         .filter(KitchenOrder.tenant_id == tenant.id, KitchenOrder.table_label == table.label, KitchenOrder.status.in_(["NEW", "PREPARING", "READY"]))
@@ -1089,7 +1431,6 @@ def settle_check(
         kitchen_row.completed_at = done_time
 
     table.is_occupied = False
-    table.assigned_to = None
     table.guest_count = 0
     table.deposit_guest_count = 0
     table.deposit_amount = Decimal("0.00")
@@ -1097,6 +1438,7 @@ def settle_check(
     table.items_json = "[]"
     table.total = Decimal("0.00")
     table.status = "DIRTY"
+    _release_table_lock(table)
 
     db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="CHECK_SETTLED", details=f"{table.label}:{active_check.check_number}"))
     db.commit()
@@ -1139,7 +1481,7 @@ def get_kitchen_feed(
     if round_ids:
         for item in (
             db.query(OrderItem)
-            .filter(OrderItem.tenant_id == tenant.id, OrderItem.round_id.in_(round_ids), OrderItem.status.in_(["NEW", "PREPARING", "READY", "SERVED"]))
+            .filter(OrderItem.tenant_id == tenant.id, OrderItem.round_id.in_(round_ids), OrderItem.status.in_(["NEW", "PREPARING", "READY", "SERVED", "VOID_REQUESTED", "VOIDED", "COMPED", "WASTE"]))
             .order_by(OrderItem.created_at.asc())
             .all()
         ):
@@ -1149,10 +1491,11 @@ def get_kitchen_feed(
                     "qty": item.qty,
                     "price": str(item.price or Decimal("0.00")),
                     "seat_label": f"Seat {item.seat_no}" if item.seat_no else None,
-                    "action": None,
+                    "action": item.status,
                     "status": item.status,
                     "course_no": item.course_no,
                     "note": item.note,
+                    "reason": item.status_reason,
                 }
             )
     return [
@@ -1183,7 +1526,7 @@ def accept_kitchen_round(
     if not row:
         raise HTTPException(status_code=404, detail="Round not found")
     row.status = "PREPARING"
-    db.query(OrderItem).filter(OrderItem.tenant_id == tenant.id, OrderItem.round_id == row.id).update({"status": "PREPARING"}, synchronize_session=False)
+    db.query(OrderItem).filter(OrderItem.tenant_id == tenant.id, OrderItem.round_id == row.id, OrderItem.status == "NEW").update({"status": "PREPARING"}, synchronize_session=False)
     check = db.query(Check).filter(Check.id == row.check_id, Check.tenant_id == tenant.id).first()
     table = None
     if check:
@@ -1211,6 +1554,8 @@ def complete_kitchen_round(
     row.status = "READY"
     items = db.query(OrderItem).filter(OrderItem.tenant_id == tenant.id, OrderItem.round_id == row.id).all()
     for item in items:
+        if str(item.status or "").upper() in {"VOIDED", "WASTE", "COMPED", "VOID_REQUESTED"}:
+            continue
         ready_key = f"{item.item_name} · Seat {item.seat_no}" if item.seat_no else item.item_name
         if not ready_items or ready_key in ready_items or item.item_name in ready_items:
             item.status = "READY"
