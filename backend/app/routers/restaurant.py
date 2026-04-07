@@ -543,6 +543,57 @@ def _billable_item_price(item: OrderItem) -> Decimal:
     return Decimal(str(item.price or 0)).quantize(Decimal("0.01"))
 
 
+def _sync_round_status_from_items(db: Session, tenant_id: str, round_id: str | None) -> None:
+    if not round_id:
+        return
+    round_row = db.query(OrderRound).filter(OrderRound.id == round_id, OrderRound.tenant_id == tenant_id).first()
+    if not round_row:
+        return
+    items = db.query(OrderItem).filter(OrderItem.tenant_id == tenant_id, OrderItem.round_id == round_id).all()
+    active_statuses = {str(item.status or "").upper() for item in items}
+    if active_statuses & {"NEW", "SENT"}:
+        round_row.status = "SENT"
+    elif active_statuses & {"IN_PREP", "PREPARING"}:
+        round_row.status = "PREPARING"
+    elif active_statuses & {"READY"}:
+        round_row.status = "READY"
+    else:
+        round_row.status = "DONE"
+
+
+def _transition_kitchen_item_status(
+    db: Session,
+    tenant_id: str,
+    user: User,
+    item: OrderItem,
+    next_status: str,
+    reason: str,
+) -> dict:
+    normalized_next = str(next_status or "").upper().strip()
+    if normalized_next == "IN_PREP":
+        normalized_next = "PREPARING"
+    if normalized_next not in {"PREPARING", "READY", "SERVED"}:
+        raise HTTPException(status_code=400, detail="Unsupported kitchen item status")
+    old_status = str(item.status or "SENT").upper().strip()
+    allowed = {
+        "PREPARING": {"NEW", "SENT"},
+        "READY": {"NEW", "SENT", "PREPARING"},
+        "SERVED": {"READY"},
+    }
+    if old_status in {"VOID_REQUESTED", "VOIDED", "COMPED", "WASTE"}:
+        raise HTTPException(status_code=400, detail="Cannot update terminal/cancelled item")
+    if old_status not in allowed[normalized_next] and old_status != normalized_next:
+        raise HTTPException(status_code=400, detail=f"Invalid item transition {old_status} -> {normalized_next}")
+    now = datetime.utcnow()
+    item.status = normalized_next
+    item.action_by = user.username
+    if normalized_next == "SERVED":
+        item.served_at = now
+    _log_item_status(db, tenant_id, item, old_status, normalized_next, user.username, reason)
+    _sync_round_status_from_items(db, tenant_id, item.round_id)
+    return {"old_status": old_status, "new_status": normalized_next}
+
+
 def _sync_check_and_table_from_items(db: Session, tenant_id: str, table: Table, active_check: Check | None) -> None:
     if not active_check:
         return
@@ -1801,12 +1852,16 @@ def get_kitchen_feed(
         ):
             item_rows.setdefault(item.round_id, []).append(
                 {
+                    "id": item.id,
                     "item_name": item.item_name,
                     "qty": item.qty,
                     "price": str(item.price or Decimal("0.00")),
                     "seat_label": f"Seat {item.seat_no}" if item.seat_no else None,
                     "action": item.status,
                     "status": item.status,
+                    "sent_at": item.sent_at.isoformat() if item.sent_at else None,
+                    "served_at": item.served_at.isoformat() if item.served_at else None,
+                    "cancelled_at": item.cancelled_at.isoformat() if item.cancelled_at else None,
                     "course_no": item.course_no,
                     "note": item.note,
                     "reason": item.status_reason,
@@ -1846,9 +1901,7 @@ def accept_kitchen_round(
         .all()
     )
     for item in items_to_start:
-        old_status = item.status
-        item.status = "PREPARING"
-        _log_item_status(db, tenant.id, item, old_status, "PREPARING", user.username, "Kitchen accepted")
+        _transition_kitchen_item_status(db, tenant.id, user, item, "PREPARING", "Kitchen accepted")
     check = db.query(Check).filter(Check.id == row.check_id, Check.tenant_id == tenant.id).first()
     table = None
     if check:
@@ -1880,9 +1933,7 @@ def complete_kitchen_round(
             continue
         ready_key = f"{item.item_name} · Seat {item.seat_no}" if item.seat_no else item.item_name
         if not ready_items or ready_key in ready_items or item.item_name in ready_items:
-            old_status = item.status
-            item.status = "READY"
-            _log_item_status(db, tenant.id, item, old_status, "READY", user.username, "Kitchen marked ready")
+            _transition_kitchen_item_status(db, tenant.id, user, item, "READY", "Kitchen marked ready")
     check = db.query(Check).filter(Check.id == row.check_id, Check.tenant_id == tenant.id).first()
     table = None
     if check:
@@ -1893,3 +1944,66 @@ def complete_kitchen_round(
     _emit_realtime(tenant.id, "kitchen.updated", {"round_id": row.id, "table_id": table.id if table else None, "status": "READY"})
     _emit_realtime(tenant.id, "table.updated", {"table_id": table.id if table else None, "round_id": row.id, "action": "ready"})
     return {"success": True}
+
+
+@router.post("/kitchen/items/{item_id}/start")
+def start_kitchen_item(
+    item_id: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    item = db.query(OrderItem).filter(OrderItem.id == item_id, OrderItem.tenant_id == tenant.id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Order item not found")
+    result = _transition_kitchen_item_status(db, tenant.id, user, item, "PREPARING", "Kitchen item started")
+    check = db.query(Check).filter(Check.id == item.check_id, Check.tenant_id == tenant.id).first()
+    table = db.query(Table).filter(Table.id == item.table_id, Table.tenant_id == tenant.id).first() if item.table_id else None
+    if table and check:
+        _sync_check_and_table_from_items(db, tenant.id, table, check)
+    db.commit()
+    _emit_realtime(tenant.id, "kitchen.updated", {"item_id": item.id, "round_id": item.round_id, "table_id": table.id if table else None, "status": item.status})
+    _emit_realtime(tenant.id, "table.updated", {"item_id": item.id, "round_id": item.round_id, "table_id": table.id if table else None, "action": "item-preparing"})
+    return {"success": True, "item_id": item.id, **result}
+
+
+@router.post("/kitchen/items/{item_id}/ready")
+def ready_kitchen_item(
+    item_id: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    item = db.query(OrderItem).filter(OrderItem.id == item_id, OrderItem.tenant_id == tenant.id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Order item not found")
+    result = _transition_kitchen_item_status(db, tenant.id, user, item, "READY", "Kitchen item ready")
+    check = db.query(Check).filter(Check.id == item.check_id, Check.tenant_id == tenant.id).first()
+    table = db.query(Table).filter(Table.id == item.table_id, Table.tenant_id == tenant.id).first() if item.table_id else None
+    if table and check:
+        _sync_check_and_table_from_items(db, tenant.id, table, check)
+    db.commit()
+    _emit_realtime(tenant.id, "kitchen.updated", {"item_id": item.id, "round_id": item.round_id, "table_id": table.id if table else None, "status": item.status})
+    _emit_realtime(tenant.id, "table.updated", {"item_id": item.id, "round_id": item.round_id, "table_id": table.id if table else None, "action": "item-ready"})
+    return {"success": True, "item_id": item.id, **result}
+
+
+@router.post("/kitchen/items/{item_id}/serve")
+def serve_kitchen_item(
+    item_id: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    item = db.query(OrderItem).filter(OrderItem.id == item_id, OrderItem.tenant_id == tenant.id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Order item not found")
+    result = _transition_kitchen_item_status(db, tenant.id, user, item, "SERVED", "Kitchen item served/picked up")
+    check = db.query(Check).filter(Check.id == item.check_id, Check.tenant_id == tenant.id).first()
+    table = db.query(Table).filter(Table.id == item.table_id, Table.tenant_id == tenant.id).first() if item.table_id else None
+    if table and check:
+        _sync_check_and_table_from_items(db, tenant.id, table, check)
+    db.commit()
+    _emit_realtime(tenant.id, "kitchen.updated", {"item_id": item.id, "round_id": item.round_id, "table_id": table.id if table else None, "status": item.status})
+    _emit_realtime(tenant.id, "table.updated", {"item_id": item.id, "round_id": item.round_id, "table_id": table.id if table else None, "action": "item-served"})
+    return {"success": True, "item_id": item.id, **result}
