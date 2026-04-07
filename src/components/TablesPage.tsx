@@ -1692,7 +1692,7 @@ export default function TablesPage() {
               const actionName = String(itemActionTarget.action || '').toUpperCase();
               const actionRequiresManager = !quickAction && (
                 ['COMP', 'WASTE', 'REMAKE'].includes(actionName)
-                || (actionName === 'VOID' && ['SENT', 'IN_PREP', 'PREPARING', 'READY', 'SERVED', 'COMPED', 'WASTE', 'VOIDED'].includes(actionStatus))
+                || (actionName === 'VOID' && ['VOID_REQUESTED', 'READY', 'SERVED', 'COMPED', 'WASTE', 'VOIDED'].includes(actionStatus))
               );
               return (
                 <>

@@ -113,7 +113,7 @@ export default function KDS() {
       case 'NEW': return 'border-blue-300/60 bg-blue-900/20';
       case 'PREPARING': return 'border-orange-300/60 bg-orange-900/20';
       case 'READY': return 'border-emerald-300/70 bg-emerald-900/20';
-      case 'VOID_REQUESTED': return 'border-yellow-300/70 bg-yellow-900/20';
+      case 'VOID_REQUESTED': return 'border-yellow-300/90 bg-yellow-900/30';
       case 'VOIDED': return 'border-rose-300/70 bg-rose-900/20';
       case 'COMPED': return 'border-sky-300/70 bg-sky-900/20';
       case 'WASTE': return 'border-slate-300/40 bg-slate-800/40';
@@ -128,8 +128,8 @@ export default function KDS() {
       case 'NEW': return <span className="rounded px-2 py-1 text-xs font-bold bg-blue-400/20 text-blue-200 border border-blue-300/40">{tx(lang, 'YENİ', 'НОВЫЙ', 'NEW')}</span>;
       case 'PREPARING': return <span className="rounded px-2 py-1 text-xs font-bold bg-orange-400/20 text-orange-200 border border-orange-300/40">{tx(lang, 'HAZIRLANIR', 'ГОТОВИТСЯ', 'PREPARING')}</span>;
       case 'READY': return <span className="rounded px-2 py-1 text-xs font-bold bg-emerald-400/20 text-emerald-200 border border-emerald-300/40">{tx(lang, 'HAZIRDIR', 'ГОТОВО', 'READY')}</span>;
-      case 'VOID_REQUESTED': return <span className="rounded px-2 py-1 text-xs font-bold bg-yellow-400/20 text-yellow-200 border border-yellow-300/40">{tx(lang, 'VOID REQUEST', 'ЗАПРОС VOID', 'VOID REQUEST')}</span>;
-      case 'VOIDED': return <span className="rounded px-2 py-1 text-xs font-bold bg-rose-400/20 text-rose-200 border border-rose-300/40">{tx(lang, 'VOIDED', 'VOID', 'VOIDED')}</span>;
+      case 'VOID_REQUESTED': return <span className="rounded px-2 py-1 text-xs font-bold bg-yellow-400/25 text-yellow-100 border border-yellow-300/60">{tx(lang, 'LƏĞV TƏLƏBİ', 'ЗАПРОС ОТМЕНЫ', 'CANCEL REQUEST')}</span>;
+      case 'VOIDED': return <span className="rounded px-2 py-1 text-xs font-bold bg-rose-400/20 text-rose-200 border border-rose-300/40">{tx(lang, 'LƏĞV EDİLDİ', 'ОТМЕНЕНО', 'VOIDED')}</span>;
       case 'COMPED': return <span className="rounded px-2 py-1 text-xs font-bold bg-sky-400/20 text-sky-200 border border-sky-300/40">{tx(lang, 'COMP', 'КОМП', 'COMP')}</span>;
       case 'WASTE': return <span className="rounded px-2 py-1 text-xs font-bold bg-slate-400/20 text-slate-200 border border-slate-300/40">{tx(lang, 'WASTE', 'СПИСАНО', 'WASTE')}</span>;
       case 'REMAKE': return <span className="rounded px-2 py-1 text-xs font-bold bg-orange-400/20 text-orange-200 border border-orange-300/40">{tx(lang, 'REMAKE', 'ПЕРЕДЕЛАТЬ', 'REMAKE')}</span>;
@@ -141,7 +141,7 @@ export default function KDS() {
     key: string;
     table_label: string | null;
     order_type?: string;
-    status: 'NEW' | 'SENT' | 'PREPARING' | 'READY';
+    status: 'NEW' | 'SENT' | 'PREPARING' | 'READY' | 'VOID_REQUESTED';
     priority: 'NORMAL' | 'URGENT';
     created_at: string;
     ids: string[];
@@ -194,7 +194,8 @@ export default function KDS() {
       existing.created_at = order.created_at;
     }
 
-    if (existing.newIds.length > 0) existing.status = 'NEW';
+    if (existing.items.some((item) => String(item.status || '').toUpperCase() === 'VOID_REQUESTED')) existing.status = 'VOID_REQUESTED';
+    else if (existing.newIds.length > 0) existing.status = 'NEW';
     else if (existing.preparingIds.length > 0) existing.status = 'PREPARING';
     else existing.status = 'READY';
 
@@ -325,6 +326,11 @@ export default function KDS() {
             </div>
 
             <div className="flex-1 p-4 bg-slate-900/15">
+              {order.items.some((item: any) => String(item.status || '').toUpperCase() === 'VOID_REQUESTED') ? (
+                <div className="mb-4 rounded-2xl border border-yellow-300/60 bg-yellow-400/15 px-4 py-3 text-sm font-black text-yellow-100">
+                  {tx(lang, 'STOP: Bu sifarişdə ləğv tələbi var. Hazırlamağa davam etmədən əvvəl manager/ofisiant təsdiqini gözləyin.', 'СТОП: В этом заказе есть запрос отмены. Дождитесь подтверждения менеджера/официанта перед продолжением.', 'STOP: This order has a cancel request. Wait for manager/waiter confirmation before continuing.')}
+                </div>
+              ) : null}
               <ul className="space-y-3">
                 {order.items.map((item: any, idx: number) => {
                   const itemStatus = String(item.status || order.status || '').toUpperCase();
@@ -332,6 +338,7 @@ export default function KDS() {
                   const canReady = ['NEW', 'SENT', 'PREPARING'].includes(itemStatus);
                   const canServe = itemStatus === 'READY';
                   const isCancelled = ['CANCEL', 'VOIDED', 'VOID_REQUESTED', 'WASTE', 'COMPED'].includes(String(item.action || itemStatus || '').toUpperCase());
+                  const isCancelRequested = itemStatus === 'VOID_REQUESTED';
                   return (
                     <li key={idx} className={`flex flex-col gap-3 rounded-xl border border-slate-700/50 bg-slate-950/25 px-3 py-3 text-lg font-medium ${isCancelled ? 'text-rose-300' : 'text-slate-100'}`}>
                       <div className="flex items-start justify-between gap-3">
@@ -340,7 +347,7 @@ export default function KDS() {
                             {item.qty}
                           </span>
                           <span className="min-w-0">
-                            {isCancelled ? `${tx(lang, 'LƏĞV', 'ОТМЕНА', 'CANCEL')} · ` : ''}
+                            {isCancelRequested ? `${tx(lang, 'STOP / LƏĞV TƏLƏBİ', 'СТОП / ЗАПРОС ОТМЕНЫ', 'STOP / CANCEL REQUEST')} · ` : isCancelled ? `${tx(lang, 'LƏĞV', 'ОТМЕНА', 'CANCEL')} · ` : ''}
                             {item.item_name}
                             {item.seat_label ? <span className="ml-2 text-xs font-medium text-cyan-200/80">[{item.seat_label}]</span> : null}
                             {item.reason ? (
