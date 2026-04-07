@@ -219,13 +219,26 @@ export const open_table = (table_id: string, payload: TableOpenPayload) => {
   if (table.is_occupied && ((Array.isArray(table.items) && table.items.length > 0) || new Decimal(table.deposit_amount || 0).greaterThan(0))) {
     throw new Error('Masa artıq açıqdır');
   }
+  const settings = getDB<any>('settings').find((s: any) => s.tenant_id === table.tenant_id) || {};
+  const reservationLockHours = Math.max(0, Number(settings.table_service_settings?.reservation_lock_hours ?? 2));
+  const now = new Date();
+  const lockUntil = new Date(now.getTime() + reservationLockHours * 60 * 60 * 1000);
+  const lockedReservation = getDB<any>('restaurant_reservations').find((row: any) => (
+    row.tenant_id === table.tenant_id
+    && row.assigned_table_id === table.id
+    && String(row.status || '').toUpperCase() === 'BOOKED'
+    && new Date(row.reservation_at) >= now
+    && new Date(row.reservation_at) <= lockUntil
+  ));
+  if (lockedReservation) {
+    throw new Error(`Bu masa rezervdədir və ${new Date(lockedReservation.reservation_at).toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit' })} üçün bağlıdır`);
+  }
 
   const guestCount = Math.max(1, Number(payload.guest_count || 0));
   const depositSeatLabels = Array.isArray(payload.deposit_seat_labels)
     ? payload.deposit_seat_labels.map((label) => String(label || '').trim()).filter(Boolean)
     : [];
   const depositGuestCount = Math.max(0, Math.min(guestCount, depositSeatLabels.length || Number(payload.deposit_guest_count || 0)));
-  const settings = getDB<any>('settings').find((s: any) => s.tenant_id === table.tenant_id) || {};
   const depositPerGuest = new Decimal(settings.table_service_settings?.deposit_per_guest_azn || 0);
   const depositAmount = depositPerGuest.times(depositGuestCount).toFixed(2);
 

@@ -4,6 +4,7 @@ import { getDB, setDB } from '../lib/db_sim';
 import { Decimal } from 'decimal.js';
 import { PaymentMethod } from '../types/pos';
 import { pay_table } from './tables';
+import { get_settings } from './settings';
 
 export type FloorPlanRecord = {
   id: string;
@@ -140,23 +141,36 @@ export async function get_floor_plans_live(tenant_id: string): Promise<FloorPlan
 export async function get_floor_state_live(tenant_id: string, floorId: string): Promise<{ floor: FloorPlanRecord; tables: FloorTableState[] }> {
   if (!isBackendEnabled()) {
     const floor = getLocalFloorPlans(tenant_id).find((row) => row.id === floorId) || getLocalFloorPlans(tenant_id)[0];
+    const reservations = getLocalReservations(tenant_id);
+    const lockHours = Math.max(0, Number(get_settings(tenant_id).table_service_settings?.reservation_lock_hours ?? 2));
+    const now = new Date();
+    const lockUntil = new Date(now.getTime() + lockHours * 60 * 60 * 1000);
     const tables = getDB<any>('tables')
       .filter((row) => row.tenant_id === tenant_id)
-      .map((row, idx) => ({
-        id: row.id,
-        label: row.label,
-        floor_plan_id: floor.id,
-        x: (idx % 4) * 3,
-        y: Math.floor(idx / 4) * 3,
-        w: 2,
-        h: 2,
-        capacity: Number(row.guest_count || 4) || 4,
-        status: row.is_occupied ? (Number(row.total || 0) > 0 ? 'ACTIVE_CHECK' : 'SEATED') : 'AVAILABLE',
-        guest_count: row.guest_count || 0,
-        assigned_waiter: row.assigned_to || null,
-        minutes_seated: null,
-        check_total: row.total || '0',
-      }));
+      .map((row, idx) => {
+        const reserved = reservations.find((reservation) => (
+          reservation.status === 'BOOKED'
+          && reservation.assigned_table_id === row.id
+          && new Date(reservation.reservation_at) >= now
+          && new Date(reservation.reservation_at) <= lockUntil
+        ));
+        return {
+          id: row.id,
+          label: row.label,
+          floor_plan_id: floor.id,
+          x: (idx % 4) * 3,
+          y: Math.floor(idx / 4) * 3,
+          w: 2,
+          h: 2,
+          capacity: Number(row.guest_count || 4) || 4,
+          status: row.is_occupied ? (Number(row.total || 0) > 0 ? 'ACTIVE_CHECK' : 'SEATED') : (reserved ? 'RESERVED' : 'AVAILABLE'),
+          guest_count: row.guest_count || 0,
+          assigned_waiter: row.assigned_to || null,
+          minutes_seated: null,
+          check_total: row.total || '0',
+          reservation: reserved ? { id: reserved.id, party_size: reserved.party_size, reservation_at: reserved.reservation_at } : null,
+        };
+      });
     return { floor, tables };
   }
   return apiRequest<{ floor: FloorPlanRecord; tables: FloorTableState[] }>(`/api/v1/restaurant/floor-plans/${encodeURIComponent(floorId)}/state`, { tenantId: null });

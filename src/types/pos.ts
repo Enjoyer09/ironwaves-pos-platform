@@ -149,6 +149,7 @@ export interface Settings {
   service_fee_percent: number;
   table_service_settings?: {
     deposit_per_guest_azn: number;
+    reservation_lock_hours?: number;
   };
   yield_management_settings?: {
     enabled: boolean;

@@ -103,6 +103,7 @@ export default function SettingsPanel() {
   const [tableServiceSettings, setTableServiceSettings] = useState({
     service_fee_percent: '0',
     deposit_per_guest_azn: '0',
+    reservation_lock_hours: '2',
   });
   const [yieldManagement, setYieldManagement] = useState({
     enabled: false,
@@ -266,6 +267,7 @@ export default function SettingsPanel() {
       setTableServiceSettings({
         service_fee_percent: String(settingsRes.value.service_fee_percent ?? 0),
         deposit_per_guest_azn: String(settingsRes.value.table_service_settings?.deposit_per_guest_azn ?? 0),
+        reservation_lock_hours: String(settingsRes.value.table_service_settings?.reservation_lock_hours ?? 2),
       });
       setYieldManagement({
         enabled: Boolean(settingsRes.value.yield_management_settings?.enabled),
@@ -657,6 +659,7 @@ export default function SettingsPanel() {
     });
     await update_table_service_settings_live({
       deposit_per_guest_azn: Number(tableServiceSettings.deposit_per_guest_azn || 0),
+      reservation_lock_hours: Number(tableServiceSettings.reservation_lock_hours || 0),
     });
     flashSuccess(tx(lang, 'Masa xidməti ayarları yadda saxlanıldı', 'Настройки столов сохранены', 'Table service settings saved'));
   };
@@ -1076,6 +1079,25 @@ export default function SettingsPanel() {
               value={tableServiceSettings.deposit_per_guest_azn}
               onChange={(e) => setTableServiceSettings((prev) => ({ ...prev, deposit_per_guest_azn: e.target.value }))}
             />
+          </div>
+          <div className="field-stack form-card md:col-span-2">
+            <label className="field-label">{tx(lang, 'Rezervə bağlama pəncərəsi (saat)', 'Окно блокировки резерва (часы)', 'Reservation lock window (hours)')}</label>
+            <input
+              className="neon-input"
+              type="number"
+              min={0}
+              step="0.5"
+              value={tableServiceSettings.reservation_lock_hours}
+              onChange={(e) => setTableServiceSettings((prev) => ({ ...prev, reservation_lock_hours: e.target.value }))}
+            />
+            <div className="field-hint">
+              {tx(
+                lang,
+                'Bu saat aralığında rezerv olunmuş masa adi masa kimi açılmayacaq. 0 yazsanız rezerv bloklama söndürülər.',
+                'В этом окне забронированный стол нельзя открыть как обычный. 0 отключает блокировку.',
+                'Within this time window, a reserved table cannot be opened as a normal table. Set 0 to disable the reservation lock.',
+              )}
+            </div>
           </div>
         </div>
         <div className="flex justify-end">

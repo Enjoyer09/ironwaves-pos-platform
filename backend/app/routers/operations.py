@@ -1,6 +1,6 @@
 import json
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from urllib import request as urllib_request
 from urllib.error import HTTPError, URLError
@@ -25,6 +25,7 @@ from app.models import (
     Notification,
     Recipe,
     RewardClaim,
+    Reservation,
     Sale,
     Setting,
     Shift,
@@ -608,7 +609,7 @@ def get_app_settings(
     return {
         "tenant_id": tenant.id,
         "service_fee_percent": _setting_value(db, tenant.id, "service_fee_percent", 0),
-        "table_service_settings": _setting_value(db, tenant.id, "table_service_settings", {"deposit_per_guest_azn": 0}),
+        "table_service_settings": _setting_value(db, tenant.id, "table_service_settings", {"deposit_per_guest_azn": 0, "reservation_lock_hours": 2}),
         "yield_management_settings": _yield_settings(db, tenant.id),
         "ui_visibility": {"staff_show_tables": True, "manager_show_tables": True, "staff_show_kitchen": True},
         "time_settings": {"shift_start_time": "08:00", "shift_end_time": "23:00", "utc_offset": 4, "timezone": "Asia/Baku"},
@@ -1105,10 +1106,11 @@ def update_table_service_settings(
     user: User = Depends(get_current_user),
 ):
     _ensure_admin(user)
-    current = _setting_value(db, tenant.id, "table_service_settings", {"deposit_per_guest_azn": 0})
+    current = _setting_value(db, tenant.id, "table_service_settings", {"deposit_per_guest_azn": 0, "reservation_lock_hours": 2})
     merged = {
         **current,
         "deposit_per_guest_azn": max(0, float(payload.get("deposit_per_guest_azn") or current.get("deposit_per_guest_azn") or 0)),
+        "reservation_lock_hours": max(0, float(payload.get("reservation_lock_hours") if payload.get("reservation_lock_hours") is not None else current.get("reservation_lock_hours") or 2)),
     }
     _set_setting_value(db, tenant.id, "table_service_settings", merged)
     db.commit()
@@ -2028,6 +2030,24 @@ def open_table(
         raise HTTPException(status_code=403, detail=f"Bu masa {row.assigned_to} üçün aktivdir")
     if row.is_occupied and (len(_json_load(row.items_json, [])) > 0 or Decimal(str(row.deposit_amount or 0)) > 0):
         raise HTTPException(status_code=400, detail="Table is already open")
+    table_service = _setting_value(db, tenant.id, "table_service_settings", {"deposit_per_guest_azn": 0, "reservation_lock_hours": 2})
+    reservation_lock_hours = max(0, float(table_service.get("reservation_lock_hours") or 2))
+    now = datetime.utcnow()
+    lock_until = now + timedelta(hours=reservation_lock_hours)
+    locked_reservation = (
+        db.query(Reservation)
+        .filter(
+            Reservation.tenant_id == tenant.id,
+            Reservation.assigned_table_id == row.id,
+            Reservation.status == "BOOKED",
+            Reservation.reservation_at >= now,
+            Reservation.reservation_at <= lock_until,
+        )
+        .order_by(Reservation.reservation_at.asc())
+        .first()
+    )
+    if locked_reservation:
+        raise HTTPException(status_code=403, detail=f"Bu masa rezervdədir və {locked_reservation.reservation_at.strftime('%H:%M')} üçün bağlıdır")
 
     guest_count = max(1, int(payload.guest_count or 0))
     deposit_labels_raw = [str(label or "").strip() for label in (payload.deposit_seat_labels or []) if str(label or "").strip()]
@@ -2038,7 +2058,6 @@ def open_table(
     else:
         deposit_labels = deposit_labels[:guest_count]
         deposit_guest_count = len(deposit_labels)
-    table_service = _setting_value(db, tenant.id, "table_service_settings", {"deposit_per_guest_azn": 0})
     deposit_per_guest = Decimal(str(table_service.get("deposit_per_guest_azn") or 0)).quantize(Decimal("0.01"))
     deposit_amount = (deposit_per_guest * Decimal(deposit_guest_count)).quantize(Decimal("0.01"))
 
