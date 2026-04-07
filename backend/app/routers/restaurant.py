@@ -93,6 +93,73 @@ def _merge_table_items(existing: list[dict], incoming: list[dict]) -> list[dict]
     return merged
 
 
+def _ensure_active_session_and_check(db: Session, tenant_id: str, table: Table) -> tuple[TableSession | None, Check | None]:
+    active_session = (
+        db.query(TableSession)
+        .filter(
+            TableSession.tenant_id == tenant_id,
+            TableSession.table_id == table.id,
+            TableSession.closed_at.is_(None),
+        )
+        .order_by(TableSession.seated_at.desc())
+        .first()
+    )
+    active_check = None
+    if active_session:
+        active_check = (
+            db.query(Check)
+            .filter(
+                Check.tenant_id == tenant_id,
+                Check.table_session_id == active_session.id,
+                Check.status.in_(["OPEN", "PARTIALLY_PAID"]),
+            )
+            .order_by(Check.opened_at.desc())
+            .first()
+        )
+
+    legacy_items = _json_load(table.items_json, [])
+    legacy_deposit = Decimal(str(table.deposit_amount or 0)).quantize(Decimal("0.01"))
+    needs_bootstrap = bool(table.is_occupied and (legacy_items or legacy_deposit > 0 or int(table.guest_count or 0) > 0))
+    if active_session or not needs_bootstrap:
+        return active_session, active_check
+
+    active_session = TableSession(
+        tenant_id=tenant_id,
+        table_id=table.id,
+        reservation_id=None,
+        assigned_waiter=table.assigned_to,
+        guest_count=max(1, int(table.guest_count or 1)),
+        status="SEATED",
+    )
+    db.add(active_session)
+    db.flush()
+
+    active_check = Check(
+        tenant_id=tenant_id,
+        table_session_id=active_session.id,
+        check_number=f"CHK-{datetime.utcnow().strftime('%H%M%S')}",
+        guest_count=active_session.guest_count,
+        subtotal=Decimal(str(table.total or 0)).quantize(Decimal("0.01")),
+        service_charge=Decimal("0.00"),
+        tax_amount=Decimal("0.00"),
+        total=Decimal(str(table.total or 0)).quantize(Decimal("0.01")),
+        status="OPEN",
+    )
+    db.add(active_check)
+    db.add(
+        AuditLog(
+            tenant_id=tenant_id,
+            user=table.assigned_to or "system",
+            action="LEGACY_TABLE_BOOTSTRAPPED",
+            details=f"{table.label}:{active_session.id}",
+        )
+    )
+    db.commit()
+    db.refresh(active_session)
+    db.refresh(active_check)
+    return active_session, active_check
+
+
 def _ensure_default_floor(db: Session, tenant_id: str) -> FloorPlan:
     row = (
         db.query(FloorPlan)
@@ -134,29 +201,10 @@ def _guest_payload(guest: Guest | None) -> dict:
 
 
 def _compute_table_status(db: Session, tenant_id: str, table: Table) -> str:
-    active_session = (
-        db.query(TableSession)
-        .filter(
-            TableSession.tenant_id == tenant_id,
-            TableSession.table_id == table.id,
-            TableSession.closed_at.is_(None),
-        )
-        .order_by(TableSession.seated_at.desc())
-        .first()
-    )
+    active_session, active_check = _ensure_active_session_and_check(db, tenant_id, table)
     if str(table.status or "").upper() == "DIRTY":
         return "DIRTY"
     if active_session:
-        active_check = (
-            db.query(Check)
-            .filter(
-                Check.tenant_id == tenant_id,
-                Check.table_session_id == active_session.id,
-                Check.status.in_(["OPEN", "PARTIALLY_PAID"]),
-            )
-            .order_by(Check.opened_at.desc())
-            .first()
-        )
         if active_check:
             return "ACTIVE_CHECK"
         return "SEATED"
@@ -176,28 +224,7 @@ def _compute_table_status(db: Session, tenant_id: str, table: Table) -> str:
 
 
 def _table_state_payload(db: Session, tenant_id: str, table: Table) -> dict:
-    active_session = (
-        db.query(TableSession)
-        .filter(
-            TableSession.tenant_id == tenant_id,
-            TableSession.table_id == table.id,
-            TableSession.closed_at.is_(None),
-        )
-        .order_by(TableSession.seated_at.desc())
-        .first()
-    )
-    active_check = None
-    if active_session:
-        active_check = (
-            db.query(Check)
-            .filter(
-                Check.tenant_id == tenant_id,
-                Check.table_session_id == active_session.id,
-                Check.status.in_(["OPEN", "PARTIALLY_PAID"]),
-            )
-            .order_by(Check.opened_at.desc())
-            .first()
-        )
+    active_session, active_check = _ensure_active_session_and_check(db, tenant_id, table)
     reserved = (
         db.query(Reservation)
         .filter(
@@ -226,7 +253,7 @@ def _table_state_payload(db: Session, tenant_id: str, table: Table) -> dict:
         "guest_count": active_session.guest_count if active_session else table.guest_count,
         "assigned_waiter": active_session.assigned_waiter if active_session else table.assigned_to,
         "minutes_seated": minutes_seated,
-        "check_total": str(active_check.total if active_check else Decimal("0.00")),
+        "check_total": str(active_check.total if active_check else Decimal(str(table.total or 0)).quantize(Decimal("0.01"))),
         "session_id": active_session.id if active_session else None,
         "check_id": active_check.id if active_check else None,
         "reservation": None if not reserved else {
@@ -238,28 +265,7 @@ def _table_state_payload(db: Session, tenant_id: str, table: Table) -> dict:
 
 
 def _table_detail_payload(db: Session, tenant_id: str, table: Table) -> dict:
-    active_session = (
-        db.query(TableSession)
-        .filter(
-            TableSession.tenant_id == tenant_id,
-            TableSession.table_id == table.id,
-            TableSession.closed_at.is_(None),
-        )
-        .order_by(TableSession.seated_at.desc())
-        .first()
-    )
-    active_check = None
-    if active_session:
-        active_check = (
-            db.query(Check)
-            .filter(
-                Check.tenant_id == tenant_id,
-                Check.table_session_id == active_session.id,
-                Check.status.in_(["OPEN", "PARTIALLY_PAID"]),
-            )
-            .order_by(Check.opened_at.desc())
-            .first()
-        )
+    active_session, active_check = _ensure_active_session_and_check(db, tenant_id, table)
     payments_payload: list[dict] = []
     amount_paid = Decimal("0.00")
     rounds_payload: list[dict] = []
@@ -750,20 +756,9 @@ def send_round(
     table = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
-    active_session = (
-        db.query(TableSession)
-        .filter(TableSession.tenant_id == tenant.id, TableSession.table_id == table.id, TableSession.closed_at.is_(None))
-        .order_by(TableSession.seated_at.desc())
-        .first()
-    )
+    active_session, active_check = _ensure_active_session_and_check(db, tenant.id, table)
     if not active_session:
         raise HTTPException(status_code=400, detail="Table does not have an active session")
-    active_check = (
-        db.query(Check)
-        .filter(Check.tenant_id == tenant.id, Check.table_session_id == active_session.id, Check.status.in_(["OPEN", "PARTIALLY_PAID"]))
-        .order_by(Check.opened_at.desc())
-        .first()
-    )
     if not active_check:
         raise HTTPException(status_code=400, detail="Open check not found")
     next_round_no = (db.query(OrderRound).filter(OrderRound.tenant_id == tenant.id, OrderRound.check_id == active_check.id).count() or 0) + 1
@@ -888,20 +883,9 @@ def settle_check(
     table = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
-    active_session = (
-        db.query(TableSession)
-        .filter(TableSession.tenant_id == tenant.id, TableSession.table_id == table.id, TableSession.closed_at.is_(None))
-        .order_by(TableSession.seated_at.desc())
-        .first()
-    )
+    active_session, active_check = _ensure_active_session_and_check(db, tenant.id, table)
     if not active_session:
         raise HTTPException(status_code=400, detail="Table does not have an active session")
-    active_check = (
-        db.query(Check)
-        .filter(Check.tenant_id == tenant.id, Check.table_session_id == active_session.id, Check.status.in_(["OPEN", "PARTIALLY_PAID"]))
-        .order_by(Check.opened_at.desc())
-        .first()
-    )
     if not active_check:
         raise HTTPException(status_code=400, detail="Open check not found")
 

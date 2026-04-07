@@ -98,6 +98,21 @@ export default function TablesPage() {
     });
   }, [menuCatalog, roundCategory, roundSearch]);
 
+  const floorSummary = useMemo(() => {
+    const counts = {
+      AVAILABLE: 0,
+      RESERVED: 0,
+      SEATED: 0,
+      ACTIVE_CHECK: 0,
+      DIRTY: 0,
+    };
+    floorTables.forEach((row) => {
+      const status = String(row.status || 'AVAILABLE').toUpperCase() as keyof typeof counts;
+      if (status in counts) counts[status] += 1;
+    });
+    return counts;
+  }, [floorTables]);
+
   useEffect(() => {
     void loadData();
   }, [tenant_id]);
@@ -1582,6 +1597,18 @@ export default function TablesPage() {
                 {floorPlans.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
               </select>
             )}
+          </div>
+          <div className="mb-3 flex flex-wrap gap-2">
+            {[
+              ['AVAILABLE', tx(lang, 'Boş', 'Свободно', 'Available'), 'border-emerald-300/40 bg-emerald-500/10 text-emerald-100'],
+              ['RESERVED', tx(lang, 'Rezerv', 'Резерв', 'Reserved'), 'border-amber-300/40 bg-amber-500/10 text-amber-100'],
+              ['ACTIVE_CHECK', tx(lang, 'Aktiv çek', 'Активный чек', 'Active check'), 'border-rose-300/40 bg-rose-500/10 text-rose-100'],
+              ['DIRTY', tx(lang, 'Təmizlik', 'Уборка', 'Dirty'), 'border-slate-300/30 bg-slate-500/20 text-slate-100'],
+            ].map(([key, label, className]) => (
+              <div key={String(key)} className={`rounded-full border px-3 py-1 text-xs font-semibold ${className}`}>
+                {label}: {floorSummary[String(key) as keyof typeof floorSummary] || 0}
+              </div>
+            ))}
           </div>
           <div
             className="grid gap-3 rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3"
