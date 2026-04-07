@@ -41,10 +41,74 @@ from app.security import verify_password
 router = APIRouter(prefix="/api/v1/restaurant", tags=["restaurant"])
 
 
+STATUS_ALIASES = {
+    "NEW": "SENT",
+    "IN_PREP": "PREPARING",
+}
+
+TERMINAL_ITEM_STATUSES = {"VOIDED", "COMPED", "WASTE", "REMAKE"}
+
+ACTION_RULES = {
+    "DECREASE": {
+        "allowed": {"DRAFT", "SENT", "PREPARING"},
+        "manager_after_ready": True,
+        "billing_effect": "reduce_billable_qty",
+        "kitchen_effect": "partial_cancel_request",
+    },
+    "VOID": {
+        "allowed": {"SENT", "PREPARING", "READY", "VOID_REQUESTED"},
+        "manager_statuses": {"READY", "VOID_REQUESTED"},
+        "billing_effect": "remove_from_bill",
+        "kitchen_effect": "cancel_request",
+    },
+    "COMP": {
+        "allowed": {"SENT", "PREPARING", "READY", "SERVED"},
+        "manager_statuses": {"READY", "SERVED"},
+        "billing_effect": "comp_to_zero",
+        "kitchen_effect": "billing_only",
+    },
+    "WASTE": {
+        "allowed": {"SENT", "PREPARING", "READY", "SERVED"},
+        "manager_statuses": {"READY", "SERVED"},
+        "billing_effect": "waste_to_zero",
+        "kitchen_effect": "mark_waste",
+    },
+    "REMAKE": {
+        "allowed": {"SENT", "PREPARING", "READY"},
+        "manager_statuses": {"READY"},
+        "billing_effect": "replace_original",
+        "kitchen_effect": "correction_remake",
+    },
+}
+
+ACTION_ALIASES = {
+    "AZALT": "DECREASE",
+    "QTY_DECREASE": "DECREASE",
+    "PARTIAL_VOID": "DECREASE",
+    "CANCEL": "VOID",
+    "VOID_REQUEST": "VOID",
+    "COMPED": "COMP",
+    "HESABDAN_SIL": "COMP",
+    "ISRAF": "WASTE",
+    "CORRECTION": "REMAKE",
+    "REMAKE_CORRECTION": "REMAKE",
+}
+
+
 def _restaurant_now() -> datetime:
     if ZoneInfo:
         return datetime.now(ZoneInfo("Asia/Baku")).replace(tzinfo=None)
     return datetime.utcnow() + timedelta(hours=4)
+
+
+def _normalize_item_status(status: str | None) -> str:
+    normalized = str(status or "DRAFT").upper().strip()
+    return STATUS_ALIASES.get(normalized, normalized)
+
+
+def _normalize_item_action(action: str | None) -> str:
+    normalized = str(action or "").upper().strip()
+    return ACTION_ALIASES.get(normalized, normalized)
 
 
 def _emit_realtime(tenant_id: str, event: str, payload: dict | None = None) -> None:
@@ -62,15 +126,34 @@ def _log_item_status(
     new_status: str,
     changed_by: str | None,
     reason: str | None = None,
+    *,
+    action_type: str | None = None,
+    quantity_before: int | None = None,
+    quantity_after: int | None = None,
+    approved_by: str | None = None,
+    reason_code: str | None = None,
+    billing_effect: str | None = None,
+    kitchen_effect: str | None = None,
+    meta: dict | None = None,
 ) -> None:
     db.add(
         ItemStatusLog(
             tenant_id=tenant_id,
             order_item_id=item.id,
+            check_id=item.check_id,
+            round_id=item.round_id,
+            action_type=action_type,
             old_status=old_status,
             new_status=new_status,
+            quantity_before=quantity_before,
+            quantity_after=quantity_after,
             changed_by=changed_by,
+            approved_by=approved_by,
+            reason_code=reason_code,
             reason=reason,
+            billing_effect=billing_effect,
+            kitchen_effect=kitchen_effect,
+            meta_json=json.dumps(meta or {}, ensure_ascii=False) if meta else None,
         )
     )
 
@@ -546,9 +629,9 @@ def _table_detail_payload(db: Session, tenant_id: str, table: Table) -> dict:
 
 
 def _billable_item_price(item: OrderItem) -> Decimal:
-    if str(item.status or "").upper() in {"VOIDED", "WASTE"}:
+    if _normalize_item_status(item.status) in {"VOID_REQUESTED", "VOIDED", "WASTE", "REMAKE"}:
         return Decimal("0.00")
-    if str(item.status or "").upper() == "COMPED":
+    if _normalize_item_status(item.status) == "COMPED":
         return Decimal("0.00")
     return Decimal(str(item.price or 0)).quantize(Decimal("0.01"))
 
@@ -560,7 +643,7 @@ def _sync_round_status_from_items(db: Session, tenant_id: str, round_id: str | N
     if not round_row:
         return
     items = db.query(OrderItem).filter(OrderItem.tenant_id == tenant_id, OrderItem.round_id == round_id).all()
-    active_statuses = {str(item.status or "").upper() for item in items}
+    active_statuses = {_normalize_item_status(item.status) for item in items}
     if active_statuses & {"VOID_REQUESTED"}:
         round_row.status = "VOID_REQUESTED"
     elif active_statuses & {"NEW", "SENT"}:
@@ -586,13 +669,13 @@ def _transition_kitchen_item_status(
         normalized_next = "PREPARING"
     if normalized_next not in {"PREPARING", "READY", "SERVED"}:
         raise HTTPException(status_code=400, detail="Unsupported kitchen item status")
-    old_status = str(item.status or "SENT").upper().strip()
+    old_status = _normalize_item_status(item.status or "SENT")
     allowed = {
         "PREPARING": {"NEW", "SENT"},
         "READY": {"NEW", "SENT", "PREPARING"},
         "SERVED": {"READY"},
     }
-    if old_status in {"VOID_REQUESTED", "VOIDED", "COMPED", "WASTE"}:
+    if old_status in {"VOID_REQUESTED", "VOIDED", "COMPED", "WASTE", "REMAKE"}:
         raise HTTPException(status_code=400, detail="Cannot update terminal/cancelled item")
     if old_status not in allowed[normalized_next] and old_status != normalized_next:
         raise HTTPException(status_code=400, detail=f"Invalid item transition {old_status} -> {normalized_next}")
@@ -601,7 +684,20 @@ def _transition_kitchen_item_status(
     item.action_by = user.username
     if normalized_next == "SERVED":
         item.served_at = now
-    _log_item_status(db, tenant_id, item, old_status, normalized_next, user.username, reason)
+    _log_item_status(
+        db,
+        tenant_id,
+        item,
+        old_status,
+        normalized_next,
+        user.username,
+        reason,
+        action_type=f"KITCHEN_{normalized_next}",
+        quantity_before=item.qty,
+        quantity_after=item.qty,
+        billing_effect="none",
+        kitchen_effect=f"set_{normalized_next.lower()}",
+    )
     _sync_round_status_from_items(db, tenant_id, item.round_id)
     return {"old_status": old_status, "new_status": normalized_next}
 
@@ -648,115 +744,143 @@ def _apply_order_item_action(
     user: User,
     item: OrderItem,
     action: str,
-    reason: str,
+    reason: str | None,
     manager_password: str | None = None,
     remake_note: str | None = None,
+    reason_code: str | None = None,
+    quantity_delta: int | None = None,
+    correction_note: str | None = None,
+    correction_modifier_json: str | None = None,
 ) -> dict:
-    normalized_action = str(action or "").upper().strip()
-    current_status = str(item.status or "NEW").upper().strip()
+    normalized_action = _normalize_item_action(action)
+    current_status = _normalize_item_status(item.status)
+    reason_text = str(reason or reason_code or normalized_action).strip()
+    rule = ACTION_RULES.get(normalized_action)
+    if not rule:
+        raise HTTPException(status_code=400, detail="Unsupported item action")
+    if current_status == "DRAFT" and normalized_action not in {"DECREASE", "VOID"}:
+        raise HTTPException(status_code=400, detail="Draft item can only be edited or deleted")
+    if current_status not in rule["allowed"] and not (current_status == "DRAFT" and normalized_action in {"DECREASE", "VOID"}):
+        raise HTTPException(status_code=400, detail=f"{normalized_action} is not allowed for {current_status}")
+    if current_status in TERMINAL_ITEM_STATUSES and normalized_action != "VOID":
+        raise HTTPException(status_code=400, detail=f"{current_status} item cannot be changed")
+
     manager_user = None
+    if current_status in set(rule.get("manager_statuses") or set()):
+        manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
+
+    item.action_by = user.username
+    if manager_user:
+        item.manager_approved_by = manager_user.username
+
+    base_result = {
+        "action": normalized_action,
+        "billing_effect": rule.get("billing_effect"),
+        "kitchen_effect": rule.get("kitchen_effect"),
+        "manager": manager_user.username if manager_user else None,
+        "meta": {},
+    }
+
+    if normalized_action == "DECREASE":
+        delta = max(1, int(quantity_delta or 1))
+        if current_status == "DRAFT":
+            item.qty = max(0, int(item.qty or 0) - delta)
+            if item.qty <= 0:
+                item.status = "VOIDED"
+                item.cancelled_at = datetime.utcnow()
+                item.status_reason = reason_text
+            return {**base_result, "final_status": item.status, "meta": {"delta": delta}}
+        if delta >= int(item.qty or 0):
+            item.status = "VOID_REQUESTED"
+            item.cancelled_at = datetime.utcnow()
+            item.status_reason = reason_text
+            return {**base_result, "final_status": "VOID_REQUESTED", "meta": {"delta": delta, "mode": "full_cancel_request"}}
+
+        item.qty = int(item.qty or 0) - delta
+        cancel_item = OrderItem(
+            tenant_id=tenant_id,
+            check_id=item.check_id,
+            round_id=item.round_id,
+            table_id=item.table_id,
+            menu_item_id=item.menu_item_id,
+            seat_no=item.seat_no,
+            course_no=item.course_no,
+            item_name=item.item_name,
+            qty=delta,
+            price=item.price,
+            status="VOID_REQUESTED",
+            status_reason=reason_text,
+            action_by=user.username,
+            parent_item_id=item.id,
+            modifier_json=item.modifier_json,
+            note=item.note,
+            sent_at=item.sent_at,
+            cancelled_at=datetime.utcnow(),
+        )
+        db.add(cancel_item)
+        db.flush()
+        _log_item_status(
+            db,
+            tenant_id,
+            cancel_item,
+            None,
+            "VOID_REQUESTED",
+            user.username,
+            reason_text,
+            action_type="DECREASE",
+            quantity_before=0,
+            quantity_after=delta,
+            approved_by=manager_user.username if manager_user else None,
+            reason_code=reason_code,
+            billing_effect=rule.get("billing_effect"),
+            kitchen_effect=rule.get("kitchen_effect"),
+            meta={"parent_item_id": item.id, "mode": "partial_cancel_request"},
+        )
+        return {**base_result, "final_status": item.status, "partial_cancel_item_id": cancel_item.id, "meta": {"delta": delta, "mode": "partial_cancel_request"}}
 
     if normalized_action == "VOID":
-        if current_status in {"NEW", "DRAFT"}:
+        if current_status == "DRAFT":
             item.status = "VOIDED"
-            item.status_reason = reason
-            item.action_by = user.username
-            return {"final_status": "VOIDED", "manager": None}
-        if current_status in {"SENT", "IN_PREP", "PREPARING"}:
+            item.cancelled_at = datetime.utcnow()
+        elif current_status in {"SENT", "PREPARING"}:
             item.status = "VOID_REQUESTED"
-            item.status_reason = reason
-            item.action_by = user.username
-            return {"final_status": "VOID_REQUESTED", "manager": None}
-        if current_status in {"VOID_REQUESTED", "READY", "SERVED", "COMPED", "WASTE", "VOIDED"}:
-            manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
+            item.cancelled_at = datetime.utcnow()
+        elif current_status in {"VOID_REQUESTED", "READY"}:
+            if not manager_user:
+                manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
+                item.manager_approved_by = manager_user.username
             item.status = "VOIDED"
-            item.status_reason = reason
-            item.action_by = user.username
-            item.manager_approved_by = manager_user.username
-            return {"final_status": "VOIDED", "manager": manager_user.username}
-        item.status = "VOID_REQUESTED"
-        item.status_reason = reason
-        item.action_by = user.username
-        return {"final_status": "VOID_REQUESTED", "manager": None}
+            item.cancelled_at = datetime.utcnow()
+        else:
+            raise HTTPException(status_code=400, detail=f"VOID is not allowed for {current_status}")
+        item.status_reason = reason_text
+        return {**base_result, "final_status": item.status, "manager": manager_user.username if manager_user else None}
 
     if normalized_action == "COMP":
-        if current_status in {"NEW", "DRAFT"}:
-            item.status = "COMPED"
-            item.status_reason = reason or "Sürətli düzəliş"
-            item.action_by = user.username
-            return {"final_status": "COMPED", "manager": None}
-        manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
         item.status = "COMPED"
-        item.status_reason = reason
-        item.action_by = user.username
-        item.manager_approved_by = manager_user.username
-        return {"final_status": "COMPED", "manager": manager_user.username}
+        item.status_reason = reason_text
+        return {**base_result, "final_status": "COMPED"}
 
     if normalized_action == "WASTE":
-        if current_status in {"NEW", "DRAFT"}:
-            item.status = "WASTE"
-            item.status_reason = reason or "Sürətli düzəliş"
-            item.action_by = user.username
-            return {"final_status": "WASTE", "manager": None}
-        manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
         item.status = "WASTE"
-        item.status_reason = reason
-        item.action_by = user.username
-        item.manager_approved_by = manager_user.username
-        return {"final_status": "WASTE", "manager": manager_user.username}
+        item.status_reason = reason_text
+        item.cancelled_at = datetime.utcnow()
+        return {**base_result, "final_status": "WASTE"}
 
     if normalized_action == "REMAKE":
-        if current_status in {"NEW", "DRAFT"}:
-            item.status = "WASTE"
-            item.status_reason = reason or "Sürətli düzəliş"
-            item.action_by = user.username
-
-            next_round_no = (db.query(OrderRound).filter(OrderRound.tenant_id == tenant_id, OrderRound.check_id == item.check_id).count() or 0) + 1
-            remake_round = OrderRound(
-                tenant_id=tenant_id,
-                check_id=item.check_id,
-                round_no=next_round_no,
-                course_no=item.course_no or 1,
-                status="NEW",
-                sent_by=user.username,
-            )
-            db.add(remake_round)
-            db.flush()
-            remake_item = OrderItem(
-                tenant_id=tenant_id,
-                check_id=item.check_id,
-                round_id=remake_round.id,
-                table_id=item.table_id,
-                menu_item_id=item.menu_item_id,
-                seat_no=item.seat_no,
-                course_no=item.course_no,
-                item_name=item.item_name,
-                qty=item.qty,
-                price=item.price,
-                status="NEW",
-                status_reason=remake_note or reason or "Sürətli düzəliş",
-                action_by=user.username,
-                manager_approved_by=None,
-                parent_item_id=item.id,
-                modifier_json=item.modifier_json,
-                note=item.note,
-            )
-            db.add(remake_item)
-            return {"final_status": "REMAKE", "manager": None, "remake_round_id": remake_round.id, "remake_item_id": remake_item.id}
-        manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
-        item.status = "WASTE"
-        item.status_reason = reason
-        item.action_by = user.username
-        item.manager_approved_by = manager_user.username
-
+        item.status = "REMAKE"
+        item.status_reason = reason_text
+        item.cancelled_at = datetime.utcnow()
         next_round_no = (db.query(OrderRound).filter(OrderRound.tenant_id == tenant_id, OrderRound.check_id == item.check_id).count() or 0) + 1
+        sent_at = datetime.utcnow()
         remake_round = OrderRound(
             tenant_id=tenant_id,
             check_id=item.check_id,
             round_no=next_round_no,
             course_no=item.course_no or 1,
-            status="NEW",
+            status="SENT",
             sent_by=user.username,
+            sent_at=sent_at,
         )
         db.add(remake_round)
         db.flush()
@@ -771,16 +895,35 @@ def _apply_order_item_action(
             item_name=item.item_name,
             qty=item.qty,
             price=item.price,
-            status="NEW",
-            status_reason=remake_note or reason,
+            status="SENT",
+            status_reason=remake_note or correction_note or reason_text,
             action_by=user.username,
-            manager_approved_by=manager_user.username,
+            manager_approved_by=manager_user.username if manager_user else None,
             parent_item_id=item.id,
-            modifier_json=item.modifier_json,
-            note=item.note,
+            modifier_json=correction_modifier_json if correction_modifier_json is not None else item.modifier_json,
+            note=correction_note or remake_note or item.note,
+            sent_at=sent_at,
         )
         db.add(remake_item)
-        return {"final_status": "REMAKE", "manager": manager_user.username, "remake_round_id": remake_round.id, "remake_item_id": remake_item.id}
+        db.flush()
+        _log_item_status(
+            db,
+            tenant_id,
+            remake_item,
+            None,
+            "SENT",
+            user.username,
+            remake_note or correction_note or reason_text,
+            action_type="REMAKE",
+            quantity_before=0,
+            quantity_after=remake_item.qty,
+            approved_by=manager_user.username if manager_user else None,
+            reason_code=reason_code,
+            billing_effect="replacement_item_billable",
+            kitchen_effect="correction_remake",
+            meta={"parent_item_id": item.id, "round_no": next_round_no},
+        )
+        return {**base_result, "final_status": "REMAKE", "remake_round_id": remake_round.id, "remake_item_id": remake_item.id, "meta": {"round_no": next_round_no}}
 
     raise HTTPException(status_code=400, detail="Unsupported item action")
 
@@ -1609,7 +1752,8 @@ def act_on_order_item(
     table = db.query(Table).filter(Table.id == item.table_id, Table.tenant_id == tenant.id).first() if item.table_id else None
     if table:
         _ensure_table_write_access(table, user)
-    old_status = item.status
+    old_status = _normalize_item_status(item.status)
+    old_qty = int(item.qty or 0)
     result = _apply_order_item_action(
         db,
         tenant.id,
@@ -1619,11 +1763,33 @@ def act_on_order_item(
         payload.reason,
         manager_password=payload.manager_password,
         remake_note=payload.remake_note,
+        reason_code=payload.reason_code,
+        quantity_delta=payload.quantity_delta,
+        correction_note=payload.note,
+        correction_modifier_json=payload.modifier_json,
     )
-    if old_status != item.status:
-        if str(item.status or "").upper() in {"VOIDED", "VOID_REQUESTED"}:
+    new_status = _normalize_item_status(item.status)
+    new_qty = int(item.qty or 0)
+    if old_status != new_status or old_qty != new_qty:
+        if new_status in {"VOIDED", "VOID_REQUESTED", "WASTE", "REMAKE"} and not item.cancelled_at:
             item.cancelled_at = datetime.utcnow()
-        _log_item_status(db, tenant.id, item, old_status, item.status, user.username, payload.reason)
+        _log_item_status(
+            db,
+            tenant.id,
+            item,
+            old_status,
+            new_status,
+            user.username,
+            payload.reason,
+            action_type=result.get("action") or _normalize_item_action(payload.action),
+            quantity_before=old_qty,
+            quantity_after=new_qty,
+            approved_by=result.get("manager"),
+            reason_code=payload.reason_code,
+            billing_effect=result.get("billing_effect"),
+            kitchen_effect=result.get("kitchen_effect"),
+            meta=result.get("meta") or {},
+        )
         _sync_round_status_from_items(db, tenant.id, item.round_id)
     active_check = db.query(Check).filter(Check.id == item.check_id, Check.tenant_id == tenant.id).first()
     if table and active_check:
@@ -1641,7 +1807,13 @@ def act_on_order_item(
                     "action": str(payload.action or "").upper(),
                     "final_status": result.get("final_status"),
                     "reason": payload.reason,
+                    "reason_code": payload.reason_code,
+                    "quantity_before": old_qty,
+                    "quantity_after": new_qty,
                     "manager_id": result.get("manager"),
+                    "billing_effect": result.get("billing_effect"),
+                    "kitchen_effect": result.get("kitchen_effect"),
+                    "meta": result.get("meta") or {},
                     "timestamp": datetime.utcnow().isoformat(),
                 },
                 ensure_ascii=False,
@@ -1653,7 +1825,16 @@ def act_on_order_item(
         _emit_realtime(tenant.id, "table.updated", {"table_id": table.id, "action": "item-status", "item_id": item.id, "status": item.status})
         _emit_realtime(tenant.id, "check.updated", {"table_id": table.id, "check_id": item.check_id, "action": "item-status"})
         _emit_realtime(tenant.id, "kitchen.updated", {"table_id": table.id, "round_id": item.round_id, "status": item.status})
-    return {"ok": True, "item_id": item.id, "status": item.status, "manager_approved_by": item.manager_approved_by}
+    return {
+        "ok": True,
+        "item_id": item.id,
+        "status": item.status,
+        "qty": item.qty,
+        "manager_approved_by": item.manager_approved_by,
+        "partial_cancel_item_id": result.get("partial_cancel_item_id"),
+        "remake_item_id": result.get("remake_item_id"),
+        "remake_round_id": result.get("remake_round_id"),
+    }
 
 
 @router.post("/tables/{table_id}/settle-check")
@@ -2051,10 +2232,20 @@ def get_order_item_status_logs(
         {
             "id": row.id,
             "order_item_id": row.order_item_id,
+            "check_id": row.check_id,
+            "round_id": row.round_id,
+            "action_type": row.action_type,
             "old_status": row.old_status,
             "new_status": row.new_status,
+            "quantity_before": row.quantity_before,
+            "quantity_after": row.quantity_after,
             "changed_by": row.changed_by,
+            "approved_by": row.approved_by,
+            "reason_code": row.reason_code,
             "reason": row.reason,
+            "billing_effect": row.billing_effect,
+            "kitchen_effect": row.kitchen_effect,
+            "meta": _json_load(row.meta_json, {}) if row.meta_json else {},
             "changed_at": row.changed_at.isoformat() if row.changed_at else None,
         }
         for row in rows
