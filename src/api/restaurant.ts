@@ -511,6 +511,21 @@ export async function serve_kitchen_item_live(itemId: string) {
   });
 }
 
+export async function get_order_item_status_logs_live(itemId: string) {
+  if (!isBackendEnabled()) return [];
+  return apiRequest<Array<{
+    id: string;
+    order_item_id: string;
+    old_status?: string | null;
+    new_status: string;
+    changed_by?: string | null;
+    reason?: string | null;
+    changed_at?: string | null;
+  }>>(`/api/v1/restaurant/order-items/${encodeURIComponent(itemId)}/status-logs`, {
+    tenantId: null,
+  });
+}
+
 export async function settle_table_check_live(
   tableId: string,
   payload: {
