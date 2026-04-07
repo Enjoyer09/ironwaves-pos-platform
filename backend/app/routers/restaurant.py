@@ -172,6 +172,53 @@ def _table_state_payload(db: Session, tenant_id: str, table: Table) -> dict:
     }
 
 
+def _table_detail_payload(db: Session, tenant_id: str, table: Table) -> dict:
+    active_session = (
+        db.query(TableSession)
+        .filter(
+            TableSession.tenant_id == tenant_id,
+            TableSession.table_id == table.id,
+            TableSession.closed_at.is_(None),
+        )
+        .order_by(TableSession.seated_at.desc())
+        .first()
+    )
+    active_check = None
+    if active_session:
+        active_check = (
+            db.query(Check)
+            .filter(
+                Check.tenant_id == tenant_id,
+                Check.table_session_id == active_session.id,
+                Check.status.in_(["OPEN", "PARTIALLY_PAID"]),
+            )
+            .order_by(Check.opened_at.desc())
+            .first()
+        )
+    return {
+        "table": _table_state_payload(db, tenant_id, table),
+        "session": None if not active_session else {
+            "id": active_session.id,
+            "status": active_session.status,
+            "guest_count": active_session.guest_count,
+            "assigned_waiter": active_session.assigned_waiter,
+            "seated_at": active_session.seated_at.isoformat() if active_session.seated_at else None,
+            "reservation_id": active_session.reservation_id,
+        },
+        "check": None if not active_check else {
+            "id": active_check.id,
+            "check_number": active_check.check_number,
+            "status": active_check.status,
+            "guest_count": active_check.guest_count,
+            "subtotal": str(active_check.subtotal or Decimal("0.00")),
+            "service_charge": str(active_check.service_charge or Decimal("0.00")),
+            "tax_amount": str(active_check.tax_amount or Decimal("0.00")),
+            "total": str(active_check.total or Decimal("0.00")),
+            "opened_at": active_check.opened_at.isoformat() if active_check.opened_at else None,
+        },
+    }
+
+
 @router.get("/floor-plans")
 def get_floor_plans(
     db: Session = Depends(get_db),
@@ -297,6 +344,20 @@ def update_table_layout(
         table.status = str(payload.status).upper()
     db.commit()
     return {"ok": True, "table": _table_state_payload(db, tenant.id, table)}
+
+
+@router.get("/tables/{table_id}/detail")
+def get_table_detail(
+    table_id: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_floor_admin(user)
+    table = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    return _table_detail_payload(db, tenant.id, table)
 
 
 @router.post("/tables/{table_id}/combine")

@@ -46,6 +46,29 @@ export type ReservationRecord = {
   } | null;
 };
 
+export type TableDetailRecord = {
+  table: FloorTableState;
+  session: {
+    id: string;
+    status: string;
+    guest_count: number;
+    assigned_waiter?: string | null;
+    seated_at?: string | null;
+    reservation_id?: string | null;
+  } | null;
+  check: {
+    id: string;
+    check_number: string;
+    status: string;
+    guest_count: number;
+    subtotal: string;
+    service_charge: string;
+    tax_amount: string;
+    total: string;
+    opened_at?: string | null;
+  } | null;
+};
+
 const localReservationKey = 'restaurant_reservations';
 const localFloorKey = 'restaurant_floor_plans';
 
@@ -93,6 +116,46 @@ export async function get_floor_state_live(tenant_id: string, floorId: string): 
     return { floor, tables };
   }
   return apiRequest<{ floor: FloorPlanRecord; tables: FloorTableState[] }>(`/api/v1/restaurant/floor-plans/${encodeURIComponent(floorId)}/state`, { tenantId: null });
+}
+
+export async function get_table_detail_live(tenant_id: string, tableId: string): Promise<TableDetailRecord | null> {
+  if (!isBackendEnabled()) {
+    const row = getDB<any>('tables').find((table) => table.tenant_id === tenant_id && table.id === tableId);
+    if (!row) return null;
+    return {
+      table: {
+        id: row.id,
+        label: row.label,
+        x: 0,
+        y: 0,
+        w: 2,
+        h: 2,
+        capacity: Number(row.guest_count || 4),
+        status: row.is_occupied ? 'ACTIVE_CHECK' : 'AVAILABLE',
+        guest_count: Number(row.guest_count || 0),
+        assigned_waiter: row.assigned_to || null,
+        check_total: row.total || '0',
+      },
+      session: row.is_occupied ? {
+        id: `local_session_${row.id}`,
+        status: 'SEATED',
+        guest_count: Number(row.guest_count || 0),
+        assigned_waiter: row.assigned_to || null,
+        seated_at: null,
+      } : null,
+      check: row.is_occupied ? {
+        id: `local_check_${row.id}`,
+        check_number: `CHK-${String(row.label || '').replace(/\s+/g, '')}`,
+        status: 'OPEN',
+        guest_count: Number(row.guest_count || 0),
+        subtotal: row.total || '0',
+        service_charge: '0',
+        tax_amount: '0',
+        total: row.total || '0',
+      } : null,
+    };
+  }
+  return apiRequest<TableDetailRecord>(`/api/v1/restaurant/tables/${encodeURIComponent(tableId)}/detail`, { tenantId: null });
 }
 
 export async function get_reservations_live(tenant_id: string, date: string): Promise<ReservationRecord[]> {
