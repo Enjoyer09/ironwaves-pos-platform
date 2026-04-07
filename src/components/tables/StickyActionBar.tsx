@@ -6,7 +6,7 @@ type StickyActionBarProps = {
   total: string;
   disabled?: boolean;
   onSend: () => void;
-  onClear?: () => void;
+  onClear?: () => void | Promise<void>;
 };
 
 const tapFeedback = () => {
@@ -28,7 +28,7 @@ function StickyActionBar({ lang, total, disabled, onSend, onClear }: StickyActio
         {onClear ? (
           <button
             type="button"
-            onClick={onClear}
+            onClick={() => { void onClear(); }}
             className="inline-flex min-h-14 flex-1 items-center justify-center rounded-2xl border border-slate-700/70 bg-slate-900/60 px-4 py-3 text-sm font-bold text-slate-200"
           >
             {tx(lang, 'Təmizlə', 'Очистить', 'Clear')}

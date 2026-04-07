@@ -9,7 +9,7 @@ type MenuGridProps = {
   lang: string;
   onSearchChange: (value: string) => void;
   onCategoryChange: (value: string) => void;
-  onSelectItem: (item: any) => void;
+  onSelectItem: (item: any) => void | Promise<void>;
 };
 
 const tapFeedback = () => {
@@ -54,7 +54,7 @@ function MenuGrid({
             type="button"
             onClick={() => {
               tapFeedback();
-              onSelectItem(item);
+              void onSelectItem(item);
             }}
             className="min-h-[108px] rounded-2xl border border-slate-700/60 bg-slate-900/55 p-4 text-left transition hover:border-yellow-300/30 hover:bg-slate-900/80 active:scale-[0.99]"
           >

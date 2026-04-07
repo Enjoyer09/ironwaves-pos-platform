@@ -14,6 +14,7 @@ from app.models import AuditLog, Check, FinanceEntry, FloorPlan, Guest, ItemStat
 from app.realtime import broadcast_tenant_event
 from app.routers.operations import _collect_stock_ops
 from app.schemas import (
+    DraftItemUpdateIn,
     FloorPlanCreateIn,
     FloorPlanUpdateIn,
     OrderItemActionIn,
@@ -1325,6 +1326,71 @@ def send_check_drafts(
     _emit_realtime(tenant.id, "check.updated", {"table_id": table.id, "check_id": check.id, "round_id": round_row.id, "action": "drafts-sent"})
     _emit_realtime(tenant.id, "table.updated", {"table_id": table.id, "round_id": round_row.id, "action": "round-sent"})
     return {"ok": True, "round_id": round_row.id, "round_no": round_row.round_no, "sent_count": len(draft_items), "check_total": str(check.total or Decimal("0.00"))}
+
+
+@router.patch("/order-items/{item_id}/draft")
+def update_draft_item(
+    item_id: str,
+    payload: DraftItemUpdateIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_floor_admin(user)
+    item = db.query(OrderItem).filter(OrderItem.id == item_id, OrderItem.tenant_id == tenant.id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Order item not found")
+    if str(item.status or "").upper() != "DRAFT" or item.round_id is not None:
+        raise HTTPException(status_code=400, detail="Only draft items can be edited directly")
+    table = db.query(Table).filter(Table.id == item.table_id, Table.tenant_id == tenant.id).first() if item.table_id else None
+    check = db.query(Check).filter(Check.id == item.check_id, Check.tenant_id == tenant.id).first()
+    if table:
+        _ensure_table_write_access(table, user)
+    if payload.qty is not None:
+        item.qty = payload.qty
+    if payload.note is not None:
+        item.note = payload.note
+    if payload.modifier_json is not None:
+        item.modifier_json = payload.modifier_json
+    if table and check:
+        _sync_check_and_table_from_items(db, tenant.id, table, check)
+    db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="ORDER_DRAFT_ITEM_UPDATED", details=json.dumps({"item_id": item.id, "qty": item.qty}, ensure_ascii=False)))
+    db.commit()
+    if table and check:
+        _emit_realtime(tenant.id, "check.updated", {"table_id": table.id, "check_id": check.id, "action": "draft-item-updated"})
+    return {"ok": True, "item_id": item.id, "status": item.status, "qty": item.qty}
+
+
+@router.delete("/order-items/{item_id}/draft")
+def delete_draft_item(
+    item_id: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_floor_admin(user)
+    item = db.query(OrderItem).filter(OrderItem.id == item_id, OrderItem.tenant_id == tenant.id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Order item not found")
+    if str(item.status or "").upper() != "DRAFT" or item.round_id is not None:
+        raise HTTPException(status_code=400, detail="Only draft items can be removed directly")
+    table = db.query(Table).filter(Table.id == item.table_id, Table.tenant_id == tenant.id).first() if item.table_id else None
+    check = db.query(Check).filter(Check.id == item.check_id, Check.tenant_id == tenant.id).first()
+    if table:
+        _ensure_table_write_access(table, user)
+    old_status = item.status
+    item.status = "VOIDED"
+    item.cancelled_at = datetime.utcnow()
+    item.action_by = user.username
+    item.status_reason = "Draft removed"
+    _log_item_status(db, tenant.id, item, old_status, "VOIDED", user.username, "Draft removed")
+    if table and check:
+        _sync_check_and_table_from_items(db, tenant.id, table, check)
+    db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="ORDER_DRAFT_ITEM_REMOVED", details=json.dumps({"item_id": item.id, "item_name": item.item_name}, ensure_ascii=False)))
+    db.commit()
+    if table and check:
+        _emit_realtime(tenant.id, "check.updated", {"table_id": table.id, "check_id": check.id, "action": "draft-item-removed"})
+    return {"ok": True, "item_id": item.id, "status": item.status}
 
 
 @router.post("/tables/{table_id}/send-round")

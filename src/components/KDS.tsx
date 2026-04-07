@@ -109,6 +109,7 @@ export default function KDS() {
     if (elapsed > 10) return 'border-yellow-300/80 bg-yellow-900/20';
     
     switch (status) {
+      case 'SENT':
       case 'NEW': return 'border-blue-300/60 bg-blue-900/20';
       case 'PREPARING': return 'border-orange-300/60 bg-orange-900/20';
       case 'READY': return 'border-emerald-300/70 bg-emerald-900/20';
@@ -123,6 +124,7 @@ export default function KDS() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case 'SENT': return <span className="rounded px-2 py-1 text-xs font-bold bg-blue-400/20 text-blue-200 border border-blue-300/40">{tx(lang, 'GÖNDƏRİLDİ', 'ОТПРАВЛЕНО', 'SENT')}</span>;
       case 'NEW': return <span className="rounded px-2 py-1 text-xs font-bold bg-blue-400/20 text-blue-200 border border-blue-300/40">{tx(lang, 'YENİ', 'НОВЫЙ', 'NEW')}</span>;
       case 'PREPARING': return <span className="rounded px-2 py-1 text-xs font-bold bg-orange-400/20 text-orange-200 border border-orange-300/40">{tx(lang, 'HAZIRLANIR', 'ГОТОВИТСЯ', 'PREPARING')}</span>;
       case 'READY': return <span className="rounded px-2 py-1 text-xs font-bold bg-emerald-400/20 text-emerald-200 border border-emerald-300/40">{tx(lang, 'HAZIRDIR', 'ГОТОВО', 'READY')}</span>;
@@ -139,7 +141,7 @@ export default function KDS() {
     key: string;
     table_label: string | null;
     order_type?: string;
-    status: 'NEW' | 'PREPARING' | 'READY';
+    status: 'NEW' | 'SENT' | 'PREPARING' | 'READY';
     priority: 'NORMAL' | 'URGENT';
     created_at: string;
     ids: string[];
@@ -158,11 +160,11 @@ export default function KDS() {
         key,
         table_label: order.table_label || null,
         order_type: order.order_type,
-        status: order.status,
+        status: order.status === 'SENT' ? 'NEW' : order.status,
         priority: order.priority,
         created_at: order.created_at,
         ids: [order.id],
-        newIds: order.status === 'NEW' ? [order.id] : [],
+        newIds: ['NEW', 'SENT'].includes(order.status) ? [order.id] : [],
         preparingIds: order.status === 'PREPARING' ? [order.id] : [],
         readyIds: order.status === 'READY' ? [order.id] : [],
         items: normalizedItems.map((item: any) => ({
@@ -179,7 +181,7 @@ export default function KDS() {
 
     existing.ids.push(order.id);
     existing.batchCount += 1;
-    if (order.status === 'NEW') existing.newIds.push(order.id);
+    if (['NEW', 'SENT'].includes(order.status)) existing.newIds.push(order.id);
     if (order.status === 'PREPARING') existing.preparingIds.push(order.id);
     if (order.status === 'READY') existing.readyIds.push(order.id);
     if (order.priority === 'URGENT') existing.priority = 'URGENT';

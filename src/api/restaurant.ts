@@ -384,6 +384,27 @@ export async function send_check_drafts_live(
   });
 }
 
+export async function update_draft_item_live(itemId: string, payload: { qty?: number; note?: string | null; modifier_json?: string | null }) {
+  if (!isBackendEnabled()) {
+    return { ok: true, item_id: itemId, status: 'DRAFT', qty: payload.qty || 1 };
+  }
+  return apiRequest(`/api/v1/restaurant/order-items/${encodeURIComponent(itemId)}/draft`, {
+    method: 'PATCH',
+    tenantId: null,
+    body: payload,
+  });
+}
+
+export async function delete_draft_item_live(itemId: string) {
+  if (!isBackendEnabled()) {
+    return { ok: true, item_id: itemId, status: 'VOIDED' };
+  }
+  return apiRequest(`/api/v1/restaurant/order-items/${encodeURIComponent(itemId)}/draft`, {
+    method: 'DELETE',
+    tenantId: null,
+  });
+}
+
 export async function get_table_detail_live(tenant_id: string, tableId: string): Promise<TableDetailRecord | null> {
   if (!isBackendEnabled()) {
     const row = getDB<any>('tables').find((table) => table.tenant_id === tenant_id && table.id === tableId);
