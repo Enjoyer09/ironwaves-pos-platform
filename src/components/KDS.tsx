@@ -112,6 +112,11 @@ export default function KDS() {
       case 'NEW': return 'border-blue-300/60 bg-blue-900/20';
       case 'PREPARING': return 'border-orange-300/60 bg-orange-900/20';
       case 'READY': return 'border-emerald-300/70 bg-emerald-900/20';
+      case 'VOID_REQUESTED': return 'border-yellow-300/70 bg-yellow-900/20';
+      case 'VOIDED': return 'border-rose-300/70 bg-rose-900/20';
+      case 'COMPED': return 'border-sky-300/70 bg-sky-900/20';
+      case 'WASTE': return 'border-slate-300/40 bg-slate-800/40';
+      case 'REMAKE': return 'border-orange-300/80 bg-orange-900/25';
       default: return 'border-slate-600 bg-slate-800/30';
     }
   };
@@ -121,6 +126,11 @@ export default function KDS() {
       case 'NEW': return <span className="rounded px-2 py-1 text-xs font-bold bg-blue-400/20 text-blue-200 border border-blue-300/40">{tx(lang, 'YENİ', 'НОВЫЙ', 'NEW')}</span>;
       case 'PREPARING': return <span className="rounded px-2 py-1 text-xs font-bold bg-orange-400/20 text-orange-200 border border-orange-300/40">{tx(lang, 'HAZIRLANIR', 'ГОТОВИТСЯ', 'PREPARING')}</span>;
       case 'READY': return <span className="rounded px-2 py-1 text-xs font-bold bg-emerald-400/20 text-emerald-200 border border-emerald-300/40">{tx(lang, 'HAZIRDIR', 'ГОТОВО', 'READY')}</span>;
+      case 'VOID_REQUESTED': return <span className="rounded px-2 py-1 text-xs font-bold bg-yellow-400/20 text-yellow-200 border border-yellow-300/40">{tx(lang, 'VOID REQUEST', 'ЗАПРОС VOID', 'VOID REQUEST')}</span>;
+      case 'VOIDED': return <span className="rounded px-2 py-1 text-xs font-bold bg-rose-400/20 text-rose-200 border border-rose-300/40">{tx(lang, 'VOIDED', 'VOID', 'VOIDED')}</span>;
+      case 'COMPED': return <span className="rounded px-2 py-1 text-xs font-bold bg-sky-400/20 text-sky-200 border border-sky-300/40">{tx(lang, 'COMP', 'КОМП', 'COMP')}</span>;
+      case 'WASTE': return <span className="rounded px-2 py-1 text-xs font-bold bg-slate-400/20 text-slate-200 border border-slate-300/40">{tx(lang, 'WASTE', 'СПИСАНО', 'WASTE')}</span>;
+      case 'REMAKE': return <span className="rounded px-2 py-1 text-xs font-bold bg-orange-400/20 text-orange-200 border border-orange-300/40">{tx(lang, 'REMAKE', 'ПЕРЕДЕЛАТЬ', 'REMAKE')}</span>;
       default: return null;
     }
   };

@@ -3,7 +3,7 @@ import { get_tables_live, create_table_live, delete_table_live, open_table_live,
 import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
 import { subscribeTenantRealtime } from '../api/realtime';
-import { combine_tables_live, create_reservation_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, get_table_detail_live, seat_reservation_live, send_table_round_live, settle_table_check_live, split_table_group_live, update_reservation_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
+import { act_on_order_item_live, combine_tables_live, create_reservation_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_reservations_live, get_table_detail_live, seat_reservation_live, send_table_round_live, settle_table_check_live, split_table_group_live, transfer_table_lock_live, unlock_table_live, update_reservation_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
 import { LayoutGrid, Plus, Trash2, ArrowRightCircle, CalendarClock, Users, MapPinned } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
@@ -35,6 +35,11 @@ export default function TablesPage() {
   const [viewTableId, setViewTableId] = useState<string | null>(null);
   const [transferTargetId, setTransferTargetId] = useState('');
   const [mergeTargetId, setMergeTargetId] = useState('');
+  const [lockTransferTarget, setLockTransferTarget] = useState('');
+  const [lockReason, setLockReason] = useState('');
+  const [itemActionTarget, setItemActionTarget] = useState<any | null>(null);
+  const [itemActionReason, setItemActionReason] = useState('');
+  const [itemActionManagerPassword, setItemActionManagerPassword] = useState('');
   const [tableReceiptHtml, setTableReceiptHtml] = useState<string | null>(null);
   const [revisionTarget, setRevisionTarget] = useState<{ tableId: string; itemName: string; nextItems: any[] } | null>(null);
   const [revisionReason, setRevisionReason] = useState('');
@@ -1554,6 +1559,75 @@ export default function TablesPage() {
         </div>
       )}
 
+      {itemActionTarget && (
+        <div className="fixed inset-0 z-[135] flex items-center justify-center bg-black/70 p-4">
+          <div className="metal-panel w-full max-w-lg p-5">
+            <h3 className="text-lg font-bold text-slate-100">
+              {tx(lang, 'Item əməliyyatı', 'Операция по позиции', 'Item action')} · {itemActionTarget.item?.item_name}
+            </h3>
+            <div className="mt-2 text-sm text-slate-300">
+              {tx(lang, 'Seçilmiş action audit log-a yazılacaq və item izsiz silinməyəcək.', 'Выбранное действие попадет в аудит, позиция не исчезнет бесследно.', 'The selected action will be logged and the item will not disappear without trace.')}
+            </div>
+            <div className="mt-4 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-300">
+              <div className="flex justify-between"><span>{tx(lang, 'Cari status', 'Текущий статус', 'Current status')}</span><span>{itemActionTarget.item?.status || '-'}</span></div>
+              <div className="mt-1 flex justify-between"><span>{tx(lang, 'Action', 'Действие', 'Action')}</span><span>{itemActionTarget.action}</span></div>
+            </div>
+            <label className="mt-4 block text-sm text-slate-300">
+              {tx(lang, 'Səbəb', 'Причина', 'Reason')}
+              <textarea className="neon-input mt-1 min-h-[84px]" value={itemActionReason} onChange={(e) => setItemActionReason(e.target.value)} />
+            </label>
+            {['COMP', 'WASTE', 'REMAKE'].includes(String(itemActionTarget.action || '').toUpperCase()) && (
+              <label className="mt-3 block text-sm text-slate-300">
+                {tx(lang, 'Manager/Admin şifrəsi', 'Пароль менеджера/админа', 'Manager/Admin password')}
+                <input type="password" className="neon-input mt-1" value={itemActionManagerPassword} onChange={(e) => setItemActionManagerPassword(e.target.value)} />
+              </label>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                className="neon-btn rounded-lg px-4 py-2"
+                onClick={() => {
+                  setItemActionTarget(null);
+                  setItemActionReason('');
+                  setItemActionManagerPassword('');
+                }}
+              >
+                {tx(lang, 'Bağla', 'Закрыть', 'Close')}
+              </button>
+              <button
+                type="button"
+                className="glossy-gold rounded-lg px-4 py-2 font-semibold"
+                onClick={async () => {
+                  try {
+                    if (!itemActionReason.trim()) {
+                      notify('error', tx(lang, 'Səbəb yazın', 'Укажите причину', 'Enter a reason'));
+                      return;
+                    }
+                    await act_on_order_item_live(itemActionTarget.item.id, {
+                      action: itemActionTarget.action,
+                      reason: itemActionReason.trim(),
+                      manager_password: itemActionManagerPassword.trim() || undefined,
+                      remake_note: itemActionTarget.action === 'REMAKE' ? itemActionReason.trim() : undefined,
+                    });
+                    setItemActionTarget(null);
+                    setItemActionReason('');
+                    setItemActionManagerPassword('');
+                    notify('success', tx(lang, 'Item statusu yeniləndi', 'Статус позиции обновлен', 'Item status updated'));
+                    if (viewTableId) {
+                      await Promise.all([loadData(), get_table_detail_live(tenant_id, viewTableId).then((next) => setTableDetailRecord(next)).catch(() => {})]);
+                    }
+                  } catch (e: any) {
+                    notify('error', e?.message || tx(lang, 'Item əməliyyatı alınmadı', 'Операция по позиции не выполнена', 'Item action failed'));
+                  }
+                }}
+              >
+                {tx(lang, 'Təsdiqlə', 'Подтвердить', 'Confirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {viewTableId && (
         <div ref={detailPanelRef} className="mt-6">
           <div className="metal-panel w-full rounded-[30px] p-5">
@@ -1612,6 +1686,12 @@ export default function TablesPage() {
               const otherTables = tables.filter((row) => row.id !== t.id);
               const detailSession = tableDetailRecord?.table?.id === t.id ? tableDetailRecord.session : null;
               const detailCheck = tableDetailRecord?.table?.id === t.id ? tableDetailRecord.check : null;
+              const tableLockHolder = String((tableDetailRecord?.table?.id === t.id ? tableDetailRecord.table.locked_by : null) || t.assigned_to || '').trim() || null;
+              const isManagerUser = ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase());
+              const userCanEditTable = !tableLockHolder || tableLockHolder === user?.username || isManagerUser;
+              const detailActiveItems = detailRounds.length > 0
+                ? detailRounds.flatMap((round) => round.items.map((item) => ({ ...item, round_no: round.round_no })))
+                : [];
               const rounds = detailRounds.length > 0
                 ? detailRounds.map((row) => ({
                     id: row.id,
@@ -1675,6 +1755,13 @@ export default function TablesPage() {
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
+                    {tableLockHolder && (
+                      <div className={`rounded-full border px-4 py-2 text-sm ${userCanEditTable ? 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100' : 'border-rose-300/30 bg-rose-500/10 text-rose-100'}`}>
+                        {userCanEditTable
+                          ? `${tx(lang, 'Masa sahibi', 'Ответственный за стол', 'Table owner')}: ${tableLockHolder}`
+                          : `${tx(lang, 'Bu masa artıq', 'Этот стол уже у', 'This table is already used by')} ${tableLockHolder}`}
+                      </div>
+                    )}
                     <div className="rounded-full border border-slate-700/60 bg-slate-950/30 px-4 py-2 text-sm text-slate-200">
                       {tx(lang, 'Qonaq', 'Гости', 'Guests')}: <span className="font-bold text-slate-100">{Number(t.guest_count || 0)}</span>
                     </div>
@@ -1690,7 +1777,54 @@ export default function TablesPage() {
                         new Decimal(t.deposit_amount || 0),
                       ).toFixed(2)} ₼</span>
                     </div>
+                    {isManagerUser && tableLockHolder && tableLockHolder !== user?.username && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await unlock_table_live(t.id, lockReason || 'manager override');
+                              notify('success', tx(lang, 'Masa lock-u açıldı', 'Блокировка стола снята', 'Table lock released'));
+                              setLockReason('');
+                              await Promise.all([loadData(), get_table_detail_live(tenant_id, t.id).then((next) => setTableDetailRecord(next)).catch(() => {})]);
+                            } catch (e: any) {
+                              notify('error', e?.message || tx(lang, 'Lock açılmadı', 'Блокировка не снята', 'Lock was not released'));
+                            }
+                          }}
+                          className="rounded-full border border-rose-300/30 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-100"
+                        >
+                          {tx(lang, 'Lock-u aç', 'Снять блокировку', 'Unlock')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              if (!lockTransferTarget.trim()) {
+                                notify('error', tx(lang, 'Yeni owner yazın', 'Укажите нового владельца', 'Enter new owner'));
+                                return;
+                              }
+                              await transfer_table_lock_live(t.id, lockTransferTarget.trim(), lockReason || 'manager transfer');
+                              notify('success', tx(lang, 'Masa ötürüldü', 'Стол передан', 'Table transferred'));
+                              setLockTransferTarget('');
+                              setLockReason('');
+                              await Promise.all([loadData(), get_table_detail_live(tenant_id, t.id).then((next) => setTableDetailRecord(next)).catch(() => {})]);
+                            } catch (e: any) {
+                              notify('error', e?.message || tx(lang, 'Masa ötürülmədi', 'Стол не передан', 'Table was not transferred'));
+                            }
+                          }}
+                          className="rounded-full border border-violet-300/30 bg-violet-500/10 px-4 py-2 text-sm font-semibold text-violet-100"
+                        >
+                          {tx(lang, 'Owner-i ötür', 'Передать владельца', 'Transfer owner')}
+                        </button>
+                      </>
+                    )}
                   </div>
+                  {isManagerUser && tableLockHolder && tableLockHolder !== user?.username && (
+                    <div className="mt-3 grid gap-2 md:grid-cols-[1fr_1fr]">
+                      <input className="neon-input" value={lockTransferTarget} onChange={(e) => setLockTransferTarget(e.target.value)} placeholder={tx(lang, 'Yeni owner username', 'Новый владелец username', 'New owner username')} />
+                      <input className="neon-input" value={lockReason} onChange={(e) => setLockReason(e.target.value)} placeholder={tx(lang, 'Override səbəbi', 'Причина override', 'Override reason')} />
+                    </div>
+                  )}
                   <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/35 p-3">
                     <div className="flex flex-wrap gap-2">
                       {([
@@ -1756,15 +1890,22 @@ export default function TablesPage() {
                   </div>
                   )}
                   <div className={`mt-3 max-h-72 overflow-auto rounded-lg border border-slate-700/70 bg-slate-900/40 p-3 ${tableWorkspaceTab === 'compose' ? '' : 'hidden'}`}>
-                    {items.length === 0 && <div className="text-sm text-slate-400">{tx(lang, 'Masa boşdur', 'Стол пуст', 'Table is empty')}</div>}
-                    {items.map((it: any, idx: number) => (
+                    {!userCanEditTable && (
+                      <div className="mb-3 rounded-lg border border-rose-300/30 bg-rose-500/10 px-3 py-3 text-sm text-rose-100">
+                        {tx(lang, 'Bu masa read-only görünüşdədir. Yalnız owner və ya manager əməliyyat edə bilər.', 'Этот стол открыт только для просмотра. Операции доступны только владельцу или менеджеру.', 'This table is read-only. Only the owner or a manager can perform actions.')}
+                      </div>
+                    )}
+                    {(detailActiveItems.length === 0 && items.length === 0) && <div className="text-sm text-slate-400">{tx(lang, 'Masa boşdur', 'Стол пуст', 'Table is empty')}</div>}
+                    {(detailActiveItems.length > 0 ? detailActiveItems : items).map((it: any, idx: number) => (
                       <div key={`${it.item_name}_${idx}`} className="flex items-center justify-between gap-3 border-b border-slate-700/40 py-2 text-sm last:border-b-0">
                         <div>
                           <div>{it.item_name}</div>
-                          <div className="mt-1 text-xs text-slate-500">x{it.qty}</div>
+                          <div className="mt-1 text-xs text-slate-500">x{it.qty}{it.status ? ` · ${it.status}` : ''}</div>
+                          {it.status_reason ? <div className="mt-1 text-[11px] text-slate-500">{it.status_reason}</div> : null}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <button
+                            disabled={!userCanEditTable}
                             className="rounded-md border border-amber-300/40 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-100"
                             onClick={async (e) => {
                               e.stopPropagation();
@@ -1777,6 +1918,7 @@ export default function TablesPage() {
                             -1
                           </button>
                           <button
+                            disabled={!userCanEditTable}
                             className="rounded-md border border-rose-300/40 bg-rose-500/10 px-2 py-1 text-xs font-semibold text-rose-100"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1786,6 +1928,14 @@ export default function TablesPage() {
                           >
                             {tx(lang, 'Sil', 'Убрать', 'Remove')}
                           </button>
+                          {it.id && userCanEditTable && (
+                            <>
+                              <button type="button" className="rounded-md border border-yellow-300/40 bg-yellow-500/10 px-2 py-1 text-xs font-semibold text-yellow-100" onClick={() => setItemActionTarget({ item: it, action: 'VOID' })}>VOID</button>
+                              <button type="button" className="rounded-md border border-sky-300/40 bg-sky-500/10 px-2 py-1 text-xs font-semibold text-sky-100" onClick={() => setItemActionTarget({ item: it, action: 'COMP' })}>COMP</button>
+                              <button type="button" className="rounded-md border border-slate-300/30 bg-slate-500/15 px-2 py-1 text-xs font-semibold text-slate-100" onClick={() => setItemActionTarget({ item: it, action: 'WASTE' })}>WASTE</button>
+                              <button type="button" className="rounded-md border border-orange-300/40 bg-orange-500/10 px-2 py-1 text-xs font-semibold text-orange-100" onClick={() => setItemActionTarget({ item: it, action: 'REMAKE' })}>REMAKE</button>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -1884,7 +2034,7 @@ export default function TablesPage() {
                         </div>
                         <button
                           type="button"
-                          disabled={roundDraft.length === 0}
+                          disabled={roundDraft.length === 0 || !userCanEditTable}
                           onClick={() => { void sendRoundDirectly(t); }}
                           className="glossy-gold mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-xl px-4 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50"
                         >
@@ -2019,7 +2169,8 @@ export default function TablesPage() {
                     <button className="neon-btn rounded-lg px-4 py-2" onClick={() => setViewTableId(null)}>{tx(lang, 'Paneli gizlət', 'Скрыть панель', 'Hide panel')}</button>
                     {t.is_occupied && (
                       <button
-                        className="glossy-gold min-h-12 rounded-xl px-5 py-3 font-semibold"
+                        className="glossy-gold min-h-12 rounded-xl px-5 py-3 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!userCanEditTable}
                         onClick={() => {
                           setPayTableId(t.id);
                           setViewTableId(null);
@@ -2674,6 +2825,9 @@ export default function TablesPage() {
                     const effectiveDuration = Number(reservationDurationDrafts[reservation.id] ?? (reservation.duration_minutes || 90));
                     const isResizing = resizingReservation?.id === reservation.id;
                     const reservationStatus = String(reservation.status || '').toUpperCase();
+                    const reservationStartAt = new Date(reservation.reservation_at).getTime();
+                    const minutesUntilStart = Math.round((reservationStartAt - Date.now()) / 60000);
+                    const lateReleaseMinutes = Math.max(5, Number((tenantSettings as any).table_service_settings?.late_release_minutes ?? 15));
                     const statusTone =
                       reservationStatus === 'WAITLIST'
                         ? 'from-violet-400/15'
@@ -2715,6 +2869,16 @@ export default function TablesPage() {
                         <div className="mt-2 text-xs text-slate-300">
                           {reservation.assigned_table_id ? `${tx(lang, 'Masa', 'Стол', 'Table')}: ${floorTables.find((table) => table.id === reservation.assigned_table_id)?.label || reservation.assigned_table_id}` : tx(lang, 'Masa hələ təyin edilməyib', 'Стол еще не назначен', 'No table assigned yet')}
                         </div>
+                        {minutesUntilStart <= 30 && minutesUntilStart >= 0 && (
+                          <div className="mt-2 inline-flex rounded-full border border-cyan-300/40 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold text-cyan-100">
+                            {tx(lang, 'Yaxın rezervasiya', 'Скоро бронь', 'Upcoming reservation')} · {minutesUntilStart} {tx(lang, 'dəq', 'мин', 'min')}
+                          </div>
+                        )}
+                        {reservationStatus === 'LATE' && (
+                          <div className="mt-2 inline-flex rounded-full border border-rose-300/40 bg-rose-500/10 px-3 py-1 text-[11px] font-semibold text-rose-100">
+                            {tx(lang, 'Auto release', 'Авто release', 'Auto release')} · {lateReleaseMinutes} {tx(lang, 'dəq pəncərə', 'мин окно', 'min window')}
+                          </div>
+                        )}
                         <div className="mt-1 text-xs text-slate-400">
                           {tx(lang, 'Müddət', 'Длительность', 'Duration')}: {effectiveDuration} {tx(lang, 'dəqiqə', 'мин', 'min')}
                         </div>

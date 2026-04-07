@@ -271,6 +271,15 @@ class TableSplitIn(BaseModel):
     merged_group_id: str | None = None
 
 
+class TableLockTransferIn(BaseModel):
+    new_owner: str
+    reason: str | None = None
+
+
+class TableUnlockIn(BaseModel):
+    reason: str | None = None
+
+
 class RestaurantRoundItemIn(BaseModel):
     id: str | None = None
     item_name: str
@@ -288,6 +297,13 @@ class SendRoundIn(BaseModel):
     items: list[RestaurantRoundItemIn]
     sent_by: str | None = None
     course_no: int | None = 1
+
+
+class OrderItemActionIn(BaseModel):
+    action: str
+    reason: str
+    manager_password: str | None = None
+    remake_note: str | None = None
 
 
 class RestaurantPaymentPartIn(BaseModel):
