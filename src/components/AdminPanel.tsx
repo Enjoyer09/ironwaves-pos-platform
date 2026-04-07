@@ -10,6 +10,7 @@ import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
 import { getDB } from '../lib/db_sim';
 import { verifyLocalCredential } from '../lib/local_auth';
+import { formatServerUtcDateTime } from '../lib/time';
 
 const FinancePanel = lazy(() => import('./admin/FinancePanel'));
 const InventoryPanel = lazy(() => import('./admin/InventoryPanel'));
@@ -360,7 +361,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                     <tbody className="divide-y divide-slate-700/60">
                       {sales.map((s, i) => (
                         <tr key={i}>
-                           <td className="px-6 py-4 text-sm text-slate-300">{new Date(s.created_at).toLocaleString(lang === 'ru' ? 'ru-RU' : 'az-AZ')}</td>
+                           <td className="px-6 py-4 text-sm text-slate-300">{formatServerUtcDateTime(s.created_at, lang)}</td>
                           <td className="px-6 py-4 text-sm font-medium text-slate-100">{s.cashier}</td>
                           <td className="px-6 py-4 text-sm text-blue-500 font-mono">{s.customer_card_id || '-'}</td>
                           <td className="px-6 py-4 text-sm text-slate-300 max-w-xs truncate">{s.items_display || '-'}</td>

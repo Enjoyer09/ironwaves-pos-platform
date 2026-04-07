@@ -28,11 +28,12 @@ import { get_settings, get_users_live } from '../../api/settings';
 import { qzListPrinters, qzPrintHtml } from '../../lib/qz';
 import { tx } from '../../i18n';
 import { isBackendEnabled } from '../../api/client';
+import { formatServerUtcDateTime, localDateInputValue } from '../../lib/time';
 
 export default function ZReportPanel() {
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateInputValue();
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
   const [xActualCash, setXActualCash] = useState('0');
@@ -1177,7 +1178,7 @@ export default function ZReportPanel() {
           <tbody>
             {visibleSales.map((s: any) => (
               <tr key={s.id} className="border-t border-slate-700/50">
-                <td className="px-4 py-3">{new Date(s.created_at).toLocaleString(lang === 'ru' ? 'ru-RU' : 'az-AZ')}</td>
+                <td className="px-4 py-3">{formatServerUtcDateTime(s.created_at, lang)}</td>
                 <td className="px-4 py-3 font-medium">{s.cashier}</td>
                 <td className="px-4 py-3">{s.items_display || '-'}</td>
                 <td className="px-4 py-3">{s.customer_card_id || '-'}</td>

@@ -14,6 +14,7 @@ import { getDB } from '../lib/db_sim';
 import { logEvent } from '../lib/logger';
 import { qzPrintHtml } from '../lib/qz';
 import { hostScopedKey } from '../lib/storage_keys';
+import { formatRestaurantLocalTime, formatServerUtcDateTime, formatServerUtcTime, localDateInputValue, parseRestaurantLocalTimestamp } from '../lib/time';
 import TableGrid from './tables/TableGrid';
 import MenuGrid from './tables/MenuGrid';
 import StickyActionBar from './tables/StickyActionBar';
@@ -78,7 +79,7 @@ export default function TablesPage() {
   const [resizingReservation, setResizingReservation] = useState<{ id: string; startY: number; startDuration: number } | null>(null);
   const [reservationZoom, setReservationZoom] = useState<15 | 30>(15);
   const [tableGridScale, setTableGridScale] = useState(100);
-  const [reservationDate, setReservationDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [reservationDate, setReservationDate] = useState(() => localDateInputValue());
   const [reservations, setReservations] = useState<ReservationRecord[]>([]);
   const [showReservationCreate, setShowReservationCreate] = useState(false);
   const [reservationGuestName, setReservationGuestName] = useState('');
@@ -206,7 +207,7 @@ export default function TablesPage() {
     const entries = [...reservations]
       .sort((a, b) => a.reservation_at.localeCompare(b.reservation_at))
       .map((reservation) => {
-      const startAt = new Date(reservation.reservation_at);
+      const startAt = parseRestaurantLocalTimestamp(reservation.reservation_at) || new Date(reservation.reservation_at);
       const startMinutes = startAt.getHours() * 60 + startAt.getMinutes();
       const duration = Math.max(30, Number(reservationDurationDrafts[reservation.id] ?? (reservation.duration_minutes || 90)));
       const lane = Math.max(0, laneDefinitions.findIndex((laneRow) => laneRow.id === String(reservation.assigned_table_id || '')));
@@ -1803,7 +1804,7 @@ export default function TablesPage() {
                           {row.old_status || '-'} → {row.new_status}
                         </div>
                         <div className="text-xs text-slate-500">
-                          {row.changed_at ? new Date(row.changed_at).toLocaleString(lang === 'ru' ? 'ru-RU' : 'az-AZ') : '-'}
+                          {formatServerUtcDateTime(row.changed_at, lang)}
                         </div>
                       </div>
                       <div className="mt-1 text-xs text-slate-400">
@@ -2080,7 +2081,7 @@ export default function TablesPage() {
                                 </div>
                                 <div className="flex items-center gap-2">
                                   {badge ? <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${badge.className}`}>{badge.label}</span> : null}
-                                  <span className="text-[11px] text-slate-400">{new Date(round.created_at).toLocaleTimeString(lang === 'ru' ? 'ru-RU' : 'az-AZ', { hour: '2-digit', minute: '2-digit' })}</span>
+                                  <span className="text-[11px] text-slate-400">{formatServerUtcTime(round.created_at, lang)}</span>
                                 </div>
                               </div>
                               <div className="mt-2 flex flex-wrap gap-2">
@@ -2894,13 +2895,13 @@ export default function TablesPage() {
                     const nextReservationAt = `${reservationDate}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
                     const dragged = reservations.find((row) => row.id === draggingReservationId);
                     const draggedDuration = Math.max(30, Number(reservationDurationDrafts[draggingReservationId] ?? (dragged?.duration_minutes || 90)));
-                    const previewStart = new Date(nextReservationAt).getTime();
+                    const previewStart = (parseRestaurantLocalTimestamp(nextReservationAt) || new Date(nextReservationAt)).getTime();
                     const previewEnd = previewStart + (draggedDuration * 60 * 1000);
                     const hasConflict = Boolean(assignedTableId) && reservations.some((row) => {
                       if (row.id === draggingReservationId) return false;
                       if (String(row.assigned_table_id || '') !== String(assignedTableId || '')) return false;
                       if (!['BOOKED', 'LATE'].includes(String(row.status || '').toUpperCase())) return false;
-                      const start = new Date(row.reservation_at).getTime();
+                      const start = (parseRestaurantLocalTimestamp(row.reservation_at) || new Date(row.reservation_at)).getTime();
                       const end = start + (Math.max(30, Number(row.duration_minutes || 90)) * 60 * 1000);
                       return previewStart < end && previewEnd > start;
                     });
@@ -2973,7 +2974,7 @@ export default function TablesPage() {
                       <div
                         className={`pointer-events-none absolute right-3 top-3 rounded-full px-3 py-1 text-xs font-semibold ${reservationDropPreview.hasConflict ? 'bg-rose-500/20 text-rose-100' : 'bg-cyan-400/20 text-cyan-100'}`}
                       >
-                        {new Date(reservationDropPreview.reservationAt).toLocaleTimeString(lang === 'ru' ? 'ru-RU' : 'az-AZ', { hour: '2-digit', minute: '2-digit' })}
+                        {formatRestaurantLocalTime(reservationDropPreview.reservationAt, lang)}
                         {' · '}
                         {reservationDropPreview.assignedTableId ? (floorTables.find((table) => table.id === reservationDropPreview.assignedTableId)?.label || reservationDropPreview.assignedTableId) : tx(lang, 'Təyin edilməyib', 'Не назначено', 'Unassigned')}
                         {reservationDropPreview.hasConflict ? ` · ${tx(lang, 'Konflikt var', 'Есть конфликт', 'Conflict')}` : ''}
@@ -2986,7 +2987,7 @@ export default function TablesPage() {
                     const effectiveDuration = Number(reservationDurationDrafts[reservation.id] ?? (reservation.duration_minutes || 90));
                     const isResizing = resizingReservation?.id === reservation.id;
                     const reservationStatus = String(reservation.status || '').toUpperCase();
-                    const reservationStartAt = new Date(reservation.reservation_at).getTime();
+                    const reservationStartAt = (parseRestaurantLocalTimestamp(reservation.reservation_at) || new Date(reservation.reservation_at)).getTime();
                     const minutesUntilStart = Math.round((reservationStartAt - Date.now()) / 60000);
                     const lateReleaseMinutes = Math.max(5, Number((tenantSettings as any).table_service_settings?.late_release_minutes ?? 15));
                     const statusTone =
@@ -3018,7 +3019,7 @@ export default function TablesPage() {
                           <div className="min-w-0">
                             <div className="truncate text-sm font-bold text-slate-100">{reservation.guest?.full_name || tx(lang, 'Adsız qonaq', 'Гость без имени', 'Guest without name')}</div>
                             <div className="mt-1 text-xs text-amber-100/90">
-                              {new Date(reservation.reservation_at).toLocaleTimeString(lang === 'ru' ? 'ru-RU' : 'az-AZ', { hour: '2-digit', minute: '2-digit' })}
+                              {formatRestaurantLocalTime(reservation.reservation_at, lang)}
                               {' · '}
                               {reservation.party_size} {tx(lang, 'nəfər', 'гостя', 'guests')}
                             </div>
