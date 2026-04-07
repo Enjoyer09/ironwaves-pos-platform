@@ -557,6 +557,11 @@ def _apply_order_item_action(
         return {"final_status": "VOID_REQUESTED", "manager": None}
 
     if normalized_action == "COMP":
+        if current_status == "NEW":
+            item.status = "COMPED"
+            item.status_reason = reason or "Sürətli düzəliş"
+            item.action_by = user.username
+            return {"final_status": "COMPED", "manager": None}
         manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
         item.status = "COMPED"
         item.status_reason = reason
@@ -565,6 +570,11 @@ def _apply_order_item_action(
         return {"final_status": "COMPED", "manager": manager_user.username}
 
     if normalized_action == "WASTE":
+        if current_status == "NEW":
+            item.status = "WASTE"
+            item.status_reason = reason or "Sürətli düzəliş"
+            item.action_by = user.username
+            return {"final_status": "WASTE", "manager": None}
         manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
         item.status = "WASTE"
         item.status_reason = reason
@@ -573,6 +583,43 @@ def _apply_order_item_action(
         return {"final_status": "WASTE", "manager": manager_user.username}
 
     if normalized_action == "REMAKE":
+        if current_status == "NEW":
+            item.status = "WASTE"
+            item.status_reason = reason or "Sürətli düzəliş"
+            item.action_by = user.username
+
+            next_round_no = (db.query(OrderRound).filter(OrderRound.tenant_id == tenant_id, OrderRound.check_id == item.check_id).count() or 0) + 1
+            remake_round = OrderRound(
+                tenant_id=tenant_id,
+                check_id=item.check_id,
+                round_no=next_round_no,
+                course_no=item.course_no or 1,
+                status="NEW",
+                sent_by=user.username,
+            )
+            db.add(remake_round)
+            db.flush()
+            remake_item = OrderItem(
+                tenant_id=tenant_id,
+                check_id=item.check_id,
+                round_id=remake_round.id,
+                table_id=item.table_id,
+                menu_item_id=item.menu_item_id,
+                seat_no=item.seat_no,
+                course_no=item.course_no,
+                item_name=item.item_name,
+                qty=item.qty,
+                price=item.price,
+                status="NEW",
+                status_reason=remake_note or reason or "Sürətli düzəliş",
+                action_by=user.username,
+                manager_approved_by=None,
+                parent_item_id=item.id,
+                modifier_json=item.modifier_json,
+                note=item.note,
+            )
+            db.add(remake_item)
+            return {"final_status": "REMAKE", "manager": None, "remake_round_id": remake_round.id, "remake_item_id": remake_item.id}
         manager_user = _resolve_manager_override_user(db, tenant_id, manager_password)
         item.status = "WASTE"
         item.status_reason = reason
