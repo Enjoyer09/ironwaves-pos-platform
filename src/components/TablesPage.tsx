@@ -42,6 +42,7 @@ export default function TablesPage() {
   const [roundSearch, setRoundSearch] = useState('');
   const [roundCategory, setRoundCategory] = useState('ALL');
   const [roundDraft, setRoundDraft] = useState<any[]>([]);
+  const [servedItemsMap, setServedItemsMap] = useState<Record<string, Record<string, number>>>({});
   const receiptRef = useRef<HTMLIFrameElement | null>(null);
   const businessProfile = get_business_profile(tenant_id);
   const tenantSettings = get_settings(tenant_id);
@@ -62,6 +63,8 @@ export default function TablesPage() {
         return null;
     }
   };
+
+  const servedStorageKey = hostScopedKey(`${tenant_id}_table_served_items`);
 
   const roundCategories = useMemo(
     () => ['ALL', ...Array.from(new Set(menuCatalog.map((row) => String(row.category || '').trim()).filter(Boolean)))],
@@ -109,6 +112,21 @@ export default function TablesPage() {
     clearRoundComposer();
   }, [viewTableId]);
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(servedStorageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') setServedItemsMap(parsed);
+    } catch {
+      // ignore
+    }
+  }, [servedStorageKey]);
+
+  useEffect(() => {
+    localStorage.setItem(servedStorageKey, JSON.stringify(servedItemsMap));
+  }, [servedItemsMap, servedStorageKey]);
+
   const loadData = async () => {
     const [nextTables, nextKitchenOrders, nextMenu] = await Promise.all([
       get_tables_live(tenant_id),
@@ -152,6 +170,24 @@ export default function TablesPage() {
     setRoundDraft([]);
     setRoundSearch('');
     setRoundCategory('ALL');
+  };
+
+  const markReadyItemServed = (tableId: string, itemName: string, qty: number) => {
+    const itemKey = `${itemName}`.trim();
+    setServedItemsMap((prev) => {
+      const tableRows = { ...(prev[tableId] || {}) };
+      tableRows[itemKey] = Math.max(0, Number(tableRows[itemKey] || 0) + qty);
+      return { ...prev, [tableId]: tableRows };
+    });
+    notify('success', tx(lang, 'Məhsul servis edildi kimi qeyd olundu', 'Позиция отмечена как поданная', 'Item marked as served'));
+  };
+
+  const clearServedStateForTable = (tableId: string) => {
+    setServedItemsMap((prev) => {
+      const next = { ...prev };
+      delete next[tableId];
+      return next;
+    });
   };
 
   const sendRoundDirectly = async (table: any) => {
@@ -725,6 +761,7 @@ export default function TablesPage() {
                     notify('success', tx(lang, 'Masa hesabı bağlandı', 'Счет стола закрыт'));
                     window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { tenant_id, sale_id: result.sale_id, source: 'table' } }));
                     window.dispatchEvent(new CustomEvent('logs-updated', { detail: { tenant_id, sale_id: result.sale_id, source: 'table' } }));
+                    clearServedStateForTable(table.id);
                     setPayTableId(null);
                     setViewTableId(table.id);
                     setPaymentMethod('Nəğd');
@@ -830,10 +867,21 @@ export default function TablesPage() {
                 .filter((row) => ['NEW', 'PREPARING'].includes(String(row.status || '')))
                 .flatMap((row) => (Array.isArray(row.items) ? row.items : []))
                 .filter((row: any) => String(row.action || '').toUpperCase() !== 'CANCEL');
-              const readyItems = activeKitchenOrders
+              const readyItemsRaw = activeKitchenOrders
                 .filter((row) => String(row.status || '') === 'READY')
                 .flatMap((row) => Array.isArray(row.items) ? row.items : [])
                 .filter((row: any) => String(row.action || '').toUpperCase() !== 'CANCEL');
+              const servedForTable = servedItemsMap[t.id] || {};
+              const readyItems = readyItemsRaw
+                .map((row: any) => {
+                  const servedQty = Number(servedForTable[String(row.item_name || '').trim()] || 0);
+                  const nextQty = Math.max(0, Number(row.qty || 0) - servedQty);
+                  return nextQty > 0 ? { ...row, qty: nextQty } : null;
+                })
+                .filter(Boolean) as any[];
+              const servedItems = Object.entries(servedForTable)
+                .filter(([, qty]) => Number(qty || 0) > 0)
+                .map(([item_name, qty]) => ({ item_name, qty }));
               const revisionItems = activeKitchenOrders
                 .flatMap((row) => Array.isArray(row.items) ? row.items : [])
                 .filter((row: any) => String(row.action || '').toUpperCase() === 'CANCEL');
@@ -1069,7 +1117,7 @@ export default function TablesPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
+                  <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-4">
                     <div className="rounded-lg border border-blue-300/30 bg-blue-500/10 p-3">
                       <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">{tx(lang, 'Mətbəxdə gözləyənlər', 'Ожидают на кухне', 'Waiting in kitchen')}</div>
                       <div className="space-y-2 text-sm text-slate-100">
@@ -1079,10 +1127,27 @@ export default function TablesPage() {
                       </div>
                     </div>
                     <div className="rounded-lg border border-emerald-300/30 bg-emerald-500/10 p-3">
-                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200">{tx(lang, 'Hazır olanlar', 'Готово', 'Ready items')}</div>
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-200">{tx(lang, 'Servisə hazır', 'Готово к подаче', 'Ready to serve')}</div>
                       <div className="space-y-2 text-sm text-slate-100">
-                        {readyItems.length === 0 ? <div className="text-xs text-slate-400">{tx(lang, 'Hazır item yoxdur', 'Нет готовых позиций', 'No ready items')}</div> : readyItems.map((row: any, idx: number) => (
-                          <div key={`ready_${idx}`} className="rounded-md bg-black/15 px-3 py-2">{row.qty}x {row.item_name}</div>
+                        {readyItems.length === 0 ? <div className="text-xs text-slate-400">{tx(lang, 'Servisə hazır item yoxdur', 'Нет готовых к подаче позиций', 'No ready-to-serve items')}</div> : readyItems.map((row: any, idx: number) => (
+                          <div key={`ready_${idx}`} className="flex items-center justify-between gap-2 rounded-md bg-black/15 px-3 py-2">
+                            <div>{row.qty}x {row.item_name}</div>
+                            <button
+                              type="button"
+                              className="rounded-md border border-emerald-300/40 bg-emerald-400/15 px-2 py-1 text-[11px] font-semibold text-emerald-100"
+                              onClick={() => markReadyItemServed(t.id, String(row.item_name || ''), Number(row.qty || 0))}
+                            >
+                              {tx(lang, 'Servis edildi', 'Подано', 'Served')}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-violet-300/30 bg-violet-500/10 p-3">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-violet-200">{tx(lang, 'Servis edilənlər', 'Поданные позиции', 'Served items')}</div>
+                      <div className="space-y-2 text-sm text-slate-100">
+                        {servedItems.length === 0 ? <div className="text-xs text-slate-400">{tx(lang, 'Hələ servis edilən item yoxdur', 'Пока нет поданных позиций', 'No served items yet')}</div> : servedItems.map((row: any, idx: number) => (
+                          <div key={`served_${idx}`} className="rounded-md bg-black/15 px-3 py-2">{row.qty}x {row.item_name}</div>
                         ))}
                       </div>
                     </div>
