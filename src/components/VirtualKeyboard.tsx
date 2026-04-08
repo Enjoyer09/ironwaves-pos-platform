@@ -115,6 +115,50 @@ function appendValue(target: KeyboardTarget, value: string) {
   window.requestAnimationFrame(() => target.focus());
 }
 
+function findScrollableAncestor(target: HTMLElement | null): HTMLElement | null {
+  let current = target?.parentElement || null;
+  while (current) {
+    const style = window.getComputedStyle(current);
+    const overflowY = style.overflowY;
+    if ((overflowY === 'auto' || overflowY === 'scroll') && current.scrollHeight > current.clientHeight + 8) {
+      return current;
+    }
+    current = current.parentElement;
+  }
+  return null;
+}
+
+function ensureTargetVisible(target: KeyboardTarget | null, keyboardHeight: number) {
+  if (!target || typeof window === 'undefined') return;
+  const viewportHeight = window.visualViewport?.height || window.innerHeight || 0;
+  if (!viewportHeight) return;
+
+  const rect = target.getBoundingClientRect();
+  const safeTop = 16;
+  const safeBottom = Math.max(safeTop + 80, viewportHeight - keyboardHeight - 16);
+
+  if (rect.top >= safeTop && rect.bottom <= safeBottom) return;
+
+  const scrollParent = findScrollableAncestor(target);
+  const overflowBottom = rect.bottom - safeBottom;
+  const overflowTop = safeTop - rect.top;
+  const delta = overflowBottom > 0 ? overflowBottom + 20 : overflowTop > 0 ? -(overflowTop + 20) : 0;
+  if (!delta) return;
+
+  if (scrollParent) {
+    scrollParent.scrollTo({
+      top: Math.max(0, scrollParent.scrollTop + delta),
+      behavior: 'smooth',
+    });
+    return;
+  }
+
+  window.scrollBy({
+    top: delta,
+    behavior: 'smooth',
+  });
+}
+
 export default function VirtualKeyboard({ lang, enabled = true }: { lang: KeyboardLang; enabled?: boolean }) {
   const [visible, setVisible] = useState(false);
   const [layout, setLayout] = useState<KeyboardLang>(lang);
@@ -123,6 +167,7 @@ export default function VirtualKeyboard({ lang, enabled = true }: { lang: Keyboa
   const [targetMeta, setTargetMeta] = useState<TargetMeta>({ label: '', type: 'text', sensitive: false });
   const targetRef = useRef<KeyboardTarget | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const keyboardHeightRef = useRef(0);
 
   useEffect(() => {
     setLayout(lang);
@@ -136,6 +181,44 @@ export default function VirtualKeyboard({ lang, enabled = true }: { lang: Keyboa
   }, [enabled]);
 
   useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (!enabled || !visible) {
+      document.documentElement.style.removeProperty('--virtual-keyboard-height');
+      document.body.classList.remove('virtual-keyboard-open');
+      keyboardHeightRef.current = 0;
+      return;
+    }
+
+    const updateMetrics = () => {
+      const height = Math.ceil(rootRef.current?.getBoundingClientRect().height || 0);
+      keyboardHeightRef.current = height;
+      document.documentElement.style.setProperty('--virtual-keyboard-height', `${height}px`);
+      document.body.classList.add('virtual-keyboard-open');
+      ensureTargetVisible(targetRef.current, height);
+    };
+
+    updateMetrics();
+
+    const observer = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => updateMetrics())
+      : null;
+    if (observer && rootRef.current) observer.observe(rootRef.current);
+
+    const onViewportChange = () => updateMetrics();
+    window.visualViewport?.addEventListener('resize', onViewportChange);
+    window.addEventListener('resize', onViewportChange);
+
+    return () => {
+      observer?.disconnect();
+      window.visualViewport?.removeEventListener('resize', onViewportChange);
+      window.removeEventListener('resize', onViewportChange);
+      document.documentElement.style.removeProperty('--virtual-keyboard-height');
+      document.body.classList.remove('virtual-keyboard-open');
+      keyboardHeightRef.current = 0;
+    };
+  }, [enabled, visible, mode, layout, shift, targetMeta.sensitive]);
+
+  useEffect(() => {
     if (!enabled) return;
     const handleFocusIn = (event: FocusEvent) => {
       if (!isKeyboardTarget(event.target)) return;
@@ -147,6 +230,7 @@ export default function VirtualKeyboard({ lang, enabled = true }: { lang: Keyboa
         sensitive: event.target instanceof HTMLInputElement && String(event.target.type || 'text').toLowerCase() === 'password',
       });
       setVisible(true);
+      window.requestAnimationFrame(() => ensureTargetVisible(event.target, keyboardHeightRef.current));
     };
 
     const handlePointerDown = (event: PointerEvent) => {

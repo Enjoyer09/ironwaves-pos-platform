@@ -804,7 +804,7 @@ export default function App() {
   }
 
   return (
-    <div className="metal-app flex h-[100dvh] min-h-[100dvh] overflow-hidden font-sans text-slate-100 selection:bg-yellow-300/30">
+    <div className="metal-app virtual-keyboard-aware flex h-[100dvh] min-h-[100dvh] overflow-hidden font-sans text-slate-100 selection:bg-yellow-300/30">
       <ToastOverlay />
       {lowStockModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
