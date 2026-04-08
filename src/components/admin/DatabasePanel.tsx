@@ -104,14 +104,24 @@ export default function DatabasePanel() {
 
   const verifyAdminPassword = async () => {
     const users = getDB<any>('users');
-    const currentAdmin = users.find(
+    const tenantAdmins = users.filter(
       (u) =>
-        String(u.username || '').toLowerCase() === String(user?.username || '').toLowerCase() &&
+        String(u.tenant_id || tenant_id) === String(tenant_id) &&
+        Boolean(u.is_active ?? true) &&
         ['admin', 'super_admin'].includes(String(u.role || '').toLowerCase()),
     );
 
-    if (!currentAdmin) return false;
-    return verifyLocalCredential(adminPassword, currentAdmin.password_hash || currentAdmin.password);
+    const currentAdminFirst = tenantAdmins.sort((a, b) => {
+      const aCurrent = String(a.username || '').toLowerCase() === String(user?.username || '').toLowerCase() ? 1 : 0;
+      const bCurrent = String(b.username || '').toLowerCase() === String(user?.username || '').toLowerCase() ? 1 : 0;
+      return bCurrent - aCurrent;
+    });
+
+    for (const candidate of currentAdminFirst) {
+      const isMatch = await verifyLocalCredential(adminPassword, candidate.password_hash || candidate.password);
+      if (isMatch) return true;
+    }
+    return false;
   };
 
   return (
