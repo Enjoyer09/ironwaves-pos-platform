@@ -306,6 +306,30 @@ export default function FinancePanel() {
     return amount.times(new Decimal(bankCommissionConfig.card_transfer_percent || 0).div(100)).toDecimalPlaces(2);
   }, [transferAmount, transferCommission, transferDirection, bankCommissionConfig.card_transfer_percent]);
 
+  const ledgerServerFilters = useMemo(() => ({
+    limit: 1000,
+    offset: 0,
+    date_from: fromDate,
+    date_to: toDate,
+    transaction_type: ledgerTypeFilter === 'all' ? undefined : ledgerTypeFilter,
+    status: ledgerStatusFilter === 'all' ? undefined : ledgerStatusFilter,
+    account: ledgerAccountFilter === 'all' ? undefined : ledgerAccountFilter,
+    counterparty: ledgerCounterpartyFilter.trim() || undefined,
+    min_amount: ledgerMinAmount.trim() || undefined,
+    max_amount: ledgerMaxAmount.trim() || undefined,
+    search: ledgerSearch.trim() || undefined,
+  }), [
+    fromDate,
+    ledgerAccountFilter,
+    ledgerCounterpartyFilter,
+    ledgerMaxAmount,
+    ledgerMinAmount,
+    ledgerSearch,
+    ledgerStatusFilter,
+    ledgerTypeFilter,
+    toDate,
+  ]);
+
   useEffect(() => {
     const key = `finance_subject_presets_${tenant_id}`;
     try {
@@ -375,6 +399,18 @@ export default function FinancePanel() {
   useEffect(() => {
     void reloadFinance(true);
   }, [tenant_id, reloadFinance]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(async () => {
+      try {
+        const rows = await fetch_finance_ledger_transactions(tenant_id, ledgerServerFilters);
+        setLedgerTransactions(rows || []);
+      } catch {
+        // Keep the last loaded ledger snapshot if server-side filtering fails.
+      }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [ledgerServerFilters, tenant_id]);
 
   useEffect(() => {
     const handleFinanceUpdated = (event: Event) => {
@@ -485,11 +521,31 @@ export default function FinancePanel() {
     return map;
   }, [ledgerAccounts]);
   const ledgerTransactionTypes = useMemo(
-    () => Array.from(new Set(ledgerTransactions.map((row) => row.transaction_type).filter(Boolean))).sort(),
+    () =>
+      Array.from(new Set([
+        'income',
+        'expense',
+        'internal_transfer',
+        'investor_repayment',
+        'deposit_hold',
+        'deposit_release',
+        'cash_adjustment',
+        'reconciliation_adjustment',
+        'reversal',
+        ...ledgerTransactions.map((row) => row.transaction_type).filter(Boolean),
+      ])).sort(),
     [ledgerTransactions],
   );
   const ledgerTransactionStatuses = useMemo(
-    () => Array.from(new Set(ledgerTransactions.map((row) => row.status || 'posted').filter(Boolean))).sort(),
+    () =>
+      Array.from(new Set([
+        'pending_approval',
+        'approved',
+        'posted',
+        'rejected',
+        'reversed',
+        ...ledgerTransactions.map((row) => row.status || 'posted').filter(Boolean),
+      ])).sort(),
     [ledgerTransactions],
   );
   const filteredLedgerTransactions = useMemo(() => {

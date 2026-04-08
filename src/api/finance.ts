@@ -764,9 +764,34 @@ export const fetch_finance_ledger_accounts = async (tenant_id: string): Promise<
   }));
 };
 
-export const fetch_finance_ledger_transactions = async (tenant_id: string, limit = 200): Promise<FinanceLedgerTransaction[]> => {
+export type FinanceLedgerTransactionFilters = {
+  limit?: number;
+  offset?: number;
+  date_from?: string;
+  date_to?: string;
+  transaction_type?: string;
+  status?: string;
+  account?: string;
+  counterparty?: string;
+  min_amount?: string;
+  max_amount?: string;
+  search?: string;
+};
+
+export const fetch_finance_ledger_transactions = async (
+  tenant_id: string,
+  limitOrFilters: number | FinanceLedgerTransactionFilters = 200,
+): Promise<FinanceLedgerTransaction[]> => {
+  const filters: FinanceLedgerTransactionFilters =
+    typeof limitOrFilters === 'number' ? { limit: limitOrFilters } : limitOrFilters;
+  const limit = filters.limit ?? 200;
   if (!isBackendEnabled()) return localLedgerTransactions(tenant_id, limit);
-  const rows = await apiRequest<any[]>(`/api/v1/finance/ledger/transactions?limit=${encodeURIComponent(String(limit))}`, {
+  const params = new URLSearchParams();
+  Object.entries({ ...filters, limit }).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '' || value === 'all') return;
+    params.set(key, String(value));
+  });
+  const rows = await apiRequest<any[]>(`/api/v1/finance/ledger/transactions?${params.toString()}`, {
     method: 'GET',
     tenantId: tenant_id,
   });
