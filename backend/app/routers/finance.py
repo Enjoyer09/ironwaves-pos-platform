@@ -643,6 +643,7 @@ def list_ledger_transactions(
     min_amount: str | None = None,
     max_amount: str | None = None,
     search: str | None = None,
+    include_total: bool = False,
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
     user=Depends(get_current_user),
@@ -713,9 +714,10 @@ def list_ledger_transactions(
             )
         )
 
+    total = query.count() if include_total else None
     rows = query.order_by(FinanceTransaction.created_at.desc()).offset(offset).limit(limit).all()
     account_by_id = {row.id: row for row in db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant.id).all()}
-    return [
+    rows_out = [
         {
             "id": row.id,
             "transaction_type": row.transaction_type,
@@ -740,6 +742,14 @@ def list_ledger_transactions(
         }
         for row in rows
     ]
+    if include_total:
+        return {
+            "rows": rows_out,
+            "total": int(total or 0),
+            "limit": limit,
+            "offset": offset,
+        }
+    return rows_out
 
 
 @router.get("/ledger/transactions/{transaction_id}")
