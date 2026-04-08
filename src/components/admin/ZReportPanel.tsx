@@ -78,6 +78,20 @@ export default function ZReportPanel() {
   const lastRefreshAtRef = useRef(0);
   const printSettings = get_settings(tenant_id).print_settings || { use_qz: false, printer_name: '' };
   const yieldSettings = get_settings(tenant_id).yield_management_settings;
+  const zReportReceiptSettings = get_settings(tenant_id).z_report_receipt_settings || {
+    show_operator: true,
+    show_date_range: true,
+    show_sales_summary: true,
+    show_profit_summary: true,
+    show_wage: true,
+    show_shift_cash: true,
+    show_cash_movements: true,
+    show_other_income: true,
+    show_other_expense: true,
+    show_deposit_summary: true,
+    show_cashier_breakdown: true,
+    show_counts: true,
+  };
   const trackedYieldItems = Array.isArray(yieldSettings?.tracked_items) ? yieldSettings!.tracked_items!.filter((row: any) => row.enabled !== false) : [];
 
   const carryoverCash = new Decimal(currentBalances.cash_balance || 0);
@@ -182,6 +196,10 @@ export default function ZReportPanel() {
     const closingDifference = actualCash.minus(expectedCash);
     const depositCollected = new Decimal(result?.deposit_total || 0);
     const activeDepositLiability = new Decimal(currentBalances.deposit_balance || 0);
+    const otherIncomeTotal = new Decimal(result?.other_income_total || 0);
+    const otherExpenseTotal = new Decimal(result?.other_expense_total || 0);
+    const otherIncomeLines = Array.isArray(result?.other_income_lines) ? result.other_income_lines : [];
+    const otherExpenseLines = Array.isArray(result?.other_expense_lines) ? result.other_expense_lines : [];
     const cashierRows = cashierBreakdown
       .map((row) => `
         <div class="line"><span>${row.cashier} (${row.salesCount})</span><span>${row.total.toFixed(2)} ₼</span></div>
@@ -204,33 +222,59 @@ export default function ZReportPanel() {
         <body>
           <div class="bold" style="font-size:15px">iRonWaves POS</div>
           <div class="line"><span>Z-Hesabat</span><span>${new Date().toLocaleDateString()}</span></div>
-          <div class="line"><span>Operator</span><span>${user?.username || '-'}</span></div>
-          <div class="line"><span>Aralıq</span><span>${fromDate} - ${toDate}</span></div>
+          ${zReportReceiptSettings.show_operator ? `<div class="line"><span>Operator</span><span>${user?.username || '-'}</span></div>` : ''}
+          ${zReportReceiptSettings.show_date_range ? `<div class="line"><span>Aralıq</span><span>${fromDate} - ${toDate}</span></div>` : ''}
           <hr />
-          <div class="line"><span>Ümumi Satış</span><span>${new Decimal(summary.total_revenue || 0).toFixed(2)} ₼</span></div>
-          <div class="line"><span>Nağd Satış</span><span>${new Decimal(summary.cash_sales || 0).toFixed(2)} ₼</span></div>
-          <div class="line"><span>Kart Satış</span><span>${new Decimal(summary.card_sales || 0).toFixed(2)} ₼</span></div>
-          <div class="line"><span>Maya (COGS)</span><span>${new Decimal(summary.total_cogs || 0).toFixed(2)} ₼</span></div>
-          <div class="line"><span>Brutto Mənfəət</span><span>${new Decimal(summary.gross_profit || 0).toFixed(2)} ₼</span></div>
-          <div class="line"><span>Maaş Çıxışı</span><span>${new Decimal(result?.wage_amount || result?.wage || zWage || 0).toFixed(2)} ₼</span></div>
-          <div class="line"><span>Növbə Açılışı</span><span>${new Decimal(result?.opening_cash || 0).toFixed(2)} ₼</span></div>
-          <div class="line"><span>Kassa hərəkətləri giriş</span><span>${new Decimal(result?.cash_movements_in || 0).toFixed(2)} ₼</span></div>
-          <div class="line"><span>Kassa hərəkətləri çıxış</span><span>${new Decimal(result?.cash_movements_out || 0).toFixed(2)} ₼</span></div>
-          <div class="line"><span>Olmalı kassa</span><span>${expectedCash.toFixed(2)} ₼</span></div>
-          <div class="line"><span>Faktiki bağlanış</span><span>${new Decimal(result?.actual_cash || zActualCash || 0).toFixed(2)} ₼</span></div>
-          <div class="line"><span>Bağlanış fərqi</span><span>${closingDifference.toFixed(2)} ₼</span></div>
-          <hr />
-          <div class="section-title">Source of Truth</div>
-          <div class="line"><span>Bu növbədə toplanan depozit</span><span>${depositCollected.toFixed(2)} ₼</span></div>
-          <div class="line"><span>Aktiv depozit öhdəliyi</span><span>${activeDepositLiability.toFixed(2)} ₼</span></div>
-          <div class="muted">Kassa satış və hərəkətləri yalnız aktiv növbənin cash ledger yazılarından hesablanır.</div>
-          <div class="muted">Depozit ayrıca öhdəlik ledger-də izlənir; bu rəqəm satış gəliri deyil.</div>
-          <hr />
-          <div class="section-title">Kassir Breakdown</div>
-          ${cashierRows || '<div class="muted">No cashier activity</div>'}
-          <hr />
-          <div class="line"><span>Satış sayı</span><span>${sales.length}</span></div>
-          <div class="line"><span>Void sayı</span><span>${summary.void_count || 0}</span></div>
+          ${zReportReceiptSettings.show_sales_summary ? `
+            <div class="section-title">Satış xülasəsi</div>
+            <div class="line"><span>Ümumi Satış</span><span>${new Decimal(summary.total_revenue || 0).toFixed(2)} ₼</span></div>
+            <div class="line"><span>Nağd Satış</span><span>${new Decimal(summary.cash_sales || 0).toFixed(2)} ₼</span></div>
+            <div class="line"><span>Kart Satış</span><span>${new Decimal(summary.card_sales || 0).toFixed(2)} ₼</span></div>
+          ` : ''}
+          ${zReportReceiptSettings.show_profit_summary ? `
+            <div class="section-title">Mənfəət xülasəsi</div>
+            <div class="line"><span>Maya (COGS)</span><span>${new Decimal(summary.total_cogs || 0).toFixed(2)} ₼</span></div>
+            <div class="line"><span>Brutto Mənfəət</span><span>${new Decimal(summary.gross_profit || 0).toFixed(2)} ₼</span></div>
+          ` : ''}
+          ${zReportReceiptSettings.show_wage ? `<div class="line"><span>Maaş Çıxışı</span><span>${new Decimal(result?.wage_amount || result?.wage || zWage || 0).toFixed(2)} ₼</span></div>` : ''}
+          ${zReportReceiptSettings.show_shift_cash ? `
+            <div class="section-title">Kassa bağlanışı</div>
+            <div class="line"><span>Növbə Açılışı</span><span>${new Decimal(result?.opening_cash || 0).toFixed(2)} ₼</span></div>
+            <div class="line"><span>Olmalı kassa</span><span>${expectedCash.toFixed(2)} ₼</span></div>
+            <div class="line"><span>Faktiki bağlanış</span><span>${new Decimal(result?.actual_cash || zActualCash || 0).toFixed(2)} ₼</span></div>
+            <div class="line"><span>Bağlanış fərqi</span><span>${closingDifference.toFixed(2)} ₼</span></div>
+          ` : ''}
+          ${zReportReceiptSettings.show_cash_movements ? `
+            <div class="section-title">Kassa hərəkətləri</div>
+            <div class="line"><span>Kassa girişləri</span><span>${new Decimal(result?.cash_movements_in || 0).toFixed(2)} ₼</span></div>
+            <div class="line"><span>Kassa çıxışları</span><span>${new Decimal(result?.cash_movements_out || 0).toFixed(2)} ₼</span></div>
+          ` : ''}
+          ${zReportReceiptSettings.show_other_income ? `
+            <div class="section-title">Digər giriş pulları</div>
+            <div class="line"><span>Cəmi</span><span>${otherIncomeTotal.toFixed(2)} ₼</span></div>
+            ${otherIncomeLines.length ? otherIncomeLines.map((row: any) => `<div class="line"><span>${row.label}</span><span>${new Decimal(row.amount || 0).toFixed(2)} ₼</span></div>`).join('') : '<div class="muted">Bu dövrdə əlavə giriş yoxdur</div>'}
+          ` : ''}
+          ${zReportReceiptSettings.show_other_expense ? `
+            <div class="section-title">Digər xərclər</div>
+            <div class="line"><span>Cəmi</span><span>${otherExpenseTotal.toFixed(2)} ₼</span></div>
+            ${otherExpenseLines.length ? otherExpenseLines.map((row: any) => `<div class="line"><span>${row.label}</span><span>${new Decimal(row.amount || 0).toFixed(2)} ₼</span></div>`).join('') : '<div class="muted">Bu dövrdə əlavə xərc yoxdur</div>'}
+          ` : ''}
+          ${zReportReceiptSettings.show_deposit_summary ? `
+            <div class="section-title">Depozit xülasəsi</div>
+            <div class="line"><span>Bu növbədə toplanan depozit</span><span>${depositCollected.toFixed(2)} ₼</span></div>
+            <div class="line"><span>Aktiv depozit öhdəliyi</span><span>${activeDepositLiability.toFixed(2)} ₼</span></div>
+            <div class="muted">Depozit ayrıca öhdəlik kimi izlənir, satış gəliri sayılmır.</div>
+          ` : ''}
+          ${zReportReceiptSettings.show_cashier_breakdown ? `
+            <hr />
+            <div class="section-title">Kassir Breakdown</div>
+            ${cashierRows || '<div class="muted">Kassir fəaliyyəti yoxdur</div>'}
+          ` : ''}
+          ${zReportReceiptSettings.show_counts ? `
+            <hr />
+            <div class="line"><span>Satış sayı</span><span>${sales.length}</span></div>
+            <div class="line"><span>Void sayı</span><span>${summary.void_count || 0}</span></div>
+          ` : ''}
         </body>
       </html>
     `;
@@ -651,7 +695,7 @@ export default function ZReportPanel() {
   if (zReceiptHtml) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-[#121922] p-6">
-        <div className="w-full max-w-2xl rounded-2xl border border-slate-700 bg-[#101722] p-4">
+        <div className="w-full max-w-4xl rounded-2xl border border-slate-700 bg-[#101722] p-4">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-lg font-semibold text-slate-100">{tx(lang, 'Yekun Z-Hesabat Çeki', 'Итоговый чек Z-отчета')}</h3>
             <div className="flex gap-2">
@@ -663,7 +707,7 @@ export default function ZReportPanel() {
               </button>
             </div>
           </div>
-          <iframe ref={zReceiptRef} title="z-report-receipt" srcDoc={zReceiptHtml} className="h-[70vh] w-full rounded-lg bg-white" />
+          <iframe ref={zReceiptRef} title="z-report-receipt" srcDoc={zReceiptHtml} className="h-[80vh] w-full rounded-lg bg-white" />
         </div>
       </div>
     );

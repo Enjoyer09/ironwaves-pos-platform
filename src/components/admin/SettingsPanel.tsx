@@ -23,6 +23,7 @@ import {
   update_business_profile_live,
   update_print_settings,
   update_qr_menu_settings_live,
+  update_z_report_receipt_settings_live,
   update_qr_settings_live,
   update_role_modules_live,
   update_staff_benefits_live,
@@ -108,6 +109,20 @@ export default function SettingsPanel() {
   const [printSettings, setPrintSettings] = useState({
     use_qz: false,
     printer_name: '',
+  });
+  const [zReportReceiptSettings, setZReportReceiptSettings] = useState({
+    show_operator: true,
+    show_date_range: true,
+    show_sales_summary: true,
+    show_profit_summary: true,
+    show_wage: true,
+    show_shift_cash: true,
+    show_cash_movements: true,
+    show_other_income: true,
+    show_other_expense: true,
+    show_deposit_summary: true,
+    show_cashier_breakdown: true,
+    show_counts: true,
   });
   const [qrMenuSettings, setQrMenuSettings] = useState({
     enabled: true,
@@ -288,6 +303,20 @@ export default function SettingsPanel() {
       setPrintSettings({
         use_qz: Boolean(settingsRes.value.print_settings?.use_qz),
         printer_name: String(settingsRes.value.print_settings?.printer_name || ''),
+      });
+      setZReportReceiptSettings({
+        show_operator: settingsRes.value.z_report_receipt_settings?.show_operator !== false,
+        show_date_range: settingsRes.value.z_report_receipt_settings?.show_date_range !== false,
+        show_sales_summary: settingsRes.value.z_report_receipt_settings?.show_sales_summary !== false,
+        show_profit_summary: settingsRes.value.z_report_receipt_settings?.show_profit_summary !== false,
+        show_wage: settingsRes.value.z_report_receipt_settings?.show_wage !== false,
+        show_shift_cash: settingsRes.value.z_report_receipt_settings?.show_shift_cash !== false,
+        show_cash_movements: settingsRes.value.z_report_receipt_settings?.show_cash_movements !== false,
+        show_other_income: settingsRes.value.z_report_receipt_settings?.show_other_income !== false,
+        show_other_expense: settingsRes.value.z_report_receipt_settings?.show_other_expense !== false,
+        show_deposit_summary: settingsRes.value.z_report_receipt_settings?.show_deposit_summary !== false,
+        show_cashier_breakdown: settingsRes.value.z_report_receipt_settings?.show_cashier_breakdown !== false,
+        show_counts: settingsRes.value.z_report_receipt_settings?.show_counts !== false,
       });
       setQrMenuSettings({
         enabled: settingsRes.value.qr_menu_settings?.enabled !== false,
@@ -695,6 +724,11 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Çap ayarları yadda saxlanıldı', 'Настройки печати сохранены', 'Print settings saved'));
   };
 
+  const saveZReportReceiptSettings = async () => {
+    await update_z_report_receipt_settings_live(zReportReceiptSettings);
+    flashSuccess(tx(lang, 'Z-Hesabat çek ayarları yadda saxlanıldı', 'Настройки чека Z-отчёта сохранены', 'Z-report receipt settings saved'));
+  };
+
   const saveQrMenuSettings = async () => {
     await update_qr_menu_settings_live({
       enabled: qrMenuSettings.enabled,
@@ -1076,6 +1110,46 @@ export default function SettingsPanel() {
         </div>
         <div className="flex justify-end">
           <button onClick={savePrintSettings} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+        </div>
+      </div>
+
+      <div className="metal-panel p-6 space-y-4">
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Z-Hesabat Çek Ayarları', 'Настройки чека Z-отчёта', 'Z-report receipt settings')}</h2>
+        <p className="text-sm text-slate-400">
+          {tx(
+            lang,
+            'Admin buradan Z-Hesabat çekində hansı hissələrin görünəcəyini seçə bilər. Maaş, xərclər, giriş pulları, depozit və kassir breakdown-u checkbox ilə idarə olunur.',
+            'Здесь администратор выбирает, какие секции будут показаны в чеке Z-отчёта. Зарплата, расходы, поступления, депозиты и разбивка по кассирам управляются чекбоксами.',
+            'Choose which sections appear on the Z-report receipt. Wage, expenses, inflows, deposits, and cashier breakdown are controlled here.',
+          )}
+        </p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {[
+            ['show_operator', tx(lang, 'Operator görünsün', 'Показывать оператора', 'Show operator')],
+            ['show_date_range', tx(lang, 'Tarix aralığı görünsün', 'Показывать диапазон дат', 'Show date range')],
+            ['show_sales_summary', tx(lang, 'Satış xülasəsi görünsün', 'Показывать сводку продаж', 'Show sales summary')],
+            ['show_profit_summary', tx(lang, 'Maya və mənfəət görünsün', 'Показывать себестоимость и прибыль', 'Show COGS and profit')],
+            ['show_wage', tx(lang, 'Maaş çıxışı görünsün', 'Показывать списание зарплаты', 'Show wage deduction')],
+            ['show_shift_cash', tx(lang, 'Açılış və bağlanış kassası görünsün', 'Показывать открытие и закрытие кассы', 'Show opening and closing cash')],
+            ['show_cash_movements', tx(lang, 'Kassa giriş/çıxışları görünsün', 'Показывать движения по кассе', 'Show cash movements')],
+            ['show_other_income', tx(lang, 'Digər giriş pulları görünsün', 'Показывать прочие поступления', 'Show other income')],
+            ['show_other_expense', tx(lang, 'Digər xərclər görünsün', 'Показывать прочие расходы', 'Show other expenses')],
+            ['show_deposit_summary', tx(lang, 'Depozit xülasəsi görünsün', 'Показывать сводку депозитов', 'Show deposit summary')],
+            ['show_cashier_breakdown', tx(lang, 'Kassir breakdown-u görünsün', 'Показывать разбивку по кассирам', 'Show cashier breakdown')],
+            ['show_counts', tx(lang, 'Satış və void sayları görünsün', 'Показывать количество продаж и void', 'Show sales and void counts')],
+          ].map(([key, label]) => (
+            <label key={String(key)} className="flex items-center gap-3 rounded-2xl border border-slate-700/60 bg-slate-950/35 px-4 py-3 text-sm text-slate-200">
+              <input
+                type="checkbox"
+                checked={Boolean((zReportReceiptSettings as any)[key])}
+                onChange={(e) => setZReportReceiptSettings((prev) => ({ ...prev, [key]: e.target.checked }))}
+              />
+              <span>{label}</span>
+            </label>
+          ))}
+        </div>
+        <div className="flex justify-end">
+          <button onClick={() => { void saveZReportReceiptSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 

@@ -62,6 +62,21 @@ DEFAULT_BEVERAGE_SERVICE_SETTINGS = {
     "remove_paper_packaging_for_table": True,
 }
 
+DEFAULT_Z_REPORT_RECEIPT_SETTINGS = {
+    "show_operator": True,
+    "show_date_range": True,
+    "show_sales_summary": True,
+    "show_profit_summary": True,
+    "show_wage": True,
+    "show_shift_cash": True,
+    "show_cash_movements": True,
+    "show_other_income": True,
+    "show_other_expense": True,
+    "show_deposit_summary": True,
+    "show_cashier_breakdown": True,
+    "show_counts": True,
+}
+
 
 def _restaurant_now() -> datetime:
     if ZoneInfo:
@@ -643,6 +658,7 @@ def get_app_settings(
         "service_fee_percent": _setting_value(db, tenant.id, "service_fee_percent", 0),
         "table_service_settings": _setting_value(db, tenant.id, "table_service_settings", {"deposit_per_guest_azn": 0, "reservation_lock_hours": 2}),
         "beverage_service_settings": _setting_value(db, tenant.id, "beverage_service_settings", DEFAULT_BEVERAGE_SERVICE_SETTINGS),
+        "z_report_receipt_settings": _setting_value(db, tenant.id, "z_report_receipt_settings", DEFAULT_Z_REPORT_RECEIPT_SETTINGS),
         "yield_management_settings": _yield_settings(db, tenant.id),
         "ui_visibility": {"staff_show_tables": True, "manager_show_tables": True, "staff_show_kitchen": True},
         "time_settings": {"shift_start_time": "08:00", "shift_end_time": "23:00", "utc_offset": 4, "timezone": "Asia/Baku"},
@@ -1199,6 +1215,23 @@ def update_beverage_service_settings(
     _set_setting_value(db, tenant.id, "beverage_service_settings", cleaned)
     db.commit()
     return {"success": True, "beverage_service_settings": cleaned}
+
+
+@router.patch("/settings/z-report-receipt")
+def update_z_report_receipt_settings(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    cleaned = {
+        **DEFAULT_Z_REPORT_RECEIPT_SETTINGS,
+        **{key: bool(payload.get(key, DEFAULT_Z_REPORT_RECEIPT_SETTINGS[key])) for key in DEFAULT_Z_REPORT_RECEIPT_SETTINGS.keys()},
+    }
+    _set_setting_value(db, tenant.id, "z_report_receipt_settings", cleaned)
+    db.commit()
+    return {"success": True, "z_report_receipt_settings": cleaned}
 
 
 @router.patch("/settings/session")

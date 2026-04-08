@@ -182,6 +182,20 @@ export interface Settings {
     coffee_selection_mode: 'size_only' | 'size_and_service';
     remove_paper_packaging_for_table: boolean;
   };
+  z_report_receipt_settings?: {
+    show_operator: boolean;
+    show_date_range: boolean;
+    show_sales_summary: boolean;
+    show_profit_summary: boolean;
+    show_wage: boolean;
+    show_shift_cash: boolean;
+    show_cash_movements: boolean;
+    show_other_income: boolean;
+    show_other_expense: boolean;
+    show_deposit_summary: boolean;
+    show_cashier_breakdown: boolean;
+    show_counts: boolean;
+  };
   email_settings: {
     enabled?: boolean;
     provider?: 'none' | 'resend' | 'webhook';
