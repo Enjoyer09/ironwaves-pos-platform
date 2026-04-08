@@ -503,7 +503,7 @@ def get_app_settings(
         },
     )
     print_settings = _setting_value(db, tenant.id, "print_settings", {"use_qz": False, "printer_name": ""})
-    session_settings = _setting_value(db, tenant.id, "session_settings", {"idle_logout_minutes": 0})
+    session_settings = _setting_value(db, tenant.id, "session_settings", {"idle_logout_minutes": 0, "virtual_keyboard_enabled": True})
     qr_settings = _setting_value(db, tenant.id, "qr_settings", {"base_url": f"https://{tenant.domain}"})
     qr_menu_settings = _setting_value(
         db,
@@ -1182,6 +1182,7 @@ def update_session_settings(
     _ensure_admin(user)
     cleaned = {
         "idle_logout_minutes": max(0, int(payload.get("idle_logout_minutes") or 0)),
+        "virtual_keyboard_enabled": bool(payload.get("virtual_keyboard_enabled", True)),
     }
     _set_setting_value(db, tenant.id, "session_settings", cleaned)
     db.commit()

@@ -5,6 +5,7 @@ import { tx } from '../i18n';
 type KeyboardLang = 'az' | 'ru' | 'en';
 type KeyboardTarget = HTMLInputElement | HTMLTextAreaElement;
 type KeyboardMode = 'alpha' | 'numeric' | 'pin';
+type TargetMeta = { label: string; type: string; sensitive: boolean };
 
 const DIGIT_ROW = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 const PUNCTUATION_ROW = ['-', '/', ':', '@', '.', ',', '_'];
@@ -114,12 +115,12 @@ function appendValue(target: KeyboardTarget, value: string) {
   window.requestAnimationFrame(() => target.focus());
 }
 
-export default function VirtualKeyboard({ lang }: { lang: KeyboardLang }) {
+export default function VirtualKeyboard({ lang, enabled = true }: { lang: KeyboardLang; enabled?: boolean }) {
   const [visible, setVisible] = useState(false);
   const [layout, setLayout] = useState<KeyboardLang>(lang);
   const [shift, setShift] = useState(false);
   const [mode, setMode] = useState<KeyboardMode>('alpha');
-  const [targetMeta, setTargetMeta] = useState<{ label: string; type: string }>({ label: '', type: 'text' });
+  const [targetMeta, setTargetMeta] = useState<TargetMeta>({ label: '', type: 'text', sensitive: false });
   const targetRef = useRef<KeyboardTarget | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
@@ -128,6 +129,14 @@ export default function VirtualKeyboard({ lang }: { lang: KeyboardLang }) {
   }, [lang]);
 
   useEffect(() => {
+    if (!enabled) {
+      targetRef.current = null;
+      setVisible(false);
+    }
+  }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled) return;
     const handleFocusIn = (event: FocusEvent) => {
       if (!isKeyboardTarget(event.target)) return;
       targetRef.current = event.target;
@@ -135,6 +144,7 @@ export default function VirtualKeyboard({ lang }: { lang: KeyboardLang }) {
       setTargetMeta({
         label: event.target.getAttribute('data-original-placeholder') || event.target.getAttribute('placeholder') || '',
         type: event.target instanceof HTMLInputElement ? String(event.target.type || 'text') : 'textarea',
+        sensitive: event.target instanceof HTMLInputElement && String(event.target.type || 'text').toLowerCase() === 'password',
       });
       setVisible(true);
     };
@@ -154,7 +164,7 @@ export default function VirtualKeyboard({ lang }: { lang: KeyboardLang }) {
       document.removeEventListener('focusin', handleFocusIn);
       document.removeEventListener('pointerdown', handlePointerDown);
     };
-  }, []);
+  }, [enabled]);
 
   const alphaRows = useMemo(() => {
     const current = LETTER_LAYOUTS[layout];
@@ -195,7 +205,7 @@ export default function VirtualKeyboard({ lang }: { lang: KeyboardLang }) {
     event.preventDefault();
   };
 
-  if (!visible) return null;
+  if (!enabled || !visible) return null;
 
   return (
     <div
@@ -209,10 +219,27 @@ export default function VirtualKeyboard({ lang }: { lang: KeyboardLang }) {
               {tx(lang, 'Virtual klaviatura', 'Виртуальная клавиатура', 'Virtual keyboard')}
             </div>
             <div className="mt-1 truncate text-sm font-bold text-slate-200">
-              {targetMeta.label || tx(lang, 'Mətn daxil edin', 'Введите текст', 'Enter text')}
+              {targetMeta.sensitive
+                ? tx(lang, 'Təhlükəsiz şifrə sahəsi', 'Защищенное поле пароля', 'Secure password field')
+                : targetMeta.label || tx(lang, 'Mətn daxil edin', 'Введите текст', 'Enter text')}
+            </div>
+            <div className="mt-1 text-[11px] text-slate-400">
+              {targetMeta.sensitive
+                ? tx(lang, 'Simvollar gizli saxlanılır. Lazım olduqda ABC və 123 arasında keçin.', 'Символы остаются скрытыми. При необходимости переключайтесь между ABC и 123.', 'Characters stay hidden. Switch between ABC and 123 when needed.')
+                : tx(lang, 'Toxunaraq yazın.', 'Печатайте касанием.', 'Type with touch.')}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            {targetMeta.sensitive && (
+              <button
+                onMouseDown={onMouseDownKey}
+                onTouchStart={onMouseDownKey}
+                onClick={() => setMode((prev) => (prev === 'alpha' ? 'numeric' : 'alpha'))}
+                className="min-h-11 rounded-2xl border border-slate-700 bg-slate-900 px-4 text-sm font-black text-slate-100"
+              >
+                {mode === 'alpha' ? '123' : 'ABC'}
+              </button>
+            )}
             {(['az', 'ru', 'en'] as KeyboardLang[]).map((langKey) => (
               <button
                 key={langKey}

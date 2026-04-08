@@ -132,6 +132,15 @@ export default function App() {
         }
         helper.textContent = originalPlaceholder;
       });
+
+      const numericFields = Array.from(
+        document.querySelectorAll<HTMLInputElement>('input.neon-input[type="number"], input.neon-input[type="tel"], input.neon-input[inputmode="numeric"], input.neon-input[inputmode="decimal"]'),
+      );
+      numericFields.forEach((field) => {
+        if (!field.dataset.virtualKeyboardMode) {
+          field.dataset.virtualKeyboardMode = 'numeric';
+        }
+      });
     };
 
     const scheduleSync = () => {
@@ -289,6 +298,7 @@ export default function App() {
 
   const uiVisibility = settings?.ui_visibility || defaultUiVisibility;
   const idleLogoutMinutes = Math.max(0, Number(settings?.session_settings?.idle_logout_minutes || 0));
+  const virtualKeyboardEnabled = settings?.session_settings?.virtual_keyboard_enabled !== false;
   const roleModules = settings?.role_modules || null;
   const safeRoleModules = {
     staff: Array.isArray(roleModules?.staff) ? roleModules!.staff : defaultRoleModules.staff,
@@ -1022,7 +1032,7 @@ export default function App() {
           </div>
         </div>
       )}
-      <VirtualKeyboard lang={safeLang} />
+      <VirtualKeyboard lang={safeLang} enabled={virtualKeyboardEnabled} />
     </div>
   );
 }
