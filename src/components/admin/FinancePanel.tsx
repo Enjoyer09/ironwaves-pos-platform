@@ -1286,37 +1286,37 @@ export default function FinancePanel() {
     ...(pendingApprovals.length > 0
       ? [{
           id: 'pending-approvals',
-          title: tx(lang, 'Approval gözləyən əməliyyatlar', 'Операции ожидают approval', 'Pending approvals'),
+          title: tx(lang, 'Təsdiq gözləyən əməliyyatlar', 'Операции ожидают approval', 'Pending approvals'),
           body: `${pendingApprovals.length} ${tx(lang, 'maliyyə əməliyyatı təsdiq gözləyir', 'финансовых операций ожидают подтверждения', 'finance transactions waiting for approval')}`,
           tone: 'amber' as const,
-          action: tx(lang, 'Approve', 'Подтвердить', 'Approve'),
+          action: tx(lang, 'Təsdiqlə', 'Подтвердить', 'Approve'),
           tab: 'overview' as FinanceWorkspaceTab,
         }]
       : []),
     ...(anomalies?.has_shift_cash_mismatch
       ? [{
           id: 'unreconciled-till',
-          title: tx(lang, 'Unreconciled till', 'Несверенная касса', 'Unreconciled till'),
+          title: tx(lang, 'Uyğunlaşdırılmamış kassa', 'Несверенная касса', 'Unreconciled till'),
           body: `${tx(lang, 'Kassa fərqi', 'Расхождение кассы', 'Cash gap')}: ${new Decimal(anomalies.shift_cash_gap || 0).toFixed(2)} ₼`,
           tone: 'rose' as const,
-          action: tx(lang, 'Reconcile', 'Сверить', 'Reconcile'),
+          action: tx(lang, 'Uyğunlaşdır', 'Сверить', 'Reconcile'),
           tab: 'reconciliation' as FinanceWorkspaceTab,
         }]
       : []),
     ...(new Decimal(balance.cash_balance || 0).lessThan(0)
       ? [{
           id: 'negative-cash',
-          title: tx(lang, 'Negative cash risk', 'Риск отрицательной кассы', 'Negative cash risk'),
+          title: tx(lang, 'Mənfi kassa riski', 'Риск отрицательной кассы', 'Negative cash risk'),
           body: tx(lang, 'Nağd kassa mənfidir. Ledger və manual entry-ləri yoxlayın.', 'Касса отрицательная. Проверьте ledger и ручные записи.', 'Cash drawer is negative. Review ledger and manual entries.'),
           tone: 'rose' as const,
-          action: tx(lang, 'Review', 'Проверить', 'Review'),
+          action: tx(lang, 'Bax', 'Проверить', 'Review'),
           tab: 'ledger' as FinanceWorkspaceTab,
         }]
       : []),
     ...(effectiveInvestorDebt.greaterThan(0)
       ? [{
           id: 'investor-balance',
-          title: tx(lang, 'Investor balance open', 'Открыт долг инвестору', 'Investor balance open'),
+          title: tx(lang, 'Açıq investor borcu', 'Открыт долг инвестору', 'Investor balance open'),
           body: `${tx(lang, 'Qalan borc', 'Остаток долга', 'Remaining debt')}: ${effectiveInvestorDebt.toFixed(2)} ₼`,
           tone: 'amber' as const,
           action: tx(lang, 'Investor', 'Инвестор', 'Investor'),
@@ -1329,7 +1329,7 @@ export default function FinancePanel() {
           title: tx(lang, 'Audit warning var', 'Есть audit warning', 'Audit warning'),
           body: `${financeExceptions.length} ${tx(lang, 'maliyyə nəzarət siqnalı var', 'финансовых сигналов контроля', 'finance control signals')}`,
           tone: 'amber' as const,
-          action: tx(lang, 'Review', 'Проверить', 'Review'),
+          action: tx(lang, 'Bax', 'Проверить', 'Review'),
           tab: 'overview' as FinanceWorkspaceTab,
         }]
       : []),
@@ -1586,9 +1586,20 @@ export default function FinancePanel() {
     ledgerAccountByCode.get(String(code || ''))?.name || code || '-';
 
   const transactionTypeLabel = (value?: string | null) => {
-    const typeValue = String(value || '').replace(/_/g, ' ');
-    if (!typeValue) return '-';
-    return typeValue.replace(/\b\w/g, (letter) => letter.toUpperCase());
+    const normalized = String(value || '').toLowerCase();
+    const labels: Record<string, string> = {
+      income: tx(lang, 'Mədaxil', 'Приход', 'Income'),
+      expense: tx(lang, 'Xərc', 'Расход', 'Expense'),
+      internal_transfer: tx(lang, 'Daxili transfer', 'Внутренний перевод', 'Internal transfer'),
+      investor_repayment: tx(lang, 'Investor ödənişi', 'Выплата инвестору', 'Investor repayment'),
+      deposit_hold: tx(lang, 'Depozit saxlama', 'Удержание депозита', 'Deposit hold'),
+      deposit_release: tx(lang, 'Depozit buraxılışı', 'Освобождение депозита', 'Deposit release'),
+      cash_adjustment: tx(lang, 'Kassa düzəlişi', 'Корректировка кассы', 'Cash adjustment'),
+      reconciliation_adjustment: tx(lang, 'Uyğunlaşdırma düzəlişi', 'Корректировка сверки', 'Reconciliation adjustment'),
+      reversal: tx(lang, 'Əks yazılış', 'Сторно', 'Reversal'),
+    };
+    if (!normalized) return '-';
+    return labels[normalized] || String(value || '').replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
   };
 
   const approvalPreview = (
@@ -1798,6 +1809,7 @@ export default function FinancePanel() {
         detail={selectedLedgerDetail}
         loading={ledgerDetailLoading}
         accountName={accountName}
+        transactionTypeLabel={transactionTypeLabel}
         onApprove={approveTransaction}
         onReject={rejectTransaction}
         onReverse={requestReversal}

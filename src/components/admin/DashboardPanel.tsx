@@ -285,7 +285,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         title: tx(lang, 'Kassa fərqi var', 'Есть расхождение кассы', 'Cash mismatch'),
         body: `${tx(lang, 'Fərq', 'Разница', 'Gap')}: ${money(financeAnomalies.shift_cash_gap)}`,
         tone: 'critical',
-        actionLabel: tx(lang, 'Review', 'Проверить', 'Review'),
+        actionLabel: tx(lang, 'Bax', 'Проверить', 'Review'),
         action: () => onOpenTab('finance'),
       });
     }
@@ -325,7 +325,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         title: tx(lang, 'Satış və ledger fərqi', 'Расхождение продаж и ledger', 'Sales vs ledger gap'),
         body: `${tx(lang, 'Fərq', 'Разница', 'Gap')}: ${money(financeAnomalies.reconciliation_gap)}`,
         tone: 'critical',
-        actionLabel: tx(lang, 'Review', 'Проверить', 'Review'),
+        actionLabel: tx(lang, 'Bax', 'Проверить', 'Review'),
         action: () => onOpenTab('finance'),
       });
     }
@@ -774,15 +774,15 @@ function ControlPanel({
   const gap = new Decimal(anomalies?.shift_cash_gap || cash.minus(expected));
   return (
     <PanelCard
-      title={tx(lang, 'Cash Control', 'Контроль кассы', 'Cash Control')}
-      subtitle={tx(lang, 'Expected vs actual till status', 'Expected vs actual статус кассы', 'Expected vs actual till status')}
-      actionLabel={tx(lang, 'Review', 'Проверить', 'Review')}
+      title={tx(lang, 'Kassa nəzarəti', 'Контроль кассы', 'Cash Control')}
+      subtitle={tx(lang, 'Gözlənilən və faktiki kassa vəziyyəti', 'Expected vs actual статус кассы', 'Expected vs actual till status')}
+      actionLabel={tx(lang, 'Bax', 'Проверить', 'Review')}
       onAction={onOpenFinance}
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <MiniMetric label={tx(lang, 'Expected', 'Expected', 'Expected')} value={money(expected)} />
-        <MiniMetric label={tx(lang, 'Actual cash', 'Actual cash', 'Actual cash')} value={money(cash)} />
-        <MiniMetric label={tx(lang, 'Gap', 'Разница', 'Gap')} value={money(gap)} danger={gap.abs().greaterThan(0.01)} />
+        <MiniMetric label={tx(lang, 'Gözlənilən', 'Expected', 'Expected')} value={money(expected)} />
+        <MiniMetric label={tx(lang, 'Faktiki kassa', 'Actual cash', 'Actual cash')} value={money(cash)} />
+        <MiniMetric label={tx(lang, 'Fərq', 'Разница', 'Gap')} value={money(gap)} danger={gap.abs().greaterThan(0.01)} />
       </div>
       <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950 p-4">
         <div className="flex items-center justify-between text-sm">

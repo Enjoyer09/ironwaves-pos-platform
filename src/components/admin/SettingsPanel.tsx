@@ -55,6 +55,29 @@ const defaultRoleModules: RoleModules = {
 
 const moduleCatalog = ['pos', 'tables', 'kds', 'zreport', 'finance', 'inventory', 'combos', 'analytics', 'logs', 'crm', 'customerapp', 'ai', 'menu', 'recipes'];
 
+const roleLabelMap: Record<'staff' | 'manager' | 'kitchen', string> = {
+  staff: 'Ofisiant / Kassir',
+  manager: 'Menecer',
+  kitchen: 'Mətbəx',
+};
+
+const moduleLabelMap: Record<string, string> = {
+  pos: 'POS',
+  tables: 'Masalar',
+  kds: 'Mətbəx ekranı',
+  zreport: 'Z-Hesabat',
+  finance: 'Maliyyə',
+  inventory: 'Anbar',
+  combos: 'Kombolar',
+  analytics: 'Analitika',
+  logs: 'Loqlar',
+  crm: 'CRM',
+  customerapp: 'Müştəri tətbiqi',
+  ai: 'AI menecer',
+  menu: 'Menyu',
+  recipes: 'Reseptlər',
+};
+
 export default function SettingsPanel() {
   const { user, lang, notify } = useAppStore();
   const tenantId = user?.tenant_id || 'tenant_default';
@@ -973,7 +996,7 @@ export default function SettingsPanel() {
       </div>
 
       <div className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'QR Menu Settings', 'QR Menu Settings', 'QR Menu Settings')}</h2>
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'QR menyu ayarları', 'QR Menu Settings', 'QR Menu Settings')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
             lang,
@@ -985,7 +1008,7 @@ export default function SettingsPanel() {
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
             <input type="checkbox" checked={qrMenuSettings.enabled} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, enabled: e.target.checked }))} />
-            <span>{tx(lang, 'Public QR Menu aktiv olsun', 'Публичное QR меню активно', 'Enable public QR Menu')}</span>
+            <span>{tx(lang, 'İctimai QR menyu aktiv olsun', 'Публичное QR меню активно', 'Enable public QR Menu')}</span>
           </label>
           <div className="field-stack form-card">
             <label className="field-label">{tx(lang, 'Başlıq', 'Заголовок', 'Hero title')}</label>
@@ -1190,11 +1213,11 @@ export default function SettingsPanel() {
       </div>
 
       <div className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Maliyyə Policy Ayarları', 'Настройки финансовой policy', 'Finance Policy Settings')}</h2>
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Maliyyə qayda ayarları', 'Настройки финансовой policy', 'Finance Policy Settings')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
             lang,
-            'Approval, reconciliation və risk alert qaydalarını tenant səviyyəsində buradan idarə edin. Bu ayarlar Maliyyə modulunda approval inbox və alert engine üçün istifadə olunur.',
+            'Təsdiq, uyğunlaşdırma və risk xəbərdarlığı qaydalarını tenant səviyyəsində buradan idarə edin. Bu ayarlar Maliyyə modulunda təsdiq qutusu və xəbərdarlıq mexanizmi üçün istifadə olunur.',
             'Управляйте правилами approval, reconciliation и risk alert на уровне tenant. Эти настройки используются в Finance approval inbox и alert engine.',
             'Manage approval, reconciliation, and risk alert rules per tenant. These settings drive the Finance approval inbox and alert engine.',
           )}
@@ -1212,7 +1235,7 @@ export default function SettingsPanel() {
             />
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Reconciliation alert həddi (AZN)', 'Порог reconciliation alert (AZN)', 'Reconciliation alert threshold (AZN)')}</label>
+            <label className="field-label">{tx(lang, 'Uyğunlaşdırma xəbərdarlıq həddi (AZN)', 'Порог reconciliation alert (AZN)', 'Reconciliation alert threshold (AZN)')}</label>
             <input
               className="neon-input"
               type="number"
@@ -1234,7 +1257,7 @@ export default function SettingsPanel() {
             />
           </div>
           <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Approval rolları', 'Роли approval', 'Approval roles')}</label>
+            <label className="field-label">{tx(lang, 'Təsdiq rolları', 'Роли approval', 'Approval roles')}</label>
             <input
               className="neon-input"
               value={financePolicy.approver_roles}
@@ -1825,22 +1848,22 @@ export default function SettingsPanel() {
       ) : null}
 
       <div className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Rol İcazələri', 'Права ролей', 'Role Permissions')}</h2>
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Rol icazələri', 'Права ролей', 'Role permissions')}</h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {(['staff', 'manager', 'kitchen'] as const).map((role) => (
             <div key={role} className="rounded-xl border border-slate-700/70 bg-slate-900/30 p-4 space-y-2">
-              <h3 className="font-semibold uppercase tracking-wide text-slate-200">{role}</h3>
+              <h3 className="font-semibold uppercase tracking-wide text-slate-200">{roleLabelMap[role]}</h3>
               {moduleCatalog.map((moduleKey) => (
                 <label key={`${role}_${moduleKey}`} className="flex items-center gap-2 text-sm text-slate-300">
                   <input type="checkbox" checked={(roleModules[role] || []).includes(moduleKey)} onChange={() => toggleRoleModule(role, moduleKey)} />
-                  <span>{moduleKey}</span>
+                  <span>{moduleLabelMap[moduleKey] || moduleKey}</span>
                 </label>
               ))}
             </div>
           ))}
         </div>
         <div className="flex justify-end">
-          <button onClick={() => { void saveRoleModules(); }} className="neon-btn rounded-xl px-5 py-2 font-semibold">{tx(lang, 'Rol İcazələrini Saxla', 'Сохранить права ролей', 'Save Role Permissions')}</button>
+          <button onClick={() => { void saveRoleModules(); }} className="neon-btn rounded-xl px-5 py-2 font-semibold">{tx(lang, 'Rol icazələrini yadda saxla', 'Сохранить права ролей', 'Save role permissions')}</button>
         </div>
       </div>
 

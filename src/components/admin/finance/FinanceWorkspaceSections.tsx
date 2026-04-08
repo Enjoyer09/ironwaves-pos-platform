@@ -50,7 +50,7 @@ export function FinanceApprovalPreview({
                   {accountName(row.source_account)} → {accountName(row.destination_account)}
                 </div>
               </div>
-              <FinanceStatusBadge status={row.status || 'pending_approval'} />
+              <FinanceStatusBadge status={row.status || 'pending_approval'} lang={lang} />
             </div>
           </button>
         ))}
@@ -305,7 +305,7 @@ export function FinanceLedgerTab({
           <label className="space-y-2">
             <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Əməliyyat növü', 'Тип', 'Type')}</span>
             <select className="neon-input min-h-12" value={ledgerTypeFilter} onChange={(e) => onLedgerTypeFilterChange(e.target.value)}>
-              <option value="all">{tx(lang, 'Bütün type-lar', 'Все типы', 'All types')}</option>
+              <option value="all">{tx(lang, 'Bütün növlər', 'Все типы', 'All types')}</option>
               {ledgerTransactionTypes.map((typeValue) => (
                 <option key={typeValue} value={typeValue}>{transactionTypeLabel(typeValue)}</option>
               ))}
@@ -316,14 +316,14 @@ export function FinanceLedgerTab({
             <select className="neon-input min-h-12" value={ledgerStatusFilter} onChange={(e) => onLedgerStatusFilterChange(e.target.value)}>
               <option value="all">{tx(lang, 'Bütün statuslar', 'Все статусы', 'All statuses')}</option>
               {ledgerTransactionStatuses.map((statusValue) => (
-                <option key={statusValue} value={statusValue}>{statusValue}</option>
+                <option key={statusValue} value={statusValue}>{tx(lang, statusValue === 'pending_approval' ? 'Təsdiq gözləyir' : statusValue === 'approved' ? 'Təsdiqlənib' : statusValue === 'posted' ? 'Yazılıb' : statusValue === 'rejected' ? 'Rədd edilib' : statusValue === 'reversed' ? 'Əks yazılış edilib' : statusValue === 'draft' ? 'Qaralama' : statusValue, statusValue, statusValue)}</option>
               ))}
             </select>
           </label>
           <label className="space-y-2">
             <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Hesab', 'Счет', 'Account')}</span>
             <select className="neon-input min-h-12" value={ledgerAccountFilter} onChange={(e) => onLedgerAccountFilterChange(e.target.value)}>
-              <option value="all">{tx(lang, 'Bütün account-lar', 'Все счета', 'All accounts')}</option>
+              <option value="all">{tx(lang, 'Bütün hesablar', 'Все счета', 'All accounts')}</option>
               {ledgerAccounts.map((account) => (
                 <option key={account.code} value={account.code}>{account.name}</option>
               ))}
@@ -370,18 +370,18 @@ export function FinanceLedgerTab({
             <tr>
               <th className="py-3">{tx(lang, 'Tarix', 'Дата', 'Date')}</th>
               <th className="py-3">{tx(lang, 'Status', 'Статус', 'Status')}</th>
-              <th className="py-3">{tx(lang, 'Type', 'Тип', 'Type')}</th>
-              <th className="py-3">{tx(lang, 'From → To', 'Откуда → куда', 'From → To')}</th>
-              <th className="py-3">{tx(lang, 'Category', 'Категория', 'Category')}</th>
-              <th className="py-3 text-right">{tx(lang, 'Amount', 'Сумма', 'Amount')}</th>
-              <th className="py-3">{tx(lang, 'Note', 'Комментарий', 'Note')}</th>
+              <th className="py-3">{tx(lang, 'Növ', 'Тип', 'Type')}</th>
+              <th className="py-3">{tx(lang, 'Haradan → Hara', 'Откуда → куда', 'From → To')}</th>
+              <th className="py-3">{tx(lang, 'Kateqoriya', 'Категория', 'Category')}</th>
+              <th className="py-3 text-right">{tx(lang, 'Məbləğ', 'Сумма', 'Amount')}</th>
+              <th className="py-3">{tx(lang, 'Qeyd', 'Комментарий', 'Note')}</th>
             </tr>
           </thead>
           <tbody>
             {visibleLedgerTransactions.map((entry) => (
               <tr key={entry.id} onClick={() => void onOpenLedgerDetail(entry)} className="cursor-pointer border-b border-slate-900 transition hover:bg-slate-900/70">
                 <td className="py-3 text-slate-300">{formatServerUtcDateTime(entry.posted_at || entry.created_at || '', lang)}</td>
-                <td className="py-3"><FinanceStatusBadge status={entry.status || 'posted'} /></td>
+                <td className="py-3"><FinanceStatusBadge status={entry.status || 'posted'} lang={lang} /></td>
                 <td className="py-3 font-bold text-sky-200">{transactionTypeLabel(entry.transaction_type)}</td>
                 <td className="py-3 text-slate-300">
                   <span className="font-bold text-slate-200">{accountName(entry.source_account)}</span>
