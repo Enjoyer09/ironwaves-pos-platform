@@ -572,6 +572,58 @@ export const fetch_finance_balances = async (tenant_id: string) => {
   return balances;
 };
 
+export const fetch_finance_summary = async (tenant_id: string): Promise<FinanceSummary> => {
+  if (!isBackendEnabled()) {
+    const balances = get_balance(tenant_id, 'all', false) as any;
+    return {
+      balances: {
+        cash: String(balances.cash_balance || '0'),
+        card: String(balances.card_balance || '0'),
+        safe: String(balances.safe_balance || '0'),
+        investor: String(balances.investor_balance || '0'),
+        debt: String(balances.debt_balance || '0'),
+        deposit: String(balances.deposit_balance || '0'),
+      },
+      alerts: [],
+      pending_approvals_count: 0,
+      pending_approvals_preview: [],
+      latest_reconciliation: null,
+    };
+  }
+  const data = await apiRequest<any>('/api/v1/finance/summary', {
+    method: 'GET',
+    tenantId: tenant_id,
+  });
+  return {
+    balances: {
+      cash: String(data?.balances?.cash ?? '0'),
+      card: String(data?.balances?.card ?? '0'),
+      safe: String(data?.balances?.safe ?? '0'),
+      investor: String(data?.balances?.investor ?? '0'),
+      debt: String(data?.balances?.debt ?? '0'),
+      deposit: String(data?.balances?.deposit ?? '0'),
+    },
+    alerts: (data?.alerts || []) as FinanceAlert[],
+    pending_approvals_count: Number(data?.pending_approvals_count ?? 0),
+    pending_approvals_preview: (data?.pending_approvals_preview || []).map(mapFinanceLedgerTransaction),
+    latest_reconciliation: data?.latest_reconciliation
+      ? {
+          id: String(data.latest_reconciliation.id),
+          account_code: data.latest_reconciliation.account_code ?? null,
+          account_name: data.latest_reconciliation.account_name ?? null,
+          expected_balance: String(data.latest_reconciliation.expected_balance ?? '0'),
+          counted_balance: String(data.latest_reconciliation.counted_balance ?? '0'),
+          variance: String(data.latest_reconciliation.variance ?? '0'),
+          notes: data.latest_reconciliation.notes ?? null,
+          reconciled_by: data.latest_reconciliation.reconciled_by ?? null,
+          reconciled_at: data.latest_reconciliation.reconciled_at ?? null,
+          created_by: String(data.latest_reconciliation.created_by || ''),
+          created_at: data.latest_reconciliation.created_at ?? null,
+        }
+      : null,
+  };
+};
+
 export const fetch_finance_entries = async (tenant_id: string): Promise<FinanceEntry[]> => {
   if (!isBackendEnabled()) {
     return get_finance_entries(tenant_id);
@@ -626,6 +678,21 @@ export type FinanceAlert = {
   tab: string;
   severity?: 'critical' | 'warning' | 'info' | string;
   count?: number;
+};
+
+export type FinanceSummary = {
+  balances: {
+    cash: string;
+    card: string;
+    safe: string;
+    investor: string;
+    debt: string;
+    deposit: string;
+  };
+  alerts: FinanceAlert[];
+  pending_approvals_count: number;
+  pending_approvals_preview: FinanceLedgerTransaction[];
+  latest_reconciliation: FinanceReconciliation | null;
 };
 
 export type FinanceLedgerAccount = {
