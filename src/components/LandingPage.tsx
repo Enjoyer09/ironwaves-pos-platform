@@ -110,6 +110,53 @@ function SurfaceCard({ children, className = '' }: { children: React.ReactNode; 
 function ProductPreview({ lang, previewIndex }: { lang: LandingLang; previewIndex: number }) {
   const slides = [
     {
+      key: 'pos',
+      eyebrow: 'POS',
+      title: tx(lang, 'Satış bir neçə toxunuşla tamamlanır', 'Продажа завершается в несколько касаний', 'Sales complete in just a few taps'),
+      visual: (
+        <div className="grid h-full gap-3 md:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-[22px] border border-white/8 bg-[#131d2e] p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">POS</div>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {[
+                [tx(lang, 'Dönər', 'Донер', 'Doner'), '7.00 ₼'],
+                [tx(lang, 'Ayran', 'Айран', 'Ayran'), '2.00 ₼'],
+                [tx(lang, 'Kartof', 'Картофель', 'Fries'), '3.50 ₼'],
+                [tx(lang, 'Amerikano', 'Американо', 'Americano'), '6.00 ₼'],
+                [tx(lang, 'Su', 'Вода', 'Water'), '1.50 ₼'],
+                [tx(lang, 'Burger', 'Бургер', 'Burger'), '9.00 ₼'],
+              ].map(([name, price], idx) => (
+                <div key={String(name)} className="rounded-2xl border border-white/8 bg-[#0f1726] p-3">
+                  <div className={`h-10 rounded-xl ${idx % 3 === 0 ? 'bg-amber-300/20' : idx % 3 === 1 ? 'bg-sky-300/20' : 'bg-violet-300/20'}`} />
+                  <div className="mt-2 text-xs font-black text-slate-100">{name}</div>
+                  <div className="text-[11px] text-slate-400">{price}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-[22px] border border-white/8 bg-[#131d2e] p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">{tx(lang, 'Cari sifariş', 'Текущий заказ', 'Current order')}</div>
+            <div className="mt-3 space-y-2">
+              {[
+                `2 x ${tx(lang, 'Dönər', 'Донер', 'Doner')}`,
+                `1 x ${tx(lang, 'Ayran', 'Айран', 'Ayran')}`,
+                `1 x ${tx(lang, 'Kartof', 'Картофель', 'Fries')}`,
+              ].map((row) => (
+                <div key={row} className="rounded-xl border border-white/8 bg-[#0f1726] px-3 py-2 text-sm text-slate-200">{row}</div>
+              ))}
+            </div>
+            <div className="mt-4 rounded-2xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-4">
+              <div className="text-xs font-black uppercase tracking-[0.16em] text-emerald-200">{tx(lang, 'Yekun', 'Итого', 'Total')}</div>
+              <div className="mt-1 text-2xl font-black text-white">19.50 ₼</div>
+              <div className="mt-3 inline-flex min-h-11 items-center justify-center rounded-xl bg-white px-4 text-sm font-black text-slate-950">
+                {tx(lang, 'Ödənişi tamamla', 'Завершить оплату', 'Complete payment')}
+              </div>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
       key: 'tables',
       eyebrow: tx(lang, 'Masalar', 'Столы', 'Tables'),
       title: tx(lang, 'Masa axını nəzarətdədir', 'Поток столов под контролем', 'Table flow stays under control'),
@@ -130,59 +177,62 @@ function ProductPreview({ lang, previewIndex }: { lang: LandingLang; previewInde
       ),
     },
     {
-      key: 'dashboard',
-      eyebrow: 'Dashboard',
-      title: tx(lang, 'Kritik vəziyyət dərhal görünür', 'Критическая ситуация видна сразу', 'Critical issues become visible instantly'),
-      visual: <img src="/landing/pos-screen.png" alt="POS" className="h-full w-full rounded-[22px] object-cover object-top" />,
+      key: 'kds',
+      eyebrow: tx(lang, 'Mətbəx ekranı', 'Экран кухни', 'Kitchen display'),
+      title: tx(lang, 'Mətbəx nə hazırladığını itirmir', 'Кухня не теряет ни одной позиции', 'Kitchen keeps every item visible'),
+      visual: <KdsMock lang={lang} />,
     },
     {
       key: 'finance',
       eyebrow: tx(lang, 'Maliyyə', 'Финансы', 'Finance'),
       title: tx(lang, 'Kassa və öhdəliklər qarışmır', 'Касса и обязательства не смешиваются', 'Cash and liabilities stay separated'),
-      visual: <img src="/landing/finance-screen.png" alt="Finance" className="h-full w-full rounded-[22px] object-cover object-top" />,
-    },
-    {
-      key: 'customer',
-      eyebrow: 'CRM / QR Menu',
-      title: tx(lang, 'Müştəri axını da eyni sistemdədir', 'Клиентский поток тоже в одной системе', 'Customer flow also lives in one system'),
       visual: (
-        <div className="grid h-full gap-3 md:grid-cols-[1.05fr_0.95fr]">
+        <div className="grid h-full gap-3 md:grid-cols-[0.95fr_1.05fr]">
+          <div className="space-y-3">
+            <div className="rounded-[22px] border border-white/8 bg-[#131d2e] p-4">
+              <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">{tx(lang, 'Maliyyə xülasəsi', 'Финансовая сводка', 'Finance summary')}</div>
+              <div className="mt-3 grid gap-2">
+                {[
+                  [tx(lang, 'Nağd kassa', 'Касса', 'Cash on hand'), '1,245 ₼'],
+                  [tx(lang, 'Bank / Kart', 'Банк / Карта', 'Bank / Card'), '2,410 ₼'],
+                  [tx(lang, 'Investor borcu', 'Долг инвестору', 'Investor liability'), '300 ₼'],
+                ].map(([label, value]) => (
+                  <div key={String(label)} className="flex items-center justify-between rounded-xl border border-white/8 bg-[#0f1726] px-3 py-2.5">
+                    <span className="text-sm text-slate-300">{label}</span>
+                    <span className="text-sm font-black text-white">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-[22px] border border-white/8 bg-[#131d2e] p-4">
+              <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">{tx(lang, 'Xəbərdarlıqlar', 'Сигналы', 'Alerts')}</div>
+              <div className="mt-3 space-y-2">
+                {[
+                  tx(lang, 'Uyğunlaşdırma fərqi', 'Разница сверки', 'Reconciliation gap'),
+                  tx(lang, 'Təsdiq gözləyən əməliyyat', 'Ожидает подтверждения', 'Pending approval'),
+                  tx(lang, 'Investor qalığı', 'Остаток инвестора', 'Investor balance'),
+                ].map((item, idx) => (
+                  <div key={item} className={`rounded-xl px-3 py-2 text-sm font-semibold ${idx === 0 ? 'bg-rose-500/15 text-rose-200' : idx === 1 ? 'bg-amber-500/15 text-amber-200' : 'bg-sky-500/15 text-sky-200'}`}>
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
           <div className="rounded-[22px] border border-white/8 bg-[#131d2e] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">{tx(lang, 'CRM / Loyallıq', 'CRM / Лояльность', 'CRM / Loyalty')}</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">{tx(lang, 'Maliyyə jurnalı', 'Финансовый журнал', 'Finance journal')}</div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               {[
-                [tx(lang, 'Aktiv kartlar', 'Активные карты', 'Active cards'), '428'],
-                [tx(lang, 'Bonus balansı', 'Бонусный баланс', 'Bonus balance'), '1,180 ₼'],
-                [tx(lang, 'Kampaniya', 'Кампания', 'Campaign'), tx(lang, '2 aktiv', '2 активные', '2 active')],
-                [tx(lang, 'Qayıdan müştəri', 'Возвращающийся клиент', 'Returning customers'), '61%'],
+                [tx(lang, 'Mədaxil', 'Приход', 'Income'), '420 ₼'],
+                [tx(lang, 'Xərc', 'Расход', 'Expense'), '95 ₼'],
+                [tx(lang, 'Transfer', 'Перевод', 'Transfer'), '150 ₼'],
+                [tx(lang, 'Depozit', 'Депозит', 'Deposit'), '40 ₼'],
               ].map(([label, value]) => (
                 <div key={String(label)} className="rounded-xl border border-white/8 bg-[#0f1726] p-3">
                   <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</div>
                   <div className="mt-2 text-sm font-black text-white">{value}</div>
                 </div>
               ))}
-            </div>
-          </div>
-          <div className="space-y-3">
-            <div className="rounded-[22px] border border-white/8 bg-[#131d2e] p-4">
-              <div className="flex items-center justify-between">
-                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">QR Menu</div>
-                <QrCode size={18} className="text-violet-300" />
-              </div>
-              <div className="mt-3 rounded-[18px] border border-white/8 bg-[#0f1726] p-3">
-                <div className="h-24 rounded-2xl bg-[linear-gradient(135deg,#1d4ed8,#0f172a)]" />
-                <div className="mt-3 text-sm font-black text-white">{tx(lang, 'Amerikano', 'Американо', 'Americano')}</div>
-              </div>
-            </div>
-            <div className="rounded-[22px] border border-white/8 bg-[#131d2e] p-4">
-              <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Customer App</div>
-              <div className="mt-3 space-y-2">
-                {[tx(lang, 'Bonus görünür', 'Бонус виден', 'Bonuses stay visible'), tx(lang, 'Şəxsi təkliflər', 'Персональные предложения', 'Personal offers'), tx(lang, 'Təkrar satış', 'Повторная продажа', 'Repeat sales')].map((item) => (
-                  <div key={item} className="rounded-xl border border-white/8 bg-[#0f1726] px-3 py-2.5 text-sm font-black text-white">
-                    {item}
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         </div>
@@ -228,8 +278,8 @@ function ProductPreview({ lang, previewIndex }: { lang: LandingLang; previewInde
                   {[
                     tx(lang, 'POS', 'POS', 'POS'),
                     tx(lang, 'Masalar', 'Столы', 'Tables'),
+                    tx(lang, 'Mətbəx', 'Кухня', 'Kitchen'),
                     tx(lang, 'Maliyyə', 'Финансы', 'Finance'),
-                    'CRM / QR',
                   ].map((item, index) => (
                     <div
                       key={item}
