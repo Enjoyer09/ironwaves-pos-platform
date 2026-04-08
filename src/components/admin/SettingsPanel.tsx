@@ -442,9 +442,29 @@ export default function SettingsPanel() {
         idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
         virtual_keyboard_enabled: sessionSettings.virtual_keyboard_enabled,
       });
+      window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
       flashSuccess(tx(lang, 'Sessiya ayarları yadda saxlanıldı', 'Настройки сессии сохранены', 'Session settings saved'));
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Sessiya ayarları saxlanmadı', 'Настройки сессии не сохранены', 'Session settings were not saved'));
+    }
+  };
+
+  const toggleVirtualKeyboard = async (nextEnabled: boolean) => {
+    setSessionSettings((prev) => ({ ...prev, virtual_keyboard_enabled: nextEnabled }));
+    try {
+      await update_session_settings_live({
+        idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
+        virtual_keyboard_enabled: nextEnabled,
+      });
+      window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
+      flashSuccess(
+        nextEnabled
+          ? tx(lang, 'Virtual klaviatura aktiv edildi', 'Виртуальная клавиатура включена', 'Virtual keyboard enabled')
+          : tx(lang, 'Virtual klaviatura söndürüldü', 'Виртуальная клавиатура отключена', 'Virtual keyboard disabled'),
+      );
+    } catch (e: any) {
+      setSessionSettings((prev) => ({ ...prev, virtual_keyboard_enabled: !nextEnabled }));
+      notify('error', e?.message || tx(lang, 'Virtual klaviatura ayarı saxlanmadı', 'Настройка виртуальной клавиатуры не сохранена', 'Virtual keyboard setting was not saved'));
     }
   };
 
@@ -925,20 +945,33 @@ export default function SettingsPanel() {
             </p>
           </div>
           <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 px-4 py-3">
-            <label className="flex items-center gap-3 text-sm font-semibold text-slate-200">
-              <input
-                type="checkbox"
-                checked={sessionSettings.virtual_keyboard_enabled}
-                onChange={(e) => setSessionSettings((prev) => ({ ...prev, virtual_keyboard_enabled: e.target.checked }))}
-              />
-              <span>{tx(lang, 'Virtual klaviatura aktivdir', 'Виртуальная клавиатура включена', 'Virtual keyboard is enabled')}</span>
-            </label>
+            <div className="flex items-center justify-between gap-4">
+              <div className="text-sm font-semibold text-slate-200">
+                {tx(lang, 'Virtual klaviatura', 'Виртуальная клавиатура', 'Virtual keyboard')}
+              </div>
+              <button
+                type="button"
+                onClick={() => { void toggleVirtualKeyboard(!sessionSettings.virtual_keyboard_enabled); }}
+                className={`relative inline-flex h-8 w-16 items-center rounded-full border transition ${
+                  sessionSettings.virtual_keyboard_enabled
+                    ? 'border-emerald-300/50 bg-emerald-500/20'
+                    : 'border-slate-600 bg-slate-800/70'
+                }`}
+                aria-pressed={sessionSettings.virtual_keyboard_enabled}
+              >
+                <span
+                  className={`absolute h-6 w-6 rounded-full bg-white shadow transition ${
+                    sessionSettings.virtual_keyboard_enabled ? 'left-9' : 'left-1'
+                  }`}
+                />
+              </button>
+            </div>
+            <div className="mt-2 text-xs text-slate-400">
+              {sessionSettings.virtual_keyboard_enabled
+                ? tx(lang, 'Hazırda aktivdir. Söndürən kimi dərhal bağlanacaq.', 'Сейчас включена. После отключения сразу закроется.', 'It is currently enabled. It closes immediately when turned off.')
+                : tx(lang, 'Hazırda söndürülüb. Input-a toxunanda açılmayacaq.', 'Сейчас отключена. При касании поля не откроется.', 'It is currently off. It will not open on input focus.')}
+            </div>
           </div>
-        </div>
-        <div className="flex justify-end">
-          <button onClick={() => { void saveSessionSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">
-            {tx(lang, 'Virtual klaviatura ayarını saxla', 'Сохранить настройку виртуальной клавиатуры', 'Save virtual keyboard setting')}
-          </button>
         </div>
       </div>
 
@@ -1648,14 +1681,27 @@ export default function SettingsPanel() {
             />
           </label>
           <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 px-4 py-3">
-            <label className="flex items-center gap-3 text-sm font-semibold text-slate-200">
-              <input
-                type="checkbox"
-                checked={sessionSettings.virtual_keyboard_enabled}
-                onChange={(e) => setSessionSettings((prev) => ({ ...prev, virtual_keyboard_enabled: e.target.checked }))}
-              />
-              <span>{tx(lang, 'Virtual klaviatura aktivdir', 'Виртуальная клавиатура включена', 'Virtual keyboard is enabled')}</span>
-            </label>
+            <div className="flex items-center justify-between gap-4">
+              <div className="text-sm font-semibold text-slate-200">
+                {tx(lang, 'Virtual klaviatura', 'Виртуальная клавиатура', 'Virtual keyboard')}
+              </div>
+              <button
+                type="button"
+                onClick={() => { void toggleVirtualKeyboard(!sessionSettings.virtual_keyboard_enabled); }}
+                className={`relative inline-flex h-8 w-16 items-center rounded-full border transition ${
+                  sessionSettings.virtual_keyboard_enabled
+                    ? 'border-emerald-300/50 bg-emerald-500/20'
+                    : 'border-slate-600 bg-slate-800/70'
+                }`}
+                aria-pressed={sessionSettings.virtual_keyboard_enabled}
+              >
+                <span
+                  className={`absolute h-6 w-6 rounded-full bg-white shadow transition ${
+                    sessionSettings.virtual_keyboard_enabled ? 'left-9' : 'left-1'
+                  }`}
+                />
+              </button>
+            </div>
             <div className="mt-2 text-xs text-slate-400">
               {tx(lang, 'Sensor ekranda input sahələrinə toxunanda öz klaviaturamız açılsın.', 'На сенсорном экране при нажатии на поле будет открываться встроенная клавиатура.', 'Show the built-in keyboard when a touch device focuses an input.')}
             </div>
