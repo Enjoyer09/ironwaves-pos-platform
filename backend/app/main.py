@@ -117,12 +117,17 @@ def _seed_initial_data(db: Session):
         .update({"role": "admin"}, synchronize_session=False)
     )
 
+    active_platform_superadmin = (
+        db.query(User)
+        .filter(User.tenant_id == platform_tenant.id, User.role == "super_admin", User.is_active == True)  # noqa: E712
+        .first()
+    )
     super_exists = (
         db.query(User)
         .filter(User.tenant_id == platform_tenant.id, User.username == settings.superadmin_username)
         .first()
     )
-    if not super_exists:
+    if not super_exists and not active_platform_superadmin:
         db.add(
             User(
                 tenant_id=platform_tenant.id,
