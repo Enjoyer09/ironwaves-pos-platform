@@ -191,6 +191,16 @@ export interface Settings {
     card_sale_percent?: number;
     card_transfer_percent?: number;
   };
+  finance_policy?: {
+    large_transfer_threshold_azn: number;
+    investor_repayment_requires_approval: boolean;
+    cash_adjustment_requires_approval: boolean;
+    reversal_requires_approval: boolean;
+    reconciliation_adjustment_requires_approval: boolean;
+    reconciliation_variance_alert_azn: number;
+    negative_balance_alert_azn: number;
+    approver_roles: string[];
+  };
   inventory_settings?: {
     default_critical_threshold: number;
     unit_options: string[];

@@ -63,8 +63,6 @@ const defaultSubjectPresets = [
   'Digər',
 ];
 
-const APPROVAL_TRANSFER_THRESHOLD = new Decimal(500);
-
 const normalizeFinanceText = (value: unknown) =>
   String(value || '')
     .replace(/ə/gi, 'e')
@@ -281,6 +279,16 @@ export default function FinancePanel() {
     card_sale_percent: 2,
     card_transfer_percent: 0.5,
   });
+  const [financePolicyConfig, setFinancePolicyConfig] = useState({
+    large_transfer_threshold_azn: 500,
+    investor_repayment_requires_approval: true,
+    cash_adjustment_requires_approval: true,
+    reversal_requires_approval: true,
+    reconciliation_adjustment_requires_approval: true,
+    reconciliation_variance_alert_azn: 0.01,
+    negative_balance_alert_azn: 0,
+    approver_roles: ['manager', 'admin', 'finance_admin', 'super_admin'],
+  });
   const lastReloadAtRef = useRef(0);
   const reloadTimerRef = useRef<number | null>(null);
 
@@ -312,6 +320,10 @@ export default function FinancePanel() {
     if (amount.lte(0)) return new Decimal(0);
     return amount.times(new Decimal(bankCommissionConfig.card_transfer_percent || 0).div(100)).toDecimalPlaces(2);
   }, [transferAmount, transferCommission, transferDirection, bankCommissionConfig.card_transfer_percent]);
+  const largeTransferThreshold = useMemo(
+    () => new Decimal(financePolicyConfig.large_transfer_threshold_azn || 0),
+    [financePolicyConfig.large_transfer_threshold_azn],
+  );
 
   const ledgerServerFilters = useMemo(() => ({
     limit: ledgerPageSize,
@@ -401,6 +413,16 @@ export default function FinancePanel() {
       setBankCommissionConfig({
         card_sale_percent: Number((settings.bank_commission as any)?.card_sale_percent ?? settings.bank_commission?.percent ?? 2),
         card_transfer_percent: Number((settings.bank_commission as any)?.card_transfer_percent ?? 0.5),
+      });
+      setFinancePolicyConfig({
+        large_transfer_threshold_azn: Number(settings.finance_policy?.large_transfer_threshold_azn ?? 500),
+        investor_repayment_requires_approval: settings.finance_policy?.investor_repayment_requires_approval !== false,
+        cash_adjustment_requires_approval: settings.finance_policy?.cash_adjustment_requires_approval !== false,
+        reversal_requires_approval: settings.finance_policy?.reversal_requires_approval !== false,
+        reconciliation_adjustment_requires_approval: settings.finance_policy?.reconciliation_adjustment_requires_approval !== false,
+        reconciliation_variance_alert_azn: Number(settings.finance_policy?.reconciliation_variance_alert_azn ?? 0.01),
+        negative_balance_alert_azn: Number(settings.finance_policy?.negative_balance_alert_azn ?? 0),
+        approver_roles: Array.isArray(settings.finance_policy?.approver_roles) ? settings.finance_policy!.approver_roles : ['manager', 'admin', 'finance_admin', 'super_admin'],
       });
     } catch (err: any) {
       notify('error', err?.message || tx(lang, 'Maliyyə məlumatları yüklənmədi', 'Не удалось загрузить финансы'));
@@ -1028,7 +1050,7 @@ export default function FinancePanel() {
     }
     try {
       const transferAmountDec = new Decimal(transferAmount || 0);
-      const needsApproval = transferAmountDec.gte(APPROVAL_TRANSFER_THRESHOLD);
+      const needsApproval = largeTransferThreshold.gt(0) && transferAmountDec.gte(largeTransferThreshold);
       if (needsApproval) {
         const sources = {
           card_to_cash: { from: 'card', to: 'cash' },
@@ -1104,8 +1126,8 @@ export default function FinancePanel() {
         destination_account_code: 'investor',
         amount: payable.toString(),
         category: 'İnvestora Geri Ödəniş',
-        note: repayNote || 'İnvestora ödəniş approval request',
-        requires_approval: true,
+          note: repayNote || 'İnvestora ödəniş approval request',
+        requires_approval: financePolicyConfig.investor_repayment_requires_approval,
       });
       setRepayAmount('');
       setRepayNote('');
@@ -1114,9 +1136,15 @@ export default function FinancePanel() {
         'success',
         tx(
           lang,
-          `İnvestor ödənişi təsdiqə göndərildi: ${new Decimal(payable).toFixed(2)} ₼`,
-          `Выплата инвестору отправлена на approval: ${new Decimal(payable).toFixed(2)} ₼`,
-          `Investor repayment sent for approval: ${new Decimal(payable).toFixed(2)} ₼`,
+          financePolicyConfig.investor_repayment_requires_approval
+            ? `İnvestor ödənişi təsdiqə göndərildi: ${new Decimal(payable).toFixed(2)} ₼`
+            : `İnvestor ödənişi post edildi: ${new Decimal(payable).toFixed(2)} ₼`,
+          financePolicyConfig.investor_repayment_requires_approval
+            ? `Выплата инвестору отправлена на approval: ${new Decimal(payable).toFixed(2)} ₼`
+            : `Выплата инвестору проведена: ${new Decimal(payable).toFixed(2)} ₼`,
+          financePolicyConfig.investor_repayment_requires_approval
+            ? `Investor repayment sent for approval: ${new Decimal(payable).toFixed(2)} ₼`
+            : `Investor repayment posted: ${new Decimal(payable).toFixed(2)} ₼`,
         ),
       );
     } catch (e: any) {
@@ -1434,9 +1462,14 @@ export default function FinancePanel() {
           <input className="neon-input min-h-13" type="number" min={0} step="0.01" value={computedTransferCommission.toString()} onChange={(e) => setTransferCommission(e.target.value)} readOnly={transferDirection === 'card_to_cash'} />
         </FinanceField>
       </div>
-      {new Decimal(transferAmount || 0).gte(APPROVAL_TRANSFER_THRESHOLD) && (
+      {largeTransferThreshold.gt(0) && new Decimal(transferAmount || 0).gte(largeTransferThreshold) && (
         <div className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-950/25 p-4 text-sm font-bold text-amber-100">
-          {tx(lang, 'Bu məbləğ böyük transfer sayılır və birbaşa post olunmayacaq. Approval inbox-a göndəriləcək.', 'Эта сумма считается крупным переводом и не будет posted сразу. Она уйдет в approval inbox.', 'This is a large transfer and will not post immediately. It will be sent to the approval inbox.')}
+          {tx(
+            lang,
+            `Bu məbləğ böyük transfer sayılır (${largeTransferThreshold.toFixed(2)} ₼+) və birbaşa post olunmayacaq. Approval inbox-a göndəriləcək.`,
+            `Эта сумма считается крупным переводом (${largeTransferThreshold.toFixed(2)} ₼+) и не будет posted сразу. Она уйдет в approval inbox.`,
+            `This is a large transfer (${largeTransferThreshold.toFixed(2)} ₼+) and will not post immediately. It will be sent to the approval inbox.`,
+          )}
         </div>
       )}
       <button onClick={() => void doTransfer()} className="neon-btn mt-5 min-h-14 rounded-2xl px-6 text-base font-black">
@@ -1466,11 +1499,19 @@ export default function FinancePanel() {
           <input className="neon-input min-h-13" value={repayNote} onChange={(e) => setRepayNote(e.target.value)} />
         </FinanceField>
       </div>
-      <div className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-950/25 p-4 text-sm font-bold text-amber-100">
-        {tx(lang, 'Investor ödənişi nəzarətli əməliyyatdır. Bu request əvvəl approval inbox-a düşəcək, təsdiqdən sonra kassa/kart/seyf və investor borcu yenilənəcək.', 'Выплата инвестору — контролируемая операция. Request попадет в approval inbox и только после подтверждения обновит кассу/карту/сейф и долг инвестору.', 'Investor repayment is a controlled operation. The request goes to approval inbox first; after approval it updates cash/card/safe and investor liability.')}
-      </div>
+      {financePolicyConfig.investor_repayment_requires_approval ? (
+        <div className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-950/25 p-4 text-sm font-bold text-amber-100">
+          {tx(lang, 'Investor ödənişi nəzarətli əməliyyatdır. Bu request əvvəl approval inbox-a düşəcək, təsdiqdən sonra kassa/kart/seyf və investor borcu yenilənəcək.', 'Выплата инвестору — контролируемая операция. Request попадет в approval inbox и только после подтверждения обновит кассу/карту/сейф и долг инвестору.', 'Investor repayment is a controlled operation. The request goes to approval inbox first; after approval it updates cash/card/safe and investor liability.')}
+        </div>
+      ) : (
+        <div className="mt-4 rounded-2xl border border-emerald-400/30 bg-emerald-950/25 p-4 text-sm font-bold text-emerald-100">
+          {tx(lang, 'Policy-yə görə investor ödənişi təsdiqsiz birbaşa ledger-ə post olunacaq.', 'По policy выплата инвестору будет posted сразу без approval.', 'Per policy, investor repayment will post directly without approval.')}
+        </div>
+      )}
       <button onClick={() => void doRepayInvestor()} className="glossy-gold mt-5 min-h-14 rounded-2xl px-6 text-base font-black">
-        {tx(lang, 'Approval-a göndər', 'Отправить на approval', 'Send for approval')}
+        {financePolicyConfig.investor_repayment_requires_approval
+          ? tx(lang, 'Approval-a göndər', 'Отправить на approval', 'Send for approval')
+          : tx(lang, 'Ödənişi post et', 'Провести выплату', 'Post repayment')}
       </button>
     </div>
   );
