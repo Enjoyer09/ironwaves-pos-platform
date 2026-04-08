@@ -10,7 +10,7 @@ import PublicReceipt from './components/PublicReceipt';
 import PublicMenu from './components/PublicMenu';
 import CustomerApp from './components/CustomerApp';
 import LandingPage from './components/LandingPage';
-import { LogOut, Wifi, WifiOff, Languages, RotateCcw } from 'lucide-react';
+import { LogOut, Wifi, WifiOff, Languages, RotateCcw, Maximize2, Minimize2 } from 'lucide-react';
 import { seedDatabase } from './lib/seeder';
 import ToastOverlay from './components/ToastOverlay';
 import { get_business_profile, get_business_profile_live } from './api/settings';
@@ -223,6 +223,7 @@ export default function App() {
   const [tenantSwitching, setTenantSwitching] = useState(false);
   const [businessProfileVersion, setBusinessProfileVersion] = useState(0);
   const [perfEvents, setPerfEvents] = useState<PerfEvent[]>([]);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const publicReceiptParams = useMemo(() => {
     if (typeof window === 'undefined') return { receiptId: '', token: '' };
@@ -659,6 +660,18 @@ export default function App() {
   }, [hostMode, profile?.company_name]);
 
   useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const syncFullscreen = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    syncFullscreen();
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreen);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!visibleModules.find((m) => m.key === currentModule)) {
       setCurrentModule(visibleModules[0]?.key || 'pos');
     }
@@ -669,6 +682,29 @@ export default function App() {
       setLang(safeLang);
     }
   }, [lang, safeLang, setLang]);
+
+  const enterFullscreen = async () => {
+    try {
+      if (typeof document === 'undefined') return;
+      const root = document.documentElement;
+      if (!document.fullscreenElement) {
+        await root.requestFullscreen();
+      }
+    } catch {
+      notify('error', tx(safeLang, 'Tam ekran açıla bilmədi', 'Не удалось открыть полный экран', 'Failed to enter fullscreen'));
+    }
+  };
+
+  const exitFullscreen = async () => {
+    try {
+      if (typeof document === 'undefined') return;
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
+    } catch {
+      notify('error', tx(safeLang, 'Tam ekrandan çıxmaq alınmadı', 'Не удалось выйти из полного экрана', 'Failed to exit fullscreen'));
+    }
+  };
 
   if (!hasHydrated) {
     return (
@@ -890,6 +926,25 @@ export default function App() {
                 <Languages size={16} />
                 <span>{safeLang.toUpperCase()}</span>
               </button>
+              {!isFullscreen ? (
+                <button
+                  onClick={() => void enterFullscreen()}
+                  className="neon-btn px-3 py-2"
+                  title={tx(safeLang, 'Tam ekran', 'Полный экран', 'Fullscreen')}
+                >
+                  <Maximize2 size={16} />
+                  <span className="hidden sm:inline">{tx(safeLang, 'Tam ekran', 'Полный экран', 'Fullscreen')}</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => void exitFullscreen()}
+                  className="neon-btn-active px-3 py-2"
+                  title={tx(safeLang, 'Tam ekrandan çıx', 'Выйти из полного экрана', 'Exit fullscreen')}
+                >
+                  <Minimize2 size={16} />
+                  <span className="hidden sm:inline">{tx(safeLang, 'Tam ekrandan çıx', 'Выйти из полного экрана', 'Exit fullscreen')}</span>
+                </button>
+              )}
               <button
                 onClick={logout}
                 className="neon-btn-active px-3 py-2"
