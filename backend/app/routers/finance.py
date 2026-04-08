@@ -622,12 +622,147 @@ def _account_out(account: FinanceAccount, totals: dict[str, Decimal]) -> dict:
     }
 
 
+def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
+    accounts = _ensure_finance_accounts(db, tenant_id)
+    alerts: list[dict] = []
+
+    pending_count = (
+        db.query(FinanceTransaction)
+        .filter(FinanceTransaction.tenant_id == tenant_id, FinanceTransaction.status == "pending_approval")
+        .count()
+    )
+    if pending_count:
+        alerts.append(
+            {
+                "id": "pending-approvals",
+                "title": "Approval gözləyən əməliyyatlar",
+                "body": f"{pending_count} maliyyə əməliyyatı təsdiq gözləyir.",
+                "tone": "amber",
+                "action": "Approve",
+                "tab": "overview",
+                "severity": "warning",
+                "count": pending_count,
+            }
+        )
+
+    failed_count = (
+        db.query(FinanceTransaction)
+        .filter(FinanceTransaction.tenant_id == tenant_id, FinanceTransaction.status == "rejected")
+        .count()
+    )
+    if failed_count:
+        alerts.append(
+            {
+                "id": "failed-postings",
+                "title": "Failed / rejected posting",
+                "body": f"{failed_count} ledger transaction rejected statusundadır.",
+                "tone": "rose",
+                "action": "Review",
+                "tab": "ledger",
+                "severity": "critical",
+                "count": failed_count,
+            }
+        )
+
+    negative_accounts = []
+    for code in ("cash", "card", "safe"):
+        account = accounts.get(code)
+        if not account:
+            continue
+        balance = _account_ledger_totals(db, tenant_id, account)["balance"]
+        if balance < Decimal("0"):
+            negative_accounts.append((account.name, balance))
+    if negative_accounts:
+        detail = ", ".join(f"{name}: {balance.quantize(Decimal('0.01'))} ₼" for name, balance in negative_accounts)
+        alerts.append(
+            {
+                "id": "negative-balance-risk",
+                "title": "Negative balance risk",
+                "body": detail,
+                "tone": "rose",
+                "action": "Review",
+                "tab": "ledger",
+                "severity": "critical",
+                "count": len(negative_accounts),
+            }
+        )
+
+    latest_reconciliation = (
+        db.query(FinanceReconciliation)
+        .filter(FinanceReconciliation.tenant_id == tenant_id)
+        .order_by(FinanceReconciliation.created_at.desc())
+        .first()
+    )
+    if latest_reconciliation and abs(Decimal(str(latest_reconciliation.variance))) > Decimal("0.01"):
+        alerts.append(
+            {
+                "id": "unreconciled-variance",
+                "title": "Unreconciled variance",
+                "body": f"Son reconciliation fərqi: {Decimal(str(latest_reconciliation.variance)).quantize(Decimal('0.01'))} ₼.",
+                "tone": "rose",
+                "action": "Reconcile",
+                "tab": "reconciliation",
+                "severity": "critical",
+                "count": 1,
+            }
+        )
+
+    investor_account = accounts.get("investor")
+    if investor_account:
+        investor_balance = _account_ledger_totals(db, tenant_id, investor_account)["balance"]
+        if investor_balance > Decimal("0.01"):
+            alerts.append(
+                {
+                    "id": "investor-liability-open",
+                    "title": "Investor balance open",
+                    "body": f"Investor borcu açıqdır: {investor_balance.quantize(Decimal('0.01'))} ₼.",
+                    "tone": "amber",
+                    "action": "Investor",
+                    "tab": "investor",
+                    "severity": "warning",
+                    "count": 1,
+                }
+            )
+
+    active_shift = _active_shift(db, tenant_id)
+    if active_shift:
+        cash_account = accounts.get("cash")
+        ledger_cash = _account_ledger_totals(db, tenant_id, cash_account)["balance"] if cash_account else Decimal("0")
+        shift_rows = _shift_rows(db, tenant_id, active_shift)
+        cash_in = sum((Decimal(str(row.amount)) for row in shift_rows if row.source == "cash" and row.type == "in"), Decimal("0"))
+        cash_out = sum((Decimal(str(row.amount)) for row in shift_rows if row.source == "cash" and row.type == "out"), Decimal("0"))
+        expected_cash = Decimal(str(active_shift.opening_cash or 0)) + cash_in - cash_out
+        shift_gap = abs(ledger_cash - expected_cash)
+        if shift_gap > Decimal("0.01"):
+            alerts.append(
+                {
+                    "id": "unreconciled-till",
+                    "title": "Unreconciled till",
+                    "body": f"Olmalı kassa ilə ledger kassa arasında {shift_gap.quantize(Decimal('0.01'))} ₼ fərq var.",
+                    "tone": "rose",
+                    "action": "Reconcile",
+                    "tab": "reconciliation",
+                    "severity": "critical",
+                    "count": 1,
+                }
+            )
+
+    return alerts
+
+
 @router.get("/ledger/accounts")
 def list_ledger_accounts(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     accounts = _ensure_finance_accounts(db, tenant.id)
     db.commit()
     ordered = [accounts[code] for code in FINANCE_ACCOUNT_DEFS.keys() if code in accounts]
     return [_account_out(account, _account_ledger_totals(db, tenant.id, account)) for account in ordered]
+
+
+@router.get("/alerts")
+def list_finance_alerts(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    alerts = _finance_alerts(db, tenant.id)
+    db.commit()
+    return alerts
 
 
 @router.get("/ledger/transactions")
