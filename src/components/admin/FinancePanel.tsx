@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Decimal } from 'decimal.js';
 import { useAppStore } from '../../store';
-import { AlertTriangle, ArrowRight, Banknote, BookOpen, CheckCircle2, GitCompareArrows, Landmark, RefreshCw, ShieldCheck, WalletCards } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Banknote, BookOpen, CheckCircle2, CreditCard, GitCompareArrows, Landmark, RefreshCw, ShieldCheck, WalletCards } from 'lucide-react';
 import {
   create_finance_entry_async,
   create_finance_ledger_transaction_async,
@@ -1284,6 +1284,47 @@ export default function FinancePanel() {
       tab: alert.tab as FinanceWorkspaceTab,
     }));
 
+  const openFinanceAlert = (alert: { id: string; tab: FinanceWorkspaceTab }) => {
+    setWorkspaceTab(alert.tab);
+    if (alert.id === 'pending-approvals') {
+      setLedgerStatusFilter('pending_approval');
+      setLedgerTypeFilter('all');
+      setLedgerAccountFilter('all');
+      setLedgerSearch('');
+      setLedgerOffset(0);
+      return;
+    }
+    if (alert.id === 'failed-postings') {
+      setWorkspaceTab('ledger');
+      setLedgerStatusFilter('rejected');
+      setLedgerTypeFilter('all');
+      setLedgerAccountFilter('all');
+      setLedgerSearch('');
+      setLedgerOffset(0);
+      return;
+    }
+    if (alert.id === 'negative-balance-risk' || alert.id === 'negative-cash') {
+      setWorkspaceTab('ledger');
+      setLedgerStatusFilter('all');
+      setLedgerTypeFilter('all');
+      setLedgerAccountFilter(alert.id === 'negative-cash' ? 'cash' : 'all');
+      setLedgerSearch('');
+      setLedgerOffset(0);
+      return;
+    }
+    if (alert.id === 'unreconciled-till' || alert.id === 'unreconciled-variance') {
+      setWorkspaceTab('reconciliation');
+      return;
+    }
+    if (alert.id === 'investor-liability-open' || alert.id === 'investor-balance') {
+      setWorkspaceTab('investor');
+      return;
+    }
+    if (alert.id === 'audit-exceptions') {
+      setWorkspaceTab('overview');
+    }
+  };
+
   const selectQuickAction = (action: FinanceQuickAction) => {
     setQuickAction(action);
     if (action === 'income') {
@@ -1670,7 +1711,7 @@ export default function FinancePanel() {
 
       <FinanceAlertsBar
         alerts={financeAlerts}
-        onOpen={(tab) => setWorkspaceTab(tab)}
+        onOpen={openFinanceAlert}
       />
 
       <FinanceQuickActions
@@ -2328,7 +2369,13 @@ function FinanceKpiCard({ label, value, tone, icon }: { label: string; value: an
   );
 }
 
-function FinanceAlertsBar({ alerts, onOpen }: { alerts: Array<{ id: string; title: string; body: string; tone: 'rose' | 'amber'; action: string; tab: FinanceWorkspaceTab }>; onOpen: (tab: FinanceWorkspaceTab) => void }) {
+function FinanceAlertsBar({
+  alerts,
+  onOpen,
+}: {
+  alerts: Array<{ id: string; title: string; body: string; tone: 'rose' | 'amber'; action: string; tab: FinanceWorkspaceTab }>;
+  onOpen: (alert: { id: string; tab: FinanceWorkspaceTab }) => void;
+}) {
   if (!alerts.length) {
     return (
       <section className="rounded-[24px] border border-emerald-500/25 bg-emerald-950/25 p-4">
@@ -2344,7 +2391,7 @@ function FinanceAlertsBar({ alerts, onOpen }: { alerts: Array<{ id: string; titl
       {alerts.map((alert) => (
         <button
           key={alert.id}
-          onClick={() => onOpen(alert.tab)}
+          onClick={() => onOpen(alert)}
           className={`rounded-[24px] border p-4 text-left ${alert.tone === 'rose' ? 'border-rose-400/30 bg-rose-950/35' : 'border-amber-400/30 bg-amber-950/30'}`}
         >
           <div className="flex items-start justify-between gap-3">
