@@ -527,9 +527,11 @@ export default function LandingPage() {
           <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/88 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-4 py-5">
               <div className="flex items-center gap-3">
-                <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[linear-gradient(180deg,#0f172a,#1e293b)] text-xl font-black text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
-                  IW
-                </div>
+                <img
+                  src="/landing/ironwaves-logo.jpeg"
+                  alt="iRonWaves POS"
+                  className="h-14 w-14 rounded-[18px] object-cover shadow-[0_18px_40px_rgba(15,23,42,0.16)]"
+                />
                 <div>
                   <div className="text-[11px] font-black uppercase tracking-[0.28em] text-sky-700">iRonWaves POS</div>
                   <div className="text-lg font-black text-slate-950 md:text-xl">Restoran idarəetmə platforması</div>
@@ -833,9 +835,16 @@ export default function LandingPage() {
 
           <footer className="border-t border-slate-200/80 py-8">
             <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-              <div>
-                <div className="text-sm font-black uppercase tracking-[0.24em] text-sky-700">iRonWaves POS</div>
-                <div className="mt-2 text-sm text-slate-600">{tx(lang, 'Restoranınızı bir platformadan idarə edin.', 'Управляйте рестораном из одной платформы.', 'Run your restaurant from one platform.')}</div>
+              <div className="flex items-center gap-3">
+                <img
+                  src="/landing/ironwaves-logo.jpeg"
+                  alt="iRonWaves POS"
+                  className="h-12 w-12 rounded-2xl object-cover shadow-[0_14px_32px_rgba(15,23,42,0.10)]"
+                />
+                <div>
+                  <div className="text-sm font-black uppercase tracking-[0.24em] text-sky-700">iRonWaves POS</div>
+                  <div className="mt-2 text-sm text-slate-600">{tx(lang, 'Restoranınızı bir platformadan idarə edin.', 'Управляйте рестораном из одной платформы.', 'Run your restaurant from one platform.')}</div>
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-4 text-sm font-semibold text-slate-600">
@@ -844,7 +853,6 @@ export default function LandingPage() {
                     {item.label}
                   </a>
                 ))}
-                <a href={`mailto:${contactEmail}`} className="transition hover:text-sky-700">{tx(lang, 'Əlaqə', 'Контакт', 'Contact')}</a>
               </div>
 
               <div className="text-sm text-slate-500">
