@@ -83,6 +83,24 @@ export default function KDS() {
     return [];
   };
 
+  const getOrderContextLabel = (order: { table_label?: string | null; order_type?: string }) => {
+    if (order.table_label) {
+      return tx(lang, `Masa: ${order.table_label}`, `Стол: ${order.table_label}`, `Table: ${order.table_label}`);
+    }
+    const orderType = String(order.order_type || '').toUpperCase();
+    switch (orderType) {
+      case 'TAKEAWAY':
+      case 'TAKE_OUT':
+        return tx(lang, 'Apar', 'С собой', 'Takeaway');
+      case 'DELIVERY':
+        return tx(lang, 'Çatdırılma', 'Доставка', 'Delivery');
+      case 'DINE_IN':
+        return tx(lang, 'Zalda', 'В зале', 'Dine-in');
+      default:
+        return order.order_type || '';
+    }
+  };
+
   const handleAccept = async (order_id: string) => {
     try {
       await accept_order_live(order_id, user?.username || 'kitchen');
@@ -136,13 +154,13 @@ export default function KDS() {
           row: 'border-orange-300/70 bg-orange-500/15 text-orange-50',
           qty: 'bg-orange-500/30 text-orange-50',
           prefix: tx(lang, 'DÜZƏLİŞ / ƏVVƏLKİNİ HAZIRLAMA', 'ИСПРАВЛЕНИЕ / НЕ ГОТОВИТЬ СТАРОЕ', 'CORRECTION / DO NOT PREP OLD'),
-          helper: tx(lang, 'Bu item yenisi ilə əvəzlənib. Yeni REMAKE sətrini hazırlayın.', 'Эта позиция заменена новой. Готовьте новую строку REMAKE.', 'This item was replaced. Prep the new REMAKE line.'),
+          helper: tx(lang, 'Bu item yenisi ilə əvəzlənib. Yeni düzəliş sətrini hazırlayın.', 'Эта позиция заменена новой. Готовьте новую строку исправления.', 'This item was replaced. Prep the new correction line.'),
         };
       case 'CORRECTION':
         return {
           row: 'border-orange-300/70 bg-orange-500/15 text-orange-50',
           qty: 'bg-orange-500/30 text-orange-50',
-          prefix: tx(lang, 'REMAKE / DÜZƏLİŞ', 'REMAKE / ИСПРАВЛЕНИЕ', 'REMAKE / CORRECTION'),
+          prefix: tx(lang, 'YENİ DÜZƏLİŞ', 'НОВОЕ ИСПРАВЛЕНИЕ', 'NEW CORRECTION'),
           helper: tx(lang, 'Bu yeni düzəliş sətridir. Bunu hazırlayın, əvvəlki sətri hazırlamayın.', 'Это новая строка исправления. Готовьте ее, старую строку не готовьте.', 'This is the new correction row. Prep this and do not prep the old row.'),
         };
       case 'WASTE':
@@ -184,9 +202,9 @@ export default function KDS() {
       case 'READY': return <span className="rounded px-2 py-1 text-xs font-bold bg-emerald-400/20 text-emerald-200 border border-emerald-300/40">{tx(lang, 'HAZIRDIR', 'ГОТОВО', 'READY')}</span>;
       case 'VOID_REQUESTED': return <span className="rounded px-2 py-1 text-xs font-bold bg-yellow-400/25 text-yellow-100 border border-yellow-300/60">{tx(lang, 'LƏĞV TƏLƏBİ', 'ЗАПРОС ОТМЕНЫ', 'CANCEL REQUEST')}</span>;
       case 'VOIDED': return <span className="rounded px-2 py-1 text-xs font-bold bg-rose-400/20 text-rose-200 border border-rose-300/40">{tx(lang, 'LƏĞV EDİLDİ', 'ОТМЕНЕНО', 'VOIDED')}</span>;
-      case 'COMPED': return <span className="rounded px-2 py-1 text-xs font-bold bg-sky-400/20 text-sky-200 border border-sky-300/40">{tx(lang, 'COMP', 'КОМП', 'COMP')}</span>;
-      case 'WASTE': return <span className="rounded px-2 py-1 text-xs font-bold bg-slate-400/20 text-slate-200 border border-slate-300/40">{tx(lang, 'WASTE', 'СПИСАНО', 'WASTE')}</span>;
-      case 'REMAKE': return <span className="rounded px-2 py-1 text-xs font-bold bg-orange-400/20 text-orange-200 border border-orange-300/40">{tx(lang, 'REMAKE', 'ПЕРЕДЕЛАТЬ', 'REMAKE')}</span>;
+      case 'COMPED': return <span className="rounded px-2 py-1 text-xs font-bold bg-sky-400/20 text-sky-200 border border-sky-300/40">{tx(lang, 'HESABDAN SİLİNİB', 'СПИСАНО СО СЧЕТА', 'Comped')}</span>;
+      case 'WASTE': return <span className="rounded px-2 py-1 text-xs font-bold bg-slate-400/20 text-slate-200 border border-slate-300/40">{tx(lang, 'İSRAF', 'СПИСАНО', 'Waste')}</span>;
+      case 'REMAKE': return <span className="rounded px-2 py-1 text-xs font-bold bg-orange-400/20 text-orange-200 border border-orange-300/40">{tx(lang, 'YENİDƏN DÜZƏLT', 'ПЕРЕДЕЛАТЬ', 'Remake')}</span>;
       default: return null;
     }
   };
@@ -336,7 +354,7 @@ export default function KDS() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center text-slate-100">
           <ChefHat size={28} className="mr-3 text-yellow-300" />
-          <h1 className="text-2xl font-bold">{tx(lang, 'Mətbəx Ekranı (KDS)', 'Экран кухни (KDS)', 'Kitchen Display (KDS)')}</h1>
+          <h1 className="text-2xl font-bold">{tx(lang, 'Mətbəx ekranı', 'Экран кухни', 'Kitchen display')}</h1>
         </div>
         <div className="flex gap-3 text-sm font-medium items-center">
           <div className="metal-panel px-4 py-2 text-slate-300 flex items-center">
@@ -367,7 +385,7 @@ export default function KDS() {
                 </div>
                 {(order.table_label || order.order_type) && (
                   <div className="text-xs font-bold text-slate-200 bg-slate-700/40 inline-block px-2 py-0.5 rounded">
-                    {order.table_label ? tx(lang, `Masa: ${order.table_label}`, `Стол: ${order.table_label}`, `Table: ${order.table_label}`) : order.order_type}
+                    {getOrderContextLabel(order)}
                   </div>
                 )}
               </div>

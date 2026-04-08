@@ -727,7 +727,11 @@ export default function TablesPage() {
     try {
       await create_table_live(tenant_id, label, user?.username || 'Staff');
       notify('success', tx(lang, 'Masa yaradıldı', 'Стол создан', 'Table created'));
-      await loadData();
+      await Promise.all([
+        loadData(),
+        loadRestaurantData(),
+        activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(),
+      ]);
       setShowCreate(false);
       setNewTableName('');
     } catch(e:any) { notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message); }
