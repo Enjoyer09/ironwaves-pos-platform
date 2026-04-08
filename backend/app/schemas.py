@@ -189,6 +189,7 @@ class FinanceTransactionIn(BaseModel):
     counterparty: str | None = None
     reference: str | None = None
     note: str | None = None
+    requires_approval: bool | None = None
 
 
 class FinanceReconciliationIn(BaseModel):
