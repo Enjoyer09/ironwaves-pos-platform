@@ -232,6 +232,7 @@ export default function App() {
   const [availableTenants, setAvailableTenants] = useState<TenantRecord[]>([]);
   const [tenantSwitching, setTenantSwitching] = useState(false);
   const [businessProfileVersion, setBusinessProfileVersion] = useState(0);
+  const [settingsVersion, setSettingsVersion] = useState(0);
   const [perfEvents, setPerfEvents] = useState<PerfEvent[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -286,7 +287,7 @@ export default function App() {
           settings: { ui_visibility: defaultUiVisibility, role_modules: defaultRoleModules, inventory_settings: defaultInventorySettings },
       };
     }
-  }, [hasValidUser, user?.tenant_id, businessProfileVersion]);
+  }, [hasValidUser, user?.tenant_id, businessProfileVersion, settingsVersion]);
 
   const profile = appConfig.profile;
   const settings = appConfig.settings;
@@ -644,6 +645,21 @@ export default function App() {
     window.addEventListener('business-profile-updated', onBusinessProfileUpdated as EventListener);
     return () => {
       window.removeEventListener('business-profile-updated', onBusinessProfileUpdated as EventListener);
+    };
+  }, [user?.tenant_id, activeTenant]);
+
+  useEffect(() => {
+    const onSettingsUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ tenant_id?: string }>).detail;
+      const eventTenant = String(detail?.tenant_id || '');
+      const currentTenant = String(user?.tenant_id || activeTenant || '');
+      if (!eventTenant || !currentTenant || eventTenant === currentTenant) {
+        setSettingsVersion((prev) => prev + 1);
+      }
+    };
+    window.addEventListener('settings-updated', onSettingsUpdated as EventListener);
+    return () => {
+      window.removeEventListener('settings-updated', onSettingsUpdated as EventListener);
     };
   }, [user?.tenant_id, activeTenant]);
 
