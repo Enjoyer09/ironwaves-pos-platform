@@ -38,6 +38,24 @@ def _is_shift_deposit_entry(row: FinanceEntry) -> bool:
     return row.type == "in" and ("depozit" in category or "depozit" in description or "deposit" in description)
 
 
+def _group_amounts(rows: list[FinanceEntry], row_type: str, exclude_categories: set[str] | None = None) -> tuple[Decimal, list[dict]]:
+    groups: dict[str, Decimal] = {}
+    excluded = exclude_categories or set()
+    for row in rows:
+        if row.type != row_type:
+            continue
+        category = str(row.category or "").strip() or ("Giriş" if row_type == "in" else "Xərc")
+        if _normalized(category) in excluded:
+            continue
+        groups[category] = groups.get(category, Decimal("0")) + Decimal(str(row.amount or 0))
+    lines = [
+        {"label": label, "amount": str(amount.quantize(Decimal("0.01")))}
+        for label, amount in sorted(groups.items(), key=lambda item: item[1], reverse=True)
+    ]
+    total = sum((Decimal(str(row["amount"])) for row in lines), Decimal("0"))
+    return total.quantize(Decimal("0.01")), lines
+
+
 def _get_active_shift(db: Session, tenant_id: str) -> Shift | None:
     return db.query(Shift).filter(Shift.tenant_id == tenant_id, Shift.status == "open").first()
 
@@ -331,6 +349,16 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         (Decimal(str(row.amount)) for row in shift_rows if _is_shift_deposit_entry(row)),
         Decimal("0"),
     )
+    other_income_total, other_income_lines = _group_amounts(
+        shift_rows,
+        "in",
+        exclude_categories={"satış (nağd)", "satış (kart)", "staff ödənişi", "depozit"},
+    )
+    other_expense_total, other_expense_lines = _group_amounts(
+        shift_rows,
+        "out",
+        exclude_categories={"maaş"},
+    )
 
     active.status = "closed"
     active.closed_by = user.username
@@ -350,6 +378,10 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         "opening_cash": str(breakdown["opening_cash"].quantize(Decimal("0.01"))),
         "cash_movements_in": str(breakdown["cash_in"].quantize(Decimal("0.01"))),
         "cash_movements_out": str(breakdown["cash_out"].quantize(Decimal("0.01"))),
+        "other_income_total": str(other_income_total),
+        "other_income_lines": other_income_lines,
+        "other_expense_total": str(other_expense_total),
+        "other_expense_lines": other_expense_lines,
     }
 
 

@@ -850,6 +850,26 @@ export const z_report = async (
     }
   });
 
+  const normalize = (value: string | undefined | null) => String(value || '').trim().toLowerCase();
+  const otherIncomeMap = new Map<string, Decimal>();
+  const otherExpenseMap = new Map<string, Decimal>();
+  finances.forEach((f) => {
+    const category = String(f.category || '').trim() || (f.type === 'in' ? 'Giriş' : 'Xərc');
+    const normalizedCategory = normalize(category);
+    if (f.type === 'in') {
+      if (normalizedCategory.includes('satış') || normalizedCategory.includes('depozit')) return;
+      otherIncomeMap.set(category, (otherIncomeMap.get(category) || new Decimal(0)).plus(new Decimal(f.amount || 0)));
+    }
+    if (f.type === 'out') {
+      if (normalizedCategory === 'maaş') return;
+      otherExpenseMap.set(category, (otherExpenseMap.get(category) || new Decimal(0)).plus(new Decimal(f.amount || 0)));
+    }
+  });
+  const other_income_lines = Array.from(otherIncomeMap.entries()).map(([label, amount]) => ({ label, amount: amount.toFixed(2) }));
+  const other_expense_lines = Array.from(otherExpenseMap.entries()).map(([label, amount]) => ({ label, amount: amount.toFixed(2) }));
+  const other_income_total = other_income_lines.reduce((acc, row) => acc.plus(new Decimal(row.amount || 0)), new Decimal(0));
+  const other_expense_total = other_expense_lines.reduce((acc, row) => acc.plus(new Decimal(row.amount || 0)), new Decimal(0));
+
   const total_sales = cash_sales.plus(card_sales);
   const wage = new Decimal(wage_amount);
   const actual = new Decimal(actual_cash || '0');
@@ -970,5 +990,16 @@ export const z_report = async (
     </html>
   `;
   
-  return { success: true, total_sales: total_sales.toString(), wage: wage.toString(), receipt_html, email_sent, email_error };
+  return {
+    success: true,
+    total_sales: total_sales.toString(),
+    wage: wage.toString(),
+    receipt_html,
+    email_sent,
+    email_error,
+    other_income_total: other_income_total.toFixed(2),
+    other_income_lines,
+    other_expense_total: other_expense_total.toFixed(2),
+    other_expense_lines,
+  };
 };

@@ -55,6 +55,21 @@ const DEFAULT_BEVERAGE_SERVICE_SETTINGS: NonNullable<Settings['beverage_service_
   remove_paper_packaging_for_table: true,
 };
 
+const DEFAULT_Z_REPORT_RECEIPT_SETTINGS: NonNullable<Settings['z_report_receipt_settings']> = {
+  show_operator: true,
+  show_date_range: true,
+  show_sales_summary: true,
+  show_profit_summary: true,
+  show_wage: true,
+  show_shift_cash: true,
+  show_cash_movements: true,
+  show_other_income: true,
+  show_other_expense: true,
+  show_deposit_summary: true,
+  show_cashier_breakdown: true,
+  show_counts: true,
+};
+
 // Mərkəzi settings obyektini tapmaq (ya da yaratmaq) üçün kiçik helper:
 function getSettings(tenant_id?: string): Settings {
   const resolvedTenant = resolveTenant(tenant_id);
@@ -80,6 +95,7 @@ function getSettings(tenant_id?: string): Settings {
       time_settings: { shift_start_time: '08:00', shift_end_time: '23:00', utc_offset: 4, timezone: 'Asia/Baku' },
       session_settings: { idle_logout_minutes: 0, virtual_keyboard_enabled: true },
       beverage_service_settings: DEFAULT_BEVERAGE_SERVICE_SETTINGS,
+      z_report_receipt_settings: DEFAULT_Z_REPORT_RECEIPT_SETTINGS,
       email_settings: {
         enabled: false,
         provider: 'none',
@@ -271,6 +287,17 @@ export function update_beverage_service_settings(payload: NonNullable<Settings['
   return { success: true, beverage_service_settings: settings.beverage_service_settings };
 }
 
+export function update_z_report_receipt_settings(payload: NonNullable<Settings['z_report_receipt_settings']>) {
+  const settings = getSettings();
+  settings.z_report_receipt_settings = {
+    ...DEFAULT_Z_REPORT_RECEIPT_SETTINGS,
+    ...(payload || {}),
+  };
+  saveSettings(settings);
+  logEvent('admin', 'Z_REPORT_RECEIPT_SETTINGS_UPDATE', settings.z_report_receipt_settings);
+  return { success: true, z_report_receipt_settings: settings.z_report_receipt_settings };
+}
+
 export function update_time_settings(payload: { shift_start_time: string; shift_end_time: string; utc_offset: number; timezone: string }) {
   const settings = getSettings();
   settings.time_settings = payload;
@@ -454,6 +481,10 @@ export function get_settings(tenant_id?: string) {
       poster_background_color: '#d59b2d',
       logo_shape: 'rounded',
     };
+    saveSettings(s);
+  }
+  if (!s.z_report_receipt_settings) {
+    s.z_report_receipt_settings = DEFAULT_Z_REPORT_RECEIPT_SETTINGS;
     saveSettings(s);
   }
   if (!s.customer_app_settings) {
@@ -1009,6 +1040,13 @@ export async function update_beverage_service_settings_live(payload: NonNullable
   if (!isBackendEnabled()) return update_beverage_service_settings(payload);
   await apiRequest('/api/v1/ops/settings/beverage-service', { method: 'PATCH', tenantId: null, body: payload });
   update_beverage_service_settings(payload);
+  return { success: true };
+}
+
+export async function update_z_report_receipt_settings_live(payload: NonNullable<Settings['z_report_receipt_settings']>) {
+  if (!isBackendEnabled()) return update_z_report_receipt_settings(payload);
+  await apiRequest('/api/v1/ops/settings/z-report-receipt', { method: 'PATCH', tenantId: null, body: payload });
+  update_z_report_receipt_settings(payload);
   return { success: true };
 }
 
