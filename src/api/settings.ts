@@ -50,6 +50,11 @@ const DEFAULT_FINANCE_POLICY: NonNullable<Settings['finance_policy']> = {
   approver_roles: ['manager', 'admin', 'finance_admin', 'super_admin'],
 };
 
+const DEFAULT_BEVERAGE_SERVICE_SETTINGS: NonNullable<Settings['beverage_service_settings']> = {
+  coffee_selection_mode: 'size_and_service',
+  remove_paper_packaging_for_table: true,
+};
+
 // Mərkəzi settings obyektini tapmaq (ya da yaratmaq) üçün kiçik helper:
 function getSettings(tenant_id?: string): Settings {
   const resolvedTenant = resolveTenant(tenant_id);
@@ -74,6 +79,7 @@ function getSettings(tenant_id?: string): Settings {
       ui_visibility: { staff_show_tables: true, manager_show_tables: true, staff_show_kitchen: true },
       time_settings: { shift_start_time: '08:00', shift_end_time: '23:00', utc_offset: 4, timezone: 'Asia/Baku' },
       session_settings: { idle_logout_minutes: 0, virtual_keyboard_enabled: true },
+      beverage_service_settings: DEFAULT_BEVERAGE_SERVICE_SETTINGS,
       email_settings: {
         enabled: false,
         provider: 'none',
@@ -252,6 +258,17 @@ export function update_ui_visibility(payload: { staff_show_tables: boolean; mana
   saveSettings(settings);
   logEvent('admin', 'UI_SETTINGS_UPDATE', {});
   return { success: true };
+}
+
+export function update_beverage_service_settings(payload: NonNullable<Settings['beverage_service_settings']>) {
+  const settings = getSettings();
+  settings.beverage_service_settings = {
+    coffee_selection_mode: payload?.coffee_selection_mode === 'size_only' ? 'size_only' : 'size_and_service',
+    remove_paper_packaging_for_table: payload?.remove_paper_packaging_for_table !== false,
+  };
+  saveSettings(settings);
+  logEvent('admin', 'BEVERAGE_SERVICE_SETTINGS_UPDATE', settings.beverage_service_settings);
+  return { success: true, beverage_service_settings: settings.beverage_service_settings };
 }
 
 export function update_time_settings(payload: { shift_start_time: string; shift_end_time: string; utc_offset: number; timezone: string }) {
@@ -985,6 +1002,13 @@ export async function update_session_settings_live(payload: { idle_logout_minute
   if (!isBackendEnabled()) return update_session_settings(payload);
   await apiRequest('/api/v1/ops/settings/session', { method: 'PATCH', tenantId: null, body: payload });
   update_session_settings(payload);
+  return { success: true };
+}
+
+export async function update_beverage_service_settings_live(payload: NonNullable<Settings['beverage_service_settings']>) {
+  if (!isBackendEnabled()) return update_beverage_service_settings(payload);
+  await apiRequest('/api/v1/ops/settings/beverage-service', { method: 'PATCH', tenantId: null, body: payload });
+  update_beverage_service_settings(payload);
   return { success: true };
 }
 

@@ -113,6 +113,7 @@ class SaleItemIn(BaseModel):
     qty: int = Field(ge=1)
     category: str | None = None
     is_coffee: bool = False
+    cup_mode: str | None = None
 
 
 class SaleCreateIn(BaseModel):

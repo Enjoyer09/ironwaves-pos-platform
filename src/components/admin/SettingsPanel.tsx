@@ -14,6 +14,7 @@ import {
   setup_totp_live,
   update_bank_commission_live,
   update_email_settings_live,
+  update_beverage_service_settings_live,
   update_finance_policy_live,
   update_service_fee_live,
   update_session_settings_live,
@@ -99,6 +100,10 @@ export default function SettingsPanel() {
   const [sessionSettings, setSessionSettings] = useState({
     idle_logout_minutes: '0',
     virtual_keyboard_enabled: true,
+  });
+  const [beverageServiceSettings, setBeverageServiceSettings] = useState({
+    coffee_selection_mode: 'size_and_service' as 'size_only' | 'size_and_service',
+    remove_paper_packaging_for_table: true,
   });
   const [printSettings, setPrintSettings] = useState({
     use_qz: false,
@@ -275,6 +280,10 @@ export default function SettingsPanel() {
       setSessionSettings({
         idle_logout_minutes: String(settingsRes.value.session_settings?.idle_logout_minutes ?? 0),
         virtual_keyboard_enabled: settingsRes.value.session_settings?.virtual_keyboard_enabled !== false,
+      });
+      setBeverageServiceSettings({
+        coffee_selection_mode: settingsRes.value.beverage_service_settings?.coffee_selection_mode === 'size_only' ? 'size_only' : 'size_and_service',
+        remove_paper_packaging_for_table: settingsRes.value.beverage_service_settings?.remove_paper_packaging_for_table !== false,
       });
       setPrintSettings({
         use_qz: Boolean(settingsRes.value.print_settings?.use_qz),
@@ -725,6 +734,14 @@ export default function SettingsPanel() {
       reservation_lock_hours: Number(tableServiceSettings.reservation_lock_hours || 0),
     });
     flashSuccess(tx(lang, 'Masa xidməti ayarları yadda saxlanıldı', 'Настройки столов сохранены', 'Table service settings saved'));
+  };
+
+  const saveBeverageServiceSettings = async () => {
+    await update_beverage_service_settings_live({
+      coffee_selection_mode: beverageServiceSettings.coffee_selection_mode,
+      remove_paper_packaging_for_table: beverageServiceSettings.remove_paper_packaging_for_table,
+    });
+    flashSuccess(tx(lang, 'İçki servis ayarları yadda saxlanıldı', 'Настройки подачи напитков сохранены', 'Beverage service settings saved'));
   };
 
   const saveYieldManagement = async () => {
@@ -1196,6 +1213,71 @@ export default function SettingsPanel() {
         </div>
         <div className="flex justify-end">
           <button onClick={() => { void saveTableServiceSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+        </div>
+      </div>
+
+      <div className="metal-panel p-6 space-y-4">
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'İçki Servis Ayarları', 'Настройки подачи напитков', 'Beverage Service Settings')}</h2>
+        <p className="text-sm text-slate-400">
+          {tx(
+            lang,
+            'Kofe seçiləndə yalnız ölçü soruşulsun, yoxsa əlavə olaraq to go və ya masa/stəkan seçimi də açılsın — bunu buradan təyin edin.',
+            'Здесь можно выбрать: при выборе кофе спрашивать только размер или дополнительно способ подачи — to go / в стакане на стол.',
+            'Choose whether coffee selection should ask only for size or also for service mode like to-go or table glass.',
+          )}
+        </p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="field-stack form-card md:col-span-2">
+            <label className="field-label">{tx(lang, 'Kofe seçim popup-u', 'Popup выбора кофе', 'Coffee selection popup')}</label>
+            <select
+              className="neon-input"
+              value={beverageServiceSettings.coffee_selection_mode}
+              onChange={(e) =>
+                setBeverageServiceSettings((prev) => ({
+                  ...prev,
+                  coffee_selection_mode: e.target.value === 'size_only' ? 'size_only' : 'size_and_service',
+                }))
+              }
+            >
+              <option value="size_and_service">{tx(lang, 'Ölçü + stəkan seçimi', 'Размер + выбор стакана', 'Size + cup choice')}</option>
+              <option value="size_only">{tx(lang, 'Yalnız ölçü seçimi', 'Только выбор размера', 'Size only')}</option>
+            </select>
+            <div className="field-hint">
+              {tx(
+                lang,
+                'Məsələn Amerikano seçiləndə ayrıca Kağız stəkan (to go) və ya Stəkan (masa) soruşmaq istəyirsinizsə birinci variantı seçin.',
+                'Если при выборе Американо нужно спрашивать Бумажный стакан (to go) или Стакан (table), выберите первый вариант.',
+                'Choose the first option if Americano should ask for Paper cup (to go) or Glass (table).',
+              )}
+            </div>
+          </div>
+          <label className="form-card flex items-center justify-between gap-4">
+            <div>
+              <div className="field-label">{tx(lang, 'Masa seçiləndə kağız stəkanı çıxart', 'Убирать бумажный стакан для зала', 'Exclude paper cup for table service')}</div>
+              <div className="field-hint">
+                {tx(
+                  lang,
+                  'Stəkan (masa) seçiləndə reseptdəki kağız stəkan və qapaq sərfdən çıxarılmayacaq.',
+                  'Если выбран стакан для зала, бумажный стакан и крышка не будут списаны по рецепту.',
+                  'When table glass is selected, paper cup and lid will not be consumed from recipe stock.',
+                )}
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              className="h-5 w-5"
+              checked={beverageServiceSettings.remove_paper_packaging_for_table}
+              onChange={(e) =>
+                setBeverageServiceSettings((prev) => ({
+                  ...prev,
+                  remove_paper_packaging_for_table: e.target.checked,
+                }))
+              }
+            />
+          </label>
+        </div>
+        <div className="flex justify-end">
+          <button onClick={() => { void saveBeverageServiceSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 
