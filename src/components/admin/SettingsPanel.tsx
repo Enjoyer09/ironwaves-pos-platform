@@ -895,6 +895,37 @@ export default function SettingsPanel() {
       </div>
 
       <div className="metal-panel p-6 space-y-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Sürətli cihaz ayarı', 'Быстрая настройка устройства', 'Quick device setting')}</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              {tx(
+                lang,
+                'Virtual klaviaturanı buradan birbaşa açıb-bağlaya bilərsiniz.',
+                'Здесь можно сразу включить или отключить виртуальную клавиатуру.',
+                'You can turn the virtual keyboard on or off right here.',
+              )}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 px-4 py-3">
+            <label className="flex items-center gap-3 text-sm font-semibold text-slate-200">
+              <input
+                type="checkbox"
+                checked={sessionSettings.virtual_keyboard_enabled}
+                onChange={(e) => setSessionSettings((prev) => ({ ...prev, virtual_keyboard_enabled: e.target.checked }))}
+              />
+              <span>{tx(lang, 'Virtual klaviatura aktivdir', 'Виртуальная клавиатура включена', 'Virtual keyboard is enabled')}</span>
+            </label>
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <button onClick={() => { void saveSessionSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">
+            {tx(lang, 'Virtual klaviatura ayarını saxla', 'Сохранить настройку виртуальной клавиатуры', 'Save virtual keyboard setting')}
+          </button>
+        </div>
+      </div>
+
+      <div className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Biznes Profili', 'Профиль бизнеса', 'Business Profile')}</h2>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="field-stack form-card">
