@@ -281,7 +281,7 @@ export function FinanceLedgerTab({
             <option value={20}>20</option>
             <option value={50}>50</option>
           </select>
-          <button className="neon-btn rounded-2xl px-4 text-sm font-black" onClick={onExport}>{tx(lang, 'Export', 'Экспорт', 'Export')}</button>
+          <button className="neon-btn rounded-2xl px-4 text-sm font-black" onClick={onExport}>{tx(lang, 'Çıxar', 'Экспорт', 'Export')}</button>
         </div>
       </div>
       <div className="mb-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-4">
