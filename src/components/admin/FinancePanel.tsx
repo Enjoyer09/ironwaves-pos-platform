@@ -1726,7 +1726,28 @@ export default function FinancePanel() {
         >
           {workspaceTab === 'transactions' && transactionForm}
           {workspaceTab === 'transfers' && transferForm}
-          {workspaceTab === 'investor' && investorForm}
+          {workspaceTab === 'investor' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <FinanceMiniMetric
+                  label={tx(lang, 'Mövcud investor borcu', 'Текущий долг инвестору', 'Current investor debt')}
+                  value={`${effectiveInvestorDebt.toFixed(2)} ₼`}
+                  tone={effectiveInvestorDebt.gt(0.01) ? 'rose' : 'emerald'}
+                />
+                <FinanceMiniMetric
+                  label={tx(lang, 'Ödəniş mənbəyi', 'Источник оплаты', 'Payment source')}
+                  value={repayFrom === 'cash' ? tx(lang, 'Kassa', 'Касса', 'Cash') : repayFrom === 'card' ? tx(lang, 'Kart', 'Карта', 'Card') : tx(lang, 'Seyf', 'Сейф', 'Safe')}
+                  tone="sky"
+                />
+                <FinanceMiniMetric
+                  label={tx(lang, 'Qeyd', 'Комментарий', 'Note')}
+                  value={repayNote?.trim() || tx(lang, 'Qeyd yoxdur', 'Комментария нет', 'No note')}
+                  tone="amber"
+                />
+              </div>
+              {investorForm}
+            </div>
+          )}
           {workspaceTab === 'deposits' && (
             <FinanceControlCard title={tx(lang, 'Depozitlər', 'Depozitlər', 'Depozitlər')} subtitle={tx(lang, 'Depozit ayrıca öhdəlik kimi izlənir', 'Depozit ayrıca öhdəlik kimi izlənir', 'Depozit ayrıca öhdəlik kimi izlənir')}>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -1762,6 +1783,7 @@ export default function FinancePanel() {
         balance={balance}
         netCashflow={financeSummary.net}
         reconciliationGap={unreconciledVariance}
+        investorDebt={effectiveInvestorDebt.toFixed(2)}
         pendingApprovals={pendingApprovalsCount}
         onRefresh={() => void reloadFinance(true)}
       />

@@ -35,6 +35,7 @@ export function FinanceSummaryStrip({
   balance,
   netCashflow,
   reconciliationGap,
+  investorDebt,
   pendingApprovals,
   onRefresh,
 }: {
@@ -42,6 +43,7 @@ export function FinanceSummaryStrip({
   balance: any;
   netCashflow: Decimal;
   reconciliationGap: string;
+  investorDebt: string;
   pendingApprovals: number;
   onRefresh: () => void;
 }) {
@@ -50,6 +52,7 @@ export function FinanceSummaryStrip({
     { label: tx(lang, 'Bank/Kart', 'Банк/карта', 'Bank/Card'), value: balance.card_balance, tone: 'sky' as const, icon: <Landmark size={20} /> },
     { label: tx(lang, 'Seyf', 'Сейф', 'Safe'), value: balance.safe_balance, tone: 'violet' as const, icon: <ShieldCheck size={20} /> },
     { label: tx(lang, 'Aktiv Depozitlər', 'Активные депозиты', 'Active deposits'), value: balance.deposit_balance, tone: 'amber' as const, icon: <WalletCards size={20} /> },
+    { label: tx(lang, 'Investor borcu', 'Долг инвестору', 'Investor liability'), value: investorDebt, tone: new Decimal(investorDebt || 0).gt(0.01) ? 'rose' as const : 'emerald' as const, icon: <CreditCard size={20} /> },
     { label: tx(lang, 'Bugünkü Net', 'Нетто сегодня', 'Today net'), value: netCashflow, tone: netCashflow.gte(0) ? 'emerald' as const : 'rose' as const, icon: <RefreshCw size={20} /> },
     { label: tx(lang, 'Uyğunlaşdırma', 'Сверка', 'Reconciliation'), value: reconciliationGap, tone: new Decimal(reconciliationGap || 0).abs().gt(0.01) ? 'rose' as const : 'emerald' as const, icon: <GitCompareArrows size={20} /> },
   ];
@@ -72,7 +75,7 @@ export function FinanceSummaryStrip({
           </button>
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
         {cards.map((card) => <FinanceKpiCard key={card.label} {...card} />)}
       </div>
     </section>
