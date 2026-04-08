@@ -1788,6 +1788,67 @@ export default function FinancePanel() {
         onRefresh={() => void reloadFinance(true)}
       />
 
+      <div className="rounded-[28px] border border-slate-800 bg-slate-900 p-5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <div className="text-xs font-black uppercase tracking-[0.24em] text-sky-300">{tx(lang, 'Dövr seçimi', 'Выбор периода', 'Period selection')}</div>
+            <h3 className="mt-2 text-xl font-black text-white">{tx(lang, 'Maliyyə tarix aralığı', 'Финансовый диапазон дат', 'Finance date range')}</h3>
+            <p className="mt-1 text-sm text-slate-400">
+              {tx(lang, 'Baxış, uyğunlaşdırma və jurnal bu tarix aralığına görə hesablanır.', 'Обзор, сверка и журнал считаются по этому периоду.', 'Overview, reconciliation and journal are calculated for this date range.')}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+            {([
+              ['daily', tx(lang, 'Bu gün', 'Сегодня', 'Today')],
+              ['weekly', tx(lang, 'Həftə', 'Неделя', 'Week')],
+              ['monthly', tx(lang, 'Ay', 'Месяц', 'Month')],
+              ['yearly', tx(lang, 'İl', 'Год', 'Year')],
+              ['custom', tx(lang, 'Xüsusi', 'Произвольно', 'Custom')],
+            ] as const).map(([preset, label]) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => applyRangePreset(preset)}
+                className={`min-h-11 rounded-2xl px-4 text-sm font-black transition ${rangePreset === preset ? 'bg-white text-slate-950' : 'border border-slate-700 bg-slate-950 text-slate-200'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto]">
+          <label className="space-y-2">
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Başlanğıc tarix', 'Дата начала', 'Start date')}</span>
+            <input
+              className="neon-input min-h-12"
+              type="date"
+              value={fromDate}
+              onChange={(e) => {
+                setRangePreset('custom');
+                setFromDate(e.target.value);
+              }}
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Bitiş tarixi', 'Дата окончания', 'End date')}</span>
+            <input
+              className="neon-input min-h-12"
+              type="date"
+              value={toDate}
+              onChange={(e) => {
+                setRangePreset('custom');
+                setToDate(e.target.value);
+              }}
+            />
+          </label>
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Aktiv dövr', 'Активный период', 'Active period')}</div>
+            <div className="mt-2 text-sm font-black text-white">{fromDate} → {toDate}</div>
+          </div>
+        </div>
+      </div>
+
       <FinanceAlertsBar
         alerts={financeAlerts}
         onOpen={openFinanceAlert}
