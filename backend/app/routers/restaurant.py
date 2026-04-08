@@ -420,24 +420,51 @@ def _ensure_default_floor(db: Session, tenant_id: str) -> FloorPlan:
         .first()
     )
     if row:
+        _assign_unassigned_tables_to_floor(db, tenant_id, row)
         return row
     row = FloorPlan(tenant_id=tenant_id, name="Main Floor", width_units=12, height_units=8, is_active=True)
     db.add(row)
     db.flush()
-    unassigned_tables = db.query(Table).filter(Table.tenant_id == tenant_id, Table.floor_plan_id.is_(None)).all()
-    cursor_x = 0
-    cursor_y = 0
-    for table in unassigned_tables:
-        table.floor_plan_id = row.id
-        table.pos_x = cursor_x
-        table.pos_y = cursor_y
-        cursor_x += 3
-        if cursor_x >= 12:
-            cursor_x = 0
-            cursor_y += 3
+    _assign_unassigned_tables_to_floor(db, tenant_id, row)
     db.commit()
     db.refresh(row)
     return row
+
+
+def _assign_unassigned_tables_to_floor(db: Session, tenant_id: str, floor: FloorPlan) -> None:
+    unassigned_tables = (
+        db.query(Table)
+        .filter(Table.tenant_id == tenant_id, Table.floor_plan_id.is_(None))
+        .order_by(Table.label.asc())
+        .all()
+    )
+    if not unassigned_tables:
+        return
+    max_cols = max(6, int(floor.width_units or 12))
+    slot_width = 3
+    slot_height = 3
+    assigned_count = (
+        db.query(Table)
+        .filter(Table.tenant_id == tenant_id, Table.floor_plan_id == floor.id)
+        .count()
+    )
+    per_row = max(1, max_cols // slot_width)
+    cursor = assigned_count
+    for table in unassigned_tables:
+        table.floor_plan_id = floor.id
+        table.pos_x = (cursor % per_row) * slot_width
+        table.pos_y = (cursor // per_row) * slot_height
+        if table.width_units is None or int(table.width_units or 0) <= 0:
+            table.width_units = 2
+        if table.height_units is None or int(table.height_units or 0) <= 0:
+            table.height_units = 2
+        if table.capacity is None or int(table.capacity or 0) <= 0:
+            table.capacity = 4
+        if not str(table.shape or "").strip():
+            table.shape = "rectangle"
+        if not str(table.status or "").strip():
+            table.status = "AVAILABLE"
+        cursor += 1
 
 
 def _guest_payload(guest: Guest | None) -> dict:
@@ -1156,6 +1183,8 @@ def get_floor_state(
     floor = db.query(FloorPlan).filter(FloorPlan.id == floor_id, FloorPlan.tenant_id == tenant.id).first()
     if not floor:
         raise HTTPException(status_code=404, detail="Floor plan not found")
+    _assign_unassigned_tables_to_floor(db, tenant.id, floor)
+    db.commit()
     tables = db.query(Table).filter(Table.tenant_id == tenant.id, Table.floor_plan_id == floor.id).order_by(Table.label.asc()).all()
     return {
         "floor": {
