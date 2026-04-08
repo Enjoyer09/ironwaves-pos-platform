@@ -1384,6 +1384,10 @@ export default function FinancePanel() {
     setWorkspaceTab('ledger');
   };
 
+  const closeActionWorkspace = () => {
+    setWorkspaceTab('overview');
+  };
+
   const transactionForm = (
     <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-5">
       <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1557,6 +1561,51 @@ export default function FinancePanel() {
             {tx(lang, 'Approval gözləyən əməliyyat yoxdur.', 'Нет операций, ожидающих approval.', 'No transactions waiting for approval.')}
           </div>
         )}
+      </div>
+    </FinanceControlCard>
+  );
+
+  const approvalPreview = (
+    <FinanceControlCard
+      title={tx(lang, 'Təsdiq qutusu', 'Тəsdiq qutusu', 'Təsdiq qutusu')}
+      subtitle={tx(lang, 'Riskli əməliyyatlar burada gözləyir', 'Riskli əməliyyatlar burada gözləyir', 'Riskli əməliyyatlar burada gözləyir')}
+    >
+      <div className="space-y-3">
+        {pendingApprovals.slice(0, 3).map((row) => (
+          <button
+            key={row.id}
+            onClick={() => void openLedgerDetail(row)}
+            className="w-full rounded-2xl border border-amber-400/20 bg-amber-950/20 p-4 text-left transition hover:border-amber-300/40"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-200">{transactionTypeLabel(row.transaction_type)}</div>
+                <div className="mt-1 text-lg font-black text-white">{new Decimal(row.amount || 0).toFixed(2)} ₼</div>
+                <div className="mt-1 truncate text-sm text-slate-400">
+                  {accountName(row.source_account)} → {accountName(row.destination_account)}
+                </div>
+              </div>
+              <FinanceStatusBadge status={row.status || 'pending_approval'} />
+            </div>
+          </button>
+        ))}
+        {pendingApprovals.length === 0 ? (
+          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-950/20 p-4 text-sm font-bold text-emerald-100">
+            {tx(lang, 'Hazırda təsdiq gözləyən əməliyyat yoxdur.', 'Hazırda təsdiq gözləyən əməliyyat yoxdur.', 'Hazırda təsdiq gözləyən əməliyyat yoxdur.')}
+          </div>
+        ) : null}
+      </div>
+      <div className="mt-4 flex justify-end">
+        <button
+          onClick={() => {
+            setWorkspaceTab('ledger');
+            setLedgerStatusFilter('pending_approval');
+            setLedgerOffset(0);
+          }}
+          className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100"
+        >
+          {tx(lang, 'Hamısını aç', 'Hamısını aç', 'Hamısını aç')}
+        </button>
       </div>
     </FinanceControlCard>
   );
@@ -1739,6 +1788,129 @@ export default function FinancePanel() {
     </div>
   );
 
+  const workspaceTitleMap: Record<Exclude<FinanceWorkspaceTab, 'overview'>, { title: string; subtitle: string }> = {
+    transactions: {
+      title: tx(lang, 'Əməliyyat yaz', 'Əməliyyat yaz', 'Əməliyyat yaz'),
+      subtitle: tx(lang, 'Seçilmiş əməliyyat üçün yalnız lazım olan sahələr göstərilir.', 'Seçilmiş əməliyyat üçün yalnız lazım olan sahələr göstərilir.', 'Seçilmiş əməliyyat üçün yalnız lazım olan sahələr göstərilir.'),
+    },
+    transfers: {
+      title: tx(lang, 'Daxili transfer', 'Daxili transfer', 'Daxili transfer'),
+      subtitle: tx(lang, 'Hesablar arasında hərəkəti nəzarətli şəkildə yazın.', 'Hesablar arasında hərəkəti nəzarətli şəkildə yazın.', 'Hesablar arasında hərəkəti nəzarətli şəkildə yazın.'),
+    },
+    reconciliation: {
+      title: tx(lang, 'Uyğunlaşdırma', 'Uyğunlaşdırma', 'Uyğunlaşdırma'),
+      subtitle: tx(lang, 'Gözlənilən və sayılmış qalığı tutuşdurun.', 'Gözlənilən və sayılmış qalığı tutuşdurun.', 'Gözlənilən və sayılmış qalığı tutuşdurun.'),
+    },
+    investor: {
+      title: tx(lang, 'Investor ödənişi', 'Investor ödənişi', 'Investor ödənişi'),
+      subtitle: tx(lang, 'Investor borcu ilə bağlı nəzarətli ödəniş axını.', 'Investor borcu ilə bağlı nəzarətli ödəniş axını.', 'Investor borcu ilə bağlı nəzarətli ödəniş axını.'),
+    },
+    deposits: {
+      title: tx(lang, 'Depozit əməliyyatları', 'Depozit əməliyyatları', 'Depozit əməliyyatları'),
+      subtitle: tx(lang, 'Açıq masa depozitləri ayrıca öhdəlik kimi izlənir.', 'Açıq masa depozitləri ayrıca öhdəlik kimi izlənir.', 'Açıq masa depozitləri ayrıca öhdəlik kimi izlənir.'),
+    },
+    ledger: {
+      title: tx(lang, 'Maliyyə jurnalı', 'Maliyyə jurnalı', 'Maliyyə jurnalı'),
+      subtitle: tx(lang, 'Audit, approval və reversal tarixçəsi ayrıca iş sahəsindədir.', 'Audit, approval və reversal tarixçəsi ayrıca iş sahəsindədir.', 'Audit, approval və reversal tarixçəsi ayrıca iş sahəsindədir.'),
+    },
+  };
+
+  const actionWorkspace =
+    workspaceTab === 'overview'
+      ? null
+      : (
+        <FinanceControlCard
+          title={workspaceTitleMap[workspaceTab].title}
+          subtitle={workspaceTitleMap[workspaceTab].subtitle}
+        >
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                {tx(lang, 'Aktiv iş sahəsi', 'Aktiv iş sahəsi', 'Aktiv iş sahəsi')}
+              </div>
+              <div className="mt-1 text-base font-black text-white">{workspaceTitleMap[workspaceTab].title}</div>
+            </div>
+            <button onClick={closeActionWorkspace} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100">
+              {tx(lang, 'Baxışa qayıt', 'Baxışa qayıt', 'Baxışa qayıt')}
+            </button>
+          </div>
+          {workspaceTab === 'transactions' && transactionForm}
+          {workspaceTab === 'transfers' && transferForm}
+          {workspaceTab === 'investor' && investorForm}
+          {workspaceTab === 'deposits' && (
+            <FinanceControlCard title={tx(lang, 'Depozitlər', 'Depozitlər', 'Depozitlər')} subtitle={tx(lang, 'Depozit ayrıca öhdəlik kimi izlənir', 'Depozit ayrıca öhdəlik kimi izlənir', 'Depozit ayrıca öhdəlik kimi izlənir')}>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <FinanceMiniMetric label={tx(lang, 'Aktiv depozit öhdəliyi', 'Aktiv depozit öhdəliyi', 'Aktiv depozit öhdəliyi')} value={`${new Decimal(balance.deposit_balance || 0).toFixed(2)} ₼`} tone="amber" />
+                <FinanceMiniMetric label={tx(lang, 'Seçilən aralıqda toplanıb', 'Seçilən aralıqda toplanıb', 'Seçilən aralıqda toplanıb')} value={`${depositsInRange.toFixed(2)} ₼`} tone="sky" />
+              </div>
+            </FinanceControlCard>
+          )}
+          {workspaceTab === 'reconciliation' && (
+            <div className="rounded-[24px] border border-slate-800 bg-slate-950 p-4">
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+                <div className="rounded-[24px] border border-slate-800 bg-slate-950 p-4">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <FinanceMiniMetric label={tx(lang, 'Gözlənilən', 'Gözlənilən', 'Gözlənilən')} value={`${expectedReconcileBalance.toFixed(2)} ₼`} tone="sky" />
+                    <FinanceMiniMetric label={tx(lang, 'Sayılmış', 'Sayılmış', 'Sayılmış')} value={`${new Decimal(reconcileCounted || 0).toFixed(2)} ₼`} tone="emerald" />
+                    <FinanceMiniMetric label={tx(lang, 'Fərq', 'Fərq', 'Fərq')} value={`${reconcileVariance.toFixed(2)} ₼`} tone={reconcileVariance.abs().gt(0.01) ? 'rose' : 'emerald'} />
+                  </div>
+                  <div className="mt-4 grid grid-cols-1 gap-3">
+                    <FinanceField label={tx(lang, 'Hesab / Kassa', 'Hesab / Kassa', 'Hesab / Kassa')}>
+                      <select className="neon-input min-h-13" value={reconcileAccount} onChange={(e) => setReconcileAccount(e.target.value)}>
+                        {(ledgerAccounts.length ? ledgerAccounts : [
+                          { code: 'cash', name: 'Nağd Kassa' },
+                          { code: 'card', name: 'Bank/Kart' },
+                          { code: 'safe', name: 'Seyf' },
+                        ] as any[]).map((account: any) => (
+                          <option key={account.code} value={account.code}>{account.name}</option>
+                        ))}
+                      </select>
+                    </FinanceField>
+                    <FinanceField label={tx(lang, 'Sayılmış məbləğ', 'Sayılmış məbləğ', 'Sayılmış məbləğ')} helper={tx(lang, 'Fiziki sayılmış qalığı yazın.', 'Fiziki sayılmış qalığı yazın.', 'Fiziki sayılmış qalığı yazın.')}>
+                      <input className="neon-input min-h-16 text-2xl font-black" type="number" min={0} step="0.01" value={reconcileCounted} onChange={(e) => setReconcileCounted(e.target.value)} />
+                    </FinanceField>
+                    <FinanceField label={tx(lang, 'Qeyd', 'Qeyd', 'Qeyd')}>
+                      <input className="neon-input min-h-13" value={reconcileNotes} onChange={(e) => setReconcileNotes(e.target.value)} />
+                    </FinanceField>
+                    <button onClick={() => void doReconcile()} className="glossy-gold min-h-14 rounded-2xl px-6 text-base font-black">
+                      {tx(lang, 'Uyğunlaşdırmanı tamamla', 'Uyğunlaşdırmanı tamamla', 'Uyğunlaşdırmanı tamamla')}
+                    </button>
+                  </div>
+                </div>
+                <div className="rounded-[24px] border border-slate-800 bg-slate-950 p-4">
+                  <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Son uyğunlaşdırmalar', 'Son uyğunlaşdırmalar', 'Son uyğunlaşdırmalar')}</div>
+                  <div className="space-y-3">
+                    {reconciliations.slice(0, 8).map((row) => (
+                      <div key={row.id} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="font-black text-white">{row.account_name || row.account_code}</div>
+                            <div className="text-xs text-slate-500">{formatServerUtcDateTime(row.reconciled_at || row.created_at || '', lang)} · {row.reconciled_by || row.created_by}</div>
+                          </div>
+                          <span className={`rounded-full px-3 py-1 text-xs font-black ${new Decimal(row.variance || 0).abs().gt(0.01) ? 'bg-rose-400/10 text-rose-200' : 'bg-emerald-400/10 text-emerald-200'}`}>
+                            {new Decimal(row.variance || 0).toFixed(2)} ₼
+                          </span>
+                        </div>
+                        <div className="mt-2 text-xs text-slate-400">
+                          {tx(lang, 'Gözlənilən', 'Gözlənilən', 'Gözlənilən')} {new Decimal(row.expected_balance || 0).toFixed(2)} ₼ · {tx(lang, 'Sayılmış', 'Sayılmış', 'Sayılmış')} {new Decimal(row.counted_balance || 0).toFixed(2)} ₼
+                        </div>
+                        {row.notes && <div className="mt-2 text-xs text-slate-500">{row.notes}</div>}
+                      </div>
+                    ))}
+                    {reconciliations.length === 0 && (
+                      <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-sm text-slate-400">
+                        {tx(lang, 'Hələ uyğunlaşdırma qeydi yoxdur.', 'Hələ uyğunlaşdırma qeydi yoxdur.', 'Hələ uyğunlaşdırma qeydi yoxdur.')}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {workspaceTab === 'ledger' && ledgerTable}
+        </FinanceControlCard>
+      );
+
   return (
     <FinanceDashboard>
       <FinanceSummaryStrip
@@ -1777,7 +1949,14 @@ export default function FinancePanel() {
                 <FinanceMiniMetric label={tx(lang, 'Net', 'Нетто', 'Net')} value={`${financeSummary.net.toFixed(2)} ₼`} tone={financeSummary.net.gte(0) ? 'emerald' : 'rose'} />
               </div>
             </FinanceControlCard>
-            {transactionForm}
+            <FinanceControlCard title={tx(lang, 'Bu gün nə baş verir?', 'Bu gün nə baş verir?', 'Bu gün nə baş verir?')} subtitle={tx(lang, 'Əməliyyat yazmaq üçün yuxarıdakı sürətli düymələrdən birini seçin.', 'Əməliyyat yazmaq üçün yuxarıdakı sürətli düymələrdən birini seçin.', 'Əməliyyat yazmaq üçün yuxarıdakı sürətli düymələrdən birini seçin.')}>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <FinanceMiniMetric label={tx(lang, 'Bugünkü mədaxil', 'Bugünkü mədaxil', 'Bugünkü mədaxil')} value={`${financeSummary.incoming.toFixed(2)} ₼`} tone="emerald" />
+                <FinanceMiniMetric label={tx(lang, 'Bugünkü xərc', 'Bugünkü xərc', 'Bugünkü xərc')} value={`${financeSummary.outgoing.toFixed(2)} ₼`} tone="rose" />
+                <FinanceMiniMetric label={tx(lang, 'Ən böyük xərc', 'Ən böyük xərc', 'Ən böyük xərc')} value={financeSummary.biggestExpense ? `${new Decimal(financeSummary.biggestExpense.amount || 0).toFixed(2)} ₼` : '0.00 ₼'} tone="amber" />
+                <FinanceMiniMetric label={tx(lang, 'Aktiv təsdiqlər', 'Aktiv təsdiqlər', 'Aktiv təsdiqlər')} value={String(pendingApprovalsCount)} tone="violet" />
+              </div>
+            </FinanceControlCard>
           </div>
           <div className="space-y-5">
             <FinanceControlCard title={tx(lang, 'Control summary', 'Сводка контроля', 'Control summary')} subtitle={tx(lang, 'Öhdəliklər və risklər', 'Обязательства и риски', 'Liabilities and risks')}>
@@ -1787,86 +1966,12 @@ export default function FinancePanel() {
                 <FinanceMiniMetric label={tx(lang, 'Liquidity', 'Ликвидность', 'Liquidity')} value={cashCoverage === 'N/A' ? cashCoverage : `${cashCoverage}%`} tone="violet" />
               </div>
             </FinanceControlCard>
-            {approvalInbox}
-            {ledgerTable}
+            {approvalPreview}
           </div>
         </div>
       )}
 
-      {workspaceTab === 'transactions' && transactionForm}
-      {workspaceTab === 'transfers' && transferForm}
-      {workspaceTab === 'investor' && investorForm}
-      {workspaceTab === 'deposits' && (
-        <FinanceControlCard title={tx(lang, 'Deposits', 'Депозиты', 'Deposits')} subtitle={tx(lang, 'Depozit ayrıca liability kimi izlənir', 'Депозиты учитываются как отдельное обязательство', 'Deposits are tracked as a separate liability')}>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <FinanceMiniMetric label={tx(lang, 'Active deposit liability', 'Активное депозитное обязательство', 'Active deposit liability')} value={`${new Decimal(balance.deposit_balance || 0).toFixed(2)} ₼`} tone="amber" />
-            <FinanceMiniMetric label={tx(lang, 'Collected in range', 'Собрано за период', 'Collected in range')} value={`${depositsInRange.toFixed(2)} ₼`} tone="sky" />
-          </div>
-        </FinanceControlCard>
-      )}
-      {workspaceTab === 'reconciliation' && (
-        <FinanceControlCard title={tx(lang, 'Reconciliation', 'Сверка', 'Reconciliation')} subtitle={tx(lang, 'Till count, expected və actual balans tutuşdurması', 'Till count, сверка expected и actual баланса', 'Till count, expected vs actual balance')}>
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-            <div className="rounded-[24px] border border-slate-800 bg-slate-950 p-4">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <FinanceMiniMetric label="Expected" value={`${expectedReconcileBalance.toFixed(2)} ₼`} tone="sky" />
-                <FinanceMiniMetric label="Counted" value={`${new Decimal(reconcileCounted || 0).toFixed(2)} ₼`} tone="emerald" />
-                <FinanceMiniMetric label="Variance" value={`${reconcileVariance.toFixed(2)} ₼`} tone={reconcileVariance.abs().gt(0.01) ? 'rose' : 'emerald'} />
-              </div>
-              <div className="mt-4 grid grid-cols-1 gap-3">
-                <FinanceField label={tx(lang, 'Account / till', 'Счет / касса', 'Account / till')}>
-                  <select className="neon-input min-h-13" value={reconcileAccount} onChange={(e) => setReconcileAccount(e.target.value)}>
-                    {(ledgerAccounts.length ? ledgerAccounts : [
-                      { code: 'cash', name: 'Nağd Kassa' },
-                      { code: 'card', name: 'Bank/Kart' },
-                      { code: 'safe', name: 'Seyf' },
-                    ] as any[]).map((account: any) => (
-                      <option key={account.code} value={account.code}>{account.name}</option>
-                    ))}
-                  </select>
-                </FinanceField>
-                <FinanceField label={tx(lang, 'Sayılmış balans', 'Посчитанный баланс', 'Counted balance')} helper={tx(lang, 'Operator fiziki saydığı məbləği yazır.', 'Оператор вводит физически посчитанную сумму.', 'Operator enters the physically counted amount.')}>
-                  <input className="neon-input min-h-16 text-2xl font-black" type="number" min={0} step="0.01" value={reconcileCounted} onChange={(e) => setReconcileCounted(e.target.value)} />
-                </FinanceField>
-                <FinanceField label={tx(lang, 'Qeyd', 'Комментарий', 'Note')}>
-                  <input className="neon-input min-h-13" value={reconcileNotes} onChange={(e) => setReconcileNotes(e.target.value)} />
-                </FinanceField>
-                <button onClick={() => void doReconcile()} className="glossy-gold min-h-14 rounded-2xl px-6 text-base font-black">
-                  {tx(lang, 'Reconcile et', 'Сверить', 'Reconcile')}
-                </button>
-              </div>
-            </div>
-            <div className="rounded-[24px] border border-slate-800 bg-slate-950 p-4">
-              <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Son reconciliation-lar', 'Последние сверки', 'Recent reconciliations')}</div>
-              <div className="space-y-3">
-                {reconciliations.slice(0, 8).map((row) => (
-                  <div key={row.id} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="font-black text-white">{row.account_name || row.account_code}</div>
-                        <div className="text-xs text-slate-500">{formatServerUtcDateTime(row.reconciled_at || row.created_at || '', lang)} · {row.reconciled_by || row.created_by}</div>
-                      </div>
-                      <span className={`rounded-full px-3 py-1 text-xs font-black ${new Decimal(row.variance || 0).abs().gt(0.01) ? 'bg-rose-400/10 text-rose-200' : 'bg-emerald-400/10 text-emerald-200'}`}>
-                        {new Decimal(row.variance || 0).toFixed(2)} ₼
-                      </span>
-                    </div>
-                    <div className="mt-2 text-xs text-slate-400">
-                      Expected {new Decimal(row.expected_balance || 0).toFixed(2)} ₼ · Counted {new Decimal(row.counted_balance || 0).toFixed(2)} ₼
-                    </div>
-                    {row.notes && <div className="mt-2 text-xs text-slate-500">{row.notes}</div>}
-                  </div>
-                ))}
-                {reconciliations.length === 0 && (
-                  <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-sm text-slate-400">
-                    {tx(lang, 'Hələ reconciliation qeydi yoxdur.', 'Пока нет записей сверки.', 'No reconciliation records yet.')}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </FinanceControlCard>
-      )}
-      {workspaceTab === 'ledger' && ledgerTable}
+      {actionWorkspace}
 
       <TransactionDetailDrawer
         lang={lang}
@@ -2368,7 +2473,7 @@ function FinanceSummaryStrip({
     <section className="rounded-[30px] border border-slate-800 bg-slate-900 p-5 shadow-[0_22px_70px_rgba(0,0,0,0.28)]">
       <div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <div className="text-xs font-black uppercase tracking-[0.24em] text-yellow-300">FinanceDashboard</div>
+          <div className="text-xs font-black uppercase tracking-[0.24em] text-yellow-300">{tx(lang, 'Maliyyə iş sahəsi', 'Maliyyə iş sahəsi', 'Maliyyə iş sahəsi')}</div>
           <h2 className="mt-2 text-2xl font-black text-white md:text-3xl">{tx(lang, 'Maliyyə nəzarət mərkəzi', 'Центр финансового контроля', 'Finance control center')}</h2>
           <p className="mt-2 max-w-3xl text-sm text-slate-400">
             {tx(lang, 'Pul axını, öhdəliklər, reconciliation və ledger eyni iş sahəsindədir.', 'Денежный поток, обязательства, сверка и ledger в одном рабочем пространстве.', 'Cashflow, liabilities, reconciliation and ledger in one workspace.')}
@@ -2422,7 +2527,7 @@ function FinanceAlertsBar({
       <section className="rounded-[24px] border border-emerald-500/25 bg-emerald-950/25 p-4">
         <div className="flex items-center gap-3 text-emerald-100">
           <CheckCircle2 size={20} />
-          <div className="font-black">Critical finance alert yoxdur</div>
+          <div className="font-black">{tx('az', 'Hazırda kritik maliyyə xəbərdarlığı yoxdur', 'Hazırda kritik maliyyə xəbərdarlığı yoxdur', 'Hazırda kritik maliyyə xəbərdarlığı yoxdur')}</div>
         </div>
       </section>
     );
@@ -2453,17 +2558,17 @@ function FinanceAlertsBar({
 
 function FinanceQuickActions({ lang, active, onSelect }: { lang: string; active: FinanceQuickAction; onSelect: (action: FinanceQuickAction) => void }) {
   const actions: Array<{ id: FinanceQuickAction; label: string; helper: string; icon: React.ReactNode }> = [
-    { id: 'income', label: tx(lang, 'Mədaxil yaz', 'Записать приход', 'Record income'), helper: 'income', icon: <Banknote size={18} /> },
-    { id: 'expense', label: tx(lang, 'Xərc yaz', 'Записать расход', 'Record expense'), helper: 'expense', icon: <CreditCard size={18} /> },
-    { id: 'transfer', label: tx(lang, 'Daxili transfer', 'Внутренний перевод', 'Internal transfer'), helper: 'transfer', icon: <ArrowRight size={18} /> },
-    { id: 'investor_repayment', label: tx(lang, 'Investor ödə', 'Оплатить инвестору', 'Repay investor'), helper: 'approval', icon: <ShieldCheck size={18} /> },
-    { id: 'deposit', label: tx(lang, 'Depozit əməliyyatı', 'Операция депозита', 'Deposit operation'), helper: 'liability', icon: <WalletCards size={18} /> },
-    { id: 'reconcile', label: tx(lang, 'Reconcile başlat', 'Начать сверку', 'Start reconcile'), helper: 'till count', icon: <GitCompareArrows size={18} /> },
-    { id: 'adjustment', label: tx(lang, 'Adjustment', 'Корректировка', 'Adjustment'), helper: 'audit', icon: <BookOpen size={18} /> },
+    { id: 'income', label: tx(lang, 'Mədaxil yaz', 'Записать приход', 'Record income'), helper: tx(lang, 'Pul daxilolması', 'Pul daxilolması', 'Pul daxilolması'), icon: <Banknote size={18} /> },
+    { id: 'expense', label: tx(lang, 'Xərc yaz', 'Записать расход', 'Record expense'), helper: tx(lang, 'Pul çıxışı', 'Pul çıxışı', 'Pul çıxışı'), icon: <CreditCard size={18} /> },
+    { id: 'transfer', label: tx(lang, 'Daxili transfer', 'Внутренний перевод', 'Internal transfer'), helper: tx(lang, 'Hesablar arası', 'Hesablar arası', 'Hesablar arası'), icon: <ArrowRight size={18} /> },
+    { id: 'investor_repayment', label: tx(lang, 'Investor ödə', 'Оплатить инвестору', 'Repay investor'), helper: tx(lang, 'Təsdiq nəzarəti', 'Təsdiq nəzarəti', 'Təsdiq nəzarəti'), icon: <ShieldCheck size={18} /> },
+    { id: 'deposit', label: tx(lang, 'Depozit əməliyyatı', 'Операция депозита', 'Deposit operation'), helper: tx(lang, 'Öhdəlik qeydi', 'Öhdəlik qeydi', 'Öhdəlik qeydi'), icon: <WalletCards size={18} /> },
+    { id: 'reconcile', label: tx(lang, 'Uyğunlaşdırma başlat', 'Начать сверку', 'Start reconcile'), helper: tx(lang, 'Kassa sayımı', 'Kassa sayımı', 'Kassa sayımı'), icon: <GitCompareArrows size={18} /> },
+    { id: 'adjustment', label: tx(lang, 'Düzəliş', 'Корректировка', 'Adjustment'), helper: tx(lang, 'Audit əməliyyatı', 'Audit əməliyyatı', 'Audit əməliyyatı'), icon: <BookOpen size={18} /> },
   ];
   return (
     <section className="rounded-[28px] border border-slate-800 bg-slate-900 p-4">
-      <div className="mb-3 text-xs font-black uppercase tracking-[0.24em] text-slate-500">FinanceQuickActions</div>
+      <div className="mb-3 text-xs font-black uppercase tracking-[0.24em] text-slate-500">{tx(lang, 'Sürətli əməliyyatlar', 'Sürətli əməliyyatlar', 'Sürətli əməliyyatlar')}</div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
         {actions.map((action) => (
           <button
@@ -2486,13 +2591,13 @@ function FinanceQuickActions({ lang, active, onSelect }: { lang: string; active:
 
 function FinanceWorkspaceTabs({ lang, active, onChange }: { lang: string; active: FinanceWorkspaceTab; onChange: (tab: FinanceWorkspaceTab) => void }) {
   const tabs: Array<[FinanceWorkspaceTab, string]> = [
-    ['overview', 'Overview'],
-    ['transactions', 'Transactions'],
-    ['transfers', 'Transfers'],
-    ['reconciliation', 'Reconciliation'],
+    ['overview', 'Baxış'],
+    ['transactions', 'Əməliyyatlar'],
+    ['transfers', 'Transferlər'],
+    ['reconciliation', 'Uyğunlaşdırma'],
     ['investor', 'Investor'],
-    ['deposits', 'Deposits'],
-    ['ledger', 'Ledger'],
+    ['deposits', 'Depozitlər'],
+    ['ledger', 'Maliyyə Jurnalı'],
   ];
   return (
     <div className="flex gap-2 overflow-x-auto rounded-[24px] border border-slate-800 bg-slate-950 p-2">
@@ -2502,7 +2607,7 @@ function FinanceWorkspaceTabs({ lang, active, onChange }: { lang: string; active
           onClick={() => onChange(tab)}
           className={`min-h-12 rounded-2xl px-5 text-sm font-black ${active === tab ? 'bg-white text-slate-950' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}
         >
-          {tx(lang, label, label, label)}
+          {label}
         </button>
       ))}
     </div>
