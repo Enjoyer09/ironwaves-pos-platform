@@ -694,20 +694,27 @@ export default function ZReportPanel() {
 
   if (zReceiptHtml) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-[#121922] p-6">
-        <div className="w-full max-w-4xl rounded-2xl border border-slate-700 bg-[#101722] p-4">
-          <div className="mb-4 flex items-center justify-between">
+      <div className="h-full w-full overflow-y-auto bg-[#121922] p-4 md:p-6">
+        <div className="mx-auto flex max-h-[calc(100dvh-2rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-[#101722]">
+          <div className="flex items-center justify-between border-b border-slate-700/70 px-4 py-4 md:px-5">
             <h3 className="text-lg font-semibold text-slate-100">{tx(lang, 'Yekun Z-Hesabat Çeki', 'Итоговый чек Z-отчета')}</h3>
-            <div className="flex gap-2">
-              <button onClick={printZReceiptOnly} className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-semibold text-slate-900">
-                {tx(lang, 'Çap Et', 'Печать')}
-              </button>
-              <button onClick={() => setZReceiptHtml(null)} className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200">
-                {tx(lang, 'Bağla', 'Закрыть')}
-              </button>
-            </div>
           </div>
-          <iframe ref={zReceiptRef} title="z-report-receipt" srcDoc={zReceiptHtml} className="h-[80vh] w-full rounded-lg bg-white" />
+          <div className="min-h-0 flex-1 overflow-hidden p-4 md:p-5">
+            <iframe
+              ref={zReceiptRef}
+              title="z-report-receipt"
+              srcDoc={zReceiptHtml}
+              className="h-full min-h-[60vh] w-full rounded-lg bg-white"
+            />
+          </div>
+          <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-slate-700/70 bg-[#101722] px-4 py-4 md:px-5">
+            <button onClick={() => setZReceiptHtml(null)} className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200">
+              {tx(lang, 'Bağla', 'Закрыть')}
+            </button>
+            <button onClick={printZReceiptOnly} className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-semibold text-slate-900">
+              {tx(lang, 'Çap Et', 'Печать')}
+            </button>
+          </div>
         </div>
       </div>
     );
