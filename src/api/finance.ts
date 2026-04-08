@@ -677,6 +677,7 @@ export type FinanceTransactionDetail = {
   transaction: FinanceLedgerTransaction;
   entries: FinanceLedgerEntry[];
   audit_logs: FinanceAuditLog[];
+  reversal_history: FinanceLedgerTransaction[];
 };
 
 export type FinanceReconciliation = {
@@ -819,6 +820,7 @@ export const fetch_finance_transaction_detail = async (tenant_id: string, transa
       transaction: localTransaction || localLedgerTransactions(tenant_id, 1)[0],
       entries: [],
       audit_logs: [],
+      reversal_history: [],
     };
   }
   const data = await apiRequest<any>(`/api/v1/finance/ledger/transactions/${encodeURIComponent(transaction_id)}`, {
@@ -865,6 +867,28 @@ export const fetch_finance_transaction_detail = async (tenant_id: string, transa
       user: String(row.user || ''),
       details: row.details ?? null,
       created_at: row.created_at ?? null,
+    })),
+    reversal_history: (data?.reversal_history || []).map((row: any) => ({
+      id: String(row.id),
+      transaction_type: String(row.transaction_type || ''),
+      status: String(row.status || ''),
+      source_account: row.source_account ?? null,
+      destination_account: row.destination_account ?? null,
+      amount: String(row.amount ?? '0'),
+      currency: String(row.currency || 'AZN'),
+      category: row.category ?? null,
+      counterparty: row.counterparty ?? null,
+      reference: row.reference ?? null,
+      note: row.note ?? null,
+      created_by: String(row.created_by || ''),
+      approved_by: row.approved_by ?? null,
+      posted_by: row.posted_by ?? null,
+      reversed_by: row.reversed_by ?? null,
+      created_at: row.created_at ?? null,
+      approved_at: row.approved_at ?? null,
+      posted_at: row.posted_at ?? null,
+      reversed_at: row.reversed_at ?? null,
+      legacy_finance_entry_id: row.legacy_finance_entry_id ?? null,
     })),
   };
 };

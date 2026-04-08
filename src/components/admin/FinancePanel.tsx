@@ -2144,7 +2144,7 @@ function TransactionDetailDrawer({
                 </button>
               </>
             ) : null}
-            {txRow.status === 'posted' ? (
+            {txRow.status === 'posted' && txRow.transaction_type !== 'reversal' && detail.reversal_history.length === 0 ? (
               <button onClick={() => void onReverse(txRow.id)} className="min-h-11 rounded-2xl border border-amber-400/40 px-4 text-sm font-black text-amber-100">
                 {tx(lang, 'Reversal istə', 'Запросить reversal', 'Request reversal')}
               </button>
@@ -2193,6 +2193,38 @@ function TransactionDetailDrawer({
             {detail.entries.length === 0 ? (
               <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-500">
                 {tx(lang, 'Debit/credit entry tapılmadı.', 'Debit/credit записи не найдены.', 'No debit/credit entries found.')}
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="mt-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-4">
+          <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Reversal history', 'История reversal', 'Reversal history')}</div>
+          <div className="space-y-3">
+            {detail.reversal_history.map((row) => (
+              <div key={row.id} className="rounded-2xl border border-amber-400/25 bg-amber-950/20 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-black text-white">{row.transaction_type.replace(/_/g, ' ')}</div>
+                    <div className="mt-1 text-xs text-slate-400">
+                      {accountName(row.source_account)} → {accountName(row.destination_account)}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`rounded-full px-3 py-1 text-xs font-black ${row.status === 'posted' ? 'bg-emerald-400/10 text-emerald-200' : row.status === 'pending_approval' ? 'bg-amber-400/10 text-amber-200' : 'bg-slate-400/10 text-slate-200'}`}>
+                      {row.status}
+                    </div>
+                    <div className="mt-2 text-sm font-black text-white">{new Decimal(row.amount || 0).toFixed(2)} ₼</div>
+                  </div>
+                </div>
+                <div className="mt-2 text-xs text-slate-500">
+                  {formatServerUtcDateTime(row.posted_at || row.created_at || '', lang)} · {row.created_by || '-'}
+                </div>
+              </div>
+            ))}
+            {detail.reversal_history.length === 0 ? (
+              <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-500">
+                {tx(lang, 'Reversal history yoxdur.', 'Истории reversal нет.', 'No reversal history.')}
               </div>
             ) : null}
           </div>

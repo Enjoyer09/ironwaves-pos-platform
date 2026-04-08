@@ -286,6 +286,40 @@ def _mirror_posted_transaction_to_legacy_wallet(db: Session, txn: FinanceTransac
     return rows
 
 
+def _mark_original_transaction_reversed(db: Session, reversal: FinanceTransaction, reversed_by: str) -> FinanceTransaction | None:
+    if reversal.transaction_type != "reversal" or not reversal.reference:
+        return None
+    original = (
+        db.query(FinanceTransaction)
+        .filter(FinanceTransaction.tenant_id == reversal.tenant_id, FinanceTransaction.id == reversal.reference)
+        .first()
+    )
+    if not original:
+        raise HTTPException(status_code=404, detail="Original transaction for reversal was not found")
+    if original.status != "posted":
+        raise HTTPException(status_code=400, detail=f"Original transaction cannot be reversed from status {original.status}")
+    now = datetime.utcnow()
+    original.status = "reversed"
+    original.reversed_by = reversed_by
+    original.reversed_at = now
+    db.add(
+        AuditLog(
+            tenant_id=reversal.tenant_id,
+            user=reversed_by,
+            action="FINANCE_TRANSACTION_REVERSED",
+            details=json.dumps(
+                {
+                    "transaction_id": original.id,
+                    "reversal_transaction_id": reversal.id,
+                    "amount": str(Decimal(str(reversal.amount)).quantize(Decimal("0.01"))),
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    return original
+
+
 def _create_finance_transaction_record(
     db: Session,
     *,
@@ -624,7 +658,9 @@ def list_ledger_transactions(limit: int = 200, db: Session = Depends(get_db), te
             "created_by": row.created_by,
             "approved_by": row.approved_by,
             "posted_by": row.posted_by,
+            "reversed_by": row.reversed_by,
             "created_at": row.created_at.isoformat() if row.created_at else None,
+            "approved_at": row.approved_at.isoformat() if row.approved_at else None,
             "posted_at": row.posted_at.isoformat() if row.posted_at else None,
             "reversed_at": row.reversed_at.isoformat() if row.reversed_at else None,
             "legacy_finance_entry_id": row.legacy_finance_entry_id,
@@ -659,6 +695,20 @@ def get_ledger_transaction_detail(transaction_id: str, db: Session = Depends(get
         .limit(50)
         .all()
     )
+    reversal_rows = (
+        db.query(FinanceTransaction)
+        .filter(FinanceTransaction.tenant_id == tenant.id, FinanceTransaction.reference == row.id)
+        .order_by(FinanceTransaction.created_at.desc())
+        .all()
+    )
+    if row.transaction_type == "reversal" and row.reference:
+        original = (
+            db.query(FinanceTransaction)
+            .filter(FinanceTransaction.tenant_id == tenant.id, FinanceTransaction.id == row.reference)
+            .first()
+        )
+        if original:
+            reversal_rows = [original] + reversal_rows
     return {
         "transaction": {
             "id": row.id,
@@ -695,6 +745,32 @@ def get_ledger_transaction_detail(transaction_id: str, db: Session = Depends(get
                 "created_at": entry.created_at.isoformat() if entry.created_at else None,
             }
             for entry in entries
+        ],
+        "reversal_history": [
+            {
+                "id": reversal.id,
+                "transaction_type": reversal.transaction_type,
+                "status": reversal.status,
+                "source_account": account_by_id.get(reversal.source_account_id).code if reversal.source_account_id in account_by_id else None,
+                "destination_account": account_by_id.get(reversal.destination_account_id).code if reversal.destination_account_id in account_by_id else None,
+                "amount": str(Decimal(str(reversal.amount)).quantize(Decimal("0.01"))),
+                "currency": reversal.currency,
+                "category": reversal.category,
+                "counterparty": reversal.counterparty,
+                "reference": reversal.reference,
+                "note": reversal.note,
+                "created_by": reversal.created_by,
+                "approved_by": reversal.approved_by,
+                "posted_by": reversal.posted_by,
+                "reversed_by": reversal.reversed_by,
+                "created_at": reversal.created_at.isoformat() if reversal.created_at else None,
+                "approved_at": reversal.approved_at.isoformat() if reversal.approved_at else None,
+                "posted_at": reversal.posted_at.isoformat() if reversal.posted_at else None,
+                "reversed_at": reversal.reversed_at.isoformat() if reversal.reversed_at else None,
+                "legacy_finance_entry_id": reversal.legacy_finance_entry_id,
+            }
+            for reversal in reversal_rows
+            if reversal.id != row.id
         ],
         "audit_logs": [
             {
@@ -846,7 +922,9 @@ def list_pending_approvals(db: Session = Depends(get_db), tenant: Tenant = Depen
             "created_by": row.created_by,
             "approved_by": row.approved_by,
             "posted_by": row.posted_by,
+            "reversed_by": row.reversed_by,
             "created_at": row.created_at.isoformat() if row.created_at else None,
+            "approved_at": row.approved_at.isoformat() if row.approved_at else None,
             "posted_at": row.posted_at.isoformat() if row.posted_at else None,
             "reversed_at": row.reversed_at.isoformat() if row.reversed_at else None,
             "legacy_finance_entry_id": row.legacy_finance_entry_id,
@@ -872,6 +950,7 @@ def approve_ledger_transaction(transaction_id: str, db: Session = Depends(get_db
     txn.status = "approved"
     txn.approved_by = user.username
     txn.approved_at = now
+    _mark_original_transaction_reversed(db, txn, user.username)
     _post_existing_transaction(db, txn, user.username)
     _mirror_posted_transaction_to_legacy_wallet(db, txn, user.username)
     db.add(
@@ -925,6 +1004,18 @@ def request_transaction_reversal(transaction_id: str, db: Session = Depends(get_
         raise HTTPException(status_code=404, detail="Finance transaction not found")
     if original.status != "posted":
         raise HTTPException(status_code=400, detail="Only posted transactions can be reversed")
+    existing_reversal = (
+        db.query(FinanceTransaction)
+        .filter(
+            FinanceTransaction.tenant_id == tenant.id,
+            FinanceTransaction.transaction_type == "reversal",
+            FinanceTransaction.reference == original.id,
+            FinanceTransaction.status.in_(["pending_approval", "approved", "posted"]),
+        )
+        .first()
+    )
+    if existing_reversal:
+        raise HTTPException(status_code=400, detail="This transaction already has an active reversal request/history")
     source_code = _finance_account_code(db, tenant.id, original.destination_account_id)
     destination_code = _finance_account_code(db, tenant.id, original.source_account_id)
     if not source_code or not destination_code:
