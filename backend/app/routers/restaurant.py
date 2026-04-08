@@ -644,7 +644,7 @@ def _sync_round_status_from_items(db: Session, tenant_id: str, round_id: str | N
         return
     items = db.query(OrderItem).filter(OrderItem.tenant_id == tenant_id, OrderItem.round_id == round_id).all()
     active_statuses = {_normalize_item_status(item.status) for item in items}
-    if active_statuses & {"VOID_REQUESTED"}:
+    if active_statuses & {"VOID_REQUESTED", "REMAKE", "WASTE"}:
         round_row.status = "VOID_REQUESTED"
     elif active_statuses & {"NEW", "SENT"}:
         round_row.status = "SENT"
@@ -2048,7 +2048,7 @@ def get_kitchen_feed(
     if round_ids:
         for item in (
             db.query(OrderItem)
-            .filter(OrderItem.tenant_id == tenant.id, OrderItem.round_id.in_(round_ids), OrderItem.status.in_(["NEW", "SENT", "PREPARING", "READY", "SERVED", "VOID_REQUESTED", "VOIDED", "COMPED", "WASTE"]))
+            .filter(OrderItem.tenant_id == tenant.id, OrderItem.round_id.in_(round_ids), OrderItem.status.in_(["NEW", "SENT", "PREPARING", "READY", "SERVED", "VOID_REQUESTED", "VOIDED", "COMPED", "WASTE", "REMAKE"]))
             .order_by(OrderItem.created_at.asc())
             .all()
         ):
@@ -2067,6 +2067,8 @@ def get_kitchen_feed(
                     "course_no": item.course_no,
                     "note": item.note,
                     "reason": item.status_reason,
+                    "parent_item_id": item.parent_item_id,
+                    "modifier_json": item.modifier_json,
                 }
             )
     return [
