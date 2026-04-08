@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Delete, Globe2, Minimize2, CornerDownLeft, ArrowBigUpDash } from 'lucide-react';
+import { Delete, Minimize2, CornerDownLeft, ArrowBigUpDash } from 'lucide-react';
 import { tx } from '../i18n';
 
 type KeyboardLang = 'az' | 'ru' | 'en';
 type KeyboardTarget = HTMLInputElement | HTMLTextAreaElement;
+type KeyboardMode = 'alpha' | 'numeric' | 'pin';
 
 const DIGIT_ROW = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
 const PUNCTUATION_ROW = ['-', '/', ':', '@', '.', ',', '_'];
@@ -33,11 +34,15 @@ function isKeyboardTarget(node: EventTarget | null): node is KeyboardTarget {
   if (node.dataset.virtualKeyboard === 'off') return false;
   if (node instanceof HTMLInputElement) {
     const type = String(node.type || 'text').toLowerCase();
-    if (['number', 'date', 'time', 'datetime-local', 'month', 'week', 'checkbox', 'radio', 'range', 'file', 'color', 'hidden'].includes(type)) {
+    if (['date', 'time', 'datetime-local', 'month', 'week', 'checkbox', 'radio', 'range', 'file', 'color', 'hidden'].includes(type)) {
       return false;
     }
   }
   return true;
+}
+
+function canUseSelection(target: KeyboardTarget) {
+  return !(target instanceof HTMLInputElement && ['number', 'tel', 'email'].includes(String(target.type || '').toLowerCase()));
 }
 
 function setNativeValue(target: KeyboardTarget, value: string) {
@@ -50,28 +55,34 @@ function setNativeValue(target: KeyboardTarget, value: string) {
 
 function insertAtCursor(target: KeyboardTarget, text: string) {
   const current = String(target.value || '');
-  const start = target.selectionStart ?? current.length;
-  const end = target.selectionEnd ?? current.length;
+  const supportsSelection = canUseSelection(target);
+  const start = supportsSelection ? (target.selectionStart ?? current.length) : current.length;
+  const end = supportsSelection ? (target.selectionEnd ?? current.length) : current.length;
   const next = `${current.slice(0, start)}${text}${current.slice(end)}`;
   setNativeValue(target, next);
   const cursor = start + text.length;
   window.requestAnimationFrame(() => {
     target.focus();
-    target.setSelectionRange(cursor, cursor);
+    if (supportsSelection) {
+      target.setSelectionRange(cursor, cursor);
+    }
   });
 }
 
 function backspaceAtCursor(target: KeyboardTarget) {
   const current = String(target.value || '');
-  const start = target.selectionStart ?? current.length;
-  const end = target.selectionEnd ?? current.length;
+  const supportsSelection = canUseSelection(target);
+  const start = supportsSelection ? (target.selectionStart ?? current.length) : current.length;
+  const end = supportsSelection ? (target.selectionEnd ?? current.length) : current.length;
   if (start === 0 && end === 0) return;
   if (start !== end) {
     const next = `${current.slice(0, start)}${current.slice(end)}`;
     setNativeValue(target, next);
     window.requestAnimationFrame(() => {
       target.focus();
-      target.setSelectionRange(start, start);
+      if (supportsSelection) {
+        target.setSelectionRange(start, start);
+      }
     });
     return;
   }
@@ -80,14 +91,34 @@ function backspaceAtCursor(target: KeyboardTarget) {
   const cursor = Math.max(0, start - 1);
   window.requestAnimationFrame(() => {
     target.focus();
-    target.setSelectionRange(cursor, cursor);
+    if (supportsSelection) {
+      target.setSelectionRange(cursor, cursor);
+    }
   });
+}
+
+function detectKeyboardMode(target: KeyboardTarget): KeyboardMode {
+  const placeholder = String(target.getAttribute('data-original-placeholder') || target.getAttribute('placeholder') || '').toLowerCase();
+  const inputMode = String((target as HTMLInputElement).inputMode || '').toLowerCase();
+  const type = target instanceof HTMLInputElement ? String(target.type || 'text').toLowerCase() : 'textarea';
+
+  if (target.dataset.virtualKeyboardMode === 'numeric') return 'numeric';
+  if (target.dataset.virtualKeyboardMode === 'pin') return 'pin';
+  if (type === 'number' || type === 'tel' || inputMode === 'numeric' || inputMode === 'decimal') return 'numeric';
+  if (placeholder.includes('pin')) return 'pin';
+  return 'alpha';
+}
+
+function appendValue(target: KeyboardTarget, value: string) {
+  setNativeValue(target, `${String(target.value || '')}${value}`);
+  window.requestAnimationFrame(() => target.focus());
 }
 
 export default function VirtualKeyboard({ lang }: { lang: KeyboardLang }) {
   const [visible, setVisible] = useState(false);
   const [layout, setLayout] = useState<KeyboardLang>(lang);
   const [shift, setShift] = useState(false);
+  const [mode, setMode] = useState<KeyboardMode>('alpha');
   const [targetMeta, setTargetMeta] = useState<{ label: string; type: string }>({ label: '', type: 'text' });
   const targetRef = useRef<KeyboardTarget | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -100,6 +131,7 @@ export default function VirtualKeyboard({ lang }: { lang: KeyboardLang }) {
     const handleFocusIn = (event: FocusEvent) => {
       if (!isKeyboardTarget(event.target)) return;
       targetRef.current = event.target;
+      setMode(detectKeyboardMode(event.target));
       setTargetMeta({
         label: event.target.getAttribute('data-original-placeholder') || event.target.getAttribute('placeholder') || '',
         type: event.target instanceof HTMLInputElement ? String(event.target.type || 'text') : 'textarea',
@@ -124,17 +156,38 @@ export default function VirtualKeyboard({ lang }: { lang: KeyboardLang }) {
     };
   }, []);
 
-  const rows = useMemo(() => {
+  const alphaRows = useMemo(() => {
     const current = LETTER_LAYOUTS[layout];
     return [DIGIT_ROW, ...current, PUNCTUATION_ROW].map((row) =>
       row.map((key) => (shift ? key.toLocaleUpperCase(layout) : key)),
     );
   }, [layout, shift]);
 
+  const numericRows = useMemo(() => {
+    if (mode === 'pin') {
+      return [
+        ['1', '2', '3'],
+        ['4', '5', '6'],
+        ['7', '8', '9'],
+        ['0'],
+      ];
+    }
+    return [
+      ['1', '2', '3'],
+      ['4', '5', '6'],
+      ['7', '8', '9'],
+      [targetMeta.type === 'tel' ? '+' : '.', '0', '-'],
+    ];
+  }, [mode, targetMeta.type]);
+
   const pressKey = (value: string) => {
     const target = targetRef.current;
     if (!target) return;
-    insertAtCursor(target, value);
+    if (mode === 'numeric' || mode === 'pin') {
+      appendValue(target, value);
+    } else {
+      insertAtCursor(target, value);
+    }
     if (shift) setShift(false);
   };
 
@@ -184,15 +237,18 @@ export default function VirtualKeyboard({ lang }: { lang: KeyboardLang }) {
         </div>
 
         <div className="space-y-2">
-          {rows.map((row, rowIndex) => (
-            <div key={`row_${rowIndex}`} className="grid grid-cols-10 gap-2 md:grid-cols-12">
+          {(mode === 'alpha' ? alphaRows : numericRows).map((row, rowIndex) => (
+            <div
+              key={`row_${rowIndex}`}
+              className={mode === 'alpha' ? 'grid grid-cols-10 gap-2 md:grid-cols-12' : 'grid grid-cols-3 gap-3 md:max-w-[420px]'}
+            >
               {row.map((key) => (
                 <button
                   key={`${rowIndex}_${key}`}
                   onMouseDown={onMouseDownKey}
                   onTouchStart={onMouseDownKey}
                   onClick={() => pressKey(key)}
-                  className="min-h-12 rounded-2xl border border-slate-700 bg-slate-900 px-2 text-lg font-black text-slate-100 shadow-[0_8px_20px_rgba(0,0,0,0.25)]"
+                  className={`${mode === 'alpha' ? 'min-h-12 text-lg' : 'min-h-16 text-2xl'} rounded-2xl border border-slate-700 bg-slate-900 px-2 font-black text-slate-100 shadow-[0_8px_20px_rgba(0,0,0,0.25)]`}
                 >
                   {key}
                 </button>
@@ -200,51 +256,96 @@ export default function VirtualKeyboard({ lang }: { lang: KeyboardLang }) {
             </div>
           ))}
 
-          <div className="grid grid-cols-12 gap-2">
-            <button
-              onMouseDown={onMouseDownKey}
-              onTouchStart={onMouseDownKey}
-              onClick={() => setShift((prev) => !prev)}
-              className={`col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-black ${shift ? 'border-yellow-300 bg-yellow-400 text-slate-950' : 'border-slate-700 bg-slate-900 text-slate-100'}`}
-            >
-              <ArrowBigUpDash size={16} />
-              <span>{tx(lang, 'Shift', 'Shift', 'Shift')}</span>
-            </button>
-            <button
-              onMouseDown={onMouseDownKey}
-              onTouchStart={onMouseDownKey}
-              onClick={() => pressKey(' ')}
-              className="col-span-6 min-h-12 rounded-2xl border border-slate-700 bg-slate-900 text-base font-black text-slate-100"
-            >
-              {tx(lang, 'Boşluq', 'Пробел', 'Space')}
-            </button>
-            <button
-              onMouseDown={onMouseDownKey}
-              onTouchStart={onMouseDownKey}
-              onClick={() => {
-                const target = targetRef.current;
-                if (!target) return;
-                insertAtCursor(target, '\n');
-              }}
-              className="col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 px-3 text-sm font-black text-slate-100"
-            >
-              <CornerDownLeft size={16} />
-              <span>{tx(lang, 'Enter', 'Enter', 'Enter')}</span>
-            </button>
-            <button
-              onMouseDown={onMouseDownKey}
-              onTouchStart={onMouseDownKey}
-              onClick={() => {
-                const target = targetRef.current;
-                if (!target) return;
-                backspaceAtCursor(target);
-              }}
-              className="col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-rose-400/35 bg-rose-950/40 px-3 text-sm font-black text-rose-100"
-            >
-              <Delete size={16} />
-              <span>{tx(lang, 'Sil', 'Удалить', 'Backspace')}</span>
-            </button>
-          </div>
+          {mode === 'alpha' ? (
+            <div className="grid grid-cols-12 gap-2">
+              <button
+                onMouseDown={onMouseDownKey}
+                onTouchStart={onMouseDownKey}
+                onClick={() => setShift((prev) => !prev)}
+                className={`col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-black ${shift ? 'border-yellow-300 bg-yellow-400 text-slate-950' : 'border-slate-700 bg-slate-900 text-slate-100'}`}
+              >
+                <ArrowBigUpDash size={16} />
+                <span>{tx(lang, 'Shift', 'Shift', 'Shift')}</span>
+              </button>
+              <button
+                onMouseDown={onMouseDownKey}
+                onTouchStart={onMouseDownKey}
+                onClick={() => pressKey(' ')}
+                className="col-span-6 min-h-12 rounded-2xl border border-slate-700 bg-slate-900 text-base font-black text-slate-100"
+              >
+                {tx(lang, 'Boşluq', 'Пробел', 'Space')}
+              </button>
+              <button
+                onMouseDown={onMouseDownKey}
+                onTouchStart={onMouseDownKey}
+                onClick={() => {
+                  const target = targetRef.current;
+                  if (!target) return;
+                  if (target instanceof HTMLTextAreaElement) {
+                    insertAtCursor(target, '\n');
+                    return;
+                  }
+                  target.blur();
+                  setVisible(false);
+                }}
+                className="col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 px-3 text-sm font-black text-slate-100"
+              >
+                <CornerDownLeft size={16} />
+                <span>{tx(lang, 'Enter', 'Enter', 'Enter')}</span>
+              </button>
+              <button
+                onMouseDown={onMouseDownKey}
+                onTouchStart={onMouseDownKey}
+                onClick={() => {
+                  const target = targetRef.current;
+                  if (!target) return;
+                  backspaceAtCursor(target);
+                }}
+                className="col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-rose-400/35 bg-rose-950/40 px-3 text-sm font-black text-rose-100"
+              >
+                <Delete size={16} />
+                <span>{tx(lang, 'Sil', 'Удалить', 'Backspace')}</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3 md:max-w-[420px]">
+              <button
+                onMouseDown={onMouseDownKey}
+                onTouchStart={onMouseDownKey}
+                onClick={() => {
+                  const target = targetRef.current;
+                  if (!target) return;
+                  backspaceAtCursor(target);
+                }}
+                className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-rose-400/35 bg-rose-950/40 px-3 text-base font-black text-rose-100"
+              >
+                <Delete size={16} />
+                <span>{tx(lang, 'Sil', 'Удалить', 'Backspace')}</span>
+              </button>
+              <button
+                onMouseDown={onMouseDownKey}
+                onTouchStart={onMouseDownKey}
+                onClick={() => {
+                  const target = targetRef.current;
+                  if (!target) return;
+                  target.blur();
+                  setVisible(false);
+                }}
+                className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 px-3 text-base font-black text-slate-100"
+              >
+                <CornerDownLeft size={16} />
+                <span>{tx(lang, 'Hazırdır', 'Готово', 'Done')}</span>
+              </button>
+              <button
+                onMouseDown={onMouseDownKey}
+                onTouchStart={onMouseDownKey}
+                onClick={() => setMode('alpha')}
+                className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 px-3 text-base font-black text-slate-100"
+              >
+                <span>{tx(lang, 'ABC', 'ABC', 'ABC')}</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
