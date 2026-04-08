@@ -107,7 +107,89 @@ function SurfaceCard({ children, className = '' }: { children: React.ReactNode; 
   );
 }
 
-function ProductPreview({ lang }: { lang: LandingLang }) {
+function ProductPreview({ lang, previewIndex }: { lang: LandingLang; previewIndex: number }) {
+  const slides = [
+    {
+      key: 'tables',
+      eyebrow: tx(lang, 'Masalar', 'Столы', 'Tables'),
+      title: tx(lang, 'Masa axını nəzarətdədir', 'Поток столов под контролем', 'Table flow stays under control'),
+      visual: (
+        <div className="grid h-full grid-cols-2 gap-3">
+          {[
+            [tx(lang, 'Masa 1', 'Стол 1', 'Table 1'), tx(lang, 'Aktiv check', 'Активный чек', 'Active check'), 'bg-violet-500/20 text-violet-200'],
+            [tx(lang, 'Masa 2', 'Стол 2', 'Table 2'), tx(lang, 'Boş', 'Свободен', 'Available'), 'bg-emerald-500/20 text-emerald-200'],
+            [tx(lang, 'Masa 4', 'Стол 4', 'Table 4'), tx(lang, 'Rezerv', 'Резерв', 'Reserved'), 'bg-amber-500/20 text-amber-200'],
+            [tx(lang, 'Masa 6', 'Стол 6', 'Table 6'), tx(lang, 'Servisə hazır', 'Готово к подаче', 'Ready to serve'), 'bg-rose-500/20 text-rose-200'],
+          ].map(([label, status, tone]) => (
+            <div key={String(label)} className="rounded-2xl border border-white/8 bg-[#131d2e] p-3">
+              <div className="text-sm font-black text-white">{label}</div>
+              <div className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${tone}`}>{status}</div>
+            </div>
+          ))}
+        </div>
+      ),
+    },
+    {
+      key: 'dashboard',
+      eyebrow: 'Dashboard',
+      title: tx(lang, 'Kritik vəziyyət dərhal görünür', 'Критическая ситуация видна сразу', 'Critical issues become visible instantly'),
+      visual: <img src="/landing/pos-screen.png" alt="POS" className="h-full w-full rounded-[22px] object-cover object-top" />,
+    },
+    {
+      key: 'finance',
+      eyebrow: tx(lang, 'Maliyyə', 'Финансы', 'Finance'),
+      title: tx(lang, 'Kassa və öhdəliklər qarışmır', 'Касса и обязательства не смешиваются', 'Cash and liabilities stay separated'),
+      visual: <img src="/landing/finance-screen.png" alt="Finance" className="h-full w-full rounded-[22px] object-cover object-top" />,
+    },
+    {
+      key: 'customer',
+      eyebrow: 'CRM / QR Menu',
+      title: tx(lang, 'Müştəri axını da eyni sistemdədir', 'Клиентский поток тоже в одной системе', 'Customer flow also lives in one system'),
+      visual: (
+        <div className="grid h-full gap-3 md:grid-cols-[1.05fr_0.95fr]">
+          <div className="rounded-[22px] border border-white/8 bg-[#131d2e] p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">{tx(lang, 'CRM / Loyallıq', 'CRM / Лояльность', 'CRM / Loyalty')}</div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {[
+                [tx(lang, 'Aktiv kartlar', 'Активные карты', 'Active cards'), '428'],
+                [tx(lang, 'Bonus balansı', 'Бонусный баланс', 'Bonus balance'), '1,180 ₼'],
+                [tx(lang, 'Kampaniya', 'Кампания', 'Campaign'), tx(lang, '2 aktiv', '2 активные', '2 active')],
+                [tx(lang, 'Qayıdan müştəri', 'Возвращающийся клиент', 'Returning customers'), '61%'],
+              ].map(([label, value]) => (
+                <div key={String(label)} className="rounded-xl border border-white/8 bg-[#0f1726] p-3">
+                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</div>
+                  <div className="mt-2 text-sm font-black text-white">{value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div className="rounded-[22px] border border-white/8 bg-[#131d2e] p-4">
+              <div className="flex items-center justify-between">
+                <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">QR Menu</div>
+                <QrCode size={18} className="text-violet-300" />
+              </div>
+              <div className="mt-3 rounded-[18px] border border-white/8 bg-[#0f1726] p-3">
+                <div className="h-24 rounded-2xl bg-[linear-gradient(135deg,#1d4ed8,#0f172a)]" />
+                <div className="mt-3 text-sm font-black text-white">{tx(lang, 'Amerikano', 'Американо', 'Americano')}</div>
+              </div>
+            </div>
+            <div className="rounded-[22px] border border-white/8 bg-[#131d2e] p-4">
+              <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Customer App</div>
+              <div className="mt-3 space-y-2">
+                {[tx(lang, 'Bonus görünür', 'Бонус виден', 'Bonuses stay visible'), tx(lang, 'Şəxsi təkliflər', 'Персональные предложения', 'Personal offers'), tx(lang, 'Təkrar satış', 'Повторная продажа', 'Repeat sales')].map((item) => (
+                  <div key={item} className="rounded-xl border border-white/8 bg-[#0f1726] px-3 py-2.5 text-sm font-black text-white">
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="relative mx-auto w-full max-w-[720px]">
       <div className="absolute -left-10 top-10 h-48 w-48 rounded-full bg-sky-200/70 blur-3xl" />
@@ -127,133 +209,46 @@ function ProductPreview({ lang }: { lang: LandingLang }) {
             </div>
           </div>
 
-          <div className="grid gap-4 bg-[radial-gradient(circle_at_top,#172132_0%,#0c1320_65%)] p-4 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">{tx(lang, 'Masalar', 'Столы', 'Tables')}</div>
-                      <div className="mt-2 text-lg font-black text-white">{tx(lang, 'Açıq masa axını', 'Поток открытых столов', 'Open table flow')}</div>
-                    </div>
-                    <Table2 className="text-cyan-300" size={20} />
-                  </div>
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    {[
-                      { label: tx(lang, 'Masa 1', 'Стол 1', 'Table 1'), tone: 'bg-violet-500/20 text-violet-200', sub: tx(lang, 'Aktiv check', 'Активный чек', 'Active check') },
-                      { label: tx(lang, 'Masa 2', 'Стол 2', 'Table 2'), tone: 'bg-emerald-500/20 text-emerald-200', sub: tx(lang, 'Boş', 'Свободен', 'Available') },
-                      { label: tx(lang, 'Masa 4', 'Стол 4', 'Table 4'), tone: 'bg-amber-500/20 text-amber-200', sub: tx(lang, 'Rezerv', 'Резерв', 'Reserved') },
-                      { label: tx(lang, 'Masa 6', 'Стол 6', 'Table 6'), tone: 'bg-rose-500/20 text-rose-200', sub: tx(lang, 'Servisə hazır', 'Готово к подаче', 'Ready to serve') },
-                    ].map((table) => (
-                      <div key={table.label} className="rounded-2xl border border-white/8 bg-[#131d2e] p-3">
-                        <div className="text-sm font-black text-white">{table.label}</div>
-                        <div className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${table.tone}`}>{table.sub}</div>
-                      </div>
-                    ))}
-                  </div>
+          <div className="space-y-4 bg-[radial-gradient(circle_at_top,#172132_0%,#0c1320_65%)] p-4">
+            <div className="grid gap-3 md:grid-cols-[0.88fr_1.12fr]">
+              <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
+                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-300">{slides[previewIndex].eyebrow}</div>
+                <div className="mt-2 text-xl font-black text-white">{slides[previewIndex].title}</div>
+                <div className="mt-4 flex gap-2">
+                  {slides.map((slide, index) => (
+                    <button
+                      key={slide.key}
+                      type="button"
+                      aria-label={slide.title}
+                      className={`h-2.5 flex-1 rounded-full transition ${index === previewIndex ? 'bg-cyan-300' : 'bg-white/15'}`}
+                    />
+                  ))}
                 </div>
-
-                <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Dashboard</div>
-                      <div className="mt-2 text-lg font-black text-white">{tx(lang, 'Kritik xəbərdarlıqlar', 'Критические сигналы', 'Critical alerts')}</div>
-                    </div>
-                    <BellRing className="text-amber-300" size={20} />
-                  </div>
-                  <div className="mt-4 space-y-3">
-                    {[
-                      [tx(lang, 'Kassa fərqi', 'Разница по кассе', 'Cash variance'), '5.00 ₼', 'text-rose-200 bg-rose-500/15'],
-                      [tx(lang, 'Mətbəx gecikməsi', 'Задержка кухни', 'Kitchen delay'), tx(lang, '3 sifariş', '3 заказа', '3 orders'), 'text-amber-200 bg-amber-500/15'],
-                      [tx(lang, 'Təsdiq gözləyir', 'Ожидает подтверждения', 'Pending approval'), tx(lang, '2 əməliyyat', '2 операции', '2 operations'), 'text-sky-200 bg-sky-500/15'],
-                    ].map(([label, value, tone]) => (
-                      <div key={label} className="flex items-center justify-between rounded-2xl border border-white/8 bg-[#131d2e] px-3 py-3">
-                        <div className="text-sm font-semibold text-slate-200">{label}</div>
-                        <div className={`rounded-full px-2.5 py-1 text-xs font-black ${tone}`}>{value}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-[26px] border border-white/8 bg-white/5 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">POS & KDS</div>
-                    <div className="mt-2 text-lg font-black text-white">{tx(lang, 'Sifariş mətbəxə itkisiz gedir', 'Заказ без потерь доходит до кухни', 'Orders reach the kitchen without loss')}</div>
-                  </div>
-                  <ChefHat className="text-violet-300" size={20} />
-                </div>
-                <div className="mt-4 grid gap-3 md:grid-cols-[1.2fr_0.8fr]">
-                  <div className="rounded-2xl border border-white/8 bg-[#131d2e] p-3">
-                    <div className="grid grid-cols-3 gap-3">
-                      {['Dönər', 'Ayran', 'Kartof', 'Amerikano', 'Su', 'Cheeseburger'].map((item, idx) => (
-                        <div key={item} className="rounded-2xl border border-white/8 bg-[#0f1726] p-3">
-                          <div className={`h-12 rounded-xl ${idx % 3 === 0 ? 'bg-amber-300/25' : idx % 3 === 1 ? 'bg-sky-300/20' : 'bg-rose-300/20'}`} />
-                          <div className="mt-2 text-xs font-black text-slate-100">{item}</div>
-                          <div className="text-[11px] text-slate-400">{(idx + 4).toFixed(2)} ₼</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-white/8 bg-[#131d2e] p-3">
-                    <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">{tx(lang, 'Mətbəx statusları', 'Статусы кухни', 'Kitchen statuses')}</div>
-                    <div className="mt-3 space-y-2">
-                      {[
-                        [`${tx(lang, 'Raund', 'Раунд', 'Round')} 1`, tx(lang, 'Hazırlanır', 'Готовится', 'Preparing'), 'bg-sky-500/15 text-sky-200'],
-                        [`${tx(lang, 'Raund', 'Раунд', 'Round')} 2`, tx(lang, 'Hazırdır', 'Готово', 'Ready'), 'bg-emerald-500/15 text-emerald-200'],
-                        [tx(lang, 'Düzəliş', 'Коррекция', 'Correction'), tx(lang, 'STOP / Ləğv', 'STOP / Отмена', 'STOP / Cancel'), 'bg-amber-500/15 text-amber-200'],
-                      ].map(([title, badge, tone]) => (
-                        <div key={title} className="rounded-2xl border border-white/8 bg-[#0f1726] p-3">
-                          <div className="text-sm font-black text-white">{title}</div>
-                          <div className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${tone}`}>{badge}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="rounded-[26px] border border-white/8 bg-white/5 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">{tx(lang, 'Maliyyə', 'Финансы', 'Finance')}</div>
-                    <div className="mt-2 text-lg font-black text-white">{tx(lang, 'Pul axını nəzarətdədir', 'Денежный поток под контролем', 'Cashflow under control')}</div>
-                  </div>
-                  <Wallet className="text-emerald-300" size={20} />
-                </div>
-                <div className="mt-4 grid gap-3">
+                <div className="mt-5 grid grid-cols-2 gap-3">
                   {[
-                    [tx(lang, 'Nağd kassa', 'Касса', 'Cash on hand'), '1,245 ₼'],
-                    [tx(lang, 'Bank / Kart', 'Банк / Карта', 'Bank / Card'), '2,410 ₼'],
-                    [tx(lang, 'Aktiv depozitlər', 'Активные депозиты', 'Active deposits'), '85 ₼'],
-                    [tx(lang, 'Investor borcu', 'Долг инвестору', 'Investor liability'), '300 ₼'],
-                  ].map(([label, value]) => (
-                    <div key={label} className="flex items-center justify-between rounded-2xl border border-white/8 bg-[#131d2e] px-3 py-3">
-                      <div className="text-sm text-slate-300">{label}</div>
-                      <div className="text-sm font-black text-white">{value}</div>
+                    tx(lang, 'POS', 'POS', 'POS'),
+                    tx(lang, 'Masalar', 'Столы', 'Tables'),
+                    tx(lang, 'Maliyyə', 'Финансы', 'Finance'),
+                    'CRM / QR',
+                  ].map((item, index) => (
+                    <div
+                      key={item}
+                      className={`rounded-2xl border px-3 py-3 text-sm font-black transition ${index === previewIndex ? 'border-cyan-300/40 bg-cyan-400/10 text-cyan-100' : 'border-white/8 bg-[#131d2e] text-slate-300'}`}
+                    >
+                      {item}
                     </div>
                   ))}
                 </div>
               </div>
-
-              <div className="rounded-[26px] border border-white/8 bg-white/5 p-4">
-                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">{tx(lang, 'Niyə bu hiss edilir', 'Почему это ощущается', 'Why this feels real')}</div>
-                <div className="mt-3 space-y-3">
-                  {[
-                    tx(lang, 'Sifariş itmir', 'Заказ не теряется', 'Orders do not get lost'),
-                    tx(lang, 'Masa axını qarışmır', 'Поток столов не путается', 'Table flow stays clear'),
-                    tx(lang, 'Mətbəx gecikməsi görünür', 'Задержка кухни видна', 'Kitchen delays are visible'),
-                    tx(lang, 'Kassa və öhdəliklər izlənir', 'Касса и обязательства под контролем', 'Cash and liabilities stay tracked'),
-                  ].map((item) => (
-                    <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/8 bg-[#131d2e] px-3 py-3">
-                      <BadgeCheck size={18} className="text-emerald-300" />
-                      <span className="text-sm font-semibold text-slate-200">{item}</span>
-                    </div>
-                  ))}
-                </div>
+              <div className="relative min-h-[360px] overflow-hidden rounded-[24px] border border-white/8 bg-[#111a29]">
+                {slides.map((slide, index) => (
+                  <div
+                    key={slide.key}
+                    className={`absolute inset-0 p-4 transition-all duration-700 ${index === previewIndex ? 'translate-x-0 opacity-100' : index < previewIndex ? '-translate-x-6 opacity-0' : 'translate-x-6 opacity-0'}`}
+                  >
+                    {slide.visual}
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -454,6 +449,7 @@ export default function LandingPage() {
     businessType: 'restoran',
     note: '',
   });
+  const [previewIndex, setPreviewIndex] = React.useState(0);
 
   React.useEffect(() => {
     let mounted = true;
@@ -469,6 +465,13 @@ export default function LandingPage() {
     return () => {
       mounted = false;
     };
+  }, []);
+
+  React.useEffect(() => {
+    const timer = window.setInterval(() => {
+      setPreviewIndex((value) => (value + 1) % 4);
+    }, 2600);
+    return () => window.clearInterval(timer);
   }, []);
 
   const navItems = React.useMemo(() => getNavItems(lang), [lang]);
@@ -491,8 +494,7 @@ export default function LandingPage() {
       'Пусть POS, столы, кухня, финансы, dashboard, CRM, Customer App и аналитика работают в одной системе. Управляйте ежедневной операцией без потери заказов и без потери кассового контроля.',
       'Let POS, tables, kitchen, finance, dashboard, CRM, Customer App and analytics run in one system. Manage daily operations without losing orders or cash control.',
     );
-  const primaryCta = tx(lang, 'Əlaqə qur', 'Связаться', 'Contact us');
-  const secondaryCta = tx(lang, 'Ətraflı bax', 'Подробнее', 'Learn more');
+  const primaryCta = tx(lang, 'Demoya keç', 'Перейти к демо', 'Open demo');
   const contactEmail = 'abbas@laptopmarket.az';
   const contactPhone = '+99455 299-92-82';
   const contactWhatsapp = landingSettings?.contact_whatsapp || '';
@@ -559,7 +561,9 @@ export default function LandingPage() {
                   ))}
                 </div>
                 <a
-                  href="#demo"
+                  href={demoUrl}
+                  target="_blank"
+                  rel="noreferrer"
                   className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#0f172a,#1e293b)] px-5 py-3 text-sm font-bold text-white shadow-[0_16px_34px_rgba(15,23,42,0.18)] transition hover:translate-y-[-1px]"
                 >
                   {primaryCta}
@@ -580,16 +584,12 @@ export default function LandingPage() {
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <a
-                  href="#demo"
+                  href={demoUrl}
+                  target="_blank"
+                  rel="noreferrer"
                   className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#0f172a,#1e293b)] px-7 py-3 text-base font-bold text-white shadow-[0_18px_36px_rgba(15,23,42,0.18)] transition hover:translate-y-[-1px]"
                 >
                   {primaryCta}
-                </a>
-                <a
-                  href="#mehsul"
-                  className="inline-flex min-h-14 items-center justify-center rounded-2xl border border-slate-200 bg-white px-7 py-3 text-base font-semibold text-slate-800 transition hover:border-sky-300 hover:text-sky-700"
-                >
-                  {secondaryCta}
                 </a>
               </div>
 
@@ -606,7 +606,7 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <ProductPreview lang={lang} />
+            <ProductPreview lang={lang} previewIndex={previewIndex} />
           </section>
 
           <section className="grid gap-4 pb-20 md:grid-cols-2 xl:grid-cols-4">
