@@ -1597,7 +1597,7 @@ export default function FinancePanel() {
   const approvalPreview = (
     <FinanceControlCard
       title={tx(lang, 'Təsdiq qutusu', 'Тəsdiq qutusu', 'Təsdiq qutusu')}
-      subtitle={tx(lang, 'Riskli əməliyyatlar burada gözləyir', 'Riskli əməliyyatlar burada gözləyir', 'Riskli əməliyyatlar burada gözləyir')}
+      subtitle={tx(lang, 'Riskli əməliyyatların qısa növbəsi', 'Riskli əməliyyatların qısa növbəsi', 'Riskli əməliyyatların qısa növbəsi')}
     >
       <div className="space-y-3">
         {pendingApprovals.slice(0, 3).map((row) => (
@@ -1643,10 +1643,10 @@ export default function FinancePanel() {
     <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-5">
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">{tx(lang, 'Double-entry journal', 'Двойной ledger', 'Double-entry journal')}</div>
-          <h3 className="mt-2 text-xl font-black text-white">{tx(lang, 'Ledger Transactions', 'Ledger операции', 'Ledger Transactions')}</h3>
+          <div className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">{tx(lang, 'İki tərəfli maliyyə jurnalı', 'Двойной ledger', 'Double-entry journal')}</div>
+          <h3 className="mt-2 text-xl font-black text-white">{tx(lang, 'Maliyyə jurnalı', 'Ledger операции', 'Ledger Transactions')}</h3>
           <p className="mt-1 text-sm text-slate-400">
-            {tx(lang, 'Hər posted transaction debit/credit entry-lərlə izlənir.', 'Каждая posted transaction отслеживается debit/credit записями.', 'Every posted transaction is tracked with debit/credit entries.')}
+            {tx(lang, 'Hər yazılmış əməliyyat debit/credit entry-lərlə və audit izi ilə izlənir.', 'Каждая posted transaction отслеживается debit/credit записями.', 'Every posted transaction is tracked with debit/credit entries.')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -1661,9 +1661,9 @@ export default function FinancePanel() {
       <div className="mb-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-4">
         <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-sky-300">{tx(lang, 'Ledger filterləri', 'Фильтры ledger', 'Ledger filters')}</div>
+            <div className="text-xs font-black uppercase tracking-[0.18em] text-sky-300">{tx(lang, 'Jurnal filterləri', 'Фильтры ledger', 'Ledger filters')}</div>
             <p className="mt-1 text-xs font-bold text-slate-500">
-              {ledgerPageStart}-{ledgerPageEnd} / {ledgerTotalCount || filteredLedgerTransactions.length} {tx(lang, 'transaction göstərilir', 'transaction показано', 'transactions shown')}
+              {ledgerPageStart}-{ledgerPageEnd} / {ledgerTotalCount || filteredLedgerTransactions.length} {tx(lang, 'əməliyyat göstərilir', 'transaction показано', 'transactions shown')}
               {ledgerPageLoading ? ` · ${tx(lang, 'Yüklənir...', 'Загрузка...', 'Loading...')}` : ''}
             </p>
           </div>
@@ -1682,7 +1682,7 @@ export default function FinancePanel() {
             />
           </label>
           <label className="space-y-2">
-            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Type', 'Тип', 'Type')}</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Əməliyyat növü', 'Тип', 'Type')}</span>
             <select className="neon-input min-h-12" value={ledgerTypeFilter} onChange={(e) => setLedgerTypeFilter(e.target.value)}>
               <option value="all">{tx(lang, 'Bütün type-lar', 'Все типы', 'All types')}</option>
               {ledgerTransactionTypes.map((typeValue) => (
@@ -1700,7 +1700,7 @@ export default function FinancePanel() {
             </select>
           </label>
           <label className="space-y-2">
-            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Account', 'Счет', 'Account')}</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Hesab', 'Счет', 'Account')}</span>
             <select className="neon-input min-h-12" value={ledgerAccountFilter} onChange={(e) => setLedgerAccountFilter(e.target.value)}>
               <option value="all">{tx(lang, 'Bütün account-lar', 'Все счета', 'All accounts')}</option>
               {ledgerAccounts.map((account) => (
@@ -1709,7 +1709,7 @@ export default function FinancePanel() {
             </select>
           </label>
           <label className="space-y-2">
-            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Counterparty', 'Контрагент', 'Counterparty')}</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Subyekt', 'Контрагент', 'Counterparty')}</span>
             <input
               className="neon-input min-h-12"
               value={ledgerCounterpartyFilter}
@@ -1729,7 +1729,7 @@ export default function FinancePanel() {
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Tarix aralığı', 'Диапазон дат', 'Date range')}</div>
             <div className="mt-2 text-sm font-black text-white">{fromDate} → {toDate}</div>
             <div className="mt-1 text-xs font-bold text-slate-500">
-              {tx(lang, 'Yuxarıdakı period filteri ledger-ə də tətbiq olunur.', 'Верхний фильтр периода также применяется к ledger.', 'The top period filter also applies to ledger.')}
+              {tx(lang, 'Yuxarıdakı period filteri maliyyə jurnalına da tətbiq olunur.', 'Верхний фильтр периода также применяется к ledger.', 'The top period filter also applies to ledger.')}
             </div>
           </div>
         </div>
@@ -1782,7 +1782,7 @@ export default function FinancePanel() {
               </tr>
             ))}
             {visibleLedgerTransactions.length === 0 && (
-              <tr><td colSpan={7} className="py-10 text-center text-slate-500">{tx(lang, 'Bu filterlə ledger qeydi tapılmadı', 'По этим фильтрам ledger записей нет', 'No ledger rows match these filters')}</td></tr>
+            <tr><td colSpan={7} className="py-10 text-center text-slate-500">{tx(lang, 'Bu filterlə maliyyə jurnalı qeydi tapılmadı', 'По этим фильтрам ledger записей нет', 'No ledger rows match these filters')}</td></tr>
             )}
           </tbody>
         </table>
@@ -1812,9 +1812,50 @@ export default function FinancePanel() {
         </div>
       </div>
       <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-xs text-slate-400">
-        {ledgerEntries.length} {tx(lang, 'debit/credit entry yüklənib. Transaction sətirinə klikləyəndə detail drawer entries, audit və reversal history göstərir.', 'debit/credit записей загружено. Клик по transaction открывает drawer с entries, audit и reversal history.', 'debit/credit entries loaded. Clicking a transaction opens entries, audit, and reversal history in the detail drawer.')}
+        {ledgerEntries.length} {tx(lang, 'debit/credit entry yüklənib. Əməliyyat sətrinə klikləyəndə audit, approval və reversal tarixçəsi açılır.', 'debit/credit записей загружено. Клик по transaction открывает drawer с entries, audit и reversal history.', 'debit/credit entries loaded. Clicking a transaction opens entries, audit, and reversal history in the detail drawer.')}
       </div>
     </div>
+  );
+
+  const overviewInsights = (
+    <FinanceControlCard title={tx(lang, 'Bugünkü vəziyyət', 'Bugünkü vəziyyət', 'Bugünkü vəziyyət')} subtitle={tx(lang, 'Bu gün nə baş verib və nəzarət üçün əsas siqnallar', 'Bu gün nə baş verib və nəzarət üçün əsas siqnallar', 'Bu gün nə baş verib və nəzarət üçün əsas siqnallar')}>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <FinanceMiniMetric label={tx(lang, 'Bugünkü mədaxil', 'Bugünkü mədaxil', 'Bugünkü mədaxil')} value={`${financeSummary.incoming.toFixed(2)} ₼`} tone="emerald" />
+        <FinanceMiniMetric label={tx(lang, 'Bugünkü xərc', 'Bugünkü xərc', 'Bugünkü xərc')} value={`${financeSummary.outgoing.toFixed(2)} ₼`} tone="rose" />
+        <FinanceMiniMetric label={tx(lang, 'Ən böyük xərc', 'Ən böyük xərc', 'Ən böyük xərc')} value={financeSummary.biggestExpense ? `${new Decimal(financeSummary.biggestExpense.amount || 0).toFixed(2)} ₼` : '0.00 ₼'} tone="amber" />
+        <FinanceMiniMetric label={tx(lang, 'Açıq təsdiqlər', 'Açıq təsdiqlər', 'Açıq təsdiqlər')} value={String(pendingApprovalsCount)} tone="violet" />
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button onClick={() => selectQuickAction('expense')} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100">
+          {tx(lang, 'Xərc yaz', 'Xərc yaz', 'Xərc yaz')}
+        </button>
+        <button onClick={() => selectQuickAction('transfer')} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100">
+          {tx(lang, 'Transfer et', 'Transfer et', 'Transfer et')}
+        </button>
+        <button onClick={() => setWorkspaceTab('ledger')} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100">
+          {tx(lang, 'Jurnala bax', 'Jurnala bax', 'Jurnala bax')}
+        </button>
+      </div>
+    </FinanceControlCard>
+  );
+
+  const controlSummaryPanel = (
+    <FinanceControlCard title={tx(lang, 'Nəzarət xülasəsi', 'Сводка контроля', 'Control summary')} subtitle={tx(lang, 'Öhdəliklər, likvidlik və uyğunlaşdırma vəziyyəti', 'Обязательства и риски', 'Liabilities and risks')}>
+      <div className="space-y-3">
+        <FinanceMiniMetric label={tx(lang, 'Investor borcu', 'Долг инвестору', 'Investor liability')} value={`${effectiveInvestorDebt.toFixed(2)} ₼`} tone="amber" />
+        <FinanceMiniMetric label={tx(lang, 'Aktiv depozitlər', 'Активные депозиты', 'Active deposits')} value={`${new Decimal(balance.deposit_balance || 0).toFixed(2)} ₼`} tone="sky" />
+        <FinanceMiniMetric label={tx(lang, 'Likvidlik', 'Ликвидность', 'Liquidity')} value={cashCoverage === 'N/A' ? cashCoverage : `${cashCoverage}%`} tone="violet" />
+        <FinanceMiniMetric label={tx(lang, 'Uyğunlaşdırma fərqi', 'Разница сверки', 'Reconciliation gap')} value={`${new Decimal(unreconciledVariance || 0).toFixed(2)} ₼`} tone={new Decimal(unreconciledVariance || 0).abs().gt(0.01) ? 'rose' : 'emerald'} />
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button onClick={() => setWorkspaceTab('reconciliation')} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100">
+          {tx(lang, 'Uyğunlaşdırmaya keç', 'Uyğunlaşdırmaya keç', 'Uyğunlaşdırmaya keç')}
+        </button>
+        <button onClick={() => setWorkspaceTab('investor')} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100">
+          {tx(lang, 'Investor bölməsini aç', 'Investor bölməsini aç', 'Investor bölməsini aç')}
+        </button>
+      </div>
+    </FinanceControlCard>
   );
 
   const workspaceTitleMap: Record<Exclude<FinanceWorkspaceTab, 'overview'>, { title: string; subtitle: string }> = {
@@ -1971,30 +2012,17 @@ export default function FinancePanel() {
       {workspaceTab === 'overview' && (
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-5">
-            <FinanceControlCard title={tx(lang, 'Today flow', 'Поток сегодня', 'Today flow')} subtitle={tx(lang, 'Operativ cashflow, investor/depozit/transfer xaric', 'Операционный cashflow без инвестора/депозитов/transfer', 'Operational cashflow excluding investor/deposit/transfer')}>
+            <FinanceControlCard title={tx(lang, 'Bugünkü pul axını', 'Поток сегодня', 'Today flow')} subtitle={tx(lang, 'Operativ cashflow, investor/depozit/transfer xaric', 'Операционный cashflow без инвестора/депозитов/transfer', 'Operational cashflow excluding investor/deposit/transfer')}>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <FinanceMiniMetric label={tx(lang, 'Inflow', 'Приход', 'Inflow')} value={`${todayInflow.toFixed(2)} ₼`} tone="emerald" />
-                <FinanceMiniMetric label={tx(lang, 'Outflow', 'Расход', 'Outflow')} value={`${todayOutflow.toFixed(2)} ₼`} tone="rose" />
-                <FinanceMiniMetric label={tx(lang, 'Net', 'Нетто', 'Net')} value={`${financeSummary.net.toFixed(2)} ₼`} tone={financeSummary.net.gte(0) ? 'emerald' : 'rose'} />
+                <FinanceMiniMetric label={tx(lang, 'Mədaxil', 'Приход', 'Inflow')} value={`${todayInflow.toFixed(2)} ₼`} tone="emerald" />
+                <FinanceMiniMetric label={tx(lang, 'Xərc', 'Расход', 'Outflow')} value={`${todayOutflow.toFixed(2)} ₼`} tone="rose" />
+                <FinanceMiniMetric label={tx(lang, 'Net nəticə', 'Нетто', 'Net')} value={`${financeSummary.net.toFixed(2)} ₼`} tone={financeSummary.net.gte(0) ? 'emerald' : 'rose'} />
               </div>
             </FinanceControlCard>
-            <FinanceControlCard title={tx(lang, 'Bu gün nə baş verir?', 'Bu gün nə baş verir?', 'Bu gün nə baş verir?')} subtitle={tx(lang, 'Əməliyyat yazmaq üçün yuxarıdakı sürətli düymələrdən birini seçin.', 'Əməliyyat yazmaq üçün yuxarıdakı sürətli düymələrdən birini seçin.', 'Əməliyyat yazmaq üçün yuxarıdakı sürətli düymələrdən birini seçin.')}>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <FinanceMiniMetric label={tx(lang, 'Bugünkü mədaxil', 'Bugünkü mədaxil', 'Bugünkü mədaxil')} value={`${financeSummary.incoming.toFixed(2)} ₼`} tone="emerald" />
-                <FinanceMiniMetric label={tx(lang, 'Bugünkü xərc', 'Bugünkü xərc', 'Bugünkü xərc')} value={`${financeSummary.outgoing.toFixed(2)} ₼`} tone="rose" />
-                <FinanceMiniMetric label={tx(lang, 'Ən böyük xərc', 'Ən böyük xərc', 'Ən böyük xərc')} value={financeSummary.biggestExpense ? `${new Decimal(financeSummary.biggestExpense.amount || 0).toFixed(2)} ₼` : '0.00 ₼'} tone="amber" />
-                <FinanceMiniMetric label={tx(lang, 'Aktiv təsdiqlər', 'Aktiv təsdiqlər', 'Aktiv təsdiqlər')} value={String(pendingApprovalsCount)} tone="violet" />
-              </div>
-            </FinanceControlCard>
+            {overviewInsights}
           </div>
           <div className="space-y-5">
-            <FinanceControlCard title={tx(lang, 'Control summary', 'Сводка контроля', 'Control summary')} subtitle={tx(lang, 'Öhdəliklər və risklər', 'Обязательства и риски', 'Liabilities and risks')}>
-              <div className="space-y-3">
-                <FinanceMiniMetric label={tx(lang, 'Investor liability', 'Долг инвестору', 'Investor liability')} value={`${effectiveInvestorDebt.toFixed(2)} ₼`} tone="amber" />
-                <FinanceMiniMetric label={tx(lang, 'Active deposits', 'Активные депозиты', 'Active deposits')} value={`${new Decimal(balance.deposit_balance || 0).toFixed(2)} ₼`} tone="sky" />
-                <FinanceMiniMetric label={tx(lang, 'Liquidity', 'Ликвидность', 'Liquidity')} value={cashCoverage === 'N/A' ? cashCoverage : `${cashCoverage}%`} tone="violet" />
-              </div>
-            </FinanceControlCard>
+            {controlSummaryPanel}
             {approvalPreview}
           </div>
         </div>
