@@ -43,6 +43,8 @@ export default function TablesPage() {
   const [lockReason, setLockReason] = useState('');
   const [itemActionTarget, setItemActionTarget] = useState<any | null>(null);
   const [itemActionReason, setItemActionReason] = useState('');
+  const [itemActionReasonCode, setItemActionReasonCode] = useState('guest_changed_mind');
+  const [itemActionQuantityDelta, setItemActionQuantityDelta] = useState('1');
   const [itemActionManagerPassword, setItemActionManagerPassword] = useState('');
   const [tableReceiptHtml, setTableReceiptHtml] = useState<string | null>(null);
   const [revisionTarget, setRevisionTarget] = useState<{ tableId: string; itemName: string; nextItems: any[] } | null>(null);
@@ -113,6 +115,48 @@ export default function TablesPage() {
       default:
         return null;
     }
+  };
+
+  const normalizeOrderItemStatus = (status?: string | null) => {
+    const raw = String(status || 'DRAFT').toUpperCase();
+    if (raw === 'NEW') return 'SENT';
+    if (raw === 'IN_PREP') return 'PREPARING';
+    return raw;
+  };
+
+  const itemActionLabel = (action?: string | null) => {
+    switch (String(action || '').toUpperCase()) {
+      case 'DECREASE':
+        return tx(lang, 'Azalt', 'Уменьшить', 'Reduce');
+      case 'VOID':
+        return tx(lang, 'Ləğv et', 'Отменить', 'Cancel');
+      case 'COMP':
+        return tx(lang, 'Hesabdan sil', 'Списать из счета', 'Comp');
+      case 'WASTE':
+        return tx(lang, 'İsraf', 'Списание', 'Waste');
+      case 'REMAKE':
+        return tx(lang, 'Yenidən düzəlt', 'Переделать', 'Correct');
+      default:
+        return String(action || '-');
+    }
+  };
+
+  const sentItemActions = (item: any) => {
+    const status = normalizeOrderItemStatus(item?.status);
+    if (['SENT', 'PREPARING'].includes(status)) return ['DECREASE', 'VOID', 'COMP', 'WASTE', 'REMAKE'];
+    if (status === 'READY') return ['VOID', 'COMP', 'WASTE', 'REMAKE'];
+    if (status === 'SERVED') return ['COMP', 'WASTE'];
+    if (status === 'VOID_REQUESTED') return ['VOID'];
+    return [];
+  };
+
+  const itemActionNeedsManager = (action?: string | null, status?: string | null) => {
+    const normalizedAction = String(action || '').toUpperCase();
+    const normalizedStatus = normalizeOrderItemStatus(status);
+    if (normalizedAction === 'DECREASE') return false;
+    if (normalizedAction === 'VOID') return ['VOID_REQUESTED', 'READY'].includes(normalizedStatus);
+    if (['COMP', 'WASTE', 'REMAKE'].includes(normalizedAction)) return ['READY', 'SERVED'].includes(normalizedStatus);
+    return false;
   };
 
   const servedStorageKey = hostScopedKey(`${tenant_id}_table_served_items`);
@@ -1688,13 +1732,12 @@ export default function TablesPage() {
         <div className="fixed inset-0 z-[135] flex items-center justify-center bg-black/70 p-4">
           <div className="metal-panel w-full max-w-lg p-5">
             {(() => {
-              const actionStatus = String(itemActionTarget.item?.status || 'NEW').toUpperCase();
-              const quickAction = actionStatus === 'NEW' || actionStatus === 'DRAFT';
+              const actionStatus = normalizeOrderItemStatus(itemActionTarget.item?.status || 'DRAFT');
+              const quickAction = actionStatus === 'DRAFT';
               const actionName = String(itemActionTarget.action || '').toUpperCase();
-              const actionRequiresManager = !quickAction && (
-                ['COMP', 'WASTE', 'REMAKE'].includes(actionName)
-                || (actionName === 'VOID' && ['VOID_REQUESTED', 'READY', 'SERVED', 'COMPED', 'WASTE', 'VOIDED'].includes(actionStatus))
-              );
+              const actionRequiresManager = itemActionNeedsManager(actionName, actionStatus);
+              const needsReason = !quickAction;
+              const quantityMax = Math.max(1, Number(itemActionTarget.item?.qty || 1));
               return (
                 <>
             <h3 className="text-lg font-bold text-slate-100">
@@ -1707,12 +1750,39 @@ export default function TablesPage() {
             </div>
             <div className="mt-4 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-300">
               <div className="flex justify-between"><span>{tx(lang, 'Cari status', 'Текущий статус', 'Current status')}</span><span>{itemActionTarget.item?.status || '-'}</span></div>
-              <div className="mt-1 flex justify-between"><span>{tx(lang, 'Action', 'Действие', 'Action')}</span><span>{itemActionTarget.action}</span></div>
+              <div className="mt-1 flex justify-between"><span>{tx(lang, 'Action', 'Действие', 'Action')}</span><span>{itemActionLabel(itemActionTarget.action)}</span></div>
             </div>
-            {!quickAction && <label className="mt-4 block text-sm text-slate-300">
-              {tx(lang, 'Səbəb', 'Причина', 'Reason')}
-              <textarea className="neon-input mt-1 min-h-[84px]" value={itemActionReason} onChange={(e) => setItemActionReason(e.target.value)} />
-            </label>}
+            {actionName === 'DECREASE' && !quickAction && (
+              <label className="mt-4 block text-sm text-slate-300">
+                {tx(lang, 'Azaldılacaq miqdar', 'Количество для уменьшения', 'Quantity to reduce')}
+                <input
+                  type="number"
+                  min={1}
+                  max={quantityMax}
+                  className="neon-input mt-1"
+                  value={itemActionQuantityDelta}
+                  onChange={(e) => setItemActionQuantityDelta(String(Math.max(1, Math.min(quantityMax, Number(e.target.value || 1)))))}
+                />
+              </label>
+            )}
+            {needsReason && (
+              <div className="mt-4 grid gap-3">
+                <label className="block text-sm text-slate-300">
+                  {tx(lang, 'Səbəb tipi', 'Тип причины', 'Reason type')}
+                  <select className="neon-input mt-1" value={itemActionReasonCode} onChange={(e) => setItemActionReasonCode(e.target.value)}>
+                    <option value="wrong_entry">{tx(lang, 'Səhv daxil edilib', 'Ошибочно введено', 'Wrong entry')}</option>
+                    <option value="guest_changed_mind">{tx(lang, 'Müştəri fikrini dəyişdi', 'Гость передумал', 'Guest changed mind')}</option>
+                    <option value="duplicate">{tx(lang, 'Dublikat sifariş', 'Дубликат заказа', 'Duplicate order')}</option>
+                    <option value="kitchen_mistake">{tx(lang, 'Mətbəx səhvi', 'Ошибка кухни', 'Kitchen mistake')}</option>
+                    <option value="other">{tx(lang, 'Digər', 'Другое', 'Other')}</option>
+                  </select>
+                </label>
+                <label className="block text-sm text-slate-300">
+                  {tx(lang, 'Qeyd', 'Заметка', 'Note')}
+                  <textarea className="neon-input mt-1 min-h-[84px]" value={itemActionReason} onChange={(e) => setItemActionReason(e.target.value)} />
+                </label>
+              </div>
+            )}
             {actionRequiresManager && (
               <label className="mt-3 block text-sm text-slate-300">
                 {tx(lang, 'Manager/Admin şifrəsi', 'Пароль менеджера/админа', 'Manager/Admin password')}
@@ -1726,6 +1796,8 @@ export default function TablesPage() {
                 onClick={() => {
                   setItemActionTarget(null);
                   setItemActionReason('');
+                  setItemActionReasonCode('guest_changed_mind');
+                  setItemActionQuantityDelta('1');
                   setItemActionManagerPassword('');
                 }}
               >
@@ -1736,23 +1808,25 @@ export default function TablesPage() {
                 className="glossy-gold rounded-lg px-4 py-2 font-semibold"
                 onClick={async () => {
                   try {
-                    if (!quickAction && !itemActionReason.trim()) {
-                      notify('error', tx(lang, 'Səbəb yazın', 'Укажите причину', 'Enter a reason'));
-                      return;
-                    }
                     if (actionRequiresManager && !itemActionManagerPassword.trim()) {
                       notify('error', tx(lang, 'Manager/Admin şifrəsini yazın', 'Введите пароль менеджера/админа', 'Enter manager/admin password'));
                       return;
                     }
-                    const nextReason = quickAction ? tx(lang, 'Sürətli düzəliş', 'Быстрое изменение', 'Quick change') : itemActionReason.trim();
+                    const nextReason = quickAction
+                      ? tx(lang, 'Sürətli düzəliş', 'Быстрое изменение', 'Quick change')
+                      : (itemActionReason.trim() || itemActionLabel(itemActionTarget.action));
                     await act_on_order_item_live(itemActionTarget.item.id, {
                       action: itemActionTarget.action,
                       reason: nextReason,
+                      reason_code: itemActionReasonCode,
+                      quantity_delta: actionName === 'DECREASE' ? Math.max(1, Math.min(quantityMax, Number(itemActionQuantityDelta || 1))) : undefined,
                       manager_password: actionRequiresManager ? itemActionManagerPassword.trim() : undefined,
                       remake_note: itemActionTarget.action === 'REMAKE' ? nextReason : undefined,
                     });
                     setItemActionTarget(null);
                     setItemActionReason('');
+                    setItemActionReasonCode('guest_changed_mind');
+                    setItemActionQuantityDelta('1');
                     setItemActionManagerPassword('');
                     notify('success', tx(lang, 'Item statusu yeniləndi', 'Статус позиции обновлен', 'Item status updated'));
                     if (viewTableId) {
@@ -2115,73 +2189,82 @@ export default function TablesPage() {
 	                      </button>
 	                    </div>
 	                    {sentDisplayItems.length === 0 && <div className="text-sm text-slate-400">{tx(lang, 'Hələ mətbəxə göndərilmiş sifariş yoxdur', 'Пока нет отправленных на кухню заказов', 'No sent kitchen orders yet')}</div>}
-	                    {sentDisplayItems.map((it: any, idx: number) => (
-                      <div key={`${it.item_name}_${idx}`} className="flex items-center justify-between gap-3 border-b border-slate-700/40 py-2 text-sm last:border-b-0">
-                        <div>
-                          <div>{it.item_name}</div>
-                          <div className="mt-1 text-xs text-slate-500">x{it.qty}{it.status ? ` · ${it.status}` : ''}</div>
-                          {it.status_reason ? <div className="mt-1 text-[11px] text-slate-500">{it.status_reason}</div> : null}
-                          {it.id ? (
-                            <button
-                              type="button"
-                              className="mt-1 text-[11px] font-semibold text-cyan-200 hover:text-cyan-100"
-                              onClick={async (event) => {
-                                event.stopPropagation();
-                                try {
-                                  setStatusLogTarget(it);
-                                  setStatusLogRows(await get_order_item_status_logs_live(it.id));
-                                } catch (e: any) {
-                                  notify('error', e?.message || tx(lang, 'Status tarixçəsi açılmadı', 'История статуса не открылась', 'Status history did not open'));
-                                }
-                              }}
-                            >
-                              {tx(lang, 'Status tarixçəsi', 'История статуса', 'Status history')}
-                            </button>
-                          ) : null}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            disabled={!userCanEditTable}
-                            className="rounded-md border border-amber-300/40 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-100"
-	                            onClick={async (e) => {
-	                              e.stopPropagation();
-	                              const hasLegacyMatch = items.some((row: any) => String(row.item_name || '').trim() === String(it.item_name || '').trim());
-	                              if (it.id && detailActiveItems.length > 0 && !hasLegacyMatch) {
-	                                setItemActionTarget({ item: it, action: 'VOID' });
-	                                return;
-	                              }
-	                              const nextItems = buildRevisionNextItems(it.item_name, 1);
-	                              setRevisionTarget({ tableId: t.id, itemName: it.item_name, nextItems });
-	                            }}
-                          >
-	                            {tx(lang, 'Azalt', 'Уменьшить', 'Reduce')}
-                          </button>
-                          <button
-                            disabled={!userCanEditTable}
-                            className="rounded-md border border-rose-300/40 bg-rose-500/10 px-2 py-1 text-xs font-semibold text-rose-100"
-	                            onClick={(e) => {
-	                              e.stopPropagation();
-	                              if (it.id && detailActiveItems.length > 0) {
-	                                setItemActionTarget({ item: it, action: 'VOID' });
-	                                return;
-	                              }
-	                              const nextItems = buildRevisionNextItems(it.item_name, null);
-	                              setRevisionTarget({ tableId: t.id, itemName: it.item_name, nextItems });
-	                            }}
-                          >
-                            {tx(lang, 'Sil', 'Убрать', 'Remove')}
-                          </button>
-                          {it.id && userCanEditTable && (
-                            <>
-	                              <button type="button" className="rounded-md border border-yellow-300/40 bg-yellow-500/10 px-2 py-1 text-xs font-semibold text-yellow-100" onClick={() => setItemActionTarget({ item: it, action: 'VOID' })}>{tx(lang, 'Ləğv et', 'Аннулировать', 'Void')}</button>
-	                              <button type="button" className="rounded-md border border-sky-300/40 bg-sky-500/10 px-2 py-1 text-xs font-semibold text-sky-100" onClick={() => setItemActionTarget({ item: it, action: 'COMP' })}>{tx(lang, 'Hesabdan sil', 'Списать из счета', 'Comp')}</button>
-	                              <button type="button" className="rounded-md border border-slate-300/30 bg-slate-500/15 px-2 py-1 text-xs font-semibold text-slate-100" onClick={() => setItemActionTarget({ item: it, action: 'WASTE' })}>{tx(lang, 'İsraf', 'Списание', 'Waste')}</button>
-	                              <button type="button" className="rounded-md border border-orange-300/40 bg-orange-500/10 px-2 py-1 text-xs font-semibold text-orange-100" onClick={() => setItemActionTarget({ item: it, action: 'REMAKE' })}>{tx(lang, 'Yenidən hazırla', 'Переделать', 'Remake')}</button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+	                    {sentDisplayItems.map((it: any, idx: number) => {
+                        const status = normalizeOrderItemStatus(it.status || it.raw_status);
+                        const actions = it.id ? sentItemActions({ ...it, status }) : [];
+                        return (
+                          <div key={`${it.id || it.item_name}_${idx}`} className="flex items-center justify-between gap-3 border-b border-slate-700/40 py-2 text-sm last:border-b-0">
+                            <div className="min-w-0">
+                              <div className="truncate font-semibold text-slate-100">{it.item_name}</div>
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                <span>x{it.qty}</span>
+                                <span className="rounded-full border border-slate-600/70 bg-slate-950/50 px-2 py-0.5 text-[10px] font-bold text-slate-300">{status}</span>
+                                {it.round_no ? <span className="rounded-full border border-violet-300/30 bg-violet-500/10 px-2 py-0.5 text-[10px] font-bold text-violet-100">Raund {it.round_no}</span> : null}
+                              </div>
+                              {it.status_reason ? <div className="mt-1 text-[11px] text-slate-500">{it.status_reason}</div> : null}
+                              {it.note ? <div className="mt-1 text-[11px] text-amber-100/80">{it.note}</div> : null}
+                              {it.id ? (
+                                <button
+                                  type="button"
+                                  className="mt-1 text-[11px] font-semibold text-cyan-200 hover:text-cyan-100"
+                                  onClick={async (event) => {
+                                    event.stopPropagation();
+                                    try {
+                                      setStatusLogTarget(it);
+                                      setStatusLogRows(await get_order_item_status_logs_live(it.id));
+                                    } catch (e: any) {
+                                      notify('error', e?.message || tx(lang, 'Status tarixçəsi açılmadı', 'История статуса не открылась', 'Status history did not open'));
+                                    }
+                                  }}
+                                >
+                                  {tx(lang, 'Status tarixçəsi', 'История статуса', 'Status history')}
+                                </button>
+                              ) : null}
+                            </div>
+                            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                              {it.id && userCanEditTable && actions.length > 0 ? (
+                                actions.map((action) => (
+                                  <button
+                                    key={`${it.id}_${action}`}
+                                    type="button"
+                                    className={`rounded-md border px-2 py-1 text-xs font-semibold ${
+                                      action === 'DECREASE'
+                                        ? 'border-amber-300/40 bg-amber-500/10 text-amber-100'
+                                        : action === 'VOID'
+                                          ? 'border-yellow-300/40 bg-yellow-500/10 text-yellow-100'
+                                          : action === 'COMP'
+                                            ? 'border-sky-300/40 bg-sky-500/10 text-sky-100'
+                                            : action === 'WASTE'
+                                              ? 'border-slate-300/30 bg-slate-500/15 text-slate-100'
+                                              : 'border-orange-300/40 bg-orange-500/10 text-orange-100'
+                                    }`}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setItemActionTarget({ item: { ...it, status }, action });
+                                      setItemActionQuantityDelta('1');
+                                      setItemActionReasonCode(action === 'WASTE' ? 'kitchen_mistake' : 'guest_changed_mind');
+                                    }}
+                                  >
+                                    {itemActionLabel(action)}
+                                  </button>
+                                ))
+                              ) : !it.id ? (
+                                <button
+                                  disabled={!userCanEditTable}
+                                  className="rounded-md border border-amber-300/40 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-100"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const nextItems = buildRevisionNextItems(it.item_name, 1);
+                                    setRevisionTarget({ tableId: t.id, itemName: it.item_name, nextItems });
+                                  }}
+                                >
+                                  {tx(lang, 'Azalt', 'Уменьшить', 'Reduce')}
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
 	                  </div>
 	                  {tableWorkspaceTab === 'compose' && (
 		                  <div className="order-1 flex min-h-0 flex-[1.2] flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/35 p-3 lg:p-4">
@@ -2237,9 +2320,12 @@ export default function TablesPage() {
                                   <div className="text-xs text-slate-400">{Number(row.price || 0).toFixed(2)} ₼</div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <button type="button" className="rounded-md border border-slate-600 px-2 py-1 text-xs text-slate-200" onClick={() => updateRoundDraftQty(String(row.id), Number(row.qty || 0) - 1)}>-</button>
+                                  <button type="button" className="rounded-md border border-slate-600 px-2 py-1 text-xs text-slate-200" onClick={() => updateRoundDraftQty(String(row.id), Number(row.qty || 0) - 1)}>{tx(lang, 'Azalt', 'Уменьшить', 'Reduce')}</button>
                                   <div className="min-w-7 text-center text-sm font-semibold text-slate-100">{row.qty}</div>
                                   <button type="button" className="rounded-md border border-slate-600 px-2 py-1 text-xs text-slate-200" onClick={() => updateRoundDraftQty(String(row.id), Number(row.qty || 0) + 1)}>+</button>
+                                  <button type="button" className="rounded-md border border-rose-300/40 bg-rose-500/10 px-2 py-1 text-xs font-semibold text-rose-100" onClick={() => updateRoundDraftQty(String(row.id), 0)}>
+                                    {tx(lang, 'Sil', 'Удалить', 'Delete')}
+                                  </button>
                                 </div>
                               </div>
                             ))

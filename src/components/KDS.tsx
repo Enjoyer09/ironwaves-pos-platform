@@ -122,6 +122,60 @@ export default function KDS() {
     }
   };
 
+  const kitchenItemTone = (status: string) => {
+    switch (String(status || '').toUpperCase()) {
+      case 'VOID_REQUESTED':
+        return {
+          row: 'border-yellow-300/70 bg-yellow-500/15 text-yellow-50',
+          qty: 'bg-yellow-500/30 text-yellow-50',
+          prefix: tx(lang, 'STOP / LƏĞV TƏLƏBİ', 'СТОП / ЗАПРОС ОТМЕНЫ', 'STOP / CANCEL REQUEST'),
+          helper: tx(lang, 'Bu item üzrə hazırlığı dayandırın və təsdiq gözləyin.', 'Остановите подготовку этой позиции и ждите подтверждения.', 'Stop prep for this item and wait for confirmation.'),
+        };
+      case 'REMAKE':
+        return {
+          row: 'border-orange-300/70 bg-orange-500/15 text-orange-50',
+          qty: 'bg-orange-500/30 text-orange-50',
+          prefix: tx(lang, 'DÜZƏLİŞ / ƏVVƏLKİNİ HAZIRLAMA', 'ИСПРАВЛЕНИЕ / НЕ ГОТОВИТЬ СТАРОЕ', 'CORRECTION / DO NOT PREP OLD'),
+          helper: tx(lang, 'Bu item yenisi ilə əvəzlənib. Yeni REMAKE sətrini hazırlayın.', 'Эта позиция заменена новой. Готовьте новую строку REMAKE.', 'This item was replaced. Prep the new REMAKE line.'),
+        };
+      case 'CORRECTION':
+        return {
+          row: 'border-orange-300/70 bg-orange-500/15 text-orange-50',
+          qty: 'bg-orange-500/30 text-orange-50',
+          prefix: tx(lang, 'REMAKE / DÜZƏLİŞ', 'REMAKE / ИСПРАВЛЕНИЕ', 'REMAKE / CORRECTION'),
+          helper: tx(lang, 'Bu yeni düzəliş sətridir. Bunu hazırlayın, əvvəlki sətri hazırlamayın.', 'Это новая строка исправления. Готовьте ее, старую строку не готовьте.', 'This is the new correction row. Prep this and do not prep the old row.'),
+        };
+      case 'WASTE':
+        return {
+          row: 'border-slate-400/50 bg-slate-700/35 text-slate-100',
+          qty: 'bg-slate-600/60 text-slate-100',
+          prefix: tx(lang, 'İSRAF', 'СПИСАНО', 'WASTE'),
+          helper: tx(lang, 'Audit üçün saxlanılıb, hazırlanma axınına daxil etməyin.', 'Сохранено для аудита, не включайте в приготовление.', 'Kept for audit, do not prep.'),
+        };
+      case 'COMPED':
+        return {
+          row: 'border-sky-300/50 bg-sky-500/15 text-sky-50',
+          qty: 'bg-sky-500/25 text-sky-50',
+          prefix: tx(lang, 'HESABDAN SİLİNİB', 'СПИСАНО СО СЧЕТА', 'COMPED'),
+          helper: tx(lang, 'Billing dəyişib, item auditdə qalır.', 'Биллинг изменен, позиция остается в аудите.', 'Billing changed, item remains in audit.'),
+        };
+      case 'VOIDED':
+        return {
+          row: 'border-rose-300/60 bg-rose-500/15 text-rose-50',
+          qty: 'bg-rose-500/25 text-rose-50',
+          prefix: tx(lang, 'LƏĞV EDİLDİ', 'ОТМЕНЕНО', 'VOIDED'),
+          helper: tx(lang, 'Bu item aktiv hazırlanma siyahısından çıxıb.', 'Эта позиция снята с активного приготовления.', 'This item is no longer active for prep.'),
+        };
+      default:
+        return {
+          row: 'border-slate-700/50 bg-slate-950/25 text-slate-100',
+          qty: 'bg-slate-700 text-slate-100',
+          prefix: '',
+          helper: '',
+        };
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'SENT': return <span className="rounded px-2 py-1 text-xs font-bold bg-blue-400/20 text-blue-200 border border-blue-300/40">{tx(lang, 'GÖNDƏRİLDİ', 'ОТПРАВЛЕНО', 'SENT')}</span>;
@@ -148,7 +202,7 @@ export default function KDS() {
     newIds: string[];
     preparingIds: string[];
     readyIds: string[];
-    items: Array<{ ids: string[]; item_name: string; qty: number; seat_label?: string; action?: string | null; status?: string; reason?: string }>;
+    items: Array<{ ids: string[]; item_name: string; qty: number; seat_label?: string; action?: string | null; status?: string; reason?: string; parent_item_id?: string; note?: string }>;
     batchCount: number;
   }>>((acc, order) => {
     const key = order.table_label ? `table:${order.table_label}` : `order:${order.id}`;
@@ -156,11 +210,12 @@ export default function KDS() {
     const normalizedItems = normalizeItems(order);
 
     if (!existing) {
+      const hasKitchenInstruction = normalizedItems.some((item: any) => ['VOID_REQUESTED', 'REMAKE', 'WASTE'].includes(String(item.status || item.action || '').toUpperCase()));
       acc.push({
         key,
         table_label: order.table_label || null,
         order_type: order.order_type,
-        status: order.status === 'SENT' ? 'NEW' : order.status,
+        status: hasKitchenInstruction ? 'VOID_REQUESTED' : order.status === 'SENT' ? 'NEW' : order.status,
         priority: order.priority,
         created_at: order.created_at,
         ids: [order.id],
@@ -175,6 +230,8 @@ export default function KDS() {
           action: String(item.action || '').toUpperCase() || null,
           status: String(item.status || item.action || order.status || '').toUpperCase(),
           reason: item.reason || '',
+          parent_item_id: item.parent_item_id,
+          note: item.note || '',
         })),
         batchCount: 1,
       });
@@ -194,7 +251,7 @@ export default function KDS() {
       existing.created_at = order.created_at;
     }
 
-    if (existing.items.some((item) => String(item.status || '').toUpperCase() === 'VOID_REQUESTED')) existing.status = 'VOID_REQUESTED';
+    if (existing.items.some((item) => ['VOID_REQUESTED', 'REMAKE', 'WASTE'].includes(String(item.status || '').toUpperCase()))) existing.status = 'VOID_REQUESTED';
     else if (existing.newIds.length > 0) existing.status = 'NEW';
     else if (existing.preparingIds.length > 0) existing.status = 'PREPARING';
     else existing.status = 'READY';
@@ -208,7 +265,7 @@ export default function KDS() {
         existing.items[idx].qty += Number(item.qty || 0);
         if (item.id) existing.items[idx].ids.push(String(item.id));
       } else {
-        existing.items.push({ ids: item.id ? [String(item.id)] : [], item_name: item.item_name, qty: Number(item.qty || 0), seat_label: itemSeat, action: itemAction, status: itemStatus, reason: item.reason || '' });
+        existing.items.push({ ids: item.id ? [String(item.id)] : [], item_name: item.item_name, qty: Number(item.qty || 0), seat_label: itemSeat, action: itemAction, status: itemStatus, reason: item.reason || '', parent_item_id: item.parent_item_id, note: item.note || '' });
       }
     });
     return acc;
@@ -326,9 +383,9 @@ export default function KDS() {
             </div>
 
             <div className="flex-1 p-4 bg-slate-900/15">
-              {order.items.some((item: any) => String(item.status || '').toUpperCase() === 'VOID_REQUESTED') ? (
+              {order.items.some((item: any) => ['VOID_REQUESTED', 'REMAKE', 'WASTE'].includes(String(item.status || '').toUpperCase())) ? (
                 <div className="mb-4 rounded-2xl border border-yellow-300/60 bg-yellow-400/15 px-4 py-3 text-sm font-black text-yellow-100">
-                  {tx(lang, 'STOP: Bu sifarişdə ləğv tələbi var. Hazırlamağa davam etmədən əvvəl manager/ofisiant təsdiqini gözləyin.', 'СТОП: В этом заказе есть запрос отмены. Дождитесь подтверждения менеджера/официанта перед продолжением.', 'STOP: This order has a cancel request. Wait for manager/waiter confirmation before continuing.')}
+                  {tx(lang, 'STOP: Bu sifarişdə ləğv/düzəliş siqnalı var. Hazırlamağa davam etmədən əvvəl item sətrlərini yoxlayın.', 'СТОП: В этом заказе есть отмена/исправление. Проверьте строки перед продолжением.', 'STOP: This order has a cancel/correction signal. Check item rows before continuing.')}
                 </div>
               ) : null}
               <ul className="space-y-3">
@@ -337,27 +394,39 @@ export default function KDS() {
                   const canStart = ['NEW', 'SENT'].includes(itemStatus);
                   const canReady = ['NEW', 'SENT', 'PREPARING'].includes(itemStatus);
                   const canServe = itemStatus === 'READY';
-                  const isCancelled = ['CANCEL', 'VOIDED', 'VOID_REQUESTED', 'WASTE', 'COMPED'].includes(String(item.action || itemStatus || '').toUpperCase());
+                  const isCancelled = ['CANCEL', 'VOIDED', 'VOID_REQUESTED', 'WASTE', 'COMPED', 'REMAKE'].includes(String(item.action || itemStatus || '').toUpperCase());
                   const isCancelRequested = itemStatus === 'VOID_REQUESTED';
+                  const toneStatus = item.parent_item_id && ['NEW', 'SENT', 'PREPARING', 'READY'].includes(itemStatus) ? 'CORRECTION' : itemStatus;
+                  const tone = kitchenItemTone(toneStatus);
+                  const isKitchenInstruction = ['VOID_REQUESTED', 'REMAKE', 'WASTE', 'COMPED', 'VOIDED'].includes(itemStatus);
                   return (
-                    <li key={idx} className={`flex flex-col gap-3 rounded-xl border border-slate-700/50 bg-slate-950/25 px-3 py-3 text-lg font-medium ${isCancelled ? 'text-rose-300' : 'text-slate-100'}`}>
+                    <li key={idx} className={`flex flex-col gap-3 rounded-xl border px-3 py-3 text-lg font-medium ${tone.row}`}>
                       <div className="flex items-start justify-between gap-3">
                         <span className="flex min-w-0 items-start">
-                          <span className={`mr-3 flex h-7 w-7 shrink-0 items-center justify-center rounded text-sm ${isCancelled ? 'bg-rose-900/60 text-rose-100' : 'bg-slate-700 text-slate-100'}`}>
+                          <span className={`mr-3 flex h-7 w-7 shrink-0 items-center justify-center rounded text-sm ${tone.qty}`}>
                             {item.qty}
                           </span>
                           <span className="min-w-0">
-                            {isCancelRequested ? `${tx(lang, 'STOP / LƏĞV TƏLƏBİ', 'СТОП / ЗАПРОС ОТМЕНЫ', 'STOP / CANCEL REQUEST')} · ` : isCancelled ? `${tx(lang, 'LƏĞV', 'ОТМЕНА', 'CANCEL')} · ` : ''}
+                            {tone.prefix ? `${tone.prefix} · ` : isCancelRequested ? `${tx(lang, 'STOP / LƏĞV TƏLƏBİ', 'СТОП / ЗАПРОС ОТМЕНЫ', 'STOP / CANCEL REQUEST')} · ` : isCancelled ? `${tx(lang, 'LƏĞV', 'ОТМЕНА', 'CANCEL')} · ` : ''}
                             {item.item_name}
                             {item.seat_label ? <span className="ml-2 text-xs font-medium text-cyan-200/80">[{item.seat_label}]</span> : null}
                             {item.reason ? (
                               <span className="ml-2 text-xs font-medium text-rose-200/80">({item.reason})</span>
                             ) : null}
+                            {item.note && itemStatus === 'SENT' ? (
+                              <span className="ml-2 text-xs font-medium text-amber-100/80">({item.note})</span>
+                            ) : null}
                           </span>
                         </span>
                         {getStatusBadge(itemStatus)}
                       </div>
-                      {!isCancelled && item.ids?.length > 0 ? (
+                      {tone.helper ? (
+                        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 pl-10 text-sm font-bold">
+                          {tone.helper}
+                          {item.parent_item_id ? <span className="ml-2 text-xs opacity-70">#{String(item.parent_item_id).slice(0, 6).toUpperCase()}</span> : null}
+                        </div>
+                      ) : null}
+                      {!isKitchenInstruction && item.ids?.length > 0 ? (
                         <div className="flex flex-wrap gap-2 pl-10">
                           {canStart ? (
                             <button type="button" onClick={() => { void handleItemStatus(item.ids, 'PREPARING'); }} className="min-h-10 rounded-xl border border-blue-300/35 bg-blue-500/10 px-3 py-2 text-xs font-black text-blue-100">
