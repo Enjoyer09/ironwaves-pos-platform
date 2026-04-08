@@ -923,6 +923,34 @@ export const request_finance_reversal_async = async (tenant_id: string, transact
   });
 };
 
+export const create_finance_ledger_transaction_async = async (
+  tenant_id: string,
+  payload: {
+    transaction_type: string;
+    source_account_code?: string;
+    destination_account_code?: string;
+    amount: string;
+    category?: string;
+    counterparty?: string;
+    reference?: string;
+    note?: string;
+    requires_approval?: boolean;
+  },
+) => {
+  if (!isBackendEnabled()) {
+    return {
+      success: true,
+      transaction_id: uuidv4(),
+      status: payload.requires_approval ? 'pending_approval' : 'posted',
+    };
+  }
+  return apiRequest<any>('/api/v1/finance/ledger/transactions', {
+    method: 'POST',
+    tenantId: tenant_id,
+    body: payload,
+  });
+};
+
 export const fetch_finance_reconciliations = async (tenant_id: string, limit = 100): Promise<FinanceReconciliation[]> => {
   if (!isBackendEnabled()) return [];
   const rows = await apiRequest<any[]>(`/api/v1/finance/reconciliations?limit=${encodeURIComponent(String(limit))}`, {

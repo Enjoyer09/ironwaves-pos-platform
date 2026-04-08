@@ -209,6 +209,83 @@ def _post_existing_transaction(db: Session, txn: FinanceTransaction, posted_by: 
     return txn
 
 
+def _mirror_posted_transaction_to_legacy_wallet(db: Session, txn: FinanceTransaction, posted_by: str) -> list[FinanceEntry]:
+    if txn.status != "posted" or txn.legacy_finance_entry_id:
+        return []
+    existing = (
+        db.query(FinanceEntry)
+        .filter(
+            FinanceEntry.tenant_id == txn.tenant_id,
+            FinanceEntry.description.contains(f"Ledger mirror: {txn.id}"),
+        )
+        .first()
+    )
+    if existing:
+        return []
+
+    source_code = _finance_account_code(db, txn.tenant_id, txn.source_account_id)
+    destination_code = _finance_account_code(db, txn.tenant_id, txn.destination_account_id)
+    amount = Decimal(str(txn.amount)).quantize(Decimal("0.01"))
+    note = f"{txn.note or txn.category or txn.transaction_type} | Ledger mirror: {txn.id}"
+    rows: list[FinanceEntry] = []
+
+    def add_entry(entry_type: str, category: str, source: str, description: str):
+        row = FinanceEntry(
+            tenant_id=txn.tenant_id,
+            type=entry_type,
+            category=category,
+            source=source,
+            amount=amount,
+            description=description,
+            created_by=posted_by,
+        )
+        db.add(row)
+        rows.append(row)
+
+    if txn.transaction_type in {"income", "cash_adjustment", "reconciliation_adjustment"} and destination_code in {"cash", "card", "safe", "debt"}:
+        add_entry("in", txn.category or "Ledger Mədaxil", destination_code, note)
+    elif txn.transaction_type == "expense" and source_code in {"cash", "card", "safe"}:
+        add_entry("out", txn.category or "Ledger Xərc", source_code, note)
+    elif txn.transaction_type == "internal_transfer" and source_code and destination_code:
+        add_entry("out", "Daxili Transfer", source_code, note)
+        add_entry("in", "Daxili Transfer", destination_code, note)
+    elif txn.transaction_type == "investor_repayment" and source_code in {"cash", "card", "safe"}:
+        add_entry("out", "İnvestora Geri Ödəniş", source_code, note)
+        add_entry("out", "İnvestor Borcu Azaldılması", "investor", note)
+    elif txn.transaction_type == "deposit_hold" and destination_code in {"cash", "card", "safe"}:
+        add_entry("in", "Depozit Alındı", destination_code, note)
+        add_entry("in", "Depozit Öhdəliyi", "deposit", note)
+    elif txn.transaction_type in {"deposit_release", "deposit_refund"} and source_code in {"cash", "card", "safe"}:
+        add_entry("out", "Depozit Qaytarıldı", source_code, note)
+        add_entry("out", "Depozit Öhdəliyi Azaldıldı", "deposit", note)
+    elif txn.transaction_type == "reversal" and source_code and destination_code:
+        if source_code in {"cash", "card", "safe", "deposit", "investor", "debt"}:
+            add_entry("out", txn.category or "Ledger Reversal", source_code, note)
+        if destination_code in {"cash", "card", "safe", "deposit", "investor", "debt"}:
+            add_entry("in", txn.category or "Ledger Reversal", destination_code, note)
+
+    if rows:
+        db.add(
+            AuditLog(
+                tenant_id=txn.tenant_id,
+                user=posted_by,
+                action="FINANCE_LEGACY_WALLET_SYNCED",
+                details=json.dumps(
+                    {
+                        "transaction_id": txn.id,
+                        "transaction_type": txn.transaction_type,
+                        "rows": [
+                            {"type": row.type, "category": row.category, "source": row.source, "amount": str(row.amount)}
+                            for row in rows
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
+    return rows
+
+
 def _create_finance_transaction_record(
     db: Session,
     *,
@@ -737,6 +814,7 @@ def create_ledger_transaction(payload: FinanceTransactionIn, db: Session = Depen
             reference=payload.reference,
             note=payload.note,
         )
+        _mirror_posted_transaction_to_legacy_wallet(db, txn, user.username)
     db.commit()
     return {"success": True, "transaction_id": txn.id, "status": txn.status}
 
@@ -795,6 +873,7 @@ def approve_ledger_transaction(transaction_id: str, db: Session = Depends(get_db
     txn.approved_by = user.username
     txn.approved_at = now
     _post_existing_transaction(db, txn, user.username)
+    _mirror_posted_transaction_to_legacy_wallet(db, txn, user.username)
     db.add(
         AuditLog(
             tenant_id=tenant.id,
