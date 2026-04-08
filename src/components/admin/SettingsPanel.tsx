@@ -98,6 +98,7 @@ export default function SettingsPanel() {
   });
   const [sessionSettings, setSessionSettings] = useState({
     idle_logout_minutes: '0',
+    virtual_keyboard_enabled: true,
   });
   const [printSettings, setPrintSettings] = useState({
     use_qz: false,
@@ -273,6 +274,7 @@ export default function SettingsPanel() {
       });
       setSessionSettings({
         idle_logout_minutes: String(settingsRes.value.session_settings?.idle_logout_minutes ?? 0),
+        virtual_keyboard_enabled: settingsRes.value.session_settings?.virtual_keyboard_enabled !== false,
       });
       setPrintSettings({
         use_qz: Boolean(settingsRes.value.print_settings?.use_qz),
@@ -429,6 +431,7 @@ export default function SettingsPanel() {
     try {
       await update_session_settings_live({
         idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
+        virtual_keyboard_enabled: sessionSettings.virtual_keyboard_enabled,
       });
       flashSuccess(tx(lang, 'Sessiya ayarları yadda saxlanıldı', 'Настройки сессии сохранены', 'Session settings saved'));
     } catch (e: any) {
@@ -1519,18 +1522,28 @@ export default function SettingsPanel() {
         </p>
         <div className="flex flex-col gap-3 md:flex-row md:items-end">
           <label className="text-sm text-slate-300">
-            {tx(lang, 'Idle logout (dəqiqə)', 'Idle logout (минуты)', 'Idle logout (minutes)')}
+            {tx(lang, 'Boş dayanma çıxışı (dəqiqə)', 'Простой выход (минуты)', 'Idle logout (minutes)')}
             <input
               className="neon-input mt-1 w-52"
               type="number"
               min={0}
               max={480}
+              inputMode="numeric"
+              data-virtual-keyboard-mode="numeric"
               value={sessionSettings.idle_logout_minutes}
               onChange={(e) => setSessionSettings((prev) => ({ ...prev, idle_logout_minutes: e.target.value }))}
             />
           </label>
+          <label className="flex items-center gap-3 rounded-2xl border border-slate-700/60 bg-slate-950/40 px-4 py-3 text-sm font-semibold text-slate-200">
+            <input
+              type="checkbox"
+              checked={sessionSettings.virtual_keyboard_enabled}
+              onChange={(e) => setSessionSettings((prev) => ({ ...prev, virtual_keyboard_enabled: e.target.checked }))}
+            />
+            <span>{tx(lang, 'Virtual klaviaturanı aktiv saxla', 'Держать виртуальную клавиатуру включенной', 'Keep virtual keyboard enabled')}</span>
+          </label>
           <button onClick={() => { void saveSessionSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">
-            {tx(lang, 'Sessiya Ayarlarını Saxla', 'Сохранить настройки сессии', 'Save Session Settings')}
+            {tx(lang, 'Sessiya ayarlarını saxla', 'Сохранить настройки сессии', 'Save Session Settings')}
           </button>
         </div>
       </div>

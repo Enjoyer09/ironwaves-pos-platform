@@ -73,7 +73,7 @@ function getSettings(tenant_id?: string): Settings {
       },
       ui_visibility: { staff_show_tables: true, manager_show_tables: true, staff_show_kitchen: true },
       time_settings: { shift_start_time: '08:00', shift_end_time: '23:00', utc_offset: 4, timezone: 'Asia/Baku' },
-      session_settings: { idle_logout_minutes: 0 },
+      session_settings: { idle_logout_minutes: 0, virtual_keyboard_enabled: true },
       email_settings: {
         enabled: false,
         provider: 'none',
@@ -262,10 +262,11 @@ export function update_time_settings(payload: { shift_start_time: string; shift_
   return { success: true };
 }
 
-export function update_session_settings(payload: { idle_logout_minutes: number }) {
+export function update_session_settings(payload: { idle_logout_minutes: number; virtual_keyboard_enabled?: boolean }) {
   const settings = getSettings();
   settings.session_settings = {
     idle_logout_minutes: Math.max(0, Number(payload.idle_logout_minutes || 0)),
+    virtual_keyboard_enabled: payload.virtual_keyboard_enabled !== false,
   };
   saveSettings(settings);
   logEvent('admin', 'SESSION_SETTINGS_UPDATE', settings.session_settings);
@@ -980,7 +981,7 @@ export async function update_email_settings_live(payload: {
   return { success: true };
 }
 
-export async function update_session_settings_live(payload: { idle_logout_minutes: number }) {
+export async function update_session_settings_live(payload: { idle_logout_minutes: number; virtual_keyboard_enabled?: boolean }) {
   if (!isBackendEnabled()) return update_session_settings(payload);
   await apiRequest('/api/v1/ops/settings/session', { method: 'PATCH', tenantId: null, body: payload });
   update_session_settings(payload);

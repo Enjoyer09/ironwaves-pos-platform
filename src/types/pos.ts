@@ -175,6 +175,7 @@ export interface Settings {
   };
   session_settings?: {
     idle_logout_minutes: number;
+    virtual_keyboard_enabled?: boolean;
   };
   email_settings: {
     enabled?: boolean;

@@ -473,7 +473,7 @@ export function FinanceReconciliationWorkspace({
             </label>
             <label className="field-stack form-card">
               <span className="field-label">{tx(lang, 'Sayılmış məbləğ', 'Sayılmış məbləğ', 'Sayılmış məbləğ')}</span>
-              <input className="neon-input min-h-16 text-2xl font-black" type="number" min={0} step="0.01" value={reconcileCounted} onChange={(e) => setReconcileCounted(e.target.value)} />
+              <input className="neon-input min-h-16 text-2xl font-black" type="number" min={0} step="0.01" inputMode="decimal" data-virtual-keyboard-mode="numeric" value={reconcileCounted} onChange={(e) => setReconcileCounted(e.target.value)} />
               <span className="field-hint">{tx(lang, 'Fiziki sayılmış qalığı yazın.', 'Fiziki sayılmış qalığı yazın.', 'Fiziki sayılmış qalığı yazın.')}</span>
             </label>
             <label className="field-stack form-card">
