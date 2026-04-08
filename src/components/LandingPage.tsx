@@ -1,419 +1,266 @@
 import React from 'react';
+import {
+  ArrowRight,
+  BadgeCheck,
+  BellRing,
+  ChartColumnBig,
+  ChefHat,
+  ClipboardList,
+  CreditCard,
+  LayoutDashboard,
+  QrCode,
+  Receipt,
+  ShieldCheck,
+  Store,
+  Table2,
+  Users,
+  Wallet,
+} from 'lucide-react';
 import { get_public_landing_settings_live } from '../api/settings';
 
 const demoUrl = 'https://demo.ironwaves.store';
-type LandingLang = 'az' | 'ru' | 'en';
 
-type LandingCopy = {
-  nav: string[];
-  badge: string;
-  heroTitle: string;
-  heroBody: string;
-  primaryCta: string;
-  highlights: { title: string; text: string }[];
-  sectionTitle: string;
-  sectionBody: string;
-  modules: { title: string; text: string }[];
-  flowTitle: string;
-  flow: { title: string; text: string }[];
-  screenshotTitle: string;
-  screenshotBody: string;
-  screenshots: { title: string; text: string }[];
-  featuresTitle: string;
-  featuresBody: string;
-  features: { title: string; text: string }[];
-  testimonialTitle: string;
-  testimonialBody: string;
-  testimonials: { quote: string; author: string; role: string }[];
-  faqTitle: string;
-  faqBody: string;
-  faqs: { q: string; a: string }[];
-  contactTitle: string;
-  contactBody: string;
-  contactCards: { title: string; text: string }[];
-  finalTitle: string;
-  finalBody: string;
-  launchModelTitle: string;
-  launchHosts: [string, string][];
-};
+const NAV_ITEMS = [
+  { label: 'Məhsul', href: '#mehsul' },
+  { label: 'Necə işləyir', href: '#nece-isleyir' },
+  { label: 'Funksiyalar', href: '#funksiyalar' },
+  { label: 'Sahələr', href: '#saheler' },
+  { label: 'Demo', href: '#demo' },
+] as const;
 
-const content: Record<LandingLang, LandingCopy> = {
-  az: {
-    nav: ['Haqqında', 'Funksiyalar', 'FAQ', 'Əlaqə'],
-    badge: 'iRonWaves POS',
-    heroTitle: 'Azərbaycan bazarı üçün müasir POS və idarəetmə sistemi',
-    heroBody:
-      'Kassa, masa, mətbəx, anbar, maliyyə, CRM və loyallıq axınlarını bir mərkəzdə birləşdirən yerli və çevik idarəetmə platforması.',
-    primaryCta: 'Canlı Demoya Bax',
-    highlights: [
-      { title: 'Sürətli satış', text: 'Touch-friendly POS ekranı ilə kassada sürət və rahatlıq.' },
-      { title: 'Masa və mətbəx', text: 'Servis, masa və mətbəx arasında koordinasiyanı sadələşdirir.' },
-      { title: 'Maliyyə nəzarəti', text: 'Gün açılışı, investor vəsaiti, xərclər və hesabatlar bir paneldədir.' },
-      { title: 'CRM və loyallıq', text: 'QR kartlar, rewards, cashback və müştəri tətbiqi ilə dönüş artır.' },
-    ],
-    sectionTitle: 'Biz nə iş görürük',
-    sectionBody:
-      'iRonWaves POS restoran, coffee shop və retail obyektlər üçün gündəlik əməliyyatı daha rahat idarə etmək üçün qurulub.',
-    modules: [
-      {
-        title: 'Kassa və satış',
-        text: 'Sürətli checkout, nağd, kart və split payment dəstəyi ilə gündəlik satış axını.',
-      },
-      {
-        title: 'Masa və servis',
-        text: 'Masa idarəsi, sifarişlərin mətbəxə ötürülməsi və servis koordinasiyası.',
-      },
-      {
-        title: 'Maliyyə və hesabat',
-        text: 'Gün açılışı, Z-hesabat, xərc-gəlir və gündəlik nəzarət imkanları.',
-      },
-      {
-        title: 'Anbar və resept',
-        text: 'Xammal, maya dəyəri, resept və satışdan sonra anbar azalması nəzarəti.',
-      },
-      {
-        title: 'CRM və müştəri tətbiqi',
-        text: 'QR üzvlük kartları, rewards, cashback və müştəri ilə daha güclü əlaqə.',
-      },
-    ],
-    flowTitle: 'İstifadə ssenarisi',
-    flow: [
-      {
-        title: '1. Obyekt üçün uyğunlaşdırılır',
-        text: 'Restoran, coffee shop və ya retail nöqtəsi üçün məhsul axını sistemə uyğun qurulur.',
-      },
-      {
-        title: '2. Komanda rahat işləyir',
-        text: 'Kassir, menecer, servis və mətbəx üçün ekranlar daha aydın və sürətli işləyir.',
-      },
-      {
-        title: '3. Müştəri geri qayıdır',
-        text: 'CRM, reward və loyalty alətləri ilə daimi müştəri əlaqəsi güclənir.',
-      },
-    ],
-    screenshotTitle: 'Real məhsul ekranları',
-    screenshotBody:
-      'Burada gördüyünüz panellər məhsulun özündən götürülmüş real görüntülərdir.',
-    screenshots: [
-      { title: 'Kassa və checkout', text: 'Satış menyusu, səbət və kassir ritmi bir ekranda.' },
-      { title: 'Maliyyə paneli', text: 'Pul axını, hesabatlar və gündəlik nəzarət görünüşü.' },
-      { title: 'Üzvlük kartları', text: 'Golden və Elite kimi loyalty kart dizaynları.' },
-    ],
-    featuresTitle: 'Əsas funksiyalar',
-    featuresBody: 'Proqram gündəlik əməliyyatı sürətləndirmək və sahibkarın rəqəmlərə nəzarətini gücləndirmək üçün qurulub.',
-    features: [
-      { title: 'POS və sürətli satış', text: 'Nağd, kart və split ödəniş, sürətli səbət axını və çek çapı.' },
-      { title: 'Masa xidməti və KDS', text: 'Masadan POS-a keçid, mətbəx statusları, hazır sifariş popup-ları.' },
-      { title: 'Maliyyə və hesabat', text: 'Gün açılışı, X/Z-Hesabat, xərclər, transferlər, investor və depozit nəzarəti.' },
-      { title: 'Anbar və resept', text: 'Xammal azalması, maya dəyəri, resept sərfi və yield nəzarəti.' },
-      { title: 'CRM və loyallıq', text: 'QR kartlar, rewards, cashback, kampaniyalar və müştəri tətbiqi.' },
-      { title: 'QR Menu və public səhifələr', text: 'Müştəri QR skan edib menyunu login olmadan görə bilir.' },
-    ],
-    testimonialTitle: 'Əsas məqsəd rahat işdir',
-    testimonialBody:
-      'Sistem həm sahib, həm kassir, həm də servis komandası üçün işi yüngülləşdirmək üçün qurulub.',
-    testimonials: [
-      {
-        quote: 'Kassa və maliyyə eyni məhsulda toplandığı üçün günlük nəzarət xeyli rahatlaşdı.',
-        author: 'Murad R.',
-        role: 'Coffee shop owner',
-      },
-      {
-        quote: 'Mətbəx, masa və loyallıq axını birlikdə işləyəndə servis komandası daha az çaşır.',
-        author: 'Ləman A.',
-        role: 'Operations manager',
-      },
-      {
-        quote: 'Demo tenant ilə məhsulu satmaq və komandaya göstərmək daha peşəkar görünür.',
-        author: 'Nigar S.',
-        role: 'Brand consultant',
-      },
-    ],
-    faqTitle: 'Tez-tez verilən suallar',
-    faqBody: 'Müştərilərin təqdimat zamanı ən çox soruşduğu sualları əvvəlcədən cavablandırın.',
-    faqs: [
-      { q: 'Bu sistem kimlər üçündür?', a: 'Restoran, coffee shop, dönər, fast food və retail formatlı obyektlər üçün uyğundur.' },
-      { q: 'Masa xidməti və al-apar ayrı işləyirmi?', a: 'Bəli. POS əsasən al-apar üçün, Masalar modulu isə dine-in və ofisiant axını üçün işləyir.' },
-      { q: 'Maliyyə ayrıca idarə olunurmu?', a: 'Bəli. Kassa, kart, seyf, investor borcu, depozit və gündəlik hesabatlar ayrıca izlənir.' },
-      { q: 'QR menyu yaratmaq olurmu?', a: 'Bəli. Hər tenant üçün ayrıca public QR Menu səhifəsi qurmaq olur.' },
-      { q: 'Demo göstərmək mümkündürmü?', a: 'Bəli. Demo tenant ilə sistem canlı şəkildə təqdim oluna bilir.' },
-    ],
-    contactTitle: 'Əlaqə və demo',
-    contactBody:
-      'Demo baxışı ilə sistemi canlı görün, sonra obyektiniz üçün uyğun quruluşu birlikdə planlayaq.',
-    contactCards: [
-      { title: 'Canlı demo', text: 'Açıq demo tenant ilə sistemin əsas funksiyalarını yoxlayın.' },
-      { title: 'Qurulum', text: 'Obyektinizə uyğun modul və iş axını birlikdə qurulur.' },
-      { title: 'Əlaqə', text: 'Demo sorğusu, satış və təqdimat üçün birbaşa əlaqə saxlayın.' },
-    ],
-    finalTitle: 'Gündəlik idarəetməni sadələşdirin',
-    finalBody:
-      'Kassa, masa, mətbəx, maliyyə və CRM axınlarını eyni məhsulda birləşdirərək işinizi daha rahat idarə edin.',
-    launchModelTitle: 'Platforma modeli',
-    launchHosts: [
-      ['www.ironwaves.store', 'Məhsulun təqdimat səhifəsi'],
-      ['demo.ironwaves.store', 'Canlı demo mühiti'],
-      ['super.ironwaves.store', 'İdarəetmə və konfiqurasiya mərkəzi'],
-      ['client-name.ironwaves.store', 'Obyektə uyğun iş mühiti'],
-    ],
-  },
-  ru: {
-    nav: ['О продукте', 'Функции', 'FAQ', 'Контакты'],
-    badge: 'iRonWaves POS',
-    heroTitle: 'Премиальная POS-платформа для ресторанов, coffee shop и retail',
-    heroBody:
-      'Современная система управления, объединяющая продажи, столы, кухню, финансы, CRM, loyalty и branded customer app в одном продукте.',
-    primaryCta: 'Открыть Live Demo',
-    highlights: [
-      { title: 'Touch-first UX', text: 'Крупные, быстрые и чистые экраны для кассы, планшета и сенсорных мониторов.' },
-      { title: 'Kitchen & Tables', text: 'Кухонные статусы, столы и сервисный поток работают как одна система.' },
-      { title: 'Finance Control', text: 'Cash drawer, investor, расходы, Z-report и ежедневный контроль в одной панели.' },
-      { title: 'CRM & Loyalty', text: 'QR-карты, cashback, rewards и branded customer app повышают retention.' },
-    ],
-    sectionTitle: 'Все операции в одном центре',
-    sectionBody:
-      'Это не просто касса. Платформа объединяет ежедневные операции, финконтроль и лояльность клиентов в одной системе.',
-    modules: [
-      { title: 'POS Checkout', text: 'Быстрые продажи, split payment, reward code, QR-идентификация и receipt flow.' },
-      { title: 'Kitchen & Tables', text: 'Управление столами, кухонные статусы, dine-in и сервисная координация.' },
-      { title: 'Finance & Z-Report', text: 'Cash drawer, investor debt, расходы/доходы, shift и ежедневная отчетность.' },
-      { title: 'Inventory & Recipes', text: 'Склад, себестоимость, рецепты, расход сырья и контроль loss.' },
-      { title: 'CRM & Customer App', text: 'QR-карты, кампании, rewards, cashback и branded loyalty portal.' },
-      { title: 'Multi-tenant Rollout', text: 'www, demo, super и branded tenant subdomain-ы для SaaS-модели.' },
-    ],
-    flowTitle: 'Сценарий продаж и onboarding',
-    flow: [
-      { title: '1. Клиент видит landing page', text: 'Первое впечатление быстро объясняет ценность, экраны и модель rollout.' },
-      { title: '2. Переходит в demo tenant', text: 'Тестирует живые POS, finance, kitchen и loyalty в безопасной среде.' },
-      { title: '3. Получает свой tenant', text: 'Запускается на branded subdomain со своими users, settings и data.' },
-    ],
-    screenshotTitle: 'Реальные экраны продукта',
-    screenshotBody:
-      'Вместо абстрактных mockup мы показываем реальные панели системы и лояльности.',
-    screenshots: [
-      { title: 'POS и checkout flow', text: 'Продажи, touch-first меню, корзина и ритм кассира.' },
-      { title: 'Finance и контроль', text: 'Денежный поток, отчеты и ежедневная управленческая картина.' },
-      { title: 'Карты лояльности', text: 'Дизайн клубных карт уровня Golden и Elite.' },
-    ],
-    featuresTitle: 'Ключевые функции',
-    featuresBody: 'Платформа создана для ускорения ежедневной работы и усиления контроля владельца над цифрами.',
-    features: [
-      { title: 'POS и быстрые продажи', text: 'Наличные, карта, split payment, быстрый чек и печать.' },
-      { title: 'Столы и KDS', text: 'Переход из стола в POS, кухонные статусы и ready popup для официанта.' },
-      { title: 'Финансы и отчеты', text: 'Открытие дня, X/Z-отчеты, расходы, переводы, инвестор и депозиты.' },
-      { title: 'Склад и рецепты', text: 'Списание сырья, себестоимость, рецептуры и контроль yield.' },
-      { title: 'CRM и loyalty', text: 'QR-карты, rewards, cashback, кампании и customer app.' },
-      { title: 'QR Menu и public pages', text: 'Гость может открыть меню по QR без логина.' },
-    ],
-    testimonialTitle: 'Система должна быть не только красивой',
-    testimonialBody: 'Главная цель - чтобы owner, cashier и service team работали быстрее и спокойнее.',
-    testimonials: [
-      {
-        quote: 'Когда касса и финансы в одном продукте, ежедневный контроль становится намного проще.',
-        author: 'Murad R.',
-        role: 'Coffee shop owner',
-      },
-      {
-        quote: 'Когда кухня, столы и loyalty связаны, команде сервиса проще работать без хаоса.',
-        author: 'Laman A.',
-        role: 'Operations manager',
-      },
-      {
-        quote: 'Demo tenant делает презентацию продукта и onboarding заметно профессиональнее.',
-        author: 'Nigar S.',
-        role: 'Brand consultant',
-      },
-    ],
-    faqTitle: 'Часто задаваемые вопросы',
-    faqBody: 'Ответы на вопросы, которые чаще всего задают во время презентации продукта.',
-    faqs: [
-      { q: 'Для кого подходит система?', a: 'Для ресторанов, coffee shop, fast food, донерных и retail-концепций.' },
-      { q: 'POS и обслуживание столов работают отдельно?', a: 'Да. POS в основном для take-away, а модуль столов для dine-in и официантов.' },
-      { q: 'Финансы ведутся отдельно?', a: 'Да. Касса, карта, сейф, долг инвестору, депозиты и ежедневные отчеты отслеживаются отдельно.' },
-      { q: 'Можно сделать QR-меню?', a: 'Да. Для каждого tenant можно открыть отдельную public QR Menu страницу.' },
-      { q: 'Есть ли demo для показа клиенту?', a: 'Да. Demo tenant позволяет показывать систему вживую.' },
-    ],
-    contactTitle: 'Запускайте demo, открывайте tenant, начинайте продажи',
-    contactBody:
-      'Связка landing -> demo tenant -> branded production tenant помогает и в продажах, и в onboarding.',
-    contactCards: [
-      { title: 'Demo tenant', text: 'Открытый live login и auto-reset demo environment.' },
-      { title: 'Custom rollout', text: 'Branded subdomain, tenant settings и loyalty сценарии.' },
-      { title: 'Sales CTA', text: 'WhatsApp, email и demo request flow для сбора лидов.' },
-    ],
-    finalTitle: 'Продавать продукт проще. Обучать команду легче.',
-    finalBody:
-      'Модель landing + demo + branded tenant усиливает и продажи, и первое внедрение.',
-    launchModelTitle: 'Launch model',
-    launchHosts: [
-      ['www.ironwaves.store', 'Landing и презентация продукта'],
-      ['demo.ironwaves.store', 'Живой demo tenant с очисткой'],
-      ['super.ironwaves.store', 'Платформа и центр управления'],
-      ['client-name.ironwaves.store', 'Branded production tenant'],
-    ],
-  },
-  en: {
-    nav: ['About', 'Features', 'FAQ', 'Contact'],
-    badge: 'iRonWaves POS',
-    heroTitle: 'A premium POS platform for restaurants, coffee shops, and retail concepts',
-    heroBody:
-      'A modern operations system that connects sales, tables, kitchen, finance, CRM, loyalty, and a branded customer app inside one product.',
-    primaryCta: 'Open Live Demo',
-    highlights: [
-      { title: 'Touch-first UX', text: 'Large, fast, polished screens for cashier desks, tablets, and touch monitors.' },
-      { title: 'Kitchen & Tables', text: 'Kitchen statuses, table flow, and service coordination move as one rhythm.' },
-      { title: 'Finance Control', text: 'Cash drawer, investor flow, expenses, Z-report, and daily control in one place.' },
-      { title: 'CRM & Loyalty', text: 'QR cards, cashback, rewards, and a branded customer app improve retention.' },
-    ],
-    sectionTitle: 'Your whole operation in one center',
-    sectionBody:
-      'This is more than a cashier screen. It brings daily operations, finance control, and customer loyalty into one connected system.',
-    modules: [
-      { title: 'POS Checkout', text: 'Fast sales, split payment, reward codes, QR recognition, and professional receipts.' },
-      { title: 'Kitchen & Tables', text: 'Table management, kitchen statuses, dine-in, and service coordination.' },
-      { title: 'Finance & Z-Report', text: 'Cash drawer, investor debt, income/expense, shifts, and daily reports.' },
-      { title: 'Inventory & Recipes', text: 'Inventory, costing, recipes, ingredient consumption, and loss control.' },
-      { title: 'CRM & Customer App', text: 'QR cards, campaigns, rewards, cashback, and a branded loyalty portal.' },
-      { title: 'Multi-tenant Rollout', text: 'www, demo, super, and branded tenant subdomains for SaaS rollout.' },
-    ],
-    flowTitle: 'Sales and onboarding journey',
-    flow: [
-      { title: '1. A prospect lands on the website', text: 'The first impression quickly explains product value, screens, and rollout logic.' },
-      { title: '2. They enter the demo tenant', text: 'They test live POS, finance, kitchen, and loyalty flows in a safe environment.' },
-      { title: '3. They receive their own tenant', text: 'They launch on a branded subdomain with their own users, settings, and data.' },
-    ],
-    screenshotTitle: 'Real product screens',
-    screenshotBody:
-      'Instead of fake mockups, the page now showcases real product captures and loyalty card visuals.',
-    screenshots: [
-      { title: 'POS and checkout flow', text: 'Sales rhythm, touch-first menu, cart, and cashier experience.' },
-      { title: 'Finance and control panel', text: 'Cash flow, reports, and daily operational visibility.' },
-      { title: 'Loyalty card designs', text: 'Golden and Elite style club card experiences.' },
-    ],
-    featuresTitle: 'Core Features',
-    featuresBody: 'The platform is built to speed up daily operations and give owners cleaner control over numbers.',
-    features: [
-      { title: 'POS and fast checkout', text: 'Cash, card, split payments, faster cart flow, and receipt printing.' },
-      { title: 'Tables and KDS', text: 'Move from table to POS, kitchen statuses, and ready popups for staff.' },
-      { title: 'Finance and reports', text: 'Day opening, X/Z reports, expenses, transfers, investor and deposit tracking.' },
-      { title: 'Inventory and recipes', text: 'Ingredient consumption, costing, recipe usage, and yield control.' },
-      { title: 'CRM and loyalty', text: 'QR cards, rewards, cashback, campaigns, and customer app flows.' },
-      { title: 'QR Menu and public pages', text: 'Guests can open the menu by QR without logging in.' },
-    ],
-    testimonialTitle: 'The product should do more than look good',
-    testimonialBody:
-      'The real goal is to make daily work smoother for owners, cashiers, and floor teams.',
-    testimonials: [
-      {
-        quote: 'Having the cashier flow and finance controls inside one platform made daily visibility much easier.',
-        author: 'Murad R.',
-        role: 'Coffee shop owner',
-      },
-      {
-        quote: 'When kitchen, tables, and loyalty move together, the service team makes fewer mistakes.',
-        author: 'Laman A.',
-        role: 'Operations manager',
-      },
-      {
-        quote: 'The demo tenant makes product presentations and onboarding feel far more professional.',
-        author: 'Nigar S.',
-        role: 'Brand consultant',
-      },
-    ],
-    faqTitle: 'Frequently Asked Questions',
-    faqBody: 'Clear answers to the questions prospects ask most often during a product demo.',
-    faqs: [
-      { q: 'Who is this system for?', a: 'It fits restaurants, coffee shops, doner shops, fast food concepts, and retail-style operations.' },
-      { q: 'Are POS and table service separate?', a: 'Yes. POS is primarily for take-away flow, while Tables handles dine-in and waiter operations.' },
-      { q: 'Is finance managed separately?', a: 'Yes. Cash, card, safe, investor debt, deposits, and daily reporting are tracked separately.' },
-      { q: 'Can we create a QR menu?', a: 'Yes. Every tenant can have its own public QR Menu page.' },
-      { q: 'Is there a live demo?', a: 'Yes. A demo tenant can be used for live presentations and onboarding.' },
-    ],
-    contactTitle: 'Launch the demo, open a tenant, start selling',
-    contactBody:
-      'A landing -> demo tenant -> branded production tenant flow gives you a stronger story for both sales and onboarding.',
-    contactCards: [
-      { title: 'Demo tenant', text: 'Open live login and an auto-reset demo environment.' },
-      { title: 'Custom rollout', text: 'Branded subdomains, tenant settings, and tailored loyalty scenarios.' },
-      { title: 'Sales CTA', text: 'WhatsApp, email, and demo request flows for collecting leads.' },
-    ],
-    finalTitle: 'Sell the product better. Train the team faster.',
-    finalBody:
-      'A landing + demo + branded tenant model makes your product story stronger and your onboarding smoother.',
-    launchModelTitle: 'Launch model',
-    launchHosts: [
-      ['www.ironwaves.store', 'Landing page and product presentation'],
-      ['demo.ironwaves.store', 'Auto-reset live demo tenant'],
-      ['super.ironwaves.store', 'Platform and control center'],
-      ['client-name.ironwaves.store', 'Branded production tenant'],
-    ],
-  },
-};
+const TRUST_ITEMS = [
+  { label: 'Masa xidməti', note: 'Raund məntiqi və owner lock ilə' },
+  { label: 'Mətbəx axını', note: 'KDS statusları və gecikmə görünüşü' },
+  { label: 'Kassa nəzarəti', note: 'X / Z-Hesabat və uyğunlaşdırma ilə' },
+  { label: 'Canlı dashboard', note: 'Alert, KPI və açıq hesab görünüşü' },
+];
 
-function ProductScreen() {
+const PROBLEMS = [
+  'Sifarişlər mətbəxə gedir, amma kim nəyi dəyişdiyini sonradan tapmaq olmur.',
+  'Masalar dolur, amma hansı hesab açıqdır, hansı masa gecikir qarışır.',
+  'Kassa, depozit, investor və gündəlik xərc bir-birinə qarışır.',
+  'Menecer problemə gec çatır, çünki kritik xəbərdarlıq bir yerdə görünmür.',
+];
+
+const SOLUTIONS = [
+  'Masalar modulunda raund məntiqi, statuslu item axını və audit izi saxlanılır.',
+  'KDS ekranında hazırlanan, hazır olan, ləğv tələb olunan və yenidən düzəldilən item-lər ayrı görünür.',
+  'Maliyyə nəzarət mərkəzində kassa, seyf, investor borcu, depozit və jurnal bir sistemdə işləyir.',
+  'Dashboard menecerə açıq check, kitchen load, cash fərqi və anomaliyaları bir baxışda göstərir.',
+];
+
+const MODULES = [
+  { icon: CreditCard, title: 'POS', text: 'Sürətli satış, split ödəniş, çek axını və kassir üçün touch-first iş masası.' },
+  { icon: Table2, title: 'Masalar', text: 'Masa açılışı, raund göndərişi, servis izləmə, hesab bağlama və təmizlik axını.' },
+  { icon: ChefHat, title: 'Mətbəx ekranı', text: 'SENT, hazırlanır, hazırdır, servis edildi və düzəliş statusları bir axında görünür.' },
+  { icon: Wallet, title: 'Maliyyə', text: 'Mədaxil, xərc, transfer, investor ödənişi, uyğunlaşdırma və maliyyə jurnalı bir mərkəzdədir.' },
+  { icon: LayoutDashboard, title: 'Dashboard', text: 'Kritik xəbərdarlıqlar, KPI-lar, açıq hesablar və canlı əməliyyat görünüşü.' },
+  { icon: ChartColumnBig, title: 'Analitika', text: 'Satış ritmi, top məhsullar, orta çek və qərar üçün lazım olan rəqəmlər.' },
+  { icon: Receipt, title: 'Z-Hesabat / X-Hesabat', text: 'Növbə açılışı, sayılmış kassa, fərq və gündəlik bağlanış nəzarəti.' },
+  { icon: Users, title: 'CRM / Loyallıq', text: 'Kartlar, rewards, cashback, kampaniyalar və daimi müştəri axını.' },
+  { icon: QrCode, title: 'QR Menu', text: 'Müştəri telefonundan menyuya baxır, qiymət və məhsul şəkilləri dərhal görünür.' },
+  { icon: ClipboardList, title: 'Loglar və audit', text: 'Kim nə etdi, nə vaxt etdi və hansı status dəyişdi sualları cavabsız qalmır.' },
+];
+
+const FLOW = [
+  {
+    step: '1',
+    title: 'Satışı və ya masanı açın',
+    text: 'Al-apar müştəri üçün POS, masa qonağı üçün Masalar modulunda açıq check axını başlayır.',
+  },
+  {
+    step: '2',
+    title: 'Sifarişi raund kimi göndərin',
+    text: 'Göndərilməmiş item-lər mətbəxə ayrıca raund kimi gedir və əvvəlki sifarişlərdən ayrılır.',
+  },
+  {
+    step: '3',
+    title: 'Hazır məhsulu və hesabı idarə edin',
+    text: 'KDS statusları, servis xətti, düzəliş, ləğv, hesabdan sil və israf nəzarətli qaydada işləyir.',
+  },
+  {
+    step: '4',
+    title: 'Dashboard və maliyyədən nəzarəti tamamlayın',
+    text: 'Menecer kassa fərqini, kitchen delay-i, açıq check-ləri və maliyyə jurnalını bir platformadan izləyir.',
+  },
+];
+
+const INDUSTRIES = ['Restoran', 'Coffee shop', 'Fast food', 'Dönər', 'Retail', 'Food court'];
+
+const WHY_ITEMS = [
+  'Bir platformada tam nəzarət: POS, masa, mətbəx, maliyyə və CRM ayrı-ayrı sistemlərə bölünmür.',
+  'Audit izi və loglar: mətbəxə gedən item izsiz silinmir, status həyat dövrü saxlanılır.',
+  'Depozit və öhdəlik məntiqi: masa depoziti, investor borcu və daxili transferlər qarışmır.',
+  'Masa və mətbəx üçün uyğun axın: restoran ritminə uyğun raund, servis və KDS məntiqi qurulub.',
+  'Menecer üçün real dashboard: kritik alert, KPI və açıq əməliyyatlar qərar verməyə kömək edir.',
+  'Azərbaycan bazarına uyğun dil və axın: terminologiya yerli iş prosesinə uyğunlaşdırılıb.',
+];
+
+function SectionIntro({ eyebrow, title, body, align = 'left' }: { eyebrow: string; title: string; body: string; align?: 'left' | 'center' }) {
   return (
-    <div className="relative mx-auto w-full max-w-[580px]">
-      <div className="absolute -left-8 top-10 h-44 w-44 rounded-full bg-sky-300/60 blur-2xl" />
-      <div className="absolute -right-8 top-24 h-36 w-36 rounded-full bg-violet-300/60 blur-2xl" />
-      <div className="absolute right-8 top-0 h-24 w-24 rounded-full border-[18px] border-violet-200/50" />
+    <div className={align === 'center' ? 'mx-auto max-w-3xl text-center' : 'max-w-3xl'}>
+      <div className="text-xs font-black uppercase tracking-[0.28em] text-sky-700">{eyebrow}</div>
+      <h2 className="mt-4 text-3xl font-black leading-tight text-slate-950 md:text-5xl">{title}</h2>
+      <p className="mt-4 text-base leading-8 text-slate-600 md:text-lg">{body}</p>
+    </div>
+  );
+}
 
-      <div className="relative rotate-[8deg] rounded-[34px] bg-white p-4 shadow-[0_30px_60px_rgba(24,34,56,0.18)]">
-        <div className="overflow-hidden rounded-[28px] border border-slate-200">
-          <div className="flex items-center gap-2 bg-[#2d6cdf] px-4 py-3 text-white">
-            <div className="h-3 w-3 rounded-full bg-white/70" />
-            <div className="h-3 w-3 rounded-full bg-white/50" />
-            <div className="h-3 w-3 rounded-full bg-white/35" />
-            <div className="ml-3 text-xs font-semibold uppercase tracking-[0.24em]">iRonWaves POS</div>
+function SurfaceCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`rounded-[30px] border border-slate-200/80 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.07)] ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+function ProductPreview() {
+  return (
+    <div className="relative mx-auto w-full max-w-[720px]">
+      <div className="absolute -left-10 top-10 h-48 w-48 rounded-full bg-sky-200/70 blur-3xl" />
+      <div className="absolute right-0 top-0 h-56 w-56 rounded-full bg-indigo-200/70 blur-3xl" />
+      <div className="absolute bottom-4 left-16 h-40 w-40 rounded-full bg-amber-200/70 blur-3xl" />
+
+      <div className="relative rounded-[38px] border border-slate-200/80 bg-white/80 p-3 shadow-[0_30px_90px_rgba(15,23,42,0.10)] backdrop-blur">
+        <div className="overflow-hidden rounded-[30px] border border-slate-200 bg-[#0d1420] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+          <div className="flex items-center justify-between border-b border-white/8 bg-[#111a29] px-5 py-4">
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.3em] text-cyan-300">iRonWaves POS</div>
+              <div className="mt-1 text-sm font-semibold text-white">İdarəetmə platforması</div>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-xs font-bold text-emerald-200">
+              <span className="h-2 w-2 rounded-full bg-emerald-300" />
+              Canlı nəzarət
+            </div>
           </div>
 
-          <div className="grid grid-cols-[88px_1fr] bg-[#f7f9ff]">
-            <div className="space-y-2 bg-[#3069dd] p-3">
-              {Array.from({ length: 7 }).map((_, idx) => (
-                <div
-                  key={idx}
-                  className={`rounded-xl ${
-                    idx === 1 ? 'bg-white text-[#3069dd]' : 'bg-white/15 text-white'
-                  } px-3 py-2 text-[11px] font-semibold`}
-                >
-                  {idx === 0
-                    ? 'POS'
-                    : idx === 1
-                      ? 'Menu'
-                      : idx === 2
-                        ? 'Tables'
-                        : idx === 3
-                          ? 'Kitchen'
-                          : idx === 4
-                            ? 'CRM'
-                            : idx === 5
-                              ? 'Stock'
-                              : 'Finance'}
-                </div>
-              ))}
-            </div>
-            <div className="p-4">
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  'Americano',
-                  'Latte',
-                  'Flat White',
-                  'Cheesecake',
-                  'Cold Brew',
-                  'Croissant',
-                  'Brownie',
-                  'Mocha',
-                  'Tea',
-                ].map((name, idx) => (
-                  <div key={name} className="rounded-2xl bg-white p-2 shadow-[0_6px_14px_rgba(30,41,59,0.08)]">
-                    <div
-                      className={`h-16 rounded-xl ${
-                        idx % 3 === 0 ? 'bg-amber-200' : idx % 3 === 1 ? 'bg-sky-200' : 'bg-rose-200'
-                      }`}
-                    />
-                    <div className="mt-2 text-[11px] font-semibold text-slate-800">{name}</div>
-                    <div className="text-[10px] text-slate-500">{(idx + 3).toFixed(2)} ₼</div>
+          <div className="grid gap-4 bg-[radial-gradient(circle_at_top,#172132_0%,#0c1320_65%)] p-4 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Masalar</div>
+                      <div className="mt-2 text-lg font-black text-white">Açıq masa axını</div>
+                    </div>
+                    <Table2 className="text-cyan-300" size={20} />
                   </div>
-                ))}
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'Masa 1', tone: 'bg-violet-500/20 text-violet-200', sub: 'Aktiv check' },
+                      { label: 'Masa 2', tone: 'bg-emerald-500/20 text-emerald-200', sub: 'Boş' },
+                      { label: 'Masa 4', tone: 'bg-amber-500/20 text-amber-200', sub: 'Rezerv' },
+                      { label: 'Masa 6', tone: 'bg-rose-500/20 text-rose-200', sub: 'Servisə hazır' },
+                    ].map((table) => (
+                      <div key={table.label} className="rounded-2xl border border-white/8 bg-[#131d2e] p-3">
+                        <div className="text-sm font-black text-white">{table.label}</div>
+                        <div className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${table.tone}`}>{table.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-white/8 bg-white/5 p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Dashboard</div>
+                      <div className="mt-2 text-lg font-black text-white">Kritik xəbərdarlıqlar</div>
+                    </div>
+                    <BellRing className="text-amber-300" size={20} />
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {[
+                      ['Kassa fərqi', '5.00 ₼', 'text-rose-200 bg-rose-500/15'],
+                      ['Kitchen delay', '3 sifariş', 'text-amber-200 bg-amber-500/15'],
+                      ['Pending approval', '2 əməliyyat', 'text-sky-200 bg-sky-500/15'],
+                    ].map(([label, value, tone]) => (
+                      <div key={label} className="flex items-center justify-between rounded-2xl border border-white/8 bg-[#131d2e] px-3 py-3">
+                        <div className="text-sm font-semibold text-slate-200">{label}</div>
+                        <div className={`rounded-full px-2.5 py-1 text-xs font-black ${tone}`}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[26px] border border-white/8 bg-white/5 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">POS və KDS</div>
+                    <div className="mt-2 text-lg font-black text-white">Sifariş mətbəxə itkisiz gedir</div>
+                  </div>
+                  <ChefHat className="text-violet-300" size={20} />
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-[1.2fr_0.8fr]">
+                  <div className="rounded-2xl border border-white/8 bg-[#131d2e] p-3">
+                    <div className="grid grid-cols-3 gap-3">
+                      {['Dönər', 'Ayran', 'Kartof', 'Amerikano', 'Su', 'Cheeseburger'].map((item, idx) => (
+                        <div key={item} className="rounded-2xl border border-white/8 bg-[#0f1726] p-3">
+                          <div className={`h-12 rounded-xl ${idx % 3 === 0 ? 'bg-amber-300/25' : idx % 3 === 1 ? 'bg-sky-300/20' : 'bg-rose-300/20'}`} />
+                          <div className="mt-2 text-xs font-black text-slate-100">{item}</div>
+                          <div className="text-[11px] text-slate-400">{(idx + 4).toFixed(2)} ₼</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-white/8 bg-[#131d2e] p-3">
+                    <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Mətbəx statusları</div>
+                    <div className="mt-3 space-y-2">
+                      {[
+                        ['Raund 1', 'Hazırlanır', 'bg-sky-500/15 text-sky-200'],
+                        ['Raund 2', 'Hazırdır', 'bg-emerald-500/15 text-emerald-200'],
+                        ['Düzəliş', 'STOP / Ləğv', 'bg-amber-500/15 text-amber-200'],
+                      ].map(([title, badge, tone]) => (
+                        <div key={title} className="rounded-2xl border border-white/8 bg-[#0f1726] p-3">
+                          <div className="text-sm font-black text-white">{title}</div>
+                          <div className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${tone}`}>{badge}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-[26px] border border-white/8 bg-white/5 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Maliyyə</div>
+                    <div className="mt-2 text-lg font-black text-white">Pul axını nəzarətdədir</div>
+                  </div>
+                  <Wallet className="text-emerald-300" size={20} />
+                </div>
+                <div className="mt-4 grid gap-3">
+                  {[
+                    ['Nağd kassa', '1,245 ₼'],
+                    ['Bank / Kart', '2,410 ₼'],
+                    ['Aktiv depozitlər', '85 ₼'],
+                    ['Investor borcu', '300 ₼'],
+                  ].map(([label, value]) => (
+                    <div key={label} className="flex items-center justify-between rounded-2xl border border-white/8 bg-[#131d2e] px-3 py-3">
+                      <div className="text-sm text-slate-300">{label}</div>
+                      <div className="text-sm font-black text-white">{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-[26px] border border-white/8 bg-white/5 p-4">
+                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">Niyə bu hiss edilir</div>
+                <div className="mt-3 space-y-3">
+                  {[
+                    'Sifariş itmir',
+                    'Masa axını qarışmır',
+                    'Mətbəx gecikməsi görünür',
+                    'Kassa və öhdəliklər izlənir',
+                  ].map((item) => (
+                    <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/8 bg-[#131d2e] px-3 py-3">
+                      <BadgeCheck size={18} className="text-emerald-300" />
+                      <span className="text-sm font-semibold text-slate-200">{item}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -423,36 +270,118 @@ function ProductScreen() {
   );
 }
 
-function ScreenshotCard({
-  src,
+function ScreenCard({
   title,
-  text,
-  imageClassName = '',
+  body,
+  image,
+  mock,
 }: {
-  src: string;
   title: string;
-  text: string;
-  imageClassName?: string;
+  body: string;
+  image?: string;
+  mock?: React.ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.08)]">
-      <div className="bg-[linear-gradient(180deg,#f8fafc,#eef2ff)] p-4">
-        <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
-          <img src={src} alt={title} className={`h-72 w-full object-cover ${imageClassName}`} />
+    <SurfaceCard className="overflow-hidden">
+      <div className="bg-[linear-gradient(180deg,#eff6ff,#f8fafc)] p-4">
+        <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white">
+          {image ? (
+            <img src={image} alt={title} className="h-72 w-full object-cover object-top" />
+          ) : (
+            <div className="h-72 w-full bg-[#0d1420] p-4">{mock}</div>
+          )}
         </div>
       </div>
       <div className="p-6">
-        <h3 className="text-2xl font-black text-slate-900">{title}</h3>
-        <p className="mt-3 text-sm leading-7 text-slate-600">{text}</p>
+        <h3 className="text-2xl font-black text-slate-950">{title}</h3>
+        <p className="mt-3 text-sm leading-7 text-slate-600">{body}</p>
+      </div>
+    </SurfaceCard>
+  );
+}
+
+function TablesMock() {
+  return (
+    <div className="grid h-full grid-cols-2 gap-3">
+      {[
+        ['Masa 1', 'Aktiv check', 'bg-violet-500/20 text-violet-200'],
+        ['Masa 2', 'Boş', 'bg-emerald-500/20 text-emerald-200'],
+        ['Masa 3', 'Rezerv', 'bg-amber-500/20 text-amber-200'],
+        ['Masa 4', 'Servisə hazır', 'bg-rose-500/20 text-rose-200'],
+      ].map(([label, status, tone]) => (
+        <div key={label} className="rounded-[22px] border border-white/8 bg-[#121c2d] p-4">
+          <div className="text-base font-black text-white">{label}</div>
+          <div className={`mt-3 inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${tone}`}>{status}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DashboardMock() {
+  return (
+    <div className="grid h-full gap-3">
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          ['Bu gün satış', '4,280 ₼'],
+          ['Açıq check', '7'],
+          ['Kitchen load', '68%'],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-[20px] border border-white/8 bg-[#121c2d] p-3">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">{label}</div>
+            <div className="mt-2 text-xl font-black text-white">{value}</div>
+          </div>
+        ))}
+      </div>
+      <div className="grid flex-1 gap-3 md:grid-cols-[1fr_0.9fr]">
+        <div className="rounded-[22px] border border-white/8 bg-[#121c2d] p-3">
+          <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Canlı satışlar</div>
+          <div className="mt-3 space-y-2">
+            {['Amerikano — 6.00 ₼', 'Dönər — 7.00 ₼', 'Ayran — 2.00 ₼'].map((row) => (
+              <div key={row} className="rounded-xl border border-white/8 bg-[#0f1726] px-3 py-2 text-sm text-slate-200">{row}</div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-[22px] border border-white/8 bg-[#121c2d] p-3">
+          <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Xəbərdarlıqlar</div>
+          <div className="mt-3 space-y-2">
+            {['Kassa fərqi', 'Kitchen delay', 'Pending approval'].map((row, idx) => (
+              <div key={row} className={`rounded-xl px-3 py-2 text-sm font-semibold ${idx === 0 ? 'bg-rose-500/15 text-rose-200' : idx === 1 ? 'bg-amber-500/15 text-amber-200' : 'bg-sky-500/15 text-sky-200'}`}>{row}</div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
+function KdsMock() {
+  return (
+    <div className="grid h-full gap-3 md:grid-cols-3">
+      {[
+        ['Yeni', 'Masa 2 · Raund 1', '2 dönər, 1 ayran'],
+        ['Hazırlanır', 'Masa 4 · Raund 2', '1 burger, 1 kartof'],
+        ['Hazırdır', 'Masa 1 · Raund 3', '2 latte'],
+      ].map(([title, subtitle, items], idx) => (
+        <div key={title} className="rounded-[22px] border border-white/8 bg-[#121c2d] p-3">
+          <div className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${idx === 0 ? 'bg-sky-500/15 text-sky-200' : idx === 1 ? 'bg-amber-500/15 text-amber-200' : 'bg-emerald-500/15 text-emerald-200'}`}>{title}</div>
+          <div className="mt-3 text-sm font-black text-white">{subtitle}</div>
+          <div className="mt-2 text-sm text-slate-300">{items}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function LandingPage() {
-  const [lang, setLang] = React.useState<LandingLang>('az');
   const [landingSettings, setLandingSettings] = React.useState<any>(null);
-  const copy = content[lang];
+  const [form, setForm] = React.useState({
+    fullName: '',
+    businessName: '',
+    phone: '',
+    businessType: 'restoran',
+    note: '',
+  });
 
   React.useEffect(() => {
     let mounted = true;
@@ -461,7 +390,7 @@ export default function LandingPage() {
         const data = await get_public_landing_settings_live();
         if (mounted) setLandingSettings(data || null);
       } catch {
-        // Keep baked-in copy if public landing settings are unavailable.
+        // local baked copy is enough
       }
     };
     void load();
@@ -470,256 +399,359 @@ export default function LandingPage() {
     };
   }, []);
 
-  const heroTitle =
-    landingSettings?.[`hero_title_${lang}`] ||
-    copy.heroTitle;
+  const heroTitle = landingSettings?.hero_title_az || 'Restoranınızı bir platformadan idarə edin';
   const heroBody =
-    landingSettings?.[`hero_body_${lang}`] ||
-    copy.heroBody;
-  const primaryCta =
-    landingSettings?.[`primary_cta_${lang}`] ||
-    copy.primaryCta;
+    landingSettings?.hero_body_az ||
+    'POS, masalar, mətbəx, maliyyə, dashboard və analitika bir sistemdə işləsin. Sifariş itirmədən, kassa nəzarətini itirmədən, gündəlik əməliyyatı bir ekrandan idarə edin.';
+  const primaryCta = landingSettings?.primary_cta_az || 'Demoya keç';
+  const secondaryCta = landingSettings?.secondary_cta_az || 'Ətraflı bax';
   const contactEmail = landingSettings?.contact_email || 'hello@ironwaves.store';
-  const contactPhone = landingSettings?.contact_phone || '';
+  const contactPhone = landingSettings?.contact_phone || '+994 50 000 00 00';
   const contactWhatsapp = landingSettings?.contact_whatsapp || '';
 
-  return (
-    <div className="h-[100dvh] overflow-y-auto bg-[#f7f8fc] text-slate-900">
-      <div className="relative min-h-full overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.10),transparent_22%),radial-gradient(circle_at_80%_12%,rgba(56,189,248,0.12),transparent_18%),linear-gradient(180deg,#ffffff_0%,#f6f7fb_45%,#eef2ff_100%)]" />
+  const demoMessage = React.useMemo(() => {
+    return [
+      'Demo sorğusu',
+      `Ad: ${form.fullName || '-'}`,
+      `Biznes adı: ${form.businessName || '-'}`,
+      `Telefon: ${form.phone || '-'}`,
+      `Obyekt növü: ${form.businessType || '-'}`,
+      `Qeyd: ${form.note || '-'}`,
+    ].join('\n');
+  }, [form]);
 
-        <div className="relative mx-auto max-w-7xl px-6 md:px-10 lg:px-14">
-          <header className="sticky top-0 z-20 mb-8 border-b border-slate-200/70 bg-white/90 py-5 backdrop-blur">
-            <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-0">
+  const handleDemoRequest = (event: React.FormEvent) => {
+    event.preventDefault();
+    const whatsappDigits = String(contactWhatsapp || '').replace(/\D/g, '');
+    if (whatsappDigits) {
+      window.open(`https://wa.me/${whatsappDigits}?text=${encodeURIComponent(demoMessage)}`, '_blank');
+      return;
+    }
+    window.location.href = `mailto:${contactEmail}?subject=${encodeURIComponent('iRonWaves POS demo sorğusu')}&body=${encodeURIComponent(demoMessage)}`;
+  };
+
+  return (
+    <div className="min-h-[100dvh] overflow-y-auto bg-[#f7f9fc] text-slate-900">
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_20%),radial-gradient(circle_at_80%_10%,rgba(99,102,241,0.12),transparent_24%),linear-gradient(180deg,#ffffff_0%,#f7f9fc_44%,#edf3ff_100%)]" />
+
+        <div className="relative mx-auto max-w-7xl px-6 md:px-10 xl:px-14">
+          <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/88 backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-4 py-5">
               <div className="flex items-center gap-3">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#1f2937,#4b5563)] text-xl font-black text-white shadow-[0_10px_24px_rgba(15,23,42,0.12)]">
+                <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[linear-gradient(180deg,#0f172a,#1e293b)] text-xl font-black text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
                   IW
                 </div>
                 <div>
-                  <div className="text-sm font-bold uppercase tracking-[0.22em] text-indigo-600">{copy.badge}</div>
-                  <div className="text-2xl font-black leading-none text-slate-900">Premium POS Platform</div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.28em] text-sky-700">iRonWaves POS</div>
+                  <div className="text-lg font-black text-slate-950 md:text-xl">Restoran idarəetmə platforması</div>
                 </div>
               </div>
 
-              <div className="hidden items-center gap-6 text-sm font-semibold text-slate-600 lg:flex">
-                {copy.nav.map((item, idx) => (
-                  <a
-                    key={item}
-                    href={idx === 0 ? '#about' : idx === 1 ? '#features' : idx === 2 ? '#faq' : '#contact'}
-                    className="transition hover:text-indigo-600"
-                  >
-                    {item}
+              <nav className="hidden items-center gap-6 text-sm font-semibold text-slate-600 lg:flex">
+                {NAV_ITEMS.map((item) => (
+                  <a key={item.label} href={item.href} className="transition hover:text-sky-700">
+                    {item.label}
                   </a>
                 ))}
-              </div>
+              </nav>
 
-              <div className="flex items-center gap-2">
-                <div className="hidden rounded-full border border-slate-200 bg-white p-1 sm:flex">
-                  {(['az', 'ru', 'en'] as LandingLang[]).map((code) => (
-                    <button
-                      key={code}
-                      onClick={() => setLang(code)}
-                      className={`rounded-full px-3 py-2 text-xs font-bold uppercase transition ${
-                        lang === code ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:text-indigo-600'
-                      }`}
-                    >
-                      {code}
-                    </button>
-                  ))}
-                </div>
-                <a
-                  href={demoUrl}
-                  className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#6366f1,#4f46e5)] px-6 py-3 text-sm font-bold text-white shadow-[0_16px_30px_rgba(99,102,241,0.28)]"
-                >
-                  {copy.primaryCta}
-                </a>
-              </div>
+              <a
+                href={demoUrl}
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#0f172a,#1e293b)] px-5 py-3 text-sm font-bold text-white shadow-[0_16px_34px_rgba(15,23,42,0.18)] transition hover:translate-y-[-1px]"
+              >
+                {primaryCta}
+              </a>
             </div>
           </header>
 
-          <section className="grid gap-14 pb-20 pt-8 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
+          <section className="grid gap-12 pb-16 pt-10 lg:grid-cols-[0.88fr_1.12fr] lg:items-center lg:pt-16">
             <div className="max-w-2xl">
-              <div className="inline-flex rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-bold uppercase tracking-[0.28em] text-indigo-600">
-                {copy.badge}
+              <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-xs font-black uppercase tracking-[0.28em] text-sky-700">
+                <ShieldCheck size={14} />
+                Bir platformada tam nəzarət
               </div>
-              <h1 className="mt-8 text-5xl font-black leading-[1.02] text-slate-900 md:text-7xl">{heroTitle}</h1>
+
+              <h1 className="mt-8 text-5xl font-black leading-[0.98] text-slate-950 md:text-7xl">{heroTitle}</h1>
               <p className="mt-6 max-w-xl text-base leading-8 text-slate-600 md:text-lg">{heroBody}</p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <a
                   href={demoUrl}
-                  className="inline-flex min-h-13 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#6366f1,#4f46e5)] px-7 py-3 text-base font-bold text-white shadow-[0_16px_30px_rgba(99,102,241,0.26)]"
+                  className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#0f172a,#1e293b)] px-7 py-3 text-base font-bold text-white shadow-[0_18px_36px_rgba(15,23,42,0.18)] transition hover:translate-y-[-1px]"
                 >
                   {primaryCta}
                 </a>
+                <a
+                  href="#mehsul"
+                  className="inline-flex min-h-14 items-center justify-center rounded-2xl border border-slate-200 bg-white px-7 py-3 text-base font-semibold text-slate-800 transition hover:border-sky-300 hover:text-sky-700"
+                >
+                  {secondaryCta}
+                </a>
+              </div>
+
+              <div className="mt-8 grid gap-3 sm:grid-cols-2">
+                {[
+                  ['Sifariş itmir', 'Raund məntiqi və mətbəx statusları ilə'],
+                  ['Kassa nəzarəti itmir', 'Maliyyə, uyğunlaşdırma və jurnal bir yerdə'],
+                ].map(([title, note]) => (
+                  <div key={title} className="rounded-[24px] border border-slate-200/80 bg-white/85 p-4 shadow-[0_16px_38px_rgba(15,23,42,0.05)]">
+                    <div className="text-sm font-black text-slate-950">{title}</div>
+                    <div className="mt-2 text-sm leading-6 text-slate-600">{note}</div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <ProductScreen />
+            <ProductPreview />
           </section>
 
-          <section className="grid gap-5 pb-20 md:grid-cols-2 xl:grid-cols-4">
-            {copy.highlights.map((item, idx) => (
-              <div key={item.title} className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
-                <div
-                  className={`flex h-14 w-14 items-center justify-center rounded-2xl text-white shadow-[0_12px_24px_rgba(15,23,42,0.10)] ${
-                    idx === 0 ? 'bg-violet-500' : idx === 1 ? 'bg-orange-500' : idx === 2 ? 'bg-sky-500' : 'bg-lime-500'
-                  }`}
-                >
-                  <span className="text-lg font-black">{idx + 1}</span>
-                </div>
-                <h2 className="mt-5 text-2xl font-black text-slate-900">{item.title}</h2>
-                <p className="mt-3 text-sm leading-7 text-slate-600">{item.text}</p>
-              </div>
+          <section className="grid gap-4 pb-20 md:grid-cols-2 xl:grid-cols-4">
+            {TRUST_ITEMS.map((item) => (
+              <SurfaceCard key={item.label} className="p-6">
+                <div className="text-lg font-black text-slate-950">{item.label}</div>
+                <div className="mt-3 text-sm leading-7 text-slate-600">{item.note}</div>
+              </SurfaceCard>
             ))}
           </section>
 
-          <section id="about" className="grid gap-8 pb-20 lg:grid-cols-[0.95fr_1.05fr]">
-            <div className="rounded-[34px] bg-[linear-gradient(180deg,#0f172a,#111827)] p-8 text-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
-              <div className="text-sm font-bold uppercase tracking-[0.26em] text-sky-300">{copy.sectionTitle}</div>
-              <h2 className="mt-4 text-4xl font-black leading-tight">{copy.flowTitle}</h2>
-              <p className="mt-5 text-sm leading-8 text-slate-300">{copy.sectionBody}</p>
-              <div className="mt-8 space-y-4">
-                {copy.flow.map((step) => (
-                  <div key={step.title} className="rounded-[24px] border border-white/10 bg-white/6 p-5">
-                    <div className="text-lg font-bold text-white">{step.title}</div>
-                    <div className="mt-2 text-sm leading-7 text-slate-300">{step.text}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid gap-5 md:grid-cols-2">
-              {copy.modules.map((item) => (
-                <div key={item.title} className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.05)]">
-                  <div className="text-xs font-bold uppercase tracking-[0.22em] text-indigo-600">Module</div>
-                  <h3 className="mt-4 text-2xl font-black text-slate-900">{item.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-slate-600">{item.text}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="pb-20">
-            <div className="mb-10 max-w-3xl">
-              <div className="text-sm font-bold uppercase tracking-[0.22em] text-indigo-600">{copy.screenshotTitle}</div>
-              <h2 className="mt-4 text-4xl font-black leading-tight text-slate-900">{copy.screenshotBody}</h2>
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-3">
-              <ScreenshotCard src="/landing/pos-screen.png" title={copy.screenshots[0].title} text={copy.screenshots[0].text} imageClassName="object-top" />
-              <ScreenshotCard src="/landing/finance-screen.png" title={copy.screenshots[1].title} text={copy.screenshots[1].text} imageClassName="object-top" />
-              <div className="grid gap-6">
-                <ScreenshotCard src="/landing/golden-card.png" title={copy.screenshots[2].title} text={copy.screenshots[2].text} imageClassName="object-contain bg-[linear-gradient(180deg,#f8fafc,#fff7ed)] p-4" />
-                <ScreenshotCard src="/landing/elite-card.png" title="Premium loyalty visuals" text="Golden və Elite kimi loyalty səviyyələrini vizual olaraq fərqləndirən branded kartlar." imageClassName="object-contain bg-[linear-gradient(180deg,#f8fafc,#eef2ff)] p-4" />
-              </div>
-            </div>
-          </section>
-
-          <section id="features" className="pb-20">
-            <div className="mb-10 max-w-3xl">
-              <div className="text-sm font-bold uppercase tracking-[0.22em] text-indigo-600">{copy.featuresTitle}</div>
-              <h2 className="mt-4 text-4xl font-black leading-tight text-slate-900">{copy.featuresBody}</h2>
-            </div>
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {copy.features.map((item) => (
-                <div key={item.title} className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_16px_36px_rgba(15,23,42,0.05)]">
-                  <div className="text-xs font-bold uppercase tracking-[0.22em] text-sky-600">Feature</div>
-                  <h3 className="mt-4 text-2xl font-black text-slate-900">{item.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-slate-600">{item.text}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="pb-20">
-            <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
-              <div>
-                <div className="text-sm font-bold uppercase tracking-[0.22em] text-indigo-600">{copy.testimonialTitle}</div>
-                <h2 className="mt-4 text-4xl font-black leading-tight text-slate-900">{copy.testimonialBody}</h2>
-              </div>
-              <div className="grid gap-5">
-                {copy.testimonials.map((item) => (
-                  <div key={item.author} className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_16px_36px_rgba(15,23,42,0.05)]">
-                    <p className="text-base leading-8 text-slate-700">"{item.quote}"</p>
-                    <div className="mt-5">
-                      <div className="font-black text-slate-900">{item.author}</div>
-                      <div className="text-sm text-slate-500">{item.role}</div>
+          <section id="mehsul" className="pb-20">
+            <div className="grid gap-8 lg:grid-cols-2">
+              <SurfaceCard className="overflow-hidden bg-[linear-gradient(180deg,#0f172a,#111827)] p-8 text-white">
+                <div className="text-xs font-black uppercase tracking-[0.28em] text-cyan-300">Problem</div>
+                <h2 className="mt-4 text-3xl font-black md:text-5xl">Restoran içində ən çox qarışan hissələr</h2>
+                <div className="mt-8 space-y-4">
+                  {PROBLEMS.map((item) => (
+                    <div key={item} className="rounded-[22px] border border-white/10 bg-white/6 p-4 text-sm leading-7 text-slate-200">
+                      {item}
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </SurfaceCard>
+
+              <SurfaceCard className="p-8">
+                <div className="text-xs font-black uppercase tracking-[0.28em] text-sky-700">Həll</div>
+                <h2 className="mt-4 text-3xl font-black text-slate-950 md:text-5xl">iRonWaves bunları bir axına çevirir</h2>
+                <div className="mt-8 space-y-4">
+                  {SOLUTIONS.map((item) => (
+                    <div key={item} className="rounded-[22px] border border-slate-200 bg-slate-50 p-4 text-sm leading-7 text-slate-700">
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </SurfaceCard>
             </div>
           </section>
 
-          <section id="faq" className="pb-20">
-            <div className="mb-10 max-w-3xl">
-              <div className="text-sm font-bold uppercase tracking-[0.22em] text-indigo-600">{copy.faqTitle}</div>
-              <h2 className="mt-4 text-4xl font-black leading-tight text-slate-900">{copy.faqBody}</h2>
-            </div>
-            <div className="grid gap-5 lg:grid-cols-2">
-              {copy.faqs.map((item) => (
-                <div key={item.q} className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_16px_36px_rgba(15,23,42,0.05)]">
-                  <h3 className="text-xl font-black text-slate-900">{item.q}</h3>
-                  <p className="mt-3 text-sm leading-7 text-slate-600">{item.a}</p>
-                </div>
+          <section id="funksiyalar" className="pb-20">
+            <SectionIntro
+              eyebrow="Əsas modullar"
+              title="Tək POS yox, tam idarəetmə platforması"
+              body="Sistem restoran sahibinin, menecerin, kassirin və mətbəxin gündəlik ritmini eyni platformada birləşdirir."
+            />
+
+            <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {MODULES.map((item) => (
+                <SurfaceCard key={item.title} className="p-6">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[linear-gradient(180deg,#e0f2fe,#dbeafe)] text-sky-800">
+                    <item.icon size={24} />
+                  </div>
+                  <h3 className="mt-5 text-2xl font-black text-slate-950">{item.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-slate-600">{item.text}</p>
+                </SurfaceCard>
               ))}
             </div>
           </section>
 
-          <section id="contact" className="pb-24">
-            <div className="rounded-[36px] bg-[linear-gradient(135deg,#eef2ff,#ffffff,#ecfeff)] p-8 shadow-[0_24px_60px_rgba(15,23,42,0.06)] md:p-10">
-              <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+          <section id="nece-isleyir" className="pb-20">
+            <SectionIntro
+              eyebrow="Necə işləyir"
+              title="Əməliyyat axını aydın, sürətli və nəzarətlidir"
+              body="Sistem restoranı qarışıq ekrandan yox, mərhələli və iz buraxan iş axınından idarə etməyə kömək edir."
+              align="center"
+            />
+
+            <div className="mt-10 grid gap-5 lg:grid-cols-4">
+              {FLOW.map((item) => (
+                <SurfaceCard key={item.step} className="p-6">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-950 text-xl font-black text-white">
+                    {item.step}
+                  </div>
+                  <h3 className="mt-5 text-2xl font-black text-slate-950">{item.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-slate-600">{item.text}</p>
+                </SurfaceCard>
+              ))}
+            </div>
+          </section>
+
+          <section className="pb-20">
+            <SectionIntro
+              eyebrow="Ekranlar"
+              title="Komandanın hər rolu üçün ayrıca iş sahəsi"
+              body="Masalar, dashboard, maliyyə və KDS ekranları bir-biri ilə əlaqəlidir. Menecer hər şeyi görür, komanda isə öz ritmində işləyir."
+            />
+
+            <div className="mt-10 grid gap-6 xl:grid-cols-2">
+              <ScreenCard
+                title="Masalar"
+                body="Masa açılışı, raund göndərişi, servisə hazır məhsullar və hesab bağlama eyni axında işləyir."
+                mock={<TablesMock />}
+              />
+              <ScreenCard
+                title="Dashboard"
+                body="Kritik alert-lər, canlı satışlar, açıq check-lər və əməliyyat yükü menecerə real vəziyyəti göstərir."
+                mock={<DashboardMock />}
+              />
+              <ScreenCard
+                title="Maliyyə"
+                body="Nağd kassa, bank, seyf, aktiv depozitlər, uyğunlaşdırma və jurnal bir nəzarət mərkəzində toplanır."
+                image="/landing/finance-screen.png"
+              />
+              <ScreenCard
+                title="Mətbəx ekranı"
+                body="Yeni raundlar, hazırlananlar, hazır olanlar və düzəliş tələb olunan item-lər mətbəxə aydın görünür."
+                mock={<KdsMock />}
+              />
+            </div>
+          </section>
+
+          <section id="saheler" className="pb-20">
+            <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+              <SectionIntro
+                eyebrow="Kimlər üçün"
+                title="Fərqli obyekt formatları üçün uyğunlaşdırıla bilir"
+                body="Sistem bir kassa məhsulu kimi yox, fərqli iş ritmlərinə uyğunlaşdırılan idarəetmə platforması kimi düşünülüb."
+              />
+              <SurfaceCard className="p-8">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {INDUSTRIES.map((item) => (
+                    <div key={item} className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-5">
+                      <div className="flex items-center gap-3">
+                        <Store size={18} className="text-sky-700" />
+                        <span className="text-base font-black text-slate-950">{item}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </SurfaceCard>
+            </div>
+          </section>
+
+          <section className="pb-20">
+            <SectionIntro
+              eyebrow="Niyə iRonWaves"
+              title="Bu platforma niyə real restoran üçün uyğundur"
+              body="Məqsəd yalnız satış almaq deyil. Məqsəd odur ki, sahibkar nəzarəti itirməsin, komanda isə işi qarışdırmadan sürətləndirə bilsin."
+            />
+
+            <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {WHY_ITEMS.map((item) => (
+                <SurfaceCard key={item} className="p-6">
+                  <div className="flex items-start gap-3">
+                    <BadgeCheck size={20} className="mt-1 shrink-0 text-emerald-600" />
+                    <p className="text-sm leading-7 text-slate-700">{item}</p>
+                  </div>
+                </SurfaceCard>
+              ))}
+            </div>
+          </section>
+
+          <section id="demo" className="pb-24">
+            <div className="overflow-hidden rounded-[38px] border border-slate-200/80 bg-[linear-gradient(135deg,#0f172a,#111827,#1e293b)] p-8 text-white shadow-[0_28px_80px_rgba(15,23,42,0.20)] md:p-10">
+              <div className="grid gap-10 lg:grid-cols-[0.86fr_1.14fr] lg:items-start">
                 <div>
-                  <div className="text-sm font-bold uppercase tracking-[0.22em] text-indigo-600">{copy.contactTitle}</div>
-                  <h2 className="mt-4 text-4xl font-black leading-tight text-slate-900">{copy.finalTitle}</h2>
-                  <p className="mt-5 text-sm leading-8 text-slate-600">{copy.contactBody}</p>
-                  <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                    <a
-                      href={demoUrl}
-                      className="inline-flex min-h-13 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#6366f1,#4f46e5)] px-7 py-3 text-base font-bold text-white shadow-[0_16px_30px_rgba(99,102,241,0.22)]"
-                    >
-                      {primaryCta}
-                    </a>
-                    <a
-                      href={contactEmail ? `mailto:${contactEmail}` : '#'}
-                      className="inline-flex min-h-13 items-center justify-center rounded-2xl border border-slate-200 bg-white px-7 py-3 text-base font-semibold text-slate-800"
-                    >
-                      {contactEmail || 'hello@ironwaves.store'}
-                    </a>
-                  </div>
-                  {(contactPhone || contactWhatsapp) ? (
-                    <div className="mt-4 flex flex-col gap-2 text-sm text-slate-600">
-                      {contactPhone ? <div>{contactPhone}</div> : null}
-                      {contactWhatsapp ? <div>{contactWhatsapp}</div> : null}
-                    </div>
-                  ) : null}
-                </div>
+                  <div className="text-xs font-black uppercase tracking-[0.28em] text-cyan-300">Demo CTA</div>
+                  <h2 className="mt-4 text-4xl font-black leading-tight md:text-5xl">Restoranınıza uyğun demo alın</h2>
+                  <p className="mt-5 text-sm leading-8 text-slate-300 md:text-base">
+                    Sistemi canlı görün. POS, masalar, mətbəx, maliyyə və dashboard axınının sizin obyektə necə oturduğunu birlikdə baxaq.
+                  </p>
 
-                <div className="space-y-5">
-                  <div className="rounded-[30px] border border-white/70 bg-white p-6 shadow-[0_16px_32px_rgba(15,23,42,0.05)]">
-                    <div className="text-sm font-bold uppercase tracking-[0.22em] text-slate-500">{copy.launchModelTitle}</div>
-                    <div className="mt-5 space-y-4">
-                      {copy.launchHosts.map(([host, text]) => (
-                        <div key={host} className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
-                          <div className="font-semibold text-slate-900">{host}</div>
-                          <div className="mt-1 text-sm text-slate-600">{text}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-3">
-                    {copy.contactCards.map((card) => (
-                      <div key={card.title} className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_12px_28px_rgba(15,23,42,0.04)]">
-                        <div className="text-sm font-black text-slate-900">{card.title}</div>
-                        <div className="mt-2 text-sm leading-7 text-slate-600">{card.text}</div>
+                  <div className="mt-8 grid gap-4">
+                    {[
+                      ['Masa axını üçün demo', 'Ofisiant, mətbəx və hesab bağlama ritmini canlı görün.'],
+                      ['Maliyyə nəzarəti üçün demo', 'Kassa, depozit, investor və uyğunlaşdırma məntiqini yoxlayın.'],
+                      ['Menecer görünüşü üçün demo', 'Dashboard, alert və jurnal hissəsinin qərara necə kömək etdiyini görün.'],
+                    ].map(([title, note]) => (
+                      <div key={title} className="rounded-[24px] border border-white/10 bg-white/6 p-4">
+                        <div className="font-black text-white">{title}</div>
+                        <div className="mt-2 text-sm leading-7 text-slate-300">{note}</div>
                       </div>
                     ))}
                   </div>
                 </div>
+
+                <SurfaceCard className="p-6 md:p-8">
+                  <div className="text-sm font-black uppercase tracking-[0.24em] text-sky-700">Demo formu</div>
+                  <form className="mt-6 grid gap-4" onSubmit={handleDemoRequest}>
+                    <label className="block">
+                      <div className="text-sm font-semibold text-slate-700">Ad</div>
+                      <input className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-sky-300" value={form.fullName} onChange={(e) => setForm((prev) => ({ ...prev, fullName: e.target.value }))} placeholder="Adınızı yazın" />
+                    </label>
+                    <label className="block">
+                      <div className="text-sm font-semibold text-slate-700">Biznes adı</div>
+                      <input className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-sky-300" value={form.businessName} onChange={(e) => setForm((prev) => ({ ...prev, businessName: e.target.value }))} placeholder="Obyektinizin adı" />
+                    </label>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label className="block">
+                        <div className="text-sm font-semibold text-slate-700">Telefon</div>
+                        <input className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-sky-300" value={form.phone} onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))} placeholder="+994..." />
+                      </label>
+                      <label className="block">
+                        <div className="text-sm font-semibold text-slate-700">Obyekt növü</div>
+                        <select className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-sky-300" value={form.businessType} onChange={(e) => setForm((prev) => ({ ...prev, businessType: e.target.value }))}>
+                          <option value="restoran">Restoran</option>
+                          <option value="coffee-shop">Coffee shop</option>
+                          <option value="fast-food">Fast food</option>
+                          <option value="doner">Dönər</option>
+                          <option value="retail">Retail</option>
+                          <option value="food-court">Food court</option>
+                        </select>
+                      </label>
+                    </div>
+                    <label className="block">
+                      <div className="text-sm font-semibold text-slate-700">Qısa qeyd</div>
+                      <textarea className="mt-2 min-h-[130px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-900 outline-none transition focus:border-sky-300" value={form.note} onChange={(e) => setForm((prev) => ({ ...prev, note: e.target.value }))} placeholder="Hazırda neçə kassanız, neçə masanız və ya hansı modula daha çox ehtiyacınız olduğunu yazın" />
+                    </label>
+
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      <button type="submit" className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(180deg,#0f172a,#1e293b)] px-6 py-3 text-base font-bold text-white shadow-[0_16px_34px_rgba(15,23,42,0.16)]">
+                        Demo istə
+                        <ArrowRight size={18} />
+                      </button>
+                      <a href={demoUrl} className="inline-flex min-h-14 items-center justify-center rounded-2xl border border-slate-200 bg-white px-6 py-3 text-base font-semibold text-slate-800">
+                        Demoya keç
+                      </a>
+                    </div>
+
+                    <div className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-7 text-slate-600">
+                      Əlaqə: <span className="font-semibold text-slate-900">{contactEmail}</span>
+                      {contactPhone ? <span className="ml-2 font-semibold text-slate-900">{contactPhone}</span> : null}
+                    </div>
+                  </form>
+                </SurfaceCard>
               </div>
             </div>
           </section>
+
+          <footer className="border-t border-slate-200/80 py-8">
+            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="text-sm font-black uppercase tracking-[0.24em] text-sky-700">iRonWaves POS</div>
+                <div className="mt-2 text-sm text-slate-600">Restoranınızı bir platformadan idarə edin.</div>
+              </div>
+
+              <div className="flex flex-wrap gap-4 text-sm font-semibold text-slate-600">
+                {NAV_ITEMS.map((item) => (
+                  <a key={item.label} href={item.href} className="transition hover:text-sky-700">
+                    {item.label}
+                  </a>
+                ))}
+                <a href={`mailto:${contactEmail}`} className="transition hover:text-sky-700">Əlaqə</a>
+              </div>
+
+              <div className="text-sm text-slate-500">© {new Date().getFullYear()} iRonWaves POS</div>
+            </div>
+          </footer>
         </div>
       </div>
     </div>
