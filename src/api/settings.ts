@@ -39,6 +39,17 @@ const DEFAULT_POS_LAYOUT: PosLayoutConfig = {
   },
 };
 
+const DEFAULT_FINANCE_POLICY: NonNullable<Settings['finance_policy']> = {
+  large_transfer_threshold_azn: 500,
+  investor_repayment_requires_approval: true,
+  cash_adjustment_requires_approval: true,
+  reversal_requires_approval: true,
+  reconciliation_adjustment_requires_approval: true,
+  reconciliation_variance_alert_azn: 0.01,
+  negative_balance_alert_azn: 0,
+  approver_roles: ['manager', 'admin', 'finance_admin', 'super_admin'],
+};
+
 // Mərkəzi settings obyektini tapmaq (ya da yaratmaq) üçün kiçik helper:
 function getSettings(tenant_id?: string): Settings {
   const resolvedTenant = resolveTenant(tenant_id);
@@ -73,6 +84,7 @@ function getSettings(tenant_id?: string): Settings {
         timeout_sec: 15,
       },
       bank_commission: { min_amount: 0.10, percent: 1.5, card_sale_percent: 2, card_transfer_percent: 0.5 },
+      finance_policy: DEFAULT_FINANCE_POLICY,
       inventory_settings: {
         default_critical_threshold: 5,
         unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'],
@@ -302,6 +314,28 @@ export function update_bank_commission(payload: { min_amount: number; percent: n
   saveSettings(settings);
   logEvent('admin', 'BANK_COMMISSION_UPDATE', settings.bank_commission);
   return { success: true };
+}
+
+export function update_finance_policy(payload: NonNullable<Settings['finance_policy']>) {
+  const settings = getSettings();
+  const roles = Array.isArray(payload.approver_roles) && payload.approver_roles.length
+    ? payload.approver_roles
+    : DEFAULT_FINANCE_POLICY.approver_roles;
+  settings.finance_policy = {
+    ...DEFAULT_FINANCE_POLICY,
+    ...settings.finance_policy,
+    large_transfer_threshold_azn: Math.max(0, Number(payload.large_transfer_threshold_azn ?? DEFAULT_FINANCE_POLICY.large_transfer_threshold_azn)),
+    investor_repayment_requires_approval: Boolean(payload.investor_repayment_requires_approval),
+    cash_adjustment_requires_approval: Boolean(payload.cash_adjustment_requires_approval),
+    reversal_requires_approval: Boolean(payload.reversal_requires_approval),
+    reconciliation_adjustment_requires_approval: Boolean(payload.reconciliation_adjustment_requires_approval),
+    reconciliation_variance_alert_azn: Math.max(0, Number(payload.reconciliation_variance_alert_azn ?? DEFAULT_FINANCE_POLICY.reconciliation_variance_alert_azn)),
+    negative_balance_alert_azn: Math.max(0, Number(payload.negative_balance_alert_azn ?? DEFAULT_FINANCE_POLICY.negative_balance_alert_azn)),
+    approver_roles: Array.from(new Set(roles.map((role) => String(role || '').trim().toLowerCase()).filter(Boolean))),
+  };
+  saveSettings(settings);
+  logEvent('admin', 'FINANCE_POLICY_UPDATED', settings.finance_policy);
+  return { success: true, finance_policy: settings.finance_policy };
 }
 
 export function update_landing_settings(payload: Settings['landing_settings']) {
@@ -554,6 +588,14 @@ export function get_settings(tenant_id?: string) {
     percent: Number((s.bank_commission as any)?.percent ?? 1.5),
     card_sale_percent: Number((s.bank_commission as any)?.card_sale_percent ?? (s.bank_commission as any)?.percent ?? 2),
     card_transfer_percent: Number((s.bank_commission as any)?.card_transfer_percent ?? 0.5),
+  };
+  s.finance_policy = {
+    ...DEFAULT_FINANCE_POLICY,
+    ...(s.finance_policy || {}),
+    large_transfer_threshold_azn: Number((s.finance_policy as any)?.large_transfer_threshold_azn ?? DEFAULT_FINANCE_POLICY.large_transfer_threshold_azn),
+    reconciliation_variance_alert_azn: Number((s.finance_policy as any)?.reconciliation_variance_alert_azn ?? DEFAULT_FINANCE_POLICY.reconciliation_variance_alert_azn),
+    negative_balance_alert_azn: Number((s.finance_policy as any)?.negative_balance_alert_azn ?? DEFAULT_FINANCE_POLICY.negative_balance_alert_azn),
+    approver_roles: Array.isArray((s.finance_policy as any)?.approver_roles) ? (s.finance_policy as any).approver_roles : DEFAULT_FINANCE_POLICY.approver_roles,
   };
   return s;
 }
@@ -988,6 +1030,13 @@ export async function update_bank_commission_live(payload: {
   if (!isBackendEnabled()) return update_bank_commission(payload as any);
   await apiRequest('/api/v1/ops/settings/bank-commission', { method: 'PATCH', tenantId: null, body: payload });
   update_bank_commission(payload as any);
+  return { success: true };
+}
+
+export async function update_finance_policy_live(payload: NonNullable<Settings['finance_policy']>) {
+  if (!isBackendEnabled()) return update_finance_policy(payload);
+  await apiRequest('/api/v1/ops/settings/finance-policy', { method: 'PATCH', tenantId: null, body: payload });
+  update_finance_policy(payload);
   return { success: true };
 }
 

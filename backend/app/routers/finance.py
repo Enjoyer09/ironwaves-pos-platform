@@ -42,6 +42,16 @@ FINANCE_ACCOUNT_DEFS: dict[str, tuple[str, str]] = {
 LIABILITY_OR_CREDIT_TYPES = {"deposit_liability", "investor_liability", "revenue"}
 APPROVAL_REQUIRED_TYPES = {"investor_repayment", "cash_adjustment", "reconciliation_adjustment", "reversal"}
 APPROVAL_TRANSFER_THRESHOLD = Decimal("500.00")
+DEFAULT_FINANCE_POLICY = {
+    "large_transfer_threshold_azn": 500,
+    "investor_repayment_requires_approval": True,
+    "cash_adjustment_requires_approval": True,
+    "reversal_requires_approval": True,
+    "reconciliation_adjustment_requires_approval": True,
+    "reconciliation_variance_alert_azn": 0.01,
+    "negative_balance_alert_azn": 0,
+    "approver_roles": ["manager", "admin", "finance_admin", "super_admin"],
+}
 
 
 def _normalize_text(value: str) -> str:
@@ -134,17 +144,48 @@ def _add_ledger_entry(
     )
 
 
-def _is_finance_approver(user) -> bool:
-    return str(getattr(user, "role", "") or "").lower() in {"manager", "admin", "finance_admin", "super_admin"}
+def _finance_policy(db: Session, tenant_id: str) -> dict:
+    raw = _setting_value(db, tenant_id, "finance_policy", DEFAULT_FINANCE_POLICY)
+    if not isinstance(raw, dict):
+        raw = {}
+    merged = {**DEFAULT_FINANCE_POLICY, **raw}
+    roles = merged.get("approver_roles") if isinstance(merged.get("approver_roles"), list) else DEFAULT_FINANCE_POLICY["approver_roles"]
+    merged["approver_roles"] = [str(role).strip().lower() for role in roles if str(role).strip()]
+    for key in ("large_transfer_threshold_azn", "reconciliation_variance_alert_azn", "negative_balance_alert_azn"):
+        try:
+            merged[key] = float(Decimal(str(merged.get(key))))
+        except Exception:
+            merged[key] = DEFAULT_FINANCE_POLICY[key]
+    for key in (
+        "investor_repayment_requires_approval",
+        "cash_adjustment_requires_approval",
+        "reversal_requires_approval",
+        "reconciliation_adjustment_requires_approval",
+    ):
+        merged[key] = bool(merged.get(key))
+    return merged
 
 
-def _approval_required(transaction_type: str, amount: Decimal, explicit: bool | None = None) -> bool:
+def _is_finance_approver(user, policy: dict | None = None) -> bool:
+    roles = set((policy or DEFAULT_FINANCE_POLICY).get("approver_roles") or DEFAULT_FINANCE_POLICY["approver_roles"])
+    return str(getattr(user, "role", "") or "").lower() in roles
+
+
+def _approval_required(transaction_type: str, amount: Decimal, explicit: bool | None = None, policy: dict | None = None) -> bool:
     if explicit is not None:
         return bool(explicit)
     tx_type = _normalize_text(transaction_type).replace("-", "_")
-    if tx_type in APPROVAL_REQUIRED_TYPES:
+    policy = policy or DEFAULT_FINANCE_POLICY
+    if tx_type == "investor_repayment" and bool(policy.get("investor_repayment_requires_approval", True)):
         return True
-    if tx_type == "internal_transfer" and Decimal(str(amount)) >= APPROVAL_TRANSFER_THRESHOLD:
+    if tx_type == "cash_adjustment" and bool(policy.get("cash_adjustment_requires_approval", True)):
+        return True
+    if tx_type == "reversal" and bool(policy.get("reversal_requires_approval", True)):
+        return True
+    if tx_type == "reconciliation_adjustment" and bool(policy.get("reconciliation_adjustment_requires_approval", True)):
+        return True
+    threshold = Decimal(str(policy.get("large_transfer_threshold_azn", APPROVAL_TRANSFER_THRESHOLD)))
+    if tx_type == "internal_transfer" and Decimal(str(amount)) >= threshold:
         return True
     return False
 
@@ -624,6 +665,7 @@ def _account_out(account: FinanceAccount, totals: dict[str, Decimal]) -> dict:
 
 def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
     accounts = _ensure_finance_accounts(db, tenant_id)
+    policy = _finance_policy(db, tenant_id)
     alerts: list[dict] = []
 
     pending_count = (
@@ -670,7 +712,8 @@ def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
         if not account:
             continue
         balance = _account_ledger_totals(db, tenant_id, account)["balance"]
-        if balance < Decimal("0"):
+        threshold = Decimal(str(policy.get("negative_balance_alert_azn", 0)))
+        if balance < (Decimal("0") - threshold):
             negative_accounts.append((account.name, balance))
     if negative_accounts:
         detail = ", ".join(f"{name}: {balance.quantize(Decimal('0.01'))} ₼" for name, balance in negative_accounts)
@@ -693,7 +736,8 @@ def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
         .order_by(FinanceReconciliation.created_at.desc())
         .first()
     )
-    if latest_reconciliation and abs(Decimal(str(latest_reconciliation.variance))) > Decimal("0.01"):
+    variance_threshold = Decimal(str(policy.get("reconciliation_variance_alert_azn", 0.01)))
+    if latest_reconciliation and abs(Decimal(str(latest_reconciliation.variance))) > variance_threshold:
         alerts.append(
             {
                 "id": "unreconciled-variance",
@@ -733,7 +777,7 @@ def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
         cash_out = sum((Decimal(str(row.amount)) for row in shift_rows if row.source == "cash" and row.type == "out"), Decimal("0"))
         expected_cash = Decimal(str(active_shift.opening_cash or 0)) + cash_in - cash_out
         shift_gap = abs(ledger_cash - expected_cash)
-        if shift_gap > Decimal("0.01"):
+        if shift_gap > variance_threshold:
             alerts.append(
                 {
                     "id": "unreconciled-till",
@@ -1062,7 +1106,8 @@ def create_ledger_transaction(payload: FinanceTransactionIn, db: Session = Depen
         raise HTTPException(status_code=400, detail="Amount must be > 0")
     source, destination = _manual_transaction_accounts(payload)
     tx_type = _normalize_text(payload.transaction_type).replace("-", "_")
-    if _approval_required(tx_type, amount, payload.requires_approval):
+    policy = _finance_policy(db, tenant.id)
+    if _approval_required(tx_type, amount, payload.requires_approval, policy):
         txn = _create_finance_transaction_record(
             db,
             tenant_id=tenant.id,
@@ -1153,7 +1198,7 @@ def list_pending_approvals(db: Session = Depends(get_db), tenant: Tenant = Depen
 
 @router.post("/ledger/transactions/{transaction_id}/approve")
 def approve_ledger_transaction(transaction_id: str, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
-    if not _is_finance_approver(user):
+    if not _is_finance_approver(user, _finance_policy(db, tenant.id)):
         raise HTTPException(status_code=403, detail="Finance approval requires manager/admin role")
     txn = (
         db.query(FinanceTransaction)
@@ -1185,7 +1230,7 @@ def approve_ledger_transaction(transaction_id: str, db: Session = Depends(get_db
 
 @router.post("/ledger/transactions/{transaction_id}/reject")
 def reject_ledger_transaction(transaction_id: str, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
-    if not _is_finance_approver(user):
+    if not _is_finance_approver(user, _finance_policy(db, tenant.id)):
         raise HTTPException(status_code=403, detail="Finance rejection requires manager/admin role")
     txn = (
         db.query(FinanceTransaction)
@@ -1238,25 +1283,41 @@ def request_transaction_reversal(transaction_id: str, db: Session = Depends(get_
     destination_code = _finance_account_code(db, tenant.id, original.source_account_id)
     if not source_code or not destination_code:
         raise HTTPException(status_code=400, detail="Original transaction account mapping is incomplete")
+    policy = _finance_policy(db, tenant.id)
+    requires_approval = _approval_required("reversal", Decimal(str(original.amount)), None, policy)
     reversal = _create_finance_transaction_record(
         db,
         tenant_id=tenant.id,
         transaction_type="reversal",
-        status="pending_approval",
+        status="pending_approval" if requires_approval else "approved",
         amount=Decimal(str(original.amount)),
         source_code=source_code,
         destination_code=destination_code,
         created_by=user.username,
         category=f"Reversal: {original.category or original.transaction_type}",
         reference=original.id,
-        note=f"Reversal request for {original.id}",
+        note=f"Reversal {'request' if requires_approval else 'auto-post'} for {original.id}",
     )
+    if not requires_approval:
+        now = datetime.utcnow()
+        reversal.approved_by = user.username
+        reversal.approved_at = now
+        _mark_original_transaction_reversed(db, reversal, user.username)
+        _post_existing_transaction(db, reversal, user.username)
+        _mirror_posted_transaction_to_legacy_wallet(db, reversal, user.username)
     db.add(
         AuditLog(
             tenant_id=tenant.id,
             user=user.username,
-            action="FINANCE_REVERSAL_REQUESTED",
-            details=json.dumps({"transaction_id": original.id, "reversal_transaction_id": reversal.id}, ensure_ascii=False),
+            action="FINANCE_REVERSAL_REQUESTED" if requires_approval else "FINANCE_REVERSAL_AUTO_POSTED",
+            details=json.dumps(
+                {
+                    "transaction_id": original.id,
+                    "reversal_transaction_id": reversal.id,
+                    "requires_approval": requires_approval,
+                },
+                ensure_ascii=False,
+            ),
         )
     )
     db.commit()

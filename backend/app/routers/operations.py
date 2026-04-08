@@ -46,6 +46,17 @@ from app.security import verify_password
 
 router = APIRouter(prefix="/api/v1/ops", tags=["operations"])
 
+DEFAULT_FINANCE_POLICY = {
+    "large_transfer_threshold_azn": 500,
+    "investor_repayment_requires_approval": True,
+    "cash_adjustment_requires_approval": True,
+    "reversal_requires_approval": True,
+    "reconciliation_adjustment_requires_approval": True,
+    "reconciliation_variance_alert_azn": 0.01,
+    "negative_balance_alert_azn": 0,
+    "approver_roles": ["manager", "admin", "finance_admin", "super_admin"],
+}
+
 
 def _restaurant_now() -> datetime:
     if ZoneInfo:
@@ -626,6 +637,7 @@ def get_app_settings(
         "session_settings": session_settings,
         "email_settings": email_settings,
         "bank_commission": _setting_value(db, tenant.id, "bank_commission", {"min_amount": 0.10, "percent": 1.5, "card_sale_percent": 2, "card_transfer_percent": 0.5}),
+        "finance_policy": _setting_value(db, tenant.id, "finance_policy", DEFAULT_FINANCE_POLICY),
         "inventory_settings": inventory_settings,
         "staff_benefits": staff_benefits,
         "print_settings": print_settings,
@@ -895,6 +907,39 @@ def update_bank_commission(
     _set_setting_value(db, tenant.id, "bank_commission", merged)
     db.commit()
     return {"success": True}
+
+
+@router.patch("/settings/finance-policy")
+def update_finance_policy(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    current = _setting_value(db, tenant.id, "finance_policy", DEFAULT_FINANCE_POLICY)
+    if not isinstance(current, dict):
+        current = {}
+    roles = payload.get("approver_roles", current.get("approver_roles", DEFAULT_FINANCE_POLICY["approver_roles"]))
+    if isinstance(roles, str):
+        roles = [part.strip() for part in roles.split(",") if part.strip()]
+    if not isinstance(roles, list) or not roles:
+        roles = DEFAULT_FINANCE_POLICY["approver_roles"]
+    cleaned = {
+        **DEFAULT_FINANCE_POLICY,
+        **current,
+        "large_transfer_threshold_azn": max(0, float(payload.get("large_transfer_threshold_azn", current.get("large_transfer_threshold_azn", 500)) or 0)),
+        "investor_repayment_requires_approval": bool(payload.get("investor_repayment_requires_approval", current.get("investor_repayment_requires_approval", True))),
+        "cash_adjustment_requires_approval": bool(payload.get("cash_adjustment_requires_approval", current.get("cash_adjustment_requires_approval", True))),
+        "reversal_requires_approval": bool(payload.get("reversal_requires_approval", current.get("reversal_requires_approval", True))),
+        "reconciliation_adjustment_requires_approval": bool(payload.get("reconciliation_adjustment_requires_approval", current.get("reconciliation_adjustment_requires_approval", True))),
+        "reconciliation_variance_alert_azn": max(0, float(payload.get("reconciliation_variance_alert_azn", current.get("reconciliation_variance_alert_azn", 0.01)) or 0)),
+        "negative_balance_alert_azn": max(0, float(payload.get("negative_balance_alert_azn", current.get("negative_balance_alert_azn", 0)) or 0)),
+        "approver_roles": [str(role).strip().lower() for role in roles if str(role).strip()],
+    }
+    _set_setting_value(db, tenant.id, "finance_policy", cleaned)
+    db.commit()
+    return {"success": True, "finance_policy": cleaned}
 
 
 @router.patch("/settings/landing")

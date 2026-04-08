@@ -14,6 +14,7 @@ import {
   setup_totp_live,
   update_bank_commission_live,
   update_email_settings_live,
+  update_finance_policy_live,
   update_service_fee_live,
   update_session_settings_live,
   update_table_service_settings_live,
@@ -99,6 +100,16 @@ export default function SettingsPanel() {
   const [bankCommission, setBankCommission] = useState({
     card_sale_percent: '2',
     card_transfer_percent: '0.5',
+  });
+  const [financePolicy, setFinancePolicy] = useState({
+    large_transfer_threshold_azn: '500',
+    investor_repayment_requires_approval: true,
+    cash_adjustment_requires_approval: true,
+    reversal_requires_approval: true,
+    reconciliation_adjustment_requires_approval: true,
+    reconciliation_variance_alert_azn: '0.01',
+    negative_balance_alert_azn: '0',
+    approver_roles: 'manager, admin, finance_admin, super_admin',
   });
   const [tableServiceSettings, setTableServiceSettings] = useState({
     service_fee_percent: '0',
@@ -263,6 +274,18 @@ export default function SettingsPanel() {
       setBankCommission({
         card_sale_percent: String((settingsRes.value.bank_commission as any)?.card_sale_percent ?? settingsRes.value.bank_commission?.percent ?? 2),
         card_transfer_percent: String((settingsRes.value.bank_commission as any)?.card_transfer_percent ?? 0.5),
+      });
+      setFinancePolicy({
+        large_transfer_threshold_azn: String(settingsRes.value.finance_policy?.large_transfer_threshold_azn ?? 500),
+        investor_repayment_requires_approval: settingsRes.value.finance_policy?.investor_repayment_requires_approval !== false,
+        cash_adjustment_requires_approval: settingsRes.value.finance_policy?.cash_adjustment_requires_approval !== false,
+        reversal_requires_approval: settingsRes.value.finance_policy?.reversal_requires_approval !== false,
+        reconciliation_adjustment_requires_approval: settingsRes.value.finance_policy?.reconciliation_adjustment_requires_approval !== false,
+        reconciliation_variance_alert_azn: String(settingsRes.value.finance_policy?.reconciliation_variance_alert_azn ?? 0.01),
+        negative_balance_alert_azn: String(settingsRes.value.finance_policy?.negative_balance_alert_azn ?? 0),
+        approver_roles: Array.isArray(settingsRes.value.finance_policy?.approver_roles)
+          ? settingsRes.value.finance_policy!.approver_roles.join(', ')
+          : 'manager, admin, finance_admin, super_admin',
       });
       setTableServiceSettings({
         service_fee_percent: String(settingsRes.value.service_fee_percent ?? 0),
@@ -651,6 +674,20 @@ export default function SettingsPanel() {
       card_transfer_percent: Number(bankCommission.card_transfer_percent || 0),
     });
     flashSuccess(tx(lang, 'Bank faiz ayarları yadda saxlanıldı', 'Настройки банковских комиссий сохранены', 'Bank fee settings saved'));
+  };
+
+  const saveFinancePolicy = async () => {
+    await update_finance_policy_live({
+      large_transfer_threshold_azn: Number(financePolicy.large_transfer_threshold_azn || 0),
+      investor_repayment_requires_approval: financePolicy.investor_repayment_requires_approval,
+      cash_adjustment_requires_approval: financePolicy.cash_adjustment_requires_approval,
+      reversal_requires_approval: financePolicy.reversal_requires_approval,
+      reconciliation_adjustment_requires_approval: financePolicy.reconciliation_adjustment_requires_approval,
+      reconciliation_variance_alert_azn: Number(financePolicy.reconciliation_variance_alert_azn || 0),
+      negative_balance_alert_azn: Number(financePolicy.negative_balance_alert_azn || 0),
+      approver_roles: financePolicy.approver_roles.split(',').map((role) => role.trim().toLowerCase()).filter(Boolean),
+    });
+    flashSuccess(tx(lang, 'Maliyyə policy ayarları yadda saxlanıldı', 'Настройки финансовой policy сохранены', 'Finance policy settings saved'));
   };
 
   const saveTableServiceSettings = async () => {
@@ -1149,6 +1186,83 @@ export default function SettingsPanel() {
         </div>
         <div className="flex justify-end">
           <button onClick={() => { void saveBankCommission(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+        </div>
+      </div>
+
+      <div className="metal-panel p-6 space-y-4">
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Maliyyə Policy Ayarları', 'Настройки финансовой policy', 'Finance Policy Settings')}</h2>
+        <p className="text-sm text-slate-400">
+          {tx(
+            lang,
+            'Approval, reconciliation və risk alert qaydalarını tenant səviyyəsində buradan idarə edin. Bu ayarlar Maliyyə modulunda approval inbox və alert engine üçün istifadə olunur.',
+            'Управляйте правилами approval, reconciliation и risk alert на уровне tenant. Эти настройки используются в Finance approval inbox и alert engine.',
+            'Manage approval, reconciliation, and risk alert rules per tenant. These settings drive the Finance approval inbox and alert engine.',
+          )}
+        </p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Böyük transfer limiti (AZN)', 'Лимит крупного перевода (AZN)', 'Large transfer threshold (AZN)')}</label>
+            <input
+              className="neon-input"
+              type="number"
+              min={0}
+              step="0.01"
+              value={financePolicy.large_transfer_threshold_azn}
+              onChange={(e) => setFinancePolicy((prev) => ({ ...prev, large_transfer_threshold_azn: e.target.value }))}
+            />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Reconciliation alert həddi (AZN)', 'Порог reconciliation alert (AZN)', 'Reconciliation alert threshold (AZN)')}</label>
+            <input
+              className="neon-input"
+              type="number"
+              min={0}
+              step="0.01"
+              value={financePolicy.reconciliation_variance_alert_azn}
+              onChange={(e) => setFinancePolicy((prev) => ({ ...prev, reconciliation_variance_alert_azn: e.target.value }))}
+            />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Mənfi balans alert toleransı (AZN)', 'Толеранс alert отрицательного баланса (AZN)', 'Negative balance alert tolerance (AZN)')}</label>
+            <input
+              className="neon-input"
+              type="number"
+              min={0}
+              step="0.01"
+              value={financePolicy.negative_balance_alert_azn}
+              onChange={(e) => setFinancePolicy((prev) => ({ ...prev, negative_balance_alert_azn: e.target.value }))}
+            />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Approval rolları', 'Роли approval', 'Approval roles')}</label>
+            <input
+              className="neon-input"
+              value={financePolicy.approver_roles}
+              onChange={(e) => setFinancePolicy((prev) => ({ ...prev, approver_roles: e.target.value }))}
+              placeholder="manager, admin, finance_admin, super_admin"
+            />
+            <div className="field-hint">{tx(lang, 'Vergüllə ayırın.', 'Разделяйте запятыми.', 'Separate with commas.')}</div>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {[
+            ['investor_repayment_requires_approval', tx(lang, 'Investor ödənişi approval tələb etsin', 'Выплата инвестору требует approval', 'Investor repayment requires approval')],
+            ['cash_adjustment_requires_approval', tx(lang, 'Cash adjustment approval tələb etsin', 'Cash adjustment требует approval', 'Cash adjustment requires approval')],
+            ['reversal_requires_approval', tx(lang, 'Reversal approval tələb etsin', 'Reversal требует approval', 'Reversal requires approval')],
+            ['reconciliation_adjustment_requires_approval', tx(lang, 'Reconciliation adjustment approval tələb etsin', 'Reconciliation adjustment требует approval', 'Reconciliation adjustment requires approval')],
+          ].map(([key, label]) => (
+            <label key={key} className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/40 p-4 text-sm font-bold text-slate-200">
+              <input
+                type="checkbox"
+                checked={Boolean((financePolicy as any)[key])}
+                onChange={(e) => setFinancePolicy((prev) => ({ ...prev, [key]: e.target.checked }))}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+        <div className="flex justify-end">
+          <button onClick={() => { void saveFinancePolicy(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Maliyyə policy saxla', 'Сохранить finance policy', 'Save finance policy')}</button>
         </div>
       </div>
 
