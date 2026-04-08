@@ -778,6 +778,69 @@ export type FinanceLedgerTransactionFilters = {
   search?: string;
 };
 
+export type FinanceLedgerTransactionPage = {
+  rows: FinanceLedgerTransaction[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+const mapFinanceLedgerTransaction = (row: any): FinanceLedgerTransaction => ({
+  id: String(row.id),
+  transaction_type: String(row.transaction_type || ''),
+  status: String(row.status || ''),
+  source_account: row.source_account ?? null,
+  destination_account: row.destination_account ?? null,
+  amount: String(row.amount ?? '0'),
+  currency: String(row.currency || 'AZN'),
+  category: row.category ?? null,
+  counterparty: row.counterparty ?? null,
+  reference: row.reference ?? null,
+  note: row.note ?? null,
+  created_by: String(row.created_by || ''),
+  approved_by: row.approved_by ?? null,
+  posted_by: row.posted_by ?? null,
+  reversed_by: row.reversed_by ?? null,
+  created_at: row.created_at ?? null,
+  approved_at: row.approved_at ?? null,
+  posted_at: row.posted_at ?? null,
+  reversed_at: row.reversed_at ?? null,
+  legacy_finance_entry_id: row.legacy_finance_entry_id ?? null,
+});
+
+export const fetch_finance_ledger_transactions_page = async (
+  tenant_id: string,
+  filters: FinanceLedgerTransactionFilters = {},
+): Promise<FinanceLedgerTransactionPage> => {
+  const limit = filters.limit ?? 200;
+  if (!isBackendEnabled()) {
+    const allRows = localLedgerTransactions(tenant_id, 5000);
+    const offset = filters.offset ?? 0;
+    return {
+      rows: allRows.slice(offset, offset + limit),
+      total: allRows.length,
+      limit,
+      offset,
+    };
+  }
+  const params = new URLSearchParams();
+  Object.entries({ ...filters, limit, include_total: 'true' }).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '' || value === 'all') return;
+    params.set(key, String(value));
+  });
+  const data = await apiRequest<any>(`/api/v1/finance/ledger/transactions?${params.toString()}`, {
+    method: 'GET',
+    tenantId: tenant_id,
+  });
+  const rows = Array.isArray(data) ? data : data?.rows || [];
+  return {
+    rows: (rows || []).map(mapFinanceLedgerTransaction),
+    total: Number(Array.isArray(data) ? rows.length : data?.total ?? rows.length),
+    limit: Number(Array.isArray(data) ? limit : data?.limit ?? limit),
+    offset: Number(Array.isArray(data) ? filters.offset ?? 0 : data?.offset ?? filters.offset ?? 0),
+  };
+};
+
 export const fetch_finance_ledger_transactions = async (
   tenant_id: string,
   limitOrFilters: number | FinanceLedgerTransactionFilters = 200,
@@ -795,28 +858,7 @@ export const fetch_finance_ledger_transactions = async (
     method: 'GET',
     tenantId: tenant_id,
   });
-  return (rows || []).map((row) => ({
-    id: String(row.id),
-    transaction_type: String(row.transaction_type || ''),
-    status: String(row.status || ''),
-    source_account: row.source_account ?? null,
-    destination_account: row.destination_account ?? null,
-    amount: String(row.amount ?? '0'),
-    currency: String(row.currency || 'AZN'),
-    category: row.category ?? null,
-    counterparty: row.counterparty ?? null,
-    reference: row.reference ?? null,
-    note: row.note ?? null,
-    created_by: String(row.created_by || ''),
-      approved_by: row.approved_by ?? null,
-      posted_by: row.posted_by ?? null,
-      reversed_by: row.reversed_by ?? null,
-      created_at: row.created_at ?? null,
-      approved_at: row.approved_at ?? null,
-      posted_at: row.posted_at ?? null,
-      reversed_at: row.reversed_at ?? null,
-    legacy_finance_entry_id: row.legacy_finance_entry_id ?? null,
-  }));
+  return (rows || []).map(mapFinanceLedgerTransaction);
 };
 
 export const fetch_finance_ledger_entries = async (tenant_id: string, limit = 300): Promise<FinanceLedgerEntry[]> => {

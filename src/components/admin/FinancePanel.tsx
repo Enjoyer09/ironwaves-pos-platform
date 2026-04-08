@@ -13,6 +13,7 @@ import {
   fetch_finance_ledger_accounts,
   fetch_finance_ledger_entries,
   fetch_finance_ledger_transactions,
+  fetch_finance_ledger_transactions_page,
   fetch_finance_pending_approvals,
   fetch_finance_reconciliations,
   fetch_finance_transaction_detail,
@@ -267,6 +268,9 @@ export default function FinancePanel() {
   const [ledgerCounterpartyFilter, setLedgerCounterpartyFilter] = useState('');
   const [ledgerMinAmount, setLedgerMinAmount] = useState('');
   const [ledgerMaxAmount, setLedgerMaxAmount] = useState('');
+  const [ledgerOffset, setLedgerOffset] = useState(0);
+  const [ledgerTotalCount, setLedgerTotalCount] = useState(0);
+  const [ledgerPageLoading, setLedgerPageLoading] = useState(false);
   const [reconcileAccount, setReconcileAccount] = useState('cash');
   const [reconcileCounted, setReconcileCounted] = useState('');
   const [reconcileNotes, setReconcileNotes] = useState('');
@@ -307,8 +311,8 @@ export default function FinancePanel() {
   }, [transferAmount, transferCommission, transferDirection, bankCommissionConfig.card_transfer_percent]);
 
   const ledgerServerFilters = useMemo(() => ({
-    limit: 1000,
-    offset: 0,
+    limit: ledgerPageSize,
+    offset: ledgerOffset,
     date_from: fromDate,
     date_to: toDate,
     transaction_type: ledgerTypeFilter === 'all' ? undefined : ledgerTypeFilter,
@@ -324,6 +328,8 @@ export default function FinancePanel() {
     ledgerCounterpartyFilter,
     ledgerMaxAmount,
     ledgerMinAmount,
+    ledgerOffset,
+    ledgerPageSize,
     ledgerSearch,
     ledgerStatusFilter,
     ledgerTypeFilter,
@@ -401,15 +407,40 @@ export default function FinancePanel() {
   }, [tenant_id, reloadFinance]);
 
   useEffect(() => {
+    setLedgerOffset(0);
+  }, [
+    fromDate,
+    ledgerAccountFilter,
+    ledgerCounterpartyFilter,
+    ledgerMaxAmount,
+    ledgerMinAmount,
+    ledgerPageSize,
+    ledgerSearch,
+    ledgerStatusFilter,
+    ledgerTypeFilter,
+    tenant_id,
+    toDate,
+  ]);
+
+  useEffect(() => {
+    let alive = true;
     const timer = window.setTimeout(async () => {
       try {
-        const rows = await fetch_finance_ledger_transactions(tenant_id, ledgerServerFilters);
-        setLedgerTransactions(rows || []);
+        setLedgerPageLoading(true);
+        const page = await fetch_finance_ledger_transactions_page(tenant_id, ledgerServerFilters);
+        if (!alive) return;
+        setLedgerTransactions(page.rows || []);
+        setLedgerTotalCount(page.total || 0);
       } catch {
         // Keep the last loaded ledger snapshot if server-side filtering fails.
+      } finally {
+        if (alive) setLedgerPageLoading(false);
       }
     }, 300);
-    return () => window.clearTimeout(timer);
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
   }, [ledgerServerFilters, tenant_id]);
 
   useEffect(() => {
@@ -622,9 +653,15 @@ export default function FinancePanel() {
     ledgerTypeFilter,
   ]);
   const visibleLedgerTransactions = useMemo(
-    () => filteredLedgerTransactions.slice(0, ledgerPageSize),
-    [filteredLedgerTransactions, ledgerPageSize],
+    () => filteredLedgerTransactions,
+    [filteredLedgerTransactions],
   );
+  const ledgerPageStart = ledgerTotalCount === 0 ? 0 : ledgerOffset + 1;
+  const ledgerPageEnd = ledgerTotalCount === 0 ? 0 : Math.min(ledgerOffset + ledgerPageSize, ledgerTotalCount);
+  const ledgerCurrentPage = Math.floor(ledgerOffset / ledgerPageSize) + 1;
+  const ledgerTotalPages = Math.max(1, Math.ceil((ledgerTotalCount || 0) / ledgerPageSize));
+  const canGoPreviousLedgerPage = ledgerOffset > 0;
+  const canGoNextLedgerPage = ledgerOffset + ledgerPageSize < ledgerTotalCount;
   const clearLedgerFilters = () => {
     setLedgerSearch('');
     setLedgerTypeFilter('all');
@@ -633,6 +670,7 @@ export default function FinancePanel() {
     setLedgerCounterpartyFilter('');
     setLedgerMinAmount('');
     setLedgerMaxAmount('');
+    setLedgerOffset(0);
   };
   const selectedReconcileAccount = ledgerAccountByCode.get(reconcileAccount);
   const expectedReconcileBalance = useMemo(() => {
@@ -799,14 +837,25 @@ export default function FinancePanel() {
     return items;
   }, [anomalies, balance.cash_balance, balance.deposit_balance, balance.investor_balance, effectiveInvestorDebt, financeSummary.net, lang]);
 
-  const exportCsv = () => {
+  const exportCsv = async () => {
     const esc = (value: unknown) => {
       const s = String(value ?? '');
       return `"${s.replace(/"/g, '""')}"`;
     };
 
     if (workspaceTab === 'ledger') {
-      if (!filteredLedgerTransactions.length) {
+      const exportPage = await fetch_finance_ledger_transactions_page(tenant_id, {
+        ...ledgerServerFilters,
+        limit: 1000,
+        offset: 0,
+      }).catch(() => ({
+        rows: filteredLedgerTransactions,
+        total: filteredLedgerTransactions.length,
+        limit: 1000,
+        offset: 0,
+      }));
+      const ledgerRowsForExport = exportPage.rows || filteredLedgerTransactions;
+      if (!ledgerRowsForExport.length) {
         notify('error', tx(lang, 'Export üçün ledger məlumatı yoxdur', 'Нет ledger данных для экспорта', 'No ledger data to export'));
         return;
       }
@@ -828,7 +877,7 @@ export default function FinancePanel() {
         'posted_by',
         'reversed_by',
       ];
-      const rows = filteredLedgerTransactions.map((row) => [
+      const rows = ledgerRowsForExport.map((row) => [
         esc(row.created_at),
         esc(row.posted_at),
         esc(row.status || 'posted'),
@@ -1438,7 +1487,8 @@ export default function FinancePanel() {
           <div>
             <div className="text-xs font-black uppercase tracking-[0.18em] text-sky-300">{tx(lang, 'Ledger filterləri', 'Фильтры ledger', 'Ledger filters')}</div>
             <p className="mt-1 text-xs font-bold text-slate-500">
-              {filteredLedgerTransactions.length} / {ledgerTransactions.length} {tx(lang, 'transaction göstərilir', 'transaction показано', 'transactions shown')}
+              {ledgerPageStart}-{ledgerPageEnd} / {ledgerTotalCount || filteredLedgerTransactions.length} {tx(lang, 'transaction göstərilir', 'transaction показано', 'transactions shown')}
+              {ledgerPageLoading ? ` · ${tx(lang, 'Yüklənir...', 'Загрузка...', 'Loading...')}` : ''}
             </p>
           </div>
           <button onClick={clearLedgerFilters} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-200 hover:border-sky-300/60">
@@ -1560,6 +1610,30 @@ export default function FinancePanel() {
             )}
           </tbody>
         </table>
+      </div>
+      <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 md:flex-row md:items-center md:justify-between">
+        <div className="text-sm font-bold text-slate-300">
+          {tx(lang, 'Səhifə', 'Страница', 'Page')} {ledgerCurrentPage} / {ledgerTotalPages}
+          <span className="ml-2 text-slate-500">
+            {tx(lang, 'Göstərilir', 'Показано', 'Showing')} {ledgerPageStart}-{ledgerPageEnd}
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <button
+            disabled={!canGoPreviousLedgerPage || ledgerPageLoading}
+            onClick={() => setLedgerOffset((value) => Math.max(0, value - ledgerPageSize))}
+            className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {tx(lang, 'Əvvəlki', 'Предыдущая', 'Previous')}
+          </button>
+          <button
+            disabled={!canGoNextLedgerPage || ledgerPageLoading}
+            onClick={() => setLedgerOffset((value) => value + ledgerPageSize)}
+            className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {tx(lang, 'Növbəti', 'Следующая', 'Next')}
+          </button>
+        </div>
       </div>
       <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-xs text-slate-400">
         {ledgerEntries.length} {tx(lang, 'debit/credit entry yüklənib. Transaction sətirinə klikləyəndə detail drawer entries, audit və reversal history göstərir.', 'debit/credit записей загружено. Клик по transaction открывает drawer с entries, audit и reversal history.', 'debit/credit entries loaded. Clicking a transaction opens entries, audit, and reversal history in the detail drawer.')}
