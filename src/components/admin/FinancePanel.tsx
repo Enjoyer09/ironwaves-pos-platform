@@ -12,7 +12,9 @@ import {
   fetch_finance_ledger_entries,
   fetch_finance_ledger_transactions,
   fetch_finance_reconciliations,
+  fetch_finance_transaction_detail,
   type FinanceAnomalies,
+  type FinanceTransactionDetail,
   type FinanceLedgerAccount,
   type FinanceLedgerEntry,
   type FinanceLedgerTransaction,
@@ -248,6 +250,8 @@ export default function FinancePanel() {
   const [ledgerTransactions, setLedgerTransactions] = useState<FinanceLedgerTransaction[]>([]);
   const [ledgerEntries, setLedgerEntries] = useState<FinanceLedgerEntry[]>([]);
   const [reconciliations, setReconciliations] = useState<FinanceReconciliation[]>([]);
+  const [selectedLedgerDetail, setSelectedLedgerDetail] = useState<FinanceTransactionDetail | null>(null);
+  const [ledgerDetailLoading, setLedgerDetailLoading] = useState(false);
   const [ledgerPageSize, setLedgerPageSize] = useState(10);
   const [reconcileAccount, setReconcileAccount] = useState('cash');
   const [reconcileCounted, setReconcileCounted] = useState('');
@@ -830,6 +834,24 @@ export default function FinancePanel() {
     }
   };
 
+  const openLedgerDetail = async (transaction: FinanceLedgerTransaction) => {
+    const localEntries = ledgerEntries.filter((entry) => entry.transaction_id === transaction.id);
+    setSelectedLedgerDetail({
+      transaction,
+      entries: localEntries,
+      audit_logs: [],
+    });
+    setLedgerDetailLoading(true);
+    try {
+      const detail = await fetch_finance_transaction_detail(tenant_id, transaction.id);
+      setSelectedLedgerDetail(detail);
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Transaction detail yüklənmədi', 'Детали transaction не загружены', 'Transaction detail failed to load'));
+    } finally {
+      setLedgerDetailLoading(false);
+    }
+  };
+
   const todayInflow = financeSummary.incoming;
   const todayOutflow = financeSummary.outgoing;
   const unreconciledVariance = anomalies?.shift_cash_gap || '0';
@@ -1076,7 +1098,11 @@ export default function FinancePanel() {
           </thead>
           <tbody>
             {visibleLedgerTransactions.map((entry) => (
-              <tr key={entry.id} className="border-b border-slate-900">
+              <tr
+                key={entry.id}
+                onClick={() => void openLedgerDetail(entry)}
+                className="cursor-pointer border-b border-slate-900 transition hover:bg-slate-900/70"
+              >
                 <td className="py-3 text-slate-300">{formatServerUtcDateTime(entry.posted_at || entry.created_at || '', lang)}</td>
                 <td className="py-3"><span className="rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-200">{entry.status || 'posted'}</span></td>
                 <td className="py-3 font-bold text-sky-200">{transactionTypeLabel(entry.transaction_type)}</td>
@@ -1229,6 +1255,14 @@ export default function FinancePanel() {
         </FinanceControlCard>
       )}
       {workspaceTab === 'ledger' && ledgerTable}
+
+      <TransactionDetailDrawer
+        lang={lang}
+        detail={selectedLedgerDetail}
+        loading={ledgerDetailLoading}
+        accountName={accountName}
+        onClose={() => setSelectedLedgerDetail(null)}
+      />
     </FinanceDashboard>
   );
 
@@ -1889,6 +1923,119 @@ function FinanceField({ label, helper, children }: { label: string; helper?: str
       {children}
       {helper ? <span className="field-hint">{helper}</span> : null}
     </label>
+  );
+}
+
+function TransactionDetailDrawer({
+  lang,
+  detail,
+  loading,
+  accountName,
+  onClose,
+}: {
+  lang: string;
+  detail: FinanceTransactionDetail | null;
+  loading: boolean;
+  accountName: (code?: string | null) => string;
+  onClose: () => void;
+}) {
+  if (!detail) return null;
+  const txRow = detail.transaction;
+  const auditDetails = detail.audit_logs.map((row) => {
+    try {
+      return { ...row, parsed: JSON.parse(row.details || '{}') };
+    } catch {
+      return { ...row, parsed: null };
+    }
+  });
+  return (
+    <div className="fixed inset-0 z-[80] flex justify-end bg-slate-950/70 backdrop-blur-sm">
+      <button className="absolute inset-0 cursor-default" onClick={onClose} aria-label="Close transaction drawer" />
+      <aside className="relative h-full w-full max-w-2xl overflow-y-auto border-l border-slate-800 bg-slate-950 p-5 shadow-[0_0_80px_rgba(0,0,0,0.55)]">
+        <div className="sticky top-0 z-10 -mx-5 -mt-5 border-b border-slate-800 bg-slate-950/95 p-5 backdrop-blur">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-yellow-300">Transaction Detail</div>
+              <h3 className="mt-2 text-2xl font-black text-white">{txRow.transaction_type?.replace(/_/g, ' ') || 'Transaction'}</h3>
+              <p className="mt-1 text-sm text-slate-400">{txRow.id}</p>
+            </div>
+            <button onClick={onClose} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-200">
+              {tx(lang, 'Bağla', 'Закрыть', 'Close')}
+            </button>
+          </div>
+          {loading ? <div className="mt-3 text-xs font-bold text-sky-200">{tx(lang, 'Detallar yüklənir...', 'Детали загружаются...', 'Loading details...')}</div> : null}
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <FinanceMiniMetric label={tx(lang, 'Status', 'Статус', 'Status')} value={txRow.status || 'posted'} tone={txRow.status === 'reversed' ? 'rose' : 'emerald'} />
+          <FinanceMiniMetric label={tx(lang, 'Amount', 'Сумма', 'Amount')} value={`${new Decimal(txRow.amount || 0).toFixed(2)} ₼`} tone="sky" />
+          <FinanceMiniMetric label={tx(lang, 'From', 'Откуда', 'From')} value={accountName(txRow.source_account)} tone="amber" />
+          <FinanceMiniMetric label={tx(lang, 'To', 'Куда', 'To')} value={accountName(txRow.destination_account)} tone="violet" />
+        </div>
+
+        <section className="mt-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-4">
+          <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">{tx(lang, 'Lifecycle', 'Жизненный цикл', 'Lifecycle')}</div>
+          <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+            <div><span className="text-slate-500">Created:</span> <span className="font-bold text-slate-200">{formatServerUtcDateTime(txRow.created_at || '', lang)}</span></div>
+            <div><span className="text-slate-500">Posted:</span> <span className="font-bold text-slate-200">{formatServerUtcDateTime(txRow.posted_at || txRow.created_at || '', lang)}</span></div>
+            <div><span className="text-slate-500">Created by:</span> <span className="font-bold text-slate-200">{txRow.created_by || '-'}</span></div>
+            <div><span className="text-slate-500">Posted by:</span> <span className="font-bold text-slate-200">{txRow.posted_by || '-'}</span></div>
+            <div><span className="text-slate-500">Approved by:</span> <span className="font-bold text-slate-200">{txRow.approved_by || '-'}</span></div>
+            <div><span className="text-slate-500">Reversed:</span> <span className="font-bold text-slate-200">{txRow.reversed_at ? formatServerUtcDateTime(txRow.reversed_at, lang) : '-'}</span></div>
+          </div>
+          {txRow.note || txRow.reference ? (
+            <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950 p-3 text-sm text-slate-300">
+              {txRow.note || txRow.reference}
+            </div>
+          ) : null}
+        </section>
+
+        <section className="mt-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-4">
+          <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Debit / Credit entries', 'Debit / Credit записи', 'Debit / Credit entries')}</div>
+          <div className="space-y-3">
+            {detail.entries.map((entry) => (
+              <div key={entry.id} className="grid grid-cols-[1fr_auto] gap-3 rounded-2xl border border-slate-800 bg-slate-950 p-3">
+                <div>
+                  <div className="font-black text-white">{entry.account_name || entry.account_code}</div>
+                  <div className="mt-1 text-xs text-slate-500">{entry.description || txRow.category || txRow.transaction_type}</div>
+                </div>
+                <div className={`rounded-full px-3 py-2 text-xs font-black ${entry.entry_side === 'debit' ? 'bg-sky-400/10 text-sky-200' : 'bg-amber-400/10 text-amber-200'}`}>
+                  {entry.entry_side.toUpperCase()} · {new Decimal(entry.amount || 0).toFixed(2)} ₼
+                </div>
+              </div>
+            ))}
+            {detail.entries.length === 0 ? (
+              <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-500">
+                {tx(lang, 'Debit/credit entry tapılmadı.', 'Debit/credit записи не найдены.', 'No debit/credit entries found.')}
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="mt-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-4">
+          <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Audit trail', 'Audit trail', 'Audit trail')}</div>
+          <div className="space-y-3">
+            {auditDetails.map((row) => (
+              <div key={row.id} className="rounded-2xl border border-slate-800 bg-slate-950 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="font-black text-white">{row.action}</div>
+                  <div className="text-xs text-slate-500">{formatServerUtcDateTime(row.created_at || '', lang)}</div>
+                </div>
+                <div className="mt-1 text-xs text-slate-400">{row.user}</div>
+                <pre className="mt-3 max-h-40 overflow-auto rounded-xl bg-slate-900 p-3 text-[11px] text-slate-400">
+                  {JSON.stringify(row.parsed || row.details || {}, null, 2)}
+                </pre>
+              </div>
+            ))}
+            {auditDetails.length === 0 ? (
+              <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-500">
+                {tx(lang, 'Audit log tapılmadı.', 'Audit log не найден.', 'No audit logs found.')}
+              </div>
+            ) : null}
+          </div>
+        </section>
+      </aside>
+    </div>
   );
 }
 
