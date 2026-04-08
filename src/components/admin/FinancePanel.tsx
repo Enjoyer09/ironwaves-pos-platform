@@ -8,6 +8,7 @@ import {
   create_finance_reconciliation_async,
   approve_finance_transaction_async,
   fetch_finance_anomalies,
+  fetch_finance_alerts,
   fetch_finance_balances,
   fetch_finance_entries,
   fetch_finance_ledger_accounts,
@@ -19,6 +20,7 @@ import {
   fetch_finance_transaction_detail,
   reject_finance_transaction_async,
   type FinanceAnomalies,
+  type FinanceAlert,
   type FinanceTransactionDetail,
   type FinanceLedgerAccount,
   type FinanceLedgerEntry,
@@ -252,6 +254,7 @@ export default function FinancePanel() {
     deposit_balance: '0',
   });
   const [anomalies, setAnomalies] = useState<FinanceAnomalies | null>(null);
+  const [serverFinanceAlerts, setServerFinanceAlerts] = useState<FinanceAlert[] | null>(null);
   const [entries, setEntries] = useState<any[]>([]);
   const [ledgerAccounts, setLedgerAccounts] = useState<FinanceLedgerAccount[]>([]);
   const [ledgerTransactions, setLedgerTransactions] = useState<FinanceLedgerTransaction[]>([]);
@@ -371,12 +374,13 @@ export default function FinancePanel() {
         get_settings_live(tenant_id),
         fetch_finance_anomalies(tenant_id).catch(() => null),
       ]);
-      const [accounts, transactions, ledgerRows, recRows, pendingRows] = await Promise.all([
+      const [accounts, transactions, ledgerRows, recRows, pendingRows, alertRows] = await Promise.all([
         fetch_finance_ledger_accounts(tenant_id).catch(() => []),
         fetch_finance_ledger_transactions(tenant_id, 250).catch(() => []),
         fetch_finance_ledger_entries(tenant_id, 500).catch(() => []),
         fetch_finance_reconciliations(tenant_id, 100).catch(() => []),
         fetch_finance_pending_approvals(tenant_id).catch(() => []),
+        fetch_finance_alerts(tenant_id).catch(() => null),
       ]);
       setBalance(b || {
         cash_balance: '0',
@@ -393,6 +397,7 @@ export default function FinancePanel() {
       setLedgerEntries(ledgerRows);
       setReconciliations(recRows);
       setPendingApprovals(pendingRows);
+      setServerFinanceAlerts(alertRows);
       setBankCommissionConfig({
         card_sale_percent: Number((settings.bank_commission as any)?.card_sale_percent ?? settings.bank_commission?.percent ?? 2),
         card_transfer_percent: Number((settings.bank_commission as any)?.card_transfer_percent ?? 0.5),
@@ -450,6 +455,7 @@ export default function FinancePanel() {
         setBalance(get_balance(tenant_id, 'all', false) as any);
         setEntries(get_finance_entries(tenant_id));
         setAnomalies(null);
+        setServerFinanceAlerts(null);
         if (reloadTimerRef.current) {
           window.clearTimeout(reloadTimerRef.current);
         }
@@ -1215,7 +1221,7 @@ export default function FinancePanel() {
   const todayOutflow = financeSummary.outgoing;
   const unreconciledVariance = anomalies?.shift_cash_gap || '0';
   const pendingApprovalsCount = pendingApprovals.length;
-  const financeAlerts = [
+  const fallbackFinanceAlerts = [
     ...(pendingApprovals.length > 0
       ? [{
           id: 'pending-approvals',
@@ -1267,6 +1273,16 @@ export default function FinancePanel() {
         }]
       : []),
   ];
+  const financeAlerts = (serverFinanceAlerts ?? fallbackFinanceAlerts)
+    .filter((alert) => ['overview', 'transactions', 'transfers', 'reconciliation', 'investor', 'deposits', 'ledger'].includes(alert.tab))
+    .map((alert) => ({
+      id: alert.id,
+      title: alert.title,
+      body: alert.body,
+      tone: alert.tone === 'rose' ? 'rose' as const : 'amber' as const,
+      action: alert.action,
+      tab: alert.tab as FinanceWorkspaceTab,
+    }));
 
   const selectQuickAction = (action: FinanceQuickAction) => {
     setQuickAction(action);

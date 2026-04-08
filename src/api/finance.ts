@@ -617,6 +617,17 @@ export type FinanceAnomalies = {
   shift_open: boolean;
 };
 
+export type FinanceAlert = {
+  id: string;
+  title: string;
+  body: string;
+  tone: 'rose' | 'amber';
+  action: string;
+  tab: string;
+  severity?: 'critical' | 'warning' | 'info' | string;
+  count?: number;
+};
+
 export type FinanceLedgerAccount = {
   id: string;
   code: string;
@@ -1143,6 +1154,24 @@ export const fetch_finance_anomalies = async (tenant_id: string): Promise<Financ
     has_closed_shift_open_deposit: Boolean(data?.has_closed_shift_open_deposit),
     shift_open: Boolean(data?.shift_open),
   };
+};
+
+export const fetch_finance_alerts = async (tenant_id: string): Promise<FinanceAlert[]> => {
+  if (!isBackendEnabled()) return [];
+  const rows = await apiRequest<any[]>('/api/v1/finance/alerts', {
+    method: 'GET',
+    tenantId: tenant_id,
+  });
+  return (rows || []).map((row) => ({
+    id: String(row.id || ''),
+    title: String(row.title || ''),
+    body: String(row.body || ''),
+    tone: row.tone === 'rose' ? 'rose' : 'amber',
+    action: String(row.action || 'Review'),
+    tab: String(row.tab || 'overview'),
+    severity: row.severity ? String(row.severity) : undefined,
+    count: row.count === undefined || row.count === null ? undefined : Number(row.count),
+  }));
 };
 
 export const create_finance_entry_async = async (
