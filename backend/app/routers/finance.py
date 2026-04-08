@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -630,17 +631,89 @@ def list_ledger_accounts(db: Session = Depends(get_db), tenant: Tenant = Depends
 
 
 @router.get("/ledger/transactions")
-def list_ledger_transactions(limit: int = 200, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
-    _ensure_finance_accounts(db, tenant.id)
+def list_ledger_transactions(
+    limit: int = 200,
+    offset: int = 0,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    transaction_type: str | None = None,
+    status: str | None = None,
+    account: str | None = None,
+    counterparty: str | None = None,
+    min_amount: str | None = None,
+    max_amount: str | None = None,
+    search: str | None = None,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user=Depends(get_current_user),
+):
+    accounts = _ensure_finance_accounts(db, tenant.id)
     db.commit()
-    limit = min(max(int(limit or 200), 1), 500)
-    rows = (
-        db.query(FinanceTransaction)
-        .filter(FinanceTransaction.tenant_id == tenant.id)
-        .order_by(FinanceTransaction.created_at.desc())
-        .limit(limit)
-        .all()
-    )
+    limit = min(max(int(limit or 200), 1), 1000)
+    offset = max(int(offset or 0), 0)
+
+    def parse_dt(value: str | None, end_of_day: bool = False) -> datetime | None:
+        if not value:
+            return None
+        try:
+            raw = value.strip()
+            if len(raw) == 10:
+                raw = f"{raw}T{'23:59:59.999999' if end_of_day else '00:00:00'}"
+            return datetime.fromisoformat(raw.replace("Z", "+00:00")).replace(tzinfo=None)
+        except Exception:
+            return None
+
+    query = db.query(FinanceTransaction).filter(FinanceTransaction.tenant_id == tenant.id)
+    start = parse_dt(date_from)
+    end = parse_dt(date_to, end_of_day=True)
+    if start:
+        query = query.filter(FinanceTransaction.created_at >= start)
+    if end:
+        query = query.filter(FinanceTransaction.created_at <= end)
+    if transaction_type and transaction_type != "all":
+        query = query.filter(FinanceTransaction.transaction_type == transaction_type)
+    if status and status != "all":
+        query = query.filter(FinanceTransaction.status == status)
+    if account and account != "all":
+        account_row = accounts.get(account)
+        if account_row:
+            query = query.filter(
+                or_(
+                    FinanceTransaction.source_account_id == account_row.id,
+                    FinanceTransaction.destination_account_id == account_row.id,
+                )
+            )
+        else:
+            query = query.filter(FinanceTransaction.id == "__no_such_account__")
+    if counterparty:
+        query = query.filter(FinanceTransaction.counterparty.ilike(f"%{counterparty.strip()}%"))
+    if min_amount:
+        try:
+            query = query.filter(FinanceTransaction.amount >= Decimal(str(min_amount)))
+        except Exception:
+            pass
+    if max_amount:
+        try:
+            query = query.filter(FinanceTransaction.amount <= Decimal(str(max_amount)))
+        except Exception:
+            pass
+    if search:
+        token = f"%{search.strip()}%"
+        query = query.filter(
+            or_(
+                FinanceTransaction.id.ilike(token),
+                FinanceTransaction.transaction_type.ilike(token),
+                FinanceTransaction.status.ilike(token),
+                FinanceTransaction.category.ilike(token),
+                FinanceTransaction.counterparty.ilike(token),
+                FinanceTransaction.reference.ilike(token),
+                FinanceTransaction.note.ilike(token),
+                FinanceTransaction.created_by.ilike(token),
+                FinanceTransaction.posted_by.ilike(token),
+            )
+        )
+
+    rows = query.order_by(FinanceTransaction.created_at.desc()).offset(offset).limit(limit).all()
     account_by_id = {row.id: row for row in db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant.id).all()}
     return [
         {
