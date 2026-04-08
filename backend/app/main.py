@@ -310,6 +310,8 @@ def _run_startup_migrations():
         conn.execute(text("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP"))
         conn.execute(text("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS served_at TIMESTAMP"))
         conn.execute(text("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP"))
+        conn.execute(text("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS stock_consumed_at TIMESTAMP"))
+        conn.execute(text("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS stock_consumption_reason VARCHAR(80)"))
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS item_status_logs (
                 id VARCHAR(36) PRIMARY KEY,
