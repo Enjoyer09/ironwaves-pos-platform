@@ -490,7 +490,96 @@ Manager `Status tarixçəsi`nə baxır və görür:
 
 ---
 
-## 23. Hesabı necə bağlamaq lazımdır?
+## 23. Anbar qaydası: mal nə vaxt qayıdır, nə vaxt zibilə gedir?
+
+Bunu sadə yadda saxla:
+
+Məhsul hələ mətbəxə getməyibsə, anbara heç nə olmur.
+
+Çünki sistem o məhsulun reseptindəki malları hələ anbardan çıxmayıb.
+
+### Göndərilməmiş məhsulu silsən
+
+Məsələn:
+
+- səhvən `Dönər` seçdin
+- hələ `Göndər` basmamısan
+- `Sil` basdın
+
+Bu halda:
+
+- mətbəx görmür
+- anbar dəyişmir
+- zibilə heç nə getmir
+
+### Mətbəxə gedib, amma hazır olmayıbsa
+
+Məsələn:
+
+- `2 Dönər` mətbəxə göndərildi
+- mətbəx hələ `Hazırdır` etməyib
+- qonaq 1 dənəsindən imtina etdi
+
+Sən `Azalt` və ya `Ləğv et` edirsən.
+
+Bu halda:
+
+- mətbəxə `STOP / LƏĞV TƏLƏBİ` gedir
+- anbar dəyişmir
+- çünki məhsul hələ hazır sayılmır
+
+### İsraf seçsən
+
+`İsraf` o deməkdir ki, məhsul artıq işlənib və zay oldu.
+
+Məsələn:
+
+- səhv hazırlanıb
+- yerə düşüb
+- qonaq gedib, məhsul artıq istifadə olunmur
+- mətbəx artıq ona əmək və mal sərf edib
+
+Bu halda:
+
+- məhsul müştərinin hesabından çıxır
+- reseptindəki mallar anbardan silinir
+- sistem bunu auditdə `israf / zay` kimi saxlayır
+
+Yəni `İsraf` basanda sistem bunu “zibilə getdi” kimi qəbul edir.
+
+### Hesabdan sil nə deməkdir?
+
+`Hesabdan sil` o deməkdir ki, məhsul tarixçədə qalır, amma müştəridən pulu alınmır.
+
+Əgər məhsul artıq `READY` və ya `SERVED` olubsa:
+
+- məhsul hazırlanmış sayılır
+- müştəridən pulu alınmır
+- amma resept malları anbardan silinir
+
+Yəni pulsuz verdik, amma mal işlənib.
+
+### Yenidən düzəlt nə deməkdir?
+
+Əgər məhsul hələ hazır deyilsə:
+
+- köhnə item dayandırılır
+- yeni düzəliş item-i mətbəxə gedir
+- köhnə item üçün anbar silinməyə bilər
+
+Əgər məhsul artıq hazır idisə:
+
+- köhnə məhsul zay kimi sayılır
+- resept malları anbardan silinir
+- yeni düzəliş item-i ayrıca hazırlanır və o da normal qaydada stokdan düşür
+
+Qısa cümlə:
+
+Hazırlanmayan səhv sifariş anbara təsir etmir. Hazırlanmış, zay olmuş və ya pulsuz verilmiş məhsul isə anbardan düşür.
+
+---
+
+## 24. Hesabı necə bağlamaq lazımdır?
 
 Masa hesabı bağlamaq üçün:
 
@@ -517,7 +606,7 @@ Nümunə:
 
 ---
 
-## 24. Masa bağlanandan sonra nə olur?
+## 25. Masa bağlanandan sonra nə olur?
 
 Hesab bağlananda masa `Təmizlik` statusuna keçir.
 
@@ -535,7 +624,7 @@ Sonra masa yenidən boş olur.
 
 ---
 
-## 25. Ofisiant üçün qızıl qaydalar
+## 26. Ofisiant üçün qızıl qaydalar
 
 1. Masada oturan qonaq üçün `Masalar` bölməsindən işləyin.
 2. Məhsulu seçəndən sonra `Göndər` basmağı unutmayın.
@@ -545,10 +634,11 @@ Sonra masa yenidən boş olur.
 6. Məhsul səhv gedibsə, `Yenidən düzəlt` istifadə edin.
 7. Məhsul hazır olubsa, adi edit etməyin.
 8. Mətbəxdə `STOP` görünürsə, həmin item-i hazırlamaq olmaz.
-9. Hesab bağlanandan sonra masa təmizlənmədən yeni qonaq oturtmayın.
-10. Şübhəli halda manager çağırın.
+9. `İsraf` basırsınızsa, sistem bunu zay məhsul kimi anbardan çıxarır.
+10. Hazırlanmış məhsulu `Hesabdan sil` edəndə müştəridən pul alınmır, amma mal anbardan düşür.
+11. Hesab bağlanandan sonra masa təmizlənmədən yeni qonaq oturtmayın.
+12. Şübhəli halda manager çağırın.
 
 Ən vacib cümlə:
 
 Mətbəxə gedən məhsul izsiz silinmir. Hər şey sistemdə qalır.
-
