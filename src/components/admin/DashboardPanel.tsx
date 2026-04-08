@@ -64,6 +64,40 @@ const money = (value: any) => `${new Decimal(value || 0).toFixed(2)} ₼`;
 
 const normalizeStatus = (status: any) => String(status || '').toUpperCase();
 
+const orderTypeLabel = (value: any, lang: string) => {
+  const normalized = String(value || '').trim().toUpperCase();
+  const labels: Record<string, string> = {
+    DINE_IN: tx(lang, 'Zalda', 'В зале', 'Dine in'),
+    DINEIN: tx(lang, 'Zalda', 'В зале', 'Dine in'),
+    TAKEAWAY: tx(lang, 'Al-apar', 'На вынос', 'Takeaway'),
+    TAKE_AWAY: tx(lang, 'Al-apar', 'На вынос', 'Takeaway'),
+    DELIVERY: tx(lang, 'Çatdırılma', 'Доставка', 'Delivery'),
+  };
+  return labels[normalized] || String(value || '-');
+};
+
+const paymentMethodLabel = (value: any, lang: string) => {
+  const normalized = String(value || '').trim().toUpperCase();
+  const labels: Record<string, string> = {
+    CASH: tx(lang, 'Nağd', 'Наличные', 'Cash'),
+    CARD: tx(lang, 'Kart', 'Карта', 'Card'),
+    SPLIT: tx(lang, 'Bölünmüş ödəniş', 'Раздельная оплата', 'Split'),
+  };
+  return labels[normalized] || String(value || '-');
+};
+
+const tableStatusLabel = (value: any, lang: string) => {
+  const normalized = normalizeStatus(value);
+  const labels: Record<string, string> = {
+    AVAILABLE: tx(lang, 'Boş', 'Свободен', 'Available'),
+    RESERVED: tx(lang, 'Rezerv', 'Резерв', 'Reserved'),
+    SEATED: tx(lang, 'Oturub', 'Посажен', 'Seated'),
+    ACTIVE_CHECK: tx(lang, 'Açıq hesab', 'Открытый чек', 'Active check'),
+    DIRTY: tx(lang, 'Təmizlik', 'Грязный', 'Dirty'),
+  };
+  return labels[normalized] || normalized || tx(lang, 'Aktiv', 'Активно', 'Active');
+};
+
 export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: DashboardTab) => void }) {
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
@@ -295,7 +329,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         title: tx(lang, 'Offline satışlar gözləyir', 'Оффлайн продажи ждут', 'Offline orders pending'),
         body: `${snapshot.pendingOffline} ${tx(lang, 'əməliyyat sync gözləyir', 'операций ждут синхронизации', 'operations wait for sync')}`,
         tone: 'warning',
-        actionLabel: tx(lang, 'Fix', 'Исправить', 'Fix'),
+        actionLabel: tx(lang, 'Düzəlt', 'Исправить', 'Fix'),
         action: () => onOpenTab('analytics'),
       });
     }
@@ -315,7 +349,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         title: tx(lang, 'Void / israf nəzarəti', 'Контроль void / списания', 'Void / waste control'),
         body: `${voidWasteCount} ${tx(lang, 'nəzarətli item əməliyyatı var', 'контролируемых действий по позициям', 'controlled item actions')}`,
         tone: 'warning',
-        actionLabel: tx(lang, 'Audit', 'Аудит', 'Audit'),
+        actionLabel: tx(lang, 'Auditə bax', 'Аудит', 'Audit'),
         action: () => onOpenTab('analytics'),
       });
     }
@@ -411,7 +445,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
       <main className="grid grid-cols-1 gap-5 2xl:grid-cols-[1.25fr_0.85fr]">
         <section className="space-y-5">
           <PanelCard
-            title={tx(lang, 'Live Sales', 'Live продажи', 'Live Sales')}
+            title={tx(lang, 'Canlı satışlar', 'Live продажи', 'Live Sales')}
             subtitle={tx(lang, 'Son əməliyyatlar, real-time yenilənir', 'Последние операции, обновляется real-time', 'Recent operations, realtime refreshed')}
             actionLabel={tx(lang, 'Analitikaya keç', 'Открыть аналитику', 'Open analytics')}
             onAction={() => onOpenTab('analytics')}
@@ -443,13 +477,13 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
             onOpenFinance={() => onOpenTab('finance')}
           />
 
-          <PanelCard title={tx(lang, 'Staff performance', 'Эффективность персонала', 'Staff performance')} subtitle={activeRange.label}>
+          <PanelCard title={tx(lang, 'Heyət performansı', 'Эффективность персонала', 'Staff performance')} subtitle={activeRange.label}>
             <StaffStats rows={staffStats} lang={lang} />
           </PanelCard>
 
           <PanelCard
-            title={tx(lang, 'Alerts breakdown', 'Разбор предупреждений', 'Alerts breakdown')}
-            subtitle={tx(lang, 'Kritik / warning / info bölgüsü', 'Критические / warning / info', 'Critical / warning / info split')}
+            title={tx(lang, 'Xəbərdarlıq bölgüsü', 'Разбор предупреждений', 'Alerts breakdown')}
+            subtitle={tx(lang, 'Kritik / xəbərdarlıq / məlumat bölgüsü', 'Критические / warning / info', 'Critical / warning / info split')}
           >
             <AlertsBreakdown breakdown={alertBreakdown} financeAuditLogs={financeAuditLogs} lang={lang} onOpenFinance={() => onOpenTab('finance')} />
           </PanelCard>
@@ -490,10 +524,10 @@ function AlertBar({
           </div>
           <div>
             <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">
-              {empty ? tx(lang, 'Kritik alert yoxdur', 'Критических alert нет', 'No critical alerts') : tx(lang, 'Critical alert bar', 'Critical alert bar', 'Critical alert bar')}
+              {empty ? tx(lang, 'Kritik xəbərdarlıq yoxdur', 'Критических alert нет', 'No critical alerts') : tx(lang, 'Kritik xəbərdarlıq zolağı', 'Critical alert bar', 'Critical alert bar')}
             </div>
             <div className="text-xs text-slate-500">
-              {loading ? tx(lang, 'Yenilənir...', 'Обновляется...', 'Refreshing...') : tx(lang, 'Auto-refresh + real-time event aktivdir', 'Auto-refresh + real-time активны', 'Auto-refresh + realtime events are active')}
+              {loading ? tx(lang, 'Yenilənir...', 'Обновляется...', 'Refreshing...') : tx(lang, 'Avto-yeniləmə və real-time hadisələr aktivdir', 'Auto-refresh + real-time активны', 'Auto-refresh + realtime events are active')}
             </div>
           </div>
         </div>
@@ -617,12 +651,12 @@ function KPISection({
 }) {
   return (
     <section className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-6">
-      <KpiCard title={tx(lang, 'Bu gün satış', 'Продажи сегодня', 'Today sales')} value={revenue} helper="↑ live" icon={<Receipt size={22} />} tone="emerald" onClick={() => onOpenTab('analytics')} />
+      <KpiCard title={tx(lang, 'Bu gün satış', 'Продажи сегодня', 'Today sales')} value={revenue} helper={tx(lang, 'canlı yenilənir', 'live', 'live')} icon={<Receipt size={22} />} tone="emerald" onClick={() => onOpenTab('analytics')} />
       <KpiCard title={tx(lang, 'Aktiv masalar', 'Активные столы', 'Active tables')} value={String(activeTables)} helper={tx(lang, 'zal vəziyyəti', 'зал', 'floor')} icon={<Users size={22} />} tone="sky" onClick={() => onOpenTab('tables')} />
-      <KpiCard title={tx(lang, 'Açıq check', 'Открытые чеки', 'Open checks')} value={String(openChecks)} helper={tx(lang, 'ödəniş gözləyir', 'ждет оплаты', 'awaiting payment')} icon={<ShoppingBag size={22} />} tone="violet" onClick={() => onOpenTab('tables')} />
-      <KpiCard title={tx(lang, 'Avg ticket', 'Средний чек', 'Avg ticket')} value={avgTicket} helper={tx(lang, 'çek başına', 'на чек', 'per check')} icon={<CreditCard size={22} />} tone="slate" onClick={() => onOpenTab('analytics')} />
-      <KpiCard title={tx(lang, 'Kitchen load', 'Загрузка кухни', 'Kitchen load')} value={`${kitchenLoad}%`} helper={kitchenLoad >= 70 ? tx(lang, 'yüklənmə yüksəkdir', 'нагрузка высокая', 'high load') : tx(lang, 'normal', 'норма', 'normal')} icon={<ChefHat size={22} />} tone={kitchenLoad >= 70 ? 'amber' : 'emerald'} onClick={() => onOpenTab('tables')} />
-      <KpiCard title={tx(lang, 'Cash fərqi', 'Разница кассы', 'Cash gap')} value={cashGap} helper={tx(lang, 'shift audit', 'shift audit', 'shift audit')} icon={<Wallet size={22} />} tone={cashGap.startsWith('0.00') ? 'emerald' : 'rose'} onClick={() => onOpenTab('finance')} />
+      <KpiCard title={tx(lang, 'Açıq hesablar', 'Открытые чеки', 'Open checks')} value={String(openChecks)} helper={tx(lang, 'ödəniş gözləyir', 'ждет оплаты', 'awaiting payment')} icon={<ShoppingBag size={22} />} tone="violet" onClick={() => onOpenTab('tables')} />
+      <KpiCard title={tx(lang, 'Orta çek', 'Средний чек', 'Avg ticket')} value={avgTicket} helper={tx(lang, 'çek başına', 'на чек', 'per check')} icon={<CreditCard size={22} />} tone="slate" onClick={() => onOpenTab('analytics')} />
+      <KpiCard title={tx(lang, 'Mətbəx yüklənməsi', 'Загрузка кухни', 'Kitchen load')} value={`${kitchenLoad}%`} helper={kitchenLoad >= 70 ? tx(lang, 'yüklənmə yüksəkdir', 'нагрузка высокая', 'high load') : tx(lang, 'normaldır', 'норма', 'normal')} icon={<ChefHat size={22} />} tone={kitchenLoad >= 70 ? 'amber' : 'emerald'} onClick={() => onOpenTab('tables')} />
+      <KpiCard title={tx(lang, 'Kassa fərqi', 'Разница кассы', 'Cash gap')} value={cashGap} helper={tx(lang, 'növbə auditi', 'shift audit', 'shift audit')} icon={<Wallet size={22} />} tone={cashGap.startsWith('0.00') ? 'emerald' : 'rose'} onClick={() => onOpenTab('finance')} />
     </section>
   );
 }
@@ -702,11 +736,11 @@ function LiveFeed({ sales, lang }: { sales: any[]; lang: string }) {
         <div key={sale.id} className="flex items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3">
           <div>
             <div className="font-bold text-white">{sale.cashier || '-'}</div>
-            <div className="mt-1 text-xs text-slate-500">{formatServerUtcTime(sale.created_at, lang)} · {sale.order_type || 'Dine In'}</div>
+            <div className="mt-1 text-xs text-slate-500">{formatServerUtcTime(sale.created_at, lang)} · {orderTypeLabel(sale.order_type || 'DINE_IN', lang)}</div>
           </div>
           <div className="text-right">
             <div className="text-lg font-black text-white">{money(sale.total)}</div>
-            <div className="text-xs text-slate-500">{sale.payment_method || '-'}</div>
+            <div className="text-xs text-slate-500">{paymentMethodLabel(sale.payment_method, lang)}</div>
           </div>
         </div>
       ))}
@@ -749,7 +783,7 @@ function OpenChecksPreview({ tables, lang }: { tables: any[]; lang: string }) {
             </div>
             <div className="text-right">
               <div className="text-lg font-black text-white">{money(table.total)}</div>
-              <div className="text-xs text-violet-300">{normalizeStatus(table.status) || 'ACTIVE'}</div>
+              <div className="text-xs text-violet-300">{tableStatusLabel(table.status, lang)}</div>
             </div>
           </div>
         </div>
@@ -816,7 +850,7 @@ function StaffStats({ rows, lang }: { rows: Array<{ cashier: string; sales: numb
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="font-bold text-white">{row.cashier}</div>
-              <div className="mt-1 text-xs text-slate-500">{row.sales} {tx(lang, 'satış', 'продаж', 'sales')} · avg {money(row.avg)}</div>
+              <div className="mt-1 text-xs text-slate-500">{row.sales} {tx(lang, 'satış', 'продаж', 'sales')} · {tx(lang, 'orta çek', 'средний чек', 'avg')} {money(row.avg)}</div>
             </div>
             <div className="text-lg font-black text-white">{money(row.revenue)}</div>
           </div>
@@ -841,13 +875,13 @@ function AlertsBreakdown({
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
         <MiniMetric label={tx(lang, 'Kritik', 'Критик', 'Critical')} value={String(breakdown.critical)} danger={breakdown.critical > 0} />
-        <MiniMetric label="Warning" value={String(breakdown.warning)} danger={false} />
-        <MiniMetric label="Info" value={String(breakdown.info)} danger={false} />
+        <MiniMetric label={tx(lang, 'Xəbərdarlıq', 'Предупреждение', 'Warning')} value={String(breakdown.warning)} danger={false} />
+        <MiniMetric label={tx(lang, 'Məlumat', 'Инфо', 'Info')} value={String(breakdown.info)} danger={false} />
       </div>
       <div className="space-y-3">
         {financeAuditLogs.map((log: any) => (
           <div key={log.id} className="rounded-2xl border border-slate-800 bg-slate-950 px-4 py-3">
-            <div className="font-bold text-white">FINANCE_ANOMALY</div>
+            <div className="font-bold text-white">{tx(lang, 'Maliyyə anomaliyası', 'Финансовая аномалия', 'Finance anomaly')}</div>
             <div className="mt-1 text-xs text-slate-500">{formatServerUtcTime(log.created_at, lang)}</div>
           </div>
         ))}
