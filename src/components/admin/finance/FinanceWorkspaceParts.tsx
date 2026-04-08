@@ -52,7 +52,7 @@ export function FinanceSummaryStrip({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-100">
-            {tx(lang, 'Pending approvals', 'Ожидает approval', 'Pending approvals')}: {pendingApprovals}
+            {tx(lang, 'Təsdiq gözləyənlər', 'Ожидает approval', 'Pending approvals')}: {pendingApprovals}
           </span>
           <button onClick={onRefresh} className="min-h-12 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100">
             {tx(lang, 'Yenilə', 'Обновить', 'Refresh')}
@@ -78,7 +78,7 @@ function FinanceKpiCard({ label, value, tone, icon }: { label: string; value: an
     <div className={`rounded-[24px] border p-4 ${toneMap[tone]}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="rounded-2xl bg-white/10 p-3">{icon}</div>
-        <div className="text-right text-xs font-black uppercase tracking-[0.16em] opacity-70">KPI</div>
+        <div className="text-right text-xs font-black uppercase tracking-[0.16em] opacity-70">{tx('az', 'Göstərici', 'KPI', 'KPI')}</div>
       </div>
       <div className="mt-4 text-xs font-black uppercase tracking-[0.18em] opacity-70">{label}</div>
       <div className="mt-2 text-2xl font-black text-white">{new Decimal(value || 0).toFixed(2)} ₼</div>
