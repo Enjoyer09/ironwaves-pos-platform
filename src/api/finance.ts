@@ -617,6 +617,228 @@ export type FinanceAnomalies = {
   shift_open: boolean;
 };
 
+export type FinanceLedgerAccount = {
+  id: string;
+  code: string;
+  name: string;
+  account_type: string;
+  currency: string;
+  is_active: boolean;
+  debit_total: string;
+  credit_total: string;
+  ledger_balance: string;
+  created_at?: string | null;
+};
+
+export type FinanceLedgerTransaction = {
+  id: string;
+  transaction_type: string;
+  status: string;
+  source_account?: string | null;
+  destination_account?: string | null;
+  amount: string;
+  currency: string;
+  category?: string | null;
+  counterparty?: string | null;
+  reference?: string | null;
+  note?: string | null;
+  created_by: string;
+  approved_by?: string | null;
+  posted_by?: string | null;
+  created_at?: string | null;
+  posted_at?: string | null;
+  reversed_at?: string | null;
+  legacy_finance_entry_id?: string | null;
+};
+
+export type FinanceLedgerEntry = {
+  id: string;
+  transaction_id: string;
+  account_code?: string | null;
+  account_name?: string | null;
+  entry_side: 'debit' | 'credit' | string;
+  amount: string;
+  currency: string;
+  description?: string | null;
+  created_at?: string | null;
+};
+
+export type FinanceReconciliation = {
+  id: string;
+  account_code?: string | null;
+  account_name?: string | null;
+  status: string;
+  expected_balance: string;
+  counted_balance: string;
+  variance: string;
+  notes?: string | null;
+  reconciled_by?: string | null;
+  reconciled_at?: string | null;
+  created_by: string;
+  created_at?: string | null;
+};
+
+const localLedgerAccounts = (tenant_id: string): FinanceLedgerAccount[] => {
+  const balance = get_balance(tenant_id, 'all', false) as any;
+  const specs = [
+    ['cash', 'Nağd Kassa', 'cash_drawer', balance.cash_balance],
+    ['card', 'Bank/Kart', 'bank_account', balance.card_balance],
+    ['safe', 'Seyf', 'safe', balance.safe_balance],
+    ['deposit', 'Depozit Öhdəliyi', 'deposit_liability', balance.deposit_balance],
+    ['investor', 'Investor Borcu', 'investor_liability', balance.investor_balance],
+    ['debt', 'Nisyə/Borc', 'receivable', balance.debt_balance],
+  ] as const;
+  return specs.map(([code, name, account_type, ledger_balance]) => ({
+    id: `local-${code}`,
+    code,
+    name,
+    account_type,
+    currency: 'AZN',
+    is_active: true,
+    debit_total: '0',
+    credit_total: '0',
+    ledger_balance: String(ledger_balance || '0'),
+    created_at: null,
+  }));
+};
+
+const localLedgerTransactions = (tenant_id: string, limit = 200): FinanceLedgerTransaction[] =>
+  get_finance_entries(tenant_id)
+    .slice()
+    .sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime())
+    .slice(0, limit)
+    .map((entry) => ({
+      id: `legacy-${entry.id}`,
+      transaction_type: entry.type === 'in' ? 'income' : 'expense',
+      status: 'posted',
+      source_account: entry.type === 'out' ? normalizeSource(String(entry.source || 'cash')) : 'revenue',
+      destination_account: entry.type === 'in' ? normalizeSource(String(entry.source || 'cash')) : 'expense',
+      amount: String(entry.amount || '0'),
+      currency: 'AZN',
+      category: entry.category,
+      counterparty: undefined,
+      reference: undefined,
+      note: entry.description || '',
+      created_by: 'local',
+      posted_by: 'local',
+      created_at: entry.created_at,
+      posted_at: entry.created_at,
+      reversed_at: null,
+      legacy_finance_entry_id: entry.id,
+    }));
+
+export const fetch_finance_ledger_accounts = async (tenant_id: string): Promise<FinanceLedgerAccount[]> => {
+  if (!isBackendEnabled()) return localLedgerAccounts(tenant_id);
+  const rows = await apiRequest<any[]>('/api/v1/finance/ledger/accounts', {
+    method: 'GET',
+    tenantId: tenant_id,
+  });
+  return (rows || []).map((row) => ({
+    id: String(row.id),
+    code: String(row.code || ''),
+    name: String(row.name || ''),
+    account_type: String(row.account_type || ''),
+    currency: String(row.currency || 'AZN'),
+    is_active: Boolean(row.is_active ?? true),
+    debit_total: String(row.debit_total ?? '0'),
+    credit_total: String(row.credit_total ?? '0'),
+    ledger_balance: String(row.ledger_balance ?? '0'),
+    created_at: row.created_at ?? null,
+  }));
+};
+
+export const fetch_finance_ledger_transactions = async (tenant_id: string, limit = 200): Promise<FinanceLedgerTransaction[]> => {
+  if (!isBackendEnabled()) return localLedgerTransactions(tenant_id, limit);
+  const rows = await apiRequest<any[]>(`/api/v1/finance/ledger/transactions?limit=${encodeURIComponent(String(limit))}`, {
+    method: 'GET',
+    tenantId: tenant_id,
+  });
+  return (rows || []).map((row) => ({
+    id: String(row.id),
+    transaction_type: String(row.transaction_type || ''),
+    status: String(row.status || ''),
+    source_account: row.source_account ?? null,
+    destination_account: row.destination_account ?? null,
+    amount: String(row.amount ?? '0'),
+    currency: String(row.currency || 'AZN'),
+    category: row.category ?? null,
+    counterparty: row.counterparty ?? null,
+    reference: row.reference ?? null,
+    note: row.note ?? null,
+    created_by: String(row.created_by || ''),
+    approved_by: row.approved_by ?? null,
+    posted_by: row.posted_by ?? null,
+    created_at: row.created_at ?? null,
+    posted_at: row.posted_at ?? null,
+    reversed_at: row.reversed_at ?? null,
+    legacy_finance_entry_id: row.legacy_finance_entry_id ?? null,
+  }));
+};
+
+export const fetch_finance_ledger_entries = async (tenant_id: string, limit = 300): Promise<FinanceLedgerEntry[]> => {
+  if (!isBackendEnabled()) return [];
+  const rows = await apiRequest<any[]>(`/api/v1/finance/ledger/entries?limit=${encodeURIComponent(String(limit))}`, {
+    method: 'GET',
+    tenantId: tenant_id,
+  });
+  return (rows || []).map((row) => ({
+    id: String(row.id),
+    transaction_id: String(row.transaction_id || ''),
+    account_code: row.account_code ?? null,
+    account_name: row.account_name ?? null,
+    entry_side: String(row.entry_side || ''),
+    amount: String(row.amount ?? '0'),
+    currency: String(row.currency || 'AZN'),
+    description: row.description ?? null,
+    created_at: row.created_at ?? null,
+  }));
+};
+
+export const fetch_finance_reconciliations = async (tenant_id: string, limit = 100): Promise<FinanceReconciliation[]> => {
+  if (!isBackendEnabled()) return [];
+  const rows = await apiRequest<any[]>(`/api/v1/finance/reconciliations?limit=${encodeURIComponent(String(limit))}`, {
+    method: 'GET',
+    tenantId: tenant_id,
+  });
+  return (rows || []).map((row) => ({
+    id: String(row.id),
+    account_code: row.account_code ?? null,
+    account_name: row.account_name ?? null,
+    status: String(row.status || ''),
+    expected_balance: String(row.expected_balance ?? '0'),
+    counted_balance: String(row.counted_balance ?? '0'),
+    variance: String(row.variance ?? '0'),
+    notes: row.notes ?? null,
+    reconciled_by: row.reconciled_by ?? null,
+    reconciled_at: row.reconciled_at ?? null,
+    created_by: String(row.created_by || ''),
+    created_at: row.created_at ?? null,
+  }));
+};
+
+export const create_finance_reconciliation_async = async (
+  tenant_id: string,
+  account_code: string,
+  expected_balance: string,
+  counted_balance: string,
+  notes?: string,
+) => {
+  if (!isBackendEnabled()) {
+    const variance = new Decimal(counted_balance || '0').minus(new Decimal(expected_balance || '0'));
+    return { success: true, id: uuidv4(), variance: variance.toString() };
+  }
+  return apiRequest<any>('/api/v1/finance/reconciliations', {
+    method: 'POST',
+    tenantId: tenant_id,
+    body: {
+      account_code,
+      expected_balance,
+      counted_balance,
+      notes: notes || '',
+    },
+  });
+};
+
 export const get_finance_anomalies = (tenant_id: string): FinanceAnomalies => {
   const balances = get_balance(tenant_id, 'all', false) as any;
   const investorSummary = get_investor_summary(tenant_id);

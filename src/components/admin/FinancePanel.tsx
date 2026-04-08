@@ -4,10 +4,19 @@ import { useAppStore } from '../../store';
 import { AlertTriangle, ArrowRight, Banknote, BookOpen, CheckCircle2, GitCompareArrows, Landmark, RefreshCw, ShieldCheck, WalletCards } from 'lucide-react';
 import {
   create_finance_entry_async,
+  create_finance_reconciliation_async,
   fetch_finance_anomalies,
   fetch_finance_balances,
   fetch_finance_entries,
+  fetch_finance_ledger_accounts,
+  fetch_finance_ledger_entries,
+  fetch_finance_ledger_transactions,
+  fetch_finance_reconciliations,
   type FinanceAnomalies,
+  type FinanceLedgerAccount,
+  type FinanceLedgerEntry,
+  type FinanceLedgerTransaction,
+  type FinanceReconciliation,
   get_balance,
   get_finance_entries,
   repay_investor_async,
@@ -235,7 +244,14 @@ export default function FinancePanel() {
   });
   const [anomalies, setAnomalies] = useState<FinanceAnomalies | null>(null);
   const [entries, setEntries] = useState<any[]>([]);
+  const [ledgerAccounts, setLedgerAccounts] = useState<FinanceLedgerAccount[]>([]);
+  const [ledgerTransactions, setLedgerTransactions] = useState<FinanceLedgerTransaction[]>([]);
+  const [ledgerEntries, setLedgerEntries] = useState<FinanceLedgerEntry[]>([]);
+  const [reconciliations, setReconciliations] = useState<FinanceReconciliation[]>([]);
   const [ledgerPageSize, setLedgerPageSize] = useState(10);
+  const [reconcileAccount, setReconcileAccount] = useState('cash');
+  const [reconcileCounted, setReconcileCounted] = useState('');
+  const [reconcileNotes, setReconcileNotes] = useState('');
   const [bankCommissionConfig, setBankCommissionConfig] = useState<{ card_sale_percent: number; card_transfer_percent: number }>({
     card_sale_percent: 2,
     card_transfer_percent: 0.5,
@@ -307,6 +323,12 @@ export default function FinancePanel() {
         get_settings_live(tenant_id),
         fetch_finance_anomalies(tenant_id).catch(() => null),
       ]);
+      const [accounts, transactions, ledgerRows, recRows] = await Promise.all([
+        fetch_finance_ledger_accounts(tenant_id).catch(() => []),
+        fetch_finance_ledger_transactions(tenant_id, 250).catch(() => []),
+        fetch_finance_ledger_entries(tenant_id, 500).catch(() => []),
+        fetch_finance_reconciliations(tenant_id, 100).catch(() => []),
+      ]);
       setBalance(b || {
         cash_balance: '0',
         card_balance: '0',
@@ -317,6 +339,10 @@ export default function FinancePanel() {
       });
       setEntries(e || []);
       setAnomalies(serverAnomalies);
+      setLedgerAccounts(accounts);
+      setLedgerTransactions(transactions);
+      setLedgerEntries(ledgerRows);
+      setReconciliations(recRows);
       setBankCommissionConfig({
         card_sale_percent: Number((settings.bank_commission as any)?.card_sale_percent ?? settings.bank_commission?.percent ?? 2),
         card_transfer_percent: Number((settings.bank_commission as any)?.card_transfer_percent ?? 0.5),
@@ -433,6 +459,32 @@ export default function FinancePanel() {
   }, [entries, fromDate, toDate]);
 
   const visibleEntries = useMemo(() => filteredEntries.slice(0, ledgerPageSize), [filteredEntries, ledgerPageSize]);
+  const visibleLedgerTransactions = useMemo(
+    () => ledgerTransactions.slice(0, ledgerPageSize),
+    [ledgerTransactions, ledgerPageSize],
+  );
+  const ledgerAccountByCode = useMemo(() => {
+    const map = new Map<string, FinanceLedgerAccount>();
+    ledgerAccounts.forEach((account) => map.set(account.code, account));
+    return map;
+  }, [ledgerAccounts]);
+  const selectedReconcileAccount = ledgerAccountByCode.get(reconcileAccount);
+  const expectedReconcileBalance = useMemo(() => {
+    if (selectedReconcileAccount) return new Decimal(selectedReconcileAccount.ledger_balance || 0);
+    const balanceMap: Record<string, string> = {
+      cash: balance.cash_balance || '0',
+      card: balance.card_balance || '0',
+      safe: balance.safe_balance || '0',
+      deposit: balance.deposit_balance || '0',
+      investor: balance.investor_balance || '0',
+      debt: balance.debt_balance || '0',
+    };
+    return new Decimal(balanceMap[reconcileAccount] || '0');
+  }, [balance, reconcileAccount, selectedReconcileAccount]);
+  const reconcileVariance = useMemo(
+    () => new Decimal(reconcileCounted || '0').minus(expectedReconcileBalance),
+    [reconcileCounted, expectedReconcileBalance],
+  );
 
   const operationalEntries = useMemo(
     () => filteredEntries.filter((entry: any) => isOperationalFinanceEntry(entry)),
@@ -748,6 +800,36 @@ export default function FinancePanel() {
     }
   };
 
+  const doReconcile = async () => {
+    if (!reconcileCounted || new Decimal(reconcileCounted).isNaN()) {
+      notify('error', tx(lang, 'Sayılmış məbləği yazın', 'Введите посчитанную сумму', 'Enter counted amount'));
+      return;
+    }
+    try {
+      const result = await create_finance_reconciliation_async(
+        tenant_id,
+        reconcileAccount,
+        expectedReconcileBalance.toString(),
+        new Decimal(reconcileCounted).toString(),
+        reconcileNotes,
+      );
+      setReconcileCounted('');
+      setReconcileNotes('');
+      await reloadFinance(true);
+      notify(
+        'success',
+        tx(
+          lang,
+          `Reconciliation yazıldı. Fərq: ${new Decimal(result?.variance || 0).toFixed(2)} ₼`,
+          `Сверка записана. Разница: ${new Decimal(result?.variance || 0).toFixed(2)} ₼`,
+          `Reconciliation recorded. Variance: ${new Decimal(result?.variance || 0).toFixed(2)} ₼`,
+        ),
+      );
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Reconciliation alınmadı', 'Сверка не выполнена', 'Reconciliation failed'));
+    }
+  };
+
   const todayInflow = financeSummary.incoming;
   const todayOutflow = financeSummary.outgoing;
   const unreconciledVariance = anomalies?.shift_cash_gap || '0';
@@ -937,12 +1019,24 @@ export default function FinancePanel() {
     </div>
   );
 
+  const accountName = (code?: string | null) =>
+    ledgerAccountByCode.get(String(code || ''))?.name || code || '-';
+
+  const transactionTypeLabel = (value?: string | null) => {
+    const typeValue = String(value || '').replace(/_/g, ' ');
+    if (!typeValue) return '-';
+    return typeValue.replace(/\b\w/g, (letter) => letter.toUpperCase());
+  };
+
   const ledgerTable = (
     <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-5">
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">{tx(lang, 'Journal / Ledger', 'Журнал / Ledger', 'Journal / Ledger')}</div>
-          <h3 className="mt-2 text-xl font-black text-white">{tx(lang, 'LedgerTable', 'Таблица ledger', 'LedgerTable')}</h3>
+          <div className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">{tx(lang, 'Double-entry journal', 'Двойной ledger', 'Double-entry journal')}</div>
+          <h3 className="mt-2 text-xl font-black text-white">{tx(lang, 'Ledger Transactions', 'Ledger операции', 'Ledger Transactions')}</h3>
+          <p className="mt-1 text-sm text-slate-400">
+            {tx(lang, 'Hər posted transaction debit/credit entry-lərlə izlənir.', 'Каждая posted transaction отслеживается debit/credit записями.', 'Every posted transaction is tracked with debit/credit entries.')}
+          </p>
         </div>
         <div className="flex gap-2">
           <select value={ledgerPageSize} onChange={(e) => setLedgerPageSize(Number(e.target.value))} className="neon-input min-h-12 w-28">
@@ -953,6 +1047,20 @@ export default function FinancePanel() {
           <button className="neon-btn rounded-2xl px-4 text-sm font-black" onClick={exportCsv}>{tx(lang, 'Export', 'Экспорт', 'Export')}</button>
         </div>
       </div>
+      <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        {ledgerAccounts.slice(0, 6).map((account) => (
+          <div key={account.id} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{account.code}</div>
+            <div className="mt-1 text-sm font-black text-white">{account.name}</div>
+            <div className="mt-2 text-lg font-black text-emerald-200">{new Decimal(account.ledger_balance || 0).toFixed(2)} ₼</div>
+          </div>
+        ))}
+        {ledgerAccounts.length === 0 && (
+          <div className="col-span-full rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-400">
+            {tx(lang, 'Ledger hesabları hələ yüklənməyib.', 'Ledger счета еще не загружены.', 'Ledger accounts are not loaded yet.')}
+          </div>
+        )}
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-800 text-slate-400">
@@ -960,29 +1068,36 @@ export default function FinancePanel() {
               <th className="py-3">{tx(lang, 'Tarix', 'Дата', 'Date')}</th>
               <th className="py-3">{tx(lang, 'Status', 'Статус', 'Status')}</th>
               <th className="py-3">{tx(lang, 'Type', 'Тип', 'Type')}</th>
-              <th className="py-3">{tx(lang, 'Account', 'Счет', 'Account')}</th>
+              <th className="py-3">{tx(lang, 'From → To', 'Откуда → куда', 'From → To')}</th>
               <th className="py-3">{tx(lang, 'Category', 'Категория', 'Category')}</th>
               <th className="py-3 text-right">{tx(lang, 'Amount', 'Сумма', 'Amount')}</th>
               <th className="py-3">{tx(lang, 'Note', 'Комментарий', 'Note')}</th>
             </tr>
           </thead>
           <tbody>
-            {visibleEntries.map((entry: any) => (
+            {visibleLedgerTransactions.map((entry) => (
               <tr key={entry.id} className="border-b border-slate-900">
-                <td className="py-3 text-slate-300">{formatServerUtcDateTime(entry.created_at, lang)}</td>
-                <td className="py-3"><span className="rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-200">POSTED</span></td>
-                <td className={`py-3 font-bold ${entry.type === 'in' ? 'text-emerald-300' : 'text-rose-300'}`}>{entry.type === 'in' ? 'INCOME' : 'EXPENSE'}</td>
-                <td className="py-3 text-slate-300">{entry.source}</td>
-                <td className="py-3 text-slate-200">{entry.category}</td>
+                <td className="py-3 text-slate-300">{formatServerUtcDateTime(entry.posted_at || entry.created_at || '', lang)}</td>
+                <td className="py-3"><span className="rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-200">{entry.status || 'posted'}</span></td>
+                <td className="py-3 font-bold text-sky-200">{transactionTypeLabel(entry.transaction_type)}</td>
+                <td className="py-3 text-slate-300">
+                  <span className="font-bold text-slate-200">{accountName(entry.source_account)}</span>
+                  <span className="px-2 text-slate-600">→</span>
+                  <span className="font-bold text-slate-200">{accountName(entry.destination_account)}</span>
+                </td>
+                <td className="py-3 text-slate-200">{entry.category || '-'}</td>
                 <td className="py-3 text-right font-black text-white">{new Decimal(entry.amount || 0).toFixed(2)} ₼</td>
-                <td className="max-w-[280px] truncate py-3 text-slate-400">{entry.description || '-'}</td>
+                <td className="max-w-[280px] truncate py-3 text-slate-400">{entry.note || entry.reference || '-'}</td>
               </tr>
             ))}
-            {visibleEntries.length === 0 && (
+            {visibleLedgerTransactions.length === 0 && (
               <tr><td colSpan={7} className="py-10 text-center text-slate-500">{tx(lang, 'Bu aralıqda ledger qeydi yoxdur', 'За период нет ledger записей', 'No ledger rows for this range')}</td></tr>
             )}
           </tbody>
         </table>
+      </div>
+      <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-xs text-slate-400">
+        {ledgerEntries.length} {tx(lang, 'debit/credit entry yüklənib. Transaction detail drawer növbəti mərhələdə bu entry-ləri ayrıca göstərəcək.', 'debit/credit записей загружено. Drawer деталей transaction покажет их на следующем этапе.', 'debit/credit entries loaded. The transaction detail drawer will expose them in the next phase.')}
       </div>
     </div>
   );
@@ -1052,14 +1167,64 @@ export default function FinancePanel() {
         </FinanceControlCard>
       )}
       {workspaceTab === 'reconciliation' && (
-        <FinanceControlCard title={tx(lang, 'Reconciliation', 'Сверка', 'Reconciliation')} subtitle={tx(lang, 'Expected və actual kassa tutuşdurması', 'Сверка expected и actual кассы', 'Expected vs actual cash count')}>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <FinanceMiniMetric label="Expected" value={`${new Decimal(anomalies?.expected_cash || balance.cash_balance || 0).toFixed(2)} ₼`} tone="sky" />
-            <FinanceMiniMetric label="Actual" value={`${new Decimal(balance.cash_balance || 0).toFixed(2)} ₼`} tone="emerald" />
-            <FinanceMiniMetric label="Variance" value={`${new Decimal(unreconciledVariance || 0).toFixed(2)} ₼`} tone={new Decimal(unreconciledVariance || 0).abs().gt(0.01) ? 'rose' : 'emerald'} />
-          </div>
-          <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-400">
-            {tx(lang, 'Count başlat / adjust / reconcile əməliyyatları növbəti backend-ledger mərhələsində ayrıca transaction kimi post ediləcək.', 'Count / adjust / reconcile будут проводиться как отдельные ledger transaction на следующем этапе backend.', 'Count / adjust / reconcile will be posted as separate ledger transactions in the next backend-ledger phase.')}
+        <FinanceControlCard title={tx(lang, 'Reconciliation', 'Сверка', 'Reconciliation')} subtitle={tx(lang, 'Till count, expected və actual balans tutuşdurması', 'Till count, сверка expected и actual баланса', 'Till count, expected vs actual balance')}>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+            <div className="rounded-[24px] border border-slate-800 bg-slate-950 p-4">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <FinanceMiniMetric label="Expected" value={`${expectedReconcileBalance.toFixed(2)} ₼`} tone="sky" />
+                <FinanceMiniMetric label="Counted" value={`${new Decimal(reconcileCounted || 0).toFixed(2)} ₼`} tone="emerald" />
+                <FinanceMiniMetric label="Variance" value={`${reconcileVariance.toFixed(2)} ₼`} tone={reconcileVariance.abs().gt(0.01) ? 'rose' : 'emerald'} />
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-3">
+                <FinanceField label={tx(lang, 'Account / till', 'Счет / касса', 'Account / till')}>
+                  <select className="neon-input min-h-13" value={reconcileAccount} onChange={(e) => setReconcileAccount(e.target.value)}>
+                    {(ledgerAccounts.length ? ledgerAccounts : [
+                      { code: 'cash', name: 'Nağd Kassa' },
+                      { code: 'card', name: 'Bank/Kart' },
+                      { code: 'safe', name: 'Seyf' },
+                    ] as any[]).map((account: any) => (
+                      <option key={account.code} value={account.code}>{account.name}</option>
+                    ))}
+                  </select>
+                </FinanceField>
+                <FinanceField label={tx(lang, 'Sayılmış balans', 'Посчитанный баланс', 'Counted balance')} helper={tx(lang, 'Operator fiziki saydığı məbləği yazır.', 'Оператор вводит физически посчитанную сумму.', 'Operator enters the physically counted amount.')}>
+                  <input className="neon-input min-h-16 text-2xl font-black" type="number" min={0} step="0.01" value={reconcileCounted} onChange={(e) => setReconcileCounted(e.target.value)} />
+                </FinanceField>
+                <FinanceField label={tx(lang, 'Qeyd', 'Комментарий', 'Note')}>
+                  <input className="neon-input min-h-13" value={reconcileNotes} onChange={(e) => setReconcileNotes(e.target.value)} />
+                </FinanceField>
+                <button onClick={() => void doReconcile()} className="glossy-gold min-h-14 rounded-2xl px-6 text-base font-black">
+                  {tx(lang, 'Reconcile et', 'Сверить', 'Reconcile')}
+                </button>
+              </div>
+            </div>
+            <div className="rounded-[24px] border border-slate-800 bg-slate-950 p-4">
+              <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Son reconciliation-lar', 'Последние сверки', 'Recent reconciliations')}</div>
+              <div className="space-y-3">
+                {reconciliations.slice(0, 8).map((row) => (
+                  <div key={row.id} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="font-black text-white">{row.account_name || row.account_code}</div>
+                        <div className="text-xs text-slate-500">{formatServerUtcDateTime(row.reconciled_at || row.created_at || '', lang)} · {row.reconciled_by || row.created_by}</div>
+                      </div>
+                      <span className={`rounded-full px-3 py-1 text-xs font-black ${new Decimal(row.variance || 0).abs().gt(0.01) ? 'bg-rose-400/10 text-rose-200' : 'bg-emerald-400/10 text-emerald-200'}`}>
+                        {new Decimal(row.variance || 0).toFixed(2)} ₼
+                      </span>
+                    </div>
+                    <div className="mt-2 text-xs text-slate-400">
+                      Expected {new Decimal(row.expected_balance || 0).toFixed(2)} ₼ · Counted {new Decimal(row.counted_balance || 0).toFixed(2)} ₼
+                    </div>
+                    {row.notes && <div className="mt-2 text-xs text-slate-500">{row.notes}</div>}
+                  </div>
+                ))}
+                {reconciliations.length === 0 && (
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-sm text-slate-400">
+                    {tx(lang, 'Hələ reconciliation qeydi yoxdur.', 'Пока нет записей сверки.', 'No reconciliation records yet.')}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </FinanceControlCard>
       )}
