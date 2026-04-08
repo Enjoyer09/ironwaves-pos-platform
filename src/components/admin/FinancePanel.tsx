@@ -5,14 +5,17 @@ import { AlertTriangle, ArrowRight, Banknote, BookOpen, CheckCircle2, GitCompare
 import {
   create_finance_entry_async,
   create_finance_reconciliation_async,
+  approve_finance_transaction_async,
   fetch_finance_anomalies,
   fetch_finance_balances,
   fetch_finance_entries,
   fetch_finance_ledger_accounts,
   fetch_finance_ledger_entries,
   fetch_finance_ledger_transactions,
+  fetch_finance_pending_approvals,
   fetch_finance_reconciliations,
   fetch_finance_transaction_detail,
+  reject_finance_transaction_async,
   type FinanceAnomalies,
   type FinanceTransactionDetail,
   type FinanceLedgerAccount,
@@ -22,6 +25,7 @@ import {
   get_balance,
   get_finance_entries,
   repay_investor_async,
+  request_finance_reversal_async,
   transfer_funds_async,
 } from '../../api/finance';
 import { get_settings_live } from '../../api/settings';
@@ -250,6 +254,7 @@ export default function FinancePanel() {
   const [ledgerTransactions, setLedgerTransactions] = useState<FinanceLedgerTransaction[]>([]);
   const [ledgerEntries, setLedgerEntries] = useState<FinanceLedgerEntry[]>([]);
   const [reconciliations, setReconciliations] = useState<FinanceReconciliation[]>([]);
+  const [pendingApprovals, setPendingApprovals] = useState<FinanceLedgerTransaction[]>([]);
   const [selectedLedgerDetail, setSelectedLedgerDetail] = useState<FinanceTransactionDetail | null>(null);
   const [ledgerDetailLoading, setLedgerDetailLoading] = useState(false);
   const [ledgerPageSize, setLedgerPageSize] = useState(10);
@@ -327,11 +332,12 @@ export default function FinancePanel() {
         get_settings_live(tenant_id),
         fetch_finance_anomalies(tenant_id).catch(() => null),
       ]);
-      const [accounts, transactions, ledgerRows, recRows] = await Promise.all([
+      const [accounts, transactions, ledgerRows, recRows, pendingRows] = await Promise.all([
         fetch_finance_ledger_accounts(tenant_id).catch(() => []),
         fetch_finance_ledger_transactions(tenant_id, 250).catch(() => []),
         fetch_finance_ledger_entries(tenant_id, 500).catch(() => []),
         fetch_finance_reconciliations(tenant_id, 100).catch(() => []),
+        fetch_finance_pending_approvals(tenant_id).catch(() => []),
       ]);
       setBalance(b || {
         cash_balance: '0',
@@ -347,6 +353,7 @@ export default function FinancePanel() {
       setLedgerTransactions(transactions);
       setLedgerEntries(ledgerRows);
       setReconciliations(recRows);
+      setPendingApprovals(pendingRows);
       setBankCommissionConfig({
         card_sale_percent: Number((settings.bank_commission as any)?.card_sale_percent ?? settings.bank_commission?.percent ?? 2),
         card_transfer_percent: Number((settings.bank_commission as any)?.card_transfer_percent ?? 0.5),
@@ -852,11 +859,66 @@ export default function FinancePanel() {
     }
   };
 
+  const approveTransaction = async (transactionId: string) => {
+    try {
+      await approve_finance_transaction_async(tenant_id, transactionId);
+      await reloadFinance(true);
+      if (selectedLedgerDetail?.transaction.id === transactionId) {
+        const detail = await fetch_finance_transaction_detail(tenant_id, transactionId);
+        setSelectedLedgerDetail(detail);
+      }
+      notify('success', tx(lang, 'Transaction təsdiqləndi və post edildi', 'Transaction подтвержден и posted', 'Transaction approved and posted'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Approval alınmadı', 'Approval не выполнен', 'Approval failed'));
+    }
+  };
+
+  const rejectTransaction = async (transactionId: string) => {
+    try {
+      await reject_finance_transaction_async(tenant_id, transactionId);
+      await reloadFinance(true);
+      if (selectedLedgerDetail?.transaction.id === transactionId) {
+        setSelectedLedgerDetail(null);
+      }
+      notify('success', tx(lang, 'Transaction rədd edildi', 'Transaction отклонен', 'Transaction rejected'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Reject alınmadı', 'Reject не выполнен', 'Reject failed'));
+    }
+  };
+
+  const requestReversal = async (transactionId: string) => {
+    try {
+      const result = await request_finance_reversal_async(tenant_id, transactionId);
+      await reloadFinance(true);
+      notify(
+        'success',
+        tx(
+          lang,
+          `Reversal təsdiqə göndərildi: ${result?.transaction_id || ''}`,
+          `Reversal отправлен на approval: ${result?.transaction_id || ''}`,
+          `Reversal sent for approval: ${result?.transaction_id || ''}`,
+        ),
+      );
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Reversal request alınmadı', 'Reversal request не выполнен', 'Reversal request failed'));
+    }
+  };
+
   const todayInflow = financeSummary.incoming;
   const todayOutflow = financeSummary.outgoing;
   const unreconciledVariance = anomalies?.shift_cash_gap || '0';
-  const pendingApprovalsCount = financeExceptions.filter((item) => item.tone === 'rose' || item.tone === 'amber').length;
+  const pendingApprovalsCount = pendingApprovals.length;
   const financeAlerts = [
+    ...(pendingApprovals.length > 0
+      ? [{
+          id: 'pending-approvals',
+          title: tx(lang, 'Approval gözləyən əməliyyatlar', 'Операции ожидают approval', 'Pending approvals'),
+          body: `${pendingApprovals.length} ${tx(lang, 'maliyyə əməliyyatı təsdiq gözləyir', 'финансовых операций ожидают подтверждения', 'finance transactions waiting for approval')}`,
+          tone: 'amber' as const,
+          action: tx(lang, 'Approve', 'Подтвердить', 'Approve'),
+          tab: 'overview' as FinanceWorkspaceTab,
+        }]
+      : []),
     ...(anomalies?.has_shift_cash_mismatch
       ? [{
           id: 'unreconciled-till',
@@ -1050,6 +1112,42 @@ export default function FinancePanel() {
     return typeValue.replace(/\b\w/g, (letter) => letter.toUpperCase());
   };
 
+  const approvalInbox = (
+    <FinanceControlCard
+      title={tx(lang, 'Approval inbox', 'Approval inbox', 'Approval inbox')}
+      subtitle={tx(lang, 'Riskli maliyyə əməliyyatları posting-dən əvvəl təsdiq gözləyir', 'Рискованные финансовые операции ждут подтверждения перед posting', 'Risky finance transactions wait for approval before posting')}
+    >
+      <div className="space-y-3">
+        {pendingApprovals.slice(0, 6).map((row) => (
+          <div key={row.id} className="rounded-2xl border border-amber-400/25 bg-amber-950/20 p-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <button onClick={() => void openLedgerDetail(row)} className="min-w-0 text-left">
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-200">{transactionTypeLabel(row.transaction_type)}</div>
+                <div className="mt-1 text-lg font-black text-white">{new Decimal(row.amount || 0).toFixed(2)} ₼</div>
+                <div className="mt-1 text-sm text-slate-400">
+                  {accountName(row.source_account)} → {accountName(row.destination_account)} · {row.created_by || '-'}
+                </div>
+              </button>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => void approveTransaction(row.id)} className="min-h-11 rounded-2xl bg-emerald-300 px-4 text-sm font-black text-slate-950">
+                  {tx(lang, 'Təsdiqlə', 'Подтвердить', 'Approve')}
+                </button>
+                <button onClick={() => void rejectTransaction(row.id)} className="min-h-11 rounded-2xl border border-rose-400/40 px-4 text-sm font-black text-rose-100">
+                  {tx(lang, 'Rədd et', 'Отклонить', 'Reject')}
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+        {pendingApprovals.length === 0 && (
+          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-950/20 p-4 text-sm font-bold text-emerald-100">
+            {tx(lang, 'Approval gözləyən əməliyyat yoxdur.', 'Нет операций, ожидающих approval.', 'No transactions waiting for approval.')}
+          </div>
+        )}
+      </div>
+    </FinanceControlCard>
+  );
+
   const ledgerTable = (
     <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-5">
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1176,6 +1274,7 @@ export default function FinancePanel() {
                 <FinanceMiniMetric label={tx(lang, 'Liquidity', 'Ликвидность', 'Liquidity')} value={cashCoverage === 'N/A' ? cashCoverage : `${cashCoverage}%`} tone="violet" />
               </div>
             </FinanceControlCard>
+            {approvalInbox}
             {ledgerTable}
           </div>
         </div>
@@ -1261,6 +1360,9 @@ export default function FinancePanel() {
         detail={selectedLedgerDetail}
         loading={ledgerDetailLoading}
         accountName={accountName}
+        onApprove={approveTransaction}
+        onReject={rejectTransaction}
+        onReverse={requestReversal}
         onClose={() => setSelectedLedgerDetail(null)}
       />
     </FinanceDashboard>
@@ -1931,12 +2033,18 @@ function TransactionDetailDrawer({
   detail,
   loading,
   accountName,
+  onApprove,
+  onReject,
+  onReverse,
   onClose,
 }: {
   lang: string;
   detail: FinanceTransactionDetail | null;
   loading: boolean;
   accountName: (code?: string | null) => string;
+  onApprove: (transactionId: string) => void | Promise<void>;
+  onReject: (transactionId: string) => void | Promise<void>;
+  onReverse: (transactionId: string) => void | Promise<void>;
   onClose: () => void;
 }) {
   if (!detail) return null;
@@ -1964,6 +2072,23 @@ function TransactionDetailDrawer({
             </button>
           </div>
           {loading ? <div className="mt-3 text-xs font-bold text-sky-200">{tx(lang, 'Detallar yüklənir...', 'Детали загружаются...', 'Loading details...')}</div> : null}
+          <div className="mt-4 flex flex-wrap gap-2">
+            {txRow.status === 'pending_approval' ? (
+              <>
+                <button onClick={() => void onApprove(txRow.id)} className="min-h-11 rounded-2xl bg-emerald-300 px-4 text-sm font-black text-slate-950">
+                  {tx(lang, 'Təsdiqlə və post et', 'Подтвердить и post', 'Approve and post')}
+                </button>
+                <button onClick={() => void onReject(txRow.id)} className="min-h-11 rounded-2xl border border-rose-400/40 px-4 text-sm font-black text-rose-100">
+                  {tx(lang, 'Rədd et', 'Отклонить', 'Reject')}
+                </button>
+              </>
+            ) : null}
+            {txRow.status === 'posted' ? (
+              <button onClick={() => void onReverse(txRow.id)} className="min-h-11 rounded-2xl border border-amber-400/40 px-4 text-sm font-black text-amber-100">
+                {tx(lang, 'Reversal istə', 'Запросить reversal', 'Request reversal')}
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">

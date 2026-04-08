@@ -645,7 +645,9 @@ export type FinanceLedgerTransaction = {
   created_by: string;
   approved_by?: string | null;
   posted_by?: string | null;
+  reversed_by?: string | null;
   created_at?: string | null;
+  approved_at?: string | null;
   posted_at?: string | null;
   reversed_at?: string | null;
   legacy_finance_entry_id?: string | null;
@@ -780,11 +782,13 @@ export const fetch_finance_ledger_transactions = async (tenant_id: string, limit
     reference: row.reference ?? null,
     note: row.note ?? null,
     created_by: String(row.created_by || ''),
-    approved_by: row.approved_by ?? null,
-    posted_by: row.posted_by ?? null,
-    created_at: row.created_at ?? null,
-    posted_at: row.posted_at ?? null,
-    reversed_at: row.reversed_at ?? null,
+      approved_by: row.approved_by ?? null,
+      posted_by: row.posted_by ?? null,
+      reversed_by: row.reversed_by ?? null,
+      created_at: row.created_at ?? null,
+      approved_at: row.approved_at ?? null,
+      posted_at: row.posted_at ?? null,
+      reversed_at: row.reversed_at ?? null,
     legacy_finance_entry_id: row.legacy_finance_entry_id ?? null,
   }));
 };
@@ -837,7 +841,9 @@ export const fetch_finance_transaction_detail = async (tenant_id: string, transa
       created_by: String(data?.transaction?.created_by || ''),
       approved_by: data?.transaction?.approved_by ?? null,
       posted_by: data?.transaction?.posted_by ?? null,
+      reversed_by: data?.transaction?.reversed_by ?? null,
       created_at: data?.transaction?.created_at ?? null,
+      approved_at: data?.transaction?.approved_at ?? null,
       posted_at: data?.transaction?.posted_at ?? null,
       reversed_at: data?.transaction?.reversed_at ?? null,
       legacy_finance_entry_id: data?.transaction?.legacy_finance_entry_id ?? null,
@@ -861,6 +867,60 @@ export const fetch_finance_transaction_detail = async (tenant_id: string, transa
       created_at: row.created_at ?? null,
     })),
   };
+};
+
+export const fetch_finance_pending_approvals = async (tenant_id: string): Promise<FinanceLedgerTransaction[]> => {
+  if (!isBackendEnabled()) return [];
+  const rows = await apiRequest<any[]>('/api/v1/finance/approvals/pending', {
+    method: 'GET',
+    tenantId: tenant_id,
+  });
+  return (rows || []).map((row) => ({
+    id: String(row.id),
+    transaction_type: String(row.transaction_type || ''),
+    status: String(row.status || ''),
+    source_account: row.source_account ?? null,
+    destination_account: row.destination_account ?? null,
+    amount: String(row.amount ?? '0'),
+    currency: String(row.currency || 'AZN'),
+    category: row.category ?? null,
+    counterparty: row.counterparty ?? null,
+    reference: row.reference ?? null,
+    note: row.note ?? null,
+    created_by: String(row.created_by || ''),
+    approved_by: row.approved_by ?? null,
+    posted_by: row.posted_by ?? null,
+    reversed_by: row.reversed_by ?? null,
+    created_at: row.created_at ?? null,
+    approved_at: row.approved_at ?? null,
+    posted_at: row.posted_at ?? null,
+    reversed_at: row.reversed_at ?? null,
+    legacy_finance_entry_id: row.legacy_finance_entry_id ?? null,
+  }));
+};
+
+export const approve_finance_transaction_async = async (tenant_id: string, transaction_id: string) => {
+  if (!isBackendEnabled()) return { success: true, transaction_id, status: 'posted' };
+  return apiRequest<any>(`/api/v1/finance/ledger/transactions/${encodeURIComponent(transaction_id)}/approve`, {
+    method: 'POST',
+    tenantId: tenant_id,
+  });
+};
+
+export const reject_finance_transaction_async = async (tenant_id: string, transaction_id: string) => {
+  if (!isBackendEnabled()) return { success: true, transaction_id, status: 'rejected' };
+  return apiRequest<any>(`/api/v1/finance/ledger/transactions/${encodeURIComponent(transaction_id)}/reject`, {
+    method: 'POST',
+    tenantId: tenant_id,
+  });
+};
+
+export const request_finance_reversal_async = async (tenant_id: string, transaction_id: string) => {
+  if (!isBackendEnabled()) return { success: true, transaction_id: uuidv4(), status: 'pending_approval' };
+  return apiRequest<any>(`/api/v1/finance/ledger/transactions/${encodeURIComponent(transaction_id)}/reverse`, {
+    method: 'POST',
+    tenantId: tenant_id,
+  });
 };
 
 export const fetch_finance_reconciliations = async (tenant_id: string, limit = 100): Promise<FinanceReconciliation[]> => {

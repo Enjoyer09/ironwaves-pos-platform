@@ -39,6 +39,8 @@ FINANCE_ACCOUNT_DEFS: dict[str, tuple[str, str]] = {
 }
 
 LIABILITY_OR_CREDIT_TYPES = {"deposit_liability", "investor_liability", "revenue"}
+APPROVAL_REQUIRED_TYPES = {"investor_repayment", "cash_adjustment", "reconciliation_adjustment", "reversal"}
+APPROVAL_TRANSFER_THRESHOLD = Decimal("500.00")
 
 
 def _normalize_text(value: str) -> str:
@@ -131,6 +133,128 @@ def _add_ledger_entry(
     )
 
 
+def _is_finance_approver(user) -> bool:
+    return str(getattr(user, "role", "") or "").lower() in {"manager", "admin", "finance_admin", "super_admin"}
+
+
+def _approval_required(transaction_type: str, amount: Decimal, explicit: bool | None = None) -> bool:
+    if explicit is not None:
+        return bool(explicit)
+    tx_type = _normalize_text(transaction_type).replace("-", "_")
+    if tx_type in APPROVAL_REQUIRED_TYPES:
+        return True
+    if tx_type == "internal_transfer" and Decimal(str(amount)) >= APPROVAL_TRANSFER_THRESHOLD:
+        return True
+    return False
+
+
+def _finance_account_code(db: Session, tenant_id: str, account_id: str | None) -> str | None:
+    if not account_id:
+        return None
+    row = db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant_id, FinanceAccount.id == account_id).first()
+    return row.code if row else None
+
+
+def _post_existing_transaction(db: Session, txn: FinanceTransaction, posted_by: str) -> FinanceTransaction:
+    if txn.status == "posted":
+        return txn
+    if txn.status not in {"pending_approval", "approved", "draft"}:
+        raise HTTPException(status_code=400, detail=f"Transaction cannot be posted from status {txn.status}")
+    source_code = _finance_account_code(db, txn.tenant_id, txn.source_account_id)
+    destination_code = _finance_account_code(db, txn.tenant_id, txn.destination_account_id)
+    if not source_code or not destination_code:
+        raise HTTPException(status_code=400, detail="Transaction account mapping is incomplete")
+    source = _finance_account(db, txn.tenant_id, source_code)
+    destination = _finance_account(db, txn.tenant_id, destination_code)
+    description = txn.note or txn.category or txn.transaction_type
+    _add_ledger_entry(
+        db,
+        tenant_id=txn.tenant_id,
+        transaction_id=txn.id,
+        account_id=destination.id,
+        entry_side="debit",
+        amount=Decimal(str(txn.amount)),
+        description=description,
+    )
+    _add_ledger_entry(
+        db,
+        tenant_id=txn.tenant_id,
+        transaction_id=txn.id,
+        account_id=source.id,
+        entry_side="credit",
+        amount=Decimal(str(txn.amount)),
+        description=description,
+    )
+    now = datetime.utcnow()
+    txn.status = "posted"
+    txn.posted_by = posted_by
+    txn.posted_at = now
+    db.add(
+        AuditLog(
+            tenant_id=txn.tenant_id,
+            user=posted_by,
+            action="FINANCE_TRANSACTION_POSTED",
+            details=json.dumps(
+                {
+                    "transaction_id": txn.id,
+                    "transaction_type": txn.transaction_type,
+                    "source": source_code,
+                    "destination": destination_code,
+                    "amount": str(Decimal(str(txn.amount)).quantize(Decimal("0.01"))),
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    return txn
+
+
+def _create_finance_transaction_record(
+    db: Session,
+    *,
+    tenant_id: str,
+    transaction_type: str,
+    status: str,
+    amount: Decimal,
+    source_code: str,
+    destination_code: str,
+    created_by: str,
+    category: str | None = None,
+    counterparty: str | None = None,
+    reference: str | None = None,
+    note: str | None = None,
+    related_shift_id: str | None = None,
+    related_table_id: str | None = None,
+    related_order_id: str | None = None,
+    legacy_finance_entry_id: str | None = None,
+) -> FinanceTransaction:
+    source = _finance_account(db, tenant_id, source_code)
+    destination = _finance_account(db, tenant_id, destination_code)
+    now = datetime.utcnow()
+    txn = FinanceTransaction(
+        tenant_id=tenant_id,
+        transaction_type=transaction_type,
+        status=status,
+        source_account_id=source.id,
+        destination_account_id=destination.id,
+        amount=Decimal(str(amount)).quantize(Decimal("0.01")),
+        currency="AZN",
+        category=category,
+        counterparty=counterparty,
+        reference=reference,
+        note=note,
+        created_by=created_by,
+        created_at=now,
+        related_shift_id=related_shift_id,
+        related_table_id=related_table_id,
+        related_order_id=related_order_id,
+        legacy_finance_entry_id=legacy_finance_entry_id,
+    )
+    db.add(txn)
+    db.flush()
+    return txn
+
+
 def _post_finance_transaction(
     db: Session,
     *,
@@ -155,70 +279,25 @@ def _post_finance_transaction(
     if not source_code or not destination_code:
         raise HTTPException(status_code=400, detail="Ledger transaction requires source and destination accounts")
 
-    source = _finance_account(db, tenant_id, source_code)
-    destination = _finance_account(db, tenant_id, destination_code)
-    now = datetime.utcnow()
-    txn = FinanceTransaction(
+    txn = _create_finance_transaction_record(
+        db,
         tenant_id=tenant_id,
         transaction_type=transaction_type,
-        status="posted",
-        source_account_id=source.id,
-        destination_account_id=destination.id,
+        status="approved",
         amount=amount,
-        currency="AZN",
+        source_code=source_code,
+        destination_code=destination_code,
+        created_by=created_by,
         category=category,
         counterparty=counterparty,
         reference=reference,
         note=note,
-        created_by=created_by,
-        posted_by=created_by,
-        created_at=now,
-        posted_at=now,
         related_shift_id=related_shift_id,
         related_table_id=related_table_id,
         related_order_id=related_order_id,
         legacy_finance_entry_id=legacy_finance_entry_id,
     )
-    db.add(txn)
-    db.flush()
-    description = note or category or transaction_type
-    _add_ledger_entry(
-        db,
-        tenant_id=tenant_id,
-        transaction_id=txn.id,
-        account_id=destination.id,
-        entry_side="debit",
-        amount=amount,
-        description=description,
-    )
-    _add_ledger_entry(
-        db,
-        tenant_id=tenant_id,
-        transaction_id=txn.id,
-        account_id=source.id,
-        entry_side="credit",
-        amount=amount,
-        description=description,
-    )
-    db.add(
-        AuditLog(
-            tenant_id=tenant_id,
-            user=created_by,
-            action="FINANCE_TRANSACTION_POSTED",
-            details=json.dumps(
-                {
-                    "transaction_id": txn.id,
-                    "transaction_type": transaction_type,
-                    "source": source_code,
-                    "destination": destination_code,
-                    "amount": str(amount),
-                    "legacy_finance_entry_id": legacy_finance_entry_id,
-                },
-                ensure_ascii=False,
-            ),
-        )
-    )
-    return txn
+    return _post_existing_transaction(db, txn, created_by)
 
 
 def _post_legacy_finance_entry(db: Session, entry: FinanceEntry, username: str) -> FinanceTransaction:
@@ -611,21 +690,189 @@ def create_ledger_transaction(payload: FinanceTransactionIn, db: Session = Depen
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be > 0")
     source, destination = _manual_transaction_accounts(payload)
-    txn = _post_finance_transaction(
-        db,
-        tenant_id=tenant.id,
-        transaction_type=_normalize_text(payload.transaction_type).replace("-", "_"),
-        amount=amount,
-        source_code=source,
-        destination_code=destination,
-        created_by=user.username,
-        category=payload.category,
-        counterparty=payload.counterparty,
-        reference=payload.reference,
-        note=payload.note,
+    tx_type = _normalize_text(payload.transaction_type).replace("-", "_")
+    if _approval_required(tx_type, amount, payload.requires_approval):
+        txn = _create_finance_transaction_record(
+            db,
+            tenant_id=tenant.id,
+            transaction_type=tx_type,
+            status="pending_approval",
+            amount=amount,
+            source_code=source,
+            destination_code=destination,
+            created_by=user.username,
+            category=payload.category,
+            counterparty=payload.counterparty,
+            reference=payload.reference,
+            note=payload.note,
+        )
+        db.add(
+            AuditLog(
+                tenant_id=tenant.id,
+                user=user.username,
+                action="FINANCE_TRANSACTION_APPROVAL_REQUESTED",
+                details=json.dumps(
+                    {
+                        "transaction_id": txn.id,
+                        "transaction_type": tx_type,
+                        "source": source,
+                        "destination": destination,
+                        "amount": str(amount.quantize(Decimal("0.01"))),
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
+    else:
+        txn = _post_finance_transaction(
+            db,
+            tenant_id=tenant.id,
+            transaction_type=tx_type,
+            amount=amount,
+            source_code=source,
+            destination_code=destination,
+            created_by=user.username,
+            category=payload.category,
+            counterparty=payload.counterparty,
+            reference=payload.reference,
+            note=payload.note,
+        )
+    db.commit()
+    return {"success": True, "transaction_id": txn.id, "status": txn.status}
+
+
+@router.get("/approvals/pending")
+def list_pending_approvals(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_accounts(db, tenant.id)
+    db.commit()
+    rows = (
+        db.query(FinanceTransaction)
+        .filter(FinanceTransaction.tenant_id == tenant.id, FinanceTransaction.status == "pending_approval")
+        .order_by(FinanceTransaction.created_at.asc())
+        .all()
+    )
+    account_by_id = {row.id: row for row in db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant.id).all()}
+    return [
+        {
+            "id": row.id,
+            "transaction_type": row.transaction_type,
+            "status": row.status,
+            "source_account": account_by_id.get(row.source_account_id).code if row.source_account_id in account_by_id else None,
+            "destination_account": account_by_id.get(row.destination_account_id).code if row.destination_account_id in account_by_id else None,
+            "amount": str(Decimal(str(row.amount)).quantize(Decimal("0.01"))),
+            "currency": row.currency,
+            "category": row.category,
+            "counterparty": row.counterparty,
+            "reference": row.reference,
+            "note": row.note,
+            "created_by": row.created_by,
+            "approved_by": row.approved_by,
+            "posted_by": row.posted_by,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "posted_at": row.posted_at.isoformat() if row.posted_at else None,
+            "reversed_at": row.reversed_at.isoformat() if row.reversed_at else None,
+            "legacy_finance_entry_id": row.legacy_finance_entry_id,
+        }
+        for row in rows
+    ]
+
+
+@router.post("/ledger/transactions/{transaction_id}/approve")
+def approve_ledger_transaction(transaction_id: str, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    if not _is_finance_approver(user):
+        raise HTTPException(status_code=403, detail="Finance approval requires manager/admin role")
+    txn = (
+        db.query(FinanceTransaction)
+        .filter(FinanceTransaction.tenant_id == tenant.id, FinanceTransaction.id == transaction_id)
+        .first()
+    )
+    if not txn:
+        raise HTTPException(status_code=404, detail="Finance transaction not found")
+    if txn.status != "pending_approval":
+        raise HTTPException(status_code=400, detail=f"Transaction is not pending approval: {txn.status}")
+    now = datetime.utcnow()
+    txn.status = "approved"
+    txn.approved_by = user.username
+    txn.approved_at = now
+    _post_existing_transaction(db, txn, user.username)
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="FINANCE_TRANSACTION_APPROVED",
+            details=json.dumps({"transaction_id": txn.id, "amount": str(txn.amount)}, ensure_ascii=False),
+        )
     )
     db.commit()
-    return {"success": True, "transaction_id": txn.id}
+    return {"success": True, "transaction_id": txn.id, "status": txn.status}
+
+
+@router.post("/ledger/transactions/{transaction_id}/reject")
+def reject_ledger_transaction(transaction_id: str, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    if not _is_finance_approver(user):
+        raise HTTPException(status_code=403, detail="Finance rejection requires manager/admin role")
+    txn = (
+        db.query(FinanceTransaction)
+        .filter(FinanceTransaction.tenant_id == tenant.id, FinanceTransaction.id == transaction_id)
+        .first()
+    )
+    if not txn:
+        raise HTTPException(status_code=404, detail="Finance transaction not found")
+    if txn.status != "pending_approval":
+        raise HTTPException(status_code=400, detail=f"Transaction is not pending approval: {txn.status}")
+    txn.status = "rejected"
+    txn.approved_by = user.username
+    txn.approved_at = datetime.utcnow()
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="FINANCE_TRANSACTION_REJECTED",
+            details=json.dumps({"transaction_id": txn.id, "amount": str(txn.amount)}, ensure_ascii=False),
+        )
+    )
+    db.commit()
+    return {"success": True, "transaction_id": txn.id, "status": txn.status}
+
+
+@router.post("/ledger/transactions/{transaction_id}/reverse")
+def request_transaction_reversal(transaction_id: str, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    original = (
+        db.query(FinanceTransaction)
+        .filter(FinanceTransaction.tenant_id == tenant.id, FinanceTransaction.id == transaction_id)
+        .first()
+    )
+    if not original:
+        raise HTTPException(status_code=404, detail="Finance transaction not found")
+    if original.status != "posted":
+        raise HTTPException(status_code=400, detail="Only posted transactions can be reversed")
+    source_code = _finance_account_code(db, tenant.id, original.destination_account_id)
+    destination_code = _finance_account_code(db, tenant.id, original.source_account_id)
+    if not source_code or not destination_code:
+        raise HTTPException(status_code=400, detail="Original transaction account mapping is incomplete")
+    reversal = _create_finance_transaction_record(
+        db,
+        tenant_id=tenant.id,
+        transaction_type="reversal",
+        status="pending_approval",
+        amount=Decimal(str(original.amount)),
+        source_code=source_code,
+        destination_code=destination_code,
+        created_by=user.username,
+        category=f"Reversal: {original.category or original.transaction_type}",
+        reference=original.id,
+        note=f"Reversal request for {original.id}",
+    )
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="FINANCE_REVERSAL_REQUESTED",
+            details=json.dumps({"transaction_id": original.id, "reversal_transaction_id": reversal.id}, ensure_ascii=False),
+        )
+    )
+    db.commit()
+    return {"success": True, "transaction_id": reversal.id, "status": reversal.status}
 
 
 @router.get("/reconciliations")
