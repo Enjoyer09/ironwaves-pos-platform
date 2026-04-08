@@ -22,6 +22,7 @@ from app.models import (
     Customer,
     DonerBatch,
     FinanceEntry,
+    FloorPlan,
     HappyHour,
     InventoryItem,
     KitchenOrder,
@@ -2103,9 +2104,45 @@ def create_table(
     exists = db.query(Table).filter(Table.tenant_id == tenant.id, func.lower(Table.label) == label.lower()).first()
     if exists:
         raise HTTPException(status_code=409, detail="Table already exists")
+    floor = (
+        db.query(FloorPlan)
+        .filter(FloorPlan.tenant_id == tenant.id)
+        .order_by(FloorPlan.is_active.desc(), FloorPlan.created_at.asc())
+        .first()
+    )
+    if not floor:
+        floor = FloorPlan(
+            tenant_id=tenant.id,
+            name="Main Floor",
+            width_units=12,
+            height_units=8,
+            is_active=True,
+        )
+        db.add(floor)
+        db.flush()
+
+    max_cols = max(6, int(floor.width_units or 12))
+    slot_width = 3
+    slot_height = 3
+    existing_count = (
+        db.query(Table)
+        .filter(Table.tenant_id == tenant.id, Table.floor_plan_id == floor.id)
+        .count()
+    )
+    per_row = max(1, max_cols // slot_width)
+    pos_x = (existing_count % per_row) * slot_width
+    pos_y = (existing_count // per_row) * slot_height
     row = Table(
         tenant_id=tenant.id,
+        floor_plan_id=floor.id,
         label=label,
+        shape="rectangle",
+        pos_x=pos_x,
+        pos_y=pos_y,
+        width_units=2,
+        height_units=2,
+        capacity=4,
+        status="AVAILABLE",
         is_occupied=False,
         assigned_to=None,
         guest_count=0,
@@ -2116,12 +2153,30 @@ def create_table(
         items_json="[]",
     )
     db.add(row)
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="TABLE_CREATED",
+            details=json.dumps(
+                {
+                    "table_id": row.id,
+                    "label": label,
+                    "floor_plan_id": floor.id,
+                    "x": pos_x,
+                    "y": pos_y,
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
     db.commit()
     db.refresh(row)
     return {
         "id": row.id,
         "tenant_id": row.tenant_id,
         "label": row.label,
+        "floor_plan_id": row.floor_plan_id,
         "is_occupied": False,
         "assigned_to": None,
         "guest_count": 0,
