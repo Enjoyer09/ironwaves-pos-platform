@@ -354,6 +354,80 @@ class FinanceEntry(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class FinanceAccount(Base):
+    __tablename__ = "finance_accounts"
+    __table_args__ = (UniqueConstraint("tenant_id", "code", name="uq_finance_account_tenant_code"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    code: Mapped[str] = mapped_column(String(40), nullable=False)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    account_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False, default="AZN")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class FinanceTransaction(Base):
+    __tablename__ = "finance_transactions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    transaction_type: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="posted", index=True)
+    source_account_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("finance_accounts.id"), nullable=True, index=True)
+    destination_account_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("finance_accounts.id"), nullable=True, index=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False, default="AZN")
+    category: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    counterparty: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    reference: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    approved_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    posted_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    reversed_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reversed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    related_shift_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    related_table_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    related_order_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    legacy_finance_entry_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+
+
+class FinanceLedgerEntry(Base):
+    __tablename__ = "finance_ledger_entries"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    transaction_id: Mapped[str] = mapped_column(String(36), ForeignKey("finance_transactions.id"), index=True)
+    account_id: Mapped[str] = mapped_column(String(36), ForeignKey("finance_accounts.id"), index=True)
+    entry_side: Mapped[str] = mapped_column(String(12), nullable=False)  # debit/credit
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(8), nullable=False, default="AZN")
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class FinanceReconciliation(Base):
+    __tablename__ = "finance_reconciliations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    account_id: Mapped[str] = mapped_column(String(36), ForeignKey("finance_accounts.id"), index=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="reconciled", index=True)
+    expected_balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    counted_balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    variance: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reconciled_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    reconciled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 

@@ -180,6 +180,24 @@ class InvestorRepayIn(BaseModel):
     description: str | None = None
 
 
+class FinanceTransactionIn(BaseModel):
+    transaction_type: str
+    source_account_code: str | None = None
+    destination_account_code: str | None = None
+    amount: Decimal
+    category: str | None = None
+    counterparty: str | None = None
+    reference: str | None = None
+    note: str | None = None
+
+
+class FinanceReconciliationIn(BaseModel):
+    account_code: str
+    expected_balance: Decimal
+    counted_balance: Decimal
+    notes: str | None = None
+
+
 class TenantCreateIn(BaseModel):
     name: str
     slug: str
