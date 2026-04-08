@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ArrowLeft,
   ArrowRight,
   BadgeCheck,
   BellRing,
@@ -430,21 +431,39 @@ export default function LandingPage() {
     window.location.href = `mailto:${contactEmail}?subject=${encodeURIComponent('iRonWaves POS demo sorğusu')}&body=${encodeURIComponent(demoMessage)}`;
   };
 
+  const handleBack = () => {
+    if (typeof window === 'undefined') return;
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    window.location.href = demoUrl;
+  };
+
   return (
-    <div className="min-h-[100dvh] overflow-y-auto bg-[#f7f9fc] text-slate-900">
-      <div className="relative overflow-hidden">
+    <div className="h-[100dvh] overflow-y-auto overscroll-y-contain bg-[#f7f9fc] text-slate-900">
+      <div className="relative min-h-full overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_20%),radial-gradient(circle_at_80%_10%,rgba(99,102,241,0.12),transparent_24%),linear-gradient(180deg,#ffffff_0%,#f7f9fc_44%,#edf3ff_100%)]" />
 
         <div className="relative mx-auto max-w-7xl px-6 md:px-10 xl:px-14">
           <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/88 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-4 py-5">
               <div className="flex items-center gap-3">
-                <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[linear-gradient(180deg,#0f172a,#1e293b)] text-xl font-black text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
-                  IW
-                </div>
-                <div>
-                  <div className="text-[11px] font-black uppercase tracking-[0.28em] text-sky-700">iRonWaves POS</div>
-                  <div className="text-lg font-black text-slate-950 md:text-xl">Restoran idarəetmə platforması</div>
+                <button
+                  onClick={handleBack}
+                  className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:border-sky-300 hover:text-sky-700"
+                >
+                  <ArrowLeft size={16} />
+                  <span>Geri dön</span>
+                </button>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[linear-gradient(180deg,#0f172a,#1e293b)] text-xl font-black text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
+                    IW
+                  </div>
+                  <div>
+                    <div className="text-[11px] font-black uppercase tracking-[0.28em] text-sky-700">iRonWaves POS</div>
+                    <div className="text-lg font-black text-slate-950 md:text-xl">Restoran idarəetmə platforması</div>
+                  </div>
                 </div>
               </div>
 
