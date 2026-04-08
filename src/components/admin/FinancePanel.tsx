@@ -4,6 +4,7 @@ import { useAppStore } from '../../store';
 import { AlertTriangle, ArrowRight, Banknote, BookOpen, CheckCircle2, GitCompareArrows, Landmark, RefreshCw, ShieldCheck, WalletCards } from 'lucide-react';
 import {
   create_finance_entry_async,
+  create_finance_ledger_transaction_async,
   create_finance_reconciliation_async,
   approve_finance_transaction_async,
   fetch_finance_anomalies,
@@ -24,7 +25,6 @@ import {
   type FinanceReconciliation,
   get_balance,
   get_finance_entries,
-  repay_investor_async,
   request_finance_reversal_async,
   transfer_funds_async,
 } from '../../api/finance';
@@ -59,6 +59,8 @@ const defaultSubjectPresets = [
   'Dövlət / Vergi',
   'Digər',
 ];
+
+const APPROVAL_TRANSFER_THRESHOLD = new Decimal(500);
 
 const normalizeFinanceText = (value: unknown) =>
   String(value || '')
@@ -765,6 +767,44 @@ export default function FinancePanel() {
       return;
     }
     try {
+      const transferAmountDec = new Decimal(transferAmount || 0);
+      const needsApproval = transferAmountDec.gte(APPROVAL_TRANSFER_THRESHOLD);
+      if (needsApproval) {
+        const sources = {
+          card_to_cash: { from: 'card', to: 'cash' },
+          cash_to_card: { from: 'cash', to: 'card' },
+          cash_to_debt: { from: 'cash', to: 'debt' },
+          card_to_debt: { from: 'card', to: 'debt' },
+          cash_to_safe: { from: 'cash', to: 'safe' },
+          safe_to_cash: { from: 'safe', to: 'cash' },
+        } as const;
+        const pair = sources[transferDirection];
+        await create_finance_ledger_transaction_async(tenant_id, {
+          transaction_type: 'internal_transfer',
+          source_account_code: pair.from,
+          destination_account_code: pair.to,
+          amount: transferAmountDec.toString(),
+          category: 'Daxili Transfer',
+          note: `Approval transfer: ${transferDirection}`,
+          requires_approval: true,
+        });
+        if (computedTransferCommission.gt(0)) {
+          await create_finance_ledger_transaction_async(tenant_id, {
+            transaction_type: 'expense',
+            source_account_code: pair.from,
+            destination_account_code: 'expense',
+            amount: computedTransferCommission.toString(),
+            category: 'Bank Komissiyası',
+            note: `Approval transfer komissiyası: ${transferDirection}`,
+            requires_approval: true,
+          });
+        }
+        setTransferAmount('');
+        setTransferCommission('0');
+        await reloadFinance(true);
+        notify('success', tx(lang, 'Transfer təsdiqə göndərildi', 'Перевод отправлен на approval', 'Transfer sent for approval'));
+        return;
+      }
       await transfer_funds_async(
         tenant_id,
         transferDirection,
@@ -787,23 +827,36 @@ export default function FinancePanel() {
       return;
     }
     try {
-      const result = await repay_investor_async(
-        tenant_id,
-        repayAmount,
-        repayFrom,
-        user?.username || 'admin',
-        repayNote,
-      );
+      const repaymentAmount = new Decimal(repayAmount || 0);
+      const available = new Decimal((balance as any)[`${repayFrom}_balance`] || 0);
+      if (available.lt(repaymentAmount)) {
+        notify('error', tx(lang, 'Seçilən mənbədə kifayət qədər vəsait yoxdur', 'В выбранном источнике недостаточно средств', 'Selected source has insufficient balance'));
+        return;
+      }
+      if (effectiveInvestorDebt.lte(0)) {
+        notify('error', tx(lang, 'İnvestora borc yoxdur', 'Нет долга инвестору', 'No investor debt'));
+        return;
+      }
+      const payable = Decimal.min(repaymentAmount, effectiveInvestorDebt);
+      const result = await create_finance_ledger_transaction_async(tenant_id, {
+        transaction_type: 'investor_repayment',
+        source_account_code: repayFrom,
+        destination_account_code: 'investor',
+        amount: payable.toString(),
+        category: 'İnvestora Geri Ödəniş',
+        note: repayNote || 'İnvestora ödəniş approval request',
+        requires_approval: true,
+      });
       setRepayAmount('');
       setRepayNote('');
-      await reloadFinance();
+      await reloadFinance(true);
       notify(
         'success',
         tx(
           lang,
-          `İnvestora ${new Decimal(result.paid).toFixed(2)} ₼ ödəndi. Qalan borc: ${new Decimal(result.remaining_debt).toFixed(2)} ₼`,
-          `Инвестору выплачено ${new Decimal(result.paid).toFixed(2)} ₼. Остаток долга: ${new Decimal(result.remaining_debt).toFixed(2)} ₼`,
-          `Paid ${new Decimal(result.paid).toFixed(2)} ₼ to investor. Remaining debt: ${new Decimal(result.remaining_debt).toFixed(2)} ₼`,
+          `İnvestor ödənişi təsdiqə göndərildi: ${new Decimal(payable).toFixed(2)} ₼`,
+          `Выплата инвестору отправлена на approval: ${new Decimal(payable).toFixed(2)} ₼`,
+          `Investor repayment sent for approval: ${new Decimal(payable).toFixed(2)} ₼`,
         ),
       );
     } catch (e: any) {
@@ -1070,6 +1123,11 @@ export default function FinancePanel() {
           <input className="neon-input min-h-13" type="number" min={0} step="0.01" value={computedTransferCommission.toString()} onChange={(e) => setTransferCommission(e.target.value)} readOnly={transferDirection === 'card_to_cash'} />
         </FinanceField>
       </div>
+      {new Decimal(transferAmount || 0).gte(APPROVAL_TRANSFER_THRESHOLD) && (
+        <div className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-950/25 p-4 text-sm font-bold text-amber-100">
+          {tx(lang, 'Bu məbləğ böyük transfer sayılır və birbaşa post olunmayacaq. Approval inbox-a göndəriləcək.', 'Эта сумма считается крупным переводом и не будет posted сразу. Она уйдет в approval inbox.', 'This is a large transfer and will not post immediately. It will be sent to the approval inbox.')}
+        </div>
+      )}
       <button onClick={() => void doTransfer()} className="neon-btn mt-5 min-h-14 rounded-2xl px-6 text-base font-black">
         {tx(lang, 'Post transfer', 'Провести перевод', 'Post transfer')}
       </button>
@@ -1097,8 +1155,11 @@ export default function FinancePanel() {
           <input className="neon-input min-h-13" value={repayNote} onChange={(e) => setRepayNote(e.target.value)} />
         </FinanceField>
       </div>
+      <div className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-950/25 p-4 text-sm font-bold text-amber-100">
+        {tx(lang, 'Investor ödənişi nəzarətli əməliyyatdır. Bu request əvvəl approval inbox-a düşəcək, təsdiqdən sonra kassa/kart/seyf və investor borcu yenilənəcək.', 'Выплата инвестору — контролируемая операция. Request попадет в approval inbox и только после подтверждения обновит кассу/карту/сейф и долг инвестору.', 'Investor repayment is a controlled operation. The request goes to approval inbox first; after approval it updates cash/card/safe and investor liability.')}
+      </div>
       <button onClick={() => void doRepayInvestor()} className="glossy-gold mt-5 min-h-14 rounded-2xl px-6 text-base font-black">
-        {tx(lang, 'Pay investor', 'Оплатить инвестору', 'Pay investor')}
+        {tx(lang, 'Approval-a göndər', 'Отправить на approval', 'Send for approval')}
       </button>
     </div>
   );
