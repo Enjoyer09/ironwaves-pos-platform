@@ -8,7 +8,6 @@
   --metal-highlight: rgba(255, 255, 255, 0.18);
   --gold-a: #ffe15a;
   --gold-b: #f8c700;
-  --virtual-keyboard-height: 0px;
 }
 
 html,
@@ -32,16 +31,6 @@ button,
 input,
 select {
   touch-action: manipulation;
-}
-
-input.neon-input,
-textarea.neon-input,
-select.neon-input {
-  scroll-margin-bottom: calc(var(--virtual-keyboard-height) + 2rem);
-}
-
-body.virtual-keyboard-open .virtual-keyboard-aware {
-  padding-bottom: calc(var(--virtual-keyboard-height) + 1rem);
 }
 
 html {
