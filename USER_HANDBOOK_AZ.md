@@ -71,108 +71,448 @@ bu, “günə başlayanda kassada faktiki olaraq olan pul”dur.
 
 ## 4. POS Modulu
 
-POS əsasən `al-apar` və birbaşa kassadan olan satışlar üçündür.
+`POS` əsasən `al-apar`, kassadan birbaşa satış və tez bağlanan sifarişlər üçündür.
 
-### 4.1. Satış etmək
+Sadə qayda:
+- masada oturmayan müştəri üçün `POS`
+- masada oturan qonaq üçün `Masalar`
 
-1. məhsulları seçin
-2. səbətə əlavə edin
-3. ödəniş növünü seçin
-4. `Ödənişi Tamamla`
+### 4.1. POS-da adi satış necə edilir
 
-### 4.2. Ödəniş növləri
+1. `POS` moduluna daxil olun
+2. məhsulları seçin
+3. məhsullar səbətə düşəcək
+4. lazımdırsa `+` və `-` ilə miqdarı dəyişin
+5. ödəniş növünü seçin
+6. `Ödənişi tamamla`
+
+Misal:
+
+Müştəri al-apar üçün:
+- `1 cappuccino`
+- `1 su`
+
+Siz:
+1. `Cappuccino` seçirsiniz
+2. `Su` seçirsiniz
+3. ödəniş növünü məsələn `Nəğd` seçirsiniz
+4. `Ödənişi tamamla` basırsınız
+
+### 4.2. POS-da ödəniş növləri
 
 - `Nəğd`
 - `Kart`
 - `Split`
 
-### 4.3. Split ödəniş
+### 4.3. Split ödəniş nədir
 
-`Split` ödənişdə kassir məbləğin bir hissəsini nağd, qalan hissəsini kart kimi bölə bilər.
+`Split` o deməkdir ki, hesab hissə-hissə bağlanır.
 
 Misal:
 - hesab `20 AZN`
-- müştəri `5 AZN` nağd verir
-- qalan `15 AZN` kartla bağlanır
+- `5 AZN` nəğd
+- `15 AZN` kart
 
-Sistem bunu avtomatik hesablayır.
+Bu halda sistem bir hissəni nəğd, qalan hissəni kart kimi bağlayır.
+
+### 4.4. POS-dan nə vaxt istifadə etməmək lazımdır
+
+Əgər qonaq masada oturubsa və sifariş mətbəxə gedəcəksə, əsas axın `Masalar` modulundan idarə olunmalıdır.
+
+Yəni:
+- masa açmaq
+- raund göndərmək
+- göndərilmiş sifarişi düzəltmək
+- servis izləmək
+- hesab bağlamaq
+
+bunların əsas yeri `Masalar`dır.
 
 ## 5. Masalar Modulu
 
-`Masalar` dine-in və ofisiant axını üçün nəzərdə tutulub.
+`Masalar` restoran daxilində masa xidməti üçün əsas əməliyyat ekranıdır.
 
-### 5.1. Masa açmaq
+Bu hissədə ofisiant:
+- masa açır
+- qonaq sayını yazır
+- sifarişi yazır
+- mətbəxə göndərir
+- servisə hazır məhsulları izləyir
+- hesabı bağlayır
+- masa təmizlənəndən sonra yenidən boşaldır
 
-1. `Masalar` moduluna daxil olun
-2. boş masa seçin
-3. qonaq sayını qeyd edin
-4. ehtiyac varsa depozit yazın
+### 5.1. Masanın statusları
 
-### 5.2. Masaya sifariş vurmaq
+Masaya baxanda rəngi və vəziyyəti sizə çox şeyi deyir:
 
-1. masa detail-i açın
-2. `POS-da sifariş yaz` düyməsini basın
-3. sistem sizi POS-a keçirəcək
-4. yuxarıda bu sifarişin hansı masa üçün olduğu görünəcək
-5. məhsulları seçin
-6. `Masaya Göndər` düyməsini basın
+- `Boş` masa
+  oturtmaq olar
+- `Rezerv` masa
+  əvvəl rezerv qaydasını yoxlayın
+- `Açıq hesablı masa`
+  qonaq içəridədir, sifariş/hesab açıqdır
+- `Təmizlik`
+  masa bağlanıb, təmizlənmədən yenidən açılmamalıdır
 
-### 5.3. Masa sahibi
+### 5.2. Masa necə açılır
 
-Masaya ilk sifarişi vuran staff həmin masanın sahibi olur. Hazırkı məntiqdə başqa staff eyni dolu masaya icazəsiz sifariş əlavə edə bilməz.
+1. `Masalar` moduluna keçin
+2. boş masaya toxunun
+3. `qonaq sayı` yazın
+4. ehtiyac varsa `depozitli qonaq sayı` yazın
+5. `Masanı aç` basın
+
+Misal:
+
+`Masa 4`-ə `3 nəfər` oturub.
+
+Siz:
+- qonaq sayı: `3`
+- depozit yoxdursa: `0`
+- `Masanı aç`
+
+### 5.3. Masa sahibi nə deməkdir
+
+Masaya ilk əməliyyatı edən staff həmin masanın sahibi olur.
+
+Bu o deməkdir ki:
+- həmin masa onun nəzarətindədir
+- başqa staff masa detalını görə bilər
+- amma owner deyilsə, müdaxilə məhdud ola bilər
+
+Bu, qarışıqlığı və səhv sifarişi azaltmaq üçündür.
+
+### 5.4. Masaya sifariş necə yazılır
+
+Hazır sistemdə sifariş yazmaq üçün ayrıca POS-a keçmək əsas yol deyil.
+Ofisiant masanı açandan sonra sağ tərəfdə sifariş paneli açılır.
+
+Orada 2 əsas hissə var:
+- `Yeni sifariş`
+- `Göndərilməmişlər`
+
+Addım-addım:
+
+1. açıq masaya toxunun
+2. sağ paneldə `Yeni sifariş` hissəsi açılacaq
+3. məhsulları seçin
+4. seçilən məhsullar `Göndərilməmişlər`ə düşəcək
+5. lazımdırsa miqdar və ya seçimi düzəldin
+6. `Göndər` basın
+
+Misal:
+
+`Masa 2` istəyir:
+- `2 dönər`
+- `1 ayran`
+- `1 kartof`
+
+Siz:
+1. `Dönər` məhsuluna iki dəfə toxunursunuz
+2. `Ayran` məhsuluna bir dəfə toxunursunuz
+3. `Kartof` məhsuluna bir dəfə toxunursunuz
+4. `Göndərilməmişlər` siyahısına baxırsınız
+5. hər şey düzgündürsə `Göndər` basırsınız
+
+Nəticə:
+bu sifariş mətbəxə ayrıca raund kimi gedir.
+
+### 5.5. Raund nədir
+
+Raund mətbəxə bir dəfəlik göndərilən sifariş dəstidir.
+
+Misal:
+
+`Raund 1`
+- 2 dönər
+- 1 ayran
+
+10 dəqiqə sonra masa əlavə istəyir:
+
+`Raund 2`
+- 1 cola
+- 1 kartof
+
+Yəni:
+- masa eynidir
+- hesab eynidir
+- amma göndərişlər tarixçə ilə ayrı görünür
+
+Bu, həm mətbəxə, həm auditə, həm də ofisianta rahatlıq verir.
+
+### 5.6. Göndərilməmişlər nədir
+
+`Göndərilməmişlər` hələ mətbəxə getməyən məhsullardır.
+
+Bu hissədə rahat dəyişiklik etmək olar:
+- `+` artırır
+- `Azalt` azaldır
+- `Sil` tam çıxarır
+
+Misal:
+
+Səhvən `3 cola` seçmisiniz, amma masa `2 cola` istəyib.
+
+Sadəcə:
+- `Azalt` basın
+
+Əgər hələ `Göndər` basılmayıbsa, mətbəx heç nə görməyəcək.
+
+### 5.7. Göndərilmiş sifariş nədir
+
+`Göndərilmişlər` artıq mətbəxə çatmış sifarişlərdir.
+
+Burada normal `Sil` yoxdur.
+Çünki mətbəxə gedən məhsul izsiz silinməməlidir.
+
+Statusa görə bu əməliyyatlar görünə bilər:
+- `Azalt`
+- `Ləğv et`
+- `Hesabdan sil`
+- `İsraf`
+- `Yenidən düzəlt`
+- `Status tarixçəsi`
+
+### 5.8. Səhv sifariş necə düzəldilir
+
+Bu hissə çox vacibdir. Qayda belədir:
+
+#### 1. Məhsul hələ göndərilməyibsə
+
+Rahat düzəldin:
+- `Azalt`
+- `Sil`
+- yenidən seçin
+
+Misal:
+- səhvən `1 ayran` yerinə `1 cola` seçmisiniz
+- `Sil` basın
+- sonra doğru məhsulu əlavə edin
+
+#### 2. Məhsul göndərilib, amma hələ hazır deyil
+
+Bu halda düzəliş etmək olar, amma artıq auditli şəkildə.
+
+Misal 1:
+`2 dönər` göndərmisiniz.
+Qonaq deyir: “1 dənə olsun.”
+
+Siz:
+1. göndərilmiş item-də `Azalt` basırsınız
+2. azaldılacaq miqdarı seçirsiniz
+3. səbəbi qeyd edirsiniz
+
+Nəticə:
+- sistem bunu partial cancel kimi saxlayır
+- mətbəx ekranında `STOP / LƏĞV TƏLƏBİ` görünür
+- qalan item aktiv qalır
+
+Misal 2:
+Qeyd səhv yazılıb.
+Məsələn `soğansız` olmalı idi, amma yazılmayıb.
+
+Siz:
+1. `Yenidən düzəlt` basırsınız
+2. yeni qeydi yazırsınız
+
+Nəticə:
+- köhnə item “əvvəlkini hazırlama” məntiqi ilə işarələnir
+- yeni düzəliş item-i ayrıca mətbəxə gedir
+
+#### 3. Məhsul artıq hazırdırsa
+
+Bu mərhələdə normal edit etməyin.
+
+Artıq məhsul hazır sayılır.
+Bu halda vəziyyətə görə:
+- `Hesabdan sil`
+- `İsraf`
+- `Yenidən düzəlt`
+
+istifadə olunur.
+
+Misal:
+Mətbəx dönəri hazır edib, amma müştəri qəbul etmir.
+
+Bu zaman:
+- ya manager qərarı ilə `Hesabdan sil`
+- ya `İsraf`
+- lazım olsa yenidən düzəliş sifarişi
+
+### 5.9. Hesabdan sil nədir
+
+Bu o deməkdir ki:
+- məhsul tarixçədə qalır
+- amma müştəridən onun pulu alınmır
+
+Misal:
+- məhsul çox gecikib
+- manager deyir ki, bunu hesabdan çıxın
+
+### 5.10. İsraf nədir
+
+Bu o deməkdir ki məhsul:
+- hazırlanıb
+- amma istifadə olunmayıb
+- və ya yararsız olub
+
+Misallar:
+- məhsul səhv hazırlanıb
+- yerə düşüb
+- masa imtina edib
+- dublikat hazırlanıb
+
+`İsraf` seçiləndə həm audit izi qalır, həm də anbar məntiqi buna uyğun işləyir.
+
+### 5.11. Yenidən düzəlt nədir
+
+Bu düymə məhsulun düzəlişlə yenidən hazırlanması üçündür.
+
+Misal:
+- burger göndərilib
+- sonra məlum olur ki `pendirsiz` olmalıdır
+
+Siz:
+1. `Yenidən düzəlt` basırsınız
+2. yeni qeydi yazırsınız
+
+Nəticə:
+- əvvəlki item ayrıca tarixçədə qalır
+- yeni düzəliş item-i mətbəxə ayrıca gedir
+
+### 5.12. Servis hissəsi
+
+Mətbəx məhsulu `Hazırdır` etdikdən sonra məhsul `Servis` hissəsində görünür.
+
+Ofisiant:
+1. məhsulu masaya aparır
+2. sonra sistemdə `Servis edildi` basır
+
+Bu addım vacibdir, çünki sistem məhsulun artıq qonağa verildiyini buradan bilir.
+
+### 5.13. Hesabı necə bağlamaq
+
+Masa sonunda:
+1. masa detalını açın
+2. hesabı yoxlayın
+3. lazım olsa split edin
+4. ödənişi alın
+5. hesabı bağlayın
+
+Misal:
+
+Masa hesabı `36 AZN`-dir.
+
+Ödəniş:
+- `20 AZN` nəğd
+- `16 AZN` kart
+
+Bu halda:
+- `Split` ilə hissələri bölürsünüz
+- sonra təsdiqləyirsiniz
+
+### 5.14. Masa bağlanandan sonra nə olur
+
+Hesab bağlanandan sonra masa avtomatik `Təmizlik` statusuna keçir.
+
+Bu zaman:
+- yeni müştəri dərhal açılmamalıdır
+- əvvəl fiziki təmizlik edilməlidir
+- sonra sistemdə `Təmizlə` basılmalıdır
 
 ## 6. Mətbəx Ekranı (KDS)
 
-KDS mətbəxin işlədiyi paneldir.
+`KDS` mətbəxin işlədiyi əsas ekrandır.
 
-### 6.1. Mətbəx nə edir
+Burada mətbəx görür:
+- masa nömrəsi
+- raund nömrəsi
+- məhsul adı
+- miqdar
+- qeyd və düzəlişlər
+- status
 
-1. yeni sifarişi görür
-2. `Qəbul et`
-3. hazırlayır
-4. hazır olan məhsulları seçir
-5. `Hazırdır`
+### 6.1. Mətbəxdə normal iş axını
 
-### 6.2. Hazır sifariş bildirişi
+1. yeni sifariş gəlir
+2. mətbəx `Başla` basır
+3. məhsul hazırlanır
+4. hazır olanda `Hazırdır`
+5. lazım olsa pickup/servis statusu görünür
 
-Mətbəx `Hazırdır` etdikdən sonra hazır məhsul popup-u masa ilə işləyən staff-a göndərilir.
+### 6.2. KDS-də xüsusi siqnallar
 
-Bu popup:
-- avtomatik görünür
-- staff `OK` basana qədər qalır
+#### `STOP / LƏĞV TƏLƏBİ`
+
+Bu o deməkdir ki ofisiant göndərilmiş sifarişdə düzəliş edib və mətbəx diqqətli olmalıdır.
+
+Misal:
+- 2 dönər gedib
+- sonra 1-i ləğv olunub
+
+KDS-də bu ayrıca görünür.
+
+#### `Yenidən düzəlt`
+
+Bu o deməkdir ki əvvəlki item-də düzəliş olub və yenisi hazırlanmalıdır.
+
+Misal:
+- köhnə burger normal idi
+- yenisi `pendirsiz` hazırlanmalıdır
+
+#### `İsraf`
+
+Bu məhsulun istifadə olunmadığını göstərir.
+
+### 6.3. Hazır məhsul bildirişi
+
+Mətbəx `Hazırdır` etdikdən sonra məsul ofisiant bunu masa ekranında görür.
+
+Ofisiant məhsulu aparıb `Servis edildi` etdikdə zəncir tamamlanır.
 
 ## 7. Depozit Məntiqi
 
-Masa açılışında depozit yazmaq mümkündür.
+Depozit sadəcə alınan pul deyil.
+Sistem onu ayrıca öhdəlik kimi saxlayır.
 
-Depozit:
+Bu o deməkdir ki depozit:
 - satış gəliri deyil
-- ayrıca öhdəlik kimi saxlanılır
+- dərhal qazanc sayılmır
+- hesab bağlananda istifadə olunur və ya ayrıca qaytarılır
 
-Bu səbəbdən sistemdə `Aktiv masa depozit öhdəliyi` ayrıca görünür.
+### 7.1. Misal
+
+`Masa 5` açılır.
+
+- 3 nəfər oturur
+- hər nəfər `5 AZN` depozit verir
+
+Nəticə:
+- kassada pul artır
+- amma bu satış gəliri sayılmır
+- `Aktiv masa depozit öhdəliyi` artır
 
 Masa bağlananda:
-- depozit hesabda istifadə olunursa
-- həmin öhdəlik azalır
+- depozit hesabda istifadə olunursa, öhdəlik azalır
+- qalan məbləğ ayrıca qaytarıla bilər
 
 ## 8. Maliyyə Modulu
 
-`Maliyyə` artıq sadə form ekranı deyil. Bu hissə menecer və kassir üçün ayrıca `maliyyə nəzarət mərkəzi` kimi işləyir.
+`Maliyyə` menecer və kassir üçün `maliyyə nəzarət mərkəzi` kimi işləyir.
 
-Burada 3 əsas məntiq var:
-
+Əsas məntiq:
 - `Baxış`
   indi vəziyyət nədir?
 - `Əməliyyat`
   indi nə yazmalıyam?
 - `Maliyyə jurnalı`
-  nə baş verib, kim yazıb, kim təsdiqləyib?
+  nə baş verib?
 
-### 8.1. Default açılış: `Baxış`
+### 8.1. Baxış ekranı
 
 `Maliyyə`yə girəndə əvvəl `Baxış` görünür.
 
-Burada görünür:
+Burada əsas kartlar var:
 - `Nağd kassa`
 - `Bank/Kart`
 - `Seyf`
@@ -180,21 +520,16 @@ Burada görünür:
 - `Bugünkü net`
 - `Uyğunlaşdırma fərqi`
 
-Yuxarı hissədə həm də kritik xəbərdarlıqlar görünür:
+Yuxarıda isə kritik siqnallar görünür:
 - `Kassa uyğun deyil`
 - `Təsdiq gözləyən əməliyyat var`
 - `Transfer uğursuz oldu`
 - `Investor qalığı gecikir`
 - `Uyğunlaşdırma tamamlanmayıb`
 
-Bu hissənin məqsədi budur:
-ekrana baxan menecer bir neçə saniyədə vəziyyəti başa düşsün.
-
 ### 8.2. Sürətli əməliyyatlar
 
-Yuxarıdakı `Sürətli əməliyyatlar` kartlarından birini seçəndə ayrıca iş sahəsi açılır.
-
-Burada əsas düymələr var:
+Buradan bunları açırsınız:
 - `Mədaxil yaz`
 - `Xərc yaz`
 - `Daxili transfer`
@@ -203,94 +538,67 @@ Burada əsas düymələr var:
 - `Uyğunlaşdırma başlat`
 - `Düzəliş`
 
-Vacib:
-formlar default açıq qalmır.
-Yalnız seçdiyiniz əməliyyat üçün uyğun sahələr görünür.
+Formlar eyni anda açıq qalmır.
+Hansını seçirsinizsə, yalnız onun iş sahəsi açılır.
 
-### 8.3. Mədaxil və xərc yazmaq
+### 8.3. Xərc və mədaxil
 
-Bu hissə gündəlik operativ yazılar üçündür.
+Misal:
+- təchizatçıya `40 AZN` xammal pulu verilib
 
-Misallar:
-- `Xammal`
-- `Kommunal`
-- `Maaş`
-- `İcarə`
-- `Digər giriş`
-
-Adətən bu sahələr doldurulur:
-- mənbə hesabı
-- kateqoriya
-- subyekt
-- məbləğ
-- qeyd
-
-Sadə qayda:
-- pul daxil olursa `Mədaxil`
-- pul çıxırsa `Xərc`
+Siz:
+- `Xərc yaz`
+- mənbə hesabı: məsələn `Kassa`
+- kateqoriya: `Xammal`
+- subyekt: `Təchizatçı`
+- məbləğ: `40`
+- qeyd yazırsınız
 
 ### 8.4. Daxili transfer
 
-Bu əməliyyat gəlir və ya xərc deyil.
-Sadəcə vəsaitin bir hesabdan digərinə keçməsidir.
+Bu gəlir və xərc deyil.
+Sadəcə hesablar arası hərəkətdir.
 
-Misallar:
+Misal:
+- `100 AZN` seyfdən kassaya qoyursunuz
+
+Siz:
+- `Daxili transfer`
 - `Seyfdən Kassaya`
-- `Kartdan Kassaya`
-- `Kassadan Seyfə`
+- məbləğ `100`
 
-Böyük məbləğli transferlər sistem policy-sinə görə əvvəl `Təsdiq qutusu`na düşə bilər.
+### 8.5. Investor ödənişi
 
-### 8.5. İnvestor ödənişi
-
-Bu əməliyyatla:
-- seçilmiş mənbədən pul çıxır
+Bu əməliyyatda:
+- seçilən hesabdan pul çıxır
 - investor borcu azalır
 
-Sistem policy-sinə görə bu əməliyyat:
-- ya birbaşa yazılır
-- ya da əvvəl `Təsdiq qutusu`na göndərilir
-
-Yəni menecer təsdiqləmədən balans dəyişməyə də bilər. Bu, nəzarət üçündür.
+Bəzi hallarda bu əməliyyat əvvəl `Təsdiq qutusu`na düşür.
 
 ### 8.6. Uyğunlaşdırma
 
-`Uyğunlaşdırma` kassadakı real pul ilə sistemdəki gözlənilən qalığın tutuşdurulmasıdır.
+Burada:
+- sistemin gözlədiyi məbləğ görünür
+- sizin saydığınız faktiki məbləğ yazılır
+- fərq hesablanır
 
-Burada görünür:
-- `Gözlənilən`
-- `Sayılmış`
-- `Fərq`
-
-Sonra siz:
-- hesabı seçirsiniz
-- sayılmış məbləği yazırsınız
-- qeyd əlavə edirsiniz
-- `Uyğunlaşdırmanı tamamla` basırsınız
-
-Əgər fərq varsa, sistem onu ayrıca nəzarət siqnalı kimi saxlayır.
+Əgər fərq çıxırsa, bu, nəzarət siqnalıdır.
 
 ### 8.7. Təsdiq qutusu
 
-`Təsdiq qutusu` riskli əməliyyatların qısa növbəsidir.
+Burada riskli əməliyyatlar menecer təsdiqi gözləyir.
 
-Buraya əsasən bunlar düşə bilər:
-- investor ödənişi
+Misallar:
 - böyük transfer
-- düzəliş əməliyyatı
+- investor ödənişi
 - reversal
-
-Menecer burada:
-- əməliyyatı açır
-- məbləğə baxır
-- haradan hara getdiyini görür
-- sonra `Təsdiqlə` və ya `Rədd et` edir
+- düzəliş əməliyyatı
 
 ### 8.8. Maliyyə jurnalı
 
-`Maliyyə jurnalı` audit hissəsidir.
+Bu hissə audit üçündür.
 
-Burada hər əməliyyat üçün görünür:
+Burada hər əməliyyat üzrə görünür:
 - tarix
 - status
 - əməliyyat növü
@@ -298,36 +606,22 @@ Burada hər əməliyyat üçün görünür:
 - məbləğ
 - qeyd
 
-Sətirə klikləyəndə detal açılır:
+Sətirə klikləyəndə açılır:
 - debit / credit yazılışları
 - audit tarixçəsi
 - təsdiq tarixi
 - reversal tarixçəsi
 
-Bu hissə əsasən menecer, admin və audit nəzarəti üçündür.
+### 8.9. Menecer üçün qısa yoxlama
 
-### 8.9. Depozit və investor məntiqi
+Maliyyə moduluna girəndə belə oxuyun:
 
-`Aktiv depozitlər` ayrıca öhdəlik kimi saxlanılır.
-Yəni depozit satış gəliri kimi sayılmır.
-
-`Investor borcu` da ayrıca izlənir.
-Investor ödənişi yazılanda sistem:
-- pul çıxışını yazır
-- investor öhdəliyini azaldır
-
-### 8.10. Menecer üçün qısa oxuma qaydası
-
-Maliyyə moduluna girəndə bu ardıcıllıqla baxın:
-
-1. yuxarı KPI kartlarına
-2. kritik xəbərdarlıqlara
-3. `Bugünkü pul axını`
-4. `Nəzarət xülasəsi`
-5. `Təsdiq qutusu`
-6. lazım olsa `Maliyyə jurnalı`
-
-Əgər ekranda qırmızı xəbərdarlıq varsa, əvvəl onu yoxlayın, sonra yeni əməliyyat yazın.
+1. KPI kartlarına baxın
+2. qırmızı və sarı xəbərdarlıqları yoxlayın
+3. `Bugünkü pul axını`na baxın
+4. `Nəzarət xülasəsi`ni oxuyun
+5. `Təsdiq qutusu`nda gözləyən əməliyyat varsa qərar verin
+6. lazım olsa `Maliyyə jurnalı`na keçin
 
 ## 9. X-Hesabat
 
