@@ -1520,7 +1520,7 @@ export default function SettingsPanel() {
             'Automatically sign out after inactivity. Use 0 to disable this feature.',
           )}
         </p>
-        <div className="flex flex-col gap-3 md:flex-row md:items-end">
+        <div className="grid gap-4 md:grid-cols-[auto_1fr_auto] md:items-end">
           <label className="text-sm text-slate-300">
             {tx(lang, 'Boş dayanma çıxışı (dəqiqə)', 'Простой выход (минуты)', 'Idle logout (minutes)')}
             <input
@@ -1534,14 +1534,19 @@ export default function SettingsPanel() {
               onChange={(e) => setSessionSettings((prev) => ({ ...prev, idle_logout_minutes: e.target.value }))}
             />
           </label>
-          <label className="flex items-center gap-3 rounded-2xl border border-slate-700/60 bg-slate-950/40 px-4 py-3 text-sm font-semibold text-slate-200">
-            <input
-              type="checkbox"
-              checked={sessionSettings.virtual_keyboard_enabled}
-              onChange={(e) => setSessionSettings((prev) => ({ ...prev, virtual_keyboard_enabled: e.target.checked }))}
-            />
-            <span>{tx(lang, 'Virtual klaviaturanı aktiv saxla', 'Держать виртуальную клавиатуру включенной', 'Keep virtual keyboard enabled')}</span>
-          </label>
+          <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 px-4 py-3">
+            <label className="flex items-center gap-3 text-sm font-semibold text-slate-200">
+              <input
+                type="checkbox"
+                checked={sessionSettings.virtual_keyboard_enabled}
+                onChange={(e) => setSessionSettings((prev) => ({ ...prev, virtual_keyboard_enabled: e.target.checked }))}
+              />
+              <span>{tx(lang, 'Virtual klaviatura aktivdir', 'Виртуальная клавиатура включена', 'Virtual keyboard is enabled')}</span>
+            </label>
+            <div className="mt-2 text-xs text-slate-400">
+              {tx(lang, 'Sensor ekranda input sahələrinə toxunanda öz klaviaturamız açılsın.', 'На сенсорном экране при нажатии на поле будет открываться встроенная клавиатура.', 'Show the built-in keyboard when a touch device focuses an input.')}
+            </div>
+          </div>
           <button onClick={() => { void saveSessionSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">
             {tx(lang, 'Sessiya ayarlarını saxla', 'Сохранить настройки сессии', 'Save Session Settings')}
           </button>
