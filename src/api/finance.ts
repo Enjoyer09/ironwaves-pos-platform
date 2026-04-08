@@ -1234,7 +1234,7 @@ export const fetch_finance_alerts = async (tenant_id: string): Promise<FinanceAl
     title: String(row.title || ''),
     body: String(row.body || ''),
     tone: row.tone === 'rose' ? 'rose' : 'amber',
-    action: String(row.action || 'Review'),
+    action: String(row.action || 'Bax'),
     tab: String(row.tab || 'overview'),
     severity: row.severity ? String(row.severity) : undefined,
     count: row.count === undefined || row.count === null ? undefined : Number(row.count),

@@ -9,6 +9,19 @@ export type FinanceWorkspaceTab = 'overview' | 'transactions' | 'transfers' | 'r
 export type FinanceQuickAction = 'income' | 'expense' | 'transfer' | 'investor_repayment' | 'deposit' | 'reconcile' | 'adjustment';
 export type FinanceStatusTone = 'emerald' | 'rose' | 'amber' | 'sky' | 'violet' | 'slate';
 
+export function financeStatusLabel(status?: string | null, lang: string = 'az') {
+  const normalized = String(status || 'posted').toLowerCase();
+  const labels: Record<string, string> = {
+    draft: tx(lang, 'Qaralama', 'Черновик', 'Draft'),
+    pending_approval: tx(lang, 'Təsdiq gözləyir', 'Ожидает подтверждения', 'Pending approval'),
+    approved: tx(lang, 'Təsdiqlənib', 'Подтверждено', 'Approved'),
+    posted: tx(lang, 'Yazılıb', 'Проведено', 'Posted'),
+    rejected: tx(lang, 'Rədd edilib', 'Отклонено', 'Rejected'),
+    reversed: tx(lang, 'Əks yazılış edilib', 'Сторнировано', 'Reversed'),
+  };
+  return labels[normalized] || normalized.replace(/_/g, ' ');
+}
+
 export function FinanceDashboard({ children }: { children: React.ReactNode }) {
   return (
     <div className="space-y-5 text-slate-100">
@@ -38,7 +51,7 @@ export function FinanceSummaryStrip({
     { label: tx(lang, 'Seyf', 'Сейф', 'Safe'), value: balance.safe_balance, tone: 'violet' as const, icon: <ShieldCheck size={20} /> },
     { label: tx(lang, 'Aktiv Depozitlər', 'Активные депозиты', 'Active deposits'), value: balance.deposit_balance, tone: 'amber' as const, icon: <WalletCards size={20} /> },
     { label: tx(lang, 'Bugünkü Net', 'Нетто сегодня', 'Today net'), value: netCashflow, tone: netCashflow.gte(0) ? 'emerald' as const : 'rose' as const, icon: <RefreshCw size={20} /> },
-    { label: tx(lang, 'Reconciliation', 'Сверка', 'Reconciliation'), value: reconciliationGap, tone: new Decimal(reconciliationGap || 0).abs().gt(0.01) ? 'rose' as const : 'emerald' as const, icon: <GitCompareArrows size={20} /> },
+    { label: tx(lang, 'Uyğunlaşdırma', 'Сверка', 'Reconciliation'), value: reconciliationGap, tone: new Decimal(reconciliationGap || 0).abs().gt(0.01) ? 'rose' as const : 'emerald' as const, icon: <GitCompareArrows size={20} /> },
   ];
   return (
     <section className="rounded-[30px] border border-slate-800 bg-slate-900 p-5 shadow-[0_22px_70px_rgba(0,0,0,0.28)]">
@@ -47,7 +60,7 @@ export function FinanceSummaryStrip({
           <div className="text-xs font-black uppercase tracking-[0.24em] text-yellow-300">{tx(lang, 'Maliyyə iş sahəsi', 'Maliyyə iş sahəsi', 'Maliyyə iş sahəsi')}</div>
           <h2 className="mt-2 text-2xl font-black text-white md:text-3xl">{tx(lang, 'Maliyyə nəzarət mərkəzi', 'Центр финансового контроля', 'Finance control center')}</h2>
           <p className="mt-2 max-w-3xl text-sm text-slate-400">
-            {tx(lang, 'Pul axını, öhdəliklər, reconciliation və ledger eyni iş sahəsindədir.', 'Денежный поток, обязательства, сверка и ledger в одном рабочем пространстве.', 'Cashflow, liabilities, reconciliation and ledger in one workspace.')}
+            {tx(lang, 'Pul axını, öhdəliklər, uyğunlaşdırma və maliyyə jurnalı eyni iş sahəsindədir.', 'Денежный поток, обязательства, сверка и ledger в одном рабочем пространстве.', 'Cashflow, liabilities, reconciliation and ledger in one workspace.')}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -222,7 +235,7 @@ const financeStatusTone = (status?: string | null): FinanceStatusTone => {
   return 'slate';
 };
 
-export function FinanceStatusBadge({ status }: { status?: string | null }) {
+export function FinanceStatusBadge({ status, lang = 'az' }: { status?: string | null; lang?: string }) {
   const label = String(status || 'posted');
   const tone = financeStatusTone(label);
   const classes: Record<FinanceStatusTone, string> = {
@@ -235,7 +248,7 @@ export function FinanceStatusBadge({ status }: { status?: string | null }) {
   };
   return (
     <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${classes[tone]}`}>
-      {label.replace(/_/g, ' ')}
+      {financeStatusLabel(label, lang)}
     </span>
   );
 }
@@ -289,6 +302,7 @@ export function TransactionDetailDrawer({
   detail,
   loading,
   accountName,
+  transactionTypeLabel,
   onApprove,
   onReject,
   onReverse,
@@ -298,6 +312,7 @@ export function TransactionDetailDrawer({
   detail: FinanceTransactionDetail | null;
   loading: boolean;
   accountName: (code?: string | null) => string;
+  transactionTypeLabel: (value?: string | null) => string;
   onApprove: (transactionId: string) => void | Promise<void>;
   onReject: (transactionId: string) => void | Promise<void>;
   onReverse: (transactionId: string) => void | Promise<void>;
@@ -340,7 +355,7 @@ export function TransactionDetailDrawer({
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="text-xs font-black uppercase tracking-[0.22em] text-yellow-300">{tx(lang, 'Əməliyyat detalları', 'Детали операции', 'Transaction Detail')}</div>
-              <h3 className="mt-2 text-2xl font-black text-white">{txRow.transaction_type?.replace(/_/g, ' ') || 'Transaction'}</h3>
+              <h3 className="mt-2 text-2xl font-black text-white">{transactionTypeLabel(txRow.transaction_type) || tx(lang, 'Əməliyyat', 'Операция', 'Transaction')}</h3>
               <p className="mt-1 text-sm text-slate-400">{txRow.id}</p>
             </div>
             <button onClick={onClose} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-200">
@@ -370,7 +385,7 @@ export function TransactionDetailDrawer({
         <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
             <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{tx(lang, 'Status', 'Статус', 'Status')}</div>
-            <div className="mt-3"><FinanceStatusBadge status={txRow.status || 'posted'} /></div>
+            <div className="mt-3"><FinanceStatusBadge status={txRow.status || 'posted'} lang={lang} /></div>
           </div>
           <FinanceMiniMetric label={tx(lang, 'Məbləğ', 'Сумма', 'Amount')} value={`${new Decimal(txRow.amount || 0).toFixed(2)} ₼`} tone="sky" />
           <FinanceMiniMetric label={tx(lang, 'Haradan', 'Откуда', 'From')} value={accountName(txRow.source_account)} tone="amber" />

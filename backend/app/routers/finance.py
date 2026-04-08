@@ -754,10 +754,10 @@ def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
         alerts.append(
             {
                 "id": "pending-approvals",
-                "title": "Approval gözləyən əməliyyatlar",
+                "title": "Təsdiq gözləyən əməliyyatlar",
                 "body": f"{pending_count} maliyyə əməliyyatı təsdiq gözləyir.",
                 "tone": "amber",
-                "action": "Approve",
+                "action": "Təsdiqlə",
                 "tab": "overview",
                 "severity": "warning",
                 "count": pending_count,
@@ -773,10 +773,10 @@ def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
         alerts.append(
             {
                 "id": "failed-postings",
-                "title": "Failed / rejected posting",
-                "body": f"{failed_count} ledger transaction rejected statusundadır.",
+                "title": "Rədd edilmiş yazılış var",
+                "body": f"{failed_count} maliyyə əməliyyatı rədd edilib və yoxlanma gözləyir.",
                 "tone": "rose",
-                "action": "Review",
+                "action": "Bax",
                 "tab": "ledger",
                 "severity": "critical",
                 "count": failed_count,
@@ -797,10 +797,10 @@ def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
         alerts.append(
             {
                 "id": "negative-balance-risk",
-                "title": "Negative balance risk",
+                "title": "Mənfi balans riski",
                 "body": detail,
                 "tone": "rose",
-                "action": "Review",
+                "action": "Bax",
                 "tab": "ledger",
                 "severity": "critical",
                 "count": len(negative_accounts),
@@ -818,10 +818,10 @@ def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
         alerts.append(
             {
                 "id": "unreconciled-variance",
-                "title": "Unreconciled variance",
+                "title": "Uyğunlaşdırılmamış fərq",
                 "body": f"Son reconciliation fərqi: {Decimal(str(latest_reconciliation.variance)).quantize(Decimal('0.01'))} ₼.",
                 "tone": "rose",
-                "action": "Reconcile",
+                "action": "Uyğunlaşdır",
                 "tab": "reconciliation",
                 "severity": "critical",
                 "count": 1,
@@ -835,7 +835,7 @@ def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
             alerts.append(
                 {
                     "id": "investor-liability-open",
-                    "title": "Investor balance open",
+                    "title": "Açıq investor borcu",
                     "body": f"Investor borcu açıqdır: {investor_balance.quantize(Decimal('0.01'))} ₼.",
                     "tone": "amber",
                     "action": "Investor",
@@ -858,10 +858,10 @@ def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
             alerts.append(
                 {
                     "id": "unreconciled-till",
-                    "title": "Unreconciled till",
+                    "title": "Uyğunlaşdırılmamış kassa",
                     "body": f"Olmalı kassa ilə ledger kassa arasında {shift_gap.quantize(Decimal('0.01'))} ₼ fərq var.",
                     "tone": "rose",
-                    "action": "Reconcile",
+                    "action": "Uyğunlaşdır",
                     "tab": "reconciliation",
                     "severity": "critical",
                     "count": 1,
