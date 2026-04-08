@@ -738,6 +738,150 @@ def _sync_check_and_table_from_items(db: Session, tenant_id: str, table: Table, 
     table.items_json = json.dumps(visible_items, ensure_ascii=False)
 
 
+def _latest_item_action_log(db: Session, tenant_id: str, item_id: str) -> ItemStatusLog | None:
+    return (
+        db.query(ItemStatusLog)
+        .filter(ItemStatusLog.tenant_id == tenant_id, ItemStatusLog.order_item_id == item_id)
+        .order_by(ItemStatusLog.changed_at.desc())
+        .first()
+    )
+
+
+def _should_consume_nonbillable_item_stock(db: Session, tenant_id: str, item: OrderItem) -> bool:
+    if item.stock_consumed_at:
+        return False
+    status = _normalize_item_status(item.status)
+    if status == "WASTE":
+        return True
+    if status not in {"COMPED", "REMAKE"}:
+        return False
+    latest_log = _latest_item_action_log(db, tenant_id, item.id)
+    old_status = _normalize_item_status(latest_log.old_status if latest_log else None)
+    if item.served_at:
+        return True
+    return old_status in {"READY", "SERVED"}
+
+
+def _nonbillable_stock_items_for_check(db: Session, tenant_id: str, check_id: str) -> list[dict]:
+    rows = (
+        db.query(OrderItem)
+        .filter(OrderItem.tenant_id == tenant_id, OrderItem.check_id == check_id)
+        .order_by(OrderItem.created_at.asc())
+        .all()
+    )
+    stock_items: list[dict] = []
+    for row in rows:
+        if not _should_consume_nonbillable_item_stock(db, tenant_id, row):
+            continue
+        stock_items.append(
+            {
+                "order_item_id": row.id,
+                "item_name": row.item_name,
+                "qty": row.qty,
+                "price": "0.00",
+                "status": row.status,
+                "status_reason": row.status_reason,
+            }
+        )
+    return stock_items
+
+
+def _apply_stock_consumption(
+    db: Session,
+    tenant_id: str,
+    user: User,
+    stock_ops: list[tuple],
+    *,
+    sale_id: str | None,
+    source: str,
+    table: Table,
+    extra: dict | None = None,
+) -> None:
+    for inventory, qty_required in stock_ops:
+        inventory.stock_qty = (Decimal(str(inventory.stock_qty or 0)) - qty_required).quantize(Decimal("0.001"))
+        db.add(
+            AuditLog(
+                tenant_id=tenant_id,
+                user=user.username,
+                action="INVENTORY_CONSUMED" if source == "restaurant_settlement" else "INVENTORY_WASTE_CONSUMED",
+                details=json.dumps(
+                    {
+                        "item_name": inventory.name,
+                        "qty_removed": str(qty_required),
+                        "unit": inventory.unit,
+                        "remaining_qty": str(inventory.stock_qty),
+                        "sale_id": sale_id,
+                        "source": source,
+                        "table_id": table.id,
+                        "table_label": table.label,
+                        **(extra or {}),
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
+
+
+def _action_stock_consumption_reason(old_status: str, new_status: str) -> str | None:
+    if new_status == "WASTE":
+        return "waste"
+    if new_status == "COMPED" and old_status in {"READY", "SERVED"}:
+        return "comped_after_prepared"
+    if new_status == "REMAKE" and old_status in {"READY", "SERVED"}:
+        return "remake_replaced_prepared_item"
+    return None
+
+
+def _consume_action_item_stock_if_needed(
+    db: Session,
+    tenant_id: str,
+    user: User,
+    item: OrderItem,
+    table: Table | None,
+    *,
+    old_status: str,
+    new_status: str,
+    action: str,
+) -> None:
+    if item.stock_consumed_at:
+        return
+    reason = _action_stock_consumption_reason(old_status, new_status)
+    if not reason:
+        return
+    if not table:
+        return
+    stock_item = {
+        "order_item_id": item.id,
+        "item_name": item.item_name,
+        "qty": item.qty,
+        "price": "0.00",
+        "status": item.status,
+        "status_reason": item.status_reason,
+    }
+    stock_ops, cogs_total = _collect_stock_ops(db, tenant_id, [stock_item])
+    _apply_stock_consumption(
+        db,
+        tenant_id,
+        user,
+        stock_ops,
+        sale_id=None,
+        source=f"restaurant_item_{reason}",
+        table=table,
+        extra={
+            "order_item_id": item.id,
+            "check_id": item.check_id,
+            "round_id": item.round_id,
+            "action": action,
+            "old_status": old_status,
+            "new_status": new_status,
+            "stock_policy": "immediate_nonbillable_item_consumption",
+            "waste_cogs": str(cogs_total),
+        },
+    )
+    item.stock_consumed_at = datetime.utcnow()
+    item.stock_consumption_reason = reason
+
+
 def _apply_order_item_action(
     db: Session,
     tenant_id: str,
@@ -1791,6 +1935,16 @@ def act_on_order_item(
             meta=result.get("meta") or {},
         )
         _sync_round_status_from_items(db, tenant.id, item.round_id)
+        _consume_action_item_stock_if_needed(
+            db,
+            tenant.id,
+            user,
+            item,
+            table,
+            old_status=old_status,
+            new_status=new_status,
+            action=result.get("action") or _normalize_item_action(payload.action),
+        )
     active_check = db.query(Check).filter(Check.id == item.check_id, Check.tenant_id == tenant.id).first()
     if table and active_check:
         _sync_check_and_table_from_items(db, tenant.id, table, active_check)
@@ -1954,27 +2108,32 @@ def settle_check(
             )
         )
 
-    for inventory, qty_required in stock_ops:
-        inventory.stock_qty = (Decimal(str(inventory.stock_qty or 0)) - qty_required).quantize(Decimal("0.001"))
-        db.add(
-            AuditLog(
-                tenant_id=tenant.id,
-                user=user.username,
-                action="INVENTORY_CONSUMED",
-                details=json.dumps(
-                    {
-                        "item_name": inventory.name,
-                        "qty_removed": str(qty_required),
-                        "unit": inventory.unit,
-                        "remaining_qty": str(inventory.stock_qty),
-                        "sale_id": sale.id,
-                        "source": "restaurant_settlement",
-                        "table_id": table.id,
-                        "table_label": table.label,
-                    },
-                    ensure_ascii=False,
-                ),
-            )
+    _apply_stock_consumption(
+        db,
+        tenant.id,
+        user,
+        stock_ops,
+        sale_id=sale.id,
+        source="restaurant_settlement",
+        table=table,
+    )
+
+    nonbillable_stock_items = _nonbillable_stock_items_for_check(db, tenant.id, active_check.id)
+    if nonbillable_stock_items:
+        waste_stock_ops, waste_cogs_total = _collect_stock_ops(db, tenant.id, nonbillable_stock_items)
+        _apply_stock_consumption(
+            db,
+            tenant.id,
+            user,
+            waste_stock_ops,
+            sale_id=sale.id,
+            source="restaurant_nonbillable_waste",
+            table=table,
+            extra={
+                "stock_policy": "nonbillable_prepared_or_waste_item",
+                "source_items": nonbillable_stock_items,
+                "waste_cogs": str(waste_cogs_total),
+            },
         )
 
     done_time = datetime.utcnow()

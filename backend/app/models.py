@@ -231,6 +231,8 @@ class OrderItem(Base):
     sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     served_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    stock_consumed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    stock_consumption_reason: Mapped[str | None] = mapped_column(String(80), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
