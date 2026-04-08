@@ -1230,7 +1230,18 @@ export async function create_user(payload: Omit<User, 'id' | 'failed_attempts' |
 
 export function delete_user(username: string) {
   let users = getDB<User>('users');
-  if (username === 'admin' || username === 'super_admin') throw new Error('Əsas admin silinə bilməz!');
+  const target = users.find(u => u.username === username);
+  if (!target) throw new Error('İstifadəçi tapılmadı');
+  const targetRole = String(target.role || '').toLowerCase();
+  if ((username === 'admin' || username === 'super_admin') && targetRole !== 'super_admin') {
+    throw new Error('Əsas admin silinə bilməz!');
+  }
+  if (targetRole === 'super_admin') {
+    const activeSuperAdmins = users.filter((u) => String(u.role || '').toLowerCase() === 'super_admin');
+    if (activeSuperAdmins.length <= 1) {
+      throw new Error('Son platform owner silinə bilməz');
+    }
+  }
 
   const userExists = users.some(u => u.username === username);
   if (!userExists) throw new Error('İstifadəçi tapılmadı');

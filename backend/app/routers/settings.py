@@ -345,10 +345,16 @@ def delete_user(
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
     _assert_target_allowed(current_user, row.role)
-    if row.role == "super_admin":
-        raise HTTPException(status_code=400, detail="Super admin cannot be deleted")
     if row.id == current_user.id:
         raise HTTPException(status_code=400, detail="You cannot delete your own account")
+    if row.role == "super_admin":
+        active_super_admin_count = (
+            db.query(User)
+            .filter(User.tenant_id == tenant.id, User.role == "super_admin", User.is_active == True)  # noqa: E712
+            .count()
+        )
+        if active_super_admin_count <= 1:
+            raise HTTPException(status_code=400, detail="Son platform owner silinə bilməz")
 
     row.is_active = False
     db.commit()
