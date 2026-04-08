@@ -8,11 +8,37 @@ from app.db import get_db
 from app.deps import get_current_user, get_tenant
 import json
 
-from app.models import AuditLog, FinanceEntry, Sale, Setting, Shift, Tenant
-from app.schemas import FinanceEntryIn, InvestorRepayIn, TransferIn
+from app.models import (
+    AuditLog,
+    FinanceAccount,
+    FinanceEntry,
+    FinanceLedgerEntry,
+    FinanceReconciliation,
+    FinanceTransaction,
+    Sale,
+    Setting,
+    Shift,
+    Tenant,
+)
+from app.schemas import FinanceEntryIn, FinanceReconciliationIn, FinanceTransactionIn, InvestorRepayIn, TransferIn
 
 
 router = APIRouter(prefix="/api/v1/finance", tags=["finance"])
+
+
+FINANCE_ACCOUNT_DEFS: dict[str, tuple[str, str]] = {
+    "cash": ("cash_drawer", "Nağd Kassa"),
+    "card": ("bank_account", "Bank/Kart"),
+    "safe": ("safe", "Seyf"),
+    "deposit": ("deposit_liability", "Depozit Öhdəliyi"),
+    "investor": ("investor_liability", "Investor Borcu"),
+    "debt": ("receivable", "Nisyə/Borc"),
+    "revenue": ("revenue", "Satış Gəliri"),
+    "expense": ("expense", "Xərc"),
+    "adjustment": ("adjustment", "Maliyyə Düzəlişi"),
+}
+
+LIABILITY_OR_CREDIT_TYPES = {"deposit_liability", "investor_liability", "revenue"}
 
 
 def _normalize_text(value: str) -> str:
@@ -35,6 +61,208 @@ def _normalize_text(value: str) -> str:
         .strip()
         .lower()
     )
+
+
+def _ensure_finance_accounts(db: Session, tenant_id: str) -> dict[str, FinanceAccount]:
+    rows = db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant_id).all()
+    by_code = {row.code: row for row in rows}
+    changed = False
+    for code, (account_type, name) in FINANCE_ACCOUNT_DEFS.items():
+        if code not in by_code:
+            account = FinanceAccount(
+                tenant_id=tenant_id,
+                code=code,
+                name=name,
+                account_type=account_type,
+                currency="AZN",
+                is_active=True,
+            )
+            db.add(account)
+            by_code[code] = account
+            changed = True
+    if changed:
+        db.flush()
+    return by_code
+
+
+def _finance_account(db: Session, tenant_id: str, code: str) -> FinanceAccount:
+    accounts = _ensure_finance_accounts(db, tenant_id)
+    account = accounts.get(code)
+    if not account:
+        raise HTTPException(status_code=400, detail=f"Unknown finance account: {code}")
+    return account
+
+
+def _account_ledger_totals(db: Session, tenant_id: str, account: FinanceAccount) -> dict[str, Decimal]:
+    rows = (
+        db.query(FinanceLedgerEntry)
+        .filter(FinanceLedgerEntry.tenant_id == tenant_id, FinanceLedgerEntry.account_id == account.id)
+        .all()
+    )
+    debit = sum((Decimal(str(row.amount)) for row in rows if row.entry_side == "debit"), Decimal("0"))
+    credit = sum((Decimal(str(row.amount)) for row in rows if row.entry_side == "credit"), Decimal("0"))
+    if account.account_type in LIABILITY_OR_CREDIT_TYPES:
+        balance = credit - debit
+    else:
+        balance = debit - credit
+    return {"debit": debit, "credit": credit, "balance": balance}
+
+
+def _add_ledger_entry(
+    db: Session,
+    *,
+    tenant_id: str,
+    transaction_id: str,
+    account_id: str,
+    entry_side: str,
+    amount: Decimal,
+    description: str | None,
+):
+    db.add(
+        FinanceLedgerEntry(
+            tenant_id=tenant_id,
+            transaction_id=transaction_id,
+            account_id=account_id,
+            entry_side=entry_side,
+            amount=amount,
+            currency="AZN",
+            description=description,
+        )
+    )
+
+
+def _post_finance_transaction(
+    db: Session,
+    *,
+    tenant_id: str,
+    transaction_type: str,
+    amount: Decimal,
+    source_code: str | None,
+    destination_code: str | None,
+    created_by: str,
+    category: str | None = None,
+    counterparty: str | None = None,
+    reference: str | None = None,
+    note: str | None = None,
+    related_shift_id: str | None = None,
+    related_table_id: str | None = None,
+    related_order_id: str | None = None,
+    legacy_finance_entry_id: str | None = None,
+) -> FinanceTransaction:
+    amount = Decimal(str(amount)).quantize(Decimal("0.01"))
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Ledger transaction amount must be > 0")
+    if not source_code or not destination_code:
+        raise HTTPException(status_code=400, detail="Ledger transaction requires source and destination accounts")
+
+    source = _finance_account(db, tenant_id, source_code)
+    destination = _finance_account(db, tenant_id, destination_code)
+    now = datetime.utcnow()
+    txn = FinanceTransaction(
+        tenant_id=tenant_id,
+        transaction_type=transaction_type,
+        status="posted",
+        source_account_id=source.id,
+        destination_account_id=destination.id,
+        amount=amount,
+        currency="AZN",
+        category=category,
+        counterparty=counterparty,
+        reference=reference,
+        note=note,
+        created_by=created_by,
+        posted_by=created_by,
+        created_at=now,
+        posted_at=now,
+        related_shift_id=related_shift_id,
+        related_table_id=related_table_id,
+        related_order_id=related_order_id,
+        legacy_finance_entry_id=legacy_finance_entry_id,
+    )
+    db.add(txn)
+    db.flush()
+    description = note or category or transaction_type
+    _add_ledger_entry(
+        db,
+        tenant_id=tenant_id,
+        transaction_id=txn.id,
+        account_id=destination.id,
+        entry_side="debit",
+        amount=amount,
+        description=description,
+    )
+    _add_ledger_entry(
+        db,
+        tenant_id=tenant_id,
+        transaction_id=txn.id,
+        account_id=source.id,
+        entry_side="credit",
+        amount=amount,
+        description=description,
+    )
+    db.add(
+        AuditLog(
+            tenant_id=tenant_id,
+            user=created_by,
+            action="FINANCE_TRANSACTION_POSTED",
+            details=json.dumps(
+                {
+                    "transaction_id": txn.id,
+                    "transaction_type": transaction_type,
+                    "source": source_code,
+                    "destination": destination_code,
+                    "amount": str(amount),
+                    "legacy_finance_entry_id": legacy_finance_entry_id,
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    return txn
+
+
+def _post_legacy_finance_entry(db: Session, entry: FinanceEntry, username: str) -> FinanceTransaction:
+    category = entry.category or ""
+    if entry.type == "in" and entry.source == "cash" and _is_founder_investment_category(category):
+        return _post_finance_transaction(
+            db,
+            tenant_id=entry.tenant_id,
+            transaction_type="investor_injection",
+            amount=Decimal(str(entry.amount)),
+            source_code="investor",
+            destination_code="cash",
+            created_by=username,
+            category=category,
+            note=entry.description,
+            legacy_finance_entry_id=entry.id,
+        )
+    if entry.type == "in":
+        return _post_finance_transaction(
+            db,
+            tenant_id=entry.tenant_id,
+            transaction_type="income",
+            amount=Decimal(str(entry.amount)),
+            source_code="revenue",
+            destination_code=entry.source,
+            created_by=username,
+            category=category,
+            note=entry.description,
+            legacy_finance_entry_id=entry.id,
+        )
+    if entry.type == "out":
+        return _post_finance_transaction(
+            db,
+            tenant_id=entry.tenant_id,
+            transaction_type="expense",
+            amount=Decimal(str(entry.amount)),
+            source_code=entry.source,
+            destination_code="expense",
+            created_by=username,
+            category=category,
+            note=entry.description,
+            legacy_finance_entry_id=entry.id,
+        )
+    raise HTTPException(status_code=400, detail="Unsupported finance entry type")
 
 
 def _is_founder_investment_category(category: str) -> bool:
@@ -176,6 +404,8 @@ def _log_finance_anomaly_snapshot(
 
 @router.get("/balances")
 def get_balances(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_accounts(db, tenant.id)
+    db.commit()
     return {
         "cash": str(_wallet_balance(db, tenant.id, "cash")),
         "card": str(_wallet_balance(db, tenant.id, "card")),
@@ -184,6 +414,215 @@ def get_balances(db: Session = Depends(get_db), tenant: Tenant = Depends(get_ten
         "debt": str(_wallet_balance(db, tenant.id, "debt")),
         "deposit": str(_wallet_balance(db, tenant.id, "deposit")),
     }
+
+
+def _account_out(account: FinanceAccount, totals: dict[str, Decimal]) -> dict:
+    return {
+        "id": account.id,
+        "code": account.code,
+        "name": account.name,
+        "account_type": account.account_type,
+        "currency": account.currency,
+        "is_active": account.is_active,
+        "debit_total": str(totals["debit"].quantize(Decimal("0.01"))),
+        "credit_total": str(totals["credit"].quantize(Decimal("0.01"))),
+        "ledger_balance": str(totals["balance"].quantize(Decimal("0.01"))),
+        "created_at": account.created_at.isoformat() if account.created_at else None,
+    }
+
+
+@router.get("/ledger/accounts")
+def list_ledger_accounts(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    accounts = _ensure_finance_accounts(db, tenant.id)
+    db.commit()
+    ordered = [accounts[code] for code in FINANCE_ACCOUNT_DEFS.keys() if code in accounts]
+    return [_account_out(account, _account_ledger_totals(db, tenant.id, account)) for account in ordered]
+
+
+@router.get("/ledger/transactions")
+def list_ledger_transactions(limit: int = 200, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_accounts(db, tenant.id)
+    db.commit()
+    limit = min(max(int(limit or 200), 1), 500)
+    rows = (
+        db.query(FinanceTransaction)
+        .filter(FinanceTransaction.tenant_id == tenant.id)
+        .order_by(FinanceTransaction.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    account_by_id = {row.id: row for row in db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant.id).all()}
+    return [
+        {
+            "id": row.id,
+            "transaction_type": row.transaction_type,
+            "status": row.status,
+            "source_account": account_by_id.get(row.source_account_id).code if row.source_account_id in account_by_id else None,
+            "destination_account": account_by_id.get(row.destination_account_id).code if row.destination_account_id in account_by_id else None,
+            "amount": str(Decimal(str(row.amount)).quantize(Decimal("0.01"))),
+            "currency": row.currency,
+            "category": row.category,
+            "counterparty": row.counterparty,
+            "reference": row.reference,
+            "note": row.note,
+            "created_by": row.created_by,
+            "approved_by": row.approved_by,
+            "posted_by": row.posted_by,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "posted_at": row.posted_at.isoformat() if row.posted_at else None,
+            "reversed_at": row.reversed_at.isoformat() if row.reversed_at else None,
+            "legacy_finance_entry_id": row.legacy_finance_entry_id,
+        }
+        for row in rows
+    ]
+
+
+@router.get("/ledger/entries")
+def list_ledger_entries(limit: int = 300, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_accounts(db, tenant.id)
+    db.commit()
+    limit = min(max(int(limit or 300), 1), 1000)
+    rows = (
+        db.query(FinanceLedgerEntry)
+        .filter(FinanceLedgerEntry.tenant_id == tenant.id)
+        .order_by(FinanceLedgerEntry.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    account_by_id = {row.id: row for row in db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant.id).all()}
+    return [
+        {
+            "id": row.id,
+            "transaction_id": row.transaction_id,
+            "account_code": account_by_id.get(row.account_id).code if row.account_id in account_by_id else None,
+            "account_name": account_by_id.get(row.account_id).name if row.account_id in account_by_id else None,
+            "entry_side": row.entry_side,
+            "amount": str(Decimal(str(row.amount)).quantize(Decimal("0.01"))),
+            "currency": row.currency,
+            "description": row.description,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+        for row in rows
+    ]
+
+
+def _manual_transaction_accounts(payload: FinanceTransactionIn) -> tuple[str, str]:
+    tx_type = _normalize_text(payload.transaction_type).replace("-", "_")
+    source = (payload.source_account_code or "").strip().lower() or None
+    destination = (payload.destination_account_code or "").strip().lower() or None
+    if tx_type == "income":
+        return "revenue", destination or source or "cash"
+    if tx_type == "expense":
+        return source or "cash", "expense"
+    if tx_type == "internal_transfer":
+        if not source or not destination:
+            raise HTTPException(status_code=400, detail="Internal transfer requires source and destination accounts")
+        return source, destination
+    if tx_type == "investor_repayment":
+        return source or "cash", "investor"
+    if tx_type == "deposit_hold":
+        return "deposit", destination or "cash"
+    if tx_type in {"deposit_release", "deposit_refund"}:
+        return source or "cash", "deposit"
+    if tx_type in {"cash_adjustment", "reconciliation_adjustment"}:
+        return "adjustment", destination or source or "cash"
+    raise HTTPException(status_code=400, detail="Unsupported finance transaction type")
+
+
+@router.post("/ledger/transactions")
+def create_ledger_transaction(payload: FinanceTransactionIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    amount = Decimal(str(payload.amount))
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be > 0")
+    source, destination = _manual_transaction_accounts(payload)
+    txn = _post_finance_transaction(
+        db,
+        tenant_id=tenant.id,
+        transaction_type=_normalize_text(payload.transaction_type).replace("-", "_"),
+        amount=amount,
+        source_code=source,
+        destination_code=destination,
+        created_by=user.username,
+        category=payload.category,
+        counterparty=payload.counterparty,
+        reference=payload.reference,
+        note=payload.note,
+    )
+    db.commit()
+    return {"success": True, "transaction_id": txn.id}
+
+
+@router.get("/reconciliations")
+def list_reconciliations(limit: int = 100, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_accounts(db, tenant.id)
+    db.commit()
+    limit = min(max(int(limit or 100), 1), 500)
+    rows = (
+        db.query(FinanceReconciliation)
+        .filter(FinanceReconciliation.tenant_id == tenant.id)
+        .order_by(FinanceReconciliation.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    account_by_id = {row.id: row for row in db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant.id).all()}
+    return [
+        {
+            "id": row.id,
+            "account_code": account_by_id.get(row.account_id).code if row.account_id in account_by_id else None,
+            "account_name": account_by_id.get(row.account_id).name if row.account_id in account_by_id else None,
+            "status": row.status,
+            "expected_balance": str(Decimal(str(row.expected_balance)).quantize(Decimal("0.01"))),
+            "counted_balance": str(Decimal(str(row.counted_balance)).quantize(Decimal("0.01"))),
+            "variance": str(Decimal(str(row.variance)).quantize(Decimal("0.01"))),
+            "notes": row.notes,
+            "reconciled_by": row.reconciled_by,
+            "reconciled_at": row.reconciled_at.isoformat() if row.reconciled_at else None,
+            "created_by": row.created_by,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+        for row in rows
+    ]
+
+
+@router.post("/reconciliations")
+def create_reconciliation(payload: FinanceReconciliationIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    account = _finance_account(db, tenant.id, payload.account_code.strip().lower())
+    expected = Decimal(str(payload.expected_balance)).quantize(Decimal("0.01"))
+    counted = Decimal(str(payload.counted_balance)).quantize(Decimal("0.01"))
+    variance = counted - expected
+    row = FinanceReconciliation(
+        tenant_id=tenant.id,
+        account_id=account.id,
+        status="reconciled" if abs(variance) <= Decimal("0.01") else "variance",
+        expected_balance=expected,
+        counted_balance=counted,
+        variance=variance,
+        notes=payload.notes,
+        reconciled_by=user.username,
+        reconciled_at=datetime.utcnow(),
+        created_by=user.username,
+    )
+    db.add(row)
+    db.flush()
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="FINANCE_RECONCILIATION_RECORDED",
+            details=json.dumps(
+                {
+                    "reconciliation_id": row.id,
+                    "account": account.code,
+                    "expected": str(expected),
+                    "counted": str(counted),
+                    "variance": str(variance),
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    db.commit()
+    return {"success": True, "id": row.id, "variance": str(variance)}
 
 
 @router.get("/anomalies")
@@ -319,6 +758,8 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
             )
         )
 
+    db.flush()
+    _post_legacy_finance_entry(db, row, user.username)
     db.commit()
     return {"success": True, "id": row.id}
 
@@ -385,6 +826,30 @@ def transfer(payload: TransferIn, db: Session = Depends(get_db), tenant: Tenant 
                 created_by=user.username,
             )
         )
+    db.flush()
+    _post_finance_transaction(
+        db,
+        tenant_id=tenant.id,
+        transaction_type="internal_transfer",
+        amount=amount,
+        source_code=source,
+        destination_code=target,
+        created_by=user.username,
+        category="Daxili Transfer",
+        note=payload.description,
+    )
+    if commission > 0:
+        _post_finance_transaction(
+            db,
+            tenant_id=tenant.id,
+            transaction_type="expense",
+            amount=commission,
+            source_code=source,
+            destination_code="expense",
+            created_by=user.username,
+            category="Bank Komissiyası",
+            note=f"Transfer komissiyası: {payload.direction}",
+        )
     db.commit()
     return {"success": True, "commission": str(commission)}
 
@@ -431,6 +896,19 @@ def repay_investor(payload: InvestorRepayIn, db: Session = Depends(get_db), tena
     )
     db.add(payment_row)
     db.add(liability_row)
+    db.flush()
+    _post_finance_transaction(
+        db,
+        tenant_id=tenant.id,
+        transaction_type="investor_repayment",
+        amount=payable,
+        source_code=pay_from,
+        destination_code="investor",
+        created_by=user.username,
+        category="İnvestora Geri Ödəniş",
+        note=payload.description or "İnvestora ödəniş",
+        legacy_finance_entry_id=payment_row.id,
+    )
     db.commit()
 
     remaining_debt = _investor_debt_balance(db, tenant.id)

@@ -348,6 +348,89 @@ def _run_startup_migrations():
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_item_status_logs_order_item_id ON item_status_logs (order_item_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_item_status_logs_check_id ON item_status_logs (check_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_item_status_logs_round_id ON item_status_logs (round_id)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS finance_accounts (
+                id VARCHAR(36) PRIMARY KEY,
+                tenant_id VARCHAR(36) REFERENCES tenants(id),
+                code VARCHAR(40) NOT NULL,
+                name VARCHAR(120) NOT NULL,
+                account_type VARCHAR(40) NOT NULL,
+                currency VARCHAR(8) NOT NULL DEFAULT 'AZN',
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP,
+                CONSTRAINT uq_finance_account_tenant_code UNIQUE (tenant_id, code)
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_accounts_tenant_id ON finance_accounts (tenant_id)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS finance_transactions (
+                id VARCHAR(36) PRIMARY KEY,
+                tenant_id VARCHAR(36) REFERENCES tenants(id),
+                transaction_type VARCHAR(40) NOT NULL,
+                status VARCHAR(32) NOT NULL DEFAULT 'posted',
+                source_account_id VARCHAR(36) REFERENCES finance_accounts(id),
+                destination_account_id VARCHAR(36) REFERENCES finance_accounts(id),
+                amount NUMERIC(12,2) NOT NULL,
+                currency VARCHAR(8) NOT NULL DEFAULT 'AZN',
+                category VARCHAR(120),
+                counterparty VARCHAR(120),
+                reference VARCHAR(120),
+                note TEXT,
+                created_by VARCHAR(80) NOT NULL,
+                approved_by VARCHAR(80),
+                posted_by VARCHAR(80),
+                reversed_by VARCHAR(80),
+                created_at TIMESTAMP,
+                approved_at TIMESTAMP,
+                posted_at TIMESTAMP,
+                reversed_at TIMESTAMP,
+                related_shift_id VARCHAR(36),
+                related_table_id VARCHAR(36),
+                related_order_id VARCHAR(36),
+                legacy_finance_entry_id VARCHAR(36)
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_transactions_tenant_id ON finance_transactions (tenant_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_transactions_transaction_type ON finance_transactions (transaction_type)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_transactions_status ON finance_transactions (status)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_transactions_source_account_id ON finance_transactions (source_account_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_transactions_destination_account_id ON finance_transactions (destination_account_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_transactions_legacy_finance_entry_id ON finance_transactions (legacy_finance_entry_id)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS finance_ledger_entries (
+                id VARCHAR(36) PRIMARY KEY,
+                tenant_id VARCHAR(36) REFERENCES tenants(id),
+                transaction_id VARCHAR(36) REFERENCES finance_transactions(id),
+                account_id VARCHAR(36) REFERENCES finance_accounts(id),
+                entry_side VARCHAR(12) NOT NULL,
+                amount NUMERIC(12,2) NOT NULL,
+                currency VARCHAR(8) NOT NULL DEFAULT 'AZN',
+                description TEXT,
+                created_at TIMESTAMP
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_ledger_entries_tenant_id ON finance_ledger_entries (tenant_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_ledger_entries_transaction_id ON finance_ledger_entries (transaction_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_ledger_entries_account_id ON finance_ledger_entries (account_id)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS finance_reconciliations (
+                id VARCHAR(36) PRIMARY KEY,
+                tenant_id VARCHAR(36) REFERENCES tenants(id),
+                account_id VARCHAR(36) REFERENCES finance_accounts(id),
+                status VARCHAR(32) NOT NULL DEFAULT 'reconciled',
+                expected_balance NUMERIC(12,2) NOT NULL,
+                counted_balance NUMERIC(12,2) NOT NULL,
+                variance NUMERIC(12,2) NOT NULL,
+                notes TEXT,
+                reconciled_by VARCHAR(80),
+                reconciled_at TIMESTAMP,
+                created_by VARCHAR(80) NOT NULL,
+                created_at TIMESTAMP
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_reconciliations_tenant_id ON finance_reconciliations (tenant_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_reconciliations_account_id ON finance_reconciliations (account_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_reconciliations_status ON finance_reconciliations (status)"))
         conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS cogs NUMERIC(12,4) DEFAULT 0"))
         conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS offline_request_id VARCHAR(64)"))
         conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS reward_claim_code VARCHAR(32)"))
