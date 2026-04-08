@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Decimal } from 'decimal.js';
 import { useAppStore } from '../../store';
+import { AlertTriangle, ArrowRight, Banknote, BookOpen, CheckCircle2, GitCompareArrows, Landmark, RefreshCw, ShieldCheck, WalletCards } from 'lucide-react';
 import {
   create_finance_entry_async,
   fetch_finance_anomalies,
@@ -18,6 +19,8 @@ import { tx } from '../../i18n';
 import { formatServerUtcDateTime, localDateInputValue } from '../../lib/time';
 
 type WalletSource = 'cash' | 'card' | 'investor' | 'safe' | 'debt';
+type FinanceWorkspaceTab = 'overview' | 'transactions' | 'transfers' | 'reconciliation' | 'investor' | 'deposits' | 'ledger';
+type FinanceQuickAction = 'income' | 'expense' | 'transfer' | 'investor_repayment' | 'deposit' | 'reconcile' | 'adjustment';
 
 type CategoryOption = {
   value: string;
@@ -81,6 +84,8 @@ export default function FinancePanel() {
   const [fromDate, setFromDate] = useState(() => localDateInputValue());
   const [toDate, setToDate] = useState(() => localDateInputValue());
   const [rangePreset, setRangePreset] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'>('daily');
+  const [workspaceTab, setWorkspaceTab] = useState<FinanceWorkspaceTab>('overview');
+  const [quickAction, setQuickAction] = useState<FinanceQuickAction>('expense');
 
   const [type, setType] = useState<'in' | 'out'>('out');
   const [source, setSource] = useState<WalletSource>('cash');
@@ -743,6 +748,325 @@ export default function FinancePanel() {
     }
   };
 
+  const todayInflow = financeSummary.incoming;
+  const todayOutflow = financeSummary.outgoing;
+  const unreconciledVariance = anomalies?.shift_cash_gap || '0';
+  const pendingApprovalsCount = financeExceptions.filter((item) => item.tone === 'rose' || item.tone === 'amber').length;
+  const financeAlerts = [
+    ...(anomalies?.has_shift_cash_mismatch
+      ? [{
+          id: 'unreconciled-till',
+          title: tx(lang, 'Unreconciled till', 'Несверенная касса', 'Unreconciled till'),
+          body: `${tx(lang, 'Kassa fərqi', 'Расхождение кассы', 'Cash gap')}: ${new Decimal(anomalies.shift_cash_gap || 0).toFixed(2)} ₼`,
+          tone: 'rose' as const,
+          action: tx(lang, 'Reconcile', 'Сверить', 'Reconcile'),
+          tab: 'reconciliation' as FinanceWorkspaceTab,
+        }]
+      : []),
+    ...(new Decimal(balance.cash_balance || 0).lessThan(0)
+      ? [{
+          id: 'negative-cash',
+          title: tx(lang, 'Negative cash risk', 'Риск отрицательной кассы', 'Negative cash risk'),
+          body: tx(lang, 'Nağd kassa mənfidir. Ledger və manual entry-ləri yoxlayın.', 'Касса отрицательная. Проверьте ledger и ручные записи.', 'Cash drawer is negative. Review ledger and manual entries.'),
+          tone: 'rose' as const,
+          action: tx(lang, 'Review', 'Проверить', 'Review'),
+          tab: 'ledger' as FinanceWorkspaceTab,
+        }]
+      : []),
+    ...(effectiveInvestorDebt.greaterThan(0)
+      ? [{
+          id: 'investor-balance',
+          title: tx(lang, 'Investor balance open', 'Открыт долг инвестору', 'Investor balance open'),
+          body: `${tx(lang, 'Qalan borc', 'Остаток долга', 'Remaining debt')}: ${effectiveInvestorDebt.toFixed(2)} ₼`,
+          tone: 'amber' as const,
+          action: tx(lang, 'Investor', 'Инвестор', 'Investor'),
+          tab: 'investor' as FinanceWorkspaceTab,
+        }]
+      : []),
+    ...(financeExceptions.length > 0
+      ? [{
+          id: 'audit-exceptions',
+          title: tx(lang, 'Audit warning var', 'Есть audit warning', 'Audit warning'),
+          body: `${financeExceptions.length} ${tx(lang, 'maliyyə nəzarət siqnalı var', 'финансовых сигналов контроля', 'finance control signals')}`,
+          tone: 'amber' as const,
+          action: tx(lang, 'Review', 'Проверить', 'Review'),
+          tab: 'overview' as FinanceWorkspaceTab,
+        }]
+      : []),
+  ];
+
+  const selectQuickAction = (action: FinanceQuickAction) => {
+    setQuickAction(action);
+    if (action === 'income') {
+      setType('in');
+      setWorkspaceTab('transactions');
+      return;
+    }
+    if (action === 'expense') {
+      setType('out');
+      setWorkspaceTab('transactions');
+      return;
+    }
+    if (action === 'transfer') {
+      setWorkspaceTab('transfers');
+      return;
+    }
+    if (action === 'investor_repayment') {
+      setWorkspaceTab('investor');
+      return;
+    }
+    if (action === 'deposit') {
+      setWorkspaceTab('deposits');
+      return;
+    }
+    if (action === 'reconcile') {
+      setWorkspaceTab('reconciliation');
+      return;
+    }
+    setWorkspaceTab('ledger');
+  };
+
+  const transactionForm = (
+    <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-5">
+      <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">
+            {quickAction === 'income' ? tx(lang, 'Mədaxil əməliyyatı', 'Операция прихода', 'Income transaction') : tx(lang, 'Xərc əməliyyatı', 'Операция расхода', 'Expense transaction')}
+          </div>
+          <h3 className="mt-2 text-xl font-black text-white">{tx(lang, 'Transaction Entry Form', 'Форма операции', 'Transaction Entry Form')}</h3>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => { setQuickAction('income'); setType('in'); }} className={`min-h-11 rounded-2xl px-4 text-sm font-black ${type === 'in' ? 'bg-emerald-400 text-slate-950' : 'border border-slate-700 text-slate-300'}`}>
+            {tx(lang, 'Mədaxil', 'Приход', 'Income')}
+          </button>
+          <button onClick={() => { setQuickAction('expense'); setType('out'); }} className={`min-h-11 rounded-2xl px-4 text-sm font-black ${type === 'out' ? 'bg-rose-400 text-slate-950' : 'border border-slate-700 text-slate-300'}`}>
+            {tx(lang, 'Xərc', 'Расход', 'Expense')}
+          </button>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <FinanceField label={tx(lang, 'Source account', 'Счет источник', 'Source account')} helper={selectedSource?.helper}>
+          <select className="neon-input min-h-13" value={source} onChange={(e) => setSource(e.target.value as WalletSource)}>
+            {sourceOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>
+        </FinanceField>
+        <FinanceField label={tx(lang, 'Category', 'Категория', 'Category')} helper={selectedCategory.helper}>
+          <select className="neon-input min-h-13" value={category} onChange={(e) => setCategory(e.target.value)}>
+            {categoryOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+          </select>
+        </FinanceField>
+        <FinanceField label={tx(lang, 'Counterparty', 'Контрагент', 'Counterparty')} helper={type === 'out' ? tx(lang, 'Xərcdə məcburidir: pul kimə getdi?', 'Для расхода обязательно: кому ушли деньги?', 'Required for expense: who received money?') : tx(lang, 'Mədaxildə optionaldır.', 'Для прихода необязательно.', 'Optional for income.')}>
+          <select className="neon-input min-h-13" value={subject} onChange={(e) => setSubject(e.target.value)}>
+            <option value="">{tx(lang, 'Subyekt seçin', 'Выберите субъект', 'Select subject')}</option>
+            {subjectPresets.map((preset) => <option key={preset} value={preset}>{preset}</option>)}
+          </select>
+        </FinanceField>
+        <FinanceField label={tx(lang, 'Amount', 'Сумма', 'Amount')} helper={tx(lang, 'Məbləği AZN ilə yazın.', 'Введите сумму в AZN.', 'Enter amount in AZN.')}>
+          <input className="neon-input min-h-16 text-2xl font-black" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </FinanceField>
+        <FinanceField label={tx(lang, 'Note', 'Комментарий', 'Note')} helper={tx(lang, 'Qısa izah yazın.', 'Краткое описание.', 'Add a short note.')}>
+          <input className="neon-input min-h-13" value={description} onChange={(e) => setDescription(e.target.value)} />
+        </FinanceField>
+        <FinanceField label={tx(lang, 'Yeni counterparty preset', 'Новый preset контрагента', 'New counterparty preset')} helper={tx(lang, 'Təchizatçı və digər subyektləri tez seçmək üçün.', 'Чтобы быстро выбирать поставщиков и субъекты.', 'For quick supplier/counterparty selection.')}>
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <input className="neon-input min-h-13" value={newSubjectPreset} onChange={(e) => setNewSubjectPreset(e.target.value)} />
+            <button type="button" onClick={addSubjectPreset} className="neon-btn rounded-2xl px-4 text-sm font-black">{tx(lang, 'Əlavə et', 'Добавить', 'Add')}</button>
+          </div>
+        </FinanceField>
+      </div>
+      <button onClick={() => void addEntry()} className="glossy-gold mt-5 min-h-14 rounded-2xl px-6 text-base font-black">
+        {tx(lang, 'Post transaction', 'Провести операцию', 'Post transaction')}
+      </button>
+    </div>
+  );
+
+  const transferForm = (
+    <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-5">
+      <div className="mb-5">
+        <div className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">{tx(lang, 'Internal transfer', 'Внутренний перевод', 'Internal transfer')}</div>
+        <h3 className="mt-2 text-xl font-black text-white">{tx(lang, 'TransferForm', 'Форма перевода', 'TransferForm')}</h3>
+      </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <FinanceField label={tx(lang, 'From → To', 'Откуда → куда', 'From → To')}>
+          <select className="neon-input min-h-13" value={transferDirection} onChange={(e) => setTransferDirection(e.target.value as any)}>
+            <option value="card_to_cash">{tx(lang, 'Kartdan Kassaya', 'С карты в кассу')}</option>
+            <option value="cash_to_card">{tx(lang, 'Kassadan Karta', 'Из кассы на карту')}</option>
+            <option value="cash_to_safe">{tx(lang, 'Kassadan Seyfə', 'Из кассы в сейф', 'Cash to Safe')}</option>
+            <option value="safe_to_cash">{tx(lang, 'Seyfdən Kassaya', 'Из сейфа в кассу', 'Safe to Cash')}</option>
+            <option value="cash_to_debt">{tx(lang, 'Kassadan Borca', 'Из кассы в долг')}</option>
+            <option value="card_to_debt">{tx(lang, 'Kartdan Borca', 'С карты в долг')}</option>
+          </select>
+        </FinanceField>
+        <FinanceField label={tx(lang, 'Amount', 'Сумма', 'Amount')}>
+          <input className="neon-input min-h-16 text-2xl font-black" type="number" min={0} step="0.01" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} />
+        </FinanceField>
+        <FinanceField label={tx(lang, 'Fee', 'Комиссия', 'Fee')} helper={`${bankCommissionConfig.card_transfer_percent}% card-out policy`}>
+          <input className="neon-input min-h-13" type="number" min={0} step="0.01" value={computedTransferCommission.toString()} onChange={(e) => setTransferCommission(e.target.value)} readOnly={transferDirection === 'card_to_cash'} />
+        </FinanceField>
+      </div>
+      <button onClick={() => void doTransfer()} className="neon-btn mt-5 min-h-14 rounded-2xl px-6 text-base font-black">
+        {tx(lang, 'Post transfer', 'Провести перевод', 'Post transfer')}
+      </button>
+    </div>
+  );
+
+  const investorForm = (
+    <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-5">
+      <div className="mb-5">
+        <div className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">{tx(lang, 'Investor liability', 'Обязательство инвестору', 'Investor liability')}</div>
+        <h3 className="mt-2 text-xl font-black text-white">{tx(lang, 'InvestorRepaymentForm', 'Форма выплаты инвестору', 'InvestorRepaymentForm')}</h3>
+      </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <FinanceField label={tx(lang, 'Payment source', 'Источник оплаты', 'Payment source')}>
+          <select className="neon-input min-h-13" value={repayFrom} onChange={(e) => setRepayFrom(e.target.value as any)}>
+            <option value="cash">{tx(lang, 'Kassa', 'Касса', 'Cash')}</option>
+            <option value="card">{tx(lang, 'Kart', 'Карта', 'Card')}</option>
+            <option value="safe">{tx(lang, 'Seyf', 'Сейф', 'Safe')}</option>
+          </select>
+        </FinanceField>
+        <FinanceField label={tx(lang, 'Amount', 'Сумма', 'Amount')} helper={`${tx(lang, 'Qalan borc', 'Остаток долга', 'Remaining debt')}: ${effectiveInvestorDebt.toFixed(2)} ₼`}>
+          <input className="neon-input min-h-16 text-2xl font-black" type="number" min={0} step="0.01" value={repayAmount} onChange={(e) => setRepayAmount(e.target.value)} />
+        </FinanceField>
+        <FinanceField label={tx(lang, 'Approval note', 'Комментарий подтверждения', 'Approval note')}>
+          <input className="neon-input min-h-13" value={repayNote} onChange={(e) => setRepayNote(e.target.value)} />
+        </FinanceField>
+      </div>
+      <button onClick={() => void doRepayInvestor()} className="glossy-gold mt-5 min-h-14 rounded-2xl px-6 text-base font-black">
+        {tx(lang, 'Pay investor', 'Оплатить инвестору', 'Pay investor')}
+      </button>
+    </div>
+  );
+
+  const ledgerTable = (
+    <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-5">
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">{tx(lang, 'Journal / Ledger', 'Журнал / Ledger', 'Journal / Ledger')}</div>
+          <h3 className="mt-2 text-xl font-black text-white">{tx(lang, 'LedgerTable', 'Таблица ledger', 'LedgerTable')}</h3>
+        </div>
+        <div className="flex gap-2">
+          <select value={ledgerPageSize} onChange={(e) => setLedgerPageSize(Number(e.target.value))} className="neon-input min-h-12 w-28">
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+          </select>
+          <button className="neon-btn rounded-2xl px-4 text-sm font-black" onClick={exportCsv}>{tx(lang, 'Export', 'Экспорт', 'Export')}</button>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead className="border-b border-slate-800 text-slate-400">
+            <tr>
+              <th className="py-3">{tx(lang, 'Tarix', 'Дата', 'Date')}</th>
+              <th className="py-3">{tx(lang, 'Status', 'Статус', 'Status')}</th>
+              <th className="py-3">{tx(lang, 'Type', 'Тип', 'Type')}</th>
+              <th className="py-3">{tx(lang, 'Account', 'Счет', 'Account')}</th>
+              <th className="py-3">{tx(lang, 'Category', 'Категория', 'Category')}</th>
+              <th className="py-3 text-right">{tx(lang, 'Amount', 'Сумма', 'Amount')}</th>
+              <th className="py-3">{tx(lang, 'Note', 'Комментарий', 'Note')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleEntries.map((entry: any) => (
+              <tr key={entry.id} className="border-b border-slate-900">
+                <td className="py-3 text-slate-300">{formatServerUtcDateTime(entry.created_at, lang)}</td>
+                <td className="py-3"><span className="rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-200">POSTED</span></td>
+                <td className={`py-3 font-bold ${entry.type === 'in' ? 'text-emerald-300' : 'text-rose-300'}`}>{entry.type === 'in' ? 'INCOME' : 'EXPENSE'}</td>
+                <td className="py-3 text-slate-300">{entry.source}</td>
+                <td className="py-3 text-slate-200">{entry.category}</td>
+                <td className="py-3 text-right font-black text-white">{new Decimal(entry.amount || 0).toFixed(2)} ₼</td>
+                <td className="max-w-[280px] truncate py-3 text-slate-400">{entry.description || '-'}</td>
+              </tr>
+            ))}
+            {visibleEntries.length === 0 && (
+              <tr><td colSpan={7} className="py-10 text-center text-slate-500">{tx(lang, 'Bu aralıqda ledger qeydi yoxdur', 'За период нет ledger записей', 'No ledger rows for this range')}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  return (
+    <FinanceDashboard>
+      <FinanceSummaryStrip
+        lang={lang}
+        balance={balance}
+        netCashflow={financeSummary.net}
+        reconciliationGap={unreconciledVariance}
+        pendingApprovals={pendingApprovalsCount}
+        onRefresh={() => void reloadFinance(true)}
+      />
+
+      <FinanceAlertsBar
+        alerts={financeAlerts}
+        onOpen={(tab) => setWorkspaceTab(tab)}
+      />
+
+      <FinanceQuickActions
+        lang={lang}
+        active={quickAction}
+        onSelect={selectQuickAction}
+      />
+
+      <FinanceWorkspaceTabs
+        lang={lang}
+        active={workspaceTab}
+        onChange={setWorkspaceTab}
+      />
+
+      {workspaceTab === 'overview' && (
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="space-y-5">
+            <FinanceControlCard title={tx(lang, 'Today flow', 'Поток сегодня', 'Today flow')} subtitle={tx(lang, 'Operativ cashflow, investor/depozit/transfer xaric', 'Операционный cashflow без инвестора/депозитов/transfer', 'Operational cashflow excluding investor/deposit/transfer')}>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <FinanceMiniMetric label={tx(lang, 'Inflow', 'Приход', 'Inflow')} value={`${todayInflow.toFixed(2)} ₼`} tone="emerald" />
+                <FinanceMiniMetric label={tx(lang, 'Outflow', 'Расход', 'Outflow')} value={`${todayOutflow.toFixed(2)} ₼`} tone="rose" />
+                <FinanceMiniMetric label={tx(lang, 'Net', 'Нетто', 'Net')} value={`${financeSummary.net.toFixed(2)} ₼`} tone={financeSummary.net.gte(0) ? 'emerald' : 'rose'} />
+              </div>
+            </FinanceControlCard>
+            {transactionForm}
+          </div>
+          <div className="space-y-5">
+            <FinanceControlCard title={tx(lang, 'Control summary', 'Сводка контроля', 'Control summary')} subtitle={tx(lang, 'Öhdəliklər və risklər', 'Обязательства и риски', 'Liabilities and risks')}>
+              <div className="space-y-3">
+                <FinanceMiniMetric label={tx(lang, 'Investor liability', 'Долг инвестору', 'Investor liability')} value={`${effectiveInvestorDebt.toFixed(2)} ₼`} tone="amber" />
+                <FinanceMiniMetric label={tx(lang, 'Active deposits', 'Активные депозиты', 'Active deposits')} value={`${new Decimal(balance.deposit_balance || 0).toFixed(2)} ₼`} tone="sky" />
+                <FinanceMiniMetric label={tx(lang, 'Liquidity', 'Ликвидность', 'Liquidity')} value={cashCoverage === 'N/A' ? cashCoverage : `${cashCoverage}%`} tone="violet" />
+              </div>
+            </FinanceControlCard>
+            {ledgerTable}
+          </div>
+        </div>
+      )}
+
+      {workspaceTab === 'transactions' && transactionForm}
+      {workspaceTab === 'transfers' && transferForm}
+      {workspaceTab === 'investor' && investorForm}
+      {workspaceTab === 'deposits' && (
+        <FinanceControlCard title={tx(lang, 'Deposits', 'Депозиты', 'Deposits')} subtitle={tx(lang, 'Depozit ayrıca liability kimi izlənir', 'Депозиты учитываются как отдельное обязательство', 'Deposits are tracked as a separate liability')}>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <FinanceMiniMetric label={tx(lang, 'Active deposit liability', 'Активное депозитное обязательство', 'Active deposit liability')} value={`${new Decimal(balance.deposit_balance || 0).toFixed(2)} ₼`} tone="amber" />
+            <FinanceMiniMetric label={tx(lang, 'Collected in range', 'Собрано за период', 'Collected in range')} value={`${depositsInRange.toFixed(2)} ₼`} tone="sky" />
+          </div>
+        </FinanceControlCard>
+      )}
+      {workspaceTab === 'reconciliation' && (
+        <FinanceControlCard title={tx(lang, 'Reconciliation', 'Сверка', 'Reconciliation')} subtitle={tx(lang, 'Expected və actual kassa tutuşdurması', 'Сверка expected и actual кассы', 'Expected vs actual cash count')}>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <FinanceMiniMetric label="Expected" value={`${new Decimal(anomalies?.expected_cash || balance.cash_balance || 0).toFixed(2)} ₼`} tone="sky" />
+            <FinanceMiniMetric label="Actual" value={`${new Decimal(balance.cash_balance || 0).toFixed(2)} ₼`} tone="emerald" />
+            <FinanceMiniMetric label="Variance" value={`${new Decimal(unreconciledVariance || 0).toFixed(2)} ₼`} tone={new Decimal(unreconciledVariance || 0).abs().gt(0.01) ? 'rose' : 'emerald'} />
+          </div>
+          <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-400">
+            {tx(lang, 'Count başlat / adjust / reconcile əməliyyatları növbəti backend-ledger mərhələsində ayrıca transaction kimi post ediləcək.', 'Count / adjust / reconcile будут проводиться как отдельные ledger transaction на следующем этапе backend.', 'Count / adjust / reconcile will be posted as separate ledger transactions in the next backend-ledger phase.')}
+          </div>
+        </FinanceControlCard>
+      )}
+      {workspaceTab === 'ledger' && ledgerTable}
+    </FinanceDashboard>
+  );
+
   return (
     <div className="space-y-6 text-slate-100">
       <div className="overflow-hidden rounded-[28px] border border-slate-700/70 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.16),transparent_28%),linear-gradient(135deg,#1d2632,#0f1722)] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.35)]">
@@ -1192,6 +1516,214 @@ export default function FinancePanel() {
         </div>
       </div>
     </div>
+  );
+}
+
+function FinanceDashboard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="space-y-5 text-slate-100">
+      {children}
+    </div>
+  );
+}
+
+function FinanceSummaryStrip({
+  lang,
+  balance,
+  netCashflow,
+  reconciliationGap,
+  pendingApprovals,
+  onRefresh,
+}: {
+  lang: string;
+  balance: any;
+  netCashflow: Decimal;
+  reconciliationGap: string;
+  pendingApprovals: number;
+  onRefresh: () => void;
+}) {
+  const cards = [
+    { label: tx(lang, 'Nağd Kassa', 'Касса', 'Cash on hand'), value: balance.cash_balance, tone: 'emerald' as const, icon: <Banknote size={20} /> },
+    { label: tx(lang, 'Bank/Kart', 'Банк/карта', 'Bank/Card'), value: balance.card_balance, tone: 'sky' as const, icon: <Landmark size={20} /> },
+    { label: tx(lang, 'Seyf', 'Сейф', 'Safe'), value: balance.safe_balance, tone: 'violet' as const, icon: <ShieldCheck size={20} /> },
+    { label: tx(lang, 'Aktiv Depozitlər', 'Активные депозиты', 'Active deposits'), value: balance.deposit_balance, tone: 'amber' as const, icon: <WalletCards size={20} /> },
+    { label: tx(lang, 'Bugünkü Net', 'Нетто сегодня', 'Today net'), value: netCashflow, tone: netCashflow.gte(0) ? 'emerald' as const : 'rose' as const, icon: <RefreshCw size={20} /> },
+    { label: tx(lang, 'Reconciliation', 'Сверка', 'Reconciliation'), value: reconciliationGap, tone: new Decimal(reconciliationGap || 0).abs().gt(0.01) ? 'rose' as const : 'emerald' as const, icon: <GitCompareArrows size={20} /> },
+  ];
+  return (
+    <section className="rounded-[30px] border border-slate-800 bg-slate-900 p-5 shadow-[0_22px_70px_rgba(0,0,0,0.28)]">
+      <div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.24em] text-yellow-300">FinanceDashboard</div>
+          <h2 className="mt-2 text-2xl font-black text-white md:text-3xl">{tx(lang, 'Maliyyə nəzarət mərkəzi', 'Центр финансового контроля', 'Finance control center')}</h2>
+          <p className="mt-2 max-w-3xl text-sm text-slate-400">
+            {tx(lang, 'Pul axını, öhdəliklər, reconciliation və ledger eyni iş sahəsindədir.', 'Денежный поток, обязательства, сверка и ledger в одном рабочем пространстве.', 'Cashflow, liabilities, reconciliation and ledger in one workspace.')}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-100">
+            {tx(lang, 'Pending approvals', 'Ожидает approval', 'Pending approvals')}: {pendingApprovals}
+          </span>
+          <button onClick={onRefresh} className="min-h-12 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100">
+            {tx(lang, 'Yenilə', 'Обновить', 'Refresh')}
+          </button>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-6">
+        {cards.map((card) => <FinanceKpiCard key={card.label} {...card} />)}
+      </div>
+    </section>
+  );
+}
+
+function FinanceKpiCard({ label, value, tone, icon }: { label: string; value: any; tone: 'emerald' | 'sky' | 'violet' | 'amber' | 'rose'; icon: React.ReactNode }) {
+  const toneMap = {
+    emerald: 'border-emerald-400/25 bg-emerald-950/35 text-emerald-100',
+    sky: 'border-sky-400/25 bg-sky-950/35 text-sky-100',
+    violet: 'border-violet-400/25 bg-violet-950/35 text-violet-100',
+    amber: 'border-amber-400/25 bg-amber-950/35 text-amber-100',
+    rose: 'border-rose-400/25 bg-rose-950/35 text-rose-100',
+  } as const;
+  return (
+    <div className={`rounded-[24px] border p-4 ${toneMap[tone]}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="rounded-2xl bg-white/10 p-3">{icon}</div>
+        <div className="text-right text-xs font-black uppercase tracking-[0.16em] opacity-70">KPI</div>
+      </div>
+      <div className="mt-4 text-xs font-black uppercase tracking-[0.18em] opacity-70">{label}</div>
+      <div className="mt-2 text-2xl font-black text-white">{new Decimal(value || 0).toFixed(2)} ₼</div>
+    </div>
+  );
+}
+
+function FinanceAlertsBar({ alerts, onOpen }: { alerts: Array<{ id: string; title: string; body: string; tone: 'rose' | 'amber'; action: string; tab: FinanceWorkspaceTab }>; onOpen: (tab: FinanceWorkspaceTab) => void }) {
+  if (!alerts.length) {
+    return (
+      <section className="rounded-[24px] border border-emerald-500/25 bg-emerald-950/25 p-4">
+        <div className="flex items-center gap-3 text-emerald-100">
+          <CheckCircle2 size={20} />
+          <div className="font-black">Critical finance alert yoxdur</div>
+        </div>
+      </section>
+    );
+  }
+  return (
+    <section className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+      {alerts.map((alert) => (
+        <button
+          key={alert.id}
+          onClick={() => onOpen(alert.tab)}
+          className={`rounded-[24px] border p-4 text-left ${alert.tone === 'rose' ? 'border-rose-400/30 bg-rose-950/35' : 'border-amber-400/30 bg-amber-950/30'}`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="font-black text-white">{alert.title}</div>
+              <div className="mt-1 text-sm text-slate-300">{alert.body}</div>
+            </div>
+            <AlertTriangle size={20} className={alert.tone === 'rose' ? 'text-rose-200' : 'text-amber-200'} />
+          </div>
+          <div className="mt-3 inline-flex min-h-10 items-center rounded-2xl bg-white px-4 text-sm font-black text-slate-950">
+            {alert.action}
+          </div>
+        </button>
+      ))}
+    </section>
+  );
+}
+
+function FinanceQuickActions({ lang, active, onSelect }: { lang: string; active: FinanceQuickAction; onSelect: (action: FinanceQuickAction) => void }) {
+  const actions: Array<{ id: FinanceQuickAction; label: string; helper: string; icon: React.ReactNode }> = [
+    { id: 'income', label: tx(lang, 'Mədaxil yaz', 'Записать приход', 'Record income'), helper: 'income', icon: <Banknote size={18} /> },
+    { id: 'expense', label: tx(lang, 'Xərc yaz', 'Записать расход', 'Record expense'), helper: 'expense', icon: <CreditCard size={18} /> },
+    { id: 'transfer', label: tx(lang, 'Daxili transfer', 'Внутренний перевод', 'Internal transfer'), helper: 'transfer', icon: <ArrowRight size={18} /> },
+    { id: 'investor_repayment', label: tx(lang, 'Investor ödə', 'Оплатить инвестору', 'Repay investor'), helper: 'approval', icon: <ShieldCheck size={18} /> },
+    { id: 'deposit', label: tx(lang, 'Depozit əməliyyatı', 'Операция депозита', 'Deposit operation'), helper: 'liability', icon: <WalletCards size={18} /> },
+    { id: 'reconcile', label: tx(lang, 'Reconcile başlat', 'Начать сверку', 'Start reconcile'), helper: 'till count', icon: <GitCompareArrows size={18} /> },
+    { id: 'adjustment', label: tx(lang, 'Adjustment', 'Корректировка', 'Adjustment'), helper: 'audit', icon: <BookOpen size={18} /> },
+  ];
+  return (
+    <section className="rounded-[28px] border border-slate-800 bg-slate-900 p-4">
+      <div className="mb-3 text-xs font-black uppercase tracking-[0.24em] text-slate-500">FinanceQuickActions</div>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+        {actions.map((action) => (
+          <button
+            key={action.id}
+            onClick={() => onSelect(action.id)}
+            className={`min-h-[110px] rounded-2xl border p-4 text-left ${active === action.id ? 'border-yellow-300 bg-yellow-400 text-slate-950' : 'border-slate-800 bg-slate-950 text-slate-200'}`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              {action.icon}
+              <ArrowRight size={16} className="opacity-55" />
+            </div>
+            <div className="mt-4 text-sm font-black">{action.label}</div>
+            <div className="mt-1 text-xs opacity-70">{action.helper}</div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FinanceWorkspaceTabs({ lang, active, onChange }: { lang: string; active: FinanceWorkspaceTab; onChange: (tab: FinanceWorkspaceTab) => void }) {
+  const tabs: Array<[FinanceWorkspaceTab, string]> = [
+    ['overview', 'Overview'],
+    ['transactions', 'Transactions'],
+    ['transfers', 'Transfers'],
+    ['reconciliation', 'Reconciliation'],
+    ['investor', 'Investor'],
+    ['deposits', 'Deposits'],
+    ['ledger', 'Ledger'],
+  ];
+  return (
+    <div className="flex gap-2 overflow-x-auto rounded-[24px] border border-slate-800 bg-slate-950 p-2">
+      {tabs.map(([tab, label]) => (
+        <button
+          key={tab}
+          onClick={() => onChange(tab)}
+          className={`min-h-12 rounded-2xl px-5 text-sm font-black ${active === tab ? 'bg-white text-slate-950' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}
+        >
+          {tx(lang, label, label, label)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function FinanceControlCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-[28px] border border-slate-800 bg-slate-900 p-5">
+      <div className="mb-5">
+        <h3 className="text-xl font-black text-white">{title}</h3>
+        {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function FinanceMiniMetric({ label, value, tone }: { label: string; value: string; tone: 'emerald' | 'rose' | 'amber' | 'sky' | 'violet' }) {
+  const tones = {
+    emerald: 'border-emerald-400/25 bg-emerald-950/30 text-emerald-100',
+    rose: 'border-rose-400/25 bg-rose-950/30 text-rose-100',
+    amber: 'border-amber-400/25 bg-amber-950/30 text-amber-100',
+    sky: 'border-sky-400/25 bg-sky-950/30 text-sky-100',
+    violet: 'border-violet-400/25 bg-violet-950/30 text-violet-100',
+  } as const;
+  return (
+    <div className={`rounded-2xl border p-4 ${tones[tone]}`}>
+      <div className="text-xs font-black uppercase tracking-[0.16em] opacity-70">{label}</div>
+      <div className="mt-2 text-2xl font-black text-white">{value}</div>
+    </div>
+  );
+}
+
+function FinanceField({ label, helper, children }: { label: string; helper?: string; children: React.ReactNode }) {
+  return (
+    <label className="field-stack form-card">
+      <span className="field-label">{label}</span>
+      {children}
+      {helper ? <span className="field-hint">{helper}</span> : null}
+    </label>
   );
 }
 
