@@ -260,6 +260,13 @@ export default function FinancePanel() {
   const [selectedLedgerDetail, setSelectedLedgerDetail] = useState<FinanceTransactionDetail | null>(null);
   const [ledgerDetailLoading, setLedgerDetailLoading] = useState(false);
   const [ledgerPageSize, setLedgerPageSize] = useState(10);
+  const [ledgerSearch, setLedgerSearch] = useState('');
+  const [ledgerTypeFilter, setLedgerTypeFilter] = useState('all');
+  const [ledgerStatusFilter, setLedgerStatusFilter] = useState('all');
+  const [ledgerAccountFilter, setLedgerAccountFilter] = useState('all');
+  const [ledgerCounterpartyFilter, setLedgerCounterpartyFilter] = useState('');
+  const [ledgerMinAmount, setLedgerMinAmount] = useState('');
+  const [ledgerMaxAmount, setLedgerMaxAmount] = useState('');
   const [reconcileAccount, setReconcileAccount] = useState('cash');
   const [reconcileCounted, setReconcileCounted] = useState('');
   const [reconcileNotes, setReconcileNotes] = useState('');
@@ -472,15 +479,105 @@ export default function FinancePanel() {
   }, [entries, fromDate, toDate]);
 
   const visibleEntries = useMemo(() => filteredEntries.slice(0, ledgerPageSize), [filteredEntries, ledgerPageSize]);
-  const visibleLedgerTransactions = useMemo(
-    () => ledgerTransactions.slice(0, ledgerPageSize),
-    [ledgerTransactions, ledgerPageSize],
-  );
   const ledgerAccountByCode = useMemo(() => {
     const map = new Map<string, FinanceLedgerAccount>();
     ledgerAccounts.forEach((account) => map.set(account.code, account));
     return map;
   }, [ledgerAccounts]);
+  const ledgerTransactionTypes = useMemo(
+    () => Array.from(new Set(ledgerTransactions.map((row) => row.transaction_type).filter(Boolean))).sort(),
+    [ledgerTransactions],
+  );
+  const ledgerTransactionStatuses = useMemo(
+    () => Array.from(new Set(ledgerTransactions.map((row) => row.status || 'posted').filter(Boolean))).sort(),
+    [ledgerTransactions],
+  );
+  const filteredLedgerTransactions = useMemo(() => {
+    const decimalOrNull = (value: string) => {
+      if (!value.trim()) return null;
+      try {
+        return new Decimal(value);
+      } catch {
+        return null;
+      }
+    };
+    const start = new Date(fromDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(toDate);
+    end.setHours(23, 59, 59, 999);
+    const startTime = start.getTime();
+    const endTime = end.getTime();
+    const search = normalizeFinanceText(ledgerSearch);
+    const counterparty = normalizeFinanceText(ledgerCounterpartyFilter);
+    const minAmount = decimalOrNull(ledgerMinAmount);
+    const maxAmount = decimalOrNull(ledgerMaxAmount);
+
+    return ledgerTransactions
+      .filter((row) => {
+        const dateValue = row.posted_at || row.created_at || '';
+        const rowTime = new Date(dateValue).getTime();
+        if (Number.isFinite(rowTime) && (rowTime < startTime || rowTime > endTime)) return false;
+        if (ledgerTypeFilter !== 'all' && row.transaction_type !== ledgerTypeFilter) return false;
+        if (ledgerStatusFilter !== 'all' && (row.status || 'posted') !== ledgerStatusFilter) return false;
+        if (
+          ledgerAccountFilter !== 'all' &&
+          row.source_account !== ledgerAccountFilter &&
+          row.destination_account !== ledgerAccountFilter
+        ) {
+          return false;
+        }
+        if (counterparty && !normalizeFinanceText(row.counterparty || '').includes(counterparty)) return false;
+        const amountValue = new Decimal(row.amount || 0);
+        if (minAmount && amountValue.lt(minAmount)) return false;
+        if (maxAmount && amountValue.gt(maxAmount)) return false;
+        if (search) {
+          const haystack = normalizeFinanceText([
+            row.id,
+            row.transaction_type,
+            row.status,
+            row.source_account,
+            row.destination_account,
+            row.category,
+            row.counterparty,
+            row.reference,
+            row.note,
+            row.created_by,
+            row.posted_by,
+          ].join(' '));
+          if (!haystack.includes(search)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const aTime = new Date(a.posted_at || a.created_at || '').getTime();
+        const bTime = new Date(b.posted_at || b.created_at || '').getTime();
+        return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+      });
+  }, [
+    fromDate,
+    toDate,
+    ledgerAccountFilter,
+    ledgerCounterpartyFilter,
+    ledgerMaxAmount,
+    ledgerMinAmount,
+    ledgerSearch,
+    ledgerStatusFilter,
+    ledgerTransactions,
+    ledgerTypeFilter,
+  ]);
+  const visibleLedgerTransactions = useMemo(
+    () => filteredLedgerTransactions.slice(0, ledgerPageSize),
+    [filteredLedgerTransactions, ledgerPageSize],
+  );
+  const clearLedgerFilters = () => {
+    setLedgerSearch('');
+    setLedgerTypeFilter('all');
+    setLedgerStatusFilter('all');
+    setLedgerAccountFilter('all');
+    setLedgerCounterpartyFilter('');
+    setLedgerMinAmount('');
+    setLedgerMaxAmount('');
+  };
   const selectedReconcileAccount = ledgerAccountByCode.get(reconcileAccount);
   const expectedReconcileBalance = useMemo(() => {
     if (selectedReconcileAccount) return new Decimal(selectedReconcileAccount.ledger_balance || 0);
@@ -647,15 +744,67 @@ export default function FinancePanel() {
   }, [anomalies, balance.cash_balance, balance.deposit_balance, balance.investor_balance, effectiveInvestorDebt, financeSummary.net, lang]);
 
   const exportCsv = () => {
-    if (!filteredEntries.length) {
-      notify('error', tx(lang, 'Export üçün məlumat yoxdur', 'Нет данных для экспорта', 'No data to export'));
-      return;
-    }
-
     const esc = (value: unknown) => {
       const s = String(value ?? '');
       return `"${s.replace(/"/g, '""')}"`;
     };
+
+    if (workspaceTab === 'ledger') {
+      if (!filteredLedgerTransactions.length) {
+        notify('error', tx(lang, 'Export üçün ledger məlumatı yoxdur', 'Нет ledger данных для экспорта', 'No ledger data to export'));
+        return;
+      }
+      const header = [
+        'created_at',
+        'posted_at',
+        'status',
+        'type',
+        'source_account',
+        'destination_account',
+        'amount',
+        'currency',
+        'category',
+        'counterparty',
+        'reference',
+        'note',
+        'created_by',
+        'approved_by',
+        'posted_by',
+        'reversed_by',
+      ];
+      const rows = filteredLedgerTransactions.map((row) => [
+        esc(row.created_at),
+        esc(row.posted_at),
+        esc(row.status || 'posted'),
+        esc(row.transaction_type),
+        esc(accountName(row.source_account)),
+        esc(accountName(row.destination_account)),
+        esc(new Decimal(row.amount || 0).toFixed(2)),
+        esc(row.currency || 'AZN'),
+        esc(row.category || ''),
+        esc(row.counterparty || ''),
+        esc(row.reference || ''),
+        esc(row.note || ''),
+        esc(row.created_by || ''),
+        esc(row.approved_by || ''),
+        esc(row.posted_by || ''),
+        esc(row.reversed_by || ''),
+      ]);
+      const csv = [header.map(esc).join(';'), ...rows.map((r) => r.join(';'))].join('\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `finance_ledger_${fromDate}_${toDate}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    if (!filteredEntries.length) {
+      notify('error', tx(lang, 'Export üçün məlumat yoxdur', 'Нет данных для экспорта', 'No data to export'));
+      return;
+    }
 
     const header = ['created_at', 'direction', 'category', 'source', 'amount', 'counterparty', 'description'];
     const rows = filteredEntries.map((e: any) => [
@@ -1228,6 +1377,81 @@ export default function FinancePanel() {
           <button className="neon-btn rounded-2xl px-4 text-sm font-black" onClick={exportCsv}>{tx(lang, 'Export', 'Экспорт', 'Export')}</button>
         </div>
       </div>
+      <div className="mb-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-4">
+        <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-xs font-black uppercase tracking-[0.18em] text-sky-300">{tx(lang, 'Ledger filterləri', 'Фильтры ledger', 'Ledger filters')}</div>
+            <p className="mt-1 text-xs font-bold text-slate-500">
+              {filteredLedgerTransactions.length} / {ledgerTransactions.length} {tx(lang, 'transaction göstərilir', 'transaction показано', 'transactions shown')}
+            </p>
+          </div>
+          <button onClick={clearLedgerFilters} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-200 hover:border-sky-300/60">
+            {tx(lang, 'Filterləri sıfırla', 'Сбросить фильтры', 'Clear filters')}
+          </button>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <label className="space-y-2">
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Axtarış', 'Поиск', 'Search')}</span>
+            <input
+              className="neon-input min-h-12"
+              value={ledgerSearch}
+              onChange={(e) => setLedgerSearch(e.target.value)}
+              placeholder={tx(lang, 'ID, qeyd, reference, user...', 'ID, комментарий, reference, user...', 'ID, note, reference, user...')}
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Type', 'Тип', 'Type')}</span>
+            <select className="neon-input min-h-12" value={ledgerTypeFilter} onChange={(e) => setLedgerTypeFilter(e.target.value)}>
+              <option value="all">{tx(lang, 'Bütün type-lar', 'Все типы', 'All types')}</option>
+              {ledgerTransactionTypes.map((typeValue) => (
+                <option key={typeValue} value={typeValue}>{transactionTypeLabel(typeValue)}</option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-2">
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Status', 'Статус', 'Status')}</span>
+            <select className="neon-input min-h-12" value={ledgerStatusFilter} onChange={(e) => setLedgerStatusFilter(e.target.value)}>
+              <option value="all">{tx(lang, 'Bütün statuslar', 'Все статусы', 'All statuses')}</option>
+              {ledgerTransactionStatuses.map((statusValue) => (
+                <option key={statusValue} value={statusValue}>{statusValue}</option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-2">
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Account', 'Счет', 'Account')}</span>
+            <select className="neon-input min-h-12" value={ledgerAccountFilter} onChange={(e) => setLedgerAccountFilter(e.target.value)}>
+              <option value="all">{tx(lang, 'Bütün account-lar', 'Все счета', 'All accounts')}</option>
+              {ledgerAccounts.map((account) => (
+                <option key={account.code} value={account.code}>{account.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-2">
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Counterparty', 'Контрагент', 'Counterparty')}</span>
+            <input
+              className="neon-input min-h-12"
+              value={ledgerCounterpartyFilter}
+              onChange={(e) => setLedgerCounterpartyFilter(e.target.value)}
+              placeholder={tx(lang, 'Təchizatçı, investor...', 'Поставщик, инвестор...', 'Supplier, investor...')}
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Min məbləğ', 'Мин сумма', 'Min amount')}</span>
+            <input className="neon-input min-h-12" type="number" min={0} step="0.01" value={ledgerMinAmount} onChange={(e) => setLedgerMinAmount(e.target.value)} />
+          </label>
+          <label className="space-y-2">
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Max məbləğ', 'Макс сумма', 'Max amount')}</span>
+            <input className="neon-input min-h-12" type="number" min={0} step="0.01" value={ledgerMaxAmount} onChange={(e) => setLedgerMaxAmount(e.target.value)} />
+          </label>
+          <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Tarix aralığı', 'Диапазон дат', 'Date range')}</div>
+            <div className="mt-2 text-sm font-black text-white">{fromDate} → {toDate}</div>
+            <div className="mt-1 text-xs font-bold text-slate-500">
+              {tx(lang, 'Yuxarıdakı period filteri ledger-ə də tətbiq olunur.', 'Верхний фильтр периода также применяется к ledger.', 'The top period filter also applies to ledger.')}
+            </div>
+          </div>
+        </div>
+      </div>
       <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {ledgerAccounts.slice(0, 6).map((account) => (
           <div key={account.id} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
@@ -1276,13 +1500,13 @@ export default function FinancePanel() {
               </tr>
             ))}
             {visibleLedgerTransactions.length === 0 && (
-              <tr><td colSpan={7} className="py-10 text-center text-slate-500">{tx(lang, 'Bu aralıqda ledger qeydi yoxdur', 'За период нет ledger записей', 'No ledger rows for this range')}</td></tr>
+              <tr><td colSpan={7} className="py-10 text-center text-slate-500">{tx(lang, 'Bu filterlə ledger qeydi tapılmadı', 'По этим фильтрам ledger записей нет', 'No ledger rows match these filters')}</td></tr>
             )}
           </tbody>
         </table>
       </div>
       <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 text-xs text-slate-400">
-        {ledgerEntries.length} {tx(lang, 'debit/credit entry yüklənib. Transaction detail drawer növbəti mərhələdə bu entry-ləri ayrıca göstərəcək.', 'debit/credit записей загружено. Drawer деталей transaction покажет их на следующем этапе.', 'debit/credit entries loaded. The transaction detail drawer will expose them in the next phase.')}
+        {ledgerEntries.length} {tx(lang, 'debit/credit entry yüklənib. Transaction sətirinə klikləyəndə detail drawer entries, audit və reversal history göstərir.', 'debit/credit записей загружено. Клик по transaction открывает drawer с entries, audit и reversal history.', 'debit/credit entries loaded. Clicking a transaction opens entries, audit, and reversal history in the detail drawer.')}
       </div>
     </div>
   );
