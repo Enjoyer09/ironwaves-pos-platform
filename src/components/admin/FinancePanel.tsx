@@ -1593,7 +1593,7 @@ export default function FinancePanel() {
                 className="cursor-pointer border-b border-slate-900 transition hover:bg-slate-900/70"
               >
                 <td className="py-3 text-slate-300">{formatServerUtcDateTime(entry.posted_at || entry.created_at || '', lang)}</td>
-                <td className="py-3"><span className="rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-200">{entry.status || 'posted'}</span></td>
+                <td className="py-3"><FinanceStatusBadge status={entry.status || 'posted'} /></td>
                 <td className="py-3 font-bold text-sky-200">{transactionTypeLabel(entry.transaction_type)}</td>
                 <td className="py-3 text-slate-300">
                   <span className="font-bold text-slate-200">{accountName(entry.source_account)}</span>
@@ -2433,6 +2433,69 @@ function FinanceMiniMetric({ label, value, tone }: { label: string; value: strin
   );
 }
 
+type FinanceStatusTone = 'emerald' | 'rose' | 'amber' | 'sky' | 'violet' | 'slate';
+
+const financeStatusTone = (status?: string | null): FinanceStatusTone => {
+  const normalized = String(status || 'posted').toLowerCase();
+  if (normalized === 'posted' || normalized === 'approved') return 'emerald';
+  if (normalized === 'pending_approval') return 'amber';
+  if (normalized === 'reversed' || normalized === 'rejected') return 'rose';
+  if (normalized === 'draft') return 'sky';
+  return 'slate';
+};
+
+function FinanceStatusBadge({ status }: { status?: string | null }) {
+  const label = String(status || 'posted');
+  const tone = financeStatusTone(label);
+  const classes: Record<FinanceStatusTone, string> = {
+    emerald: 'border-emerald-300/30 bg-emerald-400/10 text-emerald-100',
+    rose: 'border-rose-300/30 bg-rose-400/10 text-rose-100',
+    amber: 'border-amber-300/30 bg-amber-400/10 text-amber-100',
+    sky: 'border-sky-300/30 bg-sky-400/10 text-sky-100',
+    violet: 'border-violet-300/30 bg-violet-400/10 text-violet-100',
+    slate: 'border-slate-600 bg-slate-800/70 text-slate-100',
+  };
+  return (
+    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-black uppercase tracking-[0.08em] ${classes[tone]}`}>
+      {label.replace(/_/g, ' ')}
+    </span>
+  );
+}
+
+function FinanceTimelineItem({
+  lang,
+  label,
+  by,
+  at,
+  tone,
+  active = true,
+}: {
+  lang: string;
+  label: string;
+  by?: string | null;
+  at?: string | null;
+  tone: FinanceStatusTone;
+  active?: boolean;
+}) {
+  const dotClasses: Record<FinanceStatusTone, string> = {
+    emerald: 'bg-emerald-300 shadow-[0_0_18px_rgba(110,231,183,0.35)]',
+    rose: 'bg-rose-300 shadow-[0_0_18px_rgba(253,164,175,0.35)]',
+    amber: 'bg-amber-300 shadow-[0_0_18px_rgba(252,211,77,0.35)]',
+    sky: 'bg-sky-300 shadow-[0_0_18px_rgba(125,211,252,0.35)]',
+    violet: 'bg-violet-300 shadow-[0_0_18px_rgba(196,181,253,0.35)]',
+    slate: 'bg-slate-500',
+  };
+  return (
+    <div className={`relative pl-8 ${active ? '' : 'opacity-45'}`}>
+      <span className={`absolute left-0 top-1.5 h-3 w-3 rounded-full ${dotClasses[tone]}`} />
+      <div className="text-sm font-black text-white">{label}</div>
+      <div className="mt-1 text-xs font-bold text-slate-400">
+        {at ? formatServerUtcDateTime(at, lang) : '-'}{by ? ` · ${by}` : ''}
+      </div>
+    </div>
+  );
+}
+
 function FinanceField({ label, helper, children }: { label: string; helper?: string; children: React.ReactNode }) {
   return (
     <label className="field-stack form-card">
@@ -2471,6 +2534,50 @@ function TransactionDetailDrawer({
       return { ...row, parsed: null };
     }
   });
+  const auditSummaryItems = (parsed: any) => {
+    if (!parsed || typeof parsed !== 'object') return [] as Array<[string, string]>;
+    return [
+      ['type', parsed.transaction_type],
+      ['status', parsed.status],
+      ['amount', parsed.amount],
+      ['source', parsed.source_account || parsed.source_account_id],
+      ['destination', parsed.destination_account || parsed.destination_account_id],
+      ['reference', parsed.reference],
+      ['note', parsed.note],
+    ]
+      .filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== '')
+      .map(([label, value]) => [label, String(value)] as [string, string]);
+  };
+  const lifecycleEvents = [
+    {
+      label: tx(lang, 'Yaradıldı', 'Создано', 'Created'),
+      by: txRow.created_by,
+      at: txRow.created_at,
+      tone: 'sky' as FinanceStatusTone,
+      active: true,
+    },
+    {
+      label: tx(lang, 'Təsdiqləndi', 'Подтверждено', 'Approved'),
+      by: txRow.approved_by,
+      at: txRow.approved_at,
+      tone: 'emerald' as FinanceStatusTone,
+      active: Boolean(txRow.approved_at || txRow.approved_by),
+    },
+    {
+      label: tx(lang, 'Ledger-ə post edildi', 'Posted в ledger', 'Posted to ledger'),
+      by: txRow.posted_by,
+      at: txRow.posted_at,
+      tone: 'emerald' as FinanceStatusTone,
+      active: txRow.status === 'posted' || txRow.status === 'reversed' || Boolean(txRow.posted_at),
+    },
+    {
+      label: tx(lang, 'Reversal edildi', 'Reversed', 'Reversed'),
+      by: txRow.reversed_by,
+      at: txRow.reversed_at,
+      tone: 'rose' as FinanceStatusTone,
+      active: txRow.status === 'reversed' || Boolean(txRow.reversed_at),
+    },
+  ];
   return (
     <div className="fixed inset-0 z-[80] flex justify-end bg-slate-950/70 backdrop-blur-sm">
       <button className="absolute inset-0 cursor-default" onClick={onClose} aria-label="Close transaction drawer" />
@@ -2507,21 +2614,29 @@ function TransactionDetailDrawer({
         </div>
 
         <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <FinanceMiniMetric label={tx(lang, 'Status', 'Статус', 'Status')} value={txRow.status || 'posted'} tone={txRow.status === 'reversed' ? 'rose' : 'emerald'} />
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+            <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{tx(lang, 'Status', 'Статус', 'Status')}</div>
+            <div className="mt-3"><FinanceStatusBadge status={txRow.status || 'posted'} /></div>
+          </div>
           <FinanceMiniMetric label={tx(lang, 'Amount', 'Сумма', 'Amount')} value={`${new Decimal(txRow.amount || 0).toFixed(2)} ₼`} tone="sky" />
           <FinanceMiniMetric label={tx(lang, 'From', 'Откуда', 'From')} value={accountName(txRow.source_account)} tone="amber" />
           <FinanceMiniMetric label={tx(lang, 'To', 'Куда', 'To')} value={accountName(txRow.destination_account)} tone="violet" />
         </div>
 
         <section className="mt-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-4">
-          <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-slate-500">{tx(lang, 'Lifecycle', 'Жизненный цикл', 'Lifecycle')}</div>
-          <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
-            <div><span className="text-slate-500">Created:</span> <span className="font-bold text-slate-200">{formatServerUtcDateTime(txRow.created_at || '', lang)}</span></div>
-            <div><span className="text-slate-500">Posted:</span> <span className="font-bold text-slate-200">{formatServerUtcDateTime(txRow.posted_at || txRow.created_at || '', lang)}</span></div>
-            <div><span className="text-slate-500">Created by:</span> <span className="font-bold text-slate-200">{txRow.created_by || '-'}</span></div>
-            <div><span className="text-slate-500">Posted by:</span> <span className="font-bold text-slate-200">{txRow.posted_by || '-'}</span></div>
-            <div><span className="text-slate-500">Approved by:</span> <span className="font-bold text-slate-200">{txRow.approved_by || '-'}</span></div>
-            <div><span className="text-slate-500">Reversed:</span> <span className="font-bold text-slate-200">{txRow.reversed_at ? formatServerUtcDateTime(txRow.reversed_at, lang) : '-'}</span></div>
+          <div className="mb-4 text-xs font-black uppercase tracking-[0.18em] text-slate-500">{tx(lang, 'Lifecycle timeline', 'Timeline жизненного цикла', 'Lifecycle timeline')}</div>
+          <div className="relative space-y-5 before:absolute before:left-[5px] before:top-2 before:h-[calc(100%-12px)] before:w-px before:bg-slate-700">
+            {lifecycleEvents.map((event) => (
+              <FinanceTimelineItem
+                key={event.label}
+                lang={lang}
+                label={event.label}
+                by={event.by}
+                at={event.at}
+                tone={event.tone}
+                active={event.active}
+              />
+            ))}
           </div>
           {txRow.note || txRow.reference ? (
             <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950 p-3 text-sm text-slate-300">
@@ -2565,9 +2680,7 @@ function TransactionDetailDrawer({
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className={`rounded-full px-3 py-1 text-xs font-black ${row.status === 'posted' ? 'bg-emerald-400/10 text-emerald-200' : row.status === 'pending_approval' ? 'bg-amber-400/10 text-amber-200' : 'bg-slate-400/10 text-slate-200'}`}>
-                      {row.status}
-                    </div>
+                    <FinanceStatusBadge status={row.status} />
                     <div className="mt-2 text-sm font-black text-white">{new Decimal(row.amount || 0).toFixed(2)} ₼</div>
                   </div>
                 </div>
@@ -2594,9 +2707,23 @@ function TransactionDetailDrawer({
                   <div className="text-xs text-slate-500">{formatServerUtcDateTime(row.created_at || '', lang)}</div>
                 </div>
                 <div className="mt-1 text-xs text-slate-400">{row.user}</div>
-                <pre className="mt-3 max-h-40 overflow-auto rounded-xl bg-slate-900 p-3 text-[11px] text-slate-400">
-                  {JSON.stringify(row.parsed || row.details || {}, null, 2)}
-                </pre>
+                {auditSummaryItems(row.parsed).length > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {auditSummaryItems(row.parsed).map(([label, value]) => (
+                      <span key={`${row.id}-${label}`} className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-bold text-slate-300">
+                        <span className="text-slate-500">{label}:</span> {value}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                <details className="mt-3 rounded-xl border border-slate-800 bg-slate-900 p-3">
+                  <summary className="cursor-pointer text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">
+                    {tx(lang, 'Texniki detal', 'Техническая деталь', 'Technical detail')}
+                  </summary>
+                  <pre className="mt-3 max-h-40 overflow-auto text-[11px] text-slate-400">
+                    {JSON.stringify(row.parsed || row.details || {}, null, 2)}
+                  </pre>
+                </details>
               </div>
             ))}
             {auditDetails.length === 0 ? (
