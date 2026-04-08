@@ -5,6 +5,7 @@ import { Database, Download, Upload } from 'lucide-react';
 import { tx } from '../../i18n';
 import { useState } from 'react';
 import { getDB } from '../../lib/db_sim';
+import { verifyLocalCredential } from '../../lib/local_auth';
 
 export default function DatabasePanel() {
   const { user, lang, notify } = useAppStore();
@@ -101,7 +102,7 @@ export default function DatabasePanel() {
     reader.readAsText(file);
   };
 
-  const verifyAdminPassword = () => {
+  const verifyAdminPassword = async () => {
     const users = getDB<any>('users');
     const currentAdmin = users.find(
       (u) =>
@@ -110,7 +111,7 @@ export default function DatabasePanel() {
     );
 
     if (!currentAdmin) return false;
-    return String(currentAdmin.password || '') === adminPassword;
+    return verifyLocalCredential(adminPassword, currentAdmin.password_hash || currentAdmin.password);
   };
 
   return (
@@ -194,9 +195,9 @@ export default function DatabasePanel() {
               className="neon-input mt-3"
               value={adminPassword}
               onChange={(e) => setAdminPassword(e.target.value)}
-              onKeyDown={(e) => {
+              onKeyDown={async (e) => {
                 if (e.key === 'Enter') {
-                  if (!verifyAdminPassword()) {
+                  if (!(await verifyAdminPassword())) {
                     notify('error', tx(lang, 'Şifrə yanlışdır', 'Неверный пароль'));
                     return;
                   }
@@ -221,8 +222,8 @@ export default function DatabasePanel() {
               </button>
               <button
                 className="glossy-gold rounded-lg px-4 py-2 font-semibold"
-                onClick={() => {
-                  if (!verifyAdminPassword()) {
+                onClick={async () => {
+                  if (!(await verifyAdminPassword())) {
                     notify('error', tx(lang, 'Şifrə yanlışdır', 'Неверный пароль'));
                     return;
                   }
