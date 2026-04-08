@@ -155,19 +155,61 @@ Masa bağlananda:
 - depozit hesabda istifadə olunursa
 - həmin öhdəlik azalır
 
-## 8. Finance Modulu
+## 8. Maliyyə Modulu
 
-`Finance` gündəlik maliyyə hərəkətlərinin idarə olunduğu əsas paneldir.
+`Maliyyə` artıq sadə form ekranı deyil. Bu hissə menecer və kassir üçün ayrıca `maliyyə nəzarət mərkəzi` kimi işləyir.
 
-### 8.1. Burada nələr edilir
+Burada 3 əsas məntiq var:
 
-- giriş və çıxış yazılır
-- daxili transferlər edilir
-- investor borcu izlənir
-- investor geri ödənişi edilir
-- balanslar izlənir
+- `Baxış`
+  indi vəziyyət nədir?
+- `Əməliyyat`
+  indi nə yazmalıyam?
+- `Maliyyə jurnalı`
+  nə baş verib, kim yazıb, kim təsdiqləyib?
 
-### 8.2. Giriş / Çıxış
+### 8.1. Default açılış: `Baxış`
+
+`Maliyyə`yə girəndə əvvəl `Baxış` görünür.
+
+Burada görünür:
+- `Nağd kassa`
+- `Bank/Kart`
+- `Seyf`
+- `Aktiv depozitlər`
+- `Bugünkü net`
+- `Uyğunlaşdırma fərqi`
+
+Yuxarı hissədə həm də kritik xəbərdarlıqlar görünür:
+- `Kassa uyğun deyil`
+- `Təsdiq gözləyən əməliyyat var`
+- `Transfer uğursuz oldu`
+- `Investor qalığı gecikir`
+- `Uyğunlaşdırma tamamlanmayıb`
+
+Bu hissənin məqsədi budur:
+ekrana baxan menecer bir neçə saniyədə vəziyyəti başa düşsün.
+
+### 8.2. Sürətli əməliyyatlar
+
+Yuxarıdakı `Sürətli əməliyyatlar` kartlarından birini seçəndə ayrıca iş sahəsi açılır.
+
+Burada əsas düymələr var:
+- `Mədaxil yaz`
+- `Xərc yaz`
+- `Daxili transfer`
+- `Investor ödə`
+- `Depozit əməliyyatı`
+- `Uyğunlaşdırma başlat`
+- `Düzəliş`
+
+Vacib:
+formlar default açıq qalmır.
+Yalnız seçdiyiniz əməliyyat üçün uyğun sahələr görünür.
+
+### 8.3. Mədaxil və xərc yazmaq
+
+Bu hissə gündəlik operativ yazılar üçündür.
 
 Misallar:
 - `Xammal`
@@ -176,22 +218,116 @@ Misallar:
 - `İcarə`
 - `Digər giriş`
 
-### 8.3. Daxili transfer
+Adətən bu sahələr doldurulur:
+- mənbə hesabı
+- kateqoriya
+- subyekt
+- məbləğ
+- qeyd
 
-Misal:
+Sadə qayda:
+- pul daxil olursa `Mədaxil`
+- pul çıxırsa `Xərc`
+
+### 8.4. Daxili transfer
+
+Bu əməliyyat gəlir və ya xərc deyil.
+Sadəcə vəsaitin bir hesabdan digərinə keçməsidir.
+
+Misallar:
 - `Seyfdən Kassaya`
 - `Kartdan Kassaya`
 - `Kassadan Seyfə`
 
-Bu əməliyyatlar gəlir və ya xərc sayılmır. Bunlar bir cüzdandan digərinə köçürmədir.
+Böyük məbləğli transferlər sistem policy-sinə görə əvvəl `Təsdiq qutusu`na düşə bilər.
 
-### 8.4. İnvestora geri ödəniş
+### 8.5. İnvestor ödənişi
 
 Bu əməliyyatla:
 - seçilmiş mənbədən pul çıxır
 - investor borcu azalır
 
-Hazırkı sistemdə bu atomik işləyir və yarımçıq ledger yaratmır.
+Sistem policy-sinə görə bu əməliyyat:
+- ya birbaşa yazılır
+- ya da əvvəl `Təsdiq qutusu`na göndərilir
+
+Yəni menecer təsdiqləmədən balans dəyişməyə də bilər. Bu, nəzarət üçündür.
+
+### 8.6. Uyğunlaşdırma
+
+`Uyğunlaşdırma` kassadakı real pul ilə sistemdəki gözlənilən qalığın tutuşdurulmasıdır.
+
+Burada görünür:
+- `Gözlənilən`
+- `Sayılmış`
+- `Fərq`
+
+Sonra siz:
+- hesabı seçirsiniz
+- sayılmış məbləği yazırsınız
+- qeyd əlavə edirsiniz
+- `Uyğunlaşdırmanı tamamla` basırsınız
+
+Əgər fərq varsa, sistem onu ayrıca nəzarət siqnalı kimi saxlayır.
+
+### 8.7. Təsdiq qutusu
+
+`Təsdiq qutusu` riskli əməliyyatların qısa növbəsidir.
+
+Buraya əsasən bunlar düşə bilər:
+- investor ödənişi
+- böyük transfer
+- düzəliş əməliyyatı
+- reversal
+
+Menecer burada:
+- əməliyyatı açır
+- məbləğə baxır
+- haradan hara getdiyini görür
+- sonra `Təsdiqlə` və ya `Rədd et` edir
+
+### 8.8. Maliyyə jurnalı
+
+`Maliyyə jurnalı` audit hissəsidir.
+
+Burada hər əməliyyat üçün görünür:
+- tarix
+- status
+- əməliyyat növü
+- hansı hesabdan hansı hesaba getdiyi
+- məbləğ
+- qeyd
+
+Sətirə klikləyəndə detal açılır:
+- debit / credit yazılışları
+- audit tarixçəsi
+- təsdiq tarixi
+- reversal tarixçəsi
+
+Bu hissə əsasən menecer, admin və audit nəzarəti üçündür.
+
+### 8.9. Depozit və investor məntiqi
+
+`Aktiv depozitlər` ayrıca öhdəlik kimi saxlanılır.
+Yəni depozit satış gəliri kimi sayılmır.
+
+`Investor borcu` da ayrıca izlənir.
+Investor ödənişi yazılanda sistem:
+- pul çıxışını yazır
+- investor öhdəliyini azaldır
+
+### 8.10. Menecer üçün qısa oxuma qaydası
+
+Maliyyə moduluna girəndə bu ardıcıllıqla baxın:
+
+1. yuxarı KPI kartlarına
+2. kritik xəbərdarlıqlara
+3. `Bugünkü pul axını`
+4. `Nəzarət xülasəsi`
+5. `Təsdiq qutusu`
+6. lazım olsa `Maliyyə jurnalı`
+
+Əgər ekranda qırmızı xəbərdarlıq varsa, əvvəl onu yoxlayın, sonra yeni əməliyyat yazın.
 
 ## 9. X-Hesabat
 
