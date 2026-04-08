@@ -663,6 +663,20 @@ export type FinanceLedgerEntry = {
   created_at?: string | null;
 };
 
+export type FinanceAuditLog = {
+  id: string;
+  action: string;
+  user: string;
+  details?: string | null;
+  created_at?: string | null;
+};
+
+export type FinanceTransactionDetail = {
+  transaction: FinanceLedgerTransaction;
+  entries: FinanceLedgerEntry[];
+  audit_logs: FinanceAuditLog[];
+};
+
 export type FinanceReconciliation = {
   id: string;
   account_code?: string | null;
@@ -792,6 +806,61 @@ export const fetch_finance_ledger_entries = async (tenant_id: string, limit = 30
     description: row.description ?? null,
     created_at: row.created_at ?? null,
   }));
+};
+
+export const fetch_finance_transaction_detail = async (tenant_id: string, transaction_id: string): Promise<FinanceTransactionDetail> => {
+  const localTransaction = localLedgerTransactions(tenant_id, 500).find((row) => row.id === transaction_id);
+  if (!isBackendEnabled()) {
+    return {
+      transaction: localTransaction || localLedgerTransactions(tenant_id, 1)[0],
+      entries: [],
+      audit_logs: [],
+    };
+  }
+  const data = await apiRequest<any>(`/api/v1/finance/ledger/transactions/${encodeURIComponent(transaction_id)}`, {
+    method: 'GET',
+    tenantId: tenant_id,
+  });
+  return {
+    transaction: {
+      id: String(data?.transaction?.id || ''),
+      transaction_type: String(data?.transaction?.transaction_type || ''),
+      status: String(data?.transaction?.status || ''),
+      source_account: data?.transaction?.source_account ?? null,
+      destination_account: data?.transaction?.destination_account ?? null,
+      amount: String(data?.transaction?.amount ?? '0'),
+      currency: String(data?.transaction?.currency || 'AZN'),
+      category: data?.transaction?.category ?? null,
+      counterparty: data?.transaction?.counterparty ?? null,
+      reference: data?.transaction?.reference ?? null,
+      note: data?.transaction?.note ?? null,
+      created_by: String(data?.transaction?.created_by || ''),
+      approved_by: data?.transaction?.approved_by ?? null,
+      posted_by: data?.transaction?.posted_by ?? null,
+      created_at: data?.transaction?.created_at ?? null,
+      posted_at: data?.transaction?.posted_at ?? null,
+      reversed_at: data?.transaction?.reversed_at ?? null,
+      legacy_finance_entry_id: data?.transaction?.legacy_finance_entry_id ?? null,
+    },
+    entries: (data?.entries || []).map((row: any) => ({
+      id: String(row.id),
+      transaction_id: String(row.transaction_id || ''),
+      account_code: row.account_code ?? null,
+      account_name: row.account_name ?? null,
+      entry_side: String(row.entry_side || ''),
+      amount: String(row.amount ?? '0'),
+      currency: String(row.currency || 'AZN'),
+      description: row.description ?? null,
+      created_at: row.created_at ?? null,
+    })),
+    audit_logs: (data?.audit_logs || []).map((row: any) => ({
+      id: String(row.id),
+      action: String(row.action || ''),
+      user: String(row.user || ''),
+      details: row.details ?? null,
+      created_at: row.created_at ?? null,
+    })),
+  };
 };
 
 export const fetch_finance_reconciliations = async (tenant_id: string, limit = 100): Promise<FinanceReconciliation[]> => {

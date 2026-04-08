@@ -477,6 +477,82 @@ def list_ledger_transactions(limit: int = 200, db: Session = Depends(get_db), te
     ]
 
 
+@router.get("/ledger/transactions/{transaction_id}")
+def get_ledger_transaction_detail(transaction_id: str, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_accounts(db, tenant.id)
+    db.commit()
+    row = (
+        db.query(FinanceTransaction)
+        .filter(FinanceTransaction.tenant_id == tenant.id, FinanceTransaction.id == transaction_id)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Finance transaction not found")
+
+    account_by_id = {account.id: account for account in db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant.id).all()}
+    entries = (
+        db.query(FinanceLedgerEntry)
+        .filter(FinanceLedgerEntry.tenant_id == tenant.id, FinanceLedgerEntry.transaction_id == row.id)
+        .order_by(FinanceLedgerEntry.created_at.asc())
+        .all()
+    )
+    audit_rows = (
+        db.query(AuditLog)
+        .filter(AuditLog.tenant_id == tenant.id, AuditLog.details.contains(row.id))
+        .order_by(AuditLog.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    return {
+        "transaction": {
+            "id": row.id,
+            "transaction_type": row.transaction_type,
+            "status": row.status,
+            "source_account": account_by_id.get(row.source_account_id).code if row.source_account_id in account_by_id else None,
+            "destination_account": account_by_id.get(row.destination_account_id).code if row.destination_account_id in account_by_id else None,
+            "amount": str(Decimal(str(row.amount)).quantize(Decimal("0.01"))),
+            "currency": row.currency,
+            "category": row.category,
+            "counterparty": row.counterparty,
+            "reference": row.reference,
+            "note": row.note,
+            "created_by": row.created_by,
+            "approved_by": row.approved_by,
+            "posted_by": row.posted_by,
+            "reversed_by": row.reversed_by,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "approved_at": row.approved_at.isoformat() if row.approved_at else None,
+            "posted_at": row.posted_at.isoformat() if row.posted_at else None,
+            "reversed_at": row.reversed_at.isoformat() if row.reversed_at else None,
+            "legacy_finance_entry_id": row.legacy_finance_entry_id,
+        },
+        "entries": [
+            {
+                "id": entry.id,
+                "transaction_id": entry.transaction_id,
+                "account_code": account_by_id.get(entry.account_id).code if entry.account_id in account_by_id else None,
+                "account_name": account_by_id.get(entry.account_id).name if entry.account_id in account_by_id else None,
+                "entry_side": entry.entry_side,
+                "amount": str(Decimal(str(entry.amount)).quantize(Decimal("0.01"))),
+                "currency": entry.currency,
+                "description": entry.description,
+                "created_at": entry.created_at.isoformat() if entry.created_at else None,
+            }
+            for entry in entries
+        ],
+        "audit_logs": [
+            {
+                "id": log.id,
+                "action": log.action,
+                "user": log.user,
+                "details": log.details,
+                "created_at": log.created_at.isoformat() if log.created_at else None,
+            }
+            for log in audit_rows
+        ],
+    }
+
+
 @router.get("/ledger/entries")
 def list_ledger_entries(limit: int = 300, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_accounts(db, tenant.id)
