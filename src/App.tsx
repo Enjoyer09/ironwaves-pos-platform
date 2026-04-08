@@ -11,6 +11,7 @@ import PublicMenu from './components/PublicMenu';
 import CustomerApp from './components/CustomerApp';
 import LandingPage from './components/LandingPage';
 import { LogOut, Wifi, WifiOff, Languages, RotateCcw, Maximize2, Minimize2 } from 'lucide-react';
+import VirtualKeyboard from './components/VirtualKeyboard';
 import { seedDatabase } from './lib/seeder';
 import ToastOverlay from './components/ToastOverlay';
 import { get_business_profile, get_business_profile_live } from './api/settings';
@@ -1021,6 +1022,7 @@ export default function App() {
           </div>
         </div>
       )}
+      <VirtualKeyboard lang={safeLang} />
     </div>
   );
 }
