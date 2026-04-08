@@ -57,6 +57,11 @@ DEFAULT_FINANCE_POLICY = {
     "approver_roles": ["manager", "admin", "finance_admin", "super_admin"],
 }
 
+DEFAULT_BEVERAGE_SERVICE_SETTINGS = {
+    "coffee_selection_mode": "size_and_service",
+    "remove_paper_packaging_for_table": True,
+}
+
 
 def _restaurant_now() -> datetime:
     if ZoneInfo:
@@ -254,13 +259,19 @@ def _record_doner_batch_consumption(
 def _collect_stock_ops(db: Session, tenant_id: str, items: list[dict]) -> tuple[list[tuple[InventoryItem, Decimal]], Decimal]:
     stock_ops: list[tuple[InventoryItem, Decimal]] = []
     cogs_total = Decimal("0.0000")
+    beverage_settings = _setting_value(db, tenant_id, "beverage_service_settings", DEFAULT_BEVERAGE_SERVICE_SETTINGS)
+    remove_packaging_for_table = bool(beverage_settings.get("remove_paper_packaging_for_table", True))
     for item in items:
+        item_cup_mode = str(item.get("cup_mode") or "paper").strip().lower()
+        skip_packaging = remove_packaging_for_table and item_cup_mode == "glass"
         recipes = (
             db.query(Recipe)
             .filter(Recipe.tenant_id == tenant_id, func.lower(Recipe.menu_item_name) == str(item.get("item_name") or "").lower())
             .all()
         )
         for recipe in recipes:
+            if skip_packaging and any(token in str(recipe.ingredient_name or "").lower() for token in ["stəkan", "stakan", "qapaq", "kapak", "cup", "lid"]):
+                continue
             inventory = (
                 db.query(InventoryItem)
                 .filter(InventoryItem.tenant_id == tenant_id, func.lower(InventoryItem.name) == str(recipe.ingredient_name).lower())
@@ -631,6 +642,7 @@ def get_app_settings(
         "tenant_id": tenant.id,
         "service_fee_percent": _setting_value(db, tenant.id, "service_fee_percent", 0),
         "table_service_settings": _setting_value(db, tenant.id, "table_service_settings", {"deposit_per_guest_azn": 0, "reservation_lock_hours": 2}),
+        "beverage_service_settings": _setting_value(db, tenant.id, "beverage_service_settings", DEFAULT_BEVERAGE_SERVICE_SETTINGS),
         "yield_management_settings": _yield_settings(db, tenant.id),
         "ui_visibility": {"staff_show_tables": True, "manager_show_tables": True, "staff_show_kitchen": True},
         "time_settings": {"shift_start_time": "08:00", "shift_end_time": "23:00", "utc_offset": 4, "timezone": "Asia/Baku"},
@@ -1170,6 +1182,23 @@ def update_table_service_settings(
     _set_setting_value(db, tenant.id, "table_service_settings", merged)
     db.commit()
     return {"success": True}
+
+
+@router.patch("/settings/beverage-service")
+def update_beverage_service_settings(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    cleaned = {
+        "coffee_selection_mode": "size_only" if str(payload.get("coffee_selection_mode") or "").strip().lower() == "size_only" else "size_and_service",
+        "remove_paper_packaging_for_table": bool(payload.get("remove_paper_packaging_for_table", True)),
+    }
+    _set_setting_value(db, tenant.id, "beverage_service_settings", cleaned)
+    db.commit()
+    return {"success": True, "beverage_service_settings": cleaned}
 
 
 @router.patch("/settings/session")

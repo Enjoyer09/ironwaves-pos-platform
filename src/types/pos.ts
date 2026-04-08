@@ -12,6 +12,7 @@ export interface CartItem {
   is_coffee: boolean;
   category: string;
   seat_label?: string;
+  cup_mode?: 'paper' | 'glass';
 }
 
 export interface SalePayload {
@@ -176,6 +177,10 @@ export interface Settings {
   session_settings?: {
     idle_logout_minutes: number;
     virtual_keyboard_enabled?: boolean;
+  };
+  beverage_service_settings?: {
+    coffee_selection_mode: 'size_only' | 'size_and_service';
+    remove_paper_packaging_for_table: boolean;
   };
   email_settings: {
     enabled?: boolean;

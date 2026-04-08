@@ -36,6 +36,15 @@ type PosCartItem = {
   is_coffee: boolean;
   qty: number;
   seat_label?: string;
+  cup_mode?: 'paper' | 'glass';
+};
+
+type VariantPickerState = {
+  base: string;
+  items: any[];
+  requiresServiceChoice: boolean;
+  selectedItemId: string | null;
+  selectedCupMode: 'paper' | 'glass' | null;
 };
 
 type CartContext = {
@@ -173,7 +182,7 @@ export default function POS() {
   const [receiptHtml, setReceiptHtml] = useState<string | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>('Nəğd');
   const [splitCashInput, setSplitCashInput] = useState<string>('0');
-  const [variantPicker, setVariantPicker] = useState<{ base: string; items: any[] } | null>(null);
+  const [variantPicker, setVariantPicker] = useState<VariantPickerState | null>(null);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [pendingOfflineSales, setPendingOfflineSales] = useState<OfflineSaleSummary[]>([]);
   const [showOfflineQueue, setShowOfflineQueue] = useState(false);
@@ -187,6 +196,10 @@ export default function POS() {
   const businessProfile = get_business_profile(tenantId);
   const tenantSettings = useMemo(() => get_settings(tenantId), [tenantId, layoutRefreshKey]);
   const printSettings = tenantSettings.print_settings || { use_qz: false, printer_name: '' };
+  const beverageServiceSettings = tenantSettings.beverage_service_settings || {
+    coffee_selection_mode: 'size_and_service',
+    remove_paper_packaging_for_table: true,
+  };
   const basePosLayout = tenantSettings.pos_layout || {
     preset: 'classic',
     density: 'comfortable',
@@ -402,10 +415,16 @@ export default function POS() {
     return () => window.clearTimeout(t);
   }, [tenantId, cartCtx, activeCart, posCartCtxStorageKey, posActiveCartStorageKey]);
 
-  const addToCart = (item: any) => {
+  const addToCart = (item: any, options?: { cup_mode?: 'paper' | 'glass' }) => {
     const defaultSeatLabel = undefined;
     setCarts((prev) => {
-      const existing = prev[activeCart].find((c) => c.id === item.id && (c.seat_label || '') === (defaultSeatLabel || ''));
+      const nextCupMode = options?.cup_mode;
+      const existing = prev[activeCart].find(
+        (c) =>
+          c.id === item.id &&
+          (c.seat_label || '') === (defaultSeatLabel || '') &&
+          String(c.cup_mode || '') === String(nextCupMode || ''),
+      );
       if (existing) {
         return {
           ...prev,
@@ -425,6 +444,7 @@ export default function POS() {
             is_coffee: isCoffeeLike(item),
             qty: 1,
             seat_label: defaultSeatLabel,
+            cup_mode: nextCupMode,
           },
         ],
       };
@@ -432,6 +452,22 @@ export default function POS() {
     if (typeof window !== 'undefined' && window.innerWidth < 1280) {
       setMobilePane('cart');
     }
+  };
+
+  const openProductPicker = (group: { base: string; items: any[] }) => {
+    const requiresServiceChoice =
+      beverageServiceSettings.coffee_selection_mode === 'size_and_service' && group.items.some((item) => isCoffeeLike(item));
+    if (group.items.length === 1 && !requiresServiceChoice) {
+      addToCart(group.items[0]);
+      return;
+    }
+    setVariantPicker({
+      base: group.base,
+      items: group.items,
+      requiresServiceChoice,
+      selectedItemId: group.items.length === 1 ? group.items[0].id : null,
+      selectedCupMode: null,
+    });
   };
 
   const updateCartItem = (lineId: string, qty: number) => {
@@ -649,6 +685,7 @@ export default function POS() {
           is_coffee: item.is_coffee,
           category: item.category,
           seat_label: item.seat_label || null,
+          cup_mode: item.cup_mode || null,
         })),
         payment_method: paymentMethod,
         discount_percent: Number(ctx.discount || 0),
@@ -667,6 +704,7 @@ export default function POS() {
           is_coffee: item.is_coffee,
           category: item.category,
           seat_label: item.seat_label,
+          cup_mode: item.cup_mode,
         })),
         payment_method: paymentMethod,
         cashier: user.username,
@@ -1051,7 +1089,16 @@ export default function POS() {
           {cart.map((item) => (
             <div key={item.line_id} className="rounded-md border border-slate-700 bg-slate-900/40 p-2">
               <div className="mb-1 flex items-center justify-between text-sm">
-                <span className="font-semibold text-slate-100">{item.item_name}</span>
+                <div>
+                  <div className="font-semibold text-slate-100">{item.item_name}</div>
+                  {item.cup_mode && (
+                    <div className="text-[11px] text-slate-400">
+                      {item.cup_mode === 'glass'
+                        ? tx(lang, 'Stəkan (masa)', 'Стакан (table)', 'Glass (table)')
+                        : tx(lang, 'Kağız stəkan (to go)', 'Бумажный стакан (to go)', 'Paper cup (to go)')}
+                    </div>
+                  )}
+                </div>
                 <span className="font-semibold text-yellow-300">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
               </div>
               <div className="flex items-center justify-end gap-1">
@@ -1199,11 +1246,7 @@ export default function POS() {
               <button
                 key={`${group.base}_${group.items.length}`}
                 onClick={() => {
-                  if (hasVariants) {
-                    setVariantPicker({ base: group.base, items: group.items });
-                    return;
-                  }
-                  addToCart(group.items[0]);
+                  openProductPicker(group);
                 }}
                 className={`neon-item ${size === 'compact' ? 'text-xs' : size === 'expanded' ? 'text-base' : 'text-sm'} ${productItemClass} text-left`}
               >
@@ -1426,7 +1469,10 @@ export default function POS() {
                   {cart.map((item) => (
                     <div key={`mobile_${item.line_id}`} className="rounded-lg border border-slate-700 bg-slate-900/40 p-2">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="font-semibold text-slate-100">{item.item_name}</span>
+                        <span className="font-semibold text-slate-100">
+                          {item.item_name}
+                          {item.cup_mode ? ` · ${item.cup_mode === 'glass' ? tx(lang, 'Stəkan', 'Стакан', 'Glass') : tx(lang, 'To go', 'To go', 'To go')}` : ''}
+                        </span>
                         <span className="font-semibold text-yellow-300">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
                       </div>
                       <div className="mt-2 flex items-center justify-end gap-2">
@@ -1511,17 +1557,27 @@ export default function POS() {
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4">
           <div className="metal-panel w-full max-w-md p-5">
             <h3 className="text-lg font-bold text-slate-100">{variantPicker.base}</h3>
-            <p className="mt-1 text-sm text-slate-300">{tx(lang, 'Ölçü seçin', 'Выберите размер', 'Choose a size')}</p>
+            <p className="mt-1 text-sm text-slate-300">
+              {variantPicker.requiresServiceChoice
+                ? tx(lang, 'Əvvəl ölçünü, sonra servis növünü seçin', 'Сначала выберите размер, затем подачу', 'Choose size, then service')
+                : tx(lang, 'Ölçü seçin', 'Выберите размер', 'Choose a size')}
+            </p>
             <div className="mt-4 space-y-2">
               {variantPicker.items.map((item) => {
                 const { variant } = splitVariantName(item.item_name);
                 return (
                   <button
                     key={item.id}
-                    className="neon-btn flex h-12 w-full items-center justify-between rounded-lg px-3"
+                    className={`neon-btn flex h-12 w-full items-center justify-between rounded-lg px-3 ${
+                      variantPicker.requiresServiceChoice && variantPicker.selectedItemId === item.id ? 'border-cyan-300 bg-cyan-500/15 text-cyan-50' : ''
+                    }`}
                     onClick={() => {
-                      addToCart(item);
-                      setVariantPicker(null);
+                      if (!variantPicker.requiresServiceChoice) {
+                        addToCart(item);
+                        setVariantPicker(null);
+                        return;
+                      }
+                      setVariantPicker((prev) => (prev ? { ...prev, selectedItemId: item.id } : prev));
                     }}
                   >
                     <span>{variant || item.item_name}</span>
@@ -1530,6 +1586,37 @@ export default function POS() {
                 );
               })}
             </div>
+            {variantPicker.requiresServiceChoice && (
+              <div className="mt-4 space-y-3">
+                <div className="text-sm font-semibold text-slate-200">{tx(lang, 'Servis növü', 'Тип подачи', 'Service type')}</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    className={`neon-btn h-14 rounded-xl px-3 text-sm ${variantPicker.selectedCupMode === 'paper' ? 'border-amber-300 bg-amber-500/15 text-amber-50' : ''}`}
+                    onClick={() => setVariantPicker((prev) => (prev ? { ...prev, selectedCupMode: 'paper' } : prev))}
+                  >
+                    {tx(lang, 'Kağız stəkan (to go)', 'Бумажный стакан (to go)', 'Paper cup (to go)')}
+                  </button>
+                  <button
+                    className={`neon-btn h-14 rounded-xl px-3 text-sm ${variantPicker.selectedCupMode === 'glass' ? 'border-cyan-300 bg-cyan-500/15 text-cyan-50' : ''}`}
+                    onClick={() => setVariantPicker((prev) => (prev ? { ...prev, selectedCupMode: 'glass' } : prev))}
+                  >
+                    {tx(lang, 'Stəkan (masa)', 'Стакан (table)', 'Glass (table)')}
+                  </button>
+                </div>
+                <button
+                  className="glossy-gold h-12 w-full rounded-xl px-4 text-sm font-bold disabled:opacity-50"
+                  disabled={!variantPicker.selectedItemId || !variantPicker.selectedCupMode}
+                  onClick={() => {
+                    const selectedItem = variantPicker.items.find((item) => item.id === variantPicker.selectedItemId);
+                    if (!selectedItem || !variantPicker.selectedCupMode) return;
+                    addToCart(selectedItem, { cup_mode: variantPicker.selectedCupMode });
+                    setVariantPicker(null);
+                  }}
+                >
+                  {tx(lang, 'Səbətə əlavə et', 'Добавить в корзину', 'Add to cart')}
+                </button>
+              </div>
+            )}
             <button className="mt-4 w-full rounded-lg border border-slate-600 px-4 py-2 text-sm" onClick={() => setVariantPicker(null)}>
               {tx(lang, 'Bağla', 'Закрыть', 'Close')}
             </button>

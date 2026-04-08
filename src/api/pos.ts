@@ -33,6 +33,14 @@ const isCoffeeLike = (item: { is_coffee?: boolean; category?: string; item_name?
   );
 };
 
+const getBeverageServiceSettings = (tenant_id: string) => {
+  const settings = get_settings(tenant_id);
+  return settings.beverage_service_settings || {
+    coffee_selection_mode: 'size_and_service',
+    remove_paper_packaging_for_table: true,
+  };
+};
+
 // FUNKSIYA: calculate_total
 export const calculate_total = (
   cart_items: { price: Decimal; qty: number; is_coffee: boolean; category: string }[],
@@ -297,14 +305,15 @@ export const create_sale = (payload: SalePayload) => {
     if (!payload.is_test) {
       const inventory = getDB<any>('inventory');
       const recipes = getDB<any>('recipes');
-      const cupMode = payload.cup_mode || 'paper';
-      const skipPackaging = cupMode === 'glass';
+      const beverageSettings = getBeverageServiceSettings(payload.tenant_id);
       const isPackagingIngredient = (name: string) => /st[əe]kan|stakan|qapaq|kapak|cup|lid/i.test(String(name || ''));
 
       let computedCogs = new Decimal(0);
       const stockOps: Array<{ inv: any; qty: Decimal }> = [];
 
       payload.cart_items.forEach((it) => {
+        const itemCupMode = String(it.cup_mode || payload.cup_mode || 'paper').toLowerCase();
+        const skipPackaging = beverageSettings.remove_paper_packaging_for_table !== false && itemCupMode === 'glass';
         const recs = recipes.filter(
           (r: any) =>
             (!r.tenant_id || r.tenant_id === payload.tenant_id) &&

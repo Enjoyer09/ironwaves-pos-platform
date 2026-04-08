@@ -26,6 +26,11 @@ DEFAULT_YIELD_SETTINGS = {
     "tracked_items": [],
 }
 
+DEFAULT_BEVERAGE_SERVICE_SETTINGS = {
+    "coffee_selection_mode": "size_and_service",
+    "remove_paper_packaging_for_table": True,
+}
+
 
 def _is_coffee_like(item_name: str | None, category: str | None, is_coffee: bool | None) -> bool:
     if is_coffee:
@@ -265,13 +270,19 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
 
     stock_ops: list[tuple[InventoryItem, Decimal]] = []
     cogs_total = Decimal("0.0000")
+    beverage_settings = _setting_value(db, tenant.id, "beverage_service_settings", DEFAULT_BEVERAGE_SERVICE_SETTINGS)
+    remove_packaging_for_table = bool((beverage_settings or {}).get("remove_paper_packaging_for_table", True))
     for item in payload.cart_items:
+        item_cup_mode = str(getattr(item, "cup_mode", None) or "paper").strip().lower()
+        skip_packaging = remove_packaging_for_table and item_cup_mode == "glass"
         recipes = (
             db.query(Recipe)
             .filter(Recipe.tenant_id == tenant.id, func.lower(Recipe.menu_item_name) == str(item.item_name).lower())
             .all()
         )
         for recipe in recipes:
+            if skip_packaging and any(token in str(recipe.ingredient_name or "").lower() for token in ["stəkan", "stakan", "qapaq", "kapak", "cup", "lid"]):
+                continue
             inventory = (
                 db.query(InventoryItem)
                 .filter(InventoryItem.tenant_id == tenant.id, func.lower(InventoryItem.name) == str(recipe.ingredient_name).lower())
