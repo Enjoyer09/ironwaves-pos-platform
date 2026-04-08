@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  ArrowLeft,
   ArrowRight,
   BadgeCheck,
   BellRing,
@@ -54,12 +53,12 @@ const MODULES = [
   { icon: CreditCard, title: 'POS', text: 'Sürətli satış, split ödəniş, çek axını və kassir üçün touch-first iş masası.' },
   { icon: Table2, title: 'Masalar', text: 'Masa açılışı, raund göndərişi, servis izləmə, hesab bağlama və təmizlik axını.' },
   { icon: ChefHat, title: 'Mətbəx ekranı', text: 'SENT, hazırlanır, hazırdır, servis edildi və düzəliş statusları bir axında görünür.' },
-  { icon: Wallet, title: 'Maliyyə', text: 'Mədaxil, xərc, transfer, investor ödənişi, uyğunlaşdırma və maliyyə jurnalı bir mərkəzdədir.' },
+  { icon: Wallet, title: 'Maliyyə', text: 'Mədaxil, xərc, transfer, investor borcu, depozit, uyğunlaşdırma və maliyyə jurnalı bir mərkəzdədir.' },
   { icon: LayoutDashboard, title: 'Dashboard', text: 'Kritik xəbərdarlıqlar, KPI-lar, açıq hesablar və canlı əməliyyat görünüşü.' },
   { icon: ChartColumnBig, title: 'Analitika', text: 'Satış ritmi, top məhsullar, orta çek və qərar üçün lazım olan rəqəmlər.' },
   { icon: Receipt, title: 'Z-Hesabat / X-Hesabat', text: 'Növbə açılışı, sayılmış kassa, fərq və gündəlik bağlanış nəzarəti.' },
-  { icon: Users, title: 'CRM / Loyallıq', text: 'Kartlar, rewards, cashback, kampaniyalar və daimi müştəri axını.' },
-  { icon: QrCode, title: 'QR Menu', text: 'Müştəri telefonundan menyuya baxır, qiymət və məhsul şəkilləri dərhal görünür.' },
+  { icon: Users, title: 'CRM / Loyallıq', text: 'Müştəri bazası, bonuslar, cashback, kampaniyalar və daimi qonaq axını eyni sistemdədir.' },
+  { icon: QrCode, title: 'QR Menu / Customer App', text: 'QR menu, mobil baxış, məhsul şəkilləri, qısa təsvirlər və müştəri üçün self-service təcrübəsi verir.' },
   { icon: ClipboardList, title: 'Loglar və audit', text: 'Kim nə etdi, nə vaxt etdi və hansı status dəyişdi sualları cavabsız qalmır.' },
 ];
 
@@ -374,6 +373,84 @@ function KdsMock() {
   );
 }
 
+function PlatformOpsMock() {
+  return (
+    <div className="grid h-full gap-3 md:grid-cols-[1.05fr_0.95fr]">
+      <div className="space-y-3">
+        <div className="rounded-[22px] border border-white/8 bg-[#121c2d] p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Maliyyə</div>
+            <Wallet size={18} className="text-emerald-300" />
+          </div>
+          <div className="mt-3 grid gap-2">
+            {[
+              ['Nağd kassa', '1,245 ₼'],
+              ['Bank / Kart', '2,410 ₼'],
+              ['Aktiv depozit', '85 ₼'],
+              ['Investor borcu', '300 ₼'],
+            ].map(([label, value]) => (
+              <div key={label} className="flex items-center justify-between rounded-xl border border-white/8 bg-[#0f1726] px-3 py-2.5">
+                <span className="text-sm text-slate-300">{label}</span>
+                <span className="text-sm font-black text-white">{value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-[22px] border border-white/8 bg-[#121c2d] p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">CRM / Loyallıq</div>
+            <Users size={18} className="text-sky-300" />
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {[
+              ['Aktiv kartlar', '428'],
+              ['Bonus balansı', '1,180 ₼'],
+              ['Kampaniya', '2 aktiv'],
+              ['Qayıdan müştəri', '61%'],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl border border-white/8 bg-[#0f1726] p-3">
+                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</div>
+                <div className="mt-2 text-sm font-black text-white">{value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="space-y-3">
+        <div className="rounded-[22px] border border-white/8 bg-[#121c2d] p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">QR Menu</div>
+            <QrCode size={18} className="text-violet-300" />
+          </div>
+          <div className="mt-3 rounded-[18px] border border-white/8 bg-[#0f1726] p-3">
+            <div className="h-24 rounded-2xl bg-[linear-gradient(135deg,#1d4ed8,#0f172a)]" />
+            <div className="mt-3 text-sm font-black text-white">Amerikano</div>
+            <div className="mt-1 text-xs text-slate-400">Qısa təsvir, şəkil və qiymət müştəriyə telefonunda görünür.</div>
+          </div>
+        </div>
+        <div className="rounded-[22px] border border-white/8 bg-[#121c2d] p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Customer App</div>
+            <Store size={18} className="text-amber-300" />
+          </div>
+          <div className="mt-3 space-y-2">
+            {[
+              ['Bonus görünür', 'Cashback və balans'],
+              ['Təkliflər', 'Şəxsi kampaniya axını'],
+              ['Təkrar satış', 'Qonaq geri qayıdır'],
+            ].map(([title, note]) => (
+              <div key={title} className="rounded-xl border border-white/8 bg-[#0f1726] px-3 py-2.5">
+                <div className="text-sm font-black text-white">{title}</div>
+                <div className="text-xs text-slate-400">{note}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const [landingSettings, setLandingSettings] = React.useState<any>(null);
   const [form, setForm] = React.useState({
@@ -431,15 +508,6 @@ export default function LandingPage() {
     window.location.href = `mailto:${contactEmail}?subject=${encodeURIComponent('iRonWaves POS demo sorğusu')}&body=${encodeURIComponent(demoMessage)}`;
   };
 
-  const handleBack = () => {
-    if (typeof window === 'undefined') return;
-    if (window.history.length > 1) {
-      window.history.back();
-      return;
-    }
-    window.location.href = demoUrl;
-  };
-
   return (
     <div className="h-[100dvh] overflow-y-auto overscroll-y-contain bg-[#f7f9fc] text-slate-900">
       <div className="relative min-h-full overflow-hidden">
@@ -449,21 +517,12 @@ export default function LandingPage() {
           <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/88 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-4 py-5">
               <div className="flex items-center gap-3">
-                <button
-                  onClick={handleBack}
-                  className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:border-sky-300 hover:text-sky-700"
-                >
-                  <ArrowLeft size={16} />
-                  <span>Geri dön</span>
-                </button>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[linear-gradient(180deg,#0f172a,#1e293b)] text-xl font-black text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
-                    IW
-                  </div>
-                  <div>
-                    <div className="text-[11px] font-black uppercase tracking-[0.28em] text-sky-700">iRonWaves POS</div>
-                    <div className="text-lg font-black text-slate-950 md:text-xl">Restoran idarəetmə platforması</div>
-                  </div>
+                <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-[linear-gradient(180deg,#0f172a,#1e293b)] text-xl font-black text-white shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
+                  IW
+                </div>
+                <div>
+                  <div className="text-[11px] font-black uppercase tracking-[0.28em] text-sky-700">iRonWaves POS</div>
+                  <div className="text-lg font-black text-slate-950 md:text-xl">Restoran idarəetmə platforması</div>
                 </div>
               </div>
 
@@ -622,9 +681,9 @@ export default function LandingPage() {
                 mock={<DashboardMock />}
               />
               <ScreenCard
-                title="Maliyyə"
-                body="Nağd kassa, bank, seyf, aktiv depozitlər, uyğunlaşdırma və jurnal bir nəzarət mərkəzində toplanır."
-                image="/landing/finance-screen.png"
+                title="Maliyyə, CRM və müştəri axını"
+                body="Nağd kassa, bank, seyf, aktiv depozitlər, uyğunlaşdırma və jurnal ilə yanaşı CRM, loyallıq, Customer App və QR menu də eyni platformada işləyir."
+                mock={<PlatformOpsMock />}
               />
               <ScreenCard
                 title="Mətbəx ekranı"
