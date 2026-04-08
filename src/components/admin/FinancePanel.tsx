@@ -10,6 +10,7 @@ import {
   fetch_finance_anomalies,
   fetch_finance_alerts,
   fetch_finance_balances,
+  fetch_finance_summary,
   fetch_finance_entries,
   fetch_finance_ledger_accounts,
   fetch_finance_ledger_entries,
@@ -259,6 +260,7 @@ export default function FinancePanel() {
   const [ledgerEntries, setLedgerEntries] = useState<FinanceLedgerEntry[]>([]);
   const [reconciliations, setReconciliations] = useState<FinanceReconciliation[]>([]);
   const [pendingApprovals, setPendingApprovals] = useState<FinanceLedgerTransaction[]>([]);
+  const [pendingApprovalsTotal, setPendingApprovalsTotal] = useState(0);
   const [selectedLedgerDetail, setSelectedLedgerDetail] = useState<FinanceTransactionDetail | null>(null);
   const [ledgerDetailLoading, setLedgerDetailLoading] = useState(false);
   const [ledgerPageSize, setLedgerPageSize] = useState(10);
@@ -380,7 +382,8 @@ export default function FinancePanel() {
     }
     lastReloadAtRef.current = now;
     try {
-      const [b, e, settings, serverAnomalies] = await Promise.all([
+      const [summary, b, e, settings, serverAnomalies] = await Promise.all([
+        fetch_finance_summary(tenant_id).catch(() => null),
         fetch_finance_balances(tenant_id),
         fetch_finance_entries(tenant_id),
         get_settings_live(tenant_id),
@@ -394,7 +397,17 @@ export default function FinancePanel() {
         fetch_finance_pending_approvals(tenant_id).catch(() => []),
         fetch_finance_alerts(tenant_id).catch(() => null),
       ]);
-      setBalance(b || {
+      const summaryBalances = summary?.balances
+        ? {
+            cash_balance: String(summary.balances.cash || '0'),
+            card_balance: String(summary.balances.card || '0'),
+            debt_balance: String(summary.balances.debt || '0'),
+            investor_balance: String(summary.balances.investor || '0'),
+            safe_balance: String(summary.balances.safe || '0'),
+            deposit_balance: String(summary.balances.deposit || '0'),
+          }
+        : null;
+      setBalance(summaryBalances || b || {
         cash_balance: '0',
         card_balance: '0',
         debt_balance: '0',
@@ -408,8 +421,9 @@ export default function FinancePanel() {
       setLedgerTransactions(transactions);
       setLedgerEntries(ledgerRows);
       setReconciliations(recRows);
-      setPendingApprovals(pendingRows);
-      setServerFinanceAlerts(alertRows);
+      setPendingApprovals((summary?.pending_approvals_preview?.length ? summary.pending_approvals_preview : pendingRows) || []);
+      setPendingApprovalsTotal(Number(summary?.pending_approvals_count ?? pendingRows.length ?? 0));
+      setServerFinanceAlerts((summary?.alerts?.length ? summary.alerts : alertRows) || null);
       setBankCommissionConfig({
         card_sale_percent: Number((settings.bank_commission as any)?.card_sale_percent ?? settings.bank_commission?.percent ?? 2),
         card_transfer_percent: Number((settings.bank_commission as any)?.card_transfer_percent ?? 0.5),
@@ -1248,7 +1262,7 @@ export default function FinancePanel() {
   const todayInflow = financeSummary.incoming;
   const todayOutflow = financeSummary.outgoing;
   const unreconciledVariance = anomalies?.shift_cash_gap || '0';
-  const pendingApprovalsCount = pendingApprovals.length;
+  const pendingApprovalsCount = pendingApprovalsTotal;
   const fallbackFinanceAlerts = [
     ...(pendingApprovals.length > 0
       ? [{
@@ -2851,7 +2865,7 @@ function TransactionDetailDrawer({
         <div className="sticky top-0 z-10 -mx-5 -mt-5 border-b border-slate-800 bg-slate-950/95 p-5 backdrop-blur">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="text-xs font-black uppercase tracking-[0.22em] text-yellow-300">Transaction Detail</div>
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-yellow-300">{tx(lang, 'Əməliyyat detalları', 'Детали операции', 'Transaction Detail')}</div>
               <h3 className="mt-2 text-2xl font-black text-white">{txRow.transaction_type?.replace(/_/g, ' ') || 'Transaction'}</h3>
               <p className="mt-1 text-sm text-slate-400">{txRow.id}</p>
             </div>
@@ -2864,7 +2878,7 @@ function TransactionDetailDrawer({
             {txRow.status === 'pending_approval' ? (
               <>
                 <button onClick={() => void onApprove(txRow.id)} className="min-h-11 rounded-2xl bg-emerald-300 px-4 text-sm font-black text-slate-950">
-                  {tx(lang, 'Təsdiqlə və post et', 'Подтвердить и post', 'Approve and post')}
+                  {tx(lang, 'Təsdiqlə və yaz', 'Подтвердить и post', 'Approve and post')}
                 </button>
                 <button onClick={() => void onReject(txRow.id)} className="min-h-11 rounded-2xl border border-rose-400/40 px-4 text-sm font-black text-rose-100">
                   {tx(lang, 'Rədd et', 'Отклонить', 'Reject')}
@@ -2873,7 +2887,7 @@ function TransactionDetailDrawer({
             ) : null}
             {txRow.status === 'posted' && txRow.transaction_type !== 'reversal' && detail.reversal_history.length === 0 ? (
               <button onClick={() => void onReverse(txRow.id)} className="min-h-11 rounded-2xl border border-amber-400/40 px-4 text-sm font-black text-amber-100">
-                {tx(lang, 'Reversal istə', 'Запросить reversal', 'Request reversal')}
+                {tx(lang, 'Əks yazılış istə', 'Запросить reversal', 'Request reversal')}
               </button>
             ) : null}
           </div>
@@ -2884,13 +2898,13 @@ function TransactionDetailDrawer({
             <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">{tx(lang, 'Status', 'Статус', 'Status')}</div>
             <div className="mt-3"><FinanceStatusBadge status={txRow.status || 'posted'} /></div>
           </div>
-          <FinanceMiniMetric label={tx(lang, 'Amount', 'Сумма', 'Amount')} value={`${new Decimal(txRow.amount || 0).toFixed(2)} ₼`} tone="sky" />
-          <FinanceMiniMetric label={tx(lang, 'From', 'Откуда', 'From')} value={accountName(txRow.source_account)} tone="amber" />
-          <FinanceMiniMetric label={tx(lang, 'To', 'Куда', 'To')} value={accountName(txRow.destination_account)} tone="violet" />
+          <FinanceMiniMetric label={tx(lang, 'Məbləğ', 'Сумма', 'Amount')} value={`${new Decimal(txRow.amount || 0).toFixed(2)} ₼`} tone="sky" />
+          <FinanceMiniMetric label={tx(lang, 'Haradan', 'Откуда', 'From')} value={accountName(txRow.source_account)} tone="amber" />
+          <FinanceMiniMetric label={tx(lang, 'Hara', 'Куда', 'To')} value={accountName(txRow.destination_account)} tone="violet" />
         </div>
 
         <section className="mt-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-4">
-          <div className="mb-4 text-xs font-black uppercase tracking-[0.18em] text-slate-500">{tx(lang, 'Lifecycle timeline', 'Timeline жизненного цикла', 'Lifecycle timeline')}</div>
+          <div className="mb-4 text-xs font-black uppercase tracking-[0.18em] text-slate-500">{tx(lang, 'Həyat dövrü xətti', 'Timeline жизненного цикла', 'Lifecycle timeline')}</div>
           <div className="relative space-y-5 before:absolute before:left-[5px] before:top-2 before:h-[calc(100%-12px)] before:w-px before:bg-slate-700">
             {lifecycleEvents.map((event) => (
               <FinanceTimelineItem
@@ -2912,7 +2926,7 @@ function TransactionDetailDrawer({
         </section>
 
         <section className="mt-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-4">
-          <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Debit / Credit entries', 'Debit / Credit записи', 'Debit / Credit entries')}</div>
+          <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Debit / Credit yazılışları', 'Debit / Credit записи', 'Debit / Credit entries')}</div>
           <div className="space-y-3">
             {detail.entries.map((entry) => (
               <div key={entry.id} className="grid grid-cols-[1fr_auto] gap-3 rounded-2xl border border-slate-800 bg-slate-950 p-3">
@@ -2934,7 +2948,7 @@ function TransactionDetailDrawer({
         </section>
 
         <section className="mt-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-4">
-          <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Reversal history', 'История reversal', 'Reversal history')}</div>
+          <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Əks yazılış tarixçəsi', 'История reversal', 'Reversal history')}</div>
           <div className="space-y-3">
             {detail.reversal_history.map((row) => (
               <div key={row.id} className="rounded-2xl border border-amber-400/25 bg-amber-950/20 p-3">
@@ -2957,14 +2971,14 @@ function TransactionDetailDrawer({
             ))}
             {detail.reversal_history.length === 0 ? (
               <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-500">
-                {tx(lang, 'Reversal history yoxdur.', 'Истории reversal нет.', 'No reversal history.')}
+                {tx(lang, 'Əks yazılış tarixçəsi yoxdur.', 'Истории reversal нет.', 'No reversal history.')}
               </div>
             ) : null}
           </div>
         </section>
 
         <section className="mt-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-4">
-          <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Audit trail', 'Audit trail', 'Audit trail')}</div>
+          <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Audit tarixçəsi', 'Audit trail', 'Audit trail')}</div>
           <div className="space-y-3">
             {auditDetails.map((row) => (
               <div key={row.id} className="rounded-2xl border border-slate-800 bg-slate-950 p-3">

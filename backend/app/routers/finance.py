@@ -648,6 +648,58 @@ def get_balances(db: Session = Depends(get_db), tenant: Tenant = Depends(get_ten
     }
 
 
+@router.get("/summary")
+def get_finance_summary(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    accounts = _ensure_finance_accounts(db, tenant.id)
+    db.commit()
+    account_by_id = {row.id: row for row in accounts.values()}
+    alerts = _finance_alerts(db, tenant.id)
+    pending_rows = (
+        db.query(FinanceTransaction)
+        .filter(FinanceTransaction.tenant_id == tenant.id, FinanceTransaction.status == "pending_approval")
+        .order_by(FinanceTransaction.created_at.asc())
+        .limit(5)
+        .all()
+    )
+    pending_count = (
+        db.query(FinanceTransaction)
+        .filter(FinanceTransaction.tenant_id == tenant.id, FinanceTransaction.status == "pending_approval")
+        .count()
+    )
+    latest_reconciliation = (
+        db.query(FinanceReconciliation)
+        .filter(FinanceReconciliation.tenant_id == tenant.id)
+        .order_by(FinanceReconciliation.created_at.desc())
+        .first()
+    )
+    return {
+        "balances": {
+            "cash": str(_wallet_balance(db, tenant.id, "cash")),
+            "card": str(_wallet_balance(db, tenant.id, "card")),
+            "safe": str(_wallet_balance(db, tenant.id, "safe")),
+            "investor": str(_wallet_balance(db, tenant.id, "investor")),
+            "debt": str(_wallet_balance(db, tenant.id, "debt")),
+            "deposit": str(_wallet_balance(db, tenant.id, "deposit")),
+        },
+        "alerts": alerts,
+        "pending_approvals_count": pending_count,
+        "pending_approvals_preview": [_transaction_out(row, account_by_id) for row in pending_rows],
+        "latest_reconciliation": {
+            "id": latest_reconciliation.id,
+            "account_code": latest_reconciliation.account_code,
+            "account_name": latest_reconciliation.account_name,
+            "expected_balance": str(Decimal(str(latest_reconciliation.expected_balance)).quantize(Decimal("0.01"))),
+            "counted_balance": str(Decimal(str(latest_reconciliation.counted_balance)).quantize(Decimal("0.01"))),
+            "variance": str(Decimal(str(latest_reconciliation.variance)).quantize(Decimal("0.01"))),
+            "notes": latest_reconciliation.notes,
+            "reconciled_by": latest_reconciliation.reconciled_by,
+            "reconciled_at": latest_reconciliation.reconciled_at.isoformat() if latest_reconciliation.reconciled_at else None,
+            "created_by": latest_reconciliation.created_by,
+            "created_at": latest_reconciliation.created_at.isoformat() if latest_reconciliation.created_at else None,
+        } if latest_reconciliation else None,
+    }
+
+
 def _account_out(account: FinanceAccount, totals: dict[str, Decimal]) -> dict:
     return {
         "id": account.id,
@@ -660,6 +712,31 @@ def _account_out(account: FinanceAccount, totals: dict[str, Decimal]) -> dict:
         "credit_total": str(totals["credit"].quantize(Decimal("0.01"))),
         "ledger_balance": str(totals["balance"].quantize(Decimal("0.01"))),
         "created_at": account.created_at.isoformat() if account.created_at else None,
+    }
+
+
+def _transaction_out(row: FinanceTransaction, account_by_id: dict[str, FinanceAccount]) -> dict:
+    return {
+        "id": row.id,
+        "transaction_type": row.transaction_type,
+        "status": row.status,
+        "source_account": account_by_id.get(row.source_account_id).code if row.source_account_id in account_by_id else None,
+        "destination_account": account_by_id.get(row.destination_account_id).code if row.destination_account_id in account_by_id else None,
+        "amount": str(Decimal(str(row.amount)).quantize(Decimal("0.01"))),
+        "currency": row.currency,
+        "category": row.category,
+        "counterparty": row.counterparty,
+        "reference": row.reference,
+        "note": row.note,
+        "created_by": row.created_by,
+        "approved_by": row.approved_by,
+        "posted_by": row.posted_by,
+        "reversed_by": row.reversed_by,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "approved_at": row.approved_at.isoformat() if row.approved_at else None,
+        "posted_at": row.posted_at.isoformat() if row.posted_at else None,
+        "reversed_at": row.reversed_at.isoformat() if row.reversed_at else None,
+        "legacy_finance_entry_id": row.legacy_finance_entry_id,
     }
 
 
@@ -896,31 +973,7 @@ def list_ledger_transactions(
     total = query.count() if include_total else None
     rows = query.order_by(FinanceTransaction.created_at.desc()).offset(offset).limit(limit).all()
     account_by_id = {row.id: row for row in db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant.id).all()}
-    rows_out = [
-        {
-            "id": row.id,
-            "transaction_type": row.transaction_type,
-            "status": row.status,
-            "source_account": account_by_id.get(row.source_account_id).code if row.source_account_id in account_by_id else None,
-            "destination_account": account_by_id.get(row.destination_account_id).code if row.destination_account_id in account_by_id else None,
-            "amount": str(Decimal(str(row.amount)).quantize(Decimal("0.01"))),
-            "currency": row.currency,
-            "category": row.category,
-            "counterparty": row.counterparty,
-            "reference": row.reference,
-            "note": row.note,
-            "created_by": row.created_by,
-            "approved_by": row.approved_by,
-            "posted_by": row.posted_by,
-            "reversed_by": row.reversed_by,
-            "created_at": row.created_at.isoformat() if row.created_at else None,
-            "approved_at": row.approved_at.isoformat() if row.approved_at else None,
-            "posted_at": row.posted_at.isoformat() if row.posted_at else None,
-            "reversed_at": row.reversed_at.isoformat() if row.reversed_at else None,
-            "legacy_finance_entry_id": row.legacy_finance_entry_id,
-        }
-        for row in rows
-    ]
+    rows_out = [_transaction_out(row, account_by_id) for row in rows]
     if include_total:
         return {
             "rows": rows_out,
