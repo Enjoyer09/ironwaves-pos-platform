@@ -11,6 +11,7 @@ import ConfirmModal from './ConfirmModal';
 import { Decimal } from 'decimal.js';
 import { get_business_profile, get_settings } from '../api/settings';
 import { getDB } from '../lib/db_sim';
+import { verifyLocalCredential } from '../lib/local_auth';
 import { logEvent } from '../lib/logger';
 import { qzPrintHtml } from '../lib/qz';
 import { hostScopedKey } from '../lib/storage_keys';
@@ -812,7 +813,13 @@ export default function TablesPage() {
       await delete_table_live(id, user?.username || 'Staff');
       notify('success', tx(lang, 'Masa silindi', 'Стол удален', 'Table deleted'));
       setDeleteTableId(null);
-      await loadData();
+      if (selectedFloorTableId === id) setSelectedFloorTableId(null);
+      if (viewTableId === id) setViewTableId(null);
+      await Promise.all([
+        loadData(),
+        loadRestaurantData(),
+        activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(),
+      ]);
     } catch(e:any) { notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message); }
   };
 
@@ -1170,16 +1177,25 @@ export default function TablesPage() {
               <button
                 className="glossy-gold rounded-lg px-4 py-2 font-semibold"
                 onClick={() => {
-                  const users = getDB<any>('users');
-                  const admin = users.find((u) => String(u.role || '').toLowerCase() === 'admin');
-                  const valid = Boolean(admin && String(admin.password || '') === deleteAdminPass);
-                  if (!valid) {
-                    notify('error', tx(lang, 'Admin şifrəsi yanlışdır', 'Неверный пароль администратора'));
-                    return;
-                  }
-                  if (deleteTableId) void handleDeleteTable(deleteTableId);
-                  setShowDeleteAuth(false);
-                  setDeleteAdminPass('');
+                  void (async () => {
+                    const users = getDB<any>('users');
+                    const candidates = users.filter((u) => ['admin', 'super_admin'].includes(String(u.role || '').toLowerCase()));
+                    let valid = false;
+                    for (const candidate of candidates) {
+                      const matches = await verifyLocalCredential(deleteAdminPass, candidate.password_hash || candidate.password);
+                      if (matches) {
+                        valid = true;
+                        break;
+                      }
+                    }
+                    if (!valid) {
+                      notify('error', tx(lang, 'Admin şifrəsi yanlışdır', 'Неверный пароль администратора'));
+                      return;
+                    }
+                    if (deleteTableId) void handleDeleteTable(deleteTableId);
+                    setShowDeleteAuth(false);
+                    setDeleteAdminPass('');
+                  })();
                 }}
               >
                 {tx(lang, 'Silməni Təsdiqlə', 'Подтвердить удаление')}
@@ -2558,6 +2574,17 @@ export default function TablesPage() {
               <Plus size={20} /> {tx(lang, 'Masa Yarat', 'Создать стол', 'Create Table')}
             </button>
           )}
+          {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase())
+            && selectedFloorTable
+            && !tablesById[selectedFloorTable.id]?.is_occupied && (
+            <button
+              type="button"
+              onClick={() => setDeleteTableId(selectedFloorTable.id)}
+              className="min-h-13 rounded-xl border border-rose-300/40 bg-rose-500/12 px-4 py-3 font-bold text-rose-100"
+            >
+              {tx(lang, 'Masanı sil', 'Удалить стол', 'Delete table')}
+            </button>
+          )}
         </div>
       </div>
       {workspaceView === 'floor' && activeFloorId && (
@@ -2800,6 +2827,15 @@ export default function TablesPage() {
               >
                 {tx(lang, 'Layout sıfırla', 'Сбросить макет', 'Reset layout')}
               </button>
+              {selectedFloorTable && !tablesById[selectedFloorTable.id]?.is_occupied && (
+                <button
+                  type="button"
+                  className="rounded-full border border-rose-300/30 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-100"
+                  onClick={() => setDeleteTableId(selectedFloorTable.id)}
+                >
+                  {tx(lang, 'Seçilmiş masanı sil', 'Удалить выбранный стол', 'Delete selected table')}
+                </button>
+              )}
             </div>
           )}
           {floorEditMode ? (
