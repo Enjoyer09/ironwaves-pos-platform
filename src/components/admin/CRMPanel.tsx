@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { generate_qr_codes } from '../../api/qr_generator';
-import { get_customers_live, import_customers_live } from '../../api/crm';
+import { get_customers_live, get_reservation_guests_live, import_customers_live, type ReservationGuestRecord } from '../../api/crm';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 import { send_email } from '../../api/email';
@@ -19,6 +19,8 @@ export default function CRMPanel() {
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [customers, setCustomers] = useState<any[]>([]);
+  const [reservationGuests, setReservationGuests] = useState<ReservationGuestRecord[]>([]);
+  const [guestSearch, setGuestSearch] = useState('');
   const [count, setCount] = useState(1);
   const [tier, setTier] = useState('golden');
   const [customType, setCustomType] = useState('');
@@ -34,10 +36,28 @@ export default function CRMPanel() {
   const selectedTier = useMemo(() => QR_TYPES.find((t) => t.value === tier) || QR_TYPES[0], [tier]);
   const effectiveType = tier === '__custom__' ? customType.trim() : selectedTier.value;
   const effectiveDiscount = tier === '__custom__' ? Number(customDiscount || 0) : selectedTier.discount;
+  const guestSummary = useMemo(() => ({
+    total: reservationGuests.length,
+    withPhone: reservationGuests.filter((row) => String(row.phone || '').trim()).length,
+    upcoming: reservationGuests.filter((row) => row.next_reservation_at).length,
+  }), [reservationGuests]);
+  const filteredReservationGuests = useMemo(() => {
+    const query = guestSearch.trim().toLowerCase();
+    if (!query) return reservationGuests;
+    return reservationGuests.filter((row) => (
+      String(row.full_name || '').toLowerCase().includes(query)
+      || String(row.phone || '').toLowerCase().includes(query)
+      || String(row.email || '').toLowerCase().includes(query)
+    ));
+  }, [reservationGuests, guestSearch]);
 
   const loadData = async () => {
-    const cust = await get_customers_live(tenant_id);
+    const [cust, guests] = await Promise.all([
+      get_customers_live(tenant_id),
+      get_reservation_guests_live(tenant_id).catch(() => []),
+    ]);
     setCustomers(cust || []);
+    setReservationGuests(Array.isArray(guests) ? guests : []);
   };
 
   const onSendCampaign = async () => {
@@ -158,6 +178,90 @@ export default function CRMPanel() {
 
   return (
     <div className="space-y-5 text-slate-100">
+      <div className="metal-panel p-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="text-3xl font-black tracking-wide">{tx(lang, 'REZERVASİYA MÜŞTƏRİ BAZASI', 'БАЗА ГОСТЕЙ ПО БРОНЯМ', 'RESERVATION GUEST DATABASE')}</h2>
+            <p className="mt-2 text-sm text-slate-300">
+              {tx(
+                lang,
+                'Rezervasiya edən qonaqlar burada toplanır. Zəng etmək, xüsusi təklif hazırlamaq və geri qayıdan müştərini izləmək üçün istifadə edin.',
+                'Здесь собираются гости, которые оформляли брони. Используйте для звонков, спецпредложений и отслеживания возвратных гостей.',
+                'Guests who make reservations are collected here. Use this for calls, offers, and returning-guest tracking.',
+              )}
+            </p>
+          </div>
+          <input
+            className="neon-input w-full md:max-w-xs"
+            value={guestSearch}
+            onChange={(e) => setGuestSearch(e.target.value)}
+            placeholder={tx(lang, 'Ad, telefon və ya email ilə axtar', 'Поиск по имени, телефону или email', 'Search by name, phone, or email')}
+          />
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="rounded-2xl border border-slate-700/70 bg-slate-900/40 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{tx(lang, 'Bazada qonaq', 'Гостей в базе', 'Guests in database')}</div>
+            <div className="mt-2 text-3xl font-black text-slate-50">{guestSummary.total}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-700/70 bg-slate-900/40 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{tx(lang, 'Telefonu olanlar', 'С телефоном', 'With phone')}</div>
+            <div className="mt-2 text-3xl font-black text-cyan-200">{guestSummary.withPhone}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-700/70 bg-slate-900/40 p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{tx(lang, 'Gələcək rezervi olanlar', 'С будущей бронью', 'With upcoming reservation')}</div>
+            <div className="mt-2 text-3xl font-black text-amber-200">{guestSummary.upcoming}</div>
+          </div>
+        </div>
+        <div className="mt-4 overflow-hidden rounded-2xl border border-slate-700/70">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-slate-700/70 bg-slate-900/50 text-slate-300">
+              <tr>
+                <th className="px-4 py-3">{tx(lang, 'Qonaq', 'Гость', 'Guest')}</th>
+                <th className="px-4 py-3">{tx(lang, 'Əlaqə', 'Контакт', 'Contact')}</th>
+                <th className="px-4 py-3">{tx(lang, 'Rezerv sayı', 'Кол-во броней', 'Reservation count')}</th>
+                <th className="px-4 py-3">{tx(lang, 'Son rezerv', 'Последняя бронь', 'Last reservation')}</th>
+                <th className="px-4 py-3">{tx(lang, 'Növbəti rezerv', 'Следующая бронь', 'Next reservation')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredReservationGuests.map((row) => (
+                <tr key={row.id} className="border-t border-slate-700/50 align-top">
+                  <td className="px-4 py-3">
+                    <div className="font-semibold text-slate-100">{row.full_name || tx(lang, 'Adsız qonaq', 'Гость без имени', 'Unnamed guest')}</div>
+                    {row.notes ? <div className="mt-1 max-w-[280px] text-xs text-slate-400">{row.notes}</div> : null}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="space-y-1">
+                      <div>{row.phone ? <a className="text-cyan-200 hover:underline" href={`tel:${row.phone}`}>{row.phone}</a> : <span className="text-slate-500">{tx(lang, 'Telefon yoxdur', 'Нет телефона', 'No phone')}</span>}</div>
+                      <div>{row.email ? <a className="text-slate-300 hover:underline" href={`mailto:${row.email}`}>{row.email}</a> : <span className="text-slate-500">{tx(lang, 'Email yoxdur', 'Нет email', 'No email')}</span>}</div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="font-semibold text-slate-100">{row.reservation_count}</div>
+                    <div className="mt-1 text-xs text-slate-400">
+                      {tx(lang, 'Aktiv', 'Активные', 'Active')}: {row.active_count} • {tx(lang, 'Ləğv', 'Отмена', 'Cancelled')}: {row.cancelled_count}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-slate-300">
+                    {row.last_reservation_at ? new Date(row.last_reservation_at).toLocaleString(lang === 'ru' ? 'ru-RU' : 'az-AZ') : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-slate-300">
+                    {row.next_reservation_at ? new Date(row.next_reservation_at).toLocaleString(lang === 'ru' ? 'ru-RU' : 'az-AZ') : <span className="text-slate-500">{tx(lang, 'Plan yoxdur', 'Нет плана', 'No upcoming')}</span>}
+                  </td>
+                </tr>
+              ))}
+              {filteredReservationGuests.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                    {tx(lang, 'Hələ rezervasiya müştəri bazası görünmür', 'База гостей по броням пока пуста', 'Reservation guest database is empty')}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div className="metal-panel p-5">
         <h2 className="text-3xl font-black tracking-wide">{tx(lang, 'QR GENERATOR', 'ГЕНЕРАТОР QR')}</h2>
         <p className="mt-2 text-sm text-slate-300">{tx(lang, 'QR tipi POS və Maliyyə ilə sinxron işləyir. Müştərinin tipi satışdakı endirimə avtomatik tətbiq olunur.', 'Тип QR синхронизирован с POS и Финансами. Тип клиента автоматически влияет на скидку в продаже.')}</p>

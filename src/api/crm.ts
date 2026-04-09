@@ -117,6 +117,72 @@ export async function get_customers_live(tenant_id?: string) {
   return apiRequest<any[]>('/api/v1/ops/customers', { tenantId: null });
 }
 
+export type ReservationGuestRecord = {
+  id: string;
+  guest_ids: string[];
+  full_name: string;
+  phone?: string;
+  email?: string;
+  notes?: string;
+  reservation_count: number;
+  cancelled_count: number;
+  completed_count: number;
+  active_count: number;
+  last_reservation_at?: string | null;
+  next_reservation_at?: string | null;
+  last_table_label?: string | null;
+};
+
+const normalizeGuestPhone = (value?: string | null) => String(value || '').trim().replace(/[^\d+]/g, '');
+const normalizeGuestEmail = (value?: string | null) => String(value || '').trim().toLowerCase();
+
+export async function get_reservation_guests_live(tenant_id?: string): Promise<ReservationGuestRecord[]> {
+  const tenantId = tenant_id || defaultTenant();
+  if (!isBackendEnabled()) {
+    const rows = filterTenantRecords(getDB<any>('restaurant_reservations'), tenantId);
+    const grouped = new Map<string, ReservationGuestRecord>();
+    const now = Date.now();
+    rows.forEach((row: any) => {
+      const guest = row.guest || {};
+      const phone = String(guest.phone || '').trim();
+      const email = String(guest.email || '').trim();
+      const key = normalizeGuestPhone(phone) || normalizeGuestEmail(email) || `guest:${row.id}`;
+      const current = grouped.get(key) || {
+        id: key,
+        guest_ids: [],
+        full_name: String(guest.full_name || 'Naməlum qonaq'),
+        phone,
+        email,
+        notes: String(row.special_note || ''),
+        reservation_count: 0,
+        cancelled_count: 0,
+        completed_count: 0,
+        active_count: 0,
+        last_reservation_at: null,
+        next_reservation_at: null,
+        last_table_label: null,
+      };
+      current.reservation_count += 1;
+      if (!current.phone && phone) current.phone = phone;
+      if (!current.email && email) current.email = email;
+      if ((guest.full_name || '').length > (current.full_name || '').length) current.full_name = guest.full_name;
+      const status = String(row.status || '').toUpperCase();
+      if (['CANCELLED', 'NO_SHOW'].includes(status)) current.cancelled_count += 1;
+      else if (['SEATED', 'COMPLETED'].includes(status)) current.completed_count += 1;
+      else current.active_count += 1;
+      const reservationAt = String(row.reservation_at || '');
+      if (!current.last_reservation_at || reservationAt > current.last_reservation_at) current.last_reservation_at = reservationAt;
+      if (reservationAt && new Date(reservationAt).getTime() >= now) {
+        if (!current.next_reservation_at || reservationAt < current.next_reservation_at) current.next_reservation_at = reservationAt;
+      }
+      if (row.assigned_table_id) current.last_table_label = row.assigned_table_id;
+      grouped.set(key, current);
+    });
+    return Array.from(grouped.values()).sort((a, b) => String(a.next_reservation_at || '').localeCompare(String(b.next_reservation_at || '')));
+  }
+  return apiRequest<ReservationGuestRecord[]>('/api/v1/ops/customers/reservation-guests', { tenantId: null });
+}
+
 export async function import_customers_live(
   rows: Array<{ card_id: string; secret_token?: string; type?: string; stars?: number; discount_percent?: number | string }>,
   tenant_id?: string,

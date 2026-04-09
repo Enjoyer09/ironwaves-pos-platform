@@ -479,6 +479,32 @@ def _guest_payload(guest: Guest | None) -> dict:
     }
 
 
+def _normalize_guest_phone(value: str | None) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    return "".join(ch for ch in raw if ch.isdigit() or ch == "+")
+
+
+def _normalize_guest_email(value: str | None) -> str:
+    return str(value or "").strip().lower()
+
+
+def _find_existing_guest(db: Session, tenant_id: str, phone: str | None, email: str | None) -> Guest | None:
+    normalized_phone = _normalize_guest_phone(phone)
+    normalized_email = _normalize_guest_email(email)
+    rows = db.query(Guest).filter(Guest.tenant_id == tenant_id).order_by(Guest.created_at.asc()).all()
+    if normalized_phone:
+        for row in rows:
+            if _normalize_guest_phone(row.phone) == normalized_phone:
+                return row
+    if normalized_email:
+        for row in rows:
+            if _normalize_guest_email(row.email) == normalized_email:
+                return row
+    return None
+
+
 def _compute_table_status(db: Session, tenant_id: str, table: Table) -> str:
     active_session, active_check = _ensure_active_session_and_check(db, tenant_id, table)
     if str(table.status or "").upper() == "DIRTY":
@@ -1429,15 +1455,27 @@ def create_reservation(
     if next_status == "WAITLIST":
         assigned_table_id = None
     _validate_reservation_table(db, tenant.id, assigned_table_id, payload.reservation_at, payload.duration_minutes)
-    guest = Guest(
-        tenant_id=tenant.id,
-        full_name=payload.guest_name.strip(),
-        phone=payload.phone,
-        email=payload.email,
-        notes=payload.special_note,
-    )
-    db.add(guest)
-    db.flush()
+    guest = _find_existing_guest(db, tenant.id, payload.phone, payload.email)
+    if guest:
+        guest.full_name = payload.guest_name.strip() or guest.full_name
+        if payload.phone is not None:
+            guest.phone = payload.phone
+        if payload.email is not None:
+            guest.email = payload.email
+        if payload.special_note:
+            existing_note = str(guest.notes or "").strip()
+            next_note = str(payload.special_note or "").strip()
+            guest.notes = next_note if not existing_note else f"{existing_note}\n{next_note}"
+    else:
+        guest = Guest(
+            tenant_id=tenant.id,
+            full_name=payload.guest_name.strip(),
+            phone=payload.phone,
+            email=payload.email,
+            notes=payload.special_note,
+        )
+        db.add(guest)
+        db.flush()
     row = Reservation(
         tenant_id=tenant.id,
         guest_id=guest.id,
@@ -1471,6 +1509,17 @@ def update_reservation(
     if not row:
         raise HTTPException(status_code=404, detail="Reservation not found")
     guest = db.query(Guest).filter(Guest.id == row.guest_id, Guest.tenant_id == tenant.id).first() if row.guest_id else None
+    matched_guest = None
+    if payload.phone is not None or payload.email is not None:
+        matched_guest = _find_existing_guest(
+            db,
+            tenant.id,
+            payload.phone if payload.phone is not None else (guest.phone if guest else None),
+            payload.email if payload.email is not None else (guest.email if guest else None),
+        )
+        if matched_guest and guest and matched_guest.id != guest.id:
+            row.guest_id = matched_guest.id
+            guest = matched_guest
     if payload.guest_name is not None:
         if guest:
             guest.full_name = payload.guest_name.strip()
