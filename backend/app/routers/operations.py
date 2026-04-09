@@ -23,6 +23,7 @@ from app.models import (
     DonerBatch,
     FinanceEntry,
     FloorPlan,
+    Guest,
     HappyHour,
     InventoryItem,
     KitchenOrder,
@@ -3311,6 +3312,101 @@ def list_customers(
         }
         for row in rows
     ]
+
+
+def _normalize_guest_phone(value: str | None) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    return "".join(ch for ch in raw if ch.isdigit() or ch == "+")
+
+
+def _normalize_guest_email(value: str | None) -> str:
+    return str(value or "").strip().lower()
+
+
+@router.get("/customers/reservation-guests")
+def list_reservation_guests(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    rows = (
+        db.query(Reservation)
+        .filter(Reservation.tenant_id == tenant.id)
+        .order_by(Reservation.reservation_at.desc())
+        .all()
+    )
+    guests = {
+        row.id: row
+        for row in db.query(Guest).filter(Guest.tenant_id == tenant.id).all()
+    }
+    now = _restaurant_now()
+    grouped: dict[str, dict] = {}
+
+    for reservation in rows:
+        guest = guests.get(reservation.guest_id) if reservation.guest_id else None
+        if not guest:
+            continue
+        phone = str(guest.phone or "").strip()
+        email = str(guest.email or "").strip()
+        dedupe_key = _normalize_guest_phone(phone) or _normalize_guest_email(email) or f"guest:{guest.id}"
+        current = grouped.get(dedupe_key)
+        if not current:
+            current = {
+                "id": dedupe_key,
+                "guest_ids": [],
+                "full_name": guest.full_name,
+                "phone": phone,
+                "email": email,
+                "notes": str(guest.notes or "").strip(),
+                "reservation_count": 0,
+                "cancelled_count": 0,
+                "completed_count": 0,
+                "active_count": 0,
+                "last_reservation_at": None,
+                "next_reservation_at": None,
+                "last_table_label": None,
+            }
+            grouped[dedupe_key] = current
+
+        if guest.id not in current["guest_ids"]:
+            current["guest_ids"].append(guest.id)
+        if not current["phone"] and phone:
+            current["phone"] = phone
+        if not current["email"] and email:
+            current["email"] = email
+        if len(str(guest.full_name or "").strip()) > len(str(current["full_name"] or "").strip()):
+            current["full_name"] = guest.full_name
+        if len(str(guest.notes or "").strip()) > len(str(current["notes"] or "").strip()):
+            current["notes"] = str(guest.notes or "").strip()
+
+        current["reservation_count"] += 1
+        status = str(reservation.status or "").upper()
+        if status in {"CANCELLED", "NO_SHOW"}:
+            current["cancelled_count"] += 1
+        elif status in {"SEATED", "COMPLETED"}:
+            current["completed_count"] += 1
+        elif status in {"BOOKED", "LATE", "WAITLIST"}:
+            current["active_count"] += 1
+
+        if reservation.reservation_at and (
+            current["last_reservation_at"] is None or reservation.reservation_at > datetime.fromisoformat(current["last_reservation_at"])
+        ):
+            current["last_reservation_at"] = reservation.reservation_at.isoformat()
+            if reservation.assigned_table_id:
+                table = db.query(Table).filter(Table.id == reservation.assigned_table_id, Table.tenant_id == tenant.id).first()
+                current["last_table_label"] = table.label if table else current["last_table_label"]
+
+        if reservation.reservation_at and reservation.reservation_at >= now:
+            if current["next_reservation_at"] is None or reservation.reservation_at < datetime.fromisoformat(current["next_reservation_at"]):
+                current["next_reservation_at"] = reservation.reservation_at.isoformat()
+
+    return sorted(grouped.values(), key=lambda row: (
+        row["next_reservation_at"] is None,
+        row["next_reservation_at"] or "",
+        -(row["reservation_count"] or 0),
+    ))
 
 
 @router.post("/customers/qr-batch")
