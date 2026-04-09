@@ -21,6 +21,8 @@ export default function CRMPanel() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [reservationGuests, setReservationGuests] = useState<ReservationGuestRecord[]>([]);
   const [guestSearch, setGuestSearch] = useState('');
+  const [guestSegment, setGuestSegment] = useState<'all' | 'vip' | 'frequent' | 'lapsed' | 'upcoming'>('all');
+  const [selectedGuestIds, setSelectedGuestIds] = useState<string[]>([]);
   const [count, setCount] = useState(1);
   const [tier, setTier] = useState('golden');
   const [customType, setCustomType] = useState('');
@@ -36,6 +38,19 @@ export default function CRMPanel() {
   const selectedTier = useMemo(() => QR_TYPES.find((t) => t.value === tier) || QR_TYPES[0], [tier]);
   const effectiveType = tier === '__custom__' ? customType.trim() : selectedTier.value;
   const effectiveDiscount = tier === '__custom__' ? Number(customDiscount || 0) : selectedTier.discount;
+  const dayMs = 24 * 60 * 60 * 1000;
+  const reservationGuestsWithTags = useMemo(() => {
+    const now = Date.now();
+    return reservationGuests.map((row) => {
+      const lastTs = row.last_reservation_at ? new Date(row.last_reservation_at).getTime() : 0;
+      const nextTs = row.next_reservation_at ? new Date(row.next_reservation_at).getTime() : 0;
+      const isVip = Number(row.reservation_count || 0) >= 5;
+      const isFrequent = Number(row.reservation_count || 0) >= 3;
+      const isLapsed = Boolean(lastTs) && !nextTs && (now - lastTs) > (45 * dayMs);
+      const hasUpcoming = Boolean(nextTs && nextTs >= now);
+      return { ...row, isVip, isFrequent, isLapsed, hasUpcoming };
+    });
+  }, [reservationGuests]);
   const guestSummary = useMemo(() => ({
     total: reservationGuests.length,
     withPhone: reservationGuests.filter((row) => String(row.phone || '').trim()).length,
@@ -43,13 +58,39 @@ export default function CRMPanel() {
   }), [reservationGuests]);
   const filteredReservationGuests = useMemo(() => {
     const query = guestSearch.trim().toLowerCase();
-    if (!query) return reservationGuests;
-    return reservationGuests.filter((row) => (
-      String(row.full_name || '').toLowerCase().includes(query)
-      || String(row.phone || '').toLowerCase().includes(query)
-      || String(row.email || '').toLowerCase().includes(query)
-    ));
-  }, [reservationGuests, guestSearch]);
+    return reservationGuestsWithTags.filter((row) => {
+      const matchesQuery = !query || (
+        String(row.full_name || '').toLowerCase().includes(query)
+        || String(row.phone || '').toLowerCase().includes(query)
+        || String(row.email || '').toLowerCase().includes(query)
+      );
+      if (!matchesQuery) return false;
+      if (guestSegment === 'vip') return row.isVip;
+      if (guestSegment === 'frequent') return row.isFrequent;
+      if (guestSegment === 'lapsed') return row.isLapsed;
+      if (guestSegment === 'upcoming') return row.hasUpcoming;
+      return true;
+    });
+  }, [reservationGuestsWithTags, guestSearch, guestSegment]);
+  const selectedGuests = useMemo(
+    () => reservationGuestsWithTags.filter((row) => selectedGuestIds.includes(row.id)),
+    [reservationGuestsWithTags, selectedGuestIds],
+  );
+  const selectedGuestEmails = useMemo(
+    () => selectedGuests.map((row) => String(row.email || '').trim()).filter(Boolean),
+    [selectedGuests],
+  );
+  const selectedGuestPhones = useMemo(
+    () => selectedGuests.map((row) => String(row.phone || '').trim()).filter(Boolean),
+    [selectedGuests],
+  );
+  const segmentCounts = useMemo(() => ({
+    all: reservationGuestsWithTags.length,
+    vip: reservationGuestsWithTags.filter((row) => row.isVip).length,
+    frequent: reservationGuestsWithTags.filter((row) => row.isFrequent).length,
+    lapsed: reservationGuestsWithTags.filter((row) => row.isLapsed).length,
+    upcoming: reservationGuestsWithTags.filter((row) => row.hasUpcoming).length,
+  }), [reservationGuestsWithTags]);
 
   const loadData = async () => {
     const [cust, guests] = await Promise.all([
@@ -176,6 +217,43 @@ export default function CRMPanel() {
     }
   };
 
+  const toggleGuestSelection = (guestId: string) => {
+    setSelectedGuestIds((prev) => (prev.includes(guestId) ? prev.filter((row) => row !== guestId) : [...prev, guestId]));
+  };
+
+  const selectVisibleGuests = () => {
+    setSelectedGuestIds(filteredReservationGuests.map((row) => row.id));
+  };
+
+  const clearGuestSelection = () => {
+    setSelectedGuestIds([]);
+  };
+
+  const appendSelectedEmailsToCampaign = () => {
+    if (selectedGuestEmails.length === 0) {
+      notify('info', tx(lang, 'Seçilmiş qonaqlarda email yoxdur', 'У выбранных гостей нет email', 'Selected guests do not have email'));
+      return;
+    }
+    const existing = campaignRecipients.split(',').map((row) => row.trim()).filter(Boolean);
+    const next = Array.from(new Set([...existing, ...selectedGuestEmails]));
+    setCampaignRecipients(next.join(', '));
+    notify('success', tx(lang, 'Seçilmiş email-lər kampaniyaya əlavə olundu', 'Выбранные email добавлены в кампанию', 'Selected emails were added to the campaign'));
+  };
+
+  const copySelectedPhones = async () => {
+    if (selectedGuestPhones.length === 0) {
+      notify('info', tx(lang, 'Seçilmiş qonaqlarda telefon yoxdur', 'У выбранных гостей нет телефона', 'Selected guests do not have phone numbers'));
+      return;
+    }
+    const text = selectedGuestPhones.join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      notify('success', tx(lang, 'Telefon siyahısı kopyalandı', 'Список телефонов скопирован', 'Phone list copied'));
+    } catch {
+      notify('error', tx(lang, 'Telefon siyahısı kopyalanmadı', 'Не удалось скопировать список телефонов', 'Phone list could not be copied'));
+    }
+  };
+
   return (
     <div className="space-y-5 text-slate-100">
       <div className="metal-panel p-5">
@@ -212,10 +290,48 @@ export default function CRMPanel() {
             <div className="mt-2 text-3xl font-black text-amber-200">{guestSummary.upcoming}</div>
           </div>
         </div>
+        <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-slate-700/70 bg-slate-900/35 p-4">
+          <div className="flex flex-wrap gap-2">
+            {[
+              ['all', tx(lang, 'Hamısı', 'Все', 'All')],
+              ['vip', tx(lang, 'VIP', 'VIP', 'VIP')],
+              ['frequent', tx(lang, 'Tez-tez gələn', 'Часто приходят', 'Frequent')],
+              ['lapsed', tx(lang, 'Uzun müddət gəlməyən', 'Давно не были', 'Lapsed')],
+              ['upcoming', tx(lang, 'Yaxın rezervi olan', 'С будущей бронью', 'Upcoming')],
+            ].map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setGuestSegment(key as typeof guestSegment)}
+                className={`rounded-full px-4 py-2 text-sm font-semibold ${guestSegment === key ? 'bg-cyan-300 text-slate-950' : 'border border-slate-600 bg-slate-800/50 text-slate-200'}`}
+              >
+                {label} · {segmentCounts[key as keyof typeof segmentCounts]}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
+            <button type="button" onClick={selectVisibleGuests} className="rounded-full border border-slate-600 px-3 py-1.5 font-semibold text-slate-100">
+              {tx(lang, 'Görünənləri seç', 'Выбрать видимых', 'Select visible')}
+            </button>
+            <button type="button" onClick={clearGuestSelection} className="rounded-full border border-slate-600 px-3 py-1.5 font-semibold text-slate-100">
+              {tx(lang, 'Seçimi təmizlə', 'Очистить выбор', 'Clear selection')}
+            </button>
+            <button type="button" onClick={appendSelectedEmailsToCampaign} className="rounded-full border border-fuchsia-300/40 bg-fuchsia-500/10 px-3 py-1.5 font-semibold text-fuchsia-100">
+              {tx(lang, 'Seçilmişləri email kampaniyasına əlavə et', 'Добавить выбранных в email кампанию', 'Add selected to email campaign')}
+            </button>
+            <button type="button" onClick={() => { void copySelectedPhones(); }} className="rounded-full border border-emerald-300/40 bg-emerald-500/10 px-3 py-1.5 font-semibold text-emerald-100">
+              {tx(lang, 'Telefon siyahısını kopyala', 'Скопировать телефоны', 'Copy phone list')}
+            </button>
+            <span className="rounded-full bg-slate-800/80 px-3 py-1.5 font-semibold text-slate-200">
+              {tx(lang, 'Seçilib', 'Выбрано', 'Selected')}: {selectedGuestIds.length}
+            </span>
+          </div>
+        </div>
         <div className="mt-4 overflow-hidden rounded-2xl border border-slate-700/70">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-700/70 bg-slate-900/50 text-slate-300">
               <tr>
+                <th className="px-4 py-3">{tx(lang, 'Seç', 'Выбор', 'Select')}</th>
                 <th className="px-4 py-3">{tx(lang, 'Qonaq', 'Гость', 'Guest')}</th>
                 <th className="px-4 py-3">{tx(lang, 'Əlaqə', 'Контакт', 'Contact')}</th>
                 <th className="px-4 py-3">{tx(lang, 'Rezerv sayı', 'Кол-во броней', 'Reservation count')}</th>
@@ -227,7 +343,15 @@ export default function CRMPanel() {
               {filteredReservationGuests.map((row) => (
                 <tr key={row.id} className="border-t border-slate-700/50 align-top">
                   <td className="px-4 py-3">
-                    <div className="font-semibold text-slate-100">{row.full_name || tx(lang, 'Adsız qonaq', 'Гость без имени', 'Unnamed guest')}</div>
+                    <input type="checkbox" checked={selectedGuestIds.includes(row.id)} onChange={() => toggleGuestSelection(row.id)} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="font-semibold text-slate-100">{row.full_name || tx(lang, 'Adsız qonaq', 'Гость без имени', 'Unnamed guest')}</div>
+                      {'isVip' in row && row.isVip ? <span className="rounded-full border border-amber-300/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-100">VIP</span> : null}
+                      {'isFrequent' in row && row.isFrequent ? <span className="rounded-full border border-cyan-300/40 bg-cyan-500/15 px-2 py-0.5 text-[10px] font-bold text-cyan-100">{tx(lang, 'tez-tez gəlir', 'часто приходит', 'frequent')}</span> : null}
+                      {'isLapsed' in row && row.isLapsed ? <span className="rounded-full border border-rose-300/40 bg-rose-500/15 px-2 py-0.5 text-[10px] font-bold text-rose-100">{tx(lang, 'geri çağır', 'вернуть', 'lapsed')}</span> : null}
+                    </div>
                     {row.notes ? <div className="mt-1 max-w-[280px] text-xs text-slate-400">{row.notes}</div> : null}
                   </td>
                   <td className="px-4 py-3">
@@ -252,7 +376,7 @@ export default function CRMPanel() {
               ))}
               {filteredReservationGuests.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
                     {tx(lang, 'Hələ rezervasiya müştəri bazası görünmür', 'База гостей по броням пока пуста', 'Reservation guest database is empty')}
                   </td>
                 </tr>
