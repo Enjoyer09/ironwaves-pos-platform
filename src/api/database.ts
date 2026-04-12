@@ -18,6 +18,11 @@ export type RestoreReport = {
   warnings: string[];
 };
 
+export type RestoreChunk = {
+  table: string;
+  jsonData: string;
+};
+
 const genId = () =>
   (typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
@@ -65,6 +70,38 @@ function sanitizeNonStandardJson(input: string): string {
   return input
     .replace(/\b-?Infinity\b/g, 'null')
     .replace(/\bNaN\b/g, 'null');
+}
+
+function buildRestoreChunkObject(rawData: Record<string, any>, table: string): Record<string, any> {
+  const chunk: Record<string, any> = {};
+  for (const metaKey of ['_tenant_id', '_backup_timestamp']) {
+    if (metaKey in rawData) chunk[metaKey] = rawData[metaKey];
+  }
+  if (Array.isArray(rawData[table])) {
+    chunk[table] = rawData[table];
+  }
+  const aliases = TABLE_ALIASES[table] || [];
+  for (const alias of aliases) {
+    if (Array.isArray(rawData[alias])) {
+      chunk[alias] = rawData[alias];
+    }
+  }
+  return chunk;
+}
+
+export function splitRestoreIntoChunks(jsonData: string, selectedTables: string[]): RestoreChunk[] {
+  const parsed = JSON.parse(sanitizeNonStandardJson(jsonData));
+  const chunks: RestoreChunk[] = [];
+  for (const table of selectedTables) {
+    const chunkObject = buildRestoreChunkObject(parsed, table);
+    const hasRows = Object.entries(chunkObject).some(([key, value]) => !key.startsWith('_') && Array.isArray(value));
+    if (!hasRows) continue;
+    chunks.push({
+      table,
+      jsonData: JSON.stringify(chunkObject),
+    });
+  }
+  return chunks;
 }
 
 const EXPENSE_CATEGORY_HINTS = ['xammal', 'icare', 'kommunal', 'maas', 'cerime', 'expense', 'rent', 'salary'];
