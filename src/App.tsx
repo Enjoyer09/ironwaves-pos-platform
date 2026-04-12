@@ -130,7 +130,9 @@ export default function App() {
           helper.dataset.forId = field.dataset.helperId;
           parent.appendChild(helper);
         }
-        helper.textContent = originalPlaceholder;
+        if (helper.textContent !== originalPlaceholder) {
+          helper.textContent = originalPlaceholder;
+        }
       });
 
       const numericFields = Array.from(
