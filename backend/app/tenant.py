@@ -68,14 +68,10 @@ def _resolve_known_alias_tenant(domain: str, db: Session) -> Tenant | None:
         return None
     tenant = db.query(Tenant).filter(Tenant.slug == alias["slug"]).first()
     if not tenant:
-        tenant = Tenant(
-            name=alias["name"],
-            slug=alias["slug"],
-            domain=domain,
-            status="active",
-        )
-        db.add(tenant)
-        db.flush()
+        # Never auto-create a tenant just because a known alias domain was visited.
+        # Deleted/suspended tenants must stay deleted/suspended until a super admin
+        # explicitly provisions them again.
+        return None
     _sync_domain_aliases(db, tenant.id, alias["aliases"])
     db.commit()
     return tenant
