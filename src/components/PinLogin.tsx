@@ -23,6 +23,7 @@ export default function PinLogin() {
   const isPlatformHost = typeof window !== 'undefined' && window.location.host.toLowerCase() === 'super.ironwaves.store';
   const tenantId = resolveTenantIdFromHost();
   const [branding, setBranding] = useState(() => get_business_profile(tenantId));
+  const [tenantAccessState, setTenantAccessState] = useState<'ok' | 'not_found' | 'suspended'>('ok');
   const [ownerBootstrapAvailable, setOwnerBootstrapAvailable] = useState(false);
   const [ownerUser, setOwnerUser] = useState('owner');
   const [ownerPass, setOwnerPass] = useState('');
@@ -41,11 +42,25 @@ export default function PinLogin() {
   React.useEffect(() => {
     let mounted = true;
     setBranding(get_business_profile(tenantId));
+    setTenantAccessState('ok');
     get_public_branding_live(tenantId)
       .then((data) => {
-        if (mounted && data) setBranding(data);
+        if (mounted && data) {
+          setBranding(data);
+          setTenantAccessState('ok');
+        }
       })
-      .catch(() => {});
+      .catch((error) => {
+        if (!mounted) return;
+        const message = error instanceof Error ? error.message : String(error || '');
+        if (message.includes('Tenant not configured for this domain')) {
+          setTenantAccessState('not_found');
+          return;
+        }
+        if (message.includes('Tenant is suspended')) {
+          setTenantAccessState('suspended');
+        }
+      });
     return () => {
       mounted = false;
     };
@@ -149,6 +164,64 @@ export default function PinLogin() {
   };
 
   const isStaffMode = mode === 'staff';
+  const currentHost = typeof window !== 'undefined' ? window.location.host.toLowerCase() : '';
+  const shouldShowTenantUnavailable =
+    !isPlatformHost &&
+    !isDemoHost &&
+    currentHost !== 'localhost:5173' &&
+    currentHost !== 'localhost' &&
+    currentHost !== '127.0.0.1' &&
+    tenantAccessState !== 'ok';
+
+  if (shouldShowTenantUnavailable) {
+    const isSuspended = tenantAccessState === 'suspended';
+    return (
+      <div className="metal-app relative flex min-h-[100dvh] items-center justify-center overflow-hidden px-4 py-8">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_20%),linear-gradient(180deg,rgba(10,16,22,0.88),rgba(10,16,22,0.96))]" />
+        <div className="relative w-full max-w-2xl rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,21,32,0.92),rgba(15,21,32,0.82))] p-7 shadow-[0_28px_90px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+          <div className="mb-3 inline-flex rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">
+            iRonWaves POS
+          </div>
+          <h1 className="text-3xl font-black text-white">
+            {isSuspended
+              ? tx(safeLang, 'Bu tenant hazırda aktiv deyil', 'Этот tenant сейчас не активен', 'This tenant is currently inactive')
+              : tx(safeLang, 'Bu ünvanda aktiv tenant tapılmadı', 'По этому адресу активный tenant не найден', 'No active tenant was found for this address')}
+          </h1>
+          <p className="mt-4 text-base leading-7 text-slate-300">
+            {isSuspended
+              ? tx(
+                  safeLang,
+                  'Bu obyekt üçün xidmət müvəqqəti deaktiv edilib. Yenidən aktivləşdirmə və giriş məlumatları üçün bizimlə əlaqə saxlayın.',
+                  'Обслуживание этого объекта временно отключено. Свяжитесь с нами для повторной активации и получения доступа.',
+                  'Service for this location is temporarily disabled. Contact us to reactivate it and restore access.',
+                )
+              : tx(
+                  safeLang,
+                  'Daxil etdiyiniz subdomain üzrə aktiv restoran workspace tapılmadı. Əgər bu ünvan sizə məxsusdursa, tenant qurulması və ya domen yönləndirilməsinin yoxlanması üçün bizimlə əlaqə saxlayın.',
+                  'Для введенного субдомена не найден активный ресторанный workspace. Если этот адрес принадлежит вам, свяжитесь с нами для настройки tenant-а или проверки доменного маршрута.',
+                  'No active restaurant workspace was found for this subdomain. If this address belongs to you, contact us to provision the tenant or review domain routing.',
+                )}
+          </p>
+          <div className="mt-6 grid gap-3 md:grid-cols-2">
+            <a
+              href="mailto:abbas@laptopmarket.az"
+              className="rounded-2xl border border-cyan-300/30 bg-cyan-400/10 px-5 py-4 text-left text-cyan-50 transition hover:bg-cyan-400/15"
+            >
+              <div className="text-xs uppercase tracking-[0.18em] text-cyan-200/80">{tx(safeLang, 'E-poçt', 'E-mail', 'Email')}</div>
+              <div className="mt-2 text-lg font-semibold">abbas@laptopmarket.az</div>
+            </a>
+            <a
+              href="tel:+994552999282"
+              className="rounded-2xl border border-emerald-300/30 bg-emerald-400/10 px-5 py-4 text-left text-emerald-50 transition hover:bg-emerald-400/15"
+            >
+              <div className="text-xs uppercase tracking-[0.18em] text-emerald-200/80">{tx(safeLang, 'Əlaqə nömrəsi', 'Контактный номер', 'Contact number')}</div>
+              <div className="mt-2 text-lg font-semibold">+99455 299-92-82</div>
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="metal-app relative flex h-[100dvh] overflow-y-auto px-4 py-8 md:items-center md:justify-center">
