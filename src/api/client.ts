@@ -172,6 +172,9 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
 
   if (!res.ok) {
     const detail = (data && typeof data === 'object' && (data as any).detail) ? (data as any).detail : `HTTP ${res.status}`;
+    if (String(detail).includes('Tenant not configured')) {
+      suspendBackendTemporarily(5 * 60 * 1000);
+    }
     throw new Error(String(detail));
   }
 

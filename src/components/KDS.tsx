@@ -35,7 +35,11 @@ export default function KDS() {
     };
 
     void fetchOrders();
-    const interval = setInterval(() => { void fetchOrders(); }, 5000);
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void fetchOrders();
+      }
+    }, 10000);
     const clock = setInterval(() => setCurrentTime(Date.now()), 15000);
     return () => {
       clearInterval(interval);

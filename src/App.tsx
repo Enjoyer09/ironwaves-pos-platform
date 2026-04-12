@@ -303,10 +303,14 @@ export default function App() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    void refreshConnectivity();
-    const timer = window.setInterval(() => {
+    if (document.visibilityState === 'visible') {
       void refreshConnectivity();
-    }, 15000);
+    }
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void refreshConnectivity();
+      }
+    }, 60000);
 
     return () => {
       mounted = false;
