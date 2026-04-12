@@ -12,6 +12,7 @@ import {
   Users,
   Wallet,
   WifiOff,
+  Bot,
 } from 'lucide-react';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
@@ -24,6 +25,7 @@ import { getPendingOfflineSalesCount } from '../../lib/offline';
 import { get_logs_live } from '../../api/logs';
 import { subscribeTenantRealtime } from '../../api/realtime';
 import { formatServerUtcTime, localDateInputValue, parseServerUtcTimestamp } from '../../lib/time';
+import { generate_ai_insight_engine, type AiDecisionInsight } from '../../api/ai_manager';
 
 type DashboardTab = 'inventory' | 'finance' | 'analytics' | 'tables' | 'crm' | 'ai';
 type AlertTone = 'critical' | 'warning' | 'info';
@@ -393,6 +395,25 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
       .slice(0, 3);
   }, [snapshot.auditLogs]);
 
+  const aiManagerInsights = useMemo(() => {
+    if (snapshot.loading) return [];
+    return generate_ai_insight_engine({
+      tenant_id,
+      date_from: activeRange.fromIso,
+      date_to: activeRange.toIso,
+      max_items: 4,
+    });
+  }, [activeRange.fromIso, activeRange.toIso, snapshot.loading, tenant_id]);
+
+  const openInsightModule = (module: AiDecisionInsight['module']) => {
+    if (module === 'finance') return onOpenTab('finance');
+    if (module === 'inventory') return onOpenTab('inventory');
+    if (module === 'tables') return onOpenTab('tables');
+    if (module === 'crm') return onOpenTab('crm');
+    if (module === 'analytics') return onOpenTab('analytics');
+    return onOpenTab('ai');
+  };
+
   return (
     <DashboardLayout>
       <div className="sticky top-0 z-20 -mx-1 rounded-b-[28px] bg-slate-950/92 px-1 pb-3 pt-1 backdrop-blur-xl">
@@ -444,6 +465,12 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         kitchenLoad={kitchenLoad}
         cashGap={money(financeAnomalies?.shift_cash_gap || 0)}
         onOpenTab={onOpenTab}
+      />
+
+      <AIManagerStrip
+        insights={aiManagerInsights}
+        lang={lang}
+        onOpen={(module) => openInsightModule(module)}
       />
 
       <main className="grid grid-cols-1 gap-5 2xl:grid-cols-[1.25fr_0.85fr]">
@@ -502,6 +529,72 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
     <div className="space-y-5 bg-slate-950/20 text-slate-100">
       {children}
     </div>
+  );
+}
+
+function AIManagerStrip({
+  insights,
+  lang,
+  onOpen,
+}: {
+  insights: AiDecisionInsight[];
+  lang: string;
+  onOpen: (module: AiDecisionInsight['module']) => void;
+}) {
+  const tone = (severity: AiDecisionInsight['severity']) => {
+    if (severity === 'critical') return 'border-rose-400/40 bg-rose-950/45';
+    if (severity === 'warning') return 'border-amber-400/40 bg-amber-950/35';
+    if (severity === 'opportunity') return 'border-cyan-400/40 bg-cyan-950/35';
+    if (severity === 'good') return 'border-emerald-400/40 bg-emerald-950/35';
+    return 'border-slate-700 bg-slate-900/60';
+  };
+
+  if (!insights.length) return null;
+
+  return (
+    <section className="rounded-[28px] border border-cyan-400/25 bg-slate-950 p-4 shadow-[0_24px_80px_rgba(8,47,73,0.18)]">
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-400/12 text-cyan-200">
+            <Bot size={22} />
+          </div>
+          <div>
+            <div className="text-xs font-black uppercase tracking-[0.24em] text-cyan-200">
+              {tx(lang, 'AI menecer tövsiyələri', 'AI рекомендации менеджера', 'AI manager recommendations')}
+            </div>
+            <p className="mt-1 text-sm text-slate-400">
+              {tx(lang, 'Risklər və fürsətlər prioritet sırası ilə göstərilir.', 'Риски и возможности показаны по приоритету.', 'Risks and opportunities are shown by priority.')}
+            </p>
+          </div>
+        </div>
+        <button onClick={() => onOpen('ai')} className="min-h-11 rounded-2xl border border-cyan-400/35 bg-cyan-500/10 px-4 text-sm font-black text-cyan-100">
+          {tx(lang, 'AI paneli aç', 'Открыть AI панель', 'Open AI panel')}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
+        {insights.map((insight) => (
+          <button
+            key={insight.id}
+            onClick={() => onOpen(insight.module)}
+            className={`min-h-[150px] rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 ${tone(insight.severity)}`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-200">
+                {insight.metric || insight.phase}
+              </div>
+              <div className="text-xl font-black text-white">{insight.score}</div>
+            </div>
+            <h3 className="mt-3 text-base font-black text-white">{insight.title}</h3>
+            <p className="mt-2 line-clamp-3 text-xs leading-5 text-slate-300">{insight.body}</p>
+            <div className="mt-3 inline-flex items-center gap-1 text-xs font-black text-cyan-100">
+              {insight.action_label}
+              <ArrowRight size={14} />
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 
