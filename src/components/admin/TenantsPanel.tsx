@@ -18,6 +18,7 @@ export default function TenantsPanel() {
   const [rows, setRows] = React.useState<TenantRecord[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
+  const [deletingTenantId, setDeletingTenantId] = React.useState('');
   const [form, setForm] = React.useState({
     company_name: '',
     slug: '',
@@ -124,8 +125,14 @@ export default function TenantsPanel() {
 
   const deleteRow = async (tenant_id: string) => {
     if (!user) return;
-    const confirmed = window.confirm(`"${tenant_id}" tenant silinsin?`);
+    const confirmed = window.confirm(tx(
+      lang,
+      `"${tenant_id}" tenant silinsin? Bu əməliyyat həmin tenantın bütün əməliyyat məlumatlarını siləcək.`,
+      `Удалить тенант "${tenant_id}"? Это удалит все операционные данные этого тенанта.`,
+      `Delete tenant "${tenant_id}"? This will remove all operational data for that tenant.`,
+    ));
     if (!confirmed) return;
+    setDeletingTenantId(tenant_id);
     try {
       await delete_tenant({
         tenant_id,
@@ -136,6 +143,8 @@ export default function TenantsPanel() {
       await refresh();
     } catch (error: any) {
       notify('error', error?.message || 'Tenant silinmədi');
+    } finally {
+      setDeletingTenantId('');
     }
   };
 
@@ -211,11 +220,12 @@ export default function TenantsPanel() {
           </div>
 
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[680px] text-sm">
+            <table className="w-full min-w-[820px] text-sm">
               <thead className="text-left text-slate-300">
                 <tr className="border-b border-slate-700/70">
                   <th className="px-3 py-3">{tx(lang, 'Şirkət', 'Компания', 'Company')}</th>
                   <th className="px-3 py-3">Slug</th>
+                  <th className="px-3 py-3">{tx(lang, 'Domen', 'Домен', 'Domain')}</th>
                   <th className="px-3 py-3">Tenant ID</th>
                   <th className="px-3 py-3">{tx(lang, 'Status', 'Статус', 'Status')}</th>
                   <th className="px-3 py-3">{tx(lang, 'Əməliyyat', 'Действие', 'Action')}</th>
@@ -224,18 +234,19 @@ export default function TenantsPanel() {
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={5} className="px-3 py-5 text-slate-400">{tx(lang, 'Yüklənir...', 'Загрузка...', 'Loading...')}</td>
+                    <td colSpan={6} className="px-3 py-5 text-slate-400">{tx(lang, 'Yüklənir...', 'Загрузка...', 'Loading...')}</td>
                   </tr>
                 )}
                 {!loading && rows.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-3 py-5 text-slate-400">{tx(lang, 'Hələ tenant yoxdur', 'Тенантов пока нет', 'No tenants yet')}</td>
+                    <td colSpan={6} className="px-3 py-5 text-slate-400">{tx(lang, 'Hələ tenant yoxdur', 'Тенантов пока нет', 'No tenants yet')}</td>
                   </tr>
                 )}
                 {rows.map((row) => (
                   <tr key={row.tenant_id} className="border-b border-slate-800/80">
                     <td className="px-3 py-3 font-medium text-slate-100">{row.company_name}</td>
                     <td className="px-3 py-3 text-slate-300">{row.slug}</td>
+                    <td className="px-3 py-3 text-slate-300">{row.domain || '-'}</td>
                     <td className="px-3 py-3 text-slate-400">{row.tenant_id}</td>
                     <td className="px-3 py-3">
                       <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
@@ -257,8 +268,14 @@ export default function TenantsPanel() {
                         ) : (
                           <span className="self-center text-slate-500">{tx(lang, 'Hazırda aktiv deyil', 'Сейчас не активен', 'Currently inactive')}</span>
                         )}
-                        <button className="rounded-xl border border-rose-400/40 px-3 py-2 text-rose-300 hover:bg-rose-500/10" onClick={() => void deleteRow(row.tenant_id)}>
-                          {tx(lang, 'Sil', 'Удалить', 'Delete')}
+                        <button
+                          className="rounded-xl border border-rose-400/40 px-3 py-2 text-rose-300 hover:bg-rose-500/10 disabled:cursor-wait disabled:opacity-60"
+                          disabled={Boolean(deletingTenantId)}
+                          onClick={() => void deleteRow(row.tenant_id)}
+                        >
+                          {deletingTenantId === row.tenant_id
+                            ? tx(lang, 'Silinir...', 'Удаляется...', 'Deleting...')
+                            : tx(lang, 'Sil', 'Удалить', 'Delete')}
                         </button>
                       </div>
                     </td>

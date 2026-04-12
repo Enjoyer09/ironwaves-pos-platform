@@ -6,18 +6,26 @@ from app.core.config import settings
 from app.models import Tenant
 
 
-TENANT_DOMAIN_ALIASES = {
-    "emalatkhana.ironwaves.store": {
-        "slug": "emalatxana",
-        "name": "Emalatxana",
-        "aliases": ["emalatkhana.ironwaves.store", "emalatxana.ironwaves.store"],
-    },
-    "emalatxana.ironwaves.store": {
-        "slug": "emalatxana",
-        "name": "Emalatxana",
-        "aliases": ["emalatkhana.ironwaves.store", "emalatxana.ironwaves.store"],
-    },
-}
+def _alias(slug: str, name: str, aliases: list[str]) -> dict:
+    safe_aliases = [str(alias or "").strip().lower() for alias in aliases if str(alias or "").strip()]
+    return {"slug": slug, "name": name, "aliases": safe_aliases}
+
+
+TENANT_DOMAIN_ALIASES = {}
+for _domain in ["emalatkhana.ironwaves.store", "emalatxana.ironwaves.store"]:
+    TENANT_DOMAIN_ALIASES[_domain] = _alias(
+        "emalatxana",
+        "Emalatxana",
+        ["emalatkhana.ironwaves.store", "emalatxana.ironwaves.store"],
+    )
+
+# Common typo/alternate spelling used while provisioning the coffee tenant.
+for _domain in ["emalatkofe.ironwaves.store", "emalatkoe.ironwaves.store"]:
+    TENANT_DOMAIN_ALIASES[_domain] = _alias(
+        "emalatkofe",
+        "EmalatKofe",
+        ["emalatkofe.ironwaves.store", "emalatkoe.ironwaves.store"],
+    )
 
 
 def _sync_domain_aliases(db: Session, tenant_id: str, aliases: list[str]) -> None:
