@@ -11,6 +11,7 @@ export interface TenantRecord {
   tenant_id: string;
   company_name: string;
   slug: string;
+  domain?: string;
   status: 'provisioning' | 'active' | 'suspended';
   created_at: string;
   created_by: string;
@@ -77,12 +78,13 @@ function generateTempPassword(length = 12): string {
 
 export async function list_tenants(): Promise<TenantRecord[]> {
   if (isBackendEnabled()) {
-    const rows = await apiRequest<any[]>('/api/v1/admin/tenants');
+    const rows = await apiRequest<any[]>('/api/v1/admin/tenants', { timeoutMs: 30000 });
     return (rows || []).map((r) => ({
       id: String(r.id),
       tenant_id: String(r.id),
       company_name: String(r.name || ''),
       slug: String(r.slug || ''),
+      domain: String(r.domain || ''),
       status: (String(r.status || 'active') as any),
       created_at: new Date().toISOString(),
       created_by: 'system',
@@ -114,6 +116,7 @@ export async function create_tenant(payload: {
     }
     const created = await apiRequest<any>('/api/v1/admin/tenants', {
       method: 'POST',
+      timeoutMs: 45000,
       body: {
         name: companyName,
         slug,
@@ -271,6 +274,7 @@ export async function suspend_tenant(payload: {
   if (isBackendEnabled()) {
     await apiRequest(`/api/v1/admin/tenants/${encodeURIComponent(payload.tenant_id)}/suspend`, {
       method: 'POST',
+      timeoutMs: 30000,
       body: {},
     });
     return { success: true };
@@ -301,7 +305,7 @@ export async function delete_tenant(payload: {
   if (isBackendEnabled()) {
     await apiRequest(`/api/v1/admin/tenants/${encodeURIComponent(payload.tenant_id)}`, {
       method: 'DELETE',
-      body: {},
+      timeoutMs: 90000,
     });
     return { success: true };
   }
@@ -347,6 +351,7 @@ export async function clone_tenant_as_demo(payload: {
     const demoPassword = generateTempPassword();
     const result = await apiRequest<any>(`/api/v1/admin/tenants/${encodeURIComponent(sourceTenant)}/clone`, {
       method: 'POST',
+      timeoutMs: 90000,
       body: {
         name: `Demo - ${sourceTenant}`,
         slug: demoSlug,

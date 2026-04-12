@@ -9,14 +9,29 @@ from app.deps import get_super_admin, get_tenant
 from app.core.config import settings
 from app.models import (
     AuditLog,
+    Check,
     Customer,
+    DonerBatch,
     FinanceEntry,
+    FinanceAccount,
+    FinanceLedgerEntry,
+    FinanceReconciliation,
+    FinanceTransaction,
+    FloorPlan,
+    Guest,
     HappyHour,
     InventoryItem,
+    ItemStatusLog,
     KitchenOrder,
+    LoyaltyLedgerEntry,
     MenuItem,
     Notification,
+    OrderItem,
+    OrderRound,
+    Payment,
     Recipe,
+    Reservation,
+    RewardClaim,
     RefreshToken,
     Sale,
     Setting,
@@ -24,8 +39,10 @@ from app.models import (
     StaffNotification,
     Shift,
     Table,
+    TableSession,
     Tenant,
     User,
+    WasteLog,
 )
 from app.schemas import TenantCloneIn, TenantCreateIn, TenantOut
 from app.security import hash_password
@@ -130,6 +147,24 @@ def _default_setting_rows(tenant_id: str) -> list[Setting]:
         "receipt_width_mm": "80",
     }
     return [Setting(tenant_id=tenant_id, key=k, value=v) for k, v in pairs.items()]
+
+
+def _delete_model_rows(db: Session, model, tenant_id: str) -> None:
+    try:
+        with db.begin_nested():
+            db.query(model).filter(model.tenant_id == tenant_id).delete(synchronize_session=False)
+    except Exception:
+        # Some production schemas can lag behind the code models during migrations.
+        # Keep tenant cleanup best-effort instead of leaving the whole delete stuck.
+        pass
+
+
+def _delete_raw_tenant_table(db: Session, table_name: str, tenant_id: str) -> None:
+    try:
+        with db.begin_nested():
+            db.execute(text(f"DELETE FROM {table_name} WHERE tenant_id=:tenant_id"), {"tenant_id": tenant_id})
+    except Exception:
+        pass
 
 
 @router.get("", response_model=list[TenantOut])
@@ -524,31 +559,49 @@ def delete_tenant(
         raise HTTPException(status_code=400, detail="Protected tenant cannot be deleted")
 
     # Remove dependent rows first (no ON DELETE CASCADE configured in this MVP schema).
-    try:
-        db.execute(text("DELETE FROM tenant_domains WHERE tenant_id=:tenant_id"), {"tenant_id": tenant.id})
-    except Exception:
-        pass
-    db.query(RefreshToken).filter(RefreshToken.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(AuditLog).filter(AuditLog.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(Sale).filter(Sale.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(KitchenOrder).filter(KitchenOrder.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(Table).filter(Table.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(InventoryItem).filter(InventoryItem.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(Recipe).filter(Recipe.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(Setting).filter(Setting.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(ShiftHandover).filter(ShiftHandover.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(Customer).filter(Customer.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(Notification).filter(Notification.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(StaffNotification).filter(StaffNotification.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(HappyHour).filter(HappyHour.tenant_id == tenant.id).delete(synchronize_session=False)
-    try:
-        db.execute(text("DELETE FROM business_profiles WHERE tenant_id=:tenant_id"), {"tenant_id": tenant.id})
-    except Exception:
-        pass
-    db.query(MenuItem).filter(MenuItem.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(Shift).filter(Shift.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(User).filter(User.tenant_id == tenant.id).delete(synchronize_session=False)
+    # Order matters: child rows are deleted before checks/tables/menu/users.
+    _delete_raw_tenant_table(db, "tenant_domains", tenant.id)
+
+    ordered_models = [
+        RefreshToken,
+        AuditLog,
+        FinanceLedgerEntry,
+        FinanceReconciliation,
+        FinanceTransaction,
+        FinanceAccount,
+        FinanceEntry,
+        Sale,
+        KitchenOrder,
+        ItemStatusLog,
+        OrderItem,
+        OrderRound,
+        Payment,
+        Check,
+        TableSession,
+        Reservation,
+        Guest,
+        FloorPlan,
+        RewardClaim,
+        LoyaltyLedgerEntry,
+        StaffNotification,
+        Notification,
+        Customer,
+        HappyHour,
+        DonerBatch,
+        WasteLog,
+        ShiftHandover,
+        Shift,
+        Recipe,
+        InventoryItem,
+        Setting,
+        MenuItem,
+        Table,
+    ]
+    for model in ordered_models:
+        _delete_model_rows(db, model, tenant.id)
+
+    _delete_raw_tenant_table(db, "business_profiles", tenant.id)
+    _delete_model_rows(db, User, tenant.id)
     db.delete(tenant)
     db.commit()
 
