@@ -756,24 +756,27 @@ export default function App() {
           <p className="mt-3 text-sm text-slate-300">
             {tx(
               safeLang,
-              'Bu subdomain üçün aktiv tenant yoxdur. Silinmiş və ya qurulmamış tenant heç vaxt başqa tenant-a açılmamalıdır.',
-              'Для этого поддомена нет активного тенанта. Удаленный или не настроенный тенант не должен открываться как другой.',
-              'There is no active tenant for this subdomain. A deleted or unconfigured tenant must never open as another tenant.',
+              'Bu ünvanda aktiv restoran workspace tapılmadı. Əgər bu subdomain sizə məxsusdursa, tenant qurulmasının və ya domen yönləndirilməsinin yoxlanması üçün bizimlə əlaqə saxlayın.',
+              'По этому адресу не найден активный ресторанный workspace. Если этот субдомен принадлежит вам, свяжитесь с нами для проверки tenant-а или маршрута домена.',
+              'No active restaurant workspace was found for this address. If this subdomain belongs to you, contact us so we can verify tenant provisioning or domain routing.',
             )}
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
             <button onClick={() => window.location.reload()} className="neon-btn px-4 py-3">
               {tx(safeLang, 'Yenilə', 'Обновить', 'Refresh')}
             </button>
-            <button
-              onClick={() => {
-                const target = profileWebsiteHost ? `https://${profileWebsiteHost}` : 'https://super.ironwaves.store';
-                window.location.href = target;
-              }}
+            <a
+              href="mailto:abbas@laptopmarket.az"
+              className="rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-5 py-3 font-semibold text-cyan-50"
+            >
+              {tx(safeLang, 'E-poçt: abbas@laptopmarket.az', 'E-mail: abbas@laptopmarket.az', 'Email: abbas@laptopmarket.az')}
+            </a>
+            <a
+              href="tel:+994552999282"
               className="glossy-gold rounded-xl px-5 py-3 font-bold text-slate-900"
             >
-              {tx(safeLang, 'Platforma qayıt', 'Вернуться на платформу', 'Return to platform')}
-            </button>
+              {tx(safeLang, 'Əlaqə: +99455 299-92-82', 'Контакт: +99455 299-92-82', 'Contact: +99455 299-92-82')}
+            </a>
           </div>
         </div>
       </div>
