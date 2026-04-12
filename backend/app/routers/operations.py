@@ -1176,8 +1176,6 @@ def database_restore(
 ):
     _ensure_admin(user)
     data = json.loads(_sanitize_nonstandard_json(payload.json_data))
-    if data.get("_tenant_id") and str(data.get("_tenant_id")) != str(tenant.id):
-        raise HTTPException(status_code=400, detail="Bu backup fərqli tenant üçündür")
 
     selected = set(payload.selected_tables or DATABASE_SUPPORTED_TABLES)
     report = {
@@ -1189,6 +1187,8 @@ def database_restore(
         "rejected_samples": [],
         "warnings": [],
     }
+    if data.get("_tenant_id") and str(data.get("_tenant_id")) != str(tenant.id):
+        report["warnings"].append("Backup fərqli tenant üçün yaradılıb; məlumatlar cari tenant-a bərpa olundu.")
 
     def reject(table: str, reason: str, row_index: int, row: dict):
         report["rejected_rows"] += 1
