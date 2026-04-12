@@ -40,16 +40,34 @@ export default function DatabasePanel() {
       'tenant_customers',
       'business_profile',
     ]);
+    const preservedBaseKeys = [
+      'active_tenant_id',
+      'tenant_domains',
+      'emalatkhana-pos-session',
+      'trusted_admin_contexts',
+      'trusted_admin_2fa_token',
+    ];
+    const tenantScopedCacheKeys = new Set([
+      `${tenant_id}_customers`,
+      `${tenant_id}_sales`,
+      `${tenant_id}_refunds`,
+      `${tenant_id}_finance`,
+      `${tenant_id}_loyalty_ledger`,
+      `${tenant_id}_logs`,
+      `${tenant_id}_ui_errors`,
+      `${tenant_id}_admin_notes`,
+    ]);
 
     const keysToRemove: string[] = [];
     for (let index = 0; index < localStorage.length; index += 1) {
       const key = localStorage.key(index);
       if (!key) continue;
+      const isPreserved = preservedBaseKeys.some((baseKey) => key === baseKey || key.startsWith(`${baseKey}__`));
+      if (isPreserved) continue;
       if (
         exactKeys.has(key) ||
         key.startsWith('db_') ||
-        key.startsWith(`${tenant_id}_`) ||
-        key.includes(`db_${tenant_id}_`)
+        tenantScopedCacheKeys.has(key)
       ) {
         keysToRemove.push(key);
       }
@@ -63,24 +81,6 @@ export default function DatabasePanel() {
     setForceLocalMode(false);
     setForceLocalModeState(false);
     return keysToRemove.length;
-  };
-
-  const clearLocalRestoreCache = () => {
-    if (!window.confirm(tx(
-      lang,
-      'Lokal restore/cache təmizlənsin? Bu yalnız brauzerdə qalmış lokal POS məlumatlarını silir, backend/NeonDB məlumatına toxunmur.',
-      'Очистить локальный restore/cache? Это удалит только локальные данные POS в браузере и не затронет backend/NeonDB.',
-    ))) {
-      return;
-    }
-
-    const removedCount = clearLocalRestoreState();
-    notify('success', tx(
-      lang,
-      `${removedCount} lokal cache açarı təmizləndi. Səhifə yenilənir...`,
-      `Очищено локальных ключей cache: ${removedCount}. Страница обновляется...`,
-    ));
-    window.setTimeout(() => window.location.reload(), 500);
   };
 
   const yieldToUi = () => new Promise<void>((resolve) => window.setTimeout(resolve, 0));
@@ -448,25 +448,6 @@ export default function DatabasePanel() {
             </button>
           </div>
         )}
-
-        <div className="mt-4 rounded-xl border border-red-300/30 bg-red-950/20 p-4 text-sm text-red-50">
-          <div className="font-semibold">
-            {tx(lang, 'Donma varsa: lokal restore/cache təmizlə', 'Если система зависает: очистите локальный restore/cache')}
-          </div>
-          <p className="mt-1 text-xs text-red-50/85">
-            {tx(
-              lang,
-              'Əvvəlki uğursuz restore brauzer yaddaşını şişirdibsə, bu düymə yalnız lokal POS cache-ni silir və sistemi yenidən backend rejiminə qaytarır.',
-              'Если старый неудачный restore раздул память браузера, эта кнопка удалит только локальный POS cache и вернет систему в backend-режим.',
-            )}
-          </p>
-          <button
-            className="mt-3 rounded-lg border border-red-200/40 bg-red-500/20 px-3 py-2 text-xs font-semibold text-red-50 hover:bg-red-500/30"
-            onClick={clearLocalRestoreCache}
-          >
-            {tx(lang, 'Lokal restore/cache təmizlə', 'Очистить локальный restore/cache')}
-          </button>
-        </div>
 
         <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
           <button onClick={handleBackup} className="glossy-gold rounded-xl px-4 py-3 font-bold inline-flex items-center justify-center gap-2">
