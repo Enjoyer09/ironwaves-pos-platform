@@ -1,5 +1,5 @@
 import React from 'react';
-import { backup_database_live, get_restore_preview_live, restore_database_live, splitRestoreIntoChunks, type RestoreReport } from '../../api/database';
+import { backup_database_live, get_restore_preview, restore_database_live, splitRestoreIntoChunks, type RestoreReport } from '../../api/database';
 import { useAppStore } from '../../store';
 import { Database, Download, Upload } from 'lucide-react';
 import { tx } from '../../i18n';
@@ -139,7 +139,7 @@ export default function DatabasePanel() {
         await yieldToUi();
         const content = await file.text();
         try {
-          const preview = await get_restore_preview_live(tenant_id, content);
+          const preview = get_restore_preview(tenant_id, content);
           const found = TABLE_OPTIONS.filter((k) => preview.available_tables.includes(k));
           setRestoreTables(found.length ? found : TABLE_OPTIONS);
           setRestoreWarnings(preview.warnings || []);
