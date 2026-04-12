@@ -452,14 +452,66 @@ export async function restore_database_live(tenant_id: string, jsonData: string,
     }
     return restore_database(tenant_id, jsonData, selectedTables);
   }
-  return apiRequest<RestoreReport>('/api/v1/ops/database/restore', {
-    method: 'POST',
-    tenantId: tenant_id,
-    timeoutMs: 300000,
-    suspendOnNetworkError: false,
-    body: {
-      json_data: jsonData,
-      selected_tables: selectedTables || [],
-    },
-  });
+  const selected = Array.isArray(selectedTables) ? selectedTables.filter(Boolean) : [];
+
+  const sendSingleRestore = (payloadJson: string, payloadTables: string[]) =>
+    apiRequest<RestoreReport>('/api/v1/ops/database/restore', {
+      method: 'POST',
+      tenantId: tenant_id,
+      timeoutMs: 300000,
+      suspendOnNetworkError: false,
+      body: {
+        json_data: payloadJson,
+        selected_tables: payloadTables,
+      },
+    });
+
+  const mergeReports = (reports: RestoreReport[]): RestoreReport => {
+    const restoredTables = Array.from(new Set(reports.flatMap((report) => report.restored_tables || [])));
+    const skippedTables = Array.from(new Set(reports.flatMap((report) => report.skipped_tables || [])))
+      .filter((table) => !restoredTables.includes(table));
+    return {
+      success: reports.every((report) => report.success !== false),
+      restored_tables: restoredTables,
+      restored_rows: reports.reduce((sum, report) => sum + Number(report.restored_rows || 0), 0),
+      skipped_tables: skippedTables,
+      rejected_rows: reports.reduce((sum, report) => sum + Number(report.rejected_rows || 0), 0),
+      rejected_samples: reports.flatMap((report) => report.rejected_samples || []).slice(0, 50),
+      warnings: Array.from(new Set(reports.flatMap((report) => report.warnings || []))),
+    };
+  };
+
+  try {
+    return await sendSingleRestore(jsonData, selected);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || '');
+    const isNetworkFailure = message.includes('Backendə qoşulma alınmadı') || message.includes('Failed to fetch');
+    if (!isNetworkFailure) throw error;
+
+    const chunks = splitRestoreIntoChunks(jsonData, selected);
+    if (chunks.length <= 1) throw error;
+
+    const orderedChunks = [...chunks].sort((a, b) => {
+      if (a.table === 'users' && b.table !== 'users') return 1;
+      if (b.table === 'users' && a.table !== 'users') return -1;
+      return 0;
+    });
+    const reports: RestoreReport[] = [];
+
+    for (const chunk of orderedChunks) {
+      try {
+        reports.push(await sendSingleRestore(chunk.jsonData, [chunk.table]));
+      } catch (chunkError) {
+        const chunkMessage = chunkError instanceof Error ? chunkError.message : String(chunkError || '');
+        throw new Error(`Restore chunk uğursuz oldu (${chunk.table}): ${chunkMessage}`);
+      }
+    }
+
+    const merged = mergeReports(reports);
+    merged.warnings = Array.from(new Set([
+      ...(merged.warnings || []),
+      'Böyük restore sorğusu parçalanmış backend batch-lərlə tamamlandı.',
+    ]));
+    return merged;
+  }
 }
