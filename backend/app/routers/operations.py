@@ -202,6 +202,7 @@ DATABASE_TABLE_ALIASES = {
     "inventory": ["ingredients"],
     "ingredients": ["inventory"],
     "recipes": ["recipe"],
+    "logs": ["system_logs"],
 }
 
 DATABASE_SUPPORTED_TABLES = [
@@ -1151,7 +1152,12 @@ def database_restore_preview(
         row_counts[table] = len(rows)
         if source != table:
             warnings.append(f"'{table}' bölməsi '{source}' aliasından bərpa olunacaq.")
-    unsupported = [key for key, value in data.items() if isinstance(value, list) and key not in DATABASE_SUPPORTED_TABLES and key not in {"menu", "ingredients", "recipe"} and not key.startswith("_")]
+    known_aliases = {alias for aliases in DATABASE_TABLE_ALIASES.values() for alias in aliases}
+    unsupported = [
+        key
+        for key, value in data.items()
+        if isinstance(value, list) and key not in DATABASE_SUPPORTED_TABLES and key not in known_aliases and not key.startswith("_")
+    ]
     for key in unsupported:
         warnings.append(f"'{key}' hazırda server bərpasında dəstəklənmir və ötürüləcək.")
     return {
@@ -1220,11 +1226,61 @@ def database_restore(
                     setattr(instance, key, int(value))
                 elif python_type is bool:
                     setattr(instance, key, str(value).lower() in {"1", "true", "yes", "on"})
+                elif python_type is str:
+                    setattr(instance, key, str(value))
                 else:
                     setattr(instance, key, value)
             db.add(instance)
             restored_count += 1
         report["restored_tables"].append(table_key)
+        report["restored_rows"] += restored_count
+
+    def normalize_user_role(raw_role: str | None) -> str:
+        role = str(raw_role or "staff").strip().lower()
+        role_map = {
+            "cashier": "staff",
+            "waiter": "staff",
+            "server": "staff",
+            "owner": "super_admin",
+        }
+        normalized = role_map.get(role, role or "staff")
+        return normalized if normalized in {"staff", "manager", "admin", "super_admin", "kitchen", "finance_admin"} else "staff"
+
+    def restore_users(rows: list[dict]):
+        db.query(User).filter(User.tenant_id == tenant.id).delete(synchronize_session=False)
+        restored_count = 0
+        for idx, row in enumerate(rows):
+            if not isinstance(row, dict):
+                reject("users", "İstifadəçi sətri obyekt deyil", idx, row)
+                continue
+            username = str(row.get("username") or "").strip()
+            password_hash = str(row.get("password_hash") or row.get("password") or "").strip()
+            if not username:
+                reject("users", "username boşdur", idx, row)
+                continue
+            if not password_hash:
+                reject("users", "password_hash və ya legacy password tapılmadı", idx, row)
+                continue
+            user_kwargs = {
+                "tenant_id": tenant.id,
+                "username": username,
+                "email": str(row.get("email") or "").strip() or None,
+                "password_hash": password_hash,
+                "pin_hash": str(row.get("pin_hash") or "").strip() or None,
+                "totp_secret": str(row.get("totp_secret") or "").strip() or None,
+                "totp_enabled": str(row.get("totp_enabled") or "").lower() in {"1", "true", "yes", "on"},
+                "role": normalize_user_role(row.get("role")),
+                "is_active": not str(row.get("is_active", True)).lower() in {"0", "false", "no", "off"},
+                "failed_attempts": int(row.get("failed_attempts") or 0),
+                "locked_until": _parse_dt(row.get("locked_until")),
+                "created_at": _parse_dt(row.get("created_at")) or datetime.utcnow(),
+            }
+            legacy_id = str(row.get("id") or "").strip()
+            if legacy_id:
+                user_kwargs["id"] = legacy_id
+            db.add(User(**user_kwargs))
+            restored_count += 1
+        report["restored_tables"].append("users")
         report["restored_rows"] += restored_count
 
     table_map = {
@@ -1251,6 +1307,10 @@ def database_restore(
             continue
         if source and source != table:
             report["warnings"].append(f"'{table}' cədvəli '{source}' bölməsindən bərpa olundu.")
+
+        if table == "users" and rows is not None:
+            restore_users(rows)
+            continue
 
         if table in table_map and rows is not None:
             restore_table(table_map[table], table, rows)
