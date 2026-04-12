@@ -3,9 +3,33 @@ import { emitPerfEvent } from '../lib/perf';
 
 const ENV = ((import.meta as any)?.env || {}) as Record<string, string | undefined>;
 const BACKEND_FLAG = String(ENV.VITE_USE_BACKEND || '').toLowerCase();
+const FORCE_LOCAL_KEY = 'ironwaves_force_local_mode';
 
 export function isBackendEnabled() {
+  try {
+    if (typeof localStorage !== 'undefined' && localStorage.getItem(FORCE_LOCAL_KEY) === '1') return false;
+  } catch {
+    // no-op
+  }
   return BACKEND_FLAG === '1' || BACKEND_FLAG === 'true' || BACKEND_FLAG === 'yes';
+}
+
+export function isForceLocalMode() {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem(FORCE_LOCAL_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setForceLocalMode(enabled: boolean) {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    if (enabled) localStorage.setItem(FORCE_LOCAL_KEY, '1');
+    else localStorage.removeItem(FORCE_LOCAL_KEY);
+  } catch {
+    // no-op
+  }
 }
 
 export function getApiBaseUrl() {

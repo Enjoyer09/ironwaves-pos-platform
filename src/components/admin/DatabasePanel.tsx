@@ -6,7 +6,7 @@ import { tx } from '../../i18n';
 import { useState } from 'react';
 import { getDB } from '../../lib/db_sim';
 import { verifyLocalCredential } from '../../lib/local_auth';
-import { apiRequest, isBackendEnabled } from '../../api/client';
+import { apiRequest, isBackendEnabled, isForceLocalMode, setForceLocalMode } from '../../api/client';
 
 export default function DatabasePanel() {
   const { user, lang, notify } = useAppStore();
@@ -22,6 +22,7 @@ export default function DatabasePanel() {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [busyMessage, setBusyMessage] = useState('');
+  const [forceLocalMode, setForceLocalModeState] = useState(() => isForceLocalMode());
 
   const TABLE_OPTIONS = [
     'users','menu_items','sales','finance','tables','kitchen_orders','z_reports','inventory','ingredients','customers','recipes','happy_hours','refunds','settings','notifications','business_profile','logs'
@@ -94,8 +95,8 @@ export default function DatabasePanel() {
         'success',
         tx(
           lang,
-          `Baza bərpa edildi. ${mergedReport.restored_rows} sətir yükləndi, ${mergedReport.rejected_rows} sətir rədd edildi.`,
-          `База восстановлена. Загружено строк: ${mergedReport.restored_rows}, отклонено: ${mergedReport.rejected_rows}.`,
+          `Baza bərpa edildi. ${mergedReport.restored_rows} sətir yükləndi, ${mergedReport.rejected_rows} sətir rədd edildi.${mergedReport.warnings.length ? ` ${mergedReport.warnings[mergedReport.warnings.length - 1]}` : ''}`,
+          `База восстановлена. Загружено строк: ${mergedReport.restored_rows}, отклонено: ${mergedReport.rejected_rows}.${mergedReport.warnings.length ? ` ${mergedReport.warnings[mergedReport.warnings.length - 1]}` : ''}`,
         ),
       );
       window.setTimeout(() => window.location.reload(), 700);
@@ -343,6 +344,29 @@ export default function DatabasePanel() {
         <p className="mt-2 text-sm text-slate-300">
           {tx(lang, 'Bu panel yalnız backup/restore üçündür. Ayarlar panelindən ayrıdır.', 'Эта панель только для backup/restore. Она отделена от панели настроек.')}
         </p>
+
+        {forceLocalMode && (
+          <div className="mt-4 rounded-xl border border-yellow-300/40 bg-yellow-900/20 p-4 text-sm text-yellow-100">
+            <div className="font-semibold">{tx(lang, 'Sistem lokal rejimdə işləyir', 'Система работает в локальном режиме')}</div>
+            <p className="mt-1 text-xs text-yellow-50/90">
+              {tx(
+                lang,
+                'Backend əlçatan olmadığı üçün son restore lokal yaddaşa edildi. Canlı backend yenidən işləyirsə, bu rejimi söndürüb səhifəni yeniləyə bilərsiniz.',
+                'Последнее восстановление было выполнено в локальную память, потому что backend был недоступен. Если backend снова работает, выключите этот режим и обновите страницу.',
+              )}
+            </p>
+            <button
+              className="neon-btn mt-3 rounded-lg px-3 py-2 text-xs font-semibold"
+              onClick={() => {
+                setForceLocalMode(false);
+                setForceLocalModeState(false);
+                window.location.reload();
+              }}
+            >
+              {tx(lang, 'Canlı backend rejiminə qayıt', 'Вернуться к live backend')}
+            </button>
+          </div>
+        )}
 
         <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
           <button onClick={handleBackup} className="glossy-gold rounded-xl px-4 py-3 font-bold inline-flex items-center justify-center gap-2">
