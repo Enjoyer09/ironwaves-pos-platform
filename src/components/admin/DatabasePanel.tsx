@@ -6,6 +6,7 @@ import { tx } from '../../i18n';
 import { useState } from 'react';
 import { getDB } from '../../lib/db_sim';
 import { verifyLocalCredential } from '../../lib/local_auth';
+import { apiRequest, isBackendEnabled } from '../../api/client';
 
 export default function DatabasePanel() {
   const { user, lang, notify } = useAppStore();
@@ -103,6 +104,22 @@ export default function DatabasePanel() {
   };
 
   const verifyAdminPassword = async () => {
+    const normalized = String(adminPassword || '').trim();
+    if (!normalized) return false;
+
+    if (isBackendEnabled()) {
+      try {
+        const result = await apiRequest<{ success: boolean }>('/api/v1/auth/verify-password', {
+          method: 'POST',
+          tenantId: null,
+          body: { password: normalized },
+        });
+        if (result?.success) return true;
+      } catch {
+        // Backend verify alınmasa local fallback-ə düşürük.
+      }
+    }
+
     const users = getDB<any>('users');
     const tenantAdmins = users.filter(
       (u) =>
@@ -118,7 +135,7 @@ export default function DatabasePanel() {
     });
 
     for (const candidate of currentAdminFirst) {
-      const isMatch = await verifyLocalCredential(adminPassword, candidate.password_hash || candidate.password);
+      const isMatch = await verifyLocalCredential(normalized, candidate.password_hash || candidate.password);
       if (isMatch) return true;
     }
     return false;
