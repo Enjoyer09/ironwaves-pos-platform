@@ -107,6 +107,10 @@ class DatabaseRestoreIn(BaseModel):
     selected_tables: list[str] | None = None
 
 
+class DatabaseVerifyAdminPasswordIn(BaseModel):
+    password: str
+
+
 def _restaurant_now() -> datetime:
     if ZoneInfo:
         return datetime.now(ZoneInfo("Asia/Baku")).replace(tzinfo=None)
@@ -1097,6 +1101,33 @@ def export_database_backup(
         ],
     }
     return payload
+
+
+@router.post("/database/verify-admin-password")
+def database_verify_admin_password(
+    payload: DatabaseVerifyAdminPasswordIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    raw = str(payload.password or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Password required")
+
+    candidates = (
+        db.query(User)
+        .filter(
+            User.tenant_id == tenant.id,
+            User.is_active == True,
+            User.role.in_(["admin", "super_admin"]),
+        )
+        .all()
+    )
+    for candidate in candidates:
+        if candidate.password_hash and verify_password(raw, candidate.password_hash):
+            return {"success": True}
+    return {"success": False}
 
 
 @router.post("/database/restore-preview")
