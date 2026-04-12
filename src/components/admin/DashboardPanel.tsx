@@ -203,7 +203,11 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
 
   useEffect(() => {
     void loadDashboard();
-    const timer = window.setInterval(() => void loadDashboard(), 15000);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void loadDashboard();
+      }
+    }, 30000);
     return () => window.clearInterval(timer);
   }, [loadDashboard]);
 
