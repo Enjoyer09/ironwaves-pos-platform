@@ -453,7 +453,8 @@ export async function restore_database_live(tenant_id: string, jsonData: string,
       message.includes('Backendə qoşulma alınmadı') ||
       message.includes('Failed to fetch') ||
       message.includes('sorğu vaxt limiti keçdi') ||
-      message.includes('VITE_API_BASE_URL');
+      message.includes('VITE_API_BASE_URL') ||
+      message.includes('Tenant not configured for this domain');
     if (!isConnectionIssue) throw error;
 
     const report = restore_database(tenant_id, jsonData, selectedTables);
