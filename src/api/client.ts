@@ -86,6 +86,7 @@ type ApiRequestOptions = {
   body?: unknown;
   auth?: boolean;
   timeoutMs?: number;
+  suspendOnNetworkError?: boolean;
   // pass null to skip x-tenant-id header (use backend host/domain resolver)
   tenantId?: string | null;
 };
@@ -143,7 +144,9 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
     const message = isAbort
       ? `sorğu vaxt limiti keçdi (${Math.round(timeoutMs / 1000)} saniyə)`
       : error instanceof Error ? error.message : String(error);
-    suspendBackendTemporarily();
+    if (options.suspendOnNetworkError !== false) {
+      suspendBackendTemporarily();
+    }
     throw new Error(`Backendə qoşulma alınmadı (${options.method || 'GET'} ${path}): ${message}`);
   } finally {
     if (timeoutId) window.clearTimeout(timeoutId);
@@ -172,7 +175,7 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
 
   if (!res.ok) {
     const detail = (data && typeof data === 'object' && (data as any).detail) ? (data as any).detail : `HTTP ${res.status}`;
-    if (String(detail).includes('Tenant not configured')) {
+    if (options.suspendOnNetworkError !== false && String(detail).includes('Tenant not configured')) {
       suspendBackendTemporarily(5 * 60 * 1000);
     }
     throw new Error(String(detail));

@@ -1,6 +1,6 @@
 import { logEvent } from '../lib/logger';
 import { clearDBCache, getDB, setDB } from '../lib/db_sim';
-import { apiRequest, isBackendEnabled } from './client';
+import { apiRequest, getApiBaseUrl, isBackendEnabled } from './client';
 
 export type RestorePreview = {
   available_tables: string[];
@@ -168,10 +168,11 @@ export function backup_database(tenant_id: string): string {
 }
 
 export async function backup_database_live(tenant_id: string): Promise<string> {
-  if (!isBackendEnabled()) return backup_database(tenant_id);
+  if (!isBackendEnabled() && !isHostedLiveApp()) return backup_database(tenant_id);
   const payload = await apiRequest<Record<string, any>>('/api/v1/ops/database/backup', {
     method: 'GET',
     tenantId: null,
+    suspendOnNetworkError: false,
   });
   return JSON.stringify(payload, null, 2);
 }
@@ -215,11 +216,12 @@ export function get_restore_preview(tenant_id: string, jsonData: string): Restor
 }
 
 export async function get_restore_preview_live(tenant_id: string, jsonData: string): Promise<RestorePreview> {
-  if (!isBackendEnabled()) return get_restore_preview(tenant_id, jsonData);
+  if (!isBackendEnabled() && !isHostedLiveApp()) return get_restore_preview(tenant_id, jsonData);
   return apiRequest<RestorePreview>('/api/v1/ops/database/restore-preview', {
     method: 'POST',
     tenantId: null,
     timeoutMs: 60000,
+    suspendOnNetworkError: false,
     body: { json_data: jsonData },
   });
 }
@@ -442,7 +444,8 @@ export function restore_database(tenant_id: string, jsonData: string, selectedTa
 }
 
 export async function restore_database_live(tenant_id: string, jsonData: string, selectedTables?: string[]): Promise<RestoreReport> {
-  if (!isBackendEnabled()) {
+  const hasBackendTransport = Boolean(getApiBaseUrl());
+  if (!hasBackendTransport) {
     if (isHostedLiveApp()) {
       throw new Error('Canlı domen rejimində restore yalnız backend/NeonDB üzərindən icra oluna bilər. Lokal rejimi söndürün və backend bağlantısını yoxlayın.');
     }
@@ -451,7 +454,8 @@ export async function restore_database_live(tenant_id: string, jsonData: string,
   return apiRequest<RestoreReport>('/api/v1/ops/database/restore', {
     method: 'POST',
     tenantId: null,
-    timeoutMs: 180000,
+    timeoutMs: 300000,
+    suspendOnNetworkError: false,
     body: {
       json_data: jsonData,
       selected_tables: selectedTables || [],

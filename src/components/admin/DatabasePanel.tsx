@@ -6,7 +6,7 @@ import { tx } from '../../i18n';
 import { useState } from 'react';
 import { clearDBCache, getDB } from '../../lib/db_sim';
 import { verifyLocalCredential } from '../../lib/local_auth';
-import { apiRequest, isBackendEnabled, isForceLocalMode, setForceLocalMode } from '../../api/client';
+import { apiRequest, getApiBaseUrl, isForceLocalMode, setForceLocalMode } from '../../api/client';
 import { removeScopedStorage } from '../../lib/storage_keys';
 
 export default function DatabasePanel() {
@@ -28,6 +28,7 @@ export default function DatabasePanel() {
   const TABLE_OPTIONS = [
     'users','menu_items','sales','finance','tables','kitchen_orders','z_reports','inventory','ingredients','customers','recipes','happy_hours','refunds','settings','notifications','business_profile','logs'
   ];
+  const DEFAULT_RESTORE_EXCLUDED_TABLES = new Set(['users']);
 
   const clearLocalRestoreState = (options?: { clearSession?: boolean }) => {
     const exactKeys = new Set([
@@ -192,11 +193,21 @@ export default function DatabasePanel() {
         try {
           const preview = get_restore_preview(tenant_id, content);
           const found = TABLE_OPTIONS.filter((k) => preview.available_tables.includes(k));
-          setRestoreTables(found.length ? found : TABLE_OPTIONS);
-          setRestoreWarnings(preview.warnings || []);
+          const safeDefaultSelection = found.filter((k) => !DEFAULT_RESTORE_EXCLUDED_TABLES.has(k));
+          setRestoreTables(safeDefaultSelection.length ? safeDefaultSelection : found);
+          setRestoreWarnings([
+            ...(preview.warnings || []),
+            ...(found.includes('users')
+              ? [tx(
+                lang,
+                'Təhlükəsizlik üçün users bölməsi default seçilmədi. Users seçilsə, admin şifrələri backup-dakı vəziyyətə qayıda bilər və təkrar login tələb olunacaq.',
+                'Для безопасности users не выбран по умолчанию. Если выбрать users, пароли админов вернутся к состоянию backup и потребуется повторный вход.',
+              )]
+              : []),
+          ]);
           setRestoreRowCounts(preview.row_counts || {});
         } catch {
-          setRestoreTables(TABLE_OPTIONS);
+          setRestoreTables(TABLE_OPTIONS.filter((k) => !DEFAULT_RESTORE_EXCLUDED_TABLES.has(k)));
           setRestoreWarnings([tx(lang, 'JSON parse alınmadı, default cədvəl siyahısı göstərildi.', 'Не удалось разобрать JSON, показан список по умолчанию.')]);
           setRestoreRowCounts({});
         }
@@ -213,11 +224,13 @@ export default function DatabasePanel() {
     const normalized = String(adminPassword || '').trim();
     if (!normalized) return false;
 
-    if (isBackendEnabled()) {
+    if (getApiBaseUrl()) {
       try {
         const result = await apiRequest<{ success: boolean }>('/api/v1/ops/database/verify-admin-password', {
           method: 'POST',
           tenantId: null,
+          timeoutMs: 30000,
+          suspendOnNetworkError: false,
           body: { password: normalized },
         });
         if (result?.success) return true;
@@ -302,6 +315,11 @@ export default function DatabasePanel() {
                 <span>
                   {t}
                   <span className="ml-1 text-xs text-slate-400">({restoreRowCounts[t] || 0})</span>
+                  {t === 'users' && (
+                    <span className="ml-2 rounded-full border border-rose-300/40 bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-100">
+                      {tx(lang, 'şifrə/login dəyişə bilər', 'может изменить пароли/login')}
+                    </span>
+                  )}
                 </span>
               </label>
             ))}
