@@ -122,7 +122,7 @@ export default function DatabasePanel() {
 
     if (isBackendEnabled()) {
       try {
-        const result = await apiRequest<{ success: boolean }>('/api/v1/auth/verify-password', {
+        const result = await apiRequest<{ success: boolean }>('/api/v1/ops/database/verify-admin-password', {
           method: 'POST',
           tenantId: null,
           body: { password: normalized },
