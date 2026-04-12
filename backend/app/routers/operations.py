@@ -28,6 +28,7 @@ from app.models import (
     InventoryItem,
     KitchenOrder,
     LoyaltyLedgerEntry,
+    MenuItem,
     Notification,
     Recipe,
     RewardClaim,
