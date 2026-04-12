@@ -19,10 +19,21 @@ export default function DatabasePanel() {
   const [restoreWarnings, setRestoreWarnings] = useState<string[]>([]);
   const [restoreRowCounts, setRestoreRowCounts] = useState<Record<string, number>>({});
   const [lastRestoreReport, setLastRestoreReport] = useState<RestoreReport | null>(null);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [busyMessage, setBusyMessage] = useState('');
 
   const TABLE_OPTIONS = [
     'users','menu_items','sales','finance','tables','kitchen_orders','z_reports','inventory','ingredients','customers','recipes','happy_hours','refunds','settings','notifications','business_profile','logs'
   ];
+
+  const yieldToUi = () => new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+
+  const getErrorMessage = (error: unknown, fallbackAz: string, fallbackRu: string) => {
+    const message = error instanceof Error ? error.message : '';
+    if (!message) return tx(lang, fallbackAz, fallbackRu);
+    return tx(lang, `${fallbackAz}: ${message}`, `${fallbackRu}: ${message}`);
+  };
 
   const handleBackup = async () => {
     const data = await backup_database_live(tenant_id);
@@ -35,30 +46,30 @@ export default function DatabasePanel() {
     URL.revokeObjectURL(url);
   };
 
-  const runRestore = (file: File, selected: string[]) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      void (async () => {
-        try {
-          const content = event.target?.result as string;
-          const report = await restore_database_live(tenant_id, content, selected);
-          if (!report.success) throw new Error('restore failed');
-          setLastRestoreReport(report);
-          notify(
-            'success',
-            tx(
-              lang,
-              `Baza bərpa edildi. ${report.restored_rows} sətir yükləndi, ${report.rejected_rows} sətir rədd edildi.`,
-              `База восстановлена. Загружено строк: ${report.restored_rows}, отклонено: ${report.rejected_rows}.`,
-            ),
-          );
-          setTimeout(() => window.location.reload(), 500);
-        } catch {
-          notify('error', tx(lang, 'Restore uğursuz oldu. JSON backup faylını yoxlayın.', 'Восстановление не удалось. Проверьте JSON backup файл.'));
-        }
-      })();
-    };
-    reader.readAsText(file);
+  const runRestore = async (file: File, selected: string[]) => {
+    setIsRestoring(true);
+    setBusyMessage(tx(lang, 'Backup bərpa olunur. Səhifəni bağlamayın...', 'Backup восстанавливается. Не закрывайте страницу...'));
+    try {
+      await yieldToUi();
+      const content = await file.text();
+      const report = await restore_database_live(tenant_id, content, selected);
+      if (!report.success) throw new Error('restore failed');
+      setLastRestoreReport(report);
+      notify(
+        'success',
+        tx(
+          lang,
+          `Baza bərpa edildi. ${report.restored_rows} sətir yükləndi, ${report.rejected_rows} sətir rədd edildi.`,
+          `База восстановлена. Загружено строк: ${report.restored_rows}, отклонено: ${report.rejected_rows}.`,
+        ),
+      );
+      window.setTimeout(() => window.location.reload(), 700);
+    } catch (error) {
+      notify('error', getErrorMessage(error, 'Restore uğursuz oldu', 'Восстановление не удалось'));
+    } finally {
+      setIsRestoring(false);
+      setBusyMessage('');
+    }
   };
 
   const downloadRejectedCsv = () => {
@@ -86,34 +97,30 @@ export default function DatabasePanel() {
   const handleRestore = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
+    void (async () => {
+      setIsPreviewing(true);
+      setBusyMessage(tx(lang, 'Backup yoxlanılır...', 'Backup проверяется...'));
       try {
-        const content = String(event.target?.result || '{}');
-        void (async () => {
-          try {
-            const preview = await get_restore_preview_live(tenant_id, content);
-            const found = TABLE_OPTIONS.filter((k) => preview.available_tables.includes(k));
-            setRestoreTables(found.length ? found : TABLE_OPTIONS);
-            setRestoreWarnings(preview.warnings || []);
-            setRestoreRowCounts(preview.row_counts || {});
-          } catch {
-            setRestoreTables(TABLE_OPTIONS);
-            setRestoreWarnings([tx(lang, 'JSON parse alınmadı, default cədvəl siyahısı göstərildi.', 'Не удалось разобрать JSON, показан список по умолчанию.')]);
-            setRestoreRowCounts({});
-          }
-          setPendingFile(file);
-          setShowModuleSelection(true);
-        })();
-      } catch {
-        setRestoreTables(TABLE_OPTIONS);
-        setRestoreWarnings([tx(lang, 'JSON parse alınmadı, default cədvəl siyahısı göstərildi.', 'Не удалось разобрать JSON, показан список по умолчанию.')]);
-        setRestoreRowCounts({});
+        await yieldToUi();
+        const content = await file.text();
+        try {
+          const preview = await get_restore_preview_live(tenant_id, content);
+          const found = TABLE_OPTIONS.filter((k) => preview.available_tables.includes(k));
+          setRestoreTables(found.length ? found : TABLE_OPTIONS);
+          setRestoreWarnings(preview.warnings || []);
+          setRestoreRowCounts(preview.row_counts || {});
+        } catch {
+          setRestoreTables(TABLE_OPTIONS);
+          setRestoreWarnings([tx(lang, 'JSON parse alınmadı, default cədvəl siyahısı göstərildi.', 'Не удалось разобрать JSON, показан список по умолчанию.')]);
+          setRestoreRowCounts({});
+        }
         setPendingFile(file);
         setShowModuleSelection(true);
+      } finally {
+        setIsPreviewing(false);
+        setBusyMessage('');
       }
-    };
-    reader.readAsText(file);
+    })();
   };
 
   const verifyAdminPassword = async () => {
@@ -241,7 +248,7 @@ export default function DatabasePanel() {
                     notify('error', tx(lang, 'Şifrə yanlışdır', 'Неверный пароль'));
                     return;
                   }
-                  if (pendingFile) runRestore(pendingFile, restoreTables);
+                  if (pendingFile) void runRestore(pendingFile, restoreTables);
                   setPendingFile(null);
                   setShowModuleSelection(false);
                   setShowPasswordPrompt(false);
@@ -267,7 +274,7 @@ export default function DatabasePanel() {
                     notify('error', tx(lang, 'Şifrə yanlışdır', 'Неверный пароль'));
                     return;
                   }
-                  if (pendingFile) runRestore(pendingFile, restoreTables);
+                  if (pendingFile) void runRestore(pendingFile, restoreTables);
                   setPendingFile(null);
                   setShowModuleSelection(false);
                   setShowPasswordPrompt(false);
@@ -277,6 +284,19 @@ export default function DatabasePanel() {
                 {tx(lang, 'Bərpanı Təsdiqlə', 'Подтвердить восстановление')}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {(isPreviewing || isRestoring) && (
+        <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="metal-panel w-full max-w-md p-6 text-center">
+            <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-slate-600 border-t-amber-300" />
+            <h3 className="text-lg font-semibold text-slate-100">
+              {isRestoring
+                ? tx(lang, 'Bərpa davam edir', 'Восстановление выполняется')
+                : tx(lang, 'Backup yoxlanılır', 'Backup проверяется')}
+            </h3>
+            <p className="mt-2 text-sm text-slate-300">{busyMessage}</p>
           </div>
         </div>
       )}
@@ -295,10 +315,10 @@ export default function DatabasePanel() {
             {tx(lang, 'Backup Yüklə', 'Скачать backup')}
           </button>
 
-          <label className="neon-btn rounded-xl px-4 py-3 cursor-pointer inline-flex items-center justify-center gap-2">
+          <label className={`neon-btn rounded-xl px-4 py-3 inline-flex items-center justify-center gap-2 ${isPreviewing || isRestoring ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
             <Upload size={18} />
             {tx(lang, 'Restore Et', 'Восстановить')}
-            <input type="file" accept=".json" className="hidden" onChange={handleRestore} />
+            <input type="file" accept=".json" className="hidden" onChange={handleRestore} disabled={isPreviewing || isRestoring} />
           </label>
         </div>
 
