@@ -1178,313 +1178,319 @@ def database_restore(
 ):
     _ensure_admin(user)
     data = json.loads(_sanitize_nonstandard_json(payload.json_data))
-
-    selected = set(payload.selected_tables or DATABASE_SUPPORTED_TABLES)
-    unsupported_selected = sorted(selected.difference(DATABASE_SUPPORTED_TABLES))
-    report = {
-        "success": True,
-        "restored_tables": [],
-        "restored_rows": 0,
-        "skipped_tables": [],
-        "rejected_rows": 0,
-        "rejected_samples": [],
-        "warnings": [],
-    }
-    if data.get("_tenant_id") and str(data.get("_tenant_id")) != str(tenant.id):
-        report["warnings"].append("Backup fərqli tenant üçün yaradılıb; məlumatlar cari tenant-a bərpa olundu.")
-    for table in unsupported_selected:
-        report["warnings"].append(f"'{table}' hazırda server bərpasında dəstəklənmir və ötürüldü.")
-
-    def reject(table: str, reason: str, row_index: int, row: dict):
-        report["rejected_rows"] += 1
-        if len(report["rejected_samples"]) < 30:
-            report["rejected_samples"].append({"table": table, "reason": reason, "row_index": row_index, "row": row})
-
-    def restore_table(model, table_key: str, rows: list[dict]):
-        db.query(model).filter(model.tenant_id == tenant.id).delete(synchronize_session=False)
-        restored_count = 0
-        for idx, row in enumerate(rows):
-            if not isinstance(row, dict):
-                reject(table_key, "Sətir obyekt deyil", idx, row)
-                continue
-            instance = model()
-            for column in model.__table__.columns:
-                key = column.name
-                if key == "tenant_id":
-                    setattr(instance, key, tenant.id)
-                    continue
-                if key not in row:
-                    continue
-                value = row.get(key)
-                if value in (None, ""):
-                    setattr(instance, key, None if column.nullable else getattr(instance, key, None))
-                    continue
-                try:
-                    python_type = getattr(column.type, "python_type", None)
-                except Exception:
-                    python_type = None
-                if python_type is datetime:
-                    setattr(instance, key, _parse_dt(value))
-                elif python_type is Decimal:
-                    setattr(instance, key, _parse_decimal(value))
-                elif python_type is int:
-                    setattr(instance, key, int(value))
-                elif python_type is bool:
-                    setattr(instance, key, str(value).lower() in {"1", "true", "yes", "on"})
-                elif python_type is str:
-                    setattr(instance, key, str(value))
-                else:
-                    setattr(instance, key, value)
-            db.add(instance)
-            restored_count += 1
-        report["restored_tables"].append(table_key)
-        report["restored_rows"] += restored_count
-
-    def normalize_user_role(raw_role: str | None) -> str:
-        role = str(raw_role or "staff").strip().lower()
-        role_map = {
-            "cashier": "staff",
-            "waiter": "staff",
-            "server": "staff",
-            "owner": "super_admin",
+    try:
+        selected = set(payload.selected_tables or DATABASE_SUPPORTED_TABLES)
+        unsupported_selected = sorted(selected.difference(DATABASE_SUPPORTED_TABLES))
+        report = {
+            "success": True,
+            "restored_tables": [],
+            "restored_rows": 0,
+            "skipped_tables": [],
+            "rejected_rows": 0,
+            "rejected_samples": [],
+            "warnings": [],
         }
-        normalized = role_map.get(role, role or "staff")
-        return normalized if normalized in {"staff", "manager", "admin", "super_admin", "kitchen", "finance_admin"} else "staff"
+        if data.get("_tenant_id") and str(data.get("_tenant_id")) != str(tenant.id):
+            report["warnings"].append("Backup fərqli tenant üçün yaradılıb; məlumatlar cari tenant-a bərpa olundu.")
+        for table in unsupported_selected:
+            report["warnings"].append(f"'{table}' hazırda server bərpasında dəstəklənmir və ötürüldü.")
 
-    def restore_users(rows: list[dict]):
-        db.query(User).filter(User.tenant_id == tenant.id).delete(synchronize_session=False)
-        restored_count = 0
-        for idx, row in enumerate(rows):
-            if not isinstance(row, dict):
-                reject("users", "İstifadəçi sətri obyekt deyil", idx, row)
-                continue
-            username = str(row.get("username") or "").strip()
-            password_hash = str(row.get("password_hash") or row.get("password") or "").strip()
-            if not username:
-                reject("users", "username boşdur", idx, row)
-                continue
-            if not password_hash:
-                reject("users", "password_hash və ya legacy password tapılmadı", idx, row)
-                continue
-            user_kwargs = {
-                "tenant_id": tenant.id,
-                "username": username,
-                "email": str(row.get("email") or "").strip() or None,
-                "password_hash": password_hash,
-                "pin_hash": str(row.get("pin_hash") or "").strip() or None,
-                "totp_secret": str(row.get("totp_secret") or "").strip() or None,
-                "totp_enabled": str(row.get("totp_enabled") or "").lower() in {"1", "true", "yes", "on"},
-                "role": normalize_user_role(row.get("role")),
-                "is_active": not str(row.get("is_active", True)).lower() in {"0", "false", "no", "off"},
-                "failed_attempts": int(row.get("failed_attempts") or 0),
-                "locked_until": _parse_dt(row.get("locked_until")),
-                "created_at": _parse_dt(row.get("created_at")) or datetime.utcnow(),
+        def reject(table: str, reason: str, row_index: int, row: dict):
+            report["rejected_rows"] += 1
+            if len(report["rejected_samples"]) < 30:
+                report["rejected_samples"].append({"table": table, "reason": reason, "row_index": row_index, "row": row})
+
+        def restore_table(model, table_key: str, rows: list[dict]):
+            db.query(model).filter(model.tenant_id == tenant.id).delete(synchronize_session=False)
+            restored_count = 0
+            for idx, row in enumerate(rows):
+                if not isinstance(row, dict):
+                    reject(table_key, "Sətir obyekt deyil", idx, row)
+                    continue
+                instance = model()
+                for column in model.__table__.columns:
+                    key = column.name
+                    if key == "tenant_id":
+                        setattr(instance, key, tenant.id)
+                        continue
+                    if key not in row:
+                        continue
+                    value = row.get(key)
+                    if value in (None, ""):
+                        setattr(instance, key, None if column.nullable else getattr(instance, key, None))
+                        continue
+                    try:
+                        python_type = getattr(column.type, "python_type", None)
+                    except Exception:
+                        python_type = None
+                    if python_type is datetime:
+                        setattr(instance, key, _parse_dt(value))
+                    elif python_type is Decimal:
+                        setattr(instance, key, _parse_decimal(value))
+                    elif python_type is int:
+                        setattr(instance, key, int(value))
+                    elif python_type is bool:
+                        setattr(instance, key, str(value).lower() in {"1", "true", "yes", "on"})
+                    elif python_type is str:
+                        setattr(instance, key, str(value))
+                    else:
+                        setattr(instance, key, value)
+                db.add(instance)
+                restored_count += 1
+            report["restored_tables"].append(table_key)
+            report["restored_rows"] += restored_count
+
+        def normalize_user_role(raw_role: str | None) -> str:
+            role = str(raw_role or "staff").strip().lower()
+            role_map = {
+                "cashier": "staff",
+                "waiter": "staff",
+                "server": "staff",
+                "owner": "super_admin",
             }
-            legacy_id = str(row.get("id") or "").strip()
-            if legacy_id:
-                user_kwargs["id"] = legacy_id
-            db.add(User(**user_kwargs))
-            restored_count += 1
-        report["restored_tables"].append("users")
-        report["restored_rows"] += restored_count
+            normalized = role_map.get(role, role or "staff")
+            return normalized if normalized in {"staff", "manager", "admin", "super_admin", "kitchen", "finance_admin"} else "staff"
 
-    table_map = {
-        "users": User,
-        "menu_items": MenuItem,
-        "menu": MenuItem,
-        "tables": Table,
-        "inventory": InventoryItem,
-        "ingredients": InventoryItem,
-        "customers": Customer,
-        "recipes": Recipe,
-        "happy_hours": HappyHour,
-        "shift_handovers": ShiftHandover,
-        "notifications": Notification,
-        "logs": AuditLog,
-    }
-
-    for table in DATABASE_SUPPORTED_TABLES:
-        if table not in selected:
-            continue
-        rows, source = _resolve_restore_rows(data, table)
-        if rows is None and table != "settings" and table != "business_profile" and table != "sales" and table != "finance" and table != "kitchen_orders":
-            report["skipped_tables"].append(table)
-            continue
-        if source and source != table:
-            report["warnings"].append(f"'{table}' cədvəli '{source}' bölməsindən bərpa olundu.")
-
-        if table == "users" and rows is not None:
-            restore_users(rows)
-            continue
-
-        if table in table_map and rows is not None:
-            restore_table(table_map[table], table, rows)
-            continue
-
-        if table == "settings":
-            settings_rows = _extract_settings_rows(data, tenant.id)
-            db.query(Setting).filter(Setting.tenant_id == tenant.id).delete(synchronize_session=False)
-            for row in settings_rows:
-                if not row.get("key"):
+        def restore_users(rows: list[dict]):
+            db.query(User).filter(User.tenant_id == tenant.id).delete(synchronize_session=False)
+            restored_count = 0
+            for idx, row in enumerate(rows):
+                if not isinstance(row, dict):
+                    reject("users", "İstifadəçi sətri obyekt deyil", idx, row)
                     continue
-                db.add(Setting(tenant_id=tenant.id, key=row["key"], value=row["value"]))
-            report["restored_tables"].append(table)
-            report["restored_rows"] += len(settings_rows)
-            continue
+                username = str(row.get("username") or "").strip()
+                password_hash = str(row.get("password_hash") or row.get("password") or "").strip()
+                if not username:
+                    reject("users", "username boşdur", idx, row)
+                    continue
+                if not password_hash:
+                    reject("users", "password_hash və ya legacy password tapılmadı", idx, row)
+                    continue
+                user_kwargs = {
+                    "tenant_id": tenant.id,
+                    "username": username,
+                    "email": str(row.get("email") or "").strip() or None,
+                    "password_hash": password_hash,
+                    "pin_hash": str(row.get("pin_hash") or "").strip() or None,
+                    "totp_secret": str(row.get("totp_secret") or "").strip() or None,
+                    "totp_enabled": str(row.get("totp_enabled") or "").lower() in {"1", "true", "yes", "on"},
+                    "role": normalize_user_role(row.get("role")),
+                    "is_active": not str(row.get("is_active", True)).lower() in {"0", "false", "no", "off"},
+                    "failed_attempts": int(row.get("failed_attempts") or 0),
+                    "locked_until": _parse_dt(row.get("locked_until")),
+                    "created_at": _parse_dt(row.get("created_at")) or datetime.utcnow(),
+                }
+                legacy_id = str(row.get("id") or "").strip()
+                if legacy_id:
+                    user_kwargs["id"] = legacy_id
+                db.add(User(**user_kwargs))
+                restored_count += 1
+            report["restored_tables"].append("users")
+            report["restored_rows"] += restored_count
 
-        if table == "business_profile":
-            profile_rows = data.get("business_profile")
-            if not isinstance(profile_rows, list) or not profile_rows:
+        table_map = {
+            "users": User,
+            "menu_items": MenuItem,
+            "menu": MenuItem,
+            "tables": Table,
+            "inventory": InventoryItem,
+            "ingredients": InventoryItem,
+            "customers": Customer,
+            "recipes": Recipe,
+            "happy_hours": HappyHour,
+            "shift_handovers": ShiftHandover,
+            "notifications": Notification,
+            "logs": AuditLog,
+        }
+
+        for table in DATABASE_SUPPORTED_TABLES:
+            if table not in selected:
+                continue
+            rows, source = _resolve_restore_rows(data, table)
+            if rows is None and table != "settings" and table != "business_profile" and table != "sales" and table != "finance" and table != "kitchen_orders":
                 report["skipped_tables"].append(table)
                 continue
-            db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant.id).delete(synchronize_session=False)
-            restored_count = 0
-            for idx, row in enumerate(profile_rows):
-                if not isinstance(row, dict):
-                    reject(table, "Profil sətri obyekt deyil", idx, row)
-                    continue
-                company_name = str(row.get("company_name") or "").strip()
-                if not company_name:
-                    reject(table, "company_name boşdur", idx, row)
-                    continue
-                db.add(
-                    BusinessProfile(
-                        tenant_id=tenant.id,
-                        company_name=company_name,
-                        phone=str(row.get("phone") or "").strip() or None,
-                        address=str(row.get("address") or "").strip() or None,
-                        website=str(row.get("website") or "").strip() or None,
-                        logo_url=str(row.get("logo_url") or "").strip() or None,
-                        receipt_footer=str(row.get("receipt_footer") or "").strip() or None,
-                    )
-                )
-                restored_count += 1
-            report["restored_tables"].append(table)
-            report["restored_rows"] += restored_count
-            continue
+            if source and source != table:
+                report["warnings"].append(f"'{table}' cədvəli '{source}' bölməsindən bərpa olundu.")
 
-        if table == "sales":
-            sale_rows = rows
-            if not isinstance(sale_rows, list):
-                report["skipped_tables"].append(table)
+            if table == "users" and rows is not None:
+                restore_users(rows)
                 continue
-            db.query(Sale).filter(Sale.tenant_id == tenant.id).delete(synchronize_session=False)
-            restored_count = 0
-            for idx, row in enumerate(sale_rows):
-                if not isinstance(row, dict):
-                    reject(table, "Satış sətri obyekt deyil", idx, row)
-                    continue
-                items = row.get("items_json")
-                if items is None:
-                    items = row.get("items") or []
-                items_json = items if isinstance(items, str) else json.dumps(items, ensure_ascii=False)
-                cashier = str(row.get("cashier") or user.username or "staff").strip()
-                db.add(
-                    Sale(
-                        id=str(row.get("id") or secrets.token_hex(16)),
-                        tenant_id=tenant.id,
-                        cashier=cashier,
-                        customer_card_id=str(row.get("customer_card_id") or "").strip() or None,
-                        payment_method=str(row.get("payment_method") or "Nəğd"),
-                        order_type=str(row.get("order_type") or "").strip() or None,
-                        offline_request_id=str(row.get("offline_request_id") or "").strip() or None,
-                        receipt_code=str(row.get("receipt_code") or "").strip() or None,
-                        receipt_token=str(row.get("receipt_token") or "").strip() or None,
-                        reward_claim_code=str(row.get("reward_claim_code") or "").strip() or None,
-                        total=_parse_decimal(row.get("total"), "0.00"),
-                        discount_amount=_parse_decimal(row.get("discount_amount"), "0.00"),
-                        cogs=_parse_decimal(row.get("cogs"), "0.0000"),
-                        items_json=items_json,
-                        status=str(row.get("status") or "COMPLETED"),
-                        created_at=_parse_dt(row.get("created_at")) or datetime.utcnow(),
-                    )
-                )
-                restored_count += 1
-            report["restored_tables"].append(table)
-            report["restored_rows"] += restored_count
-            continue
 
-        if table == "finance":
-            finance_rows = rows
-            if not isinstance(finance_rows, list):
-                report["skipped_tables"].append(table)
+            if table in table_map and rows is not None:
+                restore_table(table_map[table], table, rows)
                 continue
-            db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant.id).delete(synchronize_session=False)
-            restored_count = 0
-            for idx, row in enumerate(finance_rows):
-                if not isinstance(row, dict):
-                    reject(table, "Maliyyə sətri obyekt deyil", idx, row)
-                    continue
-                db.add(
-                    FinanceEntry(
-                        id=str(row.get("id") or secrets.token_hex(16)),
-                        tenant_id=tenant.id,
-                        type=str(row.get("type") or "in"),
-                        category=str(row.get("category") or "Digər"),
-                        source=str(row.get("source") or "cash"),
-                        amount=_parse_decimal(row.get("amount"), "0.00"),
-                        description=str(row.get("description") or "").strip() or None,
-                        created_by=str(row.get("created_by") or user.username or "restore"),
-                        created_at=_parse_dt(row.get("created_at")) or datetime.utcnow(),
-                    )
-                )
-                restored_count += 1
-            report["restored_tables"].append(table)
-            report["restored_rows"] += restored_count
-            continue
 
-        if table == "kitchen_orders":
-            kitchen_rows = rows
-            if not isinstance(kitchen_rows, list):
-                report["skipped_tables"].append(table)
+            if table == "settings":
+                settings_rows = _extract_settings_rows(data, tenant.id)
+                db.query(Setting).filter(Setting.tenant_id == tenant.id).delete(synchronize_session=False)
+                for row in settings_rows:
+                    if not row.get("key"):
+                        continue
+                    db.add(Setting(tenant_id=tenant.id, key=row["key"], value=row["value"]))
+                report["restored_tables"].append(table)
+                report["restored_rows"] += len(settings_rows)
                 continue
-            db.query(KitchenOrder).filter(KitchenOrder.tenant_id == tenant.id).delete(synchronize_session=False)
-            restored_count = 0
-            for idx, row in enumerate(kitchen_rows):
-                if not isinstance(row, dict):
-                    reject(table, "Mətbəx sifarişi sətri obyekt deyil", idx, row)
-                    continue
-                items = row.get("items_json")
-                if items is None:
-                    items = row.get("items") or []
-                items_json = items if isinstance(items, str) else json.dumps(items, ensure_ascii=False)
-                db.add(
-                    KitchenOrder(
-                        id=str(row.get("id") or secrets.token_hex(16)),
-                        tenant_id=tenant.id,
-                        sale_id=str(row.get("sale_id") or "").strip() or None,
-                        table_label=str(row.get("table_label") or "").strip() or None,
-                        order_type=str(row.get("order_type") or "").strip() or None,
-                        status=str(row.get("status") or "NEW"),
-                        priority=str(row.get("priority") or "NORMAL"),
-                        items_json=items_json,
-                        created_at=_parse_dt(row.get("created_at")) or datetime.utcnow(),
-                        completed_at=_parse_dt(row.get("completed_at")),
-                    )
-                )
-                restored_count += 1
-            report["restored_tables"].append(table)
-            report["restored_rows"] += restored_count
-            continue
 
-    db.add(
-        AuditLog(
-            tenant_id=tenant.id,
-            user=user.username,
-            action="DATABASE_RESTORE_COMPLETED",
-            details=json.dumps(
-                {
-                    "restored_tables": report["restored_tables"],
-                    "restored_rows": report["restored_rows"],
-                    "rejected_rows": report["rejected_rows"],
-                },
-                ensure_ascii=False,
-            ),
-            created_at=datetime.utcnow(),
+            if table == "business_profile":
+                profile_rows = data.get("business_profile")
+                if not isinstance(profile_rows, list) or not profile_rows:
+                    report["skipped_tables"].append(table)
+                    continue
+                db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant.id).delete(synchronize_session=False)
+                restored_count = 0
+                for idx, row in enumerate(profile_rows):
+                    if not isinstance(row, dict):
+                        reject(table, "Profil sətri obyekt deyil", idx, row)
+                        continue
+                    company_name = str(row.get("company_name") or "").strip()
+                    if not company_name:
+                        reject(table, "company_name boşdur", idx, row)
+                        continue
+                    db.add(
+                        BusinessProfile(
+                            tenant_id=tenant.id,
+                            company_name=company_name,
+                            phone=str(row.get("phone") or "").strip() or None,
+                            address=str(row.get("address") or "").strip() or None,
+                            website=str(row.get("website") or "").strip() or None,
+                            logo_url=str(row.get("logo_url") or "").strip() or None,
+                            receipt_footer=str(row.get("receipt_footer") or "").strip() or None,
+                        )
+                    )
+                    restored_count += 1
+                report["restored_tables"].append(table)
+                report["restored_rows"] += restored_count
+                continue
+
+            if table == "sales":
+                sale_rows = rows
+                if not isinstance(sale_rows, list):
+                    report["skipped_tables"].append(table)
+                    continue
+                db.query(Sale).filter(Sale.tenant_id == tenant.id).delete(synchronize_session=False)
+                restored_count = 0
+                for idx, row in enumerate(sale_rows):
+                    if not isinstance(row, dict):
+                        reject(table, "Satış sətri obyekt deyil", idx, row)
+                        continue
+                    items = row.get("items_json")
+                    if items is None:
+                        items = row.get("items") or []
+                    items_json = items if isinstance(items, str) else json.dumps(items, ensure_ascii=False)
+                    cashier = str(row.get("cashier") or user.username or "staff").strip()
+                    db.add(
+                        Sale(
+                            id=str(row.get("id") or secrets.token_hex(16)),
+                            tenant_id=tenant.id,
+                            cashier=cashier,
+                            customer_card_id=str(row.get("customer_card_id") or "").strip() or None,
+                            payment_method=str(row.get("payment_method") or "Nəğd"),
+                            order_type=str(row.get("order_type") or "").strip() or None,
+                            offline_request_id=str(row.get("offline_request_id") or "").strip() or None,
+                            receipt_code=str(row.get("receipt_code") or "").strip() or None,
+                            receipt_token=str(row.get("receipt_token") or "").strip() or None,
+                            reward_claim_code=str(row.get("reward_claim_code") or "").strip() or None,
+                            total=_parse_decimal(row.get("total"), "0.00"),
+                            discount_amount=_parse_decimal(row.get("discount_amount"), "0.00"),
+                            cogs=_parse_decimal(row.get("cogs"), "0.0000"),
+                            items_json=items_json,
+                            status=str(row.get("status") or "COMPLETED"),
+                            created_at=_parse_dt(row.get("created_at")) or datetime.utcnow(),
+                        )
+                    )
+                    restored_count += 1
+                report["restored_tables"].append(table)
+                report["restored_rows"] += restored_count
+                continue
+
+            if table == "finance":
+                finance_rows = rows
+                if not isinstance(finance_rows, list):
+                    report["skipped_tables"].append(table)
+                    continue
+                db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant.id).delete(synchronize_session=False)
+                restored_count = 0
+                for idx, row in enumerate(finance_rows):
+                    if not isinstance(row, dict):
+                        reject(table, "Maliyyə sətri obyekt deyil", idx, row)
+                        continue
+                    db.add(
+                        FinanceEntry(
+                            id=str(row.get("id") or secrets.token_hex(16)),
+                            tenant_id=tenant.id,
+                            type=str(row.get("type") or "in"),
+                            category=str(row.get("category") or "Digər"),
+                            source=str(row.get("source") or "cash"),
+                            amount=_parse_decimal(row.get("amount"), "0.00"),
+                            description=str(row.get("description") or "").strip() or None,
+                            created_by=str(row.get("created_by") or user.username or "restore"),
+                            created_at=_parse_dt(row.get("created_at")) or datetime.utcnow(),
+                        )
+                    )
+                    restored_count += 1
+                report["restored_tables"].append(table)
+                report["restored_rows"] += restored_count
+                continue
+
+            if table == "kitchen_orders":
+                kitchen_rows = rows
+                if not isinstance(kitchen_rows, list):
+                    report["skipped_tables"].append(table)
+                    continue
+                db.query(KitchenOrder).filter(KitchenOrder.tenant_id == tenant.id).delete(synchronize_session=False)
+                restored_count = 0
+                for idx, row in enumerate(kitchen_rows):
+                    if not isinstance(row, dict):
+                        reject(table, "Mətbəx sifarişi sətri obyekt deyil", idx, row)
+                        continue
+                    items = row.get("items_json")
+                    if items is None:
+                        items = row.get("items") or []
+                    items_json = items if isinstance(items, str) else json.dumps(items, ensure_ascii=False)
+                    db.add(
+                        KitchenOrder(
+                            id=str(row.get("id") or secrets.token_hex(16)),
+                            tenant_id=tenant.id,
+                            sale_id=str(row.get("sale_id") or "").strip() or None,
+                            table_label=str(row.get("table_label") or "").strip() or None,
+                            order_type=str(row.get("order_type") or "").strip() or None,
+                            status=str(row.get("status") or "NEW"),
+                            priority=str(row.get("priority") or "NORMAL"),
+                            items_json=items_json,
+                            created_at=_parse_dt(row.get("created_at")) or datetime.utcnow(),
+                            completed_at=_parse_dt(row.get("completed_at")),
+                        )
+                    )
+                    restored_count += 1
+                report["restored_tables"].append(table)
+                report["restored_rows"] += restored_count
+                continue
+
+        db.add(
+            AuditLog(
+                tenant_id=tenant.id,
+                user=user.username,
+                action="DATABASE_RESTORE_COMPLETED",
+                details=json.dumps(
+                    {
+                        "restored_tables": report["restored_tables"],
+                        "restored_rows": report["restored_rows"],
+                        "rejected_rows": report["rejected_rows"],
+                    },
+                    ensure_ascii=False,
+                ),
+                created_at=datetime.utcnow(),
+            )
         )
-    )
-    db.commit()
-    return report
+        db.commit()
+        return report
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database restore failed: {exc}")
 
 
 @router.patch("/settings/gemini-key")
