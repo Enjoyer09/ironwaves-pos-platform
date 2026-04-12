@@ -58,6 +58,7 @@ const ALLOWED_TABLES = [
 const TABLE_ALIASES: Record<string, string[]> = {
   menu_items: ['menu'],
   menu: ['menu_items'],
+  finance: ['expenses'],
   inventory: ['ingredients'],
   ingredients: ['inventory'],
   recipes: ['recipe'],
@@ -171,7 +172,7 @@ export async function backup_database_live(tenant_id: string): Promise<string> {
   if (!isBackendEnabled() && !isHostedLiveApp()) return backup_database(tenant_id);
   const payload = await apiRequest<Record<string, any>>('/api/v1/ops/database/backup', {
     method: 'GET',
-    tenantId: null,
+    tenantId: tenant_id,
     suspendOnNetworkError: false,
   });
   return JSON.stringify(payload, null, 2);
@@ -219,7 +220,7 @@ export async function get_restore_preview_live(tenant_id: string, jsonData: stri
   if (!isBackendEnabled() && !isHostedLiveApp()) return get_restore_preview(tenant_id, jsonData);
   return apiRequest<RestorePreview>('/api/v1/ops/database/restore-preview', {
     method: 'POST',
-    tenantId: null,
+    tenantId: tenant_id,
     timeoutMs: 60000,
     suspendOnNetworkError: false,
     body: { json_data: jsonData },
@@ -453,7 +454,7 @@ export async function restore_database_live(tenant_id: string, jsonData: string,
   }
   return apiRequest<RestoreReport>('/api/v1/ops/database/restore', {
     method: 'POST',
-    tenantId: null,
+    tenantId: tenant_id,
     timeoutMs: 300000,
     suspendOnNetworkError: false,
     body: {
