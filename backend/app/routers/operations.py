@@ -199,6 +199,7 @@ def _order_fingerprint(items: list[dict]) -> str:
 DATABASE_TABLE_ALIASES = {
     "menu_items": ["menu"],
     "menu": ["menu_items"],
+    "finance": ["expenses"],
     "inventory": ["ingredients"],
     "ingredients": ["inventory"],
     "recipes": ["recipe"],
@@ -1178,6 +1179,7 @@ def database_restore(
     data = json.loads(_sanitize_nonstandard_json(payload.json_data))
 
     selected = set(payload.selected_tables or DATABASE_SUPPORTED_TABLES)
+    unsupported_selected = sorted(selected.difference(DATABASE_SUPPORTED_TABLES))
     report = {
         "success": True,
         "restored_tables": [],
@@ -1189,6 +1191,8 @@ def database_restore(
     }
     if data.get("_tenant_id") and str(data.get("_tenant_id")) != str(tenant.id):
         report["warnings"].append("Backup fərqli tenant üçün yaradılıb; məlumatlar cari tenant-a bərpa olundu.")
+    for table in unsupported_selected:
+        report["warnings"].append(f"'{table}' hazırda server bərpasında dəstəklənmir və ötürüldü.")
 
     def reject(table: str, reason: str, row_index: int, row: dict):
         report["rejected_rows"] += 1
@@ -1359,7 +1363,7 @@ def database_restore(
             continue
 
         if table == "sales":
-            sale_rows = data.get("sales")
+            sale_rows = rows
             if not isinstance(sale_rows, list):
                 report["skipped_tables"].append(table)
                 continue
@@ -1400,7 +1404,7 @@ def database_restore(
             continue
 
         if table == "finance":
-            finance_rows = data.get("finance")
+            finance_rows = rows
             if not isinstance(finance_rows, list):
                 report["skipped_tables"].append(table)
                 continue
@@ -1429,7 +1433,7 @@ def database_restore(
             continue
 
         if table == "kitchen_orders":
-            kitchen_rows = data.get("kitchen_orders")
+            kitchen_rows = rows
             if not isinstance(kitchen_rows, list):
                 report["skipped_tables"].append(table)
                 continue

@@ -228,7 +228,7 @@ export default function DatabasePanel() {
       try {
         const result = await apiRequest<{ success: boolean }>('/api/v1/ops/database/verify-admin-password', {
           method: 'POST',
-          tenantId: null,
+          tenantId: tenant_id,
           timeoutMs: 30000,
           suspendOnNetworkError: false,
           body: { password: normalized },
@@ -283,6 +283,13 @@ export default function DatabasePanel() {
         <div className="metal-panel p-4">
           <div className="mb-2 text-sm text-slate-300">
             {tx(lang, 'Hansı bölmələr bərpa olunsun?', 'Какие разделы восстановить?')}
+          </div>
+          <div className="mb-3 rounded-xl border border-cyan-300/30 bg-cyan-500/10 p-3 text-xs text-cyan-100">
+            {tx(
+              lang,
+              `Bərpa hədəfi: ${tenant_id}. Backend bu tenant ilə sessiya tokenini uyğunlaşdıracaq; uyğun deyilsə əməliyyat dayandırılacaq.`,
+              `Цель восстановления: ${tenant_id}. Backend сверит этот тенант с токеном сессии; при несовпадении операция будет остановлена.`,
+            )}
           </div>
           <div className="mb-3 flex flex-wrap gap-2">
             <button className="neon-btn rounded-lg px-3 py-1.5 text-xs" onClick={() => setRestoreTables(TABLE_OPTIONS)}>

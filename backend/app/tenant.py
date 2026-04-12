@@ -93,7 +93,16 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
         if tenant:
             return tenant
 
-    # 1) Prefer frontend host/domain header (Plan B)
+    # 1) Prefer explicit tenant header when the frontend intentionally sends it.
+    # Authenticated endpoints still validate JWT tenant_id in get_current_user, so
+    # this prevents silent cross-tenant restore/write mistakes without weakening auth.
+    explicit = (request.headers.get("x-tenant-id") or "").strip()
+    if explicit:
+        tenant = db.query(Tenant).filter(Tenant.id == explicit).first()
+        if tenant:
+            return tenant
+
+    # 2) Prefer frontend host/domain header (Plan B)
     domain = (request.headers.get("x-tenant-domain") or "").split(":")[0].lower().strip()
     if not domain:
         domain = (request.headers.get("host") or "").split(":")[0].lower().strip()
@@ -101,7 +110,7 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
     if not domain:
         return None
 
-    # 2) Use tenant_domains mapping table if present
+    # 3) Use tenant_domains mapping table if present
     try:
         row = db.execute(
             text(
@@ -141,7 +150,7 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
             # If tenant_domains does not exist or query fails, fallback to Tenant.domain
             pass
 
-    # 3) Fallback: tenants.domain
+    # 4) Fallback: tenants.domain
     tenant = db.query(Tenant).filter(Tenant.domain == domain).first()
     if tenant:
         return tenant
@@ -150,9 +159,8 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
     if tenant:
         return tenant
 
-    # 4) Legacy header fallback is opt-in only for local/dev compatibility.
+    # 5) Legacy header fallback is opt-in only for local/dev compatibility.
     if settings.allow_legacy_tenant_header_fallback or settings.single_tenant_mode:
-        explicit = (request.headers.get("x-tenant-id") or "").strip()
         if explicit:
             tenant = db.query(Tenant).filter(Tenant.id == explicit).first()
             if tenant:
