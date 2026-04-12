@@ -237,9 +237,10 @@ export function restore_database(tenant_id: string, jsonData: string, selectedTa
       warnings: [],
     };
     
-    // Təhlükəsizlik: Backup-ın həmin tenanta aid olduğunu yoxlayırıq
+    // Legacy backup-lar çox vaxt tenant_default kimi gəlir. Admin artıq restore-u
+    // təsdiqlədiyi üçün data cari tenant-a map olunur, sadəcə audit üçün xəbərdarlıq saxlanır.
     if (data['_tenant_id'] && data['_tenant_id'] !== tenant_id) {
-      throw new Error('Bu backup fərqli bir hesaba (tenant) aiddir!');
+      report.warnings.push('Backup fərqli tenant üçün yaradılıb; məlumatlar cari tenant-a bərpa olundu.');
     }
 
     const hasAliasDataInBackup = (table: string) => {

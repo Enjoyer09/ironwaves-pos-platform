@@ -1,5 +1,5 @@
 import React from 'react';
-import { backup_database_live, get_restore_preview, restore_database_live, splitRestoreIntoChunks, type RestoreReport } from '../../api/database';
+import { backup_database_live, get_restore_preview, restore_database_live, type RestoreReport } from '../../api/database';
 import { useAppStore } from '../../store';
 import { Database, Download, Upload } from 'lucide-react';
 import { tx } from '../../i18n';
@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { clearDBCache, getDB } from '../../lib/db_sim';
 import { verifyLocalCredential } from '../../lib/local_auth';
 import { apiRequest, isBackendEnabled, isForceLocalMode, setForceLocalMode } from '../../api/client';
+import { removeScopedStorage } from '../../lib/storage_keys';
 
 export default function DatabasePanel() {
   const { user, lang, notify } = useAppStore();
@@ -28,15 +29,7 @@ export default function DatabasePanel() {
     'users','menu_items','sales','finance','tables','kitchen_orders','z_reports','inventory','ingredients','customers','recipes','happy_hours','refunds','settings','notifications','business_profile','logs'
   ];
 
-  const clearLocalRestoreCache = () => {
-    if (!window.confirm(tx(
-      lang,
-      'Lokal restore/cache təmizlənsin? Bu yalnız brauzerdə qalmış lokal POS məlumatlarını silir, backend/NeonDB məlumatına toxunmur.',
-      'Очистить локальный restore/cache? Это удалит только локальные данные POS в браузере и не затронет backend/NeonDB.',
-    ))) {
-      return;
-    }
-
+  const clearLocalRestoreState = (options?: { clearSession?: boolean }) => {
     const exactKeys = new Set([
       'ironwaves_force_local_mode',
       'ironwaves_backend_suspended_until',
@@ -62,13 +55,29 @@ export default function DatabasePanel() {
     }
 
     keysToRemove.forEach((key) => localStorage.removeItem(key));
+    if (options?.clearSession) {
+      removeScopedStorage('emalatkhana-pos-session');
+    }
     clearDBCache();
     setForceLocalMode(false);
     setForceLocalModeState(false);
+    return keysToRemove.length;
+  };
+
+  const clearLocalRestoreCache = () => {
+    if (!window.confirm(tx(
+      lang,
+      'Lokal restore/cache təmizlənsin? Bu yalnız brauzerdə qalmış lokal POS məlumatlarını silir, backend/NeonDB məlumatına toxunmur.',
+      'Очистить локальный restore/cache? Это удалит только локальные данные POS в браузере и не затронет backend/NeonDB.',
+    ))) {
+      return;
+    }
+
+    const removedCount = clearLocalRestoreState();
     notify('success', tx(
       lang,
-      `${keysToRemove.length} lokal cache açarı təmizləndi. Səhifə yenilənir...`,
-      `Очищено локальных ключей cache: ${keysToRemove.length}. Страница обновляется...`,
+      `${removedCount} lokal cache açarı təmizləndi. Səhifə yenilənir...`,
+      `Очищено локальных ключей cache: ${removedCount}. Страница обновляется...`,
     ));
     window.setTimeout(() => window.location.reload(), 500);
   };
@@ -79,6 +88,20 @@ export default function DatabasePanel() {
     const message = error instanceof Error ? error.message : '';
     if (!message) return tx(lang, fallbackAz, fallbackRu);
     return tx(lang, `${fallbackAz}: ${message}`, `${fallbackRu}: ${message}`);
+  };
+
+  const normalizeRestoreSelection = (selected: string[], available: string[]) => {
+    const availableSet = new Set(available);
+    const selectedAvailable = selected.filter((table) => availableSet.has(table));
+    const selectedSet = new Set(selectedAvailable);
+    return selectedAvailable.filter((table) => {
+      // Bu cütlər eyni backend modelinə yazılır. İkisini də göndərmək
+      // eyni datanı iki dəfə silib-yazır və restore-u ləngidir.
+      if (table === 'ingredients' && selectedSet.has('inventory')) return false;
+      if (table === 'menu' && selectedSet.has('menu_items')) return false;
+      if (table === 'system_logs' && selectedSet.has('logs')) return false;
+      return true;
+    });
   };
 
   const handleBackup = async () => {
@@ -98,50 +121,32 @@ export default function DatabasePanel() {
     try {
       await yieldToUi();
       const content = await file.text();
-      const chunks = splitRestoreIntoChunks(content, selected);
-      if (chunks.length === 0) {
+      const preview = get_restore_preview(tenant_id, content);
+      const selectedExisting = normalizeRestoreSelection(selected, preview.available_tables);
+      if (selectedExisting.length === 0) {
         throw new Error(tx(lang, 'Bərpa üçün uyğun bölmə tapılmadı', 'Не найден подходящий раздел для восстановления'));
       }
 
-      const mergedReport: RestoreReport = {
-        success: true,
-        restored_tables: [],
-        restored_rows: 0,
-        skipped_tables: [],
-        rejected_rows: 0,
-        rejected_samples: [],
-        warnings: [],
-      };
-
-      for (let index = 0; index < chunks.length; index += 1) {
-        const chunk = chunks[index];
-        setBusyMessage(
-          tx(
-            lang,
-            `Bərpa olunur: ${chunk.table} (${index + 1}/${chunks.length})`,
-            `Восстановление: ${chunk.table} (${index + 1}/${chunks.length})`,
-          ),
-        );
-        await yieldToUi();
-        const report = await restore_database_live(tenant_id, chunk.jsonData, [chunk.table]);
-        if (!report.success) {
-          throw new Error(`${chunk.table}: restore failed`);
-        }
-        mergedReport.restored_tables.push(...report.restored_tables);
-        mergedReport.restored_rows += report.restored_rows;
-        mergedReport.skipped_tables.push(...report.skipped_tables);
-        mergedReport.rejected_rows += report.rejected_rows;
-        mergedReport.rejected_samples.push(...report.rejected_samples);
-        mergedReport.warnings.push(...report.warnings);
+      setBusyMessage(tx(
+        lang,
+        `Backendə göndərilir: ${selectedExisting.length} bölmə bir əməliyyat kimi bərpa olunur...`,
+        `Отправляется на backend: ${selectedExisting.length} разделов восстанавливаются одной операцией...`,
+      ));
+      await yieldToUi();
+      const mergedReport = await restore_database_live(tenant_id, content, selectedExisting);
+      if (!mergedReport.success) {
+        throw new Error('restore failed');
       }
 
       setLastRestoreReport(mergedReport);
+      const restoredUsers = selectedExisting.includes('users') || mergedReport.restored_tables.includes('users');
+      clearLocalRestoreState({ clearSession: restoredUsers });
       notify(
         'success',
         tx(
           lang,
-          `Baza bərpa edildi. ${mergedReport.restored_rows} sətir yükləndi, ${mergedReport.rejected_rows} sətir rədd edildi.${mergedReport.warnings.length ? ` ${mergedReport.warnings[mergedReport.warnings.length - 1]}` : ''}`,
-          `База восстановлена. Загружено строк: ${mergedReport.restored_rows}, отклонено: ${mergedReport.rejected_rows}.${mergedReport.warnings.length ? ` ${mergedReport.warnings[mergedReport.warnings.length - 1]}` : ''}`,
+          `Baza bərpa edildi. ${mergedReport.restored_rows} sətir yükləndi, ${mergedReport.rejected_rows} sətir rədd edildi.${restoredUsers ? ' İstifadəçilər də bərpa olunduğu üçün təkrar giriş tələb olunacaq.' : ''}`,
+          `База восстановлена. Загружено строк: ${mergedReport.restored_rows}, отклонено: ${mergedReport.rejected_rows}.${restoredUsers ? ' Так как пользователи восстановлены, потребуется повторный вход.' : ''}`,
         ),
       );
       window.setTimeout(() => window.location.reload(), 700);
