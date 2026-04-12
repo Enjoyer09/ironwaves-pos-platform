@@ -6,6 +6,73 @@ from app.core.config import settings
 from app.models import Tenant
 
 
+TENANT_DOMAIN_ALIASES = {
+    "emalatkhana.ironwaves.store": {
+        "slug": "emalatxana",
+        "name": "Emalatxana",
+        "aliases": ["emalatkhana.ironwaves.store", "emalatxana.ironwaves.store"],
+    },
+    "emalatxana.ironwaves.store": {
+        "slug": "emalatxana",
+        "name": "Emalatxana",
+        "aliases": ["emalatkhana.ironwaves.store", "emalatxana.ironwaves.store"],
+    },
+}
+
+
+def _sync_domain_aliases(db: Session, tenant_id: str, aliases: list[str]) -> None:
+    for alias in aliases:
+        safe_alias = str(alias or "").strip().lower()
+        if not safe_alias:
+            continue
+        try:
+            db.execute(
+                text(
+                    """
+                    INSERT INTO tenant_domains (domain, tenant_id, is_active)
+                    VALUES (:domain, :tenant_id, TRUE)
+                    ON CONFLICT (domain)
+                    DO UPDATE SET tenant_id = EXCLUDED.tenant_id, is_active = TRUE
+                    """
+                ),
+                {"domain": safe_alias, "tenant_id": tenant_id},
+            )
+        except Exception:
+            try:
+                db.execute(
+                    text(
+                        """
+                        INSERT INTO tenant_domains (domain, tenant_id)
+                        VALUES (:domain, :tenant_id)
+                        ON CONFLICT (domain)
+                        DO UPDATE SET tenant_id = EXCLUDED.tenant_id
+                        """
+                    ),
+                    {"domain": safe_alias, "tenant_id": tenant_id},
+                )
+            except Exception:
+                pass
+
+
+def _resolve_known_alias_tenant(domain: str, db: Session) -> Tenant | None:
+    alias = TENANT_DOMAIN_ALIASES.get(domain)
+    if not alias:
+        return None
+    tenant = db.query(Tenant).filter(Tenant.slug == alias["slug"]).first()
+    if not tenant:
+        tenant = Tenant(
+            name=alias["name"],
+            slug=alias["slug"],
+            domain=domain,
+            status="active",
+        )
+        db.add(tenant)
+        db.flush()
+    _sync_domain_aliases(db, tenant.id, alias["aliases"])
+    db.commit()
+    return tenant
+
+
 def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
     # Single-tenant fallback mode: ignore domain mapping complexity.
     if settings.single_tenant_mode:
@@ -68,6 +135,10 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
 
     # 3) Fallback: tenants.domain
     tenant = db.query(Tenant).filter(Tenant.domain == domain).first()
+    if tenant:
+        return tenant
+
+    tenant = _resolve_known_alias_tenant(domain, db)
     if tenant:
         return tenant
 
