@@ -16,6 +16,7 @@ function slugify(value: string) {
 export default function TenantsPanel() {
   const { user, lang, notify } = useAppStore();
   const [rows, setRows] = React.useState<TenantRecord[]>([]);
+  const [search, setSearch] = React.useState('');
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [deletingTenantId, setDeletingTenantId] = React.useState('');
@@ -48,6 +49,17 @@ export default function TenantsPanel() {
   React.useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const filteredRows = React.useMemo(() => {
+    const needle = String(search || '').trim().toLowerCase();
+    if (!needle) return rows;
+    return rows.filter((row) => (
+      String(row.company_name || '').toLowerCase().includes(needle) ||
+      String(row.slug || '').toLowerCase().includes(needle) ||
+      String(row.domain || '').toLowerCase().includes(needle) ||
+      String(row.tenant_id || '').toLowerCase().includes(needle)
+    ));
+  }, [rows, search]);
 
   const onCompanyChange = (company_name: string) => {
     const nextSlug = slugify(company_name);
@@ -214,9 +226,26 @@ export default function TenantsPanel() {
         <div className="metal-panel rounded-3xl p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-xl font-semibold">{tx(lang, 'Mövcud Tenantlər', 'Существующие тенанты', 'Existing Tenants')}</h2>
-            <button className="neon-btn px-4 py-2" onClick={() => void refresh()}>
-              {tx(lang, 'Yenilə', 'Обновить', 'Refresh')}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                className="neon-input min-h-11 w-full min-w-[220px] md:w-72"
+                placeholder={tx(lang, 'Şirkət, slug, domen və ya tenant ID ilə axtar', 'Поиск по компании, slug, домену или tenant ID', 'Search by company, slug, domain, or tenant ID')}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <button className="neon-btn px-4 py-2" onClick={() => void refresh()}>
+                {tx(lang, 'Yenilə', 'Обновить', 'Refresh')}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3 text-xs text-slate-300">
+            {tx(
+              lang,
+              'Əgər tenant domeni artıq super panelə düşürsə, tenant yenə burada qalır. Onu şirkət adı, slug, domen və ya tenant ID ilə tapın; əsas qeyd tenantın özüdür, domen route ayrıca problem ola bilər.',
+              'Если домен tenant-а уже уходит на super-панель, сам tenant все равно остается здесь. Ищите его по компании, slug, домену или tenant ID; запись tenant-а первична, а маршрут домена — отдельная проблема.',
+              'If a tenant domain now routes to the super panel, the tenant still remains here. Find it by company, slug, domain, or tenant ID; the tenant record is primary, and domain routing is a separate issue.',
+            )}
           </div>
 
           <div className="mt-4 overflow-x-auto">
@@ -237,12 +266,16 @@ export default function TenantsPanel() {
                     <td colSpan={6} className="px-3 py-5 text-slate-400">{tx(lang, 'Yüklənir...', 'Загрузка...', 'Loading...')}</td>
                   </tr>
                 )}
-                {!loading && rows.length === 0 && (
+                {!loading && filteredRows.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-3 py-5 text-slate-400">{tx(lang, 'Hələ tenant yoxdur', 'Тенантов пока нет', 'No tenants yet')}</td>
+                    <td colSpan={6} className="px-3 py-5 text-slate-400">
+                      {search.trim()
+                        ? tx(lang, 'Axtarışa uyğun tenant tapılmadı', 'По вашему запросу tenant не найден', 'No tenant matched your search')
+                        : tx(lang, 'Hələ tenant yoxdur', 'Тенантов пока нет', 'No tenants yet')}
+                    </td>
                   </tr>
                 )}
-                {rows.map((row) => (
+                {filteredRows.map((row) => (
                   <tr key={row.tenant_id} className="border-b border-slate-800/80">
                     <td className="px-3 py-3 font-medium text-slate-100">{row.company_name}</td>
                     <td className="px-3 py-3 text-slate-300">{row.slug}</td>
