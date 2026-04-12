@@ -95,6 +95,16 @@ function trustContext(username: string, tenant_id: string, ctx?: LoginRiskContex
   setTrustedContexts(trusted.slice(-100));
 }
 
+function isBackendConnectionIssue(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || '');
+  return (
+    message.includes('Backendə qoşulma alınmadı') ||
+    message.includes('Failed to fetch') ||
+    message.includes('sorğu vaxt limiti keçdi') ||
+    message.includes('VITE_API_BASE_URL')
+  );
+}
+
 export const authApi = {
   reset_admin_lockout: (username: string) => {
     const normalized = String(username || '').trim().toLowerCase();
@@ -109,28 +119,33 @@ export const authApi = {
   // Staff və manager üçün PIN login
   pin_login: async (pin: string, tenant_id: string = getActiveTenantId()) => {
     if (isBackendEnabled()) {
-      const result = await apiRequest<any>('/api/v1/auth/pin-login', {
-        method: 'POST',
-        auth: false,
-        tenantId: null,
-        body: {
-          pin: String(pin || ''),
-          tenant_id: null,
-        },
-      });
-      const backendUser = result?.user || {};
-      const user = {
-        username: backendUser.username,
-        role: backendUser.role,
-        tenant_id: backendUser.tenant_id || tenant_id || getActiveTenantId(),
-      };
+      try {
+        const result = await apiRequest<any>('/api/v1/auth/pin-login', {
+          method: 'POST',
+          auth: false,
+          tenantId: null,
+          body: {
+            pin: String(pin || ''),
+            tenant_id: null,
+          },
+        });
+        const backendUser = result?.user || {};
+        const user = {
+          username: backendUser.username,
+          role: backendUser.role,
+          tenant_id: backendUser.tenant_id || tenant_id || getActiveTenantId(),
+        };
 
-      logEvent(user.username, 'SUCCESSFUL_LOGIN', { role: user.role, tenant_id: user.tenant_id, method: 'PIN', backend: true });
-      return {
-        access_token: String(result?.access_token || ''),
-        refresh_token: String(result?.refresh_token || ''),
-        user,
-      };
+        logEvent(user.username, 'SUCCESSFUL_LOGIN', { role: user.role, tenant_id: user.tenant_id, method: 'PIN', backend: true });
+        return {
+          access_token: String(result?.access_token || ''),
+          refresh_token: String(result?.refresh_token || ''),
+          user,
+        };
+      } catch (error) {
+        if (!isBackendConnectionIssue(error)) throw error;
+        console.warn('Backend PIN login əlçatan deyil, local fallback istifadə olunur.');
+      }
     }
 
     const attemptsKey = `failed_attempts_${tenant_id}_${pin}`;
@@ -233,40 +248,45 @@ export const authApi = {
     remember_device: boolean = true,
   ) => {
     if (isBackendEnabled()) {
-      const result = await apiRequest<any>('/api/v1/auth/login', {
-        method: 'POST',
-        auth: false,
-        tenantId: null,
-        headers: {
-          'x-device-hash': String(risk_context?.device_hash || ''),
-          'x-trusted-device-token': getTrustedDeviceToken(),
-        },
-        body: {
-          username: String(username || '').trim(),
-          password: String(password || ''),
-          second_factor_code: String(second_factor_pin || '').trim(),
-          remember_device,
-          tenant_id: null,
-        },
-      });
+      try {
+        const result = await apiRequest<any>('/api/v1/auth/login', {
+          method: 'POST',
+          auth: false,
+          tenantId: null,
+          headers: {
+            'x-device-hash': String(risk_context?.device_hash || ''),
+            'x-trusted-device-token': getTrustedDeviceToken(),
+          },
+          body: {
+            username: String(username || '').trim(),
+            password: String(password || ''),
+            second_factor_code: String(second_factor_pin || '').trim(),
+            remember_device,
+            tenant_id: null,
+          },
+        });
 
-      const backendUser = result?.user || {};
-      const user = {
-        username: backendUser.username,
-        role: backendUser.role,
-        tenant_id: backendUser.tenant_id || tenant_id || getActiveTenantId(),
-      };
+        const backendUser = result?.user || {};
+        const user = {
+          username: backendUser.username,
+          role: backendUser.role,
+          tenant_id: backendUser.tenant_id || tenant_id || getActiveTenantId(),
+        };
 
-      if (String(result?.trusted_device_token || '').trim()) {
-        setTrustedDeviceToken(String(result.trusted_device_token));
+        if (String(result?.trusted_device_token || '').trim()) {
+          setTrustedDeviceToken(String(result.trusted_device_token));
+        }
+
+        logEvent(user.username, 'ADMIN_LOGIN', { method: 'PASSWORD', tenant_id: user.tenant_id, backend: true });
+        return {
+          access_token: String(result?.access_token || ''),
+          refresh_token: String(result?.refresh_token || ''),
+          user,
+        };
+      } catch (error) {
+        if (!isBackendConnectionIssue(error)) throw error;
+        console.warn('Backend admin login əlçatan deyil, local fallback istifadə olunur.');
       }
-
-      logEvent(user.username, 'ADMIN_LOGIN', { method: 'PASSWORD', tenant_id: user.tenant_id, backend: true });
-      return {
-        access_token: String(result?.access_token || ''),
-        refresh_token: String(result?.refresh_token || ''),
-        user,
-      };
     }
 
     const trimmedUser = String(username || '').trim();
