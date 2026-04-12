@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Grip, LayoutTemplate } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, Grip, LayoutTemplate, Lock, Monitor, ShieldCheck, Tablet } from 'lucide-react';
 import { useAppStore } from '../../store';
 import { get_settings_live, publish_pos_layout_draft_live, reset_pos_layout_draft_live, update_pos_layout_draft_live } from '../../api/settings';
 import { tx } from '../../i18n';
@@ -51,6 +51,16 @@ const LEFT_WIDGETS = [
   { key: 'categories', labelAz: 'Kateqoriyalar', labelRu: 'Категории', labelEn: 'Categories' },
   { key: 'productGrid', labelAz: 'Məhsul grid', labelRu: 'Сетка товаров', labelEn: 'Product grid' },
 ];
+
+const REQUIRED_RIGHT_WIDGETS = ['cartItems', 'cartSummary', 'payments'] as const;
+const REQUIRED_LEFT_WIDGETS = ['productGrid'] as const;
+const FIXED_FOOTER_WIDGETS = ['cartSummary', 'payments'] as const;
+
+const stripNestedLayoutMeta = (patch: Partial<PosLayoutSettings> | undefined | null) => {
+  if (!patch) return {};
+  const { device_layouts, role_overrides, ...rest } = patch as any;
+  return rest as Partial<PosLayoutSettings>;
+};
 
 const SIZE_OPTIONS = [
   { key: 'compact', az: 'Kompakt', ru: 'Компактно', en: 'Compact' },
@@ -229,6 +239,26 @@ export default function PosBuilderPanel() {
   const [activeDevice, setActiveDevice] = useState<LayoutDevice>('desktop');
   const [activeScope, setActiveScope] = useState<LayoutScope>('base');
 
+  const buildActiveProfile = (source: PosLayoutSettings, device: LayoutDevice, scope: LayoutScope) => {
+    const devicePatch = source.device_layouts?.[device];
+    if (scope === 'base') {
+      return {
+        ...DEFAULT_LAYOUT,
+        ...source,
+        ...stripNestedLayoutMeta(devicePatch),
+      };
+    }
+    const rolePatch = source.role_overrides?.[scope] || {};
+    const roleDevicePatch = rolePatch.device_layouts?.[device];
+    return {
+      ...DEFAULT_LAYOUT,
+      ...source,
+      ...stripNestedLayoutMeta(devicePatch),
+      ...stripNestedLayoutMeta(rolePatch),
+      ...stripNestedLayoutMeta(roleDevicePatch),
+    };
+  };
+
   useEffect(() => {
     void (async () => {
       try {
@@ -242,47 +272,41 @@ export default function PosBuilderPanel() {
 
   const visibleWidgets = useMemo(
     () => {
-      const profile = {
-        ...layout,
-        ...(layout.device_layouts?.[activeDevice] || {}),
-        ...(activeScope === 'staff' ? (layout.role_overrides?.staff || {}) : activeScope === 'manager' ? (layout.role_overrides?.manager || {}) : {}),
-      };
+      const profile = buildActiveProfile(layout, activeDevice, activeScope);
       return profile.widget_order.filter((key) => !profile.hidden_widgets.includes(key));
     },
     [layout, activeDevice, activeScope],
   );
   const visibleLeftWidgets = useMemo(
     () => {
-      const profile = {
-        ...layout,
-        ...(layout.device_layouts?.[activeDevice] || {}),
-        ...(activeScope === 'staff' ? (layout.role_overrides?.staff || {}) : activeScope === 'manager' ? (layout.role_overrides?.manager || {}) : {}),
-      };
+      const profile = buildActiveProfile(layout, activeDevice, activeScope);
       return profile.left_widget_order.filter((key) => !profile.left_hidden_widgets.includes(key));
     },
     [layout, activeDevice, activeScope],
   );
 
   const activeProfile = useMemo(
-    () => ({
-      ...DEFAULT_LAYOUT,
-      ...layout,
-      ...(layout.device_layouts?.[activeDevice] || {}),
-      ...(activeScope === 'staff' ? (layout.role_overrides?.staff || {}) : activeScope === 'manager' ? (layout.role_overrides?.manager || {}) : {}),
-    }),
+    () => buildActiveProfile(layout, activeDevice, activeScope),
     [layout, activeDevice, activeScope],
   );
 
   const updateActiveProfile = (patch: Partial<PosLayoutSettings>) => {
     setLayout((prev) => {
       if (activeScope === 'staff' || activeScope === 'manager') {
+        const currentRole = prev.role_overrides?.[activeScope] || {};
         return {
           ...prev,
           role_overrides: {
             ...(prev.role_overrides || {}),
             [activeScope]: {
-              ...(prev.role_overrides?.[activeScope] || {}),
-              ...patch,
+              ...currentRole,
+              device_layouts: {
+                ...(currentRole.device_layouts || {}),
+                [activeDevice]: {
+                  ...(currentRole.device_layouts?.[activeDevice] || {}),
+                  ...patch,
+                },
+              },
             },
           },
         };
@@ -508,7 +532,13 @@ export default function PosBuilderPanel() {
         ? {
             role_overrides: {
               ...(prev.role_overrides || {}),
-              [activeScope]: {},
+              [activeScope]: {
+                ...(prev.role_overrides?.[activeScope] || {}),
+                device_layouts: {
+                  ...((prev.role_overrides?.[activeScope] || {}).device_layouts || {}),
+                  [activeDevice]: {},
+                },
+              },
             },
           }
         : {
@@ -520,7 +550,7 @@ export default function PosBuilderPanel() {
             },
           }),
     }));
-    notify('info', tx(lang, 'POS builder default görünüşə qaytarıldı', 'POS builder сброшен к виду по умолчанию', 'POS builder reset to default'));
+    notify('info', tx(lang, 'POS dizaynı standart görünüşə qaytarıldı', 'Дизайн POS сброшен к стандартному виду', 'POS layout reset to default'));
   };
 
   const save = async () => {
@@ -588,6 +618,15 @@ export default function PosBuilderPanel() {
         ? 'min-h-[68px] px-3 py-3 text-xs'
         : 'min-h-[48px] px-3 py-2 text-[11px]';
 
+  const previewFloatingWidgets = visibleWidgets.filter((key) => !FIXED_FOOTER_WIDGETS.includes(key as any));
+  const previewFooterWidgets = visibleWidgets.filter((key) => FIXED_FOOTER_WIDGETS.includes(key as any));
+  const targetLabel = `${activeScope === 'base' ? tx(lang, 'Ümumi profil', 'Общий профиль', 'Base profile') : activeScope === 'staff' ? tx(lang, 'Staff profili', 'Профиль staff', 'Staff profile') : tx(lang, 'Menecer profili', 'Профиль manager', 'Manager profile')} · ${activeDevice === 'desktop' ? tx(lang, 'Desktop', 'Desktop', 'Desktop') : tx(lang, 'Tablet', 'Tablet', 'Tablet')}`;
+  const operationalGuardrails = [
+    tx(lang, 'Checkout zonası həmişə açıq qalır', 'Checkout-зона всегда остается активной', 'Checkout zone always stays active'),
+    tx(lang, 'Məhsul grid-i gizlədilmir', 'Сетка товаров не скрывается', 'Product grid cannot be hidden'),
+    tx(lang, 'Role profilləri cihaz üzrə ayrıca tətbiq olunur', 'Ролевые профили теперь применяются отдельно по устройствам', 'Role profiles are now device-specific'),
+  ];
+
   return (
     <div className="space-y-6 text-slate-100">
       <div className="metal-panel p-5">
@@ -596,8 +635,44 @@ export default function PosBuilderPanel() {
             <LayoutTemplate size={22} />
           </div>
           <div>
-            <h2 className="text-2xl font-bold">{tx(lang, 'POS Builder', 'POS Builder', 'POS Builder')}</h2>
-            <p className="text-sm text-slate-400">{tx(lang, 'Desktop və tablet üçün ayrıca POS görünüşü qurun.', 'Настройте отдельный POS-вид для desktop и tablet.', 'Configure separate POS layouts for desktop and tablet.')}</p>
+            <h2 className="text-2xl font-bold">{tx(lang, 'POS Dizaynı', 'Дизайн POS', 'POS Layout')}</h2>
+            <p className="text-sm text-slate-400">{tx(lang, 'Əməliyyatı sındırmadan kassir ekranını cihaz və rol üzrə qurun.', 'Настройте экран кассира по устройству и роли без риска сломать поток.', 'Configure the cashier workspace by device and role without breaking operations.')}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="rounded-[28px] border border-emerald-300/20 bg-[linear-gradient(180deg,rgba(16,185,129,0.12),rgba(15,23,42,0.88))] p-5">
+          <div className="flex items-start gap-3">
+            <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-3 text-emerald-200">
+              <ShieldCheck size={20} />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-emerald-100">{tx(lang, 'Əməliyyat təhlükəsizliyi', 'Операционная безопасность', 'Operational safety')}</div>
+              <div className="mt-1 text-sm text-emerald-100/80">{tx(lang, 'Builder artıq checkout və məhsul axınını sındıran kombinasiyaları bloklayır.', 'Builder теперь блокирует конфигурации, которые ломают checkout и товарный поток.', 'The builder now blocks layouts that break checkout and product flow.')}</div>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-2 md:grid-cols-3">
+            {operationalGuardrails.map((item) => (
+              <div key={item} className="rounded-2xl border border-emerald-300/15 bg-slate-950/25 px-4 py-3 text-sm text-slate-100">
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-slate-700/70 bg-[#111824]/90 p-5">
+          <div className="text-xs uppercase tracking-[0.24em] text-slate-500">{tx(lang, 'Hədəf profil', 'Целевой профиль', 'Target profile')}</div>
+          <div className="mt-3 flex items-center gap-3">
+            <div className="rounded-2xl border border-slate-700/70 bg-slate-900/40 p-3 text-slate-200">
+              {activeDevice === 'desktop' ? <Monitor size={18} /> : <Tablet size={18} />}
+            </div>
+            <div>
+              <div className="text-lg font-semibold text-white">{targetLabel}</div>
+              <div className="text-sm text-slate-400">
+                {tx(lang, 'Buradakı dəyişikliklər yalnız seçilmiş profilə tətbiq olunur.', 'Изменения применяются только к выбранному профилю.', 'Changes apply only to the selected target profile.')}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -621,8 +696,8 @@ export default function PosBuilderPanel() {
           <div className="mb-4 flex flex-wrap gap-2">
             {([
               { key: 'base', label: tx(lang, 'Ümumi', 'Общий', 'Base') },
-              { key: 'staff', label: tx(lang, 'Staff', 'Staff', 'Staff') },
-              { key: 'manager', label: tx(lang, 'Manager', 'Manager', 'Manager') },
+              { key: 'staff', label: tx(lang, 'Kassir / Staff', 'Кассир / Staff', 'Cashier / Staff') },
+              { key: 'manager', label: tx(lang, 'Menecer', 'Менеджер', 'Manager') },
             ] as const).map((scope) => (
               <button
                 key={scope.key}
@@ -715,21 +790,26 @@ export default function PosBuilderPanel() {
             {activeProfile.widget_order.map((widgetKey, index) => {
               const hidden = activeProfile.hidden_widgets.includes(widgetKey);
               const isDropTarget = dropTargetWidget === widgetKey && draggingWidget !== widgetKey;
+              const isRequired = REQUIRED_RIGHT_WIDGETS.includes(widgetKey as any);
+              const isFixedFooter = FIXED_FOOTER_WIDGETS.includes(widgetKey as any);
               return (
                 <div
                   key={widgetKey}
-                  draggable
+                  draggable={!isFixedFooter}
                   onDragStart={() => {
+                    if (isFixedFooter) return;
                     setDraggingWidget(widgetKey);
                     setDropTargetWidget(widgetKey);
                   }}
                   onDragOver={(e) => {
+                    if (isFixedFooter) return;
                     e.preventDefault();
                     if (draggingWidget && draggingWidget !== widgetKey) {
                       setDropTargetWidget(widgetKey);
                     }
                   }}
                   onDrop={(e) => {
+                    if (isFixedFooter) return;
                     e.preventDefault();
                     if (draggingWidget && draggingWidget !== widgetKey) {
                       moveWidgetTo(draggingWidget, widgetKey);
@@ -749,13 +829,26 @@ export default function PosBuilderPanel() {
                         : 'border-slate-700/60 bg-slate-900/25'
                   }`}
                 >
-                  <Grip size={16} className="cursor-grab text-slate-500" />
+                  <Grip size={16} className={`${isFixedFooter ? 'cursor-not-allowed text-slate-700' : 'cursor-grab text-slate-500'}`} />
                   <div className="min-w-0 flex-1">
                     <div className={`font-medium ${hidden ? 'text-slate-500 line-through' : 'text-slate-100'}`}>{widgetLabel(widgetKey)}</div>
                     <div className="text-xs text-slate-500">{tx(lang, 'Sıra', 'Порядок', 'Order')}: {index + 1}</div>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {isRequired && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
+                          <Lock size={10} />
+                          {tx(lang, 'Məcburi', 'Обязательный', 'Required')}
+                        </span>
+                      )}
+                      {isFixedFooter && (
+                        <span className="inline-flex items-center rounded-full border border-yellow-300/30 bg-yellow-400/10 px-2 py-0.5 text-[10px] font-semibold text-yellow-200">
+                          {tx(lang, 'Checkout zonası', 'Checkout-зона', 'Checkout zone')}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <label className="flex items-center gap-2 text-xs text-slate-300">
-                    <input type="checkbox" checked={!hidden} onChange={() => toggleHidden(widgetKey)} />
+                    <input type="checkbox" checked={!hidden} onChange={() => toggleHidden(widgetKey)} disabled={isRequired} />
                     {tx(lang, 'Görünsün', 'Показывать', 'Visible')}
                   </label>
                   <select
@@ -767,10 +860,10 @@ export default function PosBuilderPanel() {
                       <option key={size.key} value={size.key}>{sizeLabel(size.key)}</option>
                     ))}
                   </select>
-                  <button onClick={() => moveWidget(widgetKey, -1)} className="neon-btn rounded-lg px-2 py-2" disabled={index === 0}>
+                  <button onClick={() => moveWidget(widgetKey, -1)} className="neon-btn rounded-lg px-2 py-2" disabled={index === 0 || isFixedFooter}>
                     <ArrowUp size={14} />
                   </button>
-                  <button onClick={() => moveWidget(widgetKey, 1)} className="neon-btn rounded-lg px-2 py-2" disabled={index === activeProfile.widget_order.length - 1}>
+                  <button onClick={() => moveWidget(widgetKey, 1)} className="neon-btn rounded-lg px-2 py-2" disabled={index === activeProfile.widget_order.length - 1 || isFixedFooter}>
                     <ArrowDown size={14} />
                   </button>
                 </div>
@@ -839,7 +932,7 @@ export default function PosBuilderPanel() {
                   <div className="rounded-2xl border border-slate-700/60 bg-slate-950/35 p-3">
                     <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-slate-500">{tx(lang, 'Sağ panel', 'Правая панель', 'Right panel')}</div>
                     <div className="space-y-2">
-                      {visibleWidgets.map((key) => (
+                      {previewFloatingWidgets.map((key) => (
                         <div
                           key={`live_right_${key}`}
                           className={`rounded-2xl border border-slate-700/60 bg-slate-900/35 text-slate-200 ${previewBlockClass(activeProfile.widget_sizes?.[key])}`}
@@ -847,11 +940,18 @@ export default function PosBuilderPanel() {
                           {widgetLabel(key)}
                         </div>
                       ))}
-                      <div
-                        className="rounded-2xl text-center font-semibold text-slate-900"
-                        style={{ backgroundColor: activeProfile.accent_color, padding: activeProfile.widget_sizes?.payments === 'expanded' ? '14px 10px' : activeProfile.widget_sizes?.payments === 'compact' ? '8px 8px' : '10px 8px' }}
-                      >
-                        {tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}
+                      <div className="mt-3 border-t border-slate-700/60 pt-3">
+                        <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-slate-500">{tx(lang, 'Checkout zonası', 'Checkout-зона', 'Checkout zone')}</div>
+                        <div className="space-y-2">
+                          {previewFooterWidgets.map((key) => (
+                            <div
+                              key={`live_footer_${key}`}
+                              className={`rounded-2xl border border-slate-700/60 bg-slate-900/35 text-slate-200 ${previewBlockClass(activeProfile.widget_sizes?.[key])}`}
+                            >
+                              {widgetLabel(key)}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -894,6 +994,7 @@ export default function PosBuilderPanel() {
             {activeProfile.left_widget_order.map((widgetKey, index) => {
               const hidden = activeProfile.left_hidden_widgets.includes(widgetKey);
               const isDropTarget = dropTargetLeftWidget === widgetKey && draggingLeftWidget !== widgetKey;
+              const isRequired = REQUIRED_LEFT_WIDGETS.includes(widgetKey as any);
               return (
                 <div
                   key={`left_${widgetKey}`}
@@ -932,9 +1033,17 @@ export default function PosBuilderPanel() {
                   <div className="min-w-0 flex-1">
                     <div className={`font-medium ${hidden ? 'text-slate-500 line-through' : 'text-slate-100'}`}>{leftWidgetLabel(widgetKey)}</div>
                     <div className="text-xs text-slate-500">{tx(lang, 'Sıra', 'Порядок', 'Order')}: {index + 1}</div>
+                    {isRequired && (
+                      <div className="mt-1">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-300/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
+                          <Lock size={10} />
+                          {tx(lang, 'Məcburi', 'Обязательный', 'Required')}
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <label className="flex items-center gap-2 text-xs text-slate-300">
-                    <input type="checkbox" checked={!hidden} onChange={() => toggleLeftHidden(widgetKey)} />
+                    <input type="checkbox" checked={!hidden} onChange={() => toggleLeftHidden(widgetKey)} disabled={isRequired} />
                     {tx(lang, 'Görünsün', 'Показывать', 'Visible')}
                   </label>
                   <select
