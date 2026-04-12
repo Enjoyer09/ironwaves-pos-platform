@@ -101,7 +101,8 @@ function isBackendConnectionIssue(error: unknown): boolean {
     message.includes('Backendə qoşulma alınmadı') ||
     message.includes('Failed to fetch') ||
     message.includes('sorğu vaxt limiti keçdi') ||
-    message.includes('VITE_API_BASE_URL')
+    message.includes('VITE_API_BASE_URL') ||
+    message.includes('Tenant not configured for this domain')
   );
 }
 

@@ -93,80 +93,35 @@ export default function App() {
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
-    let rafId = 0;
+    const prepareField = (field: HTMLInputElement | HTMLTextAreaElement) => {
+      if (!field.classList.contains('neon-input')) return;
+      const inputType = field instanceof HTMLInputElement ? String(field.type || '').toLowerCase() : 'textarea';
+      const inputMode = field instanceof HTMLInputElement ? String(field.inputMode || '').toLowerCase() : '';
+      if (
+        field instanceof HTMLInputElement &&
+        !field.dataset.virtualKeyboardMode &&
+        (inputType === 'number' || inputType === 'tel' || inputMode === 'numeric' || inputMode === 'decimal')
+      ) {
+        field.dataset.virtualKeyboardMode = 'numeric';
+      }
 
-    const syncFieldHelpers = () => {
-      const fields = Array.from(
-        document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input.neon-input[placeholder], textarea.neon-input[placeholder]'),
-      );
-
-      fields.forEach((field) => {
-        const originalPlaceholder = field.getAttribute('data-original-placeholder') || field.getAttribute('placeholder') || '';
-        const parent = field.parentElement;
-        if (!originalPlaceholder || !parent) return;
-
-        const formControlsInParent = Array.from(parent.children).filter((node) => {
-          if (!(node instanceof HTMLElement)) return false;
-          if (node.classList.contains('neon-auto-helper')) return false;
-          return node.matches('input, textarea, select');
-        });
-
-        if (formControlsInParent.length !== 1) return;
-
+      const originalPlaceholder = field.getAttribute('data-original-placeholder') || field.getAttribute('placeholder') || '';
+      if (originalPlaceholder && !field.getAttribute('data-original-placeholder')) {
         field.setAttribute('data-original-placeholder', originalPlaceholder);
-        if (field.getAttribute('placeholder') !== '') {
-          field.setAttribute('placeholder', '');
-        }
-        field.classList.add('neon-input-with-helper');
-        parent.classList.add('neon-helper-host');
-
-        let helper = parent.querySelector<HTMLElement>(`.neon-auto-helper[data-for-id="${field.dataset.helperId || ''}"]`);
-        if (!field.dataset.helperId) {
-          field.dataset.helperId = `helper-${Math.random().toString(36).slice(2, 10)}`;
-        }
-        if (!helper) {
-          helper = document.createElement('div');
-          helper.className = 'neon-auto-helper';
-          helper.dataset.forId = field.dataset.helperId;
-          parent.appendChild(helper);
-        }
-        if (helper.textContent !== originalPlaceholder) {
-          helper.textContent = originalPlaceholder;
-        }
-      });
-
-      const numericFields = Array.from(
-        document.querySelectorAll<HTMLInputElement>('input.neon-input[type="number"], input.neon-input[type="tel"], input.neon-input[inputmode="numeric"], input.neon-input[inputmode="decimal"]'),
-      );
-      numericFields.forEach((field) => {
-        if (!field.dataset.virtualKeyboardMode) {
-          field.dataset.virtualKeyboardMode = 'numeric';
-        }
-      });
+      }
     };
 
-    const scheduleSync = () => {
-      if (rafId) return;
-      rafId = window.requestAnimationFrame(() => {
-        rafId = 0;
-        syncFieldHelpers();
-      });
+    const onFocusIn = (event: FocusEvent) => {
+      const target = event.target;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+        prepareField(target);
+      }
     };
 
-    syncFieldHelpers();
-    const observer = new MutationObserver(() => {
-      scheduleSync();
-    });
-    observer.observe(document.body, {
-      subtree: true,
-      childList: true,
-    });
+    document.addEventListener('focusin', onFocusIn);
 
     return () => {
-      observer.disconnect();
-      if (rafId) {
-        window.cancelAnimationFrame(rafId);
-      }
+      document.removeEventListener('focusin', onFocusIn);
     };
   }, []);
 
