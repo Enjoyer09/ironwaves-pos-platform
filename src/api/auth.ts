@@ -124,6 +124,7 @@ export const authApi = {
           method: 'POST',
           auth: false,
           tenantId: null,
+          timeoutMs: 5000,
           body: {
             pin: String(pin || ''),
             tenant_id: null,
@@ -253,6 +254,7 @@ export const authApi = {
           method: 'POST',
           auth: false,
           tenantId: null,
+          timeoutMs: 5000,
           headers: {
             'x-device-hash': String(risk_context?.device_hash || ''),
             'x-trusted-device-token': getTrustedDeviceToken(),

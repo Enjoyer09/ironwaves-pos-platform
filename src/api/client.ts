@@ -68,7 +68,7 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
 
   const startedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   let res: Response;
-  const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 30000;
+  const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 8000;
   const controller = typeof AbortController !== 'undefined' && timeoutMs > 0 ? new AbortController() : null;
   const timeoutId = controller
     ? window.setTimeout(() => controller.abort(), timeoutMs)
