@@ -1,5 +1,6 @@
 import { logEvent } from '../lib/logger';
 import { clearDBCache, getDB, setDB } from '../lib/db_sim';
+import { apiRequest, isBackendEnabled } from './client';
 
 export type RestorePreview = {
   available_tables: string[];
@@ -124,6 +125,15 @@ export function backup_database(tenant_id: string): string {
   return JSON.stringify(backupData, null, 2);
 }
 
+export async function backup_database_live(tenant_id: string): Promise<string> {
+  if (!isBackendEnabled()) return backup_database(tenant_id);
+  const payload = await apiRequest<Record<string, any>>('/api/v1/ops/database/backup', {
+    method: 'GET',
+    tenantId: null,
+  });
+  return JSON.stringify(payload, null, 2);
+}
+
 export function get_restore_preview(tenant_id: string, jsonData: string): RestorePreview {
   const preview: RestorePreview = {
     available_tables: [],
@@ -160,6 +170,15 @@ export function get_restore_preview(tenant_id: string, jsonData: string): Restor
   }
 
   return preview;
+}
+
+export async function get_restore_preview_live(tenant_id: string, jsonData: string): Promise<RestorePreview> {
+  if (!isBackendEnabled()) return get_restore_preview(tenant_id, jsonData);
+  return apiRequest<RestorePreview>('/api/v1/ops/database/restore-preview', {
+    method: 'POST',
+    tenantId: null,
+    body: { json_data: jsonData },
+  });
 }
 
 export function restore_database(tenant_id: string, jsonData: string, selectedTables?: string[]): RestoreReport {
@@ -376,4 +395,16 @@ export function restore_database(tenant_id: string, jsonData: string, selectedTa
     logEvent('System', 'DATABASE_RESTORE_FAILED', { error: String(err) });
     throw err;
   }
+}
+
+export async function restore_database_live(tenant_id: string, jsonData: string, selectedTables?: string[]): Promise<RestoreReport> {
+  if (!isBackendEnabled()) return restore_database(tenant_id, jsonData, selectedTables);
+  return apiRequest<RestoreReport>('/api/v1/ops/database/restore', {
+    method: 'POST',
+    tenantId: null,
+    body: {
+      json_data: jsonData,
+      selected_tables: selectedTables || [],
+    },
+  });
 }

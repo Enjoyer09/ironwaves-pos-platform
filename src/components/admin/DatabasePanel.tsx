@@ -1,5 +1,5 @@
 import React from 'react';
-import { backup_database, get_restore_preview, restore_database, type RestoreReport } from '../../api/database';
+import { backup_database_live, get_restore_preview_live, restore_database_live, type RestoreReport } from '../../api/database';
 import { useAppStore } from '../../store';
 import { Database, Download, Upload } from 'lucide-react';
 import { tx } from '../../i18n';
@@ -24,8 +24,8 @@ export default function DatabasePanel() {
     'users','menu_items','sales','finance','tables','kitchen_orders','z_reports','inventory','ingredients','customers','recipes','happy_hours','refunds','settings','notifications','business_profile','logs'
   ];
 
-  const handleBackup = () => {
-    const data = backup_database(tenant_id);
+  const handleBackup = async () => {
+    const data = await backup_database_live(tenant_id);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -38,23 +38,25 @@ export default function DatabasePanel() {
   const runRestore = (file: File, selected: string[]) => {
     const reader = new FileReader();
     reader.onload = (event) => {
-      try {
-        const content = event.target?.result as string;
-        const report = restore_database(tenant_id, content, selected);
-        if (!report.success) throw new Error('restore failed');
-        setLastRestoreReport(report);
-        notify(
-          'success',
-          tx(
-            lang,
-            `Baza bərpa edildi. ${report.restored_rows} sətir yükləndi, ${report.rejected_rows} sətir rədd edildi.`,
-            `База восстановлена. Загружено строк: ${report.restored_rows}, отклонено: ${report.rejected_rows}.`,
-          ),
-        );
-        setTimeout(() => window.location.reload(), 500);
-      } catch {
-        notify('error', tx(lang, 'Restore uğursuz oldu. JSON backup faylını yoxlayın.', 'Восстановление не удалось. Проверьте JSON backup файл.'));
-      }
+      void (async () => {
+        try {
+          const content = event.target?.result as string;
+          const report = await restore_database_live(tenant_id, content, selected);
+          if (!report.success) throw new Error('restore failed');
+          setLastRestoreReport(report);
+          notify(
+            'success',
+            tx(
+              lang,
+              `Baza bərpa edildi. ${report.restored_rows} sətir yükləndi, ${report.rejected_rows} sətir rədd edildi.`,
+              `База восстановлена. Загружено строк: ${report.restored_rows}, отклонено: ${report.rejected_rows}.`,
+            ),
+          );
+          setTimeout(() => window.location.reload(), 500);
+        } catch {
+          notify('error', tx(lang, 'Restore uğursuz oldu. JSON backup faylını yoxlayın.', 'Восстановление не удалось. Проверьте JSON backup файл.'));
+        }
+      })();
     };
     reader.readAsText(file);
   };
@@ -87,18 +89,29 @@ export default function DatabasePanel() {
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const preview = get_restore_preview(tenant_id, String(event.target?.result || '{}'));
-        const found = TABLE_OPTIONS.filter((k) => preview.available_tables.includes(k));
-        setRestoreTables(found.length ? found : TABLE_OPTIONS);
-        setRestoreWarnings(preview.warnings || []);
-        setRestoreRowCounts(preview.row_counts || {});
+        const content = String(event.target?.result || '{}');
+        void (async () => {
+          try {
+            const preview = await get_restore_preview_live(tenant_id, content);
+            const found = TABLE_OPTIONS.filter((k) => preview.available_tables.includes(k));
+            setRestoreTables(found.length ? found : TABLE_OPTIONS);
+            setRestoreWarnings(preview.warnings || []);
+            setRestoreRowCounts(preview.row_counts || {});
+          } catch {
+            setRestoreTables(TABLE_OPTIONS);
+            setRestoreWarnings([tx(lang, 'JSON parse alınmadı, default cədvəl siyahısı göstərildi.', 'Не удалось разобрать JSON, показан список по умолчанию.')]);
+            setRestoreRowCounts({});
+          }
+          setPendingFile(file);
+          setShowModuleSelection(true);
+        })();
       } catch {
         setRestoreTables(TABLE_OPTIONS);
         setRestoreWarnings([tx(lang, 'JSON parse alınmadı, default cədvəl siyahısı göstərildi.', 'Не удалось разобрать JSON, показан список по умолчанию.')]);
         setRestoreRowCounts({});
+        setPendingFile(file);
+        setShowModuleSelection(true);
       }
-      setPendingFile(file);
-      setShowModuleSelection(true);
     };
     reader.readAsText(file);
   };
