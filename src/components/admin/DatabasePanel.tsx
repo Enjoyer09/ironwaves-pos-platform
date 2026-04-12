@@ -1,5 +1,5 @@
 import React from 'react';
-import { backup_database_live, get_restore_preview_live, restore_database_live, type RestoreReport } from '../../api/database';
+import { backup_database_live, get_restore_preview_live, restore_database_live, splitRestoreIntoChunks, type RestoreReport } from '../../api/database';
 import { useAppStore } from '../../store';
 import { Database, Download, Upload } from 'lucide-react';
 import { tx } from '../../i18n';
@@ -52,15 +52,50 @@ export default function DatabasePanel() {
     try {
       await yieldToUi();
       const content = await file.text();
-      const report = await restore_database_live(tenant_id, content, selected);
-      if (!report.success) throw new Error('restore failed');
-      setLastRestoreReport(report);
+      const chunks = splitRestoreIntoChunks(content, selected);
+      if (chunks.length === 0) {
+        throw new Error(tx(lang, 'Bərpa üçün uyğun bölmə tapılmadı', 'Не найден подходящий раздел для восстановления'));
+      }
+
+      const mergedReport: RestoreReport = {
+        success: true,
+        restored_tables: [],
+        restored_rows: 0,
+        skipped_tables: [],
+        rejected_rows: 0,
+        rejected_samples: [],
+        warnings: [],
+      };
+
+      for (let index = 0; index < chunks.length; index += 1) {
+        const chunk = chunks[index];
+        setBusyMessage(
+          tx(
+            lang,
+            `Bərpa olunur: ${chunk.table} (${index + 1}/${chunks.length})`,
+            `Восстановление: ${chunk.table} (${index + 1}/${chunks.length})`,
+          ),
+        );
+        await yieldToUi();
+        const report = await restore_database_live(tenant_id, chunk.jsonData, [chunk.table]);
+        if (!report.success) {
+          throw new Error(`${chunk.table}: restore failed`);
+        }
+        mergedReport.restored_tables.push(...report.restored_tables);
+        mergedReport.restored_rows += report.restored_rows;
+        mergedReport.skipped_tables.push(...report.skipped_tables);
+        mergedReport.rejected_rows += report.rejected_rows;
+        mergedReport.rejected_samples.push(...report.rejected_samples);
+        mergedReport.warnings.push(...report.warnings);
+      }
+
+      setLastRestoreReport(mergedReport);
       notify(
         'success',
         tx(
           lang,
-          `Baza bərpa edildi. ${report.restored_rows} sətir yükləndi, ${report.rejected_rows} sətir rədd edildi.`,
-          `База восстановлена. Загружено строк: ${report.restored_rows}, отклонено: ${report.rejected_rows}.`,
+          `Baza bərpa edildi. ${mergedReport.restored_rows} sətir yükləndi, ${mergedReport.rejected_rows} sətir rədd edildi.`,
+          `База восстановлена. Загружено строк: ${mergedReport.restored_rows}, отклонено: ${mergedReport.rejected_rows}.`,
         ),
       );
       window.setTimeout(() => window.location.reload(), 700);
