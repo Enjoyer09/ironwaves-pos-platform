@@ -437,26 +437,13 @@ export function restore_database(tenant_id: string, jsonData: string, selectedTa
 
 export async function restore_database_live(tenant_id: string, jsonData: string, selectedTables?: string[]): Promise<RestoreReport> {
   if (!isBackendEnabled()) return restore_database(tenant_id, jsonData, selectedTables);
-  try {
-    return await apiRequest<RestoreReport>('/api/v1/ops/database/restore', {
-      method: 'POST',
-      tenantId: null,
-      timeoutMs: 180000,
-      body: {
-        json_data: jsonData,
-        selected_tables: selectedTables || [],
-      },
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error || '');
-    const isConnectionIssue =
-      message.includes('Backendə qoşulma alınmadı') ||
-      message.includes('Failed to fetch') ||
-      message.includes('sorğu vaxt limiti keçdi') ||
-      message.includes('VITE_API_BASE_URL');
-    if (!isConnectionIssue) throw error;
-    const report = restore_database(tenant_id, jsonData, selectedTables);
-    report.warnings.push('Backend əlçatan olmadığı üçün bərpa lokal yaddaşa edildi.');
-    return report;
-  }
+  return apiRequest<RestoreReport>('/api/v1/ops/database/restore', {
+    method: 'POST',
+    tenantId: null,
+    timeoutMs: 180000,
+    body: {
+      json_data: jsonData,
+      selected_tables: selectedTables || [],
+    },
+  });
 }
