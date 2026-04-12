@@ -4,7 +4,7 @@ import { useAppStore } from '../../store';
 import { Database, Download, Upload } from 'lucide-react';
 import { tx } from '../../i18n';
 import { useState } from 'react';
-import { getDB } from '../../lib/db_sim';
+import { clearDBCache, getDB } from '../../lib/db_sim';
 import { verifyLocalCredential } from '../../lib/local_auth';
 import { apiRequest, isBackendEnabled, isForceLocalMode, setForceLocalMode } from '../../api/client';
 
@@ -27,6 +27,51 @@ export default function DatabasePanel() {
   const TABLE_OPTIONS = [
     'users','menu_items','sales','finance','tables','kitchen_orders','z_reports','inventory','ingredients','customers','recipes','happy_hours','refunds','settings','notifications','business_profile','logs'
   ];
+
+  const clearLocalRestoreCache = () => {
+    if (!window.confirm(tx(
+      lang,
+      'Lokal restore/cache təmizlənsin? Bu yalnız brauzerdə qalmış lokal POS məlumatlarını silir, backend/NeonDB məlumatına toxunmur.',
+      'Очистить локальный restore/cache? Это удалит только локальные данные POS в браузере и не затронет backend/NeonDB.',
+    ))) {
+      return;
+    }
+
+    const exactKeys = new Set([
+      'ironwaves_force_local_mode',
+      'ironwaves_backend_suspended_until',
+      ...TABLE_OPTIONS,
+      'menu',
+      'system_logs',
+      'tenant_customers',
+      'business_profile',
+    ]);
+
+    const keysToRemove: string[] = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (!key) continue;
+      if (
+        exactKeys.has(key) ||
+        key.startsWith('db_') ||
+        key.startsWith(`${tenant_id}_`) ||
+        key.includes(`db_${tenant_id}_`)
+      ) {
+        keysToRemove.push(key);
+      }
+    }
+
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+    clearDBCache();
+    setForceLocalMode(false);
+    setForceLocalModeState(false);
+    notify('success', tx(
+      lang,
+      `${keysToRemove.length} lokal cache açarı təmizləndi. Səhifə yenilənir...`,
+      `Очищено локальных ключей cache: ${keysToRemove.length}. Страница обновляется...`,
+    ));
+    window.setTimeout(() => window.location.reload(), 500);
+  };
 
   const yieldToUi = () => new Promise<void>((resolve) => window.setTimeout(resolve, 0));
 
@@ -171,8 +216,9 @@ export default function DatabasePanel() {
           body: { password: normalized },
         });
         if (result?.success) return true;
-      } catch {
-        // Backend verify alınmasa local fallback-ə düşürük.
+        return false;
+      } catch (error) {
+        throw new Error(getErrorMessage(error, 'Admin şifrəsi backenddə yoxlanmadı', 'Пароль администратора не проверен на backend'));
       }
     }
 
@@ -195,6 +241,22 @@ export default function DatabasePanel() {
       if (isMatch) return true;
     }
     return false;
+  };
+
+  const confirmRestoreWithPassword = async () => {
+    try {
+      if (!(await verifyAdminPassword())) {
+        notify('error', tx(lang, 'Şifrə yanlışdır', 'Неверный пароль'));
+        return;
+      }
+      if (pendingFile) void runRestore(pendingFile, restoreTables);
+      setPendingFile(null);
+      setShowModuleSelection(false);
+      setShowPasswordPrompt(false);
+      setAdminPassword('');
+    } catch (error) {
+      notify('error', error instanceof Error ? error.message : tx(lang, 'Admin şifrəsi yoxlanmadı', 'Пароль администратора не проверен'));
+    }
   };
 
   return (
@@ -280,15 +342,7 @@ export default function DatabasePanel() {
               onChange={(e) => setAdminPassword(e.target.value)}
               onKeyDown={async (e) => {
                 if (e.key === 'Enter') {
-                  if (!(await verifyAdminPassword())) {
-                    notify('error', tx(lang, 'Şifrə yanlışdır', 'Неверный пароль'));
-                    return;
-                  }
-                  if (pendingFile) void runRestore(pendingFile, restoreTables);
-                  setPendingFile(null);
-                  setShowModuleSelection(false);
-                  setShowPasswordPrompt(false);
-                  setAdminPassword('');
+                  await confirmRestoreWithPassword();
                 }
               }}
               placeholder={tx(lang, 'Admin şifrəsi', 'Пароль администратора')}
@@ -305,17 +359,7 @@ export default function DatabasePanel() {
               </button>
               <button
                 className="glossy-gold rounded-lg px-4 py-2 font-semibold"
-                onClick={async () => {
-                  if (!(await verifyAdminPassword())) {
-                    notify('error', tx(lang, 'Şifrə yanlışdır', 'Неверный пароль'));
-                    return;
-                  }
-                  if (pendingFile) void runRestore(pendingFile, restoreTables);
-                  setPendingFile(null);
-                  setShowModuleSelection(false);
-                  setShowPasswordPrompt(false);
-                  setAdminPassword('');
-                }}
+                onClick={confirmRestoreWithPassword}
               >
                 {tx(lang, 'Bərpanı Təsdiqlə', 'Подтвердить восстановление')}
               </button>
@@ -344,6 +388,13 @@ export default function DatabasePanel() {
         <p className="mt-2 text-sm text-slate-300">
           {tx(lang, 'Bu panel yalnız backup/restore üçündür. Ayarlar panelindən ayrıdır.', 'Эта панель только для backup/restore. Она отделена от панели настроек.')}
         </p>
+        <div className="mt-4 rounded-xl border border-sky-400/30 bg-sky-950/30 p-4 text-sm text-sky-100">
+          {tx(
+            lang,
+            'Canlı restoran rejimində restore yalnız backend/NeonDB uğurla yazanda tamamlanır. Backend xətası olarsa bərpa lokala düşməyəcək.',
+            'В live-режиме restore завершается только после успешной записи в backend/NeonDB. При ошибке backend восстановление не будет записано локально.',
+          )}
+        </div>
 
         {forceLocalMode && (
           <div className="mt-4 rounded-xl border border-yellow-300/40 bg-yellow-900/20 p-4 text-sm text-yellow-100">
@@ -367,6 +418,25 @@ export default function DatabasePanel() {
             </button>
           </div>
         )}
+
+        <div className="mt-4 rounded-xl border border-red-300/30 bg-red-950/20 p-4 text-sm text-red-50">
+          <div className="font-semibold">
+            {tx(lang, 'Donma varsa: lokal restore/cache təmizlə', 'Если система зависает: очистите локальный restore/cache')}
+          </div>
+          <p className="mt-1 text-xs text-red-50/85">
+            {tx(
+              lang,
+              'Əvvəlki uğursuz restore brauzer yaddaşını şişirdibsə, bu düymə yalnız lokal POS cache-ni silir və sistemi yenidən backend rejiminə qaytarır.',
+              'Если старый неудачный restore раздул память браузера, эта кнопка удалит только локальный POS cache и вернет систему в backend-режим.',
+            )}
+          </p>
+          <button
+            className="mt-3 rounded-lg border border-red-200/40 bg-red-500/20 px-3 py-2 text-xs font-semibold text-red-50 hover:bg-red-500/30"
+            onClick={clearLocalRestoreCache}
+          >
+            {tx(lang, 'Lokal restore/cache təmizlə', 'Очистить локальный restore/cache')}
+          </button>
+        </div>
 
         <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
           <button onClick={handleBackup} className="glossy-gold rounded-xl px-4 py-3 font-bold inline-flex items-center justify-center gap-2">
