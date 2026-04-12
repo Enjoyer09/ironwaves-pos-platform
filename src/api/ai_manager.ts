@@ -3,10 +3,12 @@ import { getDB, setDB } from '../lib/db_sim';
 import { logEvent } from '../lib/logger';
 import { Settings } from '../types/pos';
 import { get_sales_summary, get_product_stats, get_sales_list, get_staff_performance } from './analytics';
-import { get_balance, get_finance_entries, get_investor_summary } from './finance';
+import { get_balance, get_finance_anomalies, get_finance_entries, get_investor_summary } from './finance';
 import { get_inventory_items, get_low_stock_items } from './inventory';
 import { getActiveTenantId } from '../lib/tenant';
 import { readScopedStorage } from '../lib/storage_keys';
+import { get_kitchen_orders } from './kds';
+import { get_tables } from './tables';
 
 const defaultTenant = () => getActiveTenantId();
 
@@ -38,6 +40,23 @@ export type AiInsightResult = {
   narrative: string;
 };
 
+export type AiDecisionPhase = 'manager' | 'anomaly' | 'finance' | 'inventory' | 'sales';
+export type AiDecisionSeverity = 'critical' | 'warning' | 'opportunity' | 'info' | 'good';
+export type AiDecisionModule = 'dashboard' | 'finance' | 'inventory' | 'tables' | 'crm' | 'ai' | 'analytics';
+
+export type AiDecisionInsight = {
+  id: string;
+  phase: AiDecisionPhase;
+  severity: AiDecisionSeverity;
+  title: string;
+  body: string;
+  action_label: string;
+  module: AiDecisionModule;
+  score: number;
+  metric?: string;
+  evidence: string[];
+};
+
 const money = (value: Decimal.Value) => `${new Decimal(value || 0).toDecimalPlaces(2).toString()} ₼`;
 
 const pct = (value: Decimal.Value) => `${new Decimal(value || 0).toDecimalPlaces(1).toString()}%`;
@@ -54,6 +73,319 @@ const getSettingsLocal = (tenantId: string) => {
 };
 
 const lines = (items: string[]) => items.filter(Boolean).map((item) => `• ${item}`).join('\n');
+
+const severityRank: Record<AiDecisionSeverity, number> = {
+  critical: 5,
+  warning: 4,
+  opportunity: 3,
+  info: 2,
+  good: 1,
+};
+
+const normalizeAiText = (value: unknown) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/[ə]/g, 'e')
+    .replace(/[ı]/g, 'i')
+    .replace(/[ö]/g, 'o')
+    .replace(/[ü]/g, 'u')
+    .replace(/[ç]/g, 'c')
+    .replace(/[ş]/g, 's')
+    .replace(/[ğ]/g, 'g');
+
+const inRange = (createdAt: unknown, dateFrom: string, dateTo: string) => {
+  const current = new Date(String(createdAt || '')).getTime();
+  return Number.isFinite(current) && current >= new Date(dateFrom).getTime() && current <= new Date(dateTo).getTime();
+};
+
+const previousRange = (dateFrom: string, dateTo: string) => {
+  const from = new Date(dateFrom);
+  const to = new Date(dateTo);
+  const duration = Math.max(24 * 60 * 60 * 1000, to.getTime() - from.getTime());
+  const previousTo = new Date(from.getTime() - 1);
+  const previousFrom = new Date(previousTo.getTime() - duration);
+  return {
+    date_from: previousFrom.toISOString(),
+    date_to: previousTo.toISOString(),
+  };
+};
+
+export function generate_ai_insight_engine(payload: {
+  tenant_id?: string;
+  date_from: string;
+  date_to: string;
+  max_items?: number;
+}): AiDecisionInsight[] {
+  const tenantId = payload.tenant_id || defaultTenant();
+  const maxItems = Math.max(1, Number(payload.max_items || 12));
+  const summary = get_sales_summary(tenantId, payload.date_from, payload.date_to);
+  const previous = previousRange(payload.date_from, payload.date_to);
+  const previousSummary = get_sales_summary(tenantId, previous.date_from, previous.date_to);
+  const sales = get_sales_list(tenantId, payload.date_from, payload.date_to);
+  const staff = get_staff_performance(tenantId, payload.date_from, payload.date_to);
+  const topProducts = get_product_stats(tenantId, payload.date_from, payload.date_to).slice(0, 5);
+  const balances = get_balance(tenantId, 'all', false) as any;
+  const investor = get_investor_summary(tenantId);
+  const anomalies = get_finance_anomalies(tenantId);
+  const financeEntries = get_finance_entries(tenantId).filter((row: any) => inRange(row.created_at, payload.date_from, payload.date_to));
+  const inventory = get_inventory_items(tenantId);
+  const lowStock = get_low_stock_items(tenantId, 5);
+  const kitchenOrders = get_kitchen_orders(tenantId);
+  const tables = get_tables(tenantId);
+  const customers = getCustomersLocal(tenantId);
+  const insights: AiDecisionInsight[] = [];
+
+  const push = (item: AiDecisionInsight) => insights.push(item);
+  const revenue = new Decimal(summary.total_revenue || 0);
+  const prevRevenue = new Decimal(previousSummary.total_revenue || 0);
+  const salesCount = sales.filter((sale: any) => String(sale.status || '').toUpperCase() !== 'VOIDED').length;
+  const avgTicket = salesCount ? revenue.div(salesCount) : new Decimal(0);
+  const trendPct = prevRevenue.gt(0) ? revenue.minus(prevRevenue).div(prevRevenue).mul(100) : new Decimal(0);
+  const activeTables = tables.filter((table: any) => Boolean(table.is_occupied) || ['SEATED', 'ACTIVE_CHECK'].includes(String(table.status || '').toUpperCase()));
+  const openChecks = activeTables.filter((table: any) => new Decimal(table.total || 0).gt(0));
+  const now = Date.now();
+  const delayedKitchen = kitchenOrders.filter((order: any) => {
+    const status = String(order.status || '').toUpperCase();
+    if (!['NEW', 'SENT', 'PREPARING', 'IN_PREP'].includes(status)) return false;
+    const created = new Date(String(order.created_at || '')).getTime();
+    return Number.isFinite(created) && now - created > 20 * 60 * 1000;
+  });
+  const voidCount = Number(summary.void_count || 0);
+  const voidRate = salesCount ? new Decimal(voidCount).div(salesCount).mul(100) : new Decimal(0);
+
+  push({
+    id: 'manager-daily-pulse',
+    phase: 'manager',
+    severity: trendPct.lt(-15) ? 'warning' : trendPct.gt(10) ? 'good' : 'info',
+    title: 'AI Menecer baxışı',
+    body: `Satış ${money(revenue)}, orta çek ${money(avgTicket)}, aktiv masa ${activeTables.length}. Trend ${prevRevenue.gt(0) ? pct(trendPct) : 'müqayisə üçün data azdır'}.`,
+    action_label: trendPct.lt(-15) ? 'Satış səbəbini yoxla' : 'Dashboard-da izləməyə davam et',
+    module: trendPct.lt(-15) ? 'analytics' : 'dashboard',
+    score: trendPct.lt(-15) ? 82 : 45,
+    metric: money(revenue),
+    evidence: [
+      `Açıq check: ${openChecks.length}`,
+      `Keçmiş period satış: ${money(prevRevenue)}`,
+      `Top məhsul: ${topProducts[0]?.item_name || 'hələ yoxdur'}`,
+    ],
+  });
+
+  if (delayedKitchen.length > 0) {
+    push({
+      id: 'anomaly-kitchen-delay',
+      phase: 'anomaly',
+      severity: 'critical',
+      title: 'Mətbəx gecikməsi var',
+      body: `${delayedKitchen.length} sifariş 20 dəqiqədən çox aktiv qalır. Müştəri narazılığı və remake riski artır.`,
+      action_label: 'Mətbəxi yoxla',
+      module: 'tables',
+      score: 96,
+      metric: `${delayedKitchen.length} sifariş`,
+      evidence: delayedKitchen.slice(0, 3).map((order: any) => `${order.table_label || order.table || 'Masa'} · ${order.status || 'aktiv'}`),
+    });
+  }
+
+  if (voidRate.gt(5) || voidCount >= 3) {
+    push({
+      id: 'anomaly-void-rate',
+      phase: 'anomaly',
+      severity: voidRate.gt(10) ? 'critical' : 'warning',
+      title: 'VOID / ləğv nisbəti yüksəkdir',
+      body: `${voidCount} VOID əməliyyatı var. Bu, səhv sifariş, təlim ehtiyacı və ya sui-istifadə siqnalı ola bilər.`,
+      action_label: 'Auditə bax',
+      module: 'analytics',
+      score: voidRate.gt(10) ? 94 : 78,
+      metric: pct(voidRate),
+      evidence: [`Satış sayı: ${salesCount}`, `VOID sayı: ${voidCount}`, `VOID nisbəti: ${pct(voidRate)}`],
+    });
+  }
+
+  const highDiscountStaff = staff
+    .map((row: any) => ({
+      cashier: row.cashier,
+      discount: new Decimal(row.discount_total || 0),
+      revenue: new Decimal(row.total_revenue || 0),
+    }))
+    .filter((row) => row.discount.gt(0) && row.revenue.gt(0) && row.discount.div(row.revenue).mul(100).gt(8))
+    .sort((a, b) => b.discount.cmp(a.discount));
+  if (highDiscountStaff.length > 0) {
+    const first = highDiscountStaff[0];
+    push({
+      id: 'anomaly-discount-staff',
+      phase: 'anomaly',
+      severity: 'warning',
+      title: 'Endirim davranışı yoxlanmalıdır',
+      body: `${first.cashier} üzrə endirim/satış nisbəti normadan yüksək görünür.`,
+      action_label: 'Staff performansına bax',
+      module: 'analytics',
+      score: 76,
+      metric: money(first.discount),
+      evidence: highDiscountStaff.slice(0, 3).map((row) => `${row.cashier}: ${money(row.discount)} endirim`),
+    });
+  }
+
+  if (anomalies.has_reconciliation_issue || anomalies.has_shift_cash_mismatch) {
+    push({
+      id: 'finance-reconciliation-gap',
+      phase: 'finance',
+      severity: 'critical',
+      title: 'Maliyyə uyğunlaşdırma fərqi',
+      body: `Kassa/satış/ledger tərəfində fərq görünür. Bu bağlanmadan gün sonu hesabatına keçmək risklidir.`,
+      action_label: 'Maliyyəni aç',
+      module: 'finance',
+      score: 98,
+      metric: money(anomalies.shift_cash_gap || anomalies.reconciliation_gap || 0),
+      evidence: [
+        `Kassa fərqi: ${money(anomalies.shift_cash_gap || 0)}`,
+        `Satış-ledger fərqi: ${money(anomalies.reconciliation_gap || 0)}`,
+      ],
+    });
+  }
+
+  if (new Decimal(investor.debt_remaining || 0).gt(0) || new Decimal(balances.investor_balance || 0).gt(0)) {
+    push({
+      id: 'finance-investor-debt',
+      phase: 'finance',
+      severity: 'warning',
+      title: 'Investor borcu izlənməlidir',
+      body: `Qalan investor borcu ${money(investor.debt_remaining || balances.investor_balance || 0)} görünür. Ödəniş planı və ledger uyğunluğu yoxlanmalıdır.`,
+      action_label: 'Investor tabına bax',
+      module: 'finance',
+      score: 74,
+      metric: money(investor.debt_remaining || balances.investor_balance || 0),
+      evidence: [
+        `Ledger investor balansı: ${money(balances.investor_balance || 0)}`,
+        `Hesablanmış borc: ${money(investor.debt_remaining || 0)}`,
+      ],
+    });
+  }
+
+  if (new Decimal(balances.cash_balance || 0).lt(0)) {
+    push({
+      id: 'finance-negative-cash',
+      phase: 'finance',
+      severity: 'critical',
+      title: 'Nağd kassa mənfidədir',
+      body: 'Nağd balans mənfi görünür. Bu, səhv mənbə seçimi, transfer yazılmaması və ya kassa fərqi ola bilər.',
+      action_label: 'Kassanı yoxla',
+      module: 'finance',
+      score: 99,
+      metric: money(balances.cash_balance || 0),
+      evidence: [`Nağd balans: ${money(balances.cash_balance || 0)}`, `Seyf: ${money(balances.safe_balance || 0)}`],
+    });
+  }
+
+  const wrongFinanceRows = financeEntries.filter((row: any) => {
+    const category = normalizeAiText(row.category);
+    const type = String(row.type || '').toLowerCase();
+    const looksExpense = ['xammal', 'maas', 'icar', 'kommunal', 'xer', 'cerime'].some((token) => category.includes(token));
+    const looksIncome = ['satis', 'medaxil', 'giris', 'investis', 'borc al'].some((token) => category.includes(token));
+    return (type === 'in' && looksExpense) || (type === 'out' && looksIncome);
+  });
+  if (wrongFinanceRows.length > 0) {
+    push({
+      id: 'finance-category-direction',
+      phase: 'finance',
+      severity: 'warning',
+      title: 'Maliyyə kateqoriyası şübhəlidir',
+      body: `${wrongFinanceRows.length} əməliyyatda kateqoriya ilə mədaxil/məxaric istiqaməti uyğun görünmür.`,
+      action_label: 'Jurnalı aç',
+      module: 'finance',
+      score: 81,
+      metric: `${wrongFinanceRows.length} sətir`,
+      evidence: wrongFinanceRows.slice(0, 3).map((row: any) => `${row.category || '-'} · ${row.type || '-'}`),
+    });
+  }
+
+  if (lowStock.length > 0) {
+    push({
+      id: 'inventory-low-stock',
+      phase: 'inventory',
+      severity: lowStock.length >= 3 ? 'critical' : 'warning',
+      title: 'Kritik stok siyahısı var',
+      body: `${lowStock.length} xammal minimum limitə çatıb və ya keçib. Satış tempinə görə öncəlik verilməlidir.`,
+      action_label: 'Anbara keç',
+      module: 'inventory',
+      score: lowStock.length >= 3 ? 92 : 78,
+      metric: `${lowStock.length} məhsul`,
+      evidence: lowStock.slice(0, 4).map((row: any) => `${row.name}: ${row.stock_qty} ${row.unit}`),
+    });
+  }
+
+  const topProductNames = new Set(topProducts.map((row: any) => normalizeAiText(row.item_name)));
+  const inventoryNames = inventory.map((row: any) => normalizeAiText(row.name));
+  const missingRecipeSignals = topProducts.filter((row: any) => {
+    const normalized = normalizeAiText(row.item_name);
+    return normalized && topProductNames.has(normalized) && !inventoryNames.some((name) => normalized.includes(name) || name.includes(normalized));
+  });
+  if (missingRecipeSignals.length > 0 && inventory.length > 0) {
+    push({
+      id: 'inventory-recipe-link',
+      phase: 'inventory',
+      severity: 'opportunity',
+      title: 'Top məhsul üçün resept/stok bağlantısını yoxla',
+      body: `${missingRecipeSignals[0].item_name} çox satılır, amma anbar bağlantısı aydın görünmür. Resept xərcini yoxlamaq faydalıdır.`,
+      action_label: 'Reseptləri yoxla',
+      module: 'inventory',
+      score: 61,
+      metric: `${missingRecipeSignals[0].total_qty} satış`,
+      evidence: missingRecipeSignals.slice(0, 3).map((row: any) => `${row.item_name}: ${row.total_qty}`),
+    });
+  }
+
+  if (avgTicket.gt(0) && avgTicket.lt(8)) {
+    push({
+      id: 'sales-low-avg-ticket',
+      phase: 'sales',
+      severity: 'opportunity',
+      title: 'Orta çek artırıla bilər',
+      body: `Orta çek ${money(avgTicket)} səviyyəsindədir. POS-da combo, əlavə içki və desert təklifi satışa tez təsir edə bilər.`,
+      action_label: 'POS təkliflərini qur',
+      module: 'ai',
+      score: 66,
+      metric: money(avgTicket),
+      evidence: [
+        `Satış sayı: ${salesCount}`,
+        `Top məhsul: ${topProducts[0]?.item_name || 'yoxdur'}`,
+        `Aktiv müştəri bazası: ${customers.length}`,
+      ],
+    });
+  }
+
+  if (customers.length > 0 && topProducts.length > 0) {
+    push({
+      id: 'sales-crm-campaign',
+      phase: 'sales',
+      severity: 'opportunity',
+      title: 'CRM kampaniyası üçün hazır siqnal',
+      body: `${topProducts[0].item_name} ən aktiv məhsuldur. Müştəri bazasına qısa kampaniya hazırlamaq olar.`,
+      action_label: 'Kampaniya yaz',
+      module: 'crm',
+      score: 58,
+      metric: `${customers.length} müştəri`,
+      evidence: [`Fokus məhsul: ${topProducts[0].item_name}`, `Müştəri sayı: ${customers.length}`],
+    });
+  }
+
+  if (insights.length === 1 && !delayedKitchen.length && !lowStock.length && !anomalies.has_reconciliation_issue) {
+    push({
+      id: 'manager-stable-system',
+      phase: 'manager',
+      severity: 'good',
+      title: 'Sistem stabil görünür',
+      body: 'Kritik kassa, mətbəx və stok siqnalı görünmür. Fokus satış artımı və staff performansında qala bilər.',
+      action_label: 'Analitikaya bax',
+      module: 'analytics',
+      score: 30,
+      metric: 'Stabil',
+      evidence: [`Aktiv masa: ${activeTables.length}`, `Kritik stok: ${lowStock.length}`, `Gecikən mətbəx: ${delayedKitchen.length}`],
+    });
+  }
+
+  return insights
+    .sort((a, b) => (severityRank[b.severity] - severityRank[a.severity]) || b.score - a.score)
+    .slice(0, maxItems);
+}
 
 export async function analyze_business(payload: { date_from: string; date_to: string; custom_question?: string; tenant_id?: string }) {
   const tenantId = payload.tenant_id || defaultTenant();
