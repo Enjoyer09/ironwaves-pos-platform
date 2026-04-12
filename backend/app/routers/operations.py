@@ -79,6 +79,24 @@ DEFAULT_Z_REPORT_RECEIPT_SETTINGS = {
     "show_counts": True,
 }
 
+POS_RIGHT_WIDGET_KEYS = ["customer", "discount", "orderType", "table", "cartItems", "cartSummary", "payments"]
+POS_LEFT_WIDGET_KEYS = ["menuHeader", "search", "categories", "productGrid"]
+POS_REQUIRED_RIGHT_WIDGETS = ["cartItems", "cartSummary", "payments"]
+POS_REQUIRED_LEFT_WIDGETS = ["productGrid"]
+
+
+def _ensure_known_widget_order(raw, fallback, allowed):
+    preferred = raw if isinstance(raw, list) else []
+    merged = [str(v or "").strip() for v in [*preferred, *(fallback or []), *allowed] if str(v or "").strip()]
+    seen = set()
+    ordered = []
+    for key in merged:
+        if key not in allowed or key in seen:
+            continue
+        seen.add(key)
+        ordered.append(key)
+    return ordered
+
 
 def _restaurant_now() -> datetime:
     if ZoneInfo:
@@ -780,16 +798,34 @@ def update_pos_layout_draft_settings(
             product_columns_value = int(source.get("product_columns", base.get("product_columns", 3)) or 3)
         except Exception:
             product_columns_value = 3
-        return {
+        widget_order = _ensure_known_widget_order(
+            source.get("widget_order"),
+            base.get("widget_order") or POS_RIGHT_WIDGET_KEYS,
+            POS_RIGHT_WIDGET_KEYS,
+        )
+        left_widget_order = _ensure_known_widget_order(
+            source.get("left_widget_order"),
+            base.get("left_widget_order") or POS_LEFT_WIDGET_KEYS,
+            POS_LEFT_WIDGET_KEYS,
+        )
+        cleaned = {
             "preset": preset_value if preset_value in {"classic", "fast", "touch", "tables"} else "classic",
             "density": density_value if density_value in {"compact", "comfortable", "large"} else "comfortable",
             "product_columns": product_columns_value if product_columns_value in {2, 3, 4} else 3,
             "show_cart_tabs": bool(source.get("show_cart_tabs", base.get("show_cart_tabs", True))),
             "accent_color": str(source.get("accent_color") or base.get("accent_color") or "").strip() or "#facc15",
-            "hidden_widgets": [str(v or "").strip() for v in (source.get("hidden_widgets") or base.get("hidden_widgets") or []) if str(v or "").strip()],
-            "widget_order": [str(v or "").strip() for v in (source.get("widget_order") or base.get("widget_order") or []) if str(v or "").strip()],
-            "left_hidden_widgets": [str(v or "").strip() for v in (source.get("left_hidden_widgets") or base.get("left_hidden_widgets") or []) if str(v or "").strip()],
-            "left_widget_order": [str(v or "").strip() for v in (source.get("left_widget_order") or base.get("left_widget_order") or ["menuHeader", "search", "categories", "productGrid"]) if str(v or "").strip()],
+            "hidden_widgets": [
+                key
+                for key in [str(v or "").strip() for v in (source.get("hidden_widgets") or base.get("hidden_widgets") or []) if str(v or "").strip()]
+                if key in POS_RIGHT_WIDGET_KEYS and key not in POS_REQUIRED_RIGHT_WIDGETS
+            ],
+            "widget_order": widget_order,
+            "left_hidden_widgets": [
+                key
+                for key in [str(v or "").strip() for v in (source.get("left_hidden_widgets") or base.get("left_hidden_widgets") or []) if str(v or "").strip()]
+                if key in POS_LEFT_WIDGET_KEYS and key not in POS_REQUIRED_LEFT_WIDGETS
+            ],
+            "left_widget_order": left_widget_order,
             "widget_sizes": {
                 str(k): (str(v).strip().lower() if str(v).strip().lower() in {"compact", "comfortable", "expanded"} else "comfortable")
                 for k, v in dict(source.get("widget_sizes") or base.get("widget_sizes") or {}).items()
@@ -800,17 +836,19 @@ def update_pos_layout_draft_settings(
                 for k, v in dict(source.get("left_widget_sizes") or base.get("left_widget_sizes") or {}).items()
                 if str(k or "").strip()
             },
-            "role_overrides": {
-                "staff": _clean_layout(source.get("role_overrides", {}).get("staff") or {}, base) if (source.get("role_overrides") or {}).get("staff") else {},
-                "manager": _clean_layout(source.get("role_overrides", {}).get("manager") or {}, base) if (source.get("role_overrides") or {}).get("manager") else {},
-            },
         }
+        role_overrides = source.get("role_overrides") or {}
+        cleaned["role_overrides"] = {
+            "staff": _clean_layout(role_overrides.get("staff") or {}, cleaned) if role_overrides.get("staff") else {},
+            "manager": _clean_layout(role_overrides.get("manager") or {}, cleaned) if role_overrides.get("manager") else {},
+        }
+        device_layouts = source.get("device_layouts") or {}
+        cleaned["device_layouts"] = {
+            "desktop": _clean_layout(device_layouts.get("desktop") or {}, cleaned) if device_layouts.get("desktop") else {},
+            "tablet": _clean_layout(device_layouts.get("tablet") or {}, cleaned) if device_layouts.get("tablet") else {},
+        }
+        return cleaned
     cleaned = _clean_layout(payload)
-    device_layouts = payload.get("device_layouts") or {}
-    cleaned["device_layouts"] = {
-        "desktop": _clean_layout(device_layouts.get("desktop") or {}, cleaned) if device_layouts.get("desktop") else {},
-        "tablet": _clean_layout(device_layouts.get("tablet") or {}, cleaned) if device_layouts.get("tablet") else {},
-    }
     _set_setting_value(db, tenant.id, "pos_layout_draft", cleaned)
     db.commit()
     return {"success": True}
@@ -1115,16 +1153,34 @@ def update_pos_layout_settings(
             product_columns_value = int(source.get("product_columns", base.get("product_columns", 3)) or 3)
         except Exception:
             product_columns_value = 3
-        return {
+        widget_order = _ensure_known_widget_order(
+            source.get("widget_order"),
+            base.get("widget_order") or POS_RIGHT_WIDGET_KEYS,
+            POS_RIGHT_WIDGET_KEYS,
+        )
+        left_widget_order = _ensure_known_widget_order(
+            source.get("left_widget_order"),
+            base.get("left_widget_order") or POS_LEFT_WIDGET_KEYS,
+            POS_LEFT_WIDGET_KEYS,
+        )
+        cleaned = {
             "preset": preset_value if preset_value in {"classic", "fast", "touch", "tables"} else "classic",
             "density": density_value if density_value in {"compact", "comfortable", "large"} else "comfortable",
             "product_columns": product_columns_value if product_columns_value in {2, 3, 4} else 3,
             "show_cart_tabs": bool(source.get("show_cart_tabs", base.get("show_cart_tabs", True))),
             "accent_color": str(source.get("accent_color") or base.get("accent_color") or "").strip() or "#facc15",
-            "hidden_widgets": [str(v or "").strip() for v in (source.get("hidden_widgets") or base.get("hidden_widgets") or []) if str(v or "").strip()],
-            "widget_order": [str(v or "").strip() for v in (source.get("widget_order") or base.get("widget_order") or []) if str(v or "").strip()],
-            "left_hidden_widgets": [str(v or "").strip() for v in (source.get("left_hidden_widgets") or base.get("left_hidden_widgets") or []) if str(v or "").strip()],
-            "left_widget_order": [str(v or "").strip() for v in (source.get("left_widget_order") or base.get("left_widget_order") or ["menuHeader", "search", "categories", "productGrid"]) if str(v or "").strip()],
+            "hidden_widgets": [
+                key
+                for key in [str(v or "").strip() for v in (source.get("hidden_widgets") or base.get("hidden_widgets") or []) if str(v or "").strip()]
+                if key in POS_RIGHT_WIDGET_KEYS and key not in POS_REQUIRED_RIGHT_WIDGETS
+            ],
+            "widget_order": widget_order,
+            "left_hidden_widgets": [
+                key
+                for key in [str(v or "").strip() for v in (source.get("left_hidden_widgets") or base.get("left_hidden_widgets") or []) if str(v or "").strip()]
+                if key in POS_LEFT_WIDGET_KEYS and key not in POS_REQUIRED_LEFT_WIDGETS
+            ],
+            "left_widget_order": left_widget_order,
             "widget_sizes": {
                 str(k): (str(v).strip().lower() if str(v).strip().lower() in {"compact", "comfortable", "expanded"} else "comfortable")
                 for k, v in dict(source.get("widget_sizes") or base.get("widget_sizes") or {}).items()
@@ -1135,14 +1191,22 @@ def update_pos_layout_settings(
                 for k, v in dict(source.get("left_widget_sizes") or base.get("left_widget_sizes") or {}).items()
                 if str(k or "").strip()
             },
+            "role_overrides": {},
+            "device_layouts": {},
         }
+        role_overrides = source.get("role_overrides") or {}
+        cleaned["role_overrides"] = {
+            "staff": _clean_layout(role_overrides.get("staff") or {}, cleaned) if role_overrides.get("staff") else {},
+            "manager": _clean_layout(role_overrides.get("manager") or {}, cleaned) if role_overrides.get("manager") else {},
+        }
+        device_layouts = source.get("device_layouts") or {}
+        cleaned["device_layouts"] = {
+            "desktop": _clean_layout(device_layouts.get("desktop") or {}, cleaned) if device_layouts.get("desktop") else {},
+            "tablet": _clean_layout(device_layouts.get("tablet") or {}, cleaned) if device_layouts.get("tablet") else {},
+        }
+        return cleaned
 
     cleaned = _clean_layout(payload)
-    device_layouts = payload.get("device_layouts") or {}
-    cleaned["device_layouts"] = {
-        "desktop": _clean_layout(device_layouts.get("desktop") or {}, cleaned) if device_layouts.get("desktop") else {},
-        "tablet": _clean_layout(device_layouts.get("tablet") or {}, cleaned) if device_layouts.get("tablet") else {},
-    }
     _set_setting_value(db, tenant.id, "pos_layout", cleaned)
     db.commit()
     return {"success": True}

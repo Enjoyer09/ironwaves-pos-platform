@@ -39,6 +39,90 @@ const DEFAULT_POS_LAYOUT: PosLayoutConfig = {
   },
 };
 
+const POS_RIGHT_WIDGET_KEYS = ['customer', 'discount', 'orderType', 'table', 'cartItems', 'cartSummary', 'payments'] as const;
+const POS_LEFT_WIDGET_KEYS = ['menuHeader', 'search', 'categories', 'productGrid'] as const;
+const POS_REQUIRED_RIGHT_WIDGETS = ['cartItems', 'cartSummary', 'payments'] as const;
+const POS_REQUIRED_LEFT_WIDGETS = ['productGrid'] as const;
+
+function ensureKnownWidgetOrder(
+  raw: any,
+  fallback: readonly string[],
+  allowed: readonly string[],
+): string[] {
+  const preferred = Array.isArray(raw) ? raw : [];
+  const merged = [...preferred, ...fallback, ...allowed].map((v) => String(v || '').trim()).filter(Boolean);
+  const seen = new Set<string>();
+  return merged.filter((key) => {
+    if (!allowed.includes(key as any) || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizePosLayoutConfig(source: any, fallback?: Partial<PosLayoutConfig>): PosLayoutConfig {
+  const base = fallback || {};
+  const widget_order = ensureKnownWidgetOrder(
+    source?.widget_order,
+    ((base.widget_order as string[] | undefined) || DEFAULT_POS_LAYOUT.widget_order),
+    POS_RIGHT_WIDGET_KEYS,
+  );
+  const left_widget_order = ensureKnownWidgetOrder(
+    source?.left_widget_order,
+    ((base.left_widget_order as string[] | undefined) || DEFAULT_POS_LAYOUT.left_widget_order || []),
+    POS_LEFT_WIDGET_KEYS,
+  );
+  const hidden_widgets = Array.from(
+    new Set(((source?.hidden_widgets) || (base.hidden_widgets as string[] | undefined) || []).map((v: any) => String(v || '').trim()).filter(Boolean)),
+  )
+    .filter((key) => POS_RIGHT_WIDGET_KEYS.includes(key as any))
+    .filter((key) => !POS_REQUIRED_RIGHT_WIDGETS.includes(key as any));
+  const left_hidden_widgets = Array.from(
+    new Set(((source?.left_hidden_widgets) || (base.left_hidden_widgets as string[] | undefined) || []).map((v: any) => String(v || '').trim()).filter(Boolean)),
+  )
+    .filter((key) => POS_LEFT_WIDGET_KEYS.includes(key as any))
+    .filter((key) => !POS_REQUIRED_LEFT_WIDGETS.includes(key as any));
+
+  const cleaned: PosLayoutConfig = {
+    preset: source?.preset === 'fast' || source?.preset === 'touch' || source?.preset === 'tables' ? source.preset : (base.preset === 'fast' || base.preset === 'touch' || base.preset === 'tables' ? base.preset : 'classic'),
+    density: source?.density === 'compact' || source?.density === 'large' ? source.density : (base.density === 'compact' || base.density === 'large' ? base.density : 'comfortable'),
+    product_columns: source?.product_columns === 2 || source?.product_columns === 4 ? source.product_columns : (base.product_columns === 2 || base.product_columns === 4 ? base.product_columns : 3),
+    show_cart_tabs: source?.show_cart_tabs !== false,
+    accent_color: String(source?.accent_color || base.accent_color || '').trim() || '#facc15',
+    hidden_widgets,
+    widget_order,
+    left_hidden_widgets,
+    left_widget_order,
+    widget_sizes: Object.fromEntries(
+      Object.entries(source?.widget_sizes || base.widget_sizes || {}).map(([key, value]) => [
+        String(key),
+        value === 'compact' || value === 'expanded' ? value : 'comfortable',
+      ]),
+    ) as Record<string, 'compact' | 'comfortable' | 'expanded'>,
+    left_widget_sizes: Object.fromEntries(
+      Object.entries(source?.left_widget_sizes || base.left_widget_sizes || {}).map(([key, value]) => [
+        String(key),
+        value === 'compact' || value === 'expanded' ? value : 'comfortable',
+      ]),
+    ) as Record<string, 'compact' | 'comfortable' | 'expanded'>,
+    role_overrides: {
+      staff: source?.role_overrides?.staff ? normalizePosLayoutConfig(source.role_overrides.staff, base) : {},
+      manager: source?.role_overrides?.manager ? normalizePosLayoutConfig(source.role_overrides.manager, base) : {},
+    },
+    device_layouts: {
+      desktop: {},
+      tablet: {},
+    },
+  };
+
+  const deviceLayouts = source?.device_layouts || {};
+  cleaned.device_layouts = {
+    desktop: deviceLayouts.desktop ? normalizePosLayoutConfig(deviceLayouts.desktop, cleaned) : {},
+    tablet: deviceLayouts.tablet ? normalizePosLayoutConfig(deviceLayouts.tablet, cleaned) : {},
+  };
+
+  return cleaned;
+}
+
 const DEFAULT_FINANCE_POLICY: NonNullable<Settings['finance_policy']> = {
   large_transfer_threshold_azn: 500,
   investor_repayment_requires_approval: true,
@@ -444,6 +528,9 @@ export function get_settings(tenant_id?: string) {
     s.pos_layout_draft = JSON.parse(JSON.stringify(s.pos_layout || DEFAULT_POS_LAYOUT));
     saveSettings(s);
   }
+  s.pos_layout = normalizePosLayoutConfig(s.pos_layout || DEFAULT_POS_LAYOUT, DEFAULT_POS_LAYOUT);
+  s.pos_layout_draft = normalizePosLayoutConfig(s.pos_layout_draft || s.pos_layout || DEFAULT_POS_LAYOUT, s.pos_layout || DEFAULT_POS_LAYOUT);
+  saveSettings(s);
   if (!s.pos_layout.left_hidden_widgets) {
     s.pos_layout.left_hidden_widgets = [];
     saveSettings(s);
@@ -791,41 +878,8 @@ export function update_customer_app_settings(payload: {
 }
 
 export function update_pos_layout_settings(payload: NonNullable<Settings['pos_layout']>) {
-  const normalizeLayout = (source: any) => ({
-    preset: source?.preset === 'fast' || source?.preset === 'touch' || source?.preset === 'tables' ? source.preset : 'classic',
-    density: source?.density === 'compact' || source?.density === 'large' ? source.density : 'comfortable',
-    product_columns: source?.product_columns === 2 || source?.product_columns === 4 ? source.product_columns : 3,
-    show_cart_tabs: source?.show_cart_tabs !== false,
-    accent_color: String(source?.accent_color || '').trim() || '#facc15',
-    hidden_widgets: Array.from(new Set(((source?.hidden_widgets) || []).map((v: any) => String(v || '').trim()).filter(Boolean))),
-    widget_order: Array.from(new Set(((source?.widget_order) || []).map((v: any) => String(v || '').trim()).filter(Boolean))),
-    left_hidden_widgets: Array.from(new Set(((source?.left_hidden_widgets) || []).map((v: any) => String(v || '').trim()).filter(Boolean))),
-    left_widget_order: Array.from(new Set((((source?.left_widget_order) || ['menuHeader', 'search', 'categories', 'productGrid']) as any[]).map((v: any) => String(v || '').trim()).filter(Boolean))),
-    widget_sizes: Object.fromEntries(
-      Object.entries(source?.widget_sizes || {}).map(([key, value]) => [
-        String(key),
-        value === 'compact' || value === 'expanded' ? value : 'comfortable',
-      ]),
-    ) as Record<string, 'compact' | 'comfortable' | 'expanded'>,
-    left_widget_sizes: Object.fromEntries(
-      Object.entries(source?.left_widget_sizes || {}).map(([key, value]) => [
-        String(key),
-        value === 'compact' || value === 'expanded' ? value : 'comfortable',
-      ]),
-    ) as Record<string, 'compact' | 'comfortable' | 'expanded'>,
-    role_overrides: {
-      staff: source?.role_overrides?.staff ? normalizeLayout(source.role_overrides.staff) : {},
-      manager: source?.role_overrides?.manager ? normalizeLayout(source.role_overrides.manager) : {},
-    },
-  });
   const settings = getSettings();
-  settings.pos_layout = {
-    ...normalizeLayout(payload),
-    device_layouts: {
-      desktop: payload.device_layouts?.desktop ? normalizeLayout({ ...normalizeLayout(payload), ...payload.device_layouts.desktop }) : {},
-      tablet: payload.device_layouts?.tablet ? normalizeLayout({ ...normalizeLayout(payload), ...payload.device_layouts.tablet }) : {},
-    },
-  };
+  settings.pos_layout = normalizePosLayoutConfig(payload, DEFAULT_POS_LAYOUT);
   saveSettings(settings);
   logEvent('admin', 'POS_LAYOUT_UPDATED', settings.pos_layout);
   return { success: true, pos_layout: settings.pos_layout };
@@ -833,7 +887,7 @@ export function update_pos_layout_settings(payload: NonNullable<Settings['pos_la
 
 export function update_pos_layout_draft(payload: NonNullable<Settings['pos_layout_draft']>) {
   const settings = getSettings();
-  settings.pos_layout_draft = JSON.parse(JSON.stringify(payload));
+  settings.pos_layout_draft = normalizePosLayoutConfig(payload, DEFAULT_POS_LAYOUT);
   saveSettings(settings);
   logEvent('admin', 'POS_LAYOUT_DRAFT_UPDATED', settings.pos_layout_draft);
   return { success: true, pos_layout_draft: settings.pos_layout_draft };

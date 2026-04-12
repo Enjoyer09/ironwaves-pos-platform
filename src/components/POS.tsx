@@ -190,7 +190,7 @@ export default function POS() {
   const [mobilePane, setMobilePane] = useState<'menu' | 'cart'>('menu');
   const [showMobileCheckout, setShowMobileCheckout] = useState(false);
   const [layoutRefreshKey, setLayoutRefreshKey] = useState(0);
-  const [isTabletViewport, setIsTabletViewport] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 1536 : false));
+  const [isTabletViewport, setIsTabletViewport] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 1280 : false));
   const [tableRoutingBanner, setTableRoutingBanner] = useState<{ tableId: string; tableLabel: string } | null>(null);
   const receiptIframeRef = useRef<HTMLIFrameElement | null>(null);
   const businessProfile = get_business_profile(tenantId);
@@ -226,13 +226,21 @@ export default function POS() {
     },
   };
   const posLayout = useMemo(() => {
-    const devicePatch = isTabletViewport ? basePosLayout.device_layouts?.tablet : basePosLayout.device_layouts?.desktop;
+    const stripNestedLayoutMeta = (patch: any) => {
+      if (!patch || typeof patch !== 'object') return {};
+      const { device_layouts, role_overrides, ...rest } = patch;
+      return rest;
+    };
+    const activeDeviceKey = isTabletViewport ? 'tablet' : 'desktop';
+    const devicePatch = basePosLayout.device_layouts?.[activeDeviceKey];
     const roleKey = user?.role === 'manager' ? 'manager' : user?.role === 'staff' ? 'staff' : null;
     const rolePatch = roleKey ? basePosLayout.role_overrides?.[roleKey] : null;
+    const roleDevicePatch = rolePatch?.device_layouts?.[activeDeviceKey];
     return {
       ...basePosLayout,
-      ...(devicePatch || {}),
-      ...(rolePatch || {}),
+      ...stripNestedLayoutMeta(devicePatch),
+      ...stripNestedLayoutMeta(rolePatch),
+      ...stripNestedLayoutMeta(roleDevicePatch),
     };
   }, [basePosLayout, isTabletViewport, user?.role]);
 
@@ -282,7 +290,7 @@ export default function POS() {
   }, [tenantId, ctx.selectedTable, activeCart]);
 
   useEffect(() => {
-    const onResize = () => setIsTabletViewport(window.innerWidth < 1536);
+    const onResize = () => setIsTabletViewport(window.innerWidth < 1280);
     onResize();
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
