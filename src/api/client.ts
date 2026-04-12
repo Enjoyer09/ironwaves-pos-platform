@@ -37,6 +37,7 @@ type ApiRequestOptions = {
   headers?: Record<string, string>;
   body?: unknown;
   auth?: boolean;
+  timeoutMs?: number;
   // pass null to skip x-tenant-id header (use backend host/domain resolver)
   tenantId?: string | null;
 };
@@ -67,11 +68,17 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
 
   const startedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   let res: Response;
+  const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 30000;
+  const controller = typeof AbortController !== 'undefined' && timeoutMs > 0 ? new AbortController() : null;
+  const timeoutId = controller
+    ? window.setTimeout(() => controller.abort(), timeoutMs)
+    : null;
   try {
     res = await fetch(`${base}${path}`, {
       method: options.method || 'GET',
       headers,
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      signal: controller?.signal,
     });
   } catch (error) {
     const endedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
@@ -84,8 +91,13 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
       ok: false,
       at: new Date().toISOString(),
     });
-    const message = error instanceof Error ? error.message : String(error);
+    const isAbort = typeof DOMException !== 'undefined' && error instanceof DOMException && error.name === 'AbortError';
+    const message = isAbort
+      ? `sorğu vaxt limiti keçdi (${Math.round(timeoutMs / 1000)} saniyə)`
+      : error instanceof Error ? error.message : String(error);
     throw new Error(`Backendə qoşulma alınmadı (${options.method || 'GET'} ${path}): ${message}`);
+  } finally {
+    if (timeoutId) window.clearTimeout(timeoutId);
   }
 
   const text = await res.text();

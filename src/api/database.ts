@@ -214,6 +214,7 @@ export async function get_restore_preview_live(tenant_id: string, jsonData: stri
   return apiRequest<RestorePreview>('/api/v1/ops/database/restore-preview', {
     method: 'POST',
     tenantId: null,
+    timeoutMs: 60000,
     body: { json_data: jsonData },
   });
 }
@@ -439,6 +440,7 @@ export async function restore_database_live(tenant_id: string, jsonData: string,
   return apiRequest<RestoreReport>('/api/v1/ops/database/restore', {
     method: 'POST',
     tenantId: null,
+    timeoutMs: 180000,
     body: {
       json_data: jsonData,
       selected_tables: selectedTables || [],
