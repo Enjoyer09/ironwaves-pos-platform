@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 import pyotp
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -19,6 +19,7 @@ from app.models import (
     MenuItem,
     Notification,
     RefreshToken,
+    RevokedToken,
     Recipe,
     RewardClaim,
     Sale,
@@ -116,17 +117,80 @@ def _add_auth_audit_log(db: Session, tenant_id: str, username: str, action: str,
     db.add(AuditLog(tenant_id=tenant_id, user=username or "anonymous", action=action, details=json.dumps(payload, ensure_ascii=False)))
 
 
-def _assert_pin_format(pin: str) -> None:
+def _token_expiry_from_payload(payload: dict) -> datetime:
+    exp = payload.get("exp")
+    if isinstance(exp, datetime):
+        return exp
+    if isinstance(exp, (int, float)):
+        return datetime.utcfromtimestamp(exp)
+    try:
+        return datetime.fromtimestamp(float(exp))
+    except Exception:
+        return datetime.utcnow() + timedelta(minutes=settings.access_token_minutes)
+
+
+def _blacklist_token(db: Session, tenant_id: str, token: str, token_type: str, user_id: str | None = None) -> None:
+    raw = str(token or "").strip()
+    if not raw:
+        return
+    try:
+        payload = decode_token(raw)
+    except Exception:
+        return
+    if payload.get("tenant_id") != tenant_id or payload.get("type") != token_type:
+        return
+    token_hash = hash_token(raw)
+    exists = db.query(RevokedToken).filter(RevokedToken.tenant_id == tenant_id, RevokedToken.token_hash == token_hash).first()
+    if exists:
+        return
+    db.add(
+        RevokedToken(
+            tenant_id=tenant_id,
+            token_hash=token_hash,
+            token_type=token_type,
+            user_id=user_id or payload.get("sub"),
+            expires_at=_token_expiry_from_payload(payload),
+        )
+    )
+
+
+def _tenant_pin_min_length(db: Session, tenant_id: str) -> int:
+    row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == "session_settings").first()
+    try:
+        value = json.loads(row.value or "{}") if row else {}
+        configured = int(value.get("staff_pin_length") or settings.pin_min_length)
+    except Exception:
+        configured = settings.pin_min_length
+    return 4 if configured == 4 else 6
+
+
+def _assert_pin_format(pin: str, min_length: int | None = None) -> None:
+    required = int(min_length or settings.pin_min_length)
     if not pin.isdigit():
         raise HTTPException(status_code=400, detail="PIN yalnız rəqəmlərdən ibarət olmalıdır")
-    if len(pin) < settings.pin_min_length or len(pin) > 15:
-        raise HTTPException(status_code=400, detail=f"PIN ən azı {settings.pin_min_length}, ən çox 15 rəqəm olmalıdır")
+    if len(pin) < required or len(pin) > 15:
+        raise HTTPException(status_code=400, detail=f"PIN ən azı {required}, ən çox 15 rəqəm olmalıdır")
     if len(set(pin)) == 1:
         raise HTTPException(status_code=400, detail="PIN eyni rəqəmin təkrarından ibarət ola bilməz")
     sequences = "01234567890123456789"
     reverse_sequences = "98765432109876543210"
     if pin in sequences or pin in reverse_sequences:
         raise HTTPException(status_code=400, detail="PIN ardıcıl rəqəmlərdən ibarət ola bilməz")
+
+
+def _assert_strong_password(password: str) -> None:
+    value = str(password or "")
+    min_length = max(8, int(settings.password_min_length or 10))
+    if len(value) < min_length:
+        raise HTTPException(status_code=400, detail=f"Şifrə ən azı {min_length} simvol olmalıdır")
+    checks = [
+        any(ch.islower() for ch in value),
+        any(ch.isupper() for ch in value),
+        any(ch.isdigit() for ch in value),
+        any(not ch.isalnum() for ch in value),
+    ]
+    if sum(1 for ok in checks if ok) < 4:
+        raise HTTPException(status_code=400, detail="Şifrə böyük hərf, kiçik hərf, rəqəm və simvol ehtiva etməlidir")
 
 
 def _is_trusted_device(request: Request, tenant: Tenant, user: User) -> bool:
@@ -265,8 +329,7 @@ def bootstrap_owner(
     password = str(payload.password or "")
     if len(username) < 3:
         raise HTTPException(status_code=400, detail="Username must be at least 3 characters")
-    if len(password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    _assert_strong_password(password)
 
     exists = (
         db.query(User)
@@ -358,7 +421,7 @@ def pin_login(payload: PinLoginIn, request: Request, db: Session = Depends(get_d
     pin = str(payload.pin or "").strip()
     if not pin:
         raise HTTPException(status_code=400, detail="PIN required")
-    _assert_pin_format(pin)
+    _assert_pin_format(pin, _tenant_pin_min_length(db, tenant.id))
 
     users = (
         db.query(User)
@@ -459,11 +522,21 @@ def refresh_token(payload: RefreshIn, db: Session = Depends(get_db), tenant: Ten
 
 
 @router.post("/logout")
-def logout(payload: RefreshIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant)):
+def logout(
+    payload: RefreshIn,
+    request: Request,
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
     token_hash = hash_token(payload.refresh_token)
     row = db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash, RefreshToken.tenant_id == tenant.id).first()
     if row:
         row.revoked = True
+        _blacklist_token(db, tenant.id, payload.refresh_token, "refresh", row.user_id)
+    if authorization and authorization.lower().startswith("bearer "):
+        _blacklist_token(db, tenant.id, authorization.split(" ", 1)[1], "access", row.user_id if row else None)
+    _add_auth_audit_log(db, tenant.id, "logout", "AUTH_LOGOUT", request, {"refresh_revoked": bool(row)})
     db.commit()
     if settings.demo_tenant_enabled and tenant.domain == settings.demo_tenant_domain:
         _reset_demo_tenant_runtime(db, tenant)

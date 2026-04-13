@@ -21,6 +21,13 @@ class Settings(BaseSettings):
     pin_lockout_minutes: int = 15
     csrf_origin_check_enabled: bool = True
     security_headers_enabled: bool = True
+    request_rate_limit_per_minute: int = 240
+    auth_rate_limit_per_minute: int = 30
+    redis_url: str | None = None
+    password_min_length: int = 10
+    data_retention_days: int = 365
+    audit_log_retention_days: int = 730
+    customer_consent_required: bool = True
 
     superadmin_username: str = "ironwaves_owner"
     superadmin_password: str
@@ -42,9 +49,9 @@ class Settings(BaseSettings):
     demo_tenant_domain: str = "demo.ironwaves.store"
     reset_demo_users_on_startup: bool = True
     demo_admin_username: str = "demo_admin"
-    demo_admin_password: str = "Demo1234!"
+    demo_admin_password: str = "Demo1234!!"
     demo_manager_username: str = "demo_manager"
-    demo_manager_password: str = "Demo1234!"
+    demo_manager_password: str = "Demo1234!!"
     demo_staff_username: str = "demo_staff"
     demo_staff_pin: str = "135790"
     demo_kitchen_username: str = "demo_kitchen"

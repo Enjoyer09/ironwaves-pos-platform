@@ -106,18 +106,46 @@ def _assert_unique_pin(db: Session, tenant_id: str, pin: str, exclude_user_id: s
             raise HTTPException(status_code=409, detail="Bu PIN artıq başqa staff/kitchen hesabında istifadə olunur")
 
 
-def _assert_strong_pin(pin: str) -> None:
+def _tenant_pin_min_length(db: Session, tenant_id: str) -> int:
+    row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == "session_settings").first()
+    try:
+        import json
+
+        value = json.loads(row.value or "{}") if row else {}
+        configured = int(value.get("staff_pin_length") or app_settings.pin_min_length)
+    except Exception:
+        configured = app_settings.pin_min_length
+    return 4 if configured == 4 else 6
+
+
+def _assert_strong_pin(pin: str, min_length: int | None = None) -> None:
     pin_value = str(pin or "").strip()
+    required = int(min_length or app_settings.pin_min_length)
     if not pin_value.isdigit():
         raise HTTPException(status_code=400, detail="PIN yalnız rəqəmlərdən ibarət olmalıdır")
-    if len(pin_value) < app_settings.pin_min_length or len(pin_value) > 15:
-        raise HTTPException(status_code=400, detail=f"PIN ən azı {app_settings.pin_min_length}, ən çox 15 rəqəm olmalıdır")
+    if len(pin_value) < required or len(pin_value) > 15:
+        raise HTTPException(status_code=400, detail=f"PIN ən azı {required}, ən çox 15 rəqəm olmalıdır")
     if len(set(pin_value)) == 1:
         raise HTTPException(status_code=400, detail="PIN eyni rəqəmin təkrarından ibarət ola bilməz")
     sequences = "01234567890123456789"
     reverse_sequences = "98765432109876543210"
     if pin_value in sequences or pin_value in reverse_sequences:
         raise HTTPException(status_code=400, detail="PIN ardıcıl rəqəmlərdən ibarət ola bilməz")
+
+
+def _assert_strong_password(password: str) -> None:
+    value = str(password or "")
+    min_length = max(8, int(app_settings.password_min_length or 10))
+    if len(value) < min_length:
+        raise HTTPException(status_code=400, detail=f"Şifrə ən azı {min_length} simvol olmalıdır")
+    checks = [
+        any(ch.islower() for ch in value),
+        any(ch.isupper() for ch in value),
+        any(ch.isdigit() for ch in value),
+        any(not ch.isalnum() for ch in value),
+    ]
+    if sum(1 for ok in checks if ok) < 4:
+        raise HTTPException(status_code=400, detail="Şifrə böyük hərf, kiçik hərf, rəqəm və simvol ehtiva etməlidir")
 
 
 @router.get("/users", response_model=list[UserOut])
@@ -167,10 +195,10 @@ def create_user(
 
     password = str(payload.password or "")
     pin = str(payload.pin or "").strip()
-    if _uses_password(role) and len(password) < 4:
-        raise HTTPException(status_code=400, detail="Password required (min 4 chars) for admin/manager")
+    if _uses_password(role):
+        _assert_strong_password(password)
     if _uses_pin(role):
-        _assert_strong_pin(pin)
+        _assert_strong_pin(pin, _tenant_pin_min_length(db, tenant.id))
     if _uses_password(role) and pin:
         raise HTTPException(status_code=400, detail="Admin/manager accounts must use password login only")
     if _uses_pin(role) and password:
@@ -223,8 +251,7 @@ def update_user_credentials(
         if not _uses_password(row.role):
             raise HTTPException(status_code=400, detail="This role does not use password login")
         password = str(payload.password)
-        if len(password) < 4:
-            raise HTTPException(status_code=400, detail="Password must be at least 4 characters")
+        _assert_strong_password(password)
         # For self password updates require current password verification.
         if row.id == current_user.id:
             current_password = str(payload.current_password or "")
@@ -236,7 +263,7 @@ def update_user_credentials(
         if not _uses_pin(row.role):
             raise HTTPException(status_code=400, detail="This role does not use PIN login")
         pin = str(payload.pin).strip()
-        _assert_strong_pin(pin)
+        _assert_strong_pin(pin, _tenant_pin_min_length(db, tenant.id))
         _assert_unique_pin(db, tenant.id, pin, exclude_user_id=row.id)
         row.pin_hash = hash_password(pin)
 

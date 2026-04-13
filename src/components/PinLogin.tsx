@@ -3,7 +3,7 @@ import { useAppStore } from '../store';
 import { i18n, tx } from '../i18n';
 import { Delete } from 'lucide-react';
 import { getDeviceHash, getPublicIp, LoginRiskContext } from '../lib/risk';
-import { get_business_profile, get_public_branding_live } from '../api/settings';
+import { get_business_profile, get_public_branding_live, get_settings } from '../api/settings';
 import { resolveTenantIdFromHost } from '../lib/tenant';
 import { authApi } from '../api/auth';
 
@@ -28,6 +28,9 @@ export default function PinLogin() {
   const [ownerUser, setOwnerUser] = useState('owner');
   const [ownerPass, setOwnerPass] = useState('');
   const [ownerPassConfirm, setOwnerPassConfirm] = useState('');
+  const [staffPinLength, setStaffPinLength] = useState<4 | 6>(() => (
+    Number(get_settings(tenantId).session_settings?.staff_pin_length || 6) === 4 ? 4 : 6
+  ));
 
   React.useEffect(() => {
     let mounted = true;
@@ -72,6 +75,17 @@ export default function PinLogin() {
   }, [branding?.company_name]);
 
   React.useEffect(() => {
+    const syncPinLength = () => {
+      const next = Number(get_settings(tenantId).session_settings?.staff_pin_length || 6) === 4 ? 4 : 6;
+      setStaffPinLength(next);
+      setPin((prev) => prev.slice(0, next));
+    };
+    syncPinLength();
+    window.addEventListener('settings-updated', syncPinLength as EventListener);
+    return () => window.removeEventListener('settings-updated', syncPinLength as EventListener);
+  }, [tenantId]);
+
+  React.useEffect(() => {
     if (!isPlatformHost) return;
     let mounted = true;
     authApi.platform_owner_bootstrap_status()
@@ -87,7 +101,7 @@ export default function PinLogin() {
   }, [isPlatformHost]);
 
   const handleKeyPress = (num: string) => {
-    if (pin.length < 4) {
+    if (pin.length < staffPinLength) {
       setPin(prev => prev + num);
       setError(false);
     }
@@ -99,7 +113,7 @@ export default function PinLogin() {
   };
 
   React.useEffect(() => {
-    if (mode === 'staff' && pin.length === 4) {
+    if (mode === 'staff' && pin.length === staffPinLength) {
       (async () => {
         const success = await login(pin);
         if (!success) {
@@ -108,7 +122,7 @@ export default function PinLogin() {
         }
       })();
     }
-  }, [pin, login, mode]);
+  }, [pin, login, mode, staffPinLength]);
 
   const handleAdminSubmit = async () => {
     clearAuthError();
@@ -127,7 +141,7 @@ export default function PinLogin() {
 
   const handleOwnerBootstrap = async () => {
     clearAuthError();
-    if (!ownerUser.trim() || ownerPass.length < 8) {
+    if (!ownerUser.trim() || ownerPass.length < 10) {
       return;
     }
     if (ownerPass !== ownerPassConfirm) {
@@ -143,10 +157,10 @@ export default function PinLogin() {
   };
 
   const demoAccounts = [
-    { label: 'Demo Admin', mode: 'admin' as const, username: 'demo_admin', password: 'Demo1234!' },
-    { label: 'Demo Manager', mode: 'admin' as const, username: 'demo_manager', password: 'Demo1234!' },
-    { label: 'Demo Staff PIN', mode: 'staff' as const, pin: '1111' },
-    { label: 'Demo Kitchen PIN', mode: 'staff' as const, pin: '2222' },
+    { label: 'Demo Admin', mode: 'admin' as const, username: 'demo_admin', password: 'Demo1234!!' },
+    { label: 'Demo Manager', mode: 'admin' as const, username: 'demo_manager', password: 'Demo1234!!' },
+    { label: 'Demo Staff PIN', mode: 'staff' as const, pin: '135790'.slice(0, staffPinLength) },
+    { label: 'Demo Kitchen PIN', mode: 'staff' as const, pin: '246802'.slice(0, staffPinLength) },
   ];
 
   const applyDemoAccount = (account: (typeof demoAccounts)[number]) => {
@@ -319,7 +333,7 @@ export default function PinLogin() {
               <>
                 <div className="mb-5 rounded-[24px] border border-white/10 bg-[#0d1219]/90 px-4 py-4 text-center">
                   <div className="text-xs uppercase tracking-[0.22em] text-slate-500">PIN</div>
-                  <div className="mt-2 min-h-10 text-3xl tracking-[0.6em] text-white">{pin ? '•'.repeat(pin.length) : '• • • •'}</div>
+                  <div className="mt-2 min-h-10 text-3xl tracking-[0.6em] text-white">{pin ? '•'.repeat(pin.length) : Array.from({ length: staffPinLength }).map(() => '•').join(' ')}</div>
                   <div className="mt-2 text-xs text-slate-400">{t.pin_prompt}</div>
                 </div>
 
