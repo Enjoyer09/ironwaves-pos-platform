@@ -136,14 +136,27 @@ export default function DatabasePanel() {
       ));
       await yieldToUi();
       const mergedReport = await restore_database_live(tenant_id, content, selectedExisting);
-      if (!mergedReport.success) {
-        throw new Error('restore failed');
+      setLastRestoreReport(mergedReport);
+      const verificationFailures = Object.entries(mergedReport.verification || {})
+        .filter(([, result]) => result?.ok === false);
+      if (!mergedReport.success || verificationFailures.length > 0) {
+        const failedTables = verificationFailures.map(([table]) => table).join(', ');
+        throw new Error(
+          failedTables
+            ? tx(lang, `Backend bərpa yoxlaması uğursuz oldu: ${failedTables}`, `Проверка восстановления на backend не прошла: ${failedTables}`)
+            : tx(lang, 'Backend bərpanı təsdiqləmədi', 'Backend не подтвердил восстановление'),
+        );
       }
 
-      setLastRestoreReport(mergedReport);
       const restoredUsers = selectedExisting.includes('users') || mergedReport.restored_tables.includes('users');
-      clearLocalRestoreState({ clearSession: restoredUsers });
-      restore_database(tenant_id, content, selectedExisting);
+      const usingBackendRestore = Boolean(getApiBaseUrl()) && !isForceLocalMode();
+      if (usingBackendRestore) {
+        // Backend restore-dan sonra böyük JSON-u yenidən localStorage-ə yazmırıq.
+        // Səhifə reload olanda məlumatlar birbaşa backend/NeonDB-dən gələcək.
+        clearLocalRestoreState({ clearSession: restoredUsers });
+      } else {
+        restore_database(tenant_id, content, selectedExisting);
+      }
       notify(
         'success',
         tx(
@@ -476,6 +489,34 @@ export default function DatabasePanel() {
               <button onClick={downloadRejectedCsv} className="glossy-gold mt-3 rounded-lg px-3 py-2 text-xs font-semibold">
                 {tx(lang, 'Rədd edilən sətirləri CSV yüklə', 'Скачать отклоненные строки (CSV)')}
               </button>
+            )}
+            {lastRestoreReport.verification && Object.keys(lastRestoreReport.verification).length > 0 && (
+              <div className="mt-3 rounded-lg border border-slate-700/60 bg-slate-950/30 p-3">
+                <div className="font-semibold text-slate-100">
+                  {tx(lang, 'Backend yoxlaması', 'Проверка backend')}
+                </div>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {Object.entries(lastRestoreReport.verification).map(([table, result]) => (
+                    <div
+                      key={table}
+                      className={`rounded-lg border px-3 py-2 text-xs ${
+                        result.ok
+                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100'
+                          : 'border-rose-500/40 bg-rose-500/10 text-rose-100'
+                      }`}
+                    >
+                      <span className="font-semibold">{table}</span>
+                      <span className="ml-2">
+                        {tx(
+                          lang,
+                          `gözlənilən ${result.expected}, bazada ${result.actual}`,
+                          `ожидалось ${result.expected}, в базе ${result.actual}`,
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         )}

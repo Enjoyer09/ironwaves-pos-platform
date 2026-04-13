@@ -16,6 +16,7 @@ export type RestoreReport = {
   rejected_rows: number;
   rejected_samples: Array<{ table: string; reason: string; row_index: number; row: any }>;
   warnings: string[];
+  verification?: Record<string, { expected: number; actual: number; ok: boolean }>;
 };
 
 export type RestoreChunk = {
@@ -512,14 +513,21 @@ export async function restore_database_live(tenant_id: string, jsonData: string,
     const restoredTables = Array.from(new Set(reports.flatMap((report) => report.restored_tables || [])));
     const skippedTables = Array.from(new Set(reports.flatMap((report) => report.skipped_tables || [])))
       .filter((table) => !restoredTables.includes(table));
+    const verification = reports.reduce<Record<string, { expected: number; actual: number; ok: boolean }>>((acc, report) => {
+      Object.entries(report.verification || {}).forEach(([table, result]) => {
+        acc[table] = result;
+      });
+      return acc;
+    }, {});
     return {
-      success: reports.every((report) => report.success !== false),
+      success: reports.every((report) => report.success !== false) && Object.values(verification).every((result) => result.ok !== false),
       restored_tables: restoredTables,
       restored_rows: reports.reduce((sum, report) => sum + Number(report.restored_rows || 0), 0),
       skipped_tables: skippedTables,
       rejected_rows: reports.reduce((sum, report) => sum + Number(report.rejected_rows || 0), 0),
       rejected_samples: reports.flatMap((report) => report.rejected_samples || []).slice(0, 50),
       warnings: Array.from(new Set(reports.flatMap((report) => report.warnings || []))),
+      verification,
     };
   };
 
