@@ -1255,7 +1255,10 @@ def database_restore_preview(
     user: User = Depends(get_current_user),
 ):
     _ensure_admin(user)
-    data = json.loads(_sanitize_nonstandard_json(payload.json_data))
+    try:
+        data = json.loads(_sanitize_nonstandard_json(payload.json_data))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Backup JSON düzgün oxunmadı: {exc}")
     available_tables: list[str] = []
     row_counts: dict[str, int] = {}
     warnings: list[str] = []
@@ -1292,10 +1295,14 @@ def database_restore(
     user: User = Depends(get_current_user),
 ):
     _ensure_admin(user)
-    data = json.loads(_sanitize_nonstandard_json(payload.json_data))
+    try:
+        data = json.loads(_sanitize_nonstandard_json(payload.json_data))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Backup JSON düzgün oxunmadı: {exc}")
     try:
         selected = set(payload.selected_tables or DATABASE_SUPPORTED_TABLES)
         unsupported_selected = sorted(selected.difference(DATABASE_SUPPORTED_TABLES))
+        expected_counts: dict[str, int] = {}
         report = {
             "success": True,
             "restored_tables": [],
@@ -1304,6 +1311,7 @@ def database_restore(
             "rejected_rows": 0,
             "rejected_samples": [],
             "warnings": [],
+            "verification": {},
         }
         if data.get("_tenant_id") and str(data.get("_tenant_id")) != str(tenant.id):
             report["warnings"].append("Backup fərqli tenant üçün yaradılıb; məlumatlar cari tenant-a bərpa olundu.")
@@ -1355,6 +1363,7 @@ def database_restore(
                 restored_count += 1
             report["restored_tables"].append(table_key)
             report["restored_rows"] += restored_count
+            expected_counts[table_key] = restored_count
 
         def normalize_user_role(raw_role: str | None) -> str:
             role = str(raw_role or "staff").strip().lower()
@@ -1419,6 +1428,7 @@ def database_restore(
                 restored_count += 1
             report["restored_tables"].append("users")
             report["restored_rows"] += restored_count
+            expected_counts["users"] = restored_count
 
         table_map = {
             "users": User,
@@ -1463,6 +1473,7 @@ def database_restore(
                     db.add(Setting(tenant_id=tenant.id, key=row["key"], value=row["value"]))
                 report["restored_tables"].append(table)
                 report["restored_rows"] += len(settings_rows)
+                expected_counts[table] = len(settings_rows)
                 continue
 
             if table == "business_profile":
@@ -1494,6 +1505,7 @@ def database_restore(
                     restored_count += 1
                 report["restored_tables"].append(table)
                 report["restored_rows"] += restored_count
+                expected_counts[table] = restored_count
                 continue
 
             if table == "sales":
@@ -1535,6 +1547,7 @@ def database_restore(
                     restored_count += 1
                 report["restored_tables"].append(table)
                 report["restored_rows"] += restored_count
+                expected_counts[table] = restored_count
                 continue
 
             if table == "finance":
@@ -1606,6 +1619,7 @@ def database_restore(
                         restored_count += 1
                 report["restored_tables"].append(table)
                 report["restored_rows"] += restored_count
+                expected_counts[table] = restored_count
                 continue
 
             if table == "kitchen_orders":
@@ -1640,7 +1654,47 @@ def database_restore(
                     restored_count += 1
                 report["restored_tables"].append(table)
                 report["restored_rows"] += restored_count
+                expected_counts[table] = restored_count
                 continue
+
+        verification_models = {
+            "users": User,
+            "menu_items": MenuItem,
+            "menu": MenuItem,
+            "tables": Table,
+            "inventory": InventoryItem,
+            "ingredients": InventoryItem,
+            "customers": Customer,
+            "customer_consents": CustomerConsent,
+            "recipes": Recipe,
+            "happy_hours": HappyHour,
+            "shift_handovers": ShiftHandover,
+            "notifications": Notification,
+            "logs": AuditLog,
+            "settings": Setting,
+            "business_profile": BusinessProfile,
+            "sales": Sale,
+            "finance": FinanceEntry,
+            "kitchen_orders": KitchenOrder,
+        }
+
+        db.flush()
+        for table_key, expected in expected_counts.items():
+            model = verification_models.get(table_key)
+            if model is None:
+                continue
+            actual = db.query(model).filter(model.tenant_id == tenant.id).count()
+            ok = actual >= expected
+            report["verification"][table_key] = {
+                "expected": int(expected),
+                "actual": int(actual),
+                "ok": ok,
+            }
+            if not ok:
+                report["success"] = False
+                report["warnings"].append(
+                    f"'{table_key}' bərpa yoxlaması uğursuz oldu: gözlənilən {expected}, bazada {actual}."
+                )
 
         db.add(
             AuditLog(
