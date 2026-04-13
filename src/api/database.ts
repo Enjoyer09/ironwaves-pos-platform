@@ -44,6 +44,8 @@ const ALLOWED_TABLES = [
   'ingredients',
   'customers',
   'recipes',
+  'customer_coupons',
+  'admin_notes',
   'happy_hours',
   'refunds',
   'correction_requests',
@@ -125,6 +127,8 @@ const TENANT_SCOPED_TABLES = new Set([
   'ingredients',
   'customers',
   'recipes',
+  'customer_coupons',
+  'admin_notes',
   'happy_hours',
   'refunds',
   'correction_requests',
@@ -416,6 +420,20 @@ export function restore_database(tenant_id: string, jsonData: string, selectedTa
     if (Array.isArray(data.customers) && !data[`${tenant_id}_customers`]) {
       setDB(`${tenant_id}_customers`, data.customers);
       report.warnings.push('customers məlumatı legacy formatdan tenant prefiksli cədvələ köçürüldü.');
+    }
+
+    if (Array.isArray(data.admin_notes)) {
+      const scopedNotes = data.admin_notes.map((row: any) => ({ ...row, tenant_id }));
+      setDB('admin_notes', scopedNotes);
+      setDB(`${tenant_id}_admin_notes`, scopedNotes);
+      report.warnings.push('admin_notes məlumatı lokal qeyd panelinə bərpa olundu.');
+    }
+
+    if (Array.isArray(data.customer_coupons)) {
+      const scopedCoupons = data.customer_coupons.map((row: any) => ({ ...row, tenant_id }));
+      setDB('customer_coupons', scopedCoupons);
+      setDB(`${tenant_id}_customer_coupons`, scopedCoupons);
+      report.warnings.push('customer_coupons məlumatı lokal CRM cache-ə bərpa olundu.');
     }
 
     // Legacy alias support for recipe/ingredients keys
