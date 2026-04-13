@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
+from app.json_utils import safe_json_list
 from app.models import (
     AuditLog,
     BusinessProfile,
@@ -1170,7 +1171,7 @@ def export_database_backup(
         "sales": [
             {
                 **_serialize_model_row(row, ["id", "tenant_id", "cashier", "customer_card_id", "payment_method", "order_type", "offline_request_id", "receipt_code", "receipt_token", "reward_claim_code", "total", "discount_amount", "cogs", "status", "created_at"]),
-                "items": json.loads(row.items_json or "[]"),
+                "items": safe_json_list(row.items_json),
             }
             for row in db.query(Sale).filter(Sale.tenant_id == tenant.id).all()
         ],
@@ -1185,7 +1186,7 @@ def export_database_backup(
         "kitchen_orders": [
             {
                 **_serialize_model_row(row, ["id", "tenant_id", "sale_id", "table_label", "order_type", "status", "priority", "created_at", "completed_at"]),
-                "items": json.loads(row.items_json or "[]"),
+                "items": safe_json_list(row.items_json),
             }
             for row in db.query(KitchenOrder).filter(KitchenOrder.tenant_id == tenant.id).all()
         ],
