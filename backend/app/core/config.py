@@ -12,8 +12,15 @@ class Settings(BaseSettings):
 
     jwt_secret: str
     jwt_algorithm: str = "HS256"
+    jwt_private_key: str | None = None
+    jwt_public_key: str | None = None
     access_token_minutes: int = 15
     refresh_token_days: int = 7
+    pin_min_length: int = 6
+    pin_max_failed_attempts: int = 5
+    pin_lockout_minutes: int = 15
+    csrf_origin_check_enabled: bool = True
+    security_headers_enabled: bool = True
 
     superadmin_username: str = "ironwaves_owner"
     superadmin_password: str
@@ -39,9 +46,9 @@ class Settings(BaseSettings):
     demo_manager_username: str = "demo_manager"
     demo_manager_password: str = "Demo1234!"
     demo_staff_username: str = "demo_staff"
-    demo_staff_pin: str = "1111"
+    demo_staff_pin: str = "135790"
     demo_kitchen_username: str = "demo_kitchen"
-    demo_kitchen_pin: str = "2222"
+    demo_kitchen_pin: str = "246802"
 
     resend_api_key: str | None = None
     email_from: str = "no-reply@ironwaves.store"

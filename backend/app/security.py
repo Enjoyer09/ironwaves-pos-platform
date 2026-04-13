@@ -10,6 +10,37 @@ from app.core.config import settings
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
+def _normalized_jwt_algorithm() -> str:
+    return str(settings.jwt_algorithm or "HS256").strip().upper()
+
+
+def _normalized_pem(value: str | None) -> str | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    return raw.replace("\\n", "\n")
+
+
+def _jwt_signing_key() -> str:
+    algorithm = _normalized_jwt_algorithm()
+    if algorithm.startswith("RS"):
+        private_key = _normalized_pem(settings.jwt_private_key)
+        if not private_key:
+            raise RuntimeError("RS JWT signing is enabled, but jwt_private_key is missing")
+        return private_key
+    return settings.jwt_secret
+
+
+def _jwt_verification_key() -> str:
+    algorithm = _normalized_jwt_algorithm()
+    if algorithm.startswith("RS"):
+        public_key = _normalized_pem(settings.jwt_public_key)
+        if not public_key:
+            raise RuntimeError("RS JWT verification is enabled, but jwt_public_key is missing")
+        return public_key
+    return settings.jwt_secret
+
+
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
@@ -21,13 +52,13 @@ def verify_password(password: str, hashed: str) -> bool:
 def create_access_token(subject: str, tenant_id: str, role: str) -> str:
     exp = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_minutes)
     payload = {"sub": subject, "tenant_id": tenant_id, "role": role, "type": "access", "exp": exp}
-    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+    return jwt.encode(payload, _jwt_signing_key(), algorithm=_normalized_jwt_algorithm())
 
 
 def create_refresh_token(subject: str, tenant_id: str) -> str:
     exp = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_days)
     payload = {"sub": subject, "tenant_id": tenant_id, "type": "refresh", "exp": exp}
-    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+    return jwt.encode(payload, _jwt_signing_key(), algorithm=_normalized_jwt_algorithm())
 
 
 def create_trusted_device_token(subject: str, tenant_id: str, device_hash: str, ip: str, days: int = 30) -> str:
@@ -40,11 +71,11 @@ def create_trusted_device_token(subject: str, tenant_id: str, device_hash: str, 
         "type": "trusted_device",
         "exp": exp,
     }
-    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+    return jwt.encode(payload, _jwt_signing_key(), algorithm=_normalized_jwt_algorithm())
 
 
 def decode_token(token: str) -> dict:
-    return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+    return jwt.decode(token, _jwt_verification_key(), algorithms=[_normalized_jwt_algorithm()])
 
 
 def hash_token(token: str) -> str:

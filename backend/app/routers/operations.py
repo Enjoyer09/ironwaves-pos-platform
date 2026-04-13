@@ -44,7 +44,7 @@ from app.models import (
     WasteLog,
 )
 from app.core.config import settings as app_settings
-from app.security import verify_password
+from app.security import hash_password, verify_password
 
 
 router = APIRouter(prefix="/api/v1/ops", tags=["operations"])
@@ -141,6 +141,38 @@ def _ensure_admin(user: User):
 
 def _can_view_sensitive_settings(user: User) -> bool:
     return str(user.role or "").lower() in {"admin", "super_admin"}
+
+
+def _shift_cash_expected(db: Session, tenant_id: str, shift: Shift | None) -> Decimal:
+    if not shift:
+        return Decimal("0.00")
+    query = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant_id)
+    if shift.opened_at:
+        query = query.filter(FinanceEntry.created_at >= shift.opened_at)
+    rows = query.all()
+    cash_in = sum((Decimal(str(row.amount or 0)) for row in rows if row.source == "cash" and row.type == "in"), Decimal("0"))
+    cash_out = sum((Decimal(str(row.amount or 0)) for row in rows if row.source == "cash" and row.type == "out"), Decimal("0"))
+    return (Decimal(str(shift.opening_cash or 0)) + cash_in - cash_out).quantize(Decimal("0.01"))
+
+
+def _validate_shift_handover_cash(db: Session, tenant_id: str, user: User, shift: Shift, declared_cash: Decimal) -> Decimal:
+    declared = Decimal(str(declared_cash)).quantize(Decimal("0.01"))
+    if declared < 0:
+        raise HTTPException(status_code=400, detail="Declared cash cannot be negative")
+    expected = _shift_cash_expected(db, tenant_id, shift)
+    variance = declared - expected
+    if abs(variance) > Decimal("0.01"):
+        db.add(
+            AuditLog(
+                tenant_id=tenant_id,
+                user=user.username,
+                action="SHIFT_HANDOVER_DECLARED_CASH_REJECTED",
+                details=json.dumps({"declared_cash": str(declared), "expected_cash": str(expected), "variance": str(variance)}, ensure_ascii=False),
+            )
+        )
+        db.commit()
+        raise HTTPException(status_code=400, detail=f"Declared cash does not match expected cash ({expected} ₼)")
+    return declared
 
 
 def _json_load(value: str | None, default):
@@ -1072,7 +1104,7 @@ def export_database_backup(
         "_backup_timestamp": datetime.utcnow().isoformat(),
         "_tenant_id": tenant.id,
         "users": [
-            _serialize_model_row(row, ["id", "tenant_id", "username", "email", "password_hash", "pin_hash", "totp_secret", "totp_enabled", "role", "is_active", "failed_attempts", "locked_until", "created_at"])
+            _serialize_model_row(row, ["id", "tenant_id", "username", "email", "role", "is_active", "created_at"])
             for row in db.query(User).filter(User.tenant_id == tenant.id).all()
         ],
         "menu_items": [
@@ -1150,19 +1182,9 @@ def database_verify_admin_password(
     if not raw:
         raise HTTPException(status_code=400, detail="Password required")
 
-    candidates = (
-        db.query(User)
-        .filter(
-            User.tenant_id == tenant.id,
-            User.is_active == True,
-            User.role.in_(["admin", "super_admin"]),
-        )
-        .all()
-    )
-    for candidate in candidates:
-        if candidate.password_hash and verify_password(raw, candidate.password_hash):
-            return {"success": True}
-    return {"success": False}
+    if not user.password_hash:
+        return {"success": False}
+    return {"success": bool(verify_password(raw, user.password_hash))}
 
 
 @router.post("/database/restore-preview")
@@ -1279,10 +1301,25 @@ def database_restore(
                 "cashier": "staff",
                 "waiter": "staff",
                 "server": "staff",
-                "owner": "super_admin",
+                "owner": "admin",
             }
             normalized = role_map.get(role, role or "staff")
-            return normalized if normalized in {"staff", "manager", "admin", "super_admin", "kitchen", "finance_admin"} else "staff"
+            is_platform_tenant = str(tenant.slug or "").strip().lower() == str(app_settings.platform_tenant_slug or "").strip().lower()
+            caller_is_super_admin = str(user.role or "").strip().lower() == "super_admin"
+            allowed_roles = {"staff", "manager", "admin", "kitchen", "finance_admin"}
+            if is_platform_tenant and caller_is_super_admin:
+                allowed_roles.add("super_admin")
+            if normalized == "super_admin" and "super_admin" not in allowed_roles:
+                return "admin"
+            return normalized if normalized in allowed_roles else "staff"
+
+        def normalize_restored_password(value) -> str:
+            raw = str(value or "").strip()
+            if not raw:
+                return ""
+            if raw.startswith("$2a$") or raw.startswith("$2b$") or raw.startswith("$2y$"):
+                return raw
+            return hash_password(raw)
 
         def restore_users(rows: list[dict]):
             db.query(User).filter(User.tenant_id == tenant.id).delete(synchronize_session=False)
@@ -1292,25 +1329,26 @@ def database_restore(
                     reject("users", "İstifadəçi sətri obyekt deyil", idx, row)
                     continue
                 username = str(row.get("username") or "").strip()
-                password_hash = str(row.get("password_hash") or row.get("password") or "").strip()
+                password_hash = normalize_restored_password(row.get("password_hash") or row.get("password"))
                 if not username:
                     reject("users", "username boşdur", idx, row)
                     continue
                 if not password_hash:
-                    reject("users", "password_hash və ya legacy password tapılmadı", idx, row)
-                    continue
+                    password_hash = hash_password(secrets.token_urlsafe(32))
+                    if not any("İstifadəçi şifrələri backup-a daxil edilmir" in warning for warning in report["warnings"]):
+                        report["warnings"].append("İstifadəçi şifrələri backup-a daxil edilmir; bərpa olunan istifadəçilər üçün şifrə yenilənməlidir.")
                 user_kwargs = {
                     "tenant_id": tenant.id,
                     "username": username,
                     "email": str(row.get("email") or "").strip() or None,
                     "password_hash": password_hash,
-                    "pin_hash": str(row.get("pin_hash") or "").strip() or None,
-                    "totp_secret": str(row.get("totp_secret") or "").strip() or None,
-                    "totp_enabled": str(row.get("totp_enabled") or "").lower() in {"1", "true", "yes", "on"},
+                    "pin_hash": None,
+                    "totp_secret": None,
+                    "totp_enabled": False,
                     "role": normalize_user_role(row.get("role")),
                     "is_active": not str(row.get("is_active", True)).lower() in {"0", "false", "no", "off"},
-                    "failed_attempts": int(row.get("failed_attempts") or 0),
-                    "locked_until": _parse_dt(row.get("locked_until")),
+                    "failed_attempts": 0,
+                    "locked_until": None,
                     "created_at": _parse_dt(row.get("created_at")) or datetime.utcnow(),
                 }
                 legacy_id = str(row.get("id") or "").strip()
@@ -3887,12 +3925,13 @@ def create_shift_handover(
         raise HTTPException(status_code=404, detail="Receiver user not found")
     if str(receiver.role or "").lower() not in {"admin", "manager", "staff"}:
         raise HTTPException(status_code=400, detail="Receiver role is not eligible for shift handover")
+    declared_cash = _validate_shift_handover_cash(db, tenant.id, user, active, payload.declared_cash)
 
     row = ShiftHandover(
         tenant_id=tenant.id,
         handed_by=user.username,
         received_by=receiver.username,
-        declared_cash=payload.declared_cash,
+        declared_cash=declared_cash,
         status="PENDING",
     )
     db.add(row)
@@ -3937,7 +3976,9 @@ def accept_shift_handover_op(
     if row.received_by != user.username:
         raise HTTPException(status_code=403, detail="This handover is not assigned to you")
 
-    actual = Decimal(str(payload.actual_cash))
+    actual = Decimal(str(payload.actual_cash)).quantize(Decimal("0.01"))
+    if actual < 0:
+        raise HTTPException(status_code=400, detail="Actual cash cannot be negative")
     declared = Decimal(str(row.declared_cash))
     difference = actual - declared
     if difference != 0:

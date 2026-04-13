@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
+import json
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
@@ -7,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import FinanceEntry, Setting, Shift, ShiftHandover, Tenant, User
+from app.models import AuditLog, FinanceEntry, Setting, Shift, ShiftHandover, Tenant, User
 from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XReportIn, ZReportIn
 
 
@@ -114,6 +115,25 @@ def _shift_cash_breakdown(db: Session, tenant_id: str, shift: Shift | None) -> d
         "cash_out": cash_out,
         "expected_cash": expected_cash,
     }
+
+
+def _validate_shift_handover_cash(db: Session, tenant_id: str, user: User, shift: Shift, declared_cash: Decimal) -> None:
+    declared = Decimal(str(declared_cash)).quantize(Decimal("0.01"))
+    if declared < 0:
+        raise HTTPException(status_code=400, detail="Declared cash cannot be negative")
+    expected = _shift_cash_breakdown(db, tenant_id, shift)["expected_cash"].quantize(Decimal("0.01"))
+    variance = declared - expected
+    if abs(variance) > Decimal("0.01"):
+        db.add(
+            AuditLog(
+                tenant_id=tenant_id,
+                user=user.username,
+                action="SHIFT_HANDOVER_DECLARED_CASH_REJECTED",
+                details=json.dumps({"declared_cash": str(declared), "expected_cash": str(expected), "variance": str(variance)}, ensure_ascii=False),
+            )
+        )
+        db.commit()
+        raise HTTPException(status_code=400, detail=f"Declared cash does not match expected cash ({expected} ₼)")
 
 
 @router.get("/status")
@@ -456,11 +476,13 @@ def create_handover(payload: ShiftHandoverIn, db: Session = Depends(get_db), ten
         raise HTTPException(status_code=404, detail="Receiver user not found")
     if str(receiver.role or "").lower() not in {"admin", "manager", "staff"}:
         raise HTTPException(status_code=400, detail="Receiver role is not eligible for shift handover")
+    declared_cash = Decimal(str(payload.declared_cash)).quantize(Decimal("0.01"))
+    _validate_shift_handover_cash(db, tenant.id, user, active, declared_cash)
     row = ShiftHandover(
         tenant_id=tenant.id,
         handed_by=user.username,
         received_by=receiver.username,
-        declared_cash=payload.declared_cash,
+        declared_cash=declared_cash,
         status="PENDING",
     )
     db.add(row)
@@ -482,7 +504,9 @@ def accept_handover(handover_id: str, payload: ShiftHandoverAcceptIn, db: Sessio
     if row.received_by != user.username:
         raise HTTPException(status_code=403, detail="This handover is not assigned to you")
 
-    actual = Decimal(str(payload.actual_cash))
+    actual = Decimal(str(payload.actual_cash)).quantize(Decimal("0.01"))
+    if actual < 0:
+        raise HTTPException(status_code=400, detail="Actual cash cannot be negative")
     declared = Decimal(str(row.declared_cash))
     difference = actual - declared
     if difference != 0:

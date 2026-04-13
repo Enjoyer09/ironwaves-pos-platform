@@ -52,6 +52,8 @@ DEFAULT_FINANCE_POLICY = {
     "negative_balance_alert_azn": 0,
     "approver_roles": ["manager", "admin", "finance_admin", "super_admin"],
 }
+FINANCE_VIEW_ROLES = {"manager", "admin", "finance_admin", "super_admin"}
+FINANCE_WRITE_ROLES = {"manager", "admin", "finance_admin", "super_admin"}
 
 
 def _normalize_text(value: str) -> str:
@@ -171,6 +173,34 @@ def _is_finance_approver(user, policy: dict | None = None) -> bool:
     return str(getattr(user, "role", "") or "").lower() in roles
 
 
+def _ensure_finance_read_access(user) -> None:
+    if str(getattr(user, "role", "") or "").lower() not in FINANCE_VIEW_ROLES:
+        raise HTTPException(status_code=403, detail="Finance view access required")
+
+
+def _ensure_finance_write_access(user) -> None:
+    if str(getattr(user, "role", "") or "").lower() not in FINANCE_WRITE_ROLES:
+        raise HTTPException(status_code=403, detail="Finance write access required")
+
+
+def _lock_finance_accounts(db: Session, tenant_id: str, *codes: str) -> dict[str, FinanceAccount]:
+    normalized_codes = sorted({str(code or "").strip().lower() for code in codes if str(code or "").strip()})
+    if not normalized_codes:
+        return {}
+    _ensure_finance_accounts(db, tenant_id)
+    rows = (
+        db.query(FinanceAccount)
+        .filter(FinanceAccount.tenant_id == tenant_id, FinanceAccount.code.in_(normalized_codes))
+        .with_for_update()
+        .all()
+    )
+    by_code = {row.code: row for row in rows}
+    missing = [code for code in normalized_codes if code not in by_code]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Unknown finance account(s): {', '.join(missing)}")
+    return by_code
+
+
 def _approval_required(transaction_type: str, amount: Decimal, explicit: bool | None = None, policy: dict | None = None) -> bool:
     if explicit is not None:
         return bool(explicit)
@@ -206,6 +236,7 @@ def _post_existing_transaction(db: Session, txn: FinanceTransaction, posted_by: 
     destination_code = _finance_account_code(db, txn.tenant_id, txn.destination_account_id)
     if not source_code or not destination_code:
         raise HTTPException(status_code=400, detail="Transaction account mapping is incomplete")
+    _lock_finance_accounts(db, txn.tenant_id, source_code, destination_code)
     source = _finance_account(db, txn.tenant_id, source_code)
     destination = _finance_account(db, txn.tenant_id, destination_code)
     description = txn.note or txn.category or txn.transaction_type
@@ -636,6 +667,7 @@ def _log_finance_anomaly_snapshot(
 
 @router.get("/balances")
 def get_balances(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_read_access(user)
     _ensure_finance_accounts(db, tenant.id)
     db.commit()
     return {
@@ -650,6 +682,7 @@ def get_balances(db: Session = Depends(get_db), tenant: Tenant = Depends(get_ten
 
 @router.get("/summary")
 def get_finance_summary(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_read_access(user)
     accounts = _ensure_finance_accounts(db, tenant.id)
     db.commit()
     account_by_id = {row.id: row for row in accounts.values()}
@@ -873,6 +906,7 @@ def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
 
 @router.get("/ledger/accounts")
 def list_ledger_accounts(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_read_access(user)
     accounts = _ensure_finance_accounts(db, tenant.id)
     db.commit()
     ordered = [accounts[code] for code in FINANCE_ACCOUNT_DEFS.keys() if code in accounts]
@@ -881,6 +915,7 @@ def list_ledger_accounts(db: Session = Depends(get_db), tenant: Tenant = Depends
 
 @router.get("/alerts")
 def list_finance_alerts(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_read_access(user)
     alerts = _finance_alerts(db, tenant.id)
     db.commit()
     return alerts
@@ -904,6 +939,7 @@ def list_ledger_transactions(
     tenant: Tenant = Depends(get_tenant),
     user=Depends(get_current_user),
 ):
+    _ensure_finance_read_access(user)
     accounts = _ensure_finance_accounts(db, tenant.id)
     db.commit()
     limit = min(max(int(limit or 200), 1), 1000)
@@ -986,6 +1022,7 @@ def list_ledger_transactions(
 
 @router.get("/ledger/transactions/{transaction_id}")
 def get_ledger_transaction_detail(transaction_id: str, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_read_access(user)
     _ensure_finance_accounts(db, tenant.id)
     db.commit()
     row = (
@@ -1102,6 +1139,7 @@ def get_ledger_transaction_detail(transaction_id: str, db: Session = Depends(get
 
 @router.get("/ledger/entries")
 def list_ledger_entries(limit: int = 300, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_read_access(user)
     _ensure_finance_accounts(db, tenant.id)
     db.commit()
     limit = min(max(int(limit or 300), 1), 1000)
@@ -1154,6 +1192,7 @@ def _manual_transaction_accounts(payload: FinanceTransactionIn) -> tuple[str, st
 
 @router.post("/ledger/transactions")
 def create_ledger_transaction(payload: FinanceTransactionIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_write_access(user)
     amount = Decimal(str(payload.amount))
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be > 0")
@@ -1213,6 +1252,8 @@ def create_ledger_transaction(payload: FinanceTransactionIn, db: Session = Depen
 
 @router.get("/approvals/pending")
 def list_pending_approvals(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    if not _is_finance_approver(user, _finance_policy(db, tenant.id)):
+        raise HTTPException(status_code=403, detail="Finance approval access required")
     _ensure_finance_accounts(db, tenant.id)
     db.commit()
     rows = (
@@ -1311,6 +1352,7 @@ def reject_ledger_transaction(transaction_id: str, db: Session = Depends(get_db)
 
 @router.post("/ledger/transactions/{transaction_id}/reverse")
 def request_transaction_reversal(transaction_id: str, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_write_access(user)
     original = (
         db.query(FinanceTransaction)
         .filter(FinanceTransaction.tenant_id == tenant.id, FinanceTransaction.id == transaction_id)
@@ -1379,6 +1421,7 @@ def request_transaction_reversal(transaction_id: str, db: Session = Depends(get_
 
 @router.get("/reconciliations")
 def list_reconciliations(limit: int = 100, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_read_access(user)
     _ensure_finance_accounts(db, tenant.id)
     db.commit()
     limit = min(max(int(limit or 100), 1), 500)
@@ -1411,6 +1454,7 @@ def list_reconciliations(limit: int = 100, db: Session = Depends(get_db), tenant
 
 @router.post("/reconciliations")
 def create_reconciliation(payload: FinanceReconciliationIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_write_access(user)
     account = _finance_account(db, tenant.id, payload.account_code.strip().lower())
     expected = Decimal(str(payload.expected_balance)).quantize(Decimal("0.01"))
     counted = Decimal(str(payload.counted_balance)).quantize(Decimal("0.01"))
@@ -1452,6 +1496,7 @@ def create_reconciliation(payload: FinanceReconciliationIn, db: Session = Depend
 
 @router.get("/anomalies")
 def get_finance_anomalies(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_read_access(user)
     cash_balance = _wallet_balance(db, tenant.id, "cash")
     deposit_balance = _wallet_balance(db, tenant.id, "deposit")
     investor_ledger_balance = _wallet_balance(db, tenant.id, "investor")
@@ -1507,6 +1552,7 @@ def get_finance_anomalies(db: Session = Depends(get_db), tenant: Tenant = Depend
 
 @router.get("/entries")
 def list_entries(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_read_access(user)
     rows = (
         db.query(FinanceEntry)
         .filter(FinanceEntry.tenant_id == tenant.id)
@@ -1530,6 +1576,7 @@ def list_entries(db: Session = Depends(get_db), tenant: Tenant = Depends(get_ten
 
 @router.post("/entry")
 def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_write_access(user)
     amount = Decimal(str(payload.amount))
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be > 0")
@@ -1541,6 +1588,7 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
     if payload.source == "investor":
         raise HTTPException(status_code=400, detail="Investor wallet can only be changed via dedicated investor flows")
 
+    _lock_finance_accounts(db, tenant.id, payload.source)
     if payload.type == "out":
         bal = _wallet_balance(db, tenant.id, payload.source)
         if bal < amount:
@@ -1591,6 +1639,7 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
 
 @router.post("/transfer")
 def transfer(payload: TransferIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_write_access(user)
     amount = Decimal(str(payload.amount))
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be > 0")
@@ -1607,6 +1656,7 @@ def transfer(payload: TransferIn, db: Session = Depends(get_db), tenant: Tenant 
         raise HTTPException(status_code=400, detail="Invalid transfer direction")
 
     source, target = direction_map[payload.direction]
+    _lock_finance_accounts(db, tenant.id, source, target)
     commission = Decimal("0")
     commission_cfg = _setting_value(db, tenant.id, "bank_commission", {"card_transfer_percent": 0.5})
     card_transfer_percent = Decimal(str(commission_cfg.get("card_transfer_percent", 0.5) or 0.5))
@@ -1681,6 +1731,7 @@ def transfer(payload: TransferIn, db: Session = Depends(get_db), tenant: Tenant 
 
 @router.post("/repay-investor")
 def repay_investor(payload: InvestorRepayIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+    _ensure_finance_write_access(user)
     amount = Decimal(str(payload.amount))
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Amount must be > 0")
@@ -1689,6 +1740,7 @@ def repay_investor(payload: InvestorRepayIn, db: Session = Depends(get_db), tena
     if pay_from not in {"cash", "card", "safe"}:
         raise HTTPException(status_code=400, detail="Invalid repayment source")
 
+    _lock_finance_accounts(db, tenant.id, pay_from, "investor")
     available = _wallet_balance(db, tenant.id, pay_from)
     if available <= 0:
         raise HTTPException(status_code=400, detail="Selected wallet has no balance")
