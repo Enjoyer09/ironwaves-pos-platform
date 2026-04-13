@@ -408,8 +408,99 @@ def _seed_demo_tenant(db: Session):
     db.commit()
 
 
+def _ensure_schema_guard_table(conn) -> None:
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS app_schema_migrations (
+                key VARCHAR(80) PRIMARY KEY,
+                version INTEGER NOT NULL,
+                applied_at TIMESTAMP NOT NULL
+            )
+            """
+        )
+    )
+
+
+def _current_schema_version() -> int:
+    return max(1, int(settings.startup_schema_version or 1))
+
+
+def _mark_schema_version(conn, version: int | None = None) -> None:
+    conn.execute(
+        text(
+            """
+            INSERT INTO app_schema_migrations (key, version, applied_at)
+            VALUES ('startup_bootstrap', :version, :applied_at)
+            ON CONFLICT (key)
+            DO UPDATE SET version = EXCLUDED.version, applied_at = EXCLUDED.applied_at
+            """
+        ),
+        {"version": int(version or _current_schema_version()), "applied_at": datetime.utcnow()},
+    )
+
+
+def _runtime_state_applied_at(conn, key: str) -> datetime | None:
+    try:
+        return conn.execute(
+            text("SELECT applied_at FROM app_schema_migrations WHERE key = :key"),
+            {"key": key},
+        ).scalar()
+    except Exception:
+        return None
+
+
+def _mark_runtime_state(conn, key: str, version: int = 1) -> None:
+    conn.execute(
+        text(
+            """
+            INSERT INTO app_schema_migrations (key, version, applied_at)
+            VALUES (:key, :version, :applied_at)
+            ON CONFLICT (key)
+            DO UPDATE SET version = EXCLUDED.version, applied_at = EXCLUDED.applied_at
+            """
+        ),
+        {"key": key, "version": int(version), "applied_at": datetime.utcnow()},
+    )
+
+
+def _schema_probe_ready(conn) -> bool:
+    checks = [
+        "SELECT to_regclass('finance_accounts') IS NOT NULL",
+        "SELECT to_regclass('finance_transactions') IS NOT NULL",
+        "SELECT to_regclass('customer_consents') IS NOT NULL",
+        "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'tables' AND column_name = 'locked_by')",
+        "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'order_items' AND column_name = 'stock_consumed_at')",
+        "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'totp_secret')",
+        "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'sales' AND column_name = 'offline_request_id')",
+    ]
+    try:
+        return all(bool(conn.execute(text(sql)).scalar()) for sql in checks)
+    except Exception:
+        return False
+
+
+def _schema_ready_for_current_version() -> bool:
+    if not settings.startup_schema_guard_enabled:
+        return False
+    version = _current_schema_version()
+    with engine.begin() as conn:
+        _ensure_schema_guard_table(conn)
+        applied = conn.execute(
+            text("SELECT version FROM app_schema_migrations WHERE key = 'startup_bootstrap'")
+        ).scalar()
+        if int(applied or 0) >= version:
+            return True
+        if _schema_probe_ready(conn):
+            # Production DB-lərdə schema artıq hazırdırsa, ağır ALTER blokunu təkrar işə salmırıq.
+            _mark_schema_version(conn, version)
+            return True
+    return False
+
+
 def _run_startup_migrations():
     with engine.begin() as conn:
+        _ensure_schema_guard_table(conn)
         conn.execute(text("ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS image_url TEXT"))
         conn.execute(text("ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS description TEXT"))
         conn.execute(text("ALTER TABLE tables ADD COLUMN IF NOT EXISTS assigned_to VARCHAR(80)"))
@@ -653,25 +744,37 @@ def _run_startup_migrations():
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sales_tenant_customer_created ON sales (tenant_id, customer_card_id, created_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_revoked_tokens_tenant_hash ON revoked_tokens (tenant_id, token_hash)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_entries_tenant_source_type_created ON finance_entries (tenant_id, source, type, created_at)"))
+        _mark_schema_version(conn)
 
 
 def _run_data_retention_cleanup():
+    if not settings.startup_data_retention_cleanup_enabled:
+        return
     now = datetime.utcnow()
     audit_cutoff = now - timedelta(days=max(30, int(settings.audit_log_retention_days or 730)))
     data_cutoff = now - timedelta(days=max(30, int(settings.data_retention_days or 365)))
     with engine.begin() as conn:
+        _ensure_schema_guard_table(conn)
+        interval_hours = max(1, int(settings.startup_data_retention_cleanup_interval_hours or 24))
+        last_cleanup = _runtime_state_applied_at(conn, "data_retention_cleanup")
+        if last_cleanup and now - last_cleanup < timedelta(hours=interval_hours):
+            return
         conn.execute(text("DELETE FROM revoked_tokens WHERE expires_at < :now"), {"now": now})
         conn.execute(text("DELETE FROM audit_logs WHERE created_at < :cutoff"), {"cutoff": audit_cutoff})
         conn.execute(
             text("DELETE FROM notifications WHERE is_read = TRUE AND created_at < :cutoff"),
             {"cutoff": data_cutoff},
         )
+        _mark_runtime_state(conn, "data_retention_cleanup")
 
 
 @app.on_event("startup")
 def on_startup():
-    Base.metadata.create_all(bind=engine)
-    _run_startup_migrations()
+    schema_ready = _schema_ready_for_current_version()
+    if not schema_ready:
+        if settings.startup_create_all_enabled:
+            Base.metadata.create_all(bind=engine)
+        _run_startup_migrations()
     _run_data_retention_cleanup()
     with SessionLocal() as db:
         _seed_initial_data(db)

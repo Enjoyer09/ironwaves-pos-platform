@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     db_pool_recycle_seconds: int = 1800
     db_pool_pre_ping: bool = True
     db_statement_timeout_ms: int = 30000
+    startup_schema_guard_enabled: bool = True
+    startup_create_all_enabled: bool = True
+    startup_schema_version: int = 2026041301
+    startup_data_retention_cleanup_enabled: bool = True
+    startup_data_retention_cleanup_interval_hours: int = 24
 
     jwt_secret: str
     jwt_algorithm: str = "HS256"
