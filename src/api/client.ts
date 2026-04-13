@@ -65,17 +65,25 @@ type PersistedSession = {
   user?: { tenant_id?: string } | null;
 };
 
+let cachedSessionRaw = '';
+let cachedSession: PersistedSession = {};
+
 function getPersistedSession(): PersistedSession {
   try {
     const raw = readScopedStorage('emalatkhana-pos-session');
+    if (raw === cachedSessionRaw) return cachedSession;
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     const state = parsed?.state || {};
-    return {
+    cachedSessionRaw = raw;
+    cachedSession = {
       access_token: state?.access_token || null,
       user: state?.user || null,
     };
+    return cachedSession;
   } catch {
+    cachedSessionRaw = '';
+    cachedSession = {};
     return {};
   }
 }

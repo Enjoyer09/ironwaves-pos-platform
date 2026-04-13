@@ -8,12 +8,18 @@ function safeParse(raw: string): unknown {
   try {
     return JSON.parse(raw);
   } catch {
+    if (!/\b(?:-?Infinity|NaN)\b/.test(raw)) throw new Error('Invalid JSON');
     // Fallback for non-standard JSON literals from imported backups (NaN/Infinity).
     const normalized = raw
       .replace(/\b-?Infinity\b/g, 'null')
       .replace(/\bNaN\b/g, 'null');
     return JSON.parse(normalized);
   }
+}
+
+function normalizeRows(value: unknown): any[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((row) => row !== undefined && row !== null);
 }
 
 export function getDB<T>(key: string): T[] {
@@ -28,7 +34,7 @@ export function getDB<T>(key: string): T[] {
       return [];
     }
     const parsed = safeParse(data);
-    const safe = Array.isArray(parsed) ? parsed : [];
+    const safe = normalizeRows(parsed);
     memCache.set(key, safe);
     return safe as T[];
   } catch {
@@ -39,8 +45,10 @@ export function getDB<T>(key: string): T[] {
 
 export function setDB<T>(key: string, data: T[]): void {
   try {
-    localStorage.setItem(scopedDbKey(key), JSON.stringify(data));
-    memCache.set(key, Array.isArray(data) ? data : []);
+    const safe = normalizeRows(data);
+    const serialized = JSON.stringify(safe);
+    localStorage.setItem(scopedDbKey(key), serialized);
+    memCache.set(key, safe);
   } catch (e) {
     console.error('LocalStorage error:', e);
   }

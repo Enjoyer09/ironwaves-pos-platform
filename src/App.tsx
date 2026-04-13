@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAppStore } from './store';
 import { i18n, tx } from './i18n';
 import PinLogin from './components/PinLogin';
@@ -192,6 +192,11 @@ export default function App() {
   const [settingsVersion, setSettingsVersion] = useState(0);
   const [perfEvents, setPerfEvents] = useState<PerfEvent[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const offlineCountRef = useRef(0);
+  const pendingOfflineInFlightRef = useRef(false);
+  const notificationInFlightRef = useRef(false);
+  const businessProfileUpdateTimerRef = useRef<number | null>(null);
+  const settingsUpdateTimerRef = useRef<number | null>(null);
 
   const publicReceiptParams = useMemo(() => {
     if (typeof window === 'undefined') return { receiptId: '', token: '' };
@@ -340,14 +345,23 @@ export default function App() {
 
     let mounted = true;
     const refreshPending = async () => {
-      const count = await getPendingOfflineSalesCount(user.tenant_id as string);
-      if (mounted) setPendingOfflineCount(count);
+      if (pendingOfflineInFlightRef.current) return;
+      pendingOfflineInFlightRef.current = true;
+      try {
+        const count = await getPendingOfflineSalesCount(user.tenant_id as string);
+        if (mounted && offlineCountRef.current !== count) {
+          offlineCountRef.current = count;
+          setPendingOfflineCount(count);
+        }
+      } finally {
+        pendingOfflineInFlightRef.current = false;
+      }
     };
 
     void refreshPending();
     const timer = window.setInterval(() => {
-      void refreshPending();
-    }, 15000);
+      if (document.visibilityState === 'visible') void refreshPending();
+    }, 45000);
 
     const onVisibility = () => {
       if (!document.hidden) void refreshPending();
@@ -392,6 +406,8 @@ export default function App() {
     if (!hasValidUser || !user?.tenant_id || !user?.username) return;
     let cancelled = false;
     const pollNotifications = async () => {
+      if (notificationInFlightRef.current || document.visibilityState !== 'visible') return;
+      notificationInFlightRef.current = true;
       try {
         const unread = await get_unread_staff_notifications_live(user.tenant_id, user.username);
         if (cancelled || unread.length === 0) return;
@@ -408,13 +424,15 @@ export default function App() {
         }
       } catch (e: any) {
         logUiError(user?.tenant_id || activeTenant, 'app-shell', e?.message || 'Failed to load staff notifications');
+      } finally {
+        notificationInFlightRef.current = false;
       }
     };
 
     void pollNotifications();
     const timer = window.setInterval(() => {
       void pollNotifications();
-    }, 15000);
+    }, 45000);
 
     return () => {
       cancelled = true;
@@ -600,11 +618,15 @@ export default function App() {
       const eventTenant = String(detail?.tenant_id || '');
       const currentTenant = String(user?.tenant_id || activeTenant || '');
       if (!eventTenant || !currentTenant || eventTenant === currentTenant) {
-        setBusinessProfileVersion((prev) => prev + 1);
+        if (businessProfileUpdateTimerRef.current) window.clearTimeout(businessProfileUpdateTimerRef.current);
+        businessProfileUpdateTimerRef.current = window.setTimeout(() => {
+          setBusinessProfileVersion((prev) => prev + 1);
+        }, 180);
       }
     };
     window.addEventListener('business-profile-updated', onBusinessProfileUpdated as EventListener);
     return () => {
+      if (businessProfileUpdateTimerRef.current) window.clearTimeout(businessProfileUpdateTimerRef.current);
       window.removeEventListener('business-profile-updated', onBusinessProfileUpdated as EventListener);
     };
   }, [user?.tenant_id, activeTenant]);
@@ -615,11 +637,15 @@ export default function App() {
       const eventTenant = String(detail?.tenant_id || '');
       const currentTenant = String(user?.tenant_id || activeTenant || '');
       if (!eventTenant || !currentTenant || eventTenant === currentTenant) {
-        setSettingsVersion((prev) => prev + 1);
+        if (settingsUpdateTimerRef.current) window.clearTimeout(settingsUpdateTimerRef.current);
+        settingsUpdateTimerRef.current = window.setTimeout(() => {
+          setSettingsVersion((prev) => prev + 1);
+        }, 180);
       }
     };
     window.addEventListener('settings-updated', onSettingsUpdated as EventListener);
     return () => {
+      if (settingsUpdateTimerRef.current) window.clearTimeout(settingsUpdateTimerRef.current);
       window.removeEventListener('settings-updated', onSettingsUpdated as EventListener);
     };
   }, [user?.tenant_id, activeTenant]);
