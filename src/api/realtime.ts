@@ -48,10 +48,16 @@ export function subscribeTenantRealtime(
   let socket: WebSocket | null = null;
   let disposed = false;
   let retryTimer: number | null = null;
+  let retryDelayMs = 2000;
 
   const connect = () => {
     if (disposed) return;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
     socket = new window.WebSocket(url);
+    socket.onopen = () => {
+      retryDelayMs = 2000;
+    };
     socket.onmessage = (event) => {
       try {
         const parsed = JSON.parse(String(event.data || '{}'));
@@ -62,7 +68,8 @@ export function subscribeTenantRealtime(
     };
     socket.onclose = () => {
       if (disposed) return;
-      retryTimer = window.setTimeout(connect, 2000);
+      retryTimer = window.setTimeout(connect, retryDelayMs);
+      retryDelayMs = Math.min(30000, Math.round(retryDelayMs * 1.8));
     };
     socket.onerror = () => {
       try {
@@ -74,9 +81,18 @@ export function subscribeTenantRealtime(
   };
 
   connect();
+  const reconnectWhenReady = () => {
+    if (disposed || (socket && socket.readyState === WebSocket.OPEN)) return;
+    if (retryTimer) window.clearTimeout(retryTimer);
+    retryTimer = window.setTimeout(connect, 500);
+  };
+  window.addEventListener('online', reconnectWhenReady);
+  document.addEventListener('visibilitychange', reconnectWhenReady);
   return () => {
     disposed = true;
     if (retryTimer) window.clearTimeout(retryTimer);
+    window.removeEventListener('online', reconnectWhenReady);
+    document.removeEventListener('visibilitychange', reconnectWhenReady);
     try {
       socket?.close();
     } catch {

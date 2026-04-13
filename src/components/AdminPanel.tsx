@@ -72,6 +72,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   const [managerPass, setManagerPass] = useState('');
   const [newSaleTotal, setNewSaleTotal] = useState('');
   const fetchCacheRef = useRef<Record<string, number>>({});
+  const fetchSeqRef = useRef(0);
 
   const setActiveTabSoft = (tab: AdminTab) => {
     startTransition(() => {
@@ -100,7 +101,8 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   ]), [lang, currentRole]);
 
   useEffect(() => {
-    void fetchData();
+    const seq = ++fetchSeqRef.current;
+    void fetchData(seq);
   }, [activeTab, dateFrom, dateTo, tenant_id]);
 
   useEffect(() => {
@@ -119,7 +121,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     }
   }, [externalTab, activeTab]);
 
-  const fetchData = async () => {
+  const fetchData = async (seq = ++fetchSeqRef.current) => {
     const now = Date.now();
 
     if (activeTab === 'analytics') {
@@ -135,6 +137,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
         get_sales_summary_live(tenant_id, from_d.toISOString(), to_d.toISOString()),
         get_sales_list_live(tenant_id, from_d.toISOString(), to_d.toISOString()),
       ]);
+      if (seq !== fetchSeqRef.current) return;
       setSummary(nextSummary);
       setSales(nextSales);
       fetchCacheRef.current[cacheKey] = Date.now();
@@ -146,7 +149,9 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
       if (fetchCacheRef.current[cacheKey] && now - fetchCacheRef.current[cacheKey] < 30000 && menu.length > 0) {
         return;
       }
-      setMenu(await get_menu_items_live(tenant_id));
+      const nextMenu = await get_menu_items_live(tenant_id);
+      if (seq !== fetchSeqRef.current) return;
+      setMenu(nextMenu);
       fetchCacheRef.current[cacheKey] = Date.now();
       return;
     }
@@ -156,7 +161,9 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
       if (fetchCacheRef.current[cacheKey] && now - fetchCacheRef.current[cacheKey] < 15000 && logsData.length > 0) {
         return;
       }
-      setLogsData(await get_logs_live(tenant_id, 250));
+      const nextLogs = await get_logs_live(tenant_id, 250);
+      if (seq !== fetchSeqRef.current) return;
+      setLogsData(nextLogs);
       fetchCacheRef.current[cacheKey] = Date.now();
     }
   };

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { get_kitchen_orders_live, accept_order_live, complete_order_live, ready_kitchen_item_status_live, serve_kitchen_item_status_live, start_kitchen_item_status_live } from '../api/kds';
 import { subscribeTenantRealtime } from '../api/realtime';
 import { Clock, CheckCircle, ChefHat, AlertCircle } from 'lucide-react';
@@ -15,6 +15,8 @@ export default function KDS() {
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
   const [currentTime, setCurrentTime] = useState(Date.now());
+  const fetchInFlightRef = useRef(false);
+  const lastFetchAtRef = useRef(0);
 
   const parseServerTimestamp = (value?: string | null) => {
     if (!value) return NaN;
@@ -24,23 +26,29 @@ export default function KDS() {
 
   // Sifarişləri mütəmadi olaraq yoxla (Simulyativ WebSocket)
   useEffect(() => {
-    const fetchOrders = async () => {
+    const fetchOrders = async (force = false) => {
+      const now = Date.now();
+      if (!force && (fetchInFlightRef.current || now - lastFetchAtRef.current < 2500)) return;
+      fetchInFlightRef.current = true;
+      lastFetchAtRef.current = now;
       try {
         const activeOrders = await get_kitchen_orders_live(tenant_id);
         setOrders(Array.isArray(activeOrders) ? activeOrders : []);
       } catch (e) {
         logUiError(tenant_id, 'kds', e instanceof Error ? e.message : String(e), { phase: 'fetch_orders' });
         setOrders([]);
+      } finally {
+        fetchInFlightRef.current = false;
       }
     };
 
-    void fetchOrders();
+    void fetchOrders(true);
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         void fetchOrders();
       }
-    }, 10000);
-    const clock = setInterval(() => setCurrentTime(Date.now()), 15000);
+    }, 20000);
+    const clock = setInterval(() => setCurrentTime(Date.now()), 30000);
     return () => {
       clearInterval(interval);
       clearInterval(clock);
@@ -48,13 +56,27 @@ export default function KDS() {
   }, [tenant_id]);
 
   useEffect(() => {
+    let refreshTimer: number | null = null;
     const unsubscribe = subscribeTenantRealtime(tenant_id, (message) => {
       if (!['kitchen.updated', 'check.updated', 'table.updated'].includes(String(message.event || ''))) return;
-      void get_kitchen_orders_live(tenant_id)
-        .then((activeOrders) => setOrders(Array.isArray(activeOrders) ? activeOrders : []))
-        .catch(() => {});
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        if (document.visibilityState !== 'visible') return;
+        if (fetchInFlightRef.current || Date.now() - lastFetchAtRef.current < 1500) return;
+        fetchInFlightRef.current = true;
+        lastFetchAtRef.current = Date.now();
+        void get_kitchen_orders_live(tenant_id)
+          .then((activeOrders) => setOrders(Array.isArray(activeOrders) ? activeOrders : []))
+          .catch(() => {})
+          .finally(() => {
+            fetchInFlightRef.current = false;
+          });
+      }, 300);
     });
-    return unsubscribe;
+    return () => {
+      if (refreshTimer) window.clearTimeout(refreshTimer);
+      unsubscribe();
+    };
   }, [tenant_id]);
 
   useEffect(() => {
@@ -213,7 +235,8 @@ export default function KDS() {
     }
   };
 
-  const groupedOrders = orders.reduce<Array<{
+  const groupedOrders = useMemo(() => {
+    const groupMap = new Map<string, {
     key: string;
     table_label: string | null;
     order_type?: string;
@@ -226,14 +249,16 @@ export default function KDS() {
     readyIds: string[];
     items: Array<{ ids: string[]; item_name: string; qty: number; seat_label?: string; action?: string | null; status?: string; reason?: string; parent_item_id?: string; note?: string }>;
     batchCount: number;
-  }>>((acc, order) => {
+  }>();
+
+    orders.forEach((order) => {
     const key = order.table_label ? `table:${order.table_label}` : `order:${order.id}`;
-    const existing = acc.find((row) => row.key === key);
+      const existing = groupMap.get(key);
     const normalizedItems = normalizeItems(order);
 
     if (!existing) {
       const hasKitchenInstruction = normalizedItems.some((item: any) => ['VOID_REQUESTED', 'REMAKE', 'WASTE'].includes(String(item.status || item.action || '').toUpperCase()));
-      acc.push({
+        groupMap.set(key, {
         key,
         table_label: order.table_label || null,
         order_type: order.order_type,
@@ -257,7 +282,7 @@ export default function KDS() {
         })),
         batchCount: 1,
       });
-      return acc;
+        return;
     }
 
     existing.ids.push(order.id);
@@ -290,8 +315,9 @@ export default function KDS() {
         existing.items.push({ ids: item.id ? [String(item.id)] : [], item_name: item.item_name, qty: Number(item.qty || 0), seat_label: itemSeat, action: itemAction, status: itemStatus, reason: item.reason || '', parent_item_id: item.parent_item_id, note: item.note || '' });
       }
     });
-    return acc;
-  }, []);
+    });
+    return Array.from(groupMap.values());
+  }, [orders]);
 
   const handleAcceptGroup = async (group: { newIds: string[] }) => {
     try {

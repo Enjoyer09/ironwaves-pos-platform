@@ -43,6 +43,7 @@ const ALLOWED_TABLES = [
   'inventory',
   'ingredients',
   'customers',
+  'customer_consents',
   'recipes',
   'customer_coupons',
   'admin_notes',
@@ -75,6 +76,23 @@ function sanitizeNonStandardJson(input: string): string {
     .replace(/\bNaN\b/g, 'null');
 }
 
+function parseRestoreJson(jsonData: string): Record<string, any> {
+  try {
+    const parsed = JSON.parse(jsonData);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Backup kök strukturu obyekt olmalıdır');
+    }
+    return parsed as Record<string, any>;
+  } catch (error) {
+    if (!/\b(?:-?Infinity|NaN)\b/.test(jsonData)) throw error;
+    const parsed = JSON.parse(sanitizeNonStandardJson(jsonData));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Backup kök strukturu obyekt olmalıdır');
+    }
+    return parsed as Record<string, any>;
+  }
+}
+
 function isHostedLiveApp(): boolean {
   if (typeof window === 'undefined') return false;
   return String(window.location.host || '').toLowerCase().endsWith('ironwaves.store');
@@ -98,7 +116,7 @@ function buildRestoreChunkObject(rawData: Record<string, any>, table: string): R
 }
 
 export function splitRestoreIntoChunks(jsonData: string, selectedTables: string[]): RestoreChunk[] {
-  const parsed = JSON.parse(sanitizeNonStandardJson(jsonData));
+  const parsed = parseRestoreJson(jsonData);
   const chunks: RestoreChunk[] = [];
   for (const table of selectedTables) {
     const chunkObject = buildRestoreChunkObject(parsed, table);
@@ -126,6 +144,7 @@ const TENANT_SCOPED_TABLES = new Set([
   'inventory',
   'ingredients',
   'customers',
+  'customer_consents',
   'recipes',
   'customer_coupons',
   'admin_notes',
@@ -189,7 +208,7 @@ export function get_restore_preview(tenant_id: string, jsonData: string): Restor
     warnings: [],
   };
 
-  const data = JSON.parse(sanitizeNonStandardJson(jsonData));
+  const data = parseRestoreJson(jsonData);
 
   if (data['_tenant_id'] && data['_tenant_id'] !== tenant_id) {
     preview.warnings.push('Backup fərqli tenant üçün yaradılıb.');
@@ -233,7 +252,7 @@ export async function get_restore_preview_live(tenant_id: string, jsonData: stri
 
 export function restore_database(tenant_id: string, jsonData: string, selectedTables?: string[]): RestoreReport {
   try {
-    const data = JSON.parse(sanitizeNonStandardJson(jsonData));
+    const data = parseRestoreJson(jsonData);
     const report: RestoreReport = {
       success: true,
       restored_tables: [],
@@ -265,6 +284,11 @@ export function restore_database(tenant_id: string, jsonData: string, selectedTa
     };
 
     const normalizeRow = (table: string, row: any, rowIndex: number) => {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) {
+        report.rejected_rows += 1;
+        report.rejected_samples.push({ table, reason: 'sətir obyekt deyil', row_index: rowIndex, row });
+        return null;
+      }
       const base = TENANT_SCOPED_TABLES.has(table)
         ? (row?.tenant_id ? row : { ...row, tenant_id })
         : row;

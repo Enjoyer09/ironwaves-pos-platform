@@ -193,6 +193,11 @@ export default function POS() {
   const [isTabletViewport, setIsTabletViewport] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 1280 : false));
   const [tableRoutingBanner, setTableRoutingBanner] = useState<{ tableId: string; tableLabel: string } | null>(null);
   const receiptIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const refreshInFlightRef = useRef(false);
+  const lastRefreshAtRef = useRef(0);
+  const pendingRefreshTimerRef = useRef<number | null>(null);
+  const lastPersistedCartsRef = useRef('');
+  const lastPersistedCtxRef = useRef('');
   const businessProfile = get_business_profile(tenantId);
   const tenantSettings = useMemo(() => get_settings(tenantId), [tenantId, layoutRefreshKey]);
   const printSettings = tenantSettings.print_settings || { use_qz: false, printer_name: '' };
@@ -290,10 +295,20 @@ export default function POS() {
   }, [tenantId, ctx.selectedTable, activeCart]);
 
   useEffect(() => {
-    const onResize = () => setIsTabletViewport(window.innerWidth < 1280);
+    let resizeTimer: number | null = null;
+    const onResize = () => {
+      if (resizeTimer) window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => {
+        const next = window.innerWidth < 1280;
+        setIsTabletViewport((prev) => (prev === next ? prev : next));
+      }, 120);
+    };
     onResize();
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    return () => {
+      if (resizeTimer) window.clearTimeout(resizeTimer);
+      window.removeEventListener('resize', onResize);
+    };
   }, []);
 
   const applyOpenTablePayload = (detail?: { table_id?: string; table_label?: string }) => {
@@ -409,19 +424,47 @@ export default function POS() {
   }, [tenantId, openTableStorageKey, posCartCtxStorageKey, posActiveCartStorageKey]);
 
   useEffect(() => {
-    const t = window.setTimeout(() => {
-      localStorage.setItem(posCartsStorageKey, JSON.stringify(carts));
-    }, 120);
-    return () => window.clearTimeout(t);
-  }, [tenantId, carts, posCartsStorageKey]);
+    const persist = () => {
+      try {
+        const serialized = JSON.stringify(carts);
+        if (serialized !== lastPersistedCartsRef.current) {
+          localStorage.setItem(posCartsStorageKey, serialized);
+          lastPersistedCartsRef.current = serialized;
+        }
+      } catch {
+        // POS should never freeze because a browser storage write failed.
+      }
+    };
+    const idle = (window as any).requestIdleCallback;
+    const id = idle ? idle(persist, { timeout: 900 }) : window.setTimeout(persist, 450);
+    return () => {
+      const cancelIdle = (window as any).cancelIdleCallback;
+      if (idle && cancelIdle) cancelIdle(id);
+      else window.clearTimeout(id);
+    };
+  }, [carts, posCartsStorageKey]);
 
   useEffect(() => {
-    const t = window.setTimeout(() => {
-      localStorage.setItem(posCartCtxStorageKey, JSON.stringify(cartCtx));
-      localStorage.setItem(posActiveCartStorageKey, activeCart);
-    }, 120);
-    return () => window.clearTimeout(t);
-  }, [tenantId, cartCtx, activeCart, posCartCtxStorageKey, posActiveCartStorageKey]);
+    const persist = () => {
+      try {
+        const serialized = JSON.stringify({ cartCtx, activeCart });
+        if (serialized !== lastPersistedCtxRef.current) {
+          localStorage.setItem(posCartCtxStorageKey, JSON.stringify(cartCtx));
+          localStorage.setItem(posActiveCartStorageKey, activeCart);
+          lastPersistedCtxRef.current = serialized;
+        }
+      } catch {
+        // Keep touch flow responsive even if storage quota is reached.
+      }
+    };
+    const idle = (window as any).requestIdleCallback;
+    const id = idle ? idle(persist, { timeout: 900 }) : window.setTimeout(persist, 450);
+    return () => {
+      const cancelIdle = (window as any).cancelIdleCallback;
+      if (idle && cancelIdle) cancelIdle(id);
+      else window.clearTimeout(id);
+    };
+  }, [cartCtx, activeCart, posCartCtxStorageKey, posActiveCartStorageKey]);
 
   const addToCart = (item: any, options?: { cup_mode?: 'paper' | 'glass' }) => {
     const defaultSeatLabel = undefined;
@@ -491,11 +534,19 @@ export default function POS() {
       getPendingOfflineSalesCount(tenantId),
       getPendingOfflineSales(tenantId),
     ]);
-    setPendingSyncCount(count);
-    setPendingOfflineSales(rows);
+    setPendingSyncCount((prev) => (prev === count ? prev : count));
+    setPendingOfflineSales((prev) => {
+      const prevKey = `${prev.length}:${prev[0]?.sale_id || ''}:${prev[prev.length - 1]?.sale_id || ''}`;
+      const nextKey = `${rows.length}:${rows[0]?.sale_id || ''}:${rows[rows.length - 1]?.sale_id || ''}`;
+      return prevKey === nextKey ? prev : rows;
+    });
   };
 
-  const refreshData = async () => {
+  const refreshData = async (force = false) => {
+    const now = Date.now();
+    if (!force && (refreshInFlightRef.current || now - lastRefreshAtRef.current < 2500)) return;
+    refreshInFlightRef.current = true;
+    lastRefreshAtRef.current = now;
     try {
       const nextMenu = isBackendEnabled()
         ? await apiRequest<any[]>('/api/v1/pos/menu')
@@ -516,21 +567,30 @@ export default function POS() {
       setTables([]);
       void refreshOfflineState();
       notify('error', tx(safeLang, 'POS məlumatları yüklənmədi', 'Не удалось загрузить данные POS', 'Failed to load POS data'));
+    } finally {
+      refreshInFlightRef.current = false;
     }
   };
 
+  const scheduleRefreshData = (force = false) => {
+    if (pendingRefreshTimerRef.current) window.clearTimeout(pendingRefreshTimerRef.current);
+    pendingRefreshTimerRef.current = window.setTimeout(() => {
+      void refreshData(force);
+    }, force ? 0 : 350);
+  };
+
   useEffect(() => {
-    void refreshData();
+    void refreshData(true);
   }, [tenantId]);
 
   useEffect(() => {
     const handleRefresh = () => {
-      void refreshData();
+      scheduleRefreshData();
       void refreshOfflineState();
     };
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        void refreshData();
+        scheduleRefreshData();
       }
     };
     window.addEventListener('focus', handleRefresh);
@@ -540,14 +600,15 @@ export default function POS() {
       window.removeEventListener('focus', handleRefresh);
       window.removeEventListener('catalog-updated', handleRefresh as EventListener);
       document.removeEventListener('visibilitychange', handleVisibility);
+      if (pendingRefreshTimerRef.current) window.clearTimeout(pendingRefreshTimerRef.current);
     };
   }, [tenantId]);
 
   useEffect(() => {
     void refreshOfflineState();
     const timer = window.setInterval(() => {
-      void refreshOfflineState();
-    }, 15000);
+      if (document.visibilityState === 'visible') void refreshOfflineState();
+    }, 60000);
     return () => window.clearInterval(timer);
   }, [tenantId]);
 
