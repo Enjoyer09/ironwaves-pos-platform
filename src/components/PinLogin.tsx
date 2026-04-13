@@ -3,7 +3,7 @@ import { useAppStore } from '../store';
 import { i18n, tx } from '../i18n';
 import { Delete } from 'lucide-react';
 import { getDeviceHash, getPublicIp, LoginRiskContext } from '../lib/risk';
-import { get_business_profile, get_public_branding_live, get_settings } from '../api/settings';
+import { get_business_profile, get_public_branding_live, get_settings_live } from '../api/settings';
 import { resolveTenantIdFromHost } from '../lib/tenant';
 import { authApi } from '../api/auth';
 
@@ -28,9 +28,7 @@ export default function PinLogin() {
   const [ownerUser, setOwnerUser] = useState('owner');
   const [ownerPass, setOwnerPass] = useState('');
   const [ownerPassConfirm, setOwnerPassConfirm] = useState('');
-  const [staffPinLength, setStaffPinLength] = useState<4 | 6>(() => (
-    Number(get_settings(tenantId).session_settings?.staff_pin_length || 6) === 4 ? 4 : 6
-  ));
+  const [staffPinLength, setStaffPinLength] = useState<4 | 6>(6);
 
   React.useEffect(() => {
     let mounted = true;
@@ -76,9 +74,16 @@ export default function PinLogin() {
 
   React.useEffect(() => {
     const syncPinLength = () => {
-      const next = Number(get_settings(tenantId).session_settings?.staff_pin_length || 6) === 4 ? 4 : 6;
-      setStaffPinLength(next);
-      setPin((prev) => prev.slice(0, next));
+      get_settings_live(tenantId)
+        .then((settings) => {
+          const next = Number(settings?.session_settings?.staff_pin_length || 6) === 4 ? 4 : 6;
+          setStaffPinLength(next);
+          setPin((prev) => prev.slice(0, next));
+        })
+        .catch(() => {
+          setStaffPinLength(6);
+          setPin((prev) => prev.slice(0, 6));
+        });
     };
     syncPinLength();
     window.addEventListener('settings-updated', syncPinLength as EventListener);
