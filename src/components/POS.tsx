@@ -9,7 +9,7 @@ import { get_tables_live, send_to_kitchen_live, pay_table_live } from '../api/ta
 import { get_shift_status, refresh_shift_status } from '../api/reports';
 import { getDB } from '../lib/db_sim';
 import { i18n, tx } from '../i18n';
-import { get_business_profile, get_settings } from '../api/settings';
+import { get_business_profile, get_settings_live } from '../api/settings';
 import { logUiError } from '../lib/logger';
 import { qzPrintHtml } from '../lib/qz';
 import { hostScopedKey } from '../lib/storage_keys';
@@ -192,6 +192,7 @@ export default function POS() {
   const [layoutRefreshKey, setLayoutRefreshKey] = useState(0);
   const [isTabletViewport, setIsTabletViewport] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 1280 : false));
   const [tableRoutingBanner, setTableRoutingBanner] = useState<{ tableId: string; tableLabel: string } | null>(null);
+  const [tenantSettings, setTenantSettings] = useState<any>({});
   const receiptIframeRef = useRef<HTMLIFrameElement | null>(null);
   const refreshInFlightRef = useRef(false);
   const lastRefreshAtRef = useRef(0);
@@ -199,7 +200,6 @@ export default function POS() {
   const lastPersistedCartsRef = useRef('');
   const lastPersistedCtxRef = useRef('');
   const businessProfile = get_business_profile(tenantId);
-  const tenantSettings = useMemo(() => get_settings(tenantId), [tenantId, layoutRefreshKey]);
   const printSettings = tenantSettings.print_settings || { use_qz: false, printer_name: '' };
   const beverageServiceSettings = tenantSettings.beverage_service_settings || {
     coffee_selection_mode: 'size_and_service',
@@ -265,6 +265,23 @@ export default function POS() {
   const clearCart = (key: 'S1' | 'S2' | 'S3' = activeCart) => {
     setCarts((prev) => ({ ...prev, [key]: [] }));
   };
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const settings = await get_settings_live(tenantId);
+        if (!mounted) return;
+        setTenantSettings(settings || {});
+      } catch {
+        if (!mounted) return;
+        setTenantSettings({});
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [tenantId, layoutRefreshKey]);
 
   useEffect(() => {
     const onLayoutUpdate = (event: Event) => {
@@ -829,7 +846,7 @@ export default function POS() {
               .toFixed(2)} ₼</td></tr>`,
         )
         .join('');
-      const configuredBase = String(get_settings(tenantId).qr_settings?.base_url || businessProfile?.website || '').trim();
+      const configuredBase = String(tenantSettings?.qr_settings?.base_url || businessProfile?.website || '').trim();
       const baseUrl = (configuredBase || window.location.origin).replace(/\/+$/, '');
       const receiptRef = (sale as any).receipt_code || sale.sale_id;
       const receiptUrl = `${baseUrl}/?r=${encodeURIComponent(receiptRef)}&t=${encodeURIComponent((sale as any).receipt_token || '')}`;

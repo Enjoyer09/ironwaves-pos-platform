@@ -24,11 +24,27 @@ import {
   z_report,
 } from '../../api/reports';
 import { fetch_finance_anomalies, fetch_finance_balances, get_balance, type FinanceAnomalies } from '../../api/finance';
-import { get_settings, get_users_live } from '../../api/settings';
+import { get_settings_live, get_users_live } from '../../api/settings';
 import { qzListPrinters, qzPrintHtml } from '../../lib/qz';
 import { tx } from '../../i18n';
 import { isBackendEnabled } from '../../api/client';
 import { formatServerUtcDateTime, localDateInputValue } from '../../lib/time';
+
+const DEFAULT_PRINT_SETTINGS = { use_qz: false, printer_name: '' };
+const DEFAULT_Z_REPORT_RECEIPT_SETTINGS = {
+  show_operator: true,
+  show_date_range: true,
+  show_sales_summary: true,
+  show_profit_summary: true,
+  show_wage: true,
+  show_shift_cash: true,
+  show_cash_movements: true,
+  show_other_income: true,
+  show_other_expense: true,
+  show_deposit_summary: true,
+  show_cashier_breakdown: true,
+  show_counts: true,
+};
 
 export default function ZReportPanel() {
   const { user, lang, notify } = useAppStore();
@@ -63,6 +79,7 @@ export default function ZReportPanel() {
     deposit_balance: '0',
   });
   const [financeAnomalies, setFinanceAnomalies] = useState<FinanceAnomalies | null>(null);
+  const [panelSettings, setPanelSettings] = useState<any>({});
   const [reportRefreshKey, setReportRefreshKey] = useState(0);
   const [salesPageSize, setSalesPageSize] = useState(10);
   const [activeYieldBatches, setActiveYieldBatches] = useState<YieldBatchRow[]>([]);
@@ -76,22 +93,9 @@ export default function ZReportPanel() {
   const previousShiftStatusRef = useRef<string>(shiftStatusState.status);
   const refreshTimerRef = useRef<number | null>(null);
   const lastRefreshAtRef = useRef(0);
-  const printSettings = get_settings(tenant_id).print_settings || { use_qz: false, printer_name: '' };
-  const yieldSettings = get_settings(tenant_id).yield_management_settings;
-  const zReportReceiptSettings = get_settings(tenant_id).z_report_receipt_settings || {
-    show_operator: true,
-    show_date_range: true,
-    show_sales_summary: true,
-    show_profit_summary: true,
-    show_wage: true,
-    show_shift_cash: true,
-    show_cash_movements: true,
-    show_other_income: true,
-    show_other_expense: true,
-    show_deposit_summary: true,
-    show_cashier_breakdown: true,
-    show_counts: true,
-  };
+  const printSettings = panelSettings?.print_settings || DEFAULT_PRINT_SETTINGS;
+  const yieldSettings = panelSettings?.yield_management_settings;
+  const zReportReceiptSettings = panelSettings?.z_report_receipt_settings || DEFAULT_Z_REPORT_RECEIPT_SETTINGS;
   const trackedYieldItems = Array.isArray(yieldSettings?.tracked_items) ? yieldSettings!.tracked_items!.filter((row: any) => row.enabled !== false) : [];
 
   const carryoverCash = new Decimal(currentBalances.cash_balance || 0);
@@ -301,6 +305,23 @@ export default function ZReportPanel() {
     setCurrentBalances(balances);
     setFinanceAnomalies(anomalies);
   }, [tenant_id, user?.username]);
+
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const settings = await get_settings_live(tenant_id);
+        if (!mounted) return;
+        setPanelSettings(settings || {});
+      } catch {
+        if (!mounted) return;
+        setPanelSettings({});
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [tenant_id]);
 
   React.useEffect(() => {
     let mounted = true;

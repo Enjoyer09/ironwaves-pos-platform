@@ -9,7 +9,7 @@ import { useAppStore } from '../store';
 import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
 import { Decimal } from 'decimal.js';
-import { get_business_profile, get_settings } from '../api/settings';
+import { get_business_profile, get_settings_live } from '../api/settings';
 import { getDB } from '../lib/db_sim';
 import { verifyLocalCredential } from '../lib/local_auth';
 import { logEvent } from '../lib/logger';
@@ -93,14 +93,31 @@ export default function TablesPage() {
   const [reservationAssignedTableId, setReservationAssignedTableId] = useState('');
   const [reservationStatusDraft, setReservationStatusDraft] = useState<'BOOKED' | 'WAITLIST'>('BOOKED');
   const [tableDetailRecord, setTableDetailRecord] = useState<TableDetailRecord | null>(null);
+  const [tenantSettings, setTenantSettings] = useState<any>({});
   const receiptRef = useRef<HTMLIFrameElement | null>(null);
   const detailPanelRef = useRef<HTMLDivElement | null>(null);
   const businessProfile = get_business_profile(tenant_id);
-  const tenantSettings = get_settings(tenant_id);
   const printSettings = tenantSettings.print_settings || { use_qz: false, printer_name: '' };
   const depositPerGuest = new Decimal((tenantSettings as any).table_service_settings?.deposit_per_guest_azn || 0);
   const reservationLockHours = Math.max(0, Number((tenantSettings as any).table_service_settings?.reservation_lock_hours ?? 2));
   const serviceFeePercent = new Decimal(tenantSettings.service_fee_percent || 0);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const settings = await get_settings_live(tenant_id);
+        if (!mounted) return;
+        setTenantSettings(settings || {});
+      } catch {
+        if (!mounted) return;
+        setTenantSettings({});
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [tenant_id]);
 
   const formatDisplayId = (id: string) => (id ? id.split('-')[0].toUpperCase() : '-');
   const kitchenBadge = (status?: string | null) => {
