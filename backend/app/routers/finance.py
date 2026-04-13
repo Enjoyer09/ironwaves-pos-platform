@@ -39,6 +39,42 @@ FINANCE_ACCOUNT_DEFS: dict[str, tuple[str, str]] = {
     "adjustment": ("adjustment", "Maliyyə Düzəlişi"),
 }
 
+FINANCE_CATEGORY_LABELS: dict[str, str] = {
+    "founder_investment": "Təsisçi İnvestisiyası",
+    "borrowed_funds_in": "Borc Alındı",
+    "other_income": "Digər Giriş",
+    "raw_material": "Xammal",
+    "utilities": "Kommunal",
+    "payroll": "Maaş",
+    "rent": "İcarə",
+    "penalty": "Cərimə",
+    "other_expense": "Digər Xərc",
+    "internal_transfer": "Daxili Transfer",
+    "bank_commission": "Bank Komissiyası",
+    "investor_liability_reduction": "İnvestor Borcu Azaldılması",
+    "investor_repayment": "İnvestora Geri Ödəniş",
+    "borrowed_to_cash_mirror": "Borcdan Kassaya Daxilolma",
+    "investor_liability": "İnvestor Borcu",
+}
+
+FINANCE_CATEGORY_ALIASES: dict[str, set[str]] = {
+    "founder_investment": {"tesisci investisiyasi", "founder investment", "investiciya uchreditelya"},
+    "borrowed_funds_in": {"borc alindi", "borrowed funds in", "poluchen dolg"},
+    "other_income": {"diger giris", "other income", "prochiy prihod"},
+    "raw_material": {"xammal", "raw material", "syrie"},
+    "utilities": {"kommunal", "utilities", "kommunalnye"},
+    "payroll": {"maas", "payroll", "zarplata"},
+    "rent": {"icare", "rent", "arenda"},
+    "penalty": {"cerime", "penalty", "shtraf"},
+    "other_expense": {"diger xerc", "other expense", "prochiy rashod"},
+    "internal_transfer": {"daxili transfer", "internal transfer", "vnutrenniy perevod"},
+    "bank_commission": {"bank komissiyasi", "bank commission", "bankovskaya komissiya"},
+    "investor_liability_reduction": {"investor borcu azaldilmasi", "investor liability reduction", "dolg investoru umenshen"},
+    "investor_repayment": {"investora geri odenis", "investor repayment", "vozvrat investoru"},
+    "borrowed_to_cash_mirror": {"borcdan kassaya daxilolma", "borrowed to cash", "iz dolga v kassu"},
+    "investor_liability": {"investor borcu", "investor liability", "dolg investoru"},
+}
+
 LIABILITY_OR_CREDIT_TYPES = {"deposit_liability", "investor_liability", "revenue"}
 APPROVAL_REQUIRED_TYPES = {"investor_repayment", "cash_adjustment", "reconciliation_adjustment", "reversal"}
 APPROVAL_TRANSFER_THRESHOLD = Decimal("500.00")
@@ -76,6 +112,26 @@ def _normalize_text(value: str) -> str:
         .strip()
         .lower()
     )
+
+
+def _finance_category_code(value: str | None = None, category_code: str | None = None) -> str | None:
+    normalized_code = _normalize_text(category_code or "").replace(" ", "_")
+    if normalized_code in FINANCE_CATEGORY_LABELS:
+        return normalized_code
+    normalized_value = _normalize_text(value or "")
+    if not normalized_value:
+        return None
+    for code, aliases in FINANCE_CATEGORY_ALIASES.items():
+        if normalized_value == _normalize_text(FINANCE_CATEGORY_LABELS.get(code, "")) or normalized_value in aliases:
+            return code
+    return None
+
+
+def _finance_category_label(value: str | None = None, category_code: str | None = None) -> str:
+    code = _finance_category_code(value, category_code)
+    if code and code in FINANCE_CATEGORY_LABELS:
+        return FINANCE_CATEGORY_LABELS[code]
+    return (value or "").strip()
 
 
 def _ensure_finance_accounts(db: Session, tenant_id: str) -> dict[str, FinanceAccount]:
@@ -121,6 +177,14 @@ def _account_ledger_totals(db: Session, tenant_id: str, account: FinanceAccount)
     else:
         balance = debit - credit
     return {"debit": debit, "credit": credit, "balance": balance}
+
+
+def _ledger_balances_snapshot(db: Session, tenant_id: str) -> dict[str, Decimal]:
+    accounts = _ensure_finance_accounts(db, tenant_id)
+    snapshot: dict[str, Decimal] = {}
+    for code, account in accounts.items():
+        snapshot[code] = _account_ledger_totals(db, tenant_id, account)["balance"].quantize(Decimal("0.01"))
+    return snapshot
 
 
 def _add_ledger_entry(
@@ -529,10 +593,7 @@ def _post_legacy_finance_entry(db: Session, entry: FinanceEntry, username: str) 
 
 
 def _is_founder_investment_category(category: str) -> bool:
-    normalized = _normalize_text(category)
-    has_founder = "tesisci" in normalized or "founder" in normalized or "учред" in normalized
-    has_investment = "investis" in normalized or "investment" in normalized or "инвест" in normalized
-    return has_founder and has_investment
+    return _finance_category_code(category) == "founder_investment"
 
 
 def _wallet_balance(db: Session, tenant_id: str, source: str) -> Decimal:
@@ -554,16 +615,11 @@ def _setting_value(db: Session, tenant_id: str, key: str, default):
 
 
 def _investor_debt_balance(db: Session, tenant_id: str) -> Decimal:
-    return _wallet_balance(db, tenant_id, "investor")
+    return _ledger_balances_snapshot(db, tenant_id).get("investor", Decimal("0.00"))
 
 
 def _is_investor_liability_reduction(row: FinanceEntry) -> bool:
-    category = _normalize_text(row.category)
-    return (
-        "investor borcu azaldilmasi" in category
-        or "investor liability reduction" in category
-        or "dolg investoru umenshen" in category
-    ) and _normalize_text(row.source) == "investor"
+    return _finance_category_code(row.category) == "investor_liability_reduction" and _normalize_text(row.source) == "investor"
 
 
 def _investor_summary(db: Session, tenant_id: str) -> dict[str, Decimal]:
@@ -668,15 +724,15 @@ def _log_finance_anomaly_snapshot(
 @router.get("/balances")
 def get_balances(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_read_access(user)
-    _ensure_finance_accounts(db, tenant.id)
+    balances = _ledger_balances_snapshot(db, tenant.id)
     db.commit()
     return {
-        "cash": str(_wallet_balance(db, tenant.id, "cash")),
-        "card": str(_wallet_balance(db, tenant.id, "card")),
-        "safe": str(_wallet_balance(db, tenant.id, "safe")),
-        "investor": str(_wallet_balance(db, tenant.id, "investor")),
-        "debt": str(_wallet_balance(db, tenant.id, "debt")),
-        "deposit": str(_wallet_balance(db, tenant.id, "deposit")),
+        "cash": str(balances.get("cash", Decimal("0.00"))),
+        "card": str(balances.get("card", Decimal("0.00"))),
+        "safe": str(balances.get("safe", Decimal("0.00"))),
+        "investor": str(balances.get("investor", Decimal("0.00"))),
+        "debt": str(balances.get("debt", Decimal("0.00"))),
+        "deposit": str(balances.get("deposit", Decimal("0.00"))),
     }
 
 
@@ -684,6 +740,7 @@ def get_balances(db: Session = Depends(get_db), tenant: Tenant = Depends(get_ten
 def get_finance_summary(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_read_access(user)
     accounts = _ensure_finance_accounts(db, tenant.id)
+    balances = _ledger_balances_snapshot(db, tenant.id)
     db.commit()
     account_by_id = {row.id: row for row in accounts.values()}
     alerts = _finance_alerts(db, tenant.id)
@@ -707,12 +764,12 @@ def get_finance_summary(db: Session = Depends(get_db), tenant: Tenant = Depends(
     )
     return {
         "balances": {
-            "cash": str(_wallet_balance(db, tenant.id, "cash")),
-            "card": str(_wallet_balance(db, tenant.id, "card")),
-            "safe": str(_wallet_balance(db, tenant.id, "safe")),
-            "investor": str(_wallet_balance(db, tenant.id, "investor")),
-            "debt": str(_wallet_balance(db, tenant.id, "debt")),
-            "deposit": str(_wallet_balance(db, tenant.id, "deposit")),
+            "cash": str(balances.get("cash", Decimal("0.00"))),
+            "card": str(balances.get("card", Decimal("0.00"))),
+            "safe": str(balances.get("safe", Decimal("0.00"))),
+            "investor": str(balances.get("investor", Decimal("0.00"))),
+            "debt": str(balances.get("debt", Decimal("0.00"))),
+            "deposit": str(balances.get("deposit", Decimal("0.00"))),
         },
         "alerts": alerts,
         "pending_approvals_count": pending_count,
@@ -1198,6 +1255,7 @@ def create_ledger_transaction(payload: FinanceTransactionIn, db: Session = Depen
         raise HTTPException(status_code=400, detail="Amount must be > 0")
     source, destination = _manual_transaction_accounts(payload)
     tx_type = _normalize_text(payload.transaction_type).replace("-", "_")
+    category_label = _finance_category_label(payload.category, payload.category_code) if (payload.category or payload.category_code) else None
     policy = _finance_policy(db, tenant.id)
     if _approval_required(tx_type, amount, payload.requires_approval, policy):
         txn = _create_finance_transaction_record(
@@ -1209,7 +1267,7 @@ def create_ledger_transaction(payload: FinanceTransactionIn, db: Session = Depen
             source_code=source,
             destination_code=destination,
             created_by=user.username,
-            category=payload.category,
+            category=category_label,
             counterparty=payload.counterparty,
             reference=payload.reference,
             note=payload.note,
@@ -1240,7 +1298,7 @@ def create_ledger_transaction(payload: FinanceTransactionIn, db: Session = Depen
             source_code=source,
             destination_code=destination,
             created_by=user.username,
-            category=payload.category,
+            category=category_label,
             counterparty=payload.counterparty,
             reference=payload.reference,
             note=payload.note,
@@ -1497,9 +1555,10 @@ def create_reconciliation(payload: FinanceReconciliationIn, db: Session = Depend
 @router.get("/anomalies")
 def get_finance_anomalies(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_read_access(user)
-    cash_balance = _wallet_balance(db, tenant.id, "cash")
-    deposit_balance = _wallet_balance(db, tenant.id, "deposit")
-    investor_ledger_balance = _wallet_balance(db, tenant.id, "investor")
+    ledger_balances = _ledger_balances_snapshot(db, tenant.id)
+    cash_balance = ledger_balances.get("cash", Decimal("0.00"))
+    deposit_balance = ledger_balances.get("deposit", Decimal("0.00"))
+    investor_ledger_balance = ledger_balances.get("investor", Decimal("0.00"))
     investor_summary = _investor_summary(db, tenant.id)
     investor_gap = abs(investor_ledger_balance - investor_summary["debt_remaining"])
 
@@ -1594,45 +1653,93 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
         if bal < amount:
             raise HTTPException(status_code=400, detail="Insufficient balance")
 
+    category_label = _finance_category_label(payload.category, payload.category_code)
+
     row = FinanceEntry(
         tenant_id=tenant.id,
         type=payload.type,
-        category=payload.category,
+        category=category_label,
         source=payload.source,
         amount=amount,
         description=payload.description,
         created_by=user.username,
     )
     db.add(row)
+    created_mirror_rows: list[FinanceEntry] = []
 
     if payload.type == "in" and payload.source == "debt":
-        db.add(
-            FinanceEntry(
-                tenant_id=tenant.id,
-                type="in",
-                category="Borcdan Kassaya Daxilolma",
-                source="cash",
-                amount=amount,
-                description=f"Auto mirror: {payload.description or payload.category}",
-                created_by=user.username,
-            )
+        mirror_row = FinanceEntry(
+            tenant_id=tenant.id,
+            type="in",
+            category="Borcdan Kassaya Daxilolma",
+            source="cash",
+            amount=amount,
+            description=f"Auto mirror: {payload.description or payload.category}",
+            created_by=user.username,
         )
+        db.add(mirror_row)
+        created_mirror_rows.append(mirror_row)
 
-    if payload.type == "in" and payload.source == "cash" and _is_founder_investment_category(payload.category):
-        db.add(
-            FinanceEntry(
-                tenant_id=tenant.id,
-                type="in",
-                category="İnvestor Borcu",
-                source="investor",
-                amount=amount,
-                description=f"Auto liability mirror: {payload.description or payload.category}",
-                created_by=user.username,
-            )
+    if payload.type == "in" and payload.source == "cash" and _is_founder_investment_category(category_label):
+        mirror_row = FinanceEntry(
+            tenant_id=tenant.id,
+            type="in",
+            category="İnvestor Borcu",
+            source="investor",
+            amount=amount,
+            description=f"Auto liability mirror: {payload.description or payload.category}",
+            created_by=user.username,
         )
+        db.add(mirror_row)
+        created_mirror_rows.append(mirror_row)
 
     db.flush()
-    _post_legacy_finance_entry(db, row, user.username)
+    posted_txn: FinanceTransaction | None = None
+    if payload.type == "in" and payload.source == "debt":
+        posted_txn = _post_finance_transaction(
+            db,
+            tenant_id=tenant.id,
+            transaction_type="internal_transfer",
+            amount=amount,
+            source_code="debt",
+            destination_code="cash",
+            created_by=user.username,
+            category=category_label or "Borc Alındı",
+            note=payload.description or "Borcdan kassaya daxilolma",
+            legacy_finance_entry_id=row.id,
+        )
+    else:
+        posted_txn = _post_legacy_finance_entry(db, row, user.username)
+
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="FINANCE_ENTRY_CREATED",
+            details=json.dumps(
+                {
+                    "entry_id": row.id,
+                    "entry_type": row.type,
+                        "category": row.category,
+                        "category_code": _finance_category_code(row.category, payload.category_code),
+                    "source": row.source,
+                    "amount": str(amount.quantize(Decimal("0.01"))),
+                    "ledger_transaction_id": posted_txn.id if posted_txn else None,
+                    "mirror_rows": [
+                        {
+                            "id": mirror.id,
+                            "type": mirror.type,
+                            "category": mirror.category,
+                            "source": mirror.source,
+                            "amount": str(Decimal(str(mirror.amount)).quantize(Decimal("0.01"))),
+                        }
+                        for mirror in created_mirror_rows
+                    ],
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
     db.commit()
     return {"success": True, "id": row.id}
 

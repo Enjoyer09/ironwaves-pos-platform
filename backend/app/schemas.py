@@ -164,6 +164,7 @@ class ShiftHandoverAcceptIn(BaseModel):
 class FinanceEntryIn(BaseModel):
     type: str
     category: str
+    category_code: str | None = None
     source: str
     amount: Decimal
     description: str | None = None
@@ -187,6 +188,7 @@ class FinanceTransactionIn(BaseModel):
     destination_account_code: str | None = None
     amount: Decimal
     category: str | None = None
+    category_code: str | None = None
     counterparty: str | None = None
     reference: str | None = None
     note: str | None = None

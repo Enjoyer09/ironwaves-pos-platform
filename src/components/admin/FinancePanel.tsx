@@ -18,6 +18,7 @@ import {
   fetch_finance_pending_approvals,
   fetch_finance_reconciliations,
   fetch_finance_transaction_detail,
+  financeCategoryCodeFromValue,
   reject_finance_transaction_async,
   type FinanceAnomalies,
   type FinanceAlert,
@@ -96,16 +97,17 @@ const normalizeFinanceText = (value: unknown) =>
     .toLowerCase();
 
 const isOperationalFinanceEntry = (entry: any) => {
+  const categoryCode = financeCategoryCodeFromValue(String(entry?.category || '')) || '';
   const category = normalizeFinanceText(entry?.category);
   const source = normalizeFinanceText(entry?.source);
   const description = normalizeFinanceText(entry?.description);
   const isDeposit = category.includes('depozit') || description.includes('depozit') || description.includes('deposit');
 
-  if (category.includes('daxili transfer')) return false;
-  if (category.includes('tesisci investisiyasi')) return false;
-  if (category.includes('investor borcu')) return false;
-  if (category.includes('borcdan kassaya daxilolma')) return false;
-  if (category.includes('borc alindi')) return false;
+  if (categoryCode === 'internal_transfer') return false;
+  if (categoryCode === 'founder_investment') return false;
+  if (categoryCode === 'investor_liability') return false;
+  if (categoryCode === 'borrowed_to_cash_mirror') return false;
+  if (categoryCode === 'borrowed_funds_in') return false;
   if (category.includes('kassa acilisi')) return false;
   if (isDeposit) return false;
   if (source === 'investor' || source === 'debt') return false;
@@ -130,13 +132,13 @@ export default function FinancePanel() {
   const [subject, setSubject] = useState('');
   const [subjectPresets, setSubjectPresets] = useState<string[]>(defaultSubjectPresets);
   const [newSubjectPreset, setNewSubjectPreset] = useState('');
-  const [category, setCategory] = useState('Xammal');
+  const [category, setCategory] = useState('raw_material');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
 
   const incomeCategoryOptions: CategoryOption[] = [
     {
-      value: 'Təsisçi İnvestisiyası',
+      value: 'founder_investment',
       label: tx(lang, 'Təsisçi İnvestisiyası', 'Инвестиция учредителя', 'Founder Investment'),
       helper: tx(
         lang,
@@ -146,7 +148,7 @@ export default function FinancePanel() {
       ),
     },
     {
-      value: 'Borc Alındı',
+      value: 'borrowed_funds_in',
       label: tx(lang, 'Borc Alındı', 'Получен долг', 'Borrowed Funds In'),
       helper: tx(
         lang,
@@ -156,7 +158,7 @@ export default function FinancePanel() {
       ),
     },
     {
-      value: 'Digər Giriş',
+      value: 'other_income',
       label: tx(lang, 'Digər Giriş', 'Прочий приход', 'Other Income'),
       helper: tx(lang, 'Satışdankənar digər daxilolmalar.', 'Прочие несбытовые поступления.', 'Other non-sales income entries.'),
     },
@@ -164,32 +166,32 @@ export default function FinancePanel() {
 
   const expenseCategoryOptions: CategoryOption[] = [
     {
-      value: 'Xammal',
+      value: 'raw_material',
       label: tx(lang, 'Xammal', 'Сырье', 'Raw Material'),
       helper: tx(lang, 'Məhsul/xammal alışı üçün istifadə edin.', 'Используйте для закупки сырья.', 'Use for stock/raw purchases.'),
     },
     {
-      value: 'Kommunal',
+      value: 'utilities',
       label: tx(lang, 'Kommunal', 'Коммунальные', 'Utilities'),
       helper: tx(lang, 'Su, işıq, internet və s. ödənişlər.', 'Вода, свет, интернет и т.д.', 'Electricity, water, internet, etc.'),
     },
     {
-      value: 'Maaş',
+      value: 'payroll',
       label: tx(lang, 'Maaş', 'Зарплата', 'Payroll'),
       helper: tx(lang, 'İşçi maaşı və avans ödənişləri.', 'Выплаты зарплаты и аванса.', 'Salary and advance payouts.'),
     },
     {
-      value: 'İcarə',
+      value: 'rent',
       label: tx(lang, 'İcarə', 'Аренда', 'Rent'),
       helper: tx(lang, 'Obyekt icarə xərcləri.', 'Расходы на аренду помещения.', 'Premises rent expenses.'),
     },
     {
-      value: 'Cərimə',
+      value: 'penalty',
       label: tx(lang, 'Cərimə', 'Штраф', 'Penalty'),
       helper: tx(lang, 'Cərimə və digər məcburi ödənişlər.', 'Штрафы и обязательные платежи.', 'Penalties and mandatory charges.'),
     },
     {
-      value: 'Digər Xərc',
+      value: 'other_expense',
       label: tx(lang, 'Digər Xərc', 'Прочий расход', 'Other Expense'),
       helper: tx(lang, 'Standart kateqoriyaya düşməyən xərclər.', 'Расходы вне стандартных категорий.', 'Expenses outside standard categories.'),
     },
@@ -248,7 +250,7 @@ export default function FinancePanel() {
 
   useEffect(() => {
     if (!categoryOptions.some((opt) => opt.value === category)) {
-      setCategory(categoryOptions[0]?.value || 'Digər Xərc');
+      setCategory(categoryOptions[0]?.value || 'other_expense');
     }
     if (!sourceOptions.some((opt) => opt.value === source)) {
       setSource(sourceOptions[0]?.value || 'cash');
@@ -532,7 +534,7 @@ export default function FinancePanel() {
     applyRangePreset('daily');
   }, [tenant_id]);
 
-  const investorSummary = useMemo(() => {
+  const legacyInvestorSummary = useMemo(() => {
     const normalizeText = (value: string) =>
       (value || '')
         .toString()
@@ -587,11 +589,17 @@ export default function FinancePanel() {
     };
   }, [entries]);
 
-  const effectiveInvestorDebt = useMemo(() => {
-    const ledgerDebt = new Decimal(anomalies?.investor_ledger_balance || balance.investor_balance || 0);
-    const derivedDebt = new Decimal(investorSummary.debt_remaining || 0);
-    return Decimal.max(ledgerDebt, derivedDebt);
-  }, [anomalies?.investor_ledger_balance, balance.investor_balance, investorSummary.debt_remaining]);
+  const ledgerInvestorDebt = useMemo(
+    () => Decimal.max(new Decimal(0), new Decimal(anomalies?.investor_ledger_balance || balance.investor_balance || 0)),
+    [anomalies?.investor_ledger_balance, balance.investor_balance],
+  );
+  const investorAuditGap = useMemo(
+    () =>
+      anomalies
+        ? new Decimal(anomalies.investor_ledger_gap || 0)
+        : ledgerInvestorDebt.minus(new Decimal(legacyInvestorSummary.debt_remaining || 0)).abs(),
+    [anomalies, ledgerInvestorDebt, legacyInvestorSummary.debt_remaining],
+  );
 
   const filteredEntries = useMemo(() => {
     const start = new Date(fromDate);
@@ -803,28 +811,25 @@ export default function FinancePanel() {
     const liquid = new Decimal(balance.cash_balance || 0)
       .plus(new Decimal(balance.card_balance || 0))
       .plus(new Decimal(balance.safe_balance || 0));
-    const obligations = effectiveInvestorDebt
+    const obligations = ledgerInvestorDebt
       .plus(new Decimal(balance.debt_balance || 0));
     if (obligations.lte(0)) return 'N/A';
     return liquid.div(obligations).times(100).toFixed(0);
-  }, [balance.cash_balance, balance.card_balance, balance.safe_balance, balance.debt_balance, effectiveInvestorDebt]);
+  }, [balance.cash_balance, balance.card_balance, balance.safe_balance, balance.debt_balance, ledgerInvestorDebt]);
 
   const financeExceptions = useMemo(() => {
     const items: Array<{ title: string; body: string; tone: 'rose' | 'amber' | 'sky' }> = [];
-    const investorLedgerGap = anomalies
-      ? new Decimal(anomalies.investor_ledger_gap || 0)
-      : new Decimal(balance.investor_balance || 0).minus(effectiveInvestorDebt).abs();
     const depositLiability = new Decimal(anomalies?.deposit_balance || balance.deposit_balance || 0);
     const cashBalance = new Decimal(balance.cash_balance || 0);
 
-    if (investorLedgerGap.greaterThan(0.01)) {
+    if (investorAuditGap.greaterThan(0.01)) {
       items.push({
         title: tx(lang, 'Investor borcu uyğunsuzluğu', 'Несовпадение долга инвестору', 'Investor debt mismatch'),
         body: tx(
           lang,
-          `Investor ledger balansı ilə hesablanan borc arasında ${investorLedgerGap.toFixed(2)} ₼ fərq var.`,
-          `Есть расхождение ${investorLedgerGap.toFixed(2)} ₼ между investor ledger и расчетным долгом.`,
-          `There is a ${investorLedgerGap.toFixed(2)} ₼ gap between investor ledger and calculated debt.`,
+          `Ledger investor borcu ${ledgerInvestorDebt.toFixed(2)} ₼, legacy hesablanmış borc isə ${new Decimal(legacyInvestorSummary.debt_remaining || 0).toFixed(2)} ₼-dir. Fərq: ${investorAuditGap.toFixed(2)} ₼.`,
+          `Ledger-долг инвестору ${ledgerInvestorDebt.toFixed(2)} ₼, а legacy-расчет ${new Decimal(legacyInvestorSummary.debt_remaining || 0).toFixed(2)} ₼. Разница: ${investorAuditGap.toFixed(2)} ₼.`,
+          `Ledger investor debt is ${ledgerInvestorDebt.toFixed(2)} ₼ while the legacy-derived debt is ${new Decimal(legacyInvestorSummary.debt_remaining || 0).toFixed(2)} ₼. Gap: ${investorAuditGap.toFixed(2)} ₼.`,
         ),
         tone: 'rose',
       });
@@ -896,7 +901,7 @@ export default function FinancePanel() {
     }
 
     return items;
-  }, [anomalies, balance.cash_balance, balance.deposit_balance, balance.investor_balance, effectiveInvestorDebt, financeSummary.net, lang]);
+  }, [anomalies, balance.cash_balance, balance.deposit_balance, financeSummary.net, investorAuditGap, lang, ledgerInvestorDebt, legacyInvestorSummary.debt_remaining]);
 
   const exportCsv = async () => {
     const esc = (value: unknown) => {
@@ -991,7 +996,7 @@ export default function FinancePanel() {
       [esc('SUMMARY'), esc(tx(lang, 'Kart qalığı', 'Остаток карты', 'Card Balance')), esc(''), esc(''), esc(new Decimal(balance.card_balance || 0).toFixed(2)), esc('')],
       [esc('SUMMARY'), esc(tx(lang, 'Seyf qalığı', 'Остаток сейфа', 'Safe Balance')), esc(''), esc(''), esc(new Decimal(balance.safe_balance || 0).toFixed(2)), esc('')],
       [esc('SUMMARY'), esc(tx(lang, 'Digər borc öhdəliyi', 'Прочие долговые обязательства', 'Other Debt Liability')), esc(''), esc(''), esc(new Decimal(balance.debt_balance || 0).toFixed(2)), esc('')],
-      [esc('SUMMARY'), esc(tx(lang, 'İnvestor borcu', 'Долг инвестору', 'Investor Debt')), esc(''), esc(''), esc(effectiveInvestorDebt.toFixed(2)), esc('')],
+      [esc('SUMMARY'), esc(tx(lang, 'İnvestor borcu', 'Долг инвестору', 'Investor Debt')), esc(''), esc(''), esc(ledgerInvestorDebt.toFixed(2)), esc('')],
       [esc('SUMMARY'), esc(tx(lang, 'Aktiv masa depozit öhdəliyi', 'Активное обязательство по депозитам столов', 'Active Table Deposit Liability')), esc(''), esc(''), esc(new Decimal(balance.deposit_balance || 0).toFixed(2)), esc('')],
     ];
     // Use semicolon delimiter + UTF-8 BOM for Excel locale compatibility.
@@ -1016,7 +1021,7 @@ export default function FinancePanel() {
       <p><b>${tx(lang, 'Nağd kassa qalığı', 'Остаток кассы', 'Cash Balance')}:</b> ${new Decimal(balance.cash_balance || 0).toFixed(2)} ₼</p>
       <p><b>${tx(lang, 'Kart qalığı', 'Остаток карты', 'Card Balance')}:</b> ${new Decimal(balance.card_balance || 0).toFixed(2)} ₼</p>
       <p><b>${tx(lang, 'Aktiv masa depozit öhdəliyi', 'Активное обязательство по депозитам столов', 'Active Table Deposit Liability')}:</b> ${new Decimal(balance.deposit_balance || 0).toFixed(2)} ₼</p>
-      <p><b>${tx(lang, 'İnvestor borcu', 'Долг инвестору', 'Investor Debt')}:</b> ${effectiveInvestorDebt.toFixed(2)} ₼</p>
+      <p><b>${tx(lang, 'İnvestor borcu', 'Долг инвестору', 'Investor Debt')}:</b> ${ledgerInvestorDebt.toFixed(2)} ₼</p>
       <p><b>${tx(lang, 'Operativ qeyd sayı', 'Количество операционных записей', 'Operational Entries')}:</b> ${financeSummary.entriesCount}</p>
       <p style="color:#64748b;font-size:12px">${tx(lang, 'Qeyd: operativ net nəticəyə açılış, investor, depozit və daxili transferlər daxil deyil.', 'Примечание: в операционный нетто итог не входят открытие смены, инвестор, депозиты и внутренние переводы.', 'Note: operational net excludes opening, investor, deposits, and internal transfers.')}</p>
     `;
@@ -1148,11 +1153,11 @@ export default function FinancePanel() {
         notify('error', tx(lang, 'Seçilən mənbədə kifayət qədər vəsait yoxdur', 'В выбранном источнике недостаточно средств', 'Selected source has insufficient balance'));
         return;
       }
-      if (effectiveInvestorDebt.lte(0)) {
+      if (ledgerInvestorDebt.lte(0)) {
         notify('error', tx(lang, 'İnvestora borc yoxdur', 'Нет долга инвестору', 'No investor debt'));
         return;
       }
-      const payable = Decimal.min(repaymentAmount, effectiveInvestorDebt);
+      const payable = Decimal.min(repaymentAmount, ledgerInvestorDebt);
       const result = await create_finance_ledger_transaction_async(tenant_id, {
         transaction_type: 'investor_repayment',
         source_account_code: repayFrom,
@@ -1313,11 +1318,11 @@ export default function FinancePanel() {
           tab: 'ledger' as FinanceWorkspaceTab,
         }]
       : []),
-    ...(effectiveInvestorDebt.greaterThan(0)
+    ...(ledgerInvestorDebt.greaterThan(0)
       ? [{
           id: 'investor-balance',
           title: tx(lang, 'Açıq investor borcu', 'Открыт долг инвестору', 'Investor balance open'),
-          body: `${tx(lang, 'Qalan borc', 'Остаток долга', 'Remaining debt')}: ${effectiveInvestorDebt.toFixed(2)} ₼`,
+          body: `${tx(lang, 'Qalan borc', 'Остаток долга', 'Remaining debt')}: ${ledgerInvestorDebt.toFixed(2)} ₼`,
           tone: 'amber' as const,
           action: tx(lang, 'Investor', 'Инвестор', 'Investor'),
           tab: 'investor' as FinanceWorkspaceTab,
@@ -1558,7 +1563,7 @@ export default function FinancePanel() {
             <option value="safe">{tx(lang, 'Seyf', 'Сейф', 'Safe')}</option>
           </select>
         </FinanceField>
-        <FinanceField label={tx(lang, 'Məbləğ', 'Сумма', 'Amount')} helper={`${tx(lang, 'Qalan borc', 'Остаток долга', 'Remaining debt')}: ${effectiveInvestorDebt.toFixed(2)} ₼`}>
+        <FinanceField label={tx(lang, 'Məbləğ', 'Сумма', 'Amount')} helper={`${tx(lang, 'Qalan borc', 'Остаток долга', 'Remaining debt')}: ${ledgerInvestorDebt.toFixed(2)} ₼`}>
           <input className="neon-input min-h-16 text-2xl font-black" type="number" min={0} step="0.01" value={repayAmount} onChange={(e) => setRepayAmount(e.target.value)} />
         </FinanceField>
         <FinanceField label={tx(lang, 'Qeyd', 'Комментарий подтверждения', 'Approval note')}>
@@ -1677,7 +1682,7 @@ export default function FinancePanel() {
   const controlSummaryPanel = (
     <FinanceControlSummaryPanel
       lang={lang}
-      investorDebt={`${effectiveInvestorDebt.toFixed(2)} ₼`}
+      investorDebt={`${ledgerInvestorDebt.toFixed(2)} ₼`}
       activeDeposits={`${new Decimal(balance.deposit_balance || 0).toFixed(2)} ₼`}
       liquidity={cashCoverage === 'N/A' ? cashCoverage : `${cashCoverage}%`}
       reconciliationGap={`${new Decimal(unreconciledVariance || 0).toFixed(2)} ₼`}
@@ -1731,9 +1736,16 @@ export default function FinancePanel() {
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <FinanceMiniMetric
                   label={tx(lang, 'Mövcud investor borcu', 'Текущий долг инвестору', 'Current investor debt')}
-                  value={`${effectiveInvestorDebt.toFixed(2)} ₼`}
-                  tone={effectiveInvestorDebt.gt(0.01) ? 'rose' : 'emerald'}
+                  value={`${ledgerInvestorDebt.toFixed(2)} ₼`}
+                  tone={ledgerInvestorDebt.gt(0.01) ? 'rose' : 'emerald'}
                 />
+                {investorAuditGap.gt(0.01) && (
+                  <FinanceMiniMetric
+                    label={tx(lang, 'Legacy audit fərqi', 'Legacy audit fərqi', 'Legacy audit gap')}
+                    value={`${investorAuditGap.toFixed(2)} ₼`}
+                    tone="amber"
+                  />
+                )}
                 <FinanceMiniMetric
                   label={tx(lang, 'Ödəniş mənbəyi', 'Источник оплаты', 'Payment source')}
                   value={repayFrom === 'cash' ? tx(lang, 'Kassa', 'Касса', 'Cash') : repayFrom === 'card' ? tx(lang, 'Kart', 'Карта', 'Card') : tx(lang, 'Seyf', 'Сейф', 'Safe')}
@@ -1783,7 +1795,7 @@ export default function FinancePanel() {
         balance={balance}
         netCashflow={financeSummary.net}
         reconciliationGap={unreconciledVariance}
-        investorDebt={effectiveInvestorDebt.toFixed(2)}
+        investorDebt={ledgerInvestorDebt.toFixed(2)}
         pendingApprovals={pendingApprovalsCount}
         onRefresh={() => void reloadFinance(true)}
       />
