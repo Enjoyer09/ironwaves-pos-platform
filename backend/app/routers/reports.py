@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import AuditLog, FinanceEntry, Setting, Shift, ShiftHandover, Tenant, User
+from app.models import AuditLog, FinanceAccount, FinanceEntry, FinanceLedgerEntry, Setting, Shift, ShiftHandover, Tenant, User
 from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XReportIn, ZReportIn
 
 
@@ -77,6 +77,14 @@ def _wallet_balance(db: Session, tenant_id: str, source: str) -> Decimal:
     return in_total - out_total
 
 
+def _cash_account(db: Session, tenant_id: str) -> FinanceAccount | None:
+    return (
+        db.query(FinanceAccount)
+        .filter(FinanceAccount.tenant_id == tenant_id, FinanceAccount.code == "cash")
+        .first()
+    )
+
+
 def _setting_value(db: Session, tenant_id: str, key: str, default):
     row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
     if not row or row.value is None:
@@ -98,13 +106,29 @@ def _shift_cash_breakdown(db: Session, tenant_id: str, shift: Shift | None) -> d
             "expected_cash": Decimal("0"),
         }
 
-    shift_rows = _rows_since(db, tenant_id, shift.opened_at)
+    cash_account = _cash_account(db, tenant_id)
+    if not cash_account:
+        opening_cash = Decimal(str(shift.opening_cash or 0))
+        return {
+            "opening_cash": opening_cash,
+            "cash_in": Decimal("0"),
+            "cash_out": Decimal("0"),
+            "expected_cash": opening_cash,
+        }
+
+    query = db.query(FinanceLedgerEntry).filter(
+        FinanceLedgerEntry.tenant_id == tenant_id,
+        FinanceLedgerEntry.account_id == cash_account.id,
+    )
+    if shift.opened_at:
+        query = query.filter(FinanceLedgerEntry.created_at >= shift.opened_at)
+    ledger_rows = query.all()
     cash_in = sum(
-        (Decimal(str(row.amount)) for row in shift_rows if row.source == "cash" and row.type == "in"),
+        (Decimal(str(row.amount)) for row in ledger_rows if str(row.entry_side or "").lower() == "debit"),
         Decimal("0"),
     )
     cash_out = sum(
-        (Decimal(str(row.amount)) for row in shift_rows if row.source == "cash" and row.type == "out"),
+        (Decimal(str(row.amount)) for row in ledger_rows if str(row.entry_side or "").lower() == "credit"),
         Decimal("0"),
     )
     opening_cash = Decimal(str(shift.opening_cash or 0))
