@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Decimal } from 'decimal.js';
 import { get_inventory_items_live, add_inventory_item_live, record_loss_live, restock_item_live, delete_inventory_item_live } from '../../api/inventory';
 import { get_logs_live } from '../../api/logs';
@@ -18,40 +18,52 @@ export default function InventoryPanel() {
     default_critical_threshold: 5,
     unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'],
   });
+  const mountedRef = useRef(true);
+  const loadingRef = useRef(false);
+  const historyLoadingRef = useRef(false);
+  const lastSoftRefreshRef = useRef(0);
 
   useEffect(() => {
     setSearch('');
-    void loadData();
+    mountedRef.current = true;
+    void loadData({ includeHistory: false });
+    const historyTimer = window.setTimeout(() => {
+      void loadHistory();
+    }, 180);
+    return () => {
+      mountedRef.current = false;
+      window.clearTimeout(historyTimer);
+    };
   }, [tenant_id]);
 
   useEffect(() => {
     const handleRefresh = () => {
-      void loadData();
+      const now = Date.now();
+      if (now - lastSoftRefreshRef.current < 15000) return;
+      lastSoftRefreshRef.current = now;
+      void loadData({ includeHistory: false, silent: true });
     };
     const handleVisibility = () => {
-      if (!document.hidden) void loadData();
+      if (!document.hidden) handleRefresh();
     };
-    window.addEventListener('focus', handleRefresh);
     window.addEventListener('inventory-updated', handleRefresh as EventListener);
     document.addEventListener('visibilitychange', handleVisibility);
     return () => {
-      window.removeEventListener('focus', handleRefresh);
       window.removeEventListener('inventory-updated', handleRefresh as EventListener);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [tenant_id]);
 
-  const loadData = async () => {
+  const loadData = async (options?: { includeHistory?: boolean; silent?: boolean }) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     try {
-      const data = await get_inventory_items_live(tenant_id);
-      setItems(data);
-      const logs = await get_logs_live(tenant_id, 200);
-      setHistory(
-        (logs || [])
-          .filter((row: any) => String(row.action || '').startsWith('INVENTORY_'))
-          .slice(0, 20),
-      );
-      const settings = get_settings(tenant_id);
+      const [data, settings] = await Promise.all([
+        get_inventory_items_live(tenant_id),
+        Promise.resolve(get_settings(tenant_id)),
+      ]);
+      if (!mountedRef.current) return;
+      setItems(Array.isArray(data) ? data : []);
       const invSettings = settings.inventory_settings || {
         default_critical_threshold: 5,
         unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'],
@@ -60,8 +72,33 @@ export default function InventoryPanel() {
       if (!newMinLimit) {
         setNewMinLimit(String(invSettings.default_critical_threshold));
       }
+      if (options?.includeHistory) {
+        await loadHistory();
+      }
     } catch (e: any) {
-      notify('error', tx(lang, 'Anbar məlumatı yüklənmədi: ', 'Данные склада не загрузились: ', 'Inventory failed to load: ') + String(e?.message || e));
+      if (!options?.silent) {
+        notify('error', tx(lang, 'Anbar məlumatı yüklənmədi: ', 'Данные склада не загрузились: ', 'Inventory failed to load: ') + String(e?.message || e));
+      }
+    } finally {
+      loadingRef.current = false;
+    }
+  };
+
+  const loadHistory = async () => {
+    if (historyLoadingRef.current) return;
+    historyLoadingRef.current = true;
+    try {
+      const logs = await get_logs_live(tenant_id, 60);
+      if (!mountedRef.current) return;
+      setHistory(
+        (logs || [])
+          .filter((row: any) => String(row.action || '').startsWith('INVENTORY_'))
+          .slice(0, 12),
+      );
+    } catch {
+      // History is secondary; don't block inventory usage if this fails.
+    } finally {
+      historyLoadingRef.current = false;
     }
   };
 
