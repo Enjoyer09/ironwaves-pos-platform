@@ -267,6 +267,38 @@ def _parse_decimal(value, default: str = "0.00") -> Decimal:
         return Decimal(default)
 
 
+def _normalize_restore_finance_source(value: str | None) -> str:
+    raw = str(value or "").strip().lower()
+    if raw in {"kassa", "cash", "naghd", "nagd", "nağd"}:
+        return "cash"
+    if raw in {"bank kartı", "bank karti", "kart", "card"}:
+        return "card"
+    if raw in {"nisyə", "nisye", "borc", "debt"}:
+        return "debt"
+    if raw in {"investor", "i̇nvestor", "investor"}:
+        return "investor"
+    if raw in {"seyf", "safe"}:
+        return "safe"
+    if raw in {"depozit", "deposit"}:
+        return "deposit"
+    return raw or "cash"
+
+
+def _has_legacy_investor_context(*values: str | None) -> bool:
+    haystack = " ".join(str(value or "") for value in values).lower()
+    return "investor" in haystack or "i̇nvestor" in haystack or "nicat" in haystack
+
+
+def _is_restore_investor_liability_reduction(category: str | None, source: str | None) -> bool:
+    normalized_category = str(category or "").strip().lower()
+    normalized_source = str(source or "").strip().lower()
+    return normalized_source == "investor" and (
+        "investor borcu azaldilmasi" in normalized_category
+        or "investor liability reduction" in normalized_category
+        or "dolg investoru umenshen" in normalized_category
+    )
+
+
 def _resolve_restore_rows(payload: dict, table: str) -> tuple[list, str] | tuple[None, None]:
     rows = payload.get(table)
     if isinstance(rows, list):
@@ -1217,7 +1249,8 @@ def database_restore(
                         continue
                     value = row.get(key)
                     if value in (None, ""):
-                        setattr(instance, key, None if column.nullable else getattr(instance, key, None))
+                        if column.nullable:
+                            setattr(instance, key, None)
                         continue
                     try:
                         python_type = getattr(column.type, "python_type", None)
@@ -1415,20 +1448,62 @@ def database_restore(
                     if not isinstance(row, dict):
                         reject(table, "Maliyyə sətri obyekt deyil", idx, row)
                         continue
+                    category = str(row.get("category") or "Digər").strip() or "Digər"
+                    description = str(row.get("description") or row.get("reason") or "").strip()
+                    subject = str(row.get("subject") or "").strip()
+                    if subject and subject.lower() not in description.lower():
+                        description = f"{subject} | {description}".strip(" |")
+                    created_at = _parse_dt(row.get("created_at")) or datetime.utcnow()
+                    created_by = str(row.get("created_by") or row.get("spender") or user.username or "restore")
+                    normalized_source = _normalize_restore_finance_source(row.get("source"))
+                    tx_type = str(row.get("type") or "in").strip().lower() or "in"
+                    has_investor_context = _has_legacy_investor_context(
+                        row.get("source"),
+                        row.get("subject"),
+                        row.get("description"),
+                        row.get("reason"),
+                        category,
+                    )
+                    is_liability_reduction = _is_restore_investor_liability_reduction(category, normalized_source)
+                    stored_source = normalized_source
+                    if tx_type == "out" and normalized_source == "investor" and has_investor_context and not is_liability_reduction:
+                        # Legacy backup-larda "source=Investor" çox vaxt investorun biznes üçün
+                        # öz cibindən etdiyi xərci bildirir. Bu, yeni sistemdə pul çıxışı deyil,
+                        # investor borcunu artıran öhdəlik kimi yaşamalıdır.
+                        stored_source = "legacy_investor_expense"
                     db.add(
                         FinanceEntry(
                             id=str(row.get("id") or secrets.token_hex(16)),
                             tenant_id=tenant.id,
-                            type=str(row.get("type") or "in"),
-                            category=str(row.get("category") or "Digər"),
-                            source=str(row.get("source") or "cash"),
+                            type=tx_type,
+                            category=category,
+                            source=stored_source,
                             amount=_parse_decimal(row.get("amount"), "0.00"),
-                            description=str(row.get("description") or "").strip() or None,
-                            created_by=str(row.get("created_by") or user.username or "restore"),
-                            created_at=_parse_dt(row.get("created_at")) or datetime.utcnow(),
+                            description=description or None,
+                            created_by=created_by,
+                            created_at=created_at,
                         )
                     )
                     restored_count += 1
+                    should_create_liability_mirror = has_investor_context and not is_liability_reduction and (
+                        (tx_type == "in" and stored_source in {"cash", "card", "safe", "debt", "deposit"})
+                        or (tx_type == "out" and normalized_source == "investor")
+                    )
+                    if should_create_liability_mirror:
+                        db.add(
+                            FinanceEntry(
+                                id=secrets.token_hex(16),
+                                tenant_id=tenant.id,
+                                type="in",
+                                category="İnvestor Borcu",
+                                source="investor",
+                                amount=_parse_decimal(row.get("amount"), "0.00"),
+                                description=(f"Legacy restore mirror: {description}" if description else "Legacy restore mirror"),
+                                created_by=created_by,
+                                created_at=created_at,
+                            )
+                        )
+                        restored_count += 1
                 report["restored_tables"].append(table)
                 report["restored_rows"] += restored_count
                 continue

@@ -1,5 +1,5 @@
 import React from 'react';
-import { backup_database_live, get_restore_preview, restore_database_live, type RestoreReport } from '../../api/database';
+import { backup_database_live, get_restore_preview, restore_database, restore_database_live, type RestoreReport } from '../../api/database';
 import { useAppStore } from '../../store';
 import { Database, Download, Upload } from 'lucide-react';
 import { tx } from '../../i18n';
@@ -26,7 +26,7 @@ export default function DatabasePanel() {
   const [forceLocalMode, setForceLocalModeState] = useState(() => isForceLocalMode());
 
   const TABLE_OPTIONS = [
-    'users','menu_items','sales','finance','tables','kitchen_orders','z_reports','inventory','ingredients','customers','recipes','happy_hours','refunds','settings','notifications','business_profile','logs'
+    'users','menu_items','sales','finance','tables','kitchen_orders','z_reports','inventory','ingredients','customers','recipes','customer_coupons','admin_notes','happy_hours','refunds','settings','notifications','business_profile','logs'
   ];
   const DEFAULT_RESTORE_EXCLUDED_TABLES = new Set(['users']);
 
@@ -56,6 +56,7 @@ export default function DatabasePanel() {
       `${tenant_id}_logs`,
       `${tenant_id}_ui_errors`,
       `${tenant_id}_admin_notes`,
+      `${tenant_id}_customer_coupons`,
     ]);
 
     const keysToRemove: string[] = [];
@@ -142,6 +143,7 @@ export default function DatabasePanel() {
       setLastRestoreReport(mergedReport);
       const restoredUsers = selectedExisting.includes('users') || mergedReport.restored_tables.includes('users');
       clearLocalRestoreState({ clearSession: restoredUsers });
+      restore_database(tenant_id, content, selectedExisting);
       notify(
         'success',
         tx(
