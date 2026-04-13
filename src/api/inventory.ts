@@ -30,28 +30,6 @@ const getInventory = (tenant_id: string) => {
   return withTenant(tenant_id, getDB<any>('ingredients'));
 };
 
-const inventoryRowsChanged = (tenant_id: string, nextRows: any[]) => {
-  const currentRows = getInventory(tenant_id);
-  if (currentRows.length !== nextRows.length) return true;
-  for (let index = 0; index < nextRows.length; index += 1) {
-    const current = currentRows[index] || {};
-    const next = nextRows[index] || {};
-    if (
-      String(current.id || '') !== String(next.id || '') ||
-      String(current.name || '') !== String(next.name || '') ||
-      String(current.unit || '') !== String(next.unit || '') ||
-      String(current.category || '') !== String(next.category || '') ||
-      String(current.type || '') !== String(next.type || '') ||
-      String(current.stock_qty || '') !== String(next.stock_qty || '') ||
-      String(current.unit_cost || '') !== String(next.unit_cost || '') ||
-      String(current.min_limit || '') !== String(next.min_limit || '')
-    ) {
-      return true;
-    }
-  }
-  return false;
-};
-
 const saveInventory = (tenant_id: string, tenantItems: any[]) => {
   const all = getDB<any>('inventory').filter((i) => i.tenant_id !== tenant_id);
   const merged = [...all, ...tenantItems];
@@ -232,13 +210,10 @@ export async function get_inventory_items_live(tenant_id: string = 'tenant_defau
       timeoutMs: 12000,
       suspendOnNetworkError: false,
     });
-    if (Array.isArray(rows)) {
-      const normalizedRows = rows.map((row) => ({ ...row, tenant_id: row?.tenant_id || tenant_id }));
-      if (inventoryRowsChanged(tenant_id, normalizedRows)) {
-        saveInventory(tenant_id, normalizedRows);
-      }
-    }
-    return rows;
+    // Backend rejimində hər Anbar açılışında böyük siyahını localStorage-ə yazmaq
+    // Chrome-un "page unresponsive" donmasına səbəb ola bilər. Data mənbəyi artıq
+    // backend/NeonDB-dir; local cache yalnız offline fallback və lokal rejim üçündür.
+    return Array.isArray(rows) ? rows.map((row) => ({ ...row, tenant_id: row?.tenant_id || tenant_id })) : [];
   } catch (error) {
     if (isRecoverableNetworkFailure(error)) {
       return get_inventory_items(tenant_id);

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Decimal } from 'decimal.js';
 import { get_inventory_items_live, add_inventory_item_live, record_loss_live, restock_item_live, delete_inventory_item_live } from '../../api/inventory';
 import { get_logs_live } from '../../api/logs';
@@ -129,10 +129,13 @@ export default function InventoryPanel() {
     return qty.toDecimalPlaces(3).toString();
   };
 
-  const inventoryTypeOptions = Array.from(
-    new Set(
-      ['Xammal', 'İçki Bazası', 'Paketləmə', ...items.map((item: any) => String(item.type || '').trim()).filter(Boolean)],
+  const inventoryTypeOptions = useMemo(
+    () => Array.from(
+      new Set(
+        ['Xammal', 'İçki Bazası', 'Paketləmə', ...items.map((item: any) => String(item.type || '').trim()).filter(Boolean)],
+      ),
     ),
+    [items],
   );
 
   const handleAdd = async () => {
@@ -197,14 +200,14 @@ export default function InventoryPanel() {
     }
   };
 
-  const filteredItems = items.filter((item: any) => {
+  const filteredItems = useMemo(() => items.filter((item: any) => {
     const q = search.trim().toLowerCase();
     if (!q) return true;
     return `${item.name} ${item.type} ${item.category}`.toLowerCase().includes(q);
-  });
+  }), [items, search]);
 
-  const visibleItems = filteredItems.slice(0, itemsPageSize);
-  const visibleHistory = history.slice(0, historyPageSize);
+  const visibleItems = useMemo(() => filteredItems.slice(0, itemsPageSize), [filteredItems, itemsPageSize]);
+  const visibleHistory = useMemo(() => history.slice(0, historyPageSize), [history, historyPageSize]);
 
   const describeHistory = (row: any) => {
     const details = row?.details || {};
