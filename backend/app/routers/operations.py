@@ -46,6 +46,7 @@ from app.models import (
     User,
     WasteLog,
 )
+from app.routers.finance import _post_finance_transaction
 from app.core.config import settings as app_settings
 from app.security import hash_password, hash_token, verify_password
 
@@ -3177,6 +3178,18 @@ def open_table(
                 created_by=user.username,
             )
         )
+        _post_finance_transaction(
+            db,
+            tenant_id=tenant.id,
+            transaction_type="deposit_hold",
+            amount=deposit_amount,
+            source_code="deposit",
+            destination_code="cash",
+            created_by=user.username,
+            category="Depozit Alındı",
+            note=f"{row.label} üçün depozit ({deposit_guest_count} nəfər)",
+            related_table_id=row.id,
+        )
         db.add(
             FinanceEntry(
                 tenant_id=tenant.id,
@@ -3680,6 +3693,19 @@ def pay_table(
                 description=f"Table payment {sale.id}",
                 created_by=user.username,
             )
+        )
+        _post_finance_transaction(
+            db,
+            tenant_id=tenant.id,
+            transaction_type="deposit_release",
+            amount=seat_deposit_amount,
+            source_code="cash",
+            destination_code="deposit",
+            created_by=user.username,
+            category="Depozit Öhdəliyi Azaldılması",
+            note=f"Table payment {sale.id}",
+            related_table_id=row.id,
+            related_order_id=sale.id,
         )
 
     if pay_scope == "seat":
