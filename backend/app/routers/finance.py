@@ -666,6 +666,41 @@ def _shift_rows(db: Session, tenant_id: str, shift: Shift | None) -> list[Financ
     return query.all()
 
 
+def _shift_cash_breakdown_from_ledger(db: Session, tenant_id: str, shift: Shift | None) -> dict[str, Decimal]:
+    if not shift:
+        return {
+            "opening_cash": Decimal("0.00"),
+            "cash_in": Decimal("0.00"),
+            "cash_out": Decimal("0.00"),
+            "expected_cash": Decimal("0.00"),
+        }
+
+    cash_account = _finance_account(db, tenant_id, "cash")
+    query = db.query(FinanceLedgerEntry).filter(
+        FinanceLedgerEntry.tenant_id == tenant_id,
+        FinanceLedgerEntry.account_id == cash_account.id,
+    )
+    if shift.opened_at:
+        query = query.filter(FinanceLedgerEntry.created_at >= shift.opened_at)
+    rows = query.all()
+    cash_in = sum(
+        (Decimal(str(row.amount)) for row in rows if str(row.entry_side or "").lower() == "debit"),
+        Decimal("0.00"),
+    )
+    cash_out = sum(
+        (Decimal(str(row.amount)) for row in rows if str(row.entry_side or "").lower() == "credit"),
+        Decimal("0.00"),
+    )
+    opening_cash = Decimal(str(shift.opening_cash or 0)).quantize(Decimal("0.01"))
+    expected_cash = opening_cash + cash_in - cash_out
+    return {
+        "opening_cash": opening_cash,
+        "cash_in": cash_in.quantize(Decimal("0.01")),
+        "cash_out": cash_out.quantize(Decimal("0.01")),
+        "expected_cash": expected_cash.quantize(Decimal("0.01")),
+    }
+
+
 def _log_finance_anomaly_snapshot(
     db: Session,
     tenant_id: str,
@@ -939,10 +974,8 @@ def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
     if active_shift:
         cash_account = accounts.get("cash")
         ledger_cash = _account_ledger_totals(db, tenant_id, cash_account)["balance"] if cash_account else Decimal("0")
-        shift_rows = _shift_rows(db, tenant_id, active_shift)
-        cash_in = sum((Decimal(str(row.amount)) for row in shift_rows if row.source == "cash" and row.type == "in"), Decimal("0"))
-        cash_out = sum((Decimal(str(row.amount)) for row in shift_rows if row.source == "cash" and row.type == "out"), Decimal("0"))
-        expected_cash = Decimal(str(active_shift.opening_cash or 0)) + cash_in - cash_out
+        shift_breakdown = _shift_cash_breakdown_from_ledger(db, tenant_id, active_shift)
+        expected_cash = shift_breakdown["expected_cash"]
         shift_gap = abs(ledger_cash - expected_cash)
         if shift_gap > variance_threshold:
             alerts.append(
@@ -1580,10 +1613,8 @@ def get_finance_anomalies(db: Session = Depends(get_db), tenant: Tenant = Depend
     expected_cash = Decimal("0")
     shift_cash_gap = Decimal("0")
     if active_shift:
-        shift_rows = _shift_rows(db, tenant.id, active_shift)
-        cash_in = sum((Decimal(str(row.amount)) for row in shift_rows if row.source == "cash" and row.type == "in"), Decimal("0"))
-        cash_out = sum((Decimal(str(row.amount)) for row in shift_rows if row.source == "cash" and row.type == "out"), Decimal("0"))
-        expected_cash = Decimal(str(active_shift.opening_cash or 0)) + cash_in - cash_out
+        shift_breakdown = _shift_cash_breakdown_from_ledger(db, tenant.id, active_shift)
+        expected_cash = shift_breakdown["expected_cash"]
         shift_cash_gap = abs(cash_balance - expected_cash)
 
     result = {
