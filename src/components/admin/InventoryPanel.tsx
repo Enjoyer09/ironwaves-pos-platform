@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Decimal } from 'decimal.js';
 import { get_inventory_items_live, add_inventory_item_live, record_loss_live, restock_item_live, delete_inventory_item_live } from '../../api/inventory';
 import { get_logs_live } from '../../api/logs';
-import { get_settings } from '../../api/settings';
+import { get_settings_live } from '../../api/settings';
 import { useAppStore } from '../../store';
 import { Package, AlertTriangle, Plus } from 'lucide-react';
 import { tx } from '../../i18n';
@@ -60,7 +60,7 @@ export default function InventoryPanel() {
     try {
       const [data, settings] = await Promise.all([
         get_inventory_items_live(tenant_id),
-        Promise.resolve(get_settings(tenant_id)),
+        get_settings_live(tenant_id),
       ]);
       if (!mountedRef.current) return;
       setItems(Array.isArray(data) ? data : []);
