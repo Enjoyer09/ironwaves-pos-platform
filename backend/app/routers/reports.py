@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import AuditLog, FinanceAccount, FinanceEntry, FinanceLedgerEntry, Setting, Shift, ShiftHandover, Tenant, User
+from app.routers.finance import _ledger_balances_snapshot, _post_finance_transaction
 from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XReportIn, ZReportIn
 
 
@@ -234,6 +235,17 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
                         created_at=funding_at,
                     )
                 )
+                _post_finance_transaction(
+                    db,
+                    tenant_id=tenant.id,
+                    transaction_type="investor_injection",
+                    amount=topup_amount,
+                    source_code="investor",
+                    destination_code="cash",
+                    created_by=user.username,
+                    category="Təsisçi İnvestisiyası",
+                    note=f"Gün açılışı tamamlanması ({target_cash.quantize(Decimal('0.01'))} ₼ hədəf). Mənbə: investor",
+                )
             elif funding_source == "cash":
                 db.add(
                     FinanceEntry(
@@ -246,6 +258,17 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
                         created_by=user.username,
                         created_at=funding_at,
                     )
+                )
+                _post_finance_transaction(
+                    db,
+                    tenant_id=tenant.id,
+                    transaction_type="cash_adjustment",
+                    amount=topup_amount,
+                    source_code="adjustment",
+                    destination_code="cash",
+                    created_by=user.username,
+                    category="Kassa Açılışı",
+                    note=f"Gün açılışı tamamlanması (hədəf {target_cash.quantize(Decimal('0.01'))} ₼)",
                 )
             else:
                 source_balance = _wallet_balance(db, tenant.id, funding_source)
@@ -280,6 +303,17 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
                         created_at=funding_at,
                     )
                 )
+                _post_finance_transaction(
+                    db,
+                    tenant_id=tenant.id,
+                    transaction_type="internal_transfer",
+                    amount=topup_amount,
+                    source_code=funding_source,
+                    destination_code="cash",
+                    created_by=user.username,
+                    category="Daxili Transfer",
+                    note=f"Gün açılışı üçün {funding_source} -> cash",
+                )
                 if commission > 0:
                     db.add(
                         FinanceEntry(
@@ -293,9 +327,20 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
                             created_at=funding_at,
                         )
                     )
+                    _post_finance_transaction(
+                        db,
+                        tenant_id=tenant.id,
+                        transaction_type="expense",
+                        amount=commission,
+                        source_code="card",
+                        destination_code="expense",
+                        created_by=user.username,
+                        category="Bank Komissiyası",
+                        note="Gün açılışı üçün kartdan kassaya köçürmə komissiyası",
+                    )
 
         db.flush()
-        opening_cash = _wallet_balance(db, tenant.id, "cash").quantize(Decimal("0.01"))
+        opening_cash = _ledger_balances_snapshot(db, tenant.id).get("cash", Decimal("0.00")).quantize(Decimal("0.01"))
         opened_at = max(datetime.utcnow(), funding_at + timedelta(milliseconds=1))
         row = Shift(
             tenant_id=tenant.id,
@@ -347,6 +392,18 @@ def x_report(payload: XReportIn, db: Session = Depends(get_db), tenant: Tenant =
                 created_by=user.username,
             )
         )
+        _post_finance_transaction(
+            db,
+            tenant_id=tenant.id,
+            transaction_type="cash_adjustment",
+            amount=abs(diff),
+            source_code="adjustment" if diff > 0 else "cash",
+            destination_code="cash" if diff > 0 else "adjustment",
+            created_by=user.username,
+            category="Kassa Artığı" if diff > 0 else "Kassa Kəsiri",
+            note="X-report difference",
+            related_shift_id=active.id if active else None,
+        )
         db.commit()
 
     return {
@@ -376,6 +433,18 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
                 description="Shift close wage",
                 created_by=user.username,
             )
+        )
+        _post_finance_transaction(
+            db,
+            tenant_id=tenant.id,
+            transaction_type="expense",
+            amount=Decimal(str(payload.wage_amount)),
+            source_code="cash",
+            destination_code="expense",
+            created_by=user.username,
+            category="Maaş",
+            note="Shift close wage",
+            related_shift_id=active.id,
         )
 
     breakdown = _shift_cash_breakdown(db, tenant.id, active)
