@@ -1,10 +1,11 @@
 from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
+from datetime import datetime
 
 from app.db import get_db
 from app.core.config import settings
-from app.models import Tenant, User
-from app.security import decode_token
+from app.models import RevokedToken, Tenant, User
+from app.security import decode_token, hash_token
 from app.tenant import resolve_tenant_from_request
 
 
@@ -35,6 +36,15 @@ def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
     if payload.get("tenant_id") != tenant.id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Tenant mismatch")
+
+    token_hash = hash_token(token)
+    db.query(RevokedToken).filter(RevokedToken.expires_at < datetime.utcnow()).delete(synchronize_session=False)
+    if (
+        db.query(RevokedToken)
+        .filter(RevokedToken.tenant_id == tenant.id, RevokedToken.token_hash == token_hash)
+        .first()
+    ):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token revoked")
 
     user = (
         db.query(User)

@@ -177,7 +177,7 @@ function getSettings(tenant_id?: string): Settings {
       },
       ui_visibility: { staff_show_tables: true, manager_show_tables: true, staff_show_kitchen: true },
       time_settings: { shift_start_time: '08:00', shift_end_time: '23:00', utc_offset: 4, timezone: 'Asia/Baku' },
-      session_settings: { idle_logout_minutes: 0, virtual_keyboard_enabled: true },
+      session_settings: { idle_logout_minutes: 0, virtual_keyboard_enabled: true, staff_pin_length: 6 },
       beverage_service_settings: DEFAULT_BEVERAGE_SERVICE_SETTINGS,
       z_report_receipt_settings: DEFAULT_Z_REPORT_RECEIPT_SETTINGS,
       email_settings: {
@@ -390,11 +390,26 @@ export function update_time_settings(payload: { shift_start_time: string; shift_
   return { success: true };
 }
 
-export function update_session_settings(payload: { idle_logout_minutes: number; virtual_keyboard_enabled?: boolean }) {
+const getStaffPinLength = (tenant_id?: string) => {
+  const length = Number(getSettings(tenant_id).session_settings?.staff_pin_length || 6);
+  return length === 4 ? 4 : 6;
+};
+
+const isStrongLocalPassword = (password: string) => (
+  password.length >= 10 &&
+  /[a-z]/.test(password) &&
+  /[A-Z]/.test(password) &&
+  /\d/.test(password) &&
+  /[^A-Za-z0-9]/.test(password)
+);
+
+export function update_session_settings(payload: { idle_logout_minutes: number; virtual_keyboard_enabled?: boolean; staff_pin_length?: number }) {
   const settings = getSettings();
+  const pinLength = Number(payload.staff_pin_length || settings.session_settings?.staff_pin_length || 6);
   settings.session_settings = {
     idle_logout_minutes: Math.max(0, Number(payload.idle_logout_minutes || 0)),
     virtual_keyboard_enabled: payload.virtual_keyboard_enabled !== false,
+    staff_pin_length: pinLength === 4 ? 4 : 6,
   };
   saveSettings(settings);
   logEvent('admin', 'SESSION_SETTINGS_UPDATE', settings.session_settings);
@@ -716,6 +731,15 @@ export function get_settings(tenant_id?: string) {
   if (!s.session_settings) {
     s.session_settings = {
       idle_logout_minutes: 0,
+      virtual_keyboard_enabled: true,
+      staff_pin_length: 6,
+    };
+    saveSettings(s);
+  } else if (!s.session_settings.staff_pin_length || typeof s.session_settings.virtual_keyboard_enabled === 'undefined') {
+    s.session_settings = {
+      idle_logout_minutes: Number(s.session_settings.idle_logout_minutes || 0),
+      virtual_keyboard_enabled: s.session_settings.virtual_keyboard_enabled !== false,
+      staff_pin_length: Number(s.session_settings.staff_pin_length || 6) === 4 ? 4 : 6,
     };
     saveSettings(s);
   }
@@ -1083,7 +1107,7 @@ export async function update_email_settings_live(payload: {
   return { success: true };
 }
 
-export async function update_session_settings_live(payload: { idle_logout_minutes: number; virtual_keyboard_enabled?: boolean }) {
+export async function update_session_settings_live(payload: { idle_logout_minutes: number; virtual_keyboard_enabled?: boolean; staff_pin_length?: number }) {
   if (!isBackendEnabled()) return update_session_settings(payload);
   await apiRequest('/api/v1/ops/settings/session', { method: 'PATCH', tenantId: null, body: payload });
   update_session_settings(payload);
@@ -1315,8 +1339,9 @@ export async function create_user(payload: Omit<User, 'id' | 'failed_attempts' |
   const existing = users.find(u => u.username === payload.username || (u.pin && u.pin === payload.pin));
   if (existing) throw new Error('Bu istifadəçi adı və ya PIN artıq mövcuddur');
 
-  if (usesPassword && (!payload.password || payload.password.length < 4)) throw new Error('Şifrə minimum 4 simvol olmalıdır');
-  if (usesPin && (!payload.pin || payload.pin.length < 4 || payload.pin.length > 15)) throw new Error('PIN 4-15 rəqəm aralığında olmalıdır');
+  if (usesPassword && (!payload.password || !isStrongLocalPassword(payload.password))) throw new Error('Şifrə ən azı 10 simvol olmalı, böyük/kiçik hərf, rəqəm və simvol ehtiva etməlidir');
+  const minPinLength = getStaffPinLength(payload.tenant_id);
+  if (usesPin && (!payload.pin || payload.pin.length < minPinLength || payload.pin.length > 15)) throw new Error(`PIN ${minPinLength}-15 rəqəm aralığında olmalıdır`);
   if (usesPassword && payload.pin) throw new Error('Admin/Manager yalnız şifrə ilə giriş etməlidir');
   if (usesPin && payload.password) throw new Error('Staff/Kitchen yalnız PIN ilə giriş etməlidir');
 
@@ -1386,11 +1411,12 @@ export async function update_user_credentials(
   const usesPassword = ['admin', 'manager', 'super_admin'].includes(role);
   const usesPin = ['staff', 'kitchen'].includes(role);
 
-  if (updates.password && updates.password.length < 4) {
-    throw new Error('Şifrə minimum 4 simvol olmalıdır');
+  if (updates.password && !isStrongLocalPassword(updates.password)) {
+    throw new Error('Şifrə ən azı 10 simvol olmalı, böyük/kiçik hərf, rəqəm və simvol ehtiva etməlidir');
   }
-  if (updates.pin && (updates.pin.length < 4 || updates.pin.length > 15)) {
-    throw new Error('PIN 4-15 rəqəm aralığında olmalıdır');
+  const minPinLength = getStaffPinLength(users[index].tenant_id);
+  if (updates.pin && (updates.pin.length < minPinLength || updates.pin.length > 15)) {
+    throw new Error(`PIN ${minPinLength}-15 rəqəm aralığında olmalıdır`);
   }
   if (updates.password !== undefined && !usesPassword) {
     throw new Error('Bu rol şifrə ilə giriş etmir');

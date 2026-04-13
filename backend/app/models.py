@@ -50,6 +50,18 @@ class RefreshToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class RevokedToken(Base):
+    __tablename__ = "revoked_tokens"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    token_type: Mapped[str] = mapped_column(String(24), nullable=False, default="access")
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    revoked_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class Shift(Base):
     __tablename__ = "shifts"
 
@@ -466,6 +478,21 @@ class Customer(Base):
     secret_token: Mapped[str] = mapped_column(String(64), nullable=False)
     discount_percent: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal("0.00"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class CustomerConsent(Base):
+    __tablename__ = "customer_consents"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    card_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    consent_type: Mapped[str] = mapped_column(String(40), nullable=False, default="customer_app")
+    accepted: Mapped[bool] = mapped_column(Boolean, default=True)
+    source: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    accepted_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class Notification(Base):

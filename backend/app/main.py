@@ -1,7 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timedelta
+import hashlib
 import re
+import time
+import uuid
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -81,6 +85,53 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+_rate_limit_bucket: dict[str, list[float]] = {}
+_redis_rate_limiter = None
+
+
+def _get_redis_rate_limiter():
+    global _redis_rate_limiter
+    if _redis_rate_limiter is not None:
+        return _redis_rate_limiter
+    if not settings.redis_url:
+        _redis_rate_limiter = False
+        return None
+    try:
+        from redis import Redis
+
+        _redis_rate_limiter = Redis.from_url(settings.redis_url, decode_responses=True)
+    except Exception:
+        _redis_rate_limiter = False
+        return None
+    return _redis_rate_limiter
+
+
+def _in_memory_rate_limit(bucket_key: str, limit: int) -> bool:
+    now_ts = time.time()
+    recent = [stamp for stamp in _rate_limit_bucket.get(bucket_key, []) if now_ts - stamp < 60]
+    if len(recent) >= limit:
+        return False
+    recent.append(now_ts)
+    _rate_limit_bucket[bucket_key] = recent
+    return True
+
+
+def _rate_limit_allowed(bucket_key: str, limit: int) -> bool:
+    if limit <= 0:
+        return True
+    redis_client = _get_redis_rate_limiter()
+    if redis_client:
+        try:
+            window = int(time.time() // 60)
+            hashed_key = hashlib.sha256(bucket_key.encode("utf-8")).hexdigest()
+            redis_key = f"ironwaves:rate-limit:{window}:{hashed_key}"
+            count = redis_client.incr(redis_key)
+            if count == 1:
+                redis_client.expire(redis_key, 75)
+            return int(count) <= limit
+        except Exception:
+            return _in_memory_rate_limit(bucket_key, limit)
+    return _in_memory_rate_limit(bucket_key, limit)
 
 
 def _origin_allowed(origin: str | None) -> bool:
@@ -96,6 +147,16 @@ def _origin_allowed(origin: str | None) -> bool:
 
 @app.middleware("http")
 async def security_boundary_middleware(request: Request, call_next):
+    request_id = str(request.headers.get("x-request-id") or "").strip()[:80] or str(uuid.uuid4())
+    if request.url.path != "/health":
+        forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+        client_host = request.client.host if request.client else ""
+        client_ip = forwarded or client_host or "unknown"
+        path_group = "auth" if request.url.path.startswith("/api/v1/auth") else "api"
+        limit = settings.auth_rate_limit_per_minute if path_group == "auth" else settings.request_rate_limit_per_minute
+        if limit > 0 and not _rate_limit_allowed(f"{path_group}:{client_ip}", limit):
+            return JSONResponse(status_code=429, content={"detail": "Too many requests"}, headers={"X-Request-ID": request_id})
+
     if settings.csrf_origin_check_enabled and request.method.upper() in {"POST", "PUT", "PATCH", "DELETE"}:
         origin = request.headers.get("origin")
         referer = request.headers.get("referer")
@@ -104,16 +165,34 @@ async def security_boundary_middleware(request: Request, call_next):
             match = re.match(r"^(https?://[^/]+)", referer)
             referer_origin = match.group(1) if match else None
         if (origin and not _origin_allowed(origin)) or (not origin and referer_origin and not _origin_allowed(referer_origin)):
-            return JSONResponse(status_code=403, content={"detail": "Request origin is not allowed"})
+            return JSONResponse(status_code=403, content={"detail": "Request origin is not allowed"}, headers={"X-Request-ID": request_id})
 
     response = await call_next(request)
+    response.headers.setdefault("X-Request-ID", request_id)
     if settings.security_headers_enabled:
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
         response.headers.setdefault("Content-Security-Policy", "default-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'")
+        if settings.app_env.lower() == "production" or settings.app_url.startswith("https://"):
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     return response
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(status_code=422, content={"detail": "Sorğu məlumatları düzgün deyil", "errors": exc.errors()[:5]})
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(status_code=500, content={"detail": "Daxili server xətası baş verdi"})
 
 
 def _seed_initial_data(db: Session):
@@ -473,6 +552,8 @@ def _run_startup_migrations():
         conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS cogs NUMERIC(12,4) DEFAULT 0"))
         conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS offline_request_id VARCHAR(64)"))
         conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS reward_claim_code VARCHAR(32)"))
+        conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS customer_card_id VARCHAR(80)"))
+        conn.execute(text("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64)"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE"))
         conn.execute(
@@ -536,14 +617,51 @@ def _run_startup_migrations():
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_staff_notifications_tenant_id ON staff_notifications (tenant_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_staff_notifications_username ON staff_notifications (username)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_loyalty_ledger_tenant_card ON loyalty_ledger (tenant_id, card_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_loyalty_ledger_tenant_card_created ON loyalty_ledger (tenant_id, card_id, created_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tables_floor_plan_id ON tables (floor_plan_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tables_merged_group_id ON tables (merged_group_id)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS customer_consents (
+                id VARCHAR(36) PRIMARY KEY,
+                tenant_id VARCHAR(36) REFERENCES tenants(id),
+                card_id VARCHAR(80) NOT NULL,
+                consent_type VARCHAR(40) NOT NULL DEFAULT 'customer_app',
+                accepted BOOLEAN DEFAULT TRUE,
+                source VARCHAR(80),
+                ip_address VARCHAR(80),
+                user_agent VARCHAR(255),
+                accepted_at TIMESTAMP,
+                revoked_at TIMESTAMP
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_customer_consents_tenant_card ON customer_consents (tenant_id, card_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_customer_consents_accepted_at ON customer_consents (accepted_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_audit_logs_tenant_action_created ON audit_logs (tenant_id, action, created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_customers_tenant_card ON customers (tenant_id, card_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_tenant_card_created ON notifications (tenant_id, card_id, created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sales_tenant_customer_created ON sales (tenant_id, customer_card_id, created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_revoked_tokens_tenant_hash ON revoked_tokens (tenant_id, token_hash)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_entries_tenant_source_type_created ON finance_entries (tenant_id, source, type, created_at)"))
+
+
+def _run_data_retention_cleanup():
+    now = datetime.utcnow()
+    audit_cutoff = now - timedelta(days=max(30, int(settings.audit_log_retention_days or 730)))
+    data_cutoff = now - timedelta(days=max(30, int(settings.data_retention_days or 365)))
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM revoked_tokens WHERE expires_at < :now"), {"now": now})
+        conn.execute(text("DELETE FROM audit_logs WHERE created_at < :cutoff"), {"cutoff": audit_cutoff})
+        conn.execute(
+            text("DELETE FROM notifications WHERE is_read = TRUE AND created_at < :cutoff"),
+            {"cutoff": data_cutoff},
+        )
 
 
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
     _run_startup_migrations()
+    _run_data_retention_cleanup()
     with SessionLocal() as db:
         _seed_initial_data(db)
         _seed_demo_tenant(db)

@@ -101,6 +101,7 @@ export default function SettingsPanel() {
   const [sessionSettings, setSessionSettings] = useState({
     idle_logout_minutes: '0',
     virtual_keyboard_enabled: true,
+    staff_pin_length: 6 as 4 | 6,
   });
   const [beverageServiceSettings, setBeverageServiceSettings] = useState({
     coffee_selection_mode: 'size_and_service' as 'size_only' | 'size_and_service',
@@ -250,6 +251,14 @@ export default function SettingsPanel() {
   });
 
   const requiresPasswordForNewUser = ['admin', 'manager'].includes(newUserRole);
+  const configuredStaffPinLength = sessionSettings.staff_pin_length === 4 ? 4 : 6;
+  const passwordPolicyText = tx(
+    lang,
+    'Şifrə ən azı 10 simvol, böyük/kiçik hərf, rəqəm və simvol ehtiva etməlidir.',
+    'Пароль должен быть минимум 10 символов и содержать заглавную/строчную букву, цифру и символ.',
+    'Password must be at least 10 characters and include upper/lowercase, number and symbol.',
+  );
+  const isStrongPassword = (value: string) => value.length >= 10 && /[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value) && /[^A-Za-z0-9]/.test(value);
   const pinUsers = users.filter((u) => ['staff', 'kitchen'].includes(String(u.role || '').toLowerCase()));
   const passwordUsers = users.filter((u) => ['admin', 'manager', 'super_admin'].includes(String(u.role || '').toLowerCase()));
   const currentPasswordUser = users.find((u) => u.username === user?.username);
@@ -295,6 +304,7 @@ export default function SettingsPanel() {
       setSessionSettings({
         idle_logout_minutes: String(settingsRes.value.session_settings?.idle_logout_minutes ?? 0),
         virtual_keyboard_enabled: settingsRes.value.session_settings?.virtual_keyboard_enabled !== false,
+        staff_pin_length: Number(settingsRes.value.session_settings?.staff_pin_length || 6) === 4 ? 4 : 6,
       });
       setBeverageServiceSettings({
         coffee_selection_mode: settingsRes.value.beverage_service_settings?.coffee_selection_mode === 'size_only' ? 'size_only' : 'size_and_service',
@@ -470,6 +480,7 @@ export default function SettingsPanel() {
       await update_session_settings_live({
         idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
         virtual_keyboard_enabled: sessionSettings.virtual_keyboard_enabled,
+        staff_pin_length: sessionSettings.staff_pin_length,
       });
       window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
       flashSuccess(tx(lang, 'Sessiya ayarları yadda saxlanıldı', 'Настройки сессии сохранены', 'Session settings saved'));
@@ -484,6 +495,7 @@ export default function SettingsPanel() {
       await update_session_settings_live({
         idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
         virtual_keyboard_enabled: nextEnabled,
+        staff_pin_length: sessionSettings.staff_pin_length,
       });
       window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
       flashSuccess(
@@ -505,12 +517,12 @@ export default function SettingsPanel() {
     }
 
     if (requiresPasswordForNewUser) {
-      if (!newUserPassword || newUserPassword.length < 4) {
-        notify('error', tx(lang, 'Admin/Manager üçün ən azı 4 simvolluq şifrə yazın', 'Для Admin/Manager введите пароль минимум из 4 символов', 'Enter a password with at least 4 characters for Admin/Manager'));
+      if (!newUserPassword || !isStrongPassword(newUserPassword)) {
+        notify('error', passwordPolicyText);
         return;
       }
-    } else if (!newUserPin || newUserPin.length < 4) {
-      notify('error', tx(lang, 'Staff/Kitchen üçün PIN yazın', 'Для Staff/Kitchen введите PIN', 'Enter a PIN for Staff/Kitchen'));
+    } else if (!newUserPin || newUserPin.length < configuredStaffPinLength) {
+      notify('error', tx(lang, `Staff/Kitchen üçün ən azı ${configuredStaffPinLength} rəqəmli PIN yazın`, `Для Staff/Kitchen введите PIN минимум ${configuredStaffPinLength} цифр`, `Enter at least ${configuredStaffPinLength} digits for Staff/Kitchen PIN`));
       return;
     }
 
@@ -550,8 +562,8 @@ export default function SettingsPanel() {
       notify('error', tx(lang, 'PIN dəyişmək üçün istifadəçi seçin', 'Выберите пользователя для смены PIN', 'Select a user to change PIN'));
       return;
     }
-    if (!targetPin || targetPin.length < 4) {
-      notify('error', tx(lang, 'Yeni PIN yazın', 'Введите новый PIN', 'Enter a new PIN'));
+    if (!targetPin || targetPin.length < configuredStaffPinLength) {
+      notify('error', tx(lang, `Yeni PIN ən azı ${configuredStaffPinLength} rəqəm olmalıdır`, `Новый PIN должен быть минимум ${configuredStaffPinLength} цифр`, `New PIN must be at least ${configuredStaffPinLength} digits`));
       return;
     }
 
@@ -571,8 +583,8 @@ export default function SettingsPanel() {
       notify('error', tx(lang, 'Şifrə dəyişmək üçün istifadəçi seçin', 'Выберите пользователя для смены пароля', 'Select a user to change password'));
       return;
     }
-    if (!targetPassword || targetPassword.length < 4) {
-      notify('error', tx(lang, 'Yeni şifrə minimum 4 simvol olmalıdır', 'Новый пароль должен быть минимум 4 символа', 'New password must be at least 4 characters'));
+    if (!targetPassword || !isStrongPassword(targetPassword)) {
+      notify('error', passwordPolicyText);
       return;
     }
     try {
@@ -592,8 +604,8 @@ export default function SettingsPanel() {
       notify('error', tx(lang, 'Mövcud şifrəni daxil edin', 'Введите текущий пароль', 'Enter your current password'));
       return;
     }
-    if (!newOwnPassword || newOwnPassword.length < 4) {
-      notify('error', tx(lang, 'Yeni şifrə minimum 4 simvol olmalıdır', 'Новый пароль должен быть минимум 4 символа', 'New password must be at least 4 characters'));
+    if (!newOwnPassword || !isStrongPassword(newOwnPassword)) {
+      notify('error', passwordPolicyText);
       return;
     }
     if (newOwnPassword !== confirmOwnPassword) {
@@ -1778,6 +1790,32 @@ export default function SettingsPanel() {
             </div>
             <div className="mt-2 text-xs text-slate-400">
               {tx(lang, 'Sensor ekranda input sahələrinə toxunanda öz klaviaturamız açılsın.', 'На сенсорном экране при нажатии на поле будет открываться встроенная клавиатура.', 'Show the built-in keyboard when a touch device focuses an input.')}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 px-4 py-3">
+            <div className="text-sm font-semibold text-slate-200">
+              {tx(lang, 'Staff PIN uzunluğu', 'Длина PIN персонала', 'Staff PIN length')}
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {([4, 6] as const).map((length) => (
+                <button
+                  key={length}
+                  type="button"
+                  onClick={() => setSessionSettings((prev) => ({ ...prev, staff_pin_length: length }))}
+                  className={`min-h-11 rounded-xl border px-3 text-sm font-bold transition ${
+                    sessionSettings.staff_pin_length === length
+                      ? 'border-amber-300/70 bg-amber-400/20 text-amber-100'
+                      : 'border-slate-700 bg-slate-900/70 text-slate-300'
+                  }`}
+                >
+                  {length === 4
+                    ? tx(lang, '4 rəqəm', '4 цифры', '4 digits')
+                    : tx(lang, '6 rəqəm', '6 цифр', '6 digits')}
+                </button>
+              ))}
+            </div>
+            <div className="mt-2 text-xs text-slate-400">
+              {tx(lang, '4 rəqəm daha sürətlidir, 6 rəqəm isə təhlükəsizlik üçün tövsiyə olunur.', '4 цифры быстрее, 6 цифр рекомендуются для безопасности.', '4 digits is faster; 6 digits is recommended for security.')}
             </div>
           </div>
           <button onClick={() => { void saveSessionSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">

@@ -11,6 +11,7 @@ from app.models import (
     AuditLog,
     Check,
     Customer,
+    CustomerConsent,
     DonerBatch,
     FinanceEntry,
     FinanceAccount,
@@ -33,6 +34,7 @@ from app.models import (
     Reservation,
     RewardClaim,
     RefreshToken,
+    RevokedToken,
     Sale,
     Setting,
     ShiftHandover,
@@ -567,6 +569,7 @@ def delete_tenant(
 
     ordered_models = [
         RefreshToken,
+        RevokedToken,
         AuditLog,
         FinanceLedgerEntry,
         FinanceReconciliation,
@@ -588,6 +591,7 @@ def delete_tenant(
         LoyaltyLedgerEntry,
         StaffNotification,
         Notification,
+        CustomerConsent,
         Customer,
         HappyHour,
         DonerBatch,

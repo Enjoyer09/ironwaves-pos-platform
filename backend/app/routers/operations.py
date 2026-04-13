@@ -1,4 +1,5 @@
 import json
+import re
 import secrets
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -9,7 +10,7 @@ except Exception:  # pragma: no cover
 from urllib import request as urllib_request
 from urllib.error import HTTPError, URLError
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
@@ -20,6 +21,7 @@ from app.models import (
     AuditLog,
     BusinessProfile,
     Customer,
+    CustomerConsent,
     DonerBatch,
     FinanceEntry,
     FloorPlan,
@@ -44,7 +46,7 @@ from app.models import (
     WasteLog,
 )
 from app.core.config import settings as app_settings
-from app.security import hash_password, verify_password
+from app.security import hash_password, hash_token, verify_password
 
 
 router = APIRouter(prefix="/api/v1/ops", tags=["operations"])
@@ -182,6 +184,37 @@ def _json_load(value: str | None, default):
         return default
 
 
+def _clean_public_text(value: str | None, *, max_len: int = 120, field_name: str = "text") -> str:
+    raw = str(value or "").strip()
+    if len(raw) > max_len:
+        raise HTTPException(status_code=400, detail=f"{field_name} çox uzundur")
+    if re.search(r"<\s*script|javascript:|data:text/html", raw, re.IGNORECASE):
+        raise HTTPException(status_code=400, detail=f"{field_name} təhlükəli məzmun daşıyır")
+    return raw
+
+
+def _clean_card_id(value: str | None) -> str:
+    raw = _clean_public_text(value, max_len=80, field_name="Kart ID")
+    if len(raw) < 2:
+        raise HTTPException(status_code=400, detail="Kart ID ən azı 2 simvol olmalıdır")
+    if not re.fullmatch(r"[A-Za-z0-9._:-]+", raw):
+        raise HTTPException(status_code=400, detail="Kart ID yalnız hərf, rəqəm və . _ : - işarələrindən ibarət olmalıdır")
+    return raw
+
+
+def _clean_customer_type(value: str | None) -> str:
+    return _clean_public_text(value or "Golden", max_len=32, field_name="Müştəri tipi") or "Golden"
+
+
+def _clean_secret_token(value: str | None) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if len(raw) > 96 or not re.fullmatch(r"[A-Za-z0-9._~\-]+", raw):
+        raise HTTPException(status_code=400, detail="Secret token formatı düzgün deyil")
+    return raw
+
+
 def _setting_value(db: Session, tenant_id: str, key: str, default):
     row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
     if not row or row.value is None:
@@ -250,6 +283,7 @@ DATABASE_SUPPORTED_TABLES = [
     "inventory",
     "ingredients",
     "customers",
+    "customer_consents",
     "recipes",
     "happy_hours",
     "shift_handovers",
@@ -681,6 +715,27 @@ class CustomerImportRowIn(BaseModel):
     discount_percent: Decimal = Decimal("0")
 
 
+class CustomerForgetIn(BaseModel):
+    reason: str | None = None
+
+
+DEFAULT_SESSION_SETTINGS = {"idle_logout_minutes": 0, "virtual_keyboard_enabled": True, "staff_pin_length": 6}
+
+
+def _clean_staff_pin_length(value) -> int:
+    try:
+        pin_length = int(value)
+    except Exception:
+        pin_length = DEFAULT_SESSION_SETTINGS["staff_pin_length"]
+    return 4 if pin_length == 4 else 6
+
+
+def _request_ip(request: Request) -> str:
+    forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+    client_host = request.client.host if request.client else ""
+    return forwarded or client_host or "ip_unknown"
+
+
 class LogEventIn(BaseModel):
     user: str
     action: str
@@ -760,7 +815,8 @@ def get_app_settings(
         },
     )
     print_settings = _setting_value(db, tenant.id, "print_settings", {"use_qz": False, "printer_name": ""})
-    session_settings = _setting_value(db, tenant.id, "session_settings", {"idle_logout_minutes": 0, "virtual_keyboard_enabled": True})
+    session_settings = {**DEFAULT_SESSION_SETTINGS, **_setting_value(db, tenant.id, "session_settings", DEFAULT_SESSION_SETTINGS)}
+    session_settings["staff_pin_length"] = _clean_staff_pin_length(session_settings.get("staff_pin_length"))
     qr_settings = _setting_value(db, tenant.id, "qr_settings", {"base_url": f"https://{tenant.domain}"})
     qr_menu_settings = _setting_value(
         db,
@@ -1141,6 +1197,10 @@ def export_database_backup(
             _serialize_model_row(row, ["id", "tenant_id", "card_id", "type", "stars", "secret_token", "discount_percent", "created_at"])
             for row in db.query(Customer).filter(Customer.tenant_id == tenant.id).all()
         ],
+        "customer_consents": [
+            _serialize_model_row(row, ["id", "tenant_id", "card_id", "consent_type", "accepted", "source", "accepted_at", "revoked_at"])
+            for row in db.query(CustomerConsent).filter(CustomerConsent.tenant_id == tenant.id).all()
+        ],
         "recipes": [
             _serialize_model_row(row, ["id", "tenant_id", "menu_item_name", "ingredient_name", "quantity_required"])
             for row in db.query(Recipe).filter(Recipe.tenant_id == tenant.id).all()
@@ -1367,6 +1427,7 @@ def database_restore(
             "inventory": InventoryItem,
             "ingredients": InventoryItem,
             "customers": Customer,
+            "customer_consents": CustomerConsent,
             "recipes": Recipe,
             "happy_hours": HappyHour,
             "shift_handovers": ShiftHandover,
@@ -2035,10 +2096,11 @@ def update_session_settings(
     cleaned = {
         "idle_logout_minutes": max(0, int(payload.get("idle_logout_minutes") or 0)),
         "virtual_keyboard_enabled": bool(payload.get("virtual_keyboard_enabled", True)),
+        "staff_pin_length": _clean_staff_pin_length(payload.get("staff_pin_length")),
     }
     _set_setting_value(db, tenant.id, "session_settings", cleaned)
     db.commit()
-    return {"success": True}
+    return {"success": True, "session_settings": cleaned}
 
 
 @router.patch("/settings/staff-benefits")
@@ -2505,10 +2567,11 @@ def get_public_menu_bootstrap(
 @router.post("/customer-app/enroll")
 def enroll_customer_app(
     payload: dict,
+    request: Request,
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
 ):
-    if not bool(payload.get("consent_accepted", False)):
+    if app_settings.customer_consent_required and not bool(payload.get("consent_accepted", False)):
         raise HTTPException(status_code=400, detail="Consent must be accepted")
 
     app_settings = _setting_value(db, tenant.id, "customer_app_settings", {"enabled": True})
@@ -2519,15 +2582,28 @@ def enroll_customer_app(
     while db.query(Customer).filter(Customer.tenant_id == tenant.id, Customer.card_id == card_id).first():
         card_id = f"QR-{secrets.token_hex(4).upper()}"
     secret_token = secrets.token_urlsafe(18)
+    join_type = _clean_customer_type(payload.get("join_customer_type") or app_settings.get("join_customer_type") or "golden")
     customer = Customer(
         tenant_id=tenant.id,
         card_id=card_id,
-        type=str(payload.get("join_customer_type") or app_settings.get("join_customer_type") or "golden"),
+        type=join_type,
         stars=0,
         discount_percent=Decimal(str(payload.get("join_discount_percent") or app_settings.get("join_discount_percent") or 0)),
         secret_token=secret_token,
     )
     db.add(customer)
+    db.add(
+        CustomerConsent(
+            tenant_id=tenant.id,
+            card_id=card_id,
+            consent_type="customer_app",
+            accepted=True,
+            source="qr_customer_app",
+            ip_address=_request_ip(request),
+            user_agent=str(request.headers.get("user-agent") or "")[:255],
+            accepted_at=datetime.utcnow(),
+        )
+    )
     db.add(
         Notification(
             tenant_id=tenant.id,
@@ -4209,6 +4285,10 @@ def create_qr_batch(
 ):
     _ensure_manager(user)
     count = max(1, min(int(payload.count), 200))
+    customer_type = _clean_customer_type(payload.customer_type)
+    discount_percent = Decimal(str(payload.discount_percent or 0)).quantize(Decimal("0.01"))
+    if discount_percent < 0 or discount_percent > 100:
+        raise HTTPException(status_code=400, detail="Endirim faizi 0-100 aralığında olmalıdır")
     created = []
     for _ in range(count):
         card_id = f"QR-{secrets.randbelow(1000000):06d}"
@@ -4216,9 +4296,9 @@ def create_qr_batch(
             tenant_id=tenant.id,
             card_id=card_id,
             secret_token=secrets.token_hex(16),
-            type=payload.customer_type,
+            type=customer_type,
             stars=0,
-            discount_percent=Decimal(str(payload.discount_percent or 0)).quantize(Decimal("0.01")),
+            discount_percent=discount_percent,
         )
         db.add(customer)
         db.flush()
@@ -4249,20 +4329,24 @@ def import_customers(
     imported = 0
     updated = 0
     for row in payload:
-        card_id = str(row.card_id or "").strip()
-        if len(card_id) < 2:
-            continue
+        card_id = _clean_card_id(row.card_id)
+        customer_type = _clean_customer_type(row.type)
+        secret_token = _clean_secret_token(row.secret_token)
+        stars = max(0, min(int(row.stars or 0), 100000))
+        discount_percent = Decimal(str(row.discount_percent or 0)).quantize(Decimal("0.01"))
+        if discount_percent < 0 or discount_percent > 100:
+            raise HTTPException(status_code=400, detail="Endirim faizi 0-100 aralığında olmalıdır")
         customer = (
             db.query(Customer)
             .filter(Customer.tenant_id == tenant.id, func.lower(Customer.card_id) == card_id.lower())
             .first()
         )
         if customer:
-            customer.type = str(row.type or customer.type or "Golden").strip() or "Golden"
-            customer.stars = max(0, int(row.stars or 0))
-            customer.discount_percent = Decimal(str(row.discount_percent or 0)).quantize(Decimal("0.01"))
-            if str(row.secret_token or "").strip():
-                customer.secret_token = str(row.secret_token).strip()
+            customer.type = customer_type or customer.type or "Golden"
+            customer.stars = stars
+            customer.discount_percent = discount_percent
+            if secret_token:
+                customer.secret_token = secret_token
             updated += 1
             continue
 
@@ -4270,16 +4354,67 @@ def import_customers(
             Customer(
                 tenant_id=tenant.id,
                 card_id=card_id,
-                secret_token=str(row.secret_token or secrets.token_hex(16)).strip(),
-                type=str(row.type or "Golden").strip() or "Golden",
-                stars=max(0, int(row.stars or 0)),
-                discount_percent=Decimal(str(row.discount_percent or 0)).quantize(Decimal("0.01")),
+                secret_token=secret_token or secrets.token_hex(16),
+                type=customer_type,
+                stars=stars,
+                discount_percent=discount_percent,
             )
         )
         imported += 1
 
     db.commit()
     return {"success": True, "imported": imported, "updated": updated}
+
+
+@router.delete("/customers/{card_id}/forget")
+def forget_customer(
+    card_id: str,
+    payload: CustomerForgetIn | None = None,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_manager(user)
+    clean_card_id = _clean_card_id(card_id)
+    customer = (
+        db.query(Customer)
+        .filter(Customer.tenant_id == tenant.id, func.lower(Customer.card_id) == clean_card_id.lower())
+        .first()
+    )
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    affected_sales = (
+        db.query(Sale)
+        .filter(Sale.tenant_id == tenant.id, func.lower(Sale.customer_card_id) == clean_card_id.lower())
+        .all()
+    )
+    for sale in affected_sales:
+        sale.customer_card_id = None
+        sale.reward_claim_code = None
+
+    db.query(Notification).filter(Notification.tenant_id == tenant.id, func.lower(Notification.card_id) == clean_card_id.lower()).delete(synchronize_session=False)
+    db.query(CustomerConsent).filter(CustomerConsent.tenant_id == tenant.id, func.lower(CustomerConsent.card_id) == clean_card_id.lower()).delete(synchronize_session=False)
+    db.query(RewardClaim).filter(RewardClaim.tenant_id == tenant.id, func.lower(RewardClaim.card_id) == clean_card_id.lower()).delete(synchronize_session=False)
+    db.query(LoyaltyLedgerEntry).filter(LoyaltyLedgerEntry.tenant_id == tenant.id, func.lower(LoyaltyLedgerEntry.card_id) == clean_card_id.lower()).delete(synchronize_session=False)
+    db.delete(customer)
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="GDPR_CUSTOMER_FORGOTTEN",
+            details=json.dumps(
+                {
+                    "card_hash": hash_token(clean_card_id.lower()),
+                    "sales_unlinked": len(affected_sales),
+                    "reason": _clean_public_text((payload.reason if payload else "") or "", max_len=240, field_name="Səbəb"),
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    db.commit()
+    return {"success": True, "sales_unlinked": len(affected_sales)}
 
 
 @router.get("/logs")
