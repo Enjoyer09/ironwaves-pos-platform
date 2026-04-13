@@ -9,6 +9,12 @@ class Settings(BaseSettings):
     app_url: str = "http://localhost:8000"
 
     database_url: str
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
+    db_pool_timeout: int = 15
+    db_pool_recycle_seconds: int = 1800
+    db_pool_pre_ping: bool = True
+    db_statement_timeout_ms: int = 30000
 
     jwt_secret: str
     jwt_algorithm: str = "HS256"

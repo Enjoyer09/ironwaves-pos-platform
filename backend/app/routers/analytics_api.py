@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
+from app.json_utils import safe_json_list
 from app.models import Customer, FinanceEntry, InventoryItem, LoyaltyLedgerEntry, Recipe, RewardClaim, Sale, Setting, Tenant, User
 
 
@@ -127,7 +128,7 @@ def get_sales_list(
             continue
         if cashier and row.cashier != cashier:
             continue
-        items = json.loads(row.items_json or "[]")
+        items = safe_json_list(row.items_json)
         original_total = Decimal(str(row.total)) + Decimal(str(row.discount_amount or 0))
         result.append(
             {
@@ -166,7 +167,7 @@ def void_sale(
     if row.status == "VOIDED":
         raise HTTPException(status_code=400, detail="Sale already voided")
 
-    items = json.loads(row.items_json or "[]")
+    items = safe_json_list(row.items_json)
     if payload.return_to_stock:
         for item in items:
             recipes = (

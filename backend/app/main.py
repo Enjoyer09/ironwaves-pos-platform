@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta
 import hashlib
 import re
@@ -87,6 +88,7 @@ app.add_middleware(
 )
 _rate_limit_bucket: dict[str, list[float]] = {}
 _redis_rate_limiter = None
+_rate_limit_last_cleanup = 0.0
 
 
 def _get_redis_rate_limiter():
@@ -107,7 +109,16 @@ def _get_redis_rate_limiter():
 
 
 def _in_memory_rate_limit(bucket_key: str, limit: int) -> bool:
+    global _rate_limit_last_cleanup
     now_ts = time.time()
+    if now_ts - _rate_limit_last_cleanup > 120 or len(_rate_limit_bucket) > 5000:
+        stale_keys = [
+            key for key, stamps in _rate_limit_bucket.items()
+            if not any(now_ts - stamp < 60 for stamp in stamps)
+        ]
+        for key in stale_keys:
+            _rate_limit_bucket.pop(key, None)
+        _rate_limit_last_cleanup = now_ts
     recent = [stamp for stamp in _rate_limit_bucket.get(bucket_key, []) if now_ts - stamp < 60]
     if len(recent) >= limit:
         return False
@@ -692,7 +703,10 @@ async def restaurant_ws(websocket: WebSocket):
     try:
         await websocket.send_json({"event": "realtime.connected", "tenant_id": tenant_id, "payload": {}})
         while True:
-            await websocket.receive_text()
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=45)
+            except asyncio.TimeoutError:
+                await websocket.send_json({"event": "realtime.ping", "tenant_id": tenant_id, "payload": {}})
     except WebSocketDisconnect:
         pass
     finally:

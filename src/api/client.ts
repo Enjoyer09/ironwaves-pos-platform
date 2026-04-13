@@ -161,10 +161,12 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
   }
 
   const text = await res.text();
+  let responseWasJson = true;
   const data = text ? (() => {
     try {
       return JSON.parse(text);
     } catch {
+      responseWasJson = false;
       return text;
     }
   })() : null;
@@ -182,7 +184,9 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
   });
 
   if (!res.ok) {
-    const detail = (data && typeof data === 'object' && (data as any).detail) ? (data as any).detail : `HTTP ${res.status}`;
+    const detail = responseWasJson && data && typeof data === 'object' && (data as any).detail
+      ? (data as any).detail
+      : `Server düzgün JSON cavabı qaytarmadı (HTTP ${res.status})`;
     if (options.suspendOnNetworkError !== false && String(detail).includes('Tenant not configured')) {
       suspendBackendTemporarily(5 * 60 * 1000);
     }

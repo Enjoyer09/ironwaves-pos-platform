@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
+from app.json_utils import safe_json_list
 from app.models import AuditLog, Customer, DonerBatch, FinanceEntry, InventoryItem, LoyaltyLedgerEntry, MenuItem, Recipe, RewardClaim, Sale, Setting, Tenant
 from app.schemas import SaleCreateIn, SaleCreateOut
 
@@ -561,7 +562,7 @@ def public_receipt(
     if not token or row.receipt_token != token:
         raise HTTPException(status_code=403, detail="Invalid receipt token")
 
-    items = json.loads(row.items_json or "[]")
+    items = safe_json_list(row.items_json)
     original_total = Decimal(str(row.total)) + Decimal(str(row.discount_amount or 0))
     return {
         "id": row.id,
