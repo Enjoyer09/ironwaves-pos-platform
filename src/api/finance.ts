@@ -6,6 +6,26 @@ import { apiRequest, isBackendEnabled } from './client';
 
 import { getDB, setDB } from '../lib/db_sim';
 
+export const FINANCE_CATEGORY_DEFS = {
+  founder_investment: 'Təsisçi İnvestisiyası',
+  borrowed_funds_in: 'Borc Alındı',
+  other_income: 'Digər Giriş',
+  raw_material: 'Xammal',
+  utilities: 'Kommunal',
+  payroll: 'Maaş',
+  rent: 'İcarə',
+  penalty: 'Cərimə',
+  other_expense: 'Digər Xərc',
+  internal_transfer: 'Daxili Transfer',
+  bank_commission: 'Bank Komissiyası',
+  investor_liability_reduction: 'İnvestor Borcu Azaldılması',
+  investor_repayment: 'İnvestora Geri Ödəniş',
+  borrowed_to_cash_mirror: 'Borcdan Kassaya Daxilolma',
+  investor_liability: 'İnvestor Borcu',
+} as const;
+
+type FinanceCategoryCode = keyof typeof FINANCE_CATEGORY_DEFS;
+
 const tenantFinanceKey = (tenant_id: string) => `${tenant_id}_finance`;
 
 const getFinanceLocal = (tenant_id: string): FinanceEntry[] => {
@@ -51,43 +71,51 @@ const normalizeText = (value: string) =>
     .trim()
     .toLowerCase();
 
+export const financeCategoryCodeFromValue = (value: string): FinanceCategoryCode | null => {
+  const normalizedValue = normalizeText(value || '').replace(/_/g, ' ');
+  const defs = Object.entries(FINANCE_CATEGORY_DEFS) as Array<[FinanceCategoryCode, string]>;
+  for (const [code, label] of defs) {
+    if (normalizeText(code).replace(/_/g, ' ') === normalizedValue) return code;
+    if (normalizeText(label) === normalizedValue) return code;
+  }
+  if (normalizedValue.includes('tesisci') && normalizedValue.includes('investis')) return 'founder_investment';
+  if (normalizedValue.includes('borc alindi')) return 'borrowed_funds_in';
+  if (normalizedValue.includes('investor borcu azaldilmasi')) return 'investor_liability_reduction';
+  if (normalizedValue.includes('investora geri odenis')) return 'investor_repayment';
+  if (normalizedValue.includes('daxili transfer')) return 'internal_transfer';
+  if (normalizedValue.includes('bank komissiyasi')) return 'bank_commission';
+  if (normalizedValue.includes('borcdan kassaya daxilolma')) return 'borrowed_to_cash_mirror';
+  if (normalizedValue.includes('investor borcu')) return 'investor_liability';
+  return null;
+};
+
+export const financeCategoryLabelFromValue = (value: string): string => {
+  const code = financeCategoryCodeFromValue(value);
+  return code ? FINANCE_CATEGORY_DEFS[code] : value;
+};
+
 const isFounderInvestmentCategory = (category: string) => {
-  const normalizedCategory = normalizeText(category);
-
-  // Accept common spelling variants used by operators while avoiding
-  // unrelated investor categories like "investor borcu azaldilmasi".
-  const hasFounderToken =
-    normalizedCategory.includes('tesisci') ||
-    normalizedCategory.includes('founder') ||
-    normalizedCategory.includes('учред');
-
-  const hasInvestmentToken =
-    normalizedCategory.includes('investis') ||
-    normalizedCategory.includes('investi') ||
-    normalizedCategory.includes('investment') ||
-    normalizedCategory.includes('инвест');
-
-  return hasFounderToken && hasInvestmentToken;
+  return financeCategoryCodeFromValue(category) === 'founder_investment';
 };
 
 const INCOME_CATEGORIES = new Set([
-  normalizeText('Təsisçi İnvestisiyası'),
-  normalizeText('Borc Alındı'),
-  normalizeText('Digər Giriş'),
+  normalizeText(FINANCE_CATEGORY_DEFS.founder_investment),
+  normalizeText(FINANCE_CATEGORY_DEFS.borrowed_funds_in),
+  normalizeText(FINANCE_CATEGORY_DEFS.other_income),
   normalizeText('Kassa Açılışı'),
   normalizeText('Satış (Nağd)'),
   normalizeText('Satış (Kart)'),
 ]);
 
 const EXPENSE_CATEGORIES = new Set([
-  normalizeText('Xammal'),
-  normalizeText('Kommunal'),
-  normalizeText('Maaş'),
-  normalizeText('İcarə'),
-  normalizeText('Cərimə'),
-  normalizeText('Digər Xərc'),
-  normalizeText('İnvestora Geri Ödəniş'),
-  normalizeText('İnvestor Borcu Azaldılması'),
+  normalizeText(FINANCE_CATEGORY_DEFS.raw_material),
+  normalizeText(FINANCE_CATEGORY_DEFS.utilities),
+  normalizeText(FINANCE_CATEGORY_DEFS.payroll),
+  normalizeText(FINANCE_CATEGORY_DEFS.rent),
+  normalizeText(FINANCE_CATEGORY_DEFS.penalty),
+  normalizeText(FINANCE_CATEGORY_DEFS.other_expense),
+  normalizeText(FINANCE_CATEGORY_DEFS.investor_repayment),
+  normalizeText(FINANCE_CATEGORY_DEFS.investor_liability_reduction),
 ]);
 
 const validateFinanceEntryMatrix = (
@@ -243,8 +271,9 @@ export const create_finance_entry = (
   const finances = getFinanceLocal(tenant_id);
   const amountDec = new Decimal(amount);
   const now = new Date().toISOString();
+  const categoryLabel = financeCategoryLabelFromValue(category);
 
-  validateFinanceEntryMatrix(type, category, source);
+  validateFinanceEntryMatrix(type, categoryLabel, source);
 
   if (type === 'out') {
     const balance = get_balance(tenant_id, 'all', false) as any;
@@ -265,7 +294,7 @@ export const create_finance_entry = (
     id: uuidv4(),
     tenant_id,
     type,
-    category,
+    category: categoryLabel,
     amount: amountDec.toString(),
     source,
     description,
@@ -296,7 +325,7 @@ export const create_finance_entry = (
   if (
     type === 'in' &&
     source === 'cash' &&
-    isFounderInvestmentCategory(category)
+    isFounderInvestmentCategory(categoryLabel)
   ) {
     finances.push({
       id: uuidv4(),
@@ -305,7 +334,7 @@ export const create_finance_entry = (
       category: 'İnvestor Borcu',
       amount: amountDec.toString(),
       source: 'investor',
-      description: `Auto liability mirror: ${description || category}`,
+      description: `Auto liability mirror: ${description || categoryLabel}`,
       created_at: now,
       is_deleted: false,
     });
@@ -1100,6 +1129,7 @@ export const create_finance_ledger_transaction_async = async (
     destination_account_code?: string;
     amount: string;
     category?: string;
+    category_code?: string;
     counterparty?: string;
     reference?: string;
     note?: string;
@@ -1113,10 +1143,16 @@ export const create_finance_ledger_transaction_async = async (
       status: payload.requires_approval ? 'pending_approval' : 'posted',
     };
   }
+  const categoryLabel = payload.category ? financeCategoryLabelFromValue(payload.category) : payload.category;
+  const categoryCode = payload.category_code || (payload.category ? financeCategoryCodeFromValue(payload.category) || undefined : undefined);
   return apiRequest<any>('/api/v1/finance/ledger/transactions', {
     method: 'POST',
     tenantId: tenant_id,
-    body: payload,
+    body: {
+      ...payload,
+      category: categoryLabel,
+      category_code: categoryCode,
+    },
   });
 };
 
@@ -1250,8 +1286,10 @@ export const create_finance_entry_async = async (
   description: string,
   created_by: string,
 ) => {
+  const categoryLabel = financeCategoryLabelFromValue(category);
+  const categoryCode = financeCategoryCodeFromValue(category);
   if (!isBackendEnabled()) {
-    return create_finance_entry(tenant_id, type, category, amount, source, description, created_by);
+    return create_finance_entry(tenant_id, type, categoryLabel, amount, source, description, created_by);
   }
 
   const data = await apiRequest<any>('/api/v1/finance/entry', {
@@ -1259,7 +1297,8 @@ export const create_finance_entry_async = async (
     tenantId: tenant_id,
     body: {
       type,
-      category,
+      category: categoryLabel,
+      category_code: categoryCode,
       source,
       amount,
       description,
