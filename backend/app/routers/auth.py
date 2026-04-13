@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 import pyotp
@@ -43,8 +44,6 @@ from app.security import (
 
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
-PIN_MAX_FAILED_ATTEMPTS = 10
-PIN_LOCKOUT_MINUTES = 5
 _pin_attempt_tracker: dict[str, dict[str, datetime | int]] = {}
 
 
@@ -66,8 +65,8 @@ def _consume_pin_attempts(request: Request, tenant_id: str) -> None:
 
     attempts = int(state.get("attempts", 0)) + 1
     next_state: dict[str, datetime | int] = {"attempts": attempts}
-    if attempts >= PIN_MAX_FAILED_ATTEMPTS:
-        next_state["locked_until"] = now + timedelta(minutes=PIN_LOCKOUT_MINUTES)
+    if attempts >= settings.pin_max_failed_attempts:
+        next_state["locked_until"] = now + timedelta(minutes=settings.pin_lockout_minutes)
     _pin_attempt_tracker[key] = next_state
 
 
@@ -105,6 +104,29 @@ def _request_ip(request: Request) -> str:
     forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
     client_host = request.client.host if request.client else ""
     return forwarded or client_host or "ip_unknown"
+
+
+def _add_auth_audit_log(db: Session, tenant_id: str, username: str, action: str, request: Request, details: dict | None = None) -> None:
+    payload = {
+        "username": username,
+        "ip": _request_ip(request),
+        "user_agent": str(request.headers.get("user-agent") or "")[:240],
+        **(details or {}),
+    }
+    db.add(AuditLog(tenant_id=tenant_id, user=username or "anonymous", action=action, details=json.dumps(payload, ensure_ascii=False)))
+
+
+def _assert_pin_format(pin: str) -> None:
+    if not pin.isdigit():
+        raise HTTPException(status_code=400, detail="PIN yalnız rəqəmlərdən ibarət olmalıdır")
+    if len(pin) < settings.pin_min_length or len(pin) > 15:
+        raise HTTPException(status_code=400, detail=f"PIN ən azı {settings.pin_min_length}, ən çox 15 rəqəm olmalıdır")
+    if len(set(pin)) == 1:
+        raise HTTPException(status_code=400, detail="PIN eyni rəqəmin təkrarından ibarət ola bilməz")
+    sequences = "01234567890123456789"
+    reverse_sequences = "98765432109876543210"
+    if pin in sequences or pin in reverse_sequences:
+        raise HTTPException(status_code=400, detail="PIN ardıcıl rəqəmlərdən ibarət ola bilməz")
 
 
 def _is_trusted_device(request: Request, tenant: Tenant, user: User) -> bool:
@@ -277,18 +299,25 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db), ten
         .first()
     )
     if not user:
+        _add_auth_audit_log(db, tenant.id, username_norm, "AUTH_LOGIN_FAILED", request, {"reason": "unknown_user"})
+        db.commit()
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if user.role == "super_admin" and tenant.domain != settings.platform_tenant_domain:
+        _add_auth_audit_log(db, tenant.id, user.username, "AUTH_LOGIN_BLOCKED", request, {"reason": "super_admin_wrong_domain"})
+        db.commit()
         raise HTTPException(status_code=403, detail="Super admin can only sign in on the platform domain")
 
     now = datetime.utcnow()
     if user.locked_until and now < user.locked_until:
+        _add_auth_audit_log(db, tenant.id, user.username, "AUTH_LOGIN_BLOCKED", request, {"reason": "account_locked"})
+        db.commit()
         raise HTTPException(status_code=423, detail="Account temporarily locked")
 
     if not verify_password(payload.password, user.password_hash):
         user.failed_attempts = (user.failed_attempts or 0) + 1
         if user.failed_attempts >= 5:
             user.locked_until = now + timedelta(minutes=5)
+        _add_auth_audit_log(db, tenant.id, user.username, "AUTH_LOGIN_FAILED", request, {"reason": "bad_password", "failed_attempts": user.failed_attempts})
         db.commit()
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
@@ -297,9 +326,13 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db), ten
     if bool(user.totp_enabled) and user.totp_secret and not trusted_device:
         code = str(payload.second_factor_code or "").strip().replace(" ", "")
         if not code:
+            _add_auth_audit_log(db, tenant.id, user.username, "AUTH_2FA_REQUIRED", request)
+            db.commit()
             raise HTTPException(status_code=401, detail="2FA_REQUIRED")
         totp = pyotp.TOTP(user.totp_secret)
         if not totp.verify(code, valid_window=1):
+            _add_auth_audit_log(db, tenant.id, user.username, "AUTH_LOGIN_FAILED", request, {"reason": "bad_2fa"})
+            db.commit()
             raise HTTPException(status_code=401, detail="Invalid 2FA code")
 
     user.failed_attempts = 0
@@ -315,6 +348,8 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db), ten
             device_hash=device_hash,
             ip=_request_ip(request),
         )
+    _add_auth_audit_log(db, tenant.id, user.username, "AUTH_LOGIN_SUCCESS", request)
+    db.commit()
     return result
 
 
@@ -323,6 +358,7 @@ def pin_login(payload: PinLoginIn, request: Request, db: Session = Depends(get_d
     pin = str(payload.pin or "").strip()
     if not pin:
         raise HTTPException(status_code=400, detail="PIN required")
+    _assert_pin_format(pin)
 
     users = (
         db.query(User)
@@ -345,8 +381,12 @@ def pin_login(payload: PinLoginIn, request: Request, db: Session = Depends(get_d
             matches.append(u)
 
     if not matches:
+        _add_auth_audit_log(db, tenant.id, "pin_login", "AUTH_PIN_FAILED", request, {"reason": "invalid_pin"})
+        db.commit()
         raise HTTPException(status_code=401, detail="Invalid PIN")
     if len(matches) > 1:
+        _add_auth_audit_log(db, tenant.id, "pin_login", "AUTH_PIN_BLOCKED", request, {"reason": "duplicate_pin"})
+        db.commit()
         raise HTTPException(status_code=409, detail="Bu PIN bir neçə staff hesabında istifadə olunur. PIN-ləri unikal edin.")
 
     matched = matches[0]
@@ -355,6 +395,7 @@ def pin_login(payload: PinLoginIn, request: Request, db: Session = Depends(get_d
     matched.failed_attempts = 0
     matched.locked_until = None
     db.flush()
+    _add_auth_audit_log(db, tenant.id, matched.username, "AUTH_PIN_SUCCESS", request, {"role": matched.role})
 
     return _issue_tokens_for_user(db, tenant, matched)
 

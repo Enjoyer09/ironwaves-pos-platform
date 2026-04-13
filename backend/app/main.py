@@ -1,8 +1,9 @@
 from datetime import datetime
 import re
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -82,6 +83,39 @@ app.add_middleware(
 )
 
 
+def _origin_allowed(origin: str | None) -> bool:
+    value = str(origin or "").strip()
+    if not value:
+        return True
+    if "*" in _exact_origins:
+        return True
+    if value in _exact_origins:
+        return True
+    return bool(_cors_regex and re.match(_cors_regex, value))
+
+
+@app.middleware("http")
+async def security_boundary_middleware(request: Request, call_next):
+    if settings.csrf_origin_check_enabled and request.method.upper() in {"POST", "PUT", "PATCH", "DELETE"}:
+        origin = request.headers.get("origin")
+        referer = request.headers.get("referer")
+        referer_origin = None
+        if referer:
+            match = re.match(r"^(https?://[^/]+)", referer)
+            referer_origin = match.group(1) if match else None
+        if (origin and not _origin_allowed(origin)) or (not origin and referer_origin and not _origin_allowed(referer_origin)):
+            return JSONResponse(status_code=403, content={"detail": "Request origin is not allowed"})
+
+    response = await call_next(request)
+    if settings.security_headers_enabled:
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        response.headers.setdefault("Content-Security-Policy", "default-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'")
+    return response
+
+
 def _seed_initial_data(db: Session):
     default_tenant = None
     if settings.seed_default_tenant or settings.single_tenant_mode:
@@ -149,8 +183,8 @@ def _seed_initial_data(db: Session):
     # Demo PIN users are opt-in only so production deployments never get weak seeded accounts.
     if settings.seed_demo_users and default_tenant:
         staff_seed = [
-            ("barista", "1234", "staff"),
-            ("barista2", "5678", "staff"),
+            ("barista", "135790", "staff"),
+            ("barista2", "246802", "staff"),
         ]
         for username, pin, role in staff_seed:
             row = (

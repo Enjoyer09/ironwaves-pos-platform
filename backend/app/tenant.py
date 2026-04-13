@@ -89,43 +89,17 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
         if tenant:
             return tenant
 
-    # 1) Prefer explicit tenant header when the frontend intentionally sends it.
-    # Authenticated endpoints still validate JWT tenant_id in get_current_user, so
-    # this prevents silent cross-tenant restore/write mistakes without weakening auth.
     explicit = (request.headers.get("x-tenant-id") or "").strip()
-    if explicit:
-        tenant = db.query(Tenant).filter(Tenant.id == explicit).first()
-        if tenant:
-            return tenant
+    has_auth_context = bool((request.headers.get("authorization") or "").strip())
 
-    # 2) Prefer frontend host/domain header (Plan B)
+    # Domain is the security boundary for public/auth routes. Never trust
+    # caller-controlled x-tenant-id before resolving the requested host.
     domain = (request.headers.get("x-tenant-domain") or "").split(":")[0].lower().strip()
     if not domain:
         domain = (request.headers.get("host") or "").split(":")[0].lower().strip()
 
-    if not domain:
-        return None
-
-    # 3) Use tenant_domains mapping table if present
-    try:
-        row = db.execute(
-            text(
-                """
-                SELECT tenant_id
-                FROM tenant_domains
-                WHERE domain = :d
-                  AND (is_active IS NULL OR is_active = TRUE)
-                LIMIT 1
-                """
-            ),
-            {"d": domain},
-        ).fetchone()
-        if row and row[0]:
-            tenant = db.query(Tenant).filter(Tenant.id == row[0]).first()
-            if tenant:
-                return tenant
-    except Exception:
-        # Backward compatibility for schemas where tenant_domains has no is_active column.
+    if domain:
+        # 1) Use tenant_domains mapping table if present
         try:
             row = db.execute(
                 text(
@@ -133,6 +107,7 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
                     SELECT tenant_id
                     FROM tenant_domains
                     WHERE domain = :d
+                      AND (is_active IS NULL OR is_active = TRUE)
                     LIMIT 1
                     """
                 ),
@@ -143,23 +118,40 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
                 if tenant:
                     return tenant
         except Exception:
-            # If tenant_domains does not exist or query fails, fallback to Tenant.domain
-            pass
+            # Backward compatibility for schemas where tenant_domains has no is_active column.
+            try:
+                row = db.execute(
+                    text(
+                        """
+                        SELECT tenant_id
+                        FROM tenant_domains
+                        WHERE domain = :d
+                        LIMIT 1
+                        """
+                    ),
+                    {"d": domain},
+                ).fetchone()
+                if row and row[0]:
+                    tenant = db.query(Tenant).filter(Tenant.id == row[0]).first()
+                    if tenant:
+                        return tenant
+            except Exception:
+                # If tenant_domains does not exist or query fails, fallback to Tenant.domain
+                pass
 
-    # 4) Fallback: tenants.domain
-    tenant = db.query(Tenant).filter(Tenant.domain == domain).first()
-    if tenant:
-        return tenant
+        # 2) Fallback: tenants.domain
+        tenant = db.query(Tenant).filter(Tenant.domain == domain).first()
+        if tenant:
+            return tenant
 
-    tenant = _resolve_known_alias_tenant(domain, db)
-    if tenant:
-        return tenant
+        tenant = _resolve_known_alias_tenant(domain, db)
+        if tenant:
+            return tenant
 
-    # 5) Legacy header fallback is opt-in only for local/dev compatibility.
-    if settings.allow_legacy_tenant_header_fallback or settings.single_tenant_mode:
-        if explicit:
-            tenant = db.query(Tenant).filter(Tenant.id == explicit).first()
-            if tenant:
-                return tenant
+    # Legacy header fallback is opt-in and only allowed on authenticated traffic.
+    if explicit and has_auth_context and settings.allow_legacy_tenant_header_fallback:
+        tenant = db.query(Tenant).filter(Tenant.id == explicit).first()
+        if tenant:
+            return tenant
 
     return None

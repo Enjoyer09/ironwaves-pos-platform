@@ -4,6 +4,7 @@ import pyotp
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.config import settings as app_settings
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import (
@@ -105,6 +106,20 @@ def _assert_unique_pin(db: Session, tenant_id: str, pin: str, exclude_user_id: s
             raise HTTPException(status_code=409, detail="Bu PIN artıq başqa staff/kitchen hesabında istifadə olunur")
 
 
+def _assert_strong_pin(pin: str) -> None:
+    pin_value = str(pin or "").strip()
+    if not pin_value.isdigit():
+        raise HTTPException(status_code=400, detail="PIN yalnız rəqəmlərdən ibarət olmalıdır")
+    if len(pin_value) < app_settings.pin_min_length or len(pin_value) > 15:
+        raise HTTPException(status_code=400, detail=f"PIN ən azı {app_settings.pin_min_length}, ən çox 15 rəqəm olmalıdır")
+    if len(set(pin_value)) == 1:
+        raise HTTPException(status_code=400, detail="PIN eyni rəqəmin təkrarından ibarət ola bilməz")
+    sequences = "01234567890123456789"
+    reverse_sequences = "98765432109876543210"
+    if pin_value in sequences or pin_value in reverse_sequences:
+        raise HTTPException(status_code=400, detail="PIN ardıcıl rəqəmlərdən ibarət ola bilməz")
+
+
 @router.get("/users", response_model=list[UserOut])
 def list_users(
     db: Session = Depends(get_db),
@@ -154,8 +169,8 @@ def create_user(
     pin = str(payload.pin or "").strip()
     if _uses_password(role) and len(password) < 4:
         raise HTTPException(status_code=400, detail="Password required (min 4 chars) for admin/manager")
-    if _uses_pin(role) and (len(pin) < 4 or len(pin) > 15):
-        raise HTTPException(status_code=400, detail="PIN required (4-15 digits) for staff/kitchen")
+    if _uses_pin(role):
+        _assert_strong_pin(pin)
     if _uses_password(role) and pin:
         raise HTTPException(status_code=400, detail="Admin/manager accounts must use password login only")
     if _uses_pin(role) and password:
@@ -221,8 +236,7 @@ def update_user_credentials(
         if not _uses_pin(row.role):
             raise HTTPException(status_code=400, detail="This role does not use PIN login")
         pin = str(payload.pin).strip()
-        if len(pin) < 4 or len(pin) > 15:
-            raise HTTPException(status_code=400, detail="PIN must be 4-15 digits")
+        _assert_strong_pin(pin)
         _assert_unique_pin(db, tenant.id, pin, exclude_user_id=row.id)
         row.pin_hash = hash_password(pin)
 

@@ -49,6 +49,7 @@ from app.security import hash_password
 
 
 router = APIRouter(prefix="/api/v1/admin/tenants", tags=["tenants"])
+ALLOWED_RAW_TENANT_TABLES = {"tenant_domains", "business_profiles"}
 
 
 def _default_menu_rows(tenant_id: str) -> list[MenuItem]:
@@ -160,6 +161,8 @@ def _delete_model_rows(db: Session, model, tenant_id: str) -> None:
 
 
 def _delete_raw_tenant_table(db: Session, table_name: str, tenant_id: str) -> None:
+    if table_name not in ALLOWED_RAW_TENANT_TABLES:
+        raise HTTPException(status_code=400, detail=f"Unsupported raw tenant table cleanup: {table_name}")
     try:
         with db.begin_nested():
             db.execute(text(f"DELETE FROM {table_name} WHERE tenant_id=:tenant_id"), {"tenant_id": tenant_id})
