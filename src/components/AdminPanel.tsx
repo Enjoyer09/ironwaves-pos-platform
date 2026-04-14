@@ -56,8 +56,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   const [adminNote, setAdminNote] = useState('');
   const [notes, setNotes] = useState<Array<{ id: number; text: string; by?: string; created_at: string }>>([]);
   const [deleteMenuId, setDeleteMenuId] = useState<string | null>(null);
-  const [editMenuId, setEditMenuId] = useState<string | null>(null);
-  const [editMenuName, setEditMenuName] = useState('');
+  const [editMenuModal, setEditMenuModal] = useState<null | { id: string; item_name: string; price: string }>(null);
   const [deleteNoteId, setDeleteNoteId] = useState<number | null>(null);
   const [editNoteId, setEditNoteId] = useState<number | null>(null);
   const [editNoteText, setEditNoteText] = useState('');
@@ -221,14 +220,28 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   };
 
   const handleEditMenu = async () => {
-    if (!editMenuId || !editMenuName.trim()) return;
-    await update_menu_item_live(tenant_id, editMenuId, { item_name: editMenuName.trim() } as any, user?.username || 'admin');
+    if (!editMenuModal?.id) return;
+    const nextName = String(editMenuModal.item_name || '').trim();
+    const nextPrice = String(editMenuModal.price || '').trim();
+    if (!nextName) {
+      notify('error', tx(lang, 'Məhsul adı boş ola bilməz', 'Название товара не может быть пустым', 'Item name cannot be empty'));
+      return;
+    }
+    if (!nextPrice || Number(nextPrice) <= 0) {
+      notify('error', tx(lang, 'Qiymət düzgün deyil', 'Некорректная цена', 'Price is invalid'));
+      return;
+    }
+    await update_menu_item_live(
+      tenant_id,
+      editMenuModal.id,
+      { item_name: nextName, price: new Decimal(nextPrice) } as any,
+      user?.username || 'admin',
+    );
     window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { scope: 'menu' } }));
     delete fetchCacheRef.current[`menu:${tenant_id}`];
     const seq = ++fetchSeqRef.current;
     await fetchData(seq);
-    setEditMenuId(null);
-    setEditMenuName('');
+    setEditMenuModal(null);
   };
 
   const handleMenuImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -620,11 +633,14 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                     </button>
                     <button
                       onClick={() => {
-                        setEditMenuId(item.id);
-                        setEditMenuName(String(item.item_name || ''));
+                        setEditMenuModal({
+                          id: String(item.id),
+                          item_name: String(item.item_name || ''),
+                          price: String(item.price || ''),
+                        });
                       }}
                       className="text-cyan-300 hover:text-cyan-100 p-2 hover:bg-cyan-400/10 rounded-lg transition-colors"
-                      title={tx(lang, 'Məhsul adını dəyiş', 'Изменить название товара', 'Rename item')}
+                      title={tx(lang, 'Məhsulu düzəlt', 'Редактировать товар', 'Edit item')}
                     >
                       <Pencil size={18} />
                     </button>
@@ -632,32 +648,48 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                 </div>
               ))}
             </div>
-            {editMenuId && (
-              <div className="border-t border-slate-700/70 p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="text"
-                    className="neon-input min-w-[220px] flex-1"
-                    value={editMenuName}
-                    onChange={(e) => setEditMenuName(e.target.value)}
-                    placeholder={tx(lang, 'Yeni məhsul adı', 'Новое название товара', 'New item name')}
-                  />
-                  <button
-                    onClick={() => { void handleEditMenu(); }}
-                    className="glossy-gold rounded-lg px-4 py-2 font-semibold"
-                    disabled={!editMenuName.trim()}
-                  >
-                    {tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
-                  </button>
-                  <button
-                    onClick={() => { setEditMenuId(null); setEditMenuName(''); }}
-                    className="neon-btn rounded-lg px-4 py-2"
-                  >
-                    {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
-                  </button>
-                </div>
+          </div>
+        )}
+
+        {editMenuModal && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/70 p-4">
+            <div className="w-full max-w-lg rounded-2xl border border-slate-600 bg-slate-900 p-5 shadow-2xl">
+              <div className="text-lg font-bold text-slate-100">
+                {tx(lang, 'Məhsulu düzəlt', 'Редактировать товар', 'Edit item')}
               </div>
-            )}
+              <div className="mt-4 space-y-3">
+                <input
+                  type="text"
+                  className="neon-input w-full"
+                  value={editMenuModal.item_name}
+                  onChange={(e) => setEditMenuModal((prev) => (prev ? { ...prev, item_name: e.target.value } : prev))}
+                  placeholder={tx(lang, 'Məhsul adı', 'Название товара', 'Item name')}
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="neon-input w-full"
+                  value={editMenuModal.price}
+                  onChange={(e) => setEditMenuModal((prev) => (prev ? { ...prev, price: e.target.value } : prev))}
+                  placeholder={tx(lang, 'Qiymət', 'Цена', 'Price')}
+                />
+              </div>
+              <div className="mt-5 flex items-center justify-end gap-2">
+                <button
+                  onClick={() => setEditMenuModal(null)}
+                  className="neon-btn rounded-lg px-4 py-2"
+                >
+                  {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
+                </button>
+                <button
+                  onClick={() => { void handleEditMenu(); }}
+                  className="glossy-gold rounded-lg px-4 py-2 font-semibold"
+                >
+                  {tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

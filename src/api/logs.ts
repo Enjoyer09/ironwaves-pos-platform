@@ -70,6 +70,7 @@ export async function get_super_error_logs_live(
   toDate?: string,
   tenantIdFilter?: string,
   query?: string,
+  includeAll?: boolean,
   options?: { signal?: AbortSignal },
 ) {
   if (!isBackendEnabled()) return [];
@@ -78,6 +79,7 @@ export async function get_super_error_logs_live(
   if (toDate) qs.set('to_date', toDate);
   if (tenantIdFilter) qs.set('tenant_id', tenantIdFilter.trim());
   if (query) qs.set('q', query.trim());
+  if (includeAll) qs.set('include_all', '1');
   return apiRequest<any[]>(`/api/v1/ops/logs/super-errors?${qs.toString()}`, {
     tenantId: null,
     signal: options?.signal,
