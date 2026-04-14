@@ -52,7 +52,17 @@ from app.services.finance_service import (
     post_finance_transaction_with_legacy_mirror as _post_finance_transaction,
     post_sale_payment as _post_sale_payment,
 )
-from app.services.legacy_import_service import restore_legacy_finance_rows as _restore_legacy_finance_rows
+from app.services.legacy_import_service import (
+    build_restore_handler_registry as _build_restore_handler_registry,
+    restore_business_profile_rows as _restore_business_profile_rows,
+    restore_generic_model_rows as _restore_generic_model_rows,
+    restore_kitchen_order_rows as _restore_kitchen_order_rows,
+    restore_legacy_finance_rows as _restore_legacy_finance_rows,
+    restore_sales_rows as _restore_sales_rows,
+    restore_settings_rows as _restore_settings_rows,
+    restore_user_rows as _restore_user_rows,
+    verify_restored_tables as _verify_restored_tables,
+)
 from app.core.config import settings as app_settings
 from app.security import hash_password, hash_token, verify_password
 
@@ -1298,48 +1308,6 @@ def database_restore(
             if len(report["rejected_samples"]) < 30:
                 report["rejected_samples"].append({"table": table, "reason": reason, "row_index": row_index, "row": row})
 
-        def restore_table(model, table_key: str, rows: list[dict]):
-            db.query(model).filter(model.tenant_id == tenant.id).delete(synchronize_session=False)
-            restored_count = 0
-            for idx, row in enumerate(rows):
-                if not isinstance(row, dict):
-                    reject(table_key, "Sətir obyekt deyil", idx, row)
-                    continue
-                instance = model()
-                for column in model.__table__.columns:
-                    key = column.name
-                    if key == "tenant_id":
-                        setattr(instance, key, tenant.id)
-                        continue
-                    if key not in row:
-                        continue
-                    value = row.get(key)
-                    if value in (None, ""):
-                        if column.nullable:
-                            setattr(instance, key, None)
-                        continue
-                    try:
-                        python_type = getattr(column.type, "python_type", None)
-                    except Exception:
-                        python_type = None
-                    if python_type is datetime:
-                        setattr(instance, key, _parse_dt(value))
-                    elif python_type is Decimal:
-                        setattr(instance, key, _parse_decimal(value))
-                    elif python_type is int:
-                        setattr(instance, key, int(value))
-                    elif python_type is bool:
-                        setattr(instance, key, str(value).lower() in {"1", "true", "yes", "on"})
-                    elif python_type is str:
-                        setattr(instance, key, str(value))
-                    else:
-                        setattr(instance, key, value)
-                db.add(instance)
-                restored_count += 1
-            report["restored_tables"].append(table_key)
-            report["restored_rows"] += restored_count
-            expected_counts[table_key] = restored_count
-
         def normalize_user_role(raw_role: str | None) -> str:
             role = str(raw_role or "staff").strip().lower()
             role_map = {
@@ -1366,47 +1334,7 @@ def database_restore(
                 return raw
             return hash_password(raw)
 
-        def restore_users(rows: list[dict]):
-            db.query(User).filter(User.tenant_id == tenant.id).delete(synchronize_session=False)
-            restored_count = 0
-            for idx, row in enumerate(rows):
-                if not isinstance(row, dict):
-                    reject("users", "İstifadəçi sətri obyekt deyil", idx, row)
-                    continue
-                username = str(row.get("username") or "").strip()
-                password_hash = normalize_restored_password(row.get("password_hash") or row.get("password"))
-                if not username:
-                    reject("users", "username boşdur", idx, row)
-                    continue
-                if not password_hash:
-                    password_hash = hash_password(secrets.token_urlsafe(32))
-                    if not any("İstifadəçi şifrələri backup-a daxil edilmir" in warning for warning in report["warnings"]):
-                        report["warnings"].append("İstifadəçi şifrələri backup-a daxil edilmir; bərpa olunan istifadəçilər üçün şifrə yenilənməlidir.")
-                user_kwargs = {
-                    "tenant_id": tenant.id,
-                    "username": username,
-                    "email": str(row.get("email") or "").strip() or None,
-                    "password_hash": password_hash,
-                    "pin_hash": None,
-                    "totp_secret": None,
-                    "totp_enabled": False,
-                    "role": normalize_user_role(row.get("role")),
-                    "is_active": not str(row.get("is_active", True)).lower() in {"0", "false", "no", "off"},
-                    "failed_attempts": 0,
-                    "locked_until": None,
-                    "created_at": _parse_dt(row.get("created_at")) or datetime.utcnow(),
-                }
-                legacy_id = str(row.get("id") or "").strip()
-                if legacy_id:
-                    user_kwargs["id"] = legacy_id
-                db.add(User(**user_kwargs))
-                restored_count += 1
-            report["restored_tables"].append("users")
-            report["restored_rows"] += restored_count
-            expected_counts["users"] = restored_count
-
         table_map = {
-            "users": User,
             "menu_items": MenuItem,
             "menu": MenuItem,
             "tables": Table,
@@ -1420,112 +1348,105 @@ def database_restore(
             "notifications": Notification,
             "logs": AuditLog,
         }
+        restore_handlers = _build_restore_handler_registry(
+            generic_table_map=table_map,
+            restore_users="users",
+            restore_settings="settings",
+            restore_business_profile="business_profile",
+            restore_sales="sales",
+            restore_finance="finance",
+            restore_kitchen_orders="kitchen_orders",
+        )
 
         for table in DATABASE_SUPPORTED_TABLES:
             if table not in selected:
                 continue
             rows, source = _resolve_restore_rows(data, table)
-            if rows is None and table != "settings" and table != "business_profile" and table != "sales" and table != "finance" and table != "kitchen_orders":
+            handler = restore_handlers.get(table)
+            if rows is None and handler not in {"settings", "business_profile", "sales", "finance", "kitchen_orders"}:
                 report["skipped_tables"].append(table)
                 continue
             if source and source != table:
                 report["warnings"].append(f"'{table}' cədvəli '{source}' bölməsindən bərpa olundu.")
 
-            if table == "users" and rows is not None:
-                restore_users(rows)
+            if handler == "users" and rows is not None:
+                restored_count, missing_password_warning = _restore_user_rows(
+                    db,
+                    tenant_id=tenant.id,
+                    rows=rows,
+                    default_username=user.username,
+                    normalize_role=normalize_user_role,
+                    normalize_password_hash=normalize_restored_password,
+                    hash_password=hash_password,
+                    parse_dt=_parse_dt,
+                    reject_row=lambda message, idx, raw: reject("users", message, idx, raw),
+                )
+                if missing_password_warning and not any("İstifadəçi şifrələri backup-a daxil edilmir" in warning for warning in report["warnings"]):
+                    report["warnings"].append("İstifadəçi şifrələri backup-a daxil edilmir; bərpa olunan istifadəçilər üçün şifrə yenilənməlidir.")
+                report["restored_tables"].append("users")
+                report["restored_rows"] += restored_count
+                expected_counts["users"] = restored_count
                 continue
 
-            if table in table_map and rows is not None:
-                restore_table(table_map[table], table, rows)
-                continue
-
-            if table == "settings":
-                settings_rows = _extract_settings_rows(data, tenant.id)
-                db.query(Setting).filter(Setting.tenant_id == tenant.id).delete(synchronize_session=False)
-                for row in settings_rows:
-                    if not row.get("key"):
-                        continue
-                    db.add(Setting(tenant_id=tenant.id, key=row["key"], value=row["value"]))
+            if isinstance(handler, tuple) and handler[0] == "generic" and rows is not None:
+                restored_count = _restore_generic_model_rows(
+                    db,
+                    model=handler[1],
+                    tenant_id=tenant.id,
+                    rows=rows,
+                    parse_dt=_parse_dt,
+                    parse_decimal=_parse_decimal,
+                    reject_row=lambda message, idx, raw: reject(table, message, idx, raw),
+                )
                 report["restored_tables"].append(table)
-                report["restored_rows"] += len(settings_rows)
-                expected_counts[table] = len(settings_rows)
+                report["restored_rows"] += restored_count
+                expected_counts[table] = restored_count
                 continue
 
-            if table == "business_profile":
+            if handler == "settings":
+                settings_rows = _extract_settings_rows(data, tenant.id)
+                restored_count = _restore_settings_rows(db, tenant_id=tenant.id, rows=settings_rows)
+                report["restored_tables"].append(table)
+                report["restored_rows"] += restored_count
+                expected_counts[table] = restored_count
+                continue
+
+            if handler == "business_profile":
                 profile_rows = data.get("business_profile")
                 if not isinstance(profile_rows, list) or not profile_rows:
                     report["skipped_tables"].append(table)
                     continue
-                db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant.id).delete(synchronize_session=False)
-                restored_count = 0
-                for idx, row in enumerate(profile_rows):
-                    if not isinstance(row, dict):
-                        reject(table, "Profil sətri obyekt deyil", idx, row)
-                        continue
-                    company_name = str(row.get("company_name") or "").strip()
-                    if not company_name:
-                        reject(table, "company_name boşdur", idx, row)
-                        continue
-                    db.add(
-                        BusinessProfile(
-                            tenant_id=tenant.id,
-                            company_name=company_name,
-                            phone=str(row.get("phone") or "").strip() or None,
-                            address=str(row.get("address") or "").strip() or None,
-                            website=str(row.get("website") or "").strip() or None,
-                            logo_url=str(row.get("logo_url") or "").strip() or None,
-                            receipt_footer=str(row.get("receipt_footer") or "").strip() or None,
-                        )
-                    )
-                    restored_count += 1
+                restored_count = _restore_business_profile_rows(
+                    db,
+                    tenant_id=tenant.id,
+                    rows=profile_rows,
+                    reject_row=lambda message, idx, raw: reject(table, message, idx, raw),
+                )
                 report["restored_tables"].append(table)
                 report["restored_rows"] += restored_count
                 expected_counts[table] = restored_count
                 continue
 
-            if table == "sales":
+            if handler == "sales":
                 sale_rows = rows
                 if not isinstance(sale_rows, list):
                     report["skipped_tables"].append(table)
                     continue
-                db.query(Sale).filter(Sale.tenant_id == tenant.id).delete(synchronize_session=False)
-                restored_count = 0
-                for idx, row in enumerate(sale_rows):
-                    if not isinstance(row, dict):
-                        reject(table, "Satış sətri obyekt deyil", idx, row)
-                        continue
-                    items = row.get("items_json")
-                    if items is None:
-                        items = row.get("items") or []
-                    items_json = items if isinstance(items, str) else json.dumps(items, ensure_ascii=False)
-                    cashier = str(row.get("cashier") or user.username or "staff").strip()
-                    db.add(
-                        Sale(
-                            id=str(row.get("id") or secrets.token_hex(16)),
-                            tenant_id=tenant.id,
-                            cashier=cashier,
-                            customer_card_id=str(row.get("customer_card_id") or "").strip() or None,
-                            payment_method=str(row.get("payment_method") or "Nəğd"),
-                            order_type=str(row.get("order_type") or "").strip() or None,
-                            offline_request_id=str(row.get("offline_request_id") or "").strip() or None,
-                            receipt_code=str(row.get("receipt_code") or "").strip() or None,
-                            receipt_token=str(row.get("receipt_token") or "").strip() or None,
-                            reward_claim_code=str(row.get("reward_claim_code") or "").strip() or None,
-                            total=_parse_decimal(row.get("total"), "0.00"),
-                            discount_amount=_parse_decimal(row.get("discount_amount"), "0.00"),
-                            cogs=_parse_decimal(row.get("cogs"), "0.0000"),
-                            items_json=items_json,
-                            status=str(row.get("status") or "COMPLETED"),
-                            created_at=_parse_dt(row.get("created_at")) or datetime.utcnow(),
-                        )
-                    )
-                    restored_count += 1
+                restored_count = _restore_sales_rows(
+                    db,
+                    tenant_id=tenant.id,
+                    rows=sale_rows,
+                    default_cashier=user.username,
+                    parse_dt=_parse_dt,
+                    parse_decimal=_parse_decimal,
+                    reject_row=lambda message, idx, raw: reject(table, message, idx, raw),
+                )
                 report["restored_tables"].append(table)
                 report["restored_rows"] += restored_count
                 expected_counts[table] = restored_count
                 continue
 
-            if table == "finance":
+            if handler == "finance":
                 finance_rows = rows
                 if not isinstance(finance_rows, list):
                     report["skipped_tables"].append(table)
@@ -1545,36 +1466,18 @@ def database_restore(
                 expected_counts[table] = restored_count
                 continue
 
-            if table == "kitchen_orders":
+            if handler == "kitchen_orders":
                 kitchen_rows = rows
                 if not isinstance(kitchen_rows, list):
                     report["skipped_tables"].append(table)
                     continue
-                db.query(KitchenOrder).filter(KitchenOrder.tenant_id == tenant.id).delete(synchronize_session=False)
-                restored_count = 0
-                for idx, row in enumerate(kitchen_rows):
-                    if not isinstance(row, dict):
-                        reject(table, "Mətbəx sifarişi sətri obyekt deyil", idx, row)
-                        continue
-                    items = row.get("items_json")
-                    if items is None:
-                        items = row.get("items") or []
-                    items_json = items if isinstance(items, str) else json.dumps(items, ensure_ascii=False)
-                    db.add(
-                        KitchenOrder(
-                            id=str(row.get("id") or secrets.token_hex(16)),
-                            tenant_id=tenant.id,
-                            sale_id=str(row.get("sale_id") or "").strip() or None,
-                            table_label=str(row.get("table_label") or "").strip() or None,
-                            order_type=str(row.get("order_type") or "").strip() or None,
-                            status=str(row.get("status") or "NEW"),
-                            priority=str(row.get("priority") or "NORMAL"),
-                            items_json=items_json,
-                            created_at=_parse_dt(row.get("created_at")) or datetime.utcnow(),
-                            completed_at=_parse_dt(row.get("completed_at")),
-                        )
-                    )
-                    restored_count += 1
+                restored_count = _restore_kitchen_order_rows(
+                    db,
+                    tenant_id=tenant.id,
+                    rows=kitchen_rows,
+                    parse_dt=_parse_dt,
+                    reject_row=lambda message, idx, raw: reject(table, message, idx, raw),
+                )
                 report["restored_tables"].append(table)
                 report["restored_rows"] += restored_count
                 expected_counts[table] = restored_count
@@ -1600,24 +1503,16 @@ def database_restore(
             "finance": FinanceEntry,
             "kitchen_orders": KitchenOrder,
         }
-
-        db.flush()
-        for table_key, expected in expected_counts.items():
-            model = verification_models.get(table_key)
-            if model is None:
-                continue
-            actual = db.query(model).filter(model.tenant_id == tenant.id).count()
-            ok = actual >= expected
-            report["verification"][table_key] = {
-                "expected": int(expected),
-                "actual": int(actual),
-                "ok": ok,
-            }
-            if not ok:
-                report["success"] = False
-                report["warnings"].append(
-                    f"'{table_key}' bərpa yoxlaması uğursuz oldu: gözlənilən {expected}, bazada {actual}."
-                )
+        verification, verification_warnings, verification_success = _verify_restored_tables(
+            db,
+            tenant_id=tenant.id,
+            expected_counts=expected_counts,
+            verification_models=verification_models,
+        )
+        report["verification"] = verification
+        if not verification_success:
+            report["success"] = False
+        report["warnings"].extend(verification_warnings)
 
         db.add(
             AuditLog(
