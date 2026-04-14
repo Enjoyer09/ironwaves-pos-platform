@@ -373,18 +373,30 @@ export function update_sale_amount(
   return { success: true };
 }
 
-export async function get_sales_summary_live(tenant_id: string, date_from: string, date_to: string, cashier_filter?: string) {
+export async function get_sales_summary_live(
+  tenant_id: string,
+  date_from: string,
+  date_to: string,
+  cashier_filter?: string,
+  options?: { signal?: AbortSignal },
+) {
   if (!isBackendEnabled()) return get_sales_summary(tenant_id, date_from, date_to, cashier_filter);
   const qs = new URLSearchParams({ date_from, date_to });
   if (cashier_filter) qs.set('cashier', cashier_filter);
-  return apiRequest<any>(`/api/v1/analytics/summary?${qs.toString()}`, { tenantId: null });
+  return apiRequest<any>(`/api/v1/analytics/summary?${qs.toString()}`, { tenantId: null, signal: options?.signal });
 }
 
-export async function get_sales_list_live(tenant_id: string, date_from: string, date_to: string, cashier?: string) {
+export async function get_sales_list_live(
+  tenant_id: string,
+  date_from: string,
+  date_to: string,
+  cashier?: string,
+  options?: { signal?: AbortSignal },
+) {
   if (!isBackendEnabled()) return get_sales_list(tenant_id, date_from, date_to, cashier);
   const qs = new URLSearchParams({ date_from, date_to });
   if (cashier) qs.set('cashier', cashier);
-  return apiRequest<any[]>(`/api/v1/analytics/sales?${qs.toString()}`, { tenantId: null });
+  return apiRequest<any[]>(`/api/v1/analytics/sales?${qs.toString()}`, { tenantId: null, signal: options?.signal });
 }
 
 export async function void_sale_with_reason_live(

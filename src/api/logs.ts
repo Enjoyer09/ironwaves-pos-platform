@@ -43,13 +43,19 @@ export function clear_ui_errors(tenant_id: string) {
   return true;
 }
 
-export async function get_logs_live(tenant_id: string, limit: number = 100, fromDate?: string, toDate?: string) {
+export async function get_logs_live(
+  tenant_id: string,
+  limit: number = 100,
+  fromDate?: string,
+  toDate?: string,
+  options?: { signal?: AbortSignal },
+) {
   if (!isBackendEnabled()) return get_logs(tenant_id, limit, fromDate, toDate);
   const qs = new URLSearchParams({ limit: String(limit) });
   if (fromDate) qs.set('from_date', fromDate);
   if (toDate) qs.set('to_date', toDate);
   try {
-    return await apiRequest<any[]>(`/api/v1/ops/logs?${qs.toString()}`, { tenantId: null });
+    return await apiRequest<any[]>(`/api/v1/ops/logs?${qs.toString()}`, { tenantId: null, signal: options?.signal });
   } catch (error) {
     if (isRecoverableNetworkFailure(error)) {
       return get_logs(tenant_id, limit, fromDate, toDate);
