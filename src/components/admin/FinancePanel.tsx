@@ -593,12 +593,16 @@ export default function FinancePanel() {
     () => Decimal.max(new Decimal(0), new Decimal(anomalies?.investor_ledger_balance || balance.investor_balance || 0)),
     [anomalies?.investor_ledger_balance, balance.investor_balance],
   );
+  const legacyDerivedInvestorDebt = useMemo(
+    () => new Decimal((anomalies?.investor_calculated_debt ?? legacyInvestorSummary.debt_remaining) || 0),
+    [anomalies?.investor_calculated_debt, legacyInvestorSummary.debt_remaining],
+  );
   const investorAuditGap = useMemo(
     () =>
       anomalies
         ? new Decimal(anomalies.investor_ledger_gap || 0)
-        : ledgerInvestorDebt.minus(new Decimal(legacyInvestorSummary.debt_remaining || 0)).abs(),
-    [anomalies, ledgerInvestorDebt, legacyInvestorSummary.debt_remaining],
+        : ledgerInvestorDebt.minus(legacyDerivedInvestorDebt).abs(),
+    [anomalies, ledgerInvestorDebt, legacyDerivedInvestorDebt],
   );
 
   const filteredEntries = useMemo(() => {
@@ -827,9 +831,9 @@ export default function FinancePanel() {
         title: tx(lang, 'Investor borcu uyğunsuzluğu', 'Несовпадение долга инвестору', 'Investor debt mismatch'),
         body: tx(
           lang,
-          `Ledger investor borcu ${ledgerInvestorDebt.toFixed(2)} ₼, legacy hesablanmış borc isə ${new Decimal(legacyInvestorSummary.debt_remaining || 0).toFixed(2)} ₼-dir. Fərq: ${investorAuditGap.toFixed(2)} ₼.`,
-          `Ledger-долг инвестору ${ledgerInvestorDebt.toFixed(2)} ₼, а legacy-расчет ${new Decimal(legacyInvestorSummary.debt_remaining || 0).toFixed(2)} ₼. Разница: ${investorAuditGap.toFixed(2)} ₼.`,
-          `Ledger investor debt is ${ledgerInvestorDebt.toFixed(2)} ₼ while the legacy-derived debt is ${new Decimal(legacyInvestorSummary.debt_remaining || 0).toFixed(2)} ₼. Gap: ${investorAuditGap.toFixed(2)} ₼.`,
+          `Ledger investor borcu ${ledgerInvestorDebt.toFixed(2)} ₼, audit üçün hesablanmış köhnə borc isə ${legacyDerivedInvestorDebt.toFixed(2)} ₼-dir. Fərq: ${investorAuditGap.toFixed(2)} ₼.`,
+          `Ledger-долг инвестору ${ledgerInvestorDebt.toFixed(2)} ₼, а аудитный legacy-расчет ${legacyDerivedInvestorDebt.toFixed(2)} ₼. Разница: ${investorAuditGap.toFixed(2)} ₼.`,
+          `Ledger investor debt is ${ledgerInvestorDebt.toFixed(2)} ₼ while the audit-only legacy calculation is ${legacyDerivedInvestorDebt.toFixed(2)} ₼. Gap: ${investorAuditGap.toFixed(2)} ₼.`,
         ),
         tone: 'rose',
       });
@@ -901,7 +905,7 @@ export default function FinancePanel() {
     }
 
     return items;
-  }, [anomalies, balance.cash_balance, balance.deposit_balance, financeSummary.net, investorAuditGap, lang, ledgerInvestorDebt, legacyInvestorSummary.debt_remaining]);
+  }, [anomalies, balance.cash_balance, balance.deposit_balance, financeSummary.net, investorAuditGap, lang, ledgerInvestorDebt, legacyDerivedInvestorDebt]);
 
   const exportCsv = async () => {
     const esc = (value: unknown) => {
