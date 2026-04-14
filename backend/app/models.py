@@ -1,4 +1,5 @@
 import uuid
+import secrets
 from datetime import datetime
 from decimal import Decimal
 
@@ -495,7 +496,7 @@ class Customer(Base):
     card_id: Mapped[str] = mapped_column(String(80), nullable=False)
     type: Mapped[str] = mapped_column(String(32), nullable=False, default="Normal")
     stars: Mapped[int] = mapped_column(Integer, default=0)
-    secret_token: Mapped[str] = mapped_column(String(64), nullable=False)
+    secret_token: Mapped[str] = mapped_column(String(64), nullable=False, default=lambda: secrets.token_hex(16))
     discount_percent: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal("0.00"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
