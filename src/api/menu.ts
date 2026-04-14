@@ -168,6 +168,41 @@ export async function create_menu_item_live(
   }
 }
 
+export async function update_menu_item_live(
+  tenant_id: string,
+  item_id: string,
+  updates: Partial<MenuItem>,
+  user: string = 'system',
+) {
+  if (!isBackendEnabled()) {
+    return update_menu_item(tenant_id, item_id, updates, user);
+  }
+  try {
+    const payload: Record<string, any> = {};
+    if (updates.item_name !== undefined) payload.item_name = String(updates.item_name || '').trim();
+    if (updates.price !== undefined) payload.price = new Decimal(updates.price as any).toFixed(2);
+    if (updates.category !== undefined) payload.category = String(updates.category || '').trim();
+    if (updates.is_coffee !== undefined) payload.is_coffee = Boolean(updates.is_coffee);
+    if (updates.image_url !== undefined) payload.image_url = String(updates.image_url || '');
+    if (updates.description !== undefined) payload.description = String(updates.description || '');
+    const updated = await apiRequest<any>(`/api/v1/catalog/menu/${encodeURIComponent(item_id)}`, {
+      method: 'PATCH',
+      tenantId: null,
+      body: payload,
+    });
+    const menuItems = getDB<any>('menu_items');
+    const idx = menuItems.findIndex((i) => String(i.id) === String(item_id) && i.tenant_id === tenant_id);
+    if (idx >= 0) {
+      menuItems[idx] = { ...menuItems[idx], ...updated, tenant_id: updated?.tenant_id || tenant_id };
+      setDB('menu_items', menuItems);
+    }
+    return updated;
+  } catch (error: any) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Menu backend update failed: ${message}`);
+  }
+}
+
 export async function soft_delete_menu_item_live(tenant_id: string, item_id: string, user: string = 'system') {
   if (!isBackendEnabled()) {
     return soft_delete_menu_item(tenant_id, item_id, user);

@@ -406,21 +406,10 @@ export default function FinancePanel() {
     }
     lastReloadAtRef.current = now;
     try {
-      const [summary, b, e, settings, serverAnomalies] = await Promise.all([
+      const [summary, b, serverAnomalies] = await Promise.all([
         fetch_finance_summary(tenant_id).catch(() => null),
         fetch_finance_balances(tenant_id),
-        fetch_finance_entries(tenant_id),
-        get_settings_live(tenant_id),
         fetch_finance_anomalies(tenant_id).catch(() => null),
-      ]);
-      const [accounts, transactions, ledgerRows, recRows, pendingRows, alertRows, reportOverview] = await Promise.all([
-        fetch_finance_ledger_accounts(tenant_id).catch(() => []),
-        fetch_finance_ledger_transactions(tenant_id, 250).catch(() => []),
-        fetch_finance_ledger_entries(tenant_id, 500).catch(() => []),
-        fetch_finance_reconciliations(tenant_id, 100).catch(() => []),
-        fetch_finance_pending_approvals(tenant_id).catch(() => []),
-        fetch_finance_alerts(tenant_id).catch(() => null),
-        fetch_finance_reports_overview(tenant_id, { date_from: fromDate, date_to: toDate }).catch(() => null),
       ]);
       const summaryBalances = summary?.balances
         ? {
@@ -440,8 +429,25 @@ export default function FinancePanel() {
         safe_balance: '0',
         deposit_balance: '0',
       });
-      setEntries(e || []);
       setAnomalies(serverAnomalies);
+      setPendingApprovals((summary?.pending_approvals_preview || []) as any[]);
+      setPendingApprovalsTotal(Number(summary?.pending_approvals_count ?? 0));
+      setServerFinanceAlerts((summary?.alerts || null) as any);
+
+      if (!force) return;
+
+      const [e, settings, accounts, transactions, ledgerRows, recRows, pendingRows, alertRows, reportOverview] = await Promise.all([
+        fetch_finance_entries(tenant_id).catch(() => []),
+        get_settings_live(tenant_id),
+        fetch_finance_ledger_accounts(tenant_id).catch(() => []),
+        fetch_finance_ledger_transactions(tenant_id, 250).catch(() => []),
+        fetch_finance_ledger_entries(tenant_id, 500).catch(() => []),
+        fetch_finance_reconciliations(tenant_id, 100).catch(() => []),
+        fetch_finance_pending_approvals(tenant_id).catch(() => []),
+        fetch_finance_alerts(tenant_id).catch(() => null),
+        fetch_finance_reports_overview(tenant_id, { date_from: fromDate, date_to: toDate }).catch(() => null),
+      ]);
+      setEntries(e || []);
       setLedgerAccounts(accounts);
       setLedgerTransactions(transactions);
       setLedgerEntries(ledgerRows);

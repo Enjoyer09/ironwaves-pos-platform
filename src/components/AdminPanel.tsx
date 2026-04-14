@@ -1,11 +1,11 @@
 import React, { Suspense, lazy, startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../store';
 import { get_sales_summary_live, get_sales_list_live, update_sale_amount_live, void_sale_with_reason_live, partial_refund_sale_live } from '../api/analytics';
-import { get_menu_items_live, create_menu_item_live, soft_delete_menu_item_live } from '../api/menu';
+import { get_menu_items_live, create_menu_item_live, soft_delete_menu_item_live, update_menu_item_live } from '../api/menu';
 import { get_logs_live } from '../api/logs';
 import { apiRequest, isBackendEnabled } from '../api/client';
 import { Decimal } from 'decimal.js';
-import { Plus, Trash2, TrendingUp, ShoppingBag, DollarSign } from 'lucide-react';
+import { Plus, Trash2, TrendingUp, ShoppingBag, DollarSign, Pencil } from 'lucide-react';
 import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
 import { getDB } from '../lib/db_sim';
@@ -56,6 +56,8 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   const [adminNote, setAdminNote] = useState('');
   const [notes, setNotes] = useState<Array<{ id: number; text: string; by?: string; created_at: string }>>([]);
   const [deleteMenuId, setDeleteMenuId] = useState<string | null>(null);
+  const [editMenuId, setEditMenuId] = useState<string | null>(null);
+  const [editMenuName, setEditMenuName] = useState('');
   const [deleteNoteId, setDeleteNoteId] = useState<number | null>(null);
   const [editNoteId, setEditNoteId] = useState<number | null>(null);
   const [editNoteText, setEditNoteText] = useState('');
@@ -216,6 +218,17 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     const seq = ++fetchSeqRef.current;
     await fetchData(seq);
     setDeleteMenuId(null);
+  };
+
+  const handleEditMenu = async () => {
+    if (!editMenuId || !editMenuName.trim()) return;
+    await update_menu_item_live(tenant_id, editMenuId, { item_name: editMenuName.trim() } as any, user?.username || 'admin');
+    window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { scope: 'menu' } }));
+    delete fetchCacheRef.current[`menu:${tenant_id}`];
+    const seq = ++fetchSeqRef.current;
+    await fetchData(seq);
+    setEditMenuId(null);
+    setEditMenuName('');
   };
 
   const handleMenuImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -605,10 +618,46 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                     <button onClick={() => setDeleteMenuId(item.id)} className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors">
                       <Trash2 size={20} />
                     </button>
+                    <button
+                      onClick={() => {
+                        setEditMenuId(item.id);
+                        setEditMenuName(String(item.item_name || ''));
+                      }}
+                      className="text-cyan-300 hover:text-cyan-100 p-2 hover:bg-cyan-400/10 rounded-lg transition-colors"
+                      title={tx(lang, 'Məhsul adını dəyiş', 'Изменить название товара', 'Rename item')}
+                    >
+                      <Pencil size={18} />
+                    </button>
                   </div>
                 </div>
               ))}
             </div>
+            {editMenuId && (
+              <div className="border-t border-slate-700/70 p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    className="neon-input min-w-[220px] flex-1"
+                    value={editMenuName}
+                    onChange={(e) => setEditMenuName(e.target.value)}
+                    placeholder={tx(lang, 'Yeni məhsul adı', 'Новое название товара', 'New item name')}
+                  />
+                  <button
+                    onClick={() => { void handleEditMenu(); }}
+                    className="glossy-gold rounded-lg px-4 py-2 font-semibold"
+                    disabled={!editMenuName.trim()}
+                  >
+                    {tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
+                  </button>
+                  <button
+                    onClick={() => { setEditMenuId(null); setEditMenuName(''); }}
+                    className="neon-btn rounded-lg px-4 py-2"
+                  >
+                    {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

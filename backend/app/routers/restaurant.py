@@ -435,7 +435,7 @@ def _ensure_default_floor(db: Session, tenant_id: str) -> FloorPlan:
     return row
 
 
-def _assign_unassigned_tables_to_floor(db: Session, tenant_id: str, floor: FloorPlan) -> None:
+def _assign_unassigned_tables_to_floor(db: Session, tenant_id: str, floor: FloorPlan) -> bool:
     unassigned_tables = (
         db.query(Table)
         .filter(Table.tenant_id == tenant_id, Table.floor_plan_id.is_(None))
@@ -443,7 +443,7 @@ def _assign_unassigned_tables_to_floor(db: Session, tenant_id: str, floor: Floor
         .all()
     )
     if not unassigned_tables:
-        return
+        return False
     max_cols = max(6, int(floor.width_units or 12))
     slot_width = 3
     slot_height = 3
@@ -469,6 +469,7 @@ def _assign_unassigned_tables_to_floor(db: Session, tenant_id: str, floor: Floor
         if not str(table.status or "").strip():
             table.status = "AVAILABLE"
         cursor += 1
+    return True
 
 
 def _guest_payload(guest: Guest | None) -> dict:
@@ -1213,9 +1214,120 @@ def get_floor_state(
     floor = db.query(FloorPlan).filter(FloorPlan.id == floor_id, FloorPlan.tenant_id == tenant.id).first()
     if not floor:
         raise HTTPException(status_code=404, detail="Floor plan not found")
-    _assign_unassigned_tables_to_floor(db, tenant.id, floor)
-    db.commit()
+    changed = _assign_unassigned_tables_to_floor(db, tenant.id, floor)
+    if changed:
+        db.commit()
     tables = db.query(Table).filter(Table.tenant_id == tenant.id, Table.floor_plan_id == floor.id).order_by(Table.label.asc()).all()
+    table_ids = [row.id for row in tables]
+
+    active_sessions_by_table: dict[str, TableSession] = {}
+    checks_by_session: dict[str, Check] = {}
+    reserved_by_table: dict[str, Reservation] = {}
+
+    if table_ids:
+        sessions = (
+            db.query(TableSession)
+            .filter(
+                TableSession.tenant_id == tenant.id,
+                TableSession.table_id.in_(table_ids),
+                TableSession.closed_at.is_(None),
+            )
+            .order_by(TableSession.table_id.asc(), TableSession.seated_at.desc())
+            .all()
+        )
+        for session in sessions:
+            if session.table_id not in active_sessions_by_table:
+                active_sessions_by_table[session.table_id] = session
+
+        session_ids = [row.id for row in active_sessions_by_table.values()]
+        if session_ids:
+            checks = (
+                db.query(Check)
+                .filter(
+                    Check.tenant_id == tenant.id,
+                    Check.table_session_id.in_(session_ids),
+                    Check.status.in_(["OPEN", "PARTIALLY_PAID"]),
+                )
+                .order_by(Check.table_session_id.asc(), Check.opened_at.desc())
+                .all()
+            )
+            for check in checks:
+                if check.table_session_id not in checks_by_session:
+                    checks_by_session[check.table_session_id] = check
+
+        now = _restaurant_now()
+        lock_until = now + timedelta(hours=_reservation_lock_hours(db, tenant.id))
+        late_release_cutoff = now - timedelta(minutes=_late_release_minutes(db, tenant.id))
+        reservations = (
+            db.query(Reservation)
+            .filter(
+                Reservation.tenant_id == tenant.id,
+                Reservation.assigned_table_id.in_(table_ids),
+                Reservation.status.in_(["BOOKED", "LATE"]),
+                Reservation.reservation_at >= late_release_cutoff,
+                Reservation.reservation_at <= lock_until,
+            )
+            .order_by(Reservation.reservation_at.asc())
+            .all()
+        )
+        for reservation in reservations:
+            table_id_key = str(reservation.assigned_table_id or "")
+            if not table_id_key or table_id_key in reserved_by_table:
+                continue
+            status_value = str(reservation.status or "").upper()
+            is_locked_booked = status_value == "BOOKED" and reservation.reservation_at >= now
+            is_late_hold = status_value == "LATE" and reservation.reservation_at <= now
+            if is_locked_booked or is_late_hold:
+                reserved_by_table[table_id_key] = reservation
+
+    floor_tables_payload: list[dict] = []
+    for table in tables:
+        active_session = active_sessions_by_table.get(table.id)
+        active_check = checks_by_session.get(active_session.id) if active_session else None
+        reserved = reserved_by_table.get(table.id)
+        minutes_seated = None
+        if active_session and active_session.seated_at:
+            minutes_seated = int(max(0, (datetime.utcnow() - active_session.seated_at).total_seconds() // 60))
+        computed_status = "AVAILABLE"
+        if str(table.status or "").upper() == "DIRTY":
+            computed_status = "DIRTY"
+        elif active_session:
+            computed_status = "ACTIVE_CHECK" if active_check else "SEATED"
+        elif reserved:
+            computed_status = "RESERVED"
+
+        floor_tables_payload.append(
+            {
+                "id": table.id,
+                "label": table.label,
+                "floor_plan_id": table.floor_plan_id,
+                "shape": table.shape,
+                "x": table.pos_x,
+                "y": table.pos_y,
+                "w": table.width_units,
+                "h": table.height_units,
+                "capacity": table.capacity,
+                "merged_group_id": table.merged_group_id,
+                "locked_by": _table_lock_holder(table),
+                "active_session_id": table.active_session_id,
+                "locked_at": table.locked_at.isoformat() if table.locked_at else None,
+                "status": computed_status,
+                "guest_count": active_session.guest_count if active_session else table.guest_count,
+                "assigned_waiter": active_session.assigned_waiter if active_session else table.assigned_to,
+                "minutes_seated": minutes_seated,
+                "check_total": str(active_check.total if active_check else Decimal(str(table.total or 0)).quantize(Decimal("0.01"))),
+                "session_id": active_session.id if active_session else None,
+                "check_id": active_check.id if active_check else None,
+                "reservation": None
+                if not reserved
+                else {
+                    "id": reserved.id,
+                    "party_size": reserved.party_size,
+                    "reservation_at": reserved.reservation_at.isoformat(),
+                },
+            }
+        )
+
     return {
         "floor": {
             "id": floor.id,
@@ -1224,7 +1336,7 @@ def get_floor_state(
             "height_units": floor.height_units,
             "is_active": floor.is_active,
         },
-        "tables": [_table_state_payload(db, tenant.id, table) for table in tables],
+        "tables": floor_tables_payload,
     }
 
 
