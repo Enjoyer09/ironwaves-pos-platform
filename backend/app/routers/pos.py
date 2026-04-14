@@ -12,6 +12,7 @@ from app.deps import get_current_user, get_tenant
 from app.json_utils import safe_json_list
 from app.models import AuditLog, Customer, DonerBatch, FinanceEntry, InventoryItem, LoyaltyLedgerEntry, MenuItem, Recipe, RewardClaim, Sale, Setting, Tenant
 from app.schemas import SaleCreateIn, SaleCreateOut
+from app.services.finance_service import mirror_posted_transaction_to_legacy_wallet, post_finance_transaction, post_sale_payment
 
 
 router = APIRouter(prefix="/api/v1/pos", tags=["pos"])
@@ -391,96 +392,69 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
             raise HTTPException(status_code=400, detail="Split amounts must equal total")
 
         if split_cash > 0:
-            db.add(
-                FinanceEntry(
-                    tenant_id=tenant.id,
-                    type="in",
-                    category="Satış (Nağd)",
-                    source="cash",
-                    amount=split_cash,
-                    description=f"POS Sale {sale.id} split cash",
-                    created_by=user.username,
-                )
+            post_sale_payment(
+                db,
+                tenant_id=tenant.id,
+                sale_id=sale.id,
+                amount=split_cash,
+                payment_source="cash",
+                created_by=user.username,
+                category="Satış (Nağd)",
+                note=f"POS Sale {sale.id} split cash",
             )
         if split_card > 0:
-            db.add(
-                FinanceEntry(
-                    tenant_id=tenant.id,
-                    type="in",
-                    category="Satış (Kart)",
-                    source="card",
-                    amount=split_card,
-                    description=f"POS Sale {sale.id} split card",
-                    created_by=user.username,
-                )
+            post_sale_payment(
+                db,
+                tenant_id=tenant.id,
+                sale_id=sale.id,
+                amount=split_card,
+                payment_source="card",
+                created_by=user.username,
+                category="Satış (Kart)",
+                note=f"POS Sale {sale.id} split card",
+                card_fee_percent=card_sale_percent,
             )
-            split_card_fee = (split_card * (card_sale_percent / Decimal("100"))).quantize(Decimal("0.01"))
-            if split_card_fee > 0:
-                db.add(
-                    FinanceEntry(
-                        tenant_id=tenant.id,
-                        type="out",
-                        category="Bank Komissiyası",
-                        source="card",
-                        amount=split_card_fee,
-                        description=f"POS Sale {sale.id} split card fee",
-                        created_by=user.username,
-                    )
-                )
     else:
         if payment_method == "staff":
             if staff_benefit_used > 0:
-                db.add(
-                    FinanceEntry(
-                        tenant_id=tenant.id,
-                        type="out",
-                        category="Staff Benefit",
-                        source="cash",
-                        amount=staff_benefit_used,
-                        description=f"Staff benefit usage {sale.id}",
-                        created_by=user.username,
-                    )
+                benefit_txn = post_finance_transaction(
+                    db,
+                    tenant_id=tenant.id,
+                    transaction_type="expense",
+                    amount=staff_benefit_used,
+                    source_code="cash",
+                    destination_code="expense",
+                    created_by=user.username,
+                    category="Staff Benefit",
+                    note=f"Staff benefit usage {sale.id}",
+                    related_order_id=sale.id,
                 )
+                mirror_posted_transaction_to_legacy_wallet(db, benefit_txn, user.username)
             if total > 0:
-                db.add(
-                    FinanceEntry(
-                        tenant_id=tenant.id,
-                        type="in",
-                        category="Staff Ödənişi",
-                        source="cash",
-                        amount=total,
-                        description=f"Staff payment {sale.id}",
-                        created_by=user.username,
-                    )
+                post_sale_payment(
+                    db,
+                    tenant_id=tenant.id,
+                    sale_id=sale.id,
+                    amount=total,
+                    payment_source="cash",
+                    created_by=user.username,
+                    category="Staff Ödənişi",
+                    note=f"Staff payment {sale.id}",
                 )
         else:
             source = "cash" if payment_method in ["cash", "nəğd"] else "card"
             category = "Satış (Nağd)" if source == "cash" else "Satış (Kart)"
-            db.add(
-                FinanceEntry(
-                    tenant_id=tenant.id,
-                    type="in",
-                    category=category,
-                    source=source,
-                    amount=total,
-                    description=f"POS Sale {sale.id}",
-                    created_by=user.username,
-                )
+            post_sale_payment(
+                db,
+                tenant_id=tenant.id,
+                sale_id=sale.id,
+                amount=total,
+                payment_source=source,
+                created_by=user.username,
+                category=category,
+                note=f"POS Sale {sale.id}",
+                card_fee_percent=card_sale_percent if source == "card" else Decimal("0"),
             )
-            if source == "card":
-                card_fee = (total * (card_sale_percent / Decimal("100"))).quantize(Decimal("0.01"))
-                if card_fee > 0:
-                    db.add(
-                        FinanceEntry(
-                            tenant_id=tenant.id,
-                            type="out",
-                            category="Bank Komissiyası",
-                            source="card",
-                            amount=card_fee,
-                            description=f"POS Sale {sale.id} card fee",
-                            created_by=user.username,
-                        )
-                    )
 
     if customer is not None:
         if program_mode != "cashback":
