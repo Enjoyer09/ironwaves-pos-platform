@@ -61,6 +61,7 @@ from app.services.legacy_import_service import (
     restore_sales_rows as _restore_sales_rows,
     restore_settings_rows as _restore_settings_rows,
     restore_user_rows as _restore_user_rows,
+    verify_restore_dependencies as _verify_restore_dependencies,
     verify_restored_tables as _verify_restored_tables,
 )
 from app.core.config import settings as app_settings
@@ -1297,6 +1298,7 @@ def database_restore(
             "rejected_samples": [],
             "warnings": [],
             "verification": {},
+            "dependency_verification": {},
         }
         if data.get("_tenant_id") and str(data.get("_tenant_id")) != str(tenant.id):
             report["warnings"].append("Backup fərqli tenant üçün yaradılıb; məlumatlar cari tenant-a bərpa olundu.")
@@ -1503,16 +1505,80 @@ def database_restore(
             "finance": FinanceEntry,
             "kitchen_orders": KitchenOrder,
         }
+        validation_specs = {
+            "users": {
+                "required_fields": ["username", "password_hash", "role"],
+            },
+            "menu_items": {
+                "required_fields": ["item_name", "category"],
+                "nonnegative_fields": ["price"],
+            },
+            "menu": {
+                "required_fields": ["item_name", "category"],
+                "nonnegative_fields": ["price"],
+            },
+            "tables": {
+                "required_fields": ["label", "status"],
+                "nonnegative_fields": ["capacity", "guest_count", "deposit_amount", "total"],
+                "json_fields": {"items_json": "list"},
+            },
+            "customers": {
+                "required_fields": ["card_id", "secret_token", "type"],
+                "nonnegative_fields": ["stars", "discount_percent"],
+            },
+            "recipes": {
+                "required_fields": ["menu_item_name", "ingredient_name"],
+                "nonnegative_fields": ["quantity_required"],
+            },
+            "settings": {
+                "required_fields": ["key"],
+            },
+            "business_profile": {
+                "required_fields": ["company_name"],
+            },
+            "sales": {
+                "required_fields": ["cashier", "payment_method", "status"],
+                "nonnegative_fields": ["total", "discount_amount", "cogs"],
+                "json_fields": {"items_json": "list"},
+            },
+            "finance": {
+                "required_fields": ["type", "category", "source", "created_by"],
+                "nonnegative_fields": ["amount"],
+                "allowed_values": {
+                    "type": {"in", "out"},
+                    "source": {"cash", "card", "safe", "debt", "deposit", "investor", "legacy_investor_expense"},
+                },
+            },
+            "kitchen_orders": {
+                "required_fields": ["status", "priority"],
+                "json_fields": {"items_json": "list"},
+                "allowed_values": {
+                    "status": {"NEW", "SENT", "PREPARING", "READY", "DONE", "COMPLETED", "CANCELLED", "VOID_REQUESTED"},
+                    "priority": {"LOW", "NORMAL", "HIGH", "URGENT"},
+                },
+            },
+        }
         verification, verification_warnings, verification_success = _verify_restored_tables(
             db,
             tenant_id=tenant.id,
             expected_counts=expected_counts,
             verification_models=verification_models,
+            validation_specs=validation_specs,
         )
         report["verification"] = verification
         if not verification_success:
             report["success"] = False
         report["warnings"].extend(verification_warnings)
+        dependency_verification, dependency_warnings, dependency_success = _verify_restore_dependencies(
+            db,
+            tenant_id=tenant.id,
+            verification_models=verification_models,
+            restored_tables=set(report["restored_tables"]),
+        )
+        report["dependency_verification"] = dependency_verification
+        if not dependency_success:
+            report["success"] = False
+        report["warnings"].extend(dependency_warnings)
 
         db.add(
             AuditLog(
