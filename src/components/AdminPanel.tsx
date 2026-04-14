@@ -73,6 +73,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   const [newSaleTotal, setNewSaleTotal] = useState('');
   const fetchCacheRef = useRef<Record<string, number>>({});
   const fetchSeqRef = useRef(0);
+  const fetchAbortRef = useRef<AbortController | null>(null);
 
   const setActiveTabSoft = (tab: AdminTab) => {
     startTransition(() => {
@@ -101,9 +102,25 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   ]), [lang, currentRole]);
 
   useEffect(() => {
+    fetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
     const seq = ++fetchSeqRef.current;
-    void fetchData(seq);
-  }, [activeTab, dateFrom, dateTo, tenant_id]);
+    void fetchData(seq, controller.signal).catch((error) => {
+      const msg = String((error as any)?.message || '');
+      if (msg.includes('sorğu ləğv edildi') || msg.toLowerCase().includes('abort')) return;
+      notify('error', msg || tx(lang, 'Məlumatlar yenilənmədi', 'Данные не обновились', 'Data refresh failed'));
+    });
+    return () => {
+      controller.abort();
+    };
+  }, [activeTab, dateFrom, dateTo, tenant_id, notify, lang]);
+
+  useEffect(() => {
+    return () => {
+      fetchAbortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     if (activeTab !== 'notes') return;
@@ -121,7 +138,8 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     }
   }, [externalTab, activeTab]);
 
-  const fetchData = async (seq = ++fetchSeqRef.current) => {
+  const fetchData = async (seq = ++fetchSeqRef.current, signal?: AbortSignal) => {
+    if (signal?.aborted) return;
     const now = Date.now();
 
     if (activeTab === 'analytics') {
@@ -134,8 +152,8 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
       const to_d = new Date(dateTo);
       to_d.setHours(23, 59, 59, 999);
       const [nextSummary, nextSales] = await Promise.all([
-        get_sales_summary_live(tenant_id, from_d.toISOString(), to_d.toISOString()),
-        get_sales_list_live(tenant_id, from_d.toISOString(), to_d.toISOString()),
+        get_sales_summary_live(tenant_id, from_d.toISOString(), to_d.toISOString(), undefined, { signal }),
+        get_sales_list_live(tenant_id, from_d.toISOString(), to_d.toISOString(), undefined, { signal }),
       ]);
       if (seq !== fetchSeqRef.current) return;
       setSummary(nextSummary);
@@ -149,7 +167,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
       if (fetchCacheRef.current[cacheKey] && now - fetchCacheRef.current[cacheKey] < 30000 && menu.length > 0) {
         return;
       }
-      const nextMenu = await get_menu_items_live(tenant_id);
+      const nextMenu = await get_menu_items_live(tenant_id, undefined, undefined, { signal });
       if (seq !== fetchSeqRef.current) return;
       setMenu(nextMenu);
       fetchCacheRef.current[cacheKey] = Date.now();
@@ -161,7 +179,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
       if (fetchCacheRef.current[cacheKey] && now - fetchCacheRef.current[cacheKey] < 15000 && logsData.length > 0) {
         return;
       }
-      const nextLogs = await get_logs_live(tenant_id, 250);
+      const nextLogs = await get_logs_live(tenant_id, 250, undefined, undefined, { signal });
       if (seq !== fetchSeqRef.current) return;
       setLogsData(nextLogs);
       fetchCacheRef.current[cacheKey] = Date.now();
@@ -187,14 +205,16 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     setCustomCategory('');
     window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { scope: 'menu' } }));
     delete fetchCacheRef.current[`menu:${tenant_id}`];
-    await fetchData();
+    const seq = ++fetchSeqRef.current;
+    await fetchData(seq);
   };
 
   const handleDeleteMenu = async (id: string) => {
     await soft_delete_menu_item_live(tenant_id, id, user?.username || 'admin');
     window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { scope: 'menu' } }));
     delete fetchCacheRef.current[`menu:${tenant_id}`];
-    await fetchData();
+    const seq = ++fetchSeqRef.current;
+    await fetchData(seq);
     setDeleteMenuId(null);
   };
 
@@ -513,7 +533,8 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                               notify('success', tx(lang, 'Partial refund tətbiq olundu', 'Частичный возврат применен', 'Partial refund applied'));
                             }
                             setSaleActionModal(null);
-                            await fetchData();
+                            const seq = ++fetchSeqRef.current;
+                            await fetchData(seq);
                           } catch (e: any) {
                             notify('error', e.message);
                           }

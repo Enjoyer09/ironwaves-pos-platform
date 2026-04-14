@@ -97,6 +97,7 @@ type ApiRequestOptions = {
   suspendOnNetworkError?: boolean;
   // pass null to skip x-tenant-id header (use backend host/domain resolver)
   tenantId?: string | null;
+  signal?: AbortSignal;
 };
 
 export async function apiRequest<T = any>(path: string, options: ApiRequestOptions = {}): Promise<T> {
@@ -127,15 +128,31 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
   let res: Response;
   const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 8000;
   const controller = typeof AbortController !== 'undefined' && timeoutMs > 0 ? new AbortController() : null;
+  let timedOut = false;
   const timeoutId = controller
-    ? window.setTimeout(() => controller.abort(), timeoutMs)
+    ? window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs)
     : null;
+  const requestSignal = controller?.signal || options.signal;
+  const externalSignal = options.signal;
+  let removeExternalAbortListener: (() => void) | null = null;
+  if (controller && externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort();
+    } else {
+      const onAbort = () => controller.abort();
+      externalSignal.addEventListener('abort', onAbort, { once: true });
+      removeExternalAbortListener = () => externalSignal.removeEventListener('abort', onAbort);
+    }
+  }
   try {
     res = await fetch(`${base}${path}`, {
       method: options.method || 'GET',
       headers,
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-      signal: controller?.signal,
+      signal: requestSignal,
     });
   } catch (error) {
     const endedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
@@ -150,14 +167,15 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
     });
     const isAbort = typeof DOMException !== 'undefined' && error instanceof DOMException && error.name === 'AbortError';
     const message = isAbort
-      ? `sorğu vaxt limiti keçdi (${Math.round(timeoutMs / 1000)} saniyə)`
+      ? (timedOut ? `sorğu vaxt limiti keçdi (${Math.round(timeoutMs / 1000)} saniyə)` : 'sorğu ləğv edildi')
       : error instanceof Error ? error.message : String(error);
-    if (options.suspendOnNetworkError !== false) {
+    if (options.suspendOnNetworkError !== false && !isAbort) {
       suspendBackendTemporarily();
     }
     throw new Error(`Backendə qoşulma alınmadı (${options.method || 'GET'} ${path}): ${message}`);
   } finally {
     if (timeoutId) window.clearTimeout(timeoutId);
+    if (removeExternalAbortListener) removeExternalAbortListener();
   }
 
   const text = await res.text();

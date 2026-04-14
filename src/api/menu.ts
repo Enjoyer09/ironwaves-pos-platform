@@ -94,13 +94,18 @@ export function export_menu_to_excel(user: string = 'system') {
   return 'base64_or_blob_url_simulated';
 }
 
-export async function get_menu_items_live(tenant_id: string, search?: string, category_filter?: string) {
+export async function get_menu_items_live(
+  tenant_id: string,
+  search?: string,
+  category_filter?: string,
+  options?: { signal?: AbortSignal },
+) {
   if (!isBackendEnabled()) {
     return get_menu_items(tenant_id, search, category_filter);
   }
   let items: any[] = [];
   try {
-    items = await apiRequest<any[]>('/api/v1/catalog/menu', { tenantId: null });
+    items = await apiRequest<any[]>('/api/v1/catalog/menu', { tenantId: null, signal: options?.signal });
   } catch (error) {
     if (isRecoverableNetworkFailure(error)) {
       return get_menu_items(tenant_id, search, category_filter);
