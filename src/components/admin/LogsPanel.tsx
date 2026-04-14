@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { clear_ui_errors, get_logs_live, get_ui_errors } from '../../api/logs';
+import { clear_ui_errors, get_logs_live, get_super_error_logs_live, get_ui_errors } from '../../api/logs';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 import { formatServerUtcDateTime, localDateInputValue } from '../../lib/time';
@@ -11,13 +11,28 @@ export default function LogsPanel() {
   const [pageSize, setPageSize] = useState(10);
   const [quickFilter, setQuickFilter] = useState<'all' | 'finance_audit'>('all');
   const [query, setQuery] = useState('');
+  const [superErrorMode, setSuperErrorMode] = useState(false);
+  const [tenantFilter, setTenantFilter] = useState('');
   const [fromDate, setFromDate] = useState(() => localDateInputValue());
   const [toDate, setToDate] = useState(() => localDateInputValue());
   const [logs, setLogs] = useState<any[]>([]);
   const uiErrors = useMemo(() => get_ui_errors(tenant_id, 20), [tenant_id, logs.length]);
 
   React.useEffect(() => {
+    if (String(user?.role || '').toLowerCase() !== 'super_admin') {
+      setSuperErrorMode(false);
+      setTenantFilter('');
+    }
+  }, [user?.role]);
+
+  React.useEffect(() => {
     const load = () => {
+      if (superErrorMode && String(user?.role || '').toLowerCase() === 'super_admin') {
+        void get_super_error_logs_live(limit, fromDate, toDate, tenantFilter, query)
+          .then(setLogs)
+          .catch(() => setLogs([]));
+        return;
+      }
       void get_logs_live(tenant_id, limit, fromDate, toDate).then(setLogs).catch(() => setLogs([]));
     };
     load();
@@ -33,7 +48,7 @@ export default function LogsPanel() {
       window.removeEventListener('logs-updated', handleRefresh as EventListener);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [tenant_id, limit, fromDate, toDate]);
+  }, [tenant_id, limit, fromDate, toDate, superErrorMode, tenantFilter, query, user?.role]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -215,6 +230,24 @@ export default function LogsPanel() {
           </select>
           <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="neon-input" />
           <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="neon-input" />
+          {String(user?.role || '').toLowerCase() === 'super_admin' && (
+            <label className="inline-flex items-center gap-2 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-100">
+              <input
+                type="checkbox"
+                checked={superErrorMode}
+                onChange={(e) => setSuperErrorMode(e.target.checked)}
+              />
+              {tx(lang, 'Platforma Xəta Rejimi', 'Режим ошибок платформы', 'Platform Error Mode')}
+            </label>
+          )}
+          {superErrorMode && String(user?.role || '').toLowerCase() === 'super_admin' && (
+            <input
+              value={tenantFilter}
+              onChange={(e) => setTenantFilter(e.target.value)}
+              placeholder={tx(lang, 'Tenant ID filtr (opsional)', 'Фильтр Tenant ID (опц.)', 'Tenant ID filter (optional)')}
+              className="neon-input min-w-[220px]"
+            />
+          )}
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -240,6 +273,16 @@ export default function LogsPanel() {
       </div>
 
       <div className="metal-panel overflow-x-auto">
+        {superErrorMode && String(user?.role || '').toLowerCase() === 'super_admin' && (
+          <div className="border-b border-rose-400/20 bg-rose-500/10 px-4 py-3 text-xs text-rose-100">
+            {tx(
+              lang,
+              'Super admin xəta görünüşü aktivdir: bütün tenant-lar üzrə error/fail/reject hadisələri göstərilir.',
+              'Активен super admin режим ошибок: показываются error/fail/reject события по всем tenant-ам.',
+              'Super admin error view is active: error/fail/reject events are shown across all tenants.',
+            )}
+          </div>
+        )}
         {user?.role === 'admin' && (
           <div className="border-b border-slate-700/60 px-4 py-3">
             <div className="mb-2 flex items-center justify-between">

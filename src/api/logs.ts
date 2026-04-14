@@ -63,3 +63,23 @@ export async function get_logs_live(
     throw error;
   }
 }
+
+export async function get_super_error_logs_live(
+  limit: number = 300,
+  fromDate?: string,
+  toDate?: string,
+  tenantIdFilter?: string,
+  query?: string,
+  options?: { signal?: AbortSignal },
+) {
+  if (!isBackendEnabled()) return [];
+  const qs = new URLSearchParams({ limit: String(limit) });
+  if (fromDate) qs.set('from_date', fromDate);
+  if (toDate) qs.set('to_date', toDate);
+  if (tenantIdFilter) qs.set('tenant_id', tenantIdFilter.trim());
+  if (query) qs.set('q', query.trim());
+  return apiRequest<any[]>(`/api/v1/ops/logs/super-errors?${qs.toString()}`, {
+    tenantId: null,
+    signal: options?.signal,
+  });
+}
