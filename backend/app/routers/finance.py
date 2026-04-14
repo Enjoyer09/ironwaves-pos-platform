@@ -16,6 +16,7 @@ from app.models import (
     FinanceLedgerEntry,
     FinanceReconciliation,
     FinanceTransaction,
+    InventoryItem,
     Sale,
     Setting,
     Shift,
@@ -865,6 +866,176 @@ def get_finance_summary(db: Session = Depends(get_db), tenant: Tenant = Depends(
             "created_by": latest_reconciliation.created_by,
             "created_at": latest_reconciliation.created_at.isoformat() if latest_reconciliation.created_at else None,
         } if latest_reconciliation else None,
+    }
+
+
+def _money(value: Decimal | int | float | str | None) -> str:
+    return str(Decimal(str(value or 0)).quantize(Decimal("0.01")))
+
+
+def _period_bounds(date_from: str | None, date_to: str | None) -> tuple[datetime | None, datetime | None]:
+    start = None
+    end = None
+    if date_from:
+        try:
+            start = datetime.fromisoformat(str(date_from)[:10])
+        except Exception:
+            raise HTTPException(status_code=400, detail="date_from format must be YYYY-MM-DD")
+    if date_to:
+        try:
+            end = datetime.fromisoformat(str(date_to)[:10]).replace(hour=23, minute=59, second=59, microsecond=999999)
+        except Exception:
+            raise HTTPException(status_code=400, detail="date_to format must be YYYY-MM-DD")
+    return start, end
+
+
+def _transaction_date(row: FinanceTransaction) -> datetime | None:
+    return row.posted_at or row.approved_at or row.created_at
+
+
+def _in_period(value: datetime | None, start: datetime | None, end: datetime | None) -> bool:
+    if start and (not value or value < start):
+        return False
+    if end and (not value or value > end):
+        return False
+    return True
+
+
+def _inventory_value(db: Session, tenant_id: str) -> Decimal:
+    return sum(
+        (
+            Decimal(str(row.stock_qty or 0)) * Decimal(str(row.unit_cost or 0))
+            for row in db.query(InventoryItem).filter(InventoryItem.tenant_id == tenant_id).all()
+        ),
+        Decimal("0.00"),
+    ).quantize(Decimal("0.01"))
+
+
+def _balance_sheet_report(db: Session, tenant_id: str) -> dict:
+    balances = _ledger_balances_snapshot(db, tenant_id)
+    cash = balances.get("cash", Decimal("0.00"))
+    card = balances.get("card", Decimal("0.00"))
+    safe = balances.get("safe", Decimal("0.00"))
+    receivable = balances.get("debt", Decimal("0.00"))
+    inventory = _inventory_value(db, tenant_id)
+    deposit = balances.get("deposit", Decimal("0.00"))
+    investor = balances.get("investor", Decimal("0.00"))
+    assets_total = cash + card + safe + receivable + inventory
+    liabilities_total = deposit + investor
+    equity_estimate = assets_total - liabilities_total
+    return {
+        "assets": {
+            "cash": _money(cash),
+            "bank_card": _money(card),
+            "safe": _money(safe),
+            "receivables": _money(receivable),
+            "inventory": _money(inventory),
+            "total": _money(assets_total),
+        },
+        "liabilities": {
+            "deposits": _money(deposit),
+            "investor": _money(investor),
+            "total": _money(liabilities_total),
+        },
+        "equity": {
+            "estimated_equity": _money(equity_estimate),
+            "note": "Kapital hazırda aktivlər minus öhdəliklər prinsipi ilə təxmini göstərilir.",
+        },
+        "balanced": _money(assets_total) == _money(liabilities_total + equity_estimate),
+    }
+
+
+def _profit_loss_report(db: Session, tenant_id: str, start: datetime | None, end: datetime | None) -> dict:
+    sales_query = db.query(Sale).filter(Sale.tenant_id == tenant_id, Sale.status == "COMPLETED")
+    if start:
+        sales_query = sales_query.filter(Sale.created_at >= start)
+    if end:
+        sales_query = sales_query.filter(Sale.created_at <= end)
+    sales_rows = sales_query.all()
+    revenue = sum((Decimal(str(row.total or 0)) for row in sales_rows), Decimal("0.00"))
+    cogs = sum((Decimal(str(row.cogs or 0)) for row in sales_rows), Decimal("0.00"))
+
+    posted_txns = (
+        db.query(FinanceTransaction)
+        .filter(FinanceTransaction.tenant_id == tenant_id, FinanceTransaction.status == "posted")
+        .all()
+    )
+    expense_rows = [
+        row
+        for row in posted_txns
+        if row.transaction_type == "expense" and _in_period(_transaction_date(row), start, end)
+    ]
+    operating_expenses = sum((Decimal(str(row.amount or 0)) for row in expense_rows), Decimal("0.00"))
+    gross_profit = revenue - cogs
+    net_profit = gross_profit - operating_expenses
+    return {
+        "revenue": _money(revenue),
+        "cogs": _money(cogs),
+        "gross_profit": _money(gross_profit),
+        "operating_expenses": _money(operating_expenses),
+        "net_profit": _money(net_profit),
+        "sales_count": len(sales_rows),
+        "expense_count": len(expense_rows),
+    }
+
+
+def _cash_flow_report(db: Session, tenant_id: str, start: datetime | None, end: datetime | None) -> dict:
+    posted_txns = (
+        db.query(FinanceTransaction)
+        .filter(FinanceTransaction.tenant_id == tenant_id, FinanceTransaction.status == "posted")
+        .all()
+    )
+    rows = [row for row in posted_txns if _in_period(_transaction_date(row), start, end)]
+    operating_inflow = sum((Decimal(str(row.amount or 0)) for row in rows if row.transaction_type == "income"), Decimal("0.00"))
+    operating_outflow = sum((Decimal(str(row.amount or 0)) for row in rows if row.transaction_type == "expense"), Decimal("0.00"))
+    financing_inflow = sum((Decimal(str(row.amount or 0)) for row in rows if row.transaction_type == "investor_injection"), Decimal("0.00"))
+    financing_outflow = sum((Decimal(str(row.amount or 0)) for row in rows if row.transaction_type == "investor_repayment"), Decimal("0.00"))
+    deposit_inflow = sum((Decimal(str(row.amount or 0)) for row in rows if row.transaction_type == "deposit_hold"), Decimal("0.00"))
+    deposit_outflow = sum(
+        (Decimal(str(row.amount or 0)) for row in rows if row.transaction_type in {"deposit_release", "deposit_refund"}),
+        Decimal("0.00"),
+    )
+    adjustment_net = sum(
+        (
+            Decimal(str(row.amount or 0))
+            for row in rows
+            if row.transaction_type in {"cash_adjustment", "reconciliation_adjustment"}
+        ),
+        Decimal("0.00"),
+    )
+    net_cash_flow = operating_inflow - operating_outflow + financing_inflow - financing_outflow + deposit_inflow - deposit_outflow + adjustment_net
+    return {
+        "operating_inflow": _money(operating_inflow),
+        "operating_outflow": _money(operating_outflow),
+        "financing_inflow": _money(financing_inflow),
+        "financing_outflow": _money(financing_outflow),
+        "deposit_inflow": _money(deposit_inflow),
+        "deposit_outflow": _money(deposit_outflow),
+        "adjustment_net": _money(adjustment_net),
+        "net_cash_flow": _money(net_cash_flow),
+        "transaction_count": len(rows),
+    }
+
+
+@router.get("/reports/overview")
+def get_finance_reports_overview(
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user=Depends(get_current_user),
+):
+    _ensure_finance_read_access(user)
+    _ensure_finance_accounts(db, tenant.id)
+    start, end = _period_bounds(date_from, date_to)
+    return {
+        "period": {
+            "date_from": date_from,
+            "date_to": date_to,
+        },
+        "balance_sheet": _balance_sheet_report(db, tenant.id),
+        "profit_loss": _profit_loss_report(db, tenant.id, start, end),
+        "cash_flow": _cash_flow_report(db, tenant.id, start, end),
     }
 
 
