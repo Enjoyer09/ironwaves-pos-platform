@@ -131,6 +131,11 @@ def restore_generic_model_rows(
         if not isinstance(row, dict):
             reject_row("Sətir obyekt deyil", idx, row)
             continue
+        if getattr(model, "__tablename__", "") == "customers":
+            token_val = row.get("secret_token")
+            if token_val in (None, ""):
+                row = dict(row)
+                row["secret_token"] = secrets.token_hex(16)
         instance = model()
         for column in model.__table__.columns:
             key = column.name
