@@ -15,18 +15,23 @@ function Navbar() {
         <img src={logo} alt="Logo" className="h-8 w-auto object-contain" />
         <div className="hidden items-center gap-8 md:flex">
           <button className="inline-flex items-center gap-1 text-base text-foreground/90">
-            <span>Features</span>
+            <span>Məhsul</span>
             <ChevronDown size={16} />
           </button>
-          <button className="text-base text-foreground/90">Solutions</button>
-          <button className="text-base text-foreground/90">Plans</button>
+          <button className="text-base text-foreground/90">Funksiyalar</button>
+          <button className="text-base text-foreground/90">Sahələr</button>
           <button className="inline-flex items-center gap-1 text-base text-foreground/90">
-            <span>Learning</span>
+            <span>Demo</span>
             <ChevronDown size={16} />
           </button>
         </div>
-        <Button variant="heroSecondary" size="sm" className="rounded-full px-4 py-2">
-          Sign Up
+        <Button
+          variant="heroSecondary"
+          size="sm"
+          className="rounded-full px-4 py-2"
+          onClick={() => window.open("https://demo.ironwaves.store", "_blank", "noopener,noreferrer")}
+        >
+          Demoya keç
         </Button>
       </div>
       <div className="mt-[3px] h-px w-full bg-gradient-to-r from-transparent via-foreground/20 to-transparent" />
@@ -50,14 +55,25 @@ function HeroSection() {
         >
           Grow
         </h1>
-        <p className="mt-4 max-w-md text-center text-lg leading-8 text-[hsl(var(--hero-sub))] opacity-80">
-          The most powerful AI ever deployed
+        <p className="mt-4 max-w-xl text-center text-lg leading-8 text-[hsl(var(--hero-sub))] opacity-80">
+          Restoranınızı bir platformadan idarə edin
           <br />
-          in talent acquisition
+          POS, Masalar, KDS, Maliyyə və Dashboard bir sistemdə
         </p>
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+          {["Masa xidməti", "Mətbəx axını", "Kassa nəzarəti", "Canlı dashboard"].map((item) => (
+            <span key={item} className="liquid-glass rounded-full px-3 py-1 text-xs font-medium text-foreground/90">
+              {item}
+            </span>
+          ))}
+        </div>
         <div className="mb-[66px] mt-8">
-          <Button variant="heroSecondary" className="px-[29px] py-[24px]">
-            Schedule a Consult
+          <Button
+            variant="heroSecondary"
+            className="px-[29px] py-[24px]"
+            onClick={() => window.open("https://demo.ironwaves.store", "_blank", "noopener,noreferrer")}
+          >
+            Demoya keç
           </Button>
         </div>
       </div>
@@ -136,9 +152,9 @@ function SocialProofSection() {
         <div className="w-full max-w-5xl">
           <div className="flex flex-col items-start gap-8 lg:flex-row lg:items-center">
             <p className="shrink-0 whitespace-nowrap text-sm text-foreground/50">
-              Relied on by brands
+              Restoran, coffee shop və
               <br />
-              across the globe
+              fast-food obyektləri üçün
             </p>
             <div className="relative w-full overflow-hidden">
               <div className="flex w-max animate-marquee items-center gap-16">
