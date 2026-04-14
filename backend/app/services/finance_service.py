@@ -331,13 +331,21 @@ def mirror_posted_transaction_to_legacy_wallet(db: Session, txn: FinanceTransact
         db.add(row)
         rows.append(row)
 
-    if txn.transaction_type in {"income", "cash_adjustment", "reconciliation_adjustment"} and destination_code in {"cash", "card", "safe", "debt"}:
+    if txn.transaction_type == "income" and destination_code in {"cash", "card", "safe", "debt"}:
         add_entry("in", txn.category or "Ledger Mədaxil", destination_code, note)
+    elif txn.transaction_type in {"cash_adjustment", "reconciliation_adjustment"}:
+        if destination_code in {"cash", "card", "safe", "debt"}:
+            add_entry("in", txn.category or "Ledger Mədaxil", destination_code, note)
+        elif source_code in {"cash", "card", "safe", "debt"}:
+            add_entry("out", txn.category or "Ledger Xərc", source_code, note)
     elif txn.transaction_type == "expense" and source_code in {"cash", "card", "safe"}:
         add_entry("out", txn.category or "Ledger Xərc", source_code, note)
     elif txn.transaction_type == "internal_transfer" and source_code and destination_code:
         add_entry("out", "Daxili Transfer", source_code, note)
         add_entry("in", "Daxili Transfer", destination_code, note)
+    elif txn.transaction_type == "investor_injection" and destination_code in {"cash", "card", "safe"}:
+        add_entry("in", txn.category or "Təsisçi İnvestisiyası", destination_code, note)
+        add_entry("in", "İnvestor Borcu", "investor", note)
     elif txn.transaction_type == "investor_repayment" and source_code in {"cash", "card", "safe"}:
         add_entry("out", "İnvestora Geri Ödəniş", source_code, note)
         add_entry("out", "İnvestor Borcu Azaldılması", "investor", note)
@@ -451,6 +459,12 @@ def post_finance_transaction(
         legacy_finance_entry_id=legacy_finance_entry_id,
     )
     return post_existing_transaction(db, txn, created_by)
+
+
+def post_finance_transaction_with_legacy_mirror(db: Session, **kwargs) -> FinanceTransaction:
+    txn = post_finance_transaction(db, **kwargs)
+    mirror_posted_transaction_to_legacy_wallet(db, txn, kwargs["created_by"])
+    return txn
 
 
 def _normalize_sale_payment_source(payment_source: str | None) -> str:
