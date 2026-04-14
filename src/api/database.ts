@@ -10,13 +10,33 @@ export type RestorePreview = {
 
 export type RestoreReport = {
   success: boolean;
+  restore_run_id?: string;
+  duration_ms?: number;
   restored_tables: string[];
   restored_rows: number;
   skipped_tables: string[];
   rejected_rows: number;
   rejected_samples: Array<{ table: string; reason: string; row_index: number; row: any }>;
   warnings: string[];
-  verification?: Record<string, { expected: number; actual: number; ok: boolean }>;
+  verification?: Record<string, { expected: number; actual: number; ok: boolean; invalid_rows?: number; quality_ok?: boolean; invalid_samples?: Array<{ id: string; issues: string[] }> }>;
+  dependency_verification?: Record<string, { ok: boolean; missing_refs?: number; [key: string]: any }>;
+};
+
+export type RestoreLiveStatus = {
+  active: boolean;
+  success?: boolean | null;
+  restore_run_id?: string;
+  phase?: string;
+  message?: string;
+  processed_tables?: number;
+  total_tables?: number;
+  current_table?: string | null;
+  warnings_count?: number;
+  duration_ms?: number;
+  restored_rows?: number;
+  rejected_rows?: number;
+  updated_at?: string;
+  started_at?: string;
 };
 
 export type RestoreChunk = {
@@ -564,4 +584,15 @@ export async function restore_database_live(tenant_id: string, jsonData: string,
     ]));
     return merged;
   }
+}
+
+export async function get_restore_status_live(tenant_id: string): Promise<RestoreLiveStatus> {
+  const hasBackendTransport = Boolean(getApiBaseUrl());
+  if (!hasBackendTransport) return { active: false };
+  return apiRequest<RestoreLiveStatus>('/api/v1/ops/database/restore-status', {
+    method: 'GET',
+    tenantId: tenant_id,
+    timeoutMs: 15000,
+    suspendOnNetworkError: false,
+  });
 }

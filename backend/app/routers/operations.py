@@ -1,6 +1,8 @@
 import json
 import re
 import secrets
+import threading
+import time
 from datetime import datetime, timedelta
 from decimal import Decimal
 try:
@@ -311,6 +313,71 @@ DATABASE_SUPPORTED_TABLES = [
     "business_profile",
     "logs",
 ]
+
+_restore_guard_lock = threading.Lock()
+_restore_active_tenants: set[str] = set()
+_restore_status_lock = threading.Lock()
+_restore_status_by_tenant: dict[str, dict] = {}
+
+
+def _acquire_restore_slot(tenant_id: str) -> bool:
+    tenant_key = str(tenant_id or "").strip()
+    if not tenant_key:
+        return False
+    with _restore_guard_lock:
+        if tenant_key in _restore_active_tenants:
+            return False
+        _restore_active_tenants.add(tenant_key)
+        return True
+
+
+def _release_restore_slot(tenant_id: str) -> None:
+    tenant_key = str(tenant_id or "").strip()
+    if not tenant_key:
+        return
+    with _restore_guard_lock:
+        _restore_active_tenants.discard(tenant_key)
+
+
+def _set_restore_status(tenant_id: str, payload: dict) -> None:
+    tenant_key = str(tenant_id or "").strip()
+    if not tenant_key:
+        return
+    state = {"tenant_id": tenant_key, "updated_at": datetime.utcnow().isoformat()}
+    state.update(payload or {})
+    with _restore_status_lock:
+        _restore_status_by_tenant[tenant_key] = state
+
+
+def _get_restore_status(tenant_id: str) -> dict | None:
+    tenant_key = str(tenant_id or "").strip()
+    if not tenant_key:
+        return None
+    with _restore_status_lock:
+        row = _restore_status_by_tenant.get(tenant_key)
+        return dict(row) if isinstance(row, dict) else None
+
+
+def _append_restore_audit(
+    db: Session,
+    *,
+    tenant_id: str,
+    username: str,
+    action: str,
+    restore_run_id: str,
+    details: dict,
+) -> None:
+    payload = {"restore_run_id": restore_run_id}
+    payload.update(details or {})
+    db.add(
+        AuditLog(
+            tenant_id=tenant_id,
+            user=username,
+            action=action,
+            details=json.dumps(payload, ensure_ascii=False),
+            created_at=datetime.utcnow(),
+        )
+    )
 
 
 def _sanitize_nonstandard_json(raw: str) -> str:
@@ -1273,6 +1340,47 @@ def database_restore_preview(
     }
 
 
+@router.get("/database/restore-status")
+def database_restore_status(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    status = _get_restore_status(tenant.id)
+    if status:
+        return status
+    latest = (
+        db.query(AuditLog)
+        .filter(
+            AuditLog.tenant_id == tenant.id,
+            AuditLog.action.in_(["DATABASE_RESTORE_COMPLETED", "DATABASE_RESTORE_FAILED"]),
+        )
+        .order_by(AuditLog.created_at.desc())
+        .first()
+    )
+    if not latest:
+        return {"active": False}
+    details = {}
+    try:
+        details = json.loads(str(latest.details or "{}"))
+    except Exception:
+        details = {}
+    is_success = latest.action == "DATABASE_RESTORE_COMPLETED"
+    return {
+        "active": False,
+        "success": is_success,
+        "restore_run_id": details.get("restore_run_id"),
+        "phase": "completed" if is_success else "failed",
+        "message": "Son bərpa tamamlandı" if is_success else "Son bərpa xətası var",
+        "duration_ms": int(details.get("duration_ms") or 0),
+        "restored_rows": int(details.get("restored_rows") or 0),
+        "rejected_rows": int(details.get("rejected_rows") or 0),
+        "warnings_count": int(details.get("warnings_count") or 0),
+        "updated_at": latest.created_at.isoformat() if latest.created_at else None,
+    }
+
+
 @router.post("/database/restore")
 def database_restore(
     payload: DatabaseRestoreIn,
@@ -1285,12 +1393,34 @@ def database_restore(
         data = json.loads(_sanitize_nonstandard_json(payload.json_data))
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Backup JSON düzgün oxunmadı: {exc}")
+    if not _acquire_restore_slot(tenant.id):
+        raise HTTPException(status_code=409, detail="Bu tenant üçün hazırda bərpa prosesi artıq gedir. Zəhmət olmasa tamamlanmasını gözləyin.")
+    restore_run_id = secrets.token_hex(8)
+    started_at = time.perf_counter()
+    selected = set(payload.selected_tables or DATABASE_SUPPORTED_TABLES)
+    total_tables = len([table for table in DATABASE_SUPPORTED_TABLES if table in selected])
+    _set_restore_status(
+        tenant.id,
+        {
+            "active": True,
+            "success": None,
+            "restore_run_id": restore_run_id,
+            "phase": "started",
+            "message": "Bərpa prosesi başladı",
+            "processed_tables": 0,
+            "total_tables": total_tables,
+            "current_table": None,
+            "warnings_count": 0,
+            "started_at": datetime.utcnow().isoformat(),
+        },
+    )
     try:
-        selected = set(payload.selected_tables or DATABASE_SUPPORTED_TABLES)
         unsupported_selected = sorted(selected.difference(DATABASE_SUPPORTED_TABLES))
         expected_counts: dict[str, int] = {}
+        processed_tables = 0
         report = {
             "success": True,
+            "restore_run_id": restore_run_id,
             "restored_tables": [],
             "restored_rows": 0,
             "skipped_tables": [],
@@ -1299,6 +1429,7 @@ def database_restore(
             "warnings": [],
             "verification": {},
             "dependency_verification": {},
+            "duration_ms": 0,
         }
         if data.get("_tenant_id") and str(data.get("_tenant_id")) != str(tenant.id):
             report["warnings"].append("Backup fərqli tenant üçün yaradılıb; məlumatlar cari tenant-a bərpa olundu.")
@@ -1364,9 +1495,24 @@ def database_restore(
             if table not in selected:
                 continue
             rows, source = _resolve_restore_rows(data, table)
+            _set_restore_status(
+                tenant.id,
+                {
+                    "active": True,
+                    "success": None,
+                    "restore_run_id": restore_run_id,
+                    "phase": "restoring",
+                    "message": f"'{table}' cədvəli bərpa olunur",
+                    "processed_tables": processed_tables,
+                    "total_tables": total_tables,
+                    "current_table": table,
+                    "warnings_count": len(report["warnings"]),
+                },
+            )
             handler = restore_handlers.get(table)
             if rows is None and handler not in {"settings", "business_profile", "sales", "finance", "kitchen_orders"}:
                 report["skipped_tables"].append(table)
+                processed_tables += 1
                 continue
             if source and source != table:
                 report["warnings"].append(f"'{table}' cədvəli '{source}' bölməsindən bərpa olundu.")
@@ -1388,6 +1534,7 @@ def database_restore(
                 report["restored_tables"].append("users")
                 report["restored_rows"] += restored_count
                 expected_counts["users"] = restored_count
+                processed_tables += 1
                 continue
 
             if isinstance(handler, tuple) and handler[0] == "generic" and rows is not None:
@@ -1403,6 +1550,7 @@ def database_restore(
                 report["restored_tables"].append(table)
                 report["restored_rows"] += restored_count
                 expected_counts[table] = restored_count
+                processed_tables += 1
                 continue
 
             if handler == "settings":
@@ -1411,12 +1559,14 @@ def database_restore(
                 report["restored_tables"].append(table)
                 report["restored_rows"] += restored_count
                 expected_counts[table] = restored_count
+                processed_tables += 1
                 continue
 
             if handler == "business_profile":
                 profile_rows = data.get("business_profile")
                 if not isinstance(profile_rows, list) or not profile_rows:
                     report["skipped_tables"].append(table)
+                    processed_tables += 1
                     continue
                 restored_count = _restore_business_profile_rows(
                     db,
@@ -1427,12 +1577,14 @@ def database_restore(
                 report["restored_tables"].append(table)
                 report["restored_rows"] += restored_count
                 expected_counts[table] = restored_count
+                processed_tables += 1
                 continue
 
             if handler == "sales":
                 sale_rows = rows
                 if not isinstance(sale_rows, list):
                     report["skipped_tables"].append(table)
+                    processed_tables += 1
                     continue
                 restored_count = _restore_sales_rows(
                     db,
@@ -1446,12 +1598,14 @@ def database_restore(
                 report["restored_tables"].append(table)
                 report["restored_rows"] += restored_count
                 expected_counts[table] = restored_count
+                processed_tables += 1
                 continue
 
             if handler == "finance":
                 finance_rows = rows
                 if not isinstance(finance_rows, list):
                     report["skipped_tables"].append(table)
+                    processed_tables += 1
                     continue
                 db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant.id).delete(synchronize_session=False)
                 restored_count = _restore_legacy_finance_rows(
@@ -1466,12 +1620,14 @@ def database_restore(
                 report["restored_tables"].append(table)
                 report["restored_rows"] += restored_count
                 expected_counts[table] = restored_count
+                processed_tables += 1
                 continue
 
             if handler == "kitchen_orders":
                 kitchen_rows = rows
                 if not isinstance(kitchen_rows, list):
                     report["skipped_tables"].append(table)
+                    processed_tables += 1
                     continue
                 restored_count = _restore_kitchen_order_rows(
                     db,
@@ -1483,6 +1639,7 @@ def database_restore(
                 report["restored_tables"].append(table)
                 report["restored_rows"] += restored_count
                 expected_counts[table] = restored_count
+                processed_tables += 1
                 continue
 
         verification_models = {
@@ -1580,30 +1737,98 @@ def database_restore(
             report["success"] = False
         report["warnings"].extend(dependency_warnings)
 
-        db.add(
-            AuditLog(
-                tenant_id=tenant.id,
-                user=user.username,
-                action="DATABASE_RESTORE_COMPLETED",
-                details=json.dumps(
-                    {
-                        "restored_tables": report["restored_tables"],
-                        "restored_rows": report["restored_rows"],
-                        "rejected_rows": report["rejected_rows"],
-                    },
-                    ensure_ascii=False,
-                ),
-                created_at=datetime.utcnow(),
-            )
+        report["duration_ms"] = int((time.perf_counter() - started_at) * 1000)
+        _append_restore_audit(
+            db,
+            tenant_id=tenant.id,
+            username=user.username,
+            action="DATABASE_RESTORE_COMPLETED",
+            restore_run_id=restore_run_id,
+            details={
+                "duration_ms": report["duration_ms"],
+                "restored_tables": report["restored_tables"],
+                "restored_rows": report["restored_rows"],
+                "rejected_rows": report["rejected_rows"],
+                "warnings_count": len(report["warnings"]),
+            },
+        )
+        _set_restore_status(
+            tenant.id,
+            {
+                "active": False,
+                "success": bool(report["success"]),
+                "restore_run_id": restore_run_id,
+                "phase": "completed" if report["success"] else "completed_with_warnings",
+                "message": "Bərpa tamamlandı",
+                "processed_tables": processed_tables,
+                "total_tables": total_tables,
+                "current_table": None,
+                "warnings_count": len(report["warnings"]),
+                "duration_ms": report["duration_ms"],
+                "restored_rows": report["restored_rows"],
+                "rejected_rows": report["rejected_rows"],
+            },
         )
         db.commit()
         return report
     except HTTPException:
         db.rollback()
+        try:
+            _append_restore_audit(
+                db,
+                tenant_id=tenant.id,
+                username=user.username,
+                action="DATABASE_RESTORE_FAILED",
+                restore_run_id=restore_run_id,
+                details={
+                    "duration_ms": int((time.perf_counter() - started_at) * 1000),
+                    "reason": "HTTPException",
+                },
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+        _set_restore_status(
+            tenant.id,
+            {
+                "active": False,
+                "success": False,
+                "restore_run_id": restore_run_id,
+                "phase": "failed",
+                "message": "Bərpa dayandırıldı",
+            },
+        )
         raise
     except Exception as exc:
         db.rollback()
+        try:
+            _append_restore_audit(
+                db,
+                tenant_id=tenant.id,
+                username=user.username,
+                action="DATABASE_RESTORE_FAILED",
+                restore_run_id=restore_run_id,
+                details={
+                    "duration_ms": int((time.perf_counter() - started_at) * 1000),
+                    "reason": str(exc),
+                },
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+        _set_restore_status(
+            tenant.id,
+            {
+                "active": False,
+                "success": False,
+                "restore_run_id": restore_run_id,
+                "phase": "failed",
+                "message": f"Bərpa xətası: {exc}",
+            },
+        )
         raise HTTPException(status_code=500, detail=f"Database restore failed: {exc}")
+    finally:
+        _release_restore_slot(tenant.id)
 
 
 @router.patch("/settings/gemini-key")
