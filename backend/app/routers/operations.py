@@ -4701,6 +4701,84 @@ def list_super_error_logs(
     ]
 
 
+@router.get("/logs/diagnostics-overview")
+def diagnostics_overview(
+    minutes: int = Query(default=120, ge=5, le=1440),
+    tenant_id: str | None = None,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    if str(user.role or "").lower() != "super_admin":
+        raise HTTPException(status_code=403, detail="Super admin access required")
+    del tenant
+
+    cutoff = datetime.utcnow() - timedelta(minutes=int(minutes))
+    query = db.query(AuditLog).filter(AuditLog.created_at >= cutoff)
+    if tenant_id:
+        query = query.filter(AuditLog.tenant_id == str(tenant_id).strip())
+    rows = query.order_by(AuditLog.created_at.desc()).limit(500).all()
+
+    action_counts: dict[str, int] = {}
+    critical_actions = {
+        "BACKEND_UNHANDLED_EXCEPTION",
+        "UI_ERROR",
+        "API_NETWORK_ERROR",
+        "API_SERVER_ERROR",
+        "RESTORE_FAILED",
+        "DATABASE_RESTORE_FAILED",
+    }
+    latest_critical: list[dict] = []
+    for row in rows:
+        action = str(row.action or "").upper()
+        action_counts[action] = int(action_counts.get(action, 0)) + 1
+        if action in critical_actions and len(latest_critical) < 100:
+            latest_critical.append(
+                {
+                    "id": row.id,
+                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                    "tenant_id": row.tenant_id,
+                    "user": row.user,
+                    "action": row.action,
+                    "details": _json_load(row.details, {"message": row.details} if row.details else {}),
+                }
+            )
+
+    db_health = {"ok": True, "total_conn": None, "active_conn": None, "max_active_query_ms": None, "error": None}
+    try:
+        stat_row = db.execute(
+            text(
+                """
+                SELECT
+                  COUNT(*)::int AS total_conn,
+                  COUNT(*) FILTER (WHERE state='active')::int AS active_conn,
+                  MAX(EXTRACT(EPOCH FROM (NOW() - query_start)) * 1000)::float AS max_active_query_ms
+                FROM pg_stat_activity
+                WHERE datname = current_database()
+                """
+            )
+        ).first()
+        if stat_row:
+            db_health.update(
+                {
+                    "total_conn": int(stat_row[0] or 0),
+                    "active_conn": int(stat_row[1] or 0),
+                    "max_active_query_ms": float(stat_row[2] or 0.0),
+                }
+            )
+    except Exception as e:
+        db_health.update({"ok": False, "error": str(e)})
+
+    return {
+        "window_minutes": int(minutes),
+        "tenant_filter": tenant_id or None,
+        "generated_at": datetime.utcnow().isoformat(),
+        "action_counts": action_counts,
+        "latest_critical": latest_critical,
+        "db_health": db_health,
+    }
+
+
 @router.post("/logs/event")
 def create_log_event(
     payload: LogEventIn,

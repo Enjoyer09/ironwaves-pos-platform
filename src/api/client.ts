@@ -67,6 +67,7 @@ type PersistedSession = {
 
 let cachedSessionRaw = '';
 let cachedSession: PersistedSession = {};
+const telemetryThrottle: Record<string, number> = {};
 
 function getPersistedSession(): PersistedSession {
   try {
@@ -85,6 +86,37 @@ function getPersistedSession(): PersistedSession {
     cachedSessionRaw = '';
     cachedSession = {};
     return {};
+  }
+}
+
+function emitClientTelemetry(action: string, details: Record<string, any>) {
+  try {
+    if (!isBackendEnabled()) return;
+    const base = getApiBaseUrl();
+    if (!base) return;
+    const key = `${action}:${String(details?.path || '')}:${String(details?.message || '').slice(0, 120)}`;
+    const now = Date.now();
+    if (telemetryThrottle[key] && now - telemetryThrottle[key] < 10000) return;
+    telemetryThrottle[key] = now;
+    const body = JSON.stringify({
+      user: String(getPersistedSession().user ? 'client' : 'anonymous'),
+      action,
+      details: {
+        ...details,
+        tenant_id: String(getPersistedSession().user?.tenant_id || 'tenant_default'),
+        ts: new Date().toISOString(),
+      },
+    });
+    fetch(`${base}/api/v1/ops/logs/event`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-tenant-domain': window.location.host,
+      },
+      body,
+    }).catch(() => {});
+  } catch {
+    // telemetry must be best-effort
   }
 }
 
@@ -169,6 +201,14 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
     const message = isAbort
       ? (timedOut ? `sorğu vaxt limiti keçdi (${Math.round(timeoutMs / 1000)} saniyə)` : 'sorğu ləğv edildi')
       : error instanceof Error ? error.message : String(error);
+    emitClientTelemetry('API_NETWORK_ERROR', {
+      method: options.method || 'GET',
+      path,
+      message,
+      timeout_ms: timeoutMs,
+      timed_out: timedOut,
+      online: typeof navigator !== 'undefined' ? navigator.onLine : true,
+    });
     if (options.suspendOnNetworkError === true && !isAbort) {
       suspendBackendTemporarily();
     }
@@ -205,10 +245,29 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
     const detail = responseWasJson && data && typeof data === 'object' && (data as any).detail
       ? (data as any).detail
       : `Server düzgün JSON cavabı qaytarmadı (HTTP ${res.status})`;
+    if (res.status >= 500 || res.status === 429) {
+      emitClientTelemetry('API_SERVER_ERROR', {
+        method: options.method || 'GET',
+        path,
+        status: res.status,
+        detail: String(detail),
+        request_id: String(res.headers.get('x-request-id') || ''),
+      });
+    }
     if (options.suspendOnNetworkError !== false && String(detail).includes('Tenant not configured')) {
       suspendBackendTemporarily(5 * 60 * 1000);
     }
     throw new Error(String(detail));
+  }
+
+  if ((endedAt - startedAt) > 2500) {
+    emitClientTelemetry('API_SLOW_REQUEST', {
+      method: options.method || 'GET',
+      path,
+      status: res.status,
+      duration_ms: Math.round(endedAt - startedAt),
+      request_id: String(res.headers.get('x-request-id') || ''),
+    });
   }
 
   return data as T;

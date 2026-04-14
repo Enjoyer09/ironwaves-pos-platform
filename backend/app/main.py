@@ -1,8 +1,10 @@
 import asyncio
 from datetime import datetime, timedelta
 import hashlib
+import json
 import re
 import time
+import traceback
 import uuid
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -14,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db import Base, engine, SessionLocal
-from app.models import BusinessProfile, InventoryItem, MenuItem, Recipe, Setting, Table, Tenant, User
+from app.models import AuditLog, BusinessProfile, InventoryItem, MenuItem, Recipe, Setting, Table, Tenant, User
 from app.realtime import realtime_hub
 from app.routers import analytics_api, auth, catalog, finance, operations, pos, reports, restaurant, settings as settings_router, tenants
 from app.security import decode_token, hash_password
@@ -223,6 +225,7 @@ def _origin_allowed(origin: str | None) -> bool:
 @app.middleware("http")
 async def security_boundary_middleware(request: Request, call_next):
     request_id = str(request.headers.get("x-request-id") or "").strip()[:80] or str(uuid.uuid4())
+    request.state.request_id = request_id
     if request.url.path != "/health":
         forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
         client_host = request.client.host if request.client else ""
@@ -260,6 +263,56 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     return JSONResponse(status_code=422, content={"detail": "Sorğu məlumatları düzgün deyil", "errors": exc.errors()[:5]})
 
 
+def _resolve_tenant_id_from_request(request: Request) -> str:
+    tenant_id = str(request.headers.get("x-tenant-id") or "").strip()
+    if tenant_id:
+        return tenant_id
+    domain = str(request.headers.get("x-tenant-domain") or "").strip().lower().split(":")[0]
+    if not domain:
+        return "tenant_default"
+    try:
+        with SessionLocal() as db:
+            row = db.execute(
+                text("SELECT tenant_id FROM tenant_domains WHERE lower(domain)=:domain LIMIT 1"),
+                {"domain": domain},
+            ).first()
+            if row and row[0]:
+                return str(row[0])
+    except Exception:
+        pass
+    return "tenant_default"
+
+
+def _safe_log_backend_error(request: Request, exc: Exception) -> None:
+    try:
+        tenant_id = _resolve_tenant_id_from_request(request)
+        request_id = str(getattr(request.state, "request_id", "") or "")
+        with SessionLocal() as db:
+            db.add(
+                AuditLog(
+                    tenant_id=tenant_id,
+                    user="system",
+                    action="BACKEND_UNHANDLED_EXCEPTION",
+                    details=json.dumps(
+                        {
+                            "path": request.url.path,
+                            "method": request.method,
+                            "request_id": request_id,
+                            "error_type": exc.__class__.__name__,
+                            "error_message": str(exc),
+                            "traceback": "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))[:4000],
+                        },
+                        ensure_ascii=False,
+                    ),
+                    created_at=datetime.utcnow(),
+                )
+            )
+            db.commit()
+    except Exception:
+        # observability must never break request lifecycle
+        return
+
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
@@ -267,7 +320,15 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    return JSONResponse(status_code=500, content={"detail": "Daxili server xətası baş verdi"})
+    _safe_log_backend_error(request, exc)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Daxili server xətası baş verdi",
+            "request_id": str(getattr(request.state, "request_id", "") or ""),
+        },
+        headers={"X-Request-ID": str(getattr(request.state, "request_id", "") or "")},
+    )
 
 
 def _seed_initial_data(db: Session):
