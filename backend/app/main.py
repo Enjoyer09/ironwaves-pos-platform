@@ -8,7 +8,7 @@ import uuid
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -47,6 +47,44 @@ def _init_error_tracking() -> None:
 
 _init_error_tracking()
 app = FastAPI(title=settings.app_name)
+
+try:
+    from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+
+    HTTP_REQUESTS_TOTAL = Counter(
+        "ironwaves_http_requests_total",
+        "Total HTTP requests",
+        ["method", "path", "status"],
+    )
+    HTTP_REQUEST_LATENCY_SECONDS = Histogram(
+        "ironwaves_http_request_latency_seconds",
+        "HTTP request latency in seconds",
+        ["method", "path"],
+    )
+except Exception:
+    CONTENT_TYPE_LATEST = "text/plain; version=0.0.4"
+    HTTP_REQUESTS_TOTAL = None
+    HTTP_REQUEST_LATENCY_SECONDS = None
+    generate_latest = None
+
+
+@app.middleware("http")
+async def metrics_middleware(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    if HTTP_REQUESTS_TOTAL is not None and HTTP_REQUEST_LATENCY_SECONDS is not None:
+        path = request.scope.get("route").path if request.scope.get("route") else request.url.path
+        elapsed = time.perf_counter() - start
+        HTTP_REQUESTS_TOTAL.labels(request.method, path, str(response.status_code)).inc()
+        HTTP_REQUEST_LATENCY_SECONDS.labels(request.method, path).observe(elapsed)
+    return response
+
+
+@app.get("/metrics")
+def metrics():
+    if generate_latest is None:
+        return Response("metrics_unavailable 1\n", media_type=CONTENT_TYPE_LATEST)
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 def _sync_tenant_domain(db: Session, tenant_id: str, domain: str) -> None:
