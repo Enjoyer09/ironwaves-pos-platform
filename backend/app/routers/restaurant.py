@@ -16,7 +16,10 @@ from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import AuditLog, Check, FinanceEntry, FloorPlan, Guest, ItemStatusLog, KitchenOrder, OrderItem, OrderRound, Payment, Reservation, Sale, Setting, Table, TableSession, Tenant, User
 from app.realtime import broadcast_tenant_event
-from app.services.finance_service import post_finance_transaction as _post_finance_transaction, post_sale_payment as _post_sale_payment
+from app.services.finance_service import (
+    post_deposit_apply_to_bill as _post_deposit_apply_to_bill,
+    post_sale_payment as _post_sale_payment,
+)
 from app.routers.operations import _collect_stock_ops
 from app.schemas import (
     DraftItemUpdateIn,
@@ -2175,26 +2178,11 @@ def settle_check(
         )
 
     if deposit_amount > 0:
-        db.add(
-            FinanceEntry(
-                tenant_id=tenant.id,
-                type="out",
-                category="Depozit Öhdəliyi Azaldılması",
-                source="deposit",
-                amount=deposit_amount,
-                description=f"Restaurant check deposit settlement {sale.id}",
-                created_by=user.username,
-            )
-        )
-        _post_finance_transaction(
+        _post_deposit_apply_to_bill(
             db,
             tenant_id=tenant.id,
-            transaction_type="deposit_release",
             amount=deposit_amount,
-            source_code="cash",
-            destination_code="deposit",
             created_by=user.username,
-            category="Depozit Öhdəliyi Azaldılması",
             note=f"Restaurant check deposit settlement {sale.id}",
             related_table_id=table.id,
             related_order_id=sale.id,

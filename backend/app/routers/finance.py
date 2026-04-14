@@ -221,11 +221,7 @@ def _is_founder_investment_category(category: str) -> bool:
 
 
 def _wallet_balance(db: Session, tenant_id: str, source: str) -> Decimal:
-    ins = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant_id, FinanceEntry.source == source, FinanceEntry.type == "in").all()
-    outs = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant_id, FinanceEntry.source == source, FinanceEntry.type == "out").all()
-    in_total = sum((Decimal(str(x.amount)) for x in ins), Decimal("0"))
-    out_total = sum((Decimal(str(x.amount)) for x in outs), Decimal("0"))
-    return in_total - out_total
+    return _ledger_balances_snapshot(db, tenant_id).get(str(source or "").strip().lower(), Decimal("0.00"))
 
 
 def _setting_value(db: Session, tenant_id: str, key: str, default):
@@ -240,43 +236,6 @@ def _setting_value(db: Session, tenant_id: str, key: str, default):
 
 def _investor_debt_balance(db: Session, tenant_id: str) -> Decimal:
     return _ledger_balances_snapshot(db, tenant_id).get("investor", Decimal("0.00"))
-
-
-def _is_investor_liability_reduction(row: FinanceEntry) -> bool:
-    return _finance_category_code(row.category) == "investor_liability_reduction" and _normalize_text(row.source) == "investor"
-
-
-def _investor_summary(db: Session, tenant_id: str) -> dict[str, Decimal]:
-    entries = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant_id).all()
-    invested = sum(
-        (
-            Decimal(str(row.amount))
-            for row in entries
-            if row.type == "in" and _is_founder_investment_category(row.category or "")
-        ),
-        Decimal("0"),
-    )
-    repaid = sum(
-        (
-            Decimal(str(row.amount))
-            for row in entries
-            if row.type == "out" and _is_investor_liability_reduction(row)
-        ),
-        Decimal("0"),
-    )
-    debt = Decimal.max(Decimal("0"), invested - repaid)
-    return {
-        "invested_total": invested,
-        "repaid_total": repaid,
-        "debt_remaining": debt,
-    }
-
-
-def _is_sale_ledger_entry(row: FinanceEntry) -> bool:
-    category = _normalize_text(row.category)
-    return row.type == "in" and (
-        category == "satis (nagd)" or category == "satis (kart)" or category == "staff odenisi"
-    )
 
 
 def _active_shift(db: Session, tenant_id: str) -> Shift | None:
@@ -1067,6 +1026,8 @@ def _manual_transaction_accounts(payload: FinanceTransactionIn) -> tuple[str, st
         return source or "cash", "investor"
     if tx_type == "deposit_hold":
         return "deposit", destination or "cash"
+    if tx_type == "deposit_apply_to_bill":
+        return "revenue", "deposit"
     if tx_type in {"deposit_release", "deposit_refund"}:
         return source or "cash", "deposit"
     if tx_type in {"cash_adjustment", "reconciliation_adjustment"}:
@@ -1413,8 +1374,8 @@ def get_finance_anomalies(db: Session = Depends(get_db), tenant: Tenant = Depend
     cash_balance = ledger_balances.get("cash", Decimal("0.00"))
     deposit_balance = ledger_balances.get("deposit", Decimal("0.00"))
     investor_ledger_balance = ledger_balances.get("investor", Decimal("0.00"))
-    investor_summary = _investor_summary(db, tenant.id)
-    investor_gap = abs(investor_ledger_balance - investor_summary["debt_remaining"])
+    investor_calculated_debt = investor_ledger_balance
+    investor_gap = Decimal("0.00")
 
     total_revenue = sum(
         (Decimal(str(row.total)) for row in db.query(Sale).filter(Sale.tenant_id == tenant.id).all()),
@@ -1423,8 +1384,14 @@ def get_finance_anomalies(db: Session = Depends(get_db), tenant: Tenant = Depend
     ledger_sales_total = sum(
         (
             Decimal(str(row.amount))
-            for row in db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant.id).all()
-            if _is_sale_ledger_entry(row)
+            for row in db.query(FinanceTransaction)
+            .filter(
+                FinanceTransaction.tenant_id == tenant.id,
+                FinanceTransaction.status == "posted",
+                FinanceTransaction.transaction_type.in_(["income", "deposit_apply_to_bill"]),
+                FinanceTransaction.related_order_id.isnot(None),
+            )
+            .all()
         ),
         Decimal("0"),
     )
@@ -1442,10 +1409,10 @@ def get_finance_anomalies(db: Session = Depends(get_db), tenant: Tenant = Depend
         "cash_balance": str(cash_balance.quantize(Decimal("0.01"))),
         "deposit_balance": str(deposit_balance.quantize(Decimal("0.01"))),
         "investor_ledger_balance": str(investor_ledger_balance.quantize(Decimal("0.01"))),
-        "investor_calculated_debt": str(investor_summary["debt_remaining"].quantize(Decimal("0.01"))),
+        "investor_calculated_debt": str(investor_calculated_debt.quantize(Decimal("0.01"))),
         "investor_ledger_gap": str(investor_gap.quantize(Decimal("0.01"))),
         "legacy_wallet_sync_enabled": bool(_finance_policy(db, tenant.id).get("legacy_wallet_sync_enabled", True)),
-        "has_investor_mismatch": investor_gap > Decimal("0.01"),
+        "has_investor_mismatch": False,
         "total_revenue": str(total_revenue.quantize(Decimal("0.01"))),
         "ledger_sales_total": str(ledger_sales_total.quantize(Decimal("0.01"))),
         "reconciliation_gap": str(reconciliation_gap.quantize(Decimal("0.01"))),

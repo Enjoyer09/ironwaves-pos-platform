@@ -46,7 +46,11 @@ from app.models import (
     User,
     WasteLog,
 )
-from app.services.finance_service import post_finance_transaction as _post_finance_transaction, post_sale_payment as _post_sale_payment
+from app.services.finance_service import (
+    post_deposit_apply_to_bill as _post_deposit_apply_to_bill,
+    post_deposit_hold as _post_deposit_hold,
+    post_sale_payment as _post_sale_payment,
+)
 from app.core.config import settings as app_settings
 from app.security import hash_password, hash_token, verify_password
 
@@ -3167,39 +3171,14 @@ def open_table(
     row.total = Decimal(str(row.total or 0)).quantize(Decimal("0.01"))
 
     if deposit_amount > 0:
-        db.add(
-            FinanceEntry(
-                tenant_id=tenant.id,
-                type="in",
-                category="Masa Depoziti",
-                source="cash",
-                amount=deposit_amount,
-                description=f"{row.label} üçün depozit ({deposit_guest_count} nəfər)",
-                created_by=user.username,
-            )
-        )
-        _post_finance_transaction(
+        _post_deposit_hold(
             db,
             tenant_id=tenant.id,
-            transaction_type="deposit_hold",
             amount=deposit_amount,
-            source_code="deposit",
             destination_code="cash",
             created_by=user.username,
-            category="Depozit Alındı",
             note=f"{row.label} üçün depozit ({deposit_guest_count} nəfər)",
             related_table_id=row.id,
-        )
-        db.add(
-            FinanceEntry(
-                tenant_id=tenant.id,
-                type="in",
-                category="Depozit Öhdəliyi",
-                source="deposit",
-                amount=deposit_amount,
-                description=f"{row.label} üçün depozit öhdəliyi ({deposit_guest_count} nəfər)",
-                created_by=user.username,
-            )
         )
     db.add(
         AuditLog(
@@ -3713,26 +3692,11 @@ def pay_table(
             )
 
     if seat_deposit_amount > 0:
-        db.add(
-            FinanceEntry(
-                tenant_id=tenant.id,
-                type="out",
-                category="Depozit Öhdəliyi Azaldılması",
-                source="deposit",
-                amount=seat_deposit_amount,
-                description=f"Table payment {sale.id}",
-                created_by=user.username,
-            )
-        )
-        _post_finance_transaction(
+        _post_deposit_apply_to_bill(
             db,
             tenant_id=tenant.id,
-            transaction_type="deposit_release",
             amount=seat_deposit_amount,
-            source_code="cash",
-            destination_code="deposit",
             created_by=user.username,
-            category="Depozit Öhdəliyi Azaldılması",
             note=f"Table payment {sale.id}",
             related_table_id=row.id,
             related_order_id=sale.id,

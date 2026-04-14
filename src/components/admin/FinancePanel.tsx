@@ -539,75 +539,9 @@ export default function FinancePanel() {
     applyRangePreset('daily');
   }, [tenant_id]);
 
-  const legacyInvestorSummary = useMemo(() => {
-    const normalizeText = (value: string) =>
-      (value || '')
-        .toString()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[əƏ]/g, 'e')
-        .replace(/[ıİ]/g, 'i')
-        .replace(/[öÖ]/g, 'o')
-        .replace(/[üÜ]/g, 'u')
-        .replace(/[çÇ]/g, 'c')
-        .replace(/[şŞ]/g, 's')
-        .replace(/[ğĞ]/g, 'g')
-        .trim()
-        .toLowerCase();
-
-    const isFounderInvestmentCategory = (category: string) => {
-      const c = normalizeText(category);
-      return (c.includes('tesisci') || c.includes('founder')) && (c.includes('investis') || c.includes('investment'));
-    };
-
-    const invested = entries.reduce((sum, e: any) => {
-      if (e.type === 'in' && isFounderInvestmentCategory(e.category || '')) {
-        return sum.plus(new Decimal(e.amount || 0));
-      }
-      return sum;
-    }, new Decimal(0));
-
-    const repaid = entries.reduce((sum, e: any) => {
-      const c = normalizeText(e.category || '');
-      const source = normalizeText(e.source || '');
-
-      // IMPORTANT:
-      // Repayment must be counted ONLY on investor liability ledger rows.
-      // The cash/card/safe out row ("İnvestora Geri Ödəniş") is a payment movement
-      // and must not reduce debt a second time.
-      const isLiabilityReduction =
-        c.includes('investor borcu azaldilmasi') ||
-        c.includes('investor liability reduction') ||
-        c.includes('dolg investoru umenshen');
-
-      if (e.type === 'out' && isLiabilityReduction && source === 'investor') {
-        return sum.plus(new Decimal(e.amount || 0));
-      }
-      return sum;
-    }, new Decimal(0));
-
-    const debt = Decimal.max(new Decimal(0), invested.minus(repaid));
-    return {
-      invested_total: invested.toString(),
-      repaid_total: repaid.toString(),
-      debt_remaining: debt.toString(),
-    };
-  }, [entries]);
-
   const ledgerInvestorDebt = useMemo(
     () => Decimal.max(new Decimal(0), new Decimal(anomalies?.investor_ledger_balance || balance.investor_balance || 0)),
     [anomalies?.investor_ledger_balance, balance.investor_balance],
-  );
-  const legacyDerivedInvestorDebt = useMemo(
-    () => new Decimal((anomalies?.investor_calculated_debt ?? legacyInvestorSummary.debt_remaining) || 0),
-    [anomalies?.investor_calculated_debt, legacyInvestorSummary.debt_remaining],
-  );
-  const investorAuditGap = useMemo(
-    () =>
-      anomalies
-        ? new Decimal(anomalies.investor_ledger_gap || 0)
-        : ledgerInvestorDebt.minus(legacyDerivedInvestorDebt).abs(),
-    [anomalies, ledgerInvestorDebt, legacyDerivedInvestorDebt],
   );
 
   const filteredEntries = useMemo(() => {
@@ -637,7 +571,9 @@ export default function FinancePanel() {
         'internal_transfer',
         'investor_repayment',
         'deposit_hold',
+        'deposit_apply_to_bill',
         'deposit_release',
+        'deposit_refund',
         'cash_adjustment',
         'reconciliation_adjustment',
         'reversal',
@@ -831,19 +767,6 @@ export default function FinancePanel() {
     const depositLiability = new Decimal(anomalies?.deposit_balance || balance.deposit_balance || 0);
     const cashBalance = new Decimal(balance.cash_balance || 0);
 
-    if (investorAuditGap.greaterThan(0.01)) {
-      items.push({
-        title: tx(lang, 'Investor borcu uyğunsuzluğu', 'Несовпадение долга инвестору', 'Investor debt mismatch'),
-        body: tx(
-          lang,
-          `Ledger investor borcu ${ledgerInvestorDebt.toFixed(2)} ₼, audit üçün hesablanmış köhnə borc isə ${legacyDerivedInvestorDebt.toFixed(2)} ₼-dir. Fərq: ${investorAuditGap.toFixed(2)} ₼.`,
-          `Ledger-долг инвестору ${ledgerInvestorDebt.toFixed(2)} ₼, а аудитный legacy-расчет ${legacyDerivedInvestorDebt.toFixed(2)} ₼. Разница: ${investorAuditGap.toFixed(2)} ₼.`,
-          `Ledger investor debt is ${ledgerInvestorDebt.toFixed(2)} ₼ while the audit-only legacy calculation is ${legacyDerivedInvestorDebt.toFixed(2)} ₼. Gap: ${investorAuditGap.toFixed(2)} ₼.`,
-        ),
-        tone: 'rose',
-      });
-    }
-
     if (depositLiability.greaterThan(cashBalance)) {
       items.push({
         title: tx(lang, 'Depozit riski', 'Риск депозитов', 'Deposit risk'),
@@ -910,7 +833,7 @@ export default function FinancePanel() {
     }
 
     return items;
-  }, [anomalies, balance.cash_balance, balance.deposit_balance, financeSummary.net, investorAuditGap, lang, ledgerInvestorDebt, legacyDerivedInvestorDebt]);
+  }, [anomalies, balance.cash_balance, balance.deposit_balance, financeSummary.net, lang]);
 
   const exportCsv = async () => {
     const esc = (value: unknown) => {
@@ -1607,7 +1530,9 @@ export default function FinancePanel() {
       internal_transfer: tx(lang, 'Daxili transfer', 'Внутренний перевод', 'Internal transfer'),
       investor_repayment: tx(lang, 'Investor ödənişi', 'Выплата инвестору', 'Investor repayment'),
       deposit_hold: tx(lang, 'Depozit saxlama', 'Удержание депозита', 'Deposit hold'),
+      deposit_apply_to_bill: tx(lang, 'Depozit hesaba tətbiq edildi', 'Депозит применён к счёту', 'Deposit applied to bill'),
       deposit_release: tx(lang, 'Depozit buraxılışı', 'Освобождение депозита', 'Deposit release'),
+      deposit_refund: tx(lang, 'Depozit qaytarıldı', 'Возврат депозита', 'Deposit refund'),
       cash_adjustment: tx(lang, 'Kassa düzəlişi', 'Корректировка кассы', 'Cash adjustment'),
       reconciliation_adjustment: tx(lang, 'Uyğunlaşdırma düzəlişi', 'Корректировка сверки', 'Reconciliation adjustment'),
       reversal: tx(lang, 'Əks yazılış', 'Сторно', 'Reversal'),
@@ -1798,13 +1723,6 @@ export default function FinancePanel() {
                   value={`${ledgerInvestorDebt.toFixed(2)} ₼`}
                   tone={ledgerInvestorDebt.gt(0.01) ? 'rose' : 'emerald'}
                 />
-                {investorAuditGap.gt(0.01) && (
-                  <FinanceMiniMetric
-                    label={tx(lang, 'Legacy audit fərqi', 'Legacy audit fərqi', 'Legacy audit gap')}
-                    value={`${investorAuditGap.toFixed(2)} ₼`}
-                    tone="amber"
-                  />
-                )}
                 <FinanceMiniMetric
                   label={tx(lang, 'Ödəniş mənbəyi', 'Источник оплаты', 'Payment source')}
                   value={repayFrom === 'cash' ? tx(lang, 'Kassa', 'Касса', 'Cash') : repayFrom === 'card' ? tx(lang, 'Kart', 'Карта', 'Card') : tx(lang, 'Seyf', 'Сейф', 'Safe')}

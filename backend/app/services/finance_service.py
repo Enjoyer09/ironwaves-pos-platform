@@ -344,6 +344,8 @@ def mirror_posted_transaction_to_legacy_wallet(db: Session, txn: FinanceTransact
     elif txn.transaction_type == "deposit_hold" and destination_code in {"cash", "card", "safe"}:
         add_entry("in", "Depozit Alındı", destination_code, note)
         add_entry("in", "Depozit Öhdəliyi", "deposit", note)
+    elif txn.transaction_type == "deposit_apply_to_bill" and destination_code == "deposit":
+        add_entry("out", "Depozit Öhdəliyi Azaldıldı", "deposit", note)
     elif txn.transaction_type in {"deposit_release", "deposit_refund"} and source_code in {"cash", "card", "safe"}:
         add_entry("out", "Depozit Qaytarıldı", source_code, note)
         add_entry("out", "Depozit Öhdəliyi Azaldıldı", "deposit", note)
@@ -522,3 +524,96 @@ def post_sale_payment(
             transactions.append(fee_txn)
 
     return transactions
+
+
+def post_deposit_hold(
+    db: Session,
+    *,
+    tenant_id: str,
+    amount: Decimal,
+    destination_code: str = "cash",
+    created_by: str,
+    note: str | None = None,
+    related_table_id: str | None = None,
+    related_order_id: str | None = None,
+) -> FinanceTransaction | None:
+    amount = Decimal(str(amount)).quantize(Decimal("0.01"))
+    if amount <= 0:
+        return None
+    txn = post_finance_transaction(
+        db,
+        tenant_id=tenant_id,
+        transaction_type="deposit_hold",
+        amount=amount,
+        source_code="deposit",
+        destination_code=destination_code,
+        created_by=created_by,
+        category="Depozit Alındı",
+        note=note,
+        related_table_id=related_table_id,
+        related_order_id=related_order_id,
+    )
+    mirror_posted_transaction_to_legacy_wallet(db, txn, created_by)
+    return txn
+
+
+def post_deposit_apply_to_bill(
+    db: Session,
+    *,
+    tenant_id: str,
+    amount: Decimal,
+    created_by: str,
+    note: str | None = None,
+    related_table_id: str | None = None,
+    related_order_id: str | None = None,
+) -> FinanceTransaction | None:
+    """Recognize a held deposit as bill revenue without reducing cash."""
+    amount = Decimal(str(amount)).quantize(Decimal("0.01"))
+    if amount <= 0:
+        return None
+    txn = post_finance_transaction(
+        db,
+        tenant_id=tenant_id,
+        transaction_type="deposit_apply_to_bill",
+        amount=amount,
+        source_code="revenue",
+        destination_code="deposit",
+        created_by=created_by,
+        category="Depozit hesaba tətbiq edildi",
+        note=note,
+        related_table_id=related_table_id,
+        related_order_id=related_order_id,
+    )
+    mirror_posted_transaction_to_legacy_wallet(db, txn, created_by)
+    return txn
+
+
+def post_deposit_refund(
+    db: Session,
+    *,
+    tenant_id: str,
+    amount: Decimal,
+    source_code: str = "cash",
+    created_by: str,
+    note: str | None = None,
+    related_table_id: str | None = None,
+    related_order_id: str | None = None,
+) -> FinanceTransaction | None:
+    amount = Decimal(str(amount)).quantize(Decimal("0.01"))
+    if amount <= 0:
+        return None
+    txn = post_finance_transaction(
+        db,
+        tenant_id=tenant_id,
+        transaction_type="deposit_refund",
+        amount=amount,
+        source_code=source_code,
+        destination_code="deposit",
+        created_by=created_by,
+        category="Depozit Qaytarıldı",
+        note=note,
+        related_table_id=related_table_id,
+        related_order_id=related_order_id,
+    )
+    mirror_posted_transaction_to_legacy_wallet(db, txn, created_by)
+    return txn
