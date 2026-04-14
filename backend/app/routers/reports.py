@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import AuditLog, FinanceAccount, FinanceEntry, FinanceLedgerEntry, FinanceTransaction, Sale, Setting, Shift, ShiftHandover, Tenant, User
+from app.models import AuditLog, FinanceAccount, FinanceEntry, FinanceLedgerEntry, FinanceTransaction, Setting, Shift, ShiftHandover, Tenant, User
 from app.services.finance_service import ledger_balances_snapshot as _ledger_balances_snapshot
 from app.services.finance_service import post_finance_transaction as _post_finance_transaction
 from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XReportIn, ZReportIn
@@ -17,37 +17,15 @@ from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XRe
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
 
 
-def _rows_since(db: Session, tenant_id: str, opened_at: datetime | None) -> list[FinanceEntry]:
-    query = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant_id)
-    if opened_at:
-        query = query.filter(FinanceEntry.created_at >= opened_at)
-    return query.all()
-
-
 def _normalized(value: str | None) -> str:
     return (value or "").strip().lower()
 
 
-def _is_shift_sale_entry(row: FinanceEntry) -> bool:
-    category = _normalized(row.category)
-    return row.type == "in" and (
-        category == "satış (nağd)" or category == "satış (kart)" or category == "staff ödənişi"
-    )
-
-
-def _is_shift_deposit_entry(row: FinanceEntry) -> bool:
-    category = _normalized(row.category)
-    description = _normalized(row.description)
-    return row.type == "in" and ("depozit" in category or "depozit" in description or "deposit" in description)
-
-
-def _group_amounts(rows: list[FinanceEntry], row_type: str, exclude_categories: set[str] | None = None) -> tuple[Decimal, list[dict]]:
+def _group_transaction_amounts(rows: list[FinanceTransaction], exclude_categories: set[str] | None = None) -> tuple[Decimal, list[dict]]:
     groups: dict[str, Decimal] = {}
     excluded = exclude_categories or set()
     for row in rows:
-        if row.type != row_type:
-            continue
-        category = str(row.category or "").strip() or ("Giriş" if row_type == "in" else "Xərc")
+        category = str(row.category or "").strip() or str(row.transaction_type or "").strip() or "Maliyyə əməliyyatı"
         if _normalized(category) in excluded:
             continue
         groups[category] = groups.get(category, Decimal("0")) + Decimal(str(row.amount or 0))
@@ -59,24 +37,27 @@ def _group_amounts(rows: list[FinanceEntry], row_type: str, exclude_categories: 
     return total.quantize(Decimal("0.01")), lines
 
 
+def _posted_transactions_since(db: Session, tenant_id: str, opened_at: datetime | None) -> list[FinanceTransaction]:
+    query = db.query(FinanceTransaction).filter(
+        FinanceTransaction.tenant_id == tenant_id,
+        FinanceTransaction.status == "posted",
+    )
+    if opened_at:
+        query = query.filter(FinanceTransaction.created_at >= opened_at)
+    return query.all()
+
+
+def _finance_account_code_map(db: Session, tenant_id: str) -> dict[str, str]:
+    rows = db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant_id).all()
+    return {row.id: row.code for row in rows}
+
+
 def _get_active_shift(db: Session, tenant_id: str) -> Shift | None:
     return db.query(Shift).filter(Shift.tenant_id == tenant_id, Shift.status == "open").first()
 
 
 def _wallet_balance(db: Session, tenant_id: str, source: str) -> Decimal:
-    ins = (
-        db.query(FinanceEntry)
-        .filter(FinanceEntry.tenant_id == tenant_id, FinanceEntry.source == source, FinanceEntry.type == "in")
-        .all()
-    )
-    outs = (
-        db.query(FinanceEntry)
-        .filter(FinanceEntry.tenant_id == tenant_id, FinanceEntry.source == source, FinanceEntry.type == "out")
-        .all()
-    )
-    in_total = sum((Decimal(str(row.amount)) for row in ins), Decimal("0"))
-    out_total = sum((Decimal(str(row.amount)) for row in outs), Decimal("0"))
-    return in_total - out_total
+    return _ledger_balances_snapshot(db, tenant_id).get(str(source or "").strip().lower(), Decimal("0.00"))
 
 
 def _cash_account(db: Session, tenant_id: str) -> FinanceAccount | None:
@@ -450,45 +431,46 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
 
     breakdown = _shift_cash_breakdown(db, tenant.id, active)
     expected = breakdown["expected_cash"]
-    shift_rows = _rows_since(db, tenant.id, active.opened_at)
-
-    sales_query = db.query(Sale).filter(Sale.tenant_id == tenant.id)
-    if active.opened_at:
-        sales_query = sales_query.filter(Sale.created_at >= active.opened_at)
-    shift_sales = sales_query.all()
+    shift_txns = _posted_transactions_since(db, tenant.id, active.opened_at)
+    account_codes = _finance_account_code_map(db, tenant.id)
+    sale_payment_txns = [
+        txn
+        for txn in shift_txns
+        if txn.transaction_type == "income" and txn.related_order_id and account_codes.get(txn.destination_account_id) in {"cash", "card"}
+    ]
     cash_sales = sum(
-        (
-            Decimal(str(sale.total or 0))
-            for sale in shift_sales
-            if str(sale.payment_method or "").strip().lower() in {"nəğd", "negd", "cash"}
-        ),
+        (Decimal(str(txn.amount or 0)) for txn in sale_payment_txns if account_codes.get(txn.destination_account_id) == "cash"),
         Decimal("0"),
     )
     card_sales = sum(
-        (
-            Decimal(str(sale.total or 0))
-            for sale in shift_sales
-            if str(sale.payment_method or "").strip().lower() in {"kart", "card"}
-        ),
+        (Decimal(str(txn.amount or 0)) for txn in sale_payment_txns if account_codes.get(txn.destination_account_id) == "card"),
         Decimal("0"),
     )
-
-    deposit_query = db.query(FinanceTransaction).filter(
-        FinanceTransaction.tenant_id == tenant.id,
-        FinanceTransaction.status == "posted",
-        FinanceTransaction.transaction_type == "deposit_hold",
+    deposit_total = sum(
+        (Decimal(str(txn.amount or 0)) for txn in shift_txns if txn.transaction_type == "deposit_hold"),
+        Decimal("0"),
     )
-    if active.opened_at:
-        deposit_query = deposit_query.filter(FinanceTransaction.created_at >= active.opened_at)
-    deposit_total = sum((Decimal(str(row.amount or 0)) for row in deposit_query.all()), Decimal("0"))
-    other_income_total, other_income_lines = _group_amounts(
-        shift_rows,
-        "in",
-        exclude_categories={"satış (nağd)", "satış (kart)", "staff ödənişi", "depozit"},
+    other_income_rows = [
+        txn
+        for txn in shift_txns
+        if (
+            (txn.transaction_type == "income" and not txn.related_order_id)
+            or (txn.transaction_type in {"cash_adjustment", "reconciliation_adjustment"} and account_codes.get(txn.destination_account_id) in {"cash", "card", "safe", "debt"})
+            or txn.transaction_type == "investor_injection"
+        )
+    ]
+    other_expense_rows = [
+        txn
+        for txn in shift_txns
+        if txn.transaction_type == "expense"
+        or (txn.transaction_type in {"cash_adjustment", "reconciliation_adjustment"} and account_codes.get(txn.source_account_id) in {"cash", "card", "safe", "debt"})
+    ]
+    other_income_total, other_income_lines = _group_transaction_amounts(
+        other_income_rows,
+        exclude_categories={"satış (nağd)", "satış (kart)", "staff ödənişi", "depozit alındı"},
     )
-    other_expense_total, other_expense_lines = _group_amounts(
-        shift_rows,
-        "out",
+    other_expense_total, other_expense_lines = _group_transaction_amounts(
+        other_expense_rows,
         exclude_categories={"maaş"},
     )
 
