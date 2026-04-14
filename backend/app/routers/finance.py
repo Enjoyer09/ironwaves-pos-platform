@@ -86,6 +86,7 @@ DEFAULT_FINANCE_POLICY = {
     "reconciliation_adjustment_requires_approval": True,
     "reconciliation_variance_alert_azn": 0.01,
     "negative_balance_alert_azn": 0,
+    "legacy_wallet_sync_enabled": True,
     "approver_roles": ["manager", "admin", "finance_admin", "super_admin"],
 }
 FINANCE_VIEW_ROLES = {"manager", "admin", "finance_admin", "super_admin"}
@@ -227,6 +228,7 @@ def _finance_policy(db: Session, tenant_id: str) -> dict:
         "cash_adjustment_requires_approval",
         "reversal_requires_approval",
         "reconciliation_adjustment_requires_approval",
+        "legacy_wallet_sync_enabled",
     ):
         merged[key] = bool(merged.get(key))
     return merged
@@ -369,6 +371,24 @@ def _post_existing_transaction(db: Session, txn: FinanceTransaction, posted_by: 
 
 
 def _mirror_posted_transaction_to_legacy_wallet(db: Session, txn: FinanceTransaction, posted_by: str) -> list[FinanceEntry]:
+    policy = _finance_policy(db, txn.tenant_id)
+    if not bool(policy.get("legacy_wallet_sync_enabled", True)):
+        db.add(
+            AuditLog(
+                tenant_id=txn.tenant_id,
+                user=posted_by,
+                action="FINANCE_LEGACY_WALLET_SYNC_SKIPPED",
+                details=json.dumps(
+                    {
+                        "transaction_id": txn.id,
+                        "transaction_type": txn.transaction_type,
+                        "reason": "legacy_wallet_sync_disabled",
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
+        return []
     if txn.status != "posted" or txn.legacy_finance_entry_id:
         return []
     existing = (
@@ -1673,6 +1693,7 @@ def get_finance_anomalies(db: Session = Depends(get_db), tenant: Tenant = Depend
         "investor_ledger_balance": str(investor_ledger_balance.quantize(Decimal("0.01"))),
         "investor_calculated_debt": str(investor_summary["debt_remaining"].quantize(Decimal("0.01"))),
         "investor_ledger_gap": str(investor_gap.quantize(Decimal("0.01"))),
+        "legacy_wallet_sync_enabled": bool(_finance_policy(db, tenant.id).get("legacy_wallet_sync_enabled", True)),
         "has_investor_mismatch": investor_gap > Decimal("0.01"),
         "total_revenue": str(total_revenue.quantize(Decimal("0.01"))),
         "ledger_sales_total": str(ledger_sales_total.quantize(Decimal("0.01"))),
