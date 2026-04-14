@@ -49,6 +49,7 @@ from app.models import (
 from app.services.finance_service import (
     post_deposit_apply_to_bill as _post_deposit_apply_to_bill,
     post_deposit_hold as _post_deposit_hold,
+    post_finance_transaction_with_legacy_mirror as _post_finance_transaction,
     post_sale_payment as _post_sale_payment,
 )
 from app.core.config import settings as app_settings
@@ -4133,16 +4134,16 @@ def accept_shift_handover_op(
     declared = Decimal(str(row.declared_cash))
     difference = actual - declared
     if difference != 0:
-        db.add(
-            FinanceEntry(
-                tenant_id=tenant.id,
-                type="in" if difference > 0 else "out",
-                category="Kassa Artığı" if difference > 0 else "Kassa Kəsiri",
-                source="cash",
-                amount=abs(difference),
-                description=f"Smeni qəbul fərqi ({row.handed_by} -> {user.username})",
-                created_by=user.username,
-            )
+        _post_finance_transaction(
+            db,
+            tenant_id=tenant.id,
+            transaction_type="cash_adjustment",
+            amount=abs(difference),
+            source_code="adjustment" if difference > 0 else "cash",
+            destination_code="cash" if difference > 0 else "adjustment",
+            created_by=user.username,
+            category="Kassa Artığı" if difference > 0 else "Kassa Kəsiri",
+            note=f"Smeni qəbul fərqi ({row.handed_by} -> {user.username})",
         )
 
     active.opened_by = user.username

@@ -135,6 +135,7 @@ from app.services.finance_service import (  # noqa: E402 - keep router API thin 
     mirror_posted_transaction_to_legacy_wallet as _mirror_posted_transaction_to_legacy_wallet,
     post_existing_transaction as _post_existing_transaction,
     post_finance_transaction as _post_finance_transaction,
+    post_finance_transaction_with_legacy_mirror as _post_finance_transaction_with_legacy_mirror,
 )
 
 
@@ -1475,7 +1476,7 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
 
     category_label = _finance_category_label(payload.category, payload.category_code)
 
-    row = FinanceEntry(
+    virtual_row = FinanceEntry(
         tenant_id=tenant.id,
         type=payload.type,
         category=category_label,
@@ -1484,37 +1485,8 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
         description=payload.description,
         created_by=user.username,
     )
-    db.add(row)
-    created_mirror_rows: list[FinanceEntry] = []
-
-    if payload.type == "in" and payload.source == "debt":
-        mirror_row = FinanceEntry(
-            tenant_id=tenant.id,
-            type="in",
-            category="Borcdan Kassaya Daxilolma",
-            source="cash",
-            amount=amount,
-            description=f"Auto mirror: {payload.description or payload.category}",
-            created_by=user.username,
-        )
-        db.add(mirror_row)
-        created_mirror_rows.append(mirror_row)
-
-    if payload.type == "in" and payload.source == "cash" and _is_founder_investment_category(category_label):
-        mirror_row = FinanceEntry(
-            tenant_id=tenant.id,
-            type="in",
-            category="İnvestor Borcu",
-            source="investor",
-            amount=amount,
-            description=f"Auto liability mirror: {payload.description or payload.category}",
-            created_by=user.username,
-        )
-        db.add(mirror_row)
-        created_mirror_rows.append(mirror_row)
-
-    db.flush()
     posted_txn: FinanceTransaction | None = None
+    mirror_rows: list[FinanceEntry] = []
     if payload.type == "in" and payload.source == "debt":
         posted_txn = _post_finance_transaction(
             db,
@@ -1526,10 +1498,14 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
             created_by=user.username,
             category=category_label or "Borc Alındı",
             note=payload.description or "Borcdan kassaya daxilolma",
-            legacy_finance_entry_id=row.id,
         )
+        mirror_rows = _mirror_posted_transaction_to_legacy_wallet(db, posted_txn, user.username)
     else:
-        posted_txn = _post_legacy_finance_entry(db, row, user.username)
+        posted_txn = _post_legacy_finance_entry(db, virtual_row, user.username)
+        if posted_txn:
+            mirror_rows = _mirror_posted_transaction_to_legacy_wallet(db, posted_txn, user.username)
+
+    entry_id = mirror_rows[0].id if mirror_rows else (posted_txn.id if posted_txn else None)
 
     db.add(
         AuditLog(
@@ -1538,14 +1514,14 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
             action="FINANCE_ENTRY_CREATED",
             details=json.dumps(
                 {
-                    "entry_id": row.id,
-                    "entry_type": row.type,
-                        "category": row.category,
-                        "category_code": _finance_category_code(row.category, payload.category_code),
-                    "source": row.source,
+                    "entry_id": entry_id,
+                    "entry_type": virtual_row.type,
+                        "category": virtual_row.category,
+                        "category_code": _finance_category_code(virtual_row.category, payload.category_code),
+                    "source": virtual_row.source,
                     "amount": str(amount.quantize(Decimal("0.01"))),
                     "ledger_transaction_id": posted_txn.id if posted_txn else None,
-                    "mirror_rows": [
+                    "legacy_rows": [
                         {
                             "id": mirror.id,
                             "type": mirror.type,
@@ -1553,7 +1529,7 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
                             "source": mirror.source,
                             "amount": str(Decimal(str(mirror.amount)).quantize(Decimal("0.01"))),
                         }
-                        for mirror in created_mirror_rows
+                        for mirror in mirror_rows
                     ],
                 },
                 ensure_ascii=False,
@@ -1561,7 +1537,7 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
         )
     )
     db.commit()
-    return {"success": True, "id": row.id}
+    return {"success": True, "id": entry_id or ""}
 
 
 @router.post("/transfer")
@@ -1594,42 +1570,7 @@ def transfer(payload: TransferIn, db: Session = Depends(get_db), tenant: Tenant 
     if bal < amount + commission:
         raise HTTPException(status_code=400, detail="Insufficient balance")
 
-    db.add(
-        FinanceEntry(
-            tenant_id=tenant.id,
-            type="out",
-            category="Daxili Transfer",
-            source=source,
-            amount=amount,
-            description=payload.description,
-            created_by=user.username,
-        )
-    )
-    db.add(
-        FinanceEntry(
-            tenant_id=tenant.id,
-            type="in",
-            category="Daxili Transfer",
-            source=target,
-            amount=amount,
-            description=payload.description,
-            created_by=user.username,
-        )
-    )
-    if commission > 0:
-        db.add(
-            FinanceEntry(
-                tenant_id=tenant.id,
-                type="out",
-                category="Bank Komissiyası",
-                source=source,
-                amount=commission,
-                description=f"Transfer komissiyası: {payload.direction}",
-                created_by=user.username,
-            )
-        )
-    db.flush()
-    _post_finance_transaction(
+    _post_finance_transaction_with_legacy_mirror(
         db,
         tenant_id=tenant.id,
         transaction_type="internal_transfer",
@@ -1641,7 +1582,7 @@ def transfer(payload: TransferIn, db: Session = Depends(get_db), tenant: Tenant 
         note=payload.description,
     )
     if commission > 0:
-        _post_finance_transaction(
+        _post_finance_transaction_with_legacy_mirror(
             db,
             tenant_id=tenant.id,
             transaction_type="expense",
@@ -1680,28 +1621,7 @@ def repay_investor(payload: InvestorRepayIn, db: Session = Depends(get_db), tena
     if payable <= 0:
         raise HTTPException(status_code=400, detail="Nothing payable")
 
-    payment_row = FinanceEntry(
-        tenant_id=tenant.id,
-        type="out",
-        category="İnvestora Geri Ödəniş",
-        source=pay_from,
-        amount=payable,
-        description=payload.description or "İnvestora ödəniş",
-        created_by=user.username,
-    )
-    liability_row = FinanceEntry(
-        tenant_id=tenant.id,
-        type="out",
-        category="İnvestor Borcu Azaldılması",
-        source="investor",
-        amount=payable,
-        description=f"Liability reduced via {pay_from}",
-        created_by=user.username,
-    )
-    db.add(payment_row)
-    db.add(liability_row)
-    db.flush()
-    _post_finance_transaction(
+    posted_txn = _post_finance_transaction_with_legacy_mirror(
         db,
         tenant_id=tenant.id,
         transaction_type="investor_repayment",
@@ -1711,15 +1631,21 @@ def repay_investor(payload: InvestorRepayIn, db: Session = Depends(get_db), tena
         created_by=user.username,
         category="İnvestora Geri Ödəniş",
         note=payload.description or "İnvestora ödəniş",
-        legacy_finance_entry_id=payment_row.id,
     )
     db.commit()
 
     remaining_debt = _investor_debt_balance(db, tenant.id)
+    legacy_rows = (
+        db.query(FinanceEntry)
+        .filter(FinanceEntry.tenant_id == tenant.id, FinanceEntry.description.contains(f"Ledger mirror: {posted_txn.id}"))
+        .all()
+    )
+    payment_row = next((row for row in legacy_rows if str(row.category or "") == "İnvestora Geri Ödəniş"), None)
+    liability_row = next((row for row in legacy_rows if str(row.category or "") == "İnvestor Borcu Azaldılması"), None)
     return {
         "success": True,
-        "payment_entry_id": payment_row.id,
-        "liability_entry_id": liability_row.id,
+        "payment_entry_id": payment_row.id if payment_row else posted_txn.id,
+        "liability_entry_id": liability_row.id if liability_row else posted_txn.id,
         "paid": str(payable),
         "remaining_debt": str(remaining_debt),
     }
