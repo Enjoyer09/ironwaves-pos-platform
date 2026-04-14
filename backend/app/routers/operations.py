@@ -46,7 +46,7 @@ from app.models import (
     User,
     WasteLog,
 )
-from app.services.finance_service import post_finance_transaction as _post_finance_transaction
+from app.services.finance_service import post_finance_transaction as _post_finance_transaction, post_sale_payment as _post_sale_payment
 from app.core.config import settings as app_settings
 from app.security import hash_password, hash_token, verify_password
 
@@ -3673,14 +3673,44 @@ def pay_table(
         if (split_cash + split_card - extra_due).copy_abs() > Decimal("0.01"):
             raise HTTPException(status_code=400, detail="Split amounts must equal additional due")
         if split_cash > 0:
-            db.add(FinanceEntry(tenant_id=tenant.id, type="in", category="Satış (Nağd)", source="cash", amount=split_cash, description=f"Table payment {sale.id}", created_by=user.username))
+            _post_sale_payment(
+                db,
+                tenant_id=tenant.id,
+                sale_id=sale.id,
+                amount=split_cash,
+                payment_source="cash",
+                created_by=user.username,
+                category="Satış (Nağd)",
+                note=f"Table payment {sale.id}",
+                related_table_id=row.id,
+            )
         if split_card > 0:
-            db.add(FinanceEntry(tenant_id=tenant.id, type="in", category="Satış (Kart)", source="card", amount=split_card, description=f"Table payment {sale.id}", created_by=user.username))
+            _post_sale_payment(
+                db,
+                tenant_id=tenant.id,
+                sale_id=sale.id,
+                amount=split_card,
+                payment_source="card",
+                created_by=user.username,
+                category="Satış (Kart)",
+                note=f"Table payment {sale.id}",
+                related_table_id=row.id,
+            )
     else:
         source = "cash" if payment_method in {"nəğd", "cash", "staff"} else "card"
         category = "Satış (Nağd)" if source == "cash" else "Satış (Kart)"
         if extra_due > 0:
-            db.add(FinanceEntry(tenant_id=tenant.id, type="in", category=category, source=source, amount=extra_due, description=f"Table payment {sale.id}", created_by=user.username))
+            _post_sale_payment(
+                db,
+                tenant_id=tenant.id,
+                sale_id=sale.id,
+                amount=extra_due,
+                payment_source=source,
+                created_by=user.username,
+                category=category,
+                note=f"Table payment {sale.id}",
+                related_table_id=row.id,
+            )
 
     if seat_deposit_amount > 0:
         db.add(

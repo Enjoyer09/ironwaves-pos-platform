@@ -449,3 +449,76 @@ def post_finance_transaction(
         legacy_finance_entry_id=legacy_finance_entry_id,
     )
     return post_existing_transaction(db, txn, created_by)
+
+
+def _normalize_sale_payment_source(payment_source: str | None) -> str:
+    source = str(payment_source or "").strip().lower()
+    if source in {"cash", "nəğd", "nagd", "nağd", "naghd"}:
+        return "cash"
+    return "card"
+
+
+def post_sale_payment(
+    db: Session,
+    *,
+    tenant_id: str,
+    sale_id: str,
+    amount: Decimal,
+    payment_source: str,
+    created_by: str,
+    category: str | None = None,
+    note: str | None = None,
+    related_table_id: str | None = None,
+    card_fee_percent: Decimal | str | int | float = Decimal("0"),
+) -> list[FinanceTransaction]:
+    """Post a POS/table sale payment to ledger and mirror legacy wallet rows.
+
+    This keeps Sale + ledger + legacy compatibility inside the caller's current
+    database transaction. The caller owns the final commit/rollback.
+    """
+    amount = Decimal(str(amount)).quantize(Decimal("0.01"))
+    if amount <= 0:
+        return []
+
+    source = _normalize_sale_payment_source(payment_source)
+    payment_category = category or ("Satış (Nağd)" if source == "cash" else "Satış (Kart)")
+    payment_note = note or f"POS Sale {sale_id}"
+    transactions: list[FinanceTransaction] = []
+
+    sale_txn = post_finance_transaction(
+        db,
+        tenant_id=tenant_id,
+        transaction_type="income",
+        amount=amount,
+        source_code="revenue",
+        destination_code=source,
+        created_by=created_by,
+        category=payment_category,
+        note=payment_note,
+        related_table_id=related_table_id,
+        related_order_id=sale_id,
+    )
+    mirror_posted_transaction_to_legacy_wallet(db, sale_txn, created_by)
+    transactions.append(sale_txn)
+
+    if source == "card":
+        fee_percent = Decimal(str(card_fee_percent or "0"))
+        card_fee = (amount * (fee_percent / Decimal("100"))).quantize(Decimal("0.01"))
+        if card_fee > 0:
+            fee_txn = post_finance_transaction(
+                db,
+                tenant_id=tenant_id,
+                transaction_type="expense",
+                amount=card_fee,
+                source_code="card",
+                destination_code="expense",
+                created_by=created_by,
+                category="Bank Komissiyası",
+                note=f"{payment_note} kart komissiyası",
+                related_table_id=related_table_id,
+                related_order_id=sale_id,
+            )
+            mirror_posted_transaction_to_legacy_wallet(db, fee_txn, created_by)
+            transactions.append(fee_txn)
+
+    return transactions
