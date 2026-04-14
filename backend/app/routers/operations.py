@@ -4629,6 +4629,76 @@ def list_logs(
     ]
 
 
+@router.get("/logs/super-errors")
+def list_super_error_logs(
+    limit: int = Query(default=300, ge=1, le=2000),
+    from_date: str | None = None,
+    to_date: str | None = None,
+    tenant_id: str | None = None,
+    q: str | None = None,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    if str(user.role or "").lower() != "super_admin":
+        raise HTTPException(status_code=403, detail="Super admin access required")
+
+    del tenant  # platform-wide query for super admins
+
+    query = db.query(AuditLog)
+    if tenant_id:
+        query = query.filter(AuditLog.tenant_id == str(tenant_id).strip())
+    if from_date:
+        query = query.filter(AuditLog.created_at >= datetime.fromisoformat(f"{from_date}T00:00:00"))
+    if to_date:
+        query = query.filter(AuditLog.created_at <= datetime.fromisoformat(f"{to_date}T23:59:59"))
+
+    action_upper = func.upper(AuditLog.action)
+    details_lower = func.lower(func.coalesce(AuditLog.details, ""))
+    query = query.filter(
+        (action_upper.like("%ERROR%"))
+        | (action_upper.like("%FAIL%"))
+        | (action_upper.like("%REJECT%"))
+        | action_upper.in_(
+            [
+                "UI_ERROR",
+                "RESTORE_FAILED",
+                "DATABASE_RESTORE_FAILED",
+                "TENANT_DELETE_FAILED",
+                "AUTH_LOGIN_FAILED",
+                "FINANCE_POST_FAILED",
+                "KITCHEN_ORDER_FAILED",
+            ]
+        )
+        | details_lower.like("%error%")
+        | details_lower.like("%exception%")
+        | details_lower.like("%traceback%")
+        | details_lower.like("%failed%")
+    )
+
+    search = str(q or "").strip().lower()
+    if search:
+        query = query.filter(
+            func.lower(func.coalesce(AuditLog.user, "")).like(f"%{search}%")
+            | func.lower(func.coalesce(AuditLog.action, "")).like(f"%{search}%")
+            | details_lower.like(f"%{search}%")
+            | func.lower(func.coalesce(AuditLog.tenant_id, "")).like(f"%{search}%")
+        )
+
+    rows = query.order_by(AuditLog.created_at.desc()).limit(limit).all()
+    return [
+        {
+            "id": row.id,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "tenant_id": row.tenant_id,
+            "user": row.user,
+            "action": row.action,
+            "details": _json_load(row.details, {"message": row.details} if row.details else {}),
+        }
+        for row in rows
+    ]
+
+
 @router.post("/logs/event")
 def create_log_event(
     payload: LogEventIn,
