@@ -126,7 +126,7 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
 
   const startedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   let res: Response;
-  const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 8000;
+  const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 20000;
   const controller = typeof AbortController !== 'undefined' && timeoutMs > 0 ? new AbortController() : null;
   let timedOut = false;
   const timeoutId = controller
@@ -169,7 +169,7 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
     const message = isAbort
       ? (timedOut ? `sorğu vaxt limiti keçdi (${Math.round(timeoutMs / 1000)} saniyə)` : 'sorğu ləğv edildi')
       : error instanceof Error ? error.message : String(error);
-    if (options.suspendOnNetworkError !== false && !isAbort) {
+    if (options.suspendOnNetworkError === true && !isAbort) {
       suspendBackendTemporarily();
     }
     throw new Error(`Backendə qoşulma alınmadı (${options.method || 'GET'} ${path}): ${message}`);
