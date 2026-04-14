@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import AuditLog, FinanceAccount, FinanceEntry, FinanceLedgerEntry, FinanceTransaction, Setting, Shift, ShiftHandover, Tenant, User
+from app.models import AuditLog, FinanceAccount, FinanceLedgerEntry, FinanceTransaction, Setting, Shift, ShiftHandover, Tenant, User
 from app.services.finance_service import ledger_balances_snapshot as _ledger_balances_snapshot
-from app.services.finance_service import post_finance_transaction as _post_finance_transaction
+from app.services.finance_service import post_finance_transaction_with_legacy_mirror as _post_finance_transaction
 from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XReportIn, ZReportIn
 
 
@@ -193,30 +193,6 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
         funding_at = datetime.utcnow()
         if topup_amount > 0:
             if funding_source == "investor":
-                db.add(
-                    FinanceEntry(
-                        tenant_id=tenant.id,
-                        type="in",
-                        category="Təsisçi İnvestisiyası",
-                        source="cash",
-                        amount=topup_amount,
-                        description=f"Gün açılışı tamamlanması ({target_cash.quantize(Decimal('0.01'))} ₼ hədəf). Mənbə: investor",
-                        created_by=user.username,
-                        created_at=funding_at,
-                    )
-                )
-                db.add(
-                    FinanceEntry(
-                        tenant_id=tenant.id,
-                        type="in",
-                        category="İnvestor Borcu",
-                        source="investor",
-                        amount=topup_amount,
-                        description=f"Auto liability mirror: Gün açılışı tamamlanması ({target_cash.quantize(Decimal('0.01'))} ₼ hədəf). Mənbə: investor",
-                        created_by=user.username,
-                        created_at=funding_at,
-                    )
-                )
                 _post_finance_transaction(
                     db,
                     tenant_id=tenant.id,
@@ -229,18 +205,6 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
                     note=f"Gün açılışı tamamlanması ({target_cash.quantize(Decimal('0.01'))} ₼ hədəf). Mənbə: investor",
                 )
             elif funding_source == "cash":
-                db.add(
-                    FinanceEntry(
-                        tenant_id=tenant.id,
-                        type="in",
-                        category="Kassa Açılışı",
-                        source="cash",
-                        amount=topup_amount,
-                        description=f"Gün açılışı tamamlanması (hədəf {target_cash.quantize(Decimal('0.01'))} ₼)",
-                        created_by=user.username,
-                        created_at=funding_at,
-                    )
-                )
                 _post_finance_transaction(
                     db,
                     tenant_id=tenant.id,
@@ -261,30 +225,6 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
                     commission = (topup_amount * (card_transfer_percent / Decimal("100"))).quantize(Decimal("0.01"))
                 if source_balance < topup_amount + commission:
                     raise HTTPException(status_code=400, detail="Insufficient balance")
-                db.add(
-                    FinanceEntry(
-                        tenant_id=tenant.id,
-                        type="out",
-                        category="Daxili Transfer",
-                        source=funding_source,
-                        amount=topup_amount,
-                        description=f"Gün açılışı üçün {funding_source} -> cash",
-                        created_by=user.username,
-                        created_at=funding_at,
-                    )
-                )
-                db.add(
-                    FinanceEntry(
-                        tenant_id=tenant.id,
-                        type="in",
-                        category="Daxili Transfer",
-                        source="cash",
-                        amount=topup_amount,
-                        description=f"Gün açılışı üçün {funding_source} -> cash",
-                        created_by=user.username,
-                        created_at=funding_at,
-                    )
-                )
                 _post_finance_transaction(
                     db,
                     tenant_id=tenant.id,
@@ -297,18 +237,6 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
                     note=f"Gün açılışı üçün {funding_source} -> cash",
                 )
                 if commission > 0:
-                    db.add(
-                        FinanceEntry(
-                            tenant_id=tenant.id,
-                            type="out",
-                            category="Bank Komissiyası",
-                            source="card",
-                            amount=commission,
-                            description="Gün açılışı üçün kartdan kassaya köçürmə komissiyası",
-                            created_by=user.username,
-                            created_at=funding_at,
-                        )
-                    )
                     _post_finance_transaction(
                         db,
                         tenant_id=tenant.id,
@@ -363,17 +291,6 @@ def x_report(payload: XReportIn, db: Session = Depends(get_db), tenant: Tenant =
     diff = Decimal(str(payload.actual_cash)) - expected
 
     if diff != 0:
-        db.add(
-            FinanceEntry(
-                tenant_id=tenant.id,
-                type="in" if diff > 0 else "out",
-                category="Kassa Artığı" if diff > 0 else "Kassa Kəsiri",
-                source="cash",
-                amount=abs(diff),
-                description="X-report difference",
-                created_by=user.username,
-            )
-        )
         _post_finance_transaction(
             db,
             tenant_id=tenant.id,
@@ -405,17 +322,6 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         raise HTTPException(status_code=400, detail="Shift is closed")
 
     if payload.wage_amount > 0:
-        db.add(
-            FinanceEntry(
-                tenant_id=tenant.id,
-                type="out",
-                category="Maaş",
-                source="cash",
-                amount=payload.wage_amount,
-                description="Shift close wage",
-                created_by=user.username,
-            )
-        )
         _post_finance_transaction(
             db,
             tenant_id=tenant.id,
@@ -604,16 +510,17 @@ def accept_handover(handover_id: str, payload: ShiftHandoverAcceptIn, db: Sessio
     declared = Decimal(str(row.declared_cash))
     difference = actual - declared
     if difference != 0:
-        db.add(
-            FinanceEntry(
-                tenant_id=tenant.id,
-                type="in" if difference > 0 else "out",
-                category="Kassa Artığı" if difference > 0 else "Kassa Kəsiri",
-                source="cash",
-                amount=abs(difference),
-                description=f"Smeni qəbul fərqi ({row.handed_by} -> {user.username})",
-                created_by=user.username,
-            )
+        _post_finance_transaction(
+            db,
+            tenant_id=tenant.id,
+            transaction_type="cash_adjustment",
+            amount=abs(difference),
+            source_code="adjustment" if difference > 0 else "cash",
+            destination_code="cash" if difference > 0 else "adjustment",
+            created_by=user.username,
+            category="Kassa Artığı" if difference > 0 else "Kassa Kəsiri",
+            note=f"Smeni qəbul fərqi ({row.handed_by} -> {user.username})",
+            related_shift_id=active.id,
         )
 
     active.opened_by = user.username
