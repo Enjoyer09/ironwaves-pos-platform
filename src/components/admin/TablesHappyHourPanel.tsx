@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { get_tables_live, create_table_live, delete_table_live } from '../../api/tables';
 import { get_active_happy_hour_live, create_happy_hour_live, toggle_happy_hour_live } from '../../api/happy_hours';
-import { LayoutGrid, Clock, Plus, Trash2 } from 'lucide-react';
+import { update_table_layout_live } from '../../api/restaurant';
+import { LayoutGrid, Clock, Plus, Trash2, Pencil } from 'lucide-react';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 import { get_logs_live } from '../../api/logs';
@@ -42,6 +43,45 @@ export default function TablesHappyHourPanel() {
     }
   };
 
+  const handleEditTable = async (table: any) => {
+    const nextLabel = prompt(
+      tx(lang, 'Yeni masa adı', 'Новое название стола', 'New table name'),
+      String(table?.label || ''),
+    );
+    if (nextLabel === null) return;
+    const trimmedLabel = String(nextLabel).trim();
+    if (!trimmedLabel) {
+      alert(tx(lang, 'Masa adı boş ola bilməz', 'Название стола не может быть пустым', 'Table name cannot be empty'));
+      return;
+    }
+    const nextPosXRaw = prompt(
+      tx(lang, 'X koordinatı', 'Координата X', 'X coordinate'),
+      String(Number(table?.pos_x ?? 0)),
+    );
+    if (nextPosXRaw === null) return;
+    const nextPosYRaw = prompt(
+      tx(lang, 'Y koordinatı', 'Координата Y', 'Y coordinate'),
+      String(Number(table?.pos_y ?? 0)),
+    );
+    if (nextPosYRaw === null) return;
+    const nextPosX = Number(nextPosXRaw);
+    const nextPosY = Number(nextPosYRaw);
+    if (!Number.isFinite(nextPosX) || !Number.isFinite(nextPosY)) {
+      alert(tx(lang, 'Koordinatlar rəqəm olmalıdır', 'Координаты должны быть числом', 'Coordinates must be numeric'));
+      return;
+    }
+    try {
+      await update_table_layout_live(String(table.id), {
+        label: trimmedLabel,
+        pos_x: Math.max(0, Math.round(nextPosX)),
+        pos_y: Math.max(0, Math.round(nextPosY)),
+      });
+      await loadData();
+    } catch (e: any) {
+      alert(tx(lang, 'Xəta: ', 'Ошибка: ') + e.message);
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Masalar */}
@@ -56,9 +96,17 @@ export default function TablesHappyHourPanel() {
           {tables.map(t => (
             <div key={t.id} className={`p-4 rounded-xl border-2 flex flex-col items-center justify-center relative ${t.is_occupied ? 'bg-orange-50 border-orange-200' : 'bg-white border-gray-100'}`}>
               <span className="font-bold text-lg">{t.label}</span>
+              <span className="mt-1 text-[11px] text-slate-500">X:{Number(t.pos_x ?? 0)} Y:{Number(t.pos_y ?? 0)}</span>
               <span className={`text-xs px-2 py-1 rounded-full mt-2 ${t.is_occupied ? 'bg-orange-200 text-orange-800' : 'bg-green-100 text-green-700'}`}>
                 {t.is_occupied ? tx(lang, 'Dolu', 'Занято') : tx(lang, 'Boş', 'Свободно')}
               </span>
+              <button
+                onClick={() => { void handleEditTable(t); }}
+                className="absolute top-2 left-2 text-gray-400 hover:text-blue-600"
+                title={tx(lang, 'Masanı redaktə et', 'Редактировать стол', 'Edit table')}
+              >
+                <Pencil size={16}/>
+              </button>
               {!t.is_occupied && (
                 <button onClick={() => { void handleDeleteTable(t.id); }} className="absolute top-2 right-2 text-gray-400 hover:text-red-600">
                   <Trash2 size={16}/>

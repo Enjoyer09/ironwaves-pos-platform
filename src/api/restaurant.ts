@@ -16,6 +16,7 @@ export type FloorPlanRecord = {
 
 export type TableLayoutUpdatePayload = {
   floor_plan_id?: string | null;
+  label?: string;
   pos_x?: number;
   pos_y?: number;
   width_units?: number;
@@ -233,9 +234,20 @@ export async function update_table_layout_live(tableId: string, payload: TableLa
     const tables = getDB<any>('tables');
     const idx = tables.findIndex((row) => row.id === tableId);
     if (idx < 0) throw new Error('Table not found');
+    if (payload.label !== undefined) {
+      const nextLabel = String(payload.label || '').trim();
+      if (!nextLabel) throw new Error('Masa adı boş ola bilməz');
+      const duplicate = tables.find((row) => (
+        row.id !== tableId
+        && String(row.tenant_id || '') === String(tables[idx].tenant_id || '')
+        && String(row.label || '').trim().toLowerCase() === nextLabel.toLowerCase()
+      ));
+      if (duplicate) throw new Error('Eyni adlı masa artıq mövcuddur');
+    }
     const nextStatus = payload.status ?? tables[idx].status ?? 'AVAILABLE';
     tables[idx] = {
       ...tables[idx],
+      label: payload.label !== undefined ? String(payload.label || '').trim() : tables[idx].label,
       floor_plan_id: payload.floor_plan_id ?? tables[idx].floor_plan_id,
       pos_x: payload.pos_x ?? tables[idx].pos_x ?? 0,
       pos_y: payload.pos_y ?? tables[idx].pos_y ?? 0,
