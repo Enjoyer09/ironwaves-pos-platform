@@ -12,6 +12,9 @@ export interface Table {
   id: string;
   tenant_id: string;
   label: string;
+  floor_plan_id?: string | null;
+  pos_x?: number;
+  pos_y?: number;
   is_occupied: boolean;
   assigned_to?: string | null;
   guest_count?: number;
@@ -90,6 +93,9 @@ export const create_table = (tenant_id: string, label: string, created_by: strin
     id: uuidv4(),
     tenant_id,
     label,
+    floor_plan_id: null,
+    pos_x: 0,
+    pos_y: 0,
     is_occupied: false,
     assigned_to: null,
     guest_count: 0,

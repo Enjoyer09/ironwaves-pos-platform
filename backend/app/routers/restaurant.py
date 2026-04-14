@@ -1240,6 +1240,31 @@ def update_table_layout(
     table = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
+    if payload.label is not None:
+        next_label = str(payload.label or "").strip()
+        if not next_label:
+            raise HTTPException(status_code=400, detail="Table label is required")
+        duplicate = (
+            db.query(Table)
+            .filter(
+                Table.tenant_id == tenant.id,
+                Table.id != table.id,
+                Table.label.ilike(next_label),
+            )
+            .first()
+        )
+        if duplicate:
+            raise HTTPException(status_code=409, detail="Table already exists")
+        if table.label != next_label:
+            db.add(
+                AuditLog(
+                    tenant_id=tenant.id,
+                    user=user.username,
+                    action="TABLE_RENAMED",
+                    details=json.dumps({"table_id": table.id, "before": table.label, "after": next_label}, ensure_ascii=False),
+                )
+            )
+        table.label = next_label
     if payload.floor_plan_id is not None:
         table.floor_plan_id = payload.floor_plan_id
     if payload.pos_x is not None:

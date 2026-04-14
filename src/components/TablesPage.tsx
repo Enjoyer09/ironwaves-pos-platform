@@ -10,6 +10,7 @@ import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
 import { Decimal } from 'decimal.js';
 import { get_business_profile, get_settings_live } from '../api/settings';
+import { isBackendEnabled } from '../api/client';
 import { getDB } from '../lib/db_sim';
 import { verifyLocalCredential } from '../lib/local_auth';
 import { logEvent } from '../lib/logger';
@@ -1165,6 +1166,10 @@ export default function TablesPage() {
         onCancel={() => setDeleteTableId(null)}
         onConfirm={() => {
           if (!deleteTableId) return;
+          if (isBackendEnabled()) {
+            void handleDeleteTable(deleteTableId);
+            return;
+          }
           setShowDeleteAuth(true);
         }}
       />
@@ -1196,7 +1201,7 @@ export default function TablesPage() {
                 onClick={() => {
                   void (async () => {
                     const users = getDB<any>('users');
-                    const candidates = users.filter((u) => ['admin', 'super_admin'].includes(String(u.role || '').toLowerCase()));
+                    const candidates = users.filter((u) => ['admin', 'super_admin', 'manager'].includes(String(u.role || '').toLowerCase()));
                     let valid = false;
                     for (const candidate of candidates) {
                       const matches = await verifyLocalCredential(deleteAdminPass, candidate.password_hash || candidate.password);

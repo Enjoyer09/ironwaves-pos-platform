@@ -279,6 +279,7 @@ class ReservationSeatIn(BaseModel):
 
 class TableLayoutUpdateIn(BaseModel):
     floor_plan_id: str | None = None
+    label: str | None = None
     pos_x: int | None = None
     pos_y: int | None = None
     width_units: int | None = None
