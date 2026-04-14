@@ -1,5 +1,5 @@
 import React from 'react';
-import { backup_database_live, get_restore_preview, restore_database, restore_database_live, type RestoreReport } from '../../api/database';
+import { backup_database_live, get_restore_preview, get_restore_status_live, restore_database, restore_database_live, type RestoreLiveStatus, type RestoreReport } from '../../api/database';
 import { useAppStore } from '../../store';
 import { Database, Download, Upload } from 'lucide-react';
 import { tx } from '../../i18n';
@@ -23,6 +23,7 @@ export default function DatabasePanel() {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [busyMessage, setBusyMessage] = useState('');
+  const [liveRestoreStatus, setLiveRestoreStatus] = useState<RestoreLiveStatus | null>(null);
   const [forceLocalMode, setForceLocalModeState] = useState(() => isForceLocalMode());
 
   const TABLE_OPTIONS = [
@@ -171,8 +172,39 @@ export default function DatabasePanel() {
     } finally {
       setIsRestoring(false);
       setBusyMessage('');
+      setLiveRestoreStatus(null);
     }
   };
+
+  React.useEffect(() => {
+    if (!isRestoring || !getApiBaseUrl()) return;
+    let cancelled = false;
+    const pull = async () => {
+      try {
+        const status = await get_restore_status_live(tenant_id);
+        if (cancelled) return;
+        setLiveRestoreStatus(status);
+        if (status?.message) {
+          const processed = Number(status.processed_tables || 0);
+          const total = Number(status.total_tables || 0);
+          const suffix = total > 0 ? ` (${processed}/${total})` : '';
+          setBusyMessage(`${status.message}${suffix}`);
+        }
+      } catch {
+        if (!cancelled) {
+          setLiveRestoreStatus((prev) => prev || { active: true, message: tx(lang, 'Status yenilənmədi', 'Статус не обновился') });
+        }
+      }
+    };
+    void pull();
+    const timer = window.setInterval(() => {
+      void pull();
+    }, 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [isRestoring, tenant_id, lang]);
 
   const downloadRejectedCsv = () => {
     if (!lastRestoreReport?.rejected_samples?.length) {
@@ -422,6 +454,49 @@ export default function DatabasePanel() {
                 : tx(lang, 'Backup yoxlanılır', 'Backup проверяется')}
             </h3>
             <p className="mt-2 text-sm text-slate-300">{busyMessage}</p>
+            {isRestoring && liveRestoreStatus && Number(liveRestoreStatus.total_tables || 0) > 0 && (
+              <div className="mt-4 text-left">
+                <div className="mb-2 flex items-center justify-between text-[11px] text-slate-400">
+                  <span>Run: {liveRestoreStatus.restore_run_id || '-'}</span>
+                  <span>{String(liveRestoreStatus.phase || 'restoring')}</span>
+                </div>
+                <div className="mb-1 flex items-center justify-between text-xs text-slate-300">
+                  <span>
+                    {tx(lang, 'Mərhələ', 'Этап')}: {liveRestoreStatus.current_table || tx(lang, 'yoxlanır', 'проверка')}
+                  </span>
+                  <span>
+                    {Math.min(
+                      100,
+                      Math.round(
+                        (Number(liveRestoreStatus.processed_tables || 0) / Number(liveRestoreStatus.total_tables || 1)) * 100,
+                      ),
+                    )}
+                    %
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-slate-700/70">
+                  <div
+                    className="h-full rounded-full bg-amber-300 transition-all"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.round(
+                          (Number(liveRestoreStatus.processed_tables || 0) / Number(liveRestoreStatus.total_tables || 1)) * 100,
+                        ),
+                      )}%`,
+                    }}
+                  />
+                </div>
+                <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
+                  <span>
+                    {tx(lang, 'Xəbərdarlıq', 'Предупреждения')}: {Number(liveRestoreStatus.warnings_count || 0)}
+                  </span>
+                  <span>
+                    {tx(lang, 'Yeniləndi', 'Обновлено')}: {liveRestoreStatus.updated_at ? new Date(liveRestoreStatus.updated_at).toLocaleTimeString() : '-'}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -485,6 +560,15 @@ export default function DatabasePanel() {
                 {tx(lang, `Yükləndi ${lastRestoreReport.restored_rows}, rədd ${lastRestoreReport.rejected_rows}`, `Загружено ${lastRestoreReport.restored_rows}, отклонено ${lastRestoreReport.rejected_rows}`)}
               </span>
             </div>
+            <div className="mt-2 grid gap-1 text-xs text-slate-400 sm:grid-cols-3">
+              <div>Run ID: <span className="text-slate-200">{lastRestoreReport.restore_run_id || '-'}</span></div>
+              <div>
+                {tx(lang, 'Müddət', 'Длительность')}: <span className="text-slate-200">{Number(lastRestoreReport.duration_ms || 0)} ms</span>
+              </div>
+              <div>
+                {tx(lang, 'Xəbərdarlıq', 'Предупреждения')}: <span className="text-slate-200">{(lastRestoreReport.warnings || []).length}</span>
+              </div>
+            </div>
             {lastRestoreReport.rejected_rows > 0 && (
               <button onClick={downloadRejectedCsv} className="glossy-gold mt-3 rounded-lg px-3 py-2 text-xs font-semibold">
                 {tx(lang, 'Rədd edilən sətirləri CSV yüklə', 'Скачать отклоненные строки (CSV)')}
@@ -516,6 +600,51 @@ export default function DatabasePanel() {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+            {lastRestoreReport.dependency_verification && Object.keys(lastRestoreReport.dependency_verification).length > 0 && (
+              <div className="mt-3 rounded-lg border border-slate-700/60 bg-slate-950/30 p-3">
+                <div className="font-semibold text-slate-100">
+                  {tx(lang, 'Asılılıq yoxlaması', 'Проверка зависимостей')}
+                </div>
+                <div className="mt-2 grid gap-2 sm:grid-cols-1">
+                  {Object.entries(lastRestoreReport.dependency_verification).map(([name, result]) => (
+                    <div
+                      key={name}
+                      className={`rounded-lg border px-3 py-2 text-xs ${
+                        result.ok
+                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100'
+                          : 'border-rose-500/40 bg-rose-500/10 text-rose-100'
+                      }`}
+                    >
+                      <div className="font-semibold">{name}</div>
+                      <div className="mt-1">
+                        {tx(
+                          lang,
+                          `Uyğunlaşmayan referens: ${Number((result as any).missing_refs || 0)}`,
+                          `Несовпадающих ссылок: ${Number((result as any).missing_refs || 0)}`,
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {Array.isArray(lastRestoreReport.warnings) && lastRestoreReport.warnings.length > 0 && (
+              <div className="mt-3 rounded-lg border border-yellow-300/40 bg-yellow-900/20 p-3 text-xs text-yellow-100">
+                <div className="mb-1 font-semibold">{tx(lang, 'Xəbərdarlıqlar', 'Предупреждения')}</div>
+                {lastRestoreReport.warnings.slice(0, 12).map((warning, idx) => (
+                  <div key={`${warning}_${idx}`}>- {warning}</div>
+                ))}
+                {lastRestoreReport.warnings.length > 12 && (
+                  <div className="mt-1 text-yellow-200/90">
+                    {tx(
+                      lang,
+                      `Daha ${lastRestoreReport.warnings.length - 12} xəbərdarlıq gizlədildi`,
+                      `Еще ${lastRestoreReport.warnings.length - 12} предупреждений скрыто`,
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
