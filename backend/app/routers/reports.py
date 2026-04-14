@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import AuditLog, FinanceAccount, FinanceEntry, FinanceLedgerEntry, Setting, Shift, ShiftHandover, Tenant, User
+from app.models import AuditLog, FinanceAccount, FinanceEntry, FinanceLedgerEntry, FinanceTransaction, Sale, Setting, Shift, ShiftHandover, Tenant, User
 from app.routers.finance import _ledger_balances_snapshot, _post_finance_transaction
 from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XReportIn, ZReportIn
 
@@ -450,18 +450,36 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
     breakdown = _shift_cash_breakdown(db, tenant.id, active)
     expected = breakdown["expected_cash"]
     shift_rows = _rows_since(db, tenant.id, active.opened_at)
+
+    sales_query = db.query(Sale).filter(Sale.tenant_id == tenant.id)
+    if active.opened_at:
+        sales_query = sales_query.filter(Sale.created_at >= active.opened_at)
+    shift_sales = sales_query.all()
     cash_sales = sum(
-        (Decimal(str(row.amount)) for row in shift_rows if _is_shift_sale_entry(row) and row.source == "cash"),
+        (
+            Decimal(str(sale.total or 0))
+            for sale in shift_sales
+            if str(sale.payment_method or "").strip().lower() in {"nəğd", "negd", "cash"}
+        ),
         Decimal("0"),
     )
     card_sales = sum(
-        (Decimal(str(row.amount)) for row in shift_rows if _is_shift_sale_entry(row) and row.source == "card"),
+        (
+            Decimal(str(sale.total or 0))
+            for sale in shift_sales
+            if str(sale.payment_method or "").strip().lower() in {"kart", "card"}
+        ),
         Decimal("0"),
     )
-    deposit_total = sum(
-        (Decimal(str(row.amount)) for row in shift_rows if _is_shift_deposit_entry(row)),
-        Decimal("0"),
+
+    deposit_query = db.query(FinanceTransaction).filter(
+        FinanceTransaction.tenant_id == tenant.id,
+        FinanceTransaction.status == "posted",
+        FinanceTransaction.transaction_type == "deposit_hold",
     )
+    if active.opened_at:
+        deposit_query = deposit_query.filter(FinanceTransaction.created_at >= active.opened_at)
+    deposit_total = sum((Decimal(str(row.amount or 0)) for row in deposit_query.all()), Decimal("0"))
     other_income_total, other_income_lines = _group_amounts(
         shift_rows,
         "in",
