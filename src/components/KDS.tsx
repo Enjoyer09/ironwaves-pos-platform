@@ -26,6 +26,9 @@ export default function KDS() {
 
   // Sifarişləri mütəmadi olaraq yoxla (Simulyativ WebSocket)
   useEffect(() => {
+    let mounted = true;
+    let pollTimer: number | null = null;
+    let clockTimer: number | null = null;
     const fetchOrders = async (force = false) => {
       const now = Date.now();
       if (!force && (fetchInFlightRef.current || now - lastFetchAtRef.current < 2500)) return;
@@ -33,25 +36,52 @@ export default function KDS() {
       lastFetchAtRef.current = now;
       try {
         const activeOrders = await get_kitchen_orders_live(tenant_id);
+        if (!mounted) return;
         setOrders(Array.isArray(activeOrders) ? activeOrders : []);
       } catch (e) {
         logUiError(tenant_id, 'kds', e instanceof Error ? e.message : String(e), { phase: 'fetch_orders' });
+        if (!mounted) return;
         setOrders([]);
       } finally {
         fetchInFlightRef.current = false;
       }
     };
+    const schedulePoll = () => {
+      if (!mounted) return;
+      const intervalMs = document.visibilityState === 'visible' ? 20000 : 90000;
+      pollTimer = window.setTimeout(() => {
+        if (document.visibilityState === 'visible') {
+          void fetchOrders();
+        }
+        schedulePoll();
+      }, intervalMs);
+    };
+    const scheduleClock = () => {
+      if (!mounted) return;
+      const intervalMs = document.visibilityState === 'visible' ? 30000 : 120000;
+      clockTimer = window.setTimeout(() => {
+        if (document.visibilityState === 'visible') {
+          setCurrentTime(Date.now());
+        }
+        scheduleClock();
+      }, intervalMs);
+    };
+    const onVisibility = () => {
+      if (!document.hidden) {
+        setCurrentTime(Date.now());
+        void fetchOrders(true);
+      }
+    };
 
     void fetchOrders(true);
-    const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        void fetchOrders();
-      }
-    }, 20000);
-    const clock = setInterval(() => setCurrentTime(Date.now()), 30000);
+    schedulePoll();
+    scheduleClock();
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
-      clearInterval(interval);
-      clearInterval(clock);
+      mounted = false;
+      if (pollTimer) window.clearTimeout(pollTimer);
+      if (clockTimer) window.clearTimeout(clockTimer);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [tenant_id]);
 

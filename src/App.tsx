@@ -289,6 +289,7 @@ export default function App() {
 
   useEffect(() => {
     let mounted = true;
+    let timerId: number | null = null;
 
     const refreshConnectivity = async () => {
       const browserSignal = typeof navigator !== 'undefined' ? navigator.onLine : true;
@@ -298,6 +299,16 @@ export default function App() {
       }
       const realOnline = await probeInternet();
       if (mounted) setIsOnline(realOnline);
+    };
+    const scheduleNext = () => {
+      if (!mounted) return;
+      const intervalMs = document.visibilityState === 'visible' ? 60000 : 180000;
+      timerId = window.setTimeout(() => {
+        if (document.visibilityState === 'visible') {
+          void refreshConnectivity();
+        }
+        scheduleNext();
+      }, intervalMs);
     };
 
     const handleOnline = () => {
@@ -311,15 +322,11 @@ export default function App() {
     if (document.visibilityState === 'visible') {
       void refreshConnectivity();
     }
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        void refreshConnectivity();
-      }
-    }, 60000);
+    scheduleNext();
 
     return () => {
       mounted = false;
-      clearInterval(timer);
+      if (timerId) window.clearTimeout(timerId);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
@@ -344,6 +351,7 @@ export default function App() {
     }
 
     let mounted = true;
+    let timerId: number | null = null;
     const refreshPending = async () => {
       if (pendingOfflineInFlightRef.current) return;
       pendingOfflineInFlightRef.current = true;
@@ -357,11 +365,17 @@ export default function App() {
         pendingOfflineInFlightRef.current = false;
       }
     };
+    const scheduleNext = () => {
+      if (!mounted) return;
+      const intervalMs = document.visibilityState === 'visible' ? 45000 : 150000;
+      timerId = window.setTimeout(() => {
+        if (document.visibilityState === 'visible') void refreshPending();
+        scheduleNext();
+      }, intervalMs);
+    };
 
     void refreshPending();
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void refreshPending();
-    }, 45000);
+    scheduleNext();
 
     const onVisibility = () => {
       if (!document.hidden) void refreshPending();
@@ -371,7 +385,7 @@ export default function App() {
 
     return () => {
       mounted = false;
-      clearInterval(timer);
+      if (timerId) window.clearTimeout(timerId);
       window.removeEventListener('focus', onVisibility);
       document.removeEventListener('visibilitychange', onVisibility);
     };
@@ -405,6 +419,7 @@ export default function App() {
   useEffect(() => {
     if (!hasValidUser || !user?.tenant_id || !user?.username) return;
     let cancelled = false;
+    let timerId: number | null = null;
     const pollNotifications = async () => {
       if (notificationInFlightRef.current || document.visibilityState !== 'visible') return;
       notificationInFlightRef.current = true;
@@ -428,15 +443,26 @@ export default function App() {
         notificationInFlightRef.current = false;
       }
     };
+    const scheduleNext = () => {
+      if (cancelled) return;
+      const intervalMs = document.visibilityState === 'visible' ? 45000 : 180000;
+      timerId = window.setTimeout(() => {
+        void pollNotifications();
+        scheduleNext();
+      }, intervalMs);
+    };
+    const onVisibility = () => {
+      if (!document.hidden) void pollNotifications();
+    };
 
     void pollNotifications();
-    const timer = window.setInterval(() => {
-      void pollNotifications();
-    }, 45000);
+    scheduleNext();
+    document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      if (timerId) window.clearTimeout(timerId);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [hasValidUser, user?.tenant_id, user?.username, notify, activeTenant]);
 
