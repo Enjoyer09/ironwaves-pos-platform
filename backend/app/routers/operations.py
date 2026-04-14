@@ -4636,6 +4636,7 @@ def list_super_error_logs(
     to_date: str | None = None,
     tenant_id: str | None = None,
     q: str | None = None,
+    include_all: bool = Query(default=False),
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
@@ -4655,26 +4656,27 @@ def list_super_error_logs(
 
     action_upper = func.upper(AuditLog.action)
     details_lower = func.lower(func.coalesce(AuditLog.details, ""))
-    query = query.filter(
-        (action_upper.like("%ERROR%"))
-        | (action_upper.like("%FAIL%"))
-        | (action_upper.like("%REJECT%"))
-        | action_upper.in_(
-            [
-                "UI_ERROR",
-                "RESTORE_FAILED",
-                "DATABASE_RESTORE_FAILED",
-                "TENANT_DELETE_FAILED",
-                "AUTH_LOGIN_FAILED",
-                "FINANCE_POST_FAILED",
-                "KITCHEN_ORDER_FAILED",
-            ]
+    if not include_all:
+        query = query.filter(
+            (action_upper.like("%ERROR%"))
+            | (action_upper.like("%FAIL%"))
+            | (action_upper.like("%REJECT%"))
+            | action_upper.in_(
+                [
+                    "UI_ERROR",
+                    "RESTORE_FAILED",
+                    "DATABASE_RESTORE_FAILED",
+                    "TENANT_DELETE_FAILED",
+                    "AUTH_LOGIN_FAILED",
+                    "FINANCE_POST_FAILED",
+                    "KITCHEN_ORDER_FAILED",
+                ]
+            )
+            | details_lower.like("%error%")
+            | details_lower.like("%exception%")
+            | details_lower.like("%traceback%")
+            | details_lower.like("%failed%")
         )
-        | details_lower.like("%error%")
-        | details_lower.like("%exception%")
-        | details_lower.like("%traceback%")
-        | details_lower.like("%failed%")
-    )
 
     search = str(q or "").strip().lower()
     if search:

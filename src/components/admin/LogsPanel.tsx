@@ -13,6 +13,7 @@ export default function LogsPanel() {
   const [query, setQuery] = useState('');
   const [superErrorMode, setSuperErrorMode] = useState(false);
   const [tenantFilter, setTenantFilter] = useState('');
+  const [superIncludeAll, setSuperIncludeAll] = useState(false);
   const [fromDate, setFromDate] = useState(() => localDateInputValue());
   const [toDate, setToDate] = useState(() => localDateInputValue());
   const [logs, setLogs] = useState<any[]>([]);
@@ -22,13 +23,14 @@ export default function LogsPanel() {
     if (String(user?.role || '').toLowerCase() !== 'super_admin') {
       setSuperErrorMode(false);
       setTenantFilter('');
+      setSuperIncludeAll(false);
     }
   }, [user?.role]);
 
   React.useEffect(() => {
     const load = () => {
       if (superErrorMode && String(user?.role || '').toLowerCase() === 'super_admin') {
-        void get_super_error_logs_live(limit, fromDate, toDate, tenantFilter, query)
+        void get_super_error_logs_live(limit, fromDate, toDate, tenantFilter, query, superIncludeAll)
           .then(setLogs)
           .catch(() => setLogs([]));
         return;
@@ -48,7 +50,47 @@ export default function LogsPanel() {
       window.removeEventListener('logs-updated', handleRefresh as EventListener);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [tenant_id, limit, fromDate, toDate, superErrorMode, tenantFilter, query, user?.role]);
+  }, [tenant_id, limit, fromDate, toDate, superErrorMode, tenantFilter, query, user?.role, superIncludeAll]);
+
+  const downloadJson = () => {
+    try {
+      const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `logs_${tenant_id}_${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // ignore
+    }
+  };
+
+  const downloadCsv = () => {
+    try {
+      const header = ['created_at', 'tenant_id', 'user', 'action', 'details'];
+      const escapeCell = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const lines = [header.join(',')];
+      filtered.forEach((row: any) => {
+        lines.push([
+          row?.created_at || '',
+          row?.tenant_id || '',
+          row?.user || '',
+          row?.action || '',
+          JSON.stringify(parseDetails(row?.details || {})),
+        ].map(escapeCell).join(','));
+      });
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `logs_${tenant_id}_${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // ignore
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -248,6 +290,16 @@ export default function LogsPanel() {
               className="neon-input min-w-[220px]"
             />
           )}
+          {superErrorMode && String(user?.role || '').toLowerCase() === 'super_admin' && (
+            <label className="inline-flex items-center gap-2 rounded-lg border border-slate-500/40 bg-slate-800/40 px-3 py-2 text-xs text-slate-100">
+              <input
+                type="checkbox"
+                checked={superIncludeAll}
+                onChange={(e) => setSuperIncludeAll(e.target.checked)}
+              />
+              {tx(lang, 'Yalnız xətalar yox, hamısını göstər', 'Показывать не только ошибки, но и все', 'Show all logs, not only errors')}
+            </label>
+          )}
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -269,6 +321,12 @@ export default function LogsPanel() {
             <option value={10}>10</option>
             <option value={20}>20</option>
           </select>
+          <button className="neon-btn" onClick={downloadJson}>
+            {tx(lang, 'JSON yüklə', 'Скачать JSON', 'Download JSON')}
+          </button>
+          <button className="neon-btn" onClick={downloadCsv}>
+            {tx(lang, 'CSV yüklə', 'Скачать CSV', 'Download CSV')}
+          </button>
         </div>
       </div>
 
