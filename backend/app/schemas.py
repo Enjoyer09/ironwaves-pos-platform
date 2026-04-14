@@ -80,6 +80,15 @@ class MenuItemCreateIn(BaseModel):
     description: str | None = None
 
 
+class MenuItemUpdateIn(BaseModel):
+    item_name: str | None = None
+    price: Decimal | None = None
+    category: str | None = None
+    is_coffee: bool | None = None
+    image_url: str | None = None
+    description: str | None = None
+
+
 class InventoryItemCreateIn(BaseModel):
     name: str
     stock_qty: Decimal

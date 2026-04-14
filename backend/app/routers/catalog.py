@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import AuditLog, FinanceEntry, InventoryItem, MenuItem, Recipe, Tenant, User
-from app.schemas import InventoryItemCreateIn, InventoryRestockIn, InventoryLossIn, MenuItemCreateIn, RecipeIngredientCreateIn
+from app.schemas import InventoryItemCreateIn, InventoryRestockIn, InventoryLossIn, MenuItemCreateIn, MenuItemUpdateIn, RecipeIngredientCreateIn
 
 
 router = APIRouter(prefix="/api/v1/catalog", tags=["catalog"])
@@ -245,6 +245,85 @@ def soft_delete_menu_item(
     row.is_active = False
     db.commit()
     return {"success": True}
+
+
+@router.patch("/menu/{item_id}", response_model=MenuItemOut)
+def update_menu_item(
+    item_id: str,
+    payload: MenuItemUpdateIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_catalog_write_access(user)
+    row = (
+        db.query(MenuItem)
+        .filter(MenuItem.id == item_id, MenuItem.tenant_id == tenant.id, MenuItem.is_active == True)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Menu item not found")
+
+    if payload.item_name is not None:
+        next_name = str(payload.item_name or "").strip()
+        if len(next_name) < 2:
+            raise HTTPException(status_code=400, detail="Item name is required")
+        duplicate = (
+            db.query(MenuItem)
+            .filter(
+                MenuItem.tenant_id == tenant.id,
+                MenuItem.id != row.id,
+                func.lower(MenuItem.item_name) == next_name.lower(),
+                MenuItem.is_active == True,
+            )
+            .first()
+        )
+        if duplicate:
+            raise HTTPException(status_code=409, detail="Menu item already exists")
+        row.item_name = next_name
+    if payload.category is not None:
+        next_category = str(payload.category or "").strip()
+        if len(next_category) < 2:
+            raise HTTPException(status_code=400, detail="Category is required")
+        row.category = next_category
+    if payload.price is not None:
+        row.price = Decimal(str(payload.price))
+    if payload.is_coffee is not None:
+        row.is_coffee = bool(payload.is_coffee)
+    if payload.image_url is not None:
+        row.image_url = str(payload.image_url or "").strip() or None
+    if payload.description is not None:
+        row.description = str(payload.description or "").strip() or None
+
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="MENU_EDIT",
+            details=json.dumps(
+                {
+                    "item_id": row.id,
+                    "item_name": row.item_name,
+                    "category": row.category,
+                    "price": str(row.price),
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    db.commit()
+    db.refresh(row)
+    return {
+        "id": row.id,
+        "tenant_id": row.tenant_id,
+        "item_name": row.item_name,
+        "category": row.category,
+        "price": str(row.price),
+        "is_coffee": bool(row.is_coffee),
+        "image_url": row.image_url or "",
+        "description": row.description or "",
+        "is_active": bool(row.is_active),
+    }
 
 
 @router.get("/inventory", response_model=list[InventoryItemOut])

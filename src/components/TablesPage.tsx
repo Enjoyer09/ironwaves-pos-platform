@@ -75,6 +75,7 @@ export default function TablesPage() {
   const [draggingReservationId, setDraggingReservationId] = useState<string | null>(null);
   const [reservationDropPreview, setReservationDropPreview] = useState<{ lane: number; top: number; reservationAt: string; assignedTableId: string | null; hasConflict: boolean } | null>(null);
   const [selectedFloorTableId, setSelectedFloorTableId] = useState<string | null>(null);
+  const [selectedFloorTableLabel, setSelectedFloorTableLabel] = useState('');
   const [selectedFloorGroupId, setSelectedFloorGroupId] = useState<string | null>(null);
   const [floorMultiSelectMode, setFloorMultiSelectMode] = useState(false);
   const [selectedFloorTableIds, setSelectedFloorTableIds] = useState<string[]>([]);
@@ -97,6 +98,12 @@ export default function TablesPage() {
   const [tenantSettings, setTenantSettings] = useState<any>({});
   const receiptRef = useRef<HTMLIFrameElement | null>(null);
   const detailPanelRef = useRef<HTMLDivElement | null>(null);
+  const realtimeRefreshTimerRef = useRef<number | null>(null);
+  const realtimeRefreshInFlightRef = useRef(false);
+  const realtimeRefreshPendingRef = useRef(false);
+  const activeFloorIdRef = useRef<string>('');
+  const viewTableIdRef = useRef<string | null>(null);
+  const workspaceViewRef = useRef<'floor' | 'reservations'>('floor');
   const businessProfile = get_business_profile(tenant_id);
   const printSettings = tenantSettings.print_settings || { use_qz: false, printer_name: '' };
   const depositPerGuest = new Decimal((tenantSettings as any).table_service_settings?.deposit_per_guest_azn || 0);
@@ -245,6 +252,10 @@ export default function TablesPage() {
     [floorTables, selectedFloorTableId],
   );
 
+  useEffect(() => {
+    setSelectedFloorTableLabel(String(selectedFloorTable?.label || ''));
+  }, [selectedFloorTable?.id, selectedFloorTable?.label]);
+
   const selectedFloorGroup = useMemo(() => {
     const mergedGroupId = String(selectedFloorGroupId || (selectedFloorTable as any)?.merged_group_id || '').trim();
     if (!mergedGroupId) return null;
@@ -350,6 +361,18 @@ export default function TablesPage() {
       setActiveFloorId(floorPlans.find((row) => row.is_active)?.id || floorPlans[0].id);
     }
   }, [floorPlans, activeFloorId]);
+
+  useEffect(() => {
+    activeFloorIdRef.current = activeFloorId;
+  }, [activeFloorId]);
+
+  useEffect(() => {
+    viewTableIdRef.current = viewTableId;
+  }, [viewTableId]);
+
+  useEffect(() => {
+    workspaceViewRef.current = workspaceView;
+  }, [workspaceView]);
 
   useEffect(() => {
     if (!copyLayoutSourceFloorId) {
@@ -468,24 +491,75 @@ export default function TablesPage() {
   }, [tables, viewTableId]);
 
   useEffect(() => {
+    const runRealtimeRefresh = async () => {
+      if (realtimeRefreshInFlightRef.current) {
+        realtimeRefreshPendingRef.current = true;
+        return;
+      }
+      realtimeRefreshInFlightRef.current = true;
+      try {
+        const currentFloorId = activeFloorIdRef.current;
+        const currentViewTableId = viewTableIdRef.current;
+        const currentWorkspace = workspaceViewRef.current;
+
+        const tasks: Array<Promise<any>> = [
+          get_tables_live(tenant_id)
+            .then((nextTables) => setTables(Array.isArray(nextTables) ? nextTables : []))
+            .catch(() => {}),
+          get_kitchen_orders_live(tenant_id)
+            .then((nextOrders) => setKitchenOrders(Array.isArray(nextOrders) ? nextOrders : []))
+            .catch(() => {}),
+        ];
+
+        if (currentFloorId) {
+          tasks.push(
+            get_floor_state_live(tenant_id, currentFloorId)
+              .then((state) => setFloorTables(Array.isArray(state?.tables) ? state.tables : []))
+              .catch(() => {}),
+          );
+        }
+        if (currentWorkspace === 'reservations') {
+          tasks.push(
+            get_reservations_live(tenant_id, reservationDate)
+              .then((rows) => setReservations(Array.isArray(rows) ? rows : []))
+              .catch(() => {}),
+          );
+        }
+        if (currentViewTableId) {
+          tasks.push(
+            get_table_detail_live(tenant_id, currentViewTableId)
+              .then((next) => setTableDetailRecord(next))
+              .catch(() => {}),
+          );
+        }
+        await Promise.all(tasks);
+      } finally {
+        realtimeRefreshInFlightRef.current = false;
+        if (realtimeRefreshPendingRef.current) {
+          realtimeRefreshPendingRef.current = false;
+          void runRealtimeRefresh();
+        }
+      }
+    };
+
+    const scheduleRealtimeRefresh = () => {
+      if (realtimeRefreshTimerRef.current) window.clearTimeout(realtimeRefreshTimerRef.current);
+      realtimeRefreshTimerRef.current = window.setTimeout(() => {
+        void runRealtimeRefresh();
+      }, 220);
+    };
+
     const unsubscribe = subscribeTenantRealtime(tenant_id, (message) => {
       const event = String(message.event || '');
       if (!['floor.updated', 'reservation.updated', 'table.updated', 'check.updated', 'kitchen.updated'].includes(event)) return;
-      void loadData();
-      if (workspaceView === 'reservations' || event === 'reservation.updated') {
-        void loadRestaurantData();
-      }
-      if (activeFloorId) {
-        void loadFloorState(activeFloorId);
-      }
-      if (viewTableId) {
-        void get_table_detail_live(tenant_id, viewTableId)
-          .then((next) => setTableDetailRecord(next))
-          .catch(() => {});
-      }
+      scheduleRealtimeRefresh();
     });
-    return unsubscribe;
-  }, [tenant_id, workspaceView, activeFloorId, viewTableId]);
+    return () => {
+      if (realtimeRefreshTimerRef.current) window.clearTimeout(realtimeRefreshTimerRef.current);
+      realtimeRefreshPendingRef.current = false;
+      unsubscribe();
+    };
+  }, [tenant_id, reservationDate]);
 
   useEffect(() => {
     try {
@@ -2707,6 +2781,28 @@ export default function TablesPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex min-w-[240px] items-center gap-2 rounded-xl border border-cyan-300/25 bg-cyan-500/10 px-2 py-2 text-xs text-cyan-100">
+                    <input
+                      className="neon-input h-9 min-w-[150px] flex-1"
+                      value={selectedFloorTableLabel}
+                      onChange={(e) => setSelectedFloorTableLabel(e.target.value)}
+                      placeholder={tx(lang, 'Masa adı', 'Название стола', 'Table name')}
+                    />
+                    <button
+                      type="button"
+                      className="rounded-md border border-cyan-300/30 px-3 py-2 text-xs font-semibold"
+                      onClick={() => {
+                        const nextLabel = String(selectedFloorTableLabel || '').trim();
+                        if (!nextLabel) {
+                          notify('error', tx(lang, 'Masa adı boş ola bilməz', 'Название стола не может быть пустым', 'Table name cannot be empty'));
+                          return;
+                        }
+                        void persistFloorLayout(selectedFloorTable.id, { label: nextLabel });
+                      }}
+                    >
+                      {tx(lang, 'Adı saxla', 'Сохранить имя', 'Save name')}
+                    </button>
+                  </div>
                   <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-600 bg-slate-900/40 px-2 py-2 text-xs text-slate-200">
                     <span className="font-semibold text-slate-300">{tx(lang, 'Preset', 'Пресет', 'Preset')}</span>
                     <button type="button" className="rounded-md border border-slate-600 px-2 py-1" onClick={() => { void persistFloorLayout(selectedFloorTable.id, { shape: 'circle', width_units: 2, height_units: 2, capacity: 2 }); }}>
