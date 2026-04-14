@@ -46,7 +46,7 @@ from app.models import (
     User,
     WasteLog,
 )
-from app.routers.finance import _post_finance_transaction
+from app.services.finance_service import post_finance_transaction as _post_finance_transaction
 from app.core.config import settings as app_settings
 from app.security import hash_password, hash_token, verify_password
 
