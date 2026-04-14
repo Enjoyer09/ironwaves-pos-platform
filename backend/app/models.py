@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -382,6 +382,16 @@ class FinanceAccount(Base):
 
 class FinanceTransaction(Base):
     __tablename__ = "finance_transactions"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_finance_transactions_amount_positive"),
+        CheckConstraint(
+            "status IN ('draft','pending_approval','approved','posted','rejected','reversed')",
+            name="ck_finance_transactions_status_valid",
+        ),
+        Index("ix_finance_transactions_tenant_created", "tenant_id", "created_at"),
+        Index("ix_finance_transactions_tenant_status_created", "tenant_id", "status", "created_at"),
+        Index("ix_finance_transactions_tenant_type_created", "tenant_id", "transaction_type", "created_at"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
@@ -411,6 +421,12 @@ class FinanceTransaction(Base):
 
 class FinanceLedgerEntry(Base):
     __tablename__ = "finance_ledger_entries"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_finance_ledger_entries_amount_positive"),
+        CheckConstraint("entry_side IN ('debit','credit')", name="ck_finance_ledger_entries_side_valid"),
+        Index("ix_finance_ledger_entries_tenant_account_created", "tenant_id", "account_id", "created_at"),
+        Index("ix_finance_ledger_entries_tenant_transaction", "tenant_id", "transaction_id"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
@@ -442,6 +458,10 @@ class FinanceReconciliation(Base):
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index("ix_audit_logs_tenant_created", "tenant_id", "created_at"),
+        Index("ix_audit_logs_tenant_action_created", "tenant_id", "action", "created_at"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)

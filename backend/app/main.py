@@ -20,6 +20,32 @@ from app.routers import analytics_api, auth, catalog, finance, operations, pos, 
 from app.security import decode_token, hash_password
 
 
+def _init_error_tracking() -> None:
+    dsn = str(settings.sentry_dsn or "").strip()
+    if not dsn:
+        return
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
+        sentry_sdk.init(
+            dsn=dsn,
+            environment=settings.app_env,
+            traces_sample_rate=float(settings.sentry_traces_sample_rate or 0.0),
+            profiles_sample_rate=float(settings.sentry_profiles_sample_rate or 0.0),
+            integrations=[
+                FastApiIntegration(),
+                SqlalchemyIntegration(),
+            ],
+        )
+    except Exception:
+        # Error tracking is optional. If SDK is unavailable or misconfigured,
+        # the API must keep working and can be fixed via environment/deploy later.
+        return
+
+
+_init_error_tracking()
 app = FastAPI(title=settings.app_name)
 
 
@@ -616,6 +642,45 @@ def _run_startup_migrations():
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_transactions_source_account_id ON finance_transactions (source_account_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_transactions_destination_account_id ON finance_transactions (destination_account_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_transactions_legacy_finance_entry_id ON finance_transactions (legacy_finance_entry_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_transactions_tenant_created ON finance_transactions (tenant_id, created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_transactions_tenant_status_created ON finance_transactions (tenant_id, status, created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_transactions_tenant_type_created ON finance_transactions (tenant_id, transaction_type, created_at)"))
+        conn.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1
+                        FROM pg_constraint
+                        WHERE conname = 'ck_finance_transactions_amount_positive'
+                    ) THEN
+                        ALTER TABLE finance_transactions
+                        ADD CONSTRAINT ck_finance_transactions_amount_positive
+                        CHECK (amount > 0);
+                    END IF;
+                END $$;
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1
+                        FROM pg_constraint
+                        WHERE conname = 'ck_finance_transactions_status_valid'
+                    ) THEN
+                        ALTER TABLE finance_transactions
+                        ADD CONSTRAINT ck_finance_transactions_status_valid
+                        CHECK (status IN ('draft','pending_approval','approved','posted','rejected','reversed'));
+                    END IF;
+                END $$;
+                """
+            )
+        )
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS finance_ledger_entries (
                 id VARCHAR(36) PRIMARY KEY,
@@ -632,6 +697,44 @@ def _run_startup_migrations():
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_ledger_entries_tenant_id ON finance_ledger_entries (tenant_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_ledger_entries_transaction_id ON finance_ledger_entries (transaction_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_ledger_entries_account_id ON finance_ledger_entries (account_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_ledger_entries_tenant_account_created ON finance_ledger_entries (tenant_id, account_id, created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_ledger_entries_tenant_transaction ON finance_ledger_entries (tenant_id, transaction_id)"))
+        conn.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1
+                        FROM pg_constraint
+                        WHERE conname = 'ck_finance_ledger_entries_amount_positive'
+                    ) THEN
+                        ALTER TABLE finance_ledger_entries
+                        ADD CONSTRAINT ck_finance_ledger_entries_amount_positive
+                        CHECK (amount > 0);
+                    END IF;
+                END $$;
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1
+                        FROM pg_constraint
+                        WHERE conname = 'ck_finance_ledger_entries_side_valid'
+                    ) THEN
+                        ALTER TABLE finance_ledger_entries
+                        ADD CONSTRAINT ck_finance_ledger_entries_side_valid
+                        CHECK (entry_side IN ('debit','credit'));
+                    END IF;
+                END $$;
+                """
+            )
+        )
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS finance_reconciliations (
                 id VARCHAR(36) PRIMARY KEY,
@@ -738,6 +841,7 @@ def _run_startup_migrations():
         """))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_customer_consents_tenant_card ON customer_consents (tenant_id, card_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_customer_consents_accepted_at ON customer_consents (accepted_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_audit_logs_tenant_created ON audit_logs (tenant_id, created_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_audit_logs_tenant_action_created ON audit_logs (tenant_id, action, created_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_customers_tenant_card ON customers (tenant_id, card_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_tenant_card_created ON notifications (tenant_id, card_id, created_at)"))
