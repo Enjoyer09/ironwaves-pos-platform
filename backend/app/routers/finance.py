@@ -28,18 +28,6 @@ from app.schemas import FinanceEntryIn, FinanceReconciliationIn, FinanceTransact
 router = APIRouter(prefix="/api/v1/finance", tags=["finance"])
 
 
-FINANCE_ACCOUNT_DEFS: dict[str, tuple[str, str]] = {
-    "cash": ("cash_drawer", "Nağd Kassa"),
-    "card": ("bank_account", "Bank/Kart"),
-    "safe": ("safe", "Seyf"),
-    "deposit": ("deposit_liability", "Depozit Öhdəliyi"),
-    "investor": ("investor_liability", "Investor Borcu"),
-    "debt": ("receivable", "Nisyə/Borc"),
-    "revenue": ("revenue", "Satış Gəliri"),
-    "expense": ("expense", "Xərc"),
-    "adjustment": ("adjustment", "Maliyyə Düzəlişi"),
-}
-
 FINANCE_CATEGORY_LABELS: dict[str, str] = {
     "founder_investment": "Təsisçi İnvestisiyası",
     "borrowed_funds_in": "Borc Alındı",
@@ -76,8 +64,6 @@ FINANCE_CATEGORY_ALIASES: dict[str, set[str]] = {
     "investor_liability": {"investor borcu", "investor liability", "dolg investoru"},
 }
 
-LIABILITY_OR_CREDIT_TYPES = {"deposit_liability", "investor_liability", "revenue"}
-APPROVAL_REQUIRED_TYPES = {"investor_repayment", "cash_adjustment", "reconciliation_adjustment", "reversal"}
 APPROVAL_TRANSFER_THRESHOLD = Decimal("500.00")
 DEFAULT_FINANCE_POLICY = {
     "large_transfer_threshold_azn": 500,
@@ -136,103 +122,20 @@ def _finance_category_label(value: str | None = None, category_code: str | None 
     return (value or "").strip()
 
 
-def _ensure_finance_accounts(db: Session, tenant_id: str) -> dict[str, FinanceAccount]:
-    rows = db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant_id).all()
-    by_code = {row.code: row for row in rows}
-    changed = False
-    for code, (account_type, name) in FINANCE_ACCOUNT_DEFS.items():
-        if code not in by_code:
-            account = FinanceAccount(
-                tenant_id=tenant_id,
-                code=code,
-                name=name,
-                account_type=account_type,
-                currency="AZN",
-                is_active=True,
-            )
-            db.add(account)
-            by_code[code] = account
-            changed = True
-    if changed:
-        db.flush()
-    return by_code
-
-
-def _finance_account(db: Session, tenant_id: str, code: str) -> FinanceAccount:
-    accounts = _ensure_finance_accounts(db, tenant_id)
-    account = accounts.get(code)
-    if not account:
-        raise HTTPException(status_code=400, detail=f"Unknown finance account: {code}")
-    return account
-
-
-def _account_ledger_totals(db: Session, tenant_id: str, account: FinanceAccount) -> dict[str, Decimal]:
-    rows = (
-        db.query(FinanceLedgerEntry)
-        .filter(FinanceLedgerEntry.tenant_id == tenant_id, FinanceLedgerEntry.account_id == account.id)
-        .all()
-    )
-    debit = sum((Decimal(str(row.amount)) for row in rows if row.entry_side == "debit"), Decimal("0"))
-    credit = sum((Decimal(str(row.amount)) for row in rows if row.entry_side == "credit"), Decimal("0"))
-    if account.account_type in LIABILITY_OR_CREDIT_TYPES:
-        balance = credit - debit
-    else:
-        balance = debit - credit
-    return {"debit": debit, "credit": credit, "balance": balance}
-
-
-def _ledger_balances_snapshot(db: Session, tenant_id: str) -> dict[str, Decimal]:
-    accounts = _ensure_finance_accounts(db, tenant_id)
-    snapshot: dict[str, Decimal] = {}
-    for code, account in accounts.items():
-        snapshot[code] = _account_ledger_totals(db, tenant_id, account)["balance"].quantize(Decimal("0.01"))
-    return snapshot
-
-
-def _add_ledger_entry(
-    db: Session,
-    *,
-    tenant_id: str,
-    transaction_id: str,
-    account_id: str,
-    entry_side: str,
-    amount: Decimal,
-    description: str | None,
-):
-    db.add(
-        FinanceLedgerEntry(
-            tenant_id=tenant_id,
-            transaction_id=transaction_id,
-            account_id=account_id,
-            entry_side=entry_side,
-            amount=amount,
-            currency="AZN",
-            description=description,
-        )
-    )
-
-
-def _finance_policy(db: Session, tenant_id: str) -> dict:
-    raw = _setting_value(db, tenant_id, "finance_policy", DEFAULT_FINANCE_POLICY)
-    if not isinstance(raw, dict):
-        raw = {}
-    merged = {**DEFAULT_FINANCE_POLICY, **raw}
-    roles = merged.get("approver_roles") if isinstance(merged.get("approver_roles"), list) else DEFAULT_FINANCE_POLICY["approver_roles"]
-    merged["approver_roles"] = [str(role).strip().lower() for role in roles if str(role).strip()]
-    for key in ("large_transfer_threshold_azn", "reconciliation_variance_alert_azn", "negative_balance_alert_azn"):
-        try:
-            merged[key] = float(Decimal(str(merged.get(key))))
-        except Exception:
-            merged[key] = DEFAULT_FINANCE_POLICY[key]
-    for key in (
-        "investor_repayment_requires_approval",
-        "cash_adjustment_requires_approval",
-        "reversal_requires_approval",
-        "reconciliation_adjustment_requires_approval",
-        "legacy_wallet_sync_enabled",
-    ):
-        merged[key] = bool(merged.get(key))
-    return merged
+from app.services.finance_service import (  # noqa: E402 - keep router API thin while preserving helper names
+    FINANCE_ACCOUNT_DEFS,
+    account_ledger_totals as _account_ledger_totals,
+    create_finance_transaction_record as _create_finance_transaction_record,
+    ensure_finance_accounts as _ensure_finance_accounts,
+    finance_account_code as _finance_account_code,
+    finance_policy as _finance_policy,
+    ledger_balances_snapshot as _ledger_balances_snapshot,
+    lock_finance_accounts as _lock_finance_accounts,
+    mark_original_transaction_reversed as _mark_original_transaction_reversed,
+    mirror_posted_transaction_to_legacy_wallet as _mirror_posted_transaction_to_legacy_wallet,
+    post_existing_transaction as _post_existing_transaction,
+    post_finance_transaction as _post_finance_transaction,
+)
 
 
 def _is_finance_approver(user, policy: dict | None = None) -> bool:
@@ -248,24 +151,6 @@ def _ensure_finance_read_access(user) -> None:
 def _ensure_finance_write_access(user) -> None:
     if str(getattr(user, "role", "") or "").lower() not in FINANCE_WRITE_ROLES:
         raise HTTPException(status_code=403, detail="Finance write access required")
-
-
-def _lock_finance_accounts(db: Session, tenant_id: str, *codes: str) -> dict[str, FinanceAccount]:
-    normalized_codes = sorted({str(code or "").strip().lower() for code in codes if str(code or "").strip()})
-    if not normalized_codes:
-        return {}
-    _ensure_finance_accounts(db, tenant_id)
-    rows = (
-        db.query(FinanceAccount)
-        .filter(FinanceAccount.tenant_id == tenant_id, FinanceAccount.code.in_(normalized_codes))
-        .with_for_update()
-        .all()
-    )
-    by_code = {row.code: row for row in rows}
-    missing = [code for code in normalized_codes if code not in by_code]
-    if missing:
-        raise HTTPException(status_code=400, detail=f"Unknown finance account(s): {', '.join(missing)}")
-    return by_code
 
 
 def _approval_required(transaction_type: str, amount: Decimal, explicit: bool | None = None, policy: dict | None = None) -> bool:
@@ -285,311 +170,6 @@ def _approval_required(transaction_type: str, amount: Decimal, explicit: bool | 
     if tx_type == "internal_transfer" and Decimal(str(amount)) >= threshold:
         return True
     return False
-
-
-def _finance_account_code(db: Session, tenant_id: str, account_id: str | None) -> str | None:
-    if not account_id:
-        return None
-    row = db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant_id, FinanceAccount.id == account_id).first()
-    return row.code if row else None
-
-
-def _post_existing_transaction(db: Session, txn: FinanceTransaction, posted_by: str) -> FinanceTransaction:
-    if txn.status == "posted":
-        return txn
-    if txn.status not in {"pending_approval", "approved", "draft"}:
-        raise HTTPException(status_code=400, detail=f"Transaction cannot be posted from status {txn.status}")
-    existing_entry_count = (
-        db.query(FinanceLedgerEntry)
-        .filter(FinanceLedgerEntry.tenant_id == txn.tenant_id, FinanceLedgerEntry.transaction_id == txn.id)
-        .count()
-    )
-    if existing_entry_count > 0:
-        db.add(
-            AuditLog(
-                tenant_id=txn.tenant_id,
-                user=posted_by,
-                action="FINANCE_TRANSACTION_DUPLICATE_POST_BLOCKED",
-                details=json.dumps(
-                    {
-                        "transaction_id": txn.id,
-                        "existing_entry_count": existing_entry_count,
-                        "status": txn.status,
-                    },
-                    ensure_ascii=False,
-                ),
-            )
-        )
-        raise HTTPException(status_code=409, detail="Transaction posting was blocked because ledger entries already exist")
-    source_code = _finance_account_code(db, txn.tenant_id, txn.source_account_id)
-    destination_code = _finance_account_code(db, txn.tenant_id, txn.destination_account_id)
-    if not source_code or not destination_code:
-        raise HTTPException(status_code=400, detail="Transaction account mapping is incomplete")
-    _lock_finance_accounts(db, txn.tenant_id, source_code, destination_code)
-    source = _finance_account(db, txn.tenant_id, source_code)
-    destination = _finance_account(db, txn.tenant_id, destination_code)
-    description = txn.note or txn.category or txn.transaction_type
-    _add_ledger_entry(
-        db,
-        tenant_id=txn.tenant_id,
-        transaction_id=txn.id,
-        account_id=destination.id,
-        entry_side="debit",
-        amount=Decimal(str(txn.amount)),
-        description=description,
-    )
-    _add_ledger_entry(
-        db,
-        tenant_id=txn.tenant_id,
-        transaction_id=txn.id,
-        account_id=source.id,
-        entry_side="credit",
-        amount=Decimal(str(txn.amount)),
-        description=description,
-    )
-    now = datetime.utcnow()
-    txn.status = "posted"
-    txn.posted_by = posted_by
-    txn.posted_at = now
-    db.add(
-        AuditLog(
-            tenant_id=txn.tenant_id,
-            user=posted_by,
-            action="FINANCE_TRANSACTION_POSTED",
-            details=json.dumps(
-                {
-                    "transaction_id": txn.id,
-                    "transaction_type": txn.transaction_type,
-                    "source": source_code,
-                    "destination": destination_code,
-                    "amount": str(Decimal(str(txn.amount)).quantize(Decimal("0.01"))),
-                },
-                ensure_ascii=False,
-            ),
-        )
-    )
-    return txn
-
-
-def _mirror_posted_transaction_to_legacy_wallet(db: Session, txn: FinanceTransaction, posted_by: str) -> list[FinanceEntry]:
-    policy = _finance_policy(db, txn.tenant_id)
-    if not bool(policy.get("legacy_wallet_sync_enabled", True)):
-        db.add(
-            AuditLog(
-                tenant_id=txn.tenant_id,
-                user=posted_by,
-                action="FINANCE_LEGACY_WALLET_SYNC_SKIPPED",
-                details=json.dumps(
-                    {
-                        "transaction_id": txn.id,
-                        "transaction_type": txn.transaction_type,
-                        "reason": "legacy_wallet_sync_disabled",
-                    },
-                    ensure_ascii=False,
-                ),
-            )
-        )
-        return []
-    if txn.status != "posted" or txn.legacy_finance_entry_id:
-        return []
-    existing = (
-        db.query(FinanceEntry)
-        .filter(
-            FinanceEntry.tenant_id == txn.tenant_id,
-            FinanceEntry.description.contains(f"Ledger mirror: {txn.id}"),
-        )
-        .first()
-    )
-    if existing:
-        return []
-
-    source_code = _finance_account_code(db, txn.tenant_id, txn.source_account_id)
-    destination_code = _finance_account_code(db, txn.tenant_id, txn.destination_account_id)
-    amount = Decimal(str(txn.amount)).quantize(Decimal("0.01"))
-    note = f"{txn.note or txn.category or txn.transaction_type} | Ledger mirror: {txn.id}"
-    rows: list[FinanceEntry] = []
-
-    def add_entry(entry_type: str, category: str, source: str, description: str):
-        row = FinanceEntry(
-            tenant_id=txn.tenant_id,
-            type=entry_type,
-            category=category,
-            source=source,
-            amount=amount,
-            description=description,
-            created_by=posted_by,
-        )
-        db.add(row)
-        rows.append(row)
-
-    if txn.transaction_type in {"income", "cash_adjustment", "reconciliation_adjustment"} and destination_code in {"cash", "card", "safe", "debt"}:
-        add_entry("in", txn.category or "Ledger Mədaxil", destination_code, note)
-    elif txn.transaction_type == "expense" and source_code in {"cash", "card", "safe"}:
-        add_entry("out", txn.category or "Ledger Xərc", source_code, note)
-    elif txn.transaction_type == "internal_transfer" and source_code and destination_code:
-        add_entry("out", "Daxili Transfer", source_code, note)
-        add_entry("in", "Daxili Transfer", destination_code, note)
-    elif txn.transaction_type == "investor_repayment" and source_code in {"cash", "card", "safe"}:
-        add_entry("out", "İnvestora Geri Ödəniş", source_code, note)
-        add_entry("out", "İnvestor Borcu Azaldılması", "investor", note)
-    elif txn.transaction_type == "deposit_hold" and destination_code in {"cash", "card", "safe"}:
-        add_entry("in", "Depozit Alındı", destination_code, note)
-        add_entry("in", "Depozit Öhdəliyi", "deposit", note)
-    elif txn.transaction_type in {"deposit_release", "deposit_refund"} and source_code in {"cash", "card", "safe"}:
-        add_entry("out", "Depozit Qaytarıldı", source_code, note)
-        add_entry("out", "Depozit Öhdəliyi Azaldıldı", "deposit", note)
-    elif txn.transaction_type == "reversal" and source_code and destination_code:
-        if source_code in {"cash", "card", "safe", "deposit", "investor", "debt"}:
-            add_entry("out", txn.category or "Ledger Reversal", source_code, note)
-        if destination_code in {"cash", "card", "safe", "deposit", "investor", "debt"}:
-            add_entry("in", txn.category or "Ledger Reversal", destination_code, note)
-
-    if rows:
-        db.add(
-            AuditLog(
-                tenant_id=txn.tenant_id,
-                user=posted_by,
-                action="FINANCE_LEGACY_WALLET_SYNCED",
-                details=json.dumps(
-                    {
-                        "transaction_id": txn.id,
-                        "transaction_type": txn.transaction_type,
-                        "rows": [
-                            {"type": row.type, "category": row.category, "source": row.source, "amount": str(row.amount)}
-                            for row in rows
-                        ],
-                    },
-                    ensure_ascii=False,
-                ),
-            )
-        )
-    return rows
-
-
-def _mark_original_transaction_reversed(db: Session, reversal: FinanceTransaction, reversed_by: str) -> FinanceTransaction | None:
-    if reversal.transaction_type != "reversal" or not reversal.reference:
-        return None
-    original = (
-        db.query(FinanceTransaction)
-        .filter(FinanceTransaction.tenant_id == reversal.tenant_id, FinanceTransaction.id == reversal.reference)
-        .with_for_update()
-        .first()
-    )
-    if not original:
-        raise HTTPException(status_code=404, detail="Original transaction for reversal was not found")
-    if original.status != "posted":
-        raise HTTPException(status_code=400, detail=f"Original transaction cannot be reversed from status {original.status}")
-    now = datetime.utcnow()
-    original.status = "reversed"
-    original.reversed_by = reversed_by
-    original.reversed_at = now
-    db.add(
-        AuditLog(
-            tenant_id=reversal.tenant_id,
-            user=reversed_by,
-            action="FINANCE_TRANSACTION_REVERSED",
-            details=json.dumps(
-                {
-                    "transaction_id": original.id,
-                    "reversal_transaction_id": reversal.id,
-                    "amount": str(Decimal(str(reversal.amount)).quantize(Decimal("0.01"))),
-                },
-                ensure_ascii=False,
-            ),
-        )
-    )
-    return original
-
-
-def _create_finance_transaction_record(
-    db: Session,
-    *,
-    tenant_id: str,
-    transaction_type: str,
-    status: str,
-    amount: Decimal,
-    source_code: str,
-    destination_code: str,
-    created_by: str,
-    category: str | None = None,
-    counterparty: str | None = None,
-    reference: str | None = None,
-    note: str | None = None,
-    related_shift_id: str | None = None,
-    related_table_id: str | None = None,
-    related_order_id: str | None = None,
-    legacy_finance_entry_id: str | None = None,
-) -> FinanceTransaction:
-    source = _finance_account(db, tenant_id, source_code)
-    destination = _finance_account(db, tenant_id, destination_code)
-    now = datetime.utcnow()
-    txn = FinanceTransaction(
-        tenant_id=tenant_id,
-        transaction_type=transaction_type,
-        status=status,
-        source_account_id=source.id,
-        destination_account_id=destination.id,
-        amount=Decimal(str(amount)).quantize(Decimal("0.01")),
-        currency="AZN",
-        category=category,
-        counterparty=counterparty,
-        reference=reference,
-        note=note,
-        created_by=created_by,
-        created_at=now,
-        related_shift_id=related_shift_id,
-        related_table_id=related_table_id,
-        related_order_id=related_order_id,
-        legacy_finance_entry_id=legacy_finance_entry_id,
-    )
-    db.add(txn)
-    db.flush()
-    return txn
-
-
-def _post_finance_transaction(
-    db: Session,
-    *,
-    tenant_id: str,
-    transaction_type: str,
-    amount: Decimal,
-    source_code: str | None,
-    destination_code: str | None,
-    created_by: str,
-    category: str | None = None,
-    counterparty: str | None = None,
-    reference: str | None = None,
-    note: str | None = None,
-    related_shift_id: str | None = None,
-    related_table_id: str | None = None,
-    related_order_id: str | None = None,
-    legacy_finance_entry_id: str | None = None,
-) -> FinanceTransaction:
-    amount = Decimal(str(amount)).quantize(Decimal("0.01"))
-    if amount <= 0:
-        raise HTTPException(status_code=400, detail="Ledger transaction amount must be > 0")
-    if not source_code or not destination_code:
-        raise HTTPException(status_code=400, detail="Ledger transaction requires source and destination accounts")
-
-    txn = _create_finance_transaction_record(
-        db,
-        tenant_id=tenant_id,
-        transaction_type=transaction_type,
-        status="approved",
-        amount=amount,
-        source_code=source_code,
-        destination_code=destination_code,
-        created_by=created_by,
-        category=category,
-        counterparty=counterparty,
-        reference=reference,
-        note=note,
-        related_shift_id=related_shift_id,
-        related_table_id=related_table_id,
-        related_order_id=related_order_id,
-        legacy_finance_entry_id=legacy_finance_entry_id,
-    )
-    return _post_existing_transaction(db, txn, created_by)
 
 
 def _post_legacy_finance_entry(db: Session, entry: FinanceEntry, username: str) -> FinanceTransaction:

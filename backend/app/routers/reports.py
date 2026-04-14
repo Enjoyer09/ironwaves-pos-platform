@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import AuditLog, FinanceAccount, FinanceEntry, FinanceLedgerEntry, FinanceTransaction, Sale, Setting, Shift, ShiftHandover, Tenant, User
-from app.routers.finance import _ledger_balances_snapshot, _post_finance_transaction
+from app.services.finance_service import ledger_balances_snapshot as _ledger_balances_snapshot
+from app.services.finance_service import post_finance_transaction as _post_finance_transaction
 from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XReportIn, ZReportIn
 
 

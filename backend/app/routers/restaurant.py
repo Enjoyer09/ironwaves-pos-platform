@@ -16,7 +16,7 @@ from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import AuditLog, Check, FinanceEntry, FloorPlan, Guest, ItemStatusLog, KitchenOrder, OrderItem, OrderRound, Payment, Reservation, Sale, Setting, Table, TableSession, Tenant, User
 from app.realtime import broadcast_tenant_event
-from app.routers.finance import _post_finance_transaction
+from app.services.finance_service import post_finance_transaction as _post_finance_transaction
 from app.routers.operations import _collect_stock_ops
 from app.schemas import (
     DraftItemUpdateIn,
