@@ -192,6 +192,7 @@ export default function App() {
   const [settingsVersion, setSettingsVersion] = useState(0);
   const [perfEvents, setPerfEvents] = useState<PerfEvent[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [keyboardInset, setKeyboardInset] = useState(0);
   const offlineCountRef = useRef(0);
   const pendingOfflineInFlightRef = useRef(false);
   const notificationInFlightRef = useRef(false);
@@ -467,6 +468,18 @@ export default function App() {
   }, [hasValidUser, user?.tenant_id, user?.username, notify, activeTenant]);
 
   useEffect(() => {
+    const onKeyboardVisibility = (event: Event) => {
+      const detail = (event as CustomEvent<{ visible?: boolean; height?: number }>).detail || {};
+      const nextInset = detail.visible ? Math.max(0, Number(detail.height || 0)) : 0;
+      setKeyboardInset(nextInset);
+    };
+    window.addEventListener('virtual-keyboard-visibility', onKeyboardVisibility as EventListener);
+    return () => {
+      window.removeEventListener('virtual-keyboard-visibility', onKeyboardVisibility as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!hasValidUser || !user?.tenant_id || !user?.username) return;
     const role = String(user.role || '').toLowerCase();
     if (role !== 'admin') return;
@@ -512,6 +525,37 @@ export default function App() {
       window.removeEventListener('unhandledrejection', onUnhandled);
     };
   }, [user?.tenant_id]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof PerformanceObserver === 'undefined') return;
+    const tenant = user?.tenant_id || activeTenant || 'tenant_default';
+    let lastReportedAt = 0;
+    let observer: PerformanceObserver | null = null;
+    try {
+      observer = new PerformanceObserver((list) => {
+        const now = Date.now();
+        if (now - lastReportedAt < 8000) return;
+        const entries = list.getEntries() || [];
+        const heavy = entries.find((entry: any) => Number(entry.duration || 0) >= 180);
+        if (!heavy) return;
+        lastReportedAt = now;
+        logUiError(tenant, 'ui-freeze', 'Long task detected on main thread', {
+          duration_ms: Math.round(Number((heavy as any).duration || 0)),
+          name: String((heavy as any).name || 'longtask'),
+        });
+      });
+      observer.observe({ entryTypes: ['longtask'] as any });
+    } catch {
+      // longtask observer might be unavailable on some browsers
+    }
+    return () => {
+      try {
+        observer?.disconnect();
+      } catch {
+        // no-op
+      }
+    };
+  }, [user?.tenant_id, activeTenant]);
 
   const sessionRole = String(user?.role || '').toLowerCase();
   const selectedTenantId = String(user?.tenant_id || activeTenant || 'tenant_default');
@@ -907,7 +951,10 @@ export default function App() {
           </div>
         </div>
       )}
-      <div className="flex-1 flex flex-col relative overflow-hidden">
+      <div
+        className="flex-1 flex flex-col relative overflow-hidden"
+        style={{ paddingBottom: keyboardInset > 0 ? `${keyboardInset}px` : undefined }}
+      >
         <div className="border-b border-slate-700/40 px-4 py-4 md:px-6 shrink-0 z-20 space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">

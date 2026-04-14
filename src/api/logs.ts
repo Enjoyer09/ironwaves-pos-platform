@@ -85,3 +85,17 @@ export async function get_super_error_logs_live(
     signal: options?.signal,
   });
 }
+
+export async function get_diagnostics_overview_live(
+  minutes: number = 120,
+  tenantIdFilter?: string,
+  options?: { signal?: AbortSignal },
+) {
+  if (!isBackendEnabled()) return null;
+  const qs = new URLSearchParams({ minutes: String(minutes) });
+  if (tenantIdFilter) qs.set('tenant_id', tenantIdFilter.trim());
+  return apiRequest<any>(`/api/v1/ops/logs/diagnostics-overview?${qs.toString()}`, {
+    tenantId: null,
+    signal: options?.signal,
+  });
+}

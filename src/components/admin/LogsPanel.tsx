@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { clear_ui_errors, get_logs_live, get_super_error_logs_live, get_ui_errors } from '../../api/logs';
+import { clear_ui_errors, get_diagnostics_overview_live, get_logs_live, get_super_error_logs_live, get_ui_errors } from '../../api/logs';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 import { formatServerUtcDateTime, localDateInputValue } from '../../lib/time';
@@ -14,6 +14,8 @@ export default function LogsPanel() {
   const [superErrorMode, setSuperErrorMode] = useState(false);
   const [tenantFilter, setTenantFilter] = useState('');
   const [superIncludeAll, setSuperIncludeAll] = useState(false);
+  const [diagnosticMinutes, setDiagnosticMinutes] = useState(120);
+  const [diagnostics, setDiagnostics] = useState<any | null>(null);
   const [fromDate, setFromDate] = useState(() => localDateInputValue());
   const [toDate, setToDate] = useState(() => localDateInputValue());
   const [logs, setLogs] = useState<any[]>([]);
@@ -51,6 +53,19 @@ export default function LogsPanel() {
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [tenant_id, limit, fromDate, toDate, superErrorMode, tenantFilter, query, user?.role, superIncludeAll]);
+
+  React.useEffect(() => {
+    if (String(user?.role || '').toLowerCase() !== 'super_admin') {
+      setDiagnostics(null);
+      return;
+    }
+    const loadDiagnostics = () => {
+      void get_diagnostics_overview_live(diagnosticMinutes, tenantFilter).then(setDiagnostics).catch(() => setDiagnostics(null));
+    };
+    loadDiagnostics();
+    const t = window.setInterval(loadDiagnostics, 20000);
+    return () => window.clearInterval(t);
+  }, [user?.role, diagnosticMinutes, tenantFilter]);
 
   const downloadJson = () => {
     try {
@@ -331,6 +346,32 @@ export default function LogsPanel() {
       </div>
 
       <div className="metal-panel overflow-x-auto">
+        {String(user?.role || '').toLowerCase() === 'super_admin' && diagnostics && (
+          <div className="border-b border-cyan-400/20 bg-cyan-500/10 px-4 py-3">
+            <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-cyan-100">
+              <span className="font-bold">{tx(lang, 'Diaqnostika', 'Диагностика', 'Diagnostics')}</span>
+              <select
+                value={diagnosticMinutes}
+                onChange={(e) => setDiagnosticMinutes(Number(e.target.value))}
+                className="neon-input h-8 py-0 text-xs"
+              >
+                <option value={30}>30 dəq</option>
+                <option value={60}>60 dəq</option>
+                <option value={120}>120 dəq</option>
+                <option value={360}>360 dəq</option>
+              </select>
+              <span>{tx(lang, 'DB aktiv bağlantı', 'Активные DB подключения', 'Active DB connections')}: <b>{diagnostics?.db_health?.active_conn ?? '-'}</b></span>
+              <span>{tx(lang, 'Maks aktiv query (ms)', 'Макс активный запрос (мс)', 'Max active query (ms)')}: <b>{Math.round(Number(diagnostics?.db_health?.max_active_query_ms || 0))}</b></span>
+            </div>
+            <div className="grid gap-2 md:grid-cols-3 text-[11px] text-cyan-50">
+              {['BACKEND_UNHANDLED_EXCEPTION', 'API_NETWORK_ERROR', 'UI_ERROR'].map((key) => (
+                <div key={key} className="rounded-lg border border-cyan-300/25 bg-slate-900/40 px-2 py-1">
+                  {key}: <b>{Number(diagnostics?.action_counts?.[key] || 0)}</b>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {superErrorMode && String(user?.role || '').toLowerCase() === 'super_admin' && (
           <div className="border-b border-rose-400/20 bg-rose-500/10 px-4 py-3 text-xs text-rose-100">
             {tx(

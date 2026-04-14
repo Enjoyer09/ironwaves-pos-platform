@@ -136,25 +136,38 @@ export default function VirtualKeyboard({ lang, enabled = true }: { lang: Keyboa
   }, [enabled]);
 
   useEffect(() => {
+    if (!enabled || !visible) {
+      window.dispatchEvent(new CustomEvent('virtual-keyboard-visibility', { detail: { visible: false, height: 0 } }));
+      return;
+    }
+    const notifyInset = () => {
+      const height = Math.max(0, Number(rootRef.current?.offsetHeight || 0));
+      window.dispatchEvent(new CustomEvent('virtual-keyboard-visibility', { detail: { visible: true, height } }));
+    };
+    notifyInset();
+    const timer = window.setTimeout(notifyInset, 120);
+    return () => {
+      window.clearTimeout(timer);
+      window.dispatchEvent(new CustomEvent('virtual-keyboard-visibility', { detail: { visible: false, height: 0 } }));
+    };
+  }, [enabled, visible]);
+
+  useEffect(() => {
     if (!enabled || !visible) return;
     const target = targetRef.current;
     if (!target) return;
-
     const timeoutId = window.setTimeout(() => {
       try {
         target.scrollIntoView({
           behavior: 'smooth',
-          block: 'center',
+          block: 'nearest',
           inline: 'nearest',
         });
       } catch {
         // no-op
       }
-    }, 120);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
+    }, 80);
+    return () => window.clearTimeout(timeoutId);
   }, [enabled, visible]);
 
   useEffect(() => {

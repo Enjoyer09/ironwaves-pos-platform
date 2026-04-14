@@ -978,50 +978,6 @@ export default function SettingsPanel() {
       </div>
 
       <div className="metal-panel p-6 space-y-4">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Sürətli cihaz ayarı', 'Быстрая настройка устройства', 'Quick device setting')}</h2>
-            <p className="mt-1 text-sm text-slate-400">
-              {tx(
-                lang,
-                'Virtual klaviaturanı buradan birbaşa açıb-bağlaya bilərsiniz.',
-                'Здесь можно сразу включить или отключить виртуальную клавиатуру.',
-                'You can turn the virtual keyboard on or off right here.',
-              )}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 px-4 py-3">
-            <div className="flex items-center justify-between gap-4">
-              <div className="text-sm font-semibold text-slate-200">
-                {tx(lang, 'Virtual klaviatura', 'Виртуальная клавиатура', 'Virtual keyboard')}
-              </div>
-              <button
-                type="button"
-                onClick={() => { void toggleVirtualKeyboard(!sessionSettings.virtual_keyboard_enabled); }}
-                className={`relative inline-flex h-8 w-16 items-center rounded-full border transition ${
-                  sessionSettings.virtual_keyboard_enabled
-                    ? 'border-emerald-300/50 bg-emerald-500/20'
-                    : 'border-slate-600 bg-slate-800/70'
-                }`}
-                aria-pressed={sessionSettings.virtual_keyboard_enabled}
-              >
-                <span
-                  className={`absolute h-6 w-6 rounded-full bg-white shadow transition ${
-                    sessionSettings.virtual_keyboard_enabled ? 'left-9' : 'left-1'
-                  }`}
-                />
-              </button>
-            </div>
-            <div className="mt-2 text-xs text-slate-400">
-              {sessionSettings.virtual_keyboard_enabled
-                ? tx(lang, 'Hazırda aktivdir. Söndürən kimi dərhal bağlanacaq.', 'Сейчас включена. После отключения сразу закроется.', 'It is currently enabled. It closes immediately when turned off.')
-                : tx(lang, 'Hazırda söndürülüb. Input-a toxunanda açılmayacaq.', 'Сейчас отключена. При касании поля не откроется.', 'It is currently off. It will not open on input focus.')}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Biznes Profili', 'Профиль бизнеса', 'Business Profile')}</h2>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="field-stack form-card">
