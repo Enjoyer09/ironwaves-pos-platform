@@ -139,19 +139,32 @@ def main():
         _fail("finance balances", st, payload)
     _ok("finance balances", str(payload))
 
+    st, payload = _request("GET", f"{base}/api/v1/finance/reports/overview", headers=auth_headers)
+    if st != 200:
+        _fail("finance reports overview", st, payload)
+    if not isinstance(payload, dict) or "balance_sheet" not in payload or "profit_loss" not in payload or "cash_flow" not in payload:
+        _fail("finance reports overview payload", st, payload)
+    _ok("finance reports overview")
+
     # 7) Reports status check
     st, payload = _request("GET", f"{base}/api/v1/reports/status", headers=auth_headers)
     if st != 200:
         _fail("reports status", st, payload)
     _ok("reports status", str(payload))
 
-    # 8) Delete temporary tenant
+    # 8) Metrics endpoint should be available for production monitoring.
+    st, payload = _request("GET", f"{base}/metrics")
+    if st != 200:
+        _fail("metrics", st, payload)
+    _ok("metrics")
+
+    # 9) Delete temporary tenant
     st, payload = _request("DELETE", f"{base}/api/v1/admin/tenants/{urllib.parse.quote(tenant_id)}", headers=auth_headers)
     if st != 200:
         _fail("tenant delete", st, payload)
     _ok("tenant delete")
 
-    # 9) Logout
+    # 10) Logout
     st, payload = _request(
         "POST",
         f"{base}/api/v1/auth/logout",
