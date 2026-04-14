@@ -357,7 +357,11 @@ export default function TablesPage() {
   }, [tenant_id, reservationDate]);
 
   useEffect(() => {
-    if (!activeFloorId && floorPlans.length > 0) {
+    if (floorPlans.length === 0) {
+      setActiveFloorId('');
+      return;
+    }
+    if (!activeFloorId || !floorPlans.some((row) => row.id === activeFloorId)) {
       setActiveFloorId(floorPlans.find((row) => row.is_active)?.id || floorPlans[0].id);
     }
   }, [floorPlans, activeFloorId]);
@@ -390,6 +394,14 @@ export default function TablesPage() {
     if (!activeFloorId) return;
     void loadFloorState(activeFloorId);
   }, [activeFloorId]);
+
+  useEffect(() => {
+    if (workspaceView !== 'floor' || activeFloorId) return;
+    const timer = window.setInterval(() => {
+      void loadRestaurantData();
+    }, 6000);
+    return () => window.clearInterval(timer);
+  }, [workspaceView, activeFloorId, tenant_id, reservationDate]);
 
   useEffect(() => {
     if (!floorEditMode) {
@@ -634,23 +646,33 @@ export default function TablesPage() {
   }, [resizingReservation, reservationDurationDrafts, reservationTimeline.minuteHeight, lang, reservationZoom]);
 
   const loadData = async () => {
-    const [nextTables, nextKitchenOrders, nextMenu] = await Promise.all([
+    const [tablesResult, kitchenResult, menuResult] = await Promise.allSettled([
       get_tables_live(tenant_id),
       get_kitchen_orders_live(tenant_id),
-      get_menu_items_live(tenant_id).catch(() => []),
+      get_menu_items_live(tenant_id),
     ]);
-    setTables(nextTables);
-    setKitchenOrders(Array.isArray(nextKitchenOrders) ? nextKitchenOrders : []);
-    setMenuCatalog(Array.isArray(nextMenu) ? nextMenu : []);
+    if (tablesResult.status === 'fulfilled') {
+      setTables(Array.isArray(tablesResult.value) ? tablesResult.value : []);
+    }
+    if (kitchenResult.status === 'fulfilled') {
+      setKitchenOrders(Array.isArray(kitchenResult.value) ? kitchenResult.value : []);
+    }
+    if (menuResult.status === 'fulfilled') {
+      setMenuCatalog(Array.isArray(menuResult.value) ? menuResult.value : []);
+    }
   };
 
   const loadRestaurantData = async () => {
-    const [nextFloors, nextReservations] = await Promise.all([
-      get_floor_plans_live(tenant_id).catch(() => []),
-      get_reservations_live(tenant_id, reservationDate).catch(() => []),
+    const [floorsResult, reservationsResult] = await Promise.allSettled([
+      get_floor_plans_live(tenant_id),
+      get_reservations_live(tenant_id, reservationDate),
     ]);
-    setFloorPlans(Array.isArray(nextFloors) ? nextFloors : []);
-    setReservations(Array.isArray(nextReservations) ? nextReservations : []);
+    if (floorsResult.status === 'fulfilled') {
+      setFloorPlans(Array.isArray(floorsResult.value) ? floorsResult.value : []);
+    }
+    if (reservationsResult.status === 'fulfilled') {
+      setReservations(Array.isArray(reservationsResult.value) ? reservationsResult.value : []);
+    }
   };
 
   const loadFloorState = async (floorId: string) => {
@@ -2683,8 +2705,25 @@ export default function TablesPage() {
           )}
         </div>
       </div>
-      {workspaceView === 'floor' && activeFloorId && (
+      {workspaceView === 'floor' && (
         <div className="mb-6 rounded-[28px] border border-white/10 bg-slate-900/35 p-4">
+          {!activeFloorId ? (
+            <div className="rounded-2xl border border-amber-300/30 bg-amber-500/10 p-4">
+              <div className="text-sm font-semibold text-amber-100">
+                {tx(lang, 'Masa planı yüklənmədi. Backend bağlantısı gecikə bilər.', 'План зала не загрузился. Подключение к backend может быть медленным.', 'Floor plan is not loaded yet. Backend connection may be slow.')}
+              </div>
+              <button
+                type="button"
+                className="mt-3 rounded-lg border border-amber-200/40 bg-amber-500/20 px-4 py-2 text-sm font-semibold text-amber-50"
+                onClick={() => {
+                  void Promise.all([loadRestaurantData(), loadData()]);
+                }}
+              >
+                {tx(lang, 'Yenidən yoxla', 'Проверить снова', 'Retry')}
+              </button>
+            </div>
+          ) : (
+            <>
           <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="text-lg font-bold text-slate-100">
@@ -3075,6 +3114,8 @@ export default function TablesPage() {
               </div>
               <div className="hidden lg:block" />
             </div>
+          )}
+            </>
           )}
         </div>
       )}
