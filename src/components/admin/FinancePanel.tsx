@@ -17,11 +17,13 @@ import {
   fetch_finance_ledger_transactions_page,
   fetch_finance_pending_approvals,
   fetch_finance_reconciliations,
+  fetch_finance_reports_overview,
   fetch_finance_transaction_detail,
   financeCategoryCodeFromValue,
   reject_finance_transaction_async,
   type FinanceAnomalies,
   type FinanceAlert,
+  type FinanceReportsOverview,
   type FinanceTransactionDetail,
   type FinanceLedgerAccount,
   type FinanceLedgerEntry,
@@ -280,6 +282,7 @@ export default function FinancePanel() {
   const [ledgerTransactions, setLedgerTransactions] = useState<FinanceLedgerTransaction[]>([]);
   const [ledgerEntries, setLedgerEntries] = useState<FinanceLedgerEntry[]>([]);
   const [reconciliations, setReconciliations] = useState<FinanceReconciliation[]>([]);
+  const [enterpriseReports, setEnterpriseReports] = useState<FinanceReportsOverview | null>(null);
   const [pendingApprovals, setPendingApprovals] = useState<FinanceLedgerTransaction[]>([]);
   const [pendingApprovalsTotal, setPendingApprovalsTotal] = useState(0);
   const [selectedLedgerDetail, setSelectedLedgerDetail] = useState<FinanceTransactionDetail | null>(null);
@@ -410,13 +413,14 @@ export default function FinancePanel() {
         get_settings_live(tenant_id),
         fetch_finance_anomalies(tenant_id).catch(() => null),
       ]);
-      const [accounts, transactions, ledgerRows, recRows, pendingRows, alertRows] = await Promise.all([
+      const [accounts, transactions, ledgerRows, recRows, pendingRows, alertRows, reportOverview] = await Promise.all([
         fetch_finance_ledger_accounts(tenant_id).catch(() => []),
         fetch_finance_ledger_transactions(tenant_id, 250).catch(() => []),
         fetch_finance_ledger_entries(tenant_id, 500).catch(() => []),
         fetch_finance_reconciliations(tenant_id, 100).catch(() => []),
         fetch_finance_pending_approvals(tenant_id).catch(() => []),
         fetch_finance_alerts(tenant_id).catch(() => null),
+        fetch_finance_reports_overview(tenant_id, { date_from: fromDate, date_to: toDate }).catch(() => null),
       ]);
       const summaryBalances = summary?.balances
         ? {
@@ -442,6 +446,7 @@ export default function FinancePanel() {
       setLedgerTransactions(transactions);
       setLedgerEntries(ledgerRows);
       setReconciliations(recRows);
+      setEnterpriseReports(reportOverview);
       setPendingApprovals((summary?.pending_approvals_preview?.length ? summary.pending_approvals_preview : pendingRows) || []);
       setPendingApprovalsTotal(Number(summary?.pending_approvals_count ?? pendingRows.length ?? 0));
       setServerFinanceAlerts((summary?.alerts?.length ? summary.alerts : alertRows) || null);
@@ -462,7 +467,7 @@ export default function FinancePanel() {
     } catch (err: any) {
       notify('error', err?.message || tx(lang, 'Maliyyə məlumatları yüklənmədi', 'Не удалось загрузить финансы'));
     }
-  }, [tenant_id, notify, lang]);
+  }, [tenant_id, notify, lang, fromDate, toDate]);
 
   useEffect(() => {
     void reloadFinance(true);
@@ -1683,6 +1688,56 @@ export default function FinancePanel() {
     />
   );
 
+  const enterpriseReportsCard = (
+    <FinanceControlCard
+      title={tx(lang, 'Enterprise maliyyə hesabatları', 'Enterprise финансовые отчеты', 'Enterprise finance reports')}
+      subtitle={tx(lang, 'Balans, mənfəət-zərər və pul axını seçilmiş tarix aralığı üzrə ayrılır.', 'Баланс, P&L и cash flow за выбранный период.', 'Balance sheet, P&L and cash flow for the selected period.')}
+    >
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <FinanceMiniMetric
+          label={tx(lang, 'Aktivlər', 'Активы', 'Assets')}
+          value={`${new Decimal(enterpriseReports?.balance_sheet?.assets?.total || 0).toFixed(2)} ₼`}
+          tone="sky"
+        />
+        <FinanceMiniMetric
+          label={tx(lang, 'Öhdəliklər', 'Обязательства', 'Liabilities')}
+          value={`${new Decimal(enterpriseReports?.balance_sheet?.liabilities?.total || 0).toFixed(2)} ₼`}
+          tone="amber"
+        />
+        <FinanceMiniMetric
+          label={tx(lang, 'Xalis mənfəət', 'Чистая прибыль', 'Net profit')}
+          value={`${new Decimal(enterpriseReports?.profit_loss?.net_profit || 0).toFixed(2)} ₼`}
+          tone={new Decimal(enterpriseReports?.profit_loss?.net_profit || 0).gte(0) ? 'emerald' : 'rose'}
+        />
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <FinanceMiniMetric
+          label={tx(lang, 'Pul axını', 'Денежный поток', 'Cash flow')}
+          value={`${new Decimal(enterpriseReports?.cash_flow?.net_cash_flow || 0).toFixed(2)} ₼`}
+          tone={new Decimal(enterpriseReports?.cash_flow?.net_cash_flow || 0).gte(0) ? 'emerald' : 'rose'}
+        />
+        <FinanceMiniMetric
+          label={tx(lang, 'Satış gəliri', 'Выручка', 'Revenue')}
+          value={`${new Decimal(enterpriseReports?.profit_loss?.revenue || 0).toFixed(2)} ₼`}
+          tone="emerald"
+        />
+        <FinanceMiniMetric
+          label={tx(lang, 'Maya dəyəri', 'Себестоимость', 'COGS')}
+          value={`${new Decimal(enterpriseReports?.profit_loss?.cogs || 0).toFixed(2)} ₼`}
+          tone="amber"
+        />
+      </div>
+      <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/50 p-3 text-xs text-slate-400">
+        {tx(
+          lang,
+          enterpriseReports?.balance_sheet?.equity?.note || 'Kapital hazırda aktivlər minus öhdəliklər prinsipi ilə təxmini göstərilir.',
+          enterpriseReports?.balance_sheet?.equity?.note || 'Капитал пока показывается оценочно: активы минус обязательства.',
+          enterpriseReports?.balance_sheet?.equity?.note || 'Equity is currently estimated as assets minus liabilities.',
+        )}
+      </div>
+    </FinanceControlCard>
+  );
+
   const controlSummaryPanel = (
     <FinanceControlSummaryPanel
       lang={lang}
@@ -1892,6 +1947,7 @@ export default function FinancePanel() {
                 <FinanceMiniMetric label={tx(lang, 'Net nəticə', 'Нетто', 'Net')} value={`${financeSummary.net.toFixed(2)} ₼`} tone={financeSummary.net.gte(0) ? 'emerald' : 'rose'} />
               </div>
             </FinanceControlCard>
+            {enterpriseReportsCard}
             {overviewInsights}
           </div>
           <div className="space-y-5">

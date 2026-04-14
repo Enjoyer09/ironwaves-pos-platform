@@ -724,6 +724,69 @@ export type FinanceSummary = {
   latest_reconciliation: FinanceReconciliation | null;
 };
 
+export type FinanceReportsOverview = {
+  period: {
+    date_from?: string | null;
+    date_to?: string | null;
+  };
+  balance_sheet: {
+    assets: {
+      cash: string;
+      bank_card: string;
+      safe: string;
+      receivables: string;
+      inventory: string;
+      total: string;
+    };
+    liabilities: {
+      deposits: string;
+      investor: string;
+      total: string;
+    };
+    equity: {
+      estimated_equity: string;
+      note?: string | null;
+    };
+    balanced: boolean;
+  };
+  profit_loss: {
+    revenue: string;
+    cogs: string;
+    gross_profit: string;
+    operating_expenses: string;
+    net_profit: string;
+    sales_count: number;
+    expense_count: number;
+  };
+  cash_flow: {
+    operating_inflow: string;
+    operating_outflow: string;
+    financing_inflow: string;
+    financing_outflow: string;
+    deposit_inflow: string;
+    deposit_outflow: string;
+    adjustment_net: string;
+    net_cash_flow: string;
+    transaction_count: number;
+  };
+};
+
+export const fetch_finance_reports_overview = async (
+  tenant_id: string,
+  filters: { date_from?: string; date_to?: string } = {},
+): Promise<FinanceReportsOverview | null> => {
+  if (!isBackendEnabled()) return null;
+  const params = new URLSearchParams();
+  if (filters.date_from) params.set('date_from', filters.date_from);
+  if (filters.date_to) params.set('date_to', filters.date_to);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  const data = await apiRequest<any>(`/api/v1/finance/reports/overview${suffix}`, {
+    method: 'GET',
+    tenantId: tenant_id,
+  });
+  return data as FinanceReportsOverview;
+};
+
 export type FinanceLedgerAccount = {
   id: string;
   code: string;
