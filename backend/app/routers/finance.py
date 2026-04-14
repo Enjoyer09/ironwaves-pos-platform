@@ -296,6 +296,28 @@ def _post_existing_transaction(db: Session, txn: FinanceTransaction, posted_by: 
         return txn
     if txn.status not in {"pending_approval", "approved", "draft"}:
         raise HTTPException(status_code=400, detail=f"Transaction cannot be posted from status {txn.status}")
+    existing_entry_count = (
+        db.query(FinanceLedgerEntry)
+        .filter(FinanceLedgerEntry.tenant_id == txn.tenant_id, FinanceLedgerEntry.transaction_id == txn.id)
+        .count()
+    )
+    if existing_entry_count > 0:
+        db.add(
+            AuditLog(
+                tenant_id=txn.tenant_id,
+                user=posted_by,
+                action="FINANCE_TRANSACTION_DUPLICATE_POST_BLOCKED",
+                details=json.dumps(
+                    {
+                        "transaction_id": txn.id,
+                        "existing_entry_count": existing_entry_count,
+                        "status": txn.status,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
+        raise HTTPException(status_code=409, detail="Transaction posting was blocked because ledger entries already exist")
     source_code = _finance_account_code(db, txn.tenant_id, txn.source_account_id)
     destination_code = _finance_account_code(db, txn.tenant_id, txn.destination_account_id)
     if not source_code or not destination_code:
@@ -429,6 +451,7 @@ def _mark_original_transaction_reversed(db: Session, reversal: FinanceTransactio
     original = (
         db.query(FinanceTransaction)
         .filter(FinanceTransaction.tenant_id == reversal.tenant_id, FinanceTransaction.id == reversal.reference)
+        .with_for_update()
         .first()
     )
     if not original:
@@ -1388,12 +1411,36 @@ def approve_ledger_transaction(transaction_id: str, db: Session = Depends(get_db
     txn = (
         db.query(FinanceTransaction)
         .filter(FinanceTransaction.tenant_id == tenant.id, FinanceTransaction.id == transaction_id)
+        .with_for_update()
         .first()
     )
     if not txn:
         raise HTTPException(status_code=404, detail="Finance transaction not found")
     if txn.status != "pending_approval":
         raise HTTPException(status_code=400, detail=f"Transaction is not pending approval: {txn.status}")
+    creator_username = str(txn.created_by or "").strip().lower()
+    approver_username = str(user.username or "").strip().lower()
+    if creator_username and creator_username == approver_username:
+        db.add(
+            AuditLog(
+                tenant_id=tenant.id,
+                user=user.username,
+                action="FINANCE_TRANSACTION_SELF_APPROVAL_BLOCKED",
+                details=json.dumps(
+                    {
+                        "transaction_id": txn.id,
+                        "amount": str(txn.amount),
+                        "created_by": txn.created_by,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
+        db.commit()
+        raise HTTPException(
+            status_code=403,
+            detail="Yaratdığınız maliyyə əməliyyatını özünüz təsdiqləyə bilməzsiniz",
+        )
     now = datetime.utcnow()
     txn.status = "approved"
     txn.approved_by = user.username
@@ -1420,6 +1467,7 @@ def reject_ledger_transaction(transaction_id: str, db: Session = Depends(get_db)
     txn = (
         db.query(FinanceTransaction)
         .filter(FinanceTransaction.tenant_id == tenant.id, FinanceTransaction.id == transaction_id)
+        .with_for_update()
         .first()
     )
     if not txn:
@@ -1447,6 +1495,7 @@ def request_transaction_reversal(transaction_id: str, db: Session = Depends(get_
     original = (
         db.query(FinanceTransaction)
         .filter(FinanceTransaction.tenant_id == tenant.id, FinanceTransaction.id == transaction_id)
+        .with_for_update()
         .first()
     )
     if not original:
@@ -1461,6 +1510,7 @@ def request_transaction_reversal(transaction_id: str, db: Session = Depends(get_
             FinanceTransaction.reference == original.id,
             FinanceTransaction.status.in_(["pending_approval", "approved", "posted"]),
         )
+        .with_for_update()
         .first()
     )
     if existing_reversal:
