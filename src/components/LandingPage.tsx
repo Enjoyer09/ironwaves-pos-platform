@@ -14,6 +14,7 @@ const copy: Record<
     nav: [string, string, string, string];
     demo: string;
     headline: string;
+    subline: string;
     sub1: string;
     sub2: string;
     trusted1: string;
@@ -29,7 +30,8 @@ const copy: Record<
   az: {
     nav: ["Məhsul", "Funksiyalar", "Sahələr", "Demo"],
     demo: "Demoya keç",
-    headline: "iRonWaves POS",
+    headline: "iRonWaves POS ilə restoran əməliyyatlarını mərkəzləşdirin",
+    subline: "Enterprise səviyyəli restoran idarəetmə platforması",
     sub1: "Restoranınızı bir platformadan idarə edin",
     sub2: "POS, Masalar, KDS, Maliyyə, Dashboard və CRM bir sistemdə",
     trusted1: "Restoran, coffee shop və fast-food",
@@ -60,7 +62,8 @@ const copy: Record<
   ru: {
     nav: ["Продукт", "Функции", "Сферы", "Демо"],
     demo: "Перейти к демо",
-    headline: "iRonWaves POS",
+    headline: "Централизуйте ресторанные операции с iRonWaves POS",
+    subline: "Платформа управления рестораном уровня enterprise",
     sub1: "Управляйте рестораном из одной платформы",
     sub2: "POS, столы, KDS, финансы, dashboard и CRM в одной системе",
     trusted1: "Для ресторанов, coffee shop и fast-food",
@@ -91,7 +94,8 @@ const copy: Record<
   en: {
     nav: ["Product", "Features", "Industries", "Demo"],
     demo: "Go to Demo",
-    headline: "iRonWaves POS",
+    headline: "Centralize restaurant operations with iRonWaves POS",
+    subline: "An enterprise-grade restaurant operations platform",
     sub1: "Run your restaurant from one platform",
     sub2: "POS, Tables, KDS, Finance, Dashboard and CRM in one system",
     trusted1: "Built for restaurants, coffee shops",
@@ -173,37 +177,37 @@ function HeroSection({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void
   return (
     <section className="relative overflow-hidden bg-background">
       <Navbar lang={lang} setLang={setLang} />
-      <div className="mx-auto flex max-w-[1400px] flex-col items-center px-4 pb-4 pt-20 text-center">
-        <h1
-          className="text-[180px] font-normal leading-[1.02] tracking-[-0.024em] text-transparent md:text-[230px]"
-          style={{
-            fontFamily: "'General Sans', sans-serif",
-            backgroundImage: "linear-gradient(223deg, #E8E8E9 0%, #3A7BBF 104.15%)",
-            backgroundClip: "text",
-            WebkitBackgroundClip: "text",
-          }}
-        >
+      <div className="mx-auto flex max-w-6xl flex-col items-center px-4 pb-16 pt-20 text-center">
+        <div className="liquid-glass rounded-full px-4 py-1 text-xs uppercase tracking-[0.18em] text-foreground/70">
+          {t.subline}
+        </div>
+        <h1 className="mt-6 max-w-5xl text-4xl font-semibold leading-tight text-hero-heading md:text-6xl">
           {t.headline}
         </h1>
-        <p className="mt-4 max-w-2xl text-center text-lg leading-8 text-[hsl(var(--hero-sub))] opacity-80">
-          {t.sub1}
-          <br />
-          {t.sub2}
+        <p className="mt-5 max-w-3xl text-center text-lg leading-8 text-[hsl(var(--hero-sub))] opacity-90">
+          {t.sub1}. {t.sub2}.
         </p>
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
           {t.badges.map((item) => (
             <span key={item} className="liquid-glass rounded-full px-3 py-1 text-xs font-medium text-foreground/90">
               {item}
             </span>
           ))}
         </div>
-        <div className="mb-[66px] mt-8">
+        <div className="mb-[20px] mt-10 flex flex-wrap items-center justify-center gap-3">
           <Button
-            variant="heroSecondary"
-            className="px-[29px] py-[24px]"
+            variant="hero"
+            className="px-7 py-4 text-sm"
             onClick={() => window.open("https://demo.ironwaves.store", "_blank", "noopener,noreferrer")}
           >
             {t.demo}
+          </Button>
+          <Button
+            variant="heroSecondary"
+            className="px-7 py-4 text-sm"
+            onClick={() => window.open("https://demo.ironwaves.store", "_blank", "noopener,noreferrer")}
+          >
+            {lang === "az" ? "Funksiyalara bax" : lang === "ru" ? "Смотреть функции" : "Explore features"}
           </Button>
         </div>
       </div>
