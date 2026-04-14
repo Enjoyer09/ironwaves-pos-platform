@@ -28,6 +28,20 @@
    - Keep `ALLOW_LEGACY_TENANT_HEADER_FALLBACK=false` in production
 4. Deploy and verify:
    - `GET /health` returns `200`.
+   - `GET /metrics` returns Prometheus metrics if `prometheus-client` is installed.
+
+Before production deploys with database changes, run migrations from the backend service context:
+
+```bash
+cd backend
+alembic -c alembic.ini upgrade head
+```
+
+Finance-specific rollback, restore and hardening steps are documented in:
+
+```text
+docs/operations/FINANCE_PRODUCTION_HARDENING_RUNBOOK.md
+```
 
 Recommended `CORS_ORIGINS` for wildcard tenant setup:
 
@@ -88,4 +102,6 @@ Expected: all checks print `[OK]` and final success message.
 
 1. Check `Logs` panel for UI telemetry.
 2. Check backend logs for `401/500` spikes.
-3. Keep rollback branch/tag for quick restore.
+3. Check `/metrics` for request count and latency trends.
+4. Check Sentry if `SENTRY_DSN` is configured.
+5. Keep rollback branch/tag for quick restore.
