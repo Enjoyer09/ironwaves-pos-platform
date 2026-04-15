@@ -1064,8 +1064,22 @@ export default function POS() {
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={handleFindCustomer} className="pay-btn h-12 w-full">{tx(lang, 'Müştəri Tap', 'Найти клиента', 'Find Customer')}</button>
-            <button onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '' })} className="pay-btn h-12 w-full">{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</button>
+            <button
+              onClick={handleFindCustomer}
+              className="pay-btn h-12 w-full"
+              title={tx(lang, 'Kart/QR üzrə müştərini tapır.', 'Ищет клиента по карте/QR.', 'Finds customer by card/QR.')}
+              data-guide={tx(lang, 'Kart/QR üzrə müştərini tapır.', 'Ищет клиента по карте/QR.', 'Finds customer by card/QR.')}
+            >
+              {tx(lang, 'Müştəri Tap', 'Найти клиента', 'Find Customer')}
+            </button>
+            <button
+              onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '' })}
+              className="pay-btn h-12 w-full"
+              title={tx(lang, 'Müştəri və reward sahələrini sıfırlayır.', 'Сбрасывает клиента и поля reward.', 'Resets customer and reward fields.')}
+              data-guide={tx(lang, 'Müştəri və reward sahələrini sıfırlayır.', 'Сбрасывает клиента и поля reward.', 'Resets customer and reward fields.')}
+            >
+              {tx(lang, 'Təmizlə', 'Очистить', 'Clear')}
+            </button>
           </div>
           {ctx.customer && (
             <div className="rounded-md border border-emerald-400/40 bg-emerald-500/10 p-2 text-xs text-emerald-200">
@@ -1156,7 +1170,13 @@ export default function POS() {
                   </div>
                 </div>
               )}
-              <button disabled={isLoading || !ctx.selectedTable || cart.length === 0} onClick={() => { void handleSendToKitchen(); }} className="pay-btn h-12 w-full">
+              <button
+                disabled={isLoading || !ctx.selectedTable || cart.length === 0}
+                onClick={() => { void handleSendToKitchen(); }}
+                className="pay-btn h-12 w-full"
+                title={tx(lang, 'Cari səbəti seçilmiş masa üçün mətbəxə göndərir.', 'Отправляет текущую корзину на кухню для выбранного стола.', 'Sends current cart to kitchen for selected table.')}
+                data-guide={tx(lang, 'Cari səbəti seçilmiş masa üçün mətbəxə göndərir.', 'Отправляет текущую корзину на кухню для выбранного стола.', 'Sends current cart to kitchen for selected table.')}
+              >
                 {tx(lang, 'Mətbəxə Göndər', 'Отправить на кухню', 'Send To Kitchen')}
               </button>
             </div>
@@ -1227,6 +1247,8 @@ export default function POS() {
               onClick={() => { void handleSendToKitchen(); }}
               className={`flex ${size === 'compact' ? 'h-12 text-sm' : size === 'expanded' ? 'h-16 text-lg' : 'h-14 text-base'} items-center justify-center gap-2 rounded-lg border px-4 font-bold text-white shadow-[0_0_22px_rgba(34,197,94,0.28)] disabled:opacity-50`}
               style={{ backgroundColor: posLayout.accent_color, borderColor: posLayout.accent_color, color: '#111827' }}
+              title={tx(lang, 'Səbəti birbaşa seçilmiş masaya göndərir.', 'Отправляет корзину напрямую к выбранному столу.', 'Sends cart directly to selected table.')}
+              data-guide={tx(lang, 'Səbəti birbaşa seçilmiş masaya göndərir.', 'Отправляет корзину напрямую к выбранному столу.', 'Sends cart directly to selected table.')}
             >
               <Check size={18} /> {tx(lang, 'Masaya Göndər', 'Отправить на стол', 'Send To Table')}
             </button>
@@ -1268,6 +1290,8 @@ export default function POS() {
             onClick={() => handleCheckout(selectedPayment)}
             className={`flex ${size === 'compact' ? 'h-12 text-sm' : size === 'expanded' ? 'h-16 text-lg' : 'h-14 text-base'} items-center justify-center gap-2 rounded-lg border px-4 font-bold text-white shadow-[0_0_22px_rgba(239,68,68,0.35)] disabled:opacity-50`}
             style={{ backgroundColor: posLayout.accent_color, borderColor: posLayout.accent_color, color: '#111827' }}
+            title={tx(lang, 'Ödənişi seçilmiş üsulla tamamlayır və satışı bağlayır.', 'Завершает оплату выбранным методом и закрывает продажу.', 'Completes payment with selected method and closes sale.')}
+            data-guide={tx(lang, 'Ödənişi seçilmiş üsulla tamamlayır və satışı bağlayır.', 'Завершает оплату выбранным методом и закрывает продажу.', 'Completes payment with selected method and closes sale.')}
           >
             <Check size={18} /> {tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}
           </button>

@@ -611,6 +611,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                 disabled={!newItemName.trim() || !newItemPrice || (newItemCategory === '__custom__' && !customCategory.trim())}
                 className="glossy-gold px-4 py-2 rounded-xl transition-colors flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
                 title={tx(lang, 'Yeni menyu məhsulu yaradır.', 'Создает новую позицию меню.', 'Creates a new menu item.')}
+                data-guide={tx(lang, 'Yeni menyu məhsulu yaradır.', 'Создает новую позицию меню.', 'Creates a new menu item.')}
               >
                 <Plus size={20} />
                 {tx(lang, 'Məhsulu Yarat', 'Создать товар', 'Create Item')}
@@ -636,6 +637,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                       onClick={() => setDeleteMenuId(item.id)}
                       className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
                       title={tx(lang, 'Məhsulu deaktiv edir/silməyə hazırlayır.', 'Деактивирует товар / подготавливает к удалению.', 'Deactivates item / prepares it for deletion.')}
+                      data-guide={tx(lang, 'Məhsulu deaktiv edir/silməyə hazırlayır.', 'Деактивирует товар / подготавливает к удалению.', 'Deactivates item / prepares it for deletion.')}
                     >
                       <Trash2 size={20} />
                     </button>
@@ -649,6 +651,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                       }}
                       className="text-cyan-300 hover:text-cyan-100 p-2 hover:bg-cyan-400/10 rounded-lg transition-colors"
                       title={tx(lang, 'Məhsulu düzəlt', 'Редактировать товар', 'Edit item')}
+                      data-guide={tx(lang, 'Məhsulun ad və qiymətini düzəldir.', 'Редактирует название и цену товара.', 'Edits item name and price.')}
                     >
                       <Pencil size={18} />
                     </button>
@@ -687,12 +690,16 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                 <button
                   onClick={() => setEditMenuModal(null)}
                   className="neon-btn rounded-lg px-4 py-2"
+                  title={tx(lang, 'Dəyişikliyi ləğv edib pəncərəni bağlayır.', 'Отменяет изменения и закрывает окно.', 'Cancels changes and closes modal.')}
+                  data-guide={tx(lang, 'Dəyişikliyi ləğv edib pəncərəni bağlayır.', 'Отменяет изменения и закрывает окно.', 'Cancels changes and closes modal.')}
                 >
                   {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
                 </button>
                 <button
                   onClick={() => { void handleEditMenu(); }}
                   className="glossy-gold rounded-lg px-4 py-2 font-semibold"
+                  title={tx(lang, 'Məhsulun yeni ad və qiymətini yadda saxlayır.', 'Сохраняет новое название и цену товара.', 'Saves updated item name and price.')}
+                  data-guide={tx(lang, 'Məhsulun yeni ad və qiymətini yadda saxlayır.', 'Сохраняет новое название и цену товара.', 'Saves updated item name and price.')}
                 >
                   {tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
                 </button>
