@@ -187,6 +187,13 @@ const BLOCKED_IMAGE_TERMS = [
   "emalatkhana",
 ];
 
+const ALLOWED_INTERNAL_SHOTS = new Set([
+  "/landing/pos-screen.png",
+  "/landing/finance-screen.png",
+  "/landing/golden-card.png",
+  "/landing/elite-card.png",
+]);
+
 export default function LandingPage() {
   const [lang, setLang] = useState<Lang>("az");
   const [slideIndex, setSlideIndex] = useState(0);
@@ -232,7 +239,7 @@ export default function LandingPage() {
           desc_ru: desc,
           desc_en: desc,
         }));
-    return rows
+    const mapped = rows
       .filter((row: any) => String(row?.image_url || "").trim())
       .map((row: any) => {
         const title = String(row?.[`title_${lang}`] || row?.title_az || row?.title_en || row?.title_ru || "").trim();
@@ -243,6 +250,8 @@ export default function LandingPage() {
         const hay = `${title} ${src} ${desc}`.toLowerCase();
         return !BLOCKED_IMAGE_TERMS.some((term) => hay.includes(term));
       });
+    const internalOnly = mapped.filter(([, src]) => ALLOWED_INTERNAL_SHOTS.has(String(src || "").trim().toLowerCase()));
+    return internalOnly.length ? internalOnly : (DEFAULT_SHOTS as [string, string, string][]);
   }, [liveSettings, lang]);
 
   useEffect(() => {
