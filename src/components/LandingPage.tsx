@@ -1,370 +1,381 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
-import { Button } from "./ui/button";
-import logo from "../assets/logo.png";
+import { useEffect, useState } from "react";
 
-type Lang = "az" | "ru" | "en";
+const colorSwatches = [
+  ["Green", "rgb(88, 204, 2)", "#58CC02"],
+  ["Green Hover", "rgb(75, 178, 0)", "#4BB200"],
+  ["Blue", "rgb(28, 176, 246)", "#1CB0F6"],
+  ["Dark Blue", "rgb(16, 15, 62)", "#100F3E"],
+  ["Red", "#FF4B4B", "#FF4B4B"],
+  ["Orange", "#FF9600", "#FF9600"],
+  ["Golden", "#FFC800", "#FFC800"],
+  ["Footer Green", "#4EC604", "#4EC604"],
+  ["Gray Text", "rgb(75, 75, 75)", "#4B4B4B"],
+  ["Gray Light", "rgb(119, 119, 119)", "#777777"],
+  ["Nav Text", "rgb(175, 175, 175)", "#AFAFAF"],
+  ["Border", "rgb(229, 229, 229)", "#E5E5E5"],
+] as const;
 
-const VIDEO_URL =
-  "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260308_114720_3dabeb9e-2c39-4907-b747-bc3544e2d5b7.mp4";
+const brands = ["Vortex", "Nimbus", "Prysma", "Cirrus", "Kynder", "Halcyn"];
 
-const copy: Record<
-  Lang,
-  {
-    nav: [string, string, string, string];
-    demo: string;
-    headline: string;
-    subline: string;
-    sub1: string;
-    sub2: string;
-    trusted1: string;
-    trusted2: string;
-    badges: string[];
-    moduleTitle: string;
-    moduleSub: string;
-    modules: string[];
-    howTitle: string;
-    steps: string[];
-  }
-> = {
-  az: {
-    nav: ["Məhsul", "Funksiyalar", "Sahələr", "Demo"],
-    demo: "Demoya keç",
-    headline: "iRonWaves POS ilə restoran əməliyyatlarını mərkəzləşdirin",
-    subline: "Enterprise səviyyəli restoran idarəetmə platforması",
-    sub1: "Restoranınızı bir platformadan idarə edin",
-    sub2: "POS, Masalar, KDS, Maliyyə, Dashboard və CRM bir sistemdə",
-    trusted1: "Restoran, coffee shop və fast-food",
-    trusted2: "obyektləri üçün operativ nəzarət platforması",
-    badges: ["Masa xidməti", "Mətbəx axını", "Kassa nəzarəti", "Canlı dashboard"],
-    moduleTitle: "Platforma modulları",
-    moduleSub: "Satışdan mətbəxə, maliyyədən auditə qədər bütün axınlar bir yerdədir.",
-    modules: [
-      "POS",
-      "Masalar",
-      "Mətbəx ekranı (KDS)",
-      "Maliyyə",
-      "Dashboard",
-      "Analitika",
-      "Z-Hesabat / X-Hesabat",
-      "CRM / Loyallıq",
-      "QR Menu",
-      "Loglar və audit",
-    ],
-    howTitle: "Necə işləyir",
-    steps: [
-      "Satışı və ya masanı aç",
-      "Sifarişi mətbəxə göndər",
-      "Hazır məhsulu və hesabı idarə et",
-      "Dashboard və maliyyədən nəzarəti tamamla",
-    ],
-  },
-  ru: {
-    nav: ["Продукт", "Функции", "Сферы", "Демо"],
-    demo: "Перейти к демо",
-    headline: "Централизуйте ресторанные операции с iRonWaves POS",
-    subline: "Платформа управления рестораном уровня enterprise",
-    sub1: "Управляйте рестораном из одной платформы",
-    sub2: "POS, столы, KDS, финансы, dashboard и CRM в одной системе",
-    trusted1: "Для ресторанов, coffee shop и fast-food",
-    trusted2: "единая платформа оперативного контроля",
-    badges: ["Обслуживание столов", "Поток кухни", "Контроль кассы", "Живой dashboard"],
-    moduleTitle: "Модули платформы",
-    moduleSub: "От продаж до кухни, от финансов до аудита все потоки собраны в одном месте.",
-    modules: [
-      "POS",
-      "Столы",
-      "Экран кухни (KDS)",
-      "Финансы",
-      "Dashboard",
-      "Аналитика",
-      "Z-Отчёт / X-Отчёт",
-      "CRM / Лояльность",
-      "QR Menu",
-      "Логи и аудит",
-    ],
-    howTitle: "Как это работает",
-    steps: [
-      "Откройте продажу или стол",
-      "Отправьте заказ на кухню",
-      "Управляйте готовыми позициями и счётом",
-      "Закройте контроль через dashboard и финансы",
-    ],
-  },
-  en: {
-    nav: ["Product", "Features", "Industries", "Demo"],
-    demo: "Go to Demo",
-    headline: "Centralize restaurant operations with iRonWaves POS",
-    subline: "An enterprise-grade restaurant operations platform",
-    sub1: "Run your restaurant from one platform",
-    sub2: "POS, Tables, KDS, Finance, Dashboard and CRM in one system",
-    trusted1: "Built for restaurants, coffee shops",
-    trusted2: "and fast-food operations",
-    badges: ["Table service", "Kitchen flow", "Cash control", "Live dashboard"],
-    moduleTitle: "Platform modules",
-    moduleSub: "From sales to kitchen, from finance to audit, every flow is connected.",
-    modules: [
-      "POS",
-      "Tables",
-      "Kitchen display (KDS)",
-      "Finance",
-      "Dashboard",
-      "Analytics",
-      "Z-Report / X-Report",
-      "CRM / Loyalty",
-      "QR Menu",
-      "Logs and audit",
-    ],
-    howTitle: "How it works",
-    steps: [
-      "Open a sale or table",
-      "Send the order to kitchen",
-      "Manage ready items and billing",
-      "Close the loop in dashboard and finance",
-    ],
-  },
-};
-
-const BRANDS = ["Vortex", "Nimbus", "Prysma", "Cirrus", "Kynder", "Halcyn"];
-
-function Navbar({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
-  const t = copy[lang];
-  return (
-    <div className="w-full">
-      <div className="flex w-full items-center justify-between px-8 py-5">
-        <img src={logo} alt="Logo" className="h-8 w-auto object-contain" />
-        <div className="hidden items-center gap-8 md:flex">
-          <button className="inline-flex items-center gap-1 text-base text-foreground/90">
-            <span>{t.nav[0]}</span>
-            <ChevronDown size={16} />
-          </button>
-          <button className="text-base text-foreground/90">{t.nav[1]}</button>
-          <button className="text-base text-foreground/90">{t.nav[2]}</button>
-          <button className="inline-flex items-center gap-1 text-base text-foreground/90">
-            <span>{t.nav[3]}</span>
-            <ChevronDown size={16} />
-          </button>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="liquid-glass flex rounded-full p-1 text-xs">
-            {(["az", "ru", "en"] as Lang[]).map((l) => (
-              <button
-                key={l}
-                className={`rounded-full px-2 py-1 uppercase ${lang === l ? "bg-white/10 text-foreground" : "text-foreground/60"}`}
-                onClick={() => setLang(l)}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
-          <Button
-            variant="heroSecondary"
-            size="sm"
-            className="rounded-full px-4 py-2"
-            onClick={() => window.open("https://demo.ironwaves.store", "_blank", "noopener,noreferrer")}
-          >
-            {t.demo}
-          </Button>
-        </div>
-      </div>
-      <div className="mt-[3px] h-px w-full bg-gradient-to-r from-transparent via-foreground/20 to-transparent" />
-    </div>
-  );
-}
-
-function HeroSection({ lang, setLang }: { lang: Lang; setLang: (l: Lang) => void }) {
-  const t = copy[lang];
-  return (
-    <section className="relative overflow-hidden bg-background">
-      <Navbar lang={lang} setLang={setLang} />
-      <div className="mx-auto flex max-w-6xl flex-col items-center px-4 pb-16 pt-20 text-center">
-        <div className="liquid-glass rounded-full px-4 py-1 text-xs uppercase tracking-[0.18em] text-foreground/70">
-          {t.subline}
-        </div>
-        <h1 className="mt-6 max-w-5xl text-4xl font-semibold leading-tight text-hero-heading md:text-6xl">
-          {t.headline}
-        </h1>
-        <p className="mt-5 max-w-3xl text-center text-lg leading-8 text-[hsl(var(--hero-sub))] opacity-90">
-          {t.sub1}. {t.sub2}.
-        </p>
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
-          {t.badges.map((item) => (
-            <span key={item} className="liquid-glass rounded-full px-3 py-1 text-xs font-medium text-foreground/90">
-              {item}
-            </span>
-          ))}
-        </div>
-        <div className="mb-[20px] mt-10 flex flex-wrap items-center justify-center gap-3">
-          <Button
-            variant="hero"
-            className="px-7 py-4 text-sm"
-            onClick={() => window.open("https://demo.ironwaves.store", "_blank", "noopener,noreferrer")}
-          >
-            {t.demo}
-          </Button>
-          <Button
-            variant="heroSecondary"
-            className="px-7 py-4 text-sm"
-            onClick={() => window.open("https://demo.ironwaves.store", "_blank", "noopener,noreferrer")}
-          >
-            {lang === "az" ? "Funksiyalara bax" : lang === "ru" ? "Смотреть функции" : "Explore features"}
-          </Button>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function SocialProofSection({ lang }: { lang: Lang }) {
-  const t = copy[lang];
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const resetTimerRef = useRef<number | null>(null);
-  const fadeSeconds = 0.5;
+export default function LandingPage() {
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [animEnabled, setAnimEnabled] = useState(false);
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const animate = () => {
-      const duration = Number(video.duration || 0);
-      const current = Number(video.currentTime || 0);
-      let opacity = 1;
-
-      if (duration > 0) {
-        if (current < fadeSeconds) opacity = Math.max(0, Math.min(1, current / fadeSeconds));
-        else if (current > duration - fadeSeconds) {
-          const remain = Math.max(0, duration - current);
-          opacity = Math.max(0, Math.min(1, remain / fadeSeconds));
-        }
-      }
-      video.style.opacity = String(opacity);
-      rafRef.current = requestAnimationFrame(animate);
+    if (typeof document === "undefined") return null;
+    const mountLink = (id: string, href: string) => {
+      if (document.getElementById(id)) return;
+      const link = document.createElement("link");
+      link.id = id;
+      link.rel = "stylesheet";
+      link.href = href;
+      document.head.appendChild(link);
     };
-
-    const onEnded = () => {
-      video.style.opacity = "0";
-      if (resetTimerRef.current) window.clearTimeout(resetTimerRef.current);
-      resetTimerRef.current = window.setTimeout(() => {
-        video.currentTime = 0;
-        void video.play();
-      }, 100);
-    };
-
-    video.style.opacity = "0";
-    video.addEventListener("ended", onEnded);
-    void video.play();
-    rafRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      video.removeEventListener("ended", onEnded);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      if (resetTimerRef.current) window.clearTimeout(resetTimerRef.current);
-    };
+    mountLink("dg-font-nunito", "https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap");
+    mountLink("dg-font-feather", "https://db.onlinewebfonts.com/c/14936bb7a4b6575fd2eee80a3ab52cc2?family=Feather+Bold");
   }, []);
 
-  const marqueeItems = useMemo(() => [...BRANDS, ...BRANDS], []);
-
   return (
-    <section className="relative w-full overflow-hidden bg-background">
-      <video
-        ref={videoRef}
-        autoPlay
-        muted
-        playsInline
-        className="absolute inset-0 h-full w-full object-cover transition-opacity duration-300"
-        style={{ opacity: 0 }}
-      >
-        <source src={VIDEO_URL} type="video/mp4" />
-      </video>
-      <div className="absolute inset-0 bg-gradient-to-b from-background via-transparent to-background" />
+    <div className="dg-page">
+      <header className="dg-navbar">
+        <div className="dg-navbar-inner">
+          <div className="dg-brand">
+            <img
+              src="https://d35aaqx5ub95lt.cloudfront.net/images/splash/f92d5f2f7d56636846861c458c0d0b6c.svg"
+              alt="Duolingo"
+              width={140}
+              height={33}
+            />
+            <span className="dg-divider" />
+            <span className="dg-style-guide">STYLE GUIDE</span>
+          </div>
+          <nav className="dg-nav-links">
+            {["Colors", "Type", "Buttons", "Cards", "Components"].map((item, idx) => (
+              <a key={item} href={`#${item.toLowerCase()}`} className={`dg-nav-link ${idx === 0 ? "active" : ""}`}>
+                {item}
+              </a>
+            ))}
+          </nav>
+        </div>
+      </header>
 
-      <div className="relative z-10 flex flex-col items-center gap-20 px-4 pb-24 pt-16">
-        <div className="h-40" />
-        <div className="w-full max-w-5xl">
-          <div className="flex flex-col items-start gap-8 lg:flex-row lg:items-center">
-            <p className="shrink-0 whitespace-nowrap text-sm text-foreground/50">
-              {t.trusted1}
-              <br />
-              {t.trusted2}
-            </p>
-            <div className="relative w-full overflow-hidden">
-              <div className="flex w-max animate-marquee items-center gap-16">
-                {marqueeItems.map((brand, i) => (
-                  <div key={`${brand}-${i}`} className="flex items-center gap-3">
-                    <div className="liquid-glass flex h-6 w-6 items-center justify-center rounded-lg text-xs font-semibold text-foreground">
-                      {brand.slice(0, 1)}
-                    </div>
-                    <span className="text-base font-semibold text-foreground">{brand}</span>
+      <section className="dg-hero">
+        <h1 className="dg-hero-title">duolingo design</h1>
+        <p className="dg-hero-sub">
+          A comprehensive visual reference for the Duolingo design system covering colors, typography,
+          button variants, cards, and UI components.
+        </p>
+        <div className="dg-hero-actions">
+          <button className="dg-btn dg-btn-primary">GET STARTED</button>
+          <button className="dg-btn dg-btn-secondary">I ALREADY HAVE AN ACCOUNT</button>
+        </div>
+      </section>
+
+      <main className="dg-grid">
+        <section className="dg-panel" id="colors">
+          <div className="dg-section-label">COLOR PALETTE</div>
+          <div className="dg-color-grid">
+            {colorSwatches.map(([name, color, hex]) => (
+              <div className="dg-swatch-item" key={name}>
+                <div className="dg-swatch" style={{ background: color }} />
+                <div className="dg-swatch-name">{name}</div>
+                <div className="dg-swatch-hex">{hex}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="dg-panel" id="type">
+          <div className="dg-section-label">TYPOGRAPHY</div>
+          <div className="dg-type-stack">
+            <div className="dg-type-row">
+              <div className="dg-type-meta">
+                <div className="dg-size">48px</div>
+                <div className="dg-weight">Feather Bold</div>
+              </div>
+              <div className="dg-type-display">Display</div>
+            </div>
+            <div className="dg-type-row">
+              <div className="dg-type-meta">
+                <div className="dg-size">32px</div>
+                <div className="dg-weight">Bold 700</div>
+              </div>
+              <div className="dg-type-h1">Heading One</div>
+            </div>
+            <div className="dg-type-row">
+              <div className="dg-type-meta">
+                <div className="dg-size">28px</div>
+                <div className="dg-weight">Feather Bold</div>
+              </div>
+              <div className="dg-type-h2">heading two</div>
+            </div>
+            <div className="dg-type-row">
+              <div className="dg-type-meta">
+                <div className="dg-size">18px</div>
+                <div className="dg-weight">Medium 500</div>
+              </div>
+              <div className="dg-type-body">
+                Body text for paragraphs and descriptions with comfortable reading line-height.
+              </div>
+            </div>
+            <div className="dg-type-row">
+              <div className="dg-type-meta">
+                <div className="dg-size">14px</div>
+                <div className="dg-weight">Bold 700</div>
+              </div>
+              <div className="dg-type-caption">CAPTION LABEL</div>
+            </div>
+            <div className="dg-type-row">
+              <div className="dg-type-meta">
+                <div className="dg-size">12px</div>
+                <div className="dg-weight">Semi 600</div>
+              </div>
+              <div className="dg-type-small">Small utility text for metadata and hints</div>
+            </div>
+          </div>
+        </section>
+
+        <section className="dg-panel" id="buttons">
+          <div className="dg-section-label">BUTTON VARIANTS</div>
+          <div className="dg-button-groups">
+            <div className="dg-button-row">
+              <div className="dg-row-label">Primary</div>
+              <div className="dg-row-content">
+                <button className="dg-btn dg-btn-primary">GET STARTED</button>
+                <button className="dg-btn dg-btn-primary dg-btn-sm">SMALL</button>
+                <button className="dg-btn dg-btn-primary" disabled>DISABLED</button>
+              </div>
+            </div>
+            <div className="dg-button-row">
+              <div className="dg-row-label">Secondary</div>
+              <div className="dg-row-content">
+                <button className="dg-btn dg-btn-secondary">LEARN MORE</button>
+                <button className="dg-btn dg-btn-secondary dg-btn-sm">SMALL</button>
+                <button className="dg-btn dg-btn-secondary" disabled>DISABLED</button>
+              </div>
+            </div>
+            <div className="dg-button-row">
+              <div className="dg-row-label">Danger</div>
+              <div className="dg-row-content">
+                <button className="dg-btn dg-btn-danger">DELETE</button>
+                <button className="dg-btn dg-btn-danger dg-btn-sm">REMOVE</button>
+              </div>
+            </div>
+            <div className="dg-button-row">
+              <div className="dg-row-label">Ghost</div>
+              <div className="dg-row-content">
+                <button className="dg-btn dg-btn-ghost">VIEW ALL</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="dg-panel dg-panel-dark">
+          <div className="dg-section-label">DARK THEME BUTTONS</div>
+          <div className="dg-button-groups">
+            <div className="dg-row-content">
+              <button className="dg-btn dg-btn-primary">GET STARTED</button>
+              <button className="dg-btn dg-btn-light">TRY 1 WEEK FREE</button>
+            </div>
+            <div className="dg-row-content">
+              <button className="dg-btn dg-btn-primary dg-btn-sm">GET STARTED</button>
+              <button className="dg-btn dg-btn-light dg-btn-sm">TRY 1 WEEK FREE</button>
+            </div>
+          </div>
+        </section>
+
+        <section className="dg-panel" id="cards">
+          <div className="dg-section-label">CARDS</div>
+          <div className="dg-card-grid">
+            <article className="dg-course-card">
+              <img
+                src="https://images.pexels.com/photos/4145354/pexels-photo-4145354.jpeg?auto=compress&cs=tinysrgb&w=400&h=200&fit=crop"
+                alt="Spanish for Beginners"
+              />
+              <div className="dg-card-body">
+                <span className="dg-tag dg-tag-green">NEW</span>
+                <h3>Spanish for Beginners</h3>
+                <p>Start your language journey with interactive lessons designed to build fluency.</p>
+              </div>
+              <footer>
+                <span>12 UNITS</span>
+                <button>START</button>
+              </footer>
+            </article>
+
+            <article className="dg-course-card">
+              <img
+                src="https://images.pexels.com/photos/267669/pexels-photo-267669.jpeg?auto=compress&cs=tinysrgb&w=400&h=200&fit=crop"
+                alt="French Conversations"
+              />
+              <div className="dg-card-body">
+                <span className="dg-tag dg-tag-blue">POPULAR</span>
+                <h3>French Conversations</h3>
+                <p>Practice real-world dialogue and improve pronunciation with native speakers.</p>
+              </div>
+              <footer>
+                <span>8 UNITS</span>
+                <button>CONTINUE</button>
+              </footer>
+            </article>
+          </div>
+        </section>
+
+        <section className="dg-panel dg-panel-dark">
+          <div className="dg-section-label">DARK THEME CARDS</div>
+          <div className="dg-card-grid">
+            <article className="dg-dark-card">
+              <span className="dg-tag dg-tag-golden">SUPER</span>
+              <h3>Unlimited Hearts</h3>
+              <p>Keep learning without interruption with Super Duolingo benefits.</p>
+              <footer>
+                <span>PREMIUM</span>
+                <button>UPGRADE</button>
+              </footer>
+            </article>
+            <article className="dg-dark-card">
+              <span className="dg-tag dg-tag-orange">PRO</span>
+              <h3>Mastery Quizzes</h3>
+              <p>Challenge yourself with advanced assessments to test your skill level.</p>
+              <footer>
+                <span>ADVANCED</span>
+                <button>TRY NOW</button>
+              </footer>
+            </article>
+          </div>
+        </section>
+
+        <section className="dg-panel" id="components">
+          <div className="dg-section-label">COMPONENTS</div>
+          <div className="dg-components-stack">
+            <div className="dg-group">
+              <div className="dg-group-title">BADGES</div>
+              <div className="dg-badge-row">
+                <span className="dg-pill dg-pill-green">COMPLETED</span>
+                <span className="dg-pill dg-pill-blue">IN PROGRESS</span>
+                <span className="dg-pill dg-pill-red">FAILED</span>
+                <span className="dg-pill dg-pill-orange">STREAK</span>
+                <span className="dg-pill dg-pill-golden">PREMIUM</span>
+              </div>
+            </div>
+
+            <div className="dg-group">
+              <div className="dg-group-title">INPUT + BUTTON</div>
+              <div className="dg-input-row">
+                <input placeholder="Enter your email address" />
+                <button className="dg-btn dg-btn-primary">SUBSCRIBE</button>
+              </div>
+            </div>
+
+            <div className="dg-group">
+              <div className="dg-group-title">TOGGLE</div>
+              <div className="dg-toggle-row">
+                <label className="dg-toggle-item">
+                  <span>Sound effects</span>
+                  <button
+                    className={`dg-toggle ${soundEnabled ? "checked" : ""}`}
+                    onClick={() => setSoundEnabled((v) => !v)}
+                    aria-pressed={soundEnabled}
+                  >
+                    <span className="dg-toggle-thumb" />
+                  </button>
+                </label>
+                <label className="dg-toggle-item">
+                  <span>Animations</span>
+                  <button
+                    className={`dg-toggle ${animEnabled ? "checked" : ""}`}
+                    onClick={() => setAnimEnabled((v) => !v)}
+                    aria-pressed={animEnabled}
+                  >
+                    <span className="dg-toggle-thumb" />
+                  </button>
+                </label>
+              </div>
+            </div>
+
+            <div className="dg-group">
+              <div className="dg-group-title">PROGRESS</div>
+              <div className="dg-progress-stack">
+                {[["85%", "var(--green)"], ["60%", "var(--blue)"], ["35%", "var(--orange)"]].map(([v, c]) => (
+                  <div className="dg-progress-row" key={v}>
+                    <div className="dg-progress-track"><div className="dg-progress-fill" style={{ width: v, background: c }} /></div>
+                    <span>{v}</span>
                   </div>
                 ))}
               </div>
             </div>
+
+            <div className="dg-group">
+              <div className="dg-group-title">TOOLTIPS & STREAK</div>
+              <div className="dg-tooltip-row">
+                <div className="dg-tooltip-wrap">
+                  <button className="dg-tooltip-trigger">Hover me</button>
+                  <span className="dg-tooltip-bubble">Helpful tooltip guidance</span>
+                </div>
+                <div className="dg-streak"><span>🔥</span><strong>42</strong></div>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-    </section>
-  );
-}
+        </section>
 
-function ModulesSection({ lang }: { lang: Lang }) {
-  const t = copy[lang];
-  return (
-    <section className="bg-background px-4 pb-20">
-      <div className="mx-auto max-w-6xl">
-        <h2 className="text-center text-3xl font-semibold text-foreground">{t.moduleTitle}</h2>
-        <p className="mx-auto mt-3 max-w-2xl text-center text-foreground/70">{t.moduleSub}</p>
-        <div className="mt-8 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {t.modules.map((m) => (
-            <div key={m} className="liquid-glass rounded-2xl px-4 py-3 text-sm text-foreground/90">
-              {m}
+        <section className="dg-panel dg-panel-dark">
+          <div className="dg-section-label">DARK THEME COMPONENTS</div>
+          <div className="dg-components-stack">
+            <div className="dg-group">
+              <div className="dg-group-title">LANGUAGE PILLS</div>
+              <div className="dg-lang-row">
+                {[
+                  ["Spanish", "https://d35aaqx5ub95lt.cloudfront.net/vendor/59a90a2cedd48b751a8fd22014768fd7.svg", true],
+                  ["French", "https://d35aaqx5ub95lt.cloudfront.net/vendor/482fda142ee4abd728ebf4ccce5d3307.svg", false],
+                  ["German", "https://d35aaqx5ub95lt.cloudfront.net/vendor/c71db846ffab7e0a74bc6971e34ad82e.svg", false],
+                  ["Japanese", "https://d35aaqx5ub95lt.cloudfront.net/vendor/edea4fa18ff3e7d8c0282de3f102aaed.svg", false],
+                ].map(([name, flag, active]) => (
+                  <button key={String(name)} className={`dg-lang-pill ${active ? "active" : ""}`}>
+                    <img src={String(flag)} alt="" />
+                    <span>{name}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
 
-function HowItWorksSection({ lang }: { lang: Lang }) {
-  const t = copy[lang];
-  return (
-    <section className="bg-background px-4 pb-28">
-      <div className="mx-auto max-w-6xl">
-        <h3 className="text-center text-3xl font-semibold text-foreground">{t.howTitle}</h3>
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
-          {t.steps.map((step, i) => (
-            <div key={step} className="liquid-glass rounded-2xl px-4 py-4 text-foreground/90">
-              <div className="text-xs text-foreground/60">0{i + 1}</div>
-              <div className="mt-1 text-base">{step}</div>
+            <div className="dg-group">
+              <div className="dg-group-title">AVATAR GROUP</div>
+              <div className="dg-avatar-row">
+                <div className="dg-avatar-stack">
+                  {[
+                    "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=80&h=80&fit=crop",
+                    "https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=80&h=80&fit=crop",
+                    "https://images.pexels.com/photos/733872/pexels-photo-733872.jpeg?auto=compress&cs=tinysrgb&w=80&h=80&fit=crop",
+                  ].map((src) => <img key={src} src={src} alt="" />)}
+                  <span className="dg-avatar-count">+5</span>
+                </div>
+                <span className="dg-avatar-text">8 learners active</span>
+              </div>
             </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
 
-export default function LandingPage() {
-  const [lang, setLang] = useState<Lang>("az");
+            <div className="dg-group">
+              <div className="dg-group-title">PROGRESS (DARK)</div>
+              <div className="dg-progress-stack dark">
+                {[["72%", "var(--golden)"], ["45%", "var(--green)"]].map(([v, c]) => (
+                  <div className="dg-progress-row" key={v}>
+                    <div className="dg-progress-track"><div className="dg-progress-fill" style={{ width: v, background: c }} /></div>
+                    <span>{v}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-  useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
-    const prevHeight = document.body.style.height;
-    document.body.style.overflow = "auto";
-    document.body.style.height = "auto";
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      document.body.style.height = prevHeight;
-    };
-  }, []);
-
-  return (
-    <>
-      <HeroSection lang={lang} setLang={setLang} />
-      <SocialProofSection lang={lang} />
-      <ModulesSection lang={lang} />
-      <HowItWorksSection lang={lang} />
-    </>
+            <div className="dg-group">
+              <div className="dg-group-title">BADGES (DARK)</div>
+              <div className="dg-badge-row">
+                <span className="dg-pill dg-pill-dark-green">MASTERED</span>
+                <span className="dg-pill dg-pill-dark-blue">REVIEW</span>
+                <span className="dg-pill dg-pill-dark-golden">CROWN</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
   );
 }
