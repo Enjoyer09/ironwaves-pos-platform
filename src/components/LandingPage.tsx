@@ -121,6 +121,15 @@ const DEFAULT_SHOTS = [
   ["Elite Card", "/landing/elite-card.png", "VIP müştəri segmenti və üstünlüklər"],
 ];
 
+const BLOCKED_IMAGE_TERMS = [
+  "tim hortons",
+  "timhortons",
+  "qr",
+  "qrcode",
+  "emalatxana",
+  "emalatkhana",
+];
+
 export default function LandingPage() {
   const [lang, setLang] = useState<Lang>("az");
   const [slideIndex, setSlideIndex] = useState(0);
@@ -172,6 +181,10 @@ export default function LandingPage() {
         const title = String(row?.[`title_${lang}`] || row?.title_az || row?.title_en || row?.title_ru || "").trim();
         const desc = String(row?.[`desc_${lang}`] || row?.desc_az || row?.desc_en || row?.desc_ru || "").trim();
         return [title || "Slide", String(row.image_url), desc || ""] as [string, string, string];
+      })
+      .filter(([title, src, desc]) => {
+        const hay = `${title} ${src} ${desc}`.toLowerCase();
+        return !BLOCKED_IMAGE_TERMS.some((term) => hay.includes(term));
       });
   }, [liveSettings, lang]);
 
@@ -249,9 +262,6 @@ export default function LandingPage() {
             <a href="https://demo.ironwaves.store" target="_blank" rel="noreferrer" className="neon-btn-active rounded-xl px-6 py-3 text-sm font-bold">
               {ctaPrimary}
             </a>
-            <a href="https://super.ironwaves.store" target="_blank" rel="noreferrer" className="neon-btn rounded-xl px-6 py-3 text-sm font-semibold">
-              {ctaSecondary}
-            </a>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {c.trust.map((item: string) => (
@@ -263,8 +273,8 @@ export default function LandingPage() {
         </div>
 
         <div className="space-y-3">
-          <div className="metal-panel overflow-hidden rounded-2xl border">
-            <img src={slideImage} alt={slideTitle} className="h-[320px] w-full object-cover md:h-[400px]" />
+          <div className="metal-panel overflow-hidden rounded-2xl border shadow-[0_0_36px_rgba(56,189,248,0.14)]">
+            <img src={slideImage} alt={slideTitle} className="h-[320px] w-full object-cover transition duration-700 hover:scale-[1.02] md:h-[400px]" />
             <div className="border-t border-slate-700/70 bg-[#101722] p-4">
               <h3 className="text-base font-bold text-slate-100">{slideTitle}</h3>
               <p className="mt-1 text-sm text-slate-400">{slideDesc}</p>
@@ -309,7 +319,7 @@ export default function LandingPage() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {slides.map(([title, src, desc], idx) => (
             <article key={`${title}_${idx}`} className="metal-panel overflow-hidden rounded-xl border">
-              <img src={src} alt={title} className="h-52 w-full object-cover" />
+              <img src={src} alt={title} className="h-52 w-full object-cover transition duration-700 hover:scale-[1.03]" />
               <div className="p-4">
                 <h3 className="text-base font-bold text-slate-100">{title}</h3>
                 <p className="mt-1 text-sm text-slate-400">{desc}</p>
