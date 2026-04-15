@@ -127,6 +127,7 @@ from app.services.finance_service import (  # noqa: E402 - keep router API thin 
     account_ledger_totals as _account_ledger_totals,
     create_finance_transaction_record as _create_finance_transaction_record,
     ensure_finance_accounts as _ensure_finance_accounts,
+    finance_account as _finance_account,
     finance_account_code as _finance_account_code,
     finance_policy as _finance_policy,
     ledger_balances_snapshot as _ledger_balances_snapshot,
