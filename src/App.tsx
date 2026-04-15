@@ -138,9 +138,7 @@ export default function App() {
     const host = String(window.location.host || '').toLowerCase().split(':')[0];
     if (
       host === 'www.ironwaves.store' ||
-      host === 'ironwaves.store' ||
-      host === 'demo.ironwaves.store' ||
-      host === 'demo.ironwaves'
+      host === 'ironwaves.store'
     ) {
       return 'landing';
     }
@@ -815,6 +813,10 @@ export default function App() {
 
   if (publicPathname === '/menu' || publicPathname === '/menu/') {
     return <PublicMenu />;
+  }
+
+  if (publicPathname === '/landing' || publicPathname === '/landing/') {
+    return <LandingPage />;
   }
 
   if (customerAppParams.join || (customerAppParams.cardId && customerAppParams.token)) {
