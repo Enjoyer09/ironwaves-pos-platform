@@ -49,6 +49,7 @@ export default function LandingPanel() {
   const [draggingShotIndex, setDraggingShotIndex] = useState<number | null>(null);
   const [dropShotIndex, setDropShotIndex] = useState<number | null>(null);
   const [previewLang, setPreviewLang] = useState<'az' | 'ru' | 'en'>('az');
+  const [previewViewport, setPreviewViewport] = useState<'mobile' | 'desktop'>('desktop');
   const heroFileRef = useRef<HTMLInputElement | null>(null);
   const [form, setForm] = useState<any>({
     nav_product_az: '',
@@ -369,7 +370,21 @@ export default function LandingPanel() {
         <div className="metal-panel p-4 xl:col-span-4 xl:sticky xl:top-24 h-fit space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-100">{tx(lang, 'Canlı Mini Preview', 'Live мини-превью', 'Live mini preview')}</h3>
-            <div className="flex gap-1">
+            <div className="flex flex-wrap justify-end gap-1">
+              <button
+                type="button"
+                onClick={() => setPreviewViewport('desktop')}
+                className={previewViewport === 'desktop' ? 'neon-chip neon-chip-active px-2 py-1 text-[11px]' : 'neon-chip px-2 py-1 text-[11px]'}
+              >
+                Desktop
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewViewport('mobile')}
+                className={previewViewport === 'mobile' ? 'neon-chip neon-chip-active px-2 py-1 text-[11px]' : 'neon-chip px-2 py-1 text-[11px]'}
+              >
+                Mobile
+              </button>
               {(['az', 'ru', 'en'] as const).map((l) => (
                 <button
                   key={l}
@@ -383,7 +398,7 @@ export default function LandingPanel() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-700/70 bg-[#0f1521] p-3 space-y-3">
+          <div className={`${previewViewport === 'mobile' ? 'mx-auto max-w-[360px]' : ''} rounded-xl border border-slate-700/70 bg-[#0f1521] p-3 space-y-3`}>
             <div className="flex flex-wrap gap-1">
               {previewNav.map((n: string, idx: number) => (
                 <span key={`${n}_${idx}`} className="rounded border border-slate-600/70 px-2 py-1 text-[10px] text-slate-300">{n}</span>
@@ -391,19 +406,19 @@ export default function LandingPanel() {
             </div>
 
             {String(form.hero_image_url || '').trim() && (
-              <img src={String(form.hero_image_url)} alt="hero-preview" className="h-28 w-full rounded-lg border border-slate-700/70 object-cover" />
+              <img src={String(form.hero_image_url)} alt="hero-preview" className={`${previewViewport === 'mobile' ? 'h-36' : 'h-28'} w-full rounded-lg border border-slate-700/70 object-cover`} />
             )}
 
-            <div className="text-sm font-bold text-slate-100">{previewTitle || '—'}</div>
+            <div className={`${previewViewport === 'mobile' ? 'text-base' : 'text-sm'} font-bold text-slate-100`}>{previewTitle || '—'}</div>
             <div className="text-xs leading-5 text-slate-400">{previewBody || '—'}</div>
 
-            <div className="flex gap-2">
+            <div className={`flex ${previewViewport === 'mobile' ? 'flex-col' : ''} gap-2`}>
               <span className="glossy-gold rounded-lg px-2 py-1 text-[10px] font-semibold">{previewPrimaryCta || 'CTA'}</span>
               <span className="neon-chip rounded-lg px-2 py-1 text-[10px]">{previewSecondaryCta || 'CTA'}</span>
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-700/70 bg-[#0f1521] p-3 space-y-2">
+          <div className={`${previewViewport === 'mobile' ? 'mx-auto max-w-[360px]' : ''} rounded-xl border border-slate-700/70 bg-[#0f1521] p-3 space-y-2`}>
             <div className="text-xs font-semibold text-slate-300">{previewModulesTitle || tx(lang, 'Modullar', 'Модули', 'Modules')}</div>
             <div className="space-y-2">
               {previewShots.map((shot: any, idx: number) => {
@@ -419,7 +434,7 @@ export default function LandingPanel() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-700/70 bg-[#0f1521] p-3 space-y-1 text-[11px] text-slate-300">
+          <div className={`${previewViewport === 'mobile' ? 'mx-auto max-w-[360px]' : ''} rounded-xl border border-slate-700/70 bg-[#0f1521] p-3 space-y-1 text-[11px] text-slate-300`}>
             <div>{String(form.contact_phone || '+99455 299-92-82')}</div>
             <div>{String(form.contact_email || 'abbas@laptopmarket.az')}</div>
             <div className="text-[10px] text-slate-500">{previewFooter || '—'}</div>
