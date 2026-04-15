@@ -204,6 +204,17 @@ export default function LandingPage() {
   const activeShot = SHOTS[shotIndex % SHOTS.length] as [string, string, string];
 
   useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    const prevHeight = document.body.style.height;
+    document.body.style.overflow = "auto";
+    document.body.style.height = "auto";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.height = prevHeight;
+    };
+  }, []);
+
+  useEffect(() => {
     const timer = window.setInterval(() => {
       setShotIndex((prev) => (prev + 1) % SHOTS.length);
     }, 3500);
@@ -268,17 +279,32 @@ export default function LandingPage() {
         </div>
         <div className="space-y-3">
           <AppPreview activeShot={activeShot} />
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {SHOTS.map((shot, idx) => (
-              <button
-                key={shot[0]}
-                type="button"
-                onClick={() => setShotIndex(idx)}
-                className={idx === shotIndex ? "neon-chip neon-chip-active whitespace-nowrap px-3 py-2 text-xs" : "neon-chip whitespace-nowrap px-3 py-2 text-xs"}
-              >
-                {shot[0]}
-              </button>
-            ))}
+          <div className="flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setShotIndex((prev) => (prev - 1 + SHOTS.length) % SHOTS.length)}
+              className="neon-chip px-3 py-1.5 text-xs"
+            >
+              ◀
+            </button>
+            <div className="flex items-center gap-2">
+              {SHOTS.map((shot, idx) => (
+                <button
+                  key={shot[0]}
+                  type="button"
+                  aria-label={shot[0]}
+                  onClick={() => setShotIndex(idx)}
+                  className={idx === shotIndex ? "h-2.5 w-7 rounded-full bg-yellow-300" : "h-2.5 w-2.5 rounded-full bg-slate-500/80"}
+                />
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShotIndex((prev) => (prev + 1) % SHOTS.length)}
+              className="neon-chip px-3 py-1.5 text-xs"
+            >
+              ▶
+            </button>
           </div>
         </div>
       </section>
