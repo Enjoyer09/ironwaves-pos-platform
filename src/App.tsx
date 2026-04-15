@@ -10,7 +10,7 @@ import PublicReceipt from './components/PublicReceipt';
 import PublicMenu from './components/PublicMenu';
 import CustomerApp from './components/CustomerApp';
 import LandingPage from './components/LandingPage';
-import { LogOut, Wifi, WifiOff, Languages, RotateCcw, Maximize2, Minimize2 } from 'lucide-react';
+import { LogOut, Wifi, WifiOff, Languages, RotateCcw, Maximize2, Minimize2, BookOpen, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import VirtualKeyboard from './components/VirtualKeyboard';
 import { seedDatabase } from './lib/seeder';
 import ToastOverlay from './components/ToastOverlay';
@@ -70,6 +70,98 @@ type ModuleKey =
   | 'settings'
   | 'landing'
   | 'database';
+
+type GuideStep = {
+  title: string;
+  description: string;
+  actionLabel?: string;
+  actionModule?: ModuleKey;
+};
+
+type GuideContent = {
+  moduleDescription: string;
+  steps: GuideStep[];
+};
+
+const getGuideContent = (lang: 'az' | 'ru' | 'en'): Record<ModuleKey, GuideContent> => ({
+  pos: {
+    moduleDescription: tx(lang, 'POS: sifarişin yaradılması və ödənişin tamamlanması üçün əsas iş sahəsi.', 'POS: основное рабочее место для создания заказа и завершения оплаты.', 'POS: main workspace to create orders and complete payment.'),
+    steps: [
+      { title: tx(lang, '1) Məhsul seçin', '1) Выберите товар', '1) Select product'), description: tx(lang, 'Kateqoriyadan məhsulu seçib səbətə əlavə edin.', 'Выберите товар из категории и добавьте в корзину.', 'Pick items from categories and add to cart.') },
+      { title: tx(lang, '2) Səbəti tamamlayın', '2) Подготовьте корзину', '2) Prepare cart'), description: tx(lang, 'Müştəri, endirim və qeydi bu mərhələdə daxil edin.', 'На этом этапе укажите клиента, скидку и примечание.', 'Set customer, discount, and notes here.') },
+      { title: tx(lang, '3) Ödənişi bağlayın', '3) Закройте оплату', '3) Close payment'), description: tx(lang, 'Nağd, kart və ya bölünmüş ödənişlə satışı bitirin.', 'Завершите продажу наличными, картой или split-оплатой.', 'Finalize sale using cash, card, or split payment.') },
+    ],
+  },
+  tables: {
+    moduleDescription: tx(lang, 'Masalar: zal axını və masa hesablarının idarəsi.', 'Столы: управление залом и счетами столов.', 'Tables: floor flow and table bill management.'),
+    steps: [
+      { title: tx(lang, '1) Masa açın', '1) Откройте стол', '1) Open table'), description: tx(lang, 'Yeni masa yaradın və ya mövcud masanı aktiv edin.', 'Создайте новый стол или активируйте существующий.', 'Create a new table or activate an existing one.') },
+      { title: tx(lang, '2) Sifarişi göndərin', '2) Отправьте заказ', '2) Send order'), description: tx(lang, 'Sifarişi mətbəxə göndərib statusu izləyin.', 'Отправьте заказ на кухню и следите за статусом.', 'Send order to kitchen and track status.') },
+      { title: tx(lang, '3) Hesabı bağlayın', '3) Закройте счет', '3) Close bill'), description: tx(lang, 'Masa hesabını POS ödənişinə yönləndirib tamamlayın.', 'Передайте счет стола в POS и завершите оплату.', 'Route table bill to POS and complete payment.') },
+    ],
+  },
+  kds: {
+    moduleDescription: tx(lang, 'Mətbəx ekranı: sifarişlərin hazırlanma statusuna nəzarət.', 'Кухонный экран: контроль статусов приготовления заказов.', 'Kitchen screen: monitor order preparation statuses.'),
+    steps: [
+      { title: tx(lang, '1) Yeni sifarişləri götürün', '1) Возьмите новые заказы', '1) Pick new orders'), description: tx(lang, 'Yeni daxil olan sifarişləri hazırlığa qəbul edin.', 'Примите новые заказы в приготовление.', 'Move incoming orders into preparation.') },
+      { title: tx(lang, '2) Statusu yeniləyin', '2) Обновите статус', '2) Update status'), description: tx(lang, 'Hazırlanır və hazır statuslarını vaxtında dəyişin.', 'Своевременно обновляйте статусы готовки.', 'Update preparing/ready statuses on time.') },
+      { title: tx(lang, '3) Servisə ötürün', '3) Передайте в сервис', '3) Hand over to service'), description: tx(lang, 'Hazır sifarişləri servis komandasına ötürün.', 'Передайте готовые позиции сервисной команде.', 'Pass ready items to service staff.') },
+    ],
+  },
+  zreport: {
+    moduleDescription: tx(lang, 'Z-Hesabat: gün sonu kassa və satış yekunu.', 'Z-Отчет: итог дня по кассе и продажам.', 'Z-Report: end-of-day cash and sales summary.'),
+    steps: [
+      { title: tx(lang, '1) Gün aralığını yoxlayın', '1) Проверьте период', '1) Check period'), description: tx(lang, 'Hesabat tarixini dəqiq seçin.', 'Точно выберите дату отчета.', 'Pick exact report date.') },
+      { title: tx(lang, '2) Bölmələri seçin', '2) Выберите секции', '2) Select sections'), description: tx(lang, 'Çekdə görünəcək hissələri ayarlardan idarə edin.', 'Управляйте секциями чека через настройки.', 'Control receipt sections from settings.') },
+      { title: tx(lang, '3) Çap/ixrac edin', '3) Печать/экспорт', '3) Print/export'), description: tx(lang, 'Audit üçün hesabatı çap edin və ya ixrac edin.', 'Печатайте или экспортируйте отчет для аудита.', 'Print/export report for auditing.') },
+    ],
+  },
+  finance: {
+    moduleDescription: tx(lang, 'Maliyyə: cashflow, transfer, təsdiq və ledger nəzarəti.', 'Финансы: контроль cashflow, переводов, утверждений и ledger.', 'Finance: control cashflow, transfers, approvals, and ledger.'),
+    steps: [
+      { title: tx(lang, '1) Overview-ə baxın', '1) Проверьте Overview', '1) Review overview'), description: tx(lang, 'KPI və kritik xəbərdarlıqları yoxlayın.', 'Проверьте KPI и критические предупреждения.', 'Check KPIs and critical alerts.') },
+      { title: tx(lang, '2) Quick action seçin', '2) Выберите quick action', '2) Pick quick action'), description: tx(lang, 'Mədaxil, xərc, transfer və ya investor əməliyyatı açın.', 'Откройте приход, расход, перевод или инвестор-операцию.', 'Start income/expense/transfer/investor operation.') },
+      { title: tx(lang, '3) Audit tabına keçin', '3) Перейдите в аудит', '3) Move to audit'), description: tx(lang, 'Jurnal və approval tarixçəsini ayrıca izləyin.', 'Отслеживайте журнал и историю approvals отдельно.', 'Review ledger and approval history separately.') },
+    ],
+  },
+  inventory: {
+    moduleDescription: tx(lang, 'Anbar: xammal, limit və hərəkətlərin idarəsi.', 'Склад: управление ингредиентами, лимитами и движениями.', 'Inventory: manage ingredients, limits, and stock movements.'),
+    steps: [
+      { title: tx(lang, '1) İlk anbar məhsulu yaradın', '1) Создайте первый складской товар', '1) Create first stock item'), description: tx(lang, 'Ad, vahid, limit və ilkin qalığı daxil edin.', 'Введите название, единицу, лимит и стартовый остаток.', 'Enter name, unit, limit, and initial quantity.') },
+      { title: tx(lang, '2) Hərəkətləri qeyd edin', '2) Фиксируйте движения', '2) Record movements'), description: tx(lang, 'Mədaxil və sərf əməliyyatlarını sənədləşdirin.', 'Документируйте приход и расход.', 'Document stock-in and consumption.') },
+      { title: tx(lang, '3) Reseptlə bağlantını yoxlayın', '3) Проверьте связь с рецептами', '3) Check recipe linkage'), description: tx(lang, 'Xammal reseptlərdə düzgün istifadə olunurmu izləyin.', 'Проверьте корректное использование ингредиентов в рецептах.', 'Ensure ingredients are linked correctly in recipes.'), actionLabel: tx(lang, 'Reseptə keç', 'Перейти в рецепты', 'Go to recipes'), actionModule: 'recipes' },
+    ],
+  },
+  combos: { moduleDescription: tx(lang, 'Kombo paketlər və aksiyalar üçün idarə paneli.', 'Панель для комбо-наборов и акций.', 'Panel for combo bundles and campaigns.'), steps: [{ title: tx(lang, '1) Kombo yarat', '1) Создайте комбо', '1) Create combo'), description: tx(lang, 'Menyu məhsullarını bir paketdə birləşdirin.', 'Объедините позиции меню в один пакет.', 'Bundle menu items into one offer.') }, { title: tx(lang, '2) Qiyməti təyin et', '2) Установите цену', '2) Set price'), description: tx(lang, 'Komboya ayrıca satış qiyməti verin.', 'Задайте отдельную цену для комбо.', 'Assign a dedicated combo price.') }, { title: tx(lang, '3) POS-da test et', '3) Протестируйте в POS', '3) Test in POS'), description: tx(lang, 'Kombonun POS-da düzgün çıxdığını yoxlayın.', 'Проверьте отображение комбо в POS.', 'Verify combo appears correctly in POS.'), actionLabel: tx(lang, 'POS-a keç', 'Перейти в POS', 'Go to POS'), actionModule: 'pos' }] },
+  dashboard: { moduleDescription: tx(lang, 'Dashboard: operativ göstəricilər və xəbərdarlıqlar.', 'Dashboard: оперативные метрики и предупреждения.', 'Dashboard: operational metrics and alerts.'), steps: [{ title: tx(lang, '1) KPI-ləri yoxla', '1) Проверьте KPI', '1) Check KPIs'), description: tx(lang, 'Satış və performans göstəricilərinə baxın.', 'Просмотрите показатели продаж и производительности.', 'Review sales and performance metrics.') }, { title: tx(lang, '2) Alert-ləri oxu', '2) Просмотрите alerts', '2) Read alerts'), description: tx(lang, 'Kritik xəbərdarlıqları öncə emal edin.', 'Сначала обработайте критические предупреждения.', 'Handle critical alerts first.') }, { title: tx(lang, '3) Modullara keçid et', '3) Перейдите в модули', '3) Jump to modules'), description: tx(lang, 'Dashboard-dan birbaşa uyğun modula keçin.', 'Переходите из dashboard напрямую в нужный модуль.', 'Navigate directly to the right module from dashboard.') }] },
+  analytics: { moduleDescription: tx(lang, 'Analitika: satış, trend və gəlirlilik analizi.', 'Аналитика: анализ продаж, трендов и доходности.', 'Analytics: sales, trend, and profitability analysis.'), steps: [{ title: tx(lang, '1) Tarix seç', '1) Выберите период', '1) Select date range'), description: tx(lang, 'Müqayisə üçün düzgün aralıq təyin edin.', 'Задайте корректный период для сравнения.', 'Set correct period for comparison.') }, { title: tx(lang, '2) Satış cədvəlini yoxla', '2) Проверьте таблицу продаж', '2) Review sales table'), description: tx(lang, 'Anomaliya və düzəliş ehtiyacını müəyyən edin.', 'Определите аномалии и необходимость корректировок.', 'Find anomalies and needed corrections.') }, { title: tx(lang, '3) Qərar çıxar', '3) Примите решение', '3) Make decisions'), description: tx(lang, 'Menyu, qiymət və kampaniya qərarlarını data ilə verin.', 'Принимайте решения по меню, ценам и акциям на основе данных.', 'Make menu/pricing decisions based on data.') }] },
+  logs: { moduleDescription: tx(lang, 'Loglar: backend/UI hadisə və xətaların monitorinqi.', 'Логи: мониторинг backend/UI событий и ошибок.', 'Logs: monitor backend/UI events and errors.'), steps: [{ title: tx(lang, '1) Filtr et', '1) Фильтруйте', '1) Filter'), description: tx(lang, 'Modul və zaman aralığına görə daraldın.', 'Сужайте по модулю и времени.', 'Filter by module and time range.') }, { title: tx(lang, '2) Kök səbəbi tap', '2) Найдите первопричину', '2) Find root cause'), description: tx(lang, 'UI freeze və failed fetch səbəblərini birləşdirin.', 'Свяжите причины UI freeze и failed fetch.', 'Correlate UI freeze and failed fetch causes.') }, { title: tx(lang, '3) Yüklə/Paylaş', '3) Скачать/поделиться', '3) Download/share'), description: tx(lang, 'Audit üçün logları ixrac edin.', 'Экспортируйте логи для аудита.', 'Export logs for auditing.') }] },
+  crm: { moduleDescription: tx(lang, 'CRM: müştəri kartı və loyallıq idarəsi.', 'CRM: управление клиентскими картами и лояльностью.', 'CRM: customer card and loyalty management.'), steps: [{ title: tx(lang, '1) Müştəri əlavə et', '1) Добавьте клиента', '1) Add customer'), description: tx(lang, 'Kart növü və əlaqə məlumatını daxil edin.', 'Укажите тип карты и контакты.', 'Enter card type and contact info.') }, { title: tx(lang, '2) Bonus balansını izlə', '2) Следите за бонусами', '2) Track bonuses'), description: tx(lang, 'Satışla bonusların uyğunluğunu yoxlayın.', 'Проверьте синхронизацию бонусов с продажами.', 'Verify bonus sync with sales.') }, { title: tx(lang, '3) Segmentləşdir', '3) Сегментируйте', '3) Segment customers'), description: tx(lang, 'Kampaniyalar üçün aktiv müştəri qrupları yaradın.', 'Создайте активные клиентские сегменты для кампаний.', 'Create active customer segments for campaigns.') }] },
+  customerapp: { moduleDescription: tx(lang, 'Customer App: müştəri self-service və QR təcrübəsi.', 'Customer App: self-service и QR опыт клиента.', 'Customer App: customer self-service and QR experience.'), steps: [{ title: tx(lang, '1) Linki yoxla', '1) Проверьте ссылку', '1) Check link'), description: tx(lang, 'Müştəri app linkinin düzgün açıldığını test edin.', 'Проверьте открытие ссылки customer app.', 'Test that customer app link opens correctly.') }, { title: tx(lang, '2) Profil axınını yoxla', '2) Проверьте поток профиля', '2) Test profile flow'), description: tx(lang, 'Qoşulma və bonus ekranlarını yoxlayın.', 'Проверьте onboarding и бонусные экраны.', 'Review onboarding and rewards screens.') }, { title: tx(lang, '3) CRM sinxronunu təsdiq et', '3) Подтвердите CRM синхронизацию', '3) Confirm CRM sync'), description: tx(lang, 'Dəyişikliklər CRM-də görünməlidir.', 'Изменения должны отражаться в CRM.', 'Changes should appear in CRM.') }] },
+  posbuilder: { moduleDescription: tx(lang, 'POS Builder: POS görünüş və axın konfiqurasiyası.', 'POS Builder: настройка вида и потока POS.', 'POS Builder: configure POS layout and flow.'), steps: [{ title: tx(lang, '1) Layout seç', '1) Выберите layout', '1) Choose layout'), description: tx(lang, 'Biznes tipinizə uyğun görünüş seçin.', 'Выберите макет под тип бизнеса.', 'Choose layout matching business type.') }, { title: tx(lang, '2) Sahələri tənzimlə', '2) Настройте поля', '2) Tune fields'), description: tx(lang, 'Səbət, məhsul və ödəniş bloklarını optimallaşdırın.', 'Оптимизируйте блоки корзины, товаров и оплаты.', 'Optimize cart/product/payment blocks.') }, { title: tx(lang, '3) Canlı test et', '3) Тестируйте вживую', '3) Test live'), description: tx(lang, 'Dəyişiklikləri real sifariş ssenarisi ilə yoxlayın.', 'Проверьте изменения на реальном сценарии заказа.', 'Validate changes on a live order scenario.'), actionLabel: tx(lang, 'POS-a keç', 'Перейти в POS', 'Go to POS'), actionModule: 'pos' }] },
+  ai: { moduleDescription: tx(lang, 'AI Menecer: əməliyyat tövsiyələri və risk siqnalları.', 'AI Менеджер: операционные рекомендации и сигналы риска.', 'AI Manager: operational recommendations and risk signals.'), steps: [{ title: tx(lang, '1) Tövsiyələri oxu', '1) Прочитайте рекомендации', '1) Read suggestions'), description: tx(lang, 'Ən yüksək təsirli təklifləri əvvəl emal edin.', 'Сначала обработайте советы с высоким эффектом.', 'Prioritize high-impact suggestions.') }, { title: tx(lang, '2) Task-a çevir', '2) Превратите в задачу', '2) Convert to task'), description: tx(lang, 'Uyğun təklifləri komandaya tapşırıq edin.', 'Преобразуйте полезные рекомендации в задачи.', 'Turn useful recommendations into tasks.') }, { title: tx(lang, '3) Nəticəni ölç', '3) Измерьте результат', '3) Measure outcome'), description: tx(lang, 'Dashboard/analytics ilə effektini ölçün.', 'Измерьте эффект через dashboard/analytics.', 'Measure impact in dashboard/analytics.') }] },
+  menu: {
+    moduleDescription: tx(lang, 'Menyu: məhsul yaratma, redaktə və deaktiv etmə.', 'Меню: создание, редактирование и деактивация позиций.', 'Menu: create, edit, and deactivate items.'),
+    steps: [
+      { title: tx(lang, '1) İlk menu item yaradın', '1) Создайте первый menu item', '1) Create first menu item'), description: tx(lang, 'Ad, qiymət və kateqoriya daxil edib əlavə edin.', 'Введите название, цену и категорию и добавьте товар.', 'Enter name, price, category and add item.') },
+      { title: tx(lang, '2) Reseptə bağlayın', '2) Привяжите рецепт', '2) Link recipe'), description: tx(lang, 'Məhsul yaradıldıqdan sonra resept moduluna keçin.', 'После создания товара перейдите в модуль рецептов.', 'After creation, move to recipes module.'), actionLabel: tx(lang, 'Reseptə keç', 'Перейти в рецепты', 'Go to recipes'), actionModule: 'recipes' },
+      { title: tx(lang, '3) Sil/deaktiv et', '3) Удалить/деактивировать', '3) Delete/deactivate'), description: tx(lang, 'Köhnə məhsulları səbət ikonundan deaktiv edin.', 'Деактивируйте старые позиции через иконку корзины.', 'Deactivate old items using trash icon.') },
+    ],
+  },
+  recipes: {
+    moduleDescription: tx(lang, 'Resept: menyu məhsulunu anbar xammalına bağlayır.', 'Рецепты: связывают меню-позиции с ингредиентами склада.', 'Recipes: link menu items with inventory ingredients.'),
+    steps: [
+      { title: tx(lang, '1) Məhsul seçin', '1) Выберите товар', '1) Select item'), description: tx(lang, 'Soldakı menyudan məhsul seçib resepti açın.', 'Выберите позицию слева и откройте рецепт.', 'Pick item from menu list and open recipe.') },
+      { title: tx(lang, '2) Xammal əlavə edin', '2) Добавьте ингредиенты', '2) Add ingredients'), description: tx(lang, 'Anbar məhsulu və miqdar daxil edin.', 'Добавьте складской ингредиент и количество.', 'Add stock ingredient and quantity.') },
+      { title: tx(lang, '3) Anbarı tamamlayın', '3) Дозаполните склад', '3) Complete inventory'), description: tx(lang, 'Çatışmayan xammal üçün anbara keçin.', 'Перейдите на склад для отсутствующих ингредиентов.', 'Go to inventory for missing ingredients.'), actionLabel: tx(lang, 'Anbara keç', 'Перейти на склад', 'Go to inventory'), actionModule: 'inventory' },
+    ],
+  },
+  tenants: { moduleDescription: tx(lang, 'Tenantlər: multi-tenant idarəetmə paneli.', 'Тенанты: панель управления multi-tenant.', 'Tenants: multi-tenant administration panel.'), steps: [{ title: tx(lang, '1) Tenant siyahısını yoxla', '1) Проверьте список тенантов', '1) Review tenants list'), description: tx(lang, 'Aktiv tenant statuslarını təsdiqləyin.', 'Подтвердите статусы активных тенантов.', 'Verify active tenant statuses.') }, { title: tx(lang, '2) Domeni yoxla', '2) Проверьте домен', '2) Verify domain'), description: tx(lang, 'Subdomain yönləndirməsi düzgün olmalıdır.', 'Проверьте корректность subdomain маршрутизации.', 'Ensure subdomain routing is correct.') }, { title: tx(lang, '3) Silmə əməliyyatı ehtiyatla', '3) Удаление осторожно', '3) Delete carefully'), description: tx(lang, 'Silmədən öncə backup və bağlı modulları yoxlayın.', 'Перед удалением проверьте backup и связанные модули.', 'Check backups and linked modules before delete.') }] },
+  notes: { moduleDescription: tx(lang, 'Qeydlər: daxili əməliyyat qeydləri üçün sahə.', 'Заметки: место для внутренних операционных записей.', 'Notes: area for internal operational notes.'), steps: [{ title: tx(lang, '1) Qeyd yaz', '1) Напишите заметку', '1) Write note'), description: tx(lang, 'Qısa, ölçülə bilən və icra yönümlü qeyd daxil edin.', 'Пишите короткие и actionable заметки.', 'Write concise and actionable notes.') }, { title: tx(lang, '2) Saxla', '2) Сохраните', '2) Save'), description: tx(lang, 'Qeydlər siyahısında dərhal görünəcək.', 'Заметка сразу появится в списке.', 'Note appears immediately in the list.') }, { title: tx(lang, '3) Təmizlə', '3) Очистите', '3) Clean up'), description: tx(lang, 'Köhnə qeydləri redaktə edin və silin.', 'Редактируйте и удаляйте устаревшие заметки.', 'Edit/delete outdated notes.') }] },
+  settings: { moduleDescription: tx(lang, 'Ayarlar: sistem, rol və inteqrasiya davranışları.', 'Настройки: поведение системы, ролей и интеграций.', 'Settings: system, role, and integration behaviors.'), steps: [{ title: tx(lang, '1) Profili tənzimlə', '1) Настройте профиль', '1) Configure profile'), description: tx(lang, 'Şirkət adı, logo və əlaqə məlumatını yeniləyin.', 'Обновите название, логотип и контакты.', 'Update company name, logo, contacts.') }, { title: tx(lang, '2) Rol icazələrini yoxla', '2) Проверьте роли', '2) Review role permissions'), description: tx(lang, 'Modul girişlərinin rola görə uyğunluğunu yoxlayın.', 'Проверьте доступ модулей по ролям.', 'Validate module access per role.') }, { title: tx(lang, '3) Ayarı test et', '3) Протестируйте', '3) Test settings'), description: tx(lang, 'Saxladıqdan sonra qısa smoke test edin.', 'После сохранения выполните короткий smoke test.', 'Run a quick smoke test after saving.') }] },
+  landing: { moduleDescription: tx(lang, 'Landing Studio: satış səhifəsi məzmunu və vizual idarəsi.', 'Landing Studio: управление контентом и визуалом продающей страницы.', 'Landing Studio: manage marketing page content and visuals.'), steps: [{ title: tx(lang, '1) Hero mətnini yenilə', '1) Обновите Hero текст', '1) Update hero text'), description: tx(lang, 'Başlıq və alt başlıqda əsas dəyər təklifini yazın.', 'Опишите ценностное предложение в заголовке и подзаголовке.', 'Set core value proposition in heading/subheading.') }, { title: tx(lang, '2) Ekran görüntülərini seç', '2) Выберите скриншоты', '2) Select screenshots'), description: tx(lang, 'POS/KDS/Maliyyə UI screenshot-larını istifadə edin.', 'Используйте скриншоты POS/KDS/Финансы.', 'Use POS/KDS/Finance screenshots.') }, { title: tx(lang, '3) Canlıya yayımla', '3) Опубликуйте', '3) Publish live'), description: tx(lang, 'Dəyişikliyi publish edib saytda yoxlayın.', 'Опубликуйте изменения и проверьте сайт.', 'Publish changes and verify on site.') }] },
+  database: { moduleDescription: tx(lang, 'Baza: backup/restore və texniki servis əməliyyatları.', 'База: backup/restore и техобслуживание.', 'Database: backup/restore and maintenance operations.'), steps: [{ title: tx(lang, '1) Backup alın', '1) Создайте backup', '1) Create backup'), description: tx(lang, 'Restore və silmədən əvvəl backup məcburidir.', 'Перед restore и удалением backup обязателен.', 'Backup is mandatory before restore/delete.') }, { title: tx(lang, '2) Restore yoxlaması edin', '2) Проверьте restore', '2) Validate restore'), description: tx(lang, 'JSON struktur və admin doğrulamasını yoxlayın.', 'Проверьте JSON-структуру и admin валидацию.', 'Validate JSON structure and admin verification.') }, { title: tx(lang, '3) Post-restore test', '3) Post-restore тест', '3) Post-restore test'), description: tx(lang, 'Menyu/CRM/Maliyyə məlumatlarını müqayisə edin.', 'Сверьте данные меню/CRM/финансов после restore.', 'Cross-check menu/CRM/finance data after restore.') }] },
+});
 
 export default function App() {
   const { user, access_token, logout, lang, setLang, hasHydrated, notify, switchTenantContext, applySessionUser } = useAppStore();
@@ -187,6 +279,8 @@ export default function App() {
   const [currentModule, setCurrentModule] = useState<ModuleKey>('pos');
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [pendingOfflineCount, setPendingOfflineCount] = useState(0);
+  const [quickGuideOpen, setQuickGuideOpen] = useState(false);
+  const [quickGuideStepIndex, setQuickGuideStepIndex] = useState(0);
   const [lowStockModal, setLowStockModal] = useState<Array<{ name: string; stock_qty: string; min_limit: string; unit: string }> | null>(null);
   const [availableTenants, setAvailableTenants] = useState<TenantRecord[]>([]);
   const [tenantSwitching, setTenantSwitching] = useState(false);
@@ -674,6 +768,8 @@ export default function App() {
 
   const visibleModules = moduleButtons.filter((m) => canAccess(m.key));
   const resolvedModule = visibleModules.find((m) => m.key === currentModule)?.key || visibleModules[0]?.key || 'pos';
+  const guideMap = getGuideContent(safeLang);
+  const activeGuide = guideMap[resolvedModule];
 
   const visibleModuleKeys = visibleModules.map((m) => m.key).join('|');
   const shouldHoldForTenantResolution = Boolean(
@@ -763,6 +859,19 @@ export default function App() {
       setCurrentModule(visibleModules[0]?.key || 'pos');
     }
   }, [sessionRole, currentModule, visibleModuleKeys]);
+
+  useEffect(() => {
+    setQuickGuideStepIndex(0);
+  }, [resolvedModule]);
+
+  useEffect(() => {
+    if (!hasValidUser || !user?.tenant_id || !user?.username) return;
+    const seenKey = `quick_guide_seen_${user.tenant_id}_${user.username}`;
+    if (localStorage.getItem(seenKey) === '1') return;
+    setQuickGuideOpen(true);
+    setQuickGuideStepIndex(0);
+    localStorage.setItem(seenKey, '1');
+  }, [hasValidUser, user?.tenant_id, user?.username]);
 
   useEffect(() => {
     if (safeLang !== lang) {
@@ -1013,6 +1122,14 @@ export default function App() {
                 <span className="hidden sm:inline">{t.refresh}</span>
               </button>
               <button
+                onClick={() => setQuickGuideOpen((prev) => !prev)}
+                className="neon-btn px-3 py-2"
+                title={tx(safeLang, 'Cari modul üçün quick guide', 'Quick guide для текущего модуля', 'Quick guide for current module')}
+              >
+                <BookOpen size={16} />
+                <span className="hidden sm:inline">{tx(safeLang, 'Quick Guide', 'Quick Guide', 'Quick Guide')}</span>
+              </button>
+              <button
                 onClick={() => setLang(safeLang === 'az' ? 'ru' : safeLang === 'ru' ? 'en' : 'az')}
                 className="neon-btn px-3 py-2"
               >
@@ -1054,11 +1171,68 @@ export default function App() {
                   key={item.key}
                   onClick={() => setCurrentModule(item.key)}
                   className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap px-4 py-3 text-sm`}
+                  title={guideMap[item.key]?.moduleDescription || item.label}
                 >
                   <span>{item.label}</span>
                 </button>
               ))}
           </div>
+          {quickGuideOpen && activeGuide && (
+            <div className="rounded-2xl border border-yellow-300/30 bg-yellow-400/10 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.18em] text-yellow-200">
+                    {tx(safeLang, 'Quick Guide', 'Quick Guide', 'Quick Guide')}
+                  </div>
+                  <div className="mt-1 text-sm text-slate-200">{activeGuide.moduleDescription}</div>
+                </div>
+                <button className="neon-btn px-2 py-1" onClick={() => setQuickGuideOpen(false)} title={tx(safeLang, 'Bağla', 'Закрыть', 'Close')}>
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="mt-3 rounded-xl border border-slate-700/70 bg-slate-900/45 p-3">
+                <div className="text-sm font-semibold text-slate-100">
+                  {activeGuide.steps[Math.min(quickGuideStepIndex, activeGuide.steps.length - 1)]?.title}
+                </div>
+                <div className="mt-1 text-sm text-slate-300">
+                  {activeGuide.steps[Math.min(quickGuideStepIndex, activeGuide.steps.length - 1)]?.description}
+                </div>
+                {activeGuide.steps[Math.min(quickGuideStepIndex, activeGuide.steps.length - 1)]?.actionLabel &&
+                  activeGuide.steps[Math.min(quickGuideStepIndex, activeGuide.steps.length - 1)]?.actionModule && (
+                    <div className="mt-3">
+                      <button
+                        className="glossy-gold rounded-lg px-3 py-1.5 text-sm font-semibold"
+                        onClick={() => {
+                          const target = activeGuide.steps[Math.min(quickGuideStepIndex, activeGuide.steps.length - 1)]?.actionModule as ModuleKey;
+                          if (canAccess(target)) setCurrentModule(target);
+                        }}
+                      >
+                        {activeGuide.steps[Math.min(quickGuideStepIndex, activeGuide.steps.length - 1)]?.actionLabel}
+                      </button>
+                    </div>
+                  )}
+              </div>
+              <div className="mt-3 flex items-center justify-between">
+                <div className="text-xs text-slate-400">{quickGuideStepIndex + 1} / {activeGuide.steps.length}</div>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="neon-btn px-2 py-1"
+                    onClick={() => setQuickGuideStepIndex((prev) => Math.max(0, prev - 1))}
+                    disabled={quickGuideStepIndex <= 0}
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <button
+                    className="neon-btn px-2 py-1"
+                    onClick={() => setQuickGuideStepIndex((prev) => Math.min(activeGuide.steps.length - 1, prev + 1))}
+                    disabled={quickGuideStepIndex >= activeGuide.steps.length - 1}
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="relative min-h-0 flex-1 overflow-hidden">
@@ -1077,6 +1251,7 @@ export default function App() {
                 key={`mobile_${item.key}`}
                 onClick={() => setCurrentModule(item.key)}
                 className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap`}
+                title={guideMap[item.key]?.moduleDescription || item.label}
               >
                 <span>{item.label}</span>
               </button>
