@@ -1276,6 +1276,29 @@ export async function update_landing_settings_live(payload: Settings['landing_se
   return { success: true };
 }
 
+export async function update_landing_draft_live(payload: Settings['landing_settings']) {
+  if (!isBackendEnabled()) return update_landing_settings(payload);
+  await apiRequest('/api/v1/ops/settings/landing?mode=draft', { method: 'PATCH', tenantId: null, body: payload });
+  return { success: true };
+}
+
+export async function get_landing_studio_live() {
+  if (!isBackendEnabled()) {
+    const current = normalizeLandingSettings(get_settings().landing_settings || DEFAULT_LANDING_SETTINGS);
+    return { published: current, draft: current };
+  }
+  return apiRequest<{ published: NonNullable<Settings['landing_settings']>; draft: NonNullable<Settings['landing_settings']> }>(
+    '/api/v1/ops/settings/landing/studio',
+    { tenantId: null },
+  );
+}
+
+export async function publish_landing_live() {
+  if (!isBackendEnabled()) return { success: true };
+  await apiRequest('/api/v1/ops/settings/landing/publish', { method: 'POST', tenantId: null });
+  return { success: true };
+}
+
 export async function get_public_landing_settings_live() {
   if (!isBackendEnabled()) return normalizeLandingSettings(get_settings().landing_settings || DEFAULT_LANDING_SETTINGS);
   const data = await apiRequest<NonNullable<Settings['landing_settings']>>('/api/v1/ops/public/landing-settings', {

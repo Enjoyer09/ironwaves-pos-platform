@@ -45,6 +45,7 @@ type AdminView =
   | 'database'
   | 'zreport'
   | 'combos'
+  | 'landing'
   | 'tenants';
 
 type ModuleKey =
@@ -67,6 +68,7 @@ type ModuleKey =
   | 'tenants'
   | 'notes'
   | 'settings'
+  | 'landing'
   | 'database';
 
 export default function App() {
@@ -630,6 +632,7 @@ export default function App() {
     { key: 'notes', label: t.modules.notes, adminOnly: true },
     { key: 'database', label: t.modules.database, adminOnly: true },
     { key: 'settings', label: t.modules.settings, adminOnly: true },
+    { key: 'landing', label: (t.modules as any).landing || tx(safeLang, 'Landing Studio', 'Landing Studio', 'Landing Studio'), superAdminOnly: true },
     { key: 'ai', label: t.modules.ai, manager: true },
     { key: 'tenants', label: t.modules.tenants, superAdminOnly: true },
   ];
