@@ -192,6 +192,7 @@ export default function POS() {
   const [layoutRefreshKey, setLayoutRefreshKey] = useState(0);
   const [isTabletViewport, setIsTabletViewport] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 1280 : false));
   const [tableRoutingBanner, setTableRoutingBanner] = useState<{ tableId: string; tableLabel: string } | null>(null);
+  const [showOpenShiftModal, setShowOpenShiftModal] = useState(false);
   const [tenantSettings, setTenantSettings] = useState<any>({});
   const receiptIframeRef = useRef<HTMLIFrameElement | null>(null);
   const refreshInFlightRef = useRef(false);
@@ -732,7 +733,7 @@ export default function POS() {
     if (!user) return;
     const shift = await refresh_shift_status(tenantId).catch(() => get_shift_status(tenantId));
     if (shift.status !== 'Open') {
-      notify('error', tx(safeLang, 'Əvvəlcə günü açın', 'Сначала откройте смену', 'Open shift first'));
+      setShowOpenShiftModal(true);
       return;
     }
 
@@ -1706,6 +1707,36 @@ export default function POS() {
             <button className="mt-4 w-full rounded-lg border border-slate-600 px-4 py-2 text-sm" onClick={() => setVariantPicker(null)}>
               {tx(lang, 'Bağla', 'Закрыть', 'Close')}
             </button>
+          </div>
+        </div>
+      )}
+
+      {showOpenShiftModal && (
+        <div className="fixed inset-0 z-[121] flex items-center justify-center bg-black/70 p-4">
+          <div className="metal-panel w-full max-w-md rounded-2xl p-5">
+            <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Əvvəlcə günü açın', 'Сначала откройте смену', 'Open shift first')}</h3>
+            <p className="mt-2 text-sm text-slate-300">
+              {tx(
+                lang,
+                'Satış üçün əvvəl günü Z-Hesabat bölməsində açın.',
+                'Перед продажей откройте смену в разделе Z-Отчет.',
+                'Open the shift in Z-Report before making sales.',
+              )}
+            </p>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button className="neon-btn rounded-xl px-4 py-2" onClick={() => setShowOpenShiftModal(false)}>
+                {tx(lang, 'Bağla', 'Закрыть', 'Close')}
+              </button>
+              <button
+                className="glossy-gold rounded-xl px-4 py-2 font-semibold"
+                onClick={() => {
+                  setShowOpenShiftModal(false);
+                  window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module: 'zreport' } }));
+                }}
+              >
+                {tx(lang, 'Z-Hesabata keçin', 'Перейти в Z-Отчет', 'Go to Z-Report')}
+              </button>
+            </div>
           </div>
         </div>
       )}
