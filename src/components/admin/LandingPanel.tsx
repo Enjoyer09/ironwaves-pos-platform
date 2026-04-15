@@ -48,6 +48,7 @@ export default function LandingPanel() {
   const [publishing, setPublishing] = useState(false);
   const [draggingShotIndex, setDraggingShotIndex] = useState<number | null>(null);
   const [dropShotIndex, setDropShotIndex] = useState<number | null>(null);
+  const [previewLang, setPreviewLang] = useState<'az' | 'ru' | 'en'>('az');
   const heroFileRef = useRef<HTMLInputElement | null>(null);
   const [form, setForm] = useState<any>({
     nav_product_az: '',
@@ -190,6 +191,18 @@ export default function LandingPanel() {
     }
   };
 
+  const previewPick = (prefix: string) => String(form?.[`${prefix}_${previewLang}`] || '').trim();
+  const previewNav = [previewPick('nav_product'), previewPick('nav_how'), previewPick('nav_modules'), previewPick('nav_contact')].filter(Boolean);
+  const previewTitle = previewPick('hero_title');
+  const previewBody = previewPick('hero_body');
+  const previewPrimaryCta = previewPick('primary_cta');
+  const previewSecondaryCta = previewPick('secondary_cta');
+  const previewModulesTitle = previewPick('modules_title');
+  const previewFooter = previewPick('footer_text');
+  const previewShots = (Array.isArray(form?.screenshot_items) ? form.screenshot_items : [])
+    .filter((shot: any) => String(shot?.image_url || '').trim())
+    .slice(0, 3);
+
   return (
     <div className="space-y-6">
       <div className="metal-panel p-6 space-y-4">
@@ -212,7 +225,8 @@ export default function LandingPanel() {
         </div>
       </div>
 
-      <div className="metal-panel p-6 space-y-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <div className="metal-panel p-6 space-y-6 xl:col-span-8">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
           <input className="neon-input" value={form.nav_product_az} onChange={(e) => setField('nav_product_az', e.target.value)} placeholder="AZ: Məhsul" />
           <input className="neon-input" value={form.nav_how_az} onChange={(e) => setField('nav_how_az', e.target.value)} placeholder="AZ: Necə işləyir" />
@@ -348,6 +362,67 @@ export default function LandingPanel() {
             <button onClick={() => { void publish(); }} disabled={publishing} className="glossy-gold rounded-xl px-6 py-2 font-bold">
               {publishing ? tx(lang, 'Yayımlanır...', 'Публикация...', 'Publishing...') : tx(lang, 'Canlıya yayımla', 'Опубликовать', 'Publish live')}
             </button>
+          </div>
+        </div>
+        </div>
+
+        <div className="metal-panel p-4 xl:col-span-4 xl:sticky xl:top-24 h-fit space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-100">{tx(lang, 'Canlı Mini Preview', 'Live мини-превью', 'Live mini preview')}</h3>
+            <div className="flex gap-1">
+              {(['az', 'ru', 'en'] as const).map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => setPreviewLang(l)}
+                  className={previewLang === l ? 'neon-chip neon-chip-active px-2 py-1 text-[11px]' : 'neon-chip px-2 py-1 text-[11px]'}
+                >
+                  {l.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-700/70 bg-[#0f1521] p-3 space-y-3">
+            <div className="flex flex-wrap gap-1">
+              {previewNav.map((n: string, idx: number) => (
+                <span key={`${n}_${idx}`} className="rounded border border-slate-600/70 px-2 py-1 text-[10px] text-slate-300">{n}</span>
+              ))}
+            </div>
+
+            {String(form.hero_image_url || '').trim() && (
+              <img src={String(form.hero_image_url)} alt="hero-preview" className="h-28 w-full rounded-lg border border-slate-700/70 object-cover" />
+            )}
+
+            <div className="text-sm font-bold text-slate-100">{previewTitle || '—'}</div>
+            <div className="text-xs leading-5 text-slate-400">{previewBody || '—'}</div>
+
+            <div className="flex gap-2">
+              <span className="glossy-gold rounded-lg px-2 py-1 text-[10px] font-semibold">{previewPrimaryCta || 'CTA'}</span>
+              <span className="neon-chip rounded-lg px-2 py-1 text-[10px]">{previewSecondaryCta || 'CTA'}</span>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-700/70 bg-[#0f1521] p-3 space-y-2">
+            <div className="text-xs font-semibold text-slate-300">{previewModulesTitle || tx(lang, 'Modullar', 'Модули', 'Modules')}</div>
+            <div className="space-y-2">
+              {previewShots.map((shot: any, idx: number) => {
+                const title = String(shot?.[`title_${previewLang}`] || shot?.title_az || shot?.title_en || shot?.title_ru || '').trim();
+                const desc = String(shot?.[`desc_${previewLang}`] || shot?.desc_az || shot?.desc_en || shot?.desc_ru || '').trim();
+                return (
+                  <div key={`preview_shot_${idx}`} className="rounded-lg border border-slate-700/70 bg-[#0c121b] p-2">
+                    <div className="mb-1 text-[11px] font-semibold text-slate-100">{title || `Slide ${idx + 1}`}</div>
+                    <div className="text-[10px] text-slate-400">{desc || '—'}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-700/70 bg-[#0f1521] p-3 space-y-1 text-[11px] text-slate-300">
+            <div>{String(form.contact_phone || '+99455 299-92-82')}</div>
+            <div>{String(form.contact_email || 'abbas@laptopmarket.az')}</div>
+            <div className="text-[10px] text-slate-500">{previewFooter || '—'}</div>
           </div>
         </div>
       </div>
