@@ -135,8 +135,15 @@ export default function App() {
 
   const hostMode = useMemo(() => {
     if (typeof window === 'undefined') return 'app';
-    const host = window.location.host.toLowerCase();
-    if (host === 'www.ironwaves.store' || host === 'ironwaves.store') return 'landing';
+    const host = String(window.location.host || '').toLowerCase().split(':')[0];
+    if (
+      host === 'www.ironwaves.store' ||
+      host === 'ironwaves.store' ||
+      host === 'demo.ironwaves.store' ||
+      host === 'demo.ironwaves'
+    ) {
+      return 'landing';
+    }
     return 'app';
   }, []);
 
