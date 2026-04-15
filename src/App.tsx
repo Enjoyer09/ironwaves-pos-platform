@@ -71,6 +71,36 @@ type ModuleKey =
   | 'landing'
   | 'database';
 
+type DemoGuideBubble = {
+  text: string;
+  x: number;
+  y: number;
+};
+
+const DEMO_MODULE_GUIDE_AZ: Record<ModuleKey, string> = {
+  pos: 'Satışı bu bölmədə başlayırsınız: məhsul seçimi, səbət və ödəniş tamamlanır.',
+  tables: 'Masa açma, sifarişin mətbəxə ötürülməsi və masa hesabının bağlanması buradan idarə olunur.',
+  kds: 'Mətbəx komandasının iş ekranıdır: sifariş statusları burada yenilənir.',
+  zreport: 'Gün sonu yekun hesabatı və kassa nəticələri bu bölmədə çıxarılır.',
+  finance: 'Pul axını, transferlər, investor borcu və jurnal nəzarəti bu bölmədədir.',
+  inventory: 'Anbar qalıqları, xammal hərəkətləri və kritik limitlər burada izlənir.',
+  combos: 'Kampaniya və kombo məhsullar burada yaradılır və idarə olunur.',
+  dashboard: 'Bütün əsas göstəricilər və kritik xəbərdarlıqlar bir baxışda göstərilir.',
+  analytics: 'Satış trendi, performans və qərar üçün analitik göstəricilər burada toplanır.',
+  logs: 'Sistem xətaları və texniki hadisələr bu bölmədə izlənir.',
+  crm: 'Müştəri bazası, loyallıq və bonus axını bu bölmədə idarə edilir.',
+  customerapp: 'Müştərinin özünəxidmət axını və tətbiq tərəfi bu bölmədən nəzarət olunur.',
+  posbuilder: 'POS görünüşünü və iş axınını biznesinizə uyğunlaşdırmaq üçün istifadə olunur.',
+  ai: 'AI tövsiyələri və əməliyyat optimallaşdırma siqnalları burada göstərilir.',
+  menu: 'Menyu məhsulu yaratma, qiymətləmə və deaktiv/silmə əməliyyatları bu bölmədədir.',
+  recipes: 'Menyu məhsullarını anbar xammalı ilə bağlayan reseptlər burada idarə olunur.',
+  tenants: 'Tenant yaratma, domen nəzarəti və multi-tenant idarəetməsi bu bölmədədir.',
+  notes: 'Daxili əməliyyat qeydləri və komanda üçün xatırlatmalar bu bölmədə saxlanılır.',
+  settings: 'Sistem ayarları, icazələr və biznes konfiqurasiyası burada dəyişdirilir.',
+  landing: 'Landing məzmunu və vizual təqdimat buradan redaktə olunur.',
+  database: 'Backup/restore və texniki baza əməliyyatları bu bölmədə icra edilir.',
+};
+
 export default function App() {
   const { user, access_token, logout, lang, setLang, hasHydrated, notify, switchTenantContext, applySessionUser } = useAppStore();
   const activeTenant = getActiveTenantId();
@@ -151,6 +181,7 @@ export default function App() {
   }, []);
 
   const mappedTenantFromHost = useMemo(() => getResolvedTenantIdFromHost(currentHost), [currentHost]);
+  const isDemoTourHost = currentHost === 'demo.ironwaves.store' || currentHost === 'demo.ironwaves';
 
   const [sessionChecking, setSessionChecking] = useState(false);
   const [readyPopup, setReadyPopup] = useState<any | null>(null);
@@ -200,6 +231,8 @@ export default function App() {
   const [perfEvents, setPerfEvents] = useState<PerfEvent[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [keyboardInset, setKeyboardInset] = useState(0);
+  const [demoGuideBubble, setDemoGuideBubble] = useState<DemoGuideBubble | null>(null);
+  const [demoGuidePinned, setDemoGuidePinned] = useState<string>('POS modulundan başlaya bilərsiniz.');
   const offlineCountRef = useRef(0);
   const pendingOfflineInFlightRef = useRef(false);
   const notificationInFlightRef = useRef(false);
@@ -679,6 +712,30 @@ export default function App() {
 
   const visibleModules = moduleButtons.filter((m) => canAccess(m.key));
   const resolvedModule = visibleModules.find((m) => m.key === currentModule)?.key || visibleModules[0]?.key || 'pos';
+  const demoGuideEnabled = isDemoTourHost && hostMode !== 'landing';
+  const describeActionAz = (label: string): string => {
+    const normalized = String(label || '').toLowerCase();
+    if (normalized.includes('yenilə')) return 'Səhifəni yeniləyir və məlumatları təzələyir.';
+    if (normalized.includes('tam ekran')) return 'Tətbiqi tam ekran rejiminə keçirir və ya çıxarır.';
+    if (normalized.includes('çıxış') || normalized.includes('logout')) return 'Cari sessiyanı bağlayıb sistemdən çıxır.';
+    if (normalized.includes('tenant')) return 'Aktiv tenant mühitini dəyişir.';
+    if (normalized.includes('az') || normalized.includes('ru') || normalized.includes('en')) return 'İnterfeys dilini dəyişir.';
+    if (normalized.includes('online') || normalized.includes('offline')) return 'Şəbəkə bağlantısının vəziyyətini göstərir.';
+    return 'Bu düymə seçilmiş əməliyyatı açır.';
+  };
+  const handleDemoGuideHover = (text: string, event: React.MouseEvent<HTMLElement>) => {
+    if (!demoGuideEnabled || typeof window === 'undefined') return;
+    const width = 310;
+    const height = 94;
+    const nextX = Math.min(window.innerWidth - width - 12, event.clientX + 12);
+    const nextY = Math.min(window.innerHeight - height - 12, event.clientY + 12);
+    setDemoGuideBubble({
+      text,
+      x: Math.max(12, nextX),
+      y: Math.max(12, nextY),
+    });
+    setDemoGuidePinned(text);
+  };
 
   const visibleModuleKeys = visibleModules.map((m) => m.key).join('|');
   const shouldHoldForTenantResolution = Boolean(
@@ -774,6 +831,12 @@ export default function App() {
       setLang(safeLang);
     }
   }, [lang, safeLang, setLang]);
+
+  useEffect(() => {
+    if (!demoGuideEnabled) {
+      setDemoGuideBubble(null);
+    }
+  }, [demoGuideEnabled]);
 
   const enterFullscreen = async () => {
     try {
@@ -992,6 +1055,9 @@ export default function App() {
                     onChange={(event) => handleTenantSwitch(event.target.value)}
                     disabled={tenantSwitching}
                     className="min-w-[180px] bg-transparent text-sm font-medium text-cyan-50 outline-none"
+                    onMouseEnter={(e) => handleDemoGuideHover('Tenant seçimi ilə demo mühitini dəyişə bilərsiniz.', e)}
+                    onMouseMove={(e) => handleDemoGuideHover('Tenant seçimi ilə demo mühitini dəyişə bilərsiniz.', e)}
+                    onMouseLeave={() => setDemoGuideBubble(null)}
                   >
                     {availableTenants.map((tenant) => (
                       <option key={tenant.tenant_id} value={tenant.tenant_id} className="bg-slate-900 text-slate-100">
@@ -1003,7 +1069,11 @@ export default function App() {
               )}
               <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
                 isOnline ? 'bg-emerald-500/20 text-emerald-300' : 'bg-red-500/20 text-red-200 shadow-sm animate-pulse'
-              }`}>
+              }`}
+                onMouseEnter={(e) => handleDemoGuideHover(describeActionAz(isOnline ? 'online' : 'offline'), e)}
+                onMouseMove={(e) => handleDemoGuideHover(describeActionAz(isOnline ? 'online' : 'offline'), e)}
+                onMouseLeave={() => setDemoGuideBubble(null)}
+              >
                 {isOnline ? <Wifi size={16} /> : <WifiOff size={16} />}
                 <span>{isOnline ? t.online : t.offline}</span>
               </div>
@@ -1017,6 +1087,9 @@ export default function App() {
                 onClick={() => window.location.reload()}
                 className="neon-btn px-3 py-2"
                 title="Yenilə"
+                onMouseEnter={(e) => handleDemoGuideHover(describeActionAz('yenilə'), e)}
+                onMouseMove={(e) => handleDemoGuideHover(describeActionAz('yenilə'), e)}
+                onMouseLeave={() => setDemoGuideBubble(null)}
               >
                 <RotateCcw size={16} />
                 <span className="hidden sm:inline">{t.refresh}</span>
@@ -1024,6 +1097,9 @@ export default function App() {
               <button
                 onClick={() => setLang(safeLang === 'az' ? 'ru' : safeLang === 'ru' ? 'en' : 'az')}
                 className="neon-btn px-3 py-2"
+                onMouseEnter={(e) => handleDemoGuideHover(describeActionAz('az/ru/en'), e)}
+                onMouseMove={(e) => handleDemoGuideHover(describeActionAz('az/ru/en'), e)}
+                onMouseLeave={() => setDemoGuideBubble(null)}
               >
                 <Languages size={16} />
                 <span>{safeLang.toUpperCase()}</span>
@@ -1033,6 +1109,9 @@ export default function App() {
                   onClick={() => void enterFullscreen()}
                   className="neon-btn px-3 py-2"
                   title={tx(safeLang, 'Tam ekran', 'Полный экран', 'Fullscreen')}
+                  onMouseEnter={(e) => handleDemoGuideHover(describeActionAz('tam ekran'), e)}
+                  onMouseMove={(e) => handleDemoGuideHover(describeActionAz('tam ekran'), e)}
+                  onMouseLeave={() => setDemoGuideBubble(null)}
                 >
                   <Maximize2 size={16} />
                   <span className="hidden sm:inline">{tx(safeLang, 'Tam ekran', 'Полный экран', 'Fullscreen')}</span>
@@ -1042,6 +1121,9 @@ export default function App() {
                   onClick={() => void exitFullscreen()}
                   className="neon-btn-active px-3 py-2"
                   title={tx(safeLang, 'Tam ekrandan çıx', 'Выйти из полного экрана', 'Exit fullscreen')}
+                  onMouseEnter={(e) => handleDemoGuideHover(describeActionAz('tam ekran'), e)}
+                  onMouseMove={(e) => handleDemoGuideHover(describeActionAz('tam ekran'), e)}
+                  onMouseLeave={() => setDemoGuideBubble(null)}
                 >
                   <Minimize2 size={16} />
                   <span className="hidden sm:inline">{tx(safeLang, 'Tam ekrandan çıx', 'Выйти из полного экрана', 'Exit fullscreen')}</span>
@@ -1050,6 +1132,9 @@ export default function App() {
               <button
                 onClick={logout}
                 className="neon-btn-active px-3 py-2"
+                onMouseEnter={(e) => handleDemoGuideHover(describeActionAz('çıxış'), e)}
+                onMouseMove={(e) => handleDemoGuideHover(describeActionAz('çıxış'), e)}
+                onMouseLeave={() => setDemoGuideBubble(null)}
               >
                 <LogOut size={16} />
                 <span>{t.logout}</span>
@@ -1064,6 +1149,9 @@ export default function App() {
                   onClick={() => setCurrentModule(item.key)}
                   className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap px-4 py-3 text-sm`}
                   title={item.label}
+                  onMouseEnter={(e) => handleDemoGuideHover(DEMO_MODULE_GUIDE_AZ[item.key], e)}
+                  onMouseMove={(e) => handleDemoGuideHover(DEMO_MODULE_GUIDE_AZ[item.key], e)}
+                  onMouseLeave={() => setDemoGuideBubble(null)}
                 >
                   <span>{item.label}</span>
                 </button>
@@ -1088,6 +1176,9 @@ export default function App() {
                 onClick={() => setCurrentModule(item.key)}
                 className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap`}
                 title={item.label}
+                onMouseEnter={(e) => handleDemoGuideHover(DEMO_MODULE_GUIDE_AZ[item.key], e)}
+                onMouseMove={(e) => handleDemoGuideHover(DEMO_MODULE_GUIDE_AZ[item.key], e)}
+                onMouseLeave={() => setDemoGuideBubble(null)}
               >
                 <span>{item.label}</span>
               </button>
@@ -1099,6 +1190,23 @@ export default function App() {
           iRonWaves POS
         </div>
       </div>
+      {demoGuideEnabled && demoGuideBubble && (
+        <div
+          className="pointer-events-none fixed z-[88] w-[310px] rounded-2xl border border-cyan-300/35 bg-slate-950/92 p-3 shadow-[0_14px_42px_rgba(0,0,0,0.45)] backdrop-blur"
+          style={{ left: demoGuideBubble.x, top: demoGuideBubble.y }}
+        >
+          <div className="text-[11px] uppercase tracking-[0.14em] text-cyan-200">Demo Bələdçisi</div>
+          <div className="mt-1 text-xs text-slate-100">{demoGuideBubble.text}</div>
+        </div>
+      )}
+      {demoGuideEnabled && (
+        <div className="fixed bottom-4 right-4 z-[87] w-[340px] max-w-[calc(100vw-1rem)] rounded-2xl border border-yellow-300/35 bg-slate-950/92 p-3 shadow-[0_16px_46px_rgba(0,0,0,0.5)] backdrop-blur">
+          <div className="text-[11px] uppercase tracking-[0.14em] text-yellow-200">Tanışlıq Rejimi</div>
+          <div className="mt-1 text-xs font-semibold text-slate-100">Demo tenant: funksionallıq bələdçisi</div>
+          <div className="mt-1 text-xs text-slate-300">{demoGuidePinned}</div>
+          <div className="mt-2 text-[11px] text-slate-400">İpucu: hər hansı düymənin və ya tabın üzərinə cursor gətirin.</div>
+        </div>
+      )}
       {isPerfDebugEnabled() && (
         <div className="pointer-events-none fixed bottom-4 right-4 z-[120] w-[360px] max-w-[calc(100vw-2rem)] rounded-2xl border border-cyan-400/25 bg-slate-950/88 p-3 text-xs text-slate-100 shadow-[0_20px_60px_rgba(0,0,0,0.45)] backdrop-blur">
           <div className="mb-2 flex items-center justify-between">
