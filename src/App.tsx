@@ -1241,6 +1241,7 @@ export default function App() {
                   onClick={() => setCurrentModule(item.key)}
                   className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap px-4 py-3 text-sm`}
                   title={item.label}
+                  data-guide={DEMO_MODULE_GUIDE_AZ[item.key]}
                   onMouseEnter={(e) => handleDemoGuideHover(DEMO_MODULE_GUIDE_AZ[item.key], e)}
                   onMouseMove={(e) => handleDemoGuideHover(DEMO_MODULE_GUIDE_AZ[item.key], e)}
                   onMouseLeave={() => setDemoGuideBubble(null)}
@@ -1268,6 +1269,7 @@ export default function App() {
                 onClick={() => setCurrentModule(item.key)}
                 className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap`}
                 title={item.label}
+                data-guide={DEMO_MODULE_GUIDE_AZ[item.key]}
                 onMouseEnter={(e) => handleDemoGuideHover(DEMO_MODULE_GUIDE_AZ[item.key], e)}
                 onMouseMove={(e) => handleDemoGuideHover(DEMO_MODULE_GUIDE_AZ[item.key], e)}
                 onMouseLeave={() => setDemoGuideBubble(null)}
