@@ -2062,17 +2062,55 @@ def update_finance_policy(
     return {"success": True, "finance_policy": cleaned}
 
 
-@router.patch("/settings/landing")
-def update_landing_settings(
-    payload: dict,
+@router.get("/settings/landing/studio")
+def get_landing_studio_settings(
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
 ):
     _ensure_admin(user)
-    current = _setting_value(db, tenant.id, "landing_settings", DEFAULT_LANDING_SETTINGS)
+    published = _normalize_landing_settings(_setting_value(db, tenant.id, "landing_settings", DEFAULT_LANDING_SETTINGS))
+    draft = _normalize_landing_settings(_setting_value(db, tenant.id, "landing_settings_draft", published))
+    return {
+        "published": published,
+        "draft": draft,
+    }
+
+
+@router.patch("/settings/landing")
+def update_landing_settings(
+    payload: dict,
+    mode: str = Query("published"),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    key = "landing_settings_draft" if str(mode).lower() == "draft" else "landing_settings"
+    current = _setting_value(db, tenant.id, key, DEFAULT_LANDING_SETTINGS)
     merged = _normalize_landing_settings({**current, **payload})
-    _set_setting_value(db, tenant.id, "landing_settings", merged)
+    _set_setting_value(db, tenant.id, key, merged)
+    db.commit()
+    return {"success": True}
+
+
+@router.post("/settings/landing/publish")
+def publish_landing_settings(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    draft = _normalize_landing_settings(_setting_value(db, tenant.id, "landing_settings_draft", DEFAULT_LANDING_SETTINGS))
+    _set_setting_value(db, tenant.id, "landing_settings", draft)
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="LANDING_SETTINGS_PUBLISHED",
+            details=json.dumps({"published_at": datetime.utcnow().isoformat()}, ensure_ascii=False),
+        )
+    )
     db.commit()
     return {"success": True}
 

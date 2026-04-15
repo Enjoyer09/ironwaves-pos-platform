@@ -57,6 +57,7 @@ export const i18n = {
       tenants: 'Tenantlər',
       notes: 'Qeydlər',
       settings: 'Ayarlar',
+      landing: 'Landing Studio',
       database: 'Baza'
     }
   },
@@ -118,6 +119,7 @@ export const i18n = {
       tenants: 'Тенанты',
       notes: 'Заметки',
       settings: 'Настройки',
+      landing: 'Landing Studio',
       database: 'База'
     }
   },
@@ -179,6 +181,7 @@ export const i18n = {
       tenants: 'Tenants',
       notes: 'Notes',
       settings: 'Settings',
+      landing: 'Landing Studio',
       database: 'Database'
     }
   }

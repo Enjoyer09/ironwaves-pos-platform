@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
-import { get_settings_live, update_landing_settings_live } from '../../api/settings';
+import { get_landing_studio_live, publish_landing_live, update_landing_draft_live } from '../../api/settings';
 
 const DEFAULT_SCREENSHOTS = [
   {
@@ -44,7 +44,11 @@ const DEFAULT_SCREENSHOTS = [
 
 export default function LandingPanel() {
   const { user, lang, notify } = useAppStore();
-  const tenantId = user?.tenant_id || 'tenant_default';
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [draggingShotIndex, setDraggingShotIndex] = useState<number | null>(null);
+  const [dropShotIndex, setDropShotIndex] = useState<number | null>(null);
+  const heroFileRef = useRef<HTMLInputElement | null>(null);
   const [form, setForm] = useState<any>({
     nav_product_az: '',
     nav_product_ru: '',
@@ -86,8 +90,8 @@ export default function LandingPanel() {
   useEffect(() => {
     const load = async () => {
       try {
-        const settings = await get_settings_live(tenantId);
-        const incoming = settings.landing_settings || {};
+        const studio = await get_landing_studio_live();
+        const incoming = studio?.draft || studio?.published || {};
         setForm((prev: any) => ({
           ...prev,
           ...incoming,
@@ -98,7 +102,7 @@ export default function LandingPanel() {
       }
     };
     void load();
-  }, [tenantId, lang, notify]);
+  }, [lang, notify]);
 
   const setField = (key: string, value: string) => setForm((prev: any) => ({ ...prev, [key]: value }));
   const setShot = (index: number, key: string, value: string) =>
@@ -121,12 +125,68 @@ export default function LandingPanel() {
       screenshot_items: (Array.isArray(prev.screenshot_items) ? prev.screenshot_items : []).filter((_: any, i: number) => i !== index),
     }));
 
-  const save = async () => {
+  const moveShot = (index: number, direction: -1 | 1) =>
+    setForm((prev: any) => {
+      const rows = Array.isArray(prev.screenshot_items) ? [...prev.screenshot_items] : [];
+      const target = index + direction;
+      if (target < 0 || target >= rows.length) return prev;
+      const tmp = rows[index];
+      rows[index] = rows[target];
+      rows[target] = tmp;
+      return { ...prev, screenshot_items: rows };
+    });
+
+  const moveShotTo = (from: number, to: number) =>
+    setForm((prev: any) => {
+      const rows = Array.isArray(prev.screenshot_items) ? [...prev.screenshot_items] : [];
+      if (from < 0 || to < 0 || from >= rows.length || to >= rows.length || from === to) return prev;
+      const [moved] = rows.splice(from, 1);
+      rows.splice(to, 0, moved);
+      return { ...prev, screenshot_items: rows };
+    });
+
+  const readImageAsDataUrl = (file: File, cb: (url: string) => void) => {
+    const reader = new FileReader();
+    reader.onload = () => cb(String(reader.result || ''));
+    reader.readAsDataURL(file);
+  };
+
+  const handleHeroImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    readImageAsDataUrl(file, (url) => setField('hero_image_url', url));
+    e.target.value = '';
+  };
+
+  const handleShotImageUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    readImageAsDataUrl(file, (url) => setShot(index, 'image_url', url));
+    e.target.value = '';
+  };
+
+  const saveDraft = async () => {
+    setSavingDraft(true);
     try {
-      await update_landing_settings_live(form);
-      notify('success', tx(lang, 'Landing ayarları yadda saxlanıldı', 'Настройки landing сохранены', 'Landing settings saved'));
+      await update_landing_draft_live(form);
+      notify('success', tx(lang, 'Draft yadda saxlanıldı', 'Черновик сохранён', 'Draft saved'));
     } catch (e: any) {
-      notify('error', e?.message || tx(lang, 'Landing ayarları saxlanmadı', 'Настройки landing не сохранились', 'Landing settings failed to save'));
+      notify('error', e?.message || tx(lang, 'Draft saxlanmadı', 'Черновик не сохранился', 'Draft save failed'));
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const publish = async () => {
+    setPublishing(true);
+    try {
+      await update_landing_draft_live(form);
+      await publish_landing_live();
+      notify('success', tx(lang, 'Landing canlıya yayımlandı', 'Landing опубликован', 'Landing published'));
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Yayımlama baş tutmadı', 'Публикация не удалась', 'Publish failed'));
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -198,7 +258,13 @@ export default function LandingPanel() {
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <input className="neon-input" value={form.modules_title_az} onChange={(e) => setField('modules_title_az', e.target.value)} placeholder="AZ: Modul section başlığı" />
-          <input className="neon-input" value={form.hero_image_url} onChange={(e) => setField('hero_image_url', e.target.value)} placeholder="Hero image URL" />
+          <div className="flex items-center gap-2">
+            <input className="neon-input" value={form.hero_image_url} onChange={(e) => setField('hero_image_url', e.target.value)} placeholder="Hero image URL" />
+            <input ref={heroFileRef} type="file" accept="image/*" onChange={handleHeroImageUpload} className="hidden" />
+            <button type="button" className="neon-chip px-3 py-2 text-xs" onClick={() => heroFileRef.current?.click()}>
+              {tx(lang, 'Şəkil seç', 'Выбрать изображение', 'Pick image')}
+            </button>
+          </div>
           <input className="neon-input" value={form.modules_title_ru} onChange={(e) => setField('modules_title_ru', e.target.value)} placeholder="RU: Заголовок модулей" />
           <input className="neon-input" value={form.footer_text_az} onChange={(e) => setField('footer_text_az', e.target.value)} placeholder="AZ footer mətn" />
           <input className="neon-input" value={form.modules_title_en} onChange={(e) => setField('modules_title_en', e.target.value)} placeholder="EN: Modules heading" />
@@ -213,14 +279,47 @@ export default function LandingPanel() {
             <button type="button" onClick={addShot} className="neon-chip px-3 py-2 text-xs">+ {tx(lang, 'Slide əlavə et', 'Добавить слайд', 'Add slide')}</button>
           </div>
           {(Array.isArray(form.screenshot_items) ? form.screenshot_items : []).map((shot: any, idx: number) => (
-            <div key={`shot_${idx}`} className="rounded-xl border border-slate-700/70 p-3 space-y-3">
+            <div
+              key={`shot_${idx}`}
+              draggable
+              onDragStart={() => setDraggingShotIndex(idx)}
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (draggingShotIndex !== null && draggingShotIndex !== idx) setDropShotIndex(idx);
+              }}
+              onDragLeave={() => setDropShotIndex((prev) => (prev === idx ? null : prev))}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (draggingShotIndex !== null && draggingShotIndex !== idx) {
+                  moveShotTo(draggingShotIndex, idx);
+                }
+                setDraggingShotIndex(null);
+                setDropShotIndex(null);
+              }}
+              onDragEnd={() => {
+                setDraggingShotIndex(null);
+                setDropShotIndex(null);
+              }}
+              className={`rounded-xl border p-3 space-y-3 transition ${dropShotIndex === idx ? 'border-cyan-300/80 bg-cyan-500/10' : 'border-slate-700/70'} ${draggingShotIndex === idx ? 'opacity-70' : ''}`}
+            >
               <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold text-slate-200">#{idx + 1}</div>
-                <button type="button" onClick={() => removeShot(idx)} className="text-xs text-rose-300 hover:text-rose-200">
-                  {tx(lang, 'Sil', 'Удалить', 'Delete')}
-                </button>
+                <div className="flex items-center gap-2">
+                  <span className="cursor-grab rounded border border-slate-600 px-2 py-1 text-[11px] text-slate-300">⠿</span>
+                  <button type="button" onClick={() => moveShot(idx, -1)} className="neon-chip px-2 py-1 text-[11px]">↑</button>
+                  <button type="button" onClick={() => moveShot(idx, 1)} className="neon-chip px-2 py-1 text-[11px]">↓</button>
+                  <button type="button" onClick={() => removeShot(idx)} className="text-xs text-rose-300 hover:text-rose-200">
+                    {tx(lang, 'Sil', 'Удалить', 'Delete')}
+                  </button>
+                </div>
               </div>
-              <input className="neon-input" value={shot.image_url || ''} onChange={(e) => setShot(idx, 'image_url', e.target.value)} placeholder="Image URL (https://...)" />
+              <div className="flex items-center gap-2">
+                <input className="neon-input" value={shot.image_url || ''} onChange={(e) => setShot(idx, 'image_url', e.target.value)} placeholder="Image URL (https://...)" />
+                <label className="neon-chip cursor-pointer px-3 py-2 text-xs">
+                  {tx(lang, 'Şəkil seç', 'Выбрать', 'Pick')}
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => handleShotImageUpload(idx, e)} />
+                </label>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                 <input className="neon-input" value={shot.title_az || ''} onChange={(e) => setShot(idx, 'title_az', e.target.value)} placeholder="Title AZ" />
                 <input className="neon-input" value={shot.title_ru || ''} onChange={(e) => setShot(idx, 'title_ru', e.target.value)} placeholder="Title RU" />
@@ -242,9 +341,14 @@ export default function LandingPanel() {
         </div>
 
         <div className="flex justify-end">
-          <button onClick={() => { void save(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">
-            {tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => { void saveDraft(); }} disabled={savingDraft} className="neon-chip rounded-xl px-6 py-2 font-bold">
+              {savingDraft ? tx(lang, 'Saxlanır...', 'Сохраняется...', 'Saving...') : tx(lang, 'Draft saxla', 'Сохранить черновик', 'Save draft')}
+            </button>
+            <button onClick={() => { void publish(); }} disabled={publishing} className="glossy-gold rounded-xl px-6 py-2 font-bold">
+              {publishing ? tx(lang, 'Yayımlanır...', 'Публикация...', 'Publishing...') : tx(lang, 'Canlıya yayımla', 'Опубликовать', 'Publish live')}
+            </button>
+          </div>
         </div>
       </div>
     </div>
