@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { get_public_landing_settings_live } from "../api/settings";
 
 type Lang = "az" | "ru" | "en";
 
@@ -139,8 +140,9 @@ const SHOTS = [
   ["Elite Card", "/landing/elite-card.png", "VIP müştəri segmenti və üstünlüklər"],
 ];
 
-function AppPreview({ activeShot }: { activeShot: [string, string, string] }) {
+function AppPreview({ activeShot, heroImageUrl }: { activeShot: [string, string, string]; heroImageUrl?: string }) {
   const [title, src, desc] = activeShot;
+  const previewImage = String(heroImageUrl || src || "").trim() || src;
   return (
     <div className="metal-panel relative w-full overflow-hidden rounded-2xl border p-3">
       <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-slate-600/50 bg-[#162133]/70 px-3 py-2 text-[11px] text-slate-300">
@@ -157,7 +159,7 @@ function AppPreview({ activeShot }: { activeShot: [string, string, string] }) {
         ))}
       </div>
       <div className="mb-3 overflow-hidden rounded-xl border border-slate-600/70">
-        <img src={src} alt={title} className="h-44 w-full object-cover" />
+        <img src={previewImage} alt={title} className="h-44 w-full object-cover" />
         <div className="flex items-center justify-between bg-[#101722] px-3 py-2">
           <div className="text-xs font-semibold text-slate-100">{title}</div>
           <div className="text-[11px] text-slate-400">{desc}</div>
@@ -200,8 +202,27 @@ function AppPreview({ activeShot }: { activeShot: [string, string, string] }) {
 export default function LandingPage() {
   const [lang, setLang] = useState<Lang>("az");
   const [shotIndex, setShotIndex] = useState(0);
+  const [liveSettings, setLiveSettings] = useState<any | null>(null);
   const c = useMemo(() => COPY[lang], [lang]);
-  const activeShot = SHOTS[shotIndex % SHOTS.length] as [string, string, string];
+  const slides = useMemo(() => {
+    const rows = Array.isArray(liveSettings?.screenshot_items) ? liveSettings.screenshot_items : SHOTS.map(([title, image_url, desc]) => ({
+      image_url,
+      title_az: title,
+      title_ru: title,
+      title_en: title,
+      desc_az: desc,
+      desc_ru: desc,
+      desc_en: desc,
+    }));
+    return rows
+      .filter((row: any) => String(row?.image_url || "").trim())
+      .map((row: any) => {
+        const title = String(row?.[`title_${lang}`] || row?.title_az || row?.title_en || row?.title_ru || "").trim();
+        const desc = String(row?.[`desc_${lang}`] || row?.desc_az || row?.desc_en || row?.desc_ru || "").trim();
+        return [title || "Slide", String(row.image_url), desc || ""] as [string, string, string];
+      });
+  }, [liveSettings, lang]);
+  const activeShot = slides.length ? slides[shotIndex % slides.length] : (SHOTS[0] as [string, string, string]);
 
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
@@ -215,11 +236,45 @@ export default function LandingPage() {
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        const data = await get_public_landing_settings_live();
+        if (mounted) setLiveSettings(data || null);
+      } catch {
+        // Keep local copy fallback
+      }
+    };
+    void load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     const timer = window.setInterval(() => {
-      setShotIndex((prev) => (prev + 1) % SHOTS.length);
+      const size = Math.max(1, slides.length || SHOTS.length);
+      setShotIndex((prev) => (prev + 1) % size);
     }, 3500);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [slides.length]);
+
+  const navLabels = useMemo(() => {
+    return [
+      String(liveSettings?.[`nav_product_${lang}`] || c.nav[0] || "").trim(),
+      String(liveSettings?.[`nav_how_${lang}`] || c.nav[1] || "").trim(),
+      String(liveSettings?.[`nav_modules_${lang}`] || c.nav[2] || "").trim(),
+      String(liveSettings?.[`nav_contact_${lang}`] || c.nav[3] || "").trim(),
+    ];
+  }, [liveSettings, lang, c.nav]);
+
+  const heroTitle = String(liveSettings?.[`hero_title_${lang}`] || c.headline || "").trim();
+  const heroBody = String(liveSettings?.[`hero_body_${lang}`] || c.sub || "").trim();
+  const ctaPrimary = String(liveSettings?.[`primary_cta_${lang}`] || c.ctaPrimary || "").trim();
+  const ctaSecondary = String(liveSettings?.[`secondary_cta_${lang}`] || c.ctaSecondary || "").trim();
+  const modulesTitle = String(liveSettings?.[`modules_title_${lang}`] || c.modulesTitle || "").trim();
+  const footerText = String(liveSettings?.[`footer_text_${lang}`] || c.footer || "").trim();
+  const heroImageUrl = String(liveSettings?.hero_image_url || "").trim();
 
   return (
     <div className="metal-app min-h-screen overflow-x-hidden">
@@ -230,7 +285,7 @@ export default function LandingPage() {
             <div className="text-sm text-slate-300">iRonWaves POS</div>
           </div>
           <nav className="hidden items-center gap-6 md:flex">
-            {c.nav.map((item: string, idx: number) => (
+            {navLabels.map((item: string, idx: number) => (
               <a key={item} href={idx === 0 ? "#mehsul" : idx === 1 ? "#isleyis" : idx === 2 ? "#modullar" : "#elaqe"} className="text-sm text-slate-300 transition hover:text-white">
                 {item}
               </a>
@@ -248,7 +303,7 @@ export default function LandingPage() {
               </button>
             ))}
             <a href="https://demo.ironwaves.store" target="_blank" rel="noreferrer">
-              <button className="neon-btn-active rounded-xl px-4 py-2 text-sm font-semibold">{c.ctaPrimary}</button>
+              <button className="neon-btn-active rounded-xl px-4 py-2 text-sm font-semibold">{ctaPrimary}</button>
             </a>
           </div>
         </div>
@@ -259,14 +314,14 @@ export default function LandingPage() {
           <div className="inline-flex items-center rounded-full border border-emerald-300/25 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200">
             {c.badge}
           </div>
-          <h1 className="text-4xl font-black leading-tight text-white md:text-6xl">{c.headline}</h1>
-          <p className="max-w-xl text-base leading-7 text-slate-300 md:text-lg">{c.sub}</p>
+          <h1 className="text-4xl font-black leading-tight text-white md:text-6xl">{heroTitle}</h1>
+          <p className="max-w-xl text-base leading-7 text-slate-300 md:text-lg">{heroBody}</p>
           <div className="flex flex-wrap gap-3">
             <a href="https://demo.ironwaves.store" target="_blank" rel="noreferrer">
-              <button className="neon-btn-active rounded-xl px-6 py-3 text-sm font-bold">{c.ctaPrimary}</button>
+              <button className="neon-btn-active rounded-xl px-6 py-3 text-sm font-bold">{ctaPrimary}</button>
             </a>
             <a href="#modullar">
-              <button className="neon-btn rounded-xl px-6 py-3 text-sm font-semibold">{c.ctaSecondary}</button>
+              <button className="neon-btn rounded-xl px-6 py-3 text-sm font-semibold">{ctaSecondary}</button>
             </a>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -278,17 +333,20 @@ export default function LandingPage() {
           </div>
         </div>
         <div className="space-y-3">
-          <AppPreview activeShot={activeShot} />
+          <AppPreview activeShot={activeShot} heroImageUrl={heroImageUrl} />
           <div className="flex items-center justify-center gap-3">
             <button
               type="button"
-              onClick={() => setShotIndex((prev) => (prev - 1 + SHOTS.length) % SHOTS.length)}
+              onClick={() => {
+                const size = Math.max(1, slides.length || SHOTS.length);
+                setShotIndex((prev) => (prev - 1 + size) % size);
+              }}
               className="neon-chip px-3 py-1.5 text-xs"
             >
               ◀
             </button>
             <div className="flex items-center gap-2">
-              {SHOTS.map((shot, idx) => (
+              {slides.map((shot, idx) => (
                 <button
                   key={shot[0]}
                   type="button"
@@ -300,7 +358,10 @@ export default function LandingPage() {
             </div>
             <button
               type="button"
-              onClick={() => setShotIndex((prev) => (prev + 1) % SHOTS.length)}
+              onClick={() => {
+                const size = Math.max(1, slides.length || SHOTS.length);
+                setShotIndex((prev) => (prev + 1) % size);
+              }}
               className="neon-chip px-3 py-1.5 text-xs"
             >
               ▶
@@ -322,7 +383,7 @@ export default function LandingPage() {
       </section>
 
       <section id="modullar" className="mx-auto max-w-[1280px] px-4 py-14 md:px-6">
-        <h2 className="mb-6 text-2xl font-extrabold text-white md:text-3xl">{c.modulesTitle}</h2>
+        <h2 className="mb-6 text-2xl font-extrabold text-white md:text-3xl">{modulesTitle}</h2>
         <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
           {c.modules.map((item: string) => (
             <div key={item} className="metal-panel rounded-xl p-4">
@@ -332,7 +393,7 @@ export default function LandingPage() {
           ))}
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {SHOTS.map(([title, src, desc]) => (
+          {slides.map(([title, src, desc]) => (
             <article key={title} className="metal-panel overflow-hidden rounded-xl border">
               <img src={src} alt={title} className="h-52 w-full object-cover" />
               <div className="p-4">
@@ -366,13 +427,13 @@ export default function LandingPage() {
             <textarea className="neon-input min-h-24" placeholder={c.form[4]} />
             <button type="button" className="neon-btn-active w-full rounded-xl px-4 py-3 font-semibold">{c.submit}</button>
             <div className="pt-2 text-xs text-slate-400">
-              Əlaqə: +99455 299-92-82 · abbas@laptopmarket.az
+              Əlaqə: {String(liveSettings?.contact_phone || "+99455 299-92-82")} · {String(liveSettings?.contact_email || "abbas@laptopmarket.az")}
             </div>
           </form>
         </div>
       </section>
 
-      <footer className="border-t border-slate-700/40 px-4 py-5 text-center text-xs text-slate-400 md:px-6">{c.footer}</footer>
+      <footer className="border-t border-slate-700/40 px-4 py-5 text-center text-xs text-slate-400 md:px-6">{footerText}</footer>
     </div>
   );
 }

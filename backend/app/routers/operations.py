@@ -103,6 +103,109 @@ DEFAULT_Z_REPORT_RECEIPT_SETTINGS = {
     "show_counts": True,
 }
 
+DEFAULT_LANDING_SETTINGS = {
+    "nav_product_az": "Məhsul",
+    "nav_product_ru": "Продукт",
+    "nav_product_en": "Product",
+    "nav_how_az": "Necə işləyir",
+    "nav_how_ru": "Как работает",
+    "nav_how_en": "How it works",
+    "nav_modules_az": "Modullar",
+    "nav_modules_ru": "Модули",
+    "nav_modules_en": "Modules",
+    "nav_contact_az": "Əlaqə",
+    "nav_contact_ru": "Контакт",
+    "nav_contact_en": "Contact",
+    "hero_title_az": "Restoranınızı bir platformadan idarə edin",
+    "hero_title_ru": "Управляйте рестораном с одной платформы",
+    "hero_title_en": "Run your restaurant from one platform",
+    "hero_body_az": "POS, Masalar, Mətbəx, Maliyyə, Dashboard, Analitika, CRM, QR Menu və Audit bir sistemdə.",
+    "hero_body_ru": "POS, Столы, Кухня, Финансы, Dashboard, Аналитика, CRM, QR Menu и Audit в одной системе.",
+    "hero_body_en": "POS, Tables, Kitchen, Finance, Dashboard, Analytics, CRM, QR Menu and Audit in one system.",
+    "primary_cta_az": "Demoya keç",
+    "primary_cta_ru": "Перейти к демо",
+    "primary_cta_en": "Go to demo",
+    "secondary_cta_az": "Ətraflı bax",
+    "secondary_cta_ru": "Подробнее",
+    "secondary_cta_en": "Learn more",
+    "contact_email": "abbas@laptopmarket.az",
+    "contact_phone": "+99455 299-92-82",
+    "contact_whatsapp": "+99455 299-92-82",
+    "hero_image_url": "/landing/pos-screen.png",
+    "modules_title_az": "Bütün əsas modullar eyni platformada",
+    "modules_title_ru": "Все ключевые модули в одной платформе",
+    "modules_title_en": "All core modules in one platform",
+    "footer_text_az": "ironWaves POS bir Laptop Market məhsuludur. www.laptopmarket.az",
+    "footer_text_ru": "ironWaves POS — продукт Laptop Market. www.laptopmarket.az",
+    "footer_text_en": "ironWaves POS is a Laptop Market product. www.laptopmarket.az",
+    "screenshot_items": [
+        {
+            "image_url": "/landing/pos-screen.png",
+            "title_az": "POS Ekranı",
+            "title_ru": "Экран POS",
+            "title_en": "POS Screen",
+            "desc_az": "Sürətli sifariş və ödəniş axını",
+            "desc_ru": "Быстрый поток заказов и оплат",
+            "desc_en": "Fast order and payment flow",
+        },
+        {
+            "image_url": "/landing/finance-screen.png",
+            "title_az": "Maliyyə Ekranı",
+            "title_ru": "Экран финансов",
+            "title_en": "Finance Screen",
+            "desc_az": "Kassa, depozit və investor borcu nəzarəti",
+            "desc_ru": "Контроль кассы, депозитов и долга инвестору",
+            "desc_en": "Cash, deposits and investor liability control",
+        },
+        {
+            "image_url": "/landing/golden-card.png",
+            "title_az": "Golden Card",
+            "title_ru": "Golden Card",
+            "title_en": "Golden Card",
+            "desc_az": "Loyallıq kartı və bonus ssenariləri",
+            "desc_ru": "Сценарии лояльности и бонусных карт",
+            "desc_en": "Loyalty card and bonus scenarios",
+        },
+        {
+            "image_url": "/landing/elite-card.png",
+            "title_az": "Elite Card",
+            "title_ru": "Elite Card",
+            "title_en": "Elite Card",
+            "desc_az": "VIP müştəri segmenti və üstünlüklər",
+            "desc_ru": "VIP-сегмент клиентов и привилегии",
+            "desc_en": "VIP customer segment and privileges",
+        },
+    ],
+}
+
+
+def _normalize_landing_settings(value: dict | None) -> dict:
+    raw = value if isinstance(value, dict) else {}
+    screenshots = raw.get("screenshot_items")
+    if not isinstance(screenshots, list):
+        screenshots = DEFAULT_LANDING_SETTINGS["screenshot_items"]
+    cleaned_screenshots = []
+    for item in screenshots[:8]:
+        if not isinstance(item, dict):
+            continue
+        image_url = str(item.get("image_url") or "").strip()
+        if not image_url:
+            continue
+        cleaned_screenshots.append(
+            {
+                "image_url": image_url,
+                "title_az": str(item.get("title_az") or "").strip(),
+                "title_ru": str(item.get("title_ru") or "").strip(),
+                "title_en": str(item.get("title_en") or "").strip(),
+                "desc_az": str(item.get("desc_az") or "").strip(),
+                "desc_ru": str(item.get("desc_ru") or "").strip(),
+                "desc_en": str(item.get("desc_en") or "").strip(),
+            }
+        )
+    if not cleaned_screenshots:
+        cleaned_screenshots = DEFAULT_LANDING_SETTINGS["screenshot_items"]
+    return {**DEFAULT_LANDING_SETTINGS, **raw, "screenshot_items": cleaned_screenshots}
+
 POS_RIGHT_WIDGET_KEYS = ["customer", "discount", "orderType", "table", "cartItems", "cartSummary", "payments"]
 POS_LEFT_WIDGET_KEYS = ["menuHeader", "search", "categories", "productGrid"]
 POS_REQUIRED_RIGHT_WIDGETS = ["cartItems", "cartSummary", "payments"]
@@ -1967,29 +2070,8 @@ def update_landing_settings(
     user: User = Depends(get_current_user),
 ):
     _ensure_admin(user)
-    current = _setting_value(
-        db,
-        tenant.id,
-        "landing_settings",
-        {
-            "hero_title_az": "Azərbaycan bazarı üçün müasir POS və idarəetmə sistemi",
-            "hero_title_ru": "Премиальная POS-платформа для ресторанов, coffee shop и retail",
-            "hero_title_en": "A premium POS platform for restaurants, coffee shops, and retail concepts",
-            "hero_body_az": "Kassa, masa, mətbəx, anbar, maliyyə, CRM və loyallıq axınlarını bir mərkəzdə birləşdirən yerli və çevik idarəetmə platforması.",
-            "hero_body_ru": "Современная система управления, объединяющая продажи, столы, кухню, финансы, CRM и loyalty в одном продукте.",
-            "hero_body_en": "A modern operations system that connects sales, tables, kitchen, finance, CRM, and loyalty inside one product.",
-            "primary_cta_az": "Canlı Demoya Bax",
-            "primary_cta_ru": "Открыть Live Demo",
-            "primary_cta_en": "Open Live Demo",
-            "secondary_cta_az": "Platformanı Aç",
-            "secondary_cta_ru": "Открыть Платформу",
-            "secondary_cta_en": "Open Platform",
-            "contact_email": "hello@ironwaves.store",
-            "contact_phone": "",
-            "contact_whatsapp": "",
-        },
-    )
-    merged = {**current, **payload}
+    current = _setting_value(db, tenant.id, "landing_settings", DEFAULT_LANDING_SETTINGS)
+    merged = _normalize_landing_settings({**current, **payload})
     _set_setting_value(db, tenant.id, "landing_settings", merged)
     db.commit()
     return {"success": True}
@@ -2003,45 +2085,9 @@ def get_public_landing_settings(db: Session = Depends(get_db)):
         .first()
     )
     if not platform_tenant:
-        return {
-            "hero_title_az": "Azərbaycan bazarı üçün müasir POS və idarəetmə sistemi",
-            "hero_title_ru": "Премиальная POS-платформа для ресторанов, coffee shop и retail",
-            "hero_title_en": "A premium POS platform for restaurants, coffee shops, and retail concepts",
-            "hero_body_az": "Kassa, masa, mətbəx, anbar, maliyyə, CRM və loyallıq axınlarını bir mərkəzdə birləşdirən yerli və çevik idarəetmə platforması.",
-            "hero_body_ru": "Современная система управления, объединяющая продажи, столы, кухню, финансы, CRM и loyalty в одном продукте.",
-            "hero_body_en": "A modern operations system that connects sales, tables, kitchen, finance, CRM, and loyalty inside one product.",
-            "primary_cta_az": "Canlı Demoya Bax",
-            "primary_cta_ru": "Открыть Live Demo",
-            "primary_cta_en": "Open Live Demo",
-            "secondary_cta_az": "Platformanı Aç",
-            "secondary_cta_ru": "Открыть Платформу",
-            "secondary_cta_en": "Open Platform",
-            "contact_email": "hello@ironwaves.store",
-            "contact_phone": "",
-            "contact_whatsapp": "",
-        }
-    return _setting_value(
-        db,
-        platform_tenant.id,
-        "landing_settings",
-        {
-            "hero_title_az": "Azərbaycan bazarı üçün müasir POS və idarəetmə sistemi",
-            "hero_title_ru": "Премиальная POS-платформа для ресторанов, coffee shop и retail",
-            "hero_title_en": "A premium POS platform for restaurants, coffee shops, and retail concepts",
-            "hero_body_az": "Kassa, masa, mətbəx, anbar, maliyyə, CRM və loyallıq axınlarını bir mərkəzdə birləşdirən yerli və çevik idarəetmə platforması.",
-            "hero_body_ru": "Современная система управления, объединяющая продажи, столы, кухню, финансы, CRM и loyalty в одном продукте.",
-            "hero_body_en": "A modern operations system that connects sales, tables, kitchen, finance, CRM, and loyalty inside one product.",
-            "primary_cta_az": "Canlı Demoya Bax",
-            "primary_cta_ru": "Открыть Live Demo",
-            "primary_cta_en": "Open Live Demo",
-            "secondary_cta_az": "Platformanı Aç",
-            "secondary_cta_ru": "Открыть Платформу",
-            "secondary_cta_en": "Open Platform",
-            "contact_email": "hello@ironwaves.store",
-            "contact_phone": "",
-            "contact_whatsapp": "",
-        },
-    )
+        return DEFAULT_LANDING_SETTINGS
+    value = _setting_value(db, platform_tenant.id, "landing_settings", DEFAULT_LANDING_SETTINGS)
+    return _normalize_landing_settings(value)
 
 
 @router.patch("/settings/customer-app")
