@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { get_public_landing_settings_live } from "../api/settings";
 
 type Lang = "az" | "ru" | "en";
+type DemoGuideState = { label: string; x: number; y: number };
 
 const COPY: Record<Lang, any> = {
   az: {
@@ -198,7 +199,30 @@ export default function LandingPage() {
   const [lang, setLang] = useState<Lang>("az");
   const [slideIndex, setSlideIndex] = useState(0);
   const [liveSettings, setLiveSettings] = useState<any | null>(null);
+  const [demoGuideOpen, setDemoGuideOpen] = useState(true);
+  const [demoGuide, setDemoGuide] = useState<DemoGuideState | null>(null);
   const c = COPY[lang];
+
+  const getModuleGuideText = (label: string) => {
+    const key = String(label || "").toLowerCase();
+    if (key.includes("pos")) return lang === "az" ? "Satışı başlayın, səbəti tamamlayın, ödənişi bağlayın." : lang === "ru" ? "Начните продажу, завершите корзину, закройте оплату." : "Start sale, complete cart, close payment.";
+    if (key.includes("masa") || key.includes("table")) return lang === "az" ? "Masa açın, sifarişi mətbəxə göndərin, hesabı bağlayın." : lang === "ru" ? "Откройте стол, отправьте заказ на кухню, закройте счет." : "Open table, send order to kitchen, close bill.";
+    if (key.includes("mətbəx") || key.includes("kitchen") || key.includes("kds")) return lang === "az" ? "Yeni sifarişi götürün, statusu yeniləyin, hazırı servisə ötürün." : lang === "ru" ? "Примите новый заказ, обновите статус, передайте готовое в сервис." : "Pick new orders, update status, hand over ready items.";
+    if (key.includes("maliyy") || key.includes("finance")) return lang === "az" ? "Overview, action və audit axınını modul daxilində ayrıca idarə edin." : lang === "ru" ? "Управляйте overview, action и audit как отдельными режимами." : "Control overview, action, and audit as separate modes.";
+    if (key.includes("anbar") || key.includes("inventory")) return lang === "az" ? "İlk xammalı yaradın, limit qoyun, hərəkətləri sənədləşdirin." : lang === "ru" ? "Создайте первый ингредиент, задайте лимит, фиксируйте движения." : "Create first stock item, set limit, record movements.";
+    if (key.includes("menu") || key.includes("menyu")) return lang === "az" ? "İlk məhsulu ad+qiymətlə yaradın, sonra reseptə bağlayın." : lang === "ru" ? "Создайте первый товар с ценой, затем привяжите рецепт." : "Create first priced item, then attach recipe.";
+    if (key.includes("resept") || key.includes("recipe")) return lang === "az" ? "Menyu məhsulunu xammalla bağlayıb maya dəyərini idarə edin." : lang === "ru" ? "Свяжите позицию меню с ингредиентами и управляйте себестоимостью." : "Link menu item to ingredients and control cost.";
+    return lang === "az" ? "Bu modul əməliyyat axınının bir hissəsidir və bir kliklə açılır." : lang === "ru" ? "Этот модуль часть операционного потока и открывается в один клик." : "This module is part of the operational flow and opens in one click.";
+  };
+
+  const handleDemoGuideHover = (label: string, event: React.MouseEvent<HTMLElement>) => {
+    if (!demoGuideOpen || typeof window === "undefined") return;
+    const width = 300;
+    const height = 116;
+    const x = Math.min(window.innerWidth - width - 10, event.clientX + 12);
+    const y = Math.min(window.innerHeight - height - 10, event.clientY + 12);
+    setDemoGuide({ label, x: Math.max(10, x), y: Math.max(10, y) });
+  };
 
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
@@ -309,6 +333,16 @@ export default function LandingPage() {
                 {l.toUpperCase()}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => {
+                setDemoGuideOpen((prev) => !prev);
+                if (demoGuideOpen) setDemoGuide(null);
+              }}
+              className={demoGuideOpen ? "neon-chip neon-chip-active px-3 py-1.5 text-[11px]" : "neon-chip px-3 py-1.5 text-[11px]"}
+            >
+              {lang === "az" ? "Demo Guide" : lang === "ru" ? "Demo Guide" : "Demo Guide"}
+            </button>
             <a href="https://demo.ironwaves.store" target="_blank" rel="noreferrer" className="neon-btn-active rounded-xl px-4 py-2 text-sm font-semibold">
               {ctaPrimary}
             </a>
@@ -404,7 +438,13 @@ export default function LandingPage() {
         <div className="mx-auto max-w-[1280px] overflow-hidden px-4 py-4 md:px-6">
           <div className="flex w-max animate-marquee gap-2">
             {[...c.modules, ...c.modules].map((tab: string, idx: number) => (
-              <span key={`${tab}_${idx}`} className={idx % 7 === 0 ? "neon-chip neon-chip-active whitespace-nowrap px-3 py-2" : "neon-chip whitespace-nowrap px-3 py-2"}>
+              <span
+                key={`${tab}_${idx}`}
+                className={idx % 7 === 0 ? "neon-chip neon-chip-active whitespace-nowrap px-3 py-2" : "neon-chip whitespace-nowrap px-3 py-2"}
+                onMouseEnter={(e) => handleDemoGuideHover(tab, e)}
+                onMouseMove={(e) => handleDemoGuideHover(tab, e)}
+                onMouseLeave={() => setDemoGuide(null)}
+              >
                 {tab}
               </span>
             ))}
@@ -416,7 +456,13 @@ export default function LandingPage() {
         <h2 className="mb-6 text-2xl font-extrabold text-white md:text-3xl">{modulesTitle}</h2>
         <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
           {c.modules.map((item: string) => (
-            <div key={item} className="metal-panel rounded-xl p-4">
+            <div
+              key={item}
+              className="metal-panel rounded-xl p-4"
+              onMouseEnter={(e) => handleDemoGuideHover(item, e)}
+              onMouseMove={(e) => handleDemoGuideHover(item, e)}
+              onMouseLeave={() => setDemoGuide(null)}
+            >
               <div className="text-sm font-bold text-slate-100">{item}</div>
               <div className="mt-2 text-xs leading-5 text-slate-400">iRonWaves Platform daxilində inteqrasiya olunmuş modul.</div>
             </div>
@@ -471,6 +517,16 @@ export default function LandingPage() {
       </section>
 
       <footer className="border-t border-slate-700/40 px-4 py-5 text-center text-xs text-slate-400 md:px-6">{footerText}</footer>
+      {demoGuideOpen && demoGuide && (
+        <div
+          className="pointer-events-none fixed z-[80] w-[300px] rounded-2xl border border-cyan-300/35 bg-slate-950/90 p-3 shadow-[0_14px_42px_rgba(0,0,0,0.45)] backdrop-blur"
+          style={{ left: demoGuide.x, top: demoGuide.y }}
+        >
+          <div className="text-[11px] uppercase tracking-[0.14em] text-cyan-200">Demo Guide</div>
+          <div className="mt-1 text-xs font-semibold text-slate-100">{demoGuide.label}</div>
+          <div className="mt-1 text-xs text-slate-300">{getModuleGuideText(demoGuide.label)}</div>
+        </div>
+      )}
     </div>
   );
 }
