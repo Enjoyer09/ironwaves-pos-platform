@@ -83,6 +83,12 @@ type GuideContent = {
   steps: GuideStep[];
 };
 
+type HoverGuideState = {
+  module: ModuleKey;
+  x: number;
+  y: number;
+};
+
 const getGuideContent = (lang: 'az' | 'ru' | 'en'): Record<ModuleKey, GuideContent> => ({
   pos: {
     moduleDescription: tx(lang, 'POS: sifarişin yaradılması və ödənişin tamamlanması üçün əsas iş sahəsi.', 'POS: основное рабочее место для создания заказа и завершения оплаты.', 'POS: main workspace to create orders and complete payment.'),
@@ -281,6 +287,7 @@ export default function App() {
   const [pendingOfflineCount, setPendingOfflineCount] = useState(0);
   const [quickGuideOpen, setQuickGuideOpen] = useState(false);
   const [quickGuideStepIndex, setQuickGuideStepIndex] = useState(0);
+  const [hoverGuide, setHoverGuide] = useState<HoverGuideState | null>(null);
   const [lowStockModal, setLowStockModal] = useState<Array<{ name: string; stock_qty: string; min_limit: string; unit: string }> | null>(null);
   const [availableTenants, setAvailableTenants] = useState<TenantRecord[]>([]);
   const [tenantSwitching, setTenantSwitching] = useState(false);
@@ -770,6 +777,18 @@ export default function App() {
   const resolvedModule = visibleModules.find((m) => m.key === currentModule)?.key || visibleModules[0]?.key || 'pos';
   const guideMap = getGuideContent(safeLang);
   const activeGuide = guideMap[resolvedModule];
+  const handleModuleHover = (module: ModuleKey, event: React.MouseEvent<HTMLButtonElement>) => {
+    if (!quickGuideOpen || typeof window === 'undefined') return;
+    const tooltipWidth = 320;
+    const tooltipHeight = 132;
+    const nextX = Math.min(window.innerWidth - tooltipWidth - 12, event.clientX + 14);
+    const nextY = Math.min(window.innerHeight - tooltipHeight - 12, event.clientY + 14);
+    setHoverGuide({
+      module,
+      x: Math.max(12, nextX),
+      y: Math.max(12, nextY),
+    });
+  };
 
   const visibleModuleKeys = visibleModules.map((m) => m.key).join('|');
   const shouldHoldForTenantResolution = Boolean(
@@ -872,6 +891,10 @@ export default function App() {
     setQuickGuideStepIndex(0);
     localStorage.setItem(seenKey, '1');
   }, [hasValidUser, user?.tenant_id, user?.username]);
+
+  useEffect(() => {
+    if (!quickGuideOpen && hoverGuide) setHoverGuide(null);
+  }, [quickGuideOpen, hoverGuide]);
 
   useEffect(() => {
     if (safeLang !== lang) {
@@ -1172,6 +1195,9 @@ export default function App() {
                   onClick={() => setCurrentModule(item.key)}
                   className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap px-4 py-3 text-sm`}
                   title={guideMap[item.key]?.moduleDescription || item.label}
+                  onMouseEnter={(event) => handleModuleHover(item.key, event)}
+                  onMouseMove={(event) => handleModuleHover(item.key, event)}
+                  onMouseLeave={() => setHoverGuide((prev) => (prev?.module === item.key ? null : prev))}
                 >
                   <span>{item.label}</span>
                 </button>
@@ -1234,6 +1260,23 @@ export default function App() {
             </div>
           )}
         </div>
+
+        {quickGuideOpen && hoverGuide && guideMap[hoverGuide.module] && (
+          <div
+            className="pointer-events-none fixed z-[95] w-[320px] rounded-2xl border border-cyan-300/35 bg-slate-950/92 p-3 shadow-[0_14px_42px_rgba(0,0,0,0.45)] backdrop-blur"
+            style={{ left: hoverGuide.x, top: hoverGuide.y }}
+          >
+            <div className="text-[11px] uppercase tracking-[0.14em] text-cyan-200">
+              {tx(safeLang, 'Cursor Guide', 'Cursor Guide', 'Cursor Guide')}
+            </div>
+            <div className="mt-1 text-xs font-semibold text-slate-100">
+              {guideMap[hoverGuide.module].steps[0]?.title}
+            </div>
+            <div className="mt-1 text-xs text-slate-300 line-clamp-3">
+              {guideMap[hoverGuide.module].moduleDescription}
+            </div>
+          </div>
+        )}
 
         <div className="relative min-h-0 flex-1 overflow-hidden">
           <AppErrorBoundary>
