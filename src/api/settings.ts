@@ -39,6 +39,107 @@ const DEFAULT_POS_LAYOUT: PosLayoutConfig = {
   },
 };
 
+const DEFAULT_LANDING_SCREENSHOTS = [
+  {
+    image_url: '/landing/pos-screen.png',
+    title_az: 'POS Ekranı',
+    title_ru: 'Экран POS',
+    title_en: 'POS Screen',
+    desc_az: 'Sürətli sifariş və ödəniş axını',
+    desc_ru: 'Быстрый поток заказов и оплат',
+    desc_en: 'Fast order and payment flow',
+  },
+  {
+    image_url: '/landing/finance-screen.png',
+    title_az: 'Maliyyə Ekranı',
+    title_ru: 'Экран финансов',
+    title_en: 'Finance Screen',
+    desc_az: 'Kassa, depozit və investor borcu nəzarəti',
+    desc_ru: 'Контроль кассы, депозитов и долга инвестору',
+    desc_en: 'Cash, deposits and investor liability control',
+  },
+  {
+    image_url: '/landing/golden-card.png',
+    title_az: 'Golden Card',
+    title_ru: 'Golden Card',
+    title_en: 'Golden Card',
+    desc_az: 'Loyallıq kartı və bonus ssenariləri',
+    desc_ru: 'Сценарии лояльности и бонусных карт',
+    desc_en: 'Loyalty card and bonus scenarios',
+  },
+  {
+    image_url: '/landing/elite-card.png',
+    title_az: 'Elite Card',
+    title_ru: 'Elite Card',
+    title_en: 'Elite Card',
+    desc_az: 'VIP müştəri segmenti və üstünlüklər',
+    desc_ru: 'VIP-сегмент клиентов и привилегии',
+    desc_en: 'VIP customer segment and privileges',
+  },
+];
+
+const DEFAULT_LANDING_SETTINGS: NonNullable<Settings['landing_settings']> = {
+  nav_product_az: 'Məhsul',
+  nav_product_ru: 'Продукт',
+  nav_product_en: 'Product',
+  nav_how_az: 'Necə işləyir',
+  nav_how_ru: 'Как работает',
+  nav_how_en: 'How it works',
+  nav_modules_az: 'Modullar',
+  nav_modules_ru: 'Модули',
+  nav_modules_en: 'Modules',
+  nav_contact_az: 'Əlaqə',
+  nav_contact_ru: 'Контакт',
+  nav_contact_en: 'Contact',
+  hero_title_az: 'Restoranınızı bir platformadan idarə edin',
+  hero_title_ru: 'Управляйте рестораном с одной платформы',
+  hero_title_en: 'Run your restaurant from one platform',
+  hero_body_az: 'POS, Masalar, Mətbəx, Maliyyə, Dashboard, Analitika, CRM, QR Menu və Audit bir sistemdə.',
+  hero_body_ru: 'POS, Столы, Кухня, Финансы, Dashboard, Аналитика, CRM, QR Menu и Audit в одной системе.',
+  hero_body_en: 'POS, Tables, Kitchen, Finance, Dashboard, Analytics, CRM, QR Menu and Audit in one system.',
+  primary_cta_az: 'Demoya keç',
+  primary_cta_ru: 'Перейти к демо',
+  primary_cta_en: 'Go to demo',
+  secondary_cta_az: 'Ətraflı bax',
+  secondary_cta_ru: 'Подробнее',
+  secondary_cta_en: 'Learn more',
+  contact_email: 'abbas@laptopmarket.az',
+  contact_phone: '+99455 299-92-82',
+  contact_whatsapp: '+99455 299-92-82',
+  hero_image_url: '/landing/pos-screen.png',
+  modules_title_az: 'Bütün əsas modullar eyni platformada',
+  modules_title_ru: 'Все ключевые модули в одной платформе',
+  modules_title_en: 'All core modules in one platform',
+  footer_text_az: 'ironWaves POS bir Laptop Market məhsuludur. www.laptopmarket.az',
+  footer_text_ru: 'ironWaves POS — продукт Laptop Market. www.laptopmarket.az',
+  footer_text_en: 'ironWaves POS is a Laptop Market product. www.laptopmarket.az',
+  screenshot_items: DEFAULT_LANDING_SCREENSHOTS,
+};
+
+function normalizeLandingSettings(source?: Settings['landing_settings']): NonNullable<Settings['landing_settings']> {
+  const raw = source || {};
+  const screenshot_items = Array.isArray(raw.screenshot_items) && raw.screenshot_items.length
+    ? raw.screenshot_items
+        .slice(0, 8)
+        .map((item: any) => ({
+          image_url: String(item?.image_url || '').trim(),
+          title_az: String(item?.title_az || '').trim(),
+          title_ru: String(item?.title_ru || '').trim(),
+          title_en: String(item?.title_en || '').trim(),
+          desc_az: String(item?.desc_az || '').trim(),
+          desc_ru: String(item?.desc_ru || '').trim(),
+          desc_en: String(item?.desc_en || '').trim(),
+        }))
+        .filter((item) => item.image_url)
+    : DEFAULT_LANDING_SCREENSHOTS;
+
+  return {
+    ...DEFAULT_LANDING_SETTINGS,
+    ...raw,
+    screenshot_items,
+  };
+}
+
 const POS_RIGHT_WIDGET_KEYS = ['customer', 'discount', 'orderType', 'table', 'cartItems', 'cartSummary', 'payments'] as const;
 const POS_LEFT_WIDGET_KEYS = ['menuHeader', 'search', 'categories', 'productGrid'] as const;
 const POS_REQUIRED_RIGHT_WIDGETS = ['cartItems', 'cartSummary', 'payments'] as const;
@@ -484,10 +585,10 @@ export function update_finance_policy(payload: NonNullable<Settings['finance_pol
 
 export function update_landing_settings(payload: Settings['landing_settings']) {
   const settings = getSettings();
-  settings.landing_settings = {
+  settings.landing_settings = normalizeLandingSettings({
     ...(settings.landing_settings || {}),
     ...(payload || {}),
-  };
+  });
   saveSettings(settings);
   logEvent('admin', 'LANDING_SETTINGS_UPDATE', settings.landing_settings);
   return { success: true };
@@ -686,23 +787,10 @@ export function get_settings(tenant_id?: string) {
     saveSettings(s);
   }
   if (!s.landing_settings) {
-    s.landing_settings = {
-      hero_title_az: 'Azərbaycan bazarı üçün müasir POS və idarəetmə sistemi',
-      hero_title_ru: 'Премиальная POS-платформа для ресторанов, coffee shop и retail',
-      hero_title_en: 'A premium POS platform for restaurants, coffee shops, and retail concepts',
-      hero_body_az: 'Kassa, masa, mətbəx, anbar, maliyyə, CRM və loyallıq axınlarını bir mərkəzdə birləşdirən yerli və çevik idarəetmə platforması.',
-      hero_body_ru: 'Современная система управления, объединяющая продажи, столы, кухню, финансы, CRM и loyalty в одном продукте.',
-      hero_body_en: 'A modern operations system that connects sales, tables, kitchen, finance, CRM, and loyalty inside one product.',
-      primary_cta_az: 'Canlı Demoya Bax',
-      primary_cta_ru: 'Открыть Live Demo',
-      primary_cta_en: 'Open Live Demo',
-      secondary_cta_az: 'Platformanı Aç',
-      secondary_cta_ru: 'Открыть Платформу',
-      secondary_cta_en: 'Open Platform',
-      contact_email: 'hello@ironwaves.store',
-      contact_phone: '',
-      contact_whatsapp: '',
-    };
+    s.landing_settings = normalizeLandingSettings(DEFAULT_LANDING_SETTINGS);
+    saveSettings(s);
+  } else {
+    s.landing_settings = normalizeLandingSettings(s.landing_settings);
     saveSettings(s);
   }
   if (!s.table_service_settings) {
@@ -1189,11 +1277,12 @@ export async function update_landing_settings_live(payload: Settings['landing_se
 }
 
 export async function get_public_landing_settings_live() {
-  if (!isBackendEnabled()) return get_settings().landing_settings || {};
-  return apiRequest<NonNullable<Settings['landing_settings']>>('/api/v1/ops/public/landing-settings', {
+  if (!isBackendEnabled()) return normalizeLandingSettings(get_settings().landing_settings || DEFAULT_LANDING_SETTINGS);
+  const data = await apiRequest<NonNullable<Settings['landing_settings']>>('/api/v1/ops/public/landing-settings', {
     auth: false,
     tenantId: null,
   });
+  return normalizeLandingSettings(data || DEFAULT_LANDING_SETTINGS);
 }
 
 export async function setup_totp_live() {

@@ -288,6 +288,18 @@ export interface Settings {
   pos_layout?: PosLayoutConfig;
   pos_layout_draft?: PosLayoutConfig;
   landing_settings?: {
+    nav_product_az?: string;
+    nav_product_ru?: string;
+    nav_product_en?: string;
+    nav_how_az?: string;
+    nav_how_ru?: string;
+    nav_how_en?: string;
+    nav_modules_az?: string;
+    nav_modules_ru?: string;
+    nav_modules_en?: string;
+    nav_contact_az?: string;
+    nav_contact_ru?: string;
+    nav_contact_en?: string;
     hero_title_az?: string;
     hero_title_ru?: string;
     hero_title_en?: string;
@@ -303,6 +315,22 @@ export interface Settings {
     contact_email?: string;
     contact_phone?: string;
     contact_whatsapp?: string;
+    hero_image_url?: string;
+    modules_title_az?: string;
+    modules_title_ru?: string;
+    modules_title_en?: string;
+    footer_text_az?: string;
+    footer_text_ru?: string;
+    footer_text_en?: string;
+    screenshot_items?: Array<{
+      image_url?: string;
+      title_az?: string;
+      title_ru?: string;
+      title_en?: string;
+      desc_az?: string;
+      desc_ru?: string;
+      desc_en?: string;
+    }>;
   };
   omnitech_settings?: {
     enabled: boolean;
