@@ -232,7 +232,7 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [demoGuideBubble, setDemoGuideBubble] = useState<DemoGuideBubble | null>(null);
-  const [demoGuidePinned, setDemoGuidePinned] = useState<string>('POS modulundan başlaya bilərsiniz.');
+  const demoGuideShownModulesRef = useRef<Set<ModuleKey>>(new Set());
   const offlineCountRef = useRef(0);
   const pendingOfflineInFlightRef = useRef(false);
   const notificationInFlightRef = useRef(false);
@@ -325,6 +325,24 @@ export default function App() {
     window.addEventListener('table-order-sent', handleTableOrderSent as EventListener);
     return () => {
       window.removeEventListener('table-order-sent', handleTableOrderSent as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleNavigateModule = (event: Event) => {
+      const detail = (event as CustomEvent<{ module?: string }>).detail;
+      const target = String(detail?.module || '').trim().toLowerCase() as ModuleKey;
+      if (!target) return;
+      const allowedTargets = new Set<ModuleKey>([
+        'pos', 'tables', 'kds', 'zreport', 'finance', 'inventory', 'combos', 'dashboard', 'analytics',
+        'logs', 'crm', 'customerapp', 'posbuilder', 'ai', 'menu', 'recipes', 'tenants', 'notes', 'settings', 'landing', 'database',
+      ]);
+      if (!allowedTargets.has(target)) return;
+      setCurrentModule(target);
+    };
+    window.addEventListener('navigate-module', handleNavigateModule as EventListener);
+    return () => {
+      window.removeEventListener('navigate-module', handleNavigateModule as EventListener);
     };
   }, []);
 
@@ -723,6 +741,30 @@ export default function App() {
     if (normalized.includes('online') || normalized.includes('offline')) return 'Şəbəkə bağlantısının vəziyyətini göstərir.';
     return 'Bu düymə seçilmiş əməliyyatı açır.';
   };
+  const summarizeElementGuideAz = (element: HTMLElement | null): string => {
+    if (!element) return '';
+    const directGuide = String(element.getAttribute('data-guide') || '').trim();
+    if (directGuide) return directGuide;
+
+    const titleGuide = String(element.getAttribute('title') || '').trim();
+    if (titleGuide) return titleGuide;
+
+    const aria = String(element.getAttribute('aria-label') || '').trim();
+    if (aria) return `${aria} funksiyasını açır.`;
+
+    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) {
+      const placeholder = String(element.getAttribute('placeholder') || '').trim();
+      if (placeholder) return `Bu sahə: ${placeholder}`;
+      return 'Bu sahə ilə məlumat daxil edilir.';
+    }
+
+    const text = String(element.textContent || '').replace(/\s+/g, ' ').trim();
+    if (text) {
+      const trimmed = text.length > 64 ? `${text.slice(0, 64)}...` : text;
+      return `“${trimmed}” əməliyyatını açır.`;
+    }
+    return '';
+  };
   const handleDemoGuideHover = (text: string, event: React.MouseEvent<HTMLElement>) => {
     if (!demoGuideEnabled || typeof window === 'undefined') return;
     const width = 310;
@@ -734,7 +776,6 @@ export default function App() {
       x: Math.max(12, nextX),
       y: Math.max(12, nextY),
     });
-    setDemoGuidePinned(text);
   };
 
   const visibleModuleKeys = visibleModules.map((m) => m.key).join('|');
@@ -836,6 +877,57 @@ export default function App() {
     if (!demoGuideEnabled) {
       setDemoGuideBubble(null);
     }
+  }, [demoGuideEnabled]);
+
+  useEffect(() => {
+    if (!demoGuideEnabled) return;
+    const moduleKey = resolvedModule;
+    if (!moduleKey) return;
+    if (demoGuideShownModulesRef.current.has(moduleKey)) return;
+    demoGuideShownModulesRef.current.add(moduleKey);
+    const message = DEMO_MODULE_GUIDE_AZ[moduleKey];
+    if (message) {
+      notify('info', message);
+    }
+  }, [demoGuideEnabled, resolvedModule, notify]);
+
+  useEffect(() => {
+    if (!demoGuideEnabled || typeof window === 'undefined' || typeof document === 'undefined') return;
+    let rafId: number | null = null;
+    let lastText = '';
+    const updateFromEvent = (event: MouseEvent) => {
+      if (rafId) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null;
+      const target = event.target as HTMLElement | null;
+        const interactive = target?.closest?.('[data-guide], [title], button, [role="button"], a, input, textarea, select') as HTMLElement | null;
+        const text = summarizeElementGuideAz(interactive);
+      if (!text) {
+          lastText = '';
+        setDemoGuideBubble(null);
+        return;
+      }
+        const shouldKeepLast = lastText === text;
+        lastText = text;
+      const width = 310;
+      const height = 94;
+      const x = Math.min(window.innerWidth - width - 12, event.clientX + 12);
+      const y = Math.min(window.innerHeight - height - 12, event.clientY + 12);
+      setDemoGuideBubble({
+          text: shouldKeepLast ? lastText : text,
+        x: Math.max(12, x),
+        y: Math.max(12, y),
+      });
+      });
+    };
+    const clear = () => setDemoGuideBubble(null);
+    document.addEventListener('mousemove', updateFromEvent, { passive: true });
+    document.addEventListener('mouseleave', clear);
+    return () => {
+      if (rafId) window.cancelAnimationFrame(rafId);
+      document.removeEventListener('mousemove', updateFromEvent as EventListener);
+      document.removeEventListener('mouseleave', clear as EventListener);
+    };
   }, [demoGuideEnabled]);
 
   const enterFullscreen = async () => {
@@ -1197,14 +1289,6 @@ export default function App() {
         >
           <div className="text-[11px] uppercase tracking-[0.14em] text-cyan-200">Demo Bələdçisi</div>
           <div className="mt-1 text-xs text-slate-100">{demoGuideBubble.text}</div>
-        </div>
-      )}
-      {demoGuideEnabled && (
-        <div className="fixed bottom-4 right-4 z-[87] w-[340px] max-w-[calc(100vw-1rem)] rounded-2xl border border-yellow-300/35 bg-slate-950/92 p-3 shadow-[0_16px_46px_rgba(0,0,0,0.5)] backdrop-blur">
-          <div className="text-[11px] uppercase tracking-[0.14em] text-yellow-200">Tanışlıq Rejimi</div>
-          <div className="mt-1 text-xs font-semibold text-slate-100">Demo tenant: funksionallıq bələdçisi</div>
-          <div className="mt-1 text-xs text-slate-300">{demoGuidePinned}</div>
-          <div className="mt-2 text-[11px] text-slate-400">İpucu: hər hansı düymənin və ya tabın üzərinə cursor gətirin.</div>
         </div>
       )}
       {isPerfDebugEnabled() && (

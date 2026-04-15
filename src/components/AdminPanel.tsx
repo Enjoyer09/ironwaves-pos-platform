@@ -440,6 +440,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                               <button
                                 className="neon-btn rounded-lg px-2 py-1 text-[11px]"
                                 disabled={s.status === 'VOIDED'}
+                                title={tx(lang, 'Satışı tam ləğv edir (VOID). Audit səbəbi daxil edilməlidir.', 'Полностью отменяет продажу (VOID). Нужно указать причину для аудита.', 'Voids the sale completely. Audit reason is required.')}
                                 onClick={() => {
                                   setSaleActionModal({ mode: 'void', sale: s });
                                   setSaleReason('');
@@ -453,6 +454,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                               <button
                                 className="rounded-lg border border-amber-300/40 bg-amber-500/15 px-2 py-1 text-[11px] font-semibold text-amber-100"
                                 disabled={s.status === 'VOIDED'}
+                                title={tx(lang, 'Satışdan qismən qaytarma (partial refund) tətbiq edir.', 'Применяет частичный возврат по продаже.', 'Applies partial refund on the sale.')}
                                 onClick={() => {
                                   setSaleActionModal({ mode: 'partial', sale: s });
                                   setSaleReason('');
@@ -465,6 +467,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                               <button
                                 className="glossy-gold rounded-lg px-2 py-1 text-[11px] font-semibold"
                                 disabled={s.status === 'VOIDED'}
+                                title={tx(lang, 'Satış məbləğini menecer təsdiqi ilə düzəldir.', 'Корректирует сумму продажи с подтверждением менеджера.', 'Adjusts sale amount with manager approval.')}
                                 onClick={() => {
                                   setSaleActionModal({ mode: 'edit', sale: s });
                                   setSaleReason('');
@@ -607,6 +610,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                 onClick={() => { void handleAddMenu(); }}
                 disabled={!newItemName.trim() || !newItemPrice || (newItemCategory === '__custom__' && !customCategory.trim())}
                 className="glossy-gold px-4 py-2 rounded-xl transition-colors flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
+                title={tx(lang, 'Yeni menyu məhsulu yaradır.', 'Создает новую позицию меню.', 'Creates a new menu item.')}
               >
                 <Plus size={20} />
                 {tx(lang, 'Məhsulu Yarat', 'Создать товар', 'Create Item')}
@@ -628,7 +632,11 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                   </div>
                   <div className="flex items-center space-x-6">
                     <div className="font-bold text-xl text-slate-100">{parseFloat(item.price).toFixed(2)} ₼</div>
-                    <button onClick={() => setDeleteMenuId(item.id)} className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors">
+                    <button
+                      onClick={() => setDeleteMenuId(item.id)}
+                      className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                      title={tx(lang, 'Məhsulu deaktiv edir/silməyə hazırlayır.', 'Деактивирует товар / подготавливает к удалению.', 'Deactivates item / prepares it for deletion.')}
+                    >
                       <Trash2 size={20} />
                     </button>
                     <button
