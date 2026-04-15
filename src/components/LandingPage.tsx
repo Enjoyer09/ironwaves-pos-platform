@@ -3,6 +3,7 @@ import { get_public_landing_settings_live } from "../api/settings";
 
 type Lang = "az" | "ru" | "en";
 type DemoGuideState = { label: string; x: number; y: number };
+type ActionGuideState = { text: string; x: number; y: number };
 
 const COPY: Record<Lang, any> = {
   az: {
@@ -201,6 +202,8 @@ export default function LandingPage() {
   const [liveSettings, setLiveSettings] = useState<any | null>(null);
   const [demoGuideOpen, setDemoGuideOpen] = useState(true);
   const [demoGuide, setDemoGuide] = useState<DemoGuideState | null>(null);
+  const [selectedGuideLabel, setSelectedGuideLabel] = useState("POS");
+  const [actionGuide, setActionGuide] = useState<ActionGuideState | null>(null);
   const c = COPY[lang];
 
   const getModuleGuideText = (label: string) => {
@@ -222,6 +225,16 @@ export default function LandingPage() {
     const x = Math.min(window.innerWidth - width - 10, event.clientX + 12);
     const y = Math.min(window.innerHeight - height - 10, event.clientY + 12);
     setDemoGuide({ label, x: Math.max(10, x), y: Math.max(10, y) });
+    setSelectedGuideLabel(label);
+  };
+
+  const handleActionGuideHover = (text: string, event: React.MouseEvent<HTMLElement>) => {
+    if (typeof window === "undefined") return;
+    const width = 300;
+    const height = 90;
+    const x = Math.min(window.innerWidth - width - 10, event.clientX + 10);
+    const y = Math.min(window.innerHeight - height - 10, event.clientY + 10);
+    setActionGuide({ text, x: Math.max(10, x), y: Math.max(10, y) });
   };
 
   useEffect(() => {
@@ -317,7 +330,14 @@ export default function LandingPage() {
           </div>
           <nav className="hidden items-center gap-6 md:flex">
             {navLabels.map((item: string, idx: number) => (
-              <a key={item || idx} href={idx === 0 ? "#mehsul" : idx === 1 ? "#isleyis" : idx === 2 ? "#modullar" : "#elaqe"} className="text-sm text-slate-300 transition hover:text-white">
+              <a
+                key={item || idx}
+                href={idx === 0 ? "#mehsul" : idx === 1 ? "#isleyis" : idx === 2 ? "#modullar" : "#elaqe"}
+                className="text-sm text-slate-300 transition hover:text-white"
+                onMouseEnter={(e) => handleActionGuideHover(idx === 0 ? "Məhsul bölməsinə keçid edir." : idx === 1 ? "İş axını bölməsini göstərir." : idx === 2 ? "Bütün modullar siyahısını açır." : "Əlaqə məlumatlarına aparır.", e)}
+                onMouseMove={(e) => handleActionGuideHover(idx === 0 ? "Məhsul bölməsinə keçid edir." : idx === 1 ? "İş axını bölməsini göstərir." : idx === 2 ? "Bütün modullar siyahısını açır." : "Əlaqə məlumatlarına aparır.", e)}
+                onMouseLeave={() => setActionGuide(null)}
+              >
                 {item || c.nav[idx]}
               </a>
             ))}
@@ -329,6 +349,9 @@ export default function LandingPage() {
                 type="button"
                 onClick={() => setLang(l)}
                 className={l === lang ? "neon-chip neon-chip-active px-3 py-1.5 text-[11px]" : "neon-chip px-3 py-1.5 text-[11px]"}
+                onMouseEnter={(e) => handleActionGuideHover("İnterfeys dilini dəyişir.", e)}
+                onMouseMove={(e) => handleActionGuideHover("İnterfeys dilini dəyişir.", e)}
+                onMouseLeave={() => setActionGuide(null)}
               >
                 {l.toUpperCase()}
               </button>
@@ -340,10 +363,21 @@ export default function LandingPage() {
                 if (demoGuideOpen) setDemoGuide(null);
               }}
               className={demoGuideOpen ? "neon-chip neon-chip-active px-3 py-1.5 text-[11px]" : "neon-chip px-3 py-1.5 text-[11px]"}
+              onMouseEnter={(e) => handleActionGuideHover("Demo bələdçisini açır və ya bağlayır.", e)}
+              onMouseMove={(e) => handleActionGuideHover("Demo bələdçisini açır və ya bağlayır.", e)}
+              onMouseLeave={() => setActionGuide(null)}
             >
-              {lang === "az" ? "Demo Guide" : lang === "ru" ? "Demo Guide" : "Demo Guide"}
+              Bələdçi
             </button>
-            <a href="https://demo.ironwaves.store" target="_blank" rel="noreferrer" className="neon-btn-active rounded-xl px-4 py-2 text-sm font-semibold">
+            <a
+              href="https://demo.ironwaves.store"
+              target="_blank"
+              rel="noreferrer"
+              className="neon-btn-active rounded-xl px-4 py-2 text-sm font-semibold"
+              onMouseEnter={(e) => handleActionGuideHover("Canlı demo platformasını yeni tabda açır.", e)}
+              onMouseMove={(e) => handleActionGuideHover("Canlı demo platformasını yeni tabda açır.", e)}
+              onMouseLeave={() => setActionGuide(null)}
+            >
               {ctaPrimary}
             </a>
           </div>
@@ -358,7 +392,15 @@ export default function LandingPage() {
           <h1 className="text-4xl font-black leading-tight text-white md:text-6xl">{heroTitle}</h1>
           <p className="max-w-xl text-base leading-7 text-slate-300 md:text-lg">{heroBody}</p>
           <div className="flex flex-wrap gap-3">
-            <a href="https://demo.ironwaves.store" target="_blank" rel="noreferrer" className="neon-btn-active rounded-xl px-6 py-3 text-sm font-bold">
+            <a
+              href="https://demo.ironwaves.store"
+              target="_blank"
+              rel="noreferrer"
+              className="neon-btn-active rounded-xl px-6 py-3 text-sm font-bold"
+              onMouseEnter={(e) => handleActionGuideHover("Canlı demo mühitinə birbaşa keçid edir.", e)}
+              onMouseMove={(e) => handleActionGuideHover("Canlı demo mühitinə birbaşa keçid edir.", e)}
+              onMouseLeave={() => setActionGuide(null)}
+            >
               {ctaPrimary}
             </a>
           </div>
@@ -387,6 +429,9 @@ export default function LandingPage() {
                 onClick={() => setSlideIndex(idx)}
                 className={idx === slideIndex ? "h-2.5 w-7 rounded-full bg-yellow-300" : "h-2.5 w-2.5 rounded-full bg-slate-500/80"}
                 aria-label={`slide-${idx + 1}`}
+                onMouseEnter={(e) => handleActionGuideHover("Ekran görüntüsü slaydını dəyişir.", e)}
+                onMouseMove={(e) => handleActionGuideHover("Ekran görüntüsü slaydını dəyişir.", e)}
+                onMouseLeave={() => setActionGuide(null)}
               />
             ))}
           </div>
@@ -444,6 +489,7 @@ export default function LandingPage() {
                 onMouseEnter={(e) => handleDemoGuideHover(tab, e)}
                 onMouseMove={(e) => handleDemoGuideHover(tab, e)}
                 onMouseLeave={() => setDemoGuide(null)}
+                onClick={() => setSelectedGuideLabel(tab)}
               >
                 {tab}
               </span>
@@ -462,6 +508,7 @@ export default function LandingPage() {
               onMouseEnter={(e) => handleDemoGuideHover(item, e)}
               onMouseMove={(e) => handleDemoGuideHover(item, e)}
               onMouseLeave={() => setDemoGuide(null)}
+              onClick={() => setSelectedGuideLabel(item)}
             >
               <div className="text-sm font-bold text-slate-100">{item}</div>
               <div className="mt-2 text-xs leading-5 text-slate-400">iRonWaves Platform daxilində inteqrasiya olunmuş modul.</div>
@@ -509,7 +556,15 @@ export default function LandingPage() {
               <span>{c.waLabel}</span>
               <span>{whatsapp}</span>
             </a>
-            <a href="https://demo.ironwaves.store" target="_blank" rel="noreferrer" className="glossy-gold mt-2 inline-flex w-full items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold">
+            <a
+              href="https://demo.ironwaves.store"
+              target="_blank"
+              rel="noreferrer"
+              className="glossy-gold mt-2 inline-flex w-full items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold"
+              onMouseEnter={(e) => handleActionGuideHover("Demo mühitinə keçid edir.", e)}
+              onMouseMove={(e) => handleActionGuideHover("Demo mühitinə keçid edir.", e)}
+              onMouseLeave={() => setActionGuide(null)}
+            >
               {ctaPrimary}
             </a>
           </div>
@@ -525,6 +580,23 @@ export default function LandingPage() {
           <div className="text-[11px] uppercase tracking-[0.14em] text-cyan-200">Demo Guide</div>
           <div className="mt-1 text-xs font-semibold text-slate-100">{demoGuide.label}</div>
           <div className="mt-1 text-xs text-slate-300">{getModuleGuideText(demoGuide.label)}</div>
+        </div>
+      )}
+      {actionGuide && (
+        <div
+          className="pointer-events-none fixed z-[81] w-[300px] rounded-2xl border border-emerald-300/35 bg-[#0b1220]/92 p-3 shadow-[0_14px_42px_rgba(0,0,0,0.5)] backdrop-blur"
+          style={{ left: actionGuide.x, top: actionGuide.y }}
+        >
+          <div className="text-[11px] uppercase tracking-[0.14em] text-emerald-200">Düymə Bələdçisi</div>
+          <div className="mt-1 text-xs text-slate-100">{actionGuide.text}</div>
+        </div>
+      )}
+      {demoGuideOpen && (
+        <div className="fixed bottom-4 right-4 z-[79] w-[320px] max-w-[calc(100vw-1rem)] rounded-2xl border border-yellow-300/35 bg-slate-950/92 p-3 shadow-[0_16px_46px_rgba(0,0,0,0.5)] backdrop-blur">
+          <div className="text-[11px] uppercase tracking-[0.14em] text-yellow-200">Demo Bələdçisi</div>
+          <div className="mt-1 text-xs font-semibold text-slate-100">{selectedGuideLabel}</div>
+          <div className="mt-1 text-xs text-slate-300">{getModuleGuideText(selectedGuideLabel)}</div>
+          <div className="mt-2 text-[11px] text-slate-400">İpucu: modul kartına toxunun və ya cursor yaxınlaşdırın.</div>
         </div>
       )}
     </div>
