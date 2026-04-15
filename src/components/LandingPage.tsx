@@ -12,6 +12,25 @@ const COPY: Record<Lang, any> = {
     ctaPrimary: "Demoya keç",
     ctaSecondary: "Canlı platforma",
     trust: ["Masa axını", "Mətbəx nəzarəti", "Kassa nəzarəti", "Canlı dashboard"],
+    problemTitle: "Əsas əməliyyat problemləri",
+    problems: [
+      "Sifariş və masa axını qarışır",
+      "Mətbəx gecikmələri gec görünür",
+      "Kassa və maliyyə fərqləri yaranır",
+    ],
+    solutionTitle: "iRonWaves həlli",
+    solutions: [
+      "POS, masalar və KDS bir axında işləyir",
+      "Dashboard və alert-lərlə anlıq nəzarət",
+      "Maliyyə, audit və loglarla tam izlənmə",
+    ],
+    howTitle: "Necə işləyir",
+    steps: [
+      "Satışı və ya masanı aç",
+      "Sifarişi mətbəxə göndər",
+      "Ödənişi tamamla və hesabatı bağla",
+      "Dashboard və maliyyədən nəticəni izlət",
+    ],
     modulesTitle: "Bütün əsas modullar eyni platformada",
     modules: [
       "POS",
@@ -48,6 +67,25 @@ const COPY: Record<Lang, any> = {
     ctaPrimary: "Перейти к демо",
     ctaSecondary: "Открыть платформу",
     trust: ["Поток столов", "Контроль кухни", "Контроль кассы", "Live dashboard"],
+    problemTitle: "Ключевые операционные проблемы",
+    problems: [
+      "Путается поток заказов и столов",
+      "Задержки кухни видны слишком поздно",
+      "Появляются расхождения кассы и финансов",
+    ],
+    solutionTitle: "Решение iRonWaves",
+    solutions: [
+      "POS, столы и KDS работают как единый поток",
+      "Мгновенный контроль через dashboard и alerts",
+      "Полная прослеживаемость через финансы, audit и логи",
+    ],
+    howTitle: "Как это работает",
+    steps: [
+      "Откройте продажу или стол",
+      "Отправьте заказ на кухню",
+      "Завершите оплату и закройте отчёт",
+      "Отслеживайте итог в dashboard и финансах",
+    ],
     modulesTitle: "Все ключевые модули в одной платформе",
     modules: [
       "POS",
@@ -84,6 +122,25 @@ const COPY: Record<Lang, any> = {
     ctaPrimary: "Go to demo",
     ctaSecondary: "Open platform",
     trust: ["Table flow", "Kitchen control", "Cash control", "Live dashboard"],
+    problemTitle: "Core operational problems",
+    problems: [
+      "Order and table flow gets mixed up",
+      "Kitchen delays are noticed too late",
+      "Cash and finance variances keep appearing",
+    ],
+    solutionTitle: "iRonWaves solution",
+    solutions: [
+      "POS, tables and KDS work in one flow",
+      "Instant control with dashboard and alerts",
+      "Full traceability with finance, audit and logs",
+    ],
+    howTitle: "How it works",
+    steps: [
+      "Open a sale or table",
+      "Send the order to kitchen",
+      "Complete payment and close report",
+      "Track outcomes in dashboard and finance",
+    ],
     modulesTitle: "All core modules in one platform",
     modules: [
       "POS",
@@ -209,7 +266,6 @@ export default function LandingPage() {
   const heroTitle = String(liveSettings?.[`hero_title_${lang}`] || c.headline || "").trim();
   const heroBody = String(liveSettings?.[`hero_body_${lang}`] || c.sub || "").trim();
   const ctaPrimary = String(liveSettings?.[`primary_cta_${lang}`] || c.ctaPrimary || "").trim();
-  const ctaSecondary = String(liveSettings?.[`secondary_cta_${lang}`] || c.ctaSecondary || "").trim();
   const modulesTitle = String(liveSettings?.[`modules_title_${lang}`] || c.modulesTitle || "").trim();
   const footerText = String(liveSettings?.[`footer_text_${lang}`] || c.footer || "").trim();
 
@@ -294,7 +350,48 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="isleyis" className="border-y border-slate-700/40 bg-[#0f1522]/40">
+      <section className="mx-auto max-w-[1280px] px-4 pb-8 md:px-6">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="metal-panel rounded-2xl p-5">
+            <h2 className="mb-3 text-lg font-extrabold text-rose-200">{c.problemTitle}</h2>
+            <div className="space-y-2">
+              {c.problems.map((item: string) => (
+                <div key={item} className="flex items-start gap-2 text-sm text-slate-300">
+                  <span className="mt-1 inline-block h-2 w-2 rounded-full bg-rose-300" />
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="metal-panel rounded-2xl p-5">
+            <h2 className="mb-3 text-lg font-extrabold text-emerald-200">{c.solutionTitle}</h2>
+            <div className="space-y-2">
+              {c.solutions.map((item: string) => (
+                <div key={item} className="flex items-start gap-2 text-sm text-slate-300">
+                  <span className="mt-1 inline-block h-2 w-2 rounded-full bg-emerald-300" />
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="isleyis" className="mx-auto max-w-[1280px] px-4 pb-8 md:px-6">
+        <div className="metal-panel rounded-2xl p-5">
+          <h2 className="mb-4 text-2xl font-extrabold text-white">{c.howTitle}</h2>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+            {c.steps.map((step: string, idx: number) => (
+              <div key={step} className="rounded-xl border border-slate-700/70 bg-[#0f1521] p-4">
+                <div className="mb-2 text-xs font-black text-yellow-300">0{idx + 1}</div>
+                <div className="text-sm text-slate-200">{step}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-slate-700/40 bg-[#0f1522]/40">
         <div className="mx-auto max-w-[1280px] overflow-hidden px-4 py-4 md:px-6">
           <div className="flex w-max animate-marquee gap-2">
             {[...c.modules, ...c.modules].map((tab: string, idx: number) => (
