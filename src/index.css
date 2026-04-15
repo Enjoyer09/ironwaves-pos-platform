@@ -62,6 +62,7 @@ select {
 
 html {
   font-size: 90%;
+  scroll-behavior: smooth;
 }
 
 @layer components {
@@ -457,6 +458,11 @@ html {
   color: var(--gray-text);
   background: #fff;
   min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+.dg-anchor {
+  scroll-margin-top: 78px;
 }
 
 .dg-navbar {
