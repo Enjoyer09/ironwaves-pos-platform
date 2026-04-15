@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Lang = "az" | "ru" | "en";
 
@@ -139,15 +139,29 @@ const SHOTS = [
   ["Elite Card", "/landing/elite-card.png", "VIP müştəri segmenti və üstünlüklər"],
 ];
 
-function AppPreview() {
+function AppPreview({ activeShot }: { activeShot: [string, string, string] }) {
+  const [title, src, desc] = activeShot;
   return (
     <div className="metal-panel relative w-full overflow-hidden rounded-2xl border p-3">
+      <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-slate-600/50 bg-[#162133]/70 px-3 py-2 text-[11px] text-slate-300">
+        <div className="rounded-lg border border-slate-500/60 px-2 py-1">Tenant · iRonWaves Platform</div>
+        <div className="rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-2 py-1 text-emerald-200">Online</div>
+        <div className="rounded-lg border border-slate-500/60 px-2 py-1">Yenilə</div>
+        <div className="rounded-lg border border-slate-500/60 px-2 py-1">Tam ekran</div>
+      </div>
       <div className="mb-3 flex flex-wrap gap-2">
         {MODULE_TABS.slice(0, 10).map((tab, idx) => (
           <span key={tab} className={idx === 0 ? "neon-chip neon-chip-active px-3 py-2" : "neon-chip px-3 py-2"}>
             {tab}
           </span>
         ))}
+      </div>
+      <div className="mb-3 overflow-hidden rounded-xl border border-slate-600/70">
+        <img src={src} alt={title} className="h-44 w-full object-cover" />
+        <div className="flex items-center justify-between bg-[#101722] px-3 py-2">
+          <div className="text-xs font-semibold text-slate-100">{title}</div>
+          <div className="text-[11px] text-slate-400">{desc}</div>
+        </div>
       </div>
       <div className="grid grid-cols-12 gap-3">
         <div className="col-span-8 space-y-3">
@@ -185,7 +199,16 @@ function AppPreview() {
 
 export default function LandingPage() {
   const [lang, setLang] = useState<Lang>("az");
+  const [shotIndex, setShotIndex] = useState(0);
   const c = useMemo(() => COPY[lang], [lang]);
+  const activeShot = SHOTS[shotIndex % SHOTS.length] as [string, string, string];
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setShotIndex((prev) => (prev + 1) % SHOTS.length);
+    }, 3500);
+    return () => window.clearInterval(timer);
+  }, []);
 
   return (
     <div className="metal-app min-h-screen overflow-x-hidden">
@@ -243,7 +266,21 @@ export default function LandingPage() {
             ))}
           </div>
         </div>
-        <AppPreview />
+        <div className="space-y-3">
+          <AppPreview activeShot={activeShot} />
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {SHOTS.map((shot, idx) => (
+              <button
+                key={shot[0]}
+                type="button"
+                onClick={() => setShotIndex(idx)}
+                className={idx === shotIndex ? "neon-chip neon-chip-active whitespace-nowrap px-3 py-2 text-xs" : "neon-chip whitespace-nowrap px-3 py-2 text-xs"}
+              >
+                {shot[0]}
+              </button>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section id="isleyis" className="border-y border-slate-700/40 bg-[#0f1522]/40">
