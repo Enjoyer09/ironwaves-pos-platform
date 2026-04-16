@@ -27,6 +27,7 @@ import { list_tenants, type TenantRecord } from './api/tenants';
 import { clearDBCache } from './lib/db_sim';
 import { authApi } from './api/auth';
 import { isPerfDebugEnabled, type PerfEvent } from './lib/perf';
+import { syncPendingOfflineTableOps } from './api/tables';
 
 type AdminView =
   | 'dashboard'
@@ -399,6 +400,14 @@ export default function App() {
       }
       if ((result.failed || 0) > 0) {
         notify('error', tx(safeLang, `${result.failed} offline satış göndərilə bilmədi`, `${result.failed} офлайн продаж не удалось отправить`, `${result.failed} offline sales failed to sync`));
+      }
+    });
+    syncPendingOfflineTableOps(user.tenant_id).then((result) => {
+      if (result.synced > 0) {
+        notify('success', tx(safeLang, `${result.synced} masa əməliyyatı sinxron olundu`, `${result.synced} операций по столам синхронизировано`, `${result.synced} table operations synced`));
+      }
+      if ((result.failed || 0) > 0) {
+        notify('error', tx(safeLang, `${result.failed} masa əməliyyatı hələ gözləyir`, `${result.failed} операций по столам еще ожидают`, `${result.failed} table operations are still pending`));
       }
     });
   }, [isOnline, user?.tenant_id]);
