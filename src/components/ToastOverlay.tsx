@@ -12,6 +12,9 @@ export default function ToastOverlay() {
       {toasts.map((toast) => (
         <div
           key={toast.id}
+          role="alert"
+          aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
+          aria-atomic="true"
           className={`pointer-events-auto rounded-2xl border p-3 shadow-[0_22px_40px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-sm animate-[toastIn_.28s_ease] ${
             toast.type === 'success'
               ? 'border-emerald-300/45 bg-[linear-gradient(165deg,rgba(26,60,46,0.95),rgba(16,28,22,0.97))] text-emerald-100'
@@ -25,7 +28,7 @@ export default function ToastOverlay() {
             <button
               onClick={() => dismissToast(toast.id)}
               className="rounded p-1 hover:bg-black/20"
-              aria-label="dismiss"
+              aria-label="Dismiss toast"
             >
               <X size={14} />
             </button>

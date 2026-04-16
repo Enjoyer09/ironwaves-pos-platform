@@ -17,6 +17,7 @@ export default function PinLogin() {
   const [adminPass, setAdminPass] = useState('');
   const [admin2faPin, setAdmin2faPin] = useState('');
   const [rememberDevice, setRememberDevice] = useState(true);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [error, setError] = useState(false);
   const [riskContext, setRiskContext] = useState<LoginRiskContext>({ device_hash: getDeviceHash(), ip: 'ip_unknown' });
   const isDemoHost = typeof window !== 'undefined' && window.location.host.toLowerCase() === 'demo.ironwaves.store';
@@ -106,6 +107,7 @@ export default function PinLogin() {
   }, [isPlatformHost]);
 
   const handleKeyPress = (num: string) => {
+    if (isLoggingIn) return;
     if (pin.length < staffPinLength) {
       setPin(prev => prev + num);
       setError(false);
@@ -113,6 +115,7 @@ export default function PinLogin() {
   };
 
   const handleClear = () => {
+    if (isLoggingIn) return;
     setPin('');
     setError(false);
   };
@@ -120,10 +123,15 @@ export default function PinLogin() {
   React.useEffect(() => {
     if (mode === 'staff' && pin.length === staffPinLength) {
       (async () => {
-        const success = await login(pin);
-        if (!success) {
-          setError(true);
-          setTimeout(() => setPin(''), 500);
+        setIsLoggingIn(true);
+        try {
+          const success = await login(pin);
+          if (!success) {
+            setError(true);
+            setTimeout(() => setPin(''), 500);
+          }
+        } finally {
+          setIsLoggingIn(false);
         }
       })();
     }
@@ -347,6 +355,7 @@ export default function PinLogin() {
                     <button
                       key={num}
                       onClick={() => handleKeyPress(num.toString())}
+                      disabled={isLoggingIn}
                       className="rounded-[26px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.10),rgba(255,255,255,0.04))] py-5 text-3xl font-bold text-white shadow-[0_10px_28px_rgba(0,0,0,0.35)] transition hover:scale-[1.02]"
                     >
                       {num}
@@ -354,18 +363,22 @@ export default function PinLogin() {
                   ))}
                   <button
                     onClick={handleClear}
+                    disabled={isLoggingIn}
+                    aria-label={tx(safeLang, 'PIN-i sıfırla', 'Сбросить PIN', 'Clear PIN')}
                     className="rounded-[26px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.10),rgba(255,255,255,0.04))] py-5 text-2xl font-bold text-white shadow-[0_10px_28px_rgba(0,0,0,0.35)] transition hover:scale-[1.02]"
                   >
-                    C
+                    CLR
                   </button>
                   <button
                     onClick={() => handleKeyPress('0')}
+                    disabled={isLoggingIn}
                     className="rounded-[26px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.10),rgba(255,255,255,0.04))] py-5 text-3xl font-bold text-white shadow-[0_10px_28px_rgba(0,0,0,0.35)] transition hover:scale-[1.02]"
                   >
                     0
                   </button>
                   <button
                     onClick={() => setPin((prev) => prev.slice(0, -1))}
+                    disabled={isLoggingIn}
                     className="flex items-center justify-center rounded-[26px] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.10),rgba(255,255,255,0.04))] py-5 text-white shadow-[0_10px_28px_rgba(0,0,0,0.35)] transition hover:scale-[1.02]"
                   >
                     <Delete size={24} />
@@ -403,10 +416,13 @@ export default function PinLogin() {
             )}
 
             <button
-              onClick={() => mode === 'admin' && handleAdminSubmit()}
-              className={`mt-5 w-full rounded-[24px] px-4 py-4 text-lg font-bold ${error ? 'bg-red-500 text-white' : 'glossy-gold'}`}
+              onClick={() => (mode === 'admin' ? handleAdminSubmit() : handleClear())}
+              disabled={isLoggingIn}
+              className={`mt-5 w-full rounded-[24px] px-4 py-4 text-lg font-bold ${error ? 'bg-red-500 text-white' : 'glossy-gold'} disabled:cursor-not-allowed disabled:opacity-60`}
             >
-              {mode === 'staff' ? tx(safeLang, 'PIN ilə Daxil Ol', 'Войти по PIN', 'Enter With PIN') : t.login}
+              {mode === 'staff'
+                ? (isLoggingIn ? tx(safeLang, 'Yoxlanılır...', 'Проверка...', 'Checking...') : tx(safeLang, 'PIN-i Təmizlə', 'Очистить PIN', 'Clear PIN'))
+                : t.login}
             </button>
 
             <div className="mt-4 text-center text-xs text-slate-400">
