@@ -110,6 +110,10 @@ class MenuItem(Base):
 
 class Table(Base):
     __tablename__ = "tables"
+    __table_args__ = (
+        Index("ix_tables_tenant_label", "tenant_id", "label"),
+        Index("ix_tables_tenant_status", "tenant_id", "status"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
@@ -518,6 +522,9 @@ class CustomerConsent(Base):
 
 class Notification(Base):
     __tablename__ = "notifications"
+    __table_args__ = (
+        Index("ix_notifications_tenant_unread_created", "tenant_id", "is_read", "created_at"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
@@ -559,6 +566,9 @@ class LoyaltyLedgerEntry(Base):
 
 class StaffNotification(Base):
     __tablename__ = "staff_notifications"
+    __table_args__ = (
+        Index("ix_staff_notifications_tenant_user_unread_created", "tenant_id", "username", "is_read", "created_at"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)

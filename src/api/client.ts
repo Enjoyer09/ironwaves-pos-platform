@@ -128,6 +128,17 @@ type ApiRequestOptions = {
   signal?: AbortSignal;
 };
 
+function createRequestId(): string {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+  } catch {
+    // no-op
+  }
+  return `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export async function apiRequest<T = any>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const base = getApiBaseUrl();
   if (!base) {
@@ -143,10 +154,12 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
     'Content-Type': 'application/json',
     ...(options.headers || {}),
   };
+  const requestId = createRequestId();
 
   // Always send the original frontend host so backend can resolve tenant correctly
   // even when API base URL points to a different host (e.g. Railway backend domain).
   headers['x-tenant-domain'] = window.location.host;
+  headers['x-request-id'] = requestId;
   if (tenantId) headers['x-tenant-id'] = tenantId;
   if (options.auth !== false && access_token) {
     headers.Authorization = `Bearer ${access_token}`;
@@ -204,11 +217,12 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
       timeout_ms: timeoutMs,
       timed_out: timedOut,
       online: typeof navigator !== 'undefined' ? navigator.onLine : true,
+      request_id: requestId,
     });
     if (options.suspendOnNetworkError === true && !isAbort) {
       suspendBackendTemporarily();
     }
-    throw new Error(`Backendə qoşulma alınmadı (${options.method || 'GET'} ${path}): ${message}`);
+    throw new Error(`Backendə qoşulma alınmadı (${options.method || 'GET'} ${path}, request_id: ${requestId}): ${message}`);
   } finally {
     if (timeoutId) window.clearTimeout(timeoutId);
     if (removeExternalAbortListener) removeExternalAbortListener();
@@ -241,19 +255,20 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
     const detail = responseWasJson && data && typeof data === 'object' && (data as any).detail
       ? (data as any).detail
       : `Server düzgün JSON cavabı qaytarmadı (HTTP ${res.status})`;
+    const backendRequestId = String(res.headers.get('x-request-id') || requestId);
     if (res.status >= 500 || res.status === 429) {
       emitClientTelemetry('API_SERVER_ERROR', {
         method: options.method || 'GET',
         path,
         status: res.status,
         detail: String(detail),
-        request_id: String(res.headers.get('x-request-id') || ''),
+        request_id: backendRequestId,
       });
     }
     if (options.suspendOnNetworkError !== false && String(detail).includes('Tenant not configured')) {
       suspendBackendTemporarily(5 * 60 * 1000);
     }
-    throw new Error(String(detail));
+    throw new Error(`${String(detail)} (request_id: ${backendRequestId})`);
   }
 
   if ((endedAt - startedAt) > 2500) {
@@ -262,7 +277,7 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
       path,
       status: res.status,
       duration_ms: Math.round(endedAt - startedAt),
-      request_id: String(res.headers.get('x-request-id') || ''),
+      request_id: String(res.headers.get('x-request-id') || requestId),
     });
   }
 
