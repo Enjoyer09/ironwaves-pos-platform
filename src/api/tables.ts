@@ -61,6 +61,124 @@ const isRecoverableNetworkFailure = (error: unknown) => {
   );
 };
 
+type OfflineTableOpType = 'open' | 'send_to_kitchen' | 'pay';
+type OfflineTableOpRecord = {
+  id: string;
+  tenant_id: string;
+  table_id: string;
+  op_type: OfflineTableOpType;
+  payload: Record<string, unknown>;
+  created_at: string;
+  synced_at?: string;
+  retry_count?: number;
+  next_attempt_at?: string;
+  last_attempt_at?: string;
+  last_error?: string;
+  status: 'pending' | 'synced';
+};
+
+const OFFLINE_TABLE_OPS_KEY = 'offline_table_ops';
+const TABLE_OPS_SYNC_BATCH = 20;
+const TABLE_OPS_BASE_DELAY_MS = 15_000;
+
+const createOfflineOpId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `tblop_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+};
+
+const getOfflineTableOps = () => getDB<OfflineTableOpRecord>(OFFLINE_TABLE_OPS_KEY) || [];
+const setOfflineTableOps = (rows: OfflineTableOpRecord[]) => setDB(OFFLINE_TABLE_OPS_KEY, rows);
+
+const enqueueOfflineTableOp = (
+  tenant_id: string,
+  table_id: string,
+  op_type: OfflineTableOpType,
+  payload: Record<string, unknown>,
+) => {
+  const rows = getOfflineTableOps();
+  rows.push({
+    id: createOfflineOpId(),
+    tenant_id,
+    table_id,
+    op_type,
+    payload,
+    created_at: new Date().toISOString(),
+    retry_count: 0,
+    status: 'pending',
+  });
+  setOfflineTableOps(rows);
+};
+
+const isTableOpAlreadyAppliedError = (message: string, opType: OfflineTableOpType) => {
+  const m = String(message || '').toLowerCase();
+  if (!m) return false;
+  if (opType === 'open' && (m.includes('masa artıq açıqdır') || m.includes('already open'))) return true;
+  if (opType === 'send_to_kitchen' && (m.includes('artıq mətbəxə göndərilib') || m.includes('already sent'))) return true;
+  if (opType === 'pay' && (m.includes('masa boşdur') || m.includes('istifadədə deyil') || m.includes('already paid'))) return true;
+  return false;
+};
+
+export const syncPendingOfflineTableOps = async (tenant_id: string) => {
+  if (!isBackendEnabled()) return { synced: 0, failed: 0 };
+  const rows = getOfflineTableOps();
+  const nowMs = Date.now();
+  const pending = rows
+    .filter((row) => row.tenant_id === tenant_id && row.status === 'pending')
+    .filter((row) => !row.next_attempt_at || new Date(String(row.next_attempt_at)).getTime() <= nowMs)
+    .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+    .slice(0, TABLE_OPS_SYNC_BATCH);
+  if (!pending.length) return { synced: 0, failed: 0 };
+
+  let synced = 0;
+  let failed = 0;
+  for (const row of pending) {
+    try {
+      if (row.op_type === 'open') {
+        await apiRequest<any>(`/api/v1/ops/tables/${encodeURIComponent(row.table_id)}/open`, {
+          method: 'POST',
+          tenantId: null,
+          body: row.payload,
+        });
+      } else if (row.op_type === 'send_to_kitchen') {
+        await apiRequest<any>(`/api/v1/ops/tables/${encodeURIComponent(row.table_id)}/send-to-kitchen`, {
+          method: 'POST',
+          tenantId: null,
+          body: row.payload,
+        });
+      } else if (row.op_type === 'pay') {
+        await apiRequest<any>(`/api/v1/ops/tables/${encodeURIComponent(row.table_id)}/pay`, {
+          method: 'POST',
+          tenantId: null,
+          body: row.payload,
+        });
+      }
+      row.status = 'synced';
+      row.synced_at = new Date().toISOString();
+      row.last_error = '';
+      synced += 1;
+    } catch (error) {
+      const message = String((error as any)?.message || 'sync_failed');
+      const alreadyApplied = isTableOpAlreadyAppliedError(message, row.op_type);
+      if (alreadyApplied) {
+        row.status = 'synced';
+        row.synced_at = new Date().toISOString();
+        row.last_error = message.slice(0, 500);
+        synced += 1;
+      } else {
+        const retryCount = Number(row.retry_count || 0) + 1;
+        const delay = TABLE_OPS_BASE_DELAY_MS * (2 ** Math.min(retryCount, 6));
+        row.retry_count = retryCount;
+        row.last_attempt_at = new Date().toISOString();
+        row.next_attempt_at = new Date(Date.now() + delay).toISOString();
+        row.last_error = message.slice(0, 500);
+        failed += 1;
+      }
+    }
+  }
+  setOfflineTableOps(rows);
+  return { synced, failed };
+};
+
 // FUNKSIYA: get_tables
 export const get_tables = (tenant_id: string) => {
   return getDB<Table>('tables')
@@ -633,6 +751,17 @@ export const open_table_live = async (table_id: string, payload: TableOpenPayloa
       },
     });
   } catch (error) {
+    if (isRecoverableNetworkFailure(error)) {
+      const result = open_table(table_id, payload);
+      const syncPayload = {
+        guest_count: payload.guest_count,
+        deposit_guest_count: payload.deposit_guest_count,
+        deposit_seat_labels: payload.deposit_seat_labels || [],
+      };
+      const table = getDB<Table>('tables').find((row) => row.id === table_id);
+      if (table) enqueueOfflineTableOp(table.tenant_id, table_id, 'open', syncPayload);
+      return result;
+    }
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Tables backend open failed: ${message}`);
   }
@@ -662,6 +791,17 @@ export const send_to_kitchen_live = async (
       body: { cart_items, cup_mode: options?.cup_mode || 'paper' },
     });
   } catch (error) {
+    if (isRecoverableNetworkFailure(error)) {
+      const result = send_to_kitchen(table_id, cart_items, sent_by, options);
+      const table = getDB<Table>('tables').find((row) => row.id === table_id);
+      if (table) {
+        enqueueOfflineTableOp(table.tenant_id, table_id, 'send_to_kitchen', {
+          cart_items,
+          cup_mode: options?.cup_mode || 'paper',
+        });
+      }
+      return result;
+    }
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Tables backend kitchen send failed: ${message}`);
   }
@@ -690,6 +830,21 @@ export const pay_table_live = async (
       },
     });
   } catch (error) {
+    if (isRecoverableNetworkFailure(error)) {
+      const result = pay_table(table_id, payment_method, paid_by, split_cash, split_card, options);
+      const table = getDB<Table>('tables').find((row) => row.id === table_id);
+      if (table) {
+        enqueueOfflineTableOp(table.tenant_id, table_id, 'pay', {
+          payment_method,
+          split_cash: split_cash ? split_cash.toFixed(2) : null,
+          split_card: split_card ? split_card.toFixed(2) : null,
+          cup_mode: options?.cup_mode || 'paper',
+          pay_scope: options?.pay_scope || 'full',
+          seat_label: options?.seat_label || null,
+        });
+      }
+      return result;
+    }
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Tables backend pay failed: ${message}`);
   }
