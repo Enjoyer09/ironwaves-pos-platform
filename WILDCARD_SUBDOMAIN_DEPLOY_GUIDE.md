@@ -123,6 +123,7 @@ Backend:
 
 - hazırkı Railway backend domain-i ilə qala bilər
 - frontend onsuz da API-yə env və ya runtime config ilə gedir
+- frontend build üçün `VITE_API_BASE_URL` mütləq verilməlidir (hardcoded fallback yoxdur)
 
 Yəni yeni tenant üçün ayrıca backend domain açmaq məcburi deyil.
 
@@ -242,4 +243,3 @@ Bunlar yalnız siz hər müştəriyə tam ayrı infrastruktur vermək istəsəni
 - Domain: `gyrospos.ironwaves.store`
 - Admin username: `gyros_admin`
 - Admin password: güclü və ayrıca saxlanılan şifrə
-

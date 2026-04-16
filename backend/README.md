@@ -46,6 +46,9 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - Existing super admin credentials are not overwritten on startup unless `RESET_SUPERADMIN_ON_STARTUP=true`.
 - Demo PIN users are not seeded unless `SEED_DEMO_USERS=true`.
 - Tenant administration endpoints require `super_admin` role.
+- Runtime `ALTER TABLE` startup migrations default olaraq söndürülüb (`STARTUP_RUNTIME_MIGRATIONS_ENABLED=false`).
+- Deploy pipeline daxilində migration addımını ayrıca işlədin: `./scripts/run_migrations.sh` və ya `alembic upgrade head`.
+- Production-da `/metrics` endpoint-i qorumaq üçün `METRICS_BEARER_TOKEN` təyin edin.
 
 ## Smoke test
 

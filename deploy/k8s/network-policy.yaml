@@ -3,13 +3,11 @@ kind: NetworkPolicy
 metadata:
   name: ironwaves-pos-backend-ingress
   labels:
-    app.kubernetes.io/name: ironwaves-pos
-    app.kubernetes.io/component: backend
+    app: ironwaves-backend
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: ironwaves-pos
-      app.kubernetes.io/component: backend
+      app: ironwaves-backend
   policyTypes:
     - Ingress
     - Egress
@@ -24,7 +22,7 @@ spec:
               kubernetes.io/metadata.name: ingress-nginx
       ports:
         - protocol: TCP
-          port: 8080
+          port: 8000
   egress:
     - to:
         - namespaceSelector: {}

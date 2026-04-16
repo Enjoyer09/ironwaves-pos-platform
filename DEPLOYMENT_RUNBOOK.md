@@ -17,6 +17,7 @@
 3. Set required env vars:
    - `DATABASE_URL`
    - `JWT_SECRET`
+   - `METRICS_BEARER_TOKEN`
    - `CORS_ORIGINS`
    - `SUPERADMIN_USERNAME`
    - `SUPERADMIN_PASSWORD`
@@ -26,15 +27,16 @@
    - Keep `RESET_SUPERADMIN_ON_STARTUP=false` in production unless you are intentionally rotating from env
    - Keep `SEED_DEMO_USERS=false` in production
    - Keep `ALLOW_LEGACY_TENANT_HEADER_FALLBACK=false` in production
+   - Keep `STARTUP_RUNTIME_MIGRATIONS_ENABLED=false` in production (migrations should run in deploy step)
 4. Deploy and verify:
    - `GET /health` returns `200`.
-   - `GET /metrics` returns Prometheus metrics if `prometheus-client` is installed.
+   - `GET /metrics` requires bearer token in production.
 
 Before production deploys with database changes, run migrations from the backend service context:
 
 ```bash
 cd backend
-alembic -c alembic.ini upgrade head
+./scripts/run_migrations.sh
 ```
 
 Finance-specific rollback, restore and hardening steps are documented in:
@@ -72,6 +74,7 @@ Expected: all checks print `[OK]` and final success message.
 2. Set env vars:
    - `VITE_USE_BACKEND=true`
    - `VITE_API_BASE_URL=https://<your-backend-domain>`
+   - `VITE_API_BASE_URL` is mandatory at build time (build fails if missing)
 3. Deploy.
 4. Bind production domains.
 
@@ -105,3 +108,12 @@ Expected: all checks print `[OK]` and final success message.
 3. Check `/metrics` for request count and latency trends.
 4. Check Sentry if `SENTRY_DSN` is configured.
 5. Keep rollback branch/tag for quick restore.
+
+## 8) P2 Closure Criteria
+
+P2 is considered closed when:
+
+1. Runtime schema migrations are disabled in production and `run_migrations.sh` is used during deploy.
+2. Backend container runs as non-root and uses multi-stage Docker build.
+3. CI workflow runs backend compile + tests + alembic SQL preview + frontend build.
+4. Baseline backend pytest suite exists and passes in Python 3.12 CI.

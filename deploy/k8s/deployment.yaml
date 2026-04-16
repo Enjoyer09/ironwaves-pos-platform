@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ironwaves-backend
+  labels:
+    app: ironwaves-backend
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: ironwaves-backend
+  template:
+    metadata:
+      labels:
+        app: ironwaves-backend
+    spec:
+      containers:
+      - name: api
+        image: ghcr.io/ironwaves/pos-backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http
+        envFrom:
+        - configMapRef:
+            name: ironwaves-backend-config
+        - secretRef:
+            name: ironwaves-backend-secrets
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: "1"
+            memory: 1Gi
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 8
+          timeoutSeconds: 2
+          periodSeconds: 10
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 15
+          timeoutSeconds: 2
+          periodSeconds: 15
+          failureThreshold: 3
