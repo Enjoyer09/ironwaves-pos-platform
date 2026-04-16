@@ -50,6 +50,19 @@ const pushFinanceLocalEntries = (tenant_id: string, rows: FinanceEntry[]) => {
   saveFinanceLocal(tenant_id, [...current, ...(Array.isArray(rows) ? rows : [])]);
 };
 
+const mergeFinanceLocalWithServer = (tenant_id: string, serverRows: FinanceEntry[]) => {
+  const merged = new Map<string, FinanceEntry>();
+  for (const row of serverRows || []) {
+    merged.set(String(row.id), row);
+  }
+  for (const local of getFinanceLocal(tenant_id)) {
+    const key = String(local.id || '');
+    if (!key) continue;
+    if (!merged.has(key)) merged.set(key, local);
+  }
+  return Array.from(merged.values());
+};
+
 export const get_finance_entries = (tenant_id: string) => {
   return getFinanceLocal(tenant_id);
 };
@@ -677,7 +690,8 @@ export const fetch_finance_entries = async (tenant_id: string): Promise<FinanceE
     created_at: String(r.created_at || new Date().toISOString()),
     is_deleted: false,
   }));
-  saveFinanceLocal(tenant_id, mapped);
+  const merged = mergeFinanceLocalWithServer(tenant_id, mapped);
+  saveFinanceLocal(tenant_id, merged);
   return mapped;
 };
 

@@ -1,11 +1,12 @@
 import json
+import logging
 import secrets
 from datetime import datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
@@ -16,6 +17,7 @@ from app.services.finance_service import mirror_posted_transaction_to_legacy_wal
 
 
 router = APIRouter(prefix="/api/v1/pos", tags=["pos"])
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_YIELD_SETTINGS = {
@@ -44,6 +46,10 @@ def _is_coffee_like(item_name: str | None, category: str | None, is_coffee: bool
 def _setting_value(db: Session, tenant_id: str, key: str, default):
     row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
     if not row or row.value is None:
+        return default
+    try:
+        return json.loads(row.value)
+    except Exception:
         return default
 
 
@@ -104,10 +110,6 @@ def _record_doner_batch_consumption(
         return
     batch.sold_ready_weight_kg = (Decimal(str(batch.sold_ready_weight_kg or 0)) + sold_ready_qty).quantize(Decimal("0.001"))
     batch.deducted_raw_weight_kg = (Decimal(str(batch.deducted_raw_weight_kg or 0)) + deducted_raw_qty).quantize(Decimal("0.001"))
-    try:
-        return json.loads(row.value)
-    except Exception:
-        return default
 
 
 def _bank_commission_config(db: Session, tenant_id: str) -> tuple[Decimal, Decimal]:
@@ -243,6 +245,12 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
             free_discount = sum(coffee_unit_prices[:free_coffees], Decimal("0"))
             discount += free_discount
             total = max(Decimal("0"), subtotal - discount).quantize(Decimal("0.01"))
+
+    if payload.reward_claim_code and free_coffees > 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Eyni əməliyyatda həm reward claim, həm də pulsuz qəhvə tətbiq edilə bilməz",
+        )
 
     if payload.reward_claim_code:
         if not customer:
@@ -507,13 +515,23 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
 def sync_offline_sales(payload: list[SaleCreateIn], db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     synced = 0
     failed = 0
+    SessionLocal = sessionmaker(bind=db.get_bind(), autoflush=False, autocommit=False)
     for row in payload:
+        row_db = SessionLocal()
         try:
-            create_sale(row, db=db, tenant=tenant, user=user)
+            create_sale(row, db=row_db, tenant=tenant, user=user)
             synced += 1
-        except Exception:
+        except Exception as exc:
             failed += 1
-            db.rollback()
+            row_db.rollback()
+            logger.warning(
+                "Offline sale sync failed tenant=%s offline_request_id=%s error=%s",
+                tenant.id,
+                row.offline_request_id,
+                str(exc),
+            )
+        finally:
+            row_db.close()
     return {"synced": synced, "failed": failed}
 
 

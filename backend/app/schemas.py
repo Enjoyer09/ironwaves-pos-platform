@@ -136,7 +136,7 @@ class SaleItemIn(BaseModel):
 class SaleCreateIn(BaseModel):
     cart_items: list[SaleItemIn]
     payment_method: str
-    discount_percent: Decimal = Decimal("0")
+    discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
     order_type: str | None = "Take Away"
     customer_card_id: str | None = None
     reward_claim_code: str | None = None
@@ -161,12 +161,12 @@ class OpenShiftIn(BaseModel):
 
 
 class XReportIn(BaseModel):
-    actual_cash: Decimal
+    actual_cash: Decimal = Field(ge=0)
 
 
 class ZReportIn(BaseModel):
-    actual_cash: Decimal
-    wage_amount: Decimal = Decimal("0")
+    actual_cash: Decimal = Field(ge=0)
+    wage_amount: Decimal = Field(default=Decimal("0"), ge=0, le=10000)
     allow_open_deposit_close: bool = False
 
 
