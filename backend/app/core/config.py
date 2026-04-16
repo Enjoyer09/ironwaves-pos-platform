@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     auth_rate_limit_per_minute: int = 30
     redis_url: str | None = None
     password_min_length: int = 10
+    password_required_character_classes: int = 4
     data_retention_days: int = 365
     audit_log_retention_days: int = 730
     customer_consent_required: bool = True
