@@ -378,13 +378,21 @@ export const authApi = {
   logout: async (token: string, username: string) => {
     const safeToken = String(token || '');
     if (isBackendEnabled()) {
-      const tenantId = getActiveTenantId();
-      await apiRequest('/api/v1/auth/logout', {
-        method: 'POST',
-        auth: false,
-        tenantId,
-        body: { refresh_token: safeToken },
-      });
+      try {
+        const tenantId = getActiveTenantId();
+        await apiRequest('/api/v1/auth/logout', {
+          method: 'POST',
+          auth: false,
+          tenantId,
+          timeoutMs: 6000,
+          retryCount: 0,
+          suspendOnNetworkError: false,
+          body: { refresh_token: safeToken },
+        });
+      } catch (error) {
+        // Logout must be fail-safe on the client side; local session clear is primary.
+        console.warn('Logout request failed, continuing with local logout:', error);
+      }
     }
     logEvent(username, "LOGOUT", { token_preview: safeToken.substring(0, 5) });
     return { success: true };
