@@ -139,7 +139,6 @@ def _validate_shift_handover_cash(db: Session, tenant_id: str, user: User, shift
                 details=json.dumps({"declared_cash": str(declared), "expected_cash": str(expected), "variance": str(variance)}, ensure_ascii=False),
             )
         )
-        db.commit()
         raise HTTPException(status_code=400, detail=f"Declared cash does not match expected cash ({expected} ₼)")
 
 
