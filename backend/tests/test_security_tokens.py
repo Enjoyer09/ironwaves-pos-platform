@@ -44,3 +44,19 @@ def test_refresh_token_encode_decode_roundtrip() -> None:
     assert payload["sub"] == subject
     assert payload["tenant_id"] == tenant_id
     assert payload["type"] == "refresh"
+
+
+def test_password_policy_rejects_weak_value() -> None:
+    _bootstrap_env()
+    security = importlib.import_module("app.security")
+    try:
+        security.validate_password_policy("weakpass")
+        assert False, "Weak password must raise"
+    except ValueError as exc:
+        assert "Şifrə" in str(exc)
+
+
+def test_password_policy_accepts_strong_value() -> None:
+    _bootstrap_env()
+    security = importlib.import_module("app.security")
+    security.validate_password_policy("StrongPass!2026")

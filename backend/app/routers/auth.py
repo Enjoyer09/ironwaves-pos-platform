@@ -41,6 +41,7 @@ from app.security import (
     decode_token,
     hash_password,
     hash_token,
+    validate_password_policy,
     verify_password,
 )
 
@@ -235,18 +236,10 @@ def _assert_pin_format(pin: str, min_length: int | None = None) -> None:
 
 
 def _assert_strong_password(password: str) -> None:
-    value = str(password or "")
-    min_length = max(8, int(settings.password_min_length or 10))
-    if len(value) < min_length:
-        raise HTTPException(status_code=400, detail=f"Şifrə ən azı {min_length} simvol olmalıdır")
-    checks = [
-        any(ch.islower() for ch in value),
-        any(ch.isupper() for ch in value),
-        any(ch.isdigit() for ch in value),
-        any(not ch.isalnum() for ch in value),
-    ]
-    if sum(1 for ok in checks if ok) < 4:
-        raise HTTPException(status_code=400, detail="Şifrə böyük hərf, kiçik hərf, rəqəm və simvol ehtiva etməlidir")
+    try:
+        validate_password_policy(password, min_length=settings.password_min_length)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _is_trusted_device(request: Request, tenant: Tenant, user: User) -> bool:

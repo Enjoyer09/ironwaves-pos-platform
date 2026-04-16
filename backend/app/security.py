@@ -49,6 +49,27 @@ def verify_password(password: str, hashed: str) -> bool:
     return pwd_context.verify(password, hashed)
 
 
+def validate_password_policy(password: str, min_length: int | None = None) -> None:
+    value = str(password or "")
+    required_min_length = max(8, int(min_length or settings.password_min_length or 10))
+    if len(value) < required_min_length:
+        raise ValueError(f"Şifrə ən azı {required_min_length} simvol olmalıdır")
+
+    checks = [
+        any(ch.islower() for ch in value),
+        any(ch.isupper() for ch in value),
+        any(ch.isdigit() for ch in value),
+        any(not ch.isalnum() for ch in value),
+    ]
+    required_classes = min(4, max(1, int(settings.password_required_character_classes or 4)))
+    if sum(1 for ok in checks if ok) < required_classes:
+        if required_classes >= 4:
+            raise ValueError("Şifrə böyük hərf, kiçik hərf, rəqəm və simvol ehtiva etməlidir")
+        raise ValueError(
+            f"Şifrə ən azı {required_classes} növ simvoldan ibarət olmalıdır (böyük/kiçik hərf, rəqəm, simvol)"
+        )
+
+
 def create_access_token(subject: str, tenant_id: str, role: str) -> str:
     exp = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_minutes)
     payload = {"sub": subject, "tenant_id": tenant_id, "role": role, "type": "access", "exp": exp}

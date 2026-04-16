@@ -29,7 +29,7 @@ from app.models import (
     Recipe,
 )
 from app.schemas import SystemResetIn, TotpDisableIn, TotpSetupOut, TotpVerifyIn
-from app.security import hash_password, verify_password
+from app.security import hash_password, validate_password_policy, verify_password
 
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
 
@@ -134,18 +134,10 @@ def _assert_strong_pin(pin: str, min_length: int | None = None) -> None:
 
 
 def _assert_strong_password(password: str) -> None:
-    value = str(password or "")
-    min_length = max(8, int(app_settings.password_min_length or 10))
-    if len(value) < min_length:
-        raise HTTPException(status_code=400, detail=f"Şifrə ən azı {min_length} simvol olmalıdır")
-    checks = [
-        any(ch.islower() for ch in value),
-        any(ch.isupper() for ch in value),
-        any(ch.isdigit() for ch in value),
-        any(not ch.isalnum() for ch in value),
-    ]
-    if sum(1 for ok in checks if ok) < 4:
-        raise HTTPException(status_code=400, detail="Şifrə böyük hərf, kiçik hərf, rəqəm və simvol ehtiva etməlidir")
+    try:
+        validate_password_policy(password, min_length=app_settings.password_min_length)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/users", response_model=list[UserOut])
