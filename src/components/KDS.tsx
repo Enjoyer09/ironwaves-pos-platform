@@ -17,11 +17,45 @@ export default function KDS() {
   const [currentTime, setCurrentTime] = useState(Date.now());
   const fetchInFlightRef = useRef(false);
   const lastFetchAtRef = useRef(0);
+  const previousOrderIdsRef = useRef<Set<string>>(new Set());
+  const lastBellAtRef = useRef(0);
 
   const parseServerTimestamp = (value?: string | null) => {
     if (!value) return NaN;
     const normalized = /z$/i.test(value) || /[+-]\d{2}:\d{2}$/.test(value) ? value : `${value}Z`;
     return new Date(normalized).getTime();
+  };
+
+  const playKitchenBell = () => {
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+    const now = Date.now();
+    if (now - lastBellAtRef.current < 2500) return;
+    lastBellAtRef.current = now;
+    try {
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate?.(120);
+      }
+      const audio = new Audio('/sounds/kitchen-bell.mp3');
+      audio.volume = 0.9;
+      void audio.play().catch(() => {});
+    } catch {
+      // no-op
+    }
+  };
+
+  const applyIncomingOrders = (incoming: KitchenOrder[]) => {
+    const normalized = Array.isArray(incoming) ? incoming : [];
+    const nextIds = new Set(normalized.map((row) => String((row as any)?.id || '')).filter(Boolean));
+    const previousIds = previousOrderIdsRef.current;
+    const hasNewOrders =
+      previousIds.size > 0 &&
+      normalized.some((row) => {
+        const id = String((row as any)?.id || '');
+        return id && !previousIds.has(id);
+      });
+    previousOrderIdsRef.current = nextIds;
+    setOrders(normalized);
+    if (hasNewOrders) playKitchenBell();
   };
 
   // Sifarişləri mütəmadi olaraq yoxla (Simulyativ WebSocket)
@@ -37,7 +71,7 @@ export default function KDS() {
       try {
         const activeOrders = await get_kitchen_orders_live(tenant_id);
         if (!mounted) return;
-        setOrders(Array.isArray(activeOrders) ? activeOrders : []);
+        applyIncomingOrders(Array.isArray(activeOrders) ? activeOrders : []);
       } catch (e) {
         logUiError(tenant_id, 'kds', e instanceof Error ? e.message : String(e), { phase: 'fetch_orders' });
         if (!mounted) return;
@@ -48,7 +82,7 @@ export default function KDS() {
     };
     const schedulePoll = () => {
       if (!mounted) return;
-      const intervalMs = document.visibilityState === 'visible' ? 20000 : 90000;
+      const intervalMs = document.visibilityState === 'visible' ? 8000 : 60000;
       pollTimer = window.setTimeout(() => {
         if (document.visibilityState === 'visible') {
           void fetchOrders();
@@ -58,7 +92,7 @@ export default function KDS() {
     };
     const scheduleClock = () => {
       if (!mounted) return;
-      const intervalMs = document.visibilityState === 'visible' ? 30000 : 120000;
+      const intervalMs = document.visibilityState === 'visible' ? 10000 : 60000;
       clockTimer = window.setTimeout(() => {
         if (document.visibilityState === 'visible') {
           setCurrentTime(Date.now());
@@ -96,7 +130,7 @@ export default function KDS() {
         fetchInFlightRef.current = true;
         lastFetchAtRef.current = Date.now();
         void get_kitchen_orders_live(tenant_id)
-          .then((activeOrders) => setOrders(Array.isArray(activeOrders) ? activeOrders : []))
+          .then((activeOrders) => applyIncomingOrders(Array.isArray(activeOrders) ? activeOrders : []))
           .catch(() => {})
           .finally(() => {
             fetchInFlightRef.current = false;
@@ -507,17 +541,17 @@ export default function KDS() {
                       {!isKitchenInstruction && item.ids?.length > 0 ? (
                         <div className="flex flex-wrap gap-2 pl-10">
                           {canStart ? (
-                            <button type="button" onClick={() => { void handleItemStatus(item.ids, 'PREPARING'); }} className="min-h-10 rounded-xl border border-blue-300/35 bg-blue-500/10 px-3 py-2 text-xs font-black text-blue-100">
+                            <button type="button" aria-label={tx(lang, 'Hazırlığa başla', 'Начать готовить', 'Start preparing')} onClick={() => { void handleItemStatus(item.ids, 'PREPARING'); }} className="min-h-10 rounded-xl border border-blue-300/35 bg-blue-500/10 px-3 py-2 text-xs font-black text-blue-100">
                               {tx(lang, 'Başla', 'Начать', 'Start')}
                             </button>
                           ) : null}
                           {canReady ? (
-                            <button type="button" onClick={() => { void handleItemStatus(item.ids, 'READY'); }} className="min-h-10 rounded-xl border border-yellow-300/40 bg-yellow-400/15 px-3 py-2 text-xs font-black text-yellow-100">
+                            <button type="button" aria-label={tx(lang, 'Sifarişi hazır et', 'Отметить готовым', 'Mark ready')} onClick={() => { void handleItemStatus(item.ids, 'READY'); }} className="min-h-10 rounded-xl border border-yellow-300/40 bg-yellow-400/15 px-3 py-2 text-xs font-black text-yellow-100">
                               {tx(lang, 'Hazırdır', 'Готово', 'Ready')}
                             </button>
                           ) : null}
                           {canServe ? (
-                            <button type="button" onClick={() => { void handleItemStatus(item.ids, 'SERVED'); }} className="min-h-10 rounded-xl border border-emerald-300/40 bg-emerald-500/15 px-3 py-2 text-xs font-black text-emerald-100">
+                            <button type="button" aria-label={tx(lang, 'Servis edildi kimi işarələ', 'Отметить как подано', 'Mark as served')} onClick={() => { void handleItemStatus(item.ids, 'SERVED'); }} className="min-h-10 rounded-xl border border-emerald-300/40 bg-emerald-500/15 px-3 py-2 text-xs font-black text-emerald-100">
                               {tx(lang, 'Servis edildi', 'Подано', 'Served')}
                             </button>
                           ) : null}

@@ -25,6 +25,7 @@ import {
   type OfflineSaleSummary,
 } from '../lib/offline';
 import { apiRequest, isBackendEnabled } from '../api/client';
+import ConfirmModal from './ConfirmModal';
 
 type OrderType = 'Dine In' | 'Take Away' | 'Order Online';
 type PaymentMethod = 'Nəğd' | 'Kart' | 'Split' | 'Staff';
@@ -198,9 +199,14 @@ export default function POS() {
   const [mobilePane, setMobilePane] = useState<'menu' | 'cart'>('menu');
   const [showMobileCheckout, setShowMobileCheckout] = useState(false);
   const [layoutRefreshKey, setLayoutRefreshKey] = useState(0);
-  const [isTabletViewport, setIsTabletViewport] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 1280 : false));
+  const [isTabletViewport, setIsTabletViewport] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    return window.innerWidth < 1366 || (window.innerWidth < 1600 && isTouchDevice);
+  });
   const [tableRoutingBanner, setTableRoutingBanner] = useState<{ tableId: string; tableLabel: string } | null>(null);
   const [showOpenShiftModal, setShowOpenShiftModal] = useState(false);
+  const [pendingClearCartKey, setPendingClearCartKey] = useState<'S1' | 'S2' | 'S3' | null>(null);
   const [tenantSettings, setTenantSettings] = useState<any>({});
   const receiptIframeRef = useRef<HTMLIFrameElement | null>(null);
   const refreshInFlightRef = useRef(false);
@@ -275,6 +281,18 @@ export default function POS() {
     setCarts((prev) => ({ ...prev, [key]: [] }));
   };
 
+  const requestClearCart = (key: 'S1' | 'S2' | 'S3' = activeCart) => {
+    if ((carts[key] || []).length === 0) return;
+    setPendingClearCartKey(key);
+  };
+
+  const resolveCartTabLabel = (key: 'S1' | 'S2' | 'S3') => {
+    const count = carts[key]?.length || 0;
+    const selectedTable = String(cartCtx[key]?.selectedTable || '').trim();
+    if (selectedTable) return `${tx(lang, 'Masa', 'Стол', 'Table')} ${selectedTable} (${count})`;
+    return `${t.cart} ${key.slice(1)} (${count})`;
+  };
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -325,7 +343,8 @@ export default function POS() {
     const onResize = () => {
       if (resizeTimer) window.clearTimeout(resizeTimer);
       resizeTimer = window.setTimeout(() => {
-        const next = window.innerWidth < 1280;
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        const next = window.innerWidth < 1366 || (window.innerWidth < 1600 && isTouchDevice);
         setIsTabletViewport((prev) => (prev === next ? prev : next));
       }, 120);
     };
@@ -1426,13 +1445,13 @@ export default function POS() {
       {posLayout.show_cart_tabs && (
         <div className="compact-pos-tabs mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
           <button onClick={() => setActiveCart('S1')} className={`neon-tab ${activeCart === 'S1' ? 'neon-tab-active' : ''}`}>
-            <ShoppingCart size={14} /> {t.cart} 1 ({carts.S1.length})
+            <ShoppingCart size={14} /> {resolveCartTabLabel('S1')}
           </button>
           <button onClick={() => setActiveCart('S2')} className={`neon-tab ${activeCart === 'S2' ? 'neon-tab-active' : ''}`}>
-            <ShoppingCart size={14} /> {t.cart} 2 ({carts.S2.length})
+            <ShoppingCart size={14} /> {resolveCartTabLabel('S2')}
           </button>
           <button onClick={() => setActiveCart('S3')} className={`neon-tab ${activeCart === 'S3' ? 'neon-tab-active' : ''}`}>
-            <ShoppingCart size={14} /> {t.cart} 3 ({carts.S3.length})
+            <ShoppingCart size={14} /> {resolveCartTabLabel('S3')}
           </button>
         </div>
       )}
@@ -1560,7 +1579,14 @@ export default function POS() {
         <aside className={`compact-pos-sidebar flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-[#101722]/80 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)] md:p-4 ${mobilePane !== 'cart' ? 'hidden xl:flex' : ''}`}>
           <div className="compact-pos-header mb-3 flex items-center justify-between border-b border-slate-700/60 pb-3">
             <h3 className="compact-pos-title flex items-center gap-2 text-2xl font-bold"><ShoppingCart size={22} /> {t.cart.toUpperCase()} {activeCart.slice(1)}</h3>
-            <button className="rounded-lg border border-slate-600 p-2"><ClipboardList size={16} /></button>
+            <button
+              onClick={() => requestClearCart(activeCart)}
+              disabled={cart.length === 0 || isLoading}
+              aria-label={tx(lang, 'Səbəti təmizlə', 'Очистить корзину', 'Clear cart')}
+              className="rounded-lg border border-slate-600 p-2 disabled:opacity-40"
+            >
+              <ClipboardList size={16} />
+            </button>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col">
@@ -1809,6 +1835,25 @@ export default function POS() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={Boolean(pendingClearCartKey)}
+        title={tx(lang, 'Səbəti təmizlə?', 'Очистить корзину?', 'Clear cart?')}
+        message={tx(
+          lang,
+          'Bu səbətdəki bütün məhsullar silinəcək. Davam etmək istəyirsiniz?',
+          'Все позиции в этой корзине будут удалены. Продолжить?',
+          'All items in this cart will be removed. Continue?',
+        )}
+        lang={safeLang}
+        confirmLabel={tx(lang, 'Səbəti sil', 'Очистить', 'Clear cart')}
+        cancelLabel={tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
+        onCancel={() => setPendingClearCartKey(null)}
+        onConfirm={() => {
+          if (pendingClearCartKey) clearCart(pendingClearCartKey);
+          setPendingClearCartKey(null);
+        }}
+      />
     </div>
   );
 }
