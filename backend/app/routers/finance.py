@@ -73,7 +73,7 @@ DEFAULT_FINANCE_POLICY = {
     "reconciliation_adjustment_requires_approval": True,
     "reconciliation_variance_alert_azn": 0.01,
     "negative_balance_alert_azn": 0,
-    "legacy_wallet_sync_enabled": True,
+    "legacy_wallet_sync_enabled": False,
     "approver_roles": ["manager", "admin", "finance_admin", "super_admin"],
 }
 FINANCE_VIEW_ROLES = {"manager", "admin", "finance_admin", "super_admin"}

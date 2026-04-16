@@ -75,6 +75,12 @@ class Shift(Base):
     opening_source: Mapped[str | None] = mapped_column(String(24), nullable=True)
     opening_target_cash: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     opening_topup_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    closing_cash: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    actual_cash: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    declared_cash: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    cash_variance: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    closing_deposit_liability: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    deposit_settled_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     closed_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

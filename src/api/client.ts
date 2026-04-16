@@ -122,6 +122,8 @@ type ApiRequestOptions = {
   body?: unknown;
   auth?: boolean;
   timeoutMs?: number;
+  retryCount?: number;
+  retryDelayMs?: number;
   suspendOnNetworkError?: boolean;
   // pass null to skip x-tenant-id header (use backend host/domain resolver)
   tenantId?: string | null;
@@ -138,6 +140,13 @@ function createRequestId(): string {
   }
   return `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
+
+const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+const isRetryableStatus = (status: number) => status === 429 || status === 502 || status === 503 || status === 504;
+
+const isAbortError = (error: unknown) =>
+  typeof DOMException !== 'undefined' && error instanceof DOMException && error.name === 'AbortError';
 
 export async function apiRequest<T = any>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const base = getApiBaseUrl();
@@ -166,66 +175,91 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
   }
 
   const startedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-  let res: Response;
+  let res: Response | null = null;
   const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 20000;
-  const controller = typeof AbortController !== 'undefined' && timeoutMs > 0 ? new AbortController() : null;
+  const method = String(options.method || 'GET').toUpperCase();
+  const isIdempotent = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+  const retryCount = Math.max(0, Number.isFinite(options.retryCount as number) ? Number(options.retryCount) : (isIdempotent ? 1 : 0));
+  const retryDelayMs = Math.max(100, Number(options.retryDelayMs || 350));
   let timedOut = false;
-  const timeoutId = controller
-    ? window.setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-    }, timeoutMs)
-    : null;
-  const requestSignal = controller?.signal || options.signal;
-  const externalSignal = options.signal;
-  let removeExternalAbortListener: (() => void) | null = null;
-  if (controller && externalSignal) {
-    if (externalSignal.aborted) {
-      controller.abort();
-    } else {
-      const onAbort = () => controller.abort();
-      externalSignal.addEventListener('abort', onAbort, { once: true });
-      removeExternalAbortListener = () => externalSignal.removeEventListener('abort', onAbort);
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt <= retryCount; attempt += 1) {
+    const controller = typeof AbortController !== 'undefined' && timeoutMs > 0 ? new AbortController() : null;
+    timedOut = false;
+    const timeoutId = controller
+      ? window.setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, timeoutMs)
+      : null;
+    const requestSignal = controller?.signal || options.signal;
+    const externalSignal = options.signal;
+    let removeExternalAbortListener: (() => void) | null = null;
+    if (controller && externalSignal) {
+      if (externalSignal.aborted) {
+        controller.abort();
+      } else {
+        const onAbort = () => controller.abort();
+        externalSignal.addEventListener('abort', onAbort, { once: true });
+        removeExternalAbortListener = () => externalSignal.removeEventListener('abort', onAbort);
+      }
+    }
+    try {
+      res = await fetch(`${base}${path}`, {
+        method,
+        headers,
+        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+        signal: requestSignal,
+      });
+      if (!res.ok && isRetryableStatus(res.status) && attempt < retryCount) {
+        await sleep(retryDelayMs * (attempt + 1));
+        continue;
+      }
+      lastError = null;
+      break;
+    } catch (error) {
+      lastError = error;
+      const aborted = isAbortError(error);
+      const canRetry = attempt < retryCount && !aborted && !(options.signal?.aborted);
+      if (!canRetry) {
+        const endedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+        emitPerfEvent({
+          type: 'api',
+          label: `${method} ${path}`,
+          method,
+          path,
+          duration_ms: Math.round(endedAt - startedAt),
+          ok: false,
+          at: new Date().toISOString(),
+        });
+        const message = aborted
+          ? (timedOut ? `sorğu vaxt limiti keçdi (${Math.round(timeoutMs / 1000)} saniyə)` : 'sorğu ləğv edildi')
+          : error instanceof Error ? error.message : String(error);
+        emitClientTelemetry('API_NETWORK_ERROR', {
+          method,
+          path,
+          message,
+          timeout_ms: timeoutMs,
+          timed_out: timedOut,
+          online: typeof navigator !== 'undefined' ? navigator.onLine : true,
+          request_id: requestId,
+        });
+        if (options.suspendOnNetworkError === true && !aborted) {
+          suspendBackendTemporarily();
+        }
+        throw new Error(`Backendə qoşulma alınmadı (${method} ${path}, request_id: ${requestId}): ${message}`);
+      }
+      await sleep(retryDelayMs * (attempt + 1));
+    } finally {
+      if (timeoutId) window.clearTimeout(timeoutId);
+      if (removeExternalAbortListener) removeExternalAbortListener();
     }
   }
-  try {
-    res = await fetch(`${base}${path}`, {
-      method: options.method || 'GET',
-      headers,
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-      signal: requestSignal,
-    });
-  } catch (error) {
-    const endedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-    emitPerfEvent({
-      type: 'api',
-      label: `${options.method || 'GET'} ${path}`,
-      method: options.method || 'GET',
-      path,
-      duration_ms: Math.round(endedAt - startedAt),
-      ok: false,
-      at: new Date().toISOString(),
-    });
-    const isAbort = typeof DOMException !== 'undefined' && error instanceof DOMException && error.name === 'AbortError';
-    const message = isAbort
-      ? (timedOut ? `sorğu vaxt limiti keçdi (${Math.round(timeoutMs / 1000)} saniyə)` : 'sorğu ləğv edildi')
-      : error instanceof Error ? error.message : String(error);
-    emitClientTelemetry('API_NETWORK_ERROR', {
-      method: options.method || 'GET',
-      path,
-      message,
-      timeout_ms: timeoutMs,
-      timed_out: timedOut,
-      online: typeof navigator !== 'undefined' ? navigator.onLine : true,
-      request_id: requestId,
-    });
-    if (options.suspendOnNetworkError === true && !isAbort) {
-      suspendBackendTemporarily();
-    }
-    throw new Error(`Backendə qoşulma alınmadı (${options.method || 'GET'} ${path}, request_id: ${requestId}): ${message}`);
-  } finally {
-    if (timeoutId) window.clearTimeout(timeoutId);
-    if (removeExternalAbortListener) removeExternalAbortListener();
+
+  if (lastError || !res) {
+    const message = lastError instanceof Error ? lastError.message : String(lastError || 'Unknown request failure');
+    throw new Error(`Backend sorğusu uğursuz oldu (${method} ${path}, request_id: ${requestId}): ${message}`);
   }
 
   const text = await res.text();

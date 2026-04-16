@@ -335,6 +335,7 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
     actual_cash = Decimal(str(payload.actual_cash)).quantize(Decimal("0.01"))
     difference = (actual_cash - expected).quantize(Decimal("0.01"))
     deposit_balance = _ledger_balances_snapshot(db, tenant.id).get("deposit", Decimal("0.00")).quantize(Decimal("0.01"))
+    deposit_settled_amount = Decimal("0.00")
     if deposit_balance > Decimal("0.01") and not bool(payload.allow_open_deposit_close):
         raise HTTPException(
             status_code=400,
@@ -343,6 +344,20 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
                 "Əvvəl depozitləri bağlayın və ya allow_open_deposit_close=true ilə təsdiqləyin."
             ),
         )
+    if deposit_balance > Decimal("0.01") and bool(payload.allow_open_deposit_close):
+        _post_finance_transaction(
+            db,
+            tenant_id=tenant.id,
+            transaction_type="deposit_release",
+            amount=deposit_balance,
+            source_code="cash",
+            destination_code="deposit",
+            created_by=user.username,
+            category="Depozit Öhdəliyi Bağlanışı",
+            note="Z-report close: open deposit liability settled",
+            related_shift_id=active.id,
+        )
+        deposit_settled_amount = deposit_balance
     if difference != 0:
         _post_finance_transaction(
             db,
@@ -402,6 +417,12 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
     active.status = "closed"
     active.closed_by = user.username
     active.closed_at = datetime.utcnow()
+    active.actual_cash = actual_cash
+    active.declared_cash = actual_cash
+    active.cash_variance = difference
+    active.closing_deposit_liability = deposit_balance
+    active.deposit_settled_amount = deposit_settled_amount
+    active.closing_cash = (actual_cash - deposit_settled_amount).quantize(Decimal("0.01"))
     db.commit()
 
     return {
@@ -416,6 +437,8 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         "difference": str(difference),
         "wage_amount": str(Decimal(str(payload.wage_amount)).quantize(Decimal("0.01"))),
         "open_deposit_liability": str(deposit_balance),
+        "deposit_settled_amount": str(deposit_settled_amount),
+        "closing_cash": str((actual_cash - deposit_settled_amount).quantize(Decimal("0.01"))),
         "opening_cash": str(breakdown["opening_cash"].quantize(Decimal("0.01"))),
         "cash_movements_in": str(breakdown["cash_in"].quantize(Decimal("0.01"))),
         "cash_movements_out": str(breakdown["cash_out"].quantize(Decimal("0.01"))),
