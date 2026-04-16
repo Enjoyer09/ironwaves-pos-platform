@@ -8,6 +8,9 @@ on:
       - develop
   pull_request:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   backend-checks:
     name: Backend Checks
@@ -41,6 +44,10 @@ jobs:
         run: python -m pytest
 
       - name: Migration syntax check
+        env:
+          DATABASE_URL: "sqlite:///./ci_test.db"
+          JWT_SECRET: "ci-test-secret"
+          SUPERADMIN_PASSWORD: "ci-superadmin-password"
         run: alembic upgrade head --sql > /tmp/alembic_preview.sql
 
   frontend-build:
