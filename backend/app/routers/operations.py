@@ -928,7 +928,7 @@ class CustomerForgetIn(BaseModel):
     dry_run: bool = False
 
 
-DEFAULT_SESSION_SETTINGS = {"idle_logout_minutes": 0, "virtual_keyboard_enabled": True, "staff_pin_length": 6}
+DEFAULT_SESSION_SETTINGS = {"idle_logout_minutes": 0, "virtual_keyboard_enabled": True, "staff_pin_length": 6, "theme_mode": "dark"}
 
 
 def _clean_staff_pin_length(value) -> int:
@@ -937,6 +937,10 @@ def _clean_staff_pin_length(value) -> int:
     except Exception:
         pin_length = DEFAULT_SESSION_SETTINGS["staff_pin_length"]
     return 4 if pin_length == 4 else 6
+
+
+def _clean_theme_mode(value) -> str:
+    return "light" if str(value or "").strip().lower() == "light" else "dark"
 
 
 def _request_ip(request: Request) -> str:
@@ -1020,6 +1024,7 @@ def get_app_settings(
     print_settings = getv("print_settings", {"use_qz": False, "printer_name": ""})
     session_settings = {**DEFAULT_SESSION_SETTINGS, **getv("session_settings", DEFAULT_SESSION_SETTINGS)}
     session_settings["staff_pin_length"] = _clean_staff_pin_length(session_settings.get("staff_pin_length"))
+    session_settings["theme_mode"] = _clean_theme_mode(session_settings.get("theme_mode"))
     qr_settings = getv("qr_settings", {"base_url": f"https://{tenant.domain}"})
     qr_menu_settings = getv(
         "qr_menu_settings",
@@ -2376,10 +2381,12 @@ def update_session_settings(
     user: User = Depends(get_current_user),
 ):
     _ensure_admin(user)
+    current = _setting_value(db, tenant.id, "session_settings", DEFAULT_SESSION_SETTINGS) or {}
     cleaned = {
         "idle_logout_minutes": max(0, int(payload.get("idle_logout_minutes") or 0)),
         "virtual_keyboard_enabled": bool(payload.get("virtual_keyboard_enabled", True)),
         "staff_pin_length": _clean_staff_pin_length(payload.get("staff_pin_length")),
+        "theme_mode": _clean_theme_mode(payload.get("theme_mode", current.get("theme_mode"))),
     }
     _set_setting_value(db, tenant.id, "session_settings", cleaned)
     db.commit()
