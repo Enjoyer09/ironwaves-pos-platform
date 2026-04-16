@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import json
+import time
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 import pyotp
@@ -46,6 +47,23 @@ from app.security import (
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 _pin_attempt_tracker: dict[str, dict[str, datetime | int]] = {}
+_redis_security_client = None
+
+
+def _get_redis_security_client():
+    global _redis_security_client
+    if _redis_security_client is not None:
+        return _redis_security_client
+    if not settings.redis_url:
+        _redis_security_client = False
+        return None
+    try:
+        from redis import Redis
+        _redis_security_client = Redis.from_url(settings.redis_url, decode_responses=True)
+    except Exception:
+        _redis_security_client = False
+        return None
+    return _redis_security_client
 
 
 def _pin_attempt_key(request: Request, tenant_id: str) -> str:
@@ -57,6 +75,32 @@ def _pin_attempt_key(request: Request, tenant_id: str) -> str:
 def _consume_pin_attempts(request: Request, tenant_id: str) -> None:
     key = _pin_attempt_key(request, tenant_id)
     now = datetime.utcnow()
+    redis_client = _get_redis_security_client()
+    if redis_client:
+        try:
+            redis_key = f"ironwaves:pin-attempts:{key}"
+            raw = redis_client.get(redis_key)
+            if raw:
+                state = json.loads(str(raw))
+                locked_until_ts = float(state.get("locked_until_ts") or 0)
+                if locked_until_ts and time.time() < locked_until_ts:
+                    raise HTTPException(status_code=423, detail="Too many invalid PIN attempts. Try again later.")
+            else:
+                state = {}
+            attempts = int(state.get("attempts", 0)) + 1
+            next_state: dict[str, int | float] = {"attempts": attempts}
+            ttl = max(60, int(settings.pin_lockout_minutes * 60))
+            if attempts >= settings.pin_max_failed_attempts:
+                next_state["locked_until_ts"] = time.time() + (settings.pin_lockout_minutes * 60)
+                ttl = max(ttl, int(settings.pin_lockout_minutes * 60) + 30)
+            redis_client.setex(redis_key, ttl, json.dumps(next_state))
+            return
+        except HTTPException:
+            raise
+        except Exception:
+            # fallback to in-memory tracker
+            pass
+
     state = _pin_attempt_tracker.get(key, {})
     locked_until = state.get("locked_until")
     if isinstance(locked_until, datetime) and now < locked_until:
@@ -72,6 +116,12 @@ def _consume_pin_attempts(request: Request, tenant_id: str) -> None:
 
 
 def _reset_pin_attempts(request: Request, tenant_id: str) -> None:
+    redis_client = _get_redis_security_client()
+    if redis_client:
+        try:
+            redis_client.delete(f"ironwaves:pin-attempts:{_pin_attempt_key(request, tenant_id)}")
+        except Exception:
+            pass
     _pin_attempt_tracker.pop(_pin_attempt_key(request, tenant_id), None)
 
 
@@ -143,15 +193,21 @@ def _blacklist_token(db: Session, tenant_id: str, token: str, token_type: str, u
     exists = db.query(RevokedToken).filter(RevokedToken.tenant_id == tenant_id, RevokedToken.token_hash == token_hash).first()
     if exists:
         return
-    db.add(
-        RevokedToken(
-            tenant_id=tenant_id,
-            token_hash=token_hash,
-            token_type=token_type,
-            user_id=user_id or payload.get("sub"),
-            expires_at=_token_expiry_from_payload(payload),
-        )
+    row = RevokedToken(
+        tenant_id=tenant_id,
+        token_hash=token_hash,
+        token_type=token_type,
+        user_id=user_id or payload.get("sub"),
+        expires_at=_token_expiry_from_payload(payload),
     )
+    db.add(row)
+    redis_client = _get_redis_security_client()
+    if redis_client:
+        try:
+            ttl = max(60, int((row.expires_at - datetime.utcnow()).total_seconds()))
+            redis_client.setex(f"ironwaves:revoked:{tenant_id}:{token_hash}", ttl, "1")
+        except Exception:
+            pass
 
 
 def _tenant_pin_min_length(db: Session, tenant_id: str) -> int:
@@ -476,6 +532,13 @@ def refresh_token(payload: RefreshIn, db: Session = Depends(get_db), tenant: Ten
         raise HTTPException(status_code=401, detail="Tenant mismatch")
 
     token_hash = hash_token(payload.refresh_token)
+    revoked_exists = (
+        db.query(RevokedToken)
+        .filter(RevokedToken.tenant_id == tenant.id, RevokedToken.token_hash == token_hash)
+        .first()
+    )
+    if revoked_exists:
+        raise HTTPException(status_code=401, detail="Refresh token revoked")
     token_row = (
         db.query(RefreshToken)
         .filter(
