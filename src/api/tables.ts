@@ -179,6 +179,36 @@ export const syncPendingOfflineTableOps = async (tenant_id: string) => {
   return { synced, failed };
 };
 
+export type OfflineTableOpSummary = {
+  id: string;
+  table_id: string;
+  op_type: OfflineTableOpType;
+  created_at: string;
+  retry_count: number;
+  last_error?: string;
+  next_attempt_at?: string;
+};
+
+export const getPendingOfflineTableOpsCount = (tenant_id: string): number => {
+  return getOfflineTableOps().filter((row) => row.tenant_id === tenant_id && row.status === 'pending').length;
+};
+
+export const getPendingOfflineTableOps = (tenant_id: string, limit = 8): OfflineTableOpSummary[] => {
+  return getOfflineTableOps()
+    .filter((row) => row.tenant_id === tenant_id && row.status === 'pending')
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+    .slice(0, Math.max(1, limit))
+    .map((row) => ({
+      id: row.id,
+      table_id: row.table_id,
+      op_type: row.op_type,
+      created_at: row.created_at,
+      retry_count: Number(row.retry_count || 0),
+      last_error: row.last_error,
+      next_attempt_at: row.next_attempt_at,
+    }));
+};
+
 // FUNKSIYA: get_tables
 export const get_tables = (tenant_id: string) => {
   return getDB<Table>('tables')
