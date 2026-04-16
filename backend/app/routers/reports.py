@@ -337,6 +337,21 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
 
     breakdown = _shift_cash_breakdown(db, tenant.id, active)
     expected = breakdown["expected_cash"]
+    actual_cash = Decimal(str(payload.actual_cash)).quantize(Decimal("0.01"))
+    difference = (actual_cash - expected).quantize(Decimal("0.01"))
+    if difference != 0:
+        _post_finance_transaction(
+            db,
+            tenant_id=tenant.id,
+            transaction_type="cash_adjustment",
+            amount=abs(difference),
+            source_code="adjustment" if difference > 0 else "cash",
+            destination_code="cash" if difference > 0 else "adjustment",
+            created_by=user.username,
+            category="Kassa Artığı" if difference > 0 else "Kassa Kəsiri",
+            note="Z-report difference",
+            related_shift_id=active.id,
+        )
     shift_txns = _posted_transactions_since(db, tenant.id, active.opened_at)
     account_codes = _finance_account_code_map(db, tenant.id)
     sale_payment_txns = [
@@ -393,7 +408,8 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         "card_sales": str(card_sales.quantize(Decimal("0.01"))),
         "deposit_total": str(deposit_total.quantize(Decimal("0.01"))),
         "expected_cash": str(expected.quantize(Decimal("0.01"))),
-        "actual_cash": str(Decimal(str(payload.actual_cash)).quantize(Decimal("0.01"))),
+        "actual_cash": str(actual_cash),
+        "difference": str(difference),
         "wage_amount": str(Decimal(str(payload.wage_amount)).quantize(Decimal("0.01"))),
         "opening_cash": str(breakdown["opening_cash"].quantize(Decimal("0.01"))),
         "cash_movements_in": str(breakdown["cash_in"].quantize(Decimal("0.01"))),

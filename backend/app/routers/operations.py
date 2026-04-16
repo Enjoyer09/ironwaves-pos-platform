@@ -14,7 +14,7 @@ from urllib.error import HTTPError, URLError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import func, text
+from sqlalchemy import case, func, text
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -26,7 +26,9 @@ from app.models import (
     Customer,
     CustomerConsent,
     DonerBatch,
+    FinanceAccount,
     FinanceEntry,
+    FinanceLedgerEntry,
     FloorPlan,
     Guest,
     HappyHour,
@@ -272,13 +274,34 @@ def _can_view_sensitive_settings(user: User) -> bool:
 def _shift_cash_expected(db: Session, tenant_id: str, shift: Shift | None) -> Decimal:
     if not shift:
         return Decimal("0.00")
-    query = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant_id)
+    cash_account = (
+        db.query(FinanceAccount)
+        .filter(FinanceAccount.tenant_id == tenant_id, FinanceAccount.code == "cash")
+        .first()
+    )
+    opening_cash = Decimal(str(shift.opening_cash or 0))
+    if not cash_account:
+        return opening_cash.quantize(Decimal("0.01"))
+
+    query = db.query(FinanceLedgerEntry).filter(
+        FinanceLedgerEntry.tenant_id == tenant_id,
+        FinanceLedgerEntry.account_id == cash_account.id,
+    )
     if shift.opened_at:
-        query = query.filter(FinanceEntry.created_at >= shift.opened_at)
-    rows = query.all()
-    cash_in = sum((Decimal(str(row.amount or 0)) for row in rows if row.source == "cash" and row.type == "in"), Decimal("0"))
-    cash_out = sum((Decimal(str(row.amount or 0)) for row in rows if row.source == "cash" and row.type == "out"), Decimal("0"))
-    return (Decimal(str(shift.opening_cash or 0)) + cash_in - cash_out).quantize(Decimal("0.01"))
+        query = query.filter(FinanceLedgerEntry.created_at >= shift.opened_at)
+    debit_sum, credit_sum = query.with_entities(
+        func.coalesce(
+            func.sum(case((FinanceLedgerEntry.entry_side == "debit", FinanceLedgerEntry.amount), else_=0)),
+            0,
+        ),
+        func.coalesce(
+            func.sum(case((FinanceLedgerEntry.entry_side == "credit", FinanceLedgerEntry.amount), else_=0)),
+            0,
+        ),
+    ).one()
+    cash_in = Decimal(str(debit_sum or 0))
+    cash_out = Decimal(str(credit_sum or 0))
+    return (opening_cash + cash_in - cash_out).quantize(Decimal("0.01"))
 
 
 def _validate_shift_handover_cash(db: Session, tenant_id: str, user: User, shift: Shift, declared_cash: Decimal) -> Decimal:
