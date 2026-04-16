@@ -378,6 +378,27 @@ def _setting_value(db: Session, tenant_id: str, key: str, default):
     return row.value
 
 
+def _settings_value_map(db: Session, tenant_id: str) -> dict[str, str | None]:
+    rows = db.query(Setting.key, Setting.value).filter(Setting.tenant_id == tenant_id).all()
+    return {str(key): value for key, value in rows}
+
+
+def _setting_value_from_map(values: dict[str, str | None], key: str, default):
+    raw = values.get(key)
+    if raw is None:
+        return default
+    if isinstance(default, (dict, list)):
+        return _json_load(raw, default)
+    if isinstance(default, bool):
+        return str(raw).lower() in {"1", "true", "yes"}
+    if isinstance(default, int):
+        try:
+            return int(raw)
+        except Exception:
+            return default
+    return raw
+
+
 def _set_setting_value(db: Session, tenant_id: str, key: str, value):
     row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
     serialized = json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else str(value)
@@ -647,8 +668,15 @@ def _normalize_inventory_key(value: str | None) -> str:
     return str(value or "").strip().lower()
 
 
-def _yield_settings(db: Session, tenant_id: str) -> dict:
-    raw = _setting_value(db, tenant_id, "yield_management_settings", DEFAULT_YIELD_SETTINGS)
+def _yield_settings(
+    db: Session,
+    tenant_id: str,
+    settings_map: dict[str, str | None] | None = None,
+) -> dict:
+    if settings_map is None:
+        raw = _setting_value(db, tenant_id, "yield_management_settings", DEFAULT_YIELD_SETTINGS)
+    else:
+        raw = _setting_value_from_map(settings_map, "yield_management_settings", DEFAULT_YIELD_SETTINGS)
     if not isinstance(raw, dict):
         return DEFAULT_YIELD_SETTINGS
     merged = {
@@ -973,21 +1001,15 @@ def get_app_settings(
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
 ):
-    inventory_settings = _setting_value(
-        db,
-        tenant.id,
-        "inventory_settings",
-        {"default_critical_threshold": 5, "unit_options": ["kq", "qram", "litr", "ml", "ədəd", "metr"]},
-    )
-    staff_benefits = _setting_value(
-        db,
-        tenant.id,
+    settings_map = _settings_value_map(db, tenant.id)
+    getv = lambda key, default: _setting_value_from_map(settings_map, key, default)
+
+    inventory_settings = getv("inventory_settings", {"default_critical_threshold": 5, "unit_options": ["kq", "qram", "litr", "ml", "ədəd", "metr"]})
+    staff_benefits = getv(
         "staff_benefits",
         {"daily_limit_azn": 6, "allowed_scope": "all", "included_categories": [], "included_items": [], "item_unit_cap_azn": 6},
     )
-    role_modules = _setting_value(
-        db,
-        tenant.id,
+    role_modules = getv(
         "role_modules",
         {
             "staff": ["pos", "tables", "kds", "zreport"],
@@ -995,13 +1017,11 @@ def get_app_settings(
             "kitchen": ["kds"],
         },
     )
-    print_settings = _setting_value(db, tenant.id, "print_settings", {"use_qz": False, "printer_name": ""})
-    session_settings = {**DEFAULT_SESSION_SETTINGS, **_setting_value(db, tenant.id, "session_settings", DEFAULT_SESSION_SETTINGS)}
+    print_settings = getv("print_settings", {"use_qz": False, "printer_name": ""})
+    session_settings = {**DEFAULT_SESSION_SETTINGS, **getv("session_settings", DEFAULT_SESSION_SETTINGS)}
     session_settings["staff_pin_length"] = _clean_staff_pin_length(session_settings.get("staff_pin_length"))
-    qr_settings = _setting_value(db, tenant.id, "qr_settings", {"base_url": f"https://{tenant.domain}"})
-    qr_menu_settings = _setting_value(
-        db,
-        tenant.id,
+    qr_settings = getv("qr_settings", {"base_url": f"https://{tenant.domain}"})
+    qr_menu_settings = getv(
         "qr_menu_settings",
         {
             "enabled": True,
@@ -1020,9 +1040,7 @@ def get_app_settings(
             "logo_shape": "rounded",
         },
     )
-    customer_app_settings = _setting_value(
-        db,
-        tenant.id,
+    customer_app_settings = getv(
         "customer_app_settings",
         {
             "enabled": True,
@@ -1054,9 +1072,7 @@ def get_app_settings(
             "show_notifications": True,
         },
     )
-    pos_layout = _setting_value(
-        db,
-        tenant.id,
+    pos_layout = getv(
         "pos_layout",
         {
             "preset": "classic",
@@ -1088,15 +1104,11 @@ def get_app_settings(
             },
         },
     )
-    email_settings = _setting_value(
-        db,
-        tenant.id,
+    email_settings = getv(
         "email_settings",
         {"enabled": False, "provider": "none", "resend_api_key": "", "sender_email": "", "recipient_emails": [], "webhook_url": "", "timeout_sec": 15},
     )
-    omnitech_settings = _setting_value(
-        db,
-        tenant.id,
+    omnitech_settings = getv(
         "omnitech_settings",
         {"enabled": False, "api_base_url": "", "api_key": "", "merchant_id": "", "terminal_id": "", "fiscal_device_id": ""},
     )
@@ -1120,20 +1132,20 @@ def get_app_settings(
         }
         gemini_api_key = ""
     else:
-        gemini_api_key = _setting_value(db, tenant.id, "gemini_api_key", "")
+        gemini_api_key = getv("gemini_api_key", "")
     return {
         "tenant_id": tenant.id,
-        "service_fee_percent": _setting_value(db, tenant.id, "service_fee_percent", 0),
-        "table_service_settings": _setting_value(db, tenant.id, "table_service_settings", {"deposit_per_guest_azn": 0, "reservation_lock_hours": 2}),
-        "beverage_service_settings": _setting_value(db, tenant.id, "beverage_service_settings", DEFAULT_BEVERAGE_SERVICE_SETTINGS),
-        "z_report_receipt_settings": _setting_value(db, tenant.id, "z_report_receipt_settings", DEFAULT_Z_REPORT_RECEIPT_SETTINGS),
-        "yield_management_settings": _yield_settings(db, tenant.id),
+        "service_fee_percent": getv("service_fee_percent", 0),
+        "table_service_settings": getv("table_service_settings", {"deposit_per_guest_azn": 0, "reservation_lock_hours": 2}),
+        "beverage_service_settings": getv("beverage_service_settings", DEFAULT_BEVERAGE_SERVICE_SETTINGS),
+        "z_report_receipt_settings": getv("z_report_receipt_settings", DEFAULT_Z_REPORT_RECEIPT_SETTINGS),
+        "yield_management_settings": _yield_settings(db, tenant.id, settings_map=settings_map),
         "ui_visibility": {"staff_show_tables": True, "manager_show_tables": True, "staff_show_kitchen": True},
         "time_settings": {"shift_start_time": "08:00", "shift_end_time": "23:00", "utc_offset": 4, "timezone": "Asia/Baku"},
         "session_settings": session_settings,
         "email_settings": email_settings,
-        "bank_commission": _setting_value(db, tenant.id, "bank_commission", {"min_amount": 0.10, "percent": 1.5, "card_sale_percent": 2, "card_transfer_percent": 0.5}),
-        "finance_policy": _setting_value(db, tenant.id, "finance_policy", DEFAULT_FINANCE_POLICY),
+        "bank_commission": getv("bank_commission", {"min_amount": 0.10, "percent": 1.5, "card_sale_percent": 2, "card_transfer_percent": 0.5}),
+        "finance_policy": getv("finance_policy", DEFAULT_FINANCE_POLICY),
         "inventory_settings": inventory_settings,
         "staff_benefits": staff_benefits,
         "print_settings": print_settings,
@@ -1141,9 +1153,7 @@ def get_app_settings(
         "qr_menu_settings": qr_menu_settings,
         "customer_app_settings": customer_app_settings,
         "pos_layout": pos_layout,
-        "landing_settings": _setting_value(
-            db,
-            tenant.id,
+        "landing_settings": getv(
             "landing_settings",
             {
                 "hero_title_az": "Azərbaycan bazarı üçün müasir POS və idarəetmə sistemi",

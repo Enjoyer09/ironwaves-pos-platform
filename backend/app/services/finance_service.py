@@ -5,6 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from fastapi import HTTPException
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.models import AuditLog, FinanceAccount, FinanceEntry, FinanceLedgerEntry, FinanceTransaction, Setting
@@ -98,23 +99,80 @@ def finance_account(db: Session, tenant_id: str, code: str) -> FinanceAccount:
 
 
 def account_ledger_totals(db: Session, tenant_id: str, account: FinanceAccount) -> dict[str, Decimal]:
-    rows = (
-        db.query(FinanceLedgerEntry)
+    debit_raw, credit_raw = (
+        db.query(
+            func.coalesce(
+                func.sum(
+                    case(
+                        (FinanceLedgerEntry.entry_side == "debit", FinanceLedgerEntry.amount),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (FinanceLedgerEntry.entry_side == "credit", FinanceLedgerEntry.amount),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+        )
         .filter(FinanceLedgerEntry.tenant_id == tenant_id, FinanceLedgerEntry.account_id == account.id)
-        .all()
+        .one()
     )
-    debit = sum((Decimal(str(row.amount)) for row in rows if row.entry_side == "debit"), Decimal("0"))
-    credit = sum((Decimal(str(row.amount)) for row in rows if row.entry_side == "credit"), Decimal("0"))
+    debit = Decimal(str(debit_raw or 0))
+    credit = Decimal(str(credit_raw or 0))
     balance = credit - debit if account.account_type in LIABILITY_OR_CREDIT_TYPES else debit - credit
     return {"debit": debit, "credit": credit, "balance": balance}
 
 
 def ledger_balances_snapshot(db: Session, tenant_id: str) -> dict[str, Decimal]:
     accounts = ensure_finance_accounts(db, tenant_id)
-    return {
-        code: account_ledger_totals(db, tenant_id, account)["balance"].quantize(Decimal("0.01"))
-        for code, account in accounts.items()
+    if not accounts:
+        return {}
+    account_ids = [account.id for account in accounts.values()]
+    totals_rows = (
+        db.query(
+            FinanceLedgerEntry.account_id,
+            func.coalesce(
+                func.sum(
+                    case(
+                        (FinanceLedgerEntry.entry_side == "debit", FinanceLedgerEntry.amount),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("debit_total"),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (FinanceLedgerEntry.entry_side == "credit", FinanceLedgerEntry.amount),
+                        else_=0,
+                    )
+                ),
+                0,
+            ).label("credit_total"),
+        )
+        .filter(
+            FinanceLedgerEntry.tenant_id == tenant_id,
+            FinanceLedgerEntry.account_id.in_(account_ids),
+        )
+        .group_by(FinanceLedgerEntry.account_id)
+        .all()
+    )
+    totals_by_account_id: dict[str, tuple[Decimal, Decimal]] = {
+        str(account_id): (Decimal(str(debit_total or 0)), Decimal(str(credit_total or 0)))
+        for account_id, debit_total, credit_total in totals_rows
     }
+    result: dict[str, Decimal] = {}
+    for code, account in accounts.items():
+        debit, credit = totals_by_account_id.get(account.id, (Decimal("0"), Decimal("0")))
+        balance = credit - debit if account.account_type in LIABILITY_OR_CREDIT_TYPES else debit - credit
+        result[code] = balance.quantize(Decimal("0.01"))
+    return result
 
 
 def lock_finance_accounts(db: Session, tenant_id: str, *codes: str) -> dict[str, FinanceAccount]:
