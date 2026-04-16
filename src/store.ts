@@ -128,7 +128,9 @@ export const useAppStore = create<AppState>()(
       logout: () => {
         const { refresh_token, access_token, user } = get();
         if ((refresh_token || access_token) && user) {
-          authApi.logout((refresh_token || access_token) as string, user.username);
+          void authApi.logout((refresh_token || access_token) as string, user.username).catch((error) => {
+            console.warn('Logout side-effect failed:', error);
+          });
         }
         set({ user: null, access_token: null, refresh_token: null, cart: [] });
       },
