@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class HealthOut(BaseModel):
@@ -14,6 +14,14 @@ class LoginIn(BaseModel):
     tenant_id: str | None = None
     second_factor_code: str | None = Field(default=None, min_length=4, max_length=12)
     remember_device: bool | None = False
+
+    @field_validator("second_factor_code", mode="before")
+    @classmethod
+    def normalize_second_factor_code(cls, value):
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
 
 
 class PinLoginIn(BaseModel):
