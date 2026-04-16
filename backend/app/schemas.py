@@ -9,20 +9,20 @@ class HealthOut(BaseModel):
 
 
 class LoginIn(BaseModel):
-    username: str
-    password: str
+    username: str = Field(min_length=3, max_length=80)
+    password: str = Field(min_length=6, max_length=128)
     tenant_id: str | None = None
-    second_factor_code: str | None = None
+    second_factor_code: str | None = Field(default=None, min_length=4, max_length=12)
     remember_device: bool | None = False
 
 
 class PinLoginIn(BaseModel):
-    pin: str
+    pin: str = Field(min_length=4, max_length=15)
     tenant_id: str | None = None
 
 
 class RefreshIn(BaseModel):
-    refresh_token: str
+    refresh_token: str = Field(min_length=20, max_length=4096)
 
 
 class VerifyPasswordIn(BaseModel):
@@ -175,18 +175,18 @@ class FinanceEntryIn(BaseModel):
     category: str
     category_code: str | None = None
     source: str
-    amount: Decimal
+    amount: Decimal = Field(gt=0)
     description: str | None = None
 
 
 class TransferIn(BaseModel):
     direction: str
-    amount: Decimal
+    amount: Decimal = Field(gt=0)
     description: str | None = None
 
 
 class InvestorRepayIn(BaseModel):
-    amount: Decimal
+    amount: Decimal = Field(gt=0)
     pay_from: str
     description: str | None = None
 
@@ -195,7 +195,7 @@ class FinanceTransactionIn(BaseModel):
     transaction_type: str
     source_account_code: str | None = None
     destination_account_code: str | None = None
-    amount: Decimal
+    amount: Decimal = Field(gt=0)
     category: str | None = None
     category_code: str | None = None
     counterparty: str | None = None
@@ -206,8 +206,8 @@ class FinanceTransactionIn(BaseModel):
 
 class FinanceReconciliationIn(BaseModel):
     account_code: str
-    expected_balance: Decimal
-    counted_balance: Decimal
+    expected_balance: Decimal = Field(ge=0)
+    counted_balance: Decimal = Field(ge=0)
     notes: str | None = None
 
 

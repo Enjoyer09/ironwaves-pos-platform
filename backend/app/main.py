@@ -245,9 +245,14 @@ async def security_boundary_middleware(request: Request, call_next):
         forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
         client_host = request.client.host if request.client else ""
         client_ip = forwarded or client_host or "unknown"
+        tenant_scope = (
+            str(request.headers.get("x-tenant-domain") or "").strip().lower()
+            or str(request.headers.get("host") or "").strip().lower()
+            or "unknown"
+        )
         path_group = "auth" if request.url.path.startswith("/api/v1/auth") else "api"
         limit = settings.auth_rate_limit_per_minute if path_group == "auth" else settings.request_rate_limit_per_minute
-        if limit > 0 and not _rate_limit_allowed(f"{path_group}:{client_ip}", limit):
+        if limit > 0 and not _rate_limit_allowed(f"{path_group}:{tenant_scope}:{client_ip}", limit):
             return JSONResponse(status_code=429, content={"detail": "Too many requests"}, headers={"X-Request-ID": request_id})
 
     if settings.csrf_origin_check_enabled and request.method.upper() in {"POST", "PUT", "PATCH", "DELETE"}:
@@ -275,7 +280,17 @@ async def security_boundary_middleware(request: Request, call_next):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    return JSONResponse(status_code=422, content={"detail": "Sorğu məlumatları düzgün deyil", "errors": exc.errors()[:5]})
+    request_id = str(getattr(request.state, "request_id", "") or "")
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": "Sorğu məlumatları düzgün deyil",
+            "error_code": "VALIDATION_ERROR",
+            "request_id": request_id,
+            "errors": exc.errors()[:5],
+        },
+        headers={"X-Request-ID": request_id},
+    )
 
 
 def _resolve_tenant_id_from_request(request: Request) -> str:
@@ -330,7 +345,12 @@ def _safe_log_backend_error(request: Request, exc: Exception) -> None:
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    request_id = str(getattr(request.state, "request_id", "") or "")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail, "error_code": "HTTP_ERROR", "request_id": request_id},
+        headers={"X-Request-ID": request_id},
+    )
 
 
 @app.exception_handler(Exception)

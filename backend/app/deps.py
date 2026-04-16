@@ -8,6 +8,40 @@ from app.models import RevokedToken, Tenant, User
 from app.security import decode_token, hash_token
 from app.tenant import resolve_tenant_from_request
 
+_redis_token_client = None
+
+
+def _get_redis_token_client():
+    global _redis_token_client
+    if _redis_token_client is not None:
+        return _redis_token_client
+    if not settings.redis_url:
+        _redis_token_client = False
+        return None
+    try:
+        from redis import Redis
+        _redis_token_client = Redis.from_url(settings.redis_url, decode_responses=True)
+    except Exception:
+        _redis_token_client = False
+        return None
+    return _redis_token_client
+
+
+def _is_token_revoked(tenant_id: str, token_hash: str, db: Session) -> bool:
+    redis_client = _get_redis_token_client()
+    if redis_client:
+        try:
+            if redis_client.exists(f"ironwaves:revoked:{tenant_id}:{token_hash}"):
+                return True
+        except Exception:
+            pass
+    return (
+        db.query(RevokedToken)
+        .filter(RevokedToken.tenant_id == tenant_id, RevokedToken.token_hash == token_hash)
+        .first()
+        is not None
+    )
+
 
 def get_tenant(request: Request, db: Session = Depends(get_db)) -> Tenant:
     tenant = resolve_tenant_from_request(request, db)
@@ -39,11 +73,7 @@ def get_current_user(
 
     token_hash = hash_token(token)
     db.query(RevokedToken).filter(RevokedToken.expires_at < datetime.utcnow()).delete(synchronize_session=False)
-    if (
-        db.query(RevokedToken)
-        .filter(RevokedToken.tenant_id == tenant.id, RevokedToken.token_hash == token_hash)
-        .first()
-    ):
+    if _is_token_revoked(tenant.id, token_hash, db):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token revoked")
 
     user = (

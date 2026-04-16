@@ -13,7 +13,7 @@ from urllib import request as urllib_request
 from urllib.error import HTTPError, URLError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
@@ -859,21 +859,22 @@ class HappyHourCreateIn(BaseModel):
 
 
 class QrBatchIn(BaseModel):
-    count: int
-    customer_type: str
-    discount_percent: Decimal = Decimal("0")
+    count: int = Field(ge=1, le=200)
+    customer_type: str = Field(min_length=2, max_length=32)
+    discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
 
 
 class CustomerImportRowIn(BaseModel):
-    card_id: str
+    card_id: str = Field(min_length=3, max_length=80)
     secret_token: str | None = None
-    type: str = "Golden"
-    stars: int = 0
-    discount_percent: Decimal = Decimal("0")
+    type: str = Field(default="Golden", min_length=2, max_length=32)
+    stars: int = Field(default=0, ge=0, le=100000)
+    discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
 
 
 class CustomerForgetIn(BaseModel):
-    reason: str | None = None
+    reason: str | None = Field(default=None, min_length=2, max_length=240)
+    dry_run: bool = False
 
 
 DEFAULT_SESSION_SETTINGS = {"idle_logout_minutes": 0, "virtual_keyboard_enabled": True, "staff_pin_length": 6}
@@ -4657,6 +4658,37 @@ def forget_customer(
         .filter(Sale.tenant_id == tenant.id, func.lower(Sale.customer_card_id) == clean_card_id.lower())
         .all()
     )
+    notifications_count = (
+        db.query(Notification)
+        .filter(Notification.tenant_id == tenant.id, func.lower(Notification.card_id) == clean_card_id.lower())
+        .count()
+    )
+    consents_count = (
+        db.query(CustomerConsent)
+        .filter(CustomerConsent.tenant_id == tenant.id, func.lower(CustomerConsent.card_id) == clean_card_id.lower())
+        .count()
+    )
+    reward_claims_count = (
+        db.query(RewardClaim)
+        .filter(RewardClaim.tenant_id == tenant.id, func.lower(RewardClaim.card_id) == clean_card_id.lower())
+        .count()
+    )
+    loyalty_entries_count = (
+        db.query(LoyaltyLedgerEntry)
+        .filter(LoyaltyLedgerEntry.tenant_id == tenant.id, func.lower(LoyaltyLedgerEntry.card_id) == clean_card_id.lower())
+        .count()
+    )
+    planned_report = {
+        "card_hash": hash_token(clean_card_id.lower()),
+        "sales_unlinked": len(affected_sales),
+        "notifications_deleted": int(notifications_count or 0),
+        "consents_deleted": int(consents_count or 0),
+        "reward_claims_deleted": int(reward_claims_count or 0),
+        "loyalty_entries_deleted": int(loyalty_entries_count or 0),
+    }
+    if payload and bool(payload.dry_run):
+        return {"success": True, "dry_run": True, "report": planned_report}
+
     for sale in affected_sales:
         sale.customer_card_id = None
         sale.reward_claim_code = None
@@ -4673,8 +4705,7 @@ def forget_customer(
             action="GDPR_CUSTOMER_FORGOTTEN",
             details=json.dumps(
                 {
-                    "card_hash": hash_token(clean_card_id.lower()),
-                    "sales_unlinked": len(affected_sales),
+                    **planned_report,
                     "reason": _clean_public_text((payload.reason if payload else "") or "", max_len=240, field_name="Səbəb"),
                 },
                 ensure_ascii=False,
@@ -4682,7 +4713,60 @@ def forget_customer(
         )
     )
     db.commit()
-    return {"success": True, "sales_unlinked": len(affected_sales)}
+    return {"success": True, "report": planned_report}
+
+
+@router.get("/customers/{card_id}/forget-preview")
+def forget_customer_preview(
+    card_id: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_manager(user)
+    clean_card_id = _clean_card_id(card_id)
+    customer = (
+        db.query(Customer)
+        .filter(Customer.tenant_id == tenant.id, func.lower(Customer.card_id) == clean_card_id.lower())
+        .first()
+    )
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    sales_unlinked = (
+        db.query(Sale)
+        .filter(Sale.tenant_id == tenant.id, func.lower(Sale.customer_card_id) == clean_card_id.lower())
+        .count()
+    )
+    notifications_deleted = (
+        db.query(Notification)
+        .filter(Notification.tenant_id == tenant.id, func.lower(Notification.card_id) == clean_card_id.lower())
+        .count()
+    )
+    consents_deleted = (
+        db.query(CustomerConsent)
+        .filter(CustomerConsent.tenant_id == tenant.id, func.lower(CustomerConsent.card_id) == clean_card_id.lower())
+        .count()
+    )
+    reward_claims_deleted = (
+        db.query(RewardClaim)
+        .filter(RewardClaim.tenant_id == tenant.id, func.lower(RewardClaim.card_id) == clean_card_id.lower())
+        .count()
+    )
+    loyalty_entries_deleted = (
+        db.query(LoyaltyLedgerEntry)
+        .filter(LoyaltyLedgerEntry.tenant_id == tenant.id, func.lower(LoyaltyLedgerEntry.card_id) == clean_card_id.lower())
+        .count()
+    )
+    return {
+        "success": True,
+        "card_hash": hash_token(clean_card_id.lower()),
+        "sales_unlinked": int(sales_unlinked or 0),
+        "notifications_deleted": int(notifications_deleted or 0),
+        "consents_deleted": int(consents_deleted or 0),
+        "reward_claims_deleted": int(reward_claims_deleted or 0),
+        "loyalty_entries_deleted": int(loyalty_entries_deleted or 0),
+    }
 
 
 @router.get("/logs")
