@@ -9,7 +9,9 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import AuditLog, FinanceAccount, FinanceLedgerEntry, FinanceTransaction, Setting, Shift, ShiftHandover, Tenant, User
+from app.services.finance_service import finance_policy as _finance_policy
 from app.services.finance_service import ledger_balances_snapshot as _ledger_balances_snapshot
+from app.services.finance_service import post_deposit_apply_to_bill as _post_deposit_apply_to_bill
 from app.services.finance_service import post_finance_transaction_with_legacy_mirror as _post_finance_transaction
 from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XReportIn, ZReportIn
 
@@ -78,6 +80,14 @@ def _setting_value(db: Session, tenant_id: str, key: str, default):
         return json.loads(row.value)
     except Exception:
         return default
+
+
+def _cash_adjustment_requires_manual_approval(db: Session, tenant_id: str, amount: Decimal) -> bool:
+    policy = _finance_policy(db, tenant_id)
+    if not bool(policy.get("cash_adjustment_requires_approval", True)):
+        return False
+    threshold = Decimal(str(policy.get("large_transfer_threshold_azn", 500) or 500))
+    return abs(amount) >= threshold
 
 
 def _shift_cash_breakdown(db: Session, tenant_id: str, shift: Shift | None) -> dict[str, Decimal]:
@@ -285,6 +295,12 @@ def x_report(payload: XReportIn, db: Session = Depends(get_db), tenant: Tenant =
     expected = breakdown["expected_cash"]
     diff = Decimal(str(payload.actual_cash)) - expected
 
+    if diff != 0 and _cash_adjustment_requires_manual_approval(db, tenant.id, diff):
+        raise HTTPException(
+            status_code=400,
+            detail="Kassa fərqi approval tələb edir. Finance təsdiqi olmadan tətbiq edilə bilməz.",
+        )
+
     if diff != 0:
         _post_finance_transaction(
             db,
@@ -316,6 +332,10 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
     if not active:
         raise HTTPException(status_code=400, detail="Shift is closed")
 
+    breakdown_before_wage = _shift_cash_breakdown(db, tenant.id, active)
+    if Decimal(str(payload.wage_amount or 0)) > breakdown_before_wage["expected_cash"]:
+        raise HTTPException(status_code=400, detail="Kassada maaş üçün kifayət qədər məbləğ yoxdur")
+
     if payload.wage_amount > 0:
         _post_finance_transaction(
             db,
@@ -334,6 +354,12 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
     expected = breakdown["expected_cash"]
     actual_cash = Decimal(str(payload.actual_cash)).quantize(Decimal("0.01"))
     difference = (actual_cash - expected).quantize(Decimal("0.01"))
+    if difference != 0 and _cash_adjustment_requires_manual_approval(db, tenant.id, difference):
+        raise HTTPException(
+            status_code=400,
+            detail="Z-report kassa fərqi approval tələb edir. Finance təsdiqi olmadan bağlanış mümkün deyil.",
+        )
+
     deposit_balance = _ledger_balances_snapshot(db, tenant.id).get("deposit", Decimal("0.00")).quantize(Decimal("0.01"))
     deposit_settled_amount = Decimal("0.00")
     if deposit_balance > Decimal("0.01") and not bool(payload.allow_open_deposit_close):
@@ -345,17 +371,12 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
             ),
         )
     if deposit_balance > Decimal("0.01") and bool(payload.allow_open_deposit_close):
-        _post_finance_transaction(
+        _post_deposit_apply_to_bill(
             db,
             tenant_id=tenant.id,
-            transaction_type="deposit_release",
             amount=deposit_balance,
-            source_code="cash",
-            destination_code="deposit",
             created_by=user.username,
-            category="Depozit Öhdəliyi Bağlanışı",
             note="Z-report close: open deposit liability settled",
-            related_shift_id=active.id,
         )
         deposit_settled_amount = deposit_balance
     if difference != 0:
