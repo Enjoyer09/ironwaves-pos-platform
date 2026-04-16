@@ -20,7 +20,7 @@ import { get_sales_list, get_sales_list_live, get_sales_summary, get_sales_summa
 import { fetch_finance_anomalies, fetch_finance_balances, fetch_finance_entries, get_balance, type FinanceAnomalies } from '../../api/finance';
 import { get_low_stock_items } from '../../api/inventory';
 import { get_kitchen_orders, get_kitchen_orders_live } from '../../api/kds';
-import { get_tables, get_tables_live } from '../../api/tables';
+import { get_tables, get_tables_live, getPendingOfflineTableOps, getPendingOfflineTableOpsCount, type OfflineTableOpSummary } from '../../api/tables';
 import { getPendingOfflineSalesCount } from '../../lib/offline';
 import { get_logs_live } from '../../api/logs';
 import { subscribeTenantRealtime } from '../../api/realtime';
@@ -40,6 +40,8 @@ type DashboardSnapshot = {
   financeEntries: any[];
   lowStock: any[];
   pendingOffline: number;
+  pendingOfflineTableOps: number;
+  pendingOfflineTableOpItems: OfflineTableOpSummary[];
   auditLogs: any[];
   loading: boolean;
 };
@@ -117,6 +119,8 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
     financeEntries: [],
     lowStock: [],
     pendingOffline: 0,
+    pendingOfflineTableOps: 0,
+    pendingOfflineTableOpItems: [],
     auditLogs: [],
     loading: true,
   });
@@ -166,6 +170,8 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         balances,
         financeEntries,
         pendingOffline,
+        pendingOfflineTableOps,
+        pendingOfflineTableOpItems,
         anomalies,
         auditLogs,
       ] = await Promise.all([
@@ -180,6 +186,8 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         fetch_finance_balances(tenant_id).catch(() => get_balance(tenant_id, 'all', false) as any),
         fetch_finance_entries(tenant_id).catch(() => []),
         getPendingOfflineSalesCount(tenant_id),
+        Promise.resolve(getPendingOfflineTableOpsCount(tenant_id)),
+        Promise.resolve(getPendingOfflineTableOps(tenant_id, 10)),
         fetch_finance_anomalies(tenant_id).catch(() => null),
         get_logs_live(tenant_id, 80).catch(() => []),
       ]);
@@ -193,6 +201,8 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         financeEntries,
         lowStock: get_low_stock_items(tenant_id, 5),
         pendingOffline,
+        pendingOfflineTableOps,
+        pendingOfflineTableOpItems,
         auditLogs,
         loading: false,
       });
@@ -339,6 +349,22 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         action: () => onOpenTab('analytics'),
       });
     }
+    if (snapshot.pendingOfflineTableOps > 0) {
+      const firstOp = snapshot.pendingOfflineTableOpItems[0];
+      const opLabel = firstOp?.op_type === 'open'
+        ? tx(lang, 'masa açma', 'открытие стола', 'table open')
+        : firstOp?.op_type === 'send_to_kitchen'
+          ? tx(lang, 'mətbəx göndərişi', 'отправка на кухню', 'kitchen send')
+          : tx(lang, 'masa ödənişi', 'оплата стола', 'table payment');
+      alerts.push({
+        id: 'offline-table-ops',
+        title: tx(lang, 'Offline masa əməliyyatları gözləyir', 'Оффлайн операции по столам ожидают', 'Offline table operations pending'),
+        body: `${snapshot.pendingOfflineTableOps} ${tx(lang, 'əməliyyat növbədədir', 'операций в очереди', 'operations in queue')} · ${opLabel}`,
+        tone: 'warning',
+        actionLabel: tx(lang, 'Masalara keç', 'Открыть столы', 'Open tables'),
+        action: () => onOpenTab('tables'),
+      });
+    }
     if (kitchenDelayed.length > 0) {
       alerts.push({
         id: 'kitchen-delay',
@@ -380,7 +406,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
       });
     }
     return alerts.filter((alert) => !dismissedAlerts[alert.id]).slice(0, 5);
-  }, [dismissedAlerts, financeAnomalies, kitchenDelayed.length, lang, onOpenTab, snapshot.lowStock, snapshot.pendingOffline, voidWasteCount]);
+  }, [dismissedAlerts, financeAnomalies, kitchenDelayed.length, lang, onOpenTab, snapshot.lowStock, snapshot.pendingOffline, snapshot.pendingOfflineTableOps, snapshot.pendingOfflineTableOpItems, voidWasteCount]);
 
   const alertBreakdown = useMemo(() => {
     const critical = criticalAlerts.filter((alert) => alert.tone === 'critical').length;
