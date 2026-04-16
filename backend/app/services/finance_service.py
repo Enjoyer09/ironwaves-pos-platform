@@ -30,7 +30,7 @@ DEFAULT_FINANCE_POLICY = {
     "reconciliation_adjustment_requires_approval": True,
     "reconciliation_variance_alert_azn": 0.01,
     "negative_balance_alert_azn": 0,
-    "legacy_wallet_sync_enabled": True,
+    "legacy_wallet_sync_enabled": False,
     "approver_roles": ["manager", "admin", "finance_admin", "super_admin"],
 }
 
@@ -344,11 +344,13 @@ def mirror_posted_transaction_to_legacy_wallet(db: Session, txn: FinanceTransact
         add_entry("out", "Daxili Transfer", source_code, note)
         add_entry("in", "Daxili Transfer", destination_code, note)
     elif txn.transaction_type == "investor_injection" and destination_code in {"cash", "card", "safe"}:
+        # Legacy mirror keeps only operational cash movement.
+        # Investor liability is ledger-only single source of truth.
         add_entry("in", txn.category or "Təsisçi İnvestisiyası", destination_code, note)
-        add_entry("in", "İnvestor Borcu", "investor", note)
     elif txn.transaction_type == "investor_repayment" and source_code in {"cash", "card", "safe"}:
+        # Legacy mirror keeps only operational cash movement.
+        # Investor liability is ledger-only single source of truth.
         add_entry("out", "İnvestora Geri Ödəniş", source_code, note)
-        add_entry("out", "İnvestor Borcu Azaldılması", "investor", note)
     elif txn.transaction_type == "deposit_hold" and destination_code in {"cash", "card", "safe"}:
         add_entry("in", "Depozit Alındı", destination_code, note)
         add_entry("in", "Depozit Öhdəliyi", "deposit", note)

@@ -82,6 +82,7 @@ DEFAULT_FINANCE_POLICY = {
     "reconciliation_adjustment_requires_approval": True,
     "reconciliation_variance_alert_azn": 0.01,
     "negative_balance_alert_azn": 0,
+    "legacy_wallet_sync_enabled": False,
     "approver_roles": ["manager", "admin", "finance_admin", "super_admin"],
 }
 
@@ -2076,6 +2077,7 @@ def update_finance_policy(
         "cash_adjustment_requires_approval": bool(payload.get("cash_adjustment_requires_approval", current.get("cash_adjustment_requires_approval", True))),
         "reversal_requires_approval": bool(payload.get("reversal_requires_approval", current.get("reversal_requires_approval", True))),
         "reconciliation_adjustment_requires_approval": bool(payload.get("reconciliation_adjustment_requires_approval", current.get("reconciliation_adjustment_requires_approval", True))),
+        "legacy_wallet_sync_enabled": bool(payload.get("legacy_wallet_sync_enabled", current.get("legacy_wallet_sync_enabled", False))),
         "reconciliation_variance_alert_azn": max(0, float(payload.get("reconciliation_variance_alert_azn", current.get("reconciliation_variance_alert_azn", 0.01)) or 0)),
         "negative_balance_alert_azn": max(0, float(payload.get("negative_balance_alert_azn", current.get("negative_balance_alert_azn", 0)) or 0)),
         "approver_roles": [str(role).strip().lower() for role in roles if str(role).strip()],
