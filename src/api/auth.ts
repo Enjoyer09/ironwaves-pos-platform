@@ -263,7 +263,7 @@ export const authApi = {
           body: {
             username: String(username || '').trim(),
             password: String(password || ''),
-            second_factor_code: String(second_factor_pin || '').trim(),
+            second_factor_code: String(second_factor_pin || '').trim() || null,
             remember_device,
             tenant_id: null,
           },
