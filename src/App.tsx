@@ -304,6 +304,7 @@ export default function App() {
   const uiVisibility = settings?.ui_visibility || defaultUiVisibility;
   const idleLogoutMinutes = Math.max(0, Number(settings?.session_settings?.idle_logout_minutes || 0));
   const virtualKeyboardEnabled = settings?.session_settings?.virtual_keyboard_enabled !== false;
+  const themeMode: 'dark' | 'light' = settings?.session_settings?.theme_mode === 'light' ? 'light' : 'dark';
   const roleModules = settings?.role_modules || null;
   const safeRoleModules = {
     staff: Array.isArray(roleModules?.staff) ? roleModules!.staff : defaultRoleModules.staff,
@@ -312,6 +313,12 @@ export default function App() {
       : defaultRoleModules.manager,
     kitchen: Array.isArray(roleModules?.kitchen) ? roleModules!.kitchen : defaultRoleModules.kitchen,
   };
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute('data-theme', themeMode);
+    root.style.colorScheme = themeMode;
+  }, [themeMode]);
 
   useEffect(() => {
     const handleOpenTableInPos = () => setCurrentModule('pos');

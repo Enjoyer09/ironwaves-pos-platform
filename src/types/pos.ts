@@ -178,6 +178,7 @@ export interface Settings {
     idle_logout_minutes: number;
     virtual_keyboard_enabled?: boolean;
     staff_pin_length?: 4 | 6;
+    theme_mode?: 'dark' | 'light';
   };
   beverage_service_settings?: {
     coffee_selection_mode: 'size_only' | 'size_and_service';
