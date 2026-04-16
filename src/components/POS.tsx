@@ -20,6 +20,7 @@ import {
   getCachedMenuOffline,
   getPendingOfflineSales,
   getPendingOfflineSalesCount,
+  scheduleOfflineSaleRetryNow,
   syncPendingOfflineSales,
   type OfflineSaleSummary,
 } from '../lib/offline';
@@ -141,6 +142,13 @@ const isRecoverableNetworkFailure = (error: unknown) => {
     message.includes('load failed') ||
     message.includes('network')
   );
+};
+
+const formatOfflineError = (value: unknown) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.length <= 180) return raw;
+  return `${raw.slice(0, 177)}...`;
 };
 
 const generateOfflineRequestId = () => {
@@ -1011,6 +1019,12 @@ export default function POS() {
     }
   };
 
+  const handleRetrySingleOffline = async (queueId: string) => {
+    await scheduleOfflineSaleRetryNow(tenantId, queueId);
+    await refreshOfflineState();
+    notify('info', tx(safeLang, 'Satış yenidən cəhd növbəsinə alındı', 'Продажа снова поставлена в очередь повтора', 'Sale was queued for retry'));
+  };
+
   const isWidgetVisible = (widget: string) => !posLayout.hidden_widgets?.includes(widget);
   const isLeftWidgetVisible = (widget: string) => !posLayout.left_hidden_widgets?.includes(widget);
   const getWidgetSize = (widget: string) => posLayout.widget_sizes?.[widget] || 'comfortable';
@@ -1470,6 +1484,37 @@ export default function POS() {
                     <span>{row.payment_method}</span>
                     <span>{row.order_type}</span>
                     <span>{row.total} ₼</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-amber-200/85">
+                    <span>
+                      {tx(safeLang, 'Cəhd', 'Попыток', 'Retries')}: {row.retry_count}
+                    </span>
+                    {row.next_attempt_at && (
+                      <span>
+                        {tx(safeLang, 'Növbəti cəhd', 'Следующая попытка', 'Next attempt')}: {new Date(row.next_attempt_at).toLocaleTimeString()}
+                      </span>
+                    )}
+                    {row.last_attempt_at && (
+                      <span>
+                        {tx(safeLang, 'Son cəhd', 'Последняя попытка', 'Last attempt')}: {new Date(row.last_attempt_at).toLocaleTimeString()}
+                      </span>
+                    )}
+                  </div>
+                  {row.last_error && (
+                    <div className="mt-2 rounded-md border border-rose-300/30 bg-rose-500/10 px-2 py-2 text-[11px] text-rose-100">
+                      <div className="font-semibold">
+                        {tx(safeLang, 'Göndərilmə səbəbi', 'Причина ошибки', 'Sync error')}
+                      </div>
+                      <div className="mt-1 break-words">{formatOfflineError(row.last_error)}</div>
+                    </div>
+                  )}
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      onClick={() => { void handleRetrySingleOffline(row.id); }}
+                      className="rounded-md border border-amber-300/35 px-2 py-1 text-[11px] font-semibold text-amber-50 hover:bg-amber-400/10"
+                    >
+                      {tx(safeLang, 'Bu satışı yenidən yoxla', 'Повторить эту продажу', 'Retry this sale')}
+                    </button>
                   </div>
                 </div>
               ))}
