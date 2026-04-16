@@ -5,9 +5,13 @@ const getDbName = () => {
   const host = typeof window !== 'undefined' ? window.location.host.toLowerCase().replace(/[^a-z0-9.-]/g, '_') : 'global';
   return `ironwaves-pos-offline__${host}`;
 };
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const MENU_STORE = 'menu_cache';
 const SALES_STORE = 'offline_sales';
+const TENANT_STATUS_INDEX = 'tenant_status';
+const MAX_SYNC_BATCH = 25;
+const MAX_RETRY_COUNT = 8;
+const BASE_RETRY_DELAY_MS = 15_000;
 
 type OfflineSaleRecord = {
   id: string;
@@ -15,6 +19,10 @@ type OfflineSaleRecord = {
   sale_id: string;
   created_at: string;
   synced_at?: string;
+  retry_count?: number;
+  last_attempt_at?: string;
+  next_attempt_at?: string;
+  last_error?: string;
   status: 'pending' | 'synced';
   payload: Record<string, unknown>;
 };
@@ -27,6 +35,10 @@ export type OfflineSaleSummary = {
   order_type: string;
   item_count: number;
   total: string;
+  retry_count: number;
+  last_attempt_at?: string;
+  next_attempt_at?: string;
+  last_error?: string;
   status: 'pending' | 'synced';
 };
 
@@ -41,6 +53,12 @@ const openDb = (): Promise<IDBDatabase> =>
       if (!db.objectStoreNames.contains(SALES_STORE)) {
         const store = db.createObjectStore(SALES_STORE, { keyPath: 'id' });
         store.createIndex('status', 'status', { unique: false });
+        store.createIndex(TENANT_STATUS_INDEX, ['tenant_id', 'status'], { unique: false });
+      } else {
+        const store = req.transaction?.objectStore(SALES_STORE);
+        if (store && !store.indexNames.contains(TENANT_STATUS_INDEX)) {
+          store.createIndex(TENANT_STATUS_INDEX, ['tenant_id', 'status'], { unique: false });
+        }
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -96,6 +114,7 @@ export const enqueueOfflineSale = async (
         tenant_id: tenantId,
         sale_id: saleId,
         created_at: new Date().toISOString(),
+        retry_count: 0,
         status: 'pending',
         payload,
       } as OfflineSaleRecord);
@@ -108,20 +127,31 @@ export const enqueueOfflineSale = async (
   }
 };
 
+const getPendingRowsForTenant = async (db: IDBDatabase, tenantId: string): Promise<OfflineSaleRecord[]> =>
+  await new Promise<OfflineSaleRecord[]>((resolve, reject) => {
+    const tx = db.transaction(SALES_STORE, 'readonly');
+    const store = tx.objectStore(SALES_STORE);
+    if (!store.indexNames.contains(TENANT_STATUS_INDEX)) {
+      const req = store.getAll();
+      req.onsuccess = () => {
+        const rows = (req.result || []) as OfflineSaleRecord[];
+        resolve(rows.filter((x) => x.tenant_id === tenantId && x.status === 'pending'));
+      };
+      req.onerror = () => reject(req.error);
+      return;
+    }
+    const index = store.index(TENANT_STATUS_INDEX);
+    const req = index.getAll(IDBKeyRange.only([tenantId, 'pending']));
+    req.onsuccess = () => resolve((req.result || []) as OfflineSaleRecord[]);
+    req.onerror = () => reject(req.error);
+  });
+
 export const getPendingOfflineSalesCount = async (tenantId: string): Promise<number> => {
   try {
     const db = await openDb();
-    const count = await new Promise<number>((resolve, reject) => {
-      const tx = db.transaction(SALES_STORE, 'readonly');
-      const req = tx.objectStore(SALES_STORE).getAll();
-      req.onsuccess = () => {
-        const all = Array.isArray(req.result) ? (req.result as OfflineSaleRecord[]) : [];
-        resolve(all.filter((x) => x.tenant_id === tenantId && x.status === 'pending').length);
-      };
-      req.onerror = () => reject(req.error);
-    });
+    const rows = await getPendingRowsForTenant(db, tenantId);
     db.close();
-    return count;
+    return rows.length;
   } catch {
     return 0;
   }
@@ -130,16 +160,10 @@ export const getPendingOfflineSalesCount = async (tenantId: string): Promise<num
 export const getPendingOfflineSales = async (tenantId: string): Promise<OfflineSaleSummary[]> => {
   try {
     const db = await openDb();
-    const rows = await new Promise<OfflineSaleRecord[]>((resolve, reject) => {
-      const tx = db.transaction(SALES_STORE, 'readonly');
-      const req = tx.objectStore(SALES_STORE).getAll();
-      req.onsuccess = () => resolve((req.result || []) as OfflineSaleRecord[]);
-      req.onerror = () => reject(req.error);
-    });
+    const rows = await getPendingRowsForTenant(db, tenantId);
     db.close();
 
     return rows
-      .filter((row) => row.tenant_id === tenantId && row.status === 'pending')
       .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
       .map((row) => {
         const cartItems = Array.isArray((row.payload as any)?.cart_items) ? ((row.payload as any).cart_items as any[]) : [];
@@ -158,11 +182,41 @@ export const getPendingOfflineSales = async (tenantId: string): Promise<OfflineS
           order_type: String((row.payload as any)?.order_type || '-'),
           item_count: cartItems.reduce((sum, item) => sum + Number(item?.qty || 0), 0),
           total: total.toFixed(2),
+          retry_count: Number(row.retry_count || 0),
+          last_attempt_at: row.last_attempt_at,
+          next_attempt_at: row.next_attempt_at,
+          last_error: row.last_error,
           status: row.status,
         };
       });
   } catch {
     return [];
+  }
+};
+
+export const scheduleOfflineSaleRetryNow = async (tenantId: string, saleQueueId: string) => {
+  try {
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(SALES_STORE, 'readwrite');
+      const store = tx.objectStore(SALES_STORE);
+      const req = store.get(saleQueueId);
+      req.onsuccess = () => {
+        const row = req.result as OfflineSaleRecord | undefined;
+        if (!row || row.tenant_id !== tenantId || row.status !== 'pending') return;
+        store.put({
+          ...row,
+          next_attempt_at: new Date().toISOString(),
+          last_error: row.last_error || '',
+        } as OfflineSaleRecord);
+      };
+      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch {
+    // no-op
   }
 };
 
@@ -220,14 +274,12 @@ export const syncPendingOfflineSales = async (tenantId: string) => {
     }
 
     const db = await openDb();
-    const all = await new Promise<OfflineSaleRecord[]>((resolve, reject) => {
-      const tx = db.transaction(SALES_STORE, 'readonly');
-      const req = tx.objectStore(SALES_STORE).getAll();
-      req.onsuccess = () => resolve((req.result || []) as OfflineSaleRecord[]);
-      req.onerror = () => reject(req.error);
-    });
-
-    const pending = all.filter((x) => x.tenant_id === tenantId && x.status === 'pending');
+    const allPending = await getPendingRowsForTenant(db, tenantId);
+    const nowMs = Date.now();
+    const pending = allPending
+      .filter((row) => !row.next_attempt_at || new Date(String(row.next_attempt_at)).getTime() <= nowMs)
+      .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+      .slice(0, MAX_SYNC_BATCH);
     if (!pending.length) {
       db.close();
       return { synced: 0, failed: 0 };
@@ -250,13 +302,37 @@ export const syncPendingOfflineSales = async (tenantId: string) => {
             ...row,
             status: 'synced',
             synced_at: new Date().toISOString(),
+            last_error: '',
           });
           tx.oncomplete = () => resolve();
           tx.onerror = () => reject(tx.error);
         });
         synced += 1;
-      } catch {
-        failed += 1;
+      } catch (error) {
+        const message = String((error as any)?.message || 'sync_failed');
+        const retryCount = Number(row.retry_count || 0) + 1;
+        const cappedRetry = Math.min(retryCount, MAX_RETRY_COUNT);
+        const nextAttemptDelay = BASE_RETRY_DELAY_MS * (2 ** Math.min(cappedRetry, 6));
+        const nextAttemptAt = new Date(Date.now() + nextAttemptDelay).toISOString();
+        const dedupedAsSynced = /already exists|duplicate|uq_sales_tenant_offline_request_id/i.test(message);
+        const shouldKeepPending = !dedupedAsSynced;
+
+        await new Promise<void>((resolve, reject) => {
+          const tx = db.transaction(SALES_STORE, 'readwrite');
+          tx.objectStore(SALES_STORE).put({
+            ...row,
+            status: shouldKeepPending ? 'pending' : 'synced',
+            synced_at: shouldKeepPending ? row.synced_at : new Date().toISOString(),
+            retry_count: retryCount,
+            last_attempt_at: new Date().toISOString(),
+            next_attempt_at: shouldKeepPending ? nextAttemptAt : row.next_attempt_at,
+            last_error: message.slice(0, 500),
+          } as OfflineSaleRecord);
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
+        failed += shouldKeepPending ? 1 : 0;
+        synced += dedupedAsSynced ? 1 : 0;
       }
     }
     db.close();
