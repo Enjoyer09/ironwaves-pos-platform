@@ -167,6 +167,7 @@ class XReportIn(BaseModel):
 class ZReportIn(BaseModel):
     actual_cash: Decimal
     wage_amount: Decimal = Decimal("0")
+    allow_open_deposit_close: bool = False
 
 
 class ShiftHandoverIn(BaseModel):

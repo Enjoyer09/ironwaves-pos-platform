@@ -204,16 +204,12 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
                     note=f"Gün açılışı tamamlanması ({target_cash.quantize(Decimal('0.01'))} ₼ hədəf). Mənbə: investor",
                 )
             elif funding_source == "cash":
-                _post_finance_transaction(
-                    db,
-                    tenant_id=tenant.id,
-                    transaction_type="cash_adjustment",
-                    amount=topup_amount,
-                    source_code="adjustment",
-                    destination_code="cash",
-                    created_by=user.username,
-                    category="Kassa Açılışı",
-                    note=f"Gün açılışı tamamlanması (hədəf {target_cash.quantize(Decimal('0.01'))} ₼)",
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Gün açılışında cash mənbədən topup icazəli deyil. "
+                        "Topup üçün investor/safe/card seçin."
+                    ),
                 )
             else:
                 source_balance = _wallet_balance(db, tenant.id, funding_source)
@@ -338,6 +334,15 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
     expected = breakdown["expected_cash"]
     actual_cash = Decimal(str(payload.actual_cash)).quantize(Decimal("0.01"))
     difference = (actual_cash - expected).quantize(Decimal("0.01"))
+    deposit_balance = _ledger_balances_snapshot(db, tenant.id).get("deposit", Decimal("0.00")).quantize(Decimal("0.01"))
+    if deposit_balance > Decimal("0.01") and not bool(payload.allow_open_deposit_close):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Açıq depozit öhdəliyi var ({deposit_balance} ₼). "
+                "Əvvəl depozitləri bağlayın və ya allow_open_deposit_close=true ilə təsdiqləyin."
+            ),
+        )
     if difference != 0:
         _post_finance_transaction(
             db,
@@ -410,6 +415,7 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         "actual_cash": str(actual_cash),
         "difference": str(difference),
         "wage_amount": str(Decimal(str(payload.wage_amount)).quantize(Decimal("0.01"))),
+        "open_deposit_liability": str(deposit_balance),
         "opening_cash": str(breakdown["opening_cash"].quantize(Decimal("0.01"))),
         "cash_movements_in": str(breakdown["cash_in"].quantize(Decimal("0.01"))),
         "cash_movements_out": str(breakdown["cash_out"].quantize(Decimal("0.01"))),

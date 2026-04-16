@@ -563,8 +563,10 @@ export default function ZReportPanel() {
 
   const handleZ = async () => {
     if (!zActualCash) return;
+    const runZReport = async (allowOpenDepositClose = false) =>
+      z_report(zActualCash, zWage || '0', user?.username || 'admin', tenant_id, { allowOpenDepositClose });
     try {
-      const result = await z_report(zActualCash, zWage || '0', user?.username || 'admin', tenant_id);
+      const result = await runZReport(false);
       setZReceiptHtml(buildZReceiptHtml(result));
       await refreshOperationalState(true).catch(() => undefined);
       setXActualCash('0');
@@ -578,7 +580,45 @@ export default function ZReportPanel() {
         notify('info', tx(lang, `Email göndərilmədi: ${result.email_error}`, `Email не отправлен: ${result.email_error}`, `Email not sent: ${result.email_error}`));
       }
     } catch (e: any) {
-      notify('error', tx(lang, `Xəta: ${e.message}`, `Ошибка: ${e.message}`));
+      const message = String(e?.message || '');
+      const isOpenDepositBlock = /açıq depozit öhdəliyi|active deposit|open deposit/i.test(message);
+      if (isOpenDepositBlock) {
+        const confirmed = window.confirm(
+          tx(
+            lang,
+            'Açıq depozit öhdəliyi var. Buna baxmayaraq növbəni bağlamaq istəyirsiniz?',
+            'Есть открытое обязательство по депозитам. Все равно закрыть смену?',
+            'There is open deposit liability. Close the shift anyway?',
+          ),
+        );
+        if (!confirmed) {
+          notify(
+            'info',
+            tx(
+              lang,
+              'Bağlanış dayandırıldı. Əvvəl depozit öhdəliklərini bağlayın.',
+              'Закрытие отменено. Сначала закройте депозитные обязательства.',
+              'Close canceled. Resolve deposit liabilities first.',
+            ),
+          );
+          return;
+        }
+        try {
+          const result = await runZReport(true);
+          setZReceiptHtml(buildZReceiptHtml(result));
+          await refreshOperationalState(true).catch(() => undefined);
+          setXActualCash('0');
+          setZActualCash('0');
+          setHandoverActualCash('0');
+          setReportRefreshKey((prev) => prev + 1);
+          notify('success', tx(lang, 'Z-Hesabat təsdiqlə bağlandı', 'Z-отчет закрыт с подтверждением', 'Z report closed with confirmation'));
+          return;
+        } catch (retryErr: any) {
+          notify('error', tx(lang, `Xəta: ${retryErr?.message || retryErr}`, `Ошибка: ${retryErr?.message || retryErr}`));
+          return;
+        }
+      }
+      notify('error', tx(lang, `Xəta: ${message}`, `Ошибка: ${message}`));
     }
   };
 

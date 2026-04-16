@@ -758,7 +758,8 @@ export const z_report = async (
   actual_cash: string, 
   wage_amount: string, 
   generated_by: string,
-  tenant_id: string
+  tenant_id: string,
+  opts?: { allowOpenDepositClose?: boolean }
 ) => {
   if (isBackendEnabled()) {
     const res = await apiRequest<any>('/api/v1/reports/z-report', {
@@ -767,6 +768,7 @@ export const z_report = async (
       body: {
         actual_cash,
         wage_amount,
+        allow_open_deposit_close: Boolean(opts?.allowOpenDepositClose),
       },
     });
 
@@ -828,6 +830,7 @@ export const z_report = async (
       success: Boolean(res?.success),
       total_sales: new Decimal(res?.cash_sales || 0).plus(new Decimal(res?.card_sales || 0)).toString(),
       wage: String(res?.wage_amount || wage_amount || '0'),
+      open_deposit_liability: String(res?.open_deposit_liability || '0'),
       receipt_html,
       email_sent: false,
       email_error: '',
