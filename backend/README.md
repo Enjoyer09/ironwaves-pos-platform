@@ -49,6 +49,10 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - Runtime `ALTER TABLE` startup migrations default olaraq söndürülüb (`STARTUP_RUNTIME_MIGRATIONS_ENABLED=false`).
 - Deploy pipeline daxilində migration addımını ayrıca işlədin: `./scripts/run_migrations.sh` və ya `alembic upgrade head`.
 - Production-da `/metrics` endpoint-i qorumaq üçün `METRICS_BEARER_TOKEN` təyin edin.
+- Parol siyasəti env ilə idarə olunur:
+  - `PASSWORD_MIN_LENGTH` (default `10`)
+  - `PASSWORD_REQUIRED_CHARACTER_CLASSES` (default `4`, maksimum `4`)
+- Bütün API sorğuları `x-request-id` qəbul edir və cavabda `X-Request-ID` qaytarır.
 
 ## Smoke test
 

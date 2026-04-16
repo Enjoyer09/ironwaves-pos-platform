@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import or_
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -267,15 +267,18 @@ def _shift_cash_breakdown_from_ledger(db: Session, tenant_id: str, shift: Shift 
     )
     if shift.opened_at:
         query = query.filter(FinanceLedgerEntry.created_at >= shift.opened_at)
-    rows = query.all()
-    cash_in = sum(
-        (Decimal(str(row.amount)) for row in rows if str(row.entry_side or "").lower() == "debit"),
-        Decimal("0.00"),
-    )
-    cash_out = sum(
-        (Decimal(str(row.amount)) for row in rows if str(row.entry_side or "").lower() == "credit"),
-        Decimal("0.00"),
-    )
+    debit_sum, credit_sum = query.with_entities(
+        func.coalesce(
+            func.sum(case((FinanceLedgerEntry.entry_side == "debit", FinanceLedgerEntry.amount), else_=0)),
+            0,
+        ),
+        func.coalesce(
+            func.sum(case((FinanceLedgerEntry.entry_side == "credit", FinanceLedgerEntry.amount), else_=0)),
+            0,
+        ),
+    ).one()
+    cash_in = Decimal(str(debit_sum or 0)).quantize(Decimal("0.01"))
+    cash_out = Decimal(str(credit_sum or 0)).quantize(Decimal("0.01"))
     opening_cash = Decimal(str(shift.opening_cash or 0)).quantize(Decimal("0.01"))
     expected_cash = opening_cash + cash_in - cash_out
     return {
@@ -1379,23 +1382,26 @@ def get_finance_anomalies(db: Session = Depends(get_db), tenant: Tenant = Depend
     investor_calculated_debt = investor_ledger_balance
     investor_gap = Decimal("0.00")
 
-    total_revenue = sum(
-        (Decimal(str(row.total)) for row in db.query(Sale).filter(Sale.tenant_id == tenant.id).all()),
-        Decimal("0"),
+    total_revenue = Decimal(
+        str(
+            db.query(func.coalesce(func.sum(Sale.total), 0))
+            .filter(Sale.tenant_id == tenant.id)
+            .scalar()
+            or 0
+        )
     )
-    ledger_sales_total = sum(
-        (
-            Decimal(str(row.amount))
-            for row in db.query(FinanceTransaction)
+    ledger_sales_total = Decimal(
+        str(
+            db.query(func.coalesce(func.sum(FinanceTransaction.amount), 0))
             .filter(
                 FinanceTransaction.tenant_id == tenant.id,
                 FinanceTransaction.status == "posted",
                 FinanceTransaction.transaction_type.in_(["income", "deposit_apply_to_bill"]),
                 FinanceTransaction.related_order_id.isnot(None),
             )
-            .all()
-        ),
-        Decimal("0"),
+            .scalar()
+            or 0
+        )
     )
     reconciliation_gap = total_revenue - ledger_sales_total
 

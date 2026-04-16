@@ -270,11 +270,18 @@ async def security_boundary_middleware(request: Request, call_next):
     if settings.security_headers_enabled:
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
         response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+        response.headers.setdefault("Cross-Origin-Resource-Policy", "cross-origin")
         response.headers.setdefault("Content-Security-Policy", "default-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'")
         if settings.app_env.lower() == "production" or settings.app_url.startswith("https://"):
             response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    if request.url.path.startswith("/api/v1/auth"):
+        response.headers.setdefault("Cache-Control", "no-store")
+        response.headers.setdefault("Pragma", "no-cache")
+        response.headers.setdefault("Expires", "0")
     return response
 
 
@@ -955,10 +962,18 @@ def _run_startup_migrations():
         )
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_staff_notifications_tenant_id ON staff_notifications (tenant_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_staff_notifications_username ON staff_notifications (username)"))
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_staff_notifications_tenant_user_unread_created "
+                "ON staff_notifications (tenant_id, username, is_read, created_at)"
+            )
+        )
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_loyalty_ledger_tenant_card ON loyalty_ledger (tenant_id, card_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_loyalty_ledger_tenant_card_created ON loyalty_ledger (tenant_id, card_id, created_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tables_floor_plan_id ON tables (floor_plan_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tables_merged_group_id ON tables (merged_group_id)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tables_tenant_label ON tables (tenant_id, label)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tables_tenant_status ON tables (tenant_id, status)"))
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS customer_consents (
                 id VARCHAR(36) PRIMARY KEY,
@@ -979,6 +994,7 @@ def _run_startup_migrations():
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_audit_logs_tenant_action_created ON audit_logs (tenant_id, action, created_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_customers_tenant_card ON customers (tenant_id, card_id)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_tenant_card_created ON notifications (tenant_id, card_id, created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_tenant_unread_created ON notifications (tenant_id, is_read, created_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sales_tenant_customer_created ON sales (tenant_id, customer_card_id, created_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_revoked_tokens_tenant_hash ON revoked_tokens (tenant_id, token_hash)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_entries_tenant_source_type_created ON finance_entries (tenant_id, source, type, created_at)"))

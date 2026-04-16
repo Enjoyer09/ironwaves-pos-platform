@@ -117,3 +117,15 @@ P2 is considered closed when:
 2. Backend container runs as non-root and uses multi-stage Docker build.
 3. CI workflow runs backend compile + tests + alembic SQL preview + frontend build.
 4. Baseline backend pytest suite exists and passes in Python 3.12 CI.
+
+## 9) P4 Closure Criteria
+
+P4 is considered closed when:
+
+1. Security headers are active in production (`X-Content-Type-Options`, `X-Frame-Options`, `CSP`, `HSTS`, `COOP`, `X-Permitted-Cross-Domain-Policies`).
+2. Auth routes are non-cacheable (`Cache-Control: no-store`, `Pragma: no-cache`, `Expires: 0`).
+3. Password policy is centralized and configurable via env (`PASSWORD_MIN_LENGTH`, `PASSWORD_REQUIRED_CHARACTER_CLASSES`).
+4. Request correlation is end-to-end: frontend sends `x-request-id`, backend returns `X-Request-ID`, and errors include request id.
+5. Runtime performance indexes for high-traffic paths are applied (staff notifications unread, tables tenant/status/label, unread notifications).
+6. Rate limiting remains tenant-aware and Redis-backed in production.
+7. Session security controls are active (`revoked_tokens` check + Redis token revoke cache).

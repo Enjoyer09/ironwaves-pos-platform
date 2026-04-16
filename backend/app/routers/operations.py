@@ -4179,14 +4179,17 @@ def complete_kitchen_order(
 
 @router.get("/staff-notifications/unread")
 def get_unread_staff_notifications(
+    limit: int = 100,
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
 ):
+    bounded_limit = max(1, min(int(limit or 100), 300))
     rows = (
         db.query(StaffNotification)
         .filter(StaffNotification.tenant_id == tenant.id, StaffNotification.username == user.username, StaffNotification.is_read == False)
         .order_by(StaffNotification.created_at.desc())
+        .limit(bounded_limit)
         .all()
     )
     return [
