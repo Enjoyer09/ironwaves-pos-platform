@@ -1726,29 +1726,16 @@ export default function SettingsPanel() {
       </div>
 
       <div className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Sessiya Təhlükəsizliyi', 'Безопасность сессии', 'Session Security')}</h2>
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'İnterfeys Ayarları', 'Настройки интерфейса', 'Interface Settings')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
             lang,
-            'İstifadəçi müəyyən müddət heç bir hərəkət etməsə sistem avtomatik çıxış etsin. 0 yazsanız bu funksiya söndürüləcək.',
-            'Если пользователь ничего не делает заданное время, система автоматически выйдет. 0 отключает функцию.',
-            'Automatically sign out after inactivity. Use 0 to disable this feature.',
+            'Görünüş və touch istifadə rahatlığı ilə bağlı ayarlar bu bölmədədir.',
+            'Параметры внешнего вида и удобства touch-использования находятся здесь.',
+            'Appearance and touch usability settings are managed here.',
           )}
         </p>
-        <div className="grid gap-4 md:grid-cols-[auto_1fr_auto] md:items-end">
-          <label className="text-sm text-slate-300">
-            {tx(lang, 'Boş dayanma çıxışı (dəqiqə)', 'Простой выход (минуты)', 'Idle logout (minutes)')}
-            <input
-              className="neon-input mt-1 w-52"
-              type="number"
-              min={0}
-              max={480}
-              inputMode="numeric"
-              data-virtual-keyboard-mode="numeric"
-              value={sessionSettings.idle_logout_minutes}
-              onChange={(e) => setSessionSettings((prev) => ({ ...prev, idle_logout_minutes: e.target.value }))}
-            />
-          </label>
+        <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 px-4 py-3">
             <div className="flex items-center justify-between gap-4">
               <div className="text-sm font-semibold text-slate-200">
@@ -1802,6 +1789,33 @@ export default function SettingsPanel() {
               {tx(lang, 'Bu seçim bütün tətbiq üçün görünüşü dəyişir.', 'Этот выбор меняет внешний вид всего приложения.', 'This changes the look of the entire app.')}
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="metal-panel p-6 space-y-4">
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Sessiya Təhlükəsizliyi', 'Безопасность сессии', 'Session Security')}</h2>
+        <p className="text-sm text-slate-400">
+          {tx(
+            lang,
+            'İstifadəçi müəyyən müddət heç bir hərəkət etməsə sistem avtomatik çıxış etsin. 0 yazsanız bu funksiya söndürüləcək.',
+            'Если пользователь ничего не делает заданное время, система автоматически выйдет. 0 отключает функцию.',
+            'Automatically sign out after inactivity. Use 0 to disable this feature.',
+          )}
+        </p>
+        <div className="grid gap-4 md:grid-cols-[auto_1fr_auto] md:items-end">
+          <label className="text-sm text-slate-300">
+            {tx(lang, 'Boş dayanma çıxışı (dəqiqə)', 'Простой выход (минуты)', 'Idle logout (minutes)')}
+            <input
+              className="neon-input mt-1 w-52"
+              type="number"
+              min={0}
+              max={480}
+              inputMode="numeric"
+              data-virtual-keyboard-mode="numeric"
+              value={sessionSettings.idle_logout_minutes}
+              onChange={(e) => setSessionSettings((prev) => ({ ...prev, idle_logout_minutes: e.target.value }))}
+            />
+          </label>
           <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 px-4 py-3">
             <div className="text-sm font-semibold text-slate-200">
               {tx(lang, 'Staff PIN uzunluğu', 'Длина PIN персонала', 'Staff PIN length')}

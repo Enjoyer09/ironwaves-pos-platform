@@ -311,22 +311,47 @@ html {
     color: #475569 !important;
   }
 
+  html[data-theme='light'] .text-slate-600 {
+    color: #64748b !important;
+  }
+
+  html[data-theme='light'] .text-slate-700 {
+    color: #334155 !important;
+  }
+
+  html[data-theme='light'] .text-slate-900,
+  html[data-theme='light'] .text-slate-950 {
+    color: #0f172a !important;
+  }
+
   html[data-theme='light'] .border-slate-700\/60,
   html[data-theme='light'] .border-slate-700\/50,
   html[data-theme='light'] .border-slate-700,
+  html[data-theme='light'] .border-slate-700\/40,
+  html[data-theme='light'] .border-slate-700\/70,
   html[data-theme='light'] .border-slate-800,
-  html[data-theme='light'] .border-slate-800\/70 {
+  html[data-theme='light'] .border-slate-800\/70,
+  html[data-theme='light'] .border-slate-800\/80,
+  html[data-theme='light'] .border-slate-900 {
     border-color: rgba(148, 163, 184, 0.45) !important;
   }
 
   html[data-theme='light'] .bg-slate-950,
+  html[data-theme='light'] .bg-slate-950\/96,
   html[data-theme='light'] .bg-slate-950\/95,
+  html[data-theme='light'] .bg-slate-950\/92,
+  html[data-theme='light'] .bg-slate-950\/90,
+  html[data-theme='light'] .bg-slate-950\/85,
   html[data-theme='light'] .bg-slate-950\/80,
+  html[data-theme='light'] .bg-slate-950\/70,
   html[data-theme='light'] .bg-slate-950\/60,
   html[data-theme='light'] .bg-slate-950\/50,
+  html[data-theme='light'] .bg-slate-950\/45,
   html[data-theme='light'] .bg-slate-950\/40,
+  html[data-theme='light'] .bg-slate-950\/35,
   html[data-theme='light'] .bg-slate-950\/30,
   html[data-theme='light'] .bg-slate-950\/25,
+  html[data-theme='light'] .bg-slate-950\/20,
   html[data-theme='light'] .bg-slate-900,
   html[data-theme='light'] .bg-slate-900\/95,
   html[data-theme='light'] .bg-slate-900\/80,
@@ -334,12 +359,29 @@ html {
   html[data-theme='light'] .bg-slate-900\/55,
   html[data-theme='light'] .bg-slate-900\/50,
   html[data-theme='light'] .bg-slate-900\/70,
+  html[data-theme='light'] .bg-slate-900\/45,
   html[data-theme='light'] .bg-slate-900\/40,
   html[data-theme='light'] .bg-slate-900\/35,
   html[data-theme='light'] .bg-slate-900\/30,
+  html[data-theme='light'] .bg-slate-900\/25,
+  html[data-theme='light'] .bg-slate-900\/20,
+  html[data-theme='light'] .bg-slate-900\/15,
+  html[data-theme='light'] .bg-slate-800,
+  html[data-theme='light'] .bg-slate-800\/80,
+  html[data-theme='light'] .bg-slate-800\/70,
   html[data-theme='light'] .bg-slate-800\/60,
   html[data-theme='light'] .bg-slate-800\/50,
-  html[data-theme='light'] .bg-slate-800\/30 {
+  html[data-theme='light'] .bg-slate-800\/40,
+  html[data-theme='light'] .bg-slate-800\/30,
+  html[data-theme='light'] .bg-slate-700,
+  html[data-theme='light'] .bg-slate-700\/80,
+  html[data-theme='light'] .bg-slate-700\/70,
+  html[data-theme='light'] .bg-slate-700\/40,
+  html[data-theme='light'] .bg-slate-700\/35,
+  html[data-theme='light'] .bg-slate-600,
+  html[data-theme='light'] .bg-slate-600\/60,
+  html[data-theme='light'] .bg-slate-500,
+  html[data-theme='light'] .bg-slate-500\/80 {
     background-color: rgba(255, 255, 255, 0.72) !important;
   }
 
@@ -357,6 +399,14 @@ html {
   html[data-theme='light'] .bg-white\/10,
   html[data-theme='light'] .bg-white\/15 {
     background-color: rgba(226, 232, 240, 0.65) !important;
+  }
+
+  html[data-theme='light'] [class*='from-slate-'],
+  html[data-theme='light'] [class*='to-slate-'],
+  html[data-theme='light'] [class*='via-slate-'] {
+    --tw-gradient-from: rgba(255, 255, 255, 0.96) var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: rgba(234, 241, 249, 0.92) var(--tw-gradient-to-position) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
   }
 
   html[data-theme='light'] .text-slate-50,
