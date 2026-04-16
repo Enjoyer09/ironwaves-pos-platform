@@ -1628,6 +1628,47 @@ def repay_investor(payload: InvestorRepayIn, db: Session = Depends(get_db), tena
     if payable <= 0:
         raise HTTPException(status_code=400, detail="Nothing payable")
 
+    policy = _finance_policy(db, tenant.id)
+    requires_approval = _approval_required("investor_repayment", payable, None, policy)
+    if requires_approval:
+        txn = _create_finance_transaction_record(
+            db,
+            tenant_id=tenant.id,
+            transaction_type="investor_repayment",
+            status="pending_approval",
+            amount=payable,
+            source_code=pay_from,
+            destination_code="investor",
+            created_by=user.username,
+            category="İnvestora Geri Ödəniş",
+            note=payload.description or "İnvestora ödəniş",
+        )
+        db.add(
+            AuditLog(
+                tenant_id=tenant.id,
+                user=user.username,
+                action="FINANCE_INVESTOR_REPAYMENT_APPROVAL_REQUESTED",
+                details=json.dumps(
+                    {
+                        "transaction_id": txn.id,
+                        "source": pay_from,
+                        "amount": str(payable.quantize(Decimal("0.01"))),
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
+        db.commit()
+        remaining_debt = _investor_debt_balance(db, tenant.id)
+        return {
+            "success": True,
+            "transaction_id": txn.id,
+            "status": txn.status,
+            "requested_amount": str(payable),
+            "paid": "0.00",
+            "remaining_debt": str(remaining_debt),
+        }
+
     posted_txn = _post_finance_transaction_with_legacy_mirror(
         db,
         tenant_id=tenant.id,
@@ -1651,6 +1692,8 @@ def repay_investor(payload: InvestorRepayIn, db: Session = Depends(get_db), tena
     liability_row = next((row for row in legacy_rows if str(row.category or "") == "İnvestor Borcu Azaldılması"), None)
     return {
         "success": True,
+        "transaction_id": posted_txn.id,
+        "status": posted_txn.status,
         "payment_entry_id": payment_row.id if payment_row else posted_txn.id,
         "liability_entry_id": liability_row.id if liability_row else posted_txn.id,
         "paid": str(payable),
