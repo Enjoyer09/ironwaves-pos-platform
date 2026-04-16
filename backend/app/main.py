@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import hashlib
 import json
 import re
+import secrets
 import time
 import traceback
 import uuid
@@ -83,7 +84,21 @@ async def metrics_middleware(request: Request, call_next):
 
 
 @app.get("/metrics")
-def metrics():
+def metrics(request: Request):
+    configured_token = str(settings.metrics_bearer_token or "").strip()
+    if configured_token:
+        auth_header = str(request.headers.get("authorization") or "").strip()
+        bearer = ""
+        if auth_header.lower().startswith("bearer "):
+            bearer = auth_header[7:].strip()
+        fallback_token = str(request.headers.get("x-metrics-token") or "").strip()
+        provided = bearer or fallback_token
+        if not provided or not secrets.compare_digest(provided, configured_token):
+            raise HTTPException(status_code=403, detail="Forbidden")
+    elif str(settings.app_env or "").lower() == "production":
+        # Keep /metrics closed in production unless an explicit token is configured.
+        raise HTTPException(status_code=403, detail="Metrics token is not configured")
+
     if generate_latest is None:
         return Response("metrics_unavailable 1\n", media_type=CONTENT_TYPE_LATEST)
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
@@ -974,10 +989,16 @@ def _run_data_retention_cleanup():
 @app.on_event("startup")
 def on_startup():
     schema_ready = _schema_ready_for_current_version()
-    if not schema_ready:
-        if settings.startup_create_all_enabled:
-            Base.metadata.create_all(bind=engine)
+    if settings.startup_create_all_enabled:
+        # Keep metadata bootstrap lightweight for first-run/dev environments.
+        Base.metadata.create_all(bind=engine)
+    if not schema_ready and settings.startup_runtime_migrations_enabled:
         _run_startup_migrations()
+    elif not schema_ready and not settings.startup_runtime_migrations_enabled:
+        print(
+            "[startup] Runtime schema migrations are disabled. "
+            "Run `alembic upgrade head` during deploy before starting app replicas."
+        )
     _run_data_retention_cleanup()
     with SessionLocal() as db:
         _seed_initial_data(db)

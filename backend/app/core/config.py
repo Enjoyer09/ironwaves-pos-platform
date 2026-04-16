@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     sentry_dsn: str | None = None
     sentry_traces_sample_rate: float = 0.0
     sentry_profiles_sample_rate: float = 0.0
+    metrics_bearer_token: str | None = None
 
     database_url: str
     db_pool_size: int = 5
@@ -20,6 +21,7 @@ class Settings(BaseSettings):
     db_statement_timeout_ms: int = 30000
     startup_schema_guard_enabled: bool = True
     startup_create_all_enabled: bool = True
+    startup_runtime_migrations_enabled: bool = False
     startup_schema_version: int = 2026041301
     startup_data_retention_cleanup_enabled: bool = True
     startup_data_retention_cleanup_interval_hours: int = 24

@@ -65,6 +65,7 @@ def main():
     username = _env("SUPERADMIN_USERNAME", "ironwaves_owner")
     password = _env("SUPERADMIN_PASSWORD", "change_this_superadmin_password")
     tenant_domain = _env("TENANT_DOMAIN", "demo.ironwaves.store")
+    metrics_token = os.getenv("METRICS_BEARER_TOKEN", "").strip()
 
     # 1) Health
     st, payload = _request("GET", f"{base}/health")
@@ -152,11 +153,14 @@ def main():
         _fail("reports status", st, payload)
     _ok("reports status", str(payload))
 
-    # 8) Metrics endpoint should be available for production monitoring.
-    st, payload = _request("GET", f"{base}/metrics")
-    if st != 200:
-        _fail("metrics", st, payload)
-    _ok("metrics")
+    # 8) Metrics endpoint security check.
+    metrics_headers = {"Authorization": f"Bearer {metrics_token}"} if metrics_token else {}
+    st, payload = _request("GET", f"{base}/metrics", headers=metrics_headers)
+    if metrics_token and st != 200:
+        _fail("metrics (authorized)", st, payload)
+    if not metrics_token and st not in (200, 403):
+        _fail("metrics (default policy)", st, payload)
+    _ok("metrics", f"status={st}")
 
     # 9) Delete temporary tenant
     st, payload = _request("DELETE", f"{base}/api/v1/admin/tenants/{urllib.parse.quote(tenant_id)}", headers=auth_headers)

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ironwaves-backend-config
+  labels:
+    app: ironwaves-backend
+data:
+  APP_ENV: "production"
+  CORS_ORIGINS: "https://*.ironwaves.store,https://ironwaves.store"
+  STARTUP_CREATE_ALL_ENABLED: "false"
+  STARTUP_RUNTIME_MIGRATIONS_ENABLED: "false"
+  STARTUP_SCHEMA_GUARD_ENABLED: "true"
+  STARTUP_DATA_RETENTION_CLEANUP_ENABLED: "true"
+  REQUEST_RATE_LIMIT_PER_MINUTE: "240"
+  AUTH_RATE_LIMIT_PER_MINUTE: "30"

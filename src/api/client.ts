@@ -5,12 +5,12 @@ const ENV = ((import.meta as any)?.env || {}) as Record<string, string | undefin
 const BACKEND_FLAG = String(ENV.VITE_USE_BACKEND || '').toLowerCase();
 const FORCE_LOCAL_KEY = 'ironwaves_force_local_mode';
 const BACKEND_SUSPENDED_UNTIL_KEY = 'ironwaves_backend_suspended_until';
-const DEFAULT_RAILWAY_API_BASE_URL = 'https://ironwaves-pos-platform-production.up.railway.app';
 
-function shouldUseDefaultRailwayBackend() {
-  if (typeof window === 'undefined') return false;
-  const host = String(window.location.host || '').toLowerCase();
-  return host.endsWith('ironwaves.store');
+function normalizeConfiguredApiBaseUrl() {
+  const configured = String(ENV.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
+  if (!configured) return '';
+  if (configured.startsWith('http://') || configured.startsWith('https://')) return configured;
+  return `https://${configured}`;
 }
 
 export function isBackendEnabled() {
@@ -21,7 +21,8 @@ export function isBackendEnabled() {
   } catch {
     // no-op
   }
-  return BACKEND_FLAG === '1' || BACKEND_FLAG === 'true' || BACKEND_FLAG === 'yes' || shouldUseDefaultRailwayBackend();
+  const forceEnabled = BACKEND_FLAG === '1' || BACKEND_FLAG === 'true' || BACKEND_FLAG === 'yes';
+  return forceEnabled || Boolean(normalizeConfiguredApiBaseUrl());
 }
 
 export function isForceLocalMode() {
@@ -52,12 +53,7 @@ export function suspendBackendTemporarily(ms: number = 60000) {
 }
 
 export function getApiBaseUrl() {
-  const configured = String(ENV.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
-  if (configured) {
-    if (configured.startsWith('http://') || configured.startsWith('https://')) return configured;
-    return `https://${configured}`;
-  }
-  return shouldUseDefaultRailwayBackend() ? DEFAULT_RAILWAY_API_BASE_URL : '';
+  return normalizeConfiguredApiBaseUrl();
 }
 
 type PersistedSession = {
