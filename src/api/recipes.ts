@@ -162,6 +162,71 @@ const normalizeQtyForUnit = (menuName: string, ingredient: any, rawQty: number) 
 };
 
 const normalizeUnit = (value: string | undefined | null) => String(value || '').trim().toLowerCase();
+const normalizeText = (value: string | undefined | null) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/ə/g, 'e')
+    .replace(/ı/g, 'i')
+    .replace(/ö/g, 'o')
+    .replace(/ü/g, 'u')
+    .replace(/ğ/g, 'g')
+    .replace(/ş/g, 's')
+    .replace(/ç/g, 'c')
+    .trim();
+
+const isAffogatoLike = (menuName: string) => /affogato|affagato/i.test(String(menuName || ''));
+
+const menuSizeToken = (menuName: string) => {
+  const normalized = normalizeText(menuName);
+  if (/\b(s|small)\b/.test(normalized)) return 's';
+  if (/\b(m|medium)\b/.test(normalized)) return 'm';
+  if (/\b(l|large)\b/.test(normalized)) return 'l';
+  return '';
+};
+
+const findInventoryByKeywords = (inventory: any[], keywords: string[], sizeToken: string) => {
+  const normalizedRows = (inventory || []).map((item: any) => ({
+    item,
+    n: normalizeText(String(item?.name || '')),
+  }));
+  if (sizeToken) {
+    const strict = normalizedRows.find((row) => keywords.every((k) => row.n.includes(normalizeText(k))) && new RegExp(`\\b${sizeToken}\\b`).test(row.n));
+    if (strict) return strict.item;
+  }
+  const generic = normalizedRows.find((row) => keywords.every((k) => row.n.includes(normalizeText(k))));
+  return generic?.item || null;
+};
+
+const ensureAffogatoPackagingRows = (
+  menu_item_name: string,
+  inventory: any[],
+  aiRows: Array<{ ingredient: string; qty: number; qty_unit?: string }>,
+) => {
+  if (!isAffogatoLike(menu_item_name)) return aiRows;
+  const sizeToken = menuSizeToken(menu_item_name);
+  const cupItem = findInventoryByKeywords(inventory, ['stakan'], sizeToken) || findInventoryByKeywords(inventory, ['cup'], sizeToken);
+  const lidItem = findInventoryByKeywords(inventory, ['qapaq'], sizeToken) || findInventoryByKeywords(inventory, ['lid'], sizeToken);
+  if (!cupItem || !lidItem) {
+    throw new Error('Affogato üçün kağız stəkan və qapaq anbarda tapılmadı. Anbara uyğun item əlavə edin (S/M/L varsa ölçü ilə).');
+  }
+  const existing = new Set(aiRows.map((row) => normalizeText(row.ingredient)));
+  const nextRows = [...aiRows];
+  if (!existing.has(normalizeText(String(cupItem.name)))) {
+    nextRows.push({
+      ingredient: String(cupItem.name),
+      qty: 1,
+      qty_unit: String(cupItem.unit || 'ədəd'),
+    });
+  }
+  if (!existing.has(normalizeText(String(lidItem.name)))) {
+    nextRows.push({
+      ingredient: String(lidItem.name),
+      qty: 1,
+      qty_unit: String(lidItem.unit || 'ədəd'),
+    });
+  }
+  return nextRows;
+};
 
 const convertQtyToInventoryUnit = (qty: Decimal, qtyUnit: string, inventoryUnit: string) => {
   const from = normalizeUnit(qtyUnit);
@@ -485,7 +550,8 @@ async function generate_recipe_ai_rows(
     });
   }
 
-  const generatedRows = aiRows.flatMap((row) => {
+  const normalizedAIRows = ensureAffogatoPackagingRows(menu_item_name, inventory, aiRows);
+  const generatedRows = normalizedAIRows.flatMap((row) => {
     const item = inventory.find((i: any) => String(i.name).toLowerCase() === row.ingredient.toLowerCase());
     if (!item) return [];
     const rawQty = new Decimal(Number(row.qty || 0));
