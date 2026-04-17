@@ -55,6 +55,7 @@ from app.services.finance_service import (
     post_deposit_hold as _post_deposit_hold,
     post_finance_transaction_with_legacy_mirror as _post_finance_transaction,
     post_sale_payment as _post_sale_payment,
+    shift_cash_breakdown_from_ledger as _shift_cash_breakdown_from_ledger,
 )
 from app.services.legacy_import_service import (
     build_restore_handler_registry as _build_restore_handler_registry,
@@ -272,44 +273,11 @@ def _can_view_sensitive_settings(user: User) -> bool:
     return str(user.role or "").lower() in {"admin", "super_admin"}
 
 
-def _shift_cash_expected(db: Session, tenant_id: str, shift: Shift | None) -> Decimal:
-    if not shift:
-        return Decimal("0.00")
-    cash_account = (
-        db.query(FinanceAccount)
-        .filter(FinanceAccount.tenant_id == tenant_id, FinanceAccount.code == "cash")
-        .first()
-    )
-    opening_cash = Decimal(str(shift.opening_cash or 0))
-    if not cash_account:
-        return opening_cash.quantize(Decimal("0.01"))
-
-    query = db.query(FinanceLedgerEntry).filter(
-        FinanceLedgerEntry.tenant_id == tenant_id,
-        FinanceLedgerEntry.account_id == cash_account.id,
-    )
-    if shift.opened_at:
-        query = query.filter(FinanceLedgerEntry.created_at >= shift.opened_at)
-    debit_sum, credit_sum = query.with_entities(
-        func.coalesce(
-            func.sum(case((FinanceLedgerEntry.entry_side == "debit", FinanceLedgerEntry.amount), else_=0)),
-            0,
-        ),
-        func.coalesce(
-            func.sum(case((FinanceLedgerEntry.entry_side == "credit", FinanceLedgerEntry.amount), else_=0)),
-            0,
-        ),
-    ).one()
-    cash_in = Decimal(str(debit_sum or 0))
-    cash_out = Decimal(str(credit_sum or 0))
-    return (opening_cash + cash_in - cash_out).quantize(Decimal("0.01"))
-
-
 def _validate_shift_handover_cash(db: Session, tenant_id: str, user: User, shift: Shift, declared_cash: Decimal) -> Decimal:
     declared = Decimal(str(declared_cash)).quantize(Decimal("0.01"))
     if declared < 0:
         raise HTTPException(status_code=400, detail="Declared cash cannot be negative")
-    expected = _shift_cash_expected(db, tenant_id, shift)
+    expected = _shift_cash_breakdown_from_ledger(db, tenant_id, shift)["expected_cash"].quantize(Decimal("0.01"))
     variance = declared - expected
     if abs(variance) > Decimal("0.01"):
         db.add(

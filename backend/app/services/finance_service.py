@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
-from app.models import AuditLog, FinanceAccount, FinanceEntry, FinanceLedgerEntry, FinanceTransaction, Setting
+from app.models import AuditLog, FinanceAccount, FinanceEntry, FinanceLedgerEntry, FinanceTransaction, Setting, Shift
 
 
 FINANCE_ACCOUNT_DEFS: dict[str, tuple[str, str]] = {
@@ -192,6 +192,44 @@ def ledger_balances_snapshot(db: Session, tenant_id: str) -> dict[str, Decimal]:
         balance = credit - debit if account.account_type in LIABILITY_OR_CREDIT_TYPES else debit - credit
         result[code] = balance.quantize(Decimal("0.01"))
     return result
+
+
+def shift_cash_breakdown_from_ledger(db: Session, tenant_id: str, shift: Shift | None) -> dict[str, Decimal]:
+    if not shift:
+        return {
+            "opening_cash": Decimal("0.00"),
+            "cash_in": Decimal("0.00"),
+            "cash_out": Decimal("0.00"),
+            "expected_cash": Decimal("0.00"),
+        }
+
+    cash_account = finance_account(db, tenant_id, "cash")
+    query = db.query(FinanceLedgerEntry).filter(
+        FinanceLedgerEntry.tenant_id == tenant_id,
+        FinanceLedgerEntry.account_id == cash_account.id,
+    )
+    if shift.opened_at:
+        query = query.filter(FinanceLedgerEntry.created_at >= shift.opened_at)
+    debit_sum, credit_sum = query.with_entities(
+        func.coalesce(
+            func.sum(case((FinanceLedgerEntry.entry_side == "debit", FinanceLedgerEntry.amount), else_=0)),
+            0,
+        ),
+        func.coalesce(
+            func.sum(case((FinanceLedgerEntry.entry_side == "credit", FinanceLedgerEntry.amount), else_=0)),
+            0,
+        ),
+    ).one()
+    cash_in = Decimal(str(debit_sum or 0)).quantize(Decimal("0.01"))
+    cash_out = Decimal(str(credit_sum or 0)).quantize(Decimal("0.01"))
+    opening_cash = Decimal(str(shift.opening_cash or 0)).quantize(Decimal("0.01"))
+    expected_cash = (opening_cash + cash_in - cash_out).quantize(Decimal("0.01"))
+    return {
+        "opening_cash": opening_cash,
+        "cash_in": cash_in,
+        "cash_out": cash_out,
+        "expected_cash": expected_cash,
+    }
 
 
 def lock_finance_accounts(db: Session, tenant_id: str, *codes: str) -> dict[str, FinanceAccount]:

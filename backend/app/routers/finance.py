@@ -138,6 +138,7 @@ from app.services.finance_service import (  # noqa: E402 - keep router API thin 
     post_existing_transaction as _post_existing_transaction,
     post_finance_transaction as _post_finance_transaction,
     post_finance_transaction_with_legacy_mirror as _post_finance_transaction_with_legacy_mirror,
+    shift_cash_breakdown_from_ledger as _shift_cash_breakdown_from_ledger,
 )
 
 
@@ -251,44 +252,6 @@ def _shift_rows(db: Session, tenant_id: str, shift: Shift | None) -> list[Financ
     if shift and shift.opened_at:
         query = query.filter(FinanceEntry.created_at >= shift.opened_at)
     return query.all()
-
-
-def _shift_cash_breakdown_from_ledger(db: Session, tenant_id: str, shift: Shift | None) -> dict[str, Decimal]:
-    if not shift:
-        return {
-            "opening_cash": Decimal("0.00"),
-            "cash_in": Decimal("0.00"),
-            "cash_out": Decimal("0.00"),
-            "expected_cash": Decimal("0.00"),
-        }
-
-    cash_account = _finance_account(db, tenant_id, "cash")
-    query = db.query(FinanceLedgerEntry).filter(
-        FinanceLedgerEntry.tenant_id == tenant_id,
-        FinanceLedgerEntry.account_id == cash_account.id,
-    )
-    if shift.opened_at:
-        query = query.filter(FinanceLedgerEntry.created_at >= shift.opened_at)
-    debit_sum, credit_sum = query.with_entities(
-        func.coalesce(
-            func.sum(case((FinanceLedgerEntry.entry_side == "debit", FinanceLedgerEntry.amount), else_=0)),
-            0,
-        ),
-        func.coalesce(
-            func.sum(case((FinanceLedgerEntry.entry_side == "credit", FinanceLedgerEntry.amount), else_=0)),
-            0,
-        ),
-    ).one()
-    cash_in = Decimal(str(debit_sum or 0)).quantize(Decimal("0.01"))
-    cash_out = Decimal(str(credit_sum or 0)).quantize(Decimal("0.01"))
-    opening_cash = Decimal(str(shift.opening_cash or 0)).quantize(Decimal("0.01"))
-    expected_cash = opening_cash + cash_in - cash_out
-    return {
-        "opening_cash": opening_cash,
-        "cash_in": cash_in.quantize(Decimal("0.01")),
-        "cash_out": cash_out.quantize(Decimal("0.01")),
-        "expected_cash": expected_cash.quantize(Decimal("0.01")),
-    }
 
 
 def _log_finance_anomaly_snapshot(
