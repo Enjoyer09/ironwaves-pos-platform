@@ -160,8 +160,12 @@ def account_ledger_totals_for_update(db: Session, tenant_id: str, account: Finan
     return {"debit": debit, "credit": credit, "balance": balance}
 
 
-def ledger_balances_snapshot(db: Session, tenant_id: str) -> dict[str, Decimal]:
-    accounts = ensure_finance_accounts(db, tenant_id)
+def ledger_balances_snapshot(db: Session, tenant_id: str, *, ensure_accounts: bool = True) -> dict[str, Decimal]:
+    accounts = (
+        ensure_finance_accounts(db, tenant_id)
+        if ensure_accounts
+        else {row.code: row for row in db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant_id).all()}
+    )
     if not accounts:
         return {}
     account_ids = [account.id for account in accounts.values()]
@@ -769,15 +773,27 @@ def post_deposit_refund(
     related_table_id: str | None = None,
     related_order_id: str | None = None,
 ) -> FinanceTransaction | None:
+    """
+    Refund a held deposit back to the customer.
+
+    Double-entry intent:
+    - Credit payout wallet (cash/card/safe): asset decreases
+    - Debit deposit liability: liability decreases
+
+    In this codebase that maps to source_code=<wallet>, destination_code="deposit".
+    """
     amount = Decimal(str(amount)).quantize(Decimal("0.01"))
     if amount <= 0:
         return None
+    payout_source = str(source_code or "").strip().lower() or "cash"
+    if payout_source not in {"cash", "card", "safe"}:
+        raise HTTPException(status_code=400, detail="Deposit refund source must be cash, card, or safe")
     txn = post_finance_transaction(
         db,
         tenant_id=tenant_id,
         transaction_type="deposit_refund",
         amount=amount,
-        source_code=source_code,
+        source_code=payout_source,
         destination_code="deposit",
         created_by=created_by,
         category="Depozit Qaytarıldı",

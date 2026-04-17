@@ -312,8 +312,7 @@ def _log_finance_anomaly_snapshot(
 @router.get("/balances")
 def get_balances(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_read_access(user)
-    balances = _ledger_balances_snapshot(db, tenant.id)
-    db.commit()
+    balances = _ledger_balances_snapshot(db, tenant.id, ensure_accounts=False)
     return {
         "cash": str(balances.get("cash", Decimal("0.00"))),
         "card": str(balances.get("card", Decimal("0.00"))),
@@ -327,9 +326,8 @@ def get_balances(db: Session = Depends(get_db), tenant: Tenant = Depends(get_ten
 @router.get("/summary")
 def get_finance_summary(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_read_access(user)
-    accounts = _ensure_finance_accounts(db, tenant.id)
-    balances = _ledger_balances_snapshot(db, tenant.id)
-    db.commit()
+    accounts = {row.code: row for row in db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant.id).all()}
+    balances = _ledger_balances_snapshot(db, tenant.id, ensure_accounts=False)
     account_by_id = {row.id: row for row in accounts.values()}
     alerts = _finance_alerts(db, tenant.id)
     pending_rows = (
@@ -420,6 +418,61 @@ def _inventory_value(db: Session, tenant_id: str) -> Decimal:
     ).quantize(Decimal("0.01"))
 
 
+def _ledger_equity_total(db: Session, tenant_id: str) -> tuple[Decimal, list[str]]:
+    equity_account_rows = (
+        db.query(FinanceAccount.id, FinanceAccount.code, FinanceAccount.account_type)
+        .filter(FinanceAccount.tenant_id == tenant_id)
+        .all()
+    )
+    equity_account_ids: list[str] = []
+    equity_account_codes: list[str] = []
+    for account_id, code, account_type in equity_account_rows:
+        normalized_code = str(code or "").strip().lower()
+        normalized_type = str(account_type or "").strip().lower()
+        if normalized_type in {"equity", "owner_equity", "retained_earnings", "capital", "adjustment"} or normalized_code in {
+            "equity",
+            "owner_equity",
+            "retained_earnings",
+            "capital",
+            "adjustment",
+        }:
+            equity_account_ids.append(str(account_id))
+            equity_account_codes.append(normalized_code)
+    if not equity_account_ids:
+        return Decimal("0.00"), []
+
+    debit_raw, credit_raw = (
+        db.query(
+            func.coalesce(
+                func.sum(
+                    case(
+                        (FinanceLedgerEntry.entry_side == "debit", FinanceLedgerEntry.amount),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (FinanceLedgerEntry.entry_side == "credit", FinanceLedgerEntry.amount),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+        )
+        .filter(
+            FinanceLedgerEntry.tenant_id == tenant_id,
+            FinanceLedgerEntry.account_id.in_(equity_account_ids),
+        )
+        .one()
+    )
+    debit = Decimal(str(debit_raw or 0))
+    credit = Decimal(str(credit_raw or 0))
+    return (credit - debit).quantize(Decimal("0.01")), sorted(set(equity_account_codes))
+
+
 def _balance_sheet_report(db: Session, tenant_id: str) -> dict:
     balances = _ledger_balances_snapshot(db, tenant_id)
     cash = balances.get("cash", Decimal("0.00"))
@@ -432,6 +485,9 @@ def _balance_sheet_report(db: Session, tenant_id: str) -> dict:
     assets_total = cash + card + safe + receivable + inventory
     liabilities_total = deposit + investor
     equity_estimate = assets_total - liabilities_total
+    ledger_equity, equity_account_codes = _ledger_equity_total(db, tenant_id)
+    accounting_residual = (assets_total - (liabilities_total + ledger_equity)).quantize(Decimal("0.01"))
+    balanced = accounting_residual == Decimal("0.00")
     return {
         "assets": {
             "cash": _money(cash),
@@ -448,9 +504,15 @@ def _balance_sheet_report(db: Session, tenant_id: str) -> dict:
         },
         "equity": {
             "estimated_equity": _money(equity_estimate),
-            "note": "Kapital hazırda aktivlər minus öhdəliklər prinsipi ilə təxmini göstərilir.",
+            "ledger_equity": _money(ledger_equity),
+            "equity_account_codes": equity_account_codes,
+            "accounting_residual": _money(accounting_residual),
+            "note": (
+                "Balanced yoxlaması ledger equity əsasında hesablanır. "
+                "estimated_equity yalnız müqayisə/keçid göstəricisidir."
+            ),
         },
-        "balanced": _money(assets_total) == _money(liabilities_total + equity_estimate),
+        "balanced": balanced,
     }
 
 
@@ -617,6 +679,7 @@ def _transaction_out(row: FinanceTransaction, account_by_id: dict[str, FinanceAc
 
 def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
     accounts = _ensure_finance_accounts(db, tenant_id)
+    balances = _ledger_balances_snapshot(db, tenant_id)
     policy = _finance_policy(db, tenant_id)
     alerts: list[dict] = []
 
@@ -663,7 +726,7 @@ def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
         account = accounts.get(code)
         if not account:
             continue
-        balance = _account_ledger_totals(db, tenant_id, account)["balance"]
+        balance = Decimal(str(balances.get(code, Decimal("0.00"))))
         threshold = Decimal(str(policy.get("negative_balance_alert_azn", 0)))
         if balance < (Decimal("0") - threshold):
             negative_accounts.append((account.name, balance))
@@ -705,7 +768,7 @@ def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
 
     investor_account = accounts.get("investor")
     if investor_account:
-        investor_balance = _account_ledger_totals(db, tenant_id, investor_account)["balance"]
+        investor_balance = Decimal(str(balances.get("investor", Decimal("0.00"))))
         if investor_balance > Decimal("0.01"):
             alerts.append(
                 {
@@ -722,8 +785,7 @@ def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
 
     active_shift = _active_shift(db, tenant_id)
     if active_shift:
-        cash_account = accounts.get("cash")
-        ledger_cash = _account_ledger_totals(db, tenant_id, cash_account)["balance"] if cash_account else Decimal("0")
+        ledger_cash = Decimal(str(balances.get("cash", Decimal("0.00"))))
         shift_breakdown = _shift_cash_breakdown_from_ledger(db, tenant_id, active_shift)
         expected_cash = shift_breakdown["expected_cash"]
         shift_gap = abs(ledger_cash - expected_cash)
@@ -1028,7 +1090,16 @@ def _manual_transaction_accounts(payload: FinanceTransactionIn) -> tuple[str, st
     if tx_type in {"deposit_release", "deposit_refund"}:
         return source or "cash", "deposit"
     if tx_type in {"cash_adjustment", "reconciliation_adjustment"}:
-        return "adjustment", destination or source or "cash"
+        # Direction-aware adjustment mapping:
+        # - source=cash (or another wallet) means decrease that source into adjustment
+        # - destination=cash (or another wallet) means increase destination from adjustment
+        if source and destination:
+            return source, destination
+        if source:
+            return source, ("cash" if source == "adjustment" else "adjustment")
+        if destination:
+            return ("adjustment" if destination != "adjustment" else "cash"), destination
+        return "adjustment", "cash"
     raise HTTPException(status_code=400, detail="Unsupported finance transaction type")
 
 
