@@ -434,6 +434,7 @@ export function FinanceReconciliationWorkspace({
   setReconcileNotes,
   ledgerAccounts,
   onSubmit,
+  submitting,
   reconciliations,
 }: {
   lang: string;
@@ -447,6 +448,7 @@ export function FinanceReconciliationWorkspace({
   setReconcileNotes: (value: string) => void;
   ledgerAccounts: FinanceLedgerAccount[];
   onSubmit: () => void;
+  submitting?: boolean;
   reconciliations: FinanceReconciliation[];
 }) {
   return (
@@ -480,8 +482,14 @@ export function FinanceReconciliationWorkspace({
               <span className="field-label">{tx(lang, 'Qeyd', 'Qeyd', 'Qeyd')}</span>
               <input className="neon-input min-h-13" value={reconcileNotes} onChange={(e) => setReconcileNotes(e.target.value)} />
             </label>
-            <button onClick={() => onSubmit()} className="glossy-gold min-h-14 rounded-2xl px-6 text-base font-black">
-              {tx(lang, 'Uyğunlaşdırmanı tamamla', 'Uyğunlaşdırmanı tamamla', 'Uyğunlaşdırmanı tamamla')}
+            <button
+              disabled={Boolean(submitting)}
+              onClick={() => onSubmit()}
+              className="glossy-gold min-h-14 rounded-2xl px-6 text-base font-black disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting
+                ? tx(lang, 'Yazılır...', 'Сохранение...', 'Saving...')
+                : tx(lang, 'Uyğunlaşdırmanı tamamla', 'Uyğunlaşdırmanı tamamla', 'Uyğunlaşdırmanı tamamla')}
             </button>
           </div>
         </div>

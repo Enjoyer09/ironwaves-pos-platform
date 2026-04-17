@@ -298,6 +298,11 @@ export default function FinancePanel() {
   const [ledgerOffset, setLedgerOffset] = useState(0);
   const [ledgerTotalCount, setLedgerTotalCount] = useState(0);
   const [ledgerPageLoading, setLedgerPageLoading] = useState(false);
+  const [focusedMode, setFocusedMode] = useState(false);
+  const [entrySubmitting, setEntrySubmitting] = useState(false);
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
+  const [investorSubmitting, setInvestorSubmitting] = useState(false);
+  const [reconcileSubmitting, setReconcileSubmitting] = useState(false);
   const [reconcileAccount, setReconcileAccount] = useState('cash');
   const [reconcileCounted, setReconcileCounted] = useState('');
   const [reconcileNotes, setReconcileNotes] = useState('');
@@ -976,6 +981,7 @@ export default function FinancePanel() {
   };
 
   const addEntry = async () => {
+    if (entrySubmitting) return;
     if (!amount || new Decimal(amount).lte(0)) {
       notify('error', tx(lang, 'Məbləğ düzgün deyil', 'Неверная сумма'));
       return;
@@ -984,6 +990,7 @@ export default function FinancePanel() {
       notify('error', tx(lang, 'Subyekt məcburidir', 'Поле субъекта обязательно', 'Subject is required'));
       return;
     }
+    setEntrySubmitting(true);
     try {
       await create_finance_entry_async(
         tenant_id,
@@ -1001,6 +1008,8 @@ export default function FinancePanel() {
       notify('success', tx(lang, 'Əməliyyat yazıldı', 'Операция сохранена', 'Entry saved'));
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Əməliyyat alınmadı', 'Операция не выполнена'));
+    } finally {
+      setEntrySubmitting(false);
     }
   };
 
@@ -1020,10 +1029,12 @@ export default function FinancePanel() {
   };
 
   const doTransfer = async () => {
+    if (transferSubmitting) return;
     if (!transferAmount || new Decimal(transferAmount).lte(0)) {
       notify('error', tx(lang, 'Transfer məbləği düzgün deyil', 'Некорректная сумма перевода'));
       return;
     }
+    setTransferSubmitting(true);
     try {
       const transferAmountDec = new Decimal(transferAmount || 0);
       const needsApproval = largeTransferThreshold.gt(0) && transferAmountDec.gte(largeTransferThreshold);
@@ -1076,14 +1087,18 @@ export default function FinancePanel() {
       notify('success', tx(lang, 'Transfer tamamlandı', 'Перевод выполнен'));
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Transfer alınmadı', 'Перевод не выполнен'));
+    } finally {
+      setTransferSubmitting(false);
     }
   };
 
   const doRepayInvestor = async () => {
+    if (investorSubmitting) return;
     if (!repayAmount || new Decimal(repayAmount).lte(0)) {
       notify('error', tx(lang, 'Məbləğ düzgün deyil', 'Некорректная сумма', 'Invalid amount'));
       return;
     }
+    setInvestorSubmitting(true);
     try {
       const repaymentAmount = new Decimal(repayAmount || 0);
       const available = new Decimal((balance as any)[`${repayFrom}_balance`] || 0);
@@ -1125,14 +1140,18 @@ export default function FinancePanel() {
       );
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Ödəniş alınmadı', 'Платеж не выполнен', 'Repayment failed'));
+    } finally {
+      setInvestorSubmitting(false);
     }
   };
 
   const doReconcile = async () => {
+    if (reconcileSubmitting) return;
     if (!reconcileCounted || new Decimal(reconcileCounted).isNaN()) {
       notify('error', tx(lang, 'Sayılmış məbləği yazın', 'Введите посчитанную сумму', 'Enter counted amount'));
       return;
     }
+    setReconcileSubmitting(true);
     try {
       const result = await create_finance_reconciliation_async(
         tenant_id,
@@ -1155,6 +1174,8 @@ export default function FinancePanel() {
       );
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Reconciliation alınmadı', 'Сверка не выполнена', 'Reconciliation failed'));
+    } finally {
+      setReconcileSubmitting(false);
     }
   };
 
@@ -1381,12 +1402,12 @@ export default function FinancePanel() {
           </p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => { setQuickAction('income'); setType('in'); }} className={`min-h-11 rounded-2xl px-4 text-sm font-black ${type === 'in' ? 'bg-emerald-400 text-slate-950' : 'border border-slate-700 text-slate-300'}`}>
-            {tx(lang, 'Mədaxil', 'Приход', 'Income')}
-          </button>
-          <button onClick={() => { setQuickAction('expense'); setType('out'); }} className={`min-h-11 rounded-2xl px-4 text-sm font-black ${type === 'out' ? 'bg-rose-400 text-slate-950' : 'border border-slate-700 text-slate-300'}`}>
-            {tx(lang, 'Xərc', 'Расход', 'Expense')}
-          </button>
+	          <button onClick={() => { setQuickAction('income'); setType('in'); }} aria-pressed={type === 'in'} className={`min-h-11 rounded-2xl px-4 text-sm font-black ${type === 'in' ? 'bg-emerald-400 text-slate-950' : 'border border-slate-700 text-slate-300'}`}>
+	            {tx(lang, 'Mədaxil', 'Приход', 'Income')}
+	          </button>
+	          <button onClick={() => { setQuickAction('expense'); setType('out'); }} aria-pressed={type === 'out'} className={`min-h-11 rounded-2xl px-4 text-sm font-black ${type === 'out' ? 'bg-rose-400 text-slate-950' : 'border border-slate-700 text-slate-300'}`}>
+	            {tx(lang, 'Xərc', 'Расход', 'Expense')}
+	          </button>
         </div>
       </div>
       <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -1435,9 +1456,15 @@ export default function FinancePanel() {
           </FinanceField>
         )}
       </div>
-      <button onClick={() => void addEntry()} className="glossy-gold mt-5 min-h-14 rounded-2xl px-6 text-base font-black">
-        {tx(lang, 'Əməliyyatı yaz', 'Провести операцию', 'Post transaction')}
-      </button>
+	      <button
+          disabled={entrySubmitting}
+          onClick={() => void addEntry()}
+          className="glossy-gold mt-5 min-h-14 rounded-2xl px-6 text-base font-black disabled:cursor-not-allowed disabled:opacity-60"
+        >
+	        {entrySubmitting
+            ? tx(lang, 'Yazılır...', 'Сохранение...', 'Posting...')
+            : tx(lang, 'Əməliyyatı yaz', 'Провести операцию', 'Post transaction')}
+	      </button>
     </div>
   );
 
@@ -1478,9 +1505,15 @@ export default function FinancePanel() {
           )}
         </div>
       )}
-      <button onClick={() => void doTransfer()} className="neon-btn mt-5 min-h-14 rounded-2xl px-6 text-base font-black">
-        {tx(lang, 'Transferi yaz', 'Провести перевод', 'Post transfer')}
-      </button>
+	      <button
+          disabled={transferSubmitting}
+          onClick={() => void doTransfer()}
+          className="neon-btn mt-5 min-h-14 rounded-2xl px-6 text-base font-black disabled:cursor-not-allowed disabled:opacity-60"
+        >
+	        {transferSubmitting
+            ? tx(lang, 'Göndərilir...', 'Отправка...', 'Submitting...')
+            : tx(lang, 'Transferi yaz', 'Провести перевод', 'Post transfer')}
+	      </button>
     </div>
   );
 
@@ -1517,11 +1550,17 @@ export default function FinancePanel() {
           {tx(lang, 'Policy-yə görə bu ödəniş birbaşa ledger-ə post olunacaq.', 'По policy выплата будет posted сразу.', 'Per policy, this repayment will post directly to the ledger.')}
         </div>
       )}
-      <button onClick={() => void doRepayInvestor()} className="glossy-gold mt-5 min-h-14 rounded-2xl px-6 text-base font-black">
-        {financePolicyConfig.investor_repayment_requires_approval
-          ? tx(lang, 'Təsdiqə göndər', 'Отправить на approval', 'Send for approval')
-          : tx(lang, 'Ödənişi yaz', 'Провести выплату', 'Post repayment')}
-      </button>
+	      <button
+          disabled={investorSubmitting}
+          onClick={() => void doRepayInvestor()}
+          className="glossy-gold mt-5 min-h-14 rounded-2xl px-6 text-base font-black disabled:cursor-not-allowed disabled:opacity-60"
+        >
+	        {investorSubmitting
+            ? tx(lang, 'Göndərilir...', 'Отправка...', 'Submitting...')
+            : financePolicyConfig.investor_repayment_requires_approval
+              ? tx(lang, 'Təsdiqə göndər', 'Отправить на approval', 'Send for approval')
+              : tx(lang, 'Ödənişi yaz', 'Провести выплату', 'Post repayment')}
+	      </button>
     </div>
   );
 
@@ -1764,6 +1803,7 @@ export default function FinancePanel() {
               setReconcileNotes={setReconcileNotes}
               ledgerAccounts={ledgerAccounts}
               onSubmit={() => void doReconcile()}
+              submitting={reconcileSubmitting}
               reconciliations={reconciliations}
             />
           )}
@@ -1773,15 +1813,17 @@ export default function FinancePanel() {
 
   return (
     <FinanceDashboard>
-      <FinanceSummaryStrip
-        lang={lang}
-        balance={balance}
-        netCashflow={financeSummary.net}
-        reconciliationGap={unreconciledVariance}
-        investorDebt={ledgerInvestorDebt.toFixed(2)}
-        pendingApprovals={pendingApprovalsCount}
-        onRefresh={() => void reloadFinance(true)}
-      />
+      {!focusedMode && (
+        <FinanceSummaryStrip
+          lang={lang}
+          balance={balance}
+          netCashflow={financeSummary.net}
+          reconciliationGap={unreconciledVariance}
+          investorDebt={ledgerInvestorDebt.toFixed(2)}
+          pendingApprovals={pendingApprovalsCount}
+          onRefresh={() => void reloadFinance(true)}
+        />
+      )}
 
       <div className="rounded-[28px] border border-slate-800 bg-slate-900 p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -1810,6 +1852,19 @@ export default function FinancePanel() {
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="mt-4 flex items-center justify-end">
+          <button
+            type="button"
+            aria-pressed={focusedMode}
+            onClick={() => setFocusedMode((prev) => !prev)}
+            className={`min-h-11 rounded-2xl px-4 text-sm font-black transition ${focusedMode ? 'bg-emerald-300 text-slate-950' : 'border border-slate-700 bg-slate-950 text-slate-200'}`}
+          >
+            {focusedMode
+              ? tx(lang, 'Fokus rejimi: aktiv', 'Режим фокуса: включен', 'Focus mode: on')
+              : tx(lang, 'Fokus rejimi: söndürülüb', 'Режим фокуса: выключен', 'Focus mode: off')}
+          </button>
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto]">
@@ -1844,16 +1899,20 @@ export default function FinancePanel() {
         </div>
       </div>
 
-      <FinanceAlertsBar
-        alerts={financeAlerts}
-        onOpen={openFinanceAlert}
-      />
+      {!focusedMode && (
+        <FinanceAlertsBar
+          alerts={financeAlerts}
+          onOpen={openFinanceAlert}
+        />
+      )}
 
-      <FinanceQuickActions
-        lang={lang}
-        active={quickAction}
-        onSelect={selectQuickAction}
-      />
+      {!focusedMode && (
+        <FinanceQuickActions
+          lang={lang}
+          active={quickAction}
+          onSelect={selectQuickAction}
+        />
+      )}
 
       <FinanceWorkspaceTabs
         lang={lang}

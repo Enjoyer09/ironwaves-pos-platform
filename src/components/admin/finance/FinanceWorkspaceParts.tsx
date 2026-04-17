@@ -70,7 +70,11 @@ export function FinanceSummaryStrip({
           <span className="rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm font-black text-amber-100">
             {tx(lang, 'Təsdiq gözləyənlər', 'Ожидает approval', 'Pending approvals')}: {pendingApprovals}
           </span>
-          <button onClick={onRefresh} className="min-h-12 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100">
+          <button
+            onClick={onRefresh}
+            aria-label={tx(lang, 'Maliyyə məlumatlarını yenilə', 'Обновить финансовые данные', 'Refresh finance data')}
+            className="min-h-12 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100"
+          >
             {tx(lang, 'Yenilə', 'Обновить', 'Refresh')}
           </button>
         </div>
@@ -111,7 +115,7 @@ export function FinanceAlertsBar({
 }) {
   if (!alerts.length) {
     return (
-      <section className="rounded-[24px] border border-emerald-500/25 bg-emerald-950/25 p-4">
+      <section role="status" aria-live="polite" className="rounded-[24px] border border-emerald-500/25 bg-emerald-950/25 p-4">
         <div className="flex items-center gap-3 text-emerald-100">
           <CheckCircle2 size={20} />
           <div className="font-black">{tx('az', 'Hazırda kritik maliyyə xəbərdarlığı yoxdur', 'Hazırda kritik maliyyə xəbərdarlığı yoxdur', 'Hazırda kritik maliyyə xəbərdarlığı yoxdur')}</div>
@@ -122,11 +126,12 @@ export function FinanceAlertsBar({
   return (
     <section className="grid grid-cols-1 gap-3 xl:grid-cols-3">
       {alerts.map((alert) => (
-        <button
-          key={alert.id}
-          onClick={() => onOpen(alert)}
-          className={`rounded-[24px] border p-4 text-left ${alert.tone === 'rose' ? 'border-rose-400/30 bg-rose-950/35' : 'border-amber-400/30 bg-amber-950/30'}`}
-        >
+          <button
+            key={alert.id}
+            onClick={() => onOpen(alert)}
+            aria-label={`${alert.title}. ${alert.action}`}
+            className={`rounded-[24px] border p-4 text-left ${alert.tone === 'rose' ? 'border-rose-400/30 bg-rose-950/35' : 'border-amber-400/30 bg-amber-950/30'}`}
+          >
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="font-black text-white">{alert.title}</div>
@@ -161,6 +166,8 @@ export function FinanceQuickActions({ lang, active, onSelect }: { lang: string; 
           <button
             key={action.id}
             onClick={() => onSelect(action.id)}
+            aria-pressed={active === action.id}
+            aria-label={`${action.label} · ${action.helper}`}
             className={`min-h-[110px] rounded-2xl border p-4 text-left ${active === action.id ? 'border-yellow-300 bg-yellow-400 text-slate-950' : 'border-slate-800 bg-slate-950 text-slate-200'}`}
           >
             <div className="flex items-center justify-between gap-3">
@@ -187,11 +194,18 @@ export function FinanceWorkspaceTabs({ active, onChange }: { lang?: string; acti
     ['ledger', 'Maliyyə Jurnalı'],
   ];
   return (
-    <div className="flex gap-2 overflow-x-auto rounded-[24px] border border-slate-800 bg-slate-950 p-2">
+    <div
+      role="tablist"
+      aria-label="Finance workspace tabs"
+      className="flex gap-2 overflow-x-auto rounded-[24px] border border-slate-800 bg-slate-950 p-2"
+    >
       {tabs.map(([tab, label]) => (
         <button
           key={tab}
           onClick={() => onChange(tab)}
+          role="tab"
+          aria-selected={active === tab}
+          aria-current={active === tab ? 'page' : undefined}
           className={`min-h-12 rounded-2xl px-5 text-sm font-black ${active === tab ? 'bg-white text-slate-950' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}
         >
           {label}
@@ -321,6 +335,12 @@ export function TransactionDetailDrawer({
   onReverse: (transactionId: string) => void | Promise<void>;
   onClose: () => void;
 }) {
+  const [actionBusy, setActionBusy] = React.useState<'approve' | 'reject' | 'reverse' | null>(null);
+
+  React.useEffect(() => {
+    setActionBusy(null);
+  }, [detail?.transaction?.id]);
+
   if (!detail) return null;
   const txRow = detail.transaction;
   const auditDetails = detail.audit_logs.map((row) => {
@@ -350,15 +370,30 @@ export function TransactionDetailDrawer({
     { label: tx(lang, 'Ledger-ə post edildi', 'Posted в ledger', 'Posted to ledger'), by: txRow.posted_by, at: txRow.posted_at, tone: 'emerald' as FinanceStatusTone, active: txRow.status === 'posted' || txRow.status === 'reversed' || Boolean(txRow.posted_at) },
     { label: tx(lang, 'Reversal edildi', 'Reversed', 'Reversed'), by: txRow.reversed_by, at: txRow.reversed_at, tone: 'rose' as FinanceStatusTone, active: txRow.status === 'reversed' || Boolean(txRow.reversed_at) },
   ];
+  const runAction = async (mode: 'approve' | 'reject' | 'reverse', handler: () => Promise<void>) => {
+    if (actionBusy) return;
+    setActionBusy(mode);
+    try {
+      await handler();
+    } finally {
+      setActionBusy(null);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-[80] flex justify-end bg-slate-950/70 backdrop-blur-sm">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="finance-transaction-drawer-title"
+      className="fixed inset-0 z-[80] flex justify-end bg-slate-950/70 backdrop-blur-sm"
+    >
       <button className="absolute inset-0 cursor-default" onClick={onClose} aria-label="Close transaction drawer" />
       <aside className="relative h-full w-full max-w-2xl overflow-y-auto border-l border-slate-800 bg-slate-950 p-5 shadow-[0_0_80px_rgba(0,0,0,0.55)]">
         <div className="sticky top-0 z-10 -mx-5 -mt-5 border-b border-slate-800 bg-slate-950/95 p-5 backdrop-blur">
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="text-xs font-black uppercase tracking-[0.22em] text-yellow-300">{tx(lang, 'Əməliyyat detalları', 'Детали операции', 'Transaction Detail')}</div>
-              <h3 className="mt-2 text-2xl font-black text-white">{transactionTypeLabel(txRow.transaction_type) || tx(lang, 'Əməliyyat', 'Операция', 'Transaction')}</h3>
+              <h3 id="finance-transaction-drawer-title" className="mt-2 text-2xl font-black text-white">{transactionTypeLabel(txRow.transaction_type) || tx(lang, 'Əməliyyat', 'Операция', 'Transaction')}</h3>
               <p className="mt-1 text-sm text-slate-400">{txRow.id}</p>
             </div>
             <button onClick={onClose} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-200">
@@ -369,17 +404,35 @@ export function TransactionDetailDrawer({
           <div className="mt-4 flex flex-wrap gap-2">
             {txRow.status === 'pending_approval' ? (
               <>
-                <button onClick={() => void onApprove(txRow.id)} className="min-h-11 rounded-2xl bg-emerald-300 px-4 text-sm font-black text-slate-950">
-                  {tx(lang, 'Təsdiqlə və yaz', 'Подтвердить и post', 'Approve and post')}
+                <button
+                  disabled={Boolean(actionBusy)}
+                  onClick={() => void runAction('approve', async () => { await onApprove(txRow.id); })}
+                  className="min-h-11 rounded-2xl bg-emerald-300 px-4 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {actionBusy === 'approve'
+                    ? tx(lang, 'Təsdiqlənir...', 'Подтверждение...', 'Approving...')
+                    : tx(lang, 'Təsdiqlə və yaz', 'Подтвердить и post', 'Approve and post')}
                 </button>
-                <button onClick={() => void onReject(txRow.id)} className="min-h-11 rounded-2xl border border-rose-400/40 px-4 text-sm font-black text-rose-100">
-                  {tx(lang, 'Rədd et', 'Отклонить', 'Reject')}
+                <button
+                  disabled={Boolean(actionBusy)}
+                  onClick={() => void runAction('reject', async () => { await onReject(txRow.id); })}
+                  className="min-h-11 rounded-2xl border border-rose-400/40 px-4 text-sm font-black text-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {actionBusy === 'reject'
+                    ? tx(lang, 'Rədd edilir...', 'Отклонение...', 'Rejecting...')
+                    : tx(lang, 'Rədd et', 'Отклонить', 'Reject')}
                 </button>
               </>
             ) : null}
             {txRow.status === 'posted' && txRow.transaction_type !== 'reversal' && detail.reversal_history.length === 0 ? (
-              <button onClick={() => void onReverse(txRow.id)} className="min-h-11 rounded-2xl border border-amber-400/40 px-4 text-sm font-black text-amber-100">
-                {tx(lang, 'Əks yazılış istə', 'Запросить reversal', 'Request reversal')}
+              <button
+                disabled={Boolean(actionBusy)}
+                onClick={() => void runAction('reverse', async () => { await onReverse(txRow.id); })}
+                className="min-h-11 rounded-2xl border border-amber-400/40 px-4 text-sm font-black text-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {actionBusy === 'reverse'
+                  ? tx(lang, 'Sorğu göndərilir...', 'Запрос отправляется...', 'Submitting request...')
+                  : tx(lang, 'Əks yazılış istə', 'Запросить reversal', 'Request reversal')}
               </button>
             ) : null}
           </div>
