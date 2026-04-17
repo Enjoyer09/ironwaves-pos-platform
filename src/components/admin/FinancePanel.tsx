@@ -1385,6 +1385,15 @@ export default function FinancePanel() {
     setWorkspaceTab('overview');
   };
 
+  useEffect(() => {
+    if (!focusedMode) return;
+    if (workspaceTab === 'overview') {
+      setWorkspaceTab('transactions');
+      setQuickAction('expense');
+      setType('out');
+    }
+  }, [focusedMode, workspaceTab]);
+
   const isIncomeAction = type === 'in';
 
   const transactionForm = (
@@ -1867,6 +1876,71 @@ export default function FinancePanel() {
           </button>
         </div>
 
+        {focusedMode && (
+          <div className="mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-200">
+              {tx(lang, 'Sadə iş rejimi', 'Упрощенный режим', 'Simple workflow mode')}
+            </div>
+            <div className="mt-2 text-sm font-bold text-emerald-100">
+              {tx(lang, 'Bir əməliyyat seçin və birbaşa formu doldurun.', 'Выберите операцию и сразу заполните форму.', 'Choose an operation and fill the form directly.')}
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickAction('expense');
+                  setType('out');
+                  setWorkspaceTab('transactions');
+                }}
+                className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100"
+              >
+                {tx(lang, 'Xərc yaz', 'Записать расход', 'Record expense')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickAction('income');
+                  setType('in');
+                  setWorkspaceTab('transactions');
+                }}
+                className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100"
+              >
+                {tx(lang, 'Mədaxil yaz', 'Записать приход', 'Record income')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickAction('transfer');
+                  setWorkspaceTab('transfers');
+                }}
+                className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100"
+              >
+                {tx(lang, 'Transfer', 'Перевод', 'Transfer')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickAction('investor_repayment');
+                  setWorkspaceTab('investor');
+                }}
+                className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100"
+              >
+                {tx(lang, 'Investor ödə', 'Оплата инвестору', 'Investor repayment')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuickAction('reconcile');
+                  setWorkspaceTab('reconciliation');
+                }}
+                className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100"
+              >
+                {tx(lang, 'Uyğunlaşdırma', 'Сверка', 'Reconciliation')}
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto]">
           <label className="space-y-2">
             <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Başlanğıc tarix', 'Дата начала', 'Start date')}</span>
@@ -1914,11 +1988,13 @@ export default function FinancePanel() {
         />
       )}
 
-      <FinanceWorkspaceTabs
-        lang={lang}
-        active={workspaceTab}
-        onChange={setWorkspaceTab}
-      />
+      {!focusedMode && (
+        <FinanceWorkspaceTabs
+          lang={lang}
+          active={workspaceTab}
+          onChange={setWorkspaceTab}
+        />
+      )}
 
       {workspaceTab === 'overview' && (
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_0.9fr]">
