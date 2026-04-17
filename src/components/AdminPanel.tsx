@@ -314,6 +314,51 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     return `${item.item_name || ''} ${item.category || ''} ${item.description || ''}`.toLowerCase().includes(q);
   });
 
+  const analyticsBreakdown = useMemo(() => {
+    const validSales = sales.filter((s: any) => String(s.status || '').toUpperCase() !== 'VOIDED');
+    const paymentNorm = (value: unknown) => String(value || '').trim().toLowerCase();
+
+    let cashCount = 0;
+    let cardCount = 0;
+    let discountedCount = 0;
+    let staffPaymentCount = 0;
+    let salesWithCogs = 0;
+    const staffMap = new Map<string, number>();
+
+    validSales.forEach((sale: any) => {
+      const method = paymentNorm(sale.payment_method);
+      const cashier = String(sale.cashier || '').trim() || '-';
+      const discount = Number(sale.discount_amount || 0);
+      const cogs = Number(sale.cogs || 0);
+
+      if (method.includes('kart') || method.includes('card')) cardCount += 1;
+      if (method.includes('nəğd') || method.includes('cash')) cashCount += 1;
+      if (method.includes('staff')) staffPaymentCount += 1;
+      if (discount > 0) discountedCount += 1;
+      if (cogs > 0) salesWithCogs += 1;
+
+      staffMap.set(cashier, (staffMap.get(cashier) || 0) + 1);
+    });
+
+    const topStaff = Array.from(staffMap.entries()).sort((a, b) => b[1] - a[1])[0];
+    const cogsCoverage = validSales.length > 0 ? Math.round((salesWithCogs / validSales.length) * 100) : 0;
+    const grossProfit = Number(summary?.gross_profit || 0);
+    const profitReliability = cogsCoverage >= 90 ? 'high' : cogsCoverage >= 60 ? 'medium' : 'low';
+
+    return {
+      validSalesCount: validSales.length,
+      cashCount,
+      cardCount,
+      discountedCount,
+      staffPaymentCount,
+      topStaffName: topStaff?.[0] || '-',
+      topStaffSales: topStaff?.[1] || 0,
+      cogsCoverage,
+      grossProfit,
+      profitReliability,
+    };
+  }, [sales, summary]);
+
   return (
     <div className="compact-shell h-full overflow-hidden p-3 text-slate-100 md:p-6">
       <ConfirmModal
@@ -366,7 +411,8 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
 
             {/* Summary Cards */}
             {summary && (
-              <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="mb-8 space-y-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="metal-panel p-6 flex items-center">
                   <div className="w-14 h-14 bg-green-400/20 text-green-200 rounded-2xl flex items-center justify-center mr-4 border border-green-300/30">
                     <DollarSign size={28} />
@@ -382,7 +428,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-slate-300">{tx(lang, 'Satış Sayı', 'Количество продаж', 'Sales Count')}</p>
-                    <h3 className="text-2xl font-bold text-slate-100">{sales.length}</h3>
+                    <h3 className="text-2xl font-bold text-slate-100">{analyticsBreakdown.validSalesCount}</h3>
                   </div>
                 </div>
                 <div className="metal-panel p-6 flex items-center">
@@ -390,10 +436,44 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                     <TrendingUp size={28} />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-slate-300">{tx(lang, 'Xalis Mənfəət', 'Чистая прибыль', 'Net Profit')}</p>
+                    <p className="text-sm font-medium text-slate-300">{tx(lang, 'Mənfəət (təxmini)', 'Прибыль (приблизительно)', 'Profit (estimated)')}</p>
                     <h3 className="text-2xl font-bold text-slate-100">{parseFloat(summary.gross_profit).toFixed(2)} ₼</h3>
+                    <div className={`mt-1 text-xs ${
+                      analyticsBreakdown.profitReliability === 'high'
+                        ? 'text-emerald-300'
+                        : analyticsBreakdown.profitReliability === 'medium'
+                          ? 'text-amber-300'
+                          : 'text-rose-300'
+                    }`}>
+                      {tx(lang, 'COGS doluluğu', 'Покрытие COGS', 'COGS coverage')}: {analyticsBreakdown.cogsCoverage}%
+                    </div>
                   </div>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+                <div className="metal-panel p-4">
+                  <div className="text-xs text-slate-400">{tx(lang, 'Nağd satış sayı', 'Продажи наличными', 'Cash sales count')}</div>
+                  <div className="mt-1 text-2xl font-bold text-emerald-300">{analyticsBreakdown.cashCount}</div>
+                </div>
+                <div className="metal-panel p-4">
+                  <div className="text-xs text-slate-400">{tx(lang, 'Kart satış sayı', 'Продажи по карте', 'Card sales count')}</div>
+                  <div className="mt-1 text-2xl font-bold text-sky-300">{analyticsBreakdown.cardCount}</div>
+                </div>
+                <div className="metal-panel p-4">
+                  <div className="text-xs text-slate-400">{tx(lang, 'Endirimli satış sayı', 'Продажи со скидкой', 'Discounted sales count')}</div>
+                  <div className="mt-1 text-2xl font-bold text-amber-300">{analyticsBreakdown.discountedCount}</div>
+                </div>
+                <div className="metal-panel p-4">
+                  <div className="text-xs text-slate-400">{tx(lang, 'Staff ödənişi sayı', 'Продажи Staff', 'Staff payment sales')}</div>
+                  <div className="mt-1 text-2xl font-bold text-fuchsia-300">{analyticsBreakdown.staffPaymentCount}</div>
+                </div>
+                <div className="metal-panel p-4">
+                  <div className="text-xs text-slate-400">{tx(lang, 'Top staff', 'Топ сотрудник', 'Top staff')}</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-100">{analyticsBreakdown.topStaffName}</div>
+                  <div className="text-xl font-bold text-cyan-300">{analyticsBreakdown.topStaffSales}</div>
+                </div>
+              </div>
               </div>
             )}
 
