@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
 
@@ -19,6 +19,11 @@ from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XRe
 
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
+
+
+def _utcnow() -> datetime:
+    # Keep stored timestamps UTC-naive (existing DB model expectation) without using deprecated utcnow().
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _normalized(value: str | None) -> str:
@@ -149,7 +154,7 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
         raise HTTPException(status_code=400, detail="Amounts must be >= 0")
 
     try:
-        funding_at = datetime.utcnow()
+        funding_at = _utcnow()
         if topup_amount > 0:
             if funding_source == "investor":
                 _post_finance_transaction(
@@ -206,7 +211,7 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
 
         db.flush()
         opening_cash = _ledger_balances_snapshot(db, tenant.id).get("cash", Decimal("0.00")).quantize(Decimal("0.01"))
-        opened_at = max(datetime.utcnow(), funding_at + timedelta(milliseconds=1))
+        opened_at = max(_utcnow(), funding_at + timedelta(milliseconds=1))
         row = Shift(
             tenant_id=tenant.id,
             status="open",
@@ -432,7 +437,7 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
 
     active.status = "closed"
     active.closed_by = user.username
-    active.closed_at = datetime.utcnow()
+    active.closed_at = _utcnow()
     active.actual_cash = actual_cash
     active.declared_cash = actual_cash
     active.cash_variance = difference
@@ -625,7 +630,7 @@ def accept_handover(handover_id: str, payload: ShiftHandoverAcceptIn, db: Sessio
     row.status = "ACCEPTED"
     row.actual_cash = actual
     row.difference = difference
-    row.accepted_at = datetime.utcnow()
+    row.accepted_at = _utcnow()
     db.commit()
     return {
         "success": True,
