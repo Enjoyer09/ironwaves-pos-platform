@@ -87,7 +87,7 @@ def _validate_shift_handover_cash(db: Session, tenant_id: str, user: User, shift
     declared = Decimal(str(declared_cash)).quantize(Decimal("0.01"))
     if declared < 0:
         raise HTTPException(status_code=400, detail="Declared cash cannot be negative")
-    expected = _shift_cash_breakdown(db, tenant_id, shift)["expected_cash"].quantize(Decimal("0.01"))
+    expected = _shift_cash_breakdown(db, tenant_id, shift, lock_for_update=True)["expected_cash"].quantize(Decimal("0.01"))
     variance = declared - expected
     if abs(variance) > Decimal("0.01"):
         db.add(
@@ -121,7 +121,7 @@ def report_status(db: Session = Depends(get_db), tenant: Tenant = Depends(get_te
 @router.get("/expected-cash")
 def expected_cash(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     active = _get_active_shift(db, tenant.id)
-    breakdown = _shift_cash_breakdown(db, tenant.id, active)
+    breakdown = _shift_cash_breakdown(db, tenant.id, active, lock_for_update=True)
     return {
         "expected_cash": str(breakdown["expected_cash"].quantize(Decimal("0.01"))),
         "opening_cash": str(breakdown["opening_cash"].quantize(Decimal("0.01"))),
@@ -281,7 +281,7 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
     if not active:
         raise HTTPException(status_code=400, detail="Shift is closed")
 
-    breakdown_before_wage = _shift_cash_breakdown(db, tenant.id, active)
+    breakdown_before_wage = _shift_cash_breakdown(db, tenant.id, active, lock_for_update=True)
     if Decimal(str(payload.wage_amount or 0)) > breakdown_before_wage["expected_cash"]:
         raise HTTPException(status_code=400, detail="Kassada maaş üçün kifayət qədər məbləğ yoxdur")
 
@@ -299,7 +299,7 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
             related_shift_id=active.id,
         )
 
-    breakdown = _shift_cash_breakdown(db, tenant.id, active)
+    breakdown = _shift_cash_breakdown(db, tenant.id, active, lock_for_update=True)
     expected = breakdown["expected_cash"]
     actual_cash = Decimal(str(payload.actual_cash)).quantize(Decimal("0.01"))
     difference = (actual_cash - expected).quantize(Decimal("0.01"))

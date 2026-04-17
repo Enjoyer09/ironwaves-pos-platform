@@ -131,11 +131,23 @@ def account_ledger_totals(db: Session, tenant_id: str, account: FinanceAccount) 
 
 def account_ledger_totals_for_update(db: Session, tenant_id: str, account: FinanceAccount) -> dict[str, Decimal]:
     """
-    Lock ledger rows for a single account while computing totals.
+    Lock account + ledger rows for a single account while computing totals.
 
     Intended for write paths that already lock FinanceAccount metadata rows and
     need a stricter balance check inside the same transaction boundary.
+
+    Why lock the FinanceAccount row too:
+    - If an account has zero ledger rows yet, locking only ledger rows cannot
+      serialize competing writers (no row to lock).
+    - Locking the account metadata row guarantees a single writer sequence per
+      account even in the "empty ledger" case.
     """
+    (
+        db.query(FinanceAccount.id)
+        .filter(FinanceAccount.tenant_id == tenant_id, FinanceAccount.id == account.id)
+        .with_for_update()
+        .one()
+    )
     rows = (
         db.query(FinanceLedgerEntry.entry_side, FinanceLedgerEntry.amount)
         .filter(FinanceLedgerEntry.tenant_id == tenant_id, FinanceLedgerEntry.account_id == account.id)
@@ -194,7 +206,13 @@ def ledger_balances_snapshot(db: Session, tenant_id: str) -> dict[str, Decimal]:
     return result
 
 
-def shift_cash_breakdown_from_ledger(db: Session, tenant_id: str, shift: Shift | None) -> dict[str, Decimal]:
+def shift_cash_breakdown_from_ledger(
+    db: Session,
+    tenant_id: str,
+    shift: Shift | None,
+    *,
+    lock_for_update: bool = False,
+) -> dict[str, Decimal]:
     if not shift:
         return {
             "opening_cash": Decimal("0.00"),
@@ -204,24 +222,45 @@ def shift_cash_breakdown_from_ledger(db: Session, tenant_id: str, shift: Shift |
         }
 
     cash_account = finance_account(db, tenant_id, "cash")
-    query = db.query(FinanceLedgerEntry).filter(
+    base_query = db.query(FinanceLedgerEntry).filter(
         FinanceLedgerEntry.tenant_id == tenant_id,
         FinanceLedgerEntry.account_id == cash_account.id,
     )
     if shift.opened_at:
-        query = query.filter(FinanceLedgerEntry.created_at >= shift.opened_at)
-    debit_sum, credit_sum = query.with_entities(
-        func.coalesce(
-            func.sum(case((FinanceLedgerEntry.entry_side == "debit", FinanceLedgerEntry.amount), else_=0)),
-            0,
-        ),
-        func.coalesce(
-            func.sum(case((FinanceLedgerEntry.entry_side == "credit", FinanceLedgerEntry.amount), else_=0)),
-            0,
-        ),
-    ).one()
-    cash_in = Decimal(str(debit_sum or 0)).quantize(Decimal("0.01"))
-    cash_out = Decimal(str(credit_sum or 0)).quantize(Decimal("0.01"))
+        base_query = base_query.filter(FinanceLedgerEntry.created_at >= shift.opened_at)
+
+    if lock_for_update:
+        # Serialize writers even when there are no ledger rows to lock yet.
+        (
+            db.query(FinanceAccount.id)
+            .filter(FinanceAccount.tenant_id == tenant_id, FinanceAccount.id == cash_account.id)
+            .with_for_update()
+            .one()
+        )
+        rows = (
+            base_query.with_entities(FinanceLedgerEntry.entry_side, FinanceLedgerEntry.amount)
+            .with_for_update()
+            .all()
+        )
+        cash_in = sum((Decimal(str(amount or 0)) for side, amount in rows if str(side).lower() == "debit"), Decimal("0")).quantize(
+            Decimal("0.01")
+        )
+        cash_out = sum((Decimal(str(amount or 0)) for side, amount in rows if str(side).lower() == "credit"), Decimal("0")).quantize(
+            Decimal("0.01")
+        )
+    else:
+        debit_sum, credit_sum = base_query.with_entities(
+            func.coalesce(
+                func.sum(case((FinanceLedgerEntry.entry_side == "debit", FinanceLedgerEntry.amount), else_=0)),
+                0,
+            ),
+            func.coalesce(
+                func.sum(case((FinanceLedgerEntry.entry_side == "credit", FinanceLedgerEntry.amount), else_=0)),
+                0,
+            ),
+        ).one()
+        cash_in = Decimal(str(debit_sum or 0)).quantize(Decimal("0.01"))
+        cash_out = Decimal(str(credit_sum or 0)).quantize(Decimal("0.01"))
     opening_cash = Decimal(str(shift.opening_cash or 0)).quantize(Decimal("0.01"))
     expected_cash = (opening_cash + cash_in - cash_out).quantize(Decimal("0.01"))
     return {
