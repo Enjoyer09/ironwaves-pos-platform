@@ -58,11 +58,11 @@ export function FinanceSummaryStrip({
     { label: tx(lang, 'Uyğunlaşdırma', 'Сверка', 'Reconciliation'), value: reconciliationGap, tone: new Decimal(reconciliationGap || 0).abs().gt(0.01) ? 'rose' as const : 'emerald' as const, icon: <GitCompareArrows size={20} /> },
   ];
   return (
-    <section className="rounded-[30px] border border-slate-800 bg-slate-900 p-5 shadow-[0_22px_70px_rgba(0,0,0,0.28)]">
-      <div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+    <section className="rounded-[30px] border border-slate-800 bg-slate-900 p-4 md:p-5 shadow-[0_22px_70px_rgba(0,0,0,0.28)]">
+      <div className="mb-4 md:mb-5 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <div className="text-xs font-black uppercase tracking-[0.24em] text-yellow-300">{tx(lang, 'Maliyyə iş sahəsi', 'Maliyyə iş sahəsi', 'Maliyyə iş sahəsi')}</div>
-          <h2 className="mt-2 text-2xl font-black text-white md:text-3xl">{tx(lang, 'Maliyyə nəzarət mərkəzi', 'Центр финансового контроля', 'Finance control center')}</h2>
+          <h2 className="mt-2 text-xl font-black text-white md:text-3xl">{tx(lang, 'Maliyyə nəzarət mərkəzi', 'Центр финансового контроля', 'Finance control center')}</h2>
           <p className="mt-2 max-w-3xl text-sm text-slate-400">
             {tx(lang, 'Pul axını, öhdəliklər, uyğunlaşdırma və maliyyə jurnalı eyni iş sahəsindədir.', 'Денежный поток, обязательства, сверка и ledger в одном рабочем пространстве.', 'Cashflow, liabilities, reconciliation and ledger in one workspace.')}
           </p>
@@ -80,7 +80,7 @@ export function FinanceSummaryStrip({
           </button>
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+      <div className="grid grid-cols-1 gap-2.5 md:gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
         {(showAllKpis ? cards : cards.slice(0, 4)).map((card) => <FinanceKpiCard key={card.label} {...card} />)}
       </div>
       <div className="mt-3 flex justify-end">
@@ -107,13 +107,13 @@ function FinanceKpiCard({ label, value, tone, icon }: { label: string; value: an
     rose: 'border-rose-400/25 bg-rose-950/35 text-rose-100',
   } as const;
   return (
-    <div className={`rounded-[24px] border p-4 ${toneMap[tone]}`}>
+    <div className={`rounded-[24px] border p-3.5 md:p-4 ${toneMap[tone]}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="rounded-2xl bg-white/10 p-3">{icon}</div>
         <div className="text-right text-xs font-black uppercase tracking-[0.16em] opacity-70">{tx('az', 'Göstərici', 'KPI', 'KPI')}</div>
       </div>
       <div className="mt-4 text-xs font-black uppercase tracking-[0.18em] opacity-70">{label}</div>
-      <div className="mt-2 text-2xl font-black text-white">{new Decimal(value || 0).toFixed(2)} ₼</div>
+      <div className="mt-2 text-xl md:text-2xl font-black text-white">{new Decimal(value || 0).toFixed(2)} ₼</div>
     </div>
   );
 }
@@ -171,16 +171,16 @@ export function FinanceQuickActions({ lang, active, onSelect }: { lang: string; 
     { id: 'adjustment', label: tx(lang, 'Düzəliş', 'Корректировка', 'Adjustment'), helper: tx(lang, 'Audit əməliyyatı', 'Audit əməliyyatı', 'Audit əməliyyatı'), icon: <BookOpen size={18} /> },
   ];
   return (
-    <section className="rounded-[28px] border border-slate-800 bg-slate-900 p-4">
+    <section className="rounded-[28px] border border-slate-800 bg-slate-900 p-3.5 md:p-4">
       <div className="mb-3 text-xs font-black uppercase tracking-[0.24em] text-slate-400">{tx(lang, 'Sürətli əməliyyatlar', 'Sürətli əməliyyatlar', 'Sürətli əməliyyatlar')}</div>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+      <div className="grid grid-cols-1 gap-2.5 md:gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
         {actions.map((action) => (
           <button
             key={action.id}
             onClick={() => onSelect(action.id)}
             aria-pressed={active === action.id}
             aria-label={`${action.label} · ${action.helper}`}
-            className={`min-h-[110px] rounded-2xl border p-4 text-left ${active === action.id ? 'border-yellow-300 bg-yellow-400 text-slate-950' : 'border-slate-800 bg-slate-950 text-slate-200'}`}
+            className={`min-h-[96px] md:min-h-[110px] rounded-2xl border p-3.5 md:p-4 text-left ${active === action.id ? 'border-yellow-300 bg-yellow-400 text-slate-950' : 'border-slate-800 bg-slate-950 text-slate-200'}`}
           >
             <div className="flex items-center justify-between gap-3">
               {action.icon}
@@ -229,7 +229,7 @@ export function FinanceWorkspaceTabs({ active, onChange }: { lang?: string; acti
 
 export function FinanceControlCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-[28px] border border-slate-800 bg-slate-900 p-5">
+    <section className="rounded-[28px] border border-slate-800 bg-slate-900 p-4 md:p-5">
       <div className="mb-5">
         <h3 className="text-xl font-black text-white">{title}</h3>
         {subtitle ? <p className="mt-1 text-sm text-slate-400">{subtitle}</p> : null}
