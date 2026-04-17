@@ -9,6 +9,41 @@ import { tx } from '../../i18n';
 import ConfirmModal from '../ConfirmModal';
 import CombosPanel from './CombosPanel';
 
+const normalizeText = (value: string | undefined | null) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/ə/g, 'e')
+    .replace(/ı/g, 'i')
+    .replace(/ö/g, 'o')
+    .replace(/ü/g, 'u')
+    .replace(/ğ/g, 'g')
+    .replace(/ş/g, 's')
+    .replace(/ç/g, 'c')
+    .trim();
+
+const isAffogatoLike = (menuName: string | null) => /affogato|affagato/i.test(String(menuName || ''));
+
+const menuSizeToken = (menuName: string | null) => {
+  const normalized = normalizeText(menuName || '');
+  if (/\b(s|small)\b/.test(normalized)) return 's';
+  if (/\b(m|medium)\b/.test(normalized)) return 'm';
+  if (/\b(l|large)\b/.test(normalized)) return 'l';
+  return '';
+};
+
+const findPackagingItemName = (inventory: any[], keywords: string[], sizeToken: string) => {
+  const rows = (inventory || []).map((item) => ({
+    name: String(item?.name || ''),
+    normalized: normalizeText(String(item?.name || '')),
+  }));
+  if (sizeToken) {
+    const strict = rows.find((row) => keywords.every((k) => row.normalized.includes(normalizeText(k))) && new RegExp(`\\b${sizeToken}\\b`).test(row.normalized));
+    if (strict) return strict.name;
+  }
+  const generic = rows.find((row) => keywords.every((k) => row.normalized.includes(normalizeText(k))));
+  return generic?.name || '';
+};
+
 export default function RecipesPanel() {
   const { user, lang, notify } = useAppStore();
   const tenant_id = user?.tenant_id || 'tenant_default';
@@ -28,6 +63,7 @@ export default function RecipesPanel() {
   const [deleteRecipeId, setDeleteRecipeId] = useState<string | null>(null);
   const [missingRecipeSet, setMissingRecipeSet] = useState<Set<string>>(new Set());
   const [workspace, setWorkspace] = useState<'recipes' | 'combos'>('recipes');
+  const [lastSavedByAI, setLastSavedByAI] = useState(false);
 
   const selectedIngredientMeta = ingredients.find((i) => i.name === newIngredient) || null;
   const qtyUnitOptions = getRecipeEntryUnitOptions(String(selectedIngredientMeta?.unit || ''));
@@ -79,6 +115,10 @@ export default function RecipesPanel() {
     setNewQtyUnit(getDefaultRecipeEntryUnit(String(selectedIngredientMeta.unit)));
   }, [selectedIngredientMeta?.unit, newIngredient]);
 
+  useEffect(() => {
+    setLastSavedByAI(false);
+  }, [selectedMenu]);
+
   // Seçilmiş məhsulun qiymətini tapırıq
   const getSelectedMenuPrice = () => {
     const item = menuItems.find((m) => m.item_name === selectedMenu);
@@ -129,6 +169,7 @@ export default function RecipesPanel() {
           line_cost: normalizedQty.mul(unitCost).toFixed(4),
         },
       ]);
+      setLastSavedByAI(false);
       setNewIngredient('');
       setNewQty('');
       setNewQtyUnit(invItem ? getDefaultRecipeEntryUnit(String(invItem.unit)) : 'qram');
@@ -138,6 +179,7 @@ export default function RecipesPanel() {
   };
 
   const handleDeleteIngredient = (recipe_id: string) => {
+    setLastSavedByAI(false);
     setDraftRecipeItems((prev) => prev.filter((item) => item.id !== recipe_id));
   };
 
@@ -149,10 +191,11 @@ export default function RecipesPanel() {
         category: selectedMenuMeta?.category,
         sell_price: selectedMenuMeta?.price,
       });
-      notify('success', tx(lang, `AI ${selectedMenu} üçün resept yaratdı!`, `AI создал рецепт для ${selectedMenu}!`, `AI created a recipe for ${selectedMenu}!`));
+      notify('success', tx(lang, `AI ${selectedMenu} üçün resept yaratdı və yadda saxladı!`, `AI создал рецепт для ${selectedMenu} и сохранил его!`, `AI created and saved a recipe for ${selectedMenu}!`));
       const nextItems = await get_recipe_live(selectedMenu, tenant_id);
       setRecipeItems(nextItems);
       setDraftRecipeItems(nextItems);
+      setLastSavedByAI(true);
       setRecipeStats(await calculate_recipe_cost_live(selectedMenu, getSelectedMenuPrice(), tenant_id));
       setMissingRecipeSet((prev) => {
         const next = new Set(prev);
@@ -166,8 +209,53 @@ export default function RecipesPanel() {
 
   const hasUnsavedChanges = JSON.stringify(draftRecipeItems.map((item) => ({ ingredient_name: item.ingredient_name, quantity_required: item.quantity_required, quantity_unit: item.quantity_unit || item.unit })))
     !== JSON.stringify(recipeItems.map((item) => ({ ingredient_name: item.ingredient_name, quantity_required: item.quantity_required, quantity_unit: item.quantity_unit || item.unit })));
+
+  const requiredPackaging = (() => {
+    if (!isAffogatoLike(selectedMenu)) return { cup: '', lid: '' };
+    const sizeToken = menuSizeToken(selectedMenu);
+    const cupName = findPackagingItemName(ingredients, ['stakan'], sizeToken) || findPackagingItemName(ingredients, ['cup'], sizeToken);
+    const lidName = findPackagingItemName(ingredients, ['qapaq'], sizeToken) || findPackagingItemName(ingredients, ['lid'], sizeToken);
+    return { cup: cupName, lid: lidName };
+  })();
+
+  const draftIngredientSet = new Set(draftRecipeItems.map((item) => normalizeText(item.ingredient_name)));
+  const missingPackagingInventory: string[] = [];
+  const missingPackagingDraft: string[] = [];
+  if (isAffogatoLike(selectedMenu)) {
+    if (!requiredPackaging.cup) missingPackagingInventory.push(tx(lang, 'Kağız stəkan', 'Бумажный стакан', 'Paper cup'));
+    if (!requiredPackaging.lid) missingPackagingInventory.push(tx(lang, 'Qapaq', 'Крышка', 'Lid'));
+    if (requiredPackaging.cup && !draftIngredientSet.has(normalizeText(requiredPackaging.cup))) {
+      missingPackagingDraft.push(requiredPackaging.cup);
+    }
+    if (requiredPackaging.lid && !draftIngredientSet.has(normalizeText(requiredPackaging.lid))) {
+      missingPackagingDraft.push(requiredPackaging.lid);
+    }
+  }
+  const saveBlockedByPackaging = missingPackagingInventory.length > 0 || missingPackagingDraft.length > 0;
+  const isSaveDisabled = isSaving || !hasUnsavedChanges || saveBlockedByPackaging;
   const saveDisabledReason = isSaving
     ? tx(lang, 'Resept hazırda saxlanılır, zəhmət olmasa gözləyin.', 'Рецепт сейчас сохраняется, пожалуйста подождите.', 'Recipe is currently saving, please wait.')
+    : missingPackagingInventory.length > 0
+      ? tx(
+          lang,
+          `Affogato üçün anbarda məcburi qablaşdırma yoxdur: ${missingPackagingInventory.join(', ')}.`,
+          `Для Affogato на складе нет обязательной упаковки: ${missingPackagingInventory.join(', ')}.`,
+          `Missing required packaging in inventory for Affogato: ${missingPackagingInventory.join(', ')}.`,
+        )
+      : missingPackagingDraft.length > 0
+        ? tx(
+            lang,
+            `Affogato reseptində məcburi item yoxdur: ${missingPackagingDraft.join(', ')}.`,
+            `В рецепте Affogato отсутствуют обязательные позиции: ${missingPackagingDraft.join(', ')}.`,
+            `Affogato recipe is missing required items: ${missingPackagingDraft.join(', ')}.`,
+          )
+    : !hasUnsavedChanges && lastSavedByAI
+      ? tx(
+          lang,
+          'AI resepti artıq avtomatik yadda saxlayıb. Yadda saxla düyməsini aktiv etmək üçün yeni dəyişiklik edin.',
+          'AI уже автоматически сохранил рецепт. Чтобы активировать кнопку сохранения, внесите новое изменение.',
+          'AI already saved this recipe automatically. Make a new change to enable Save.',
+        )
     : !hasUnsavedChanges
       ? tx(lang, 'Yadda saxlamaq üçün əvvəlcə reseptdə dəyişiklik edin.', 'Чтобы сохранить, сначала внесите изменения в рецепт.', 'Make a change in the recipe first to enable saving.')
       : '';
@@ -188,6 +276,7 @@ export default function RecipesPanel() {
       const nextItems = await get_recipe_live(selectedMenu, tenant_id);
       setRecipeItems(nextItems);
       setDraftRecipeItems(nextItems);
+      setLastSavedByAI(false);
       setRecipeStats(await calculate_recipe_cost_live(selectedMenu, getSelectedMenuPrice(), tenant_id));
       setMissingRecipeSet((prev) => {
         const next = new Set(prev);
@@ -301,7 +390,7 @@ export default function RecipesPanel() {
                   <span title={saveDisabledReason} className="inline-block">
                     <button
                       onClick={() => { void handleSaveRecipe(); }}
-                      disabled={isSaving || !hasUnsavedChanges}
+                      disabled={isSaveDisabled}
                       aria-label={saveDisabledReason || tx(lang, 'Resepti yadda saxla', 'Сохранить рецепт', 'Save recipe')}
                       className="rounded-xl border border-emerald-300/40 bg-emerald-500/20 px-4 py-2 text-sm font-bold text-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
                     >
@@ -361,6 +450,18 @@ export default function RecipesPanel() {
               <div className="mb-4 text-xs text-slate-400">
                 {tx(lang, 'İnqrediyentləri əlavə edin, sonra ayrıca Yadda saxla düyməsi ilə resepti yadda saxlayın.', 'Добавьте ингредиенты, затем сохраните рецепт кнопкой Save.', 'Add ingredients, then save the recipe with the Save button.')}
               </div>
+              {isAffogatoLike(selectedMenu) ? (
+                <div className={`mb-4 rounded-lg border px-3 py-2 text-xs ${saveBlockedByPackaging ? 'border-amber-300/40 bg-amber-500/10 text-amber-200' : 'border-emerald-300/30 bg-emerald-500/10 text-emerald-200'}`}>
+                  {saveBlockedByPackaging
+                    ? saveDisabledReason
+                    : tx(
+                        lang,
+                        'Affogato standartı aktivdir: reseptdə kağız stəkan + qapaq məcburidir.',
+                        'Стандарт Affogato активен: в рецепте обязательны бумажный стакан + крышка.',
+                        'Affogato standard is active: paper cup + lid are required in recipe.',
+                      )}
+                </div>
+              ) : null}
               {selectedIngredientMeta ? (
                 <p className="mb-4 text-xs text-slate-400">
                   {tx(
