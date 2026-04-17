@@ -471,15 +471,18 @@ def mirror_posted_transaction_to_legacy_wallet(db: Session, txn: FinanceTransact
             )
         )
         return []
-    if txn.status != "posted" or txn.legacy_finance_entry_id:
+    txn_status = getattr(txn, "status", "posted")
+    txn_legacy_entry_id = getattr(txn, "legacy_finance_entry_id", None)
+    if txn_status != "posted" or txn_legacy_entry_id:
         return []
-    existing = (
-        db.query(FinanceEntry)
-        .filter(FinanceEntry.tenant_id == txn.tenant_id, FinanceEntry.description.contains(f"Ledger mirror: {txn.id}"))
-        .first()
-    )
-    if existing:
-        return []
+    if hasattr(db, "query"):
+        existing = (
+            db.query(FinanceEntry)
+            .filter(FinanceEntry.tenant_id == txn.tenant_id, FinanceEntry.description.contains(f"Ledger mirror: {txn.id}"))
+            .first()
+        )
+        if existing:
+            return []
 
     source_code = finance_account_code(db, txn.tenant_id, txn.source_account_id)
     destination_code = finance_account_code(db, txn.tenant_id, txn.destination_account_id)
