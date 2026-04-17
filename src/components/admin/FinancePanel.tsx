@@ -1710,7 +1710,7 @@ export default function FinancePanel() {
           tone="amber"
         />
         <FinanceMiniMetric
-          label={tx(lang, 'Xalis mənfəət', 'Чистая прибыль', 'Net profit')}
+          label={tx(lang, 'Xalis mənfəət (hesabatlıq)', 'Чистая прибыль (отчетная)', 'Net profit (reported)')}
           value={`${new Decimal(enterpriseReports?.profit_loss?.net_profit || 0).toFixed(2)} ₼`}
           tone={new Decimal(enterpriseReports?.profit_loss?.net_profit || 0).gte(0) ? 'emerald' : 'rose'}
         />
@@ -1739,6 +1739,32 @@ export default function FinancePanel() {
           enterpriseReports?.balance_sheet?.equity?.note || 'Капитал пока показывается оценочно: активы минус обязательства.',
           enterpriseReports?.balance_sheet?.equity?.note || 'Equity is currently estimated as assets minus liabilities.',
         )}
+      </div>
+      <div
+        className={`mt-2 rounded-2xl border p-3 text-xs ${
+          Number(enterpriseReports?.profit_loss?.cogs_coverage_percent || 100) >= 90
+            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+            : Number(enterpriseReports?.profit_loss?.cogs_coverage_percent || 100) >= 60
+              ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+              : 'border-rose-500/30 bg-rose-500/10 text-rose-200'
+        }`}
+      >
+        <div className="font-semibold">
+          {tx(lang, 'COGS etibarlılığı', 'Надежность COGS', 'COGS reliability')}:
+          {' '}
+          {new Decimal(enterpriseReports?.profit_loss?.cogs_coverage_percent || 100).toFixed(2)}%
+        </div>
+        <div className="mt-1">
+          {tx(
+            lang,
+            enterpriseReports?.profit_loss?.cogs_note ||
+              'COGS tamdırsa, hesabatlıq mənfəət etibarlılığı artır; boş reseptlər mənfəəti şişirdə bilər.',
+            enterpriseReports?.profit_loss?.cogs_note ||
+              'Если COGS заполнен полностью, отчетная прибыль надежнее; пустые рецепты могут завышать прибыль.',
+            enterpriseReports?.profit_loss?.cogs_note ||
+              'If COGS is fully populated, reported profit is more reliable; missing recipe costs may inflate profit.',
+          )}
+        </div>
       </div>
     </FinanceControlCard>
   );

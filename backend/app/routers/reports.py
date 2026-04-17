@@ -19,6 +19,7 @@ from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XRe
 
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
+STAFF_SHIFT_SESSIONS_KEY = "staff_shift_sessions"
 
 
 def _utcnow() -> datetime:
@@ -81,6 +82,42 @@ def _setting_value(db: Session, tenant_id: str, key: str, default):
         return default
 
 
+def _set_setting_value(db: Session, tenant_id: str, key: str, value) -> None:
+    row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
+    payload = json.dumps(value, ensure_ascii=False)
+    if row:
+        row.value = payload
+    else:
+        db.add(Setting(tenant_id=tenant_id, key=key, value=payload))
+
+
+def _staff_shift_sessions(db: Session, tenant_id: str) -> dict[str, str]:
+    raw = _setting_value(db, tenant_id, STAFF_SHIFT_SESSIONS_KEY, {})
+    if not isinstance(raw, dict):
+        return {}
+    sessions: dict[str, str] = {}
+    for username, opened_at in raw.items():
+        key = _normalized(str(username))
+        if not key:
+            continue
+        sessions[key] = str(opened_at or "")
+    return sessions
+
+
+def _open_staff_shift_session(db: Session, tenant_id: str, username: str, opened_at: datetime | None = None) -> dict[str, str]:
+    key = _normalized(username)
+    if not key:
+        return _staff_shift_sessions(db, tenant_id)
+    sessions = _staff_shift_sessions(db, tenant_id)
+    sessions[key] = (opened_at or _utcnow()).isoformat()
+    _set_setting_value(db, tenant_id, STAFF_SHIFT_SESSIONS_KEY, sessions)
+    return sessions
+
+
+def _clear_staff_shift_sessions(db: Session, tenant_id: str) -> None:
+    _set_setting_value(db, tenant_id, STAFF_SHIFT_SESSIONS_KEY, {})
+
+
 def _cash_adjustment_requires_manual_approval(db: Session, tenant_id: str, amount: Decimal) -> bool:
     policy = _finance_policy(db, tenant_id)
     if not bool(policy.get("cash_adjustment_requires_approval", True)):
@@ -110,8 +147,19 @@ def _validate_shift_handover_cash(db: Session, tenant_id: str, user: User, shift
 @router.get("/status")
 def report_status(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     active = _get_active_shift(db, tenant.id)
+    sessions = _staff_shift_sessions(db, tenant.id)
+    current_user_key = _normalized(getattr(user, "username", None))
+    staff_session_open = current_user_key in sessions if current_user_key else False
+    staff_session_opened_at = sessions.get(current_user_key) if current_user_key else None
     if not active:
-        return {"status": "Closed", "tenant_id": tenant.id}
+        return {
+            "status": "Closed",
+            "tenant_id": tenant.id,
+            "staff_shift_required": True,
+            "staff_sessions_count": len(sessions),
+            "staff_session_open": staff_session_open,
+            "staff_session_opened_at": staff_session_opened_at,
+        }
     return {
         "status": "Open",
         "tenant_id": tenant.id,
@@ -121,6 +169,10 @@ def report_status(db: Session = Depends(get_db), tenant: Tenant = Depends(get_te
         "opening_source": active.opening_source,
         "opening_target_cash": str(Decimal(str(active.opening_target_cash or 0)).quantize(Decimal("0.01"))),
         "opening_topup_amount": str(Decimal(str(active.opening_topup_amount or 0)).quantize(Decimal("0.01"))),
+        "staff_shift_required": True,
+        "staff_sessions_count": len(sessions),
+        "staff_session_open": staff_session_open,
+        "staff_session_opened_at": staff_session_opened_at,
     }
 
 
@@ -141,7 +193,18 @@ def expected_cash(db: Session = Depends(get_db), tenant: Tenant = Depends(get_te
 def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     active = _get_active_shift(db, tenant.id)
     if active:
-        raise HTTPException(status_code=400, detail="Shift already open")
+        sessions = _open_staff_shift_session(db, tenant.id, user.username, _utcnow())
+        db.commit()
+        current_key = _normalized(user.username)
+        return {
+            "success": True,
+            "shift_id": active.id,
+            "already_open": True,
+            "opened_by": active.opened_by,
+            "opening_cash": str(Decimal(str(active.opening_cash or 0)).quantize(Decimal("0.01"))),
+            "staff_session_open": bool(current_key in sessions),
+            "staff_session_opened_at": sessions.get(current_key),
+        }
 
     funding_source = _normalized(payload.funding_source or "cash") or "cash"
     valid_sources = {"cash", "safe", "card", "investor"}
@@ -223,14 +286,18 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
             opening_topup_amount=topup_amount.quantize(Decimal("0.01")),
         )
         db.add(row)
+        sessions = _open_staff_shift_session(db, tenant.id, user.username, opened_at)
         db.flush()
         db.commit()
+        current_key = _normalized(user.username)
         return {
             "success": True,
             "shift_id": row.id,
             "opening_cash": str(opening_cash),
             "funding_source": funding_source,
             "topup_amount": str(topup_amount.quantize(Decimal("0.01"))),
+            "staff_session_open": bool(current_key in sessions),
+            "staff_session_opened_at": sessions.get(current_key),
         }
     except HTTPException:
         db.rollback()
@@ -438,6 +505,7 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
     active.status = "closed"
     active.closed_by = user.username
     active.closed_at = _utcnow()
+    _clear_staff_shift_sessions(db, tenant.id)
     active.actual_cash = actual_cash
     active.declared_cash = actual_cash
     active.cash_variance = difference

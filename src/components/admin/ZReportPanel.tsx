@@ -118,6 +118,8 @@ export default function ZReportPanel() {
   const latestReceived = handovers.find((h) => h.received_by === user?.username && String(h.status || '').toUpperCase() === 'ACCEPTED');
   const expectedCashNow = expectedCashState;
   const activeShiftOwner = String(shiftStatus.opened_by || '');
+  const staffSessionOpen = Boolean((shiftStatus as any).staff_session_open);
+  const canOpenOrJoinShift = shiftStatus.status !== 'Open' || !staffSessionOpen;
   const selectedReceiver = tenantUsers.find((u) => u.username === handoverTo);
   const availableReceivers = tenantUsers.filter((u) => u.username !== user?.username);
   const visibleSales = useMemo(() => sales.slice(0, salesPageSize), [sales, salesPageSize]);
@@ -540,7 +542,8 @@ export default function ZReportPanel() {
 
   const handleOpenDay = async () => {
     try {
-      await open_shift(user?.username || 'staff', tenant_id, {
+      const wasOpenBefore = shiftStatus.status === 'Open';
+      const res = await open_shift(user?.username || 'staff', tenant_id, {
         opening_cash: targetCash.toFixed(2),
         funding_source: openingTopupSource,
         target_cash: targetCash.toFixed(2),
@@ -554,8 +557,16 @@ export default function ZReportPanel() {
       setHandoverActualCash(nextCash);
       setReportRefreshKey((prev) => prev + 1);
 
-      notify('success', tx(lang, 'Gün açıldı', 'День открыт'));
-      notify('info', tx(lang, 'Xahiş edirik, gün sonu Z-Hesabatla növbəni bağlamağı unutmayın.', 'Пожалуйста, не забудьте закрыть смену через Z-отчет в конце дня.'));
+      const joinedExistingShift = Boolean((res as any)?.already_open || wasOpenBefore);
+      notify(
+        'success',
+        joinedExistingShift
+          ? tx(lang, 'Növbəyə qoşuldunuz', 'Вы подключились к смене', 'You joined the shift')
+          : tx(lang, 'Gün açıldı', 'День открыт', 'Day opened'),
+      );
+      if (!joinedExistingShift) {
+        notify('info', tx(lang, 'Xahiş edirik, gün sonu Z-Hesabatla növbəni bağlamağı unutmayın.', 'Пожалуйста, не забудьте закрыть смену через Z-отчет в конце дня.', 'Please close the shift with Z Report at the end of day.'));
+      }
     } catch (e: any) {
       notify('error', tx(lang, `Xəta: ${e.message}`, `Ошибка: ${e.message}`));
     }
@@ -840,8 +851,12 @@ export default function ZReportPanel() {
           <div className="text-xs text-slate-300 whitespace-nowrap">
             {tx(lang, 'Tamamlanacaq', 'Сумма пополнения', 'Top-up')}: <b>{requiredTopup.toFixed(2)} ₼</b>
           </div>
-          <button onClick={handleOpenDay} className="neon-btn px-4 py-2" disabled={shiftStatus.status === 'Open'}>
-            {shiftStatus.status === 'Open' ? tx(lang, 'Gün Açıqdır', 'День уже открыт', 'Day Already Open') : tx(lang, 'Günü Aç', 'Открыть день', 'Open Day')}
+          <button onClick={handleOpenDay} className="neon-btn px-4 py-2" disabled={!canOpenOrJoinShift}>
+            {shiftStatus.status === 'Open'
+              ? (staffSessionOpen
+                ? tx(lang, 'Növbəniz Açıqdır', 'Ваша смена открыта', 'Your shift is open')
+                : tx(lang, 'Növbəyə Qoşul', 'Подключиться к смене', 'Join shift'))
+              : tx(lang, 'Günü Aç', 'Открыть день', 'Open Day')}
           </button>
         </div>
       </div>
@@ -857,6 +872,13 @@ export default function ZReportPanel() {
               </span>
             ) : (
               <span className="text-sm text-slate-400">{tx(lang, 'Hazırda açıq növbə yoxdur', 'Сейчас нет открытой смены', 'No open shift right now')}</span>
+            )}
+          </div>
+          <div className="mt-2 text-xs">
+            {staffSessionOpen ? (
+              <span className="text-emerald-300">{tx(lang, 'Sizin növbə session-u açıqdır, satış edə bilərsiniz.', 'Ваш session смены открыт, продажи разрешены.', 'Your staff shift session is open; sales are allowed.')}</span>
+            ) : (
+              <span className="text-amber-300">{tx(lang, 'Satış üçün əvvəlcə “Günü Aç / Növbəyə Qoşul” edin.', 'Для продаж сначала нажмите «Открыть день / Подключиться к смене».', 'To sell, first click “Open Day / Join Shift”.')}</span>
             )}
           </div>
         </div>
