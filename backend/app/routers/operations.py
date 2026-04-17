@@ -3,7 +3,7 @@ import re
 import secrets
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 try:
     from zoneinfo import ZoneInfo
@@ -75,6 +75,12 @@ from app.security import hash_password, hash_token, verify_password
 
 
 router = APIRouter(prefix="/api/v1/ops", tags=["operations"])
+
+
+def _utcnow() -> datetime:
+    # Keep stored timestamps UTC-naive (existing DB model expectation) without deprecated utcnow().
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
 
 DEFAULT_FINANCE_POLICY = {
     "large_transfer_threshold_azn": 500,
@@ -4403,7 +4409,7 @@ def accept_shift_handover_op(
     row.status = "ACCEPTED"
     row.actual_cash = actual
     row.difference = difference
-    row.accepted_at = datetime.utcnow()
+    row.accepted_at = _utcnow()
     db.commit()
     return {
         "success": True,
