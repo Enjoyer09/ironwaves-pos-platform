@@ -498,130 +498,138 @@ Masa bağlananda:
 
 ## 8. Maliyyə Modulu
 
-`Maliyyə` menecer və kassir üçün `maliyyə nəzarət mərkəzi` kimi işləyir.
+`Maliyyə` modulu menecer üçün “pulun hardan gəlib-hara getdiyi” ekranıdır.
 
-Əsas məntiq:
-- `Baxış`
-  indi vəziyyət nədir?
-- `Əməliyyat`
-  indi nə yazmalıyam?
-- `Maliyyə jurnalı`
-  nə baş verib?
+Sadə qayda:
+- pul daxil olubsa: hansı hesab artdı?
+- pul çıxıbsa: hansı hesab azaldı?
+- fərq varsa: səbəb nədir və kim təsdiqləyib?
 
-### 8.1. Baxış ekranı
+### 8.0. 3 dəqiqəlik sürətli başlanğıc
 
-`Maliyyə`yə girəndə əvvəl `Baxış` görünür.
+1. `Baxış` tabında `Nağd`, `Kart`, `Seyf`, `Aktiv depozit` rəqəmlərinə baxın.
+2. `Alert` varsa əvvəl onu açın, səbəbi görün.
+3. `Pending approval` varsa əməliyyatı təsdiq/rədd edin.
+4. Gün içində bir dəfə `X-Hesabat`, gün sonunda `Z-Hesabat` edin.
 
-Burada əsas kartlar var:
-- `Nağd kassa`
-- `Bank/Kart`
-- `Seyf`
-- `Aktiv depozitlər`
-- `Bugünkü net`
-- `Uyğunlaşdırma fərqi`
+Bu 4 addımı etsəniz, gündəlik maliyyə idarəsi nəzarətdə olur.
 
-Yuxarıda isə kritik siqnallar görünür:
+### 8.1. Maliyyə ekranını necə oxumaq
+
+`Baxış` tabında əvvəlcə bunlara baxın:
+1. `Nağd kassa`
+2. `Bank/Kart`
+3. `Seyf`
+4. `Aktiv depozitlər`
+5. `Bugünkü net`
+
+Sonra xəbərdarlıqları oxuyun:
 - `Kassa uyğun deyil`
 - `Təsdiq gözləyən əməliyyat var`
-- `Transfer uğursuz oldu`
-- `Investor qalığı gecikir`
 - `Uyğunlaşdırma tamamlanmayıb`
 
-### 8.2. Sürətli əməliyyatlar
+Əgər qırmızı xəbərdarlıq varsa, əvvəl onu həll edin.
 
-Buradan bunları açırsınız:
-- `Mədaxil yaz`
-- `Xərc yaz`
-- `Daxili transfer`
-- `Investor ödə`
-- `Depozit əməliyyatı`
-- `Uyğunlaşdırma başlat`
-- `Düzəliş`
+### 8.2. Sürətli əməliyyatlar (hansı düymə nə üçündür)
 
-Formlar eyni anda açıq qalmır.
-Hansını seçirsinizsə, yalnız onun iş sahəsi açılır.
+- `Mədaxil yaz`: kassa/kart/seyfə real pul daxil olur
+- `Xərc yaz`: hesabdan pul çıxır (xammal, kommunal, maaş və s.)
+- `Daxili transfer`: hesablar arası hərəkət (gəlir/xərc deyil)
+- `Investor ödə`: investor borcunu azaltmaq üçün ödəniş
+- `Depozit əməliyyatı`: depozit öhdəliyi ilə bağlı hərəkətlər
+- `Uyğunlaşdırma`: sistem məbləği ilə faktiki sayımı tutuşdurma
+- `Düzəliş`: yalnız əsaslandırılmış fərq düzəlişləri üçün
 
-### 8.3. Xərc və mədaxil
+Qısa seçim qaydası:
+- Pul real olaraq kassaya gəlibsə: `Mədaxil yaz`
+- Pul kassadan çıxıbsa: `Xərc yaz`
+- Sadəcə hesablar arası yer dəyişibsə: `Daxili transfer`
+- Investor borcu qaytarılırsa: `Investor ödə`
 
-Misal:
-- təchizatçıya `40 AZN` xammal pulu verilib
+### 8.3. Praktik ssenarilər
 
-Siz:
-- `Xərc yaz`
-- mənbə hesabı: məsələn `Kassa`
-- kateqoriya: `Xammal`
-- subyekt: `Təchizatçı`
-- məbləğ: `40`
-- qeyd yazırsınız
+#### A) Xərc yazmaq
 
-### 8.4. Daxili transfer
+Misal: təchizatçıya `40 AZN` ödənilib.
+1. `Xərc yaz`
+2. mənbə hesabı: `Kassa`
+3. kateqoriya: `Xammal`
+4. məbləğ: `40`
+5. `Yadda saxla`
 
-Bu gəlir və xərc deyil.
-Sadəcə hesablar arası hərəkətdir.
+#### B) Daxili transfer
 
-Misal:
-- `100 AZN` seyfdən kassaya qoyursunuz
+Misal: seyfdən kassaya `100 AZN`.
+1. `Daxili transfer`
+2. `Seyf -> Kassa`
+3. məbləğ `100`
+4. təsdiq et
 
-Siz:
-- `Daxili transfer`
-- `Seyfdən Kassaya`
-- məbləğ `100`
+Qeyd: bu əməliyyat gəlir sayılmır.
 
-### 8.5. Investor ödənişi
+#### C) Investor ödənişi
 
-Bu əməliyyatda:
-- seçilən hesabdan pul çıxır
-- investor borcu azalır
+Misal: investor borcundan `200 AZN` qaytarılır.
+1. `Investor ödə`
+2. mənbə hesabını seç (`Kassa/Kart/Seyf`)
+3. məbləği yaz
+4. təsdiqlə
 
-Bəzi hallarda bu əməliyyat əvvəl `Təsdiq qutusu`na düşür.
+Bəzi məbləğlər policy-yə görə `Təsdiq qutusu`na düşə bilər.
 
-### 8.6. Uyğunlaşdırma
+### 8.4. Uyğunlaşdırma (Reconciliation)
 
-Burada:
-- sistemin gözlədiyi məbləğ görünür
-- sizin saydığınız faktiki məbləğ yazılır
-- fərq hesablanır
+Bu hissədə 3 rəqəm vacibdir:
+- `Expected` (sistemin gözlədiyi)
+- `Counted` (faktiki saydığınız)
+- `Variance` (fərq)
 
-Əgər fərq çıxırsa, bu, nəzarət siqnalıdır.
+Fərq `0` deyilsə:
+1. əvvəl əməliyyat tarixçəsini yoxlayın
+2. sonra səbəbi qeyd edib uyğunlaşdırma yaradın
+3. lazım olsa rəhbər təsdiqi ilə düzəliş edin
 
-### 8.7. Təsdiq qutusu
+### 8.5. Təsdiq qutusu
 
-Burada riskli əməliyyatlar menecer təsdiqi gözləyir.
-
-Misallar:
+Aşağıdakı əməliyyatlar burada gözləyə bilər:
 - böyük transfer
 - investor ödənişi
 - reversal
-- düzəliş əməliyyatı
+- cash adjustment
 
-### 8.8. Maliyyə jurnalı
+Qərar:
+- `Təsdiq et` → əməliyyat post olunur
+- `Rədd et` → əməliyyat bağlanır, audit izi qalır
 
-Bu hissə audit üçündür.
+### 8.6. Maliyyə jurnalı (Audit üçün)
 
-Burada hər əməliyyat üzrə görünür:
-- tarix
-- status
-- əməliyyat növü
-- hansı hesabdan hansı hesaba getdiyi
+Hər sətirdə görünür:
+- tarix/saat
+- status (`pending_approval`, `posted`, `rejected`, `reversed`)
+- mənbə hesab → hədəf hesab
 - məbləğ
 - qeyd
 
-Sətirə klikləyəndə açılır:
-- debit / credit yazılışları
-- audit tarixçəsi
-- təsdiq tarixi
-- reversal tarixçəsi
+Sətir detalında görünür:
+- debit/credit ledger yazılışları
+- audit log tarixçəsi
+- təsdiq edən istifadəçi
+- reversal bağlantıları
 
-### 8.9. Menecer üçün qısa yoxlama
+### 8.7. Menecer üçün 1 dəqiqəlik gündəlik yoxlama
 
-Maliyyə moduluna girəndə belə oxuyun:
+1. `Baxış` kartları
+2. qırmızı/sarı alert-lər
+3. `Təsdiq qutusu`
+4. `Maliyyə jurnalı`nda son 10 əməliyyat
+5. `X-Hesabat` və gün sonunda `Z-Hesabat`
 
-1. KPI kartlarına baxın
-2. qırmızı və sarı xəbərdarlıqları yoxlayın
-3. `Bugünkü pul axını`na baxın
-4. `Nəzarət xülasəsi`ni oxuyun
-5. `Təsdiq qutusu`nda gözləyən əməliyyat varsa qərar verin
-6. lazım olsa `Maliyyə jurnalı`na keçin
+### 8.8. Edilməməli olanlar
+
+- `Pending` statuslu əməliyyatı “bitmiş” saymaq olmaz.
+- Səbəbsiz `Düzəliş` (adjustment) etmək olmaz.
+- Fərq böyükdürsə approval gözləmədən bağlama etməyin.
+- Investor ödənişini jurnalda `posted` görmədən yekun hesablamayın.
 
 ## 9. X-Hesabat
 
@@ -633,6 +641,10 @@ Operator kassadakı real məbləği sayır və sistemdəki `olmalı kassa` ilə 
 - `Kassa Artığı`
 - və ya `Kassa Kəsiri`
 yaranır
+
+Qeyd:
+- policy threshold-dan böyük fərq birbaşa post olmaya bilər, `pending approval` yarana bilər.
+- məqsəd “fərqi gizlətmək” yox, səbəbi auditlə yazmaqdır.
 
 ## 10. Z-Hesabat
 
@@ -657,6 +669,19 @@ Bu panel:
 - maliyyə risklərinin olub-olmadığını
 göstərir
 
+### 10.3. Z-Hesabat bağlanış qaydası (praktik)
+
+1. faktiki kassanı sayın
+2. `actual cash` sahəsinə yazın
+3. varsa `wage` məbləğini düzgün yazın
+4. depozit öhdəliyi açıqdırsa:
+   - əvvəl masa/depozit axınında bağlayın
+   - və ya qaydaya uyğun `allow_open_deposit_close` ilə bağlayın
+5. bağlayışdan sonra fərq və depozit qalığını yenidən yoxlayın
+
+Vacib:
+- Z-Hesabatdan sonra növbə rəqəmləri audit üçün saxlanır (`actual`, `declared`, `variance`, `closing cash`).
+
 ## 11. Smen Təhvili
 
 Növbə dəyişəndə:
@@ -670,6 +695,10 @@ Digər istifadəçi:
 1. daxil olur
 2. `Qəbul Et`
 3. fərqi təsdiqləyir
+
+Qeyd:
+- böyük fərq varsa `accept` zamanı adjustment birbaşa post olmaq əvəzinə `pending approval` yarada bilər.
+- bu, kassir riskini azaltmaq üçündür.
 
 ## 12. Dashboard
 
