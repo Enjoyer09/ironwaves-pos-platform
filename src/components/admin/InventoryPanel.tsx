@@ -4,7 +4,7 @@ import { get_inventory_items_live, add_inventory_item_live, record_loss_live, re
 import { get_logs_live } from '../../api/logs';
 import { get_settings_live } from '../../api/settings';
 import { useAppStore } from '../../store';
-import { Package, AlertTriangle, Plus } from 'lucide-react';
+import { Package, AlertTriangle, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { tx } from '../../i18n';
 
 export default function InventoryPanel() {
@@ -14,6 +14,8 @@ export default function InventoryPanel() {
   const [history, setHistory] = useState<any[]>([]);
   const [itemsPageSize, setItemsPageSize] = useState(10);
   const [historyPageSize, setHistoryPageSize] = useState(10);
+  const [itemsPage, setItemsPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
   const [inventoryConfig, setInventoryConfig] = useState<{ default_critical_threshold: number; unit_options: string[] }>({
     default_critical_threshold: 5,
     unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'],
@@ -206,8 +208,34 @@ export default function InventoryPanel() {
     return `${item.name} ${item.type} ${item.category}`.toLowerCase().includes(q);
   }), [items, search]);
 
-  const visibleItems = useMemo(() => filteredItems.slice(0, itemsPageSize), [filteredItems, itemsPageSize]);
-  const visibleHistory = useMemo(() => history.slice(0, historyPageSize), [history, historyPageSize]);
+  const itemsTotalPages = Math.max(1, Math.ceil(filteredItems.length / Math.max(1, itemsPageSize)));
+  const historyTotalPages = Math.max(1, Math.ceil(history.length / Math.max(1, historyPageSize)));
+
+  useEffect(() => {
+    setItemsPage((prev) => Math.min(Math.max(1, prev), itemsTotalPages));
+  }, [itemsTotalPages]);
+
+  useEffect(() => {
+    setHistoryPage((prev) => Math.min(Math.max(1, prev), historyTotalPages));
+  }, [historyTotalPages]);
+
+  useEffect(() => {
+    setItemsPage(1);
+  }, [tenant_id, search, itemsPageSize]);
+
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [tenant_id, historyPageSize]);
+
+  const visibleItems = useMemo(() => {
+    const start = (itemsPage - 1) * itemsPageSize;
+    return filteredItems.slice(start, start + itemsPageSize);
+  }, [filteredItems, itemsPage, itemsPageSize]);
+
+  const visibleHistory = useMemo(() => {
+    const start = (historyPage - 1) * historyPageSize;
+    return history.slice(start, start + historyPageSize);
+  }, [history, historyPage, historyPageSize]);
 
   const describeHistory = (row: any) => {
     const details = row?.details || {};
@@ -397,11 +425,34 @@ export default function InventoryPanel() {
           <div className="text-sm text-slate-300">
             {tx(lang, 'Ekranda məhsul sayı', 'Количество товаров на экране', 'Items shown on screen')}: <b>{visibleItems.length}</b> / {filteredItems.length}
           </div>
-          <select value={itemsPageSize} onChange={(e) => setItemsPageSize(Number(e.target.value))} className="neon-input min-h-12 w-28">
-            <option value={5}>5</option>
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-          </select>
+          <div className="flex items-center gap-2">
+            <button
+              className="neon-btn min-h-12 rounded-lg px-3 disabled:opacity-50"
+              disabled={itemsPage <= 1}
+              onClick={() => setItemsPage((p) => Math.max(1, p - 1))}
+              aria-label={tx(lang, 'Əvvəlki səhifə', 'Предыдущая страница', 'Previous page')}
+              title={tx(lang, 'Əvvəlki səhifə', 'Предыдущая страница', 'Previous page')}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <div className="min-w-[92px] text-center text-xs text-slate-300">
+              {tx(lang, 'Səhifə', 'Страница', 'Page')} {itemsPage} / {itemsTotalPages}
+            </div>
+            <button
+              className="neon-btn min-h-12 rounded-lg px-3 disabled:opacity-50"
+              disabled={itemsPage >= itemsTotalPages}
+              onClick={() => setItemsPage((p) => Math.min(itemsTotalPages, p + 1))}
+              aria-label={tx(lang, 'Növbəti səhifə', 'Следующая страница', 'Next page')}
+              title={tx(lang, 'Növbəti səhifə', 'Следующая страница', 'Next page')}
+            >
+              <ChevronRight size={16} />
+            </button>
+            <select value={itemsPageSize} onChange={(e) => setItemsPageSize(Number(e.target.value))} className="neon-input min-h-12 w-28">
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+            </select>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -460,11 +511,34 @@ export default function InventoryPanel() {
               {tx(lang, 'Kim nə vaxt əlavə etdi, azaltdı və ya sildi buradan görünür.', 'Здесь видно кто, когда добавил, списал или удалил товар.', 'See who added, reduced, or deleted stock and when.')}
             </p>
           </div>
-          <select value={historyPageSize} onChange={(e) => setHistoryPageSize(Number(e.target.value))} className="neon-input min-h-12 w-28">
-            <option value={5}>5</option>
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-          </select>
+          <div className="flex items-center gap-2">
+            <button
+              className="neon-btn min-h-12 rounded-lg px-3 disabled:opacity-50"
+              disabled={historyPage <= 1}
+              onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
+              aria-label={tx(lang, 'Əvvəlki səhifə', 'Предыдущая страница', 'Previous page')}
+              title={tx(lang, 'Əvvəlki səhifə', 'Предыдущая страница', 'Previous page')}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <div className="min-w-[92px] text-center text-xs text-slate-300">
+              {tx(lang, 'Səhifə', 'Страница', 'Page')} {historyPage} / {historyTotalPages}
+            </div>
+            <button
+              className="neon-btn min-h-12 rounded-lg px-3 disabled:opacity-50"
+              disabled={historyPage >= historyTotalPages}
+              onClick={() => setHistoryPage((p) => Math.min(historyTotalPages, p + 1))}
+              aria-label={tx(lang, 'Növbəti səhifə', 'Следующая страница', 'Next page')}
+              title={tx(lang, 'Növbəti səhifə', 'Следующая страница', 'Next page')}
+            >
+              <ChevronRight size={16} />
+            </button>
+            <select value={historyPageSize} onChange={(e) => setHistoryPageSize(Number(e.target.value))} className="neon-input min-h-12 w-28">
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+            </select>
+          </div>
         </div>
         <div className="space-y-3">
           {visibleHistory.map((row: any) => (
