@@ -25,6 +25,23 @@ type RecipeAIMenuContext = {
   sell_price?: Decimal.Value;
 };
 
+const localInventoryForTenant = (tenant_id: string) => {
+  const fromInventory = (getDB<any>('inventory') || []).filter((i) => !i?.tenant_id || i.tenant_id === tenant_id);
+  if (fromInventory.length > 0) return fromInventory;
+  return (getDB<any>('ingredients') || []).filter((i) => !i?.tenant_id || i.tenant_id === tenant_id);
+};
+
+const loadInventoryForAI = async (tenant_id: string) => {
+  if (!isBackendEnabled()) return localInventoryForTenant(tenant_id);
+  try {
+    const liveRows = await get_inventory_items_live(tenant_id);
+    if (Array.isArray(liveRows) && liveRows.length > 0) return liveRows;
+  } catch {
+    // fall through to local fallback
+  }
+  return localInventoryForTenant(tenant_id);
+};
+
 const scoreIngredient = (menuName: string, ingredientName: string) => {
   const m = menuName.toLowerCase();
   const i = ingredientName.toLowerCase();
@@ -375,7 +392,7 @@ async function generate_recipe_ai_rows(
   if (!aiKey) {
     throw new Error('AI resept üçün əvvəlcə Gemini API key daxil edilməlidir.');
   }
-  const inventory = (getDB<any>('inventory') || []).filter((i) => !i.tenant_id || i.tenant_id === tenant_id);
+  const inventory = await loadInventoryForAI(tenant_id);
   if (inventory.length === 0) {
     throw new Error('AI resept yaratmaq üçün anbarda xammal tapılmadı.');
   }
