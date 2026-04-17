@@ -53,6 +53,8 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   const [newItemDescription, setNewItemDescription] = useState('');
   const [newItemImageUrl, setNewItemImageUrl] = useState('');
   const [customCategory, setCustomCategory] = useState('');
+  const [menuSearch, setMenuSearch] = useState('');
+  const [isAddingMenu, setIsAddingMenu] = useState(false);
   const [adminNote, setAdminNote] = useState('');
   const [notes, setNotes] = useState<Array<{ id: number; text: string; by?: string; created_at: string }>>([]);
   const [deleteMenuId, setDeleteMenuId] = useState<string | null>(null);
@@ -204,6 +206,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     setNewItemDescription('');
     setNewItemImageUrl('');
     setCustomCategory('');
+    setIsAddingMenu(false);
     window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { scope: 'menu' } }));
     delete fetchCacheRef.current[`menu:${tenant_id}`];
     const seq = ++fetchSeqRef.current;
@@ -304,6 +307,12 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     if (!currentUser) return false;
     return verifyLocalCredential(normalized, currentUser.password_hash || currentUser.password);
   };
+
+  const filteredMenu = menu.filter((item: any) => {
+    const q = menuSearch.trim().toLowerCase();
+    if (!q) return true;
+    return `${item.item_name || ''} ${item.category || ''} ${item.description || ''}`.toLowerCase().includes(q);
+  });
 
   return (
     <div className="compact-shell h-full overflow-hidden p-3 text-slate-100 md:p-6">
@@ -580,84 +589,126 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
         )}
 
         {activeTab === 'menu' && (
-          <div className="metal-panel flex flex-col">
-            <div className="p-6 border-b border-slate-700/70 flex justify-between items-center">
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold text-slate-100">{tx(lang, 'Menyu İdarəetməsi', 'Управление меню', 'Menu Management')}</h2>
-            </div>
-            
-            <div className="p-6 border-b border-slate-700/70 flex gap-3 flex-wrap">
-              <input type="text" placeholder={tx(lang, 'Ad', 'Название', 'Name')} value={newItemName} onChange={e => setNewItemName(e.target.value)} className="neon-input min-w-[150px]"/>
-              <input type="number" placeholder={tx(lang, 'Qiymət', 'Цена', 'Price')} value={newItemPrice} onChange={e => setNewItemPrice(e.target.value)} className="neon-input w-28"/>
-              <select value={newItemCategory} onChange={e => setNewItemCategory(e.target.value)} className="neon-input w-40">
-                {Array.from(new Set(['Qəhvə', 'Şirniyyat', 'Sular', ...menu.map((m) => m.category)])).map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-                <option value="__custom__">{tx(lang, 'Yeni kateqoriya...', 'Новая категория...', 'New category...')}</option>
-              </select>
-              {newItemCategory === '__custom__' && (
+              <div className="flex gap-2">
                 <input
-                  type="text"
-                  placeholder={tx(lang, 'Kateqoriya adı', 'Название категории', 'Category name')}
-                  value={customCategory}
-                  onChange={(e) => setCustomCategory(e.target.value)}
-                  className="neon-input w-40"
+                  className="neon-input"
+                  placeholder={tx(lang, 'Menyuda axtarış...', 'Поиск по меню...', 'Search menu...')}
+                  value={menuSearch}
+                  onChange={(e) => setMenuSearch(e.target.value)}
                 />
-              )}
-              <input type="text" placeholder={tx(lang, 'Şəkil linki', 'Ссылка на изображение', 'Image URL')} value={newItemImageUrl} onChange={e => setNewItemImageUrl(e.target.value)} className="neon-input min-w-[220px]"/>
-              <input type="file" accept="image/*" onChange={handleMenuImageUpload} className="neon-input min-w-[220px]"/>
-              <input type="text" placeholder={tx(lang, 'Qısa təsvir', 'Краткое описание', 'Short description')} value={newItemDescription} onChange={e => setNewItemDescription(e.target.value)} className="neon-input min-w-[220px] flex-1"/>
-              <button
-                onClick={() => { void handleAddMenu(); }}
-                disabled={!newItemName.trim() || !newItemPrice || (newItemCategory === '__custom__' && !customCategory.trim())}
-                className="glossy-gold px-4 py-2 rounded-xl transition-colors flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
-                title={tx(lang, 'Yeni menyu məhsulu yaradır.', 'Создает новую позицию меню.', 'Creates a new menu item.')}
-                data-guide={tx(lang, 'Yeni menyu məhsulu yaradır.', 'Создает новую позицию меню.', 'Creates a new menu item.')}
-              >
-                <Plus size={20} />
-                {tx(lang, 'Məhsulu Yarat', 'Создать товар', 'Create Item')}
-              </button>
+                <button
+                  onClick={() => setIsAddingMenu((prev) => !prev)}
+                  className="neon-btn px-4 py-2 rounded-lg flex items-center gap-2"
+                >
+                  <Plus size={18} />
+                  {tx(lang, 'Məhsul Əlavə Et', 'Добавить товар', 'Add item')}
+                </button>
+              </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-3">
-              {menu.map(item => (
-                <div key={item.id} className="flex justify-between items-center p-4 rounded-xl border border-slate-700/70 bg-slate-900/35">
-                  <div className="flex min-w-0 items-center gap-4">
-                    {item.image_url ? (
-                      <img src={String(item.image_url)} alt={String(item.item_name)} className="h-16 w-16 rounded-xl object-cover ring-1 ring-slate-700/60" />
-                    ) : null}
-                    <div className="min-w-0">
-                    <div className="font-bold text-lg text-slate-100">{item.item_name}</div>
-                    <div className="text-sm font-semibold text-yellow-300 bg-yellow-500/20 px-2 py-0.5 rounded inline-block mt-1">{item.category}</div>
-                    {item.description ? <div className="mt-2 max-w-xl truncate text-sm text-slate-400">{String(item.description)}</div> : null}
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-6">
-                    <div className="font-bold text-xl text-slate-100">{parseFloat(item.price).toFixed(2)} ₼</div>
-                    <button
-                      onClick={() => setDeleteMenuId(item.id)}
-                      className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
-                      title={tx(lang, 'Məhsulu deaktiv edir/silməyə hazırlayır.', 'Деактивирует товар / подготавливает к удалению.', 'Deactivates item / prepares it for deletion.')}
-                      data-guide={tx(lang, 'Məhsulu deaktiv edir/silməyə hazırlayır.', 'Деактивирует товар / подготавливает к удалению.', 'Deactivates item / prepares it for deletion.')}
-                    >
-                      <Trash2 size={20} />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditMenuModal({
-                          id: String(item.id),
-                          item_name: String(item.item_name || ''),
-                          price: String(item.price || ''),
-                        });
-                      }}
-                      className="text-cyan-300 hover:text-cyan-100 p-2 hover:bg-cyan-400/10 rounded-lg transition-colors"
-                      title={tx(lang, 'Məhsulu düzəlt', 'Редактировать товар', 'Edit item')}
-                      data-guide={tx(lang, 'Məhsulun ad və qiymətini düzəldir.', 'Редактирует название и цену товара.', 'Edits item name and price.')}
-                    >
-                      <Pencil size={18} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+            {isAddingMenu && (
+              <div className="metal-panel p-6 grid grid-cols-1 md:grid-cols-7 gap-4">
+                <input type="text" placeholder={tx(lang, 'Ad', 'Название', 'Name')} value={newItemName} onChange={e => setNewItemName(e.target.value)} className="neon-input md:col-span-2"/>
+                <input type="number" placeholder={tx(lang, 'Qiymət', 'Цена', 'Price')} value={newItemPrice} onChange={e => setNewItemPrice(e.target.value)} className="neon-input"/>
+                <select value={newItemCategory} onChange={e => setNewItemCategory(e.target.value)} className="neon-input">
+                  {Array.from(new Set(['Qəhvə', 'Şirniyyat', 'Sular', ...menu.map((m) => m.category)])).map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                  <option value="__custom__">{tx(lang, 'Yeni kateqoriya...', 'Новая категория...', 'New category...')}</option>
+                </select>
+                {newItemCategory === '__custom__' && (
+                  <input
+                    type="text"
+                    placeholder={tx(lang, 'Kateqoriya adı', 'Название категории', 'Category name')}
+                    value={customCategory}
+                    onChange={(e) => setCustomCategory(e.target.value)}
+                    className="neon-input"
+                  />
+                )}
+                <input type="text" placeholder={tx(lang, 'Şəkil linki', 'Ссылка на изображение', 'Image URL')} value={newItemImageUrl} onChange={e => setNewItemImageUrl(e.target.value)} className="neon-input md:col-span-2"/>
+                <input type="file" accept="image/*" onChange={handleMenuImageUpload} className="neon-input md:col-span-2"/>
+                <input type="text" placeholder={tx(lang, 'Qısa təsvir', 'Краткое описание', 'Short description')} value={newItemDescription} onChange={e => setNewItemDescription(e.target.value)} className="neon-input md:col-span-2"/>
+                <button
+                  onClick={() => { void handleAddMenu(); }}
+                  disabled={!newItemName.trim() || !newItemPrice || (newItemCategory === '__custom__' && !customCategory.trim())}
+                  className="glossy-gold px-4 py-2 rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  title={tx(lang, 'Yeni menyu məhsulu yaradır.', 'Создает новую позицию меню.', 'Creates a new menu item.')}
+                  data-guide={tx(lang, 'Yeni menyu məhsulu yaradır.', 'Создает новую позицию меню.', 'Creates a new menu item.')}
+                >
+                  {tx(lang, 'Məhsulu Yarat', 'Создать товар', 'Create Item')}
+                </button>
+              </div>
+            )}
+
+            <div className="metal-panel rounded-xl p-6">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="text-slate-300 border-b border-slate-700/70">
+                      <th className="pb-3">{tx(lang, 'Məhsul', 'Товар', 'Item')}</th>
+                      <th className="pb-3">{tx(lang, 'Kateqoriya', 'Категория', 'Category')}</th>
+                      <th className="pb-3">{tx(lang, 'Qiymət', 'Цена', 'Price')}</th>
+                      <th className="pb-3">{tx(lang, 'Təsvir', 'Описание', 'Description')}</th>
+                      <th className="pb-3">{tx(lang, 'Əməliyyat', 'Операция', 'Action')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredMenu.map(item => (
+                      <tr key={item.id} className="border-b border-slate-700/60">
+                        <td className="py-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            {item.image_url ? (
+                              <img src={String(item.image_url)} alt={String(item.item_name)} className="h-12 w-12 rounded-xl object-cover ring-1 ring-slate-700/60" />
+                            ) : (
+                              <div className="h-12 w-12 rounded-xl bg-slate-800 text-[10px] text-slate-500 flex items-center justify-center">IMG</div>
+                            )}
+                            <div className="font-semibold text-slate-100">{item.item_name}</div>
+                          </div>
+                        </td>
+                        <td className="py-3 text-slate-200">{item.category}</td>
+                        <td className="py-3 text-yellow-300 font-semibold">{parseFloat(item.price).toFixed(2)} ₼</td>
+                        <td className="py-3 text-slate-300">{item.description ? String(item.description) : '-'}</td>
+                        <td className="py-3">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setDeleteMenuId(item.id)}
+                              className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                              title={tx(lang, 'Məhsulu deaktiv edir/silməyə hazırlayır.', 'Деактивирует товар / подготавливает к удалению.', 'Deactivates item / prepares it for deletion.')}
+                              data-guide={tx(lang, 'Məhsulu deaktiv edir/silməyə hazırlayır.', 'Деактивирует товар / подготавливает к удалению.', 'Deactivates item / prepares it for deletion.')}
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditMenuModal({
+                                  id: String(item.id),
+                                  item_name: String(item.item_name || ''),
+                                  price: String(item.price || ''),
+                                });
+                              }}
+                              className="text-cyan-300 hover:text-cyan-100 p-2 hover:bg-cyan-400/10 rounded-lg transition-colors"
+                              title={tx(lang, 'Məhsulu düzəlt', 'Редактировать товар', 'Edit item')}
+                              data-guide={tx(lang, 'Məhsulun ad və qiymətini düzəldir.', 'Редактирует название и цену товара.', 'Edits item name and price.')}
+                            >
+                              <Pencil size={18} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredMenu.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-slate-500">
+                          {tx(lang, 'Axtarışa uyğun məhsul tapılmadı.', 'По запросу ничего не найдено.', 'No matching menu item found.')}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
