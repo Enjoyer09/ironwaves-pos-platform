@@ -379,7 +379,20 @@ export function FinanceLedgerTab({
           </thead>
           <tbody>
             {visibleLedgerTransactions.map((entry) => (
-              <tr key={entry.id} onClick={() => void onOpenLedgerDetail(entry)} className="cursor-pointer border-b border-slate-900 transition hover:bg-slate-900/70">
+              <tr
+                key={entry.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`${transactionTypeLabel(entry.transaction_type)} ${new Decimal(entry.amount || 0).toFixed(2)} AZN`}
+                onClick={() => void onOpenLedgerDetail(entry)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    void onOpenLedgerDetail(entry);
+                  }
+                }}
+                className="cursor-pointer border-b border-slate-900 transition hover:bg-slate-900/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/80"
+              >
                 <td className="py-3 text-slate-300">{formatServerUtcDateTime(entry.posted_at || entry.created_at || '', lang)}</td>
                 <td className="py-3"><FinanceStatusBadge status={entry.status || 'posted'} lang={lang} /></td>
                 <td className="py-3 font-bold text-sky-200">{transactionTypeLabel(entry.transaction_type)}</td>
@@ -400,12 +413,12 @@ export function FinanceLedgerTab({
         </table>
       </div>
       <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 md:flex-row md:items-center md:justify-between">
-        <div className="text-sm font-bold text-slate-300">
-          {tx(lang, 'Səhifə', 'Страница', 'Page')} {ledgerCurrentPage} / {ledgerTotalPages}
-          <span className="ml-2 text-slate-500">
-            {tx(lang, 'Göstərilir', 'Показано', 'Showing')} {ledgerPageStart}-{ledgerPageEnd}
-          </span>
-        </div>
+          <div className="text-sm font-bold text-slate-200">
+            {tx(lang, 'Səhifə', 'Страница', 'Page')} {ledgerCurrentPage} / {ledgerTotalPages}
+            <span className="ml-2 text-slate-400">
+              {tx(lang, 'Göstərilir', 'Показано', 'Showing')} {ledgerPageStart}-{ledgerPageEnd}
+            </span>
+          </div>
         <div className="flex gap-2">
           <button disabled={!canGoPreviousLedgerPage || ledgerPageLoading} onClick={onPreviousPage} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-200 disabled:cursor-not-allowed disabled:opacity-40">
             {tx(lang, 'Əvvəlki', 'Предыдущая', 'Previous')}
@@ -482,15 +495,17 @@ export function FinanceReconciliationWorkspace({
               <span className="field-label">{tx(lang, 'Qeyd', 'Qeyd', 'Qeyd')}</span>
               <input className="neon-input min-h-13" value={reconcileNotes} onChange={(e) => setReconcileNotes(e.target.value)} />
             </label>
-            <button
-              disabled={Boolean(submitting)}
-              onClick={() => onSubmit()}
-              className="glossy-gold min-h-14 rounded-2xl px-6 text-base font-black disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {submitting
-                ? tx(lang, 'Yazılır...', 'Сохранение...', 'Saving...')
-                : tx(lang, 'Uyğunlaşdırmanı tamamla', 'Uyğunlaşdırmanı tamamla', 'Uyğunlaşdırmanı tamamla')}
-            </button>
+            <div className="sticky bottom-2 z-10 rounded-2xl bg-slate-950/90 p-2 backdrop-blur md:static md:bg-transparent md:p-0">
+              <button
+                disabled={Boolean(submitting)}
+                onClick={() => onSubmit()}
+                className="glossy-gold min-h-14 w-full rounded-2xl px-6 text-base font-black disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
+              >
+                {submitting
+                  ? tx(lang, 'Yazılır...', 'Сохранение...', 'Saving...')
+                  : tx(lang, 'Uyğunlaşdırmanı tamamla', 'Uyğunlaşdırmanı tamamla', 'Uyğunlaşdırmanı tamamla')}
+              </button>
+            </div>
           </div>
         </div>
         <div className="rounded-[24px] border border-slate-800 bg-slate-950 p-4">
