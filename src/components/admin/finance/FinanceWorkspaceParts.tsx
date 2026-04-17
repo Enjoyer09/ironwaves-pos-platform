@@ -47,6 +47,7 @@ export function FinanceSummaryStrip({
   pendingApprovals: number;
   onRefresh: () => void;
 }) {
+  const [showAllKpis, setShowAllKpis] = React.useState(false);
   const cards = [
     { label: tx(lang, 'Nağd Kassa', 'Касса', 'Cash on hand'), value: balance.cash_balance, tone: 'emerald' as const, icon: <Banknote size={20} /> },
     { label: tx(lang, 'Bank/Kart', 'Банк/карта', 'Bank/Card'), value: balance.card_balance, tone: 'sky' as const, icon: <Landmark size={20} /> },
@@ -80,7 +81,18 @@ export function FinanceSummaryStrip({
         </div>
       </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
-        {cards.map((card) => <FinanceKpiCard key={card.label} {...card} />)}
+        {(showAllKpis ? cards : cards.slice(0, 4)).map((card) => <FinanceKpiCard key={card.label} {...card} />)}
+      </div>
+      <div className="mt-3 flex justify-end">
+        <button
+          type="button"
+          onClick={() => setShowAllKpis((prev) => !prev)}
+          className="min-h-10 rounded-2xl border border-slate-700 px-4 text-xs font-black uppercase tracking-[0.08em] text-slate-200"
+        >
+          {showAllKpis
+            ? tx(lang, 'Kompakt KPI', 'Компакт KPI', 'Compact KPI')
+            : tx(lang, 'Hamısını göstər', 'Показать все', 'Show all')}
+        </button>
       </div>
     </section>
   );
@@ -160,7 +172,7 @@ export function FinanceQuickActions({ lang, active, onSelect }: { lang: string; 
   ];
   return (
     <section className="rounded-[28px] border border-slate-800 bg-slate-900 p-4">
-      <div className="mb-3 text-xs font-black uppercase tracking-[0.24em] text-slate-500">{tx(lang, 'Sürətli əməliyyatlar', 'Sürətli əməliyyatlar', 'Sürətli əməliyyatlar')}</div>
+      <div className="mb-3 text-xs font-black uppercase tracking-[0.24em] text-slate-400">{tx(lang, 'Sürətli əməliyyatlar', 'Sürətli əməliyyatlar', 'Sürətli əməliyyatlar')}</div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
         {actions.map((action) => (
           <button
@@ -197,7 +209,7 @@ export function FinanceWorkspaceTabs({ active, onChange }: { lang?: string; acti
     <div
       role="tablist"
       aria-label="Finance workspace tabs"
-      className="flex gap-2 overflow-x-auto rounded-[24px] border border-slate-800 bg-slate-950 p-2"
+      className="flex snap-x snap-mandatory gap-2 overflow-x-auto rounded-[24px] border border-slate-800 bg-slate-950 p-2"
     >
       {tabs.map(([tab, label]) => (
         <button
@@ -206,7 +218,7 @@ export function FinanceWorkspaceTabs({ active, onChange }: { lang?: string; acti
           role="tab"
           aria-selected={active === tab}
           aria-current={active === tab ? 'page' : undefined}
-          className={`min-h-12 rounded-2xl px-5 text-sm font-black ${active === tab ? 'bg-white text-slate-950' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}
+          className={`min-h-12 shrink-0 snap-start whitespace-nowrap rounded-2xl px-5 text-sm font-black ${active === tab ? 'bg-white text-slate-950' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}
         >
           {label}
         </button>
@@ -220,7 +232,7 @@ export function FinanceControlCard({ title, subtitle, children }: { title: strin
     <section className="rounded-[28px] border border-slate-800 bg-slate-900 p-5">
       <div className="mb-5">
         <h3 className="text-xl font-black text-white">{title}</h3>
-        {subtitle ? <p className="mt-1 text-sm text-slate-500">{subtitle}</p> : null}
+        {subtitle ? <p className="mt-1 text-sm text-slate-400">{subtitle}</p> : null}
       </div>
       {children}
     </section>
@@ -304,13 +316,23 @@ export function FinanceTimelineItem({
   );
 }
 
-export function FinanceField({ label, helper, children }: { label: string; helper?: string; children: React.ReactNode }) {
+export function FinanceField({
+  label,
+  helper,
+  htmlForId,
+  children,
+}: {
+  label: string;
+  helper?: string;
+  htmlForId?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <label className="field-stack form-card">
-      <span className="field-label">{label}</span>
+    <div className="field-stack form-card">
+      <label className="field-label" htmlFor={htmlForId}>{label}</label>
       {children}
       {helper ? <span className="field-hint">{helper}</span> : null}
-    </label>
+    </div>
   );
 }
 
@@ -336,10 +358,58 @@ export function TransactionDetailDrawer({
   onClose: () => void;
 }) {
   const [actionBusy, setActionBusy] = React.useState<'approve' | 'reject' | 'reverse' | null>(null);
+  const drawerRef = React.useRef<HTMLElement | null>(null);
+  const closeBtnRef = React.useRef<HTMLButtonElement | null>(null);
+  const previouslyFocusedRef = React.useRef<HTMLElement | null>(null);
 
   React.useEffect(() => {
     setActionBusy(null);
   }, [detail?.transaction?.id]);
+
+  React.useEffect(() => {
+    if (!detail) return;
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusTimer = window.setTimeout(() => {
+      closeBtnRef.current?.focus();
+    }, 0);
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const container = drawerRef.current;
+      if (!container) return;
+      const focusables = Array.from(
+        container.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+      ).filter((el) => !el.hasAttribute('disabled') && el.getAttribute('aria-hidden') !== 'true');
+      if (focusables.length === 0) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (event.shiftKey) {
+        if (!active || active === first || !container.contains(active)) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else if (active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener('keydown', onKeyDown);
+      previouslyFocusedRef.current?.focus();
+    };
+  }, [detail, onClose]);
 
   if (!detail) return null;
   const txRow = detail.transaction;
@@ -388,7 +458,7 @@ export function TransactionDetailDrawer({
       className="fixed inset-0 z-[80] flex justify-end bg-slate-950/70 backdrop-blur-sm"
     >
       <button className="absolute inset-0 cursor-default" onClick={onClose} aria-label="Close transaction drawer" />
-      <aside className="relative h-full w-full max-w-2xl overflow-y-auto border-l border-slate-800 bg-slate-950 p-5 shadow-[0_0_80px_rgba(0,0,0,0.55)]">
+      <aside ref={drawerRef} className="relative h-full w-full max-w-2xl overflow-y-auto border-l border-slate-800 bg-slate-950 p-5 shadow-[0_0_80px_rgba(0,0,0,0.55)]">
         <div className="sticky top-0 z-10 -mx-5 -mt-5 border-b border-slate-800 bg-slate-950/95 p-5 backdrop-blur">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -396,7 +466,7 @@ export function TransactionDetailDrawer({
               <h3 id="finance-transaction-drawer-title" className="mt-2 text-2xl font-black text-white">{transactionTypeLabel(txRow.transaction_type) || tx(lang, 'Əməliyyat', 'Операция', 'Transaction')}</h3>
               <p className="mt-1 text-sm text-slate-400">{txRow.id}</p>
             </div>
-            <button onClick={onClose} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-200">
+            <button ref={closeBtnRef} onClick={onClose} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-200">
               {tx(lang, 'Bağla', 'Закрыть', 'Close')}
             </button>
           </div>
