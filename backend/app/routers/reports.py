@@ -8,11 +8,12 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import AuditLog, FinanceAccount, FinanceLedgerEntry, FinanceTransaction, Setting, Shift, ShiftHandover, Tenant, User
+from app.models import AuditLog, FinanceAccount, FinanceTransaction, Setting, Shift, ShiftHandover, Tenant, User
 from app.services.finance_service import finance_policy as _finance_policy
 from app.services.finance_service import ledger_balances_snapshot as _ledger_balances_snapshot
 from app.services.finance_service import post_deposit_apply_to_bill as _post_deposit_apply_to_bill
 from app.services.finance_service import post_finance_transaction_with_legacy_mirror as _post_finance_transaction
+from app.services.finance_service import shift_cash_breakdown_from_ledger as _shift_cash_breakdown
 from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XReportIn, ZReportIn
 
 
@@ -62,14 +63,6 @@ def _wallet_balance(db: Session, tenant_id: str, source: str) -> Decimal:
     return _ledger_balances_snapshot(db, tenant_id).get(str(source or "").strip().lower(), Decimal("0.00"))
 
 
-def _cash_account(db: Session, tenant_id: str) -> FinanceAccount | None:
-    return (
-        db.query(FinanceAccount)
-        .filter(FinanceAccount.tenant_id == tenant_id, FinanceAccount.code == "cash")
-        .first()
-    )
-
-
 def _setting_value(db: Session, tenant_id: str, key: str, default):
     row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
     if not row or row.value is None:
@@ -88,50 +81,6 @@ def _cash_adjustment_requires_manual_approval(db: Session, tenant_id: str, amoun
         return False
     threshold = Decimal(str(policy.get("large_transfer_threshold_azn", 500) or 500))
     return abs(amount) >= threshold
-
-
-def _shift_cash_breakdown(db: Session, tenant_id: str, shift: Shift | None) -> dict[str, Decimal]:
-    if not shift:
-        return {
-            "opening_cash": Decimal("0"),
-            "cash_in": Decimal("0"),
-            "cash_out": Decimal("0"),
-            "expected_cash": Decimal("0"),
-        }
-
-    cash_account = _cash_account(db, tenant_id)
-    if not cash_account:
-        opening_cash = Decimal(str(shift.opening_cash or 0))
-        return {
-            "opening_cash": opening_cash,
-            "cash_in": Decimal("0"),
-            "cash_out": Decimal("0"),
-            "expected_cash": opening_cash,
-        }
-
-    query = db.query(FinanceLedgerEntry).filter(
-        FinanceLedgerEntry.tenant_id == tenant_id,
-        FinanceLedgerEntry.account_id == cash_account.id,
-    )
-    if shift.opened_at:
-        query = query.filter(FinanceLedgerEntry.created_at >= shift.opened_at)
-    ledger_rows = query.all()
-    cash_in = sum(
-        (Decimal(str(row.amount)) for row in ledger_rows if str(row.entry_side or "").lower() == "debit"),
-        Decimal("0"),
-    )
-    cash_out = sum(
-        (Decimal(str(row.amount)) for row in ledger_rows if str(row.entry_side or "").lower() == "credit"),
-        Decimal("0"),
-    )
-    opening_cash = Decimal(str(shift.opening_cash or 0))
-    expected_cash = opening_cash + cash_in - cash_out
-    return {
-        "opening_cash": opening_cash,
-        "cash_in": cash_in,
-        "cash_out": cash_out,
-        "expected_cash": expected_cash,
-    }
 
 
 def _validate_shift_handover_cash(db: Session, tenant_id: str, user: User, shift: Shift, declared_cash: Decimal) -> None:
