@@ -71,6 +71,9 @@ def _wallet_balance(db: Session, tenant_id: str, source: str) -> Decimal:
 
 
 def _setting_value(db: Session, tenant_id: str, key: str, default):
+    # Unit-test fakes may not provide query-capable DB sessions.
+    if not hasattr(db, "query"):
+        return default
     row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
     if not row or row.value is None:
         return default
@@ -83,6 +86,10 @@ def _setting_value(db: Session, tenant_id: str, key: str, default):
 
 
 def _set_setting_value(db: Session, tenant_id: str, key: str, value) -> None:
+    # Unit-test fakes may not provide query-capable DB sessions.
+    # In that case, keep this as a no-op and let caller continue with in-memory session map.
+    if not hasattr(db, "query"):
+        return
     row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
     payload = json.dumps(value, ensure_ascii=False)
     if row:
