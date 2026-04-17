@@ -412,7 +412,11 @@ def _period_bounds(date_from: str | None, date_to: str | None) -> tuple[datetime
 
 
 def _transaction_date(row: FinanceTransaction) -> datetime | None:
-    return row.posted_at or row.approved_at or row.created_at
+    return (
+        getattr(row, "posted_at", None)
+        or getattr(row, "approved_at", None)
+        or getattr(row, "created_at", None)
+    )
 
 
 def _in_period(value: datetime | None, start: datetime | None, end: datetime | None) -> bool:
