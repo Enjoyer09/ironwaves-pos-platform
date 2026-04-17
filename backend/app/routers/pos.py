@@ -11,13 +11,14 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.json_utils import safe_json_list
-from app.models import AuditLog, Customer, DonerBatch, FinanceEntry, InventoryItem, LoyaltyLedgerEntry, MenuItem, Recipe, RewardClaim, Sale, Setting, Tenant
+from app.models import AuditLog, Customer, DonerBatch, FinanceEntry, InventoryItem, LoyaltyLedgerEntry, MenuItem, Recipe, RewardClaim, Sale, Setting, Shift, Tenant
 from app.schemas import SaleCreateIn, SaleCreateOut
 from app.services.finance_service import mirror_posted_transaction_to_legacy_wallet, post_finance_transaction, post_sale_payment
 
 
 router = APIRouter(prefix="/api/v1/pos", tags=["pos"])
 logger = logging.getLogger(__name__)
+STAFF_SHIFT_SESSIONS_KEY = "staff_shift_sessions"
 
 
 DEFAULT_YIELD_SETTINGS = {
@@ -51,6 +52,22 @@ def _setting_value(db: Session, tenant_id: str, key: str, default):
         return json.loads(row.value)
     except Exception:
         return default
+
+
+def _active_shift(db: Session, tenant_id: str) -> Shift | None:
+    return db.query(Shift).filter(Shift.tenant_id == tenant_id, Shift.status == "open").first()
+
+
+def _staff_shift_session_open(db: Session, tenant_id: str, username: str | None) -> bool:
+    if not username:
+        return False
+    raw = _setting_value(db, tenant_id, STAFF_SHIFT_SESSIONS_KEY, {})
+    if not isinstance(raw, dict):
+        return False
+    key = str(username).strip().lower()
+    if not key:
+        return False
+    return key in {str(k or "").strip().lower() for k in raw.keys()}
 
 
 def _normalize_inventory_key(value: str | None) -> str:
@@ -176,6 +193,14 @@ def get_menu(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant)
 def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     if not payload.cart_items:
         raise HTTPException(status_code=400, detail="Cart is empty")
+
+    active_shift = _active_shift(db, tenant.id)
+    if not active_shift:
+        raise HTTPException(status_code=400, detail="Satış üçün əvvəlcə günü açın (Z-Hesabat > Günü Aç)")
+
+    role = str(getattr(user, "role", "") or "").strip().lower()
+    if role in {"staff", "manager", "admin"} and not _staff_shift_session_open(db, tenant.id, getattr(user, "username", None)):
+        raise HTTPException(status_code=403, detail="Satış üçün əvvəlcə öz növbənizi açın (Z-Hesabat > Günü Aç)")
 
     if payload.offline_request_id:
         existing = (

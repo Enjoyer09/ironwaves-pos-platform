@@ -281,7 +281,19 @@ const getShiftState = (tenant_id: string) => {
   return rows.find((r) => r.tenant_id === tenant_id) || null;
 };
 
-const shiftStatusCache: Record<string, { status: string; opened_by?: string; timestamp?: string }> = {};
+const shiftStatusCache: Record<
+  string,
+  {
+    status: string;
+    opened_by?: string;
+    timestamp?: string;
+    opening_cash?: string;
+    staff_shift_required?: boolean;
+    staff_sessions_count?: number;
+    staff_session_open?: boolean;
+    staff_session_opened_at?: string | null;
+  }
+> = {};
 const expectedCashCache: Record<string, Decimal> = {};
 
 const saveShiftState = (tenant_id: string, payload: any) => {
@@ -328,8 +340,13 @@ export const open_shift = async (
     saveShiftState(tenant_id, next);
     shiftStatusCache[tenant_id] = {
       status: 'Open',
-      opened_by,
+      opened_by: String(res?.opened_by || opened_by),
       timestamp: next.timestamp,
+      opening_cash: actualOpeningCash,
+      staff_shift_required: true,
+      staff_sessions_count: Number(res?.staff_sessions_count || 1),
+      staff_session_open: Boolean(res?.staff_session_open ?? true),
+      staff_session_opened_at: res?.staff_session_opened_at || new Date().toISOString(),
     };
     logEvent(opened_by, 'SHIFT_OPENED', { tenant_id, backend: true, funding_source: fundingSource, topup_amount: topupAmount.toFixed(2) });
     return next;
@@ -648,6 +665,10 @@ export const refresh_shift_status = async (tenant_id: string) => {
       opened_by: res?.opened_by,
       timestamp: res?.opened_at || res?.timestamp,
       opening_cash: String(res?.opening_cash || '0'),
+      staff_shift_required: Boolean(res?.staff_shift_required ?? true),
+      staff_sessions_count: Number(res?.staff_sessions_count || 0),
+      staff_session_open: Boolean(res?.staff_session_open ?? false),
+      staff_session_opened_at: res?.staff_session_opened_at || null,
     };
     shiftStatusCache[tenant_id] = normalized;
     return { tenant_id, ...normalized };

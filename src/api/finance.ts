@@ -774,6 +774,11 @@ export type FinanceReportsOverview = {
     net_profit: string;
     sales_count: number;
     expense_count: number;
+    has_uncomputed_cogs?: boolean;
+    cogs_uncomputed_sales_count?: number;
+    cogs_uncomputed_revenue?: string;
+    cogs_coverage_percent?: string;
+    cogs_note?: string;
   };
   cash_flow: {
     operating_inflow: string;
