@@ -125,6 +125,7 @@ def _finance_category_label(value: str | None = None, category_code: str | None 
 from app.services.finance_service import (  # noqa: E402 - keep router API thin while preserving helper names
     FINANCE_ACCOUNT_DEFS,
     account_ledger_totals as _account_ledger_totals,
+    account_ledger_totals_for_update as _account_ledger_totals_for_update,
     create_finance_transaction_record as _create_finance_transaction_record,
     ensure_finance_accounts as _ensure_finance_accounts,
     finance_account as _finance_account,
@@ -223,7 +224,8 @@ def _is_founder_investment_category(category: str) -> bool:
 
 
 def _wallet_balance(db: Session, tenant_id: str, source: str) -> Decimal:
-    return _ledger_balances_snapshot(db, tenant_id).get(str(source or "").strip().lower(), Decimal("0.00"))
+    account = _finance_account(db, tenant_id, str(source or "").strip().lower())
+    return _account_ledger_totals_for_update(db, tenant_id, account)["balance"]
 
 
 def _setting_value(db: Session, tenant_id: str, key: str, default):

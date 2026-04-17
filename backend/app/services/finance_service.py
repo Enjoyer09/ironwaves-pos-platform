@@ -129,6 +129,25 @@ def account_ledger_totals(db: Session, tenant_id: str, account: FinanceAccount) 
     return {"debit": debit, "credit": credit, "balance": balance}
 
 
+def account_ledger_totals_for_update(db: Session, tenant_id: str, account: FinanceAccount) -> dict[str, Decimal]:
+    """
+    Lock ledger rows for a single account while computing totals.
+
+    Intended for write paths that already lock FinanceAccount metadata rows and
+    need a stricter balance check inside the same transaction boundary.
+    """
+    rows = (
+        db.query(FinanceLedgerEntry.entry_side, FinanceLedgerEntry.amount)
+        .filter(FinanceLedgerEntry.tenant_id == tenant_id, FinanceLedgerEntry.account_id == account.id)
+        .with_for_update()
+        .all()
+    )
+    debit = sum((Decimal(str(amount or 0)) for side, amount in rows if str(side).lower() == "debit"), Decimal("0"))
+    credit = sum((Decimal(str(amount or 0)) for side, amount in rows if str(side).lower() == "credit"), Decimal("0"))
+    balance = credit - debit if account.account_type in LIABILITY_OR_CREDIT_TYPES else debit - credit
+    return {"debit": debit, "credit": credit, "balance": balance}
+
+
 def ledger_balances_snapshot(db: Session, tenant_id: str) -> dict[str, Decimal]:
     accounts = ensure_finance_accounts(db, tenant_id)
     if not accounts:
