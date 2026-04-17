@@ -144,7 +144,11 @@ export default function RecipesPanel() {
   const handleGenerateAI = async () => {
     if (!selectedMenu) return;
     try {
-      await generate_recipe_ai_live(selectedMenu, user?.username, tenant_id);
+      const selectedMenuMeta = menuItems.find((m) => String(m.item_name) === String(selectedMenu));
+      await generate_recipe_ai_live(selectedMenu, user?.username, tenant_id, {
+        category: selectedMenuMeta?.category,
+        sell_price: selectedMenuMeta?.price,
+      });
       notify('success', tx(lang, `AI ${selectedMenu} üçün resept yaratdı!`, `AI создал рецепт для ${selectedMenu}!`, `AI created a recipe for ${selectedMenu}!`));
       const nextItems = await get_recipe_live(selectedMenu, tenant_id);
       setRecipeItems(nextItems);
