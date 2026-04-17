@@ -299,6 +299,7 @@ export default function FinancePanel() {
   const [ledgerTotalCount, setLedgerTotalCount] = useState(0);
   const [ledgerPageLoading, setLedgerPageLoading] = useState(false);
   const [focusedMode, setFocusedMode] = useState(false);
+  const [showAdvancedTxFields, setShowAdvancedTxFields] = useState(false);
   const [entrySubmitting, setEntrySubmitting] = useState(false);
   const [transferSubmitting, setTransferSubmitting] = useState(false);
   const [investorSubmitting, setInvestorSubmitting] = useState(false);
@@ -1354,11 +1355,13 @@ export default function FinancePanel() {
     setQuickAction(action);
     if (action === 'income') {
       setType('in');
+      setShowAdvancedTxFields(false);
       setWorkspaceTab('transactions');
       return;
     }
     if (action === 'expense') {
       setType('out');
+      setShowAdvancedTxFields(false);
       setWorkspaceTab('transactions');
       return;
     }
@@ -1395,6 +1398,7 @@ export default function FinancePanel() {
   }, [focusedMode, workspaceTab]);
 
   const isIncomeAction = type === 'in';
+  const isCardBasedTransfer = transferDirection === 'card_to_cash' || transferDirection === 'card_to_debt';
 
   const transactionForm = (
     <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-5">
@@ -1417,6 +1421,16 @@ export default function FinancePanel() {
 	          <button onClick={() => { setQuickAction('expense'); setType('out'); }} aria-pressed={type === 'out'} className={`min-h-11 rounded-2xl px-4 text-sm font-black ${type === 'out' ? 'bg-rose-400 text-slate-950' : 'border border-slate-700 text-slate-300'}`}>
 	            {tx(lang, 'Xərc', 'Расход', 'Expense')}
 	          </button>
+            <button
+              type="button"
+              aria-pressed={showAdvancedTxFields}
+              onClick={() => setShowAdvancedTxFields((prev) => !prev)}
+              className={`min-h-11 rounded-2xl px-4 text-sm font-black ${showAdvancedTxFields ? 'bg-slate-200 text-slate-950' : 'border border-slate-700 text-slate-300'}`}
+            >
+              {showAdvancedTxFields
+                ? tx(lang, 'Sadə sahələr', 'Простые поля', 'Simple fields')
+                : tx(lang, 'Ətraflı sahələr', 'Расширенные поля', 'Advanced fields')}
+            </button>
         </div>
       </div>
       <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -1434,28 +1448,32 @@ export default function FinancePanel() {
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <FinanceField label={tx(lang, 'Mənbə hesabı', 'Счет источник', 'Source account')} helper={selectedSource?.helper}>
-          <select className="neon-input min-h-13" value={source} onChange={(e) => setSource(e.target.value as WalletSource)}>
+        <FinanceField htmlForId="finance-entry-source" label={tx(lang, 'Mənbə hesabı', 'Счет источник', 'Source account')} helper={selectedSource?.helper}>
+          <select id="finance-entry-source" className="neon-input min-h-13" value={source} onChange={(e) => setSource(e.target.value as WalletSource)}>
             {sourceOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
         </FinanceField>
-        <FinanceField label={tx(lang, 'Kateqoriya', 'Категория', 'Category')} helper={selectedCategory.helper}>
-          <select className="neon-input min-h-13" value={category} onChange={(e) => setCategory(e.target.value)}>
+        <FinanceField htmlForId="finance-entry-category" label={tx(lang, 'Kateqoriya', 'Категория', 'Category')} helper={selectedCategory.helper}>
+          <select id="finance-entry-category" className="neon-input min-h-13" value={category} onChange={(e) => setCategory(e.target.value)}>
             {categoryOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
         </FinanceField>
-        <FinanceField label={isIncomeAction ? tx(lang, 'Kimdən gəlib? (istəyə bağlı)', 'Контрагент (необязательно)', 'Counterparty (optional)') : tx(lang, 'Subyekt', 'Контрагент', 'Counterparty')} helper={isIncomeAction ? tx(lang, 'İzahat üçün doldura bilərsiniz.', 'Можно заполнить для ясности.', 'Optional, for clarity.') : tx(lang, 'Xərcdə məcburidir: pul kimə getdi?', 'Для расхода обязательно: кому ушли деньги?', 'Required for expense: who received money?')}>
-          <select className="neon-input min-h-13" value={subject} onChange={(e) => setSubject(e.target.value)}>
-            <option value="">{isIncomeAction ? tx(lang, 'Seçmədən keç', 'Пропустить', 'Skip') : tx(lang, 'Subyekt seçin', 'Выберите субъект', 'Select subject')}</option>
-            {subjectPresets.map((preset) => <option key={preset} value={preset}>{preset}</option>)}
-          </select>
+        {(!isIncomeAction || showAdvancedTxFields) && (
+          <FinanceField htmlForId="finance-entry-subject" label={isIncomeAction ? tx(lang, 'Kimdən gəlib? (istəyə bağlı)', 'Контрагент (необязательно)', 'Counterparty (optional)') : tx(lang, 'Subyekt', 'Контрагент', 'Counterparty')} helper={isIncomeAction ? tx(lang, 'İzahat üçün doldura bilərsiniz.', 'Можно заполнить для ясности.', 'Optional, for clarity.') : tx(lang, 'Xərcdə məcburidir: pul kimə getdi?', 'Для расхода обязательно: кому ушли деньги?', 'Required for expense: who received money?')}>
+            <select id="finance-entry-subject" className="neon-input min-h-13" value={subject} onChange={(e) => setSubject(e.target.value)}>
+              <option value="">{isIncomeAction ? tx(lang, 'Seçmədən keç', 'Пропустить', 'Skip') : tx(lang, 'Subyekt seçin', 'Выберите субъект', 'Select subject')}</option>
+              {subjectPresets.map((preset) => <option key={preset} value={preset}>{preset}</option>)}
+            </select>
+          </FinanceField>
+        )}
+        <FinanceField htmlForId="finance-entry-amount" label={tx(lang, 'Məbləğ', 'Сумма', 'Amount')} helper={tx(lang, 'Məbləği AZN ilə yazın.', 'Введите сумму в AZN.', 'Enter amount in AZN.')}>
+          <input id="finance-entry-amount" className="neon-input min-h-16 text-2xl font-black" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </FinanceField>
-        <FinanceField label={tx(lang, 'Məbləğ', 'Сумма', 'Amount')} helper={tx(lang, 'Məbləği AZN ilə yazın.', 'Введите сумму в AZN.', 'Enter amount in AZN.')}>
-          <input className="neon-input min-h-16 text-2xl font-black" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
-        </FinanceField>
-        <FinanceField label={tx(lang, 'Qeyd', 'Комментарий', 'Note')} helper={isIncomeAction ? tx(lang, 'Pulun mənşəyini qısa izah edin.', 'Кратко поясните источник денег.', 'Briefly explain the source of funds.') : tx(lang, 'Xərcin qısa səbəbini yazın.', 'Кратко укажите причину расхода.', 'Briefly describe the expense.')}>
-          <input className="neon-input min-h-13" value={description} onChange={(e) => setDescription(e.target.value)} />
-        </FinanceField>
+        {(!isIncomeAction || showAdvancedTxFields) && (
+          <FinanceField htmlForId="finance-entry-note" label={tx(lang, 'Qeyd', 'Комментарий', 'Note')} helper={isIncomeAction ? tx(lang, 'Pulun mənşəyini qısa izah edin.', 'Кратко поясните источник денег.', 'Briefly explain the source of funds.') : tx(lang, 'Xərcin qısa səbəbini yazın.', 'Кратко укажите причину расхода.', 'Briefly describe the expense.')}>
+            <input id="finance-entry-note" className="neon-input min-h-13" value={description} onChange={(e) => setDescription(e.target.value)} />
+          </FinanceField>
+        )}
         {!isIncomeAction && (
           <FinanceField label={tx(lang, 'Yeni subyekt əlavə et', 'Новый preset контрагента', 'New counterparty preset')} helper={tx(lang, 'Təchizatçı və digər subyektləri tez seçmək üçün.', 'Чтобы быстро выбирать поставщиков и субъекты.', 'For quick supplier/counterparty selection.')}>
             <div className="grid grid-cols-[1fr_auto] gap-2">
@@ -1465,15 +1483,17 @@ export default function FinancePanel() {
           </FinanceField>
         )}
       </div>
-	      <button
-          disabled={entrySubmitting}
-          onClick={() => void addEntry()}
-          className="glossy-gold mt-5 min-h-14 rounded-2xl px-6 text-base font-black disabled:cursor-not-allowed disabled:opacity-60"
-        >
-	        {entrySubmitting
-            ? tx(lang, 'Yazılır...', 'Сохранение...', 'Posting...')
-            : tx(lang, 'Əməliyyatı yaz', 'Провести операцию', 'Post transaction')}
-	      </button>
+        <div className="sticky bottom-2 z-10 mt-5 rounded-2xl bg-slate-950/90 p-2 backdrop-blur md:static md:bg-transparent md:p-0">
+	        <button
+            disabled={entrySubmitting}
+            onClick={() => void addEntry()}
+            className="glossy-gold min-h-14 w-full rounded-2xl px-6 text-base font-black disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
+          >
+	          {entrySubmitting
+              ? tx(lang, 'Yazılır...', 'Сохранение...', 'Posting...')
+              : tx(lang, 'Əməliyyatı yaz', 'Провести операцию', 'Post transaction')}
+	        </button>
+        </div>
     </div>
   );
 
@@ -1486,9 +1506,9 @@ export default function FinancePanel() {
           {tx(lang, 'Pulun hansı hesabdan çıxıb hara keçdiyini dəqiq yazın.', 'Укажите, откуда и куда движутся средства.', 'Specify exactly where funds move from and to.')}
         </p>
       </div>
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <FinanceField label={tx(lang, 'Haradan → Hara', 'Откуда → куда', 'From → To')}>
-          <select className="neon-input min-h-13" value={transferDirection} onChange={(e) => setTransferDirection(e.target.value as any)}>
+      <div className={`grid grid-cols-1 gap-4 ${isCardBasedTransfer ? 'xl:grid-cols-3' : 'xl:grid-cols-2'}`}>
+        <FinanceField htmlForId="finance-transfer-direction" label={tx(lang, 'Haradan → Hara', 'Откуда → куда', 'From → To')}>
+          <select id="finance-transfer-direction" className="neon-input min-h-13" value={transferDirection} onChange={(e) => setTransferDirection(e.target.value as any)}>
             <option value="card_to_cash">{tx(lang, 'Kartdan Kassaya', 'С карты в кассу')}</option>
             <option value="cash_to_card">{tx(lang, 'Kassadan Karta', 'Из кассы на карту')}</option>
             <option value="cash_to_safe">{tx(lang, 'Kassadan Seyfə', 'Из кассы в сейф', 'Cash to Safe')}</option>
@@ -1497,12 +1517,14 @@ export default function FinancePanel() {
             <option value="card_to_debt">{tx(lang, 'Kartdan Borca', 'С карты в долг')}</option>
           </select>
         </FinanceField>
-        <FinanceField label={tx(lang, 'Məbləğ', 'Сумма', 'Amount')}>
-          <input className="neon-input min-h-16 text-2xl font-black" type="number" min={0} step="0.01" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} />
+        <FinanceField htmlForId="finance-transfer-amount" label={tx(lang, 'Məbləğ', 'Сумма', 'Amount')}>
+          <input id="finance-transfer-amount" className="neon-input min-h-16 text-2xl font-black" type="number" min={0} step="0.01" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} />
         </FinanceField>
-        <FinanceField label={tx(lang, 'Komissiya', 'Комиссия', 'Fee')} helper={`${bankCommissionConfig.card_transfer_percent}% ${tx(lang, 'kart çıxış qaydası', 'карточное правило выхода', 'card-out policy')}`}>
-          <input className="neon-input min-h-13" type="number" min={0} step="0.01" value={computedTransferCommission.toString()} onChange={(e) => setTransferCommission(e.target.value)} readOnly={transferDirection === 'card_to_cash'} />
-        </FinanceField>
+        {isCardBasedTransfer && (
+          <FinanceField htmlForId="finance-transfer-fee" label={tx(lang, 'Komissiya', 'Комиссия', 'Fee')} helper={`${bankCommissionConfig.card_transfer_percent}% ${tx(lang, 'kart çıxış qaydası', 'карточное правило выхода', 'card-out policy')}`}>
+            <input id="finance-transfer-fee" className="neon-input min-h-13" type="number" min={0} step="0.01" value={computedTransferCommission.toString()} onChange={(e) => setTransferCommission(e.target.value)} readOnly={transferDirection === 'card_to_cash'} />
+          </FinanceField>
+        )}
       </div>
       {largeTransferThreshold.gt(0) && new Decimal(transferAmount || 0).gte(largeTransferThreshold) && (
         <div className="mt-4 rounded-2xl border border-amber-400/30 bg-amber-950/25 p-4 text-sm font-bold text-amber-100">
@@ -1514,15 +1536,17 @@ export default function FinancePanel() {
           )}
         </div>
       )}
-	      <button
-          disabled={transferSubmitting}
-          onClick={() => void doTransfer()}
-          className="neon-btn mt-5 min-h-14 rounded-2xl px-6 text-base font-black disabled:cursor-not-allowed disabled:opacity-60"
-        >
-	        {transferSubmitting
-            ? tx(lang, 'Göndərilir...', 'Отправка...', 'Submitting...')
-            : tx(lang, 'Transferi yaz', 'Провести перевод', 'Post transfer')}
-	      </button>
+        <div className="sticky bottom-2 z-10 mt-5 rounded-2xl bg-slate-950/90 p-2 backdrop-blur md:static md:bg-transparent md:p-0">
+	        <button
+            disabled={transferSubmitting}
+            onClick={() => void doTransfer()}
+            className="neon-btn min-h-14 w-full rounded-2xl px-6 text-base font-black disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
+          >
+	          {transferSubmitting
+              ? tx(lang, 'Göndərilir...', 'Отправка...', 'Submitting...')
+              : tx(lang, 'Transferi yaz', 'Провести перевод', 'Post transfer')}
+	        </button>
+        </div>
     </div>
   );
 
@@ -1536,18 +1560,18 @@ export default function FinancePanel() {
         </p>
       </div>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <FinanceField label={tx(lang, 'Ödəniş mənbəyi', 'Источник оплаты', 'Payment source')}>
-          <select className="neon-input min-h-13" value={repayFrom} onChange={(e) => setRepayFrom(e.target.value as any)}>
+        <FinanceField htmlForId="finance-investor-source" label={tx(lang, 'Ödəniş mənbəyi', 'Источник оплаты', 'Payment source')}>
+          <select id="finance-investor-source" className="neon-input min-h-13" value={repayFrom} onChange={(e) => setRepayFrom(e.target.value as any)}>
             <option value="cash">{tx(lang, 'Kassa', 'Касса', 'Cash')}</option>
             <option value="card">{tx(lang, 'Kart', 'Карта', 'Card')}</option>
             <option value="safe">{tx(lang, 'Seyf', 'Сейф', 'Safe')}</option>
           </select>
         </FinanceField>
-        <FinanceField label={tx(lang, 'Məbləğ', 'Сумма', 'Amount')} helper={`${tx(lang, 'Qalan borc', 'Остаток долга', 'Remaining debt')}: ${ledgerInvestorDebt.toFixed(2)} ₼`}>
-          <input className="neon-input min-h-16 text-2xl font-black" type="number" min={0} step="0.01" value={repayAmount} onChange={(e) => setRepayAmount(e.target.value)} />
+        <FinanceField htmlForId="finance-investor-amount" label={tx(lang, 'Məbləğ', 'Сумма', 'Amount')} helper={`${tx(lang, 'Qalan borc', 'Остаток долга', 'Remaining debt')}: ${ledgerInvestorDebt.toFixed(2)} ₼`}>
+          <input id="finance-investor-amount" className="neon-input min-h-16 text-2xl font-black" type="number" min={0} step="0.01" value={repayAmount} onChange={(e) => setRepayAmount(e.target.value)} />
         </FinanceField>
-        <FinanceField label={tx(lang, 'Qeyd', 'Комментарий подтверждения', 'Approval note')}>
-          <input className="neon-input min-h-13" value={repayNote} onChange={(e) => setRepayNote(e.target.value)} />
+        <FinanceField htmlForId="finance-investor-note" label={tx(lang, 'Qeyd', 'Комментарий подтверждения', 'Approval note')}>
+          <input id="finance-investor-note" className="neon-input min-h-13" value={repayNote} onChange={(e) => setRepayNote(e.target.value)} />
         </FinanceField>
       </div>
       {financePolicyConfig.investor_repayment_requires_approval ? (
@@ -1559,17 +1583,19 @@ export default function FinancePanel() {
           {tx(lang, 'Policy-yə görə bu ödəniş birbaşa ledger-ə post olunacaq.', 'По policy выплата будет posted сразу.', 'Per policy, this repayment will post directly to the ledger.')}
         </div>
       )}
-	      <button
-          disabled={investorSubmitting}
-          onClick={() => void doRepayInvestor()}
-          className="glossy-gold mt-5 min-h-14 rounded-2xl px-6 text-base font-black disabled:cursor-not-allowed disabled:opacity-60"
-        >
-	        {investorSubmitting
-            ? tx(lang, 'Göndərilir...', 'Отправка...', 'Submitting...')
-            : financePolicyConfig.investor_repayment_requires_approval
-              ? tx(lang, 'Təsdiqə göndər', 'Отправить на approval', 'Send for approval')
-              : tx(lang, 'Ödənişi yaz', 'Провести выплату', 'Post repayment')}
-	      </button>
+        <div className="sticky bottom-2 z-10 mt-5 rounded-2xl bg-slate-950/90 p-2 backdrop-blur md:static md:bg-transparent md:p-0">
+	        <button
+            disabled={investorSubmitting}
+            onClick={() => void doRepayInvestor()}
+            className="glossy-gold min-h-14 w-full rounded-2xl px-6 text-base font-black disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
+          >
+	          {investorSubmitting
+              ? tx(lang, 'Göndərilir...', 'Отправка...', 'Submitting...')
+              : financePolicyConfig.investor_repayment_requires_approval
+                ? tx(lang, 'Təsdiqə göndər', 'Отправить на approval', 'Send for approval')
+                : tx(lang, 'Ödənişi yaz', 'Провести выплату', 'Post repayment')}
+	        </button>
+        </div>
     </div>
   );
 
@@ -1843,7 +1869,7 @@ export default function FinancePanel() {
               {tx(lang, 'Baxış, uyğunlaşdırma və jurnal bu tarix aralığına görə hesablanır.', 'Обзор, сверка и журнал считаются по этому периоду.', 'Overview, reconciliation and journal are calculated for this date range.')}
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+          <div className="flex gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-5 md:overflow-visible md:pb-0">
             {([
               ['daily', tx(lang, 'Bu gün', 'Сегодня', 'Today')],
               ['weekly', tx(lang, 'Həftə', 'Неделя', 'Week')],
@@ -1855,7 +1881,7 @@ export default function FinancePanel() {
                 key={preset}
                 type="button"
                 onClick={() => applyRangePreset(preset)}
-                className={`min-h-11 rounded-2xl px-4 text-sm font-black transition ${rangePreset === preset ? 'bg-white text-slate-950' : 'border border-slate-700 bg-slate-950 text-slate-200'}`}
+                className={`min-h-11 shrink-0 rounded-2xl px-4 text-sm font-black transition md:shrink ${rangePreset === preset ? 'bg-white text-slate-950' : 'border border-slate-700 bg-slate-950 text-slate-200'}`}
               >
                 {label}
               </button>
