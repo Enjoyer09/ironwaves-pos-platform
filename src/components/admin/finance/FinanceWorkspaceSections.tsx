@@ -46,7 +46,7 @@ export function FinanceApprovalPreview({
               <div className="min-w-0">
                 <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-200">{transactionTypeLabel(row.transaction_type)}</div>
                 <div className="mt-1 text-lg font-black text-white">{new Decimal(row.amount || 0).toFixed(2)} ₼</div>
-                <div className="mt-1 truncate text-sm text-slate-400">
+                <div className="mt-1 truncate text-sm text-slate-300">
                   {accountName(row.source_account)} → {accountName(row.destination_account)}
                 </div>
               </div>
@@ -63,7 +63,7 @@ export function FinanceApprovalPreview({
       <div className="mt-4 flex justify-end">
         <button
           onClick={onOpenAll}
-          className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100"
+          className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900"
         >
           {tx(lang, 'Hamısını aç', 'Hamısını aç', 'Hamısını aç')}
         </button>
@@ -100,13 +100,13 @@ export function FinanceOverviewInsightsCard({
         <FinanceMiniMetric label={tx(lang, 'Açıq təsdiqlər', 'Açıq təsdiqlər', 'Açıq təsdiqlər')} value={String(pendingApprovalsCount)} tone="violet" />
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        <button onClick={onExpense} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100">
+        <button onClick={onExpense} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900">
           {tx(lang, 'Xərc yaz', 'Xərc yaz', 'Xərc yaz')}
         </button>
-        <button onClick={onTransfer} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100">
+        <button onClick={onTransfer} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900">
           {tx(lang, 'Transfer et', 'Transfer et', 'Transfer et')}
         </button>
-        <button onClick={onOpenLedger} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100">
+        <button onClick={onOpenLedger} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900">
           {tx(lang, 'Jurnala bax', 'Jurnala bax', 'Jurnala bax')}
         </button>
       </div>
@@ -142,10 +142,10 @@ export function FinanceControlSummaryPanel({
         <FinanceMiniMetric label={tx(lang, 'Uyğunlaşdırma fərqi', 'Разница сверки', 'Reconciliation gap')} value={reconciliationGap} tone={hasVariance ? 'rose' : 'emerald'} />
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        <button onClick={onOpenReconciliation} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100">
+        <button onClick={onOpenReconciliation} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900">
           {tx(lang, 'Uyğunlaşdırmaya keç', 'Uyğunlaşdırmaya keç', 'Uyğunlaşdırmaya keç')}
         </button>
-        <button onClick={onOpenInvestor} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100">
+        <button onClick={onOpenInvestor} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900">
           {tx(lang, 'Investor bölməsini aç', 'Investor bölməsini aç', 'Investor bölməsini aç')}
         </button>
       </div>
@@ -170,12 +170,12 @@ export function FinanceActionWorkspace({
     <FinanceControlCard title={title} subtitle={subtitle}>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
         <div>
-          <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+          <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
             {tx(lang, 'Aktiv iş sahəsi', 'Aktiv iş sahəsi', 'Aktiv iş sahəsi')}
           </div>
           <div className="mt-1 text-base font-black text-white">{title}</div>
         </div>
-        <button onClick={onClose} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100">
+        <button onClick={onClose} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900">
           {tx(lang, 'Baxışa qayıt', 'Baxışa qayıt', 'Baxışa qayıt')}
         </button>
       </div>
@@ -271,7 +271,7 @@ export function FinanceLedgerTab({
         <div>
           <div className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">{tx(lang, 'İki tərəfli maliyyə jurnalı', 'Двойной ledger', 'Double-entry journal')}</div>
           <h3 className="mt-2 text-xl font-black text-white">{tx(lang, 'Maliyyə jurnalı', 'Ledger операции', 'Ledger Transactions')}</h3>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-slate-300">
             {tx(lang, 'Hər yazılmış əməliyyat debit/credit entry-lərlə və audit izi ilə izlənir.', 'Каждая posted transaction отслеживается debit/credit записями.', 'Every posted transaction is tracked with debit/credit entries.')}
           </p>
         </div>
@@ -288,22 +288,22 @@ export function FinanceLedgerTab({
         <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.18em] text-sky-300">{tx(lang, 'Jurnal filterləri', 'Фильтры ledger', 'Ledger filters')}</div>
-            <p className="mt-1 text-xs font-bold text-slate-500">
+            <p className="mt-1 text-xs font-bold text-slate-400">
               {ledgerPageStart}-{ledgerPageEnd} / {ledgerTotalCount || visibleLedgerTransactions.length} {tx(lang, 'əməliyyat göstərilir', 'transaction показано', 'transactions shown')}
               {ledgerPageLoading ? ` · ${tx(lang, 'Yüklənir...', 'Загрузка...', 'Loading...')}` : ''}
             </p>
           </div>
-          <button onClick={onClearFilters} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-200 hover:border-sky-300/60">
+          <button onClick={onClearFilters} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-200 hover:border-slate-500 hover:bg-slate-900">
             {tx(lang, 'Filterləri sıfırla', 'Сбросить фильтры', 'Clear filters')}
           </button>
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="space-y-2">
-            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Axtarış', 'Поиск', 'Search')}</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Axtarış', 'Поиск', 'Search')}</span>
             <input className="neon-input min-h-12" value={ledgerSearch} onChange={(e) => onLedgerSearchChange(e.target.value)} placeholder={tx(lang, 'ID, qeyd, reference, user...', 'ID, комментарий, reference, user...', 'ID, note, reference, user...')} />
           </label>
           <label className="space-y-2">
-            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Əməliyyat növü', 'Тип', 'Type')}</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Əməliyyat növü', 'Тип', 'Type')}</span>
             <select className="neon-input min-h-12" value={ledgerTypeFilter} onChange={(e) => onLedgerTypeFilterChange(e.target.value)}>
               <option value="all">{tx(lang, 'Bütün növlər', 'Все типы', 'All types')}</option>
               {ledgerTransactionTypes.map((typeValue) => (
@@ -312,7 +312,7 @@ export function FinanceLedgerTab({
             </select>
           </label>
           <label className="space-y-2">
-            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Status', 'Статус', 'Status')}</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Status', 'Статус', 'Status')}</span>
             <select className="neon-input min-h-12" value={ledgerStatusFilter} onChange={(e) => onLedgerStatusFilterChange(e.target.value)}>
               <option value="all">{tx(lang, 'Bütün statuslar', 'Все статусы', 'All statuses')}</option>
               {ledgerTransactionStatuses.map((statusValue) => (
@@ -321,7 +321,7 @@ export function FinanceLedgerTab({
             </select>
           </label>
           <label className="space-y-2">
-            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Hesab', 'Счет', 'Account')}</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Hesab', 'Счет', 'Account')}</span>
             <select className="neon-input min-h-12" value={ledgerAccountFilter} onChange={(e) => onLedgerAccountFilterChange(e.target.value)}>
               <option value="all">{tx(lang, 'Bütün hesablar', 'Все счета', 'All accounts')}</option>
               {ledgerAccounts.map((account) => (
@@ -330,21 +330,21 @@ export function FinanceLedgerTab({
             </select>
           </label>
           <label className="space-y-2">
-            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Subyekt', 'Контрагент', 'Counterparty')}</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Subyekt', 'Контрагент', 'Counterparty')}</span>
             <input className="neon-input min-h-12" value={ledgerCounterpartyFilter} onChange={(e) => onLedgerCounterpartyFilterChange(e.target.value)} placeholder={tx(lang, 'Təchizatçı, investor...', 'Поставщик, инвестор...', 'Supplier, investor...')} />
           </label>
           <label className="space-y-2">
-            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Min məbləğ', 'Мин сумма', 'Min amount')}</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Min məbləğ', 'Мин сумма', 'Min amount')}</span>
             <input className="neon-input min-h-12" type="number" min={0} step="0.01" value={ledgerMinAmount} onChange={(e) => onLedgerMinAmountChange(e.target.value)} />
           </label>
           <label className="space-y-2">
-            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Max məbləğ', 'Макс сумма', 'Max amount')}</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Max məbləğ', 'Макс сумма', 'Max amount')}</span>
             <input className="neon-input min-h-12" type="number" min={0} step="0.01" value={ledgerMaxAmount} onChange={(e) => onLedgerMaxAmountChange(e.target.value)} />
           </label>
           <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Tarix aralığı', 'Диапазон дат', 'Date range')}</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Tarix aralığı', 'Диапазон дат', 'Date range')}</div>
             <div className="mt-2 text-sm font-black text-white">{fromDate} → {toDate}</div>
-            <div className="mt-1 text-xs font-bold text-slate-500">
+            <div className="mt-1 text-xs font-bold text-slate-400">
               {tx(lang, 'Yuxarıdakı period filteri maliyyə jurnalına da tətbiq olunur.', 'Верхний фильтр периода также применяется к ledger.', 'The top period filter also applies to ledger.')}
             </div>
           </div>
@@ -353,7 +353,7 @@ export function FinanceLedgerTab({
       <div className="mb-4 md:mb-5 grid grid-cols-1 gap-2.5 md:gap-3 md:grid-cols-3 xl:grid-cols-6">
         {ledgerAccounts.slice(0, 6).map((account) => (
           <div key={account.id} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
-            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{account.code}</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{account.code}</div>
             <div className="mt-1 text-sm font-black text-white">{account.name}</div>
             <div className="mt-2 text-lg font-black text-emerald-200">{new Decimal(account.ledger_balance || 0).toFixed(2)} ₼</div>
           </div>
@@ -407,7 +407,7 @@ export function FinanceLedgerTab({
               </tr>
             ))}
             {visibleLedgerTransactions.length === 0 && (
-              <tr><td colSpan={7} className="py-10 text-center text-slate-500">{tx(lang, 'Bu filterlə maliyyə jurnalı qeydi tapılmadı', 'По этим фильтрам ledger записей нет', 'No ledger rows match these filters')}</td></tr>
+              <tr><td colSpan={7} className="py-10 text-center text-slate-400">{tx(lang, 'Bu filterlə maliyyə jurnalı qeydi tapılmadı', 'По этим фильтрам ledger записей нет', 'No ledger rows match these filters')}</td></tr>
             )}
           </tbody>
         </table>
@@ -420,10 +420,10 @@ export function FinanceLedgerTab({
             </span>
           </div>
         <div className="flex gap-2">
-          <button disabled={!canGoPreviousLedgerPage || ledgerPageLoading} onClick={onPreviousPage} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-200 disabled:cursor-not-allowed disabled:opacity-40">
+          <button disabled={!canGoPreviousLedgerPage || ledgerPageLoading} onClick={onPreviousPage} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-200 hover:border-slate-500 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-40">
             {tx(lang, 'Əvvəlki', 'Предыдущая', 'Previous')}
           </button>
-          <button disabled={!canGoNextLedgerPage || ledgerPageLoading} onClick={onNextPage} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-200 disabled:cursor-not-allowed disabled:opacity-40">
+          <button disabled={!canGoNextLedgerPage || ledgerPageLoading} onClick={onNextPage} className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-200 hover:border-slate-500 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-40">
             {tx(lang, 'Növbəti', 'Следующая', 'Next')}
           </button>
         </div>

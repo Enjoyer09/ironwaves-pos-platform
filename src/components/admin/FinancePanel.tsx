@@ -1415,17 +1415,17 @@ export default function FinancePanel() {
           </p>
         </div>
         <div className="flex gap-2">
-	          <button onClick={() => { setQuickAction('income'); setType('in'); }} aria-pressed={type === 'in'} className={`min-h-11 rounded-2xl px-4 text-sm font-black ${type === 'in' ? 'bg-emerald-400 text-slate-950' : 'border border-slate-700 text-slate-300'}`}>
+	          <button onClick={() => { setQuickAction('income'); setType('in'); }} aria-pressed={type === 'in'} className={`min-h-11 rounded-2xl px-4 text-sm font-black ${type === 'in' ? 'bg-emerald-400 text-slate-950' : 'border border-slate-700 text-slate-200 hover:border-slate-500 hover:bg-slate-900'}`}>
 	            {tx(lang, 'Mədaxil', 'Приход', 'Income')}
 	          </button>
-	          <button onClick={() => { setQuickAction('expense'); setType('out'); }} aria-pressed={type === 'out'} className={`min-h-11 rounded-2xl px-4 text-sm font-black ${type === 'out' ? 'bg-rose-400 text-slate-950' : 'border border-slate-700 text-slate-300'}`}>
+	          <button onClick={() => { setQuickAction('expense'); setType('out'); }} aria-pressed={type === 'out'} className={`min-h-11 rounded-2xl px-4 text-sm font-black ${type === 'out' ? 'bg-rose-400 text-slate-950' : 'border border-slate-700 text-slate-200 hover:border-slate-500 hover:bg-slate-900'}`}>
 	            {tx(lang, 'Xərc', 'Расход', 'Expense')}
 	          </button>
             <button
               type="button"
               aria-pressed={showAdvancedTxFields}
               onClick={() => setShowAdvancedTxFields((prev) => !prev)}
-              className={`min-h-11 rounded-2xl px-4 text-sm font-black ${showAdvancedTxFields ? 'bg-slate-200 text-slate-950' : 'border border-slate-700 text-slate-300'}`}
+              className={`min-h-11 rounded-2xl px-4 text-sm font-black ${showAdvancedTxFields ? 'bg-slate-200 text-slate-950' : 'border border-slate-700 text-slate-200 hover:border-slate-500 hover:bg-slate-900'}`}
             >
               {showAdvancedTxFields
                 ? tx(lang, 'Sadə sahələr', 'Простые поля', 'Simple fields')
@@ -1435,15 +1435,15 @@ export default function FinancePanel() {
       </div>
       <div className="mb-4 grid grid-cols-1 gap-2.5 md:gap-3 md:grid-cols-3">
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Növ', 'Тип', 'Type')}</div>
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Növ', 'Тип', 'Type')}</div>
           <div className="mt-2 text-lg font-black text-white">{isIncomeAction ? tx(lang, 'Mədaxil', 'Приход', 'Income') : tx(lang, 'Xərc', 'Расход', 'Expense')}</div>
         </div>
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Mənbə', 'Источник', 'Source')}</div>
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Mənbə', 'Источник', 'Source')}</div>
           <div className="mt-2 text-lg font-black text-white">{selectedSource?.label}</div>
         </div>
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Kateqoriya', 'Категория', 'Category')}</div>
+          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Kateqoriya', 'Категория', 'Category')}</div>
           <div className="mt-2 text-lg font-black text-white">{selectedCategory?.label}</div>
         </div>
       </div>
@@ -1881,7 +1881,7 @@ export default function FinancePanel() {
                 key={preset}
                 type="button"
                 onClick={() => applyRangePreset(preset)}
-                className={`min-h-11 shrink-0 rounded-2xl px-4 text-sm font-black transition md:shrink ${rangePreset === preset ? 'bg-white text-slate-950' : 'border border-slate-700 bg-slate-950 text-slate-200'}`}
+                className={`min-h-11 shrink-0 rounded-2xl px-4 text-sm font-black transition md:shrink ${rangePreset === preset ? 'bg-white text-slate-950' : 'border border-slate-700 bg-slate-950 text-slate-200 hover:border-slate-500 hover:bg-slate-900'}`}
               >
                 {label}
               </button>
@@ -1894,7 +1894,7 @@ export default function FinancePanel() {
             type="button"
             aria-pressed={focusedMode}
             onClick={() => setFocusedMode((prev) => !prev)}
-            className={`min-h-11 rounded-2xl px-4 text-sm font-black transition ${focusedMode ? 'bg-emerald-300 text-slate-950' : 'border border-slate-700 bg-slate-950 text-slate-200'}`}
+            className={`min-h-11 rounded-2xl px-4 text-sm font-black transition ${focusedMode ? 'bg-emerald-300 text-slate-950' : 'border border-slate-700 bg-slate-950 text-slate-200 hover:border-slate-500 hover:bg-slate-900'}`}
           >
             {focusedMode
               ? tx(lang, 'Fokus rejimi: aktiv', 'Режим фокуса: включен', 'Focus mode: on')
@@ -1918,7 +1918,7 @@ export default function FinancePanel() {
                   setType('out');
                   setWorkspaceTab('transactions');
                 }}
-                className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100"
+                className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900"
               >
                 {tx(lang, 'Xərc yaz', 'Записать расход', 'Record expense')}
               </button>
@@ -1929,7 +1929,7 @@ export default function FinancePanel() {
                   setType('in');
                   setWorkspaceTab('transactions');
                 }}
-                className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100"
+                className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900"
               >
                 {tx(lang, 'Mədaxil yaz', 'Записать приход', 'Record income')}
               </button>
@@ -1939,7 +1939,7 @@ export default function FinancePanel() {
                   setQuickAction('transfer');
                   setWorkspaceTab('transfers');
                 }}
-                className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100"
+                className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900"
               >
                 {tx(lang, 'Transfer', 'Перевод', 'Transfer')}
               </button>
@@ -1949,7 +1949,7 @@ export default function FinancePanel() {
                   setQuickAction('investor_repayment');
                   setWorkspaceTab('investor');
                 }}
-                className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100"
+                className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900"
               >
                 {tx(lang, 'Investor ödə', 'Оплата инвестору', 'Investor repayment')}
               </button>
@@ -1959,7 +1959,7 @@ export default function FinancePanel() {
                   setQuickAction('reconcile');
                   setWorkspaceTab('reconciliation');
                 }}
-                className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100"
+                className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900"
               >
                 {tx(lang, 'Uyğunlaşdırma', 'Сверка', 'Reconciliation')}
               </button>
@@ -1969,7 +1969,7 @@ export default function FinancePanel() {
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto]">
           <label className="space-y-2">
-            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Başlanğıc tarix', 'Дата начала', 'Start date')}</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Başlanğıc tarix', 'Дата начала', 'Start date')}</span>
             <input
               className="neon-input min-h-12"
               type="date"
@@ -1981,7 +1981,7 @@ export default function FinancePanel() {
             />
           </label>
           <label className="space-y-2">
-            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Bitiş tarixi', 'Дата окончания', 'End date')}</span>
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Bitiş tarixi', 'Дата окончания', 'End date')}</span>
             <input
               className="neon-input min-h-12"
               type="date"
@@ -1993,7 +1993,7 @@ export default function FinancePanel() {
             />
           </label>
           <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Aktiv dövr', 'Активный период', 'Active period')}</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Aktiv dövr', 'Активный период', 'Active period')}</div>
             <div className="mt-2 text-sm font-black text-white">{fromDate} → {toDate}</div>
           </div>
         </div>

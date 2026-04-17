@@ -63,7 +63,7 @@ export function FinanceSummaryStrip({
         <div>
           <div className="text-xs font-black uppercase tracking-[0.24em] text-yellow-300">{tx(lang, 'Maliyyə iş sahəsi', 'Maliyyə iş sahəsi', 'Maliyyə iş sahəsi')}</div>
           <h2 className="mt-2 text-xl font-black text-white md:text-3xl">{tx(lang, 'Maliyyə nəzarət mərkəzi', 'Центр финансового контроля', 'Finance control center')}</h2>
-          <p className="mt-2 max-w-3xl text-sm text-slate-400">
+          <p className="mt-2 max-w-3xl text-sm text-slate-300">
             {tx(lang, 'Pul axını, öhdəliklər, uyğunlaşdırma və maliyyə jurnalı eyni iş sahəsindədir.', 'Денежный поток, обязательства, сверка и ledger в одном рабочем пространстве.', 'Cashflow, liabilities, reconciliation and ledger in one workspace.')}
           </p>
         </div>
@@ -74,7 +74,7 @@ export function FinanceSummaryStrip({
           <button
             onClick={onRefresh}
             aria-label={tx(lang, 'Maliyyə məlumatlarını yenilə', 'Обновить финансовые данные', 'Refresh finance data')}
-            className="min-h-12 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100"
+            className="min-h-12 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900"
           >
             {tx(lang, 'Yenilə', 'Обновить', 'Refresh')}
           </button>
@@ -87,7 +87,7 @@ export function FinanceSummaryStrip({
         <button
           type="button"
           onClick={() => setShowAllKpis((prev) => !prev)}
-          className="min-h-10 rounded-2xl border border-slate-700 px-4 text-xs font-black uppercase tracking-[0.08em] text-slate-200"
+          className="min-h-10 rounded-2xl border border-slate-700 px-4 text-xs font-black uppercase tracking-[0.08em] text-slate-200 hover:border-slate-500 hover:bg-slate-900"
         >
           {showAllKpis
             ? tx(lang, 'Kompakt KPI', 'Компакт KPI', 'Compact KPI')
@@ -110,9 +110,9 @@ function FinanceKpiCard({ label, value, tone, icon }: { label: string; value: an
     <div className={`rounded-[24px] border p-3.5 md:p-4 ${toneMap[tone]}`}>
       <div className="flex items-center justify-between gap-3">
         <div className="rounded-2xl bg-white/10 p-3">{icon}</div>
-        <div className="text-right text-xs font-black uppercase tracking-[0.16em] opacity-70">{tx('az', 'Göstərici', 'KPI', 'KPI')}</div>
+        <div className="text-right text-xs font-black uppercase tracking-[0.16em] text-slate-300">{tx('az', 'Göstərici', 'KPI', 'KPI')}</div>
       </div>
-      <div className="mt-4 text-xs font-black uppercase tracking-[0.18em] opacity-70">{label}</div>
+      <div className="mt-4 text-xs font-black uppercase tracking-[0.18em] text-slate-300">{label}</div>
       <div className="mt-2 text-xl md:text-2xl font-black text-white">{new Decimal(value || 0).toFixed(2)} ₼</div>
     </div>
   );
@@ -218,7 +218,7 @@ export function FinanceWorkspaceTabs({ active, onChange }: { lang?: string; acti
           role="tab"
           aria-selected={active === tab}
           aria-current={active === tab ? 'page' : undefined}
-          className={`min-h-12 shrink-0 snap-start whitespace-nowrap rounded-2xl px-5 text-sm font-black ${active === tab ? 'bg-white text-slate-950' : 'text-slate-400 hover:bg-slate-900 hover:text-white'}`}
+          className={`min-h-12 shrink-0 snap-start whitespace-nowrap rounded-2xl px-5 text-sm font-black ${active === tab ? 'bg-white text-slate-950' : 'text-slate-300 hover:bg-slate-900 hover:text-white'}`}
         >
           {label}
         </button>
@@ -249,7 +249,7 @@ export function FinanceMiniMetric({ label, value, tone }: { label: string; value
   } as const;
   return (
     <div className={`rounded-2xl border p-4 ${tones[tone]}`}>
-      <div className="text-xs font-black uppercase tracking-[0.16em] opacity-70">{label}</div>
+      <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-300">{label}</div>
       <div className="mt-2 text-2xl font-black text-white">{value}</div>
     </div>
   );
