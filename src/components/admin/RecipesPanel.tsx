@@ -166,6 +166,11 @@ export default function RecipesPanel() {
 
   const hasUnsavedChanges = JSON.stringify(draftRecipeItems.map((item) => ({ ingredient_name: item.ingredient_name, quantity_required: item.quantity_required, quantity_unit: item.quantity_unit || item.unit })))
     !== JSON.stringify(recipeItems.map((item) => ({ ingredient_name: item.ingredient_name, quantity_required: item.quantity_required, quantity_unit: item.quantity_unit || item.unit })));
+  const saveDisabledReason = isSaving
+    ? tx(lang, 'Resept hazırda saxlanılır, zəhmət olmasa gözləyin.', 'Рецепт сейчас сохраняется, пожалуйста подождите.', 'Recipe is currently saving, please wait.')
+    : !hasUnsavedChanges
+      ? tx(lang, 'Yadda saxlamaq üçün əvvəlcə reseptdə dəyişiklik edin.', 'Чтобы сохранить, сначала внесите изменения в рецепт.', 'Make a change in the recipe first to enable saving.')
+      : '';
 
   const handleSaveRecipe = async () => {
     if (!selectedMenu) return;
@@ -293,13 +298,16 @@ export default function RecipesPanel() {
                   <button onClick={handleGenerateAI} className="glossy-gold px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors">
                     <Sparkles size={16} /> {tx(lang, 'AI İlə Yarat', 'Создать через AI', 'Generate with AI')}
                   </button>
-                  <button
-                    onClick={() => { void handleSaveRecipe(); }}
-                    disabled={isSaving || !hasUnsavedChanges}
-                    className="rounded-xl border border-emerald-300/40 bg-emerald-500/20 px-4 py-2 text-sm font-bold text-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isSaving ? tx(lang, 'Saxlanılır...', 'Сохраняется...', 'Saving...') : tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
-                  </button>
+                  <span title={saveDisabledReason} className="inline-block">
+                    <button
+                      onClick={() => { void handleSaveRecipe(); }}
+                      disabled={isSaving || !hasUnsavedChanges}
+                      aria-label={saveDisabledReason || tx(lang, 'Resepti yadda saxla', 'Сохранить рецепт', 'Save recipe')}
+                      className="rounded-xl border border-emerald-300/40 bg-emerald-500/20 px-4 py-2 text-sm font-bold text-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isSaving ? tx(lang, 'Saxlanılır...', 'Сохраняется...', 'Saving...') : tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
+                    </button>
+                  </span>
                   {recipeStats && (
                     <>
                       <div className="bg-blue-500/20 text-blue-200 px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2">
