@@ -10,6 +10,7 @@ from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import AuditLog, FinanceAccount, FinanceTransaction, Setting, Shift, ShiftHandover, Tenant, User
 from app.services.finance_service import finance_policy as _finance_policy
+from app.services.finance_service import create_finance_transaction_record as _create_finance_transaction_record
 from app.services.finance_service import ledger_balances_snapshot as _ledger_balances_snapshot
 from app.services.finance_service import post_deposit_apply_to_bill as _post_deposit_apply_to_bill
 from app.services.finance_service import post_finance_transaction_with_legacy_mirror as _post_finance_transaction
@@ -245,10 +246,46 @@ def x_report(payload: XReportIn, db: Session = Depends(get_db), tenant: Tenant =
     diff = Decimal(str(payload.actual_cash)) - expected
 
     if diff != 0 and _cash_adjustment_requires_manual_approval(db, tenant.id, diff):
-        raise HTTPException(
-            status_code=400,
-            detail="Kassa fərqi approval tələb edir. Finance təsdiqi olmadan tətbiq edilə bilməz.",
+        pending_txn = _create_finance_transaction_record(
+            db,
+            tenant_id=tenant.id,
+            transaction_type="cash_adjustment",
+            status="pending_approval",
+            amount=abs(diff),
+            source_code="adjustment" if diff > 0 else "cash",
+            destination_code="cash" if diff > 0 else "adjustment",
+            created_by=user.username,
+            category="Kassa Artığı" if diff > 0 else "Kassa Kəsiri",
+            note="X-report difference (approval required)",
+            related_shift_id=active.id if active else None,
         )
+        db.add(
+            AuditLog(
+                tenant_id=tenant.id,
+                user=user.username,
+                action="FINANCE_X_REPORT_ADJUSTMENT_APPROVAL_REQUESTED",
+                details=json.dumps(
+                    {
+                        "transaction_id": pending_txn.id,
+                        "status": pending_txn.status,
+                        "difference": str(diff.quantize(Decimal("0.01"))),
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
+        db.commit()
+        return {
+            "expected_cash": str(expected.quantize(Decimal("0.01"))),
+            "actual_cash": str(Decimal(str(payload.actual_cash)).quantize(Decimal("0.01"))),
+            "difference": str(diff.quantize(Decimal("0.01"))),
+            "opening_cash": str(breakdown["opening_cash"].quantize(Decimal("0.01"))),
+            "cash_in": str(breakdown["cash_in"].quantize(Decimal("0.01"))),
+            "cash_out": str(breakdown["cash_out"].quantize(Decimal("0.01"))),
+            "approval_required": True,
+            "pending_transaction_id": pending_txn.id,
+            "pending_status": pending_txn.status,
+        }
 
     if diff != 0:
         _post_finance_transaction(
@@ -309,25 +346,34 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
             detail="Z-report kassa fərqi approval tələb edir. Finance təsdiqi olmadan bağlanış mümkün deyil.",
         )
 
-    deposit_balance = _ledger_balances_snapshot(db, tenant.id).get("deposit", Decimal("0.00")).quantize(Decimal("0.01"))
+    deposit_balance_before = _ledger_balances_snapshot(db, tenant.id).get("deposit", Decimal("0.00")).quantize(Decimal("0.01"))
     deposit_settled_amount = Decimal("0.00")
-    if deposit_balance > Decimal("0.01") and not bool(payload.allow_open_deposit_close):
+    if deposit_balance_before > Decimal("0.01") and not bool(payload.allow_open_deposit_close):
         raise HTTPException(
             status_code=400,
             detail=(
-                f"Açıq depozit öhdəliyi var ({deposit_balance} ₼). "
+                f"Açıq depozit öhdəliyi var ({deposit_balance_before} ₼). "
                 "Əvvəl depozitləri bağlayın və ya allow_open_deposit_close=true ilə təsdiqləyin."
             ),
         )
-    if deposit_balance > Decimal("0.01") and bool(payload.allow_open_deposit_close):
+    if deposit_balance_before > Decimal("0.01") and bool(payload.allow_open_deposit_close):
         _post_deposit_apply_to_bill(
             db,
             tenant_id=tenant.id,
-            amount=deposit_balance,
+            amount=deposit_balance_before,
             created_by=user.username,
             note="Z-report close: open deposit liability settled",
         )
-        deposit_settled_amount = deposit_balance
+        deposit_settled_amount = deposit_balance_before
+    deposit_balance_after = _ledger_balances_snapshot(db, tenant.id).get("deposit", Decimal("0.00")).quantize(Decimal("0.01"))
+    if deposit_balance_after > Decimal("0.01"):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Depozit öhdəliyi bağlanmadı ({deposit_balance_after} ₼ qalıq). "
+                "Z-hesabat bağlanmadan əvvəl depozitləri manual bağlayın."
+            ),
+        )
     if difference != 0:
         _post_finance_transaction(
             db,
@@ -390,9 +436,9 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
     active.actual_cash = actual_cash
     active.declared_cash = actual_cash
     active.cash_variance = difference
-    active.closing_deposit_liability = deposit_balance
+    active.closing_deposit_liability = deposit_balance_after
     active.deposit_settled_amount = deposit_settled_amount
-    active.closing_cash = (actual_cash - deposit_settled_amount).quantize(Decimal("0.01"))
+    active.closing_cash = actual_cash.quantize(Decimal("0.01"))
     db.commit()
 
     return {
@@ -406,9 +452,10 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         "actual_cash": str(actual_cash),
         "difference": str(difference),
         "wage_amount": str(Decimal(str(payload.wage_amount)).quantize(Decimal("0.01"))),
-        "open_deposit_liability": str(deposit_balance),
+        "open_deposit_liability": str(deposit_balance_before),
+        "closing_deposit_liability": str(deposit_balance_after),
         "deposit_settled_amount": str(deposit_settled_amount),
-        "closing_cash": str((actual_cash - deposit_settled_amount).quantize(Decimal("0.01"))),
+        "closing_cash": str(actual_cash.quantize(Decimal("0.01"))),
         "opening_cash": str(breakdown["opening_cash"].quantize(Decimal("0.01"))),
         "cash_movements_in": str(breakdown["cash_in"].quantize(Decimal("0.01"))),
         "cash_movements_out": str(breakdown["cash_out"].quantize(Decimal("0.01"))),
@@ -523,19 +570,56 @@ def accept_handover(handover_id: str, payload: ShiftHandoverAcceptIn, db: Sessio
         raise HTTPException(status_code=400, detail="Actual cash cannot be negative")
     declared = Decimal(str(row.declared_cash))
     difference = actual - declared
+    pending_txn_id: str | None = None
+    pending_status: str | None = None
+    approval_required = False
     if difference != 0:
-        _post_finance_transaction(
-            db,
-            tenant_id=tenant.id,
-            transaction_type="cash_adjustment",
-            amount=abs(difference),
-            source_code="adjustment" if difference > 0 else "cash",
-            destination_code="cash" if difference > 0 else "adjustment",
-            created_by=user.username,
-            category="Kassa Artığı" if difference > 0 else "Kassa Kəsiri",
-            note=f"Smeni qəbul fərqi ({row.handed_by} -> {user.username})",
-            related_shift_id=active.id,
-        )
+        if _cash_adjustment_requires_manual_approval(db, tenant.id, difference):
+            pending_txn = _create_finance_transaction_record(
+                db,
+                tenant_id=tenant.id,
+                transaction_type="cash_adjustment",
+                status="pending_approval",
+                amount=abs(difference),
+                source_code="adjustment" if difference > 0 else "cash",
+                destination_code="cash" if difference > 0 else "adjustment",
+                created_by=user.username,
+                category="Kassa Artığı" if difference > 0 else "Kassa Kəsiri",
+                note=f"Smeni qəbul fərqi ({row.handed_by} -> {user.username}) — approval tələb olunur",
+                related_shift_id=active.id,
+            )
+            approval_required = True
+            pending_txn_id = pending_txn.id
+            pending_status = pending_txn.status
+            db.add(
+                AuditLog(
+                    tenant_id=tenant.id,
+                    user=user.username,
+                    action="FINANCE_HANDOVER_ADJUSTMENT_APPROVAL_REQUESTED",
+                    details=json.dumps(
+                        {
+                            "handover_id": row.id,
+                            "transaction_id": pending_txn.id,
+                            "difference": str(difference.quantize(Decimal("0.01"))),
+                            "status": pending_txn.status,
+                        },
+                        ensure_ascii=False,
+                    ),
+                )
+            )
+        else:
+            _post_finance_transaction(
+                db,
+                tenant_id=tenant.id,
+                transaction_type="cash_adjustment",
+                amount=abs(difference),
+                source_code="adjustment" if difference > 0 else "cash",
+                destination_code="cash" if difference > 0 else "adjustment",
+                created_by=user.username,
+                category="Kassa Artığı" if difference > 0 else "Kassa Kəsiri",
+                note=f"Smeni qəbul fərqi ({row.handed_by} -> {user.username})",
+                related_shift_id=active.id,
+            )
 
     active.opened_by = user.username
     row.status = "ACCEPTED"
@@ -549,4 +633,7 @@ def accept_handover(handover_id: str, payload: ShiftHandoverAcceptIn, db: Sessio
         "declared_cash": str(row.declared_cash),
         "actual_cash": str(actual),
         "difference": str(difference),
+        "approval_required": approval_required,
+        "pending_transaction_id": pending_txn_id,
+        "pending_status": pending_status,
     }
