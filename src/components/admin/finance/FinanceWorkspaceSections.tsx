@@ -266,7 +266,7 @@ export function FinanceLedgerTab({
   ledgerEntries: FinanceLedgerEntry[];
 }) {
   return (
-    <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-5">
+    <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-4 md:p-5">
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">{tx(lang, 'İki tərəfli maliyyə jurnalı', 'Двойной ledger', 'Double-entry journal')}</div>
@@ -284,7 +284,7 @@ export function FinanceLedgerTab({
           <button className="neon-btn rounded-2xl px-4 text-sm font-black" onClick={onExport}>{tx(lang, 'Çıxar', 'Экспорт', 'Export')}</button>
         </div>
       </div>
-      <div className="mb-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-4">
+      <div className="mb-4 md:mb-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-3.5 md:p-4">
         <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.18em] text-sky-300">{tx(lang, 'Jurnal filterləri', 'Фильтры ledger', 'Ledger filters')}</div>
@@ -350,7 +350,7 @@ export function FinanceLedgerTab({
           </div>
         </div>
       </div>
-      <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="mb-4 md:mb-5 grid grid-cols-1 gap-2.5 md:gap-3 md:grid-cols-3 xl:grid-cols-6">
         {ledgerAccounts.slice(0, 6).map((account) => (
           <div key={account.id} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3">
             <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{account.code}</div>
@@ -465,7 +465,7 @@ export function FinanceReconciliationWorkspace({
   reconciliations: FinanceReconciliation[];
 }) {
   return (
-    <div className="rounded-[24px] border border-slate-800 bg-slate-950 p-4">
+    <div className="rounded-[24px] border border-slate-800 bg-slate-950 p-3.5 md:p-4">
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="rounded-[24px] border border-slate-800 bg-slate-950 p-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">

@@ -1401,8 +1401,8 @@ export default function FinancePanel() {
   const isCardBasedTransfer = transferDirection === 'card_to_cash' || transferDirection === 'card_to_debt';
 
   const transactionForm = (
-    <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-5">
-      <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-4 md:p-5">
+      <div className="mb-4 md:mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">
             {isIncomeAction ? tx(lang, 'Mədaxil əməliyyatı', 'Операция прихода', 'Income transaction') : tx(lang, 'Xərc əməliyyatı', 'Операция расхода', 'Expense transaction')}
@@ -1433,7 +1433,7 @@ export default function FinancePanel() {
             </button>
         </div>
       </div>
-      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="mb-4 grid grid-cols-1 gap-2.5 md:gap-3 md:grid-cols-3">
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Növ', 'Тип', 'Type')}</div>
           <div className="mt-2 text-lg font-black text-white">{isIncomeAction ? tx(lang, 'Mədaxil', 'Приход', 'Income') : tx(lang, 'Xərc', 'Расход', 'Expense')}</div>
@@ -1498,7 +1498,7 @@ export default function FinancePanel() {
   );
 
   const transferForm = (
-    <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-5">
+    <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-4 md:p-5">
       <div className="mb-5">
         <div className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">{tx(lang, 'Daxili transfer', 'Внутренний перевод', 'Internal transfer')}</div>
         <h3 className="mt-2 text-xl font-black text-white">{tx(lang, 'Transfer formu', 'Форма перевода', 'Transfer form')}</h3>
@@ -1551,7 +1551,7 @@ export default function FinancePanel() {
   );
 
   const investorForm = (
-    <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-5">
+    <div className="rounded-[28px] border border-slate-800 bg-slate-950 p-4 md:p-5">
       <div className="mb-5">
         <div className="text-xs font-black uppercase tracking-[0.2em] text-yellow-300">{tx(lang, 'Investor borcu', 'Обязательство инвестору', 'Investor liability')}</div>
         <h3 className="mt-2 text-xl font-black text-white">{tx(lang, 'Investor ödəniş formu', 'Форма выплаты инвестору', 'Investor repayment form')}</h3>
@@ -1860,7 +1860,7 @@ export default function FinancePanel() {
         />
       )}
 
-      <div className="rounded-[28px] border border-slate-800 bg-slate-900 p-5">
+      <div className="rounded-[28px] border border-slate-800 bg-slate-900 p-4 md:p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.24em] text-sky-300">{tx(lang, 'Dövr seçimi', 'Выбор периода', 'Period selection')}</div>
