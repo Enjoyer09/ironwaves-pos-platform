@@ -20,6 +20,11 @@ const toDecimal = (value: any) => {
   return new Decimal(value ?? 0);
 };
 
+type RecipeAIMenuContext = {
+  category?: string;
+  sell_price?: Decimal.Value;
+};
+
 const scoreIngredient = (menuName: string, ingredientName: string) => {
   const m = menuName.toLowerCase();
   const i = ingredientName.toLowerCase();
@@ -137,6 +142,34 @@ const normalizeQtyForUnit = (menuName: string, ingredient: any, rawQty: number) 
   }
 
   return qty;
+};
+
+const normalizeUnit = (value: string | undefined | null) => String(value || '').trim().toLowerCase();
+
+const convertQtyToInventoryUnit = (qty: Decimal, qtyUnit: string, inventoryUnit: string) => {
+  const from = normalizeUnit(qtyUnit);
+  const to = normalizeUnit(inventoryUnit);
+  if (!from || from === to) return qty;
+
+  const map: Record<string, Decimal> = {
+    'qram->kq': new Decimal('0.001'),
+    'gr->kq': new Decimal('0.001'),
+    'g->kq': new Decimal('0.001'),
+    'kq->qram': new Decimal('1000'),
+    'kg->qram': new Decimal('1000'),
+    'ml->litr': new Decimal('0.001'),
+    'ml->l': new Decimal('0.001'),
+    'litr->ml': new Decimal('1000'),
+    'l->ml': new Decimal('1000'),
+    'sm->metr': new Decimal('0.01'),
+    'cm->metr': new Decimal('0.01'),
+    'metr->sm': new Decimal('100'),
+    'm->sm': new Decimal('100'),
+  };
+
+  const factor = map[`${from}->${to}`];
+  if (!factor) return qty;
+  return qty.mul(factor);
 };
 
 export function getRecipeEntryUnitOptions(baseUnit: string): string[] {
@@ -315,8 +348,13 @@ export async function replace_recipe_live(
   }
 }
 
-export async function generate_recipe_ai(menu_item_name: string, user: string = 'system', tenant_id: string = 'tenant_default') {
-  const generatedRows = await generate_recipe_ai_rows(menu_item_name, tenant_id);
+export async function generate_recipe_ai(
+  menu_item_name: string,
+  user: string = 'system',
+  tenant_id: string = 'tenant_default',
+  context?: RecipeAIMenuContext,
+) {
+  const generatedRows = await generate_recipe_ai_rows(menu_item_name, tenant_id, context);
   const recipes = [
     ...getRecipes(tenant_id).filter((r) => r.menu_item_name !== menu_item_name),
     ...generatedRows,
@@ -326,7 +364,11 @@ export async function generate_recipe_ai(menu_item_name: string, user: string = 
   return get_recipe(menu_item_name, tenant_id);
 }
 
-async function generate_recipe_ai_rows(menu_item_name: string, tenant_id: string = 'tenant_default') {
+async function generate_recipe_ai_rows(
+  menu_item_name: string,
+  tenant_id: string = 'tenant_default',
+  context?: RecipeAIMenuContext,
+) {
   const settings = getDB<any>('settings') || [];
   const tenantSettings = settings.find((row: any) => row?.tenant_id === tenant_id);
   const aiKey = String(tenantSettings?.gemini_api_key || readScopedStorage('gemini_api_key') || '').trim();
@@ -340,7 +382,7 @@ async function generate_recipe_ai_rows(menu_item_name: string, tenant_id: string
 
   const invNames = new Set(inventory.map((i: any) => String(i.name || '').trim().toLowerCase()));
 
-  let aiRows: Array<{ ingredient: string; qty: number }> = [];
+  let aiRows: Array<{ ingredient: string; qty: number; qty_unit?: string }> = [];
   try {
     const invText = inventory
       .map((i: any) => `${i.name} (${i.unit || 'q'})`)
@@ -350,16 +392,25 @@ async function generate_recipe_ai_rows(menu_item_name: string, tenant_id: string
       const rules = isTeaLike
         ? 'Do NOT use coffee, ice cream, milk for tea unless ingredient name explicitly says tea latte.'
         : 'Prefer matching beverage ingredients by name semantics.';
+      const categoryText = String(context?.category || '').trim();
+      const sellPrice = new Decimal(context?.sell_price || 0);
+      const targetFoodCostPct =
+        categoryText && /desert|şirniyyat|yemek|food|meal/i.test(categoryText) ? '25-40%' : '20-35%';
 
       const prompt = [
-      `You are a senior barista recipe assistant.`,
-      `Create a compact recipe for menu item: ${menu_item_name}.`,
+      `You are a senior restaurant R&D chef + cost controller.`,
+      `Create a practical production recipe for menu item: ${menu_item_name}.`,
+      categoryText ? `Menu category: ${categoryText}.` : '',
+      sellPrice.gt(0) ? `Menu selling price: ${sellPrice.toFixed(2)} AZN.` : '',
+      `Target theoretical food cost ratio: ${targetFoodCostPct}.`,
       `Use only these available ingredients: ${invText}.`,
+      `Return quantities in realistic kitchen units and portions.`,
+      `Respect world-class recipe practices: no impossible dose, no irrelevant ingredient, compact list (2-7 ingredients).`,
         rules,
       `Return strictly JSON array only. Example:`,
-      `[ {"ingredient":"Qəhvə dənəsi","qty":18}, {"ingredient":"Su","qty":120} ]`,
+      `[ {"ingredient":"Qəhvə dənəsi","qty":0.018,"qty_unit":"kq"}, {"ingredient":"Su","qty":0.12,"qty_unit":"litr"} ]`,
       `No markdown, no explanation.`
-    ].join('\n');
+    ].filter(Boolean).join('\n');
 
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(aiKey)}`, {
       method: 'POST',
@@ -378,7 +429,11 @@ async function generate_recipe_ai_rows(menu_item_name: string, tenant_id: string
         const parsed = JSON.parse(match[0]);
         if (Array.isArray(parsed)) {
           aiRows = parsed
-            .map((r: any) => ({ ingredient: String(r?.ingredient || '').trim(), qty: Number(r?.qty || 0) }))
+            .map((r: any) => ({
+              ingredient: String(r?.ingredient || '').trim(),
+              qty: Number(r?.qty || 0),
+              qty_unit: String(r?.qty_unit || '').trim() || undefined,
+            }))
             .filter((r) => r.ingredient && Number.isFinite(r.qty) && r.qty > 0)
             // inventory-də olmayan inqrediyenti qəbul etmə
             .filter((r) => invNames.has(r.ingredient.toLowerCase()));
@@ -396,7 +451,11 @@ async function generate_recipe_ai_rows(menu_item_name: string, tenant_id: string
       .sort((a: any, b: any) => b.score - a.score);
     const picked = ranked.filter((r: any) => r.score > 0).slice(0, 4).map((r: any) => r.item);
     const finalPicked = picked.length > 0 ? picked : inventory.slice(0, 3);
-    aiRows = finalPicked.map((item: any) => ({ ingredient: item.name, qty: Number(suggestQty(item).toString()) }));
+    aiRows = finalPicked.map((item: any) => ({
+      ingredient: item.name,
+      qty: Number(suggestQty(item).toString()),
+      qty_unit: String(item.unit || ''),
+    }));
   }
 
   // Tea-like məhsullarda alakasız ingredientləri çıxaraq.
@@ -412,7 +471,11 @@ async function generate_recipe_ai_rows(menu_item_name: string, tenant_id: string
   const generatedRows = aiRows.flatMap((row) => {
     const item = inventory.find((i: any) => String(i.name).toLowerCase() === row.ingredient.toLowerCase());
     if (!item) return [];
-    const qty = normalizeQtyForUnit(menu_item_name, item, Number(row.qty || 0));
+    const rawQty = new Decimal(Number(row.qty || 0));
+    const qtyInInventoryUnit = row.qty_unit
+      ? convertQtyToInventoryUnit(rawQty, row.qty_unit, String(item.unit || ''))
+      : rawQty;
+    const qty = normalizeQtyForUnit(menu_item_name, item, Number(qtyInInventoryUnit.toString()));
     const unitCost = new Decimal(item.unit_cost || '0');
     const rowCost = qty.mul(unitCost);
     return [{
@@ -434,9 +497,14 @@ async function generate_recipe_ai_rows(menu_item_name: string, tenant_id: string
   return generatedRows;
 }
 
-export async function generate_recipe_ai_live(menu_item_name: string, user: string = 'system', tenant_id: string = 'tenant_default') {
-  if (!isBackendEnabled()) return generate_recipe_ai(menu_item_name, user, tenant_id);
-  const generated = await generate_recipe_ai_rows(menu_item_name, tenant_id);
+export async function generate_recipe_ai_live(
+  menu_item_name: string,
+  user: string = 'system',
+  tenant_id: string = 'tenant_default',
+  context?: RecipeAIMenuContext,
+) {
+  if (!isBackendEnabled()) return generate_recipe_ai(menu_item_name, user, tenant_id, context);
+  const generated = await generate_recipe_ai_rows(menu_item_name, tenant_id, context);
   await replace_recipe_live(
     menu_item_name,
     generated.map((row) => ({
