@@ -36,6 +36,19 @@ jobs:
       - name: Python compile check
         run: python -m compileall app
 
+      - name: Debug tested commit and finance snippets
+        run: |
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          git rev-parse HEAD
+          echo "---- backend/app/routers/finance.py (_transaction_date) ----"
+          sed -n '408,420p' app/routers/finance.py
+          echo "---- backend/app/services/finance_service.py (_setting_value) ----"
+          sed -n '34,54p' app/services/finance_service.py
+          echo "---- backend/app/services/finance_service.py (shift_cash_breakdown_from_ledger) ----"
+          sed -n '228,270p' app/services/finance_service.py
+          echo "---- backend/app/services/finance_service.py (mirror_posted_transaction_to_legacy_wallet) ----"
+          sed -n '462,492p' app/services/finance_service.py
+
       - name: Run backend tests
         env:
           DATABASE_URL: "sqlite:///./ci_test.db"
