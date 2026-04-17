@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
+from threading import Lock
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import case, func, or_
@@ -78,6 +79,9 @@ DEFAULT_FINANCE_POLICY = {
 }
 FINANCE_VIEW_ROLES = {"manager", "admin", "finance_admin", "super_admin"}
 FINANCE_WRITE_ROLES = {"manager", "admin", "finance_admin", "super_admin"}
+ANOMALY_SNAPSHOT_CACHE_TTL_SECONDS = 60
+_anomaly_snapshot_cache: dict[str, tuple[datetime, tuple[bool, bool, bool, bool, bool]]] = {}
+_anomaly_snapshot_cache_lock = Lock()
 
 
 def _normalize_text(value: str) -> str:
@@ -260,17 +264,24 @@ def _log_finance_anomaly_snapshot(
     username: str,
     payload: dict,
 ):
-    has_any_issue = any(
-        [
-            payload.get("has_investor_mismatch"),
-            payload.get("has_reconciliation_issue"),
-            payload.get("has_shift_cash_mismatch"),
-            payload.get("has_deposit_risk"),
-            payload.get("has_closed_shift_open_deposit"),
-        ]
+    flag_signature = (
+        bool(payload.get("has_investor_mismatch")),
+        bool(payload.get("has_reconciliation_issue")),
+        bool(payload.get("has_shift_cash_mismatch")),
+        bool(payload.get("has_deposit_risk")),
+        bool(payload.get("has_closed_shift_open_deposit")),
     )
+    has_any_issue = any(flag_signature)
     if not has_any_issue:
         return
+
+    now = datetime.utcnow()
+    with _anomaly_snapshot_cache_lock:
+        cached = _anomaly_snapshot_cache.get(tenant_id)
+    if cached:
+        cached_at, cached_signature = cached
+        if cached_signature == flag_signature and (now - cached_at).total_seconds() < ANOMALY_SNAPSHOT_CACHE_TTL_SECONDS:
+            return
 
     cutoff = datetime.utcnow() - timedelta(minutes=15)
     recent = (
@@ -289,13 +300,15 @@ def _log_finance_anomaly_snapshot(
         except Exception:
             recent_details = {}
         same_flags = (
-            bool(recent_details.get("has_investor_mismatch")) == bool(payload.get("has_investor_mismatch"))
-            and bool(recent_details.get("has_reconciliation_issue")) == bool(payload.get("has_reconciliation_issue"))
-            and bool(recent_details.get("has_shift_cash_mismatch")) == bool(payload.get("has_shift_cash_mismatch"))
-            and bool(recent_details.get("has_deposit_risk")) == bool(payload.get("has_deposit_risk"))
-            and bool(recent_details.get("has_closed_shift_open_deposit")) == bool(payload.get("has_closed_shift_open_deposit"))
+            bool(recent_details.get("has_investor_mismatch")) == flag_signature[0]
+            and bool(recent_details.get("has_reconciliation_issue")) == flag_signature[1]
+            and bool(recent_details.get("has_shift_cash_mismatch")) == flag_signature[2]
+            and bool(recent_details.get("has_deposit_risk")) == flag_signature[3]
+            and bool(recent_details.get("has_closed_shift_open_deposit")) == flag_signature[4]
         )
         if same_flags:
+            with _anomaly_snapshot_cache_lock:
+                _anomaly_snapshot_cache[tenant_id] = (now, flag_signature)
             return
 
     db.add(
@@ -307,6 +320,8 @@ def _log_finance_anomaly_snapshot(
         )
     )
     db.commit()
+    with _anomaly_snapshot_cache_lock:
+        _anomaly_snapshot_cache[tenant_id] = (now, flag_signature)
 
 
 @router.get("/balances")
@@ -362,8 +377,8 @@ def get_finance_summary(db: Session = Depends(get_db), tenant: Tenant = Depends(
         "pending_approvals_preview": [_transaction_out(row, account_by_id) for row in pending_rows],
         "latest_reconciliation": {
             "id": latest_reconciliation.id,
-            "account_code": latest_reconciliation.account_code,
-            "account_name": latest_reconciliation.account_name,
+            "account_code": account_by_id.get(latest_reconciliation.account_id).code if latest_reconciliation.account_id in account_by_id else None,
+            "account_name": account_by_id.get(latest_reconciliation.account_id).name if latest_reconciliation.account_id in account_by_id else None,
             "expected_balance": str(Decimal(str(latest_reconciliation.expected_balance)).quantize(Decimal("0.01"))),
             "counted_balance": str(Decimal(str(latest_reconciliation.counted_balance)).quantize(Decimal("0.01"))),
             "variance": str(Decimal(str(latest_reconciliation.variance)).quantize(Decimal("0.01"))),
