@@ -277,7 +277,7 @@ def _validate_shift_handover_cash(db: Session, tenant_id: str, user: User, shift
     declared = Decimal(str(declared_cash)).quantize(Decimal("0.01"))
     if declared < 0:
         raise HTTPException(status_code=400, detail="Declared cash cannot be negative")
-    expected = _shift_cash_breakdown_from_ledger(db, tenant_id, shift)["expected_cash"].quantize(Decimal("0.01"))
+    expected = _shift_cash_breakdown_from_ledger(db, tenant_id, shift, lock_for_update=True)["expected_cash"].quantize(Decimal("0.01"))
     variance = declared - expected
     if abs(variance) > Decimal("0.01"):
         db.add(
