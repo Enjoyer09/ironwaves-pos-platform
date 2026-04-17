@@ -463,6 +463,14 @@ def _profit_loss_report(db: Session, tenant_id: str, start: datetime | None, end
     sales_rows = sales_query.all()
     revenue = sum((Decimal(str(row.total or 0)) for row in sales_rows), Decimal("0.00"))
     cogs = sum((Decimal(str(row.cogs or 0)) for row in sales_rows), Decimal("0.00"))
+    cogs_uncomputed_rows = [row for row in sales_rows if row.cogs is None]
+    cogs_uncomputed_sales_count = len(cogs_uncomputed_rows)
+    cogs_uncomputed_revenue = sum((Decimal(str(row.total or 0)) for row in cogs_uncomputed_rows), Decimal("0.00"))
+    cogs_coverage_percent = (
+        (Decimal(str(len(sales_rows) - cogs_uncomputed_sales_count)) / Decimal(str(len(sales_rows))) * Decimal("100")).quantize(Decimal("0.01"))
+        if sales_rows
+        else Decimal("100.00")
+    )
 
     posted_txns = (
         db.query(FinanceTransaction)
@@ -485,6 +493,15 @@ def _profit_loss_report(db: Session, tenant_id: str, start: datetime | None, end
         "net_profit": _money(net_profit),
         "sales_count": len(sales_rows),
         "expense_count": len(expense_rows),
+        "has_uncomputed_cogs": cogs_uncomputed_sales_count > 0,
+        "cogs_uncomputed_sales_count": cogs_uncomputed_sales_count,
+        "cogs_uncomputed_revenue": _money(cogs_uncomputed_revenue),
+        "cogs_coverage_percent": str(cogs_coverage_percent),
+        "cogs_note": (
+            "COGS bəzi satışlar üçün hesablanmayıb; gross profit şişirdilmiş görünə bilər."
+            if cogs_uncomputed_sales_count > 0
+            else "COGS bütün satışlar üçün mövcuddur."
+        ),
     }
 
 
@@ -504,14 +521,24 @@ def _cash_flow_report(db: Session, tenant_id: str, start: datetime | None, end: 
         (Decimal(str(row.amount or 0)) for row in rows if row.transaction_type in {"deposit_release", "deposit_refund"}),
         Decimal("0.00"),
     )
-    adjustment_net = sum(
-        (
-            Decimal(str(row.amount or 0))
-            for row in rows
-            if row.transaction_type in {"cash_adjustment", "reconciliation_adjustment"}
-        ),
-        Decimal("0.00"),
-    )
+    account_code_by_id = {
+        str(account_id): str(code or "").strip().lower()
+        for account_id, code in db.query(FinanceAccount.id, FinanceAccount.code).filter(FinanceAccount.tenant_id == tenant_id).all()
+    }
+    adjustment_net = Decimal("0.00")
+    for row in rows:
+        if row.transaction_type not in {"cash_adjustment", "reconciliation_adjustment"}:
+            continue
+        amount = Decimal(str(row.amount or 0))
+        source_code = account_code_by_id.get(str(row.source_account_id or ""), "")
+        destination_code = account_code_by_id.get(str(row.destination_account_id or ""), "")
+        # Directional effect on cash flow:
+        # - cash as destination -> inflow
+        # - cash as source -> outflow
+        if destination_code == "cash" and source_code != "cash":
+            adjustment_net += amount
+        elif source_code == "cash" and destination_code != "cash":
+            adjustment_net -= amount
     net_cash_flow = operating_inflow - operating_outflow + financing_inflow - financing_outflow + deposit_inflow - deposit_outflow + adjustment_net
     return {
         "operating_inflow": _money(operating_inflow),

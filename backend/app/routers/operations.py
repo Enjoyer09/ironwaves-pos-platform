@@ -51,6 +51,7 @@ from app.models import (
     WasteLog,
 )
 from app.services.finance_service import (
+    create_finance_transaction_record as _create_finance_transaction_record,
     post_deposit_apply_to_bill as _post_deposit_apply_to_bill,
     post_deposit_hold as _post_deposit_hold,
     post_finance_transaction_with_legacy_mirror as _post_finance_transaction,
@@ -344,6 +345,16 @@ def _setting_value(db: Session, tenant_id: str, key: str, default):
         except Exception:
             return default
     return row.value
+
+
+def _cash_adjustment_requires_manual_approval(db: Session, tenant_id: str, amount: Decimal) -> bool:
+    policy = _setting_value(db, tenant_id, "finance_policy", DEFAULT_FINANCE_POLICY)
+    if not isinstance(policy, dict):
+        policy = DEFAULT_FINANCE_POLICY
+    if not bool(policy.get("cash_adjustment_requires_approval", True)):
+        return False
+    threshold = Decimal(str(policy.get("large_transfer_threshold_azn", 500) or 500))
+    return abs(amount) >= threshold
 
 
 def _settings_value_map(db: Session, tenant_id: str) -> dict[str, str | None]:
@@ -4338,18 +4349,55 @@ def accept_shift_handover_op(
         raise HTTPException(status_code=400, detail="Actual cash cannot be negative")
     declared = Decimal(str(row.declared_cash))
     difference = actual - declared
+    pending_txn_id: str | None = None
+    pending_status: str | None = None
+    approval_required = False
     if difference != 0:
-        _post_finance_transaction(
-            db,
-            tenant_id=tenant.id,
-            transaction_type="cash_adjustment",
-            amount=abs(difference),
-            source_code="adjustment" if difference > 0 else "cash",
-            destination_code="cash" if difference > 0 else "adjustment",
-            created_by=user.username,
-            category="Kassa Artığı" if difference > 0 else "Kassa Kəsiri",
-            note=f"Smeni qəbul fərqi ({row.handed_by} -> {user.username})",
-        )
+        if _cash_adjustment_requires_manual_approval(db, tenant.id, difference):
+            pending_txn = _create_finance_transaction_record(
+                db,
+                tenant_id=tenant.id,
+                transaction_type="cash_adjustment",
+                status="pending_approval",
+                amount=abs(difference),
+                source_code="adjustment" if difference > 0 else "cash",
+                destination_code="cash" if difference > 0 else "adjustment",
+                created_by=user.username,
+                category="Kassa Artığı" if difference > 0 else "Kassa Kəsiri",
+                note=f"Smeni qəbul fərqi ({row.handed_by} -> {user.username}) — approval tələb olunur",
+                related_shift_id=active.id,
+            )
+            approval_required = True
+            pending_txn_id = pending_txn.id
+            pending_status = pending_txn.status
+            db.add(
+                AuditLog(
+                    tenant_id=tenant.id,
+                    user=user.username,
+                    action="FINANCE_HANDOVER_ADJUSTMENT_APPROVAL_REQUESTED",
+                    details=json.dumps(
+                        {
+                            "handover_id": row.id,
+                            "transaction_id": pending_txn.id,
+                            "difference": str(difference.quantize(Decimal("0.01"))),
+                            "status": pending_txn.status,
+                        },
+                        ensure_ascii=False,
+                    ),
+                )
+            )
+        else:
+            _post_finance_transaction(
+                db,
+                tenant_id=tenant.id,
+                transaction_type="cash_adjustment",
+                amount=abs(difference),
+                source_code="adjustment" if difference > 0 else "cash",
+                destination_code="cash" if difference > 0 else "adjustment",
+                created_by=user.username,
+                category="Kassa Artığı" if difference > 0 else "Kassa Kəsiri",
+                note=f"Smeni qəbul fərqi ({row.handed_by} -> {user.username})",
+            )
 
     active.opened_by = user.username
     row.status = "ACCEPTED"
@@ -4363,6 +4411,9 @@ def accept_shift_handover_op(
         "declared_cash": str(row.declared_cash),
         "actual_cash": str(actual),
         "difference": str(difference),
+        "approval_required": approval_required,
+        "pending_transaction_id": pending_txn_id,
+        "pending_status": pending_status,
     }
 
 
