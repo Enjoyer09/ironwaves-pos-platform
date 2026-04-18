@@ -156,6 +156,14 @@ def _refresh_cookie_secure() -> bool:
     return settings.app_env.lower() == "production" or app_url.startswith("https://")
 
 
+def _refresh_cookie_samesite() -> str:
+    # Cross-site frontend/backend deployments (e.g. custom frontend domain + Railway backend domain)
+    # require SameSite=None so browser sends refresh cookie on XHR/fetch.
+    if settings.app_env.lower() == "production":
+        return "none"
+    return "lax"
+
+
 def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
     safe_token = str(refresh_token or "").strip()
     if not safe_token:
@@ -165,14 +173,19 @@ def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
         value=safe_token,
         httponly=True,
         secure=_refresh_cookie_secure(),
-        samesite="lax",
+        samesite=_refresh_cookie_samesite(),
         max_age=max(60, int(settings.refresh_token_days * 24 * 60 * 60)),
         path="/api/v1/auth",
     )
 
 
 def _clear_refresh_cookie(response: Response) -> None:
-    response.delete_cookie(key="refresh_token", path="/api/v1/auth")
+    response.delete_cookie(
+        key="refresh_token",
+        path="/api/v1/auth",
+        secure=_refresh_cookie_secure(),
+        samesite=_refresh_cookie_samesite(),
+    )
 
 
 def _extract_refresh_token(payload: RefreshIn | None, request: Request) -> str:
