@@ -55,6 +55,7 @@ from app.services.finance_service import (
     post_deposit_apply_to_bill as _post_deposit_apply_to_bill,
     post_deposit_hold as _post_deposit_hold,
     post_finance_transaction_with_legacy_mirror as _post_finance_transaction,
+    post_sale_cogs as _post_sale_cogs,
     post_sale_payment as _post_sale_payment,
     shift_cash_breakdown_from_ledger as _shift_cash_breakdown_from_ledger,
 )
@@ -3874,6 +3875,16 @@ def pay_table(
                 ),
             )
         )
+
+    _post_sale_cogs(
+        db,
+        tenant_id=tenant.id,
+        sale_id=sale.id,
+        amount=Decimal(str(cogs_total or 0)).quantize(Decimal("0.01")),
+        created_by=user.username,
+        note=f"Table sale COGS {sale.id}",
+        related_table_id=row.id,
+    )
 
     payment_method = _normalize_payment_method(payload.payment_method)
     if payment_method == "split":

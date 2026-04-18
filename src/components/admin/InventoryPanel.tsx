@@ -110,6 +110,9 @@ export default function InventoryPanel() {
   const [newUnit, setNewUnit] = useState('qram');
   const [newType, setNewType] = useState('Xammal');
   const [customType, setCustomType] = useState('');
+  const [newPaymentSource, setNewPaymentSource] = useState<'payable' | 'cash' | 'card' | 'safe'>('payable');
+  const [newSupplier, setNewSupplier] = useState('');
+  const [newInvoiceNo, setNewInvoiceNo] = useState('');
   const [newMinLimit, setNewMinLimit] = useState('5');
   const [measureType, setMeasureType] = useState<'çəki' | 'say' | 'həcm'>('çəki');
   const [isAdding, setIsAdding] = useState(false);
@@ -119,6 +122,9 @@ export default function InventoryPanel() {
   const [restockModal, setRestockModal] = useState<{ id: string; name: string } | null>(null);
   const [restockQty, setRestockQty] = useState('');
   const [restockTotalPrice, setRestockTotalPrice] = useState('');
+  const [restockPaymentSource, setRestockPaymentSource] = useState<'payable' | 'cash' | 'card' | 'safe'>('payable');
+  const [restockSupplier, setRestockSupplier] = useState('');
+  const [restockInvoiceNo, setRestockInvoiceNo] = useState('');
   const [deleteModal, setDeleteModal] = useState<{ id: string; name: string } | null>(null);
   const [deletePass, setDeletePass] = useState('');
 
@@ -158,7 +164,10 @@ export default function InventoryPanel() {
         category: measureType,
         type: resolvedType,
         unit_cost: qty.gt(0) ? totalPrice.div(qty).toDecimalPlaces(4) : new Decimal(0),
-        min_limit: new Decimal(newMinLimit || 0)
+        min_limit: new Decimal(newMinLimit || 0),
+        payment_source: newPaymentSource,
+        supplier: newSupplier.trim() || undefined,
+        invoice_no: newInvoiceNo.trim() || undefined,
       }, user?.username || 'Admin');
       setNewName('');
       setNewQty('');
@@ -166,6 +175,9 @@ export default function InventoryPanel() {
       setNewMinLimit('5');
       setCustomType('');
       setNewType('Xammal');
+      setNewPaymentSource('payable');
+      setNewSupplier('');
+      setNewInvoiceNo('');
       setIsAdding(false);
       await loadData();
       notify('success', tx(lang, 'Məhsul yadda saxlanıldı', 'Продукт сохранен', 'Inventory item saved'));
@@ -191,11 +203,18 @@ export default function InventoryPanel() {
     const totalPrice = new Decimal(restockTotalPrice || 0);
     if (qty.lte(0) || totalPrice.lt(0)) return;
     try {
-      await restock_item_live(tenant_id, id, qty, totalPrice, user?.username || 'Admin');
+      await restock_item_live(tenant_id, id, qty, totalPrice, user?.username || 'Admin', {
+        payment_source: restockPaymentSource,
+        supplier: restockSupplier.trim() || undefined,
+        invoice_no: restockInvoiceNo.trim() || undefined,
+      });
       notify('success', tx(lang, 'Mədaxil yazıldı', 'Пополнение сохранено'));
       setRestockModal(null);
       setRestockQty('');
       setRestockTotalPrice('');
+      setRestockPaymentSource('payable');
+      setRestockSupplier('');
+      setRestockInvoiceNo('');
       await loadData();
     } catch (e: any) {
       notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message);
@@ -319,12 +338,20 @@ export default function InventoryPanel() {
             <div className="grid grid-cols-2 gap-2">
               <input className="neon-input" type="number" min={0} placeholder={tx(lang, 'Miqdar', 'Количество')} value={restockQty} onChange={(e) => setRestockQty(e.target.value)} />
               <input className="neon-input" type="number" min={0} placeholder={tx(lang, 'Toplam qiymət', 'Общая цена')} value={restockTotalPrice} onChange={(e) => setRestockTotalPrice(e.target.value)} />
+              <select className="neon-input" value={restockPaymentSource} onChange={(e) => setRestockPaymentSource(e.target.value as any)}>
+                <option value="payable">{tx(lang, 'Öhdəlik (AP)', 'Кредиторка (AP)', 'Payable (AP)')}</option>
+                <option value="cash">{tx(lang, 'Nağd', 'Наличные', 'Cash')}</option>
+                <option value="card">{tx(lang, 'Kart', 'Карта', 'Card')}</option>
+                <option value="safe">{tx(lang, 'Seyf', 'Сейф', 'Safe')}</option>
+              </select>
+              <input className="neon-input" placeholder={tx(lang, 'Təchizatçı (opsional)', 'Поставщик (опц.)', 'Supplier (optional)')} value={restockSupplier} onChange={(e) => setRestockSupplier(e.target.value)} />
+              <input className="neon-input col-span-2" placeholder={tx(lang, 'Invoice № (opsional)', 'Invoice № (опц.)', 'Invoice № (optional)')} value={restockInvoiceNo} onChange={(e) => setRestockInvoiceNo(e.target.value)} />
             </div>
             <div className="mt-4 flex gap-2">
               <button className="glossy-gold rounded-lg px-4 py-2 font-semibold" onClick={() => { void handleRestock(restockModal.id); }}>
                 {tx(lang, 'Təsdiqlə', 'Подтвердить')}
               </button>
-              <button className="neon-btn rounded-lg px-4 py-2" onClick={() => { setRestockModal(null); setRestockQty(''); setRestockTotalPrice(''); }}>
+              <button className="neon-btn rounded-lg px-4 py-2" onClick={() => { setRestockModal(null); setRestockQty(''); setRestockTotalPrice(''); setRestockPaymentSource('payable'); setRestockSupplier(''); setRestockInvoiceNo(''); }}>
                 {tx(lang, 'Ləğv et', 'Отмена')}
               </button>
             </div>
@@ -409,7 +436,15 @@ export default function InventoryPanel() {
             ))}
           </select>
           <input className="neon-input min-h-13" type="number" placeholder={tx(lang, 'Toplam alış qiyməti (₼)', 'Общая закупочная цена (₼)', 'Total purchase price (₼)')} value={newCost} onChange={e => setNewCost(e.target.value)} />
+          <select className="neon-input min-h-13" value={newPaymentSource} onChange={(e) => setNewPaymentSource(e.target.value as any)}>
+            <option value="payable">{tx(lang, 'Öhdəlik (AP)', 'Кредиторка (AP)', 'Payable (AP)')}</option>
+            <option value="cash">{tx(lang, 'Nağd', 'Наличные', 'Cash')}</option>
+            <option value="card">{tx(lang, 'Kart', 'Карта', 'Card')}</option>
+            <option value="safe">{tx(lang, 'Seyf', 'Сейф', 'Safe')}</option>
+          </select>
           <input className="neon-input min-h-13" type="number" placeholder={tx(lang, 'Min limit', 'Мин. лимит', 'Min limit')} value={newMinLimit} onChange={e => setNewMinLimit(e.target.value)} />
+          <input className="neon-input min-h-13" placeholder={tx(lang, 'Təchizatçı (opsional)', 'Поставщик (опц.)', 'Supplier (optional)')} value={newSupplier} onChange={e => setNewSupplier(e.target.value)} />
+          <input className="neon-input min-h-13" placeholder={tx(lang, 'Invoice № (opsional)', 'Invoice № (опц.)', 'Invoice № (optional)')} value={newInvoiceNo} onChange={e => setNewInvoiceNo(e.target.value)} />
           <button
             onClick={() => { void handleAdd(); }}
             disabled={!newName.trim() || Number(newQty || 0) <= 0 || Number(newCost || -1) < 0}

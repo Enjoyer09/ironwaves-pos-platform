@@ -231,6 +231,9 @@ export async function add_inventory_item_live(data: {
   type: string;
   unit_cost: Decimal;
   min_limit: Decimal;
+  payment_source?: string;
+  supplier?: string;
+  invoice_no?: string;
 }, user: string = 'system') {
   if (!isBackendEnabled()) {
     return add_inventory_item(data, user);
@@ -247,6 +250,9 @@ export async function add_inventory_item_live(data: {
         type: data.type,
         unit_cost: new Decimal(data.unit_cost).toFixed(4),
         min_limit: new Decimal(data.min_limit).toFixed(3),
+        payment_source: String(data.payment_source || 'payable'),
+        supplier: String(data.supplier || '').trim() || null,
+        invoice_no: String(data.invoice_no || '').trim() || null,
       },
     });
     const inventoryItems = getInventory(data.tenant_id || 'tenant_default');
@@ -259,7 +265,14 @@ export async function add_inventory_item_live(data: {
   }
 }
 
-export async function restock_item_live(tenant_id: string, item_id: string, qty_added: Decimal, total_price: Decimal, user: string = 'system') {
+export async function restock_item_live(
+  tenant_id: string,
+  item_id: string,
+  qty_added: Decimal,
+  total_price: Decimal,
+  user: string = 'system',
+  options?: { payment_source?: string; supplier?: string; invoice_no?: string },
+) {
   if (!isBackendEnabled()) {
     return restock_item(tenant_id, item_id, qty_added, total_price, user);
   }
@@ -270,6 +283,9 @@ export async function restock_item_live(tenant_id: string, item_id: string, qty_
       body: {
         qty_added: new Decimal(qty_added).toFixed(3),
         total_price: new Decimal(total_price).toFixed(2),
+        payment_source: String(options?.payment_source || 'payable'),
+        supplier: String(options?.supplier || '').trim() || null,
+        invoice_no: String(options?.invoice_no || '').trim() || null,
       },
     });
     const inventoryItems = getInventory(tenant_id).filter((row) => String(row.id) !== String(updated?.id));
