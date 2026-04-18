@@ -398,7 +398,7 @@ export const authApi = {
     return { success: true };
   },
 
-  refresh_token: async (refresh_token?: string, tenant_id: string = getActiveTenantId()) => {
+  refresh_token: async (refresh_token?: string, _tenant_id: string = getActiveTenantId()) => {
     if (!isBackendEnabled()) {
       return null;
     }
@@ -406,7 +406,11 @@ export const authApi = {
     const result = await apiRequest<any>('/api/v1/auth/refresh', {
       method: 'POST',
       auth: false,
-      tenantId: tenant_id,
+      // Refresh is domain-scoped on backend via x-tenant-domain.
+      // Do not force x-tenant-id from potentially stale client state.
+      tenantId: null,
+      timeoutMs: 7000,
+      retryCount: 0,
       body: safeToken ? { refresh_token: safeToken } : {},
     });
     return {
