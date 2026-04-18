@@ -195,21 +195,36 @@ export default function App() {
     if (!user?.username) return;
     if (sessionRestoreTriedRef.current) return;
 
+    const hostTenant = String(mappedTenantFromHost || '').trim();
+    const sessionTenant = String(user?.tenant_id || '').trim();
+    // Prevent cross-tenant persisted sessions from entering a restore loop on another domain.
+    if (hostTenant && sessionTenant && hostTenant !== sessionTenant) {
+      logout();
+      return;
+    }
+
     sessionRestoreTriedRef.current = true;
     let cancelled = false;
     setSessionRestorePending(true);
+    const timeoutId = window.setTimeout(() => {
+      if (cancelled) return;
+      setSessionRestorePending(false);
+      logout();
+    }, 10000);
     const run = async () => {
       try {
         await restoreSession();
       } finally {
+        window.clearTimeout(timeoutId);
         if (!cancelled) setSessionRestorePending(false);
       }
     };
     void run();
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
     };
-  }, [hasHydrated, hasValidUser, user?.username, restoreSession]);
+  }, [hasHydrated, hasValidUser, user?.username, user?.tenant_id, restoreSession, mappedTenantFromHost, logout]);
 
   useEffect(() => {
     if (!hasValidUser) return;
@@ -224,6 +239,11 @@ export default function App() {
         if (!me || cancelled) return;
         const nextRole = String(me.role || '');
         const nextTenant = String(me.tenant_id || '');
+        // If backend session tenant and host-mapped tenant disagree, stop session immediately.
+        if (mappedTenantFromHost && nextTenant && String(mappedTenantFromHost) !== nextTenant) {
+          if (!cancelled) logout();
+          return;
+        }
         if (nextRole !== String(user?.role || '') || nextTenant !== String(user?.tenant_id || '')) {
           applySessionUser({
             username: String(me.username || user?.username || ''),
