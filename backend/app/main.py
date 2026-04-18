@@ -258,9 +258,8 @@ async def security_boundary_middleware(request: Request, call_next):
     request_id = str(request.headers.get("x-request-id") or "").strip()[:80] or str(uuid.uuid4())
     request.state.request_id = request_id
     if request.url.path != "/health":
-        forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
         client_host = request.client.host if request.client else ""
-        client_ip = forwarded or client_host or "unknown"
+        client_ip = client_host or "unknown"
         tenant_scope = (
             str(request.headers.get("x-tenant-domain") or "").strip().lower()
             or str(request.headers.get("host") or "").strip().lower()

@@ -68,9 +68,8 @@ def _get_redis_security_client():
 
 
 def _pin_attempt_key(request: Request, tenant_id: str) -> str:
-    forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
     client_host = request.client.host if request.client else ""
-    return f"{tenant_id}:{forwarded or client_host or 'unknown'}"
+    return f"{tenant_id}:{client_host or 'unknown'}"
 
 
 def _consume_pin_attempts(request: Request, tenant_id: str) -> None:
@@ -185,9 +184,8 @@ def _extract_refresh_token(payload: RefreshIn | None, request: Request) -> str:
 
 
 def _request_ip(request: Request) -> str:
-    forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
     client_host = request.client.host if request.client else ""
-    return forwarded or client_host or "ip_unknown"
+    return client_host or "ip_unknown"
 
 
 def _add_auth_audit_log(db: Session, tenant_id: str, username: str, action: str, request: Request, details: dict | None = None) -> None:
