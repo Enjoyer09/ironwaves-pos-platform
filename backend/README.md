@@ -65,3 +65,19 @@ SUPERADMIN_PASSWORD="<your-superadmin-password>" \
 TENANT_DOMAIN="demo.ironwaves.store" \
 python scripts/smoke_test.py
 ```
+
+## COGS Snapshot Backfill
+
+Historical sales rows can be enriched with per-item COGS snapshots:
+
+```bash
+DATABASE_URL="postgresql://<user>:<pass>@<host>:5432/<db>" \
+python scripts/backfill_cogs_snapshot.py --dry-run
+```
+
+Apply updates:
+
+```bash
+DATABASE_URL="postgresql://<user>:<pass>@<host>:5432/<db>" \
+python scripts/backfill_cogs_snapshot.py --apply --set-cogs-when-null
+```
