@@ -137,9 +137,23 @@ def _sync_tenant_domain(db: Session, tenant_id: str, domain: str) -> None:
             pass
 
 
+def _default_managed_cors_origins() -> list[str]:
+    return [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://ironwaves.store",
+        "https://www.ironwaves.store",
+        "https://*.ironwaves.store",
+    ]
+
+
 def _parse_cors_origins(raw: str) -> list[str]:
-    items = [v.strip() for v in str(raw or '').split(',') if v.strip()]
-    return items or ["http://localhost:5173"]
+    requested = [v.strip() for v in str(raw or "").split(",") if v.strip()]
+    combined = requested or []
+    for origin in _default_managed_cors_origins():
+        if origin not in combined:
+            combined.append(origin)
+    return combined
 
 
 def _build_cors_regex(origins: list[str]) -> str | None:
