@@ -105,11 +105,17 @@ class InventoryItemCreateIn(BaseModel):
     type: str | None = None
     unit_cost: Decimal
     min_limit: Decimal = Decimal("0")
+    payment_source: str | None = "payable"
+    supplier: str | None = None
+    invoice_no: str | None = None
 
 
 class InventoryRestockIn(BaseModel):
     qty_added: Decimal
     total_price: Decimal
+    payment_source: str | None = "payable"
+    supplier: str | None = None
+    invoice_no: str | None = None
 
 
 class InventoryLossIn(BaseModel):

@@ -15,10 +15,13 @@ FINANCE_ACCOUNT_DEFS: dict[str, tuple[str, str]] = {
     "cash": ("cash_drawer", "Nağd Kassa"),
     "card": ("bank_account", "Bank/Kart"),
     "safe": ("safe", "Seyf"),
+    "payable": ("investor_liability", "Təchizatçı Borcu (AP)"),
     "deposit": ("deposit_liability", "Depozit Öhdəliyi"),
     "investor": ("investor_liability", "Investor Borcu"),
     "debt": ("receivable", "Nisyə/Borc"),
+    "inventory_asset": ("asset", "Anbar Aktivləri"),
     "revenue": ("revenue", "Satış Gəliri"),
+    "cogs": ("expense", "Satılan Malın Maya Dəyəri"),
     "expense": ("expense", "Xərc"),
     "adjustment": ("adjustment", "Maliyyə Düzəlişi"),
 }
@@ -712,6 +715,96 @@ def post_sale_payment(
             transactions.append(fee_txn)
 
     return transactions
+
+
+def post_inventory_restock(
+    db: Session,
+    *,
+    tenant_id: str,
+    amount: Decimal,
+    created_by: str,
+    payment_source: str = "payable",
+    category: str | None = None,
+    note: str | None = None,
+    reference: str | None = None,
+) -> FinanceTransaction | None:
+    amount = Decimal(str(amount)).quantize(Decimal("0.01"))
+    if amount <= 0:
+        return None
+    source_code = str(payment_source or "payable").strip().lower()
+    if source_code not in {"cash", "card", "safe", "payable"}:
+        raise HTTPException(status_code=400, detail="Inventory restock payment_source must be cash, card, safe, or payable")
+    txn = post_finance_transaction(
+        db,
+        tenant_id=tenant_id,
+        transaction_type="inventory_restock",
+        amount=amount,
+        source_code=source_code,
+        destination_code="inventory_asset",
+        created_by=created_by,
+        category=category or "Anbar Mədaxili",
+        note=note,
+        reference=reference,
+    )
+    # Inventory asset flows are ledger-only. Legacy wallet mirror should stay operational-cash focused.
+    return txn
+
+
+def post_inventory_loss(
+    db: Session,
+    *,
+    tenant_id: str,
+    amount: Decimal,
+    created_by: str,
+    category: str | None = None,
+    note: str | None = None,
+    reference: str | None = None,
+) -> FinanceTransaction | None:
+    amount = Decimal(str(amount)).quantize(Decimal("0.01"))
+    if amount <= 0:
+        return None
+    txn = post_finance_transaction(
+        db,
+        tenant_id=tenant_id,
+        transaction_type="inventory_loss",
+        amount=amount,
+        source_code="inventory_asset",
+        destination_code="expense",
+        created_by=created_by,
+        category=category or "Anbar İtkisi",
+        note=note,
+        reference=reference,
+    )
+    return txn
+
+
+def post_sale_cogs(
+    db: Session,
+    *,
+    tenant_id: str,
+    sale_id: str,
+    amount: Decimal,
+    created_by: str,
+    note: str | None = None,
+    related_table_id: str | None = None,
+) -> FinanceTransaction | None:
+    amount = Decimal(str(amount)).quantize(Decimal("0.01"))
+    if amount <= 0:
+        return None
+    txn = post_finance_transaction(
+        db,
+        tenant_id=tenant_id,
+        transaction_type="cogs_recognition",
+        amount=amount,
+        source_code="inventory_asset",
+        destination_code="cogs",
+        created_by=created_by,
+        category="COGS",
+        note=note or f"COGS recognition for sale {sale_id}",
+        related_table_id=related_table_id,
+        related_order_id=sale_id,
+    )
+    return txn
 
 
 def post_deposit_hold(

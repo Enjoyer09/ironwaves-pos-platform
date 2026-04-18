@@ -18,6 +18,7 @@ from app.models import AuditLog, Check, FinanceEntry, FloorPlan, Guest, ItemStat
 from app.realtime import broadcast_tenant_event
 from app.services.finance_service import (
     post_deposit_apply_to_bill as _post_deposit_apply_to_bill,
+    post_sale_cogs as _post_sale_cogs,
     post_sale_payment as _post_sale_payment,
 )
 from app.routers.operations import _collect_stock_ops
@@ -2333,6 +2334,15 @@ def settle_check(
         sale_id=sale.id,
         source="restaurant_settlement",
         table=table,
+    )
+    _post_sale_cogs(
+        db,
+        tenant_id=tenant.id,
+        sale_id=sale.id,
+        amount=Decimal(str(cogs_total or 0)).quantize(Decimal("0.01")),
+        created_by=user.username,
+        note=f"Restaurant sale COGS {sale.id}",
+        related_table_id=table.id,
     )
 
     nonbillable_stock_items = _nonbillable_stock_items_for_check(db, tenant.id, active_check.id)

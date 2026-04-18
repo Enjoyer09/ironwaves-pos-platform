@@ -13,7 +13,7 @@ from app.deps import get_current_user, get_tenant
 from app.json_utils import safe_json_list
 from app.models import AuditLog, Customer, DonerBatch, FinanceEntry, InventoryItem, LoyaltyLedgerEntry, MenuItem, Recipe, RewardClaim, Sale, Setting, Shift, Tenant
 from app.schemas import SaleCreateIn, SaleCreateOut
-from app.services.finance_service import mirror_posted_transaction_to_legacy_wallet, post_finance_transaction, post_sale_payment
+from app.services.finance_service import mirror_posted_transaction_to_legacy_wallet, post_finance_transaction, post_sale_cogs, post_sale_payment
 
 
 router = APIRouter(prefix="/api/v1/pos", tags=["pos"])
@@ -504,6 +504,15 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
                 note=f"POS Sale {sale.id}",
                 card_fee_percent=card_sale_percent if source == "card" else Decimal("0"),
             )
+
+    post_sale_cogs(
+        db,
+        tenant_id=tenant.id,
+        sale_id=sale.id,
+        amount=Decimal(str(cogs_total or 0)).quantize(Decimal("0.01")),
+        created_by=user.username,
+        note=f"POS sale COGS {sale.id}",
+    )
 
     if customer is not None:
         if program_mode != "cashback":

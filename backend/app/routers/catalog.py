@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import AuditLog, FinanceEntry, InventoryItem, MenuItem, Recipe, Tenant, User
+from app.models import AuditLog, InventoryItem, MenuItem, Recipe, Tenant, User
 from app.schemas import InventoryItemCreateIn, InventoryRestockIn, InventoryLossIn, MenuItemCreateIn, MenuItemUpdateIn, RecipeIngredientCreateIn
+from app.services.finance_service import post_inventory_loss, post_inventory_restock
 
 
 router = APIRouter(prefix="/api/v1/catalog", tags=["catalog"])
@@ -377,11 +378,14 @@ def create_inventory_item(
     if existing:
         incoming_qty = Decimal(str(payload.stock_qty)).quantize(Decimal("0.001"))
         incoming_unit_cost = Decimal(str(payload.unit_cost)).quantize(Decimal("0.0001"))
+        incoming_total_value_exact = incoming_qty * incoming_unit_cost
+        incoming_total_value = incoming_total_value_exact.quantize(Decimal("0.01"))
         old_total_value = Decimal(str(existing.stock_qty)) * Decimal(str(existing.unit_cost))
-        incoming_total_value = incoming_qty * incoming_unit_cost
         new_total_qty = (Decimal(str(existing.stock_qty)) + incoming_qty).quantize(Decimal("0.001"))
         existing.stock_qty = new_total_qty
-        existing.unit_cost = (Decimal("0") if new_total_qty <= 0 else (old_total_value + incoming_total_value) / new_total_qty).quantize(Decimal("0.0001"))
+        existing.unit_cost = (
+            Decimal("0") if new_total_qty <= 0 else (old_total_value + incoming_total_value_exact) / new_total_qty
+        ).quantize(Decimal("0.0001"))
         existing.min_limit = Decimal(str(payload.min_limit)).quantize(Decimal("0.001"))
         existing.unit = str(payload.unit or existing.unit).strip()
         existing.category = str(payload.category or existing.category or "").strip() or None
@@ -398,17 +402,30 @@ def create_inventory_item(
                 "mode": "merge",
             },
         )
+        post_inventory_restock(
+            db,
+            tenant_id=tenant.id,
+            amount=incoming_total_value,
+            created_by=user.username,
+            payment_source=str(payload.payment_source or "payable"),
+            category="Xammal Mədaxili",
+            note=f"{existing.name} mədaxili ({incoming_qty} {existing.unit})",
+            reference=str(payload.invoice_no or payload.supplier or existing.id),
+        )
         db.commit()
         db.refresh(existing)
         row = existing
     else:
+        opening_qty = Decimal(str(payload.stock_qty)).quantize(Decimal("0.001"))
+        opening_unit_cost = Decimal(str(payload.unit_cost)).quantize(Decimal("0.0001"))
+        opening_total_value = (opening_qty * opening_unit_cost).quantize(Decimal("0.01"))
         row = InventoryItem(
             tenant_id=tenant.id,
             name=name,
             unit=str(payload.unit or "").strip(),
             category=str(payload.category or payload.type or "").strip() or None,
-            stock_qty=Decimal(str(payload.stock_qty)).quantize(Decimal("0.001")),
-            unit_cost=Decimal(str(payload.unit_cost)).quantize(Decimal("0.0001")),
+            stock_qty=opening_qty,
+            unit_cost=opening_unit_cost,
             min_limit=Decimal(str(payload.min_limit)).quantize(Decimal("0.001")),
         )
         db.add(row)
@@ -424,6 +441,16 @@ def create_inventory_item(
                 "unit_cost": str(row.unit_cost),
                 "mode": "create",
             },
+        )
+        post_inventory_restock(
+            db,
+            tenant_id=tenant.id,
+            amount=opening_total_value,
+            created_by=user.username,
+            payment_source=str(payload.payment_source or "payable"),
+            category="Xammal Mədaxili",
+            note=f"{row.name} ilkin mədaxil ({opening_qty} {row.unit})",
+            reference=str(payload.invoice_no or payload.supplier or row.name),
         )
         db.commit()
         db.refresh(row)
@@ -480,6 +507,16 @@ def restock_inventory_item(
             "new_unit_cost": str(row.unit_cost),
         },
     )
+    post_inventory_restock(
+        db,
+        tenant_id=tenant.id,
+        amount=total_price.quantize(Decimal("0.01")),
+        created_by=user.username,
+        payment_source=str(payload.payment_source or "payable"),
+        category="Xammal Mədaxili",
+        note=f"{row.name} mədaxili ({qty_added.quantize(Decimal('0.001'))} {row.unit})",
+        reference=str(payload.invoice_no or payload.supplier or row.id),
+    )
     db.commit()
     db.refresh(row)
     return {
@@ -516,16 +553,14 @@ def record_inventory_loss(
 
     row.stock_qty = (Decimal(str(row.stock_qty)) - qty_removed).quantize(Decimal("0.001"))
     loss_amount = (qty_removed * Decimal(str(row.unit_cost))).quantize(Decimal("0.01"))
-    db.add(
-        FinanceEntry(
-            tenant_id=tenant.id,
-            type="out",
-            category="Anbar İtkisi",
-            source="cash",
-            amount=loss_amount,
-            description=f"Məhsul: {row.name}, Səbəb: {payload.reason}",
-            created_by=user.username,
-        )
+    post_inventory_loss(
+        db,
+        tenant_id=tenant.id,
+        amount=loss_amount,
+        created_by=user.username,
+        category="Anbar İtkisi",
+        note=f"Məhsul: {row.name}, Səbəb: {payload.reason}",
+        reference=row.id,
     )
     _log_inventory_audit(
         db,
