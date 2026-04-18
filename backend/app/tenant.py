@@ -6,6 +6,29 @@ from app.core.config import settings
 from app.models import Tenant
 
 
+def _normalize_domain(raw: str | None) -> str:
+    value = str(raw or "").strip().lower()
+    if not value:
+        return ""
+    if value.startswith("http://"):
+        value = value[7:]
+    elif value.startswith("https://"):
+        value = value[8:]
+    value = value.split("/")[0].split("?")[0].split("#")[0]
+    value = value.split(":")[0]
+    return value.strip(".")
+
+
+def _wildcard_slug(domain: str) -> str:
+    safe = _normalize_domain(domain)
+    parts = safe.split(".")
+    if len(parts) < 3:
+        return ""
+    if ".".join(parts[1:]) != "ironwaves.store":
+        return ""
+    return parts[0].strip().lower()
+
+
 def _alias(slug: str, name: str, aliases: list[str]) -> dict:
     safe_aliases = [str(alias or "").strip().lower() for alias in aliases if str(alias or "").strip()]
     return {"slug": slug, "name": name, "aliases": safe_aliases}
@@ -36,16 +59,10 @@ def _sync_single_domain_alias(db: Session, tenant_id: str, domain: str) -> None:
 
 
 def _resolve_slug_fallback_tenant(domain: str, db: Session) -> Tenant | None:
-    safe_domain = str(domain or "").strip().lower()
+    safe_domain = _normalize_domain(domain)
     if not safe_domain:
         return None
-    parts = safe_domain.split(".")
-    if len(parts) < 3:
-        return None
-    # Only apply this fallback to managed wildcard domains.
-    if ".".join(parts[1:]) != "ironwaves.store":
-        return None
-    slug = parts[0].strip().lower()
+    slug = _wildcard_slug(safe_domain)
     if not slug:
         return None
     tenant = db.query(Tenant).filter(Tenant.slug == slug).first()
@@ -122,9 +139,9 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
 
     # Domain is the security boundary for public/auth routes. Never trust
     # caller-controlled x-tenant-id before resolving the requested host.
-    domain = (request.headers.get("x-tenant-domain") or "").split(":")[0].lower().strip()
+    domain = _normalize_domain(request.headers.get("x-tenant-domain"))
     if not domain:
-        domain = (request.headers.get("host") or "").split(":")[0].lower().strip()
+        domain = _normalize_domain(request.headers.get("host"))
 
     if domain:
         # 1) Use tenant_domains mapping table if present
@@ -144,6 +161,13 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
             if row and row[0]:
                 tenant = db.query(Tenant).filter(Tenant.id == row[0]).first()
                 if tenant:
+                    requested_slug = _wildcard_slug(domain)
+                    if requested_slug and requested_slug != str(tenant.slug or "").strip().lower():
+                        tenant_by_slug = db.query(Tenant).filter(Tenant.slug == requested_slug).first()
+                        if tenant_by_slug:
+                            _sync_single_domain_alias(db, tenant_by_slug.id, domain)
+                            db.commit()
+                            return tenant_by_slug
                     return tenant
         except Exception:
             # Backward compatibility for schemas where tenant_domains has no is_active column.
@@ -162,6 +186,13 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
                 if row and row[0]:
                     tenant = db.query(Tenant).filter(Tenant.id == row[0]).first()
                     if tenant:
+                        requested_slug = _wildcard_slug(domain)
+                        if requested_slug and requested_slug != str(tenant.slug or "").strip().lower():
+                            tenant_by_slug = db.query(Tenant).filter(Tenant.slug == requested_slug).first()
+                            if tenant_by_slug:
+                                _sync_single_domain_alias(db, tenant_by_slug.id, domain)
+                                db.commit()
+                                return tenant_by_slug
                         return tenant
             except Exception:
                 # If tenant_domains does not exist or query fails, fallback to Tenant.domain

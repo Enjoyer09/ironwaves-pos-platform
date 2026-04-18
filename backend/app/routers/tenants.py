@@ -54,6 +54,17 @@ router = APIRouter(prefix="/api/v1/admin/tenants", tags=["tenants"])
 ALLOWED_RAW_TENANT_TABLES = {"tenant_domains", "business_profiles"}
 
 
+def _normalize_domain(raw: str) -> str:
+    value = str(raw or "").strip().lower()
+    if value.startswith("http://"):
+        value = value[7:]
+    elif value.startswith("https://"):
+        value = value[8:]
+    value = value.split("/")[0].split("?")[0].split("#")[0]
+    value = value.split(":")[0]
+    return value.strip(".")
+
+
 def _default_menu_rows(tenant_id: str) -> list[MenuItem]:
     return [
         MenuItem(
@@ -197,7 +208,9 @@ def create_tenant(
     _super_admin=Depends(get_super_admin),
 ):
     slug = payload.slug.strip().lower()
-    domain = payload.domain.strip().lower()
+    domain = _normalize_domain(payload.domain)
+    if not domain:
+        raise HTTPException(status_code=400, detail="Domain is required")
 
     exists = db.query(Tenant).filter((Tenant.slug == slug) | (Tenant.domain == domain)).first()
     if exists:
@@ -352,7 +365,9 @@ def clone_tenant(
         raise HTTPException(status_code=404, detail="Source tenant not found")
 
     new_slug = payload.slug.strip().lower()
-    new_domain = payload.domain.strip().lower()
+    new_domain = _normalize_domain(payload.domain)
+    if not new_domain:
+        raise HTTPException(status_code=400, detail="Domain is required")
     exists = db.query(Tenant).filter((Tenant.slug == new_slug) | (Tenant.domain == new_domain)).first()
     if exists:
         raise HTTPException(status_code=400, detail="Target slug/domain already exists")
@@ -563,9 +578,17 @@ def delete_tenant(
     if tenant.slug.strip().lower() in protected_slugs or tenant.domain.strip().lower() in protected_domains:
         raise HTTPException(status_code=400, detail="Protected tenant cannot be deleted")
 
+    tenant_domain = _normalize_domain(tenant.domain)
+
     # Remove dependent rows first (no ON DELETE CASCADE configured in this MVP schema).
     # Order matters: child rows are deleted before checks/tables/menu/users.
     _delete_raw_tenant_table(db, "tenant_domains", tenant.id)
+    if tenant_domain:
+        try:
+            with db.begin_nested():
+                db.execute(text("DELETE FROM tenant_domains WHERE domain=:domain"), {"domain": tenant_domain})
+        except Exception:
+            pass
 
     ordered_models = [
         RefreshToken,
