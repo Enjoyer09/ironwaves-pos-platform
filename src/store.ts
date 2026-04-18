@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Lang } from './i18n';
 import { authApi } from './api/auth';
+import { setClientAuthSession } from './api/client';
 import { logEvent } from './lib/logger';
 import { getActiveTenantId, setActiveTenantId } from './lib/tenant';
 import { LoginRiskContext } from './lib/risk';
@@ -74,7 +75,11 @@ export const useAppStore = create<AppState>()(
           if (res?.user?.tenant_id) {
             setActiveTenantId(res.user.tenant_id);
           }
-          set({ user: res.user, access_token: res.access_token, refresh_token: res.refresh_token || null });
+          const nextUser = res.user || null;
+          const nextAccess = res.access_token || null;
+          const nextRefresh = res.refresh_token || null;
+          set({ user: nextUser, access_token: nextAccess, refresh_token: nextRefresh });
+          setClientAuthSession({ access_token: nextAccess, user: nextUser });
           return true;
         } catch (error: any) {
           console.error("Login xətası:", error.message);
@@ -88,13 +93,17 @@ export const useAppStore = create<AppState>()(
           const res = await authApi.password_login(username, password, secondFactorPin, tenantId, riskContext, rememberDevice);
           const resolvedTenant = (res.user as any)?.tenant_id || tenantId;
           setActiveTenantId(resolvedTenant);
+          const nextUser = { ...(res.user as any), tenant_id: resolvedTenant };
+          const nextAccess = res.access_token || null;
+          const nextRefresh = (res as any)?.refresh_token || null;
           set({
-            user: { ...(res.user as any), tenant_id: resolvedTenant },
-            access_token: res.access_token,
-            refresh_token: (res as any)?.refresh_token || null,
+            user: nextUser,
+            access_token: nextAccess,
+            refresh_token: nextRefresh,
             adminNeeds2FA: false,
             authErrorMessage: '',
           });
+          setClientAuthSession({ access_token: nextAccess, user: nextUser });
           return true;
         } catch (error: any) {
           console.error('Admin login xətası:', error.message);
@@ -111,13 +120,17 @@ export const useAppStore = create<AppState>()(
           const res = await authApi.bootstrap_platform_owner(username, password);
           const resolvedTenant = (res.user as any)?.tenant_id || getActiveTenantId();
           setActiveTenantId(resolvedTenant);
+          const nextUser = { ...(res.user as any), tenant_id: resolvedTenant };
+          const nextAccess = res.access_token || null;
+          const nextRefresh = (res as any)?.refresh_token || null;
           set({
-            user: { ...(res.user as any), tenant_id: resolvedTenant },
-            access_token: res.access_token,
-            refresh_token: (res as any)?.refresh_token || null,
+            user: nextUser,
+            access_token: nextAccess,
+            refresh_token: nextRefresh,
             adminNeeds2FA: false,
             authErrorMessage: '',
           });
+          setClientAuthSession({ access_token: nextAccess, user: nextUser });
           return true;
         } catch (error: any) {
           set({ authErrorMessage: String(error?.message || 'Owner yaradılmadı') });
@@ -133,12 +146,14 @@ export const useAppStore = create<AppState>()(
           });
         }
         set({ user: null, access_token: null, refresh_token: null, cart: [] });
+        setClientAuthSession({ access_token: null, user: null });
       },
       applySessionUser: (user) => {
         if (user?.tenant_id) {
           setActiveTenantId(user.tenant_id);
         }
         set({ user: user || null, cart: [] });
+        setClientAuthSession({ access_token: get().access_token, user: user || null });
       },
       switchTenantContext: (tenantId: string) => {
         const safeTenant = String(tenantId || '').trim() || getActiveTenantId();
@@ -152,6 +167,8 @@ export const useAppStore = create<AppState>()(
             : state.user,
           cart: [],
         }));
+        const state = get();
+        setClientAuthSession({ access_token: state.access_token, user: state.user });
       },
       
       cart: [],
@@ -198,12 +215,18 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: hostScopedKey('emalatkhana-pos-session'),
-      version: 3,
+      version: 4,
       onRehydrateStorage: () => (state) => {
         // Runtime guard for corrupted persisted lang/session payloads.
         const currentLang = state?.lang as string | undefined;
         if (!['az', 'ru', 'en'].includes(String(currentLang || ''))) {
           state?.setLang('az');
+        }
+        // Access/refresh tokens must never be rehydrated from storage.
+        if (state) {
+          (state as any).access_token = null;
+          (state as any).refresh_token = null;
+          setClientAuthSession({ access_token: null, user: (state as any).user || null });
         }
         state?.setHasHydrated(true);
       },
@@ -214,20 +237,14 @@ export const useAppStore = create<AppState>()(
         if (!next?.user || typeof next.user.username !== 'string' || typeof next.user.role !== 'string') {
           next.user = null;
         }
-        if (typeof next?.access_token !== 'string' || next.access_token.length < 8) {
-          next.access_token = null;
-        }
-        if (typeof next?.refresh_token !== 'string' || next.refresh_token.length < 8) {
-          next.refresh_token = null;
-        }
+        next.access_token = null;
+        next.refresh_token = null;
         if (!Array.isArray(next?.cart)) next.cart = [];
         return next;
       },
       partialize: (state) => ({
         lang: state.lang,
         user: state.user,
-        access_token: state.access_token,
-        refresh_token: state.refresh_token,
         cart: state.cart,
       }),
     }

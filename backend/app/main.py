@@ -172,6 +172,22 @@ _redis_rate_limiter = None
 _rate_limit_last_cleanup = 0.0
 
 
+def _assert_redis_available_for_production() -> None:
+    if not bool(settings.redis_required_in_production):
+        return
+    if settings.app_env.lower() != "production":
+        return
+    redis_url = str(settings.redis_url or "").strip()
+    if not redis_url:
+        raise RuntimeError("REDIS_URL is required in production when redis_required_in_production=true")
+    try:
+        from redis import Redis
+
+        Redis.from_url(redis_url, decode_responses=True).ping()
+    except Exception as exc:
+        raise RuntimeError("Redis connection is required in production but could not be established") from exc
+
+
 def _get_redis_rate_limiter():
     global _redis_rate_limiter
     if _redis_rate_limiter is not None:
@@ -1024,6 +1040,7 @@ def _run_data_retention_cleanup():
 
 @app.on_event("startup")
 def on_startup():
+    _assert_redis_available_for_production()
     schema_ready = _schema_ready_for_current_version()
     if settings.startup_create_all_enabled:
         # Keep metadata bootstrap lightweight for first-run/dev environments.

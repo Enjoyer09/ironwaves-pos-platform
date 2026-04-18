@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 import json
 import time
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 import pyotp
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -150,6 +150,38 @@ def _issue_tokens_for_user(db: Session, tenant: Tenant, user: User) -> dict:
             "tenant_id": tenant.id,
         },
     }
+
+
+def _refresh_cookie_secure() -> bool:
+    app_url = str(settings.app_url or "").strip().lower()
+    return settings.app_env.lower() == "production" or app_url.startswith("https://")
+
+
+def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
+    safe_token = str(refresh_token or "").strip()
+    if not safe_token:
+        return
+    response.set_cookie(
+        key="refresh_token",
+        value=safe_token,
+        httponly=True,
+        secure=_refresh_cookie_secure(),
+        samesite="lax",
+        max_age=max(60, int(settings.refresh_token_days * 24 * 60 * 60)),
+        path="/api/v1/auth",
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(key="refresh_token", path="/api/v1/auth")
+
+
+def _extract_refresh_token(payload: RefreshIn | None, request: Request) -> str:
+    body_token = str((payload.refresh_token if payload else "") or "").strip()
+    if body_token:
+        return body_token
+    cookie_token = str(request.cookies.get("refresh_token") or "").strip()
+    return cookie_token
 
 
 def _request_ip(request: Request) -> str:
@@ -367,6 +399,7 @@ def bootstrap_owner_status(db: Session = Depends(get_db), tenant: Tenant = Depen
 @router.post("/bootstrap-owner", response_model=TokenOut)
 def bootstrap_owner(
     payload: BootstrapOwnerIn,
+    response: Response,
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
 ):
@@ -399,11 +432,13 @@ def bootstrap_owner(
     db.add(user)
     db.commit()
     db.refresh(user)
-    return _issue_tokens_for_user(db, tenant, user)
+    result = _issue_tokens_for_user(db, tenant, user)
+    _set_refresh_cookie(response, result.get("refresh_token", ""))
+    return result
 
 
 @router.post("/login", response_model=TokenOut)
-def login(payload: LoginIn, request: Request, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant)):
+def login(payload: LoginIn, request: Request, response: Response, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant)):
     username_norm = (payload.username or "").strip().lower()
     user = (
         db.query(User)
@@ -462,11 +497,12 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db), ten
         )
     _add_auth_audit_log(db, tenant.id, user.username, "AUTH_LOGIN_SUCCESS", request)
     db.commit()
+    _set_refresh_cookie(response, result.get("refresh_token", ""))
     return result
 
 
 @router.post("/pin-login", response_model=TokenOut)
-def pin_login(payload: PinLoginIn, request: Request, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant)):
+def pin_login(payload: PinLoginIn, request: Request, response: Response, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant)):
     pin = str(payload.pin or "").strip()
     if not pin:
         raise HTTPException(status_code=400, detail="PIN required")
@@ -509,13 +545,24 @@ def pin_login(payload: PinLoginIn, request: Request, db: Session = Depends(get_d
     db.flush()
     _add_auth_audit_log(db, tenant.id, matched.username, "AUTH_PIN_SUCCESS", request, {"role": matched.role})
 
-    return _issue_tokens_for_user(db, tenant, matched)
+    result = _issue_tokens_for_user(db, tenant, matched)
+    _set_refresh_cookie(response, result.get("refresh_token", ""))
+    return result
 
 
 @router.post("/refresh", response_model=TokenOut)
-def refresh_token(payload: RefreshIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant)):
+def refresh_token(
+    request: Request,
+    response: Response,
+    payload: RefreshIn | None = None,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    raw_refresh = _extract_refresh_token(payload, request)
+    if not raw_refresh:
+        raise HTTPException(status_code=401, detail="Refresh token required")
     try:
-        data = decode_token(payload.refresh_token)
+        data = decode_token(raw_refresh)
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
@@ -524,7 +571,7 @@ def refresh_token(payload: RefreshIn, db: Session = Depends(get_db), tenant: Ten
     if data.get("tenant_id") != tenant.id:
         raise HTTPException(status_code=401, detail="Tenant mismatch")
 
-    token_hash = hash_token(payload.refresh_token)
+    token_hash = hash_token(raw_refresh)
     revoked_exists = (
         db.query(RevokedToken)
         .filter(RevokedToken.tenant_id == tenant.id, RevokedToken.token_hash == token_hash)
@@ -564,8 +611,7 @@ def refresh_token(payload: RefreshIn, db: Session = Depends(get_db), tenant: Ten
         )
     )
     db.commit()
-
-    return {
+    result = {
         "access_token": access,
         "refresh_token": refresh,
         "user": {
@@ -575,25 +621,40 @@ def refresh_token(payload: RefreshIn, db: Session = Depends(get_db), tenant: Ten
             "tenant_id": tenant.id,
         },
     }
+    _set_refresh_cookie(response, refresh)
+    return result
 
 
 @router.post("/logout")
 def logout(
-    payload: RefreshIn,
+    payload: RefreshIn | None = None,
     request: Request,
+    response: Response | None = None,
     authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
 ):
-    token_hash = hash_token(payload.refresh_token)
-    row = db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash, RefreshToken.tenant_id == tenant.id).first()
-    if row:
-        row.revoked = True
-        _blacklist_token(db, tenant.id, payload.refresh_token, "refresh", row.user_id)
+    refresh_token_raw = _extract_refresh_token(payload, request)
+    row = None
+    if refresh_token_raw:
+        token_hash = hash_token(refresh_token_raw)
+        row = db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash, RefreshToken.tenant_id == tenant.id).first()
+        if row:
+            row.revoked = True
+            _blacklist_token(db, tenant.id, refresh_token_raw, "refresh", row.user_id)
     if authorization and authorization.lower().startswith("bearer "):
         _blacklist_token(db, tenant.id, authorization.split(" ", 1)[1], "access", row.user_id if row else None)
-    _add_auth_audit_log(db, tenant.id, "logout", "AUTH_LOGOUT", request, {"refresh_revoked": bool(row)})
+    _add_auth_audit_log(
+        db,
+        tenant.id,
+        "logout",
+        "AUTH_LOGOUT",
+        request,
+        {"refresh_revoked": bool(row), "refresh_token_present": bool(refresh_token_raw)},
+    )
     db.commit()
+    if response is not None:
+        _clear_refresh_cookie(response)
     if settings.demo_tenant_enabled and tenant.domain == settings.demo_tenant_domain:
         _reset_demo_tenant_runtime(db, tenant)
     return {"success": True}

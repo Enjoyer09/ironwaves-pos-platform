@@ -30,7 +30,7 @@ class PinLoginIn(BaseModel):
 
 
 class RefreshIn(BaseModel):
-    refresh_token: str = Field(min_length=20, max_length=4096)
+    refresh_token: str | None = Field(default=None, min_length=20, max_length=4096)
 
 
 class VerifyPasswordIn(BaseModel):

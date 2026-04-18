@@ -387,7 +387,7 @@ export const authApi = {
           timeoutMs: 6000,
           retryCount: 0,
           suspendOnNetworkError: false,
-          body: { refresh_token: safeToken },
+          body: safeToken ? { refresh_token: safeToken } : {},
         });
       } catch (error) {
         // Logout must be fail-safe on the client side; local session clear is primary.
@@ -398,15 +398,16 @@ export const authApi = {
     return { success: true };
   },
 
-  refresh_token: async (refresh_token: string, tenant_id: string = getActiveTenantId()) => {
+  refresh_token: async (refresh_token?: string, tenant_id: string = getActiveTenantId()) => {
     if (!isBackendEnabled()) {
       return null;
     }
+    const safeToken = String(refresh_token || '').trim();
     const result = await apiRequest<any>('/api/v1/auth/refresh', {
       method: 'POST',
       auth: false,
       tenantId: tenant_id,
-      body: { refresh_token },
+      body: safeToken ? { refresh_token: safeToken } : {},
     });
     return {
       access_token: String(result?.access_token || ''),
