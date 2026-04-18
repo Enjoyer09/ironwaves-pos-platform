@@ -1,4 +1,3 @@
-import { readScopedStorage } from '../lib/storage_keys';
 import { emitPerfEvent } from '../lib/perf';
 
 const ENV = ((import.meta as any)?.env || {}) as Record<string, string | undefined>;
@@ -56,33 +55,23 @@ export function getApiBaseUrl() {
   return normalizeConfiguredApiBaseUrl();
 }
 
-type PersistedSession = {
+type SessionAuthSnapshot = {
   access_token?: string | null;
   user?: { tenant_id?: string } | null;
 };
 
-let cachedSessionRaw = '';
-let cachedSession: PersistedSession = {};
+let sessionAuthSnapshot: SessionAuthSnapshot = {};
 const telemetryThrottle: Record<string, number> = {};
 
-function getPersistedSession(): PersistedSession {
-  try {
-    const raw = readScopedStorage('emalatkhana-pos-session');
-    if (raw === cachedSessionRaw) return cachedSession;
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    const state = parsed?.state || {};
-    cachedSessionRaw = raw;
-    cachedSession = {
-      access_token: state?.access_token || null,
-      user: state?.user || null,
-    };
-    return cachedSession;
-  } catch {
-    cachedSessionRaw = '';
-    cachedSession = {};
-    return {};
-  }
+export function setClientAuthSession(snapshot: SessionAuthSnapshot | null | undefined): void {
+  sessionAuthSnapshot = {
+    access_token: snapshot?.access_token || null,
+    user: snapshot?.user || null,
+  };
+}
+
+export function getClientAuthSession(): SessionAuthSnapshot {
+  return sessionAuthSnapshot;
 }
 
 function emitClientTelemetry(action: string, details: Record<string, any>) {
@@ -99,7 +88,7 @@ function emitClientTelemetry(action: string, details: Record<string, any>) {
       action,
       details: {
         ...details,
-        tenant_id: String(getPersistedSession().user?.tenant_id || 'tenant_default'),
+        tenant_id: String(getClientAuthSession().user?.tenant_id || 'tenant_default'),
         ts: new Date().toISOString(),
       },
     });
@@ -154,7 +143,7 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
     throw new Error('VITE_API_BASE_URL konfiqurasiya edilməyib');
   }
 
-  const { access_token } = getPersistedSession();
+  const { access_token } = getClientAuthSession();
   // Tenant id header is now opt-in only.
   // By default backend resolves tenant from x-tenant-domain to avoid stale local tenant mismatches.
   const tenantId = options.tenantId;
@@ -210,6 +199,7 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
         method,
         headers,
         body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+        credentials: 'include',
         signal: requestSignal,
       });
       if (!res.ok && isRetryableStatus(res.status) && attempt < retryCount) {

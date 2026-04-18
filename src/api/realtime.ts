@@ -1,31 +1,10 @@
-import { readScopedStorage } from '../lib/storage_keys';
-import { getApiBaseUrl, isBackendEnabled } from './client';
-
-type PersistedSession = {
-  access_token?: string | null;
-  user?: { tenant_id?: string } | null;
-};
+import { getApiBaseUrl, getClientAuthSession, isBackendEnabled } from './client';
 
 type RealtimeMessage = {
   event: string;
   tenant_id: string;
   payload?: Record<string, unknown>;
 };
-
-function getPersistedSession(): PersistedSession {
-  try {
-    const raw = readScopedStorage('emalatkhana-pos-session');
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    const state = parsed?.state || {};
-    return {
-      access_token: state?.access_token || null,
-      user: state?.user || null,
-    };
-  } catch {
-    return {};
-  }
-}
 
 function getRealtimeBaseUrl(): string {
   const apiBase = getApiBaseUrl();
@@ -40,7 +19,7 @@ export function subscribeTenantRealtime(
   onMessage: (message: RealtimeMessage) => void,
 ): () => void {
   if (!isBackendEnabled() || typeof window === 'undefined' || !tenantId) return () => {};
-  const { access_token } = getPersistedSession();
+  const { access_token } = getClientAuthSession();
   const base = getRealtimeBaseUrl();
   if (!access_token || !base) return () => {};
 
