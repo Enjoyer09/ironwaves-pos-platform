@@ -101,9 +101,14 @@ function isBackendConnectionIssue(error: unknown): boolean {
     message.includes('Backendə qoşulma alınmadı') ||
     message.includes('Failed to fetch') ||
     message.includes('sorğu vaxt limiti keçdi') ||
-    message.includes('VITE_API_BASE_URL') ||
-    message.includes('Tenant not configured for this domain')
+    message.includes('VITE_API_BASE_URL')
   );
+}
+
+function canUseLocalAuthFallback(): boolean {
+  if (typeof window === 'undefined') return false;
+  const host = String(window.location.hostname || '').trim().toLowerCase();
+  return host === 'localhost' || host === '127.0.0.1';
 }
 
 export const authApi = {
@@ -148,6 +153,9 @@ export const authApi = {
         };
       } catch (error) {
         if (!isBackendConnectionIssue(error)) throw error;
+        if (!canUseLocalAuthFallback()) {
+          throw error;
+        }
         console.warn('Backend PIN login əlçatan deyil, local fallback istifadə olunur.');
       }
     }
@@ -292,6 +300,9 @@ export const authApi = {
         };
       } catch (error) {
         if (!isBackendConnectionIssue(error)) throw error;
+        if (!canUseLocalAuthFallback()) {
+          throw error;
+        }
         console.warn('Backend admin login əlçatan deyil, local fallback istifadə olunur.');
       }
     }
