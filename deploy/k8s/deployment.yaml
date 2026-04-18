@@ -15,10 +15,18 @@ spec:
       labels:
         app: ironwaves-backend
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
       - name: api
         image: ghcr.io/ironwaves/pos-backend:latest
         imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
         ports:
         - containerPort: 8000
           name: http
@@ -50,3 +58,9 @@ spec:
           timeoutSeconds: 2
           periodSeconds: 15
           failureThreshold: 3
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
