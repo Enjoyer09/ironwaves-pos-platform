@@ -40,6 +40,10 @@ jobs:
         run: |
           echo "GITHUB_SHA=$GITHUB_SHA"
           git rev-parse HEAD
+          echo "---- backend/pytest.ini ----"
+          cat pytest.ini
+          echo "---- backend/app/routers/reports.py (_setting_value/_set_setting_value) ----"
+          sed -n '68,98p' app/routers/reports.py
           echo "---- backend/app/routers/finance.py (_transaction_date) ----"
           sed -n '408,420p' app/routers/finance.py
           echo "---- backend/app/services/finance_service.py (_setting_value) ----"
