@@ -776,6 +776,7 @@ export default function ZReportPanel() {
               ref={zReceiptRef}
               title="z-report-receipt"
               srcDoc={zReceiptHtml}
+              sandbox="allow-same-origin allow-modals allow-popups"
               className="h-full min-h-[60vh] w-full rounded-lg bg-white"
             />
           </div>
