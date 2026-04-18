@@ -625,8 +625,8 @@ def refresh_token(
 
 @router.post("/logout")
 def logout(
-    payload: RefreshIn | None = None,
     request: Request,
+    payload: RefreshIn | None = None,
     response: Response | None = None,
     authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
