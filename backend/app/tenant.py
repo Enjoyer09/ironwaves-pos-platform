@@ -28,6 +28,34 @@ for _domain in ["emalatkofe.ironwaves.store", "emalatkoe.ironwaves.store"]:
     )
 
 
+def _sync_single_domain_alias(db: Session, tenant_id: str, domain: str) -> None:
+    safe_domain = str(domain or "").strip().lower()
+    if not safe_domain or not tenant_id:
+        return
+    _sync_domain_aliases(db, tenant_id, [safe_domain])
+
+
+def _resolve_slug_fallback_tenant(domain: str, db: Session) -> Tenant | None:
+    safe_domain = str(domain or "").strip().lower()
+    if not safe_domain:
+        return None
+    parts = safe_domain.split(".")
+    if len(parts) < 3:
+        return None
+    # Only apply this fallback to managed wildcard domains.
+    if ".".join(parts[1:]) != "ironwaves.store":
+        return None
+    slug = parts[0].strip().lower()
+    if not slug:
+        return None
+    tenant = db.query(Tenant).filter(Tenant.slug == slug).first()
+    if not tenant:
+        return None
+    _sync_single_domain_alias(db, tenant.id, safe_domain)
+    db.commit()
+    return tenant
+
+
 def _sync_domain_aliases(db: Session, tenant_id: str, aliases: list[str]) -> None:
     for alias in aliases:
         safe_alias = str(alias or "").strip().lower()
@@ -145,6 +173,12 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
             return tenant
 
         tenant = _resolve_known_alias_tenant(domain, db)
+        if tenant:
+            return tenant
+
+        # Self-heal missing tenant_domains rows for managed wildcard domains
+        # (e.g. socialbee.ironwaves.store -> slug: socialbee).
+        tenant = _resolve_slug_fallback_tenant(domain, db)
         if tenant:
             return tenant
 
