@@ -74,7 +74,10 @@ def _setting_value(db: Session, tenant_id: str, key: str, default):
     # Unit-test fakes may not provide query-capable DB sessions.
     if not hasattr(db, "query"):
         return default
-    row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
+    try:
+        row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
+    except Exception:
+        return default
     if not row or row.value is None:
         return default
     try:
@@ -90,12 +93,15 @@ def _set_setting_value(db: Session, tenant_id: str, key: str, value) -> None:
     # In that case, keep this as a no-op and let caller continue with in-memory session map.
     if not hasattr(db, "query") or not hasattr(db, "add"):
         return
-    row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
-    payload = json.dumps(value, ensure_ascii=False)
-    if row:
-        row.value = payload
-    else:
-        db.add(Setting(tenant_id=tenant_id, key=key, value=payload))
+    try:
+        row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
+        payload = json.dumps(value, ensure_ascii=False)
+        if row:
+            row.value = payload
+        else:
+            db.add(Setting(tenant_id=tenant_id, key=key, value=payload))
+    except Exception:
+        return
 
 
 def _staff_shift_sessions(db: Session, tenant_id: str) -> dict[str, str]:
