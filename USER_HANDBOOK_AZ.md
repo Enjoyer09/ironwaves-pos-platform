@@ -918,3 +918,38 @@ Yəni:
 - hər məbləğ satışla bağlı deyil
 
 Sistemin məqsədi bunları qarışdırmamaqdır.
+
+## 20. CI Troubleshooting (Backend Test Fail üçün)
+
+Əgər GitHub Actions-da `Backend Checks` qırılırsa, bu ardıcıllıqla yoxlayın:
+
+1. Yalnız ən son commit run-una baxın (`main` branch).
+2. `Backend Checks > Debug tested commit and finance snippets` addımını açın.
+3. `GITHUB_SHA` ilə local `git rev-parse --short HEAD` eyni olmalıdır.
+4. `backend/pytest.ini` içində bu sətir görünməlidir:
+   - `asyncio_default_fixture_loop_scope = function`
+5. `backend/app/routers/reports.py` debug hissəsində bu guard görünməlidir:
+   - `if not hasattr(db, "query")`
+6. Köhnə failed run-u `Re-run` etməyin; yeni commit ilə yeni run başladın.
+
+Tez diaqnostika üçün lokal komandalar:
+
+```bash
+cd /Users/admin/ironwaves-pos-platform
+git branch --show-current
+git rev-parse --short HEAD
+git rev-parse --short origin/main
+grep -n 'asyncio_default_fixture_loop_scope = function' backend/pytest.ini
+grep -n 'if not hasattr(db, "query")' backend/app/routers/reports.py
+```
+
+## 21. Son Dəyişikliklər (Changelog Snapshot)
+
+Son sabitləşdirmələr:
+
+- `reports.py`: staff shift setting helper-lərində FakeDB-safe guard əlavə olundu (`query/add` olmayan test session-lar üçün).
+- `ci.yml`: debug addımı genişləndirildi (`pytest.ini`, `reports.py`, finance snippet-lər loga çıxır).
+- `ci.yml`: backend pytest çalışması explicit loop-scope ilə işə düşür:
+  - `python -m pytest -o asyncio_default_fixture_loop_scope=function`
+- `Recipes`: AI resept axını inventory fallback + Affogato üçün məcburi packaging qaydaları ilə sərtləşdirildi.
+- `Recipes UI`: `Yadda saxla` düyməsi disabled səbəbini tooltip ilə daha dəqiq göstərir (AI auto-save mesajı daxil).
