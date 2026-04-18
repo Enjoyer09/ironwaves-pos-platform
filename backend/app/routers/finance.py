@@ -18,6 +18,7 @@ from app.models import (
     FinanceReconciliation,
     FinanceTransaction,
     InventoryItem,
+    Recipe,
     Sale,
     Setting,
     Shift,
@@ -442,6 +443,47 @@ def _inventory_value(db: Session, tenant_id: str) -> Decimal:
     ).quantize(Decimal("0.01"))
 
 
+def _estimate_sale_cogs_from_recipe(
+    sale_items_json: str | None,
+    recipe_map: dict[str, list[tuple[str, Decimal]]],
+    unit_cost_map: dict[str, Decimal],
+    *,
+    remove_packaging_for_table: bool,
+) -> tuple[Decimal, bool]:
+    try:
+        raw_items = json.loads(sale_items_json or "[]")
+    except Exception:
+        raw_items = []
+    items = raw_items if isinstance(raw_items, list) else []
+    if not items:
+        return Decimal("0.0000"), True
+
+    total = Decimal("0.0000")
+    unresolved = False
+    packaging_tokens = ("stəkan", "stakan", "qapaq", "kapak", "cup", "lid")
+    for item in items:
+        item_name = str((item or {}).get("item_name") or "").strip().lower()
+        qty = Decimal(str((item or {}).get("qty") or 0))
+        if qty <= 0:
+            continue
+        item_cup_mode = str((item or {}).get("cup_mode") or "paper").strip().lower()
+        skip_packaging = remove_packaging_for_table and item_cup_mode == "glass"
+        ingredients = recipe_map.get(item_name, [])
+        if not ingredients:
+            unresolved = True
+            continue
+        for ingredient_name, qty_required in ingredients:
+            ingredient_key = str(ingredient_name or "").strip().lower()
+            if skip_packaging and any(token in ingredient_key for token in packaging_tokens):
+                continue
+            unit_cost = unit_cost_map.get(ingredient_key)
+            if unit_cost is None:
+                unresolved = True
+                continue
+            total += (qty * qty_required * unit_cost).quantize(Decimal("0.0001"))
+    return total.quantize(Decimal("0.0001")), unresolved
+
+
 def _ledger_equity_total(db: Session, tenant_id: str) -> tuple[Decimal, list[str]]:
     equity_account_rows = (
         db.query(FinanceAccount.id, FinanceAccount.code, FinanceAccount.account_type)
@@ -548,12 +590,54 @@ def _profit_loss_report(db: Session, tenant_id: str, start: datetime | None, end
         sales_query = sales_query.filter(Sale.created_at <= end)
     sales_rows = sales_query.all()
     revenue = sum((Decimal(str(row.total or 0)) for row in sales_rows), Decimal("0.00"))
-    cogs = sum((Decimal(str(row.cogs or 0)) for row in sales_rows), Decimal("0.00"))
+    cogs_recorded = sum((Decimal(str(row.cogs or 0)) for row in sales_rows if row.cogs is not None), Decimal("0.00"))
     cogs_uncomputed_rows = [row for row in sales_rows if row.cogs is None]
+    estimated_cogs = Decimal("0.0000")
+    cogs_estimated_sales_count = 0
+    unresolved_estimate_count = 0
+    if cogs_uncomputed_rows:
+        beverage_settings = _setting_value(
+            db,
+            tenant_id,
+            "beverage_service_settings",
+            {"remove_paper_packaging_for_table": True},
+        )
+        remove_packaging_for_table = bool((beverage_settings or {}).get("remove_paper_packaging_for_table", True))
+        recipe_rows = (
+            db.query(Recipe.menu_item_name, Recipe.ingredient_name, Recipe.quantity_required)
+            .filter(Recipe.tenant_id == tenant_id)
+            .all()
+        )
+        inventory_rows = (
+            db.query(InventoryItem.name, InventoryItem.unit_cost)
+            .filter(InventoryItem.tenant_id == tenant_id)
+            .all()
+        )
+        recipe_map: dict[str, list[tuple[str, Decimal]]] = {}
+        for menu_item_name, ingredient_name, quantity_required in recipe_rows:
+            key = str(menu_item_name or "").strip().lower()
+            recipe_map.setdefault(key, []).append((str(ingredient_name or ""), Decimal(str(quantity_required or 0))))
+        unit_cost_map = {
+            str(name or "").strip().lower(): Decimal(str(unit_cost or 0))
+            for name, unit_cost in inventory_rows
+        }
+        for row in cogs_uncomputed_rows:
+            estimate, unresolved = _estimate_sale_cogs_from_recipe(
+                getattr(row, "items_json", None),
+                recipe_map,
+                unit_cost_map,
+                remove_packaging_for_table=remove_packaging_for_table,
+            )
+            if estimate > 0:
+                cogs_estimated_sales_count += 1
+            if unresolved:
+                unresolved_estimate_count += 1
+            estimated_cogs += estimate
+    cogs = (cogs_recorded + estimated_cogs).quantize(Decimal("0.0001"))
     cogs_uncomputed_sales_count = len(cogs_uncomputed_rows)
     cogs_uncomputed_revenue = sum((Decimal(str(row.total or 0)) for row in cogs_uncomputed_rows), Decimal("0.00"))
     cogs_coverage_percent = (
-        (Decimal(str(len(sales_rows) - cogs_uncomputed_sales_count)) / Decimal(str(len(sales_rows))) * Decimal("100")).quantize(Decimal("0.01"))
+        (Decimal(str(len(sales_rows) - unresolved_estimate_count)) / Decimal(str(len(sales_rows))) * Decimal("100")).quantize(Decimal("0.01"))
         if sales_rows
         else Decimal("100.00")
     )
@@ -574,19 +658,27 @@ def _profit_loss_report(db: Session, tenant_id: str, start: datetime | None, end
     return {
         "revenue": _money(revenue),
         "cogs": _money(cogs),
+        "cogs_recorded": _money(cogs_recorded),
+        "cogs_estimated": _money(estimated_cogs),
+        "cogs_estimated_sales_count": cogs_estimated_sales_count,
         "gross_profit": _money(gross_profit),
         "operating_expenses": _money(operating_expenses),
         "net_profit": _money(net_profit),
         "sales_count": len(sales_rows),
         "expense_count": len(expense_rows),
-        "has_uncomputed_cogs": cogs_uncomputed_sales_count > 0,
+        "has_uncomputed_cogs": unresolved_estimate_count > 0,
         "cogs_uncomputed_sales_count": cogs_uncomputed_sales_count,
         "cogs_uncomputed_revenue": _money(cogs_uncomputed_revenue),
+        "cogs_unresolved_sales_count": unresolved_estimate_count,
         "cogs_coverage_percent": str(cogs_coverage_percent),
         "cogs_note": (
-            "COGS bəzi satışlar üçün hesablanmayıb; gross profit şişirdilmiş görünə bilər."
-            if cogs_uncomputed_sales_count > 0
-            else "COGS bütün satışlar üçün mövcuddur."
+            "COGS bəzi satışlar üçün recipe+inventory əsasında təxmini hesablandı; həll olunmayan satışlar qala bilər."
+            if unresolved_estimate_count > 0
+            else (
+                "COGS tamdır (recorded + recipe/inventory estimate)."
+                if cogs_estimated_sales_count > 0
+                else "COGS bütün satışlar üçün mövcuddur."
+            )
         ),
     }
 
