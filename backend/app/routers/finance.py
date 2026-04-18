@@ -395,6 +395,11 @@ def _money(value: Decimal | int | float | str | None) -> str:
     return str(Decimal(str(value or 0)).quantize(Decimal("0.01")))
 
 
+def _finance_accounts_by_code(db: Session, tenant_id: str) -> dict[str, FinanceAccount]:
+    rows = db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant_id).all()
+    return {str(row.code or "").strip().lower(): row for row in rows}
+
+
 def _period_bounds(date_from: str | None, date_to: str | None) -> tuple[datetime | None, datetime | None]:
     start = None
     end = None
@@ -643,7 +648,6 @@ def get_finance_reports_overview(
     user=Depends(get_current_user),
 ):
     _ensure_finance_read_access(user)
-    _ensure_finance_accounts(db, tenant.id)
     start, end = _period_bounds(date_from, date_to)
     return {
         "period": {
@@ -697,7 +701,7 @@ def _transaction_out(row: FinanceTransaction, account_by_id: dict[str, FinanceAc
 
 
 def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
-    accounts = _ensure_finance_accounts(db, tenant_id)
+    accounts = _finance_accounts_by_code(db, tenant_id)
     balances = _ledger_balances_snapshot(db, tenant_id)
     policy = _finance_policy(db, tenant_id)
     alerts: list[dict] = []
@@ -828,8 +832,7 @@ def _finance_alerts(db: Session, tenant_id: str) -> list[dict]:
 @router.get("/ledger/accounts")
 def list_ledger_accounts(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_read_access(user)
-    accounts = _ensure_finance_accounts(db, tenant.id)
-    db.commit()
+    accounts = _finance_accounts_by_code(db, tenant.id)
     ordered = [accounts[code] for code in FINANCE_ACCOUNT_DEFS.keys() if code in accounts]
     return [_account_out(account, _account_ledger_totals(db, tenant.id, account)) for account in ordered]
 
@@ -838,7 +841,6 @@ def list_ledger_accounts(db: Session = Depends(get_db), tenant: Tenant = Depends
 def list_finance_alerts(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_read_access(user)
     alerts = _finance_alerts(db, tenant.id)
-    db.commit()
     return alerts
 
 
@@ -861,8 +863,7 @@ def list_ledger_transactions(
     user=Depends(get_current_user),
 ):
     _ensure_finance_read_access(user)
-    accounts = _ensure_finance_accounts(db, tenant.id)
-    db.commit()
+    accounts = _finance_accounts_by_code(db, tenant.id)
     limit = min(max(int(limit or 200), 1), 1000)
     offset = max(int(offset or 0), 0)
 
@@ -944,8 +945,6 @@ def list_ledger_transactions(
 @router.get("/ledger/transactions/{transaction_id}")
 def get_ledger_transaction_detail(transaction_id: str, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_read_access(user)
-    _ensure_finance_accounts(db, tenant.id)
-    db.commit()
     row = (
         db.query(FinanceTransaction)
         .filter(FinanceTransaction.tenant_id == tenant.id, FinanceTransaction.id == transaction_id)
@@ -1061,8 +1060,6 @@ def get_ledger_transaction_detail(transaction_id: str, db: Session = Depends(get
 @router.get("/ledger/entries")
 def list_ledger_entries(limit: int = 300, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_read_access(user)
-    _ensure_finance_accounts(db, tenant.id)
-    db.commit()
     limit = min(max(int(limit or 300), 1), 1000)
     rows = (
         db.query(FinanceLedgerEntry)
@@ -1187,8 +1184,6 @@ def create_ledger_transaction(payload: FinanceTransactionIn, db: Session = Depen
 def list_pending_approvals(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     if not _is_finance_approver(user, _finance_policy(db, tenant.id)):
         raise HTTPException(status_code=403, detail="Finance approval access required")
-    _ensure_finance_accounts(db, tenant.id)
-    db.commit()
     rows = (
         db.query(FinanceTransaction)
         .filter(FinanceTransaction.tenant_id == tenant.id, FinanceTransaction.status == "pending_approval")
@@ -1382,8 +1377,6 @@ def request_transaction_reversal(transaction_id: str, db: Session = Depends(get_
 @router.get("/reconciliations")
 def list_reconciliations(limit: int = 100, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_read_access(user)
-    _ensure_finance_accounts(db, tenant.id)
-    db.commit()
     limit = min(max(int(limit or 100), 1), 500)
     rows = (
         db.query(FinanceReconciliation)
