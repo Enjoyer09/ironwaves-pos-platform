@@ -88,7 +88,7 @@ def _setting_value(db: Session, tenant_id: str, key: str, default):
 def _set_setting_value(db: Session, tenant_id: str, key: str, value) -> None:
     # Unit-test fakes may not provide query-capable DB sessions.
     # In that case, keep this as a no-op and let caller continue with in-memory session map.
-    if not hasattr(db, "query"):
+    if not hasattr(db, "query") or not hasattr(db, "add"):
         return
     row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
     payload = json.dumps(value, ensure_ascii=False)

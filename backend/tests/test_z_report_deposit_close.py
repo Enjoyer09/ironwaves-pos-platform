@@ -20,8 +20,18 @@ class _FakeDB:
     def __init__(self):
         self.commit_count = 0
 
+    class _FakeQuery:
+        def filter(self, *_args, **_kwargs):
+            return self
+
+        def first(self):
+            return None
+
     def commit(self):
         self.commit_count += 1
+
+    def query(self, *_args, **_kwargs):
+        return self._FakeQuery()
 
 
 def _fake_active_shift():

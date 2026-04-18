@@ -22,6 +22,13 @@ class _FakeDB:
         self.commit_count = 0
         self.rollback_count = 0
 
+    class _FakeQuery:
+        def filter(self, *_args, **_kwargs):
+            return self
+
+        def first(self):
+            return None
+
     def add(self, row):
         self.added.append(row)
 
@@ -33,6 +40,9 @@ class _FakeDB:
 
     def rollback(self):
         self.rollback_count += 1
+
+    def query(self, *_args, **_kwargs):
+        return self._FakeQuery()
 
 
 def test_open_shift_rejects_cash_topup_and_does_not_post_finance_txn(monkeypatch):
