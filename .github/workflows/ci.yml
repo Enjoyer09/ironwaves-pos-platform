@@ -58,7 +58,7 @@ jobs:
           DATABASE_URL: "sqlite:///./ci_test.db"
           JWT_SECRET: "ci-test-secret"
           SUPERADMIN_PASSWORD: "ci-superadmin-password"
-        run: python -m pytest
+        run: python -m pytest -o asyncio_default_fixture_loop_scope=function
 
       - name: Migration syntax check
         env:
