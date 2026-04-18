@@ -627,7 +627,7 @@ def refresh_token(
 def logout(
     request: Request,
     payload: RefreshIn | None = None,
-    response: Response | None = None,
+    response: Response = None,
     authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
@@ -651,8 +651,7 @@ def logout(
         {"refresh_revoked": bool(row), "refresh_token_present": bool(refresh_token_raw)},
     )
     db.commit()
-    if response is not None:
-        _clear_refresh_cookie(response)
+    _clear_refresh_cookie(response)
     if settings.demo_tenant_enabled and tenant.domain == settings.demo_tenant_domain:
         _reset_demo_tenant_runtime(db, tenant)
     return {"success": True}
