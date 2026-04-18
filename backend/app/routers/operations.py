@@ -732,9 +732,13 @@ def _record_doner_batch_consumption(
 def _collect_stock_ops(db: Session, tenant_id: str, items: list[dict]) -> tuple[list[tuple[InventoryItem, Decimal]], Decimal]:
     stock_ops: list[tuple[InventoryItem, Decimal]] = []
     cogs_total = Decimal("0.0000")
+    line_cogs_totals: dict[int, Decimal] = {}
+    line_cogs_unresolved: dict[int, bool] = {}
     beverage_settings = _setting_value(db, tenant_id, "beverage_service_settings", DEFAULT_BEVERAGE_SERVICE_SETTINGS)
     remove_packaging_for_table = bool(beverage_settings.get("remove_paper_packaging_for_table", True))
-    for item in items:
+    for index, item in enumerate(items):
+        line_cogs_totals[index] = Decimal("0.0000")
+        line_cogs_unresolved[index] = False
         item_cup_mode = str(item.get("cup_mode") or "paper").strip().lower()
         skip_packaging = remove_packaging_for_table and item_cup_mode == "glass"
         recipes = (
@@ -742,6 +746,8 @@ def _collect_stock_ops(db: Session, tenant_id: str, items: list[dict]) -> tuple[
             .filter(Recipe.tenant_id == tenant_id, func.lower(Recipe.menu_item_name) == str(item.get("item_name") or "").lower())
             .all()
         )
+        if not recipes:
+            line_cogs_unresolved[index] = True
         for recipe in recipes:
             if skip_packaging and any(token in str(recipe.ingredient_name or "").lower() for token in ["stəkan", "stakan", "qapaq", "kapak", "cup", "lid"]):
                 continue
@@ -751,6 +757,7 @@ def _collect_stock_ops(db: Session, tenant_id: str, items: list[dict]) -> tuple[
                 .first()
             )
             if not inventory:
+                line_cogs_unresolved[index] = True
                 continue
             base_qty_required = (Decimal(str(recipe.quantity_required or 0)) * Decimal(str(item.get("qty") or 0))).quantize(Decimal("0.0001"))
             yield_rule = _find_yield_rule(db, tenant_id, inventory)
@@ -758,7 +765,9 @@ def _collect_stock_ops(db: Session, tenant_id: str, items: list[dict]) -> tuple[
             if Decimal(str(inventory.stock_qty or 0)) < qty_required:
                 raise HTTPException(status_code=400, detail=f"{inventory.name} üçün anbarda kifayət qədər qalıq yoxdur")
             stock_ops.append((inventory, qty_required))
-            cogs_total += (qty_required * Decimal(str(inventory.unit_cost or 0))).quantize(Decimal("0.0001"))
+            line_cogs = (qty_required * Decimal(str(inventory.unit_cost or 0))).quantize(Decimal("0.0001"))
+            cogs_total += line_cogs
+            line_cogs_totals[index] += line_cogs
             if yield_rule:
                 _record_doner_batch_consumption(
                     db,
@@ -768,6 +777,9 @@ def _collect_stock_ops(db: Session, tenant_id: str, items: list[dict]) -> tuple[
                     sold_ready_qty.quantize(Decimal("0.001")),
                     qty_required.quantize(Decimal("0.001")),
                 )
+    for index, item in enumerate(items):
+        item["_cogs_snapshot"] = str(line_cogs_totals.get(index, Decimal("0.0000")).quantize(Decimal("0.0001")))
+        item["_cogs_estimation_unresolved"] = bool(line_cogs_unresolved.get(index, False))
     return stock_ops, cogs_total.quantize(Decimal("0.0001"))
 
 

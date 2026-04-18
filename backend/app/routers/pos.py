@@ -305,9 +305,13 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
 
     stock_ops: list[tuple[InventoryItem, Decimal]] = []
     cogs_total = Decimal("0.0000")
+    line_cogs_totals: dict[int, Decimal] = {}
+    line_cogs_unresolved: dict[int, bool] = {}
     beverage_settings = _setting_value(db, tenant.id, "beverage_service_settings", DEFAULT_BEVERAGE_SERVICE_SETTINGS)
     remove_packaging_for_table = bool((beverage_settings or {}).get("remove_paper_packaging_for_table", True))
-    for item in payload.cart_items:
+    for index, item in enumerate(payload.cart_items):
+        line_cogs_totals[index] = Decimal("0.0000")
+        line_cogs_unresolved[index] = False
         item_cup_mode = str(getattr(item, "cup_mode", None) or "paper").strip().lower()
         skip_packaging = remove_packaging_for_table and item_cup_mode == "glass"
         recipes = (
@@ -315,6 +319,8 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
             .filter(Recipe.tenant_id == tenant.id, func.lower(Recipe.menu_item_name) == str(item.item_name).lower())
             .all()
         )
+        if not recipes:
+            line_cogs_unresolved[index] = True
         for recipe in recipes:
             if skip_packaging and any(token in str(recipe.ingredient_name or "").lower() for token in ["stəkan", "stakan", "qapaq", "kapak", "cup", "lid"]):
                 continue
@@ -324,6 +330,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
                 .first()
             )
             if not inventory:
+                line_cogs_unresolved[index] = True
                 continue
             base_qty_required = (Decimal(str(recipe.quantity_required)) * Decimal(str(item.qty or 0))).quantize(Decimal("0.0001"))
             yield_rule = _find_yield_rule(db, tenant.id, inventory)
@@ -336,7 +343,9 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
             if Decimal(str(inventory.stock_qty)) < qty_required:
                 raise HTTPException(status_code=400, detail=f"{inventory.name} üçün anbarda kifayət qədər qalıq yoxdur")
             stock_ops.append((inventory, qty_required))
-            cogs_total += (qty_required * Decimal(str(inventory.unit_cost or 0))).quantize(Decimal("0.0001"))
+            line_cogs = (qty_required * Decimal(str(inventory.unit_cost or 0))).quantize(Decimal("0.0001"))
+            cogs_total += line_cogs
+            line_cogs_totals[index] += line_cogs
             if yield_rule:
                 _record_doner_batch_consumption(
                     db,
@@ -345,6 +354,13 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
                     sold_ready_qty.quantize(Decimal("0.001")),
                     qty_required.quantize(Decimal("0.001")),
                 )
+
+    sale_items_payload: list[dict] = []
+    for index, item in enumerate(payload.cart_items):
+        row = item.model_dump(mode="json")
+        row["_cogs_snapshot"] = str(line_cogs_totals.get(index, Decimal("0.0000")).quantize(Decimal("0.0001")))
+        row["_cogs_estimation_unresolved"] = bool(line_cogs_unresolved.get(index, False))
+        sale_items_payload.append(row)
 
     receipt_code = secrets.token_hex(5).upper()
     receipt_token = secrets.token_hex(10)
@@ -388,7 +404,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         discount_amount=discount,
         reward_claim_code=str(payload.reward_claim_code or "").strip().upper() or None,
         cogs=cogs_total.quantize(Decimal("0.0001")),
-        items_json=json.dumps([i.model_dump(mode="json") for i in payload.cart_items], ensure_ascii=False),
+        items_json=json.dumps(sale_items_payload, ensure_ascii=False),
         status="COMPLETED",
         created_at=datetime.utcnow(),
     )

@@ -462,6 +462,13 @@ def _estimate_sale_cogs_from_recipe(
     unresolved = False
     packaging_tokens = ("stəkan", "stakan", "qapaq", "kapak", "cup", "lid")
     for item in items:
+        snapshot_line = (item or {}).get("_cogs_snapshot")
+        if snapshot_line is not None:
+            try:
+                total += Decimal(str(snapshot_line)).quantize(Decimal("0.0001"))
+                continue
+            except Exception:
+                unresolved = True
         item_name = str((item or {}).get("item_name") or "").strip().lower()
         qty = Decimal(str((item or {}).get("qty") or 0))
         if qty <= 0:
