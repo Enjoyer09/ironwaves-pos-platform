@@ -103,7 +103,7 @@ const DEMO_MODULE_GUIDE_AZ: Record<ModuleKey, string> = {
 };
 
 export default function App() {
-  const { user, access_token, logout, lang, setLang, hasHydrated, notify, switchTenantContext, applySessionUser } = useAppStore();
+  const { user, access_token, logout, lang, setLang, hasHydrated, notify, switchTenantContext, applySessionUser, restoreSession } = useAppStore();
   const activeTenant = getActiveTenantId();
   const safeLang = (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az';
   const t = i18n[safeLang];
@@ -185,7 +185,31 @@ export default function App() {
   const isDemoTourHost = currentHost === 'demo.ironwaves.store' || currentHost === 'demo.ironwaves';
 
   const [sessionChecking, setSessionChecking] = useState(false);
+  const [sessionRestorePending, setSessionRestorePending] = useState(false);
   const [readyPopup, setReadyPopup] = useState<any | null>(null);
+  const sessionRestoreTriedRef = useRef(false);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+    if (hasValidUser) return;
+    if (!user?.username) return;
+    if (sessionRestoreTriedRef.current) return;
+
+    sessionRestoreTriedRef.current = true;
+    let cancelled = false;
+    setSessionRestorePending(true);
+    const run = async () => {
+      try {
+        await restoreSession();
+      } finally {
+        if (!cancelled) setSessionRestorePending(false);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasHydrated, hasValidUser, user?.username, restoreSession]);
 
   useEffect(() => {
     if (!hasValidUser) return;
@@ -973,6 +997,14 @@ export default function App() {
     return (
       <div className="metal-app flex min-h-screen items-center justify-center text-slate-300">
         <div className="metal-panel rounded-xl px-6 py-4 text-sm">Sistem yüklənir...</div>
+      </div>
+    );
+  }
+
+  if (sessionRestorePending) {
+    return (
+      <div className="metal-app flex min-h-screen items-center justify-center text-slate-300">
+        <div className="metal-panel rounded-xl px-6 py-4 text-sm">{tx(safeLang, 'Sessiya bərpa olunur...', 'Сессия восстанавливается...', 'Restoring session...')}</div>
       </div>
     );
   }

@@ -38,6 +38,7 @@ interface AppState {
   adminNeeds2FA: boolean;
   authErrorMessage: string;
   clearAuthError: () => void;
+  restoreSession: () => Promise<boolean>;
   logout: () => void;
   applySessionUser: (user: UserSession | null) => void;
   switchTenantContext: (tenantId: string) => void;
@@ -67,6 +68,38 @@ export const useAppStore = create<AppState>()(
       adminNeeds2FA: false,
       authErrorMessage: '',
       clearAuthError: () => set({ authErrorMessage: '', adminNeeds2FA: false }),
+      restoreSession: async () => {
+        const currentUser = get().user;
+        if (!currentUser?.username) return false;
+        try {
+          const tenantId = String(currentUser.tenant_id || getActiveTenantId() || '').trim();
+          const res = await authApi.refresh_token(undefined, tenantId);
+          if (!res?.access_token) {
+            throw new Error('refresh_unavailable');
+          }
+          const nextUser = {
+            username: String((res as any)?.user?.username || currentUser.username || ''),
+            role: String((res as any)?.user?.role || currentUser.role || ''),
+            tenant_id: String((res as any)?.user?.tenant_id || tenantId || ''),
+          };
+          if (nextUser.tenant_id) {
+            setActiveTenantId(nextUser.tenant_id);
+          }
+          set({
+            user: nextUser,
+            access_token: String(res.access_token || ''),
+            refresh_token: String((res as any)?.refresh_token || ''),
+            adminNeeds2FA: false,
+            authErrorMessage: '',
+          });
+          setClientAuthSession({ access_token: String(res.access_token || ''), user: nextUser });
+          return true;
+        } catch {
+          set({ user: null, access_token: null, refresh_token: null, cart: [] });
+          setClientAuthSession({ access_token: null, user: null });
+          return false;
+        }
+      },
       
       login: async (pin: string) => {
         try {
