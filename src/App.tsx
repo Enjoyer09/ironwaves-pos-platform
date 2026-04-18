@@ -210,7 +210,7 @@ export default function App() {
       if (cancelled) return;
       setSessionRestorePending(false);
       logout();
-    }, 10000);
+    }, 3000);
     const run = async () => {
       try {
         await restoreSession();
@@ -1017,14 +1017,6 @@ export default function App() {
     return (
       <div className="metal-app flex min-h-screen items-center justify-center text-slate-300">
         <div className="metal-panel rounded-xl px-6 py-4 text-sm">Sistem yüklənir...</div>
-      </div>
-    );
-  }
-
-  if (sessionRestorePending) {
-    return (
-      <div className="metal-app flex min-h-screen items-center justify-center text-slate-300">
-        <div className="metal-panel rounded-xl px-6 py-4 text-sm">{tx(safeLang, 'Sessiya bərpa olunur...', 'Сессия восстанавливается...', 'Restoring session...')}</div>
       </div>
     );
   }
