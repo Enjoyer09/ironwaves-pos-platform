@@ -71,3 +71,37 @@ def test_profit_loss_report_estimates_missing_cogs_from_recipe_inventory(monkeyp
     assert report["has_uncomputed_cogs"] is False
     assert report["cogs_unresolved_sales_count"] == 0
     assert report["cogs_coverage_percent"] == "100.00"
+
+
+def test_profit_loss_report_prefers_cogs_snapshot_when_present(monkeypatch):
+    monkeypatch.setattr(
+        finance,
+        "_setting_value",
+        lambda *_args, **_kwargs: {"remove_paper_packaging_for_table": True},
+    )
+    sales_rows = [
+        SimpleNamespace(
+            total=Decimal("12.00"),
+            cogs=None,
+            items_json=json.dumps(
+                [
+                    {"item_name": "Affogato", "qty": 1, "_cogs_snapshot": "1.2500"},
+                    {"item_name": "Cookie", "qty": 1, "_cogs_snapshot": "0.3500"},
+                ],
+                ensure_ascii=False,
+            ),
+        )
+    ]
+    posted_txns = []
+    # No recipe/inventory rows required when snapshot is present.
+    recipe_rows = []
+    inventory_rows = []
+    db = _FakeDB([sales_rows, recipe_rows, inventory_rows, posted_txns])
+
+    report = finance._profit_loss_report(db, "tenant-1", None, None)
+
+    assert report["cogs_recorded"] == "0.00"
+    assert report["cogs_estimated"] == "1.60"
+    assert report["cogs"] == "1.60"
+    assert report["has_uncomputed_cogs"] is False
+    assert report["cogs_unresolved_sales_count"] == 0
