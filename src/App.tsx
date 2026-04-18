@@ -26,6 +26,7 @@ import { get_low_stock_items } from './api/inventory';
 import { list_tenants, type TenantRecord } from './api/tenants';
 import { clearDBCache } from './lib/db_sim';
 import { authApi } from './api/auth';
+import { isBackendEnabled } from './api/client';
 import { isPerfDebugEnabled, type PerfEvent } from './lib/perf';
 import { syncPendingOfflineTableOps } from './api/tables';
 
@@ -183,6 +184,7 @@ export default function App() {
 
   const mappedTenantFromHost = useMemo(() => getResolvedTenantIdFromHost(currentHost), [currentHost]);
   const isDemoTourHost = currentHost === 'demo.ironwaves.store' || currentHost === 'demo.ironwaves';
+  const backendMode = isBackendEnabled();
 
   const [sessionChecking, setSessionChecking] = useState(false);
   const [sessionRestorePending, setSessionRestorePending] = useState(false);
@@ -198,7 +200,9 @@ export default function App() {
     const hostTenant = String(mappedTenantFromHost || '').trim();
     const sessionTenant = String(user?.tenant_id || '').trim();
     // Prevent cross-tenant persisted sessions from entering a restore loop on another domain.
-    if (hostTenant && sessionTenant && hostTenant !== sessionTenant) {
+    // In backend mode, host->tenant resolution is authoritative on server side.
+    // Do not force client-side logout based on potentially stale local host mapping.
+    if (!backendMode && hostTenant && sessionTenant && hostTenant !== sessionTenant) {
       logout();
       return;
     }
@@ -224,12 +228,13 @@ export default function App() {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [hasHydrated, hasValidUser, user?.username, user?.tenant_id, restoreSession, mappedTenantFromHost, logout]);
+  }, [backendMode, hasHydrated, hasValidUser, user?.username, user?.tenant_id, restoreSession, mappedTenantFromHost, logout]);
 
   useEffect(() => {
     if (!hasValidUser) return;
     let cancelled = false;
     const shouldBlockForTenantMismatch =
+      !backendMode &&
       Boolean(mappedTenantFromHost) &&
       String(mappedTenantFromHost || '') !== String(user?.tenant_id || '');
     if (shouldBlockForTenantMismatch) setSessionChecking(true);
@@ -240,7 +245,7 @@ export default function App() {
         const nextRole = String(me.role || '');
         const nextTenant = String(me.tenant_id || '');
         // If backend session tenant and host-mapped tenant disagree, stop session immediately.
-        if (mappedTenantFromHost && nextTenant && String(mappedTenantFromHost) !== nextTenant) {
+        if (!backendMode && mappedTenantFromHost && nextTenant && String(mappedTenantFromHost) !== nextTenant) {
           if (!cancelled) logout();
           return;
         }
@@ -263,7 +268,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [hasValidUser, user?.role, user?.tenant_id, user?.username, applySessionUser, logout, mappedTenantFromHost]);
+  }, [backendMode, hasValidUser, user?.role, user?.tenant_id, user?.username, applySessionUser, logout, mappedTenantFromHost]);
 
   const [currentModule, setCurrentModule] = useState<ModuleKey>('pos');
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
