@@ -157,23 +157,84 @@ export function get_feedback_coupon_for_receipt_live(
   tenantId: string,
   receiptId: string,
   receiptToken: string,
-): FeedbackCoupon | null {
-  return findCouponByReceipt(tenantId, receiptId, receiptToken);
+): Promise<FeedbackCoupon | null> {
+  const safeTenant = String(tenantId || '').trim();
+  const safeReceipt = String(receiptId || '').trim();
+  const safeToken = String(receiptToken || '').trim();
+  if (!safeTenant || !safeReceipt || !safeToken) return Promise.resolve(null);
+  if (isBackendEnabled()) {
+    return apiRequest<any>(
+      `/api/v1/ops/feedback/coupon/by-receipt?tenant_id=${encodeURIComponent(safeTenant)}&receipt_id=${encodeURIComponent(safeReceipt)}&receipt_token=${encodeURIComponent(safeToken)}`,
+      { auth: false, tenantId: null },
+    )
+      .then((row) => ({
+        id: String(row.id || ''),
+        tenant_id: String(row.tenant_id || safeTenant),
+        code: String(row.code || ''),
+        percent: Number(row.percent || 5),
+        status: String(row.status || 'PENDING') as FeedbackCoupon['status'],
+        issued_at: String(row.issued_at || new Date().toISOString()),
+        redeemed_at: row.redeemed_at || undefined,
+        sale_id: row.sale_id || undefined,
+        receipt_id: row.receipt_id || safeReceipt,
+        receipt_token: safeToken,
+        redeemed_sale_id: row.redeemed_sale_id || undefined,
+      }))
+      .catch(() => findCouponByReceipt(safeTenant, safeReceipt, safeToken));
+  }
+  return Promise.resolve(findCouponByReceipt(safeTenant, safeReceipt, safeToken));
 }
 
-export function find_feedback_coupon_live(tenantId: string, code: string): FeedbackCoupon | null {
+export async function find_feedback_coupon_live(tenantId: string, code: string): Promise<FeedbackCoupon | null> {
   const safeTenant = String(tenantId || 'tenant_default');
   const safeCode = normalizeFeedbackCouponCode(code);
   if (!isFeedbackCouponCode(safeCode)) return null;
+  if (isBackendEnabled()) {
+    try {
+      const row = await apiRequest<any>(
+        `/api/v1/ops/feedback/coupon/lookup?code=${encodeURIComponent(safeCode)}`,
+        { auth: true, tenantId: null },
+      );
+      return {
+        id: String(row.id || ''),
+        tenant_id: String(row.tenant_id || safeTenant),
+        code: String(row.code || safeCode),
+        percent: Number(row.percent || 5),
+        status: String(row.status || 'PENDING') as FeedbackCoupon['status'],
+        issued_at: String(row.issued_at || new Date().toISOString()),
+        redeemed_at: row.redeemed_at || undefined,
+        sale_id: row.sale_id || undefined,
+        receipt_id: row.receipt_id || undefined,
+        redeemed_sale_id: row.redeemed_sale_id || undefined,
+      };
+    } catch {
+      // fallback to local cache
+    }
+  }
   const store = readCouponStore();
   const list = Array.isArray(store[safeTenant]) ? store[safeTenant] : [];
   const row = list.find((item) => normalizeFeedbackCouponCode(item.code) === safeCode);
   return row || null;
 }
 
-export function redeem_feedback_coupon_live(tenantId: string, code: string, saleId: string): { success: boolean; coupon?: FeedbackCoupon } {
+export async function redeem_feedback_coupon_live(tenantId: string, code: string, saleId: string): Promise<{ success: boolean; coupon?: FeedbackCoupon }> {
   const safeTenant = String(tenantId || 'tenant_default');
   const safeCode = normalizeFeedbackCouponCode(code);
+  const safeSaleId = String(saleId || '').trim();
+  if (isBackendEnabled()) {
+    try {
+      await apiRequest('/api/v1/ops/feedback/coupon/redeem', {
+        method: 'POST',
+        auth: true,
+        tenantId: null,
+        body: { code: safeCode, sale_id: safeSaleId },
+      });
+      const resolved = await find_feedback_coupon_live(safeTenant, safeCode);
+      return { success: true, coupon: resolved || undefined };
+    } catch {
+      // fallback to local cache
+    }
+  }
   const store = readCouponStore();
   const list = Array.isArray(store[safeTenant]) ? store[safeTenant] : [];
   const idx = list.findIndex((item) => normalizeFeedbackCouponCode(item.code) === safeCode);
@@ -191,6 +252,30 @@ export function redeem_feedback_coupon_live(tenantId: string, code: string, sale
   store[safeTenant] = nextList;
   writeCouponStore(store);
   return { success: true, coupon: updated };
+}
+
+export async function get_feedback_inbox_live(
+  tenantId: string,
+  dateFrom: string,
+  dateTo: string,
+  limit = 500,
+): Promise<any[]> {
+  const safeFrom = String(dateFrom || '').slice(0, 10);
+  const safeTo = String(dateTo || '').slice(0, 10);
+  if (isBackendEnabled()) {
+    return apiRequest<any[]>(
+      `/api/v1/ops/feedback/inbox?date_from=${encodeURIComponent(safeFrom)}&date_to=${encodeURIComponent(safeTo)}&limit=${encodeURIComponent(String(limit))}`,
+      { auth: true, tenantId: null },
+    );
+  }
+  const store = readStore();
+  return Array.isArray(store[String(tenantId || 'tenant_default')]) ? store[String(tenantId || 'tenant_default')] : [];
+}
+
+export function feedback_inbox_export_url(dateFrom: string, dateTo: string): string {
+  const safeFrom = String(dateFrom || '').slice(0, 10);
+  const safeTo = String(dateTo || '').slice(0, 10);
+  return `/api/v1/ops/feedback/inbox/export.csv?date_from=${encodeURIComponent(safeFrom)}&date_to=${encodeURIComponent(safeTo)}`;
 }
 
 async function assertValidReceiptLink(payload: FeedbackSubmission) {

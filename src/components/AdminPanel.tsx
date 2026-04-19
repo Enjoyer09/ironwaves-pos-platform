@@ -28,6 +28,7 @@ const LogsPanel = lazy(() => import('./admin/LogsPanel'));
 const CombosPanel = lazy(() => import('./admin/CombosPanel'));
 const DatabasePanel = lazy(() => import('./admin/DatabasePanel'));
 const TenantsPanel = lazy(() => import('./admin/TenantsPanel'));
+const FeedbackInboxPanel = lazy(() => import('./admin/FeedbackInboxPanel'));
 
 type AdminTab = 'dashboard' | 'analytics' | 'menu' | 'tables' | 'finance' | 'inventory' | 'crm' | 'customerapp' | 'posbuilder' | 'landing' | 'recipes' | 'ai' | 'settings' | 'notes' | 'logs' | 'database' | 'zreport' | 'combos' | 'tenants';
 
@@ -577,6 +578,8 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                   </table>
                 </div>
               </div>
+
+              <FeedbackInboxPanel tenantId={tenant_id} dateFrom={dateFrom} dateTo={dateTo} lang={lang} />
 
               {saleActionModal && (
                 <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/70 p-4">

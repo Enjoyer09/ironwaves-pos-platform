@@ -556,6 +556,50 @@ class RewardClaim(Base):
     redeemed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class FeedbackEntry(Base):
+    __tablename__ = "feedback_entries"
+    __table_args__ = (
+        Index("ix_feedback_entries_tenant_created", "tenant_id", "created_at"),
+        Index("ix_feedback_entries_tenant_score_created", "tenant_id", "score", "created_at"),
+        UniqueConstraint("tenant_id", "receipt_id", "receipt_token", name="uq_feedback_tenant_receipt_token"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    sale_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("sales.id"), nullable=True, index=True)
+    receipt_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    receipt_token: Mapped[str] = mapped_column(String(64), nullable=False)
+    source: Mapped[str | None] = mapped_column(String(40), nullable=True, default="receipt")
+    score: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    contact: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    staff_username: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class FeedbackCoupon(Base):
+    __tablename__ = "feedback_coupons"
+    __table_args__ = (
+        UniqueConstraint("code", name="uq_feedback_coupon_code"),
+        UniqueConstraint("tenant_id", "receipt_id", "receipt_token", name="uq_feedback_coupon_tenant_receipt_token"),
+        Index("ix_feedback_coupons_tenant_status_issued", "tenant_id", "status", "issued_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    feedback_entry_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("feedback_entries.id"), nullable=True, index=True)
+    sale_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("sales.id"), nullable=True, index=True)
+    receipt_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    receipt_token: Mapped[str] = mapped_column(String(64), nullable=False)
+    code: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
+    percent: Mapped[int] = mapped_column(Integer, nullable=False, default=5)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="PENDING")
+    source: Mapped[str | None] = mapped_column(String(40), nullable=True, default="feedback")
+    issued_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    redeemed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    redeemed_sale_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("sales.id"), nullable=True, index=True)
+
+
 class LoyaltyLedgerEntry(Base):
     __tablename__ = "loyalty_ledger"
 
