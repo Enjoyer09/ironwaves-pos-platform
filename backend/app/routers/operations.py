@@ -2824,6 +2824,10 @@ def get_public_branding(
     tenant: Tenant = Depends(get_tenant),
 ):
     row = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant.id).first()
+    feedback_settings = _setting_value(db, tenant.id, "feedback_settings", DEFAULT_FEEDBACK_SETTINGS)
+    if not isinstance(feedback_settings, dict):
+        feedback_settings = DEFAULT_FEEDBACK_SETTINGS
+    google_review_url = str(feedback_settings.get("google_review_url") or "").strip()
     if not row:
       return {
           "tenant_id": tenant.id,
@@ -2831,6 +2835,7 @@ def get_public_branding(
           "website": f"https://{tenant.domain}",
           "logo_url": "",
           "receipt_footer": "Bizi secdiyiniz ucun tesekkur edirik!",
+          "google_review_url": google_review_url,
       }
     return {
         "tenant_id": tenant.id,
@@ -2838,6 +2843,7 @@ def get_public_branding(
         "website": row.website or f"https://{tenant.domain}",
         "logo_url": row.logo_url or "",
         "receipt_footer": row.receipt_footer or "",
+        "google_review_url": google_review_url,
     }
 
 
