@@ -1,7 +1,7 @@
 import React from 'react';
 import { Star } from 'lucide-react';
 import { get_business_profile, get_public_branding_live, get_settings } from '../api/settings';
-import { submit_feedback_live } from '../api/feedback';
+import { get_feedback_coupon_for_receipt_live, submit_feedback_live } from '../api/feedback';
 import QRCode from 'qrcode';
 
 type Props = {
@@ -20,6 +20,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
   const [contact, setContact] = React.useState('');
   const [sending, setSending] = React.useState(false);
   const [done, setDone] = React.useState(false);
+  const [alreadySubmitted, setAlreadySubmitted] = React.useState(false);
   const [error, setError] = React.useState('');
   const [coupon, setCoupon] = React.useState<{ code: string; percent: number } | null>(null);
   const [couponQrDataUrl, setCouponQrDataUrl] = React.useState('');
@@ -46,6 +47,19 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
       mounted = false;
     };
   }, [tenantId]);
+
+  React.useEffect(() => {
+    const safeTenant = String(tenantId || '').trim();
+    const safeReceipt = String(receiptId || '').trim();
+    const safeToken = String(receiptToken || '').trim();
+    if (!safeTenant || !safeReceipt || !safeToken) return;
+    const existingCoupon = get_feedback_coupon_for_receipt_live(safeTenant, safeReceipt, safeToken);
+    if (existingCoupon) {
+      setCoupon({ code: existingCoupon.code, percent: existingCoupon.percent });
+      setAlreadySubmitted(true);
+      setDone(true);
+    }
+  }, [tenantId, receiptId, receiptToken]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -104,6 +118,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
           percent: Number(result.coupon_percent || 5),
         });
       }
+      setAlreadySubmitted(Boolean((result as any)?.already_submitted));
       setDone(true);
     } catch (e: any) {
       setError(String(e?.message || 'Feedback göndərmək alınmadı'));
@@ -155,9 +170,13 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
 
         {done ? (
           <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-5 text-center">
-            <div className="text-lg font-bold text-emerald-200">Təşəkkür edirik</div>
+            <div className="text-lg font-bold text-emerald-200">
+              {alreadySubmitted ? 'Siz artıq rəy bildirmisiniz' : 'Təşəkkür edirik'}
+            </div>
             <p className="mt-2 text-sm text-emerald-100/90">
-              {String(feedbackSettings?.thank_you_text_az || 'Rəyiniz komanda tərəfindən nəzərdən keçiriləcək.')}
+              {alreadySubmitted
+                ? 'Bu çek üçün endirim kuponunuz artıq yaradılıb və aşağıda göstərilir.'
+                : String(feedbackSettings?.thank_you_text_az || 'Rəyiniz komanda tərəfindən nəzərdən keçiriləcək.')}
             </p>
             {coupon?.code ? (
               <div className="mt-4 rounded-xl border border-emerald-300/40 bg-emerald-400/10 p-3 text-left">
