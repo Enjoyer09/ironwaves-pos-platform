@@ -146,6 +146,7 @@ export default function SettingsPanel() {
   });
   const [feedbackSettings, setFeedbackSettings] = useState({
     enabled: false,
+    coupon_percent: 5,
     portal_url: '',
     google_review_url: '',
     receipt_button_text_az: 'Rəy bildirin',
@@ -392,6 +393,7 @@ export default function SettingsPanel() {
       });
       setFeedbackSettings({
         enabled: settingsRes.value.feedback_settings?.enabled === true,
+        coupon_percent: Number(settingsRes.value.feedback_settings?.coupon_percent || 5),
         portal_url: String(settingsRes.value.feedback_settings?.portal_url || derivedFeedbackPortalUrl),
         google_review_url: String(settingsRes.value.feedback_settings?.google_review_url || ''),
         receipt_button_text_az: String(settingsRes.value.feedback_settings?.receipt_button_text_az || 'Rəy bildirin'),
@@ -850,6 +852,7 @@ export default function SettingsPanel() {
     const resolvedPortalUrl = String(feedbackSettings.portal_url || '').trim() || autoFeedbackPortalUrl;
     await update_feedback_settings_live({
       enabled: feedbackSettings.enabled,
+      coupon_percent: Math.max(1, Math.min(100, Number(feedbackSettings.coupon_percent || 5))),
       portal_url: resolvedPortalUrl,
       google_review_url: String(feedbackSettings.google_review_url || '').trim(),
       receipt_button_text_az: String(feedbackSettings.receipt_button_text_az || '').trim() || 'Rəy bildirin',
@@ -1389,6 +1392,17 @@ export default function SettingsPanel() {
               value={feedbackSettings.google_review_url}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, google_review_url: e.target.value }))}
               placeholder="https://g.page/r/..."
+            />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Feedback kuponu endirim %', 'Скидка купона feedback %', 'Feedback coupon discount %')}</label>
+            <input
+              className="neon-input"
+              type="number"
+              min={1}
+              max={100}
+              value={feedbackSettings.coupon_percent}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, coupon_percent: Number(e.target.value || 5) }))}
             />
           </div>
           <div className="field-stack form-card">
