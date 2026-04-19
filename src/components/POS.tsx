@@ -1029,7 +1029,7 @@ export default function POS() {
       window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { tenant_id: tenantId, sale_id: sale.sale_id, source: 'pos' } }));
       window.dispatchEvent(new CustomEvent('logs-updated', { detail: { tenant_id: tenantId, sale_id: sale.sale_id, source: 'pos' } }));
       if (feedbackCouponPreview?.status === 'PENDING' && isFeedbackCouponCode(enteredClaimCode)) {
-        redeem_feedback_coupon_live(tenantId, enteredClaimCode, String(sale.sale_id || ''));
+        await redeem_feedback_coupon_live(tenantId, enteredClaimCode, String(sale.sale_id || ''));
       }
       clearCart(activeCart);
       patchCtx({ ...defaultCtx });
@@ -1115,54 +1115,64 @@ export default function POS() {
       setFeedbackCouponPreview(null);
       return;
     }
-    const found = find_feedback_coupon_live(tenantId, normalized);
-    if (!found) {
+    void (async () => {
+      const found = await find_feedback_coupon_live(tenantId, normalized);
+      if (!found) {
+        notify(
+          'error',
+          tx(lang, 'Kupon tapılmadı', 'Купон не найден', 'Coupon not found'),
+        );
+        setFeedbackCouponPreview(null);
+        return;
+      }
+      setFeedbackCouponPreview({
+        code: found.code,
+        percent: Number(found.percent || 5),
+        status: String(found.status || 'PENDING'),
+      });
       notify(
-        'error',
-        tx(lang, 'Kupon tapılmadı', 'Купон не найден', 'Coupon not found'),
+        found.status === 'PENDING' ? 'success' : 'info',
+        found.status === 'PENDING'
+          ? tx(
+              lang,
+              `Feedback kuponu aktivdir: -${Number(found.percent || 5)}%`,
+              `Купон feedback активен: -${Number(found.percent || 5)}%`,
+              `Feedback coupon active: -${Number(found.percent || 5)}%`,
+            )
+          : tx(
+              lang,
+              'Bu feedback kuponu artıq istifadə olunub',
+              'Этот feedback купон уже использован',
+              'This feedback coupon is already used',
+            ),
       );
-      setFeedbackCouponPreview(null);
-      return;
-    }
-    setFeedbackCouponPreview({
-      code: found.code,
-      percent: Number(found.percent || 5),
-      status: String(found.status || 'PENDING'),
-    });
-    notify(
-      found.status === 'PENDING' ? 'success' : 'info',
-      found.status === 'PENDING'
-        ? tx(
-            lang,
-            `Feedback kuponu aktivdir: -${Number(found.percent || 5)}%`,
-            `Купон feedback активен: -${Number(found.percent || 5)}%`,
-            `Feedback coupon active: -${Number(found.percent || 5)}%`,
-          )
-        : tx(
-            lang,
-            'Bu feedback kuponu artıq istifadə olunub',
-            'Этот feedback купон уже использован',
-            'This feedback coupon is already used',
-          ),
-    );
+    })();
   };
 
   useEffect(() => {
+    let cancelled = false;
     const raw = String(ctx.rewardClaimCode || '').trim().toUpperCase();
     if (!raw || !isFeedbackCouponCode(raw)) {
       setFeedbackCouponPreview(null);
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
-    const found = find_feedback_coupon_live(tenantId, raw);
-    if (!found) {
-      setFeedbackCouponPreview(null);
-      return;
-    }
-    setFeedbackCouponPreview({
-      code: found.code,
-      percent: Number(found.percent || 5),
-      status: String(found.status || 'PENDING'),
-    });
+    void (async () => {
+      const found = await find_feedback_coupon_live(tenantId, raw);
+      if (cancelled || !found) {
+        if (!cancelled) setFeedbackCouponPreview(null);
+        return;
+      }
+      setFeedbackCouponPreview({
+        code: found.code,
+        percent: Number(found.percent || 5),
+        status: String(found.status || 'PENDING'),
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [tenantId, ctx.rewardClaimCode]);
 
   const printReceiptOnly = async () => {

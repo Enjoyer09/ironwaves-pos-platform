@@ -1,4 +1,7 @@
 import json
+import csv
+import io
+import random
 import re
 import secrets
 import threading
@@ -13,6 +16,7 @@ from urllib import request as urllib_request
 from urllib.error import HTTPError, URLError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import case, func, text
 from sqlalchemy.orm import Session
@@ -26,6 +30,8 @@ from app.models import (
     Customer,
     CustomerConsent,
     DonerBatch,
+    FeedbackCoupon,
+    FeedbackEntry,
     FinanceAccount,
     FinanceEntry,
     FinanceLedgerEntry,
@@ -392,6 +398,27 @@ def _set_setting_value(db: Session, tenant_id: str, key: str, value):
         row.value = serialized
     else:
         db.add(Setting(tenant_id=tenant_id, key=key, value=serialized))
+
+
+def _feedback_coupon_percent(db: Session, tenant_id: str) -> int:
+    raw = _setting_value(db, tenant_id, "feedback_settings", {})
+    if not isinstance(raw, dict):
+        return 5
+    try:
+        percent = int(raw.get("coupon_percent", 5))
+    except Exception:
+        percent = 5
+    return max(1, min(100, percent))
+
+
+def _generate_feedback_coupon_code(db: Session) -> str:
+    chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    for _ in range(20):
+        code = "FB-" + "".join(random.choice(chars) for _ in range(8))
+        exists = db.query(FeedbackCoupon.id).filter(FeedbackCoupon.code == code).first()
+        if not exists:
+            return code
+    return "FB-" + secrets.token_hex(4).upper()
 
 
 def _normalize_payment_method(value: str | None) -> str:
@@ -980,6 +1007,23 @@ class ShiftHandoverCreateIn(BaseModel):
 
 class ShiftHandoverAcceptPayload(BaseModel):
     actual_cash: Decimal
+
+
+class FeedbackSubmitIn(BaseModel):
+    tenant_id: str
+    sale_id: str | None = None
+    receipt_id: str
+    receipt_token: str
+    source: str | None = None
+    score: int = Field(ge=1, le=5)
+    comment: str | None = None
+    contact: str | None = None
+    created_at: str | None = None
+
+
+class FeedbackCouponRedeemIn(BaseModel):
+    code: str
+    sale_id: str
 
 
 def _resolve_customer_session(db: Session, tenant_id: str, card_id: str, token: str) -> Customer:
@@ -4887,6 +4931,315 @@ def list_logs(
         }
         for row in rows
     ]
+
+
+@router.post("/feedback/submit")
+def submit_feedback(
+    payload: FeedbackSubmitIn,
+    db: Session = Depends(get_db),
+):
+    tenant_id = str(payload.tenant_id or "").strip()
+    receipt_id = str(payload.receipt_id or "").strip()
+    receipt_token = str(payload.receipt_token or "").strip()
+    if not tenant_id or not receipt_id or not receipt_token:
+        raise HTTPException(status_code=400, detail="tenant_id, receipt_id və receipt_token məcburidir")
+
+    sale = (
+        db.query(Sale)
+        .filter(
+            Sale.tenant_id == tenant_id,
+            (Sale.id == receipt_id) | (Sale.receipt_code == receipt_id),
+        )
+        .first()
+    )
+    if not sale:
+        raise HTTPException(status_code=404, detail="Çek tapılmadı")
+    if str(sale.receipt_token or "") != receipt_token:
+        raise HTTPException(status_code=400, detail="Çek token etibarsızdır")
+    if payload.sale_id and str(payload.sale_id).strip() and str(payload.sale_id).strip() != str(sale.id):
+        raise HTTPException(status_code=400, detail="sale_id çek ilə uyğun deyil")
+
+    existing_coupon = (
+        db.query(FeedbackCoupon)
+        .filter(
+            FeedbackCoupon.tenant_id == tenant_id,
+            FeedbackCoupon.receipt_id == receipt_id,
+            FeedbackCoupon.receipt_token == receipt_token,
+        )
+        .first()
+    )
+    if existing_coupon:
+        return {
+            "success": True,
+            "already_submitted": True,
+            "coupon_code": existing_coupon.code,
+            "coupon_percent": int(existing_coupon.percent or 5),
+        }
+
+    now = _utcnow()
+    feedback_entry = FeedbackEntry(
+        tenant_id=tenant_id,
+        sale_id=sale.id,
+        receipt_id=receipt_id,
+        receipt_token=receipt_token,
+        source=str(payload.source or "receipt").strip() or "receipt",
+        score=max(1, min(5, int(payload.score or 0))),
+        comment=str(payload.comment or "").strip()[:800] or None,
+        contact=str(payload.contact or "").strip()[:120] or None,
+        staff_username=str(sale.cashier or "").strip() or None,
+        created_at=now,
+    )
+    db.add(feedback_entry)
+    db.flush()
+
+    coupon_percent = _feedback_coupon_percent(db, tenant_id)
+    coupon = FeedbackCoupon(
+        tenant_id=tenant_id,
+        feedback_entry_id=feedback_entry.id,
+        sale_id=sale.id,
+        receipt_id=receipt_id,
+        receipt_token=receipt_token,
+        code=_generate_feedback_coupon_code(db),
+        percent=coupon_percent,
+        status="PENDING",
+        source="feedback",
+        issued_at=now,
+    )
+    db.add(coupon)
+    db.add(
+        AuditLog(
+            tenant_id=tenant_id,
+            user="feedback_portal",
+            action="FEEDBACK_SUBMITTED",
+            details=json.dumps(
+                {
+                    "feedback_entry_id": feedback_entry.id,
+                    "sale_id": sale.id,
+                    "receipt_id": receipt_id,
+                    "score": int(feedback_entry.score or 0),
+                    "coupon_code": coupon.code,
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    db.commit()
+    return {
+        "success": True,
+        "already_submitted": False,
+        "coupon_code": coupon.code,
+        "coupon_percent": int(coupon.percent or 5),
+    }
+
+
+@router.get("/feedback/coupon/by-receipt")
+def find_feedback_coupon_by_receipt(
+    tenant_id: str,
+    receipt_id: str,
+    receipt_token: str,
+    db: Session = Depends(get_db),
+):
+    tenant_id = str(tenant_id or "").strip()
+    receipt_id = str(receipt_id or "").strip()
+    receipt_token = str(receipt_token or "").strip()
+    if not tenant_id or not receipt_id or not receipt_token:
+        raise HTTPException(status_code=400, detail="tenant_id, receipt_id və receipt_token məcburidir")
+    coupon = (
+        db.query(FeedbackCoupon)
+        .filter(
+            FeedbackCoupon.tenant_id == tenant_id,
+            FeedbackCoupon.receipt_id == receipt_id,
+            FeedbackCoupon.receipt_token == receipt_token,
+        )
+        .first()
+    )
+    if not coupon:
+        raise HTTPException(status_code=404, detail="Coupon not found")
+    return {
+        "id": coupon.id,
+        "tenant_id": coupon.tenant_id,
+        "code": coupon.code,
+        "percent": int(coupon.percent or 5),
+        "status": coupon.status,
+        "issued_at": coupon.issued_at.isoformat() if coupon.issued_at else None,
+        "redeemed_at": coupon.redeemed_at.isoformat() if coupon.redeemed_at else None,
+        "sale_id": coupon.sale_id,
+        "receipt_id": coupon.receipt_id,
+        "redeemed_sale_id": coupon.redeemed_sale_id,
+    }
+
+
+@router.get("/feedback/coupon/lookup")
+def lookup_feedback_coupon(
+    code: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    del user
+    safe_code = str(code or "").strip().upper()
+    if not safe_code:
+        raise HTTPException(status_code=400, detail="Coupon code is required")
+    row = db.query(FeedbackCoupon).filter(FeedbackCoupon.tenant_id == tenant.id, FeedbackCoupon.code == safe_code).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Coupon not found")
+    return {
+        "id": row.id,
+        "tenant_id": row.tenant_id,
+        "code": row.code,
+        "percent": int(row.percent or 5),
+        "status": row.status,
+        "issued_at": row.issued_at.isoformat() if row.issued_at else None,
+        "redeemed_at": row.redeemed_at.isoformat() if row.redeemed_at else None,
+        "sale_id": row.sale_id,
+        "receipt_id": row.receipt_id,
+        "redeemed_sale_id": row.redeemed_sale_id,
+    }
+
+
+@router.post("/feedback/coupon/redeem")
+def redeem_feedback_coupon(
+    payload: FeedbackCouponRedeemIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    safe_code = str(payload.code or "").strip().upper()
+    safe_sale_id = str(payload.sale_id or "").strip()
+    if not safe_code or not safe_sale_id:
+        raise HTTPException(status_code=400, detail="code və sale_id məcburidir")
+
+    coupon = db.query(FeedbackCoupon).filter(FeedbackCoupon.tenant_id == tenant.id, FeedbackCoupon.code == safe_code).first()
+    if not coupon:
+        raise HTTPException(status_code=404, detail="Coupon not found")
+    if str(coupon.status or "").upper() != "PENDING":
+        return {"success": False, "reason": "already_redeemed"}
+
+    coupon.status = "REDEEMED"
+    coupon.redeemed_at = _utcnow()
+    coupon.redeemed_sale_id = safe_sale_id
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=str(user.username or "system"),
+            action="FEEDBACK_COUPON_REDEEMED",
+            details=json.dumps({"coupon_code": coupon.code, "sale_id": safe_sale_id}, ensure_ascii=False),
+        )
+    )
+    db.commit()
+    return {"success": True}
+
+
+@router.get("/feedback/inbox")
+def feedback_inbox(
+    date_from: str | None = None,
+    date_to: str | None = None,
+    min_score: int | None = Query(default=None, ge=1, le=5),
+    max_score: int | None = Query(default=None, ge=1, le=5),
+    limit: int = Query(default=200, ge=1, le=2000),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    del user
+    query = db.query(FeedbackEntry, FeedbackCoupon).outerjoin(
+        FeedbackCoupon, FeedbackCoupon.feedback_entry_id == FeedbackEntry.id
+    ).filter(FeedbackEntry.tenant_id == tenant.id)
+    if date_from:
+        query = query.filter(FeedbackEntry.created_at >= datetime.fromisoformat(f"{date_from}T00:00:00"))
+    if date_to:
+        query = query.filter(FeedbackEntry.created_at <= datetime.fromisoformat(f"{date_to}T23:59:59"))
+    if min_score is not None:
+        query = query.filter(FeedbackEntry.score >= int(min_score))
+    if max_score is not None:
+        query = query.filter(FeedbackEntry.score <= int(max_score))
+
+    rows = query.order_by(FeedbackEntry.created_at.desc()).limit(limit).all()
+    return [
+        {
+            "id": entry.id,
+            "tenant_id": entry.tenant_id,
+            "sale_id": entry.sale_id,
+            "receipt_id": entry.receipt_id,
+            "score": int(entry.score or 0),
+            "comment": entry.comment,
+            "contact": entry.contact,
+            "staff_username": entry.staff_username,
+            "source": entry.source,
+            "created_at": entry.created_at.isoformat() if entry.created_at else None,
+            "coupon_code": coupon.code if coupon else None,
+            "coupon_percent": int(coupon.percent or 0) if coupon else None,
+            "coupon_status": coupon.status if coupon else None,
+            "coupon_redeemed_at": coupon.redeemed_at.isoformat() if coupon and coupon.redeemed_at else None,
+        }
+        for entry, coupon in rows
+    ]
+
+
+@router.get("/feedback/inbox/export.csv")
+def feedback_inbox_export_csv(
+    date_from: str | None = None,
+    date_to: str | None = None,
+    min_score: int | None = Query(default=None, ge=1, le=5),
+    max_score: int | None = Query(default=None, ge=1, le=5),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    del user
+    query = db.query(FeedbackEntry, FeedbackCoupon).outerjoin(
+        FeedbackCoupon, FeedbackCoupon.feedback_entry_id == FeedbackEntry.id
+    ).filter(FeedbackEntry.tenant_id == tenant.id)
+    if date_from:
+        query = query.filter(FeedbackEntry.created_at >= datetime.fromisoformat(f"{date_from}T00:00:00"))
+    if date_to:
+        query = query.filter(FeedbackEntry.created_at <= datetime.fromisoformat(f"{date_to}T23:59:59"))
+    if min_score is not None:
+        query = query.filter(FeedbackEntry.score >= int(min_score))
+    if max_score is not None:
+        query = query.filter(FeedbackEntry.score <= int(max_score))
+
+    rows = query.order_by(FeedbackEntry.created_at.desc()).limit(10000).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "created_at",
+            "score",
+            "comment",
+            "contact",
+            "staff_username",
+            "sale_id",
+            "receipt_id",
+            "coupon_code",
+            "coupon_percent",
+            "coupon_status",
+            "coupon_redeemed_at",
+        ]
+    )
+    for entry, coupon in rows:
+        writer.writerow(
+            [
+                entry.created_at.isoformat() if entry.created_at else "",
+                int(entry.score or 0),
+                entry.comment or "",
+                entry.contact or "",
+                entry.staff_username or "",
+                entry.sale_id or "",
+                entry.receipt_id or "",
+                coupon.code if coupon else "",
+                int(coupon.percent or 0) if coupon else "",
+                coupon.status if coupon else "",
+                coupon.redeemed_at.isoformat() if coupon and coupon.redeemed_at else "",
+            ]
+        )
+    output.seek(0)
+    filename = f"feedback_inbox_{tenant.id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/logs/super-errors")

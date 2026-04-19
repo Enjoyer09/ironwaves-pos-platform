@@ -50,16 +50,21 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
   }, [tenantId]);
 
   React.useEffect(() => {
+    let cancelled = false;
     const safeTenant = String(tenantId || '').trim();
     const safeReceipt = String(receiptId || '').trim();
     const safeToken = String(receiptToken || '').trim();
-    if (!safeTenant || !safeReceipt || !safeToken) return;
-    const existingCoupon = get_feedback_coupon_for_receipt_live(safeTenant, safeReceipt, safeToken);
-    if (existingCoupon) {
+    if (!safeTenant || !safeReceipt || !safeToken) return () => { cancelled = true; };
+    void (async () => {
+      const existingCoupon = await get_feedback_coupon_for_receipt_live(safeTenant, safeReceipt, safeToken);
+      if (cancelled || !existingCoupon) return;
       setCoupon({ code: existingCoupon.code, percent: existingCoupon.percent });
       setAlreadySubmitted(true);
       setDone(true);
-    }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [tenantId, receiptId, receiptToken]);
 
   React.useEffect(() => {
