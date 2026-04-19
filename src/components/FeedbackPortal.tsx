@@ -322,14 +322,6 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
       <div className="blob-wave blob-wave-c" />
 
       <div className="mx-auto w-full max-w-[430px]">
-        <div className="glass-safari mb-4 flex items-center justify-between gap-2 rounded-[22px] px-3 py-2.5">
-          <div className="h-4 w-4 rounded-full bg-white/70" />
-          <div className="min-w-0 flex-1 rounded-full bg-white/35 px-3 py-1 text-center text-[12px] font-medium text-slate-700">
-            emalatcoffee.ironwaves.store
-          </div>
-          <div className="h-4 w-4 rounded-full bg-white/60" />
-        </div>
-
         <div className="glass-card relative overflow-hidden rounded-[30px] p-5 text-slate-900">
           <div className="glass-inner-highlight" />
 
