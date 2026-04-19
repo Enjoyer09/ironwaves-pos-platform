@@ -105,7 +105,7 @@ const DEMO_MODULE_GUIDE_AZ: Record<ModuleKey, string> = {
 };
 
 export default function App() {
-  const { user, access_token, refresh_token, logout, lang, setLang, hasHydrated, notify, switchTenantContext, applySessionUser } = useAppStore();
+  const { user, access_token, refresh_token, logout, lang, setLang, hasHydrated, notify, switchTenantContext, applySessionUser, restoreSession } = useAppStore();
   const activeTenant = getActiveTenantId();
   const safeLang = (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az';
   const t = i18n[safeLang];
