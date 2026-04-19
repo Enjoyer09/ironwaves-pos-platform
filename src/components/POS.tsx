@@ -9,7 +9,7 @@ import { get_tables_live, send_to_kitchen_live, pay_table_live } from '../api/ta
 import { get_shift_status, refresh_shift_status } from '../api/reports';
 import { getDB } from '../lib/db_sim';
 import { i18n, tx } from '../i18n';
-import { get_business_profile, get_settings_live } from '../api/settings';
+import { get_business_profile, get_settings, get_settings_live } from '../api/settings';
 import { find_feedback_coupon_live, isFeedbackCouponCode, redeem_feedback_coupon_live } from '../api/feedback';
 import { logUiError } from '../lib/logger';
 import { qzPrintHtml } from '../lib/qz';
@@ -883,11 +883,18 @@ export default function POS() {
               .toFixed(2)} ₼</td></tr>`,
         )
         .join('');
-      const configuredBase = String(tenantSettings?.qr_settings?.base_url || businessProfile?.website || '').trim();
+      let latestSettings: any = tenantSettings;
+      try {
+        latestSettings = await get_settings_live(tenantId);
+        setTenantSettings(latestSettings || {});
+      } catch {
+        latestSettings = get_settings(tenantId) || tenantSettings || {};
+      }
+      const configuredBase = String(latestSettings?.qr_settings?.base_url || tenantSettings?.qr_settings?.base_url || businessProfile?.website || '').trim();
       const baseUrl = (configuredBase || window.location.origin).replace(/\/+$/, '');
       const receiptRef = (sale as any).receipt_code || sale.sale_id;
       const receiptUrl = `${baseUrl}/?r=${encodeURIComponent(receiptRef)}&t=${encodeURIComponent((sale as any).receipt_token || '')}`;
-      const feedbackSettings = tenantSettings?.feedback_settings || {};
+      const feedbackSettings = latestSettings?.feedback_settings || tenantSettings?.feedback_settings || {};
       const feedbackButtonText =
         safeLang === 'ru'
           ? String(feedbackSettings?.receipt_button_text_ru || 'Оставить отзыв')
