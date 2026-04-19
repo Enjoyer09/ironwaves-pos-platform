@@ -20,6 +20,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
   const [sending, setSending] = React.useState(false);
   const [done, setDone] = React.useState(false);
   const [error, setError] = React.useState('');
+  const [coupon, setCoupon] = React.useState<{ code: string; percent: number } | null>(null);
 
   React.useEffect(() => {
     let mounted = true;
@@ -64,7 +65,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
     if (!canSubmit) return;
     try {
       setSending(true);
-      await submit_feedback_live({
+      const result = await submit_feedback_live({
         tenant_id: String(tenantId || 'tenant_default'),
         sale_id: String(saleId || '').trim() || undefined,
         receipt_id: String(receiptId || '').trim() || undefined,
@@ -73,6 +74,12 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
         comment: comment.trim() || undefined,
         contact: contact.trim() || undefined,
       });
+      if (result?.coupon_code) {
+        setCoupon({
+          code: String(result.coupon_code),
+          percent: Number(result.coupon_percent || 5),
+        });
+      }
       setDone(true);
     } catch (e: any) {
       setError(String(e?.message || 'Feedback göndərmək alınmadı'));
@@ -115,6 +122,13 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
             <p className="mt-2 text-sm text-emerald-100/90">
               {String(feedbackSettings?.thank_you_text_az || 'Rəyiniz komanda tərəfindən nəzərdən keçiriləcək.')}
             </p>
+            {coupon?.code ? (
+              <div className="mt-4 rounded-xl border border-emerald-300/40 bg-emerald-400/10 p-3 text-left">
+                <div className="text-xs text-emerald-100/90">Növbəti vizit üçün kupon</div>
+                <div className="mt-1 text-xl font-black tracking-wider text-emerald-200">{coupon.code}</div>
+                <div className="mt-1 text-xs text-emerald-100/90">POS-da kodu göstər, avtomatik {coupon.percent}% endirim tətbiq olunacaq.</div>
+              </div>
+            ) : null}
             {viewReceiptUrl ? (
               <a
                 href={viewReceiptUrl}
