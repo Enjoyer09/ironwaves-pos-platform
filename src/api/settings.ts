@@ -351,7 +351,13 @@ function getSettings(tenant_id?: string): Settings {
       },
       ui_visibility: { staff_show_tables: true, manager_show_tables: true, staff_show_kitchen: true },
       time_settings: { shift_start_time: '08:00', shift_end_time: '23:00', utc_offset: 4, timezone: 'Asia/Baku' },
-      session_settings: { idle_logout_minutes: 0, virtual_keyboard_enabled: true, staff_pin_length: 6, theme_mode: 'dark' },
+      session_settings: {
+        idle_logout_minutes: 0,
+        virtual_keyboard_enabled: true,
+        staff_pin_length: 6,
+        theme_mode: 'dark',
+        ui_mode: 'old',
+      },
       beverage_service_settings: DEFAULT_BEVERAGE_SERVICE_SETTINGS,
       z_report_receipt_settings: DEFAULT_Z_REPORT_RECEIPT_SETTINGS,
       email_settings: {
@@ -583,6 +589,7 @@ export function update_session_settings(payload: {
   virtual_keyboard_enabled?: boolean;
   staff_pin_length?: number;
   theme_mode?: 'dark' | 'light';
+  ui_mode?: 'old' | 'new';
 }) {
   const settings = getSettings();
   const pinLength = Number(payload.staff_pin_length || settings.session_settings?.staff_pin_length || 6);
@@ -593,6 +600,9 @@ export function update_session_settings(payload: {
     theme_mode: payload.theme_mode
       ? (payload.theme_mode === 'light' ? 'light' : 'dark')
       : (settings.session_settings?.theme_mode === 'light' ? 'light' : 'dark'),
+    ui_mode: payload.ui_mode
+      ? (payload.ui_mode === 'new' ? 'new' : 'old')
+      : (settings.session_settings?.ui_mode === 'new' ? 'new' : 'old'),
   };
   saveSettings(settings);
   logEvent('admin', 'SESSION_SETTINGS_UPDATE', settings.session_settings);
@@ -911,18 +921,21 @@ export function get_settings(tenant_id?: string) {
       virtual_keyboard_enabled: true,
       staff_pin_length: 6,
       theme_mode: 'dark',
+      ui_mode: 'old',
     };
     saveSettings(s);
   } else if (
     !s.session_settings.staff_pin_length ||
     typeof s.session_settings.virtual_keyboard_enabled === 'undefined' ||
-    !s.session_settings.theme_mode
+    !s.session_settings.theme_mode ||
+    !s.session_settings.ui_mode
   ) {
     s.session_settings = {
       idle_logout_minutes: Number(s.session_settings.idle_logout_minutes || 0),
       virtual_keyboard_enabled: s.session_settings.virtual_keyboard_enabled !== false,
       staff_pin_length: Number(s.session_settings.staff_pin_length || 6) === 4 ? 4 : 6,
       theme_mode: s.session_settings.theme_mode === 'light' ? 'light' : 'dark',
+      ui_mode: s.session_settings.ui_mode === 'new' ? 'new' : 'old',
     };
     saveSettings(s);
   }
@@ -1178,6 +1191,13 @@ export async function get_settings_live(tenant_id?: string) {
     (responseTenant ? overrides[responseTenant] : undefined);
   const merged: Settings = {
     ...data,
+    session_settings: {
+      idle_logout_minutes: Number(data?.session_settings?.idle_logout_minutes || 0),
+      virtual_keyboard_enabled: data?.session_settings?.virtual_keyboard_enabled !== false,
+      staff_pin_length: Number(data?.session_settings?.staff_pin_length || 6) === 4 ? 4 : 6,
+      theme_mode: data?.session_settings?.theme_mode === 'light' ? 'light' : 'dark',
+      ui_mode: data?.session_settings?.ui_mode === 'new' ? 'new' : 'old',
+    },
     feedback_settings: normalizeFeedbackSettings(scopedOverride || data?.feedback_settings),
   };
   saveSettings(merged);
@@ -1331,6 +1351,7 @@ export async function update_session_settings_live(payload: {
   virtual_keyboard_enabled?: boolean;
   staff_pin_length?: number;
   theme_mode?: 'dark' | 'light';
+  ui_mode?: 'old' | 'new';
 }) {
   if (!isBackendEnabled()) return update_session_settings(payload);
   await apiRequest('/api/v1/ops/settings/session', { method: 'PATCH', tenantId: null, body: payload });

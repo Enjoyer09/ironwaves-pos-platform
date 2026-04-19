@@ -78,6 +78,11 @@ export default function PinLogin() {
       get_settings_live(tenantId)
         .then((settings) => {
           const next = Number(settings?.session_settings?.staff_pin_length || 6) === 4 ? 4 : 6;
+          const uiMode = String(settings?.session_settings?.ui_mode || 'old').toLowerCase() === 'new' ? 'new' : 'old';
+          if (typeof document !== 'undefined') {
+            document.documentElement.setAttribute('data-ui-mode', uiMode);
+          }
+          window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
           setStaffPinLength(next);
           setPin((prev) => prev.slice(0, next));
         })

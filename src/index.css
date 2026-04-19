@@ -58,6 +58,15 @@
   --metal-highlight: rgba(255, 255, 255, 0.9);
 }
 
+:root[data-ui-mode='new'] {
+  --metal-bg: radial-gradient(circle at 12% 8%, #162537 0%, #0b1422 42%, #050b14 100%);
+  --metal-panel: linear-gradient(165deg, rgba(18, 27, 40, 0.92), rgba(11, 18, 28, 0.88));
+  --metal-stroke: rgba(148, 163, 184, 0.34);
+  --metal-highlight: rgba(248, 250, 252, 0.14);
+  --gold-a: #e7c06a;
+  --gold-b: #bf9841;
+}
+
 html,
 body,
 #root {
@@ -74,6 +83,11 @@ body {
   color: #f3f4f6;
   min-height: 100dvh;
   overflow: hidden;
+}
+
+html[data-ui-mode='new'] body {
+  color: #f8fafc;
+  background: var(--metal-bg);
 }
 
 html[data-theme='light'] body {
@@ -255,6 +269,77 @@ html {
 
   .animate-marquee {
     animation: marquee 20s linear infinite;
+  }
+
+  html[data-ui-mode='new'] .metal-app {
+    color: #f8fafc;
+    background:
+      radial-gradient(circle at 14% 9%, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0) 42%),
+      radial-gradient(circle at 88% 12%, rgba(245, 158, 11, 0.08) 0%, rgba(245, 158, 11, 0) 40%),
+      var(--metal-bg);
+  }
+
+  html[data-ui-mode='new'] .metal-panel {
+    border-color: rgba(148, 163, 184, 0.3);
+    background: linear-gradient(170deg, rgba(15, 24, 37, 0.96), rgba(8, 14, 22, 0.9));
+    box-shadow:
+      0 16px 44px rgba(2, 6, 23, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(8px);
+  }
+
+  html[data-ui-mode='new'] .neon-btn,
+  html[data-ui-mode='new'] .neon-chip,
+  html[data-ui-mode='new'] .neon-tab,
+  html[data-ui-mode='new'] .pay-btn {
+    border-color: rgba(148, 163, 184, 0.28);
+    color: #e2e8f0;
+    background: linear-gradient(165deg, rgba(22, 33, 49, 0.95), rgba(11, 17, 27, 0.92));
+    box-shadow: 0 10px 24px rgba(2, 6, 23, 0.4);
+  }
+
+  html[data-ui-mode='new'] .neon-btn:hover,
+  html[data-ui-mode='new'] .neon-chip:hover,
+  html[data-ui-mode='new'] .neon-tab:hover,
+  html[data-ui-mode='new'] .pay-btn:hover {
+    background: linear-gradient(165deg, rgba(28, 42, 62, 0.96), rgba(14, 23, 36, 0.94));
+  }
+
+  html[data-ui-mode='new'] .neon-btn-active,
+  html[data-ui-mode='new'] .neon-chip-active,
+  html[data-ui-mode='new'] .neon-tab-active,
+  html[data-ui-mode='new'] .pay-btn-active,
+  html[data-ui-mode='new'] .glossy-gold {
+    color: #111827;
+    border-color: #f9df95;
+    background: linear-gradient(180deg, #f2d48d 0%, #cda14e 100%);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.22),
+      0 10px 26px rgba(161, 120, 44, 0.28);
+  }
+
+  html[data-ui-mode='new'] .neon-input {
+    color: #e2e8f0;
+    border-color: rgba(148, 163, 184, 0.32);
+    background: linear-gradient(180deg, rgba(11, 18, 30, 0.98), rgba(7, 13, 22, 0.98));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      inset 0 -1px 0 rgba(15, 23, 42, 0.55);
+  }
+
+  html[data-ui-mode='new'] .neon-input::placeholder {
+    color: #7c8da5;
+  }
+
+  html[data-ui-mode='new'] .neon-item {
+    border-color: rgba(148, 163, 184, 0.28);
+    background: linear-gradient(170deg, rgba(19, 29, 43, 0.95), rgba(10, 17, 27, 0.92));
+    color: #e2e8f0;
+  }
+
+  html[data-ui-mode='new'] .neon-item:hover {
+    border-color: rgba(216, 177, 86, 0.65);
+    background: linear-gradient(170deg, rgba(24, 37, 55, 0.96), rgba(12, 20, 32, 0.94));
   }
 }
 

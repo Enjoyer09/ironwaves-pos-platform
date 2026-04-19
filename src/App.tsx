@@ -384,6 +384,12 @@ export default function App() {
   }, [themeMode]);
 
   useEffect(() => {
+    const root = document.documentElement;
+    const uiMode = String(settings?.session_settings?.ui_mode || 'old').toLowerCase() === 'new' ? 'new' : 'old';
+    root.setAttribute('data-ui-mode', uiMode);
+  }, [settings?.session_settings?.ui_mode]);
+
+  useEffect(() => {
     const handleOpenTableInPos = () => setCurrentModule('pos');
     window.addEventListener('open-table-in-pos', handleOpenTableInPos as EventListener);
     return () => {
