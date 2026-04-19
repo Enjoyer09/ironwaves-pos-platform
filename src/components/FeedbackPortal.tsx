@@ -123,6 +123,19 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
     );
   }
 
+  if (!hasValidReceiptLink) {
+    return (
+      <div className="metal-app flex min-h-screen items-center justify-center px-4 text-slate-200">
+        <div className="metal-panel w-full max-w-xl rounded-3xl p-8 text-center">
+          <h1 className="text-xl font-bold">Feedback linki etibarsızdır</h1>
+          <p className="mt-2 text-sm text-slate-400">
+            Bu səhifə yalnız çek üzərindəki QR linki (r+t) ilə açılmalıdır.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen px-4 py-8" style={{ background: `radial-gradient(circle at top right, ${accentColor}22, transparent 40%), ${backgroundColor}` }}>
       <div className="mx-auto w-full max-w-2xl rounded-3xl border border-slate-700/60 bg-slate-950/55 p-6 shadow-2xl">
@@ -182,12 +195,6 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
         ) : (
           <>
             <p className="mb-4 text-sm text-slate-300">{subHeading}</p>
-            {!hasValidReceiptLink ? (
-              <div className="mb-4 rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
-                Bu səhifə yalnız çekdəki QR linki ilə açılmalıdır (r+t parametrləri məcburidir).
-              </div>
-            ) : null}
-
             <div className="mb-4 rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4">
               <div className="mb-2 text-sm font-semibold text-slate-200">Qiymətləndirmə</div>
               <div className="flex items-center gap-1">
