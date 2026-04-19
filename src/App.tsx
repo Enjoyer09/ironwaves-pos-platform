@@ -105,7 +105,7 @@ const DEMO_MODULE_GUIDE_AZ: Record<ModuleKey, string> = {
 };
 
 export default function App() {
-  const { user, access_token, logout, lang, setLang, hasHydrated, notify, switchTenantContext, applySessionUser, restoreSession } = useAppStore();
+  const { user, access_token, refresh_token, logout, lang, setLang, hasHydrated, notify, switchTenantContext, applySessionUser } = useAppStore();
   const activeTenant = getActiveTenantId();
   const safeLang = (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az';
   const t = i18n[safeLang];
@@ -283,10 +283,12 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [demoGuideBubble, setDemoGuideBubble] = useState<DemoGuideBubble | null>(null);
+  const [manualRefreshing, setManualRefreshing] = useState(false);
   const demoGuideShownModulesRef = useRef<Set<ModuleKey>>(new Set());
   const offlineCountRef = useRef(0);
   const pendingOfflineInFlightRef = useRef(false);
   const notificationInFlightRef = useRef(false);
+  const softRefreshInFlightRef = useRef(false);
   const businessProfileUpdateTimerRef = useRef<number | null>(null);
   const settingsUpdateTimerRef = useRef<number | null>(null);
 
@@ -1007,6 +1009,82 @@ export default function App() {
     };
   }, [demoGuideEnabled]);
 
+  const runSoftRefresh = async (source: 'manual' | 'auto' = 'manual') => {
+    if (softRefreshInFlightRef.current) return;
+    softRefreshInFlightRef.current = true;
+    if (source === 'manual') setManualRefreshing(true);
+    const tenantForRefresh = String(user?.tenant_id || activeTenant || '').trim();
+
+    try {
+      // Best effort only: refresh action must not kick user out.
+      if (isBackendEnabled() && refresh_token && user?.username) {
+        try {
+          await authApi.refresh_token(refresh_token, tenantForRefresh || activeTenant);
+        } catch {
+          // ignore on purpose; we still refresh local state/views
+        }
+      }
+
+      if (tenantForRefresh) {
+        await Promise.all([
+          get_business_profile_live(tenantForRefresh).catch(() => null),
+          get_settings_live(tenantForRefresh).catch(() => null),
+        ]);
+      }
+
+      setBusinessProfileVersion((prev) => prev + 1);
+      setSettingsVersion((prev) => prev + 1);
+      const detail = { tenant_id: tenantForRefresh };
+      window.dispatchEvent(new CustomEvent('business-profile-updated', { detail }));
+      window.dispatchEvent(new CustomEvent('settings-updated', { detail }));
+      window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { ...detail, scope: 'all' } }));
+
+      if (source === 'manual') {
+        notify('success', tx(safeLang, 'Məlumatlar yeniləndi', 'Данные обновлены', 'Data refreshed'));
+      }
+    } catch (error: any) {
+      if (source === 'manual') {
+        notify('error', String(error?.message || tx(safeLang, 'Yeniləmə alınmadı', 'Обновление не удалось', 'Refresh failed')));
+      }
+    } finally {
+      if (source === 'manual') setManualRefreshing(false);
+      softRefreshInFlightRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    if (!hasValidUser) return;
+    let timerId: number | null = null;
+    const scheduleNext = () => {
+      timerId = window.setTimeout(async () => {
+        if (document.visibilityState === 'visible') {
+          const activeEl = document.activeElement as HTMLElement | null;
+          const tag = String(activeEl?.tagName || '').toLowerCase();
+          const typing = Boolean(activeEl?.isContentEditable) || tag === 'input' || tag === 'textarea' || tag === 'select';
+          if (!typing) {
+            await runSoftRefresh('auto');
+          }
+        }
+        scheduleNext();
+      }, 60000);
+    };
+
+    const onVisible = () => {
+      if (!document.hidden) {
+        void runSoftRefresh('auto');
+      }
+    };
+
+    scheduleNext();
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      if (timerId) window.clearTimeout(timerId);
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [hasValidUser, user?.tenant_id, activeTenant, refresh_token]);
+
   const enterFullscreen = async () => {
     try {
       if (typeof document === 'undefined') return;
@@ -1120,8 +1198,8 @@ export default function App() {
             )}
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-            <button onClick={() => window.location.reload()} className="neon-btn px-4 py-3">
-              {tx(safeLang, 'Yenilə', 'Обновить', 'Refresh')}
+            <button onClick={() => void runSoftRefresh('manual')} disabled={manualRefreshing} className="neon-btn px-4 py-3 disabled:opacity-60">
+              {manualRefreshing ? tx(safeLang, 'Yenilənir...', 'Обновляется...', 'Refreshing...') : tx(safeLang, 'Yenilə', 'Обновить', 'Refresh')}
             </button>
             <a
               href="mailto:abbas@laptopmarket.az"
@@ -1271,15 +1349,18 @@ export default function App() {
                 </div>
               )}
               <button
-                onClick={() => window.location.reload()}
-                className="neon-btn px-3 py-2"
-                title="Yenilə"
+                onClick={() => void runSoftRefresh('manual')}
+                disabled={manualRefreshing}
+                className="neon-btn px-3 py-2 disabled:opacity-60"
+                title={manualRefreshing ? tx(safeLang, 'Yenilənir...', 'Обновляется...', 'Refreshing...') : 'Yenilə'}
                 onMouseEnter={(e) => handleDemoGuideHover(describeActionAz('yenilə'), e)}
                 onMouseMove={(e) => handleDemoGuideHover(describeActionAz('yenilə'), e)}
                 onMouseLeave={() => setDemoGuideBubble(null)}
               >
                 <RotateCcw size={16} />
-                <span className="hidden sm:inline">{t.refresh}</span>
+                <span className="hidden sm:inline">
+                  {manualRefreshing ? tx(safeLang, 'Yenilənir...', 'Обновляется...', 'Refreshing...') : t.refresh}
+                </span>
               </button>
               <button
                 onClick={() => setLang(safeLang === 'az' ? 'ru' : safeLang === 'ru' ? 'en' : 'az')}
