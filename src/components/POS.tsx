@@ -27,6 +27,7 @@ import {
 } from '../lib/offline';
 import { apiRequest, isBackendEnabled } from '../api/client';
 import ConfirmModal from './ConfirmModal';
+import { getTenantDomains } from '../lib/tenant';
 
 type OrderType = 'Dine In' | 'Take Away' | 'Order Online';
 type PaymentMethod = 'Nəğd' | 'Kart' | 'Split' | 'Staff';
@@ -892,6 +893,12 @@ export default function POS() {
       }
       const configuredBase = String(latestSettings?.qr_settings?.base_url || tenantSettings?.qr_settings?.base_url || businessProfile?.website || '').trim();
       const baseUrl = (configuredBase || window.location.origin).replace(/\/+$/, '');
+      const tenantDomainRows = getTenantDomains();
+      const tenantDomain =
+        tenantDomainRows.find((row) => String(row?.tenant_id || '') === tenantId && Boolean(row?.is_primary))?.domain ||
+        tenantDomainRows.find((row) => String(row?.tenant_id || '') === tenantId)?.domain ||
+        '';
+      const tenantBaseUrl = tenantDomain ? `https://${String(tenantDomain).trim().replace(/^https?:\/\//, '')}` : baseUrl;
       const receiptRef = (sale as any).receipt_code || sale.sale_id;
       const receiptUrl = `${baseUrl}/?r=${encodeURIComponent(receiptRef)}&t=${encodeURIComponent((sale as any).receipt_token || '')}`;
       const feedbackSettings = latestSettings?.feedback_settings || tenantSettings?.feedback_settings || {};
@@ -916,7 +923,7 @@ export default function POS() {
                 feedbackSettings?.receipt_qr_prompt_az ||
                   'Rəyiniz bizim üçün çox önəmlidir, lütfən QR skan edib rəyinizi bildirin.',
               );
-      const defaultFeedbackPortalUrl = `${baseUrl}/feedback`;
+      const defaultFeedbackPortalUrl = `${tenantBaseUrl.replace(/\/+$/, '')}/feedback`;
       const feedbackBaseUrl = String(
         feedbackSettings?.portal_url || defaultFeedbackPortalUrl || feedbackSettings?.google_review_url || '',
       ).trim();
@@ -924,7 +931,14 @@ export default function POS() {
       let feedbackUrl = '';
       if (feedbackBaseUrl) {
         try {
-          const u = new URL(feedbackBaseUrl, baseUrl);
+          const u = new URL(feedbackBaseUrl, tenantBaseUrl);
+          // If settings were accidentally saved with super domain, force tenant primary domain.
+          if (tenantDomain && u.hostname === 'super.ironwaves.store') {
+            u.hostname = String(tenantDomain).trim().replace(/^https?:\/\//, '');
+          }
+          if (!u.pathname || u.pathname === '/') {
+            u.pathname = '/feedback';
+          }
           u.searchParams.set('tenant_id', tenantId);
           u.searchParams.set('sale_id', String(sale.sale_id || ''));
           u.searchParams.set('receipt_id', String(receiptRef || ''));

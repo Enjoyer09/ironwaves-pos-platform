@@ -2,6 +2,7 @@ import React from 'react';
 import { Star } from 'lucide-react';
 import { get_business_profile, get_public_branding_live, get_settings } from '../api/settings';
 import { submit_feedback_live } from '../api/feedback';
+import QRCode from 'qrcode';
 
 type Props = {
   tenantId?: string;
@@ -21,6 +22,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
   const [done, setDone] = React.useState(false);
   const [error, setError] = React.useState('');
   const [coupon, setCoupon] = React.useState<{ code: string; percent: number } | null>(null);
+  const [couponQrDataUrl, setCouponQrDataUrl] = React.useState('');
 
   React.useEffect(() => {
     let mounted = true;
@@ -44,6 +46,26 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
       mounted = false;
     };
   }, [tenantId]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (!coupon?.code) {
+        if (!cancelled) setCouponQrDataUrl('');
+        return;
+      }
+      try {
+        const payload = `IWPOS:FB:${String(coupon.code).trim().toUpperCase()}`;
+        const qr = await QRCode.toDataURL(payload, { width: 220, margin: 1 });
+        if (!cancelled) setCouponQrDataUrl(qr);
+      } catch {
+        if (!cancelled) setCouponQrDataUrl('');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [coupon?.code]);
 
   const feedbackSettings = settings?.feedback_settings || {};
   const primaryColor = String(settings?.customer_app_settings?.primary_color || '#facc15');
@@ -127,6 +149,12 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
                 <div className="text-xs text-emerald-100/90">Növbəti vizit üçün kupon</div>
                 <div className="mt-1 text-xl font-black tracking-wider text-emerald-200">{coupon.code}</div>
                 <div className="mt-1 text-xs text-emerald-100/90">POS-da kodu göstər, avtomatik {coupon.percent}% endirim tətbiq olunacaq.</div>
+                {couponQrDataUrl ? (
+                  <div className="mt-3 flex flex-col items-center rounded-lg border border-emerald-300/30 bg-emerald-500/10 p-2">
+                    <img src={couponQrDataUrl} alt="Feedback coupon QR" className="h-28 w-28 rounded bg-white p-1" />
+                    <div className="mt-2 text-[11px] text-emerald-100/90">Kassada QR-i skan edin (IWPOS:FB)</div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
             {viewReceiptUrl ? (
