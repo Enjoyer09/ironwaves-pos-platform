@@ -274,10 +274,18 @@ const FEEDBACK_SETTINGS_OVERRIDES_KEY = 'iw_feedback_settings_overrides_v1';
 
 function normalizeFeedbackSettings(source?: Settings['feedback_settings']): NonNullable<Settings['feedback_settings']> {
   const raw = source || {};
+  const rawEnabled = (raw as any).enabled;
+  const enabledNormalized =
+    rawEnabled === true ||
+    rawEnabled === 1 ||
+    rawEnabled === '1' ||
+    String(rawEnabled || '').toLowerCase() === 'true' ||
+    String(rawEnabled || '').toLowerCase() === 'yes' ||
+    String(rawEnabled || '').toLowerCase() === 'on';
   return {
     ...DEFAULT_FEEDBACK_SETTINGS,
     ...raw,
-    enabled: raw.enabled === true,
+    enabled: enabledNormalized,
     portal_url: String(raw.portal_url || '').trim(),
     google_review_url: String(raw.google_review_url || '').trim(),
     receipt_button_text_az: String(raw.receipt_button_text_az || DEFAULT_FEEDBACK_SETTINGS.receipt_button_text_az).trim(),
