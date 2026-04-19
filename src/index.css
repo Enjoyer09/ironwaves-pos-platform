@@ -341,6 +341,37 @@ html {
     border-color: rgba(216, 177, 86, 0.65);
     background: linear-gradient(170deg, rgba(24, 37, 55, 0.96), rgba(12, 20, 32, 0.94));
   }
+
+  html[data-ui-mode='new'] [class*='bg-slate-950/'],
+  html[data-ui-mode='new'] [class*='bg-slate-900/'],
+  html[data-ui-mode='new'] [class*='bg-slate-800/'],
+  html[data-ui-mode='new'] [class*='bg-slate-900 '],
+  html[data-ui-mode='new'] [class*='bg-slate-950 '] {
+    background-color: rgba(8, 14, 24, 0.9) !important;
+  }
+
+  html[data-ui-mode='new'] [class*='border-slate-900'],
+  html[data-ui-mode='new'] [class*='border-slate-800'],
+  html[data-ui-mode='new'] [class*='border-slate-700'],
+  html[data-ui-mode='new'] [class*='border-slate-600'] {
+    border-color: rgba(148, 163, 184, 0.3) !important;
+  }
+
+  html[data-ui-mode='new'] [class*='text-slate-100'],
+  html[data-ui-mode='new'] [class*='text-slate-200'] {
+    color: #f8fafc !important;
+  }
+
+  html[data-ui-mode='new'] [class*='text-slate-300'],
+  html[data-ui-mode='new'] [class*='text-slate-400'],
+  html[data-ui-mode='new'] [class*='text-slate-500'] {
+    color: #9aa7ba !important;
+  }
+
+  html[data-ui-mode='new'] [class*='rounded-2xl'],
+  html[data-ui-mode='new'] [class*='rounded-3xl'] {
+    box-shadow: 0 12px 28px rgba(2, 6, 23, 0.24);
+  }
 }
 
 @layer utilities {
