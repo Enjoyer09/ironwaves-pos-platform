@@ -76,7 +76,8 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
   const subHeading = 'Xidmət keyfiyyətini yaxşılaşdırmaq üçün 30 saniyə ayırın.';
   const lowScoreThreshold = 3;
   const requireComment = score > 0 && score <= lowScoreThreshold;
-  const canSubmit = score >= 1 && (!requireComment || comment.trim().length >= 3) && !sending;
+  const hasValidReceiptLink = Boolean(String(receiptId || '').trim() && String(receiptToken || '').trim());
+  const canSubmit = hasValidReceiptLink && score >= 1 && (!requireComment || comment.trim().length >= 3) && !sending;
   const viewReceiptUrl =
     String(receiptId || '').trim() && String(receiptToken || '').trim()
       ? `/?r=${encodeURIComponent(String(receiptId || '').trim())}&t=${encodeURIComponent(String(receiptToken || '').trim())}`
@@ -91,6 +92,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
         tenant_id: String(tenantId || 'tenant_default'),
         sale_id: String(saleId || '').trim() || undefined,
         receipt_id: String(receiptId || '').trim() || undefined,
+        receipt_token: String(receiptToken || '').trim() || undefined,
         source,
         score,
         comment: comment.trim() || undefined,
@@ -180,6 +182,11 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
         ) : (
           <>
             <p className="mb-4 text-sm text-slate-300">{subHeading}</p>
+            {!hasValidReceiptLink ? (
+              <div className="mb-4 rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                Bu səhifə yalnız çekdəki QR linki ilə açılmalıdır (r+t parametrləri məcburidir).
+              </div>
+            ) : null}
 
             <div className="mb-4 rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4">
               <div className="mb-2 text-sm font-semibold text-slate-200">Qiymətləndirmə</div>
