@@ -920,9 +920,9 @@ export default function POS() {
       const feedbackBaseUrl = String(
         feedbackSettings?.portal_url || defaultFeedbackPortalUrl || feedbackSettings?.google_review_url || '',
       ).trim();
-      const feedbackEnabled = feedbackSettings?.enabled !== false && Boolean(feedbackBaseUrl);
+      const feedbackEnabled = Boolean(feedbackBaseUrl);
       let feedbackUrl = '';
-      if (feedbackEnabled && feedbackBaseUrl) {
+      if (feedbackBaseUrl) {
         try {
           const u = new URL(feedbackBaseUrl, baseUrl);
           u.searchParams.set('tenant_id', tenantId);
@@ -938,7 +938,7 @@ export default function POS() {
       const barcodeSvg = generateBarcodeSvg(`SALE:${sale.sale_id}`);
       const receiptCustomerId = String((sale as any)?.customer_card_id || ctx.customer?.card_id || '').trim();
       const receiptStarsAfter = Number((sale as any)?.customer_stars_after ?? totals.customer_stars_after ?? 0);
-      const qrDataUrl = await QRCode.toDataURL(feedbackEnabled && feedbackUrl ? feedbackUrl : receiptUrl, {
+      const qrDataUrl = await QRCode.toDataURL(feedbackUrl || receiptUrl, {
         width: 156,
         margin: 2,
         errorCorrectionLevel: 'L',
@@ -947,28 +947,6 @@ export default function POS() {
           light: '#FFFFFF',
         },
       });
-      const viewReceiptQrDataUrl = feedbackEnabled && feedbackUrl
-        ? await QRCode.toDataURL(receiptUrl, {
-            width: 140,
-            margin: 2,
-            errorCorrectionLevel: 'L',
-            color: {
-              dark: '#000000',
-              light: '#FFFFFF',
-            },
-          })
-        : '';
-      const feedbackQrDataUrl = !feedbackEnabled && feedbackUrl
-        ? await QRCode.toDataURL(feedbackUrl, {
-            width: 156,
-            margin: 2,
-            errorCorrectionLevel: 'L',
-            color: {
-              dark: '#000000',
-              light: '#FFFFFF',
-            },
-          })
-        : '';
 
       setReceiptHtml(`
         <html>
@@ -1008,21 +986,7 @@ export default function POS() {
             <div style="display:flex;justify-content:center;margin:8px 0 6px 0">
               <img src="${qrDataUrl}" alt="receipt qr" style="width:108px;height:108px" />
             </div>
-            ${feedbackEnabled && feedbackUrl ? `<div class="muted" style="font-size:10px;text-align:center">${feedbackPromptText}</div>` : ''}
-            ${viewReceiptQrDataUrl ? `
-              <div class="muted" style="text-align:center;margin-top:8px">${tx(lang, 'Çeki gör', 'Посмотреть чек', 'View receipt')}</div>
-              <div style="display:flex;justify-content:center;margin:6px 0 4px 0">
-                <img src="${viewReceiptQrDataUrl}" alt="view receipt qr" style="width:84px;height:84px" />
-              </div>
-              <div class="muted" style="font-size:10px;text-align:center;word-break:break-all">${receiptUrl}</div>
-            ` : ''}
-            ${feedbackQrDataUrl ? `
-              <div class="muted" style="text-align:center;margin-top:8px">${feedbackButtonText}</div>
-              <div style="display:flex;justify-content:center;margin:6px 0 4px 0">
-                <img src="${feedbackQrDataUrl}" alt="feedback qr" style="width:92px;height:92px" />
-              </div>
-              <div class="muted" style="font-size:10px;text-align:center;word-break:break-all">${feedbackUrl}</div>
-            ` : ''}
+            ${feedbackEnabled ? `<div class="muted" style="font-size:10px;text-align:center">${feedbackPromptText}</div>` : ''}
             <hr />
             <div class="muted">${businessProfile?.receipt_footer || tx(lang, 'Bizi seçdiyiniz üçün təşəkkür edirik!', 'Спасибо, что выбрали нас!', 'Thank you for choosing us!')}</div>
           </body>
