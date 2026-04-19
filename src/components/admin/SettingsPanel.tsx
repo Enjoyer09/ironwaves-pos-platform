@@ -151,6 +151,10 @@ export default function SettingsPanel() {
     receipt_button_text_ru: 'Оставить отзыв',
     receipt_button_text_en: 'Leave feedback',
   });
+  const autoFeedbackPortalUrl = React.useMemo(() => {
+    const base = String(profile?.qr_base_url || profile?.website || '').trim() || window.location.origin;
+    return `${base.replace(/\/+$/, '')}/feedback`;
+  }, [profile?.qr_base_url, profile?.website]);
   const [qrMenuPosterDataUrl, setQrMenuPosterDataUrl] = useState('');
   const [bankCommission, setBankCommission] = useState({
     card_sale_percent: '2',
@@ -301,6 +305,13 @@ export default function SettingsPanel() {
       notify('error', usersRes.reason?.message || tx(lang, 'İstifadəçiləri yükləmək alınmadı', 'Не удалось загрузить пользователей', 'Failed to load users'));
     }
     if (settingsRes.status === 'fulfilled') {
+      const profileWebsite =
+        profileRes.status === 'fulfilled' ? String(profileRes.value?.website || '').trim() : '';
+      const feedbackBase =
+        String(settingsRes.value.qr_settings?.base_url || '').trim() ||
+        profileWebsite ||
+        window.location.origin;
+      const derivedFeedbackPortalUrl = `${feedbackBase.replace(/\/+$/, '')}/feedback`;
       setRoleModules(settingsRes.value.role_modules || defaultRoleModules);
       setEmailSettings({
         enabled: Boolean(settingsRes.value.email_settings?.enabled),
@@ -357,7 +368,7 @@ export default function SettingsPanel() {
       });
       setFeedbackSettings({
         enabled: settingsRes.value.feedback_settings?.enabled === true,
-        portal_url: String(settingsRes.value.feedback_settings?.portal_url || ''),
+        portal_url: String(settingsRes.value.feedback_settings?.portal_url || derivedFeedbackPortalUrl),
         google_review_url: String(settingsRes.value.feedback_settings?.google_review_url || ''),
         receipt_button_text_az: String(settingsRes.value.feedback_settings?.receipt_button_text_az || 'Rəy bildirin'),
         receipt_button_text_ru: String(settingsRes.value.feedback_settings?.receipt_button_text_ru || 'Оставить отзыв'),
@@ -806,14 +817,16 @@ export default function SettingsPanel() {
   };
 
   const saveFeedbackSettings = async () => {
+    const resolvedPortalUrl = String(feedbackSettings.portal_url || '').trim() || autoFeedbackPortalUrl;
     await update_feedback_settings_live({
       enabled: feedbackSettings.enabled,
-      portal_url: String(feedbackSettings.portal_url || '').trim(),
+      portal_url: resolvedPortalUrl,
       google_review_url: String(feedbackSettings.google_review_url || '').trim(),
       receipt_button_text_az: String(feedbackSettings.receipt_button_text_az || '').trim() || 'Rəy bildirin',
       receipt_button_text_ru: String(feedbackSettings.receipt_button_text_ru || '').trim() || 'Оставить отзыв',
       receipt_button_text_en: String(feedbackSettings.receipt_button_text_en || '').trim() || 'Leave feedback',
     });
+    setFeedbackSettings((prev) => ({ ...prev, portal_url: resolvedPortalUrl }));
     flashSuccess(tx(lang, 'Feedback portal ayarları yadda saxlanıldı', 'Настройки feedback портала сохранены', 'Feedback portal settings saved'));
   };
 
@@ -1314,8 +1327,18 @@ export default function SettingsPanel() {
               className="neon-input"
               value={feedbackSettings.portal_url}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, portal_url: e.target.value }))}
-              placeholder="https://feedback.example.com/form"
+              placeholder={autoFeedbackPortalUrl}
             />
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+              <span>{tx(lang, 'Tövsiyə olunan daxili link', 'Рекомендуемая внутренняя ссылка', 'Recommended internal link')}: {autoFeedbackPortalUrl}</span>
+              <button
+                type="button"
+                onClick={() => setFeedbackSettings((prev) => ({ ...prev, portal_url: autoFeedbackPortalUrl }))}
+                className="neon-btn rounded-lg px-3 py-1 text-xs"
+              >
+                {tx(lang, 'Auto doldur', 'Автозаполнить', 'Auto fill')}
+              </button>
+            </div>
           </div>
           <div className="field-stack form-card md:col-span-2">
             <label className="field-label">{tx(lang, 'Google review URL', 'URL Google review', 'Google review URL')}</label>
