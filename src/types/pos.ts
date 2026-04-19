@@ -179,6 +179,7 @@ export interface Settings {
     virtual_keyboard_enabled?: boolean;
     staff_pin_length?: 4 | 6;
     theme_mode?: 'dark' | 'light';
+    ui_mode?: 'old' | 'new';
   };
   beverage_service_settings?: {
     coffee_selection_mode: 'size_only' | 'size_and_service';

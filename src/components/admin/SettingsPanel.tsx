@@ -105,6 +105,7 @@ export default function SettingsPanel() {
     virtual_keyboard_enabled: true,
     staff_pin_length: 6 as 4 | 6,
     theme_mode: 'dark' as 'dark' | 'light',
+    ui_mode: 'old' as 'old' | 'new',
   });
   const [beverageServiceSettings, setBeverageServiceSettings] = useState({
     coffee_selection_mode: 'size_and_service' as 'size_only' | 'size_and_service',
@@ -352,6 +353,7 @@ export default function SettingsPanel() {
         virtual_keyboard_enabled: settingsRes.value.session_settings?.virtual_keyboard_enabled !== false,
         staff_pin_length: Number(settingsRes.value.session_settings?.staff_pin_length || 6) === 4 ? 4 : 6,
         theme_mode: settingsRes.value.session_settings?.theme_mode === 'light' ? 'light' : 'dark',
+        ui_mode: settingsRes.value.session_settings?.ui_mode === 'new' ? 'new' : 'old',
       });
       setBeverageServiceSettings({
         coffee_selection_mode: settingsRes.value.beverage_service_settings?.coffee_selection_mode === 'size_only' ? 'size_only' : 'size_and_service',
@@ -544,6 +546,7 @@ export default function SettingsPanel() {
         virtual_keyboard_enabled: sessionSettings.virtual_keyboard_enabled,
         staff_pin_length: sessionSettings.staff_pin_length,
         theme_mode: sessionSettings.theme_mode,
+        ui_mode: sessionSettings.ui_mode,
       });
       window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
       flashSuccess(tx(lang, 'Sessiya ayarları yadda saxlanıldı', 'Настройки сессии сохранены', 'Session settings saved'), 'session');
@@ -560,6 +563,7 @@ export default function SettingsPanel() {
         virtual_keyboard_enabled: nextEnabled,
         staff_pin_length: sessionSettings.staff_pin_length,
         theme_mode: sessionSettings.theme_mode,
+        ui_mode: sessionSettings.ui_mode,
       });
       window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
       flashSuccess(
@@ -583,6 +587,7 @@ export default function SettingsPanel() {
         virtual_keyboard_enabled: sessionSettings.virtual_keyboard_enabled,
         staff_pin_length: sessionSettings.staff_pin_length,
         theme_mode: nextMode,
+        ui_mode: sessionSettings.ui_mode,
       });
       window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
       flashSuccess(
@@ -593,6 +598,30 @@ export default function SettingsPanel() {
     } catch (e: any) {
       setSessionSettings((prev) => ({ ...prev, theme_mode: previous }));
       notify('error', e?.message || tx(lang, 'Tema ayarı saxlanmadı', 'Настройка темы не сохранена', 'Theme setting was not saved'));
+    }
+  };
+
+  const changeUiMode = async (nextMode: 'old' | 'new') => {
+    if (sessionSettings.ui_mode === nextMode) return;
+    const previous = sessionSettings.ui_mode;
+    setSessionSettings((prev) => ({ ...prev, ui_mode: nextMode }));
+    try {
+      await update_session_settings_live({
+        idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
+        virtual_keyboard_enabled: sessionSettings.virtual_keyboard_enabled,
+        staff_pin_length: sessionSettings.staff_pin_length,
+        theme_mode: sessionSettings.theme_mode,
+        ui_mode: nextMode,
+      });
+      window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
+      flashSuccess(
+        nextMode === 'new'
+          ? tx(lang, 'Yeni premium UI aktiv edildi', 'Новый premium UI включен', 'New premium UI enabled')
+          : tx(lang, 'Legacy UI aktiv edildi', 'Legacy UI включен', 'Legacy UI enabled'),
+      );
+    } catch (e: any) {
+      setSessionSettings((prev) => ({ ...prev, ui_mode: previous }));
+      notify('error', e?.message || tx(lang, 'UI rejimi saxlanmadı', 'Режим UI не сохранен', 'UI mode was not saved'));
     }
   };
 
@@ -1978,6 +2007,38 @@ export default function SettingsPanel() {
             </div>
             <div className="mt-2 text-xs text-slate-400">
               {tx(lang, 'Bu seçim bütün tətbiq üçün görünüşü dəyişir.', 'Этот выбор меняет внешний вид всего приложения.', 'This changes the look of the entire app.')}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 px-4 py-3">
+            <div className="text-sm font-semibold text-slate-200">
+              {tx(lang, 'İnterfeys rejimi', 'Режим интерфейса', 'Interface mode')}
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {([
+                ['old', tx(lang, 'Old UI (Legacy)', 'Old UI (Legacy)', 'Old UI (Legacy)')],
+                ['new', tx(lang, 'New UI (Premium)', 'New UI (Premium)', 'New UI (Premium)')],
+              ] as Array<['old' | 'new', string]>).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => { void changeUiMode(mode); }}
+                  className={`min-h-11 rounded-xl border px-3 text-sm font-bold transition ${
+                    sessionSettings.ui_mode === mode
+                      ? 'border-cyan-300/70 bg-cyan-400/20 text-cyan-100'
+                      : 'border-slate-700 bg-slate-900/70 text-slate-300'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="mt-2 text-xs text-slate-400">
+              {tx(
+                lang,
+                'Tenant səviyyəsində saxlanılır və bütün səhifələrə tətbiq olunur.',
+                'Сохраняется на уровне tenant и применяется ко всем страницам.',
+                'Saved at tenant level and applied across all pages.',
+              )}
             </div>
           </div>
         </div>

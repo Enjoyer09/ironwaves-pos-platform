@@ -969,7 +969,13 @@ class CustomerForgetIn(BaseModel):
     dry_run: bool = False
 
 
-DEFAULT_SESSION_SETTINGS = {"idle_logout_minutes": 0, "virtual_keyboard_enabled": True, "staff_pin_length": 6, "theme_mode": "dark"}
+DEFAULT_SESSION_SETTINGS = {
+    "idle_logout_minutes": 0,
+    "virtual_keyboard_enabled": True,
+    "staff_pin_length": 6,
+    "theme_mode": "dark",
+    "ui_mode": "old",
+}
 
 
 def _clean_staff_pin_length(value) -> int:
@@ -982,6 +988,10 @@ def _clean_staff_pin_length(value) -> int:
 
 def _clean_theme_mode(value) -> str:
     return "light" if str(value or "").strip().lower() == "light" else "dark"
+
+
+def _clean_ui_mode(value) -> str:
+    return "new" if str(value or "").strip().lower() == "new" else "old"
 
 
 def _request_ip(request: Request) -> str:
@@ -1083,6 +1093,7 @@ def get_app_settings(
     session_settings = {**DEFAULT_SESSION_SETTINGS, **getv("session_settings", DEFAULT_SESSION_SETTINGS)}
     session_settings["staff_pin_length"] = _clean_staff_pin_length(session_settings.get("staff_pin_length"))
     session_settings["theme_mode"] = _clean_theme_mode(session_settings.get("theme_mode"))
+    session_settings["ui_mode"] = _clean_ui_mode(session_settings.get("ui_mode"))
     qr_settings = getv("qr_settings", {"base_url": f"https://{tenant.domain}"})
     qr_menu_settings = getv(
         "qr_menu_settings",
@@ -2479,6 +2490,7 @@ def update_session_settings(
         "virtual_keyboard_enabled": bool(payload.get("virtual_keyboard_enabled", True)),
         "staff_pin_length": _clean_staff_pin_length(payload.get("staff_pin_length")),
         "theme_mode": _clean_theme_mode(payload.get("theme_mode", current.get("theme_mode"))),
+        "ui_mode": _clean_ui_mode(payload.get("ui_mode", current.get("ui_mode"))),
     }
     _set_setting_value(db, tenant.id, "session_settings", cleaned)
     db.commit()
