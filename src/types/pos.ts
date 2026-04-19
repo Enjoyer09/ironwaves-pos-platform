@@ -257,6 +257,14 @@ export interface Settings {
     poster_background_color?: string;
     logo_shape?: 'rounded' | 'circle' | 'square';
   };
+  feedback_settings?: {
+    enabled: boolean;
+    portal_url?: string;
+    google_review_url?: string;
+    receipt_button_text_az?: string;
+    receipt_button_text_ru?: string;
+    receipt_button_text_en?: string;
+  };
   customer_app_settings?: {
     enabled: boolean;
     program_mode?: 'points' | 'cashback';

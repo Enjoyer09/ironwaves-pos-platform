@@ -16,6 +16,7 @@ import {
   update_email_settings_live,
   update_beverage_service_settings_live,
   update_finance_policy_live,
+  update_feedback_settings_live,
   update_service_fee_live,
   update_session_settings_live,
   update_table_service_settings_live,
@@ -141,6 +142,14 @@ export default function SettingsPanel() {
     hero_image_url: '',
     poster_background_color: '#d59b2d',
     logo_shape: 'rounded' as 'rounded' | 'circle' | 'square',
+  });
+  const [feedbackSettings, setFeedbackSettings] = useState({
+    enabled: false,
+    portal_url: '',
+    google_review_url: '',
+    receipt_button_text_az: 'Rəy bildirin',
+    receipt_button_text_ru: 'Оставить отзыв',
+    receipt_button_text_en: 'Leave feedback',
   });
   const [qrMenuPosterDataUrl, setQrMenuPosterDataUrl] = useState('');
   const [bankCommission, setBankCommission] = useState({
@@ -345,6 +354,14 @@ export default function SettingsPanel() {
         hero_image_url: String(settingsRes.value.qr_menu_settings?.hero_image_url || ''),
         poster_background_color: String(settingsRes.value.qr_menu_settings?.poster_background_color || '#d59b2d'),
         logo_shape: (String(settingsRes.value.qr_menu_settings?.logo_shape || 'rounded') as any),
+      });
+      setFeedbackSettings({
+        enabled: settingsRes.value.feedback_settings?.enabled === true,
+        portal_url: String(settingsRes.value.feedback_settings?.portal_url || ''),
+        google_review_url: String(settingsRes.value.feedback_settings?.google_review_url || ''),
+        receipt_button_text_az: String(settingsRes.value.feedback_settings?.receipt_button_text_az || 'Rəy bildirin'),
+        receipt_button_text_ru: String(settingsRes.value.feedback_settings?.receipt_button_text_ru || 'Оставить отзыв'),
+        receipt_button_text_en: String(settingsRes.value.feedback_settings?.receipt_button_text_en || 'Leave feedback'),
       });
       setBankCommission({
         card_sale_percent: String((settingsRes.value.bank_commission as any)?.card_sale_percent ?? settingsRes.value.bank_commission?.percent ?? 2),
@@ -786,6 +803,18 @@ export default function SettingsPanel() {
       logo_shape: qrMenuSettings.logo_shape,
     });
     flashSuccess(tx(lang, 'QR Menu ayarları yadda saxlanıldı', 'Настройки QR Menu сохранены', 'QR Menu settings saved'));
+  };
+
+  const saveFeedbackSettings = async () => {
+    await update_feedback_settings_live({
+      enabled: feedbackSettings.enabled,
+      portal_url: String(feedbackSettings.portal_url || '').trim(),
+      google_review_url: String(feedbackSettings.google_review_url || '').trim(),
+      receipt_button_text_az: String(feedbackSettings.receipt_button_text_az || '').trim() || 'Rəy bildirin',
+      receipt_button_text_ru: String(feedbackSettings.receipt_button_text_ru || '').trim() || 'Оставить отзыв',
+      receipt_button_text_en: String(feedbackSettings.receipt_button_text_en || '').trim() || 'Leave feedback',
+    });
+    flashSuccess(tx(lang, 'Feedback portal ayarları yadda saxlanıldı', 'Настройки feedback портала сохранены', 'Feedback portal settings saved'));
   };
 
   const downloadQrPoster = () => {
@@ -1256,6 +1285,75 @@ export default function SettingsPanel() {
           </button>
           <button onClick={() => { void saveQrMenuSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">
             {tx(lang, 'QR Menu ayarlarını saxla', 'Сохранить QR Menu', 'Save QR Menu settings')}
+          </button>
+        </div>
+      </div>
+
+      <div className="metal-panel p-6 space-y-4">
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Müştəri Feedback Portalı', 'Портал отзывов клиентов', 'Customer feedback portal')}</h2>
+        <p className="text-sm text-slate-400">
+          {tx(
+            lang,
+            'Çek və QR üzərindən müştəri rəyinə yönləndirmə üçün portal linklərini buradan idarə edin. Bu pəncərə Landing Studio-dan ayrıca işləyir.',
+            'Управляйте ссылками для отзывов с чека и QR отсюда. Это отдельное окно, не связано с Landing Studio.',
+            'Manage customer feedback links from receipt/QR here. This panel is separate from Landing Studio.',
+          )}
+        </p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
+            <input
+              type="checkbox"
+              checked={feedbackSettings.enabled}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, enabled: e.target.checked }))}
+            />
+            <span>{tx(lang, 'Feedback portalını aktiv et', 'Включить feedback портал', 'Enable feedback portal')}</span>
+          </label>
+          <div className="field-stack form-card md:col-span-2">
+            <label className="field-label">{tx(lang, 'Feedback portal URL', 'URL feedback портала', 'Feedback portal URL')}</label>
+            <input
+              className="neon-input"
+              value={feedbackSettings.portal_url}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, portal_url: e.target.value }))}
+              placeholder="https://feedback.example.com/form"
+            />
+          </div>
+          <div className="field-stack form-card md:col-span-2">
+            <label className="field-label">{tx(lang, 'Google review URL', 'URL Google review', 'Google review URL')}</label>
+            <input
+              className="neon-input"
+              value={feedbackSettings.google_review_url}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, google_review_url: e.target.value }))}
+              placeholder="https://g.page/r/..."
+            />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Çek düyməsi mətni (AZ)', 'Текст кнопки на чеке (AZ)', 'Receipt button text (AZ)')}</label>
+            <input
+              className="neon-input"
+              value={feedbackSettings.receipt_button_text_az}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, receipt_button_text_az: e.target.value }))}
+            />
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Çek düyməsi mətni (RU)', 'Текст кнопки на чеке (RU)', 'Receipt button text (RU)')}</label>
+            <input
+              className="neon-input"
+              value={feedbackSettings.receipt_button_text_ru}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, receipt_button_text_ru: e.target.value }))}
+            />
+          </div>
+          <div className="field-stack form-card md:col-span-2">
+            <label className="field-label">{tx(lang, 'Çek düyməsi mətni (EN)', 'Текст кнопки на чеке (EN)', 'Receipt button text (EN)')}</label>
+            <input
+              className="neon-input"
+              value={feedbackSettings.receipt_button_text_en}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, receipt_button_text_en: e.target.value }))}
+            />
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <button onClick={() => { void saveFeedbackSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">
+            {tx(lang, 'Feedback ayarlarını saxla', 'Сохранить feedback настройки', 'Save feedback settings')}
           </button>
         </div>
       </div>

@@ -255,6 +255,57 @@ const DEFAULT_Z_REPORT_RECEIPT_SETTINGS: NonNullable<Settings['z_report_receipt_
   show_counts: true,
 };
 
+const DEFAULT_FEEDBACK_SETTINGS: NonNullable<Settings['feedback_settings']> = {
+  enabled: false,
+  portal_url: '',
+  google_review_url: '',
+  receipt_button_text_az: 'Rəy bildirin',
+  receipt_button_text_ru: 'Оставить отзыв',
+  receipt_button_text_en: 'Leave feedback',
+};
+
+const FEEDBACK_SETTINGS_OVERRIDES_KEY = 'iw_feedback_settings_overrides_v1';
+
+function normalizeFeedbackSettings(source?: Settings['feedback_settings']): NonNullable<Settings['feedback_settings']> {
+  const raw = source || {};
+  return {
+    ...DEFAULT_FEEDBACK_SETTINGS,
+    ...raw,
+    enabled: raw.enabled === true,
+    portal_url: String(raw.portal_url || '').trim(),
+    google_review_url: String(raw.google_review_url || '').trim(),
+    receipt_button_text_az: String(raw.receipt_button_text_az || DEFAULT_FEEDBACK_SETTINGS.receipt_button_text_az).trim(),
+    receipt_button_text_ru: String(raw.receipt_button_text_ru || DEFAULT_FEEDBACK_SETTINGS.receipt_button_text_ru).trim(),
+    receipt_button_text_en: String(raw.receipt_button_text_en || DEFAULT_FEEDBACK_SETTINGS.receipt_button_text_en).trim(),
+  };
+}
+
+function readFeedbackOverrides(): Record<string, NonNullable<Settings['feedback_settings']>> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(FEEDBACK_SETTINGS_OVERRIDES_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return {};
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, any>).map(([tenant, value]) => [tenant, normalizeFeedbackSettings(value)]),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function writeFeedbackOverride(tenantId: string, value: NonNullable<Settings['feedback_settings']>) {
+  if (typeof window === 'undefined' || !tenantId) return;
+  try {
+    const current = readFeedbackOverrides();
+    current[tenantId] = normalizeFeedbackSettings(value);
+    window.localStorage.setItem(FEEDBACK_SETTINGS_OVERRIDES_KEY, JSON.stringify(current));
+  } catch {
+    // no-op
+  }
+}
+
 // Mərkəzi settings obyektini tapmaq (ya da yaratmaq) üçün kiçik helper:
 function getSettings(tenant_id?: string): Settings {
   const resolvedTenant = resolveTenant(tenant_id);
@@ -321,6 +372,7 @@ function getSettings(tenant_id?: string): Settings {
         poster_background_color: '#d59b2d',
         logo_shape: 'rounded',
       },
+      feedback_settings: DEFAULT_FEEDBACK_SETTINGS,
       customer_app_settings: {
         enabled: true,
         program_mode: 'points',
@@ -694,6 +746,13 @@ export function get_settings(tenant_id?: string) {
     };
     saveSettings(s);
   }
+  if (!s.feedback_settings) {
+    s.feedback_settings = normalizeFeedbackSettings(DEFAULT_FEEDBACK_SETTINGS);
+    saveSettings(s);
+  } else {
+    s.feedback_settings = normalizeFeedbackSettings(s.feedback_settings);
+    saveSettings(s);
+  }
   if (!s.z_report_receipt_settings) {
     s.z_report_receipt_settings = DEFAULT_Z_REPORT_RECEIPT_SETTINGS;
     saveSettings(s);
@@ -859,6 +918,9 @@ export function get_settings(tenant_id?: string) {
     negative_balance_alert_azn: Number((s.finance_policy as any)?.negative_balance_alert_azn ?? DEFAULT_FINANCE_POLICY.negative_balance_alert_azn),
     approver_roles: Array.isArray((s.finance_policy as any)?.approver_roles) ? (s.finance_policy as any).approver_roles : DEFAULT_FINANCE_POLICY.approver_roles,
   };
+  const feedbackOverrides = readFeedbackOverrides();
+  s.feedback_settings = normalizeFeedbackSettings(feedbackOverrides[s.tenant_id] || s.feedback_settings);
+  saveSettings(s);
   return s;
 }
 
@@ -937,6 +999,16 @@ export function update_qr_menu_settings(payload: NonNullable<Settings['qr_menu_s
   saveSettings(settings);
   logEvent('admin', 'QR_MENU_SETTINGS_UPDATED', settings.qr_menu_settings);
   return { success: true, qr_menu_settings: settings.qr_menu_settings };
+}
+
+export function update_feedback_settings(payload: NonNullable<Settings['feedback_settings']>, tenant_id?: string) {
+  const resolvedTenant = resolveTenant(tenant_id);
+  const settings = getSettings(resolvedTenant);
+  settings.feedback_settings = normalizeFeedbackSettings(payload);
+  saveSettings(settings);
+  writeFeedbackOverride(resolvedTenant, settings.feedback_settings);
+  logEvent('admin', 'FEEDBACK_SETTINGS_UPDATED', settings.feedback_settings);
+  return { success: true, feedback_settings: settings.feedback_settings };
 }
 
 export function update_customer_app_settings(payload: {
@@ -1074,8 +1146,14 @@ export function update_role_modules(payload: { staff: string[]; manager: string[
 export async function get_settings_live(tenant_id?: string) {
   if (!isBackendEnabled()) return get_settings(tenant_id);
   const data = await apiRequest<Settings>('/api/v1/ops/settings', { tenantId: null });
-  saveSettings(data);
-  return data;
+  const resolvedTenant = String(data?.tenant_id || resolveTenant(tenant_id));
+  const overrides = readFeedbackOverrides();
+  const merged: Settings = {
+    ...data,
+    feedback_settings: normalizeFeedbackSettings(overrides[resolvedTenant] || data?.feedback_settings),
+  };
+  saveSettings(merged);
+  return merged;
 }
 
 export async function update_qr_settings_live(payload: { base_url: string }) {
@@ -1090,6 +1168,17 @@ export async function update_qr_menu_settings_live(payload: NonNullable<Settings
   await apiRequest('/api/v1/ops/settings/qr-menu', { method: 'PATCH', tenantId: null, body: payload });
   update_qr_menu_settings(payload);
   return { success: true };
+}
+
+export async function update_feedback_settings_live(payload: NonNullable<Settings['feedback_settings']>) {
+  const tenantId = resolveTenant();
+  if (!isBackendEnabled()) return update_feedback_settings(payload, tenantId);
+  try {
+    await apiRequest('/api/v1/ops/settings/feedback', { method: 'PATCH', tenantId: null, body: payload });
+  } catch {
+    // Backend endpoint may not be available yet; keep tenant-level local persistence.
+  }
+  return update_feedback_settings(payload, tenantId);
 }
 
 export async function get_public_qr_menu_bootstrap_live() {
