@@ -885,6 +885,21 @@ export default function POS() {
           : safeLang === 'en'
             ? String(feedbackSettings?.receipt_button_text_en || 'Leave feedback')
             : String(feedbackSettings?.receipt_button_text_az || 'Rəy bildirin');
+      const feedbackPromptText =
+        safeLang === 'ru'
+          ? String(
+              feedbackSettings?.receipt_qr_prompt_ru ||
+                'Ваше мнение очень важно для нас. Пожалуйста, отсканируйте QR и оставьте отзыв.',
+            )
+          : safeLang === 'en'
+            ? String(
+                feedbackSettings?.receipt_qr_prompt_en ||
+                  'Your feedback matters to us. Please scan the QR code and share your review.',
+              )
+            : String(
+                feedbackSettings?.receipt_qr_prompt_az ||
+                  'Rəyiniz bizim üçün çox önəmlidir, lütfən QR skan edib rəyinizi bildirin.',
+              );
       const defaultFeedbackPortalUrl = `${baseUrl}/feedback`;
       const feedbackBaseUrl = String(
         feedbackSettings?.portal_url || defaultFeedbackPortalUrl || feedbackSettings?.google_review_url || '',
@@ -897,6 +912,8 @@ export default function POS() {
           u.searchParams.set('tenant_id', tenantId);
           u.searchParams.set('sale_id', String(sale.sale_id || ''));
           u.searchParams.set('receipt_id', String(receiptRef || ''));
+          u.searchParams.set('r', String(receiptRef || ''));
+          u.searchParams.set('t', String((sale as any).receipt_token || ''));
           feedbackUrl = u.toString();
         } catch {
           feedbackUrl = feedbackBaseUrl;
@@ -905,7 +922,7 @@ export default function POS() {
       const barcodeSvg = generateBarcodeSvg(`SALE:${sale.sale_id}`);
       const receiptCustomerId = String((sale as any)?.customer_card_id || ctx.customer?.card_id || '').trim();
       const receiptStarsAfter = Number((sale as any)?.customer_stars_after ?? totals.customer_stars_after ?? 0);
-      const qrDataUrl = await QRCode.toDataURL(receiptUrl, {
+      const qrDataUrl = await QRCode.toDataURL(feedbackEnabled && feedbackUrl ? feedbackUrl : receiptUrl, {
         width: 156,
         margin: 2,
         errorCorrectionLevel: 'L',
@@ -914,7 +931,18 @@ export default function POS() {
           light: '#FFFFFF',
         },
       });
-      const feedbackQrDataUrl = feedbackUrl
+      const viewReceiptQrDataUrl = feedbackEnabled && feedbackUrl
+        ? await QRCode.toDataURL(receiptUrl, {
+            width: 140,
+            margin: 2,
+            errorCorrectionLevel: 'L',
+            color: {
+              dark: '#000000',
+              light: '#FFFFFF',
+            },
+          })
+        : '';
+      const feedbackQrDataUrl = !feedbackEnabled && feedbackUrl
         ? await QRCode.toDataURL(feedbackUrl, {
             width: 156,
             margin: 2,
@@ -964,6 +992,14 @@ export default function POS() {
             <div style="display:flex;justify-content:center;margin:8px 0 6px 0">
               <img src="${qrDataUrl}" alt="receipt qr" style="width:108px;height:108px" />
             </div>
+            ${feedbackEnabled && feedbackUrl ? `<div class="muted" style="font-size:10px;text-align:center">${feedbackPromptText}</div>` : ''}
+            ${viewReceiptQrDataUrl ? `
+              <div class="muted" style="text-align:center;margin-top:8px">${tx(lang, 'Çeki gör', 'Посмотреть чек', 'View receipt')}</div>
+              <div style="display:flex;justify-content:center;margin:6px 0 4px 0">
+                <img src="${viewReceiptQrDataUrl}" alt="view receipt qr" style="width:84px;height:84px" />
+              </div>
+              <div class="muted" style="font-size:10px;text-align:center;word-break:break-all">${receiptUrl}</div>
+            ` : ''}
             ${feedbackQrDataUrl ? `
               <div class="muted" style="text-align:center;margin-top:8px">${feedbackButtonText}</div>
               <div style="display:flex;justify-content:center;margin:6px 0 4px 0">

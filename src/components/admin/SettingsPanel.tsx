@@ -150,6 +150,12 @@ export default function SettingsPanel() {
     receipt_button_text_az: 'Rəy bildirin',
     receipt_button_text_ru: 'Оставить отзыв',
     receipt_button_text_en: 'Leave feedback',
+    receipt_qr_prompt_az: 'Rəyiniz bizim üçün çox önəmlidir, lütfən QR skan edib rəyinizi bildirin.',
+    receipt_qr_prompt_ru: 'Ваше мнение очень важно для нас. Пожалуйста, отсканируйте QR и оставьте отзыв.',
+    receipt_qr_prompt_en: 'Your feedback matters to us. Please scan the QR code and share your review.',
+    thank_you_text_az: 'Rəyiniz komanda tərəfindən nəzərdən keçiriləcək.',
+    thank_you_text_ru: 'Ваш отзыв будет рассмотрен нашей командой.',
+    thank_you_text_en: 'Your feedback will be reviewed by our team.',
   });
   const autoFeedbackPortalUrl = React.useMemo(() => {
     const base = String(profile?.qr_base_url || profile?.website || '').trim() || window.location.origin;
@@ -373,6 +379,12 @@ export default function SettingsPanel() {
         receipt_button_text_az: String(settingsRes.value.feedback_settings?.receipt_button_text_az || 'Rəy bildirin'),
         receipt_button_text_ru: String(settingsRes.value.feedback_settings?.receipt_button_text_ru || 'Оставить отзыв'),
         receipt_button_text_en: String(settingsRes.value.feedback_settings?.receipt_button_text_en || 'Leave feedback'),
+        receipt_qr_prompt_az: String(settingsRes.value.feedback_settings?.receipt_qr_prompt_az || 'Rəyiniz bizim üçün çox önəmlidir, lütfən QR skan edib rəyinizi bildirin.'),
+        receipt_qr_prompt_ru: String(settingsRes.value.feedback_settings?.receipt_qr_prompt_ru || 'Ваше мнение очень важно для нас. Пожалуйста, отсканируйте QR и оставьте отзыв.'),
+        receipt_qr_prompt_en: String(settingsRes.value.feedback_settings?.receipt_qr_prompt_en || 'Your feedback matters to us. Please scan the QR code and share your review.'),
+        thank_you_text_az: String(settingsRes.value.feedback_settings?.thank_you_text_az || 'Rəyiniz komanda tərəfindən nəzərdən keçiriləcək.'),
+        thank_you_text_ru: String(settingsRes.value.feedback_settings?.thank_you_text_ru || 'Ваш отзыв будет рассмотрен нашей командой.'),
+        thank_you_text_en: String(settingsRes.value.feedback_settings?.thank_you_text_en || 'Your feedback will be reviewed by our team.'),
       });
       setBankCommission({
         card_sale_percent: String((settingsRes.value.bank_commission as any)?.card_sale_percent ?? settingsRes.value.bank_commission?.percent ?? 2),
@@ -825,6 +837,12 @@ export default function SettingsPanel() {
       receipt_button_text_az: String(feedbackSettings.receipt_button_text_az || '').trim() || 'Rəy bildirin',
       receipt_button_text_ru: String(feedbackSettings.receipt_button_text_ru || '').trim() || 'Оставить отзыв',
       receipt_button_text_en: String(feedbackSettings.receipt_button_text_en || '').trim() || 'Leave feedback',
+      receipt_qr_prompt_az: String(feedbackSettings.receipt_qr_prompt_az || '').trim() || 'Rəyiniz bizim üçün çox önəmlidir, lütfən QR skan edib rəyinizi bildirin.',
+      receipt_qr_prompt_ru: String(feedbackSettings.receipt_qr_prompt_ru || '').trim() || 'Ваше мнение очень важно для нас. Пожалуйста, отсканируйте QR и оставьте отзыв.',
+      receipt_qr_prompt_en: String(feedbackSettings.receipt_qr_prompt_en || '').trim() || 'Your feedback matters to us. Please scan the QR code and share your review.',
+      thank_you_text_az: String(feedbackSettings.thank_you_text_az || '').trim() || 'Rəyiniz komanda tərəfindən nəzərdən keçiriləcək.',
+      thank_you_text_ru: String(feedbackSettings.thank_you_text_ru || '').trim() || 'Ваш отзыв будет рассмотрен нашей командой.',
+      thank_you_text_en: String(feedbackSettings.thank_you_text_en || '').trim() || 'Your feedback will be reviewed by our team.',
     });
     setFeedbackSettings((prev) => ({ ...prev, portal_url: resolvedPortalUrl }));
     flashSuccess(tx(lang, 'Feedback portal ayarları yadda saxlanıldı', 'Настройки feedback портала сохранены', 'Feedback portal settings saved'));
@@ -1371,6 +1389,14 @@ export default function SettingsPanel() {
               className="neon-input"
               value={feedbackSettings.receipt_button_text_en}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, receipt_button_text_en: e.target.value }))}
+            />
+          </div>
+          <div className="field-stack form-card md:col-span-2">
+            <label className="field-label">{tx(lang, 'Çek QR mesajı (AZ)', 'Текст QR на чеке (AZ)', 'Receipt QR message (AZ)')}</label>
+            <textarea
+              className="neon-input min-h-[90px]"
+              value={feedbackSettings.receipt_qr_prompt_az}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, receipt_qr_prompt_az: e.target.value }))}
             />
           </div>
         </div>

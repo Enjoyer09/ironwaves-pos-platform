@@ -7,10 +7,11 @@ type Props = {
   tenantId?: string;
   saleId?: string;
   receiptId?: string;
+  receiptToken?: string;
   source?: string;
 };
 
-export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId = '', source = 'receipt' }: Props) {
+export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId = '', receiptToken = '', source = 'receipt' }: Props) {
   const [profile, setProfile] = React.useState<any>(null);
   const [settings, setSettings] = React.useState<any>(null);
   const [score, setScore] = React.useState(0);
@@ -53,6 +54,10 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
   const lowScoreThreshold = 3;
   const requireComment = score > 0 && score <= lowScoreThreshold;
   const canSubmit = score >= 1 && (!requireComment || comment.trim().length >= 3) && !sending;
+  const viewReceiptUrl =
+    String(receiptId || '').trim() && String(receiptToken || '').trim()
+      ? `/?r=${encodeURIComponent(String(receiptId || '').trim())}&t=${encodeURIComponent(String(receiptToken || '').trim())}`
+      : '';
 
   const onSubmit = async () => {
     setError('');
@@ -110,6 +115,14 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
             <p className="mt-2 text-sm text-emerald-100/90">
               {String(feedbackSettings?.thank_you_text_az || 'Rəyiniz komanda tərəfindən nəzərdən keçiriləcək.')}
             </p>
+            {viewReceiptUrl ? (
+              <a
+                href={viewReceiptUrl}
+                className="mt-4 mr-2 inline-block rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
+              >
+                Çeki gör
+              </a>
+            ) : null}
             {String(feedbackSettings?.google_review_url || '').trim() ? (
               <a
                 href={String(feedbackSettings.google_review_url)}
@@ -180,6 +193,14 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
             >
               {sending ? 'Göndərilir...' : 'Rəyi göndər'}
             </button>
+            {viewReceiptUrl ? (
+              <a
+                href={viewReceiptUrl}
+                className="mt-3 block text-center text-sm text-slate-300 underline decoration-dotted underline-offset-4 hover:text-white"
+              >
+                Çeki gör
+              </a>
+            ) : null}
           </>
         )}
       </div>

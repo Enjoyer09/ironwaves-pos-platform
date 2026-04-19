@@ -264,6 +264,12 @@ export interface Settings {
     receipt_button_text_az?: string;
     receipt_button_text_ru?: string;
     receipt_button_text_en?: string;
+    receipt_qr_prompt_az?: string;
+    receipt_qr_prompt_ru?: string;
+    receipt_qr_prompt_en?: string;
+    thank_you_text_az?: string;
+    thank_you_text_ru?: string;
+    thank_you_text_en?: string;
   };
   customer_app_settings?: {
     enabled: boolean;
