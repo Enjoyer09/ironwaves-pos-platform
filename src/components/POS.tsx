@@ -10,6 +10,7 @@ import { get_shift_status, refresh_shift_status } from '../api/reports';
 import { getDB } from '../lib/db_sim';
 import { i18n, tx } from '../i18n';
 import { get_business_profile, get_settings_live } from '../api/settings';
+import { find_feedback_coupon_live, isFeedbackCouponCode, redeem_feedback_coupon_live } from '../api/feedback';
 import { logUiError } from '../lib/logger';
 import { qzPrintHtml } from '../lib/qz';
 import { hostScopedKey } from '../lib/storage_keys';
@@ -205,6 +206,7 @@ export default function POS() {
     return window.innerWidth < 1366 || (window.innerWidth < 1600 && isTouchDevice);
   });
   const [tableRoutingBanner, setTableRoutingBanner] = useState<{ tableId: string; tableLabel: string } | null>(null);
+  const [feedbackCouponPreview, setFeedbackCouponPreview] = useState<{ code: string; percent: number; status: string } | null>(null);
   const [showOpenShiftModal, setShowOpenShiftModal] = useState(false);
   const [pendingClearCartKey, setPendingClearCartKey] = useState<'S1' | 'S2' | 'S3' | null>(null);
   const [tenantSettings, setTenantSettings] = useState<any>({});
@@ -266,6 +268,11 @@ export default function POS() {
 
   const cart = carts[activeCart];
   const ctx = cartCtx[activeCart];
+  const enteredClaimCode = String(ctx.rewardClaimCode || '').trim().toUpperCase();
+  const feedbackCouponPercent = feedbackCouponPreview?.status === 'PENDING' ? Number(feedbackCouponPreview.percent || 0) : 0;
+  const typedDiscountPercent = Number(ctx.discount || 0);
+  const effectiveDiscountPercent = Math.max(typedDiscountPercent, feedbackCouponPercent);
+  const rewardClaimCodeForSale = isFeedbackCouponCode(enteredClaimCode) ? null : (enteredClaimCode || null);
 
   const patchCtx = (patch: Partial<CartContext>) => {
     setCartCtx((prev) => ({
@@ -730,12 +737,12 @@ export default function POS() {
     return calculate_total(
       converted,
       ctx.customer?.type || 'Normal',
-      Number(ctx.discount || 0),
+      effectiveDiscountPercent,
       false,
       null,
       ctx.customer ? Number(ctx.customer?.stars || 0) : null,
     );
-  }, [cart, ctx.customer, ctx.discount]);
+  }, [cart, ctx.customer, effectiveDiscountPercent]);
 
   const rawTotal = totals.raw_total;
   const discountAmount = totals.discount_amount;
@@ -802,10 +809,10 @@ export default function POS() {
           cup_mode: item.cup_mode || null,
         })),
         payment_method: paymentMethod,
-        discount_percent: Number(ctx.discount || 0),
+        discount_percent: effectiveDiscountPercent,
         order_type: ctx.orderType,
         customer_card_id: ctx.customer?.card_id || null,
-        reward_claim_code: ctx.rewardClaimCode || null,
+        reward_claim_code: rewardClaimCodeForSale,
         split_cash: splitCash ? splitCash.toFixed(2) : null,
         split_card: splitCard ? splitCard.toFixed(2) : null,
       };
@@ -823,8 +830,8 @@ export default function POS() {
         payment_method: paymentMethod,
         cashier: user.username,
         customer_card_id: ctx.customer?.card_id || null,
-        reward_claim_code: ctx.rewardClaimCode || null,
-        discount_percent: Number(ctx.discount || 0),
+        reward_claim_code: rewardClaimCodeForSale,
+        discount_percent: effectiveDiscountPercent,
         is_eco_cup: false,
         is_test: false,
         split_cash: splitCash,
@@ -1020,6 +1027,9 @@ export default function POS() {
 
       window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { tenant_id: tenantId, sale_id: sale.sale_id, source: 'pos' } }));
       window.dispatchEvent(new CustomEvent('logs-updated', { detail: { tenant_id: tenantId, sale_id: sale.sale_id, source: 'pos' } }));
+      if (feedbackCouponPreview?.status === 'PENDING' && isFeedbackCouponCode(enteredClaimCode)) {
+        redeem_feedback_coupon_live(tenantId, enteredClaimCode, String(sale.sale_id || ''));
+      }
       clearCart(activeCart);
       patchCtx({ ...defaultCtx });
       setSplitCashInput('0');
@@ -1068,6 +1078,11 @@ export default function POS() {
       patchCtx({ rewardClaimCode: claimCode });
       notify('success', tx(lang, 'Reward kodu oxundu', 'Код награды считан', 'Reward code scanned'));
       return;
+    } else if (code.toUpperCase().startsWith('IWPOS:FB:')) {
+      const feedbackCode = code.split(':').slice(2).join(':').trim().toUpperCase();
+      patchCtx({ rewardClaimCode: feedbackCode });
+      notify('success', tx(lang, 'Feedback kuponu oxundu', 'Купон feedback считан', 'Feedback coupon scanned'));
+      return;
     }
     const customers = getDB<any>(`${tenantId}_customers`) || [];
     const found = customers.find((c: any) => c.card_id === extracted);
@@ -1078,6 +1093,24 @@ export default function POS() {
     patchCtx({ customer: found });
     notify('success', tx(lang, 'Müştəri tapıldı', 'Клиент найден', 'Customer found'));
   };
+
+  useEffect(() => {
+    const raw = String(ctx.rewardClaimCode || '').trim().toUpperCase();
+    if (!raw || !isFeedbackCouponCode(raw)) {
+      setFeedbackCouponPreview(null);
+      return;
+    }
+    const found = find_feedback_coupon_live(tenantId, raw);
+    if (!found) {
+      setFeedbackCouponPreview(null);
+      return;
+    }
+    setFeedbackCouponPreview({
+      code: found.code,
+      percent: Number(found.percent || 5),
+      status: String(found.status || 'PENDING'),
+    });
+  }, [tenantId, ctx.rewardClaimCode]);
 
   const printReceiptOnly = async () => {
     if (printSettings.use_qz && receiptHtml) {
@@ -1205,11 +1238,29 @@ export default function POS() {
       return (
         <React.Fragment key={widget}>
           <input
-            placeholder={tx(lang, 'Reward kodu (opsional)', 'Код награды (необязательно)', 'Reward code (optional)')}
+            placeholder={tx(lang, 'Reward/Feedback kodu (opsional)', 'Код награды/feedback (необязательно)', 'Reward/Feedback code (optional)')}
             className={`neon-input ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}
             value={ctx.rewardClaimCode || ''}
             onChange={(e) => patchCtx({ rewardClaimCode: e.target.value.toUpperCase() })}
           />
+          {feedbackCouponPreview ? (
+            <div
+              className={`rounded-md border px-2 py-1 text-xs ${
+                feedbackCouponPreview.status === 'PENDING'
+                  ? 'border-emerald-400/50 bg-emerald-500/10 text-emerald-200'
+                  : 'border-slate-600/60 bg-slate-700/30 text-slate-300'
+              }`}
+            >
+              {feedbackCouponPreview.status === 'PENDING'
+                ? tx(
+                    lang,
+                    `Feedback kuponu aktivdir: -${feedbackCouponPreview.percent}%`,
+                    `Купон feedback активен: -${feedbackCouponPreview.percent}%`,
+                    `Feedback coupon active: -${feedbackCouponPreview.percent}%`,
+                  )
+                : tx(lang, 'Bu feedback kuponu artıq istifadə olunub', 'Этот feedback купон уже использован', 'This feedback coupon is already used')}
+            </div>
+          ) : null}
           <label className="block text-xs text-slate-400">{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</label>
           <input
             type="number"
