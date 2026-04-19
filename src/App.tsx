@@ -10,6 +10,7 @@ import PublicReceipt from './components/PublicReceipt';
 import PublicMenu from './components/PublicMenu';
 import CustomerApp from './components/CustomerApp';
 import LandingPage from './components/LandingPage';
+import FeedbackPortal from './components/FeedbackPortal';
 import { LogOut, Wifi, WifiOff, Languages, RotateCcw, Maximize2, Minimize2 } from 'lucide-react';
 import VirtualKeyboard from './components/VirtualKeyboard';
 import { seedDatabase } from './lib/seeder';
@@ -310,6 +311,16 @@ export default function App() {
       cardId: params.get('id') || '',
       token: params.get('t') || params.get('token') || '',
       join: params.get('join') === '1',
+    };
+  }, []);
+
+  const feedbackParams = useMemo(() => {
+    if (typeof window === 'undefined') return { tenantId: '', saleId: '', receiptId: '' };
+    const params = new URLSearchParams(window.location.search);
+    return {
+      tenantId: params.get('tenant_id') || '',
+      saleId: params.get('sale_id') || '',
+      receiptId: params.get('receipt_id') || params.get('r') || '',
     };
   }, []);
 
@@ -1037,6 +1048,21 @@ export default function App() {
 
   if (publicPathname === '/landing' || publicPathname === '/landing/') {
     return <LandingPage />;
+  }
+
+  if (publicPathname === '/feedback' || publicPathname === '/feedback/') {
+    const resolvedFeedbackTenant =
+      String(feedbackParams.tenantId || '').trim() ||
+      String(mappedTenantFromHost || '').trim() ||
+      String(activeTenant || '').trim();
+    return (
+      <FeedbackPortal
+        tenantId={resolvedFeedbackTenant}
+        saleId={feedbackParams.saleId}
+        receiptId={feedbackParams.receiptId}
+        source="receipt"
+      />
+    );
   }
 
   if (customerAppParams.join || (customerAppParams.cardId && customerAppParams.token)) {

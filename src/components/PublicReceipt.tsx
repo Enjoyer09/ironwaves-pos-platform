@@ -1,6 +1,6 @@
 import React from 'react';
 import { get_public_receipt_live } from '../api/pos';
-import { get_business_profile, get_public_branding_live } from '../api/settings';
+import { get_business_profile, get_public_branding_live, get_settings } from '../api/settings';
 import { formatServerUtcDateTime } from '../lib/time';
 
 type Props = {
@@ -11,6 +11,7 @@ type Props = {
 export default function PublicReceipt({ receiptId, token }: Props) {
   const [receipt, setReceipt] = React.useState<any | null>(null);
   const [profile, setProfile] = React.useState<any>(null);
+  const [feedback, setFeedback] = React.useState<{ label: string; url: string } | null>(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -21,9 +22,31 @@ export default function PublicReceipt({ receiptId, token }: Props) {
         if (!mounted) return;
         setReceipt(res);
         setProfile(await get_public_branding_live(res.tenant_id).catch(() => get_business_profile(res.tenant_id)));
+        const settings = get_settings(res.tenant_id);
+        const feedbackSettings = settings?.feedback_settings || {};
+        const baseFeedbackUrl = String(feedbackSettings.portal_url || feedbackSettings.google_review_url || '').trim();
+        const feedbackEnabled = feedbackSettings.enabled === true && Boolean(baseFeedbackUrl);
+        if (feedbackEnabled && baseFeedbackUrl) {
+          let nextUrl = baseFeedbackUrl;
+          try {
+            const url = new URL(baseFeedbackUrl);
+            url.searchParams.set('tenant_id', String(res.tenant_id || ''));
+            url.searchParams.set('receipt_id', String(res.id || receiptId || ''));
+            nextUrl = url.toString();
+          } catch {
+            nextUrl = baseFeedbackUrl;
+          }
+          setFeedback({
+            label: String(feedbackSettings.receipt_button_text_az || 'Rəy bildirin'),
+            url: nextUrl,
+          });
+        } else {
+          setFeedback(null);
+        }
       } catch {
         if (!mounted) return;
         setReceipt(null);
+        setFeedback(null);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -137,6 +160,16 @@ export default function PublicReceipt({ receiptId, token }: Props) {
             <span>{Number(receipt.total || 0).toFixed(2)} ₼</span>
           </div>
         </div>
+        {feedback?.url ? (
+          <a
+            href={feedback.url}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-4 block rounded-lg border border-yellow-300/50 bg-yellow-400/15 px-4 py-3 text-center text-sm font-semibold text-yellow-200 hover:bg-yellow-400/25"
+          >
+            {feedback.label}
+          </a>
+        ) : null}
       </div>
     </div>
   );
