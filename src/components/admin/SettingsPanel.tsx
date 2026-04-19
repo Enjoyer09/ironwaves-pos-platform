@@ -87,6 +87,7 @@ export default function SettingsPanel() {
   const currentRole = String(user?.role || '').toLowerCase();
 
   const [successMsg, setSuccessMsg] = useState('');
+  const [panelSuccess, setPanelSuccess] = useState<Record<string, string>>({});
   const [profile, setProfile] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [roleModules, setRoleModules] = useState<RoleModules>(defaultRoleModules);
@@ -284,10 +285,27 @@ export default function SettingsPanel() {
   const currentPasswordUser = users.find((u) => u.username === user?.username);
   const totpEnabled = Boolean(currentPasswordUser?.two_factor_enabled);
 
-  const flashSuccess = (message: string) => {
+  const flashSuccess = (message: string, panelKey?: string) => {
     setSuccessMsg(message);
+    if (panelKey) {
+      setPanelSuccess((prev) => ({ ...prev, [panelKey]: message }));
+      window.setTimeout(() => {
+        setPanelSuccess((prev) => {
+          const next = { ...prev };
+          delete next[panelKey];
+          return next;
+        });
+      }, 2500);
+    }
     window.setTimeout(() => setSuccessMsg(''), 2500);
   };
+  const renderPanelSuccess = (panelKey: string) =>
+    panelSuccess[panelKey] ? (
+      <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+        {panelSuccess[panelKey]}
+      </div>
+    ) : null;
+  const saveButtonClass = 'glossy-gold rounded-xl px-6 py-2 font-bold transition-transform duration-100 active:translate-y-px active:scale-[0.98]';
 
   const loadData = async () => {
     const [profileRes, usersRes, settingsRes] = await Promise.allSettled([
@@ -514,7 +532,7 @@ export default function SettingsPanel() {
       receipt_footer: profile.receipt_footer,
     }, user?.username || 'admin');
     await update_qr_settings_live({ base_url: String(profile.qr_base_url || '').trim() });
-    flashSuccess(tx(lang, 'Biznes məlumatları yadda saxlanıldı', 'Данные бизнеса сохранены', 'Business profile saved'));
+    flashSuccess(tx(lang, 'Biznes məlumatları yadda saxlanıldı', 'Данные бизнеса сохранены', 'Business profile saved'), 'business_profile');
   };
 
   const saveSessionSettings = async () => {
@@ -526,7 +544,7 @@ export default function SettingsPanel() {
         theme_mode: sessionSettings.theme_mode,
       });
       window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
-      flashSuccess(tx(lang, 'Sessiya ayarları yadda saxlanıldı', 'Настройки сессии сохранены', 'Session settings saved'));
+      flashSuccess(tx(lang, 'Sessiya ayarları yadda saxlanıldı', 'Настройки сессии сохранены', 'Session settings saved'), 'session');
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Sessiya ayarları saxlanmadı', 'Настройки сессии не сохранены', 'Session settings were not saved'));
     }
@@ -779,7 +797,7 @@ export default function SettingsPanel() {
 
   const saveRoleModules = async () => {
     await update_role_modules_live(roleModules);
-    flashSuccess(tx(lang, 'Rol icazələri yadda saxlanıldı', 'Права ролей сохранены', 'Role permissions saved'));
+    flashSuccess(tx(lang, 'Rol icazələri yadda saxlanıldı', 'Права ролей сохранены', 'Role permissions saved'), 'role_modules');
   };
 
   const saveEmailSettings = async () => {
@@ -792,7 +810,7 @@ export default function SettingsPanel() {
       webhook_url: emailSettings.webhook_url,
       timeout_sec: Number(emailSettings.timeout_sec || 15),
     });
-    flashSuccess(tx(lang, 'Email ayarları yadda saxlanıldı', 'Настройки email сохранены', 'Email settings saved'));
+    flashSuccess(tx(lang, 'Email ayarları yadda saxlanıldı', 'Настройки email сохранены', 'Email settings saved'), 'email');
   };
 
   const savePrintSettings = () => {
@@ -800,12 +818,12 @@ export default function SettingsPanel() {
       use_qz: printSettings.use_qz,
       printer_name: printSettings.printer_name.trim(),
     });
-    flashSuccess(tx(lang, 'Çap ayarları yadda saxlanıldı', 'Настройки печати сохранены', 'Print settings saved'));
+    flashSuccess(tx(lang, 'Çap ayarları yadda saxlanıldı', 'Настройки печати сохранены', 'Print settings saved'), 'print');
   };
 
   const saveZReportReceiptSettings = async () => {
     await update_z_report_receipt_settings_live(zReportReceiptSettings);
-    flashSuccess(tx(lang, 'Z-Hesabat çek ayarları yadda saxlanıldı', 'Настройки чека Z-отчёта сохранены', 'Z-report receipt settings saved'));
+    flashSuccess(tx(lang, 'Z-Hesabat çek ayarları yadda saxlanıldı', 'Настройки чека Z-отчёта сохранены', 'Z-report receipt settings saved'), 'zreport_receipt');
   };
 
   const saveQrMenuSettings = async () => {
@@ -825,7 +843,7 @@ export default function SettingsPanel() {
       poster_background_color: qrMenuSettings.poster_background_color,
       logo_shape: qrMenuSettings.logo_shape,
     });
-    flashSuccess(tx(lang, 'QR Menu ayarları yadda saxlanıldı', 'Настройки QR Menu сохранены', 'QR Menu settings saved'));
+    flashSuccess(tx(lang, 'QR Menu ayarları yadda saxlanıldı', 'Настройки QR Menu сохранены', 'QR Menu settings saved'), 'qr_menu');
   };
 
   const saveFeedbackSettings = async () => {
@@ -845,7 +863,8 @@ export default function SettingsPanel() {
       thank_you_text_en: String(feedbackSettings.thank_you_text_en || '').trim() || 'Your feedback will be reviewed by our team.',
     });
     setFeedbackSettings((prev) => ({ ...prev, portal_url: resolvedPortalUrl }));
-    flashSuccess(tx(lang, 'Feedback portal ayarları yadda saxlanıldı', 'Настройки feedback портала сохранены', 'Feedback portal settings saved'));
+    window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
+    flashSuccess(tx(lang, 'Feedback portal ayarları yadda saxlanıldı', 'Настройки feedback портала сохранены', 'Feedback portal settings saved'), 'feedback');
   };
 
   const downloadQrPoster = () => {
@@ -861,7 +880,7 @@ export default function SettingsPanel() {
       card_sale_percent: Number(bankCommission.card_sale_percent || 0),
       card_transfer_percent: Number(bankCommission.card_transfer_percent || 0),
     });
-    flashSuccess(tx(lang, 'Bank faiz ayarları yadda saxlanıldı', 'Настройки банковских комиссий сохранены', 'Bank fee settings saved'));
+    flashSuccess(tx(lang, 'Bank faiz ayarları yadda saxlanıldı', 'Настройки банковских комиссий сохранены', 'Bank fee settings saved'), 'bank');
   };
 
   const saveFinancePolicy = async () => {
@@ -875,7 +894,7 @@ export default function SettingsPanel() {
       negative_balance_alert_azn: Number(financePolicy.negative_balance_alert_azn || 0),
       approver_roles: financePolicy.approver_roles.split(',').map((role) => role.trim().toLowerCase()).filter(Boolean),
     });
-    flashSuccess(tx(lang, 'Maliyyə policy ayarları yadda saxlanıldı', 'Настройки финансовой policy сохранены', 'Finance policy settings saved'));
+    flashSuccess(tx(lang, 'Maliyyə policy ayarları yadda saxlanıldı', 'Настройки финансовой policy сохранены', 'Finance policy settings saved'), 'finance_policy');
   };
 
   const saveTableServiceSettings = async () => {
@@ -886,7 +905,7 @@ export default function SettingsPanel() {
       deposit_per_guest_azn: Number(tableServiceSettings.deposit_per_guest_azn || 0),
       reservation_lock_hours: Number(tableServiceSettings.reservation_lock_hours || 0),
     });
-    flashSuccess(tx(lang, 'Masa xidməti ayarları yadda saxlanıldı', 'Настройки столов сохранены', 'Table service settings saved'));
+    flashSuccess(tx(lang, 'Masa xidməti ayarları yadda saxlanıldı', 'Настройки столов сохранены', 'Table service settings saved'), 'table_service');
   };
 
   const saveBeverageServiceSettings = async () => {
@@ -894,7 +913,7 @@ export default function SettingsPanel() {
       coffee_selection_mode: beverageServiceSettings.coffee_selection_mode,
       remove_paper_packaging_for_table: beverageServiceSettings.remove_paper_packaging_for_table,
     });
-    flashSuccess(tx(lang, 'İçki servis ayarları yadda saxlanıldı', 'Настройки подачи напитков сохранены', 'Beverage service settings saved'));
+    flashSuccess(tx(lang, 'İçki servis ayarları yadda saxlanıldı', 'Настройки подачи напитков сохранены', 'Beverage service settings saved'), 'beverage');
   };
 
   const saveYieldManagement = async () => {
@@ -920,7 +939,7 @@ export default function SettingsPanel() {
         enabled: row.enabled,
       })),
     });
-    flashSuccess(tx(lang, 'Standart itki ayarları yadda saxlanıldı', 'Настройки yield management сохранены', 'Yield management settings saved'));
+    flashSuccess(tx(lang, 'Standart itki ayarları yadda saxlanıldı', 'Настройки yield management сохранены', 'Yield management settings saved'), 'yield');
   };
 
   const applyYieldPreset = (meatType: 'beef' | 'chicken') => {
@@ -1001,7 +1020,7 @@ export default function SettingsPanel() {
       included_items: staffBenefits.included_items,
       item_unit_cap_azn: Number(staffBenefits.item_unit_cap_azn || 0),
     });
-    flashSuccess(tx(lang, 'Staff limit ayarları yadda saxlanıldı', 'Настройки лимита staff сохранены', 'Staff benefit settings saved'));
+    flashSuccess(tx(lang, 'Staff limit ayarları yadda saxlanıldı', 'Настройки лимита staff сохранены', 'Staff benefit settings saved'), 'staff_benefits');
   };
 
   return (
@@ -1093,8 +1112,9 @@ export default function SettingsPanel() {
           </div>
           <input className="neon-input md:col-span-2" type="file" accept="image/*" onChange={handleLogoUpload} />
         </div>
+        {renderPanelSuccess('business_profile')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveBusinessProfile(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Saxla', 'Сохранить', 'Save')}</button>
+          <button onClick={() => { void saveBusinessProfile(); }} className={saveButtonClass}>{tx(lang, 'Saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 
@@ -1128,8 +1148,9 @@ export default function SettingsPanel() {
           ) : null}
           <input className="neon-input" type="number" min={5} value={emailSettings.timeout_sec} onChange={(e) => setEmailSettings((prev) => ({ ...prev, timeout_sec: e.target.value }))} placeholder={tx(lang, 'Timeout (san)', 'Timeout (сек)', 'Timeout (sec)')} />
         </div>
+        {renderPanelSuccess('email')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveEmailSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+          <button onClick={() => { void saveEmailSettings(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 
@@ -1163,8 +1184,9 @@ export default function SettingsPanel() {
             'Note: if QZ Tray is not installed, the system falls back to the browser print dialog. For silent printing, Chrome/Edge + QZ is the practical setup.',
           )}
         </div>
+        {renderPanelSuccess('print')}
         <div className="flex justify-end">
-          <button onClick={savePrintSettings} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+          <button onClick={savePrintSettings} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 
@@ -1203,8 +1225,9 @@ export default function SettingsPanel() {
             </label>
           ))}
         </div>
+        {renderPanelSuccess('zreport_receipt')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveZReportReceiptSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+          <button onClick={() => { void saveZReportReceiptSettings(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 
@@ -1310,11 +1333,12 @@ export default function SettingsPanel() {
             </ul>
           </div>
         </div>
+        {renderPanelSuccess('qr_menu')}
         <div className="flex flex-wrap justify-end gap-2">
           <button onClick={downloadQrPoster} className="neon-btn rounded-xl px-5 py-2 font-semibold">
             {tx(lang, 'Poster yüklə', 'Скачать постер', 'Download poster')}
           </button>
-          <button onClick={() => { void saveQrMenuSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">
+          <button onClick={() => { void saveQrMenuSettings(); }} className={saveButtonClass}>
             {tx(lang, 'QR Menu ayarlarını saxla', 'Сохранить QR Menu', 'Save QR Menu settings')}
           </button>
         </div>
@@ -1400,8 +1424,9 @@ export default function SettingsPanel() {
             />
           </div>
         </div>
+        {renderPanelSuccess('feedback')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveFeedbackSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">
+          <button onClick={() => { void saveFeedbackSettings(); }} className={saveButtonClass}>
             {tx(lang, 'Feedback ayarlarını saxla', 'Сохранить feedback настройки', 'Save feedback settings')}
           </button>
         </div>
@@ -1460,8 +1485,9 @@ export default function SettingsPanel() {
             </div>
           </div>
         </div>
+        {renderPanelSuccess('table_service')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveTableServiceSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+          <button onClick={() => { void saveTableServiceSettings(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 
@@ -1525,8 +1551,9 @@ export default function SettingsPanel() {
             />
           </label>
         </div>
+        {renderPanelSuccess('beverage')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveBeverageServiceSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+          <button onClick={() => { void saveBeverageServiceSettings(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 
@@ -1572,8 +1599,9 @@ export default function SettingsPanel() {
             'Logic: regular card sales use one percentage, while money moved out of card balance uses another. Cash->card and cash->safe do not get this fee automatically.',
           )}
         </div>
+        {renderPanelSuccess('bank')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveBankCommission(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+          <button onClick={() => { void saveBankCommission(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 
@@ -1649,8 +1677,9 @@ export default function SettingsPanel() {
             </label>
           ))}
         </div>
+        {renderPanelSuccess('finance_policy')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveFinancePolicy(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Maliyyə policy saxla', 'Сохранить finance policy', 'Save finance policy')}</button>
+          <button onClick={() => { void saveFinancePolicy(); }} className={saveButtonClass}>{tx(lang, 'Maliyyə policy saxla', 'Сохранить finance policy', 'Save finance policy')}</button>
         </div>
       </div>
 
@@ -1867,8 +1896,9 @@ export default function SettingsPanel() {
             )}
           </div>
         </div>
+        {renderPanelSuccess('yield')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveYieldManagement(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+          <button onClick={() => { void saveYieldManagement(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 
@@ -1989,10 +2019,11 @@ export default function SettingsPanel() {
               {tx(lang, '4 rəqəm daha sürətlidir, 6 rəqəm isə təhlükəsizlik üçün tövsiyə olunur.', '4 цифры быстрее, 6 цифр рекомендуются для безопасности.', '4 digits is faster; 6 digits is recommended for security.')}
             </div>
           </div>
-          <button onClick={() => { void saveSessionSettings(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">
+          <button onClick={() => { void saveSessionSettings(); }} className={saveButtonClass}>
             {tx(lang, 'Sessiya ayarlarını saxla', 'Сохранить настройки сессии', 'Save Session Settings')}
           </button>
         </div>
+        {renderPanelSuccess('session')}
       </div>
 
       <div className="metal-panel p-6 space-y-4">
@@ -2083,8 +2114,9 @@ export default function SettingsPanel() {
             </div>
           </div>
         ) : null}
+        {renderPanelSuccess('staff_benefits')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveStaffBenefits(); }} className="glossy-gold rounded-xl px-6 py-2 font-bold">{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+          <button onClick={() => { void saveStaffBenefits(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 
@@ -2322,8 +2354,9 @@ export default function SettingsPanel() {
             </div>
           ))}
         </div>
+        {renderPanelSuccess('role_modules')}
         <div className="flex justify-end">
-          <button onClick={() => { void saveRoleModules(); }} className="neon-btn rounded-xl px-5 py-2 font-semibold">{tx(lang, 'Rol icazələrini yadda saxla', 'Сохранить права ролей', 'Save role permissions')}</button>
+          <button onClick={() => { void saveRoleModules(); }} className="neon-btn rounded-xl px-5 py-2 font-semibold transition-transform duration-100 active:translate-y-px active:scale-[0.98]">{tx(lang, 'Rol icazələrini yadda saxla', 'Сохранить права ролей', 'Save role permissions')}</button>
         </div>
       </div>
 

@@ -325,8 +325,10 @@ export default function POS() {
       }
     };
     window.addEventListener('pos-layout-updated', onLayoutUpdate as EventListener);
+    window.addEventListener('settings-updated', onLayoutUpdate as EventListener);
     return () => {
       window.removeEventListener('pos-layout-updated', onLayoutUpdate as EventListener);
+      window.removeEventListener('settings-updated', onLayoutUpdate as EventListener);
     };
   }, [tenantId]);
 
