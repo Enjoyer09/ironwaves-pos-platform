@@ -24,6 +24,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
   const [error, setError] = React.useState('');
   const [coupon, setCoupon] = React.useState<{ code: string; percent: number } | null>(null);
   const [couponQrDataUrl, setCouponQrDataUrl] = React.useState('');
+  const [savingPng, setSavingPng] = React.useState(false);
 
   React.useEffect(() => {
     let mounted = true;
@@ -127,6 +128,95 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
     }
   };
 
+  const saveCouponCardAsPng = async () => {
+    if (!coupon?.code) return;
+    try {
+      setSavingPng(true);
+      const width = 1080;
+      const height = 1700;
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx2d = canvas.getContext('2d');
+      if (!ctx2d) throw new Error('Canvas unavailable');
+
+      const bgGradient = ctx2d.createLinearGradient(0, 0, width, height);
+      bgGradient.addColorStop(0, '#0b1220');
+      bgGradient.addColorStop(1, '#111827');
+      ctx2d.fillStyle = bgGradient;
+      ctx2d.fillRect(0, 0, width, height);
+
+      const cardX = 80;
+      const cardY = 120;
+      const cardW = width - 160;
+      const cardH = height - 240;
+      ctx2d.fillStyle = '#0f172a';
+      ctx2d.strokeStyle = '#334155';
+      ctx2d.lineWidth = 3;
+      ctx2d.beginPath();
+      ctx2d.roundRect(cardX, cardY, cardW, cardH, 28);
+      ctx2d.fill();
+      ctx2d.stroke();
+
+      const companyName = String(profile?.company_name || 'ironWaves');
+      ctx2d.fillStyle = '#e2e8f0';
+      ctx2d.font = '700 52px Arial';
+      ctx2d.fillText(companyName, cardX + 50, cardY + 90);
+
+      ctx2d.fillStyle = '#94a3b8';
+      ctx2d.font = '500 34px Arial';
+      ctx2d.fillText('Feedback kuponu', cardX + 50, cardY + 150);
+
+      ctx2d.fillStyle = '#22c55e';
+      ctx2d.font = '700 72px Arial';
+      ctx2d.fillText(`-${coupon.percent}% ENDIRIM`, cardX + 50, cardY + 265);
+
+      ctx2d.fillStyle = '#f8fafc';
+      ctx2d.font = '700 64px Arial';
+      ctx2d.fillText(coupon.code, cardX + 50, cardY + 360);
+
+      ctx2d.fillStyle = '#cbd5e1';
+      ctx2d.font = '500 30px Arial';
+      ctx2d.fillText('Növbəti alışda bu kodu kassada göstərin.', cardX + 50, cardY + 420);
+
+      if (couponQrDataUrl) {
+        const qrImg = new Image();
+        await new Promise<void>((resolve, reject) => {
+          qrImg.onload = () => resolve();
+          qrImg.onerror = () => reject(new Error('QR load failed'));
+          qrImg.src = couponQrDataUrl;
+        });
+        const qrSize = 360;
+        const qrX = cardX + (cardW - qrSize) / 2;
+        const qrY = cardY + 500;
+        ctx2d.fillStyle = '#ffffff';
+        ctx2d.fillRect(qrX - 14, qrY - 14, qrSize + 28, qrSize + 28);
+        ctx2d.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+        ctx2d.fillStyle = '#94a3b8';
+        ctx2d.font = '500 28px Arial';
+        ctx2d.fillText('Kassada QR-i skan edin (IWPOS:FB)', cardX + 180, qrY + qrSize + 60);
+      }
+
+      const issuedAt = new Date().toLocaleString('az-AZ');
+      ctx2d.fillStyle = '#64748b';
+      ctx2d.font = '500 24px Arial';
+      ctx2d.fillText(`Verilmə tarixi: ${issuedAt}`, cardX + 50, cardY + cardH - 70);
+
+      const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) throw new Error('PNG export failed');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `feedback-coupon-${coupon.code}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setError(String(err?.message || 'PNG faylı saxlanmadı'));
+    } finally {
+      setSavingPng(false);
+    }
+  };
+
   if (!tenantId) {
     return (
       <div className="metal-app flex min-h-screen items-center justify-center px-4 text-slate-200">
@@ -189,6 +279,14 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
                     <div className="mt-2 text-[11px] text-emerald-100/90">Kassada QR-i skan edin (IWPOS:FB)</div>
                   </div>
                 ) : null}
+                <button
+                  type="button"
+                  onClick={saveCouponCardAsPng}
+                  disabled={savingPng}
+                  className="mt-3 w-full rounded-lg border border-emerald-200/40 bg-emerald-600/20 px-3 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-600/30 disabled:opacity-60"
+                >
+                  {savingPng ? 'PNG hazırlanır...' : 'Kuponu PNG kimi saxla'}
+                </button>
               </div>
             ) : null}
             {viewReceiptUrl ? (
