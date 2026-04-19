@@ -931,9 +931,9 @@ export default function POS() {
               );
       const defaultFeedbackPortalUrl = `${tenantBaseUrl.replace(/\/+$/, '')}/feedback`;
       const feedbackBaseUrl = String(
-        feedbackSettings?.portal_url || defaultFeedbackPortalUrl || feedbackSettings?.google_review_url || '',
+        feedbackSettings?.portal_url || defaultFeedbackPortalUrl || '',
       ).trim();
-      const feedbackEnabled = Boolean(feedbackBaseUrl);
+      const feedbackEnabled = feedbackSettings?.enabled !== false && Boolean(feedbackBaseUrl);
       let feedbackUrl = '';
       if (feedbackBaseUrl) {
         try {
@@ -942,9 +942,8 @@ export default function POS() {
           if (tenantDomain && u.hostname === 'super.ironwaves.store') {
             u.hostname = String(tenantDomain).trim().replace(/^https?:\/\//, '');
           }
-          if (!u.pathname || u.pathname === '/') {
-            u.pathname = '/feedback';
-          }
+          // Always keep receipt QR on tenant feedback endpoint.
+          u.pathname = '/feedback';
           u.searchParams.set('tenant_id', tenantId);
           u.searchParams.set('sale_id', String(sale.sale_id || ''));
           u.searchParams.set('receipt_id', String(receiptRef || ''));
