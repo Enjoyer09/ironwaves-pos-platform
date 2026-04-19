@@ -1,10 +1,12 @@
 import { apiRequest, isBackendEnabled } from './client';
 import { get_settings } from './settings';
+import { getDB } from '../lib/db_sim';
 
 export type FeedbackSubmission = {
   tenant_id: string;
   sale_id?: string;
   receipt_id?: string;
+  receipt_token?: string;
   source?: string;
   score: number;
   comment?: string;
@@ -23,6 +25,7 @@ export type FeedbackCoupon = {
   source?: string;
   sale_id?: string;
   receipt_id?: string;
+  receipt_token?: string;
   feedback_created_at?: string;
   redeemed_sale_id?: string;
 };
@@ -103,6 +106,16 @@ function issueFeedbackCoupon(payload: FeedbackSubmission): FeedbackCoupon {
   const tenantId = String(payload.tenant_id || 'tenant_default');
   const store = readCouponStore();
   const existing = Array.isArray(store[tenantId]) ? store[tenantId] : [];
+  const receiptId = String(payload.receipt_id || '').trim();
+  const receiptToken = String(payload.receipt_token || '').trim();
+  const existingForReceipt = existing.find(
+    (row) =>
+      String(row.receipt_id || '').trim() === receiptId &&
+      String(row.receipt_token || '').trim() === receiptToken,
+  );
+  if (existingForReceipt) {
+    return existingForReceipt;
+  }
   const now = new Date().toISOString();
   const code = `FB-${randomCodeChunk(8)}`;
   const configuredPercent = Number(get_settings(tenantId)?.feedback_settings?.coupon_percent || 5);
@@ -117,6 +130,7 @@ function issueFeedbackCoupon(payload: FeedbackSubmission): FeedbackCoupon {
     source: payload.source || 'feedback',
     sale_id: payload.sale_id,
     receipt_id: payload.receipt_id,
+    receipt_token: payload.receipt_token,
     feedback_created_at: payload.created_at || now,
   };
   store[tenantId] = [coupon, ...existing].slice(0, 1000);
@@ -156,6 +170,37 @@ export function redeem_feedback_coupon_live(tenantId: string, code: string, sale
   return { success: true, coupon: updated };
 }
 
+async function assertValidReceiptLink(payload: FeedbackSubmission) {
+  const tenantId = String(payload.tenant_id || 'tenant_default').trim();
+  const receiptId = String(payload.receipt_id || '').trim();
+  const receiptToken = String(payload.receipt_token || '').trim();
+  if (!receiptId || !receiptToken) {
+    throw new Error('Feedback kuponu yalnız keçərli çek linki (r+t) ilə yaradıla bilər');
+  }
+
+  if (isBackendEnabled()) {
+    await apiRequest(`/api/v1/pos/receipt/${encodeURIComponent(receiptId)}?token=${encodeURIComponent(receiptToken)}`, {
+      method: 'GET',
+      auth: false,
+      tenantId: null,
+    });
+    return;
+  }
+
+  const sales = getDB<any>('sales') || [];
+  const found = sales.find(
+    (row: any) =>
+      String(row?.tenant_id || '') === tenantId &&
+      (String(row?.id || '') === receiptId || String(row?.receipt_code || '').toLowerCase() === receiptId.toLowerCase()),
+  );
+  if (!found) {
+    throw new Error('Çek tapılmadı');
+  }
+  if (String(found?.receipt_token || '') !== receiptToken) {
+    throw new Error('Çek token etibarsızdır');
+  }
+}
+
 function saveLocally(payload: FeedbackSubmission) {
   const store = readStore();
   const tenantId = String(payload.tenant_id || 'tenant_default');
@@ -175,6 +220,9 @@ export async function submit_feedback_live(payload: FeedbackSubmission) {
   const safePayload: FeedbackSubmission = {
     ...payload,
     tenant_id: String(payload.tenant_id || 'tenant_default'),
+    sale_id: String(payload.sale_id || '').trim() || undefined,
+    receipt_id: String(payload.receipt_id || '').trim() || undefined,
+    receipt_token: String(payload.receipt_token || '').trim() || undefined,
     score: clampScore(payload.score),
     comment: String(payload.comment || '').trim(),
     contact: String(payload.contact || '').trim(),
@@ -184,6 +232,8 @@ export async function submit_feedback_live(payload: FeedbackSubmission) {
   if (!safePayload.score) {
     throw new Error('Feedback score is required');
   }
+
+  await assertValidReceiptLink(safePayload);
 
   if (isBackendEnabled()) {
     try {
