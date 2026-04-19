@@ -1038,11 +1038,6 @@ export default function App() {
     );
   }
 
-  // Public receipt route should not redirect to login even if token is missing/invalid.
-  if (publicReceiptParams.receiptId) {
-    return <PublicReceipt receiptId={publicReceiptParams.receiptId} token={publicReceiptParams.token} />;
-  }
-
   if (publicPathname === '/menu' || publicPathname === '/menu/') {
     return <PublicMenu />;
   }
@@ -1065,6 +1060,13 @@ export default function App() {
         source="receipt"
       />
     );
+  }
+
+  // Public receipt route should not redirect to login even if token is missing/invalid.
+  // Keep this check after explicit public path handlers (e.g. /feedback),
+  // because feedback links also carry r/t query params.
+  if (publicReceiptParams.receiptId) {
+    return <PublicReceipt receiptId={publicReceiptParams.receiptId} token={publicReceiptParams.token} />;
   }
 
   if (customerAppParams.join || (customerAppParams.cardId && customerAppParams.token)) {
