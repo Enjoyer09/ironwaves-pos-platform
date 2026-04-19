@@ -920,11 +920,11 @@ export default function POS() {
       const feedbackBaseUrl = String(
         feedbackSettings?.portal_url || defaultFeedbackPortalUrl || feedbackSettings?.google_review_url || '',
       ).trim();
-      const feedbackEnabled = feedbackSettings?.enabled === true && Boolean(feedbackBaseUrl);
+      const feedbackEnabled = feedbackSettings?.enabled !== false && Boolean(feedbackBaseUrl);
       let feedbackUrl = '';
       if (feedbackEnabled && feedbackBaseUrl) {
         try {
-          const u = new URL(feedbackBaseUrl);
+          const u = new URL(feedbackBaseUrl, baseUrl);
           u.searchParams.set('tenant_id', tenantId);
           u.searchParams.set('sale_id', String(sale.sale_id || ''));
           u.searchParams.set('receipt_id', String(receiptRef || ''));
