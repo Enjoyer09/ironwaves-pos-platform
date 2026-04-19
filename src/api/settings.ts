@@ -1166,11 +1166,17 @@ export function update_role_modules(payload: { staff: string[]; manager: string[
 export async function get_settings_live(tenant_id?: string) {
   if (!isBackendEnabled()) return get_settings(tenant_id);
   const data = await apiRequest<Settings>('/api/v1/ops/settings', { tenantId: null });
-  const resolvedTenant = String(data?.tenant_id || resolveTenant(tenant_id));
+  const requestedTenant = String(resolveTenant(tenant_id));
+  const responseTenant = String(data?.tenant_id || '');
+  const resolvedTenant = String(responseTenant || requestedTenant);
   const overrides = readFeedbackOverrides();
+  const scopedOverride =
+    overrides[requestedTenant] ||
+    overrides[resolvedTenant] ||
+    (responseTenant ? overrides[responseTenant] : undefined);
   const merged: Settings = {
     ...data,
-    feedback_settings: normalizeFeedbackSettings(overrides[resolvedTenant] || data?.feedback_settings),
+    feedback_settings: normalizeFeedbackSettings(scopedOverride || data?.feedback_settings),
   };
   saveSettings(merged);
   return merged;
