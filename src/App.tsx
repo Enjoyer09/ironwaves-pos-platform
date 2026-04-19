@@ -315,12 +315,13 @@ export default function App() {
   }, []);
 
   const feedbackParams = useMemo(() => {
-    if (typeof window === 'undefined') return { tenantId: '', saleId: '', receiptId: '' };
+    if (typeof window === 'undefined') return { tenantId: '', saleId: '', receiptId: '', receiptToken: '' };
     const params = new URLSearchParams(window.location.search);
     return {
       tenantId: params.get('tenant_id') || '',
       saleId: params.get('sale_id') || '',
       receiptId: params.get('receipt_id') || params.get('r') || '',
+      receiptToken: params.get('t') || params.get('token') || '',
     };
   }, []);
 
@@ -1060,6 +1061,7 @@ export default function App() {
         tenantId={resolvedFeedbackTenant}
         saleId={feedbackParams.saleId}
         receiptId={feedbackParams.receiptId}
+        receiptToken={feedbackParams.receiptToken}
         source="receipt"
       />
     );

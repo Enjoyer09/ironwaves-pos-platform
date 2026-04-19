@@ -262,6 +262,12 @@ const DEFAULT_FEEDBACK_SETTINGS: NonNullable<Settings['feedback_settings']> = {
   receipt_button_text_az: 'Rəy bildirin',
   receipt_button_text_ru: 'Оставить отзыв',
   receipt_button_text_en: 'Leave feedback',
+  receipt_qr_prompt_az: 'Rəyiniz bizim üçün çox önəmlidir, lütfən QR skan edib rəyinizi bildirin.',
+  receipt_qr_prompt_ru: 'Ваше мнение очень важно для нас. Пожалуйста, отсканируйте QR и оставьте отзыв.',
+  receipt_qr_prompt_en: 'Your feedback matters to us. Please scan the QR code and share your review.',
+  thank_you_text_az: 'Rəyiniz komanda tərəfindən nəzərdən keçiriləcək.',
+  thank_you_text_ru: 'Ваш отзыв будет рассмотрен нашей командой.',
+  thank_you_text_en: 'Your feedback will be reviewed by our team.',
 };
 
 const FEEDBACK_SETTINGS_OVERRIDES_KEY = 'iw_feedback_settings_overrides_v1';
@@ -277,6 +283,12 @@ function normalizeFeedbackSettings(source?: Settings['feedback_settings']): NonN
     receipt_button_text_az: String(raw.receipt_button_text_az || DEFAULT_FEEDBACK_SETTINGS.receipt_button_text_az).trim(),
     receipt_button_text_ru: String(raw.receipt_button_text_ru || DEFAULT_FEEDBACK_SETTINGS.receipt_button_text_ru).trim(),
     receipt_button_text_en: String(raw.receipt_button_text_en || DEFAULT_FEEDBACK_SETTINGS.receipt_button_text_en).trim(),
+    receipt_qr_prompt_az: String(raw.receipt_qr_prompt_az || DEFAULT_FEEDBACK_SETTINGS.receipt_qr_prompt_az).trim(),
+    receipt_qr_prompt_ru: String(raw.receipt_qr_prompt_ru || DEFAULT_FEEDBACK_SETTINGS.receipt_qr_prompt_ru).trim(),
+    receipt_qr_prompt_en: String(raw.receipt_qr_prompt_en || DEFAULT_FEEDBACK_SETTINGS.receipt_qr_prompt_en).trim(),
+    thank_you_text_az: String(raw.thank_you_text_az || DEFAULT_FEEDBACK_SETTINGS.thank_you_text_az).trim(),
+    thank_you_text_ru: String(raw.thank_you_text_ru || DEFAULT_FEEDBACK_SETTINGS.thank_you_text_ru).trim(),
+    thank_you_text_en: String(raw.thank_you_text_en || DEFAULT_FEEDBACK_SETTINGS.thank_you_text_en).trim(),
   };
 }
 

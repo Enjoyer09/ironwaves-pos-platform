@@ -33,6 +33,8 @@ export default function PublicReceipt({ receiptId, token }: Props) {
             const url = new URL(baseFeedbackUrl);
             url.searchParams.set('tenant_id', String(res.tenant_id || ''));
             url.searchParams.set('receipt_id', String(res.id || receiptId || ''));
+            url.searchParams.set('r', String(receiptId || res.id || ''));
+            url.searchParams.set('t', String(token || ''));
             nextUrl = url.toString();
           } catch {
             nextUrl = baseFeedbackUrl;
