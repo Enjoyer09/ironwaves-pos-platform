@@ -885,7 +885,10 @@ export default function POS() {
           : safeLang === 'en'
             ? String(feedbackSettings?.receipt_button_text_en || 'Leave feedback')
             : String(feedbackSettings?.receipt_button_text_az || 'Rəy bildirin');
-      const feedbackBaseUrl = String(feedbackSettings?.portal_url || feedbackSettings?.google_review_url || '').trim();
+      const defaultFeedbackPortalUrl = `${baseUrl}/feedback`;
+      const feedbackBaseUrl = String(
+        feedbackSettings?.portal_url || defaultFeedbackPortalUrl || feedbackSettings?.google_review_url || '',
+      ).trim();
       const feedbackEnabled = feedbackSettings?.enabled === true && Boolean(feedbackBaseUrl);
       let feedbackUrl = '';
       if (feedbackEnabled && feedbackBaseUrl) {

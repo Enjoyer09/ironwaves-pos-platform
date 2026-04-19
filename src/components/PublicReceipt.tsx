@@ -24,7 +24,8 @@ export default function PublicReceipt({ receiptId, token }: Props) {
         setProfile(await get_public_branding_live(res.tenant_id).catch(() => get_business_profile(res.tenant_id)));
         const settings = get_settings(res.tenant_id);
         const feedbackSettings = settings?.feedback_settings || {};
-        const baseFeedbackUrl = String(feedbackSettings.portal_url || feedbackSettings.google_review_url || '').trim();
+        const defaultFeedbackPortalUrl = `${window.location.origin.replace(/\/+$/, '')}/feedback`;
+        const baseFeedbackUrl = String(feedbackSettings.portal_url || defaultFeedbackPortalUrl || feedbackSettings.google_review_url || '').trim();
         const feedbackEnabled = feedbackSettings.enabled === true && Boolean(baseFeedbackUrl);
         if (feedbackEnabled && baseFeedbackUrl) {
           let nextUrl = baseFeedbackUrl;
