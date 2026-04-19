@@ -121,6 +121,22 @@ DEFAULT_Z_REPORT_RECEIPT_SETTINGS = {
     "show_counts": True,
 }
 
+DEFAULT_FEEDBACK_SETTINGS = {
+    "enabled": True,
+    "coupon_percent": 5,
+    "portal_url": "",
+    "google_review_url": "",
+    "receipt_button_text_az": "Rəy bildirin",
+    "receipt_button_text_ru": "Оставить отзыв",
+    "receipt_button_text_en": "Leave feedback",
+    "receipt_qr_prompt_az": "Rəyiniz bizim üçün çox önəmlidir, lütfən QR skan edib rəyinizi bildirin.",
+    "receipt_qr_prompt_ru": "Ваше мнение очень важно для нас. Пожалуйста, отсканируйте QR и оставьте отзыв.",
+    "receipt_qr_prompt_en": "Your feedback matters to us. Please scan the QR code and share your review.",
+    "thank_you_text_az": "Rəyiniz komanda tərəfindən nəzərdən keçiriləcək.",
+    "thank_you_text_ru": "Ваш отзыв будет рассмотрен нашей командой.",
+    "thank_you_text_en": "Your feedback will be reviewed by our team.",
+}
+
 DEFAULT_LANDING_SETTINGS = {
     "nav_product_az": "Məhsul",
     "nav_product_ru": "Продукт",
@@ -1196,6 +1212,7 @@ def get_app_settings(
         "inventory_settings": inventory_settings,
         "staff_benefits": staff_benefits,
         "print_settings": print_settings,
+        "feedback_settings": getv("feedback_settings", DEFAULT_FEEDBACK_SETTINGS),
         "qr_settings": qr_settings,
         "qr_menu_settings": qr_menu_settings,
         "customer_app_settings": customer_app_settings,
@@ -2090,6 +2107,39 @@ def update_qr_menu_settings(
     _set_setting_value(db, tenant.id, "qr_menu_settings", cleaned)
     db.commit()
     return {"success": True}
+
+
+@router.patch("/settings/feedback")
+def update_feedback_settings(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    current = _setting_value(db, tenant.id, "feedback_settings", DEFAULT_FEEDBACK_SETTINGS)
+    if not isinstance(current, dict):
+        current = {}
+    merged = {**DEFAULT_FEEDBACK_SETTINGS, **current, **(payload or {})}
+
+    cleaned = {
+        "enabled": bool(merged.get("enabled", True)),
+        "coupon_percent": max(1, min(100, int(merged.get("coupon_percent", 5) or 5))),
+        "portal_url": str(merged.get("portal_url") or "").strip(),
+        "google_review_url": str(merged.get("google_review_url") or "").strip(),
+        "receipt_button_text_az": str(merged.get("receipt_button_text_az") or "Rəy bildirin").strip() or "Rəy bildirin",
+        "receipt_button_text_ru": str(merged.get("receipt_button_text_ru") or "Оставить отзыв").strip() or "Оставить отзыв",
+        "receipt_button_text_en": str(merged.get("receipt_button_text_en") or "Leave feedback").strip() or "Leave feedback",
+        "receipt_qr_prompt_az": str(merged.get("receipt_qr_prompt_az") or DEFAULT_FEEDBACK_SETTINGS["receipt_qr_prompt_az"]).strip() or DEFAULT_FEEDBACK_SETTINGS["receipt_qr_prompt_az"],
+        "receipt_qr_prompt_ru": str(merged.get("receipt_qr_prompt_ru") or DEFAULT_FEEDBACK_SETTINGS["receipt_qr_prompt_ru"]).strip() or DEFAULT_FEEDBACK_SETTINGS["receipt_qr_prompt_ru"],
+        "receipt_qr_prompt_en": str(merged.get("receipt_qr_prompt_en") or DEFAULT_FEEDBACK_SETTINGS["receipt_qr_prompt_en"]).strip() or DEFAULT_FEEDBACK_SETTINGS["receipt_qr_prompt_en"],
+        "thank_you_text_az": str(merged.get("thank_you_text_az") or DEFAULT_FEEDBACK_SETTINGS["thank_you_text_az"]).strip() or DEFAULT_FEEDBACK_SETTINGS["thank_you_text_az"],
+        "thank_you_text_ru": str(merged.get("thank_you_text_ru") or DEFAULT_FEEDBACK_SETTINGS["thank_you_text_ru"]).strip() or DEFAULT_FEEDBACK_SETTINGS["thank_you_text_ru"],
+        "thank_you_text_en": str(merged.get("thank_you_text_en") or DEFAULT_FEEDBACK_SETTINGS["thank_you_text_en"]).strip() or DEFAULT_FEEDBACK_SETTINGS["thank_you_text_en"],
+    }
+    _set_setting_value(db, tenant.id, "feedback_settings", cleaned)
+    db.commit()
+    return {"success": True, "feedback_settings": cleaned}
 
 
 @router.patch("/settings/bank-commission")
