@@ -1,6 +1,6 @@
 import React from 'react';
 import { Star } from 'lucide-react';
-import { get_business_profile, get_public_branding_live, get_settings } from '../api/settings';
+import { get_business_profile, get_public_branding_live, get_settings, get_settings_live } from '../api/settings';
 import { get_feedback_coupon_for_receipt_live, submit_feedback_live } from '../api/feedback';
 import QRCode from 'qrcode';
 
@@ -17,6 +17,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
   const [settings, setSettings] = React.useState<any>(null);
   const [score, setScore] = React.useState(0);
   const [comment, setComment] = React.useState('');
+  const [presetReasons, setPresetReasons] = React.useState<string[]>([]);
   const [contact, setContact] = React.useState('');
   const [sending, setSending] = React.useState(false);
   const [done, setDone] = React.useState(false);
@@ -37,7 +38,9 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
         ]);
         if (!mounted) return;
         setProfile(branding || null);
-        setSettings(get_settings(currentTenant));
+        const liveSettings = await get_settings_live(currentTenant).catch(() => get_settings(currentTenant));
+        if (!mounted) return;
+        setSettings(liveSettings || get_settings(currentTenant));
       } catch {
         if (!mounted) return;
         setProfile(null);
@@ -95,19 +98,46 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
   const heading = 'Rəy və məmnuniyyət sorğusu';
   const subHeading = 'Xidmət keyfiyyətini yaxşılaşdırmaq üçün 30 saniyə ayırın.';
   const lowScoreThreshold = 3;
+  const requiresPresetReason = score > 0 && score <= 3;
   const requireComment = score > 0 && score <= lowScoreThreshold;
   const hasValidReceiptLink = Boolean(String(receiptId || '').trim() && String(receiptToken || '').trim());
-  const canSubmit = hasValidReceiptLink && score >= 1 && (!requireComment || comment.trim().length >= 3) && !sending;
+  const canSubmit =
+    hasValidReceiptLink &&
+    score >= 1 &&
+    (!requiresPresetReason || presetReasons.length > 0) &&
+    (!requireComment || comment.trim().length >= 3) &&
+    !sending;
   const viewReceiptUrl =
     String(receiptId || '').trim() && String(receiptToken || '').trim()
       ? `/?r=${encodeURIComponent(String(receiptId || '').trim())}&t=${encodeURIComponent(String(receiptToken || '').trim())}`
       : '';
+
+  const PRESET_REASON_LABELS: Record<number, string[]> = {
+    1: ['Xidmət çox gec idi', 'Sifariş səhv gəldi', 'Təmizlik zəif idi', 'Personal davranışı zəif idi', 'Dad keyfiyyəti zəif idi', 'Qiymətə görə dəyər zəifdir'],
+    2: ['Xidmət gecikdi', 'Dad gözlənilən deyildi', 'Məkan təmizliyi yaxşı deyildi', 'Qiymət/dəyər balansı zəifdir', 'Personal diqqəti zəif idi', 'Sifarişdə uyğunsuzluq oldu'],
+    3: ['Xidmət orta səviyyədə idi', 'Dad yaxşı ola bilərdi', 'Məkan rahatlığı orta idi', 'Qiymət/dəyər orta idi', 'Sifariş sürəti orta idi', 'Ümumi təcrübə orta idi'],
+    4: ['Xidmət sürətli idi', 'Personal mehriban idi', 'Dad yaxşı idi', 'Məkan təmiz idi', 'Qiymət/dəyər yaxşı idi', 'Yenə gəlmək istəyərəm'],
+    5: ['Xidmət əla idi', 'Dad mükəmməl idi', 'Məkan çox təmiz idi', 'Personal peşəkar idi', 'Qiymət/dəyər çox yaxşı idi', 'Mütləq tövsiyə edərəm'],
+  };
+  const availablePresetReasons = PRESET_REASON_LABELS[Math.max(1, Math.min(5, score || 5))] || PRESET_REASON_LABELS[5];
+  const togglePresetReason = (label: string) => {
+    setPresetReasons((prev) => (prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]));
+  };
+  React.useEffect(() => {
+    setPresetReasons((prev) => prev.filter((x) => availablePresetReasons.includes(x)));
+  }, [score]);
 
   const onSubmit = async () => {
     setError('');
     if (!canSubmit) return;
     try {
       setSending(true);
+      const composedComment = [
+        presetReasons.length ? `[Preset səbəblər] ${presetReasons.join(', ')}` : '',
+        comment.trim(),
+      ]
+        .filter(Boolean)
+        .join('\n');
       const result = await submit_feedback_live({
         tenant_id: String(tenantId || 'tenant_default'),
         sale_id: String(saleId || '').trim() || undefined,
@@ -115,7 +145,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
         receipt_token: String(receiptToken || '').trim() || undefined,
         source,
         score,
-        comment: comment.trim() || undefined,
+        comment: composedComment || undefined,
         contact: contact.trim() || undefined,
       });
       if (result?.coupon_code) {
@@ -310,7 +340,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
                 className="mt-4 inline-block rounded-xl px-4 py-2 text-sm font-semibold text-slate-900"
                 style={{ backgroundColor: primaryColor }}
               >
-                Google review aç
+                Google Maps-də rəy yaz
               </a>
             ) : null}
           </div>
@@ -335,6 +365,31 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
                     />
                   </button>
                 ))}
+              </div>
+            </div>
+
+            <div className="mb-4 rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4">
+              <div className="mb-2 text-sm font-semibold text-slate-200">
+                {requiresPresetReason ? 'Səbəb seçin (mütləq)' : 'Qısa səbəb seçə bilərsiniz (opsional)'}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {availablePresetReasons.map((label) => {
+                  const active = presetReasons.includes(label);
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => togglePresetReason(label)}
+                      className={`rounded-full border px-3 py-1 text-xs transition ${
+                        active
+                          ? 'border-emerald-300/60 bg-emerald-500/20 text-emerald-100'
+                          : 'border-slate-600/80 bg-slate-800/60 text-slate-300 hover:border-slate-400'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
