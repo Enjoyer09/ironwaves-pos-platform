@@ -168,6 +168,15 @@ const generateLineId = () => {
   return `line_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 };
 
+const normalizeRewardClaimCode = (value: string) => {
+  const raw = String(value || '').trim().toUpperCase();
+  if (!raw) return '';
+  if (raw.startsWith('IWPOS:FB:')) return raw.split(':').slice(2).join(':').trim().toUpperCase();
+  if (raw.startsWith('IWPOS:CLAIM:')) return raw.split(':').slice(2).join(':').trim().toUpperCase();
+  if (raw.startsWith('FB:')) return raw.slice(3).trim().toUpperCase();
+  return raw.replace(/\s+/g, '');
+};
+
 export default function POS() {
   const { user, lang, notify } = useAppStore();
   const safeLang = (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az';
@@ -269,7 +278,7 @@ export default function POS() {
 
   const cart = carts[activeCart];
   const ctx = cartCtx[activeCart];
-  const enteredClaimCode = String(ctx.rewardClaimCode || '').trim().toUpperCase();
+  const enteredClaimCode = normalizeRewardClaimCode(ctx.rewardClaimCode || '');
   const feedbackCouponPercent = feedbackCouponPreview?.status === 'PENDING' ? Number(feedbackCouponPreview.percent || 0) : 0;
   const typedDiscountPercent = Number(ctx.discount || 0);
   const hasClaimCode = Boolean(enteredClaimCode);
@@ -1086,6 +1095,58 @@ export default function POS() {
     notify('success', tx(lang, 'Müştəri tapıldı', 'Клиент найден', 'Customer found'));
   };
 
+  const handleRewardCodeEnter = () => {
+    const normalized = normalizeRewardClaimCode(ctx.rewardClaimCode || '');
+    patchCtx({ rewardClaimCode: normalized });
+    if (!normalized) {
+      setFeedbackCouponPreview(null);
+      return;
+    }
+    if (!isFeedbackCouponCode(normalized)) {
+      notify(
+        'error',
+        tx(
+          lang,
+          'Kod formatı yanlışdır. FB-XXXXXX formatından istifadə edin.',
+          'Неверный формат кода. Используйте формат FB-XXXXXX.',
+          'Invalid code format. Use FB-XXXXXX format.',
+        ),
+      );
+      setFeedbackCouponPreview(null);
+      return;
+    }
+    const found = find_feedback_coupon_live(tenantId, normalized);
+    if (!found) {
+      notify(
+        'error',
+        tx(lang, 'Kupon tapılmadı', 'Купон не найден', 'Coupon not found'),
+      );
+      setFeedbackCouponPreview(null);
+      return;
+    }
+    setFeedbackCouponPreview({
+      code: found.code,
+      percent: Number(found.percent || 5),
+      status: String(found.status || 'PENDING'),
+    });
+    notify(
+      found.status === 'PENDING' ? 'success' : 'info',
+      found.status === 'PENDING'
+        ? tx(
+            lang,
+            `Feedback kuponu aktivdir: -${Number(found.percent || 5)}%`,
+            `Купон feedback активен: -${Number(found.percent || 5)}%`,
+            `Feedback coupon active: -${Number(found.percent || 5)}%`,
+          )
+        : tx(
+            lang,
+            'Bu feedback kuponu artıq istifadə olunub',
+            'Этот feedback купон уже использован',
+            'This feedback coupon is already used',
+          ),
+    );
+  };
+
   useEffect(() => {
     const raw = String(ctx.rewardClaimCode || '').trim().toUpperCase();
     if (!raw || !isFeedbackCouponCode(raw)) {
@@ -1234,6 +1295,12 @@ export default function POS() {
             className={`neon-input ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}
             value={ctx.rewardClaimCode || ''}
             onChange={(e) => patchCtx({ rewardClaimCode: e.target.value.toUpperCase() })}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleRewardCodeEnter();
+              }
+            }}
           />
           {feedbackCouponPreview ? (
             <div
