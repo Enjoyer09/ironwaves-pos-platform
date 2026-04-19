@@ -259,6 +259,7 @@ export interface Settings {
   };
   feedback_settings?: {
     enabled: boolean;
+    coupon_percent?: number;
     portal_url?: string;
     google_review_url?: string;
     receipt_button_text_az?: string;

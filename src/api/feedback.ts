@@ -1,4 +1,5 @@
 import { apiRequest, isBackendEnabled } from './client';
+import { get_settings } from './settings';
 
 export type FeedbackSubmission = {
   tenant_id: string;
@@ -104,11 +105,13 @@ function issueFeedbackCoupon(payload: FeedbackSubmission): FeedbackCoupon {
   const existing = Array.isArray(store[tenantId]) ? store[tenantId] : [];
   const now = new Date().toISOString();
   const code = `FB-${randomCodeChunk(8)}`;
+  const configuredPercent = Number(get_settings(tenantId)?.feedback_settings?.coupon_percent || 5);
+  const couponPercent = Math.max(1, Math.min(100, Number.isFinite(configuredPercent) ? configuredPercent : 5));
   const coupon: FeedbackCoupon = {
     id: `${tenantId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     tenant_id: tenantId,
     code,
-    percent: 5,
+    percent: couponPercent,
     status: 'PENDING',
     issued_at: now,
     source: payload.source || 'feedback',

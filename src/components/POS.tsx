@@ -272,7 +272,13 @@ export default function POS() {
   const enteredClaimCode = String(ctx.rewardClaimCode || '').trim().toUpperCase();
   const feedbackCouponPercent = feedbackCouponPreview?.status === 'PENDING' ? Number(feedbackCouponPreview.percent || 0) : 0;
   const typedDiscountPercent = Number(ctx.discount || 0);
-  const effectiveDiscountPercent = Math.max(typedDiscountPercent, feedbackCouponPercent);
+  const hasClaimCode = Boolean(enteredClaimCode);
+  const effectiveDiscountPercent =
+    feedbackCouponPercent > 0
+      ? feedbackCouponPercent
+      : hasClaimCode
+        ? 0
+        : typedDiscountPercent;
   const rewardClaimCodeForSale = isFeedbackCouponCode(enteredClaimCode) ? null : (enteredClaimCode || null);
 
   const patchCtx = (patch: Partial<CartContext>) => {
@@ -1255,8 +1261,19 @@ export default function POS() {
             max={100}
             value={ctx.discount}
             onChange={(e) => patchCtx({ discount: e.target.value })}
-            className={`neon-input ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}
+            disabled={hasClaimCode}
+            className={`neon-input ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'} ${hasClaimCode ? 'opacity-60 cursor-not-allowed' : ''}`}
           />
+          {hasClaimCode ? (
+            <div className="text-[11px] text-amber-300">
+              {tx(
+                lang,
+                'Bu çekdə endirim kodu aktivdir: əlavə manual endirim bağlanıb.',
+                'В этом чеке активен код скидки: ручная скидка отключена.',
+                'A discount code is active for this check: manual discount is disabled.',
+              )}
+            </div>
+          ) : null}
         </React.Fragment>
       );
     }
