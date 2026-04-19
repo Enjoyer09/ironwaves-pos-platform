@@ -138,6 +138,29 @@ function issueFeedbackCoupon(payload: FeedbackSubmission): FeedbackCoupon {
   return coupon;
 }
 
+function findCouponByReceipt(tenantId: string, receiptId: string, receiptToken: string): FeedbackCoupon | null {
+  const safeTenant = String(tenantId || 'tenant_default').trim();
+  const safeReceipt = String(receiptId || '').trim();
+  const safeToken = String(receiptToken || '').trim();
+  if (!safeTenant || !safeReceipt || !safeToken) return null;
+  const store = readCouponStore();
+  const list = Array.isArray(store[safeTenant]) ? store[safeTenant] : [];
+  const row = list.find(
+    (item) =>
+      String(item.receipt_id || '').trim() === safeReceipt &&
+      String(item.receipt_token || '').trim() === safeToken,
+  );
+  return row || null;
+}
+
+export function get_feedback_coupon_for_receipt_live(
+  tenantId: string,
+  receiptId: string,
+  receiptToken: string,
+): FeedbackCoupon | null {
+  return findCouponByReceipt(tenantId, receiptId, receiptToken);
+}
+
 export function find_feedback_coupon_live(tenantId: string, code: string): FeedbackCoupon | null {
   const safeTenant = String(tenantId || 'tenant_default');
   const safeCode = normalizeFeedbackCouponCode(code);
@@ -234,6 +257,20 @@ export async function submit_feedback_live(payload: FeedbackSubmission) {
   }
 
   await assertValidReceiptLink(safePayload);
+
+  const existingCoupon = findCouponByReceipt(
+    safePayload.tenant_id,
+    String(safePayload.receipt_id || ''),
+    String(safePayload.receipt_token || ''),
+  );
+  if (existingCoupon) {
+    return {
+      success: true,
+      already_submitted: true,
+      coupon_code: existingCoupon.code,
+      coupon_percent: existingCoupon.percent,
+    };
+  }
 
   if (isBackendEnabled()) {
     try {
