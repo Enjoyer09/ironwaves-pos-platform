@@ -239,10 +239,27 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
 
       const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
       if (!blob) throw new Error('PNG export failed');
+      const filename = `feedback-coupon-${coupon.code}.png`;
+      const canUseNativeShare =
+        typeof navigator !== 'undefined' &&
+        typeof (navigator as any).share === 'function' &&
+        typeof (navigator as any).canShare === 'function';
+      if (canUseNativeShare) {
+        const file = new File([blob], filename, { type: 'image/png' });
+        const canShareFile = (navigator as any).canShare({ files: [file] });
+        if (canShareFile) {
+          await (navigator as any).share({
+            title: 'Feedback Kuponu',
+            text: 'Kuponu Photos qalereyasına yadda saxlayın.',
+            files: [file],
+          });
+          return;
+        }
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `feedback-coupon-${coupon.code}.png`;
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err: any) {
@@ -320,7 +337,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
                   disabled={savingPng}
                   className="mt-3 w-full rounded-lg border border-emerald-200/40 bg-emerald-600/20 px-3 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-600/30 disabled:opacity-60"
                 >
-                  {savingPng ? 'PNG hazırlanır...' : 'Kuponu PNG kimi saxla'}
+                  {savingPng ? 'Şəkil hazırlanır...' : 'Save to Photos'}
                 </button>
               </div>
             ) : null}
