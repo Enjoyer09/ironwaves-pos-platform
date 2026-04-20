@@ -432,6 +432,116 @@ html {
     font-weight: 700;
     background: linear-gradient(145deg, #22344a, #141f31);
   }
+
+  html[data-ui-mode='new'] .pos3-shell {
+    @apply flex h-full min-h-0 flex-col px-3 pb-4 pt-3 md:px-4 xl:px-6;
+    background:
+      radial-gradient(circle at 10% 6%, rgba(245, 158, 11, 0.16), transparent 32%),
+      radial-gradient(circle at 92% 4%, rgba(59, 130, 246, 0.16), transparent 30%),
+      radial-gradient(circle at 45% 100%, rgba(168, 85, 247, 0.14), transparent 36%),
+      linear-gradient(150deg, #101826 0%, #0a121d 52%, #070d16 100%);
+  }
+
+  .pos3-header {
+    @apply mb-3 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-700/70 bg-slate-900/45 px-4 py-3 shadow-[0_16px_40px_rgba(2,6,23,0.5)];
+    backdrop-filter: blur(8px);
+  }
+
+  .pos3-brand {
+    @apply flex items-center gap-3;
+  }
+
+  .pos3-brand-mark {
+    @apply flex h-10 w-10 items-center justify-center rounded-xl border border-amber-200/40 bg-amber-300/25 text-sm font-bold text-amber-100;
+  }
+
+  .pos3-nav {
+    @apply flex flex-1 flex-wrap items-center gap-2;
+  }
+
+  .pos3-nav-btn {
+    @apply rounded-xl border border-slate-600/80 bg-slate-800/50 px-3 py-2 text-xs font-semibold text-slate-200 transition;
+  }
+
+  .pos3-nav-btn:hover {
+    @apply border-slate-500 bg-slate-700/55;
+  }
+
+  .pos3-nav-btn-active {
+    @apply border-amber-200/80 bg-amber-300 text-slate-900;
+  }
+
+  .pos3-utility-btn {
+    @apply rounded-xl border border-slate-600/80 bg-slate-800/50 px-3 py-2 text-xs font-semibold text-slate-200 disabled:opacity-55;
+  }
+
+  .pos3-cart-tab {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-600/80 bg-slate-800/50 px-3 py-2 text-xs font-semibold text-slate-200;
+  }
+
+  .pos3-cart-tab-active {
+    @apply border-amber-200/80 bg-amber-300 text-slate-900;
+  }
+
+  .pos3-workspace {
+    @apply grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_430px];
+  }
+
+  .pos3-menu {
+    @apply flex min-h-0 flex-col rounded-3xl border border-slate-700/70 bg-slate-950/30 p-4 shadow-[0_18px_40px_rgba(2,6,23,0.46)];
+    backdrop-filter: blur(6px);
+  }
+
+  .pos3-chip {
+    @apply rounded-full border border-slate-600/80 bg-slate-800/45 px-3 py-1.5 text-xs font-semibold text-slate-300 transition;
+  }
+
+  .pos3-chip:hover {
+    @apply bg-slate-700/55 text-slate-100;
+  }
+
+  .pos3-chip-active {
+    @apply border-amber-200/80 bg-amber-300 text-slate-900;
+  }
+
+  .pos3-product-grid {
+    @apply grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 2xl:grid-cols-3;
+    align-content: start;
+  }
+
+  .pos3-card {
+    @apply rounded-2xl border border-slate-700/70 bg-[linear-gradient(168deg,rgba(21,32,48,0.95),rgba(11,17,27,0.94))] p-3 shadow-[0_10px_24px_rgba(2,6,23,0.35)] transition;
+  }
+
+  .pos3-card:hover {
+    border-color: rgba(245, 208, 123, 0.52);
+    transform: translateY(-1px);
+  }
+
+  .pos3-card-image {
+    @apply h-28 overflow-hidden rounded-xl border border-slate-600/70 bg-slate-900/60;
+  }
+
+  .pos3-card-fallback {
+    @apply flex h-full w-full items-center justify-center gap-2 bg-[linear-gradient(145deg,#22344a,#141f31)] text-sm font-semibold text-slate-200;
+  }
+
+  .pos3-checkout {
+    @apply flex min-h-0 flex-col overflow-y-auto rounded-3xl border border-slate-700/70 bg-[linear-gradient(170deg,rgba(17,26,39,0.95),rgba(8,14,23,0.95))] p-4 shadow-[0_22px_48px_rgba(2,6,23,0.55)];
+  }
+
+  .pos3-checkout-head {
+    @apply mb-3 flex items-center justify-between border-b border-slate-700/60 pb-3;
+  }
+
+  .pos3-order-list {
+    @apply mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto rounded-2xl border border-slate-700/70 bg-slate-950/35 p-2.5;
+    min-height: 190px;
+  }
+
+  .pos3-primary-btn {
+    @apply mt-3 flex h-14 w-full items-center justify-center gap-2 rounded-xl border border-amber-200/40 bg-[linear-gradient(120deg,#f6b24f,#d8754f,#9164ff)] px-4 text-base font-bold text-white shadow-[0_10px_30px_rgba(219,120,79,0.45)] disabled:cursor-not-allowed disabled:opacity-45;
+  }
 }
 
 @layer utilities {
