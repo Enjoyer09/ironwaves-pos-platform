@@ -436,10 +436,9 @@ html {
   html[data-ui-mode='new'] .pos3-shell {
     @apply flex h-full min-h-0 flex-col px-3 pb-4 pt-3 md:px-4 xl:px-6;
     background:
-      radial-gradient(circle at 10% 6%, rgba(245, 158, 11, 0.16), transparent 32%),
-      radial-gradient(circle at 92% 4%, rgba(59, 130, 246, 0.16), transparent 30%),
-      radial-gradient(circle at 45% 100%, rgba(168, 85, 247, 0.14), transparent 36%),
-      linear-gradient(150deg, #101826 0%, #0a121d 52%, #070d16 100%);
+      radial-gradient(circle at 12% 4%, rgba(148, 163, 184, 0.12), transparent 30%),
+      radial-gradient(circle at 92% 2%, rgba(59, 130, 246, 0.1), transparent 28%),
+      linear-gradient(156deg, #0d1623 0%, #0b131f 55%, #09111b 100%);
   }
 
   .pos3-header {
@@ -488,8 +487,8 @@ html {
   }
 
   .pos3-menu {
-    @apply flex min-h-0 flex-col rounded-3xl border border-slate-700/70 bg-slate-950/30 p-3.5 shadow-[0_18px_40px_rgba(2,6,23,0.46)];
-    backdrop-filter: blur(6px);
+    @apply flex min-h-0 flex-col rounded-3xl border border-slate-700/60 bg-slate-950/26 p-3.5 shadow-[0_16px_34px_rgba(2,6,23,0.38)];
+    backdrop-filter: blur(5px);
   }
 
   .pos3-chip {
@@ -510,7 +509,7 @@ html {
   }
 
   .pos3-card {
-    @apply rounded-2xl border border-slate-700/70 bg-[linear-gradient(168deg,rgba(21,32,48,0.95),rgba(11,17,27,0.94))] p-2.5 shadow-[0_10px_24px_rgba(2,6,23,0.35)] transition;
+    @apply rounded-2xl border border-slate-700/65 bg-[linear-gradient(168deg,rgba(19,30,45,0.92),rgba(11,18,29,0.9))] p-2.5 shadow-[0_8px_18px_rgba(2,6,23,0.3)] transition;
   }
 
   .pos3-card-active {
@@ -524,11 +523,13 @@ html {
   }
 
   .pos3-card-image {
-    @apply h-24 overflow-hidden rounded-xl border border-slate-600/70 bg-slate-900/60;
+    @apply w-full overflow-hidden rounded-xl border border-slate-600/65 bg-slate-900/55;
+    aspect-ratio: 1 / 1;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), inset 0 -10px 24px rgba(2, 6, 23, 0.2);
   }
 
   .pos3-card-fallback {
-    @apply flex h-full w-full items-center justify-center gap-2 bg-[linear-gradient(145deg,#22344a,#141f31)] text-sm font-semibold text-slate-200;
+    @apply flex h-full w-full items-center justify-center gap-2 bg-[linear-gradient(145deg,#233447,#182436)] text-sm font-semibold text-slate-200;
   }
 
   .pos3-card-fallback-mark {
@@ -548,7 +549,7 @@ html {
   }
 
   .pos3-checkout {
-    @apply flex min-h-0 flex-col overflow-y-auto rounded-3xl border border-slate-700/70 bg-[linear-gradient(170deg,rgba(17,26,39,0.95),rgba(8,14,23,0.95))] p-3.5 shadow-[0_22px_48px_rgba(2,6,23,0.55)];
+    @apply flex min-h-0 flex-col overflow-y-auto rounded-3xl border border-slate-700/60 bg-[linear-gradient(172deg,rgba(16,25,38,0.94),rgba(9,14,23,0.94))] p-3.5 shadow-[0_18px_34px_rgba(2,6,23,0.42)];
   }
 
   .pos3-checkout-head {
@@ -577,7 +578,7 @@ html {
   }
 
   .pos3-recent-wrap {
-    @apply rounded-xl border border-slate-700/70 bg-slate-950/28 p-2.5;
+    @apply rounded-xl border border-slate-700/65 bg-slate-950/24 p-2.5;
   }
 
   .pos3-recent-scroll {
@@ -586,7 +587,7 @@ html {
   }
 
   .pos3-recent-card {
-    @apply min-w-[148px] rounded-xl border border-slate-700/70 bg-[linear-gradient(165deg,rgba(19,28,42,0.9),rgba(11,17,27,0.9))] px-2.5 py-2 text-left transition;
+    @apply min-w-[148px] rounded-xl border border-slate-700/65 bg-[linear-gradient(165deg,rgba(20,30,44,0.88),rgba(12,18,28,0.88))] px-2.5 py-2 text-left transition;
   }
 
   .pos3-recent-card:hover {

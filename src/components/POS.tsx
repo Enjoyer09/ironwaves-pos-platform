@@ -1859,33 +1859,6 @@ export default function POS() {
   if (isNewUiMode) {
     return (
       <div className="pos3-shell">
-        <header className="pos3-header">
-          <div className="pos3-brand">
-            <div className="pos3-brand-mark">{String(businessProfile?.company_name || 'I').slice(0, 1).toUpperCase()}</div>
-            <div>
-              <div className="text-xs uppercase tracking-[0.18em] text-slate-400">{tx(lang, 'POS Workspace', 'POS рабочая зона', 'POS Workspace')}</div>
-              <div className="text-lg font-bold text-slate-100">{businessProfile?.company_name || 'IRONWAVES POS'}</div>
-            </div>
-          </div>
-          <div className="pos3-nav">
-            <button className="pos3-nav-btn pos3-nav-btn-active">{tx(lang, 'POS', 'POS', 'POS')}</button>
-            <button className="pos3-nav-btn" onClick={() => window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module: 'tables' } }))}>
-              {tx(lang, 'Masalar', 'Столы', 'Tables')}
-            </button>
-            <button className="pos3-nav-btn" onClick={() => window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module: 'kds' } }))}>
-              {tx(lang, 'Mətbəx', 'Кухня', 'Kitchen')}
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={handleSyncOfflineQueue} disabled={isSyncingOffline} className="pos3-utility-btn">
-              {isSyncingOffline ? tx(lang, 'Sync...', 'Синк...', 'Sync...') : tx(lang, 'Sync', 'Синк', 'Sync')}
-            </button>
-            <button onClick={() => requestClearCart(activeCart)} disabled={!cart.length || isLoading} className="pos3-utility-btn">
-              {tx(lang, 'Səbəti sil', 'Очистить корзину', 'Clear cart')}
-            </button>
-          </div>
-        </header>
-
         {posLayout.show_cart_tabs && (
           <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-3">
             <button onClick={() => setActiveCart('S1')} className={`pos3-cart-tab ${activeCart === 'S1' ? 'pos3-cart-tab-active' : ''}`}>
@@ -1902,18 +1875,6 @@ export default function POS() {
 
         <div className="pos3-workspace">
           <section className="pos3-menu">
-            <div className="mb-3">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input
-                  id="pos-menu-search"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="neon-input pl-10"
-                  placeholder={t.search}
-                />
-              </div>
-            </div>
             <div className="pos3-recent-wrap mb-3">
               <div className="pos3-action-label">{tx(lang, 'Keçmiş Səbətlər', 'Прошлые корзины', 'Recent baskets')}</div>
               <div className="pos3-recent-scroll mt-2">
@@ -1945,6 +1906,18 @@ export default function POS() {
                     {tx(lang, 'Hələ keçmiş səbət yoxdur', 'Пока нет прошлых корзин', 'No recent baskets yet')}
                   </div>
                 )}
+              </div>
+            </div>
+            <div className="mb-3">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input
+                  id="pos-menu-search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="neon-input pl-10"
+                  placeholder={t.search}
+                />
               </div>
             </div>
             <div className="mb-3 flex flex-wrap gap-1.5">
