@@ -466,6 +466,7 @@ function getSettings(tenant_id?: string): Settings {
         provider: 'unknown',
         model: 'auto',
         autodetected: true,
+        ollama_freeapi_enabled: false,
       },
     };
     settingsArr.push(defaultSettings);
@@ -1206,6 +1207,7 @@ export async function get_settings_live(tenant_id?: string) {
       provider: String(data?.ai_config?.provider || 'unknown') as any,
       model: String(data?.ai_config?.model || 'auto'),
       autodetected: data?.ai_config?.autodetected !== false,
+      ollama_freeapi_enabled: data?.ai_config?.ollama_freeapi_enabled === true,
       updated_at: String(data?.ai_config?.updated_at || ''),
     },
   };
@@ -1800,7 +1802,7 @@ export async function update_user_credentials_live(
 
 export async function update_api_key_live(
   api_key: string,
-  ai_config?: { provider?: string; model?: string; autodetected?: boolean },
+  ai_config?: { provider?: string; model?: string; autodetected?: boolean; ollama_freeapi_enabled?: boolean },
 ) {
   if (!isBackendEnabled()) {
     const settings = getSettings();
@@ -1809,6 +1811,10 @@ export async function update_api_key_live(
       provider: String(ai_config?.provider || settings.ai_config?.provider || 'unknown'),
       model: String(ai_config?.model || settings.ai_config?.model || 'auto'),
       autodetected: ai_config?.autodetected !== false,
+      ollama_freeapi_enabled:
+        ai_config?.ollama_freeapi_enabled === undefined
+          ? settings.ai_config?.ollama_freeapi_enabled === true
+          : ai_config?.ollama_freeapi_enabled === true,
       updated_at: new Date().toISOString(),
     };
     saveSettings(settings);
@@ -1825,6 +1831,10 @@ export async function update_api_key_live(
     provider: String(ai_config?.provider || settings.ai_config?.provider || 'unknown'),
     model: String(ai_config?.model || settings.ai_config?.model || 'auto'),
     autodetected: ai_config?.autodetected !== false,
+    ollama_freeapi_enabled:
+      ai_config?.ollama_freeapi_enabled === undefined
+        ? settings.ai_config?.ollama_freeapi_enabled === true
+        : ai_config?.ollama_freeapi_enabled === true,
     updated_at: new Date().toISOString(),
   };
   saveSettings(settings);

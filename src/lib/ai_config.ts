@@ -1,4 +1,4 @@
-export type AiProvider = 'google' | 'openai' | 'anthropic' | 'openrouter' | 'xai' | 'huggingface' | 'unknown';
+export type AiProvider = 'google' | 'openai' | 'anthropic' | 'openrouter' | 'xai' | 'huggingface' | 'ollama_freeapi' | 'unknown';
 
 export type AiDetectionResult = {
   provider: AiProvider;
@@ -14,6 +14,7 @@ export const DEFAULT_MODEL_BY_PROVIDER: Record<AiProvider, string> = {
   openrouter: 'openrouter/auto',
   xai: 'grok-2-latest',
   huggingface: 'mistralai/Mistral-7B-Instruct-v0.3',
+  ollama_freeapi: 'llama3.2:3b',
   unknown: 'auto',
 };
 
@@ -25,6 +26,7 @@ export function providerLabel(provider: AiProvider): string {
     openrouter: 'OpenRouter',
     xai: 'xAI',
     huggingface: 'Hugging Face',
+    ollama_freeapi: 'OllamaFreeAPI (Experimental)',
     unknown: 'Unknown',
   };
   return map[provider];
@@ -101,4 +103,3 @@ export function detectAiConfigFromApiKey(value: string): AiDetectionResult {
 export function canRunGeminiRemote(provider: AiProvider): boolean {
   return provider === 'google';
 }
-

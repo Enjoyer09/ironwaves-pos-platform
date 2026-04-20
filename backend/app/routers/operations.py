@@ -1207,7 +1207,10 @@ def get_app_settings(
         gemini_api_key = ""
     else:
         gemini_api_key = getv("gemini_api_key", "")
-    ai_config = getv("ai_config", {"provider": "unknown", "model": "auto", "autodetected": True, "updated_at": ""})
+    ai_config = getv(
+        "ai_config",
+        {"provider": "unknown", "model": "auto", "autodetected": True, "ollama_freeapi_enabled": False, "updated_at": ""},
+    )
     return {
         "tenant_id": tenant.id,
         "service_fee_percent": getv("service_fee_percent", 0),
@@ -2064,6 +2067,7 @@ def update_gemini_key(
             "provider": str(ai_cfg.get("provider") or "unknown"),
             "model": str(ai_cfg.get("model") or "auto"),
             "autodetected": bool(ai_cfg.get("autodetected", True)),
+            "ollama_freeapi_enabled": bool(ai_cfg.get("ollama_freeapi_enabled", False)),
             "updated_at": _utcnow().isoformat(),
         },
     )

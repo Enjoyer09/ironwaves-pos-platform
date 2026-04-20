@@ -12,7 +12,7 @@ import {
   type AiInsightResult,
   update_api_key,
 } from '../../api/ai_manager';
-import { update_api_key_live } from '../../api/settings';
+import { get_settings_live, update_api_key_live } from '../../api/settings';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 import { readScopedStorage, writeScopedStorage } from '../../lib/storage_keys';
@@ -36,6 +36,9 @@ export default function AIManagerPanel() {
   const [apiKey, setApiKey] = useState(readScopedStorage('gemini_api_key') || '');
   const detection = useMemo(() => detectAiConfigFromApiKey(apiKey), [apiKey]);
   const [modelOverride, setModelOverride] = useState('');
+  const [experimentalOllamaEnabled, setExperimentalOllamaEnabled] = useState(false);
+  const selectedProvider = experimentalOllamaEnabled ? 'ollama_freeapi' : detection.provider;
+  const selectedModel = modelOverride.trim() || DEFAULT_MODEL_BY_PROVIDER[selectedProvider];
   const [loading, setLoading] = useState(false);
   const [auditWindow, setAuditWindow] = useState<'7' | '30' | '90'>('30');
   const [focus, setFocus] = useState('');
@@ -44,6 +47,26 @@ export default function AIManagerPanel() {
   const [structuredResult, setStructuredResult] = useState<AiInsightResult | null>(null);
   const [decisionInsights, setDecisionInsights] = useState<AiDecisionInsight[]>([]);
   const [digestSending, setDigestSending] = useState(false);
+
+  React.useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const settings = await get_settings_live(tenant_id);
+        if (!alive) return;
+        const aiConfig = settings?.ai_config || {};
+        setExperimentalOllamaEnabled(Boolean(aiConfig.ollama_freeapi_enabled));
+        if (!modelOverride.trim() && String(aiConfig.model || '').trim()) {
+          setModelOverride(String(aiConfig.model || ''));
+        }
+      } catch {
+        // Optional bootstrap; ignore errors silently.
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [tenant_id]);
 
   const pushCampaignToCrm = () => {
     if (!structuredResult || structuredResult.kind !== 'campaign') return;
@@ -74,13 +97,13 @@ export default function AIManagerPanel() {
   }, [auditWindow]);
 
   const saveApiKey = () => {
-    const detectedModel = modelOverride.trim() || detection.model || DEFAULT_MODEL_BY_PROVIDER[detection.provider];
     writeScopedStorage('gemini_api_key', apiKey);
     update_api_key(apiKey);
     void update_api_key_live(apiKey, {
-      provider: detection.provider,
-      model: detectedModel,
-      autodetected: !modelOverride.trim(),
+      provider: selectedProvider,
+      model: selectedModel,
+      autodetected: !modelOverride.trim() && !experimentalOllamaEnabled,
+      ollama_freeapi_enabled: experimentalOllamaEnabled,
     });
     notify('success', tx(lang, 'API Key yadda saxlanıldı!', 'API ключ сохранен!', 'API key saved'));
   };
@@ -338,18 +361,22 @@ export default function AIManagerPanel() {
             <div className="mt-3 grid gap-2 md:grid-cols-3">
               <div className="rounded-xl border border-slate-700/70 bg-slate-900/40 px-3 py-2 text-xs text-slate-300">
                 <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{tx(lang, 'Provider', 'Провайдер', 'Provider')}</div>
-                <div className="mt-1 font-semibold text-slate-100">{providerLabel(detection.provider)}</div>
+                <div className="mt-1 font-semibold text-slate-100">{providerLabel(selectedProvider)}</div>
               </div>
               <div className="rounded-xl border border-slate-700/70 bg-slate-900/40 px-3 py-2 text-xs text-slate-300">
                 <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{tx(lang, 'Model', 'Модель', 'Model')}</div>
-                <div className="mt-1 font-semibold text-slate-100">{modelOverride.trim() || detection.model}</div>
+                <div className="mt-1 font-semibold text-slate-100">{selectedModel}</div>
               </div>
               <div className="rounded-xl border border-slate-700/70 bg-slate-900/40 px-3 py-2 text-xs text-slate-300">
                 <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{tx(lang, 'Aşkarlama', 'Детект', 'Detection')}</div>
                 <div className="mt-1 font-semibold text-slate-100">{detection.confidence.toUpperCase()}</div>
               </div>
             </div>
-            <div className="mt-2 text-xs text-slate-400">{detection.reason}</div>
+            <div className="mt-2 text-xs text-slate-400">
+              {experimentalOllamaEnabled
+                ? tx(lang, 'Manual seçim: OllamaFreeAPI experimental provider aktivdir.', 'Ручной выбор: активирован экспериментальный провайдер OllamaFreeAPI.', 'Manual selection: OllamaFreeAPI experimental provider is enabled.')
+                : detection.reason}
+            </div>
             <div className="mt-2">
               <input
                 value={modelOverride}
@@ -357,6 +384,36 @@ export default function AIManagerPanel() {
                 placeholder={tx(lang, 'Model override (opsional)', 'Model override (опционально)', 'Model override (optional)')}
                 className="neon-input"
               />
+            </div>
+            <div className="mt-4 rounded-xl border border-amber-400/35 bg-amber-500/10 p-3">
+              <label className="flex items-center justify-between gap-3 text-sm font-semibold text-amber-100">
+                <span>{tx(lang, 'Experimental: OllamaFreeAPI', 'Экспериментально: OllamaFreeAPI', 'Experimental: OllamaFreeAPI')}</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={experimentalOllamaEnabled}
+                  onClick={() => setExperimentalOllamaEnabled((prev) => !prev)}
+                  className={`relative inline-flex h-7 w-14 items-center rounded-full border transition ${
+                    experimentalOllamaEnabled
+                      ? 'border-emerald-300/70 bg-emerald-500/30'
+                      : 'border-slate-600 bg-slate-800/70'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+                      experimentalOllamaEnabled ? 'translate-x-8' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </label>
+              <div className="mt-2 text-xs leading-5 text-amber-200">
+                {tx(
+                  lang,
+                  'Xəbərdarlıq: Bu provider experimental-dir. SLA, sabitlik, cavab keyfiyyəti və data məxfiliyi prod səviyyəsində zəmanətli deyil. Yalnız test məqsədi ilə aktiv edin.',
+                  'Предупреждение: этот провайдер экспериментальный. SLA, стабильность, качество ответов и приватность данных не гарантируются на prod-уровне. Используйте только для теста.',
+                  'Warning: this provider is experimental. SLA, stability, response quality, and data privacy are not guaranteed at production level. Use for testing only.',
+                )}
+              </div>
             </div>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
