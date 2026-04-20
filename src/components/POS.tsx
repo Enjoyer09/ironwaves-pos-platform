@@ -29,6 +29,7 @@ import {
 import { apiRequest, isBackendEnabled } from '../api/client';
 import ConfirmModal from './ConfirmModal';
 import { getTenantDomains } from '../lib/tenant';
+import StaffPosMode from './pos/staff/StaffPosMode';
 
 type OrderType = 'Dine In' | 'Take Away' | 'Order Online';
 type PaymentMethod = 'Nəğd' | 'Kart' | 'Split' | 'Staff';
@@ -1853,6 +1854,58 @@ export default function POS() {
           <iframe ref={receiptIframeRef} title="receipt" srcDoc={receiptHtml} className="h-[70vh] w-full rounded-lg bg-white" />
         </div>
       </div>
+    );
+  }
+
+  const isStaffRole = currentRole === 'staff' || currentRole === 'cashier';
+
+  if (isNewUiMode && isStaffRole) {
+    return (
+      <StaffPosMode
+        lang={safeLang}
+        tx={tx}
+        t={t as any}
+        businessName={String(businessProfile?.company_name || 'IRONWAVES POS')}
+        activeCart={activeCart}
+        search={search}
+        setSearch={setSearch}
+        categories={categories}
+        category={category}
+        setCategory={setCategory}
+        groupedMenu={groupedMenu}
+        cart={cart}
+        checkoutBaseTotal={checkoutBaseTotal}
+        recentBaskets={recentBaskets}
+        restoreRecentBasket={restoreRecentBasket}
+        getRelativeTimeLabel={getRelativeTimeLabel}
+        resolveOrderTypeLabel={resolveOrderTypeLabel}
+        getGroupQty={getGroupQty}
+        increaseGroupQty={increaseGroupQty}
+        decreaseGroupQty={decreaseGroupQty}
+        openProductPicker={openProductPicker}
+        toDecimalSafe={toDecimalSafe}
+        updateCartItem={updateCartItem}
+        selectedPayment={selectedPayment}
+        setSelectedPayment={setSelectedPayment}
+        splitCashInput={splitCashInput}
+        setSplitCashInput={setSplitCashInput}
+        isLoading={isLoading}
+        ctx={ctx}
+        patchCtx={patchCtx}
+        handleFindCustomer={handleFindCustomer}
+        handleRewardCodeEnter={handleRewardCodeEnter}
+        feedbackCouponPreview={feedbackCouponPreview}
+        hasClaimCode={hasClaimCode}
+        rawTotal={rawTotal}
+        discountAmount={discountAmount}
+        tables={tables}
+        handleSendToKitchen={handleSendToKitchen}
+        handleCheckout={handleCheckout}
+        shouldLockTableCheckoutInPos={shouldLockTableCheckoutInPos}
+        requestClearCart={requestClearCart}
+        handleSyncOfflineQueue={handleSyncOfflineQueue}
+        isSyncingOffline={isSyncingOffline}
+      />
     );
   }
 
