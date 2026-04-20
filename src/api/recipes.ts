@@ -6,6 +6,7 @@ import { getDB, setDB } from '../lib/db_sim';
 import { apiRequest, isBackendEnabled } from './client';
 import { readScopedStorage } from '../lib/storage_keys';
 import { get_inventory_items_live } from './inventory';
+import { detectAiConfigFromApiKey } from '../lib/ai_config';
 
 const getRecipes = (tenant_id: string = 'tenant_default') =>
   getDB<any>('recipes').filter((r) => !r.tenant_id || r.tenant_id === tenant_id);
@@ -455,7 +456,13 @@ async function generate_recipe_ai_rows(
   const tenantSettings = settings.find((row: any) => row?.tenant_id === tenant_id);
   const aiKey = String(tenantSettings?.gemini_api_key || readScopedStorage('gemini_api_key') || '').trim();
   if (!aiKey) {
-    throw new Error('AI resept üçün əvvəlcə Gemini API key daxil edilməlidir.');
+    throw new Error('AI resept üçün əvvəlcə API key daxil edilməlidir.');
+  }
+  const detected = detectAiConfigFromApiKey(aiKey);
+  const selectedProvider = String(tenantSettings?.ai_config?.provider || detected.provider || 'unknown');
+  const selectedModel = String(tenantSettings?.ai_config?.model || detected.model || 'gemini-1.5-flash');
+  if (selectedProvider !== 'google') {
+    throw new Error('AI resept generasiyası hazırda Google Gemini provider-i ilə işləyir. Gemini API key istifadə edin.');
   }
   const inventory = await loadInventoryForAI(tenant_id);
   if (inventory.length === 0) {
@@ -494,7 +501,7 @@ async function generate_recipe_ai_rows(
       `No markdown, no explanation.`
     ].filter(Boolean).join('\n');
 
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(aiKey)}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(selectedModel)}:generateContent?key=${encodeURIComponent(aiKey)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

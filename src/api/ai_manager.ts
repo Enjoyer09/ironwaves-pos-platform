@@ -9,6 +9,7 @@ import { getActiveTenantId } from '../lib/tenant';
 import { readScopedStorage } from '../lib/storage_keys';
 import { get_kitchen_orders } from './kds';
 import { get_tables } from './tables';
+import { DEFAULT_MODEL_BY_PROVIDER, detectAiConfigFromApiKey, type AiProvider } from '../lib/ai_config';
 
 const defaultTenant = () => getActiveTenantId();
 
@@ -17,10 +18,19 @@ const resolveAiKey = (tenantId: string) => {
   return String(settings?.gemini_api_key || readScopedStorage('gemini_api_key') || '').trim();
 };
 
+export const resolveAiRuntimeConfig = (tenantId: string): { provider: AiProvider; model: string; key: string } => {
+  const settings = getSettingsLocal(tenantId);
+  const key = resolveAiKey(tenantId);
+  const detected = detectAiConfigFromApiKey(key);
+  const provider = (settings?.ai_config?.provider as AiProvider) || detected.provider;
+  const model = String(settings?.ai_config?.model || detected.model || DEFAULT_MODEL_BY_PROVIDER[provider] || 'auto');
+  return { provider, model, key };
+};
+
 const ensureAiKey = (tenantId: string) => {
   const key = resolveAiKey(tenantId);
   if (!key) {
-    throw new Error('AI funksiyası üçün əvvəlcə Gemini API key daxil edilməlidir.');
+    throw new Error('AI funksiyası üçün əvvəlcə API key daxil edilməlidir.');
   }
   return key;
 };
@@ -648,6 +658,7 @@ export function update_api_key(api_key: string) {
       time_settings: { shift_start_time: '08:00', shift_end_time: '23:00', utc_offset: 4, timezone: 'Asia/Baku' },
       email_settings: { resend_api_key: '', sender_email: '', recipient_emails: [] },
       bank_commission: { min_amount: 0.10, percent: 1.5 },
+      ai_config: { provider: 'unknown', model: 'auto', autodetected: true },
     } as Settings;
     settingsArr.push(tenantSettings);
   }

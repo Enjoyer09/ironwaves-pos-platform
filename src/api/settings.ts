@@ -461,7 +461,12 @@ function getSettings(tenant_id?: string): Settings {
         staff: ['pos', 'tables', 'kds', 'zreport'],
         manager: ['pos', 'tables', 'kds', 'zreport', 'finance', 'inventory', 'combos', 'analytics', 'logs', 'crm', 'customerapp', 'posbuilder', 'ai', 'menu', 'recipes'],
         kitchen: ['kds']
-      }
+      },
+      ai_config: {
+        provider: 'unknown',
+        model: 'auto',
+        autodetected: true,
+      },
     };
     settingsArr.push(defaultSettings);
     setDB('settings', settingsArr);
@@ -1197,6 +1202,12 @@ export async function get_settings_live(tenant_id?: string) {
       ui_mode: 'old',
     },
     feedback_settings: normalizeFeedbackSettings(scopedOverride || data?.feedback_settings),
+    ai_config: {
+      provider: String(data?.ai_config?.provider || 'unknown') as any,
+      model: String(data?.ai_config?.model || 'auto'),
+      autodetected: data?.ai_config?.autodetected !== false,
+      updated_at: String(data?.ai_config?.updated_at || ''),
+    },
   };
   saveSettings(merged);
   return merged;
@@ -1787,20 +1798,35 @@ export async function update_user_credentials_live(
   return true;
 }
 
-export async function update_api_key_live(api_key: string) {
+export async function update_api_key_live(
+  api_key: string,
+  ai_config?: { provider?: string; model?: string; autodetected?: boolean },
+) {
   if (!isBackendEnabled()) {
     const settings = getSettings();
     settings.gemini_api_key = api_key;
+    settings.ai_config = {
+      provider: String(ai_config?.provider || settings.ai_config?.provider || 'unknown'),
+      model: String(ai_config?.model || settings.ai_config?.model || 'auto'),
+      autodetected: ai_config?.autodetected !== false,
+      updated_at: new Date().toISOString(),
+    };
     saveSettings(settings);
     return { success: true };
   }
   await apiRequest('/api/v1/ops/settings/gemini-key', {
     method: 'PATCH',
     tenantId: null,
-    body: { api_key },
+    body: { api_key, ai_config },
   });
   const settings = getSettings();
   settings.gemini_api_key = api_key;
+  settings.ai_config = {
+    provider: String(ai_config?.provider || settings.ai_config?.provider || 'unknown'),
+    model: String(ai_config?.model || settings.ai_config?.model || 'auto'),
+    autodetected: ai_config?.autodetected !== false,
+    updated_at: new Date().toISOString(),
+  };
   saveSettings(settings);
   return { success: true };
 }
