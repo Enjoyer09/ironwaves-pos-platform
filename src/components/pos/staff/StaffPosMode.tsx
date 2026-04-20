@@ -24,10 +24,6 @@ type StaffPosModeProps = {
   }>;
   cart: any[];
   checkoutBaseTotal: any;
-  recentBaskets: any[];
-  restoreRecentBasket: (basket: any) => void;
-  getRelativeTimeLabel: (createdAt?: string) => string;
-  resolveOrderTypeLabel: (value?: string) => string;
   getGroupQty: (group: { items: any[] }) => number;
   increaseGroupQty: (group: { items: any[] }) => void;
   decreaseGroupQty: (group: { items: any[] }) => void;
