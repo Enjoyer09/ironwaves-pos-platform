@@ -187,11 +187,31 @@ export default function RecipesPanel() {
     if (!selectedMenu) return;
     try {
       const selectedMenuMeta = menuItems.find((m) => String(m.item_name) === String(selectedMenu));
-      await generate_recipe_ai_live(selectedMenu, user?.username, tenant_id, {
+      const generated = await generate_recipe_ai_live(selectedMenu, user?.username, tenant_id, {
         category: selectedMenuMeta?.category,
         sell_price: selectedMenuMeta?.price,
       });
-      notify('success', tx(lang, `AI ${selectedMenu} üçün resept yaratdı və yadda saxladı!`, `AI создал рецепт для ${selectedMenu} и сохранил его!`, `AI created and saved a recipe for ${selectedMenu}!`));
+      const providerRaw = String(generated?.generation?.provider || 'unknown');
+      const providerLabel =
+        providerRaw === 'google'
+          ? 'Google Gemini'
+          : providerRaw === 'ollama_freeapi'
+            ? 'OllamaFreeAPI'
+            : providerRaw;
+      const modeRaw = String(generated?.generation?.mode || 'fallback');
+      const modeLabel =
+        modeRaw === 'remote'
+          ? tx(lang, 'remote AI cavabı', 'удаленный AI ответ', 'remote AI response')
+          : tx(lang, 'fallback generator', 'fallback генератор', 'fallback generator');
+      notify(
+        'success',
+        tx(
+          lang,
+          `AI ${selectedMenu} üçün resept yaratdı və yadda saxladı. Mənbə: ${providerLabel} (${modeLabel}).`,
+          `AI создал и сохранил рецепт для ${selectedMenu}. Источник: ${providerLabel} (${modeLabel}).`,
+          `AI created and saved a recipe for ${selectedMenu}. Source: ${providerLabel} (${modeLabel}).`,
+        ),
+      );
       const nextItems = await get_recipe_live(selectedMenu, tenant_id);
       setRecipeItems(nextItems);
       setDraftRecipeItems(nextItems);

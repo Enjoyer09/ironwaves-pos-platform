@@ -437,14 +437,15 @@ export async function generate_recipe_ai(
   tenant_id: string = 'tenant_default',
   context?: RecipeAIMenuContext,
 ) {
-  const generatedRows = await generate_recipe_ai_rows(menu_item_name, tenant_id, context);
+  const generated = await generate_recipe_ai_rows(menu_item_name, tenant_id, context);
+  const generatedRows = generated.rows;
   const recipes = [
     ...getRecipes(tenant_id).filter((r) => r.menu_item_name !== menu_item_name),
     ...generatedRows,
   ];
   saveRecipes(tenant_id, recipes);
-  logEvent(user, 'RECIPE_AI_CREATED', { menu_item_name, count: generatedRows.length });
-  return get_recipe(menu_item_name, tenant_id);
+  logEvent(user, 'RECIPE_AI_CREATED', { menu_item_name, count: generatedRows.length, generation: generated.generation });
+  return { recipe: get_recipe(menu_item_name, tenant_id), generation: generated.generation };
 }
 
 async function generate_recipe_ai_rows(
@@ -463,6 +464,7 @@ async function generate_recipe_ai_rows(
   );
   const selectedModel = String(tenantSettings?.ai_config?.model || detected.model || 'gemini-1.5-flash');
   const canUseGeminiRemote = selectedProvider === 'google';
+  let remoteGenerated = false;
   if (canUseGeminiRemote && !aiKey) {
     throw new Error('AI resept üçün əvvəlcə API key daxil edilməlidir.');
   }
@@ -531,6 +533,7 @@ async function generate_recipe_ai_rows(
             .filter((r) => r.ingredient && Number.isFinite(r.qty) && r.qty > 0)
             // inventory-də olmayan inqrediyenti qəbul etmə
             .filter((r) => invNames.has(r.ingredient.toLowerCase()));
+          remoteGenerated = aiRows.length > 0;
         }
       }
     }
@@ -589,7 +592,14 @@ async function generate_recipe_ai_rows(
     throw new Error('AI uyğun xammal seçə bilmədi. Əvvəl anbarda uyğun ingredient əlavə edin.');
   }
 
-  return generatedRows;
+  return {
+    rows: generatedRows,
+    generation: {
+      provider: selectedProvider,
+      model: selectedModel,
+      mode: remoteGenerated ? 'remote' : 'fallback',
+    },
+  };
 }
 
 export async function generate_recipe_ai_live(
@@ -602,15 +612,15 @@ export async function generate_recipe_ai_live(
   const generated = await generate_recipe_ai_rows(menu_item_name, tenant_id, context);
   await replace_recipe_live(
     menu_item_name,
-    generated.map((row) => ({
+    generated.rows.map((row) => ({
       ingredient_name: row.ingredient_name,
       quantity_required: row.quantity_required,
       quantity_unit: row.unit,
     })),
     tenant_id,
   );
-  logEvent(user, 'RECIPE_AI_CREATED', { menu_item_name, count: generated.length, mode: 'live' });
-  return get_recipe_live(menu_item_name, tenant_id);
+  logEvent(user, 'RECIPE_AI_CREATED', { menu_item_name, count: generated.rows.length, mode: 'live', generation: generated.generation });
+  return { recipe: await get_recipe_live(menu_item_name, tenant_id), generation: generated.generation };
 }
 
 export function analyze_recipe_ai(menu_item_name: string) {
