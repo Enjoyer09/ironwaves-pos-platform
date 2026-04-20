@@ -28,7 +28,11 @@ export const resolveAiRuntimeConfig = (tenantId: string): { provider: AiProvider
 };
 
 const ensureAiKey = (tenantId: string) => {
-  const key = resolveAiKey(tenantId);
+  const runtime = resolveAiRuntimeConfig(tenantId);
+  const key = runtime.key;
+  if (runtime.provider === 'ollama_freeapi') {
+    return key || '__ollama_freeapi__';
+  }
   if (!key) {
     throw new Error('AI funksiyası üçün əvvəlcə API key daxil edilməlidir.');
   }
@@ -658,7 +662,7 @@ export function update_api_key(api_key: string) {
       time_settings: { shift_start_time: '08:00', shift_end_time: '23:00', utc_offset: 4, timezone: 'Asia/Baku' },
       email_settings: { resend_api_key: '', sender_email: '', recipient_emails: [] },
       bank_commission: { min_amount: 0.10, percent: 1.5 },
-      ai_config: { provider: 'unknown', model: 'auto', autodetected: true },
+      ai_config: { provider: 'unknown', model: 'auto', autodetected: true, ollama_freeapi_enabled: false },
     } as Settings;
     settingsArr.push(tenantSettings);
   }
