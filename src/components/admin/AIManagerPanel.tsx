@@ -108,6 +108,19 @@ export default function AIManagerPanel() {
     notify('success', tx(lang, 'API Key yadda saxlanıldı!', 'API ключ сохранен!', 'API key saved'));
   };
 
+  const persistExperimentalToggle = (nextEnabled: boolean) => {
+    const provider = nextEnabled ? 'ollama_freeapi' : detection.provider;
+    const model = modelOverride.trim() || DEFAULT_MODEL_BY_PROVIDER[provider];
+    // Keep local mirror in sync for immediate UI continuity in offline/fast navigation scenarios.
+    update_api_key(apiKey);
+    void update_api_key_live(apiKey, {
+      provider,
+      model,
+      autodetected: !modelOverride.trim() && !nextEnabled,
+      ollama_freeapi_enabled: nextEnabled,
+    });
+  };
+
   const refreshDecisionEngine = (maxItems = 12) => {
     const insights = generate_ai_insight_engine({ tenant_id, ...range, max_items: maxItems });
     setDecisionInsights(insights);
@@ -392,7 +405,13 @@ export default function AIManagerPanel() {
                   type="button"
                   role="switch"
                   aria-checked={experimentalOllamaEnabled}
-                  onClick={() => setExperimentalOllamaEnabled((prev) => !prev)}
+                  onClick={() =>
+                    setExperimentalOllamaEnabled((prev) => {
+                      const next = !prev;
+                      persistExperimentalToggle(next);
+                      return next;
+                    })
+                  }
                   className={`relative inline-flex h-7 w-14 items-center rounded-full border transition ${
                     experimentalOllamaEnabled
                       ? 'border-emerald-300/70 bg-emerald-500/30'

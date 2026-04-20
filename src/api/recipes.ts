@@ -455,14 +455,16 @@ async function generate_recipe_ai_rows(
   const settings = getDB<any>('settings') || [];
   const tenantSettings = settings.find((row: any) => row?.tenant_id === tenant_id);
   const aiKey = String(tenantSettings?.gemini_api_key || readScopedStorage('gemini_api_key') || '').trim();
-  if (!aiKey) {
-    throw new Error('AI resept üçün əvvəlcə API key daxil edilməlidir.');
-  }
   const detected = detectAiConfigFromApiKey(aiKey);
-  const selectedProvider = String(tenantSettings?.ai_config?.provider || detected.provider || 'unknown');
+  const selectedProvider = String(
+    tenantSettings?.ai_config?.provider
+      || (tenantSettings?.ai_config?.ollama_freeapi_enabled ? 'ollama_freeapi' : detected.provider)
+      || 'unknown',
+  );
   const selectedModel = String(tenantSettings?.ai_config?.model || detected.model || 'gemini-1.5-flash');
-  if (selectedProvider !== 'google') {
-    throw new Error('AI resept generasiyası hazırda Google Gemini provider-i ilə işləyir. Gemini API key istifadə edin.');
+  const canUseGeminiRemote = selectedProvider === 'google';
+  if (canUseGeminiRemote && !aiKey) {
+    throw new Error('AI resept üçün əvvəlcə API key daxil edilməlidir.');
   }
   const inventory = await loadInventoryForAI(tenant_id);
   if (inventory.length === 0) {
@@ -473,6 +475,9 @@ async function generate_recipe_ai_rows(
 
   let aiRows: Array<{ ingredient: string; qty: number; qty_unit?: string }> = [];
   try {
+    if (!canUseGeminiRemote) {
+      throw new Error('REMOTE_PROVIDER_SKIPPED');
+    }
     const invText = inventory
       .map((i: any) => `${i.name} (${i.unit || 'q'})`)
       .join(', ');
