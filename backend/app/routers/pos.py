@@ -183,6 +183,8 @@ def get_menu(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant)
             "category": r.category,
             "price": str(r.price),
             "is_coffee": r.is_coffee,
+            "image_url": r.image_url or "",
+            "description": r.description or "",
             "is_active": r.is_active,
         }
         for r in rows
