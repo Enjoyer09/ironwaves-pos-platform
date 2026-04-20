@@ -688,12 +688,12 @@ html {
   }
 
   .staff-product-grid {
-    @apply mt-3 grid min-h-0 flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 2xl:grid-cols-3;
+    @apply mt-2 grid min-h-0 flex-1 auto-rows-max grid-cols-2 gap-2 overflow-y-auto pr-1 md:grid-cols-3 2xl:grid-cols-4;
     align-content: start;
   }
 
   .staff-product-card {
-    @apply rounded-2xl border border-slate-700/65 bg-[linear-gradient(168deg,rgba(19,30,45,0.92),rgba(11,18,29,0.9))] p-3 shadow-[0_8px_18px_rgba(2,6,23,0.3)] transition;
+    @apply rounded-xl border border-slate-700/65 bg-[linear-gradient(168deg,rgba(19,30,45,0.92),rgba(11,18,29,0.9))] p-2 shadow-[0_6px_14px_rgba(2,6,23,0.28)] transition;
   }
 
   .staff-product-card-active {
@@ -716,31 +716,31 @@ html {
   }
 
   .staff-product-fallback-mark {
-    @apply inline-flex h-12 min-w-12 items-center justify-center rounded-xl border border-white/20 bg-white/10 px-2 text-base font-bold tracking-[0.08em] text-slate-100;
+    @apply inline-flex h-9 min-w-9 items-center justify-center rounded-lg border border-white/20 bg-white/10 px-2 text-xs font-bold tracking-[0.08em] text-slate-100;
   }
 
   .staff-product-body {
-    @apply mt-2;
+    @apply mt-1.5;
   }
 
   .staff-product-name {
-    @apply line-clamp-1 text-[15px] font-semibold text-slate-100;
+    @apply line-clamp-1 text-[13px] font-semibold text-slate-100;
   }
 
   .staff-product-sub {
-    @apply mt-0.5 line-clamp-1 text-[12px] text-slate-400;
+    @apply mt-0.5 line-clamp-1 text-[10px] text-slate-400;
   }
 
   .staff-product-price {
-    @apply mt-1 text-lg font-bold text-amber-300;
+    @apply mt-1 text-[15px] font-bold text-amber-300;
   }
 
   .staff-qty-row {
-    @apply mt-2 flex items-center gap-2;
+    @apply mt-1.5 flex items-center gap-1.5;
   }
 
   .staff-qty-btn {
-    @apply inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-600/80 bg-slate-900/55 text-slate-100 transition disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-600/80 bg-slate-900/55 text-slate-100 transition disabled:cursor-not-allowed disabled:opacity-40;
   }
 
   .staff-qty-btn:hover {
@@ -748,11 +748,11 @@ html {
   }
 
   .staff-qty-value {
-    @apply inline-flex min-w-9 items-center justify-center rounded-lg border border-slate-700/80 bg-slate-950/45 px-2 py-1 text-sm font-bold text-slate-100;
+    @apply inline-flex min-w-7 items-center justify-center rounded-md border border-slate-700/80 bg-slate-950/45 px-1.5 py-0.5 text-xs font-bold text-slate-100;
   }
 
   .staff-variant-btn {
-    @apply ml-auto rounded-lg border border-amber-300/40 bg-amber-300/10 px-2.5 py-1.5 text-[11px] font-semibold text-amber-100;
+    @apply ml-auto rounded-md border border-amber-300/40 bg-amber-300/10 px-2 py-1 text-[10px] font-semibold text-amber-100;
   }
 
   .staff-cart-panel {

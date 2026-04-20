@@ -415,31 +415,6 @@ export default function StaffPosMode(props: StaffPosModeProps) {
         disableClear={!props.cart.length || props.isLoading}
       />
 
-      {props.recentBaskets.length > 0 && (
-        <div className="staff-pos-recent-strip">
-          <div className="staff-group-label">{tx(lang, 'Keçmiş Səbətlər', 'Прошлые корзины', 'Recent baskets')}</div>
-          <div className="staff-recent-scroll">
-            {props.recentBaskets.map((basket) => {
-              const itemCount = (Array.isArray(basket.items) ? basket.items : []).reduce((acc, row) => acc + Number((row as any)?.qty || 0), 0);
-              const ref = String(basket.receipt_code || basket.id || '').slice(0, 8).toUpperCase();
-              return (
-                <button key={`${basket.id}_${basket.created_at}`} className="staff-recent-card" onClick={() => props.restoreRecentBasket(basket)}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-100">#{ref || '—'}</span>
-                    <span className="text-[10px] text-slate-400">{props.getRelativeTimeLabel(basket.created_at)}</span>
-                  </div>
-                  <div className="mt-1 text-[11px] text-slate-300">{props.resolveOrderTypeLabel(basket.order_type)}</div>
-                  <div className="mt-1 flex items-center justify-between text-[11px]">
-                    <span className="text-slate-400">{itemCount}x</span>
-                    <span className="font-semibold text-amber-300">{props.toDecimalSafe(basket.total).toFixed(2)} ₼</span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       <div className="staff-pos-workspace">
         <section className="staff-pos-main">
           <StaffSearchBar value={props.search} onChange={props.setSearch} placeholder={t.search} />
@@ -459,4 +434,3 @@ export default function StaffPosMode(props: StaffPosModeProps) {
     </StaffPosShell>
   );
 }
-
