@@ -288,6 +288,14 @@ DEFAULT_YIELD_SETTINGS = {
     "tracked_items": [],
 }
 
+OLLAMAFREEAPI_MODEL_INDEX_URLS = [
+    "https://raw.githubusercontent.com/mfoud444/ollamafreeapi/main/ollamafreeapi/ollama_json/llama.json",
+    "https://raw.githubusercontent.com/mfoud444/ollamafreeapi/main/ollamafreeapi/ollama_json/mistral.json",
+    "https://raw.githubusercontent.com/mfoud444/ollamafreeapi/main/ollamafreeapi/ollama_json/deepseek.json",
+    "https://raw.githubusercontent.com/mfoud444/ollamafreeapi/main/ollamafreeapi/ollama_json/qwen.json",
+    "https://raw.githubusercontent.com/mfoud444/ollamafreeapi/main/ollamafreeapi/ollama_json/gemma.json",
+]
+
 
 def _ensure_manager(user: User):
     if str(user.role or "").lower() not in {"admin", "manager", "super_admin"}:
@@ -297,6 +305,102 @@ def _ensure_manager(user: User):
 def _ensure_admin(user: User):
     if str(user.role or "").lower() not in {"admin", "super_admin"}:
         raise HTTPException(status_code=403, detail="Admin access required")
+
+
+def _ollama_extract_models(payload):
+    if isinstance(payload, list):
+        return [row for row in payload if isinstance(row, dict)]
+    if not isinstance(payload, dict):
+        return []
+    if isinstance(payload.get("models"), list):
+        return [row for row in payload.get("models", []) if isinstance(row, dict)]
+    props = payload.get("props") if isinstance(payload.get("props"), dict) else {}
+    page_props = props.get("pageProps") if isinstance(props.get("pageProps"), dict) else {}
+    models = page_props.get("models")
+    if isinstance(models, list):
+        return [row for row in models if isinstance(row, dict)]
+    return []
+
+
+def _ollama_parse_tps(value) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return -1.0
+
+
+def _ollama_find_servers_for_model(model_name: str):
+    target = str(model_name or "").strip()
+    if not target:
+        return []
+    hits = []
+    for url in OLLAMAFREEAPI_MODEL_INDEX_URLS:
+        try:
+            req = urllib_request.Request(url, headers={"User-Agent": "IronWavesPOS/1.0"})
+            with urllib_request.urlopen(req, timeout=8) as response:
+                raw = response.read().decode("utf-8", errors="ignore")
+            payload = json.loads(raw)
+        except Exception:
+            continue
+        models = _ollama_extract_models(payload)
+        for row in models:
+            name = str(row.get("model_name") or row.get("model") or row.get("name") or "").strip()
+            server_url = str(row.get("ip_port") or "").strip()
+            if not name or not server_url:
+                continue
+            if name != target:
+                continue
+            hits.append(
+                {
+                    "server_url": server_url,
+                    "model_name": name,
+                    "tokens_per_second": _ollama_parse_tps(row.get("perf_tokens_per_second")),
+                    "last_tested": str(row.get("perf_last_tested") or ""),
+                }
+            )
+    unique = {}
+    for hit in hits:
+        key = f"{hit['model_name']}@{hit['server_url']}"
+        prev = unique.get(key)
+        if prev is None or hit["tokens_per_second"] > prev["tokens_per_second"]:
+            unique[key] = hit
+    return sorted(unique.values(), key=lambda row: row.get("tokens_per_second", -1.0), reverse=True)
+
+
+def _ollama_generate_once(server_url: str, model: str, prompt: str, temperature: float, num_predict: int, timeout_seconds: int):
+    base = str(server_url or "").rstrip("/")
+    endpoint = f"{base}/api/generate"
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "options": {
+            "temperature": float(temperature),
+            "num_predict": int(num_predict),
+            "top_p": 0.9,
+        },
+    }
+    req = urllib_request.Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", "User-Agent": "IronWavesPOS/1.0"},
+        method="POST",
+    )
+    with urllib_request.urlopen(req, timeout=max(5, int(timeout_seconds))) as response:
+        body = response.read().decode("utf-8", errors="ignore")
+    parsed = json.loads(body or "{}")
+    text = str(parsed.get("response") or "").strip()
+    if not text:
+        raise RuntimeError("Empty response from Ollama server")
+    return text
+
+
+class OllamaFreeGenerateIn(BaseModel):
+    model: str = Field(default="llama3.2:3b", min_length=2, max_length=128)
+    prompt: str = Field(min_length=3, max_length=12000)
+    temperature: float = Field(default=0.2, ge=0.0, le=2.0)
+    num_predict: int = Field(default=256, ge=16, le=2048)
+    timeout_seconds: int = Field(default=30, ge=5, le=120)
 
 
 def _can_view_sensitive_settings(user: User) -> bool:
@@ -2073,6 +2177,55 @@ def update_gemini_key(
     )
     db.commit()
     return {"success": True}
+
+
+@router.post("/ai/ollamafreeapi/generate")
+def ollamafreeapi_generate(
+    payload: OllamaFreeGenerateIn,
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_manager(user)
+    model = str(payload.model or "llama3.2:3b").strip()
+    prompt = str(payload.prompt or "").strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt is required")
+
+    servers = _ollama_find_servers_for_model(model)
+    if not servers:
+        raise HTTPException(status_code=404, detail=f"OllamaFreeAPI server tapılmadı: {model}")
+
+    errors = []
+    for server in servers[:6]:
+        server_url = str(server.get("server_url") or "").strip()
+        if not server_url:
+            continue
+        try:
+            text = _ollama_generate_once(
+                server_url=server_url,
+                model=model,
+                prompt=prompt,
+                temperature=payload.temperature,
+                num_predict=payload.num_predict,
+                timeout_seconds=payload.timeout_seconds,
+            )
+            return {
+                "success": True,
+                "tenant_id": tenant.id,
+                "model": model,
+                "server_url": server_url,
+                "tokens_per_second": server.get("tokens_per_second"),
+                "text": text,
+            }
+        except (HTTPError, URLError, TimeoutError, RuntimeError, ValueError) as exc:
+            errors.append(f"{server_url}: {str(exc)}")
+            continue
+        except Exception as exc:
+            errors.append(f"{server_url}: {str(exc)}")
+            continue
+
+    detail = " ; ".join(errors[:3]) if errors else "No usable server"
+    raise HTTPException(status_code=502, detail=f"OllamaFreeAPI cavab vermədi: {detail}")
 
 
 @router.patch("/settings/qr-settings")
