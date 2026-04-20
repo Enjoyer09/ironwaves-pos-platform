@@ -363,6 +363,12 @@ export interface Settings {
     kitchen: string[];
   };
   gemini_api_key?: string;
+  ai_config?: {
+    provider?: 'google' | 'openai' | 'anthropic' | 'openrouter' | 'xai' | 'huggingface' | 'unknown';
+    model?: string;
+    autodetected?: boolean;
+    updated_at?: string;
+  };
 }
 
 // --- USER (İstifadəçi) ---

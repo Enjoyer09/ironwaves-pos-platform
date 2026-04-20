@@ -18,6 +18,7 @@ import { tx } from '../../i18n';
 import { readScopedStorage, writeScopedStorage } from '../../lib/storage_keys';
 import { Bot, Clipboard, Loader2, PackageSearch, ShieldAlert, Sparkles, TrendingUp, WalletCards } from 'lucide-react';
 import { send_email } from '../../api/email';
+import { DEFAULT_MODEL_BY_PROVIDER, detectAiConfigFromApiKey, providerLabel } from '../../lib/ai_config';
 
 type AiWorkspace = 'copilot' | 'shift' | 'finance' | 'stock' | 'campaign' | 'security';
 
@@ -33,6 +34,8 @@ export default function AIManagerPanel() {
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [workspace, setWorkspace] = useState<AiWorkspace>('copilot');
   const [apiKey, setApiKey] = useState(readScopedStorage('gemini_api_key') || '');
+  const detection = useMemo(() => detectAiConfigFromApiKey(apiKey), [apiKey]);
+  const [modelOverride, setModelOverride] = useState('');
   const [loading, setLoading] = useState(false);
   const [auditWindow, setAuditWindow] = useState<'7' | '30' | '90'>('30');
   const [focus, setFocus] = useState('');
@@ -71,9 +74,14 @@ export default function AIManagerPanel() {
   }, [auditWindow]);
 
   const saveApiKey = () => {
+    const detectedModel = modelOverride.trim() || detection.model || DEFAULT_MODEL_BY_PROVIDER[detection.provider];
     writeScopedStorage('gemini_api_key', apiKey);
     update_api_key(apiKey);
-    void update_api_key_live(apiKey);
+    void update_api_key_live(apiKey, {
+      provider: detection.provider,
+      model: detectedModel,
+      autodetected: !modelOverride.trim(),
+    });
     notify('success', tx(lang, 'API Key yadda saxlanıldı!', 'API ключ сохранен!', 'API key saved'));
   };
 
@@ -314,18 +322,41 @@ export default function AIManagerPanel() {
       <div className="metal-panel rounded-2xl border border-slate-700/70 p-5">
         <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
           <div>
-            <label className="mb-1 block text-sm font-semibold text-slate-300">Gemini API Key</label>
+            <label className="mb-1 block text-sm font-semibold text-slate-300">{tx(lang, 'AI API Key', 'AI API ключ', 'AI API Key')}</label>
             <div className="flex flex-col gap-3 md:flex-row">
               <input
                 type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="AIzaSy..."
+                placeholder={tx(lang, 'API key daxil edin', 'Введите API key', 'Enter API key')}
                 className="neon-input"
               />
               <button onClick={saveApiKey} className="glossy-gold rounded-xl px-5 py-3 text-sm font-bold">
                 {tx(lang, 'Yadda Saxla', 'Сохранить', 'Save')}
               </button>
+            </div>
+            <div className="mt-3 grid gap-2 md:grid-cols-3">
+              <div className="rounded-xl border border-slate-700/70 bg-slate-900/40 px-3 py-2 text-xs text-slate-300">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{tx(lang, 'Provider', 'Провайдер', 'Provider')}</div>
+                <div className="mt-1 font-semibold text-slate-100">{providerLabel(detection.provider)}</div>
+              </div>
+              <div className="rounded-xl border border-slate-700/70 bg-slate-900/40 px-3 py-2 text-xs text-slate-300">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{tx(lang, 'Model', 'Модель', 'Model')}</div>
+                <div className="mt-1 font-semibold text-slate-100">{modelOverride.trim() || detection.model}</div>
+              </div>
+              <div className="rounded-xl border border-slate-700/70 bg-slate-900/40 px-3 py-2 text-xs text-slate-300">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{tx(lang, 'Aşkarlama', 'Детект', 'Detection')}</div>
+                <div className="mt-1 font-semibold text-slate-100">{detection.confidence.toUpperCase()}</div>
+              </div>
+            </div>
+            <div className="mt-2 text-xs text-slate-400">{detection.reason}</div>
+            <div className="mt-2">
+              <input
+                value={modelOverride}
+                onChange={(e) => setModelOverride(e.target.value)}
+                placeholder={tx(lang, 'Model override (opsional)', 'Model override (опционально)', 'Model override (optional)')}
+                className="neon-input"
+              />
             </div>
           </div>
           <div className="grid gap-3 md:grid-cols-2">

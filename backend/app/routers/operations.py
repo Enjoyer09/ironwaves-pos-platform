@@ -1207,6 +1207,7 @@ def get_app_settings(
         gemini_api_key = ""
     else:
         gemini_api_key = getv("gemini_api_key", "")
+    ai_config = getv("ai_config", {"provider": "unknown", "model": "auto", "autodetected": True, "updated_at": ""})
     return {
         "tenant_id": tenant.id,
         "service_fee_percent": getv("service_fee_percent", 0),
@@ -1251,6 +1252,7 @@ def get_app_settings(
         "omnitech_settings": omnitech_settings,
         "role_modules": role_modules,
         "gemini_api_key": gemini_api_key,
+        "ai_config": ai_config,
     }
 
 
@@ -2052,6 +2054,19 @@ def update_gemini_key(
 ):
     _ensure_admin(user)
     _set_setting_value(db, tenant.id, "gemini_api_key", str(payload.get("api_key") or ""))
+    ai_cfg_raw = payload.get("ai_config") if isinstance(payload, dict) else None
+    ai_cfg = ai_cfg_raw if isinstance(ai_cfg_raw, dict) else {}
+    _set_setting_value(
+        db,
+        tenant.id,
+        "ai_config",
+        {
+            "provider": str(ai_cfg.get("provider") or "unknown"),
+            "model": str(ai_cfg.get("model") or "auto"),
+            "autodetected": bool(ai_cfg.get("autodetected", True)),
+            "updated_at": _utcnow().isoformat(),
+        },
+    )
     db.commit()
     return {"success": True}
 
