@@ -1265,8 +1265,7 @@ export default function POS() {
         : posLayout.preset === 'tables'
           ? 'bg-[radial-gradient(circle_at_top,#2e3247,#151b26_58%)]'
           : 'bg-[radial-gradient(circle_at_top,#2a3342,#141b24_55%)]';
-  const uiMode = String(tenantSettings?.session_settings?.ui_mode || 'old').toLowerCase();
-  const isNewUiMode = uiMode === 'new';
+  const isNewUiMode = false;
   const orderTypeBlockVisible = isWidgetVisible('orderType');
   const tableBlockVisible = isWidgetVisible('table');
   const sidebarWidgetOrder = posLayout.widget_order || [];
