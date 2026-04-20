@@ -169,6 +169,8 @@ def list_menu_items(
             "category": row.category,
             "price": str(row.price),
             "is_coffee": bool(row.is_coffee),
+            "image_url": row.image_url or "",
+            "description": row.description or "",
             "is_active": bool(row.is_active),
         }
         for row in rows
