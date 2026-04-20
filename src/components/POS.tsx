@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Decimal } from 'decimal.js';
 import QRCode from 'qrcode';
 import JsBarcode from 'jsbarcode';
-import { Search, ShoppingCart, ClipboardList, Plus, Minus, Check, ScanLine, ChevronDown, ImageOff } from 'lucide-react';
+import { Search, ShoppingCart, ClipboardList, Plus, Minus, Check, ScanLine, ChevronDown } from 'lucide-react';
 import { useAppStore } from '../store';
 import { get_menu_for_pos, create_sale, calculate_total, calculate_staff_payable } from '../api/pos';
 import { get_tables_live, send_to_kitchen_live, pay_table_live } from '../api/tables';
 import { get_shift_status, refresh_shift_status } from '../api/reports';
+import { get_sales_list_live } from '../api/analytics';
 import { getDB } from '../lib/db_sim';
 import { i18n, tx } from '../i18n';
 import { get_business_profile, get_settings, get_settings_live } from '../api/settings';
@@ -49,6 +50,17 @@ type VariantPickerState = {
   requiresServiceChoice: boolean;
   selectedItemId: string | null;
   selectedCupMode: 'paper' | 'glass' | null;
+};
+
+type RecentBasket = {
+  id: string;
+  receipt_code?: string;
+  order_type?: string;
+  payment_method?: string;
+  total: string;
+  status?: string;
+  created_at: string;
+  items: Array<{ id?: string; item_name?: string; price?: string | number; qty?: number; category?: string; is_coffee?: boolean; cup_mode?: 'paper' | 'glass' }>;
 };
 
 type CartContext = {
@@ -231,6 +243,7 @@ export default function POS() {
   const [feedbackCouponPreview, setFeedbackCouponPreview] = useState<{ code: string; percent: number; status: string } | null>(null);
   const [showOpenShiftModal, setShowOpenShiftModal] = useState(false);
   const [pendingClearCartKey, setPendingClearCartKey] = useState<'S1' | 'S2' | 'S3' | null>(null);
+  const [recentBaskets, setRecentBaskets] = useState<RecentBasket[]>([]);
   const [tenantSettings, setTenantSettings] = useState<any>({});
   const receiptIframeRef = useRef<HTMLIFrameElement | null>(null);
   const refreshInFlightRef = useRef(false);
@@ -310,6 +323,108 @@ export default function POS() {
         ...patch,
       },
     }));
+  };
+
+  const resolveOrderTypeLabel = (mode?: string) => {
+    if (mode === 'Dine In') return tx(lang, 'Masada', 'В зале', 'Dine In');
+    if (mode === 'Take Away') return tx(lang, 'Al-apar', 'С собой', 'Take Away');
+    if (mode === 'Order Online') return tx(lang, 'Onlayn', 'Онлайн', 'Online');
+    return mode || tx(lang, 'Sifariş', 'Заказ', 'Order');
+  };
+
+  const getRelativeTimeLabel = (iso?: string) => {
+    if (!iso) return '-';
+    const stamp = new Date(iso).getTime();
+    if (!Number.isFinite(stamp)) return '-';
+    const diff = Math.max(0, Date.now() - stamp);
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return tx(lang, 'indi', 'сейчас', 'now');
+    if (mins < 60) return tx(lang, `${mins} dəq əvvəl`, `${mins} мин назад`, `${mins}m ago`);
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return tx(lang, `${hours} saat əvvəl`, `${hours} ч назад`, `${hours}h ago`);
+    const days = Math.floor(hours / 24);
+    return tx(lang, `${days} gün əvvəl`, `${days} дн назад`, `${days}d ago`);
+  };
+
+  const fetchRecentBaskets = async () => {
+    try {
+      if (isBackendEnabled()) {
+        const dateTo = new Date();
+        const dateFrom = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const rows = await get_sales_list_live(
+          tenantId,
+          dateFrom.toISOString(),
+          dateTo.toISOString(),
+          undefined,
+        );
+        const recent = (Array.isArray(rows) ? rows : [])
+          .filter((s: any) => String(s.status || 'COMPLETED') !== 'VOIDED')
+          .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 8)
+          .map((s: any) => ({
+            id: String(s.id || ''),
+            receipt_code: String((s as any).receipt_code || ''),
+            order_type: String(s.order_type || ''),
+            payment_method: String(s.payment_method || ''),
+            total: String(s.total || '0'),
+            status: String(s.status || ''),
+            created_at: String(s.created_at || ''),
+            items: Array.isArray((s as any).items) ? (s as any).items : [],
+          }));
+        setRecentBaskets(recent);
+        return;
+      }
+    } catch {
+      // fallback below
+    }
+    const localSales = (getDB<any>('sales') || [])
+      .filter((s: any) => String(s.tenant_id || '') === tenantId && String(s.status || 'COMPLETED') !== 'VOIDED')
+      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 8)
+      .map((s: any) => ({
+        id: String(s.id || ''),
+        receipt_code: String((s as any).receipt_code || ''),
+        order_type: String(s.order_type || ''),
+        payment_method: String(s.payment_method || ''),
+        total: String(s.total || '0'),
+        status: String(s.status || ''),
+        created_at: String(s.created_at || ''),
+        items: Array.isArray((s as any).items) ? (s as any).items : [],
+      }));
+    setRecentBaskets(localSales);
+  };
+
+  const restoreRecentBasket = (basket: RecentBasket) => {
+    const restoredItems = (Array.isArray(basket.items) ? basket.items : [])
+      .filter((row: any) => row && Number(row.qty || 0) > 0)
+      .map((row: any) => ({
+        line_id: generateLineId(),
+        id: String(row.id || row.item_id || `restored_${String(row.item_name || 'item').toLowerCase().replace(/\s+/g, '_')}`),
+        item_name: String(row.item_name || tx(lang, 'Məhsul', 'Товар', 'Item')),
+        price: toDecimalSafe(row.price || 0).toFixed(2),
+        category: String(row.category || tx(lang, 'Digər', 'Другое', 'Other')),
+        is_coffee: Boolean(row.is_coffee),
+        qty: Math.max(1, Number(row.qty || 1)),
+        cup_mode: row.cup_mode === 'glass' ? 'glass' : row.cup_mode === 'paper' ? 'paper' : undefined,
+      }));
+    if (restoredItems.length === 0) {
+      notify('error', tx(lang, 'Bu səbətdə bərpa ediləcək məhsul yoxdur', 'В этой корзине нет позиций для восстановления', 'No restorable items in this basket'));
+      return;
+    }
+    setCarts((prev) => ({ ...prev, [activeCart]: restoredItems }));
+    const nextOrderType = String(basket.order_type || '');
+    patchCtx({
+      ...defaultCtx,
+      orderType: nextOrderType === 'Dine In' || nextOrderType === 'Order Online' ? (nextOrderType as OrderType) : 'Take Away',
+      selectedTable: '',
+      kitchenSent: false,
+    });
+    const payment = String(basket.payment_method || '');
+    if (payment === 'Nəğd' || payment === 'Kart' || payment === 'Split' || payment === 'Staff') {
+      setSelectedPayment(payment as PaymentMethod);
+    }
+    setMobilePane('cart');
+    notify('success', tx(lang, 'Keçmiş səbət bərpa edildi', 'Прошлая корзина восстановлена', 'Past basket restored'));
   };
 
   const clearCart = (key: 'S1' | 'S2' | 'S3' = activeCart) => {
@@ -663,6 +778,10 @@ export default function POS() {
 
   useEffect(() => {
     void refreshData(true);
+  }, [tenantId]);
+
+  useEffect(() => {
+    void fetchRecentBaskets();
   }, [tenantId]);
 
   useEffect(() => {
@@ -1050,6 +1169,7 @@ export default function POS() {
       patchCtx({ ...defaultCtx });
       setSplitCashInput('0');
       void refreshData();
+      void fetchRecentBaskets();
     } catch (error: any) {
         logUiError(tenantId, 'pos', error?.message || String(error), { phase: 'checkout_create_sale' });
         notify('error', error?.message || tx(lang, 'Satış zamanı xəta baş verdi', 'Ошибка при продаже', 'An error occurred during the sale'));
@@ -1690,6 +1810,25 @@ export default function POS() {
     return null;
   };
 
+  const getGroupQty = (group: { items: any[] }) =>
+    group.items.reduce((acc, row) => acc + cart.reduce((local, c) => (c.id === row.id ? local + Number(c.qty || 0) : local), 0), 0);
+
+  const increaseGroupQty = (group: { items: any[] }) => {
+    const preferred = group.items.find((row) => {
+      const exists = cart.find((c) => c.id === row.id);
+      return Boolean(exists);
+    });
+    addToCart(preferred || group.items[0]);
+  };
+
+  const decreaseGroupQty = (group: { items: any[] }) => {
+    const target = [...cart]
+      .reverse()
+      .find((c) => group.items.some((row) => row.id === c.id));
+    if (!target) return;
+    updateCartItem(target.line_id, target.qty - 1);
+  };
+
   if (receiptHtml) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-[#121922] p-6">
@@ -1775,6 +1914,39 @@ export default function POS() {
                 />
               </div>
             </div>
+            <div className="pos3-recent-wrap mb-3">
+              <div className="pos3-action-label">{tx(lang, 'Keçmiş Səbətlər', 'Прошлые корзины', 'Recent baskets')}</div>
+              <div className="pos3-recent-scroll mt-2">
+                {recentBaskets.map((basket) => {
+                  const itemCount = (Array.isArray(basket.items) ? basket.items : []).reduce((acc, row) => acc + Number((row as any)?.qty || 0), 0);
+                  const ref = String(basket.receipt_code || basket.id || '').slice(0, 8).toUpperCase();
+                  return (
+                    <button
+                      key={`${basket.id}_${basket.created_at}`}
+                      className="pos3-recent-card"
+                      onClick={() => restoreRecentBasket(basket)}
+                      title={tx(lang, 'Bu səbəti hazır səbətə bərpa edir', 'Восстанавливает эту корзину в текущую', 'Restore this basket into current cart')}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-100">#{ref || '—'}</span>
+                        <span className="text-[10px] text-slate-400">{getRelativeTimeLabel(basket.created_at)}</span>
+                      </div>
+                      <div className="mt-1 text-[11px] text-slate-300">{resolveOrderTypeLabel(basket.order_type)}</div>
+                      <div className="mt-1 flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">{itemCount}x</span>
+                        <span className="font-semibold text-amber-300">{toDecimalSafe(basket.total).toFixed(2)} ₼</span>
+                      </div>
+                      <div className="mt-1 text-[10px] text-slate-500">{basket.status || tx(lang, 'COMPLETED', 'ЗАВЕРШЕН', 'COMPLETED')}</div>
+                    </button>
+                  );
+                })}
+                {recentBaskets.length === 0 && (
+                  <div className="rounded-xl border border-slate-700/70 bg-slate-900/30 px-3 py-3 text-xs text-slate-400">
+                    {tx(lang, 'Hələ keçmiş səbət yoxdur', 'Пока нет прошлых корзин', 'No recent baskets yet')}
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="mb-3 flex flex-wrap gap-1.5">
               {categories.map((cat) => (
                 <button key={cat} onClick={() => setCategory(cat)} className={`pos3-chip ${category === cat ? 'pos3-chip-active' : ''}`}>
@@ -1789,18 +1961,22 @@ export default function POS() {
                   (acc, cur) => Decimal.min(acc, toDecimalSafe(cur.price)),
                   toDecimalSafe(group.items[0].price),
                 );
-                const primaryItem = group.items[0];
-                const qtyInCart = group.items.reduce((acc, item) => acc + (cart.find((c) => c.id === item.id)?.qty || 0), 0);
+                const qtyInCart = getGroupQty(group);
+                const initials = String(group.base || '')
+                  .split(/\s+/)
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((token) => token.slice(0, 1).toUpperCase())
+                  .join('');
                 return (
-                  <div key={`${group.base}_${group.items.length}`} className="pos3-card">
-                    <button className="w-full text-left" onClick={() => openProductPicker(group)}>
+                  <div key={`${group.base}_${group.items.length}`} className={`pos3-card ${qtyInCart > 0 ? 'pos3-card-active' : ''}`}>
+                    <button className="w-full text-left" onClick={() => increaseGroupQty(group)}>
                       <div className="pos3-card-image">
                         {group.image_url ? (
                           <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" />
                         ) : (
                           <div className="pos3-card-fallback">
-                            <ImageOff size={16} />
-                            <span>{group.base.slice(0, 1).toUpperCase()}</span>
+                            <span className="pos3-card-fallback-mark">{initials || 'M'}</span>
                           </div>
                         )}
                       </div>
@@ -1810,17 +1986,36 @@ export default function POS() {
                         <div className="mt-1 text-[15px] font-bold leading-5 text-amber-300">{minPrice.toFixed(2)} ₼</div>
                       </div>
                     </button>
-                    <div className="mt-2 flex items-center justify-between gap-1.5">
-                      {hasVariants ? (
-                        <>
-                          <span className="rounded-lg border border-slate-600/80 bg-slate-900/60 px-2 py-1 text-[11px] text-slate-300">{qtyInCart} {tx(lang, 'ədəd', 'шт', 'pcs')}</span>
-                          <button className="rounded-xl border border-amber-300/45 bg-amber-300/10 px-2.5 py-2 text-[11px] font-semibold text-amber-100" onClick={() => openProductPicker(group)}>
-                            {tx(lang, 'Seç + əlavə', 'Выбрать + добавить', 'Pick + Add')}
-                          </button>
-                        </>
-                      ) : (
-                        <button className="w-full rounded-xl border border-emerald-300/40 bg-emerald-500/10 px-3 py-2 text-[11px] font-semibold text-emerald-100" onClick={() => addToCart(primaryItem)}>
-                          {tx(lang, 'Səbətə əlavə et', 'Добавить в корзину', 'Add to cart')}
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <button
+                        className="pos3-qty-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          decreaseGroupQty(group);
+                        }}
+                        disabled={qtyInCart <= 0}
+                      >
+                        <Minus size={14} />
+                      </button>
+                      <div className="pos3-qty-value">{qtyInCart}</div>
+                      <button
+                        className="pos3-qty-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          increaseGroupQty(group);
+                        }}
+                      >
+                        <Plus size={14} />
+                      </button>
+                      {hasVariants && (
+                        <button
+                          className="rounded-lg border border-amber-300/40 bg-amber-300/10 px-2 py-1 text-[10px] font-semibold text-amber-100"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openProductPicker(group);
+                          }}
+                        >
+                          {tx(lang, 'Variant', 'Вариант', 'Variant')}
                         </button>
                       )}
                     </div>
