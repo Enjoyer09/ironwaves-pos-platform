@@ -29,7 +29,7 @@ export default function PinLogin() {
   const [ownerUser, setOwnerUser] = useState('owner');
   const [ownerPass, setOwnerPass] = useState('');
   const [ownerPassConfirm, setOwnerPassConfirm] = useState('');
-  const [staffPinLength, setStaffPinLength] = useState<4 | 6>(6);
+  const [staffPinLength, setStaffPinLength] = useState<4 | 6>(4);
 
   React.useEffect(() => {
     let mounted = true;
@@ -77,7 +77,7 @@ export default function PinLogin() {
     const syncPinLength = () => {
       get_settings_live(tenantId)
         .then((settings) => {
-          const next = Number(settings?.session_settings?.staff_pin_length || 6) === 4 ? 4 : 6;
+          const next = Number(settings?.session_settings?.staff_pin_length || 4) === 4 ? 4 : 6;
           if (typeof document !== 'undefined') {
             document.documentElement.setAttribute('data-ui-mode', 'old');
           }
@@ -86,8 +86,8 @@ export default function PinLogin() {
           setPin((prev) => prev.slice(0, next));
         })
         .catch(() => {
-          setStaffPinLength(6);
-          setPin((prev) => prev.slice(0, 6));
+          setStaffPinLength(4);
+          setPin((prev) => prev.slice(0, 4));
         });
     };
     syncPinLength();

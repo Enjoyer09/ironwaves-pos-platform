@@ -272,10 +272,6 @@ def _assert_pin_format(pin: str, min_length: int | None = None) -> None:
         raise HTTPException(status_code=400, detail=f"PIN ən azı {required}, ən çox 15 rəqəm olmalıdır")
     if len(set(pin)) == 1:
         raise HTTPException(status_code=400, detail="PIN eyni rəqəmin təkrarından ibarət ola bilməz")
-    sequences = "01234567890123456789"
-    reverse_sequences = "98765432109876543210"
-    if pin in sequences or pin in reverse_sequences:
-        raise HTTPException(status_code=400, detail="PIN ardıcıl rəqəmlərdən ibarət ola bilməz")
 
 
 def _assert_strong_password(password: str) -> None:

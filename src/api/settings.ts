@@ -354,7 +354,7 @@ function getSettings(tenant_id?: string): Settings {
       session_settings: {
         idle_logout_minutes: 0,
         virtual_keyboard_enabled: true,
-        staff_pin_length: 6,
+        staff_pin_length: 4,
         theme_mode: 'dark',
         ui_mode: 'old',
       },
@@ -572,7 +572,7 @@ export function update_time_settings(payload: { shift_start_time: string; shift_
 }
 
 const getStaffPinLength = (tenant_id?: string) => {
-  const length = Number(getSettings(tenant_id).session_settings?.staff_pin_length || 6);
+  const length = Number(getSettings(tenant_id).session_settings?.staff_pin_length || 4);
   return length === 4 ? 4 : 6;
 };
 
@@ -592,7 +592,7 @@ export function update_session_settings(payload: {
   ui_mode?: 'old';
 }) {
   const settings = getSettings();
-  const pinLength = Number(payload.staff_pin_length || settings.session_settings?.staff_pin_length || 6);
+  const pinLength = Number(payload.staff_pin_length || settings.session_settings?.staff_pin_length || 4);
   settings.session_settings = {
     idle_logout_minutes: Math.max(0, Number(payload.idle_logout_minutes || 0)),
     virtual_keyboard_enabled: payload.virtual_keyboard_enabled !== false,
@@ -917,7 +917,7 @@ export function get_settings(tenant_id?: string) {
     s.session_settings = {
       idle_logout_minutes: 0,
       virtual_keyboard_enabled: true,
-      staff_pin_length: 6,
+      staff_pin_length: 4,
       theme_mode: 'dark',
       ui_mode: 'old',
     };
@@ -931,7 +931,7 @@ export function get_settings(tenant_id?: string) {
     s.session_settings = {
       idle_logout_minutes: Number(s.session_settings.idle_logout_minutes || 0),
       virtual_keyboard_enabled: s.session_settings.virtual_keyboard_enabled !== false,
-      staff_pin_length: Number(s.session_settings.staff_pin_length || 6) === 4 ? 4 : 6,
+      staff_pin_length: Number(s.session_settings.staff_pin_length || 4) === 4 ? 4 : 6,
       theme_mode: s.session_settings.theme_mode === 'light' ? 'light' : 'dark',
       ui_mode: 'old',
     };
@@ -1192,7 +1192,7 @@ export async function get_settings_live(tenant_id?: string) {
     session_settings: {
       idle_logout_minutes: Number(data?.session_settings?.idle_logout_minutes || 0),
       virtual_keyboard_enabled: data?.session_settings?.virtual_keyboard_enabled !== false,
-      staff_pin_length: Number(data?.session_settings?.staff_pin_length || 6) === 4 ? 4 : 6,
+      staff_pin_length: Number(data?.session_settings?.staff_pin_length || 4) === 4 ? 4 : 6,
       theme_mode: data?.session_settings?.theme_mode === 'light' ? 'light' : 'dark',
       ui_mode: 'old',
     },
