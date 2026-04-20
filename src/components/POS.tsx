@@ -1775,7 +1775,7 @@ export default function POS() {
                 />
               </div>
             </div>
-            <div className="mb-3 flex flex-wrap gap-2">
+            <div className="mb-3 flex flex-wrap gap-1.5">
               {categories.map((cat) => (
                 <button key={cat} onClick={() => setCategory(cat)} className={`pos3-chip ${category === cat ? 'pos3-chip-active' : ''}`}>
                   {cat === 'ALL' ? t.all_categories : cat}
@@ -1805,21 +1805,21 @@ export default function POS() {
                         )}
                       </div>
                       <div className="mt-2">
-                        <div className="line-clamp-1 text-sm font-semibold text-slate-100">{group.base}</div>
-                        <div className="line-clamp-1 text-xs text-slate-400">{group.description || group.category || tx(lang, 'Menyu məhsulu', 'Позиция меню', 'Menu item')}</div>
-                        <div className="mt-1 text-sm font-bold text-amber-300">{minPrice.toFixed(2)} ₼</div>
+                        <div className="line-clamp-1 text-[13px] font-semibold leading-5 text-slate-100">{group.base}</div>
+                        <div className="line-clamp-1 text-[11px] leading-4 text-slate-400">{group.description || group.category || tx(lang, 'Menyu məhsulu', 'Позиция меню', 'Menu item')}</div>
+                        <div className="mt-1 text-[15px] font-bold leading-5 text-amber-300">{minPrice.toFixed(2)} ₼</div>
                       </div>
                     </button>
-                    <div className="mt-2 flex items-center justify-between gap-2">
+                    <div className="mt-2 flex items-center justify-between gap-1.5">
                       {hasVariants ? (
                         <>
-                          <span className="rounded-lg border border-slate-600/80 bg-slate-900/60 px-2 py-1 text-xs text-slate-300">{qtyInCart} {tx(lang, 'ədəd', 'шт', 'pcs')}</span>
-                          <button className="rounded-xl border border-amber-300/45 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-100" onClick={() => openProductPicker(group)}>
+                          <span className="rounded-lg border border-slate-600/80 bg-slate-900/60 px-2 py-1 text-[11px] text-slate-300">{qtyInCart} {tx(lang, 'ədəd', 'шт', 'pcs')}</span>
+                          <button className="rounded-xl border border-amber-300/45 bg-amber-300/10 px-2.5 py-2 text-[11px] font-semibold text-amber-100" onClick={() => openProductPicker(group)}>
                             {tx(lang, 'Seç + əlavə', 'Выбрать + добавить', 'Pick + Add')}
                           </button>
                         </>
                       ) : (
-                        <button className="w-full rounded-xl border border-emerald-300/40 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100" onClick={() => addToCart(primaryItem)}>
+                        <button className="w-full rounded-xl border border-emerald-300/40 bg-emerald-500/10 px-3 py-2 text-[11px] font-semibold text-emerald-100" onClick={() => addToCart(primaryItem)}>
                           {tx(lang, 'Səbətə əlavə et', 'Добавить в корзину', 'Add to cart')}
                         </button>
                       )}
@@ -1838,7 +1838,7 @@ export default function POS() {
               <div className="text-sm font-bold text-slate-100">{checkoutBaseTotal.toFixed(2)} ₼</div>
             </div>
 
-            <div className="space-y-2">
+            <div className="pos3-control-stack">
               <div className="relative">
                 <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <input
@@ -1850,12 +1850,12 @@ export default function POS() {
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <button onClick={handleFindCustomer} className="pay-btn h-11">{tx(lang, 'Müştəri Tap', 'Найти клиента', 'Find Customer')}</button>
-                <button onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '' })} className="pay-btn h-11">{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</button>
+                <button onClick={handleFindCustomer} className="pay-btn h-10">{tx(lang, 'Müştəri Tap', 'Найти клиента', 'Find Customer')}</button>
+                <button onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '' })} className="pay-btn h-10">{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</button>
               </div>
               <input
                 placeholder={tx(lang, 'Reward/Feedback kodu', 'Код reward/feedback', 'Reward/Feedback code')}
-                className="neon-input h-11"
+                className="neon-input h-10"
                 value={ctx.rewardClaimCode || ''}
                 onChange={(e) => patchCtx({ rewardClaimCode: e.target.value.toUpperCase() })}
                 onKeyDown={(e) => {
@@ -1879,12 +1879,14 @@ export default function POS() {
                 value={ctx.discount}
                 onChange={(e) => patchCtx({ discount: e.target.value })}
                 disabled={hasClaimCode}
-                className={`neon-input h-11 ${hasClaimCode ? 'cursor-not-allowed opacity-60' : ''}`}
+                className={`neon-input h-10 ${hasClaimCode ? 'cursor-not-allowed opacity-60' : ''}`}
                 placeholder={tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}
               />
             </div>
 
-            <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="pos3-action-group">
+              <div className="pos3-action-label">{tx(lang, 'Sifariş rejimi', 'Режим заказа', 'Order mode')}</div>
+              <div className="mt-2 grid grid-cols-3 gap-2">
               {(['Take Away', 'Dine In', 'Order Online'] as OrderType[]).map((mode) => (
                 <button
                   key={mode}
@@ -1896,6 +1898,7 @@ export default function POS() {
                   {mode === 'Dine In' ? tx(lang, 'Masada', 'В зале', 'Dine In') : mode === 'Take Away' ? tx(lang, 'Al-apar', 'С собой', 'Take Away') : tx(lang, 'Onlayn', 'Онлайн', 'Online')}
                 </button>
               ))}
+              </div>
             </div>
 
             {ctx.orderType === 'Dine In' && (
@@ -1938,12 +1941,15 @@ export default function POS() {
               <div className="flex justify-between border-t border-slate-700/60 pt-2 text-xl font-bold text-slate-100"><span>{tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>{checkoutBaseTotal.toFixed(2)} ₼</span></div>
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="pos3-action-group">
+              <div className="pos3-action-label">{tx(lang, 'Ödəniş üsulu', 'Способ оплаты', 'Payment method')}</div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
               {(['Nəğd', 'Kart', 'Split', 'Staff'] as PaymentMethod[]).map((method) => (
-                <button key={method} disabled={isLoading} onClick={() => setSelectedPayment(method)} className={`pay-btn h-11 ${selectedPayment === method ? 'pay-btn-active' : ''}`}>
+                <button key={method} disabled={isLoading} onClick={() => setSelectedPayment(method)} className={`pay-btn h-10 ${selectedPayment === method ? 'pay-btn-active' : ''}`}>
                   {method === 'Nəğd' ? tx(lang, 'Nəğd', 'Наличные', 'Cash') : method === 'Kart' ? tx(lang, 'Kart', 'Карта', 'Card') : method === 'Split' ? tx(lang, 'Bölünmüş', 'Разделено', 'Split') : tx(lang, 'Staff', 'Персонал', 'Staff')}
                 </button>
               ))}
+              </div>
             </div>
             {selectedPayment === 'Split' && (
               <div className="mt-2 rounded-lg border border-slate-700/70 bg-[#0e1520] p-3 text-sm">
