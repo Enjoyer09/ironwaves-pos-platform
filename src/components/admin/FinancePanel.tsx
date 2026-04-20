@@ -877,6 +877,32 @@ export default function FinancePanel() {
   useEffect(() => {
     runAiFinanceInsights();
   }, [runAiFinanceInsights]);
+  const openFinanceAiAction = (item: AiDecisionInsight) => {
+    if (item.module === 'finance') {
+      setWorkspaceTab('ledger');
+      return;
+    }
+    if (item.module === 'analytics') {
+      window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module: 'analytics' } }));
+      return;
+    }
+    if (item.module === 'inventory') {
+      window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module: 'inventory' } }));
+      return;
+    }
+    if (item.module === 'crm') {
+      window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module: 'crm' } }));
+      return;
+    }
+    if (item.module === 'tables') {
+      window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module: 'tables' } }));
+      return;
+    }
+    if (item.module === 'ai') {
+      window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module: 'ai' } }));
+      return;
+    }
+  };
 
   const exportCsv = async () => {
     const esc = (value: unknown) => {
@@ -2096,10 +2122,7 @@ export default function FinancePanel() {
                 <button
                   type="button"
                   className="rounded-xl border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-100 hover:border-slate-400"
-                  onClick={() => {
-                    if (item.module === 'finance') setWorkspaceTab('ledger');
-                    if (item.module === 'analytics') setWorkspaceTab('overview');
-                  }}
+                  onClick={() => openFinanceAiAction(item)}
                 >
                   {item.action_label}
                 </button>

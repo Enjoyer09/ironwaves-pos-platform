@@ -330,6 +330,22 @@ export default function InventoryPanel() {
   useEffect(() => {
     runAiInventoryInsights();
   }, [tenant_id, items.length, history.length]);
+  const openInventoryAiAction = (item: AiDecisionInsight) => {
+    if (item.module === 'inventory' || item.phase === 'inventory') {
+      setSearch('');
+      setItemsPage(1);
+      setIsAdding(true);
+      return;
+    }
+    if (item.module === 'finance') {
+      window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module: 'finance' } }));
+      return;
+    }
+    if (item.module === 'analytics') {
+      window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module: 'analytics' } }));
+      return;
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -470,6 +486,15 @@ export default function InventoryPanel() {
               <div className="text-xs font-black uppercase tracking-[0.14em] text-indigo-200">{item.phase}</div>
               <div className="mt-1 text-sm font-bold text-white">{item.title}</div>
               <div className="mt-2 text-sm text-slate-300">{item.body}</div>
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => openInventoryAiAction(item)}
+                  className="rounded-xl border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-100 hover:border-slate-400"
+                >
+                  {item.action_label}
+                </button>
+              </div>
             </div>
           ))}
           {!aiLoading && aiInsights.length === 0 && !aiError ? (
