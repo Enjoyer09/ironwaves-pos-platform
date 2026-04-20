@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Decimal } from 'decimal.js';
 import QRCode from 'qrcode';
 import JsBarcode from 'jsbarcode';
-import { Search, ShoppingCart, ClipboardList, Plus, Minus, Check, ScanLine, ChevronDown } from 'lucide-react';
+import { Search, ShoppingCart, ClipboardList, Plus, Minus, Check, ScanLine, ChevronDown, ImageOff } from 'lucide-react';
 import { useAppStore } from '../store';
 import { get_menu_for_pos, create_sale, calculate_total, calculate_staff_payable } from '../api/pos';
 import { get_tables_live, send_to_kitchen_live, pay_table_live } from '../api/tables';
@@ -85,6 +85,18 @@ function splitVariantName(name: string) {
     };
   }
   return { base: trimmed, variant: null as string | null };
+}
+
+function resolveMenuImage(item: any): string {
+  const candidates = [
+    item?.image_url,
+    item?.image,
+    item?.photo_url,
+    item?.thumbnail,
+    item?.cover_image,
+  ];
+  const picked = candidates.find((value) => typeof value === 'string' && value.trim().length > 0);
+  return picked ? String(picked).trim() : '';
 }
 
 const isCoffeeLike = (item: { is_coffee?: boolean; category?: string; item_name?: string }) => {
@@ -739,6 +751,9 @@ export default function POS() {
       const firstSplit = splitVariantName(first.item_name);
       return {
         base: firstSplit.base || first.item_name,
+        category: first.category || '',
+        image_url: resolveMenuImage(first),
+        description: String(first.description || ''),
         items: [...items].sort((a, b) => toDecimalSafe(a.price).minus(toDecimalSafe(b.price)).toNumber()),
       };
     });
@@ -1248,6 +1263,8 @@ export default function POS() {
         : posLayout.preset === 'tables'
           ? 'bg-[radial-gradient(circle_at_top,#2e3247,#151b26_58%)]'
           : 'bg-[radial-gradient(circle_at_top,#2a3342,#141b24_55%)]';
+  const uiMode = String(tenantSettings?.session_settings?.ui_mode || 'old').toLowerCase();
+  const isNewUiMode = uiMode === 'new';
   const orderTypeBlockVisible = isWidgetVisible('orderType');
   const tableBlockVisible = isWidgetVisible('table');
   const sidebarWidgetOrder = posLayout.widget_order || [];
@@ -1586,6 +1603,61 @@ export default function POS() {
     }
     if (widget === 'productGrid') {
       const size = getLeftWidgetSize(widget);
+      if (isNewUiMode) {
+        return (
+          <div key={widget} className="pos2-product-grid grid flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 2xl:grid-cols-3">
+            {groupedMenu.map((group) => {
+              const hasVariants = group.items.length > 1;
+              const minPrice = group.items.reduce(
+                (acc, cur) => Decimal.min(acc, toDecimalSafe(cur.price)),
+                toDecimalSafe(group.items[0].price),
+              );
+              const preview = group.items[0];
+              const qtyInCart = group.items.reduce((acc, item) => acc + (cart.find((c) => c.id === item.id)?.qty || 0), 0);
+              return (
+                <div key={`${group.base}_${group.items.length}`} className="pos2-product-card">
+                  <button onClick={() => openProductPicker(group)} className="w-full text-left">
+                    <div className="pos2-product-media">
+                      {group.image_url ? (
+                        <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="pos2-product-fallback">
+                          <ImageOff size={16} />
+                          <span>{group.base.slice(0, 1).toUpperCase()}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-3">
+                      <div className="line-clamp-1 text-sm font-semibold text-slate-100">{group.base}</div>
+                      <div className="line-clamp-1 text-xs text-slate-400">{group.description || group.category || tx(lang, 'Menyu məhsulu', 'Позиция меню', 'Menu item')}</div>
+                      <div className="mt-1 text-sm font-bold text-amber-300">
+                        {minPrice.toFixed(2)} ₼ {hasVariants ? `• ${tx(lang, 'variant', 'вариант', 'variant')}` : ''}
+                      </div>
+                    </div>
+                  </button>
+                  <div className="mt-3 flex items-center justify-between gap-2">
+                    {hasVariants ? (
+                      <>
+                        <span className="rounded-lg border border-slate-600/80 bg-slate-900/50 px-2 py-1 text-xs text-slate-300">{qtyInCart} {tx(lang, 'ədəd', 'шт', 'pcs')}</span>
+                        <button onClick={() => openProductPicker(group)} className="rounded-xl border border-amber-300/50 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-100">
+                          {tx(lang, 'Seç + Əlavə et', 'Выбрать + Добавить', 'Pick + Add')}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => addToCart(preview)}
+                        className="w-full rounded-xl border border-emerald-300/40 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100"
+                      >
+                        {tx(lang, 'Səbətə əlavə et', 'Добавить в корзину', 'Add to cart')}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      }
       return (
         <div key={widget} className={`grid flex-1 auto-rows-max grid-cols-1 gap-2 overflow-y-auto pr-1 ${productGridClass}`}>
           {groupedMenu.map((group) => {
@@ -1647,7 +1719,7 @@ export default function POS() {
 
   return (
     <div
-      className={`compact-pos-shell flex h-full min-h-0 flex-col px-3 pb-24 pt-3 text-slate-200 md:px-4 md:pb-3 xl:px-6 ${shellClass} ${densityClass}`}
+      className={`compact-pos-shell ${isNewUiMode ? 'pos2-shell' : ''} flex h-full min-h-0 flex-col px-3 pb-24 pt-3 text-slate-200 md:px-4 md:pb-3 xl:px-6 ${shellClass} ${densityClass}`}
       style={{ ['--pos-accent' as any]: posLayout.accent_color }}
     >
 
@@ -1780,12 +1852,12 @@ export default function POS() {
         </button>
       </div>
 
-      <div className="compact-pos-grid grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(420px,2fr)]">
-        <section className={`flex min-h-0 flex-col ${mobilePane !== 'menu' ? 'hidden xl:flex' : ''}`}>
+      <div className={`compact-pos-grid grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(420px,2fr)] ${isNewUiMode ? 'pos2-workspace' : ''}`}>
+        <section className={`flex min-h-0 flex-col ${isNewUiMode ? 'pos2-menu-pane rounded-3xl border border-slate-700/70 bg-slate-950/30 p-4' : ''} ${mobilePane !== 'menu' ? 'hidden xl:flex' : ''}`}>
           {(posLayout.left_widget_order || ['menuHeader', 'search', 'categories', 'productGrid']).map((widget) => renderLeftWidget(widget))}
         </section>
 
-        <aside className={`compact-pos-sidebar flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-[#101722]/80 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)] md:p-4 ${mobilePane !== 'cart' ? 'hidden xl:flex' : ''}`}>
+        <aside className={`compact-pos-sidebar ${isNewUiMode ? 'pos2-checkout-pane rounded-3xl' : ''} flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-[#101722]/80 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)] md:p-4 ${mobilePane !== 'cart' ? 'hidden xl:flex' : ''}`}>
           <div className="compact-pos-header mb-3 flex items-center justify-between border-b border-slate-700/60 pb-3">
             <h3 className="compact-pos-title flex items-center gap-2 text-2xl font-bold"><ShoppingCart size={22} /> {t.cart.toUpperCase()} {activeCart.slice(1)}</h3>
             <button
