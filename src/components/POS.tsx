@@ -2269,50 +2269,52 @@ export default function POS() {
         </div>
       )}
 
-      <div className="mb-3 rounded-2xl border border-indigo-400/25 bg-indigo-950/20 px-4 py-3">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-indigo-200">
-              {tx(lang, 'AI POS Tövsiyələri', 'AI POS подсказки', 'AI POS Hints')}
-            </div>
-            <div className="mt-1 text-xs text-indigo-100/90">
-              {tx(
-                lang,
-                'Son 24 saat davranışına görə sürətli satış və əməliyyat tövsiyələri.',
-                'Быстрые рекомендации по продажам и операциям за последние 24 часа.',
-                'Fast sales and operations suggestions based on the last 24 hours.',
-              )}
-            </div>
-          </div>
-          <button
-            onClick={runAiPosHints}
-            disabled={aiHintsLoading}
-            className="rounded-xl border border-indigo-300/45 bg-indigo-400/15 px-3 py-2 text-xs font-semibold text-indigo-50 transition hover:bg-indigo-400/25 disabled:opacity-60"
-          >
-            {aiHintsLoading
-              ? tx(lang, 'Yenilənir...', 'Обновляется...', 'Refreshing...')
-              : tx(lang, 'AI yenilə', 'Обновить AI', 'Refresh AI')}
-          </button>
-        </div>
-        {aiHints.length > 0 ? (
-          <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-            {aiHints.map((item) => (
-              <div key={item.id} className="rounded-xl border border-indigo-300/20 bg-slate-950/40 px-3 py-2">
-                <div className="text-xs font-bold text-white">{item.title}</div>
-                <div className="mt-1 text-xs text-slate-300">{item.body}</div>
-                <div className="mt-2 flex justify-end">
-                  <button
-                    onClick={() => openAiHintAction(item)}
-                    className="rounded-lg border border-slate-600 px-2.5 py-1 text-[11px] font-semibold text-slate-100 hover:border-slate-400"
-                  >
-                    {item.action_label}
-                  </button>
-                </div>
+      {!isStaffRole && (
+        <div className="mb-3 rounded-2xl border border-indigo-400/25 bg-indigo-950/20 px-4 py-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-indigo-200">
+                {tx(lang, 'AI POS Tövsiyələri', 'AI POS подсказки', 'AI POS Hints')}
               </div>
-            ))}
+              <div className="mt-1 text-xs text-indigo-100/90">
+                {tx(
+                  lang,
+                  'Son 24 saat davranışına görə sürətli satış və əməliyyat tövsiyələri.',
+                  'Быстрые рекомендации по продажам и операциям за последние 24 часа.',
+                  'Fast sales and operations suggestions based on the last 24 hours.',
+                )}
+              </div>
+            </div>
+            <button
+              onClick={runAiPosHints}
+              disabled={aiHintsLoading}
+              className="rounded-xl border border-indigo-300/45 bg-indigo-400/15 px-3 py-2 text-xs font-semibold text-indigo-50 transition hover:bg-indigo-400/25 disabled:opacity-60"
+            >
+              {aiHintsLoading
+                ? tx(lang, 'Yenilənir...', 'Обновляется...', 'Refreshing...')
+                : tx(lang, 'AI yenilə', 'Обновить AI', 'Refresh AI')}
+            </button>
           </div>
-        ) : null}
-      </div>
+          {aiHints.length > 0 ? (
+            <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+              {aiHints.map((item) => (
+                <div key={item.id} className="rounded-xl border border-indigo-300/20 bg-slate-950/40 px-3 py-2">
+                  <div className="text-xs font-bold text-white">{item.title}</div>
+                  <div className="mt-1 text-xs text-slate-300">{item.body}</div>
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      onClick={() => openAiHintAction(item)}
+                      className="rounded-lg border border-slate-600 px-2.5 py-1 text-[11px] font-semibold text-slate-100 hover:border-slate-400"
+                    >
+                      {item.action_label}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {ctx.orderType === 'Dine In' && ctx.selectedTable && (
         <div className="mb-3 flex flex-col gap-3 rounded-2xl border border-cyan-300/35 bg-cyan-500/10 px-4 py-3 text-cyan-100 md:flex-row md:items-center md:justify-between">
