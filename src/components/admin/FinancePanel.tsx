@@ -36,6 +36,7 @@ import {
 } from '../../api/finance';
 import { get_settings_live } from '../../api/settings';
 import { send_email } from '../../api/email';
+import { generate_ai_insight_engine, type AiDecisionInsight } from '../../api/ai_manager';
 import { tx } from '../../i18n';
 import { formatServerUtcDateTime, localDateInputValue } from '../../lib/time';
 import {
@@ -321,6 +322,9 @@ export default function FinancePanel() {
     negative_balance_alert_azn: 0,
     approver_roles: ['manager', 'admin', 'finance_admin', 'super_admin'],
   });
+  const [aiInsights, setAiInsights] = useState<AiDecisionInsight[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
   const lastReloadAtRef = useRef(0);
   const reloadTimerRef = useRef<number | null>(null);
 
@@ -846,6 +850,33 @@ export default function FinancePanel() {
 
     return items;
   }, [anomalies, balance.cash_balance, balance.deposit_balance, financeSummary.net, lang]);
+
+  const runAiFinanceInsights = useCallback(() => {
+    setAiLoading(true);
+    setAiError('');
+    try {
+      const dateFrom = new Date(`${fromDate}T00:00:00`).toISOString();
+      const dateTo = new Date(`${toDate}T23:59:59`).toISOString();
+      const generated = generate_ai_insight_engine({
+        tenant_id,
+        date_from: dateFrom,
+        date_to: dateTo,
+        max_items: 12,
+      });
+      const filtered = generated
+        .filter((item) => item.phase === 'finance' || item.phase === 'anomaly')
+        .slice(0, 4);
+      setAiInsights(filtered);
+    } catch (error: any) {
+      setAiError(String(error?.message || error || 'AI insight alınmadı'));
+    } finally {
+      setAiLoading(false);
+    }
+  }, [fromDate, tenant_id, toDate]);
+
+  useEffect(() => {
+    runAiFinanceInsights();
+  }, [runAiFinanceInsights]);
 
   const exportCsv = async () => {
     const esc = (value: unknown) => {
@@ -2022,6 +2053,64 @@ export default function FinancePanel() {
             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Aktiv dövr', 'Активный период', 'Active period')}</div>
             <div className="mt-2 text-sm font-black text-white">{fromDate} → {toDate}</div>
           </div>
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-indigo-500/25 bg-indigo-950/20 p-4 md:p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-indigo-200">
+              {tx(lang, 'AI Maliyyə Nəzarəti', 'AI финансовый контроль', 'AI Finance Control')}
+            </div>
+            <div className="mt-1 text-sm text-indigo-100">
+              {tx(
+                lang,
+                'Bu dövr üçün kritik maliyyə siqnalları və növbəti əməliyyat tövsiyələri.',
+                'Критические сигналы и следующие действия для выбранного периода.',
+                'Critical finance signals and next actions for this selected period.',
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={runAiFinanceInsights}
+            disabled={aiLoading}
+            className="min-h-11 rounded-2xl border border-indigo-300/45 bg-indigo-400/15 px-4 text-sm font-black text-indigo-50 transition hover:bg-indigo-400/25 disabled:opacity-60"
+          >
+            {aiLoading
+              ? tx(lang, 'Yenilənir...', 'Обновляется...', 'Refreshing...')
+              : tx(lang, 'AI yenilə', 'Обновить AI', 'Refresh AI')}
+          </button>
+        </div>
+        {aiError ? (
+          <div className="mt-3 rounded-2xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">{aiError}</div>
+        ) : null}
+        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+          {aiInsights.map((item) => (
+            <div key={item.id} className="rounded-2xl border border-indigo-300/20 bg-slate-950/50 p-4">
+              <div className="text-xs font-black uppercase tracking-[0.14em] text-indigo-200">{item.phase}</div>
+              <div className="mt-1 text-sm font-bold text-white">{item.title}</div>
+              <div className="mt-2 text-sm text-slate-300">{item.body}</div>
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-xs text-slate-400">{item.metric || '-'}</span>
+                <button
+                  type="button"
+                  className="rounded-xl border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-100 hover:border-slate-400"
+                  onClick={() => {
+                    if (item.module === 'finance') setWorkspaceTab('ledger');
+                    if (item.module === 'analytics') setWorkspaceTab('overview');
+                  }}
+                >
+                  {item.action_label}
+                </button>
+              </div>
+            </div>
+          ))}
+          {!aiLoading && aiInsights.length === 0 && !aiError ? (
+            <div className="rounded-2xl border border-dashed border-indigo-300/30 bg-slate-950/35 p-4 text-sm text-slate-300">
+              {tx(lang, 'Bu aralıq üçün kritik AI siqnalı tapılmadı.', 'Для этого периода критические AI сигналы не найдены.', 'No critical AI signal found for this range.')}
+            </div>
+          ) : null}
         </div>
       </div>
 
