@@ -3,6 +3,7 @@ import { Decimal } from 'decimal.js';
 import { get_inventory_items_live, add_inventory_item_live, record_loss_live, restock_item_live, delete_inventory_item_live } from '../../api/inventory';
 import { get_logs_live } from '../../api/logs';
 import { get_settings_live } from '../../api/settings';
+import { generate_ai_insight_engine, type AiDecisionInsight } from '../../api/ai_manager';
 import { useAppStore } from '../../store';
 import { Package, AlertTriangle, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { tx } from '../../i18n';
@@ -127,6 +128,9 @@ export default function InventoryPanel() {
   const [restockInvoiceNo, setRestockInvoiceNo] = useState('');
   const [deleteModal, setDeleteModal] = useState<{ id: string; name: string } | null>(null);
   const [deletePass, setDeletePass] = useState('');
+  const [aiInsights, setAiInsights] = useState<AiDecisionInsight[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
 
   const formatQty = (value: unknown, unit: string) => {
     const qty = new Decimal(value || 0);
@@ -303,6 +307,30 @@ export default function InventoryPanel() {
     return row?.action || '-';
   };
 
+  const runAiInventoryInsights = () => {
+    setAiLoading(true);
+    setAiError('');
+    try {
+      const now = new Date();
+      const from = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+      const generated = generate_ai_insight_engine({
+        tenant_id,
+        date_from: from.toISOString(),
+        date_to: now.toISOString(),
+        max_items: 10,
+      });
+      setAiInsights(generated.filter((item) => item.phase === 'inventory' || item.module === 'inventory').slice(0, 4));
+    } catch (error: any) {
+      setAiError(String(error?.message || error || 'AI insight alınmadı'));
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    runAiInventoryInsights();
+  }, [tenant_id, items.length, history.length]);
+
   return (
     <div className="space-y-6">
       {lossModal && (
@@ -404,6 +432,51 @@ export default function InventoryPanel() {
           <button onClick={() => setIsAdding(!isAdding)} className="neon-btn min-h-13 px-4 py-3 rounded-lg flex items-center justify-center gap-2">
             <Plus size={20} /> {tx(lang, 'Xammal Əlavə Et', 'Добавить сырье', 'Add Inventory Item')}
           </button>
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-indigo-500/25 bg-indigo-950/20 p-4 md:p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-indigo-200">
+              {tx(lang, 'AI Anbar Siqnalları', 'AI сигналы склада', 'AI Inventory Signals')}
+            </div>
+            <div className="mt-1 text-sm text-indigo-100">
+              {tx(
+                lang,
+                'Son 14 gün üzrə kritik stok və resept bağlantısı tövsiyələri.',
+                'Критический остаток и рекомендации по связке рецептов за 14 дней.',
+                'Critical stock and recipe-link recommendations for the last 14 days.',
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={runAiInventoryInsights}
+            disabled={aiLoading}
+            className="min-h-11 rounded-2xl border border-indigo-300/45 bg-indigo-400/15 px-4 text-sm font-black text-indigo-50 transition hover:bg-indigo-400/25 disabled:opacity-60"
+          >
+            {aiLoading
+              ? tx(lang, 'Yenilənir...', 'Обновляется...', 'Refreshing...')
+              : tx(lang, 'AI yenilə', 'Обновить AI', 'Refresh AI')}
+          </button>
+        </div>
+        {aiError ? (
+          <div className="mt-3 rounded-2xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">{aiError}</div>
+        ) : null}
+        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+          {aiInsights.map((item) => (
+            <div key={item.id} className="rounded-2xl border border-indigo-300/20 bg-slate-950/50 p-4">
+              <div className="text-xs font-black uppercase tracking-[0.14em] text-indigo-200">{item.phase}</div>
+              <div className="mt-1 text-sm font-bold text-white">{item.title}</div>
+              <div className="mt-2 text-sm text-slate-300">{item.body}</div>
+            </div>
+          ))}
+          {!aiLoading && aiInsights.length === 0 && !aiError ? (
+            <div className="rounded-2xl border border-dashed border-indigo-300/30 bg-slate-950/35 p-4 text-sm text-slate-300">
+              {tx(lang, 'AI kritik anbar siqnalı tapmadı.', 'AI не нашел критических сигналов склада.', 'AI found no critical inventory signal.')}
+            </div>
+          ) : null}
         </div>
       </div>
 
