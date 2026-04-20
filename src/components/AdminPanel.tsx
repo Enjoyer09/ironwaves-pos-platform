@@ -59,7 +59,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   const [adminNote, setAdminNote] = useState('');
   const [notes, setNotes] = useState<Array<{ id: number; text: string; by?: string; created_at: string }>>([]);
   const [deleteMenuId, setDeleteMenuId] = useState<string | null>(null);
-  const [editMenuModal, setEditMenuModal] = useState<null | { id: string; item_name: string; price: string }>(null);
+  const [editMenuModal, setEditMenuModal] = useState<null | { id: string; item_name: string; price: string; image_url: string }>(null);
   const [deleteNoteId, setDeleteNoteId] = useState<number | null>(null);
   const [editNoteId, setEditNoteId] = useState<number | null>(null);
   const [editNoteText, setEditNoteText] = useState('');
@@ -238,7 +238,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     await update_menu_item_live(
       tenant_id,
       editMenuModal.id,
-      { item_name: nextName, price: new Decimal(nextPrice) } as any,
+      { item_name: nextName, price: new Decimal(nextPrice), image_url: String(editMenuModal.image_url || '').trim() } as any,
       user?.username || 'admin',
     );
     window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { scope: 'menu' } }));
@@ -246,6 +246,16 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     const seq = ++fetchSeqRef.current;
     await fetchData(seq);
     setEditMenuModal(null);
+  };
+
+  const handleEditMenuImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setEditMenuModal((prev) => (prev ? { ...prev, image_url: String(reader.result || '') } : prev));
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleMenuImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -770,6 +780,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                                   id: String(item.id),
                                   item_name: String(item.item_name || ''),
                                   price: String(item.price || ''),
+                                  image_url: String(item.image_url || ''),
                                 });
                               }}
                               className="text-cyan-300 hover:text-cyan-100 p-2 hover:bg-cyan-400/10 rounded-lg transition-colors"
@@ -819,6 +830,29 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
                   onChange={(e) => setEditMenuModal((prev) => (prev ? { ...prev, price: e.target.value } : prev))}
                   placeholder={tx(lang, 'Qiymət', 'Цена', 'Price')}
                 />
+                <input
+                  type="text"
+                  className="neon-input w-full"
+                  value={editMenuModal.image_url}
+                  onChange={(e) => setEditMenuModal((prev) => (prev ? { ...prev, image_url: e.target.value } : prev))}
+                  placeholder={tx(lang, 'Şəkil linki', 'Ссылка на изображение', 'Image URL')}
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="neon-input w-full"
+                  onChange={handleEditMenuImageUpload}
+                />
+                <div className="rounded-xl border border-slate-700/70 bg-slate-950/40 p-3">
+                  <div className="mb-2 text-xs text-slate-400">{tx(lang, 'Şəkil önizləməsi', 'Предпросмотр изображения', 'Image preview')}</div>
+                  <div className="h-28 w-full overflow-hidden rounded-lg bg-slate-800">
+                    {editMenuModal.image_url ? (
+                      <img src={editMenuModal.image_url} alt={editMenuModal.item_name || 'preview'} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-xs text-slate-500">IMG</div>
+                    )}
+                  </div>
+                </div>
               </div>
               <div className="mt-5 flex items-center justify-end gap-2">
                 <button
