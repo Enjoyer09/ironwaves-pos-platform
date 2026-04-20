@@ -513,6 +513,11 @@ html {
     @apply rounded-2xl border border-slate-700/70 bg-[linear-gradient(168deg,rgba(21,32,48,0.95),rgba(11,17,27,0.94))] p-2.5 shadow-[0_10px_24px_rgba(2,6,23,0.35)] transition;
   }
 
+  .pos3-card-active {
+    border-color: rgba(251, 191, 36, 0.6);
+    box-shadow: 0 14px 28px rgba(2, 6, 23, 0.42), inset 0 0 0 1px rgba(251, 191, 36, 0.2);
+  }
+
   .pos3-card:hover {
     border-color: rgba(245, 208, 123, 0.52);
     transform: translateY(-1px);
@@ -524,6 +529,22 @@ html {
 
   .pos3-card-fallback {
     @apply flex h-full w-full items-center justify-center gap-2 bg-[linear-gradient(145deg,#22344a,#141f31)] text-sm font-semibold text-slate-200;
+  }
+
+  .pos3-card-fallback-mark {
+    @apply inline-flex h-10 min-w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10 px-2 text-sm font-bold tracking-[0.08em] text-slate-100;
+  }
+
+  .pos3-qty-btn {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-600/80 bg-slate-900/55 text-slate-100 transition disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .pos3-qty-btn:hover {
+    @apply border-amber-300/60 bg-amber-300/10 text-amber-100;
+  }
+
+  .pos3-qty-value {
+    @apply inline-flex min-w-8 items-center justify-center rounded-lg border border-slate-700/80 bg-slate-950/45 px-2 py-1 text-xs font-bold text-slate-100;
   }
 
   .pos3-checkout {
@@ -553,6 +574,28 @@ html {
 
   .pos3-action-label {
     @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400;
+  }
+
+  .pos3-recent-wrap {
+    @apply rounded-xl border border-slate-700/70 bg-slate-950/28 p-2.5;
+  }
+
+  .pos3-recent-scroll {
+    @apply flex gap-2 overflow-x-auto pb-1;
+    scrollbar-width: thin;
+  }
+
+  .pos3-recent-card {
+    @apply min-w-[148px] rounded-xl border border-slate-700/70 bg-[linear-gradient(165deg,rgba(19,28,42,0.9),rgba(11,17,27,0.9))] px-2.5 py-2 text-left transition;
+  }
+
+  .pos3-recent-card:hover {
+    @apply border-amber-300/50 bg-slate-800/70;
+    transform: translateY(-1px);
+  }
+
+  .pos3-recent-card:active {
+    transform: scale(0.99);
   }
 }
 
