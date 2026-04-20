@@ -203,13 +203,14 @@ export default function RecipesPanel() {
         modeRaw === 'remote'
           ? tx(lang, 'remote AI cavabı', 'удаленный AI ответ', 'remote AI response')
           : tx(lang, 'fallback generator', 'fallback генератор', 'fallback generator');
+      const fallbackReason = String(generated?.generation?.fallback_reason || '').trim();
       notify(
         'success',
         tx(
           lang,
-          `AI ${selectedMenu} üçün resept yaratdı və yadda saxladı. Mənbə: ${providerLabel} (${modeLabel}).`,
-          `AI создал и сохранил рецепт для ${selectedMenu}. Источник: ${providerLabel} (${modeLabel}).`,
-          `AI created and saved a recipe for ${selectedMenu}. Source: ${providerLabel} (${modeLabel}).`,
+          `AI ${selectedMenu} üçün resept yaratdı və yadda saxladı. Mənbə: ${providerLabel} (${modeLabel})${modeRaw === 'fallback' && fallbackReason ? `. Səbəb: ${fallbackReason}.` : ''}`,
+          `AI создал и сохранил рецепт для ${selectedMenu}. Источник: ${providerLabel} (${modeLabel})${modeRaw === 'fallback' && fallbackReason ? `. Причина: ${fallbackReason}.` : ''}`,
+          `AI created and saved a recipe for ${selectedMenu}. Source: ${providerLabel} (${modeLabel})${modeRaw === 'fallback' && fallbackReason ? `. Reason: ${fallbackReason}.` : ''}`,
         ),
       );
       const nextItems = await get_recipe_live(selectedMenu, tenant_id);

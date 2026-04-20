@@ -319,6 +319,19 @@ export default function AIManagerPanel() {
     return labels[phase];
   };
 
+  const openInsightAction = (insight: AiDecisionInsight) => {
+    const module = String(insight.module || '').toLowerCase();
+    if (!module) return;
+    try {
+      window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module } }));
+    } catch {
+      // no-op
+    }
+  };
+
+  const pressFxClass =
+    'transition-transform duration-150 active:scale-[0.98] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70';
+
   return (
     <div className="space-y-6 text-slate-100">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -337,18 +350,18 @@ export default function AIManagerPanel() {
           </p>
         </div>
         <div className="flex gap-3">
-          <button onClick={copyResult} className="rounded-xl border border-slate-700 bg-slate-900/50 px-4 py-2 text-sm font-semibold text-slate-200 hover:border-cyan-300/50">
+          <button onClick={copyResult} className={`rounded-xl border border-slate-700 bg-slate-900/50 px-4 py-2 text-sm font-semibold text-slate-200 hover:border-cyan-300/50 ${pressFxClass}`}>
             <span className="inline-flex items-center gap-2"><Clipboard size={16} /> {tx(lang, 'Kopyala', 'Копировать', 'Copy')}</span>
           </button>
           <button
             onClick={() => { void sendDailyDigest(); }}
             disabled={digestSending}
-            className="rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-60"
+            className={`rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/20 disabled:opacity-60 ${pressFxClass}`}
           >
             {digestSending ? tx(lang, 'Digest göndərilir...', 'Digest отправляется...', 'Sending digest...') : tx(lang, 'Daily Digest göndər', 'Отправить daily digest', 'Send daily digest')}
           </button>
           {structuredResult?.kind === 'campaign' && (
-            <button onClick={pushCampaignToCrm} className="rounded-xl border border-fuchsia-400/40 bg-fuchsia-500/10 px-4 py-2 text-sm font-semibold text-fuchsia-100 hover:bg-fuchsia-500/20">
+            <button onClick={pushCampaignToCrm} className={`rounded-xl border border-fuchsia-400/40 bg-fuchsia-500/10 px-4 py-2 text-sm font-semibold text-fuchsia-100 hover:bg-fuchsia-500/20 ${pressFxClass}`}>
               {tx(lang, 'CRM-ə ötür', 'Передать в CRM', 'Send to CRM')}
             </button>
           )}
@@ -367,7 +380,7 @@ export default function AIManagerPanel() {
                 placeholder={tx(lang, 'API key daxil edin', 'Введите API key', 'Enter API key')}
                 className="neon-input"
               />
-              <button onClick={saveApiKey} className="glossy-gold rounded-xl px-5 py-3 text-sm font-bold">
+              <button onClick={saveApiKey} className={`glossy-gold rounded-xl px-5 py-3 text-sm font-bold ${pressFxClass}`}>
                 {tx(lang, 'Yadda Saxla', 'Сохранить', 'Save')}
               </button>
             </div>
@@ -412,7 +425,7 @@ export default function AIManagerPanel() {
                       return next;
                     })
                   }
-                  className={`relative inline-flex h-7 w-14 items-center rounded-full border transition ${
+                  className={`relative inline-flex h-7 w-14 items-center rounded-full border transition ${pressFxClass} ${
                     experimentalOllamaEnabled
                       ? 'border-emerald-300/70 bg-emerald-500/30'
                       : 'border-slate-600 bg-slate-800/70'
@@ -462,7 +475,7 @@ export default function AIManagerPanel() {
           <button
             key={card.key}
             onClick={() => { void runWorkspace(card.key); }}
-            className={`rounded-2xl border p-5 text-left transition-all hover:-translate-y-0.5 ${workspace === card.key ? card.accent : 'border-slate-700/70 bg-slate-900/35 hover:border-slate-500/70'}`}
+            className={`cursor-pointer rounded-2xl border p-5 text-left transition-all hover:-translate-y-0.5 active:scale-[0.99] ${workspace === card.key ? card.accent : 'border-slate-700/70 bg-slate-900/35 hover:border-slate-500/70'}`}
           >
             <div className="mb-4 inline-flex rounded-xl border border-white/10 bg-white/5 p-3 text-slate-100">
               {card.icon}
@@ -496,13 +509,13 @@ export default function AIManagerPanel() {
           )}
 
           <div className="mt-4 flex flex-wrap gap-3">
-            <button onClick={() => { void runWorkspace(workspace); }} className="glossy-gold rounded-xl px-5 py-3 text-sm font-bold">
+            <button onClick={() => { void runWorkspace(workspace); }} className={`glossy-gold rounded-xl px-5 py-3 text-sm font-bold ${pressFxClass}`}>
               {tx(lang, 'AI Hesabatı Yarat', 'Сгенерировать AI отчет', 'Generate AI Report')}
             </button>
-            <button onClick={() => { void runClassicBusinessAudit(); }} className="rounded-xl border border-slate-700 bg-slate-900/50 px-5 py-3 text-sm font-semibold text-slate-200 hover:border-cyan-300/40">
+            <button onClick={() => { void runClassicBusinessAudit(); }} className={`rounded-xl border border-slate-700 bg-slate-900/50 px-5 py-3 text-sm font-semibold text-slate-200 hover:border-cyan-300/40 ${pressFxClass}`}>
               {tx(lang, 'Klassik Biznes Analizi', 'Классический бизнес-анализ', 'Classic Business Analysis')}
             </button>
-            <button onClick={() => { void runInventoryAudit(); }} className="rounded-xl border border-slate-700 bg-slate-900/50 px-5 py-3 text-sm font-semibold text-slate-200 hover:border-cyan-300/40">
+            <button onClick={() => { void runInventoryAudit(); }} className={`rounded-xl border border-slate-700 bg-slate-900/50 px-5 py-3 text-sm font-semibold text-slate-200 hover:border-cyan-300/40 ${pressFxClass}`}>
               {tx(lang, 'Klassik Anbar Auditi', 'Классический аудит склада', 'Classic Inventory Audit')}
             </button>
           </div>
@@ -529,7 +542,7 @@ export default function AIManagerPanel() {
                   </div>
                   <button
                     onClick={() => refreshDecisionEngine()}
-                    className="rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/20"
+                    className={`rounded-xl border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/20 ${pressFxClass}`}
                   >
                     {tx(lang, 'Yenidən analiz et', 'Анализировать снова', 'Analyze again')}
                   </button>
@@ -564,9 +577,13 @@ export default function AIManagerPanel() {
                             </span>
                           ))}
                         </div>
-                        <span className="rounded-xl bg-white px-4 py-2 text-sm font-black text-slate-950">
+                        <button
+                          type="button"
+                          onClick={() => openInsightAction(insight)}
+                          className={`rounded-xl bg-white px-4 py-2 text-sm font-black text-slate-950 ${pressFxClass}`}
+                        >
                           {insight.action_label}
-                        </span>
+                        </button>
                       </div>
                     </div>
                   ))}

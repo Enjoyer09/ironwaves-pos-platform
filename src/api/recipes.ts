@@ -465,6 +465,7 @@ async function generate_recipe_ai_rows(
   const selectedModel = String(tenantSettings?.ai_config?.model || detected.model || 'gemini-1.5-flash');
   const canUseGeminiRemote = selectedProvider === 'google';
   let remoteGenerated = false;
+  let fallbackReason = '';
   if (canUseGeminiRemote && !aiKey) {
     throw new Error('AI resept üçün əvvəlcə API key daxil edilməlidir.');
   }
@@ -477,7 +478,7 @@ async function generate_recipe_ai_rows(
 
   let aiRows: Array<{ ingredient: string; qty: number; qty_unit?: string }> = [];
   try {
-    if (!canUseGeminiRemote) {
+    if (!canUseGeminiRemote && selectedProvider !== 'ollama_freeapi') {
       throw new Error('REMOTE_PROVIDER_SKIPPED');
     }
     const invText = inventory
@@ -508,19 +509,47 @@ async function generate_recipe_ai_rows(
       `No markdown, no explanation.`
     ].filter(Boolean).join('\n');
 
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(selectedModel)}:generateContent?key=${encodeURIComponent(aiKey)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.2 }
-      })
-    });
+    let responseText = '';
+    if (canUseGeminiRemote) {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(selectedModel)}:generateContent?key=${encodeURIComponent(aiKey)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.2 }
+        })
+      });
+      if (!res.ok) {
+        fallbackReason = `Remote provider HTTP ${res.status}`;
+      } else {
+        const data = await res.json();
+        responseText = String(data?.candidates?.[0]?.content?.parts?.[0]?.text || '');
+      }
+    } else if (selectedProvider === 'ollama_freeapi') {
+      if (!isBackendEnabled()) {
+        fallbackReason = 'OllamaFreeAPI remote çağırışı üçün backend tələb olunur';
+      } else {
+        const ollamaModel = selectedModel && selectedModel !== 'auto' ? selectedModel : 'llama3.2:3b';
+        const generated = await apiRequest<{ text?: string }>(
+          '/api/v1/ops/ai/ollamafreeapi/generate',
+          {
+            method: 'POST',
+            tenantId: null,
+            body: {
+              model: ollamaModel,
+              prompt,
+              temperature: 0.2,
+              num_predict: 400,
+              timeout_seconds: 35,
+            },
+          },
+        );
+        responseText = String(generated?.text || '');
+      }
+    }
 
-    if (res.ok) {
-      const data = await res.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      const match = String(text).match(/\[[\s\S]*\]/);
+    if (responseText) {
+      const match = String(responseText).match(/\[[\s\S]*\]/);
       if (match?.[0]) {
         const parsed = JSON.parse(match[0]);
         if (Array.isArray(parsed)) {
@@ -536,8 +565,23 @@ async function generate_recipe_ai_rows(
           remoteGenerated = aiRows.length > 0;
         }
       }
+      if (!remoteGenerated && !fallbackReason) {
+        fallbackReason = 'AI cavabı uyğun JSON formatında olmadı';
+      }
+    } else {
+      if (!fallbackReason) {
+        fallbackReason = 'Remote provider cavabı boş qaytardı';
+      }
     }
-  } catch {
+  } catch (error: any) {
+    if (!fallbackReason) {
+      const msg = String(error?.message || error || '').trim();
+      if (msg === 'REMOTE_PROVIDER_SKIPPED') {
+        fallbackReason = 'Seçilən provider üçün remote resept endpointi aktiv deyil';
+      } else {
+        fallbackReason = msg || 'Remote provider çağırışı uğursuz oldu';
+      }
+    }
     // fallback below
   }
 
@@ -598,6 +642,7 @@ async function generate_recipe_ai_rows(
       provider: selectedProvider,
       model: selectedModel,
       mode: remoteGenerated ? 'remote' : 'fallback',
+      fallback_reason: remoteGenerated ? '' : fallbackReason || 'Remote provider unavailable',
     },
   };
 }
