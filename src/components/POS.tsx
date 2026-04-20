@@ -1717,6 +1717,335 @@ export default function POS() {
     );
   }
 
+  if (isNewUiMode) {
+    return (
+      <div className="pos3-shell">
+        <header className="pos3-header">
+          <div className="pos3-brand">
+            <div className="pos3-brand-mark">{String(businessProfile?.company_name || 'I').slice(0, 1).toUpperCase()}</div>
+            <div>
+              <div className="text-xs uppercase tracking-[0.18em] text-slate-400">{tx(lang, 'POS Workspace', 'POS рабочая зона', 'POS Workspace')}</div>
+              <div className="text-lg font-bold text-slate-100">{businessProfile?.company_name || 'IRONWAVES POS'}</div>
+            </div>
+          </div>
+          <div className="pos3-nav">
+            <button className="pos3-nav-btn pos3-nav-btn-active">{tx(lang, 'POS', 'POS', 'POS')}</button>
+            <button className="pos3-nav-btn" onClick={() => window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module: 'tables' } }))}>
+              {tx(lang, 'Masalar', 'Столы', 'Tables')}
+            </button>
+            <button className="pos3-nav-btn" onClick={() => window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module: 'kds' } }))}>
+              {tx(lang, 'Mətbəx', 'Кухня', 'Kitchen')}
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={handleSyncOfflineQueue} disabled={isSyncingOffline} className="pos3-utility-btn">
+              {isSyncingOffline ? tx(lang, 'Sync...', 'Синк...', 'Sync...') : tx(lang, 'Sync', 'Синк', 'Sync')}
+            </button>
+            <button onClick={() => requestClearCart(activeCart)} disabled={!cart.length || isLoading} className="pos3-utility-btn">
+              {tx(lang, 'Səbəti sil', 'Очистить корзину', 'Clear cart')}
+            </button>
+          </div>
+        </header>
+
+        {posLayout.show_cart_tabs && (
+          <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+            <button onClick={() => setActiveCart('S1')} className={`pos3-cart-tab ${activeCart === 'S1' ? 'pos3-cart-tab-active' : ''}`}>
+              <ShoppingCart size={14} /> {resolveCartTabLabel('S1')}
+            </button>
+            <button onClick={() => setActiveCart('S2')} className={`pos3-cart-tab ${activeCart === 'S2' ? 'pos3-cart-tab-active' : ''}`}>
+              <ShoppingCart size={14} /> {resolveCartTabLabel('S2')}
+            </button>
+            <button onClick={() => setActiveCart('S3')} className={`pos3-cart-tab ${activeCart === 'S3' ? 'pos3-cart-tab-active' : ''}`}>
+              <ShoppingCart size={14} /> {resolveCartTabLabel('S3')}
+            </button>
+          </div>
+        )}
+
+        <div className="pos3-workspace">
+          <section className="pos3-menu">
+            <div className="mb-3">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input
+                  id="pos-menu-search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="neon-input pl-10"
+                  placeholder={t.search}
+                />
+              </div>
+            </div>
+            <div className="mb-3 flex flex-wrap gap-2">
+              {categories.map((cat) => (
+                <button key={cat} onClick={() => setCategory(cat)} className={`pos3-chip ${category === cat ? 'pos3-chip-active' : ''}`}>
+                  {cat === 'ALL' ? t.all_categories : cat}
+                </button>
+              ))}
+            </div>
+            <div className="pos3-product-grid">
+              {groupedMenu.map((group) => {
+                const hasVariants = group.items.length > 1;
+                const minPrice = group.items.reduce(
+                  (acc, cur) => Decimal.min(acc, toDecimalSafe(cur.price)),
+                  toDecimalSafe(group.items[0].price),
+                );
+                const primaryItem = group.items[0];
+                const qtyInCart = group.items.reduce((acc, item) => acc + (cart.find((c) => c.id === item.id)?.qty || 0), 0);
+                return (
+                  <div key={`${group.base}_${group.items.length}`} className="pos3-card">
+                    <button className="w-full text-left" onClick={() => openProductPicker(group)}>
+                      <div className="pos3-card-image">
+                        {group.image_url ? (
+                          <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="pos3-card-fallback">
+                            <ImageOff size={16} />
+                            <span>{group.base.slice(0, 1).toUpperCase()}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-2">
+                        <div className="line-clamp-1 text-sm font-semibold text-slate-100">{group.base}</div>
+                        <div className="line-clamp-1 text-xs text-slate-400">{group.description || group.category || tx(lang, 'Menyu məhsulu', 'Позиция меню', 'Menu item')}</div>
+                        <div className="mt-1 text-sm font-bold text-amber-300">{minPrice.toFixed(2)} ₼</div>
+                      </div>
+                    </button>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      {hasVariants ? (
+                        <>
+                          <span className="rounded-lg border border-slate-600/80 bg-slate-900/60 px-2 py-1 text-xs text-slate-300">{qtyInCart} {tx(lang, 'ədəd', 'шт', 'pcs')}</span>
+                          <button className="rounded-xl border border-amber-300/45 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-100" onClick={() => openProductPicker(group)}>
+                            {tx(lang, 'Seç + əlavə', 'Выбрать + добавить', 'Pick + Add')}
+                          </button>
+                        </>
+                      ) : (
+                        <button className="w-full rounded-xl border border-emerald-300/40 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100" onClick={() => addToCart(primaryItem)}>
+                          {tx(lang, 'Səbətə əlavə et', 'Добавить в корзину', 'Add to cart')}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <aside className="pos3-checkout">
+            <div className="pos3-checkout-head">
+              <h3 className="flex items-center gap-2 text-lg font-bold text-slate-100">
+                <ShoppingCart size={18} /> {t.cart.toUpperCase()} {activeCart.slice(1)}
+              </h3>
+              <div className="text-sm font-bold text-slate-100">{checkoutBaseTotal.toFixed(2)} ₼</div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="relative">
+                <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input
+                  placeholder={tx(lang, 'Skan et...', 'Сканируйте...', 'Scan...')}
+                  className="neon-input pl-9"
+                  value={ctx.customerQR}
+                  onChange={(e) => patchCtx({ customerQR: e.target.value })}
+                  onKeyDown={(e) => e.key === 'Enter' && handleFindCustomer()}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={handleFindCustomer} className="pay-btn h-11">{tx(lang, 'Müştəri Tap', 'Найти клиента', 'Find Customer')}</button>
+                <button onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '' })} className="pay-btn h-11">{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</button>
+              </div>
+              <input
+                placeholder={tx(lang, 'Reward/Feedback kodu', 'Код reward/feedback', 'Reward/Feedback code')}
+                className="neon-input h-11"
+                value={ctx.rewardClaimCode || ''}
+                onChange={(e) => patchCtx({ rewardClaimCode: e.target.value.toUpperCase() })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleRewardCodeEnter();
+                  }
+                }}
+              />
+              {feedbackCouponPreview ? (
+                <div className={`rounded-md border px-2 py-1 text-xs ${feedbackCouponPreview.status === 'PENDING' ? 'border-emerald-400/50 bg-emerald-500/10 text-emerald-200' : 'border-slate-600/60 bg-slate-700/30 text-slate-300'}`}>
+                  {feedbackCouponPreview.status === 'PENDING'
+                    ? tx(lang, `Feedback kuponu aktivdir: -${feedbackCouponPreview.percent}%`, `Купон feedback активен: -${feedbackCouponPreview.percent}%`, `Feedback coupon active: -${feedbackCouponPreview.percent}%`)
+                    : tx(lang, 'Bu feedback kuponu artıq istifadə olunub', 'Этот feedback купон уже использован', 'This feedback coupon is already used')}
+                </div>
+              ) : null}
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={ctx.discount}
+                onChange={(e) => patchCtx({ discount: e.target.value })}
+                disabled={hasClaimCode}
+                className={`neon-input h-11 ${hasClaimCode ? 'cursor-not-allowed opacity-60' : ''}`}
+                placeholder={tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}
+              />
+            </div>
+
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {(['Take Away', 'Dine In', 'Order Online'] as OrderType[]).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => patchCtx({ orderType: mode })}
+                  className={`rounded-lg border px-2 py-2 text-xs font-semibold ${
+                    ctx.orderType === mode ? 'border-amber-200/80 bg-amber-300 text-slate-900' : 'border-slate-600 bg-slate-800/50 text-slate-200'
+                  }`}
+                >
+                  {mode === 'Dine In' ? tx(lang, 'Masada', 'В зале', 'Dine In') : mode === 'Take Away' ? tx(lang, 'Al-apar', 'С собой', 'Take Away') : tx(lang, 'Onlayn', 'Онлайн', 'Online')}
+                </button>
+              ))}
+            </div>
+
+            {ctx.orderType === 'Dine In' && (
+              <div className="mt-3 space-y-2">
+                <select value={ctx.selectedTable} onChange={(e) => patchCtx({ selectedTable: e.target.value })} className="neon-input h-11">
+                  <option value="">{tx(lang, 'Masa seçin', 'Выберите стол', 'Select table')}</option>
+                  {tables.map((table) => <option key={table.id} value={table.id}>{table.label}</option>)}
+                </select>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => patchCtx({ cupMode: 'paper' })} className={`rounded-lg border px-2 py-2 text-xs font-semibold ${ctx.cupMode === 'paper' ? 'border-amber-200/80 bg-amber-300 text-slate-900' : 'border-slate-600 bg-slate-800/50 text-slate-200'}`}>
+                    {tx(lang, 'Kağız stəkan', 'Бумажный стакан', 'Paper cup')}
+                  </button>
+                  <button onClick={() => patchCtx({ cupMode: 'glass' })} className={`rounded-lg border px-2 py-2 text-xs font-semibold ${ctx.cupMode === 'glass' ? 'border-amber-200/80 bg-amber-300 text-slate-900' : 'border-slate-600 bg-slate-800/50 text-slate-200'}`}>
+                    {tx(lang, 'Şüşə stəkan', 'Стеклянный стакан', 'Glass cup')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="pos3-order-list">
+              {cart.length === 0 && <div className="pt-8 text-center text-sm text-slate-500">{t.cart_empty}</div>}
+              {cart.map((item) => (
+                <div key={item.line_id} className="rounded-xl border border-slate-700/70 bg-slate-900/40 p-2.5">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="line-clamp-1 text-sm font-semibold text-slate-100">{item.item_name}</span>
+                    <span className="text-sm font-semibold text-amber-300">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
+                  </div>
+                  <div className="flex items-center justify-end gap-2">
+                    <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty - 1)}><Minus size={13} /></button>
+                    <span className="w-5 text-center text-sm text-slate-200">{item.qty}</span>
+                    <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty + 1)}><Plus size={13} /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 rounded-xl border border-slate-700/70 bg-slate-950/50 p-3 text-sm">
+              <div className="mb-1 flex justify-between text-slate-300"><span>{tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span><span>{rawTotal.toFixed(2)} ₼</span></div>
+              <div className="mb-1 flex justify-between text-slate-300"><span>{tx(lang, 'Endirim', 'Скидка', 'Discount')}</span><span>- {discountAmount.toFixed(2)} ₼</span></div>
+              <div className="flex justify-between border-t border-slate-700/60 pt-2 text-xl font-bold text-slate-100"><span>{tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>{checkoutBaseTotal.toFixed(2)} ₼</span></div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {(['Nəğd', 'Kart', 'Split', 'Staff'] as PaymentMethod[]).map((method) => (
+                <button key={method} disabled={isLoading} onClick={() => setSelectedPayment(method)} className={`pay-btn h-11 ${selectedPayment === method ? 'pay-btn-active' : ''}`}>
+                  {method === 'Nəğd' ? tx(lang, 'Nəğd', 'Наличные', 'Cash') : method === 'Kart' ? tx(lang, 'Kart', 'Карта', 'Card') : method === 'Split' ? tx(lang, 'Bölünmüş', 'Разделено', 'Split') : tx(lang, 'Staff', 'Персонал', 'Staff')}
+                </button>
+              ))}
+            </div>
+            {selectedPayment === 'Split' && (
+              <div className="mt-2 rounded-lg border border-slate-700/70 bg-[#0e1520] p-3 text-sm">
+                <label className="mb-1 block text-slate-300">{tx(lang, 'Nağd hissə', 'Наличная часть', 'Cash part')}</label>
+                <input type="number" min={0} step="0.01" max={checkoutBaseTotal.toNumber()} value={splitCashInput} onChange={(e) => setSplitCashInput(e.target.value)} className="neon-input" />
+              </div>
+            )}
+
+            {ctx.orderType === 'Dine In' && ctx.selectedTable ? (
+              <button disabled={isLoading || !ctx.selectedTable || cart.length === 0} onClick={() => { void handleSendToKitchen(); }} className="pos3-primary-btn">
+                <Check size={18} /> {tx(lang, 'Masaya Göndər', 'Отправить на стол', 'Send To Table')}
+              </button>
+            ) : (
+              <button
+                disabled={isLoading || shouldLockTableCheckoutInPos || (cart.length === 0 && !shouldLockTableCheckoutInPos) || (ctx.orderType === 'Dine In' && !ctx.selectedTable)}
+                onClick={() => handleCheckout(selectedPayment)}
+                className="pos3-primary-btn"
+              >
+                <Check size={18} /> {tx(lang, 'Ödənişi Tamamla', 'Завершить оплату', 'Complete Payment')}
+              </button>
+            )}
+          </aside>
+        </div>
+
+        {variantPicker && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4">
+            <div className="metal-panel w-full max-w-md p-5">
+              <h3 className="text-lg font-bold text-slate-100">{variantPicker.base}</h3>
+              <p className="mt-1 text-sm text-slate-300">
+                {variantPicker.requiresServiceChoice
+                  ? tx(lang, 'Əvvəl ölçünü, sonra servis növünü seçin', 'Сначала выберите размер, затем подачу', 'Choose size, then service')
+                  : tx(lang, 'Ölçü seçin', 'Выберите размер', 'Choose a size')}
+              </p>
+              <div className="mt-4 space-y-2">
+                {variantPicker.items.map((item) => {
+                  const { variant } = splitVariantName(item.item_name);
+                  return (
+                    <button
+                      key={item.id}
+                      className={`neon-btn flex h-12 w-full items-center justify-between rounded-lg px-3 ${variantPicker.requiresServiceChoice && variantPicker.selectedItemId === item.id ? 'border-cyan-300 bg-cyan-500/15 text-cyan-50' : ''}`}
+                      onClick={() => {
+                        if (!variantPicker.requiresServiceChoice) {
+                          addToCart(item);
+                          setVariantPicker(null);
+                          return;
+                        }
+                        setVariantPicker((prev) => (prev ? { ...prev, selectedItemId: item.id } : prev));
+                      }}
+                    >
+                      <span>{variant || item.item_name}</span>
+                      <span>{toDecimalSafe(item.price).toFixed(2)} ₼</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <button className="mt-4 w-full rounded-lg border border-slate-600 px-4 py-2 text-sm" onClick={() => setVariantPicker(null)}>
+                {tx(lang, 'Bağla', 'Закрыть', 'Close')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showOpenShiftModal && (
+          <div className="fixed inset-0 z-[121] flex items-center justify-center bg-black/70 p-4">
+            <div className="metal-panel w-full max-w-md rounded-2xl p-5">
+              <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Əvvəlcə günü açın', 'Сначала откройте смену', 'Open shift first')}</h3>
+              <p className="mt-2 text-sm text-slate-300">
+                {tx(lang, 'Satış üçün əvvəl günü Z-Hesabat bölməsində açın.', 'Перед продажей откройте смену в разделе Z-Отчет.', 'Open the shift in Z-Report before making sales.')}
+              </p>
+              <div className="mt-4 flex flex-wrap justify-end gap-2">
+                <button className="neon-btn rounded-xl px-4 py-2" onClick={() => setShowOpenShiftModal(false)}>{tx(lang, 'Bağla', 'Закрыть', 'Close')}</button>
+                <button
+                  className="glossy-gold rounded-xl px-4 py-2 font-semibold"
+                  onClick={() => {
+                    setShowOpenShiftModal(false);
+                    window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module: 'zreport' } }));
+                  }}
+                >
+                  {tx(lang, 'Z-Hesabata keçin', 'Перейти в Z-Отчет', 'Go to Z-Report')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <ConfirmModal
+          open={Boolean(pendingClearCartKey)}
+          title={tx(lang, 'Səbəti təmizlə?', 'Очистить корзину?', 'Clear cart?')}
+          message={tx(lang, 'Bu səbətdəki bütün məhsullar silinəcək. Davam etmək istəyirsiniz?', 'Все позиции в этой корзине будут удалены. Продолжить?', 'All items in this cart will be removed. Continue?')}
+          lang={safeLang}
+          confirmLabel={tx(lang, 'Səbəti sil', 'Очистить', 'Clear cart')}
+          cancelLabel={tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
+          onCancel={() => setPendingClearCartKey(null)}
+          onConfirm={() => {
+            if (pendingClearCartKey) clearCart(pendingClearCartKey);
+            setPendingClearCartKey(null);
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className={`compact-pos-shell ${isNewUiMode ? 'pos2-shell' : ''} flex h-full min-h-0 flex-col px-3 pb-24 pt-3 text-slate-200 md:px-4 md:pb-3 xl:px-6 ${shellClass} ${densityClass}`}
