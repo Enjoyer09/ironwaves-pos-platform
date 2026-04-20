@@ -1290,6 +1290,28 @@ export default function POS() {
   useEffect(() => {
     runAiPosHints();
   }, [tenantId, cart.length]);
+  const openAiHintAction = (item: AiDecisionInsight) => {
+    if (item.module === 'tables') {
+      window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module: 'tables' } }));
+      return;
+    }
+    if (item.module === 'finance') {
+      window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module: 'finance' } }));
+      return;
+    }
+    if (item.module === 'analytics') {
+      window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module: 'analytics' } }));
+      return;
+    }
+    if (item.module === 'crm') {
+      window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module: 'crm' } }));
+      return;
+    }
+    if (item.module === 'ai') {
+      window.dispatchEvent(new CustomEvent('navigate-module', { detail: { module: 'ai' } }));
+      return;
+    }
+  };
   const isNewUiMode = false;
   const orderTypeBlockVisible = isWidgetVisible('orderType');
   const tableBlockVisible = isWidgetVisible('table');
@@ -2278,6 +2300,14 @@ export default function POS() {
               <div key={item.id} className="rounded-xl border border-indigo-300/20 bg-slate-950/40 px-3 py-2">
                 <div className="text-xs font-bold text-white">{item.title}</div>
                 <div className="mt-1 text-xs text-slate-300">{item.body}</div>
+                <div className="mt-2 flex justify-end">
+                  <button
+                    onClick={() => openAiHintAction(item)}
+                    className="rounded-lg border border-slate-600 px-2.5 py-1 text-[11px] font-semibold text-slate-100 hover:border-slate-400"
+                  >
+                    {item.action_label}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
