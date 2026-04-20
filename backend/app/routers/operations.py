@@ -972,7 +972,7 @@ class CustomerForgetIn(BaseModel):
 DEFAULT_SESSION_SETTINGS = {
     "idle_logout_minutes": 0,
     "virtual_keyboard_enabled": True,
-    "staff_pin_length": 6,
+    "staff_pin_length": 4,
     "theme_mode": "dark",
     "ui_mode": "old",
 }

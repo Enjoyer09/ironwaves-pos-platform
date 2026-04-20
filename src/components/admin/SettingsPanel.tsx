@@ -103,7 +103,7 @@ export default function SettingsPanel() {
   const [sessionSettings, setSessionSettings] = useState({
     idle_logout_minutes: '0',
     virtual_keyboard_enabled: true,
-    staff_pin_length: 6 as 4 | 6,
+    staff_pin_length: 4 as 4 | 6,
     theme_mode: 'dark' as 'dark' | 'light',
     ui_mode: 'old' as 'old',
   });
@@ -351,7 +351,7 @@ export default function SettingsPanel() {
       setSessionSettings({
         idle_logout_minutes: String(settingsRes.value.session_settings?.idle_logout_minutes ?? 0),
         virtual_keyboard_enabled: settingsRes.value.session_settings?.virtual_keyboard_enabled !== false,
-        staff_pin_length: Number(settingsRes.value.session_settings?.staff_pin_length || 6) === 4 ? 4 : 6,
+        staff_pin_length: Number(settingsRes.value.session_settings?.staff_pin_length || 4) === 4 ? 4 : 6,
         theme_mode: settingsRes.value.session_settings?.theme_mode === 'light' ? 'light' : 'dark',
         ui_mode: 'old',
       });
