@@ -3,7 +3,6 @@ import "./index.css";
 import "./i18n";
 import App from "./App";
 import AppErrorBoundary from "./components/AppErrorBoundary";
-import { UiThemeProvider } from "./providers/UiThemeProvider";
 
 function renderBootError(message: string) {
   const root = document.getElementById("root");
@@ -37,11 +36,9 @@ try {
   }
 
   createRoot(rootNode).render(
-    <UiThemeProvider>
-      <AppErrorBoundary>
-        <App />
-      </AppErrorBoundary>
-    </UiThemeProvider>
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
   );
 } catch (error) {
   const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);

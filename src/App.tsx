@@ -385,9 +385,8 @@ export default function App() {
 
   useEffect(() => {
     const root = document.documentElement;
-    const uiMode = String(settings?.session_settings?.ui_mode || 'old').toLowerCase() === 'new' ? 'new' : 'old';
-    root.setAttribute('data-ui-mode', uiMode);
-  }, [settings?.session_settings?.ui_mode]);
+    root.setAttribute('data-ui-mode', 'old');
+  }, []);
 
   useEffect(() => {
     const handleOpenTableInPos = () => setCurrentModule('pos');
