@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -8,6 +10,7 @@ from app.models import RevokedToken, Tenant, User
 from app.security import decode_token, hash_token
 from app.tenant import resolve_tenant_from_request
 
+logger = logging.getLogger("ironwaves.auth")
 _redis_token_client = None
 
 
@@ -46,7 +49,22 @@ def _is_token_revoked(tenant_id: str, token_hash: str, db: Session) -> bool:
 def get_tenant(request: Request, db: Session = Depends(get_db)) -> Tenant:
     tenant = resolve_tenant_from_request(request, db)
     if not tenant:
-        raise HTTPException(status_code=400, detail="Tenant not configured for this domain")
+        request_id = str(getattr(getattr(request, "state", None), "request_id", "") or "")
+        logger.warning(
+            {
+                "event": "tenant_missing_for_request",
+                "request_id": request_id,
+                "path": request.url.path,
+                "host": request.headers.get("host"),
+                "x_tenant_domain": request.headers.get("x-tenant-domain"),
+                "x_tenant_id": request.headers.get("x-tenant-id"),
+                "tenant_resolution_source": getattr(request.state, "tenant_resolution_source", None),
+            }
+        )
+        detail = "Tenant not configured for this domain"
+        if request_id:
+            detail = f"{detail} (request_id: {request_id})"
+        raise HTTPException(status_code=400, detail=detail)
     if tenant.status != "active":
         raise HTTPException(status_code=403, detail="Tenant is suspended")
     return tenant

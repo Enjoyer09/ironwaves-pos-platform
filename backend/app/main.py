@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime, timedelta
 import hashlib
 import json
+import logging
 import re
 import secrets
 import time
@@ -21,6 +22,7 @@ from app.models import AuditLog, BusinessProfile, InventoryItem, MenuItem, Recip
 from app.realtime import realtime_hub
 from app.routers import ai_ops, analytics_api, auth, catalog, customer_feedback_ops, finance, operations, pos, reports, restaurant, settings as settings_router, tenants
 from app.security import decode_token, hash_password
+from app.tenant import resolve_tenant_from_request
 
 
 def _init_error_tracking() -> None:
@@ -50,6 +52,8 @@ def _init_error_tracking() -> None:
 
 _init_error_tracking()
 app = FastAPI(title=settings.app_name)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+logger = logging.getLogger("ironwaves.api")
 
 try:
     from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
@@ -288,6 +292,7 @@ def _origin_allowed(origin: str | None) -> bool:
 
 @app.middleware("http")
 async def security_boundary_middleware(request: Request, call_next):
+    started = time.perf_counter()
     request_id = str(request.headers.get("x-request-id") or "").strip()[:80] or str(uuid.uuid4())
     request.state.request_id = request_id
     if request.url.path != "/health":
@@ -314,7 +319,30 @@ async def security_boundary_middleware(request: Request, call_next):
             return JSONResponse(status_code=403, content={"detail": "Request origin is not allowed"}, headers={"X-Request-ID": request_id})
 
     response = await call_next(request)
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
     response.headers.setdefault("X-Request-ID", request_id)
+    if settings.include_tenant_debug_header:
+        source = getattr(request.state, "tenant_resolution_source", None)
+        domain = getattr(request.state, "tenant_resolution_domain", None)
+        if source:
+            response.headers.setdefault("X-Tenant-Resolution", str(source))
+        if domain:
+            response.headers.setdefault("X-Tenant-Domain", str(domain))
+    if settings.request_logging_enabled:
+        logger.info(
+            {
+                "event": "http_request",
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code,
+                "duration_ms": elapsed_ms,
+                "host": request.headers.get("host"),
+                "x_tenant_domain": request.headers.get("x-tenant-domain"),
+                "tenant_resolution_source": getattr(request.state, "tenant_resolution_source", None),
+                "tenant_resolution_tenant_id": getattr(request.state, "tenant_resolution_tenant_id", None),
+            }
+        )
     if settings.security_headers_enabled:
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
@@ -1094,6 +1122,33 @@ def on_startup():
 @app.get("/health")
 def health():
     return {"status": "ok", "app": settings.app_name}
+
+
+@app.get("/health/tenant-debug")
+def health_tenant_debug(request: Request):
+    if settings.app_env == "production" and not settings.enable_public_tenant_debug:
+        return {"ok": False, "detail": "tenant debug endpoint disabled in production"}
+    with SessionLocal() as db:
+        tenant = resolve_tenant_from_request(request, db)
+    return {
+        "ok": True,
+        "request_id": str(getattr(getattr(request, "state", None), "request_id", "") or ""),
+        "host": request.headers.get("host"),
+        "x_tenant_domain": request.headers.get("x-tenant-domain"),
+        "x_tenant_id": request.headers.get("x-tenant-id"),
+        "resolved_tenant": (
+            {
+                "id": tenant.id,
+                "slug": tenant.slug,
+                "domain": tenant.domain,
+                "status": tenant.status,
+            }
+            if tenant
+            else None
+        ),
+        "tenant_resolution_source": getattr(request.state, "tenant_resolution_source", None),
+        "tenant_resolution_domain": getattr(request.state, "tenant_resolution_domain", None),
+    }
 
 
 @app.websocket("/ws/restaurant")

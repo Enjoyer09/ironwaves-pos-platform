@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     single_tenant_mode: bool = False
     single_tenant_id: str = ""
     allow_legacy_tenant_header_fallback: bool = False
+    request_logging_enabled: bool = True
+    tenant_resolution_debug: bool = True
+    include_tenant_debug_header: bool = False
+    enable_public_tenant_debug: bool = False
 
     cors_origins: str = "http://localhost:5173"
 

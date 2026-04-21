@@ -1,9 +1,13 @@
+import logging
+
 from fastapi import Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models import Tenant
+
+logger = logging.getLogger("ironwaves.tenant")
 
 
 def _normalize_domain(raw: str | None) -> str:
@@ -123,15 +127,41 @@ def _resolve_known_alias_tenant(domain: str, db: Session) -> Tenant | None:
 
 
 def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
+    request_id = str(getattr(getattr(request, "state", None), "request_id", "") or "")
+
+    def _remember(source: str, domain: str, tenant: Tenant | None) -> None:
+        try:
+            request.state.tenant_resolution_source = source
+            request.state.tenant_resolution_domain = domain
+            request.state.tenant_resolution_tenant_id = tenant.id if tenant else None
+        except Exception:
+            pass
+
+    def _log(event: str, **extra) -> None:
+        if not settings.tenant_resolution_debug:
+            return
+        logger.info(
+            {
+                "event": event,
+                "request_id": request_id,
+                "path": request.url.path,
+                **extra,
+            }
+        )
+
     # Single-tenant fallback mode: ignore domain mapping complexity.
     if settings.single_tenant_mode:
         if settings.single_tenant_id:
             tenant = db.query(Tenant).filter(Tenant.id == settings.single_tenant_id).first()
             if tenant:
+                _remember("single_tenant_id", "", tenant)
+                _log("tenant_resolved", source="single_tenant_id", tenant_id=tenant.id, tenant_slug=tenant.slug)
                 return tenant
         # Last resort: first active tenant.
         tenant = db.query(Tenant).filter(Tenant.status == "active").order_by(Tenant.created_at.asc()).first()
         if tenant:
+            _remember("single_tenant_first_active", "", tenant)
+            _log("tenant_resolved", source="single_tenant_first_active", tenant_id=tenant.id, tenant_slug=tenant.slug)
             return tenant
 
     explicit = (request.headers.get("x-tenant-id") or "").strip()
@@ -142,6 +172,13 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
     domain = _normalize_domain(request.headers.get("x-tenant-domain"))
     if not domain:
         domain = _normalize_domain(request.headers.get("host"))
+    _log(
+        "tenant_resolve_attempt",
+        domain=domain,
+        host=request.headers.get("host"),
+        x_tenant_domain=request.headers.get("x-tenant-domain"),
+        x_tenant_id=explicit or None,
+    )
 
     if domain:
         # 1) Use tenant_domains mapping table if present
@@ -167,7 +204,11 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
                         if tenant_by_slug:
                             _sync_single_domain_alias(db, tenant_by_slug.id, domain)
                             db.commit()
+                            _remember("tenant_domains_slug_override", domain, tenant_by_slug)
+                            _log("tenant_resolved", source="tenant_domains_slug_override", domain=domain, tenant_id=tenant_by_slug.id, tenant_slug=tenant_by_slug.slug)
                             return tenant_by_slug
+                    _remember("tenant_domains_active", domain, tenant)
+                    _log("tenant_resolved", source="tenant_domains_active", domain=domain, tenant_id=tenant.id, tenant_slug=tenant.slug)
                     return tenant
         except Exception:
             # Backward compatibility for schemas where tenant_domains has no is_active column.
@@ -192,7 +233,11 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
                             if tenant_by_slug:
                                 _sync_single_domain_alias(db, tenant_by_slug.id, domain)
                                 db.commit()
+                                _remember("tenant_domains_legacy_slug_override", domain, tenant_by_slug)
+                                _log("tenant_resolved", source="tenant_domains_legacy_slug_override", domain=domain, tenant_id=tenant_by_slug.id, tenant_slug=tenant_by_slug.slug)
                                 return tenant_by_slug
+                        _remember("tenant_domains_legacy", domain, tenant)
+                        _log("tenant_resolved", source="tenant_domains_legacy", domain=domain, tenant_id=tenant.id, tenant_slug=tenant.slug)
                         return tenant
             except Exception:
                 # If tenant_domains does not exist or query fails, fallback to Tenant.domain
@@ -201,22 +246,32 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
         # 2) Fallback: tenants.domain
         tenant = db.query(Tenant).filter(Tenant.domain == domain).first()
         if tenant:
+            _remember("tenant_domain_column", domain, tenant)
+            _log("tenant_resolved", source="tenant_domain_column", domain=domain, tenant_id=tenant.id, tenant_slug=tenant.slug)
             return tenant
 
         tenant = _resolve_known_alias_tenant(domain, db)
         if tenant:
+            _remember("known_domain_alias", domain, tenant)
+            _log("tenant_resolved", source="known_domain_alias", domain=domain, tenant_id=tenant.id, tenant_slug=tenant.slug)
             return tenant
 
         # Self-heal missing tenant_domains rows for managed wildcard domains
         # (e.g. socialbee.ironwaves.store -> slug: socialbee).
         tenant = _resolve_slug_fallback_tenant(domain, db)
         if tenant:
+            _remember("slug_wildcard", domain, tenant)
+            _log("tenant_resolved", source="slug_wildcard", domain=domain, tenant_id=tenant.id, tenant_slug=tenant.slug)
             return tenant
 
     # Legacy header fallback is opt-in and only allowed on authenticated traffic.
     if explicit and has_auth_context and settings.allow_legacy_tenant_header_fallback:
         tenant = db.query(Tenant).filter(Tenant.id == explicit).first()
         if tenant:
+            _remember("legacy_header_fallback", domain, tenant)
+            _log("tenant_resolved", source="legacy_header_fallback", domain=domain, tenant_id=tenant.id, tenant_slug=tenant.slug)
             return tenant
 
+    _remember("not_found", domain, None)
+    _log("tenant_resolve_failed", domain=domain, host=request.headers.get("host"), x_tenant_domain=request.headers.get("x-tenant-domain"), x_tenant_id=explicit or None)
     return None

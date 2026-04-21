@@ -54,6 +54,18 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
   - `PASSWORD_REQUIRED_CHARACTER_CLASSES` (default `4`, maksimum `4`)
 - Bütün API sorğuları `x-request-id` qəbul edir və cavabda `X-Request-ID` qaytarır.
 
+## Tenant/Auth diagnostics
+
+- Debug env-ləri:
+  - `REQUEST_LOGGING_ENABLED=true`
+  - `TENANT_RESOLUTION_DEBUG=true`
+  - `INCLUDE_TENANT_DEBUG_HEADER=true` (istəyə bağlı)
+  - `ENABLE_PUBLIC_TENANT_DEBUG=true` (yalnız müvəqqəti)
+- Tenant resolve test endpoint:
+  - `GET /health/tenant-debug`
+  - Host header ilə test nümunəsi:
+    - `curl -sS https://<backend-domain>/health/tenant-debug -H 'host: socialbee.ironwaves.store'`
+
 ## Smoke test
 
 Run the backend smoke test after deploy:
