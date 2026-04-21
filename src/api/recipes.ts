@@ -457,12 +457,14 @@ async function generate_recipe_ai_rows(
   const tenantSettings = settings.find((row: any) => row?.tenant_id === tenant_id);
   const aiKey = String(tenantSettings?.gemini_api_key || readScopedStorage('gemini_api_key') || '').trim();
   const detected = detectAiConfigFromApiKey(aiKey);
+  const configuredProvider = String(tenantSettings?.ai_config?.provider || '').trim().toLowerCase();
   const selectedProvider = String(
-    tenantSettings?.ai_config?.provider
+    (configuredProvider && configuredProvider !== 'unknown' ? configuredProvider : '')
       || (tenantSettings?.ai_config?.ollama_freeapi_enabled ? 'ollama_freeapi' : detected.provider)
       || 'unknown',
   );
-  const selectedModel = String(tenantSettings?.ai_config?.model || detected.model || 'gemini-1.5-flash');
+  const configuredModel = String(tenantSettings?.ai_config?.model || '').trim();
+  const selectedModel = String(configuredModel && configuredModel !== 'auto' ? configuredModel : (detected.model || 'gemini-1.5-flash'));
   const canUseGeminiRemote = selectedProvider === 'google';
   let remoteGenerated = false;
   let fallbackReason = '';
@@ -524,6 +526,30 @@ async function generate_recipe_ai_rows(
       } else {
         const data = await res.json();
         responseText = String(data?.candidates?.[0]?.content?.parts?.[0]?.text || '');
+      }
+    } else if (selectedProvider === 'ollama') {
+      if (!isBackendEnabled()) {
+        fallbackReason = 'Ollama Cloud remote çağırışı üçün backend tələb olunur';
+      } else if (!aiKey) {
+        fallbackReason = 'Ollama Cloud üçün API key daxil edin';
+      } else {
+        const ollamaModel = selectedModel && selectedModel !== 'auto' ? selectedModel : 'gpt-oss:20b';
+        const generated = await apiRequest<{ text?: string }>(
+          '/api/v1/ops/ai/ollama/generate',
+          {
+            method: 'POST',
+            tenantId: null,
+            body: {
+              model: ollamaModel,
+              prompt,
+              api_key: aiKey,
+              temperature: 0.2,
+              num_predict: 400,
+              timeout_seconds: 35,
+            },
+          },
+        );
+        responseText = String(generated?.text || '');
       }
     } else if (selectedProvider === 'ollama_freeapi') {
       if (!isBackendEnabled()) {
