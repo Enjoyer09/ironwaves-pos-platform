@@ -88,5 +88,15 @@ Bu sənəd audit fix/patch mərhələsinin cari bağlanma statusunu göstərir.
 - [x] release gate helper script əlavə olundu: `backend/scripts/release_gate_check.py`
   - local check (stamp edilmiş test DB ilə) uğurlu: `alembic current == heads`
   - smoke testi eyni skriptdən `RUN_SMOKE_TEST=1` ilə çağırmaq mümkündür.
-- [ ] `alembic current == heads` production/staging DB üzərində run edilməlidir.
-- [ ] smoke ssenariləri canlı mühitdə manual təsdiqlənməlidir (`investor repayment`, `x/z report`, `handover accept`, `deposit close/refund`, `reversal`).
+- [x] `alembic current == heads` production/staging DB üzərində run edilib.
+- [x] smoke ssenariləri canlı mühitdə manual təsdiqlənib (`investor repayment`, `x/z report`, `handover accept`, `deposit close/refund`, `reversal`).
+
+## 10) Audit Closure
+
+- Status: **CLOSED**
+- Closure date: **2026-04-21**
+- Closure basis:
+  - Kod və test remediation maddələri tamamlanıb.
+  - Startup crash kök səbəbi (demo env guard) aradan qaldırılıb və deploy stabil işləyir.
+  - Tenant/login domen axını üçün diaqnostika və request-id izlənməsi əlavə edilib.
+  - Son release gate və canlı yoxlama addımları operator tərəfindən tamamlandığı təsdiqlənib.
