@@ -364,7 +364,7 @@ export interface Settings {
   };
   gemini_api_key?: string;
   ai_config?: {
-    provider?: 'google' | 'openai' | 'anthropic' | 'openrouter' | 'xai' | 'huggingface' | 'ollama_freeapi' | 'unknown';
+    provider?: 'google' | 'openai' | 'anthropic' | 'openrouter' | 'xai' | 'huggingface' | 'ollama' | 'ollama_freeapi' | 'unknown';
     model?: string;
     autodetected?: boolean;
     ollama_freeapi_enabled?: boolean;

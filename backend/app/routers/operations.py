@@ -403,6 +403,51 @@ class OllamaFreeGenerateIn(BaseModel):
     timeout_seconds: int = Field(default=30, ge=5, le=120)
 
 
+class OllamaGenerateIn(BaseModel):
+    model: str = Field(default="gpt-oss:20b", min_length=2, max_length=128)
+    prompt: str = Field(min_length=3, max_length=12000)
+    api_key: str = Field(min_length=8, max_length=512)
+    temperature: float = Field(default=0.2, ge=0.0, le=2.0)
+    num_predict: int = Field(default=256, ge=16, le=4096)
+    timeout_seconds: int = Field(default=35, ge=5, le=120)
+
+
+def _ollama_cloud_generate_once(api_key: str, model: str, prompt: str, temperature: float, num_predict: int, timeout_seconds: int):
+    endpoint = "https://ollama.com/api/generate"
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "options": {
+            "temperature": float(temperature),
+            "num_predict": int(num_predict),
+            "top_p": 0.9,
+        },
+    }
+    req = urllib_request.Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "IronWavesPOS/1.0",
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
+    )
+    with urllib_request.urlopen(req, timeout=max(5, int(timeout_seconds))) as response:
+        body = response.read().decode("utf-8", errors="ignore")
+    parsed = json.loads(body or "{}")
+    text = str(
+        parsed.get("response")
+        or parsed.get("text")
+        or parsed.get("output")
+        or ""
+    ).strip()
+    if not text:
+        raise RuntimeError("Empty response from Ollama Cloud")
+    return text
+
+
 def _can_view_sensitive_settings(user: User) -> bool:
     return str(user.role or "").lower() in {"admin", "super_admin"}
 
@@ -2226,6 +2271,45 @@ def ollamafreeapi_generate(
 
     detail = " ; ".join(errors[:3]) if errors else "No usable server"
     raise HTTPException(status_code=502, detail=f"OllamaFreeAPI cavab vermədi: {detail}")
+
+
+@router.post("/ai/ollama/generate")
+def ollama_generate(
+    payload: OllamaGenerateIn,
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_manager(user)
+    model = str(payload.model or "gpt-oss:20b").strip()
+    prompt = str(payload.prompt or "").strip()
+    api_key = str(payload.api_key or "").strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt is required")
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Ollama API key is required")
+    try:
+        text = _ollama_cloud_generate_once(
+            api_key=api_key,
+            model=model,
+            prompt=prompt,
+            temperature=payload.temperature,
+            num_predict=payload.num_predict,
+            timeout_seconds=payload.timeout_seconds,
+        )
+    except HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Ollama Cloud HTTP error: {exc.code}")
+    except (URLError, TimeoutError, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail=f"Ollama Cloud error: {str(exc)}")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Ollama Cloud çağırışı uğursuz oldu: {str(exc)}")
+
+    return {
+        "success": True,
+        "tenant_id": tenant.id,
+        "model": model,
+        "provider": "ollama",
+        "text": text,
+    }
 
 
 @router.patch("/settings/qr-settings")

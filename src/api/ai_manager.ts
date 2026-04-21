@@ -22,8 +22,17 @@ export const resolveAiRuntimeConfig = (tenantId: string): { provider: AiProvider
   const settings = getSettingsLocal(tenantId);
   const key = resolveAiKey(tenantId);
   const detected = detectAiConfigFromApiKey(key);
-  const provider = (settings?.ai_config?.provider as AiProvider) || detected.provider;
-  const model = String(settings?.ai_config?.model || detected.model || DEFAULT_MODEL_BY_PROVIDER[provider] || 'auto');
+  const configuredProvider = String(settings?.ai_config?.provider || '').trim().toLowerCase() as AiProvider;
+  const provider =
+    (configuredProvider && configuredProvider !== 'unknown' ? configuredProvider : '')
+    || detected.provider;
+  const configuredModel = String(settings?.ai_config?.model || '').trim();
+  const model = String(
+    (configuredModel && configuredModel !== 'auto' ? configuredModel : '')
+    || detected.model
+    || DEFAULT_MODEL_BY_PROVIDER[provider]
+    || 'auto',
+  );
   return { provider, model, key };
 };
 

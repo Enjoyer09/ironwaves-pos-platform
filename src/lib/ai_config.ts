@@ -1,4 +1,4 @@
-export type AiProvider = 'google' | 'openai' | 'anthropic' | 'openrouter' | 'xai' | 'huggingface' | 'ollama_freeapi' | 'unknown';
+export type AiProvider = 'google' | 'openai' | 'anthropic' | 'openrouter' | 'xai' | 'huggingface' | 'ollama' | 'ollama_freeapi' | 'unknown';
 
 export type AiDetectionResult = {
   provider: AiProvider;
@@ -14,6 +14,7 @@ export const DEFAULT_MODEL_BY_PROVIDER: Record<AiProvider, string> = {
   openrouter: 'openrouter/auto',
   xai: 'grok-2-latest',
   huggingface: 'mistralai/Mistral-7B-Instruct-v0.3',
+  ollama: 'gpt-oss:20b',
   ollama_freeapi: 'llama3.2:3b',
   unknown: 'auto',
 };
@@ -26,6 +27,7 @@ export function providerLabel(provider: AiProvider): string {
     openrouter: 'OpenRouter',
     xai: 'xAI',
     huggingface: 'Hugging Face',
+    ollama: 'Ollama Cloud',
     ollama_freeapi: 'OllamaFreeAPI (Experimental)',
     unknown: 'Unknown',
   };
@@ -81,6 +83,22 @@ export function detectAiConfigFromApiKey(value: string): AiDetectionResult {
       model: DEFAULT_MODEL_BY_PROVIDER.huggingface,
       confidence: 'high',
       reason: 'Hugging Face key format detected (hf_...)',
+    };
+  }
+  if (/^ollama[_\-][A-Za-z0-9\-_]+$/i.test(apiKey)) {
+    return {
+      provider: 'ollama',
+      model: DEFAULT_MODEL_BY_PROVIDER.ollama,
+      confidence: 'high',
+      reason: 'Ollama API key format detected',
+    };
+  }
+  if (/^ol[a-z0-9][A-Za-z0-9\-_]{12,}$/i.test(apiKey) || /ollama/i.test(apiKey)) {
+    return {
+      provider: 'ollama',
+      model: DEFAULT_MODEL_BY_PROVIDER.ollama,
+      confidence: 'medium',
+      reason: 'Ollama-like key signature detected',
     };
   }
   if (/^sk-(proj-|live-|test-|[A-Za-z0-9]).+/.test(apiKey)) {
