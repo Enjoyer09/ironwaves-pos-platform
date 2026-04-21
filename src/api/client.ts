@@ -289,9 +289,6 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
         request_id: backendRequestId,
       });
     }
-    if (options.suspendOnNetworkError !== false && String(detail).includes('Tenant not configured')) {
-      suspendBackendTemporarily(5 * 60 * 1000);
-    }
     throw new Error(`${String(detail)} (request_id: ${backendRequestId})`);
   }
 
