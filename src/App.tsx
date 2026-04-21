@@ -105,7 +105,7 @@ const DEMO_MODULE_GUIDE_AZ: Record<ModuleKey, string> = {
 };
 
 export default function App() {
-  const { user, access_token, refresh_token, logout, lang, setLang, hasHydrated, notify, switchTenantContext, applySessionUser, restoreSession } = useAppStore();
+  const { user, access_token, logout, lang, setLang, hasHydrated, notify, switchTenantContext, applySessionUser, restoreSession } = useAppStore();
   const activeTenant = getActiveTenantId();
   const safeLang = (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az';
   const t = i18n[safeLang];
@@ -1022,9 +1022,9 @@ export default function App() {
 
     try {
       // Best effort only: refresh action must not kick user out.
-      if (isBackendEnabled() && refresh_token && user?.username) {
+      if (isBackendEnabled() && user?.username) {
         try {
-          await authApi.refresh_token(refresh_token, tenantForRefresh || activeTenant);
+          await authApi.refresh_token(undefined, tenantForRefresh || activeTenant);
         } catch {
           // ignore on purpose; we still refresh local state/views
         }
@@ -1088,7 +1088,7 @@ export default function App() {
       window.removeEventListener('focus', onVisible);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [hasValidUser, user?.tenant_id, activeTenant, refresh_token]);
+  }, [hasValidUser, user?.tenant_id, activeTenant]);
 
   const enterFullscreen = async () => {
     try {

@@ -29,6 +29,7 @@ import { qzListPrinters, qzPrintHtml } from '../../lib/qz';
 import { tx } from '../../i18n';
 import { isBackendEnabled } from '../../api/client';
 import { formatServerUtcDateTime, localDateInputValue } from '../../lib/time';
+import { sanitizeHtmlForIframe } from '../../lib/html_sanitize';
 
 const DEFAULT_PRINT_SETTINGS = { use_qz: false, printer_name: '' };
 const DEFAULT_Z_REPORT_RECEIPT_SETTINGS = {
@@ -58,6 +59,7 @@ export default function ZReportPanel() {
   const [openingTarget, setOpeningTarget] = useState('100');
   const [openingTopupSource, setOpeningTopupSource] = useState<'safe' | 'card' | 'investor' | 'cash'>('safe');
   const [zReceiptHtml, setZReceiptHtml] = useState<string | null>(null);
+  const safeZReceiptHtml = useMemo(() => sanitizeHtmlForIframe(zReceiptHtml), [zReceiptHtml]);
   const [handoverTo, setHandoverTo] = useState('');
   const [handoverActualCash, setHandoverActualCash] = useState('0');
   const [availablePrinters, setAvailablePrinters] = useState<string[]>([]);
@@ -732,9 +734,9 @@ export default function ZReportPanel() {
   };
 
   const printZReceiptOnly = async () => {
-    if (printSettings.use_qz && zReceiptHtml) {
+    if (printSettings.use_qz && safeZReceiptHtml) {
       try {
-        await qzPrintHtml(zReceiptHtml, printSettings.printer_name);
+        await qzPrintHtml(safeZReceiptHtml, printSettings.printer_name);
         notify('success', tx(lang, 'QZ Tray ilə çap göndərildi', 'Печать отправлена через QZ Tray'));
         return;
       } catch (e: any) {
@@ -775,7 +777,7 @@ export default function ZReportPanel() {
             <iframe
               ref={zReceiptRef}
               title="z-report-receipt"
-              srcDoc={zReceiptHtml}
+              srcDoc={safeZReceiptHtml}
               sandbox="allow-same-origin allow-modals allow-popups"
               className="h-full min-h-[60vh] w-full rounded-lg bg-white"
             />

@@ -386,7 +386,7 @@ export const authApi = {
     throw new Error('Yanlış istifadəçi adı, şifrə və ya 2FA PIN');
   },
 
-  logout: async (token: string, username: string) => {
+  logout: async (token: string | undefined, username: string) => {
     const safeToken = String(token || '');
     if (isBackendEnabled()) {
       try {
@@ -405,7 +405,7 @@ export const authApi = {
         console.warn('Logout request failed, continuing with local logout:', error);
       }
     }
-    logEvent(username, "LOGOUT", { token_preview: safeToken.substring(0, 5) });
+    logEvent(username, "LOGOUT", {});
     return { success: true };
   },
 
