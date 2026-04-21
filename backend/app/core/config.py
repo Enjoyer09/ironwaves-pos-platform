@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     platform_tenant_domain: str = "super.ironwaves.store"
 
     demo_tenant_enabled: bool = False
+    allow_demo_in_production: bool = False
     demo_tenant_slug: str = "demo"
     demo_tenant_name: str = "iRonWaves Demo"
     demo_tenant_domain: str = "demo.ironwaves.store"

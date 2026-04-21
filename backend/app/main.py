@@ -204,7 +204,7 @@ def _assert_redis_available_for_production() -> None:
 
 def _assert_demo_seed_safety() -> None:
     is_prod = settings.app_env.lower() == "production"
-    if is_prod and (settings.seed_demo_users or settings.demo_tenant_enabled):
+    if is_prod and (settings.seed_demo_users or settings.demo_tenant_enabled) and not bool(settings.allow_demo_in_production):
         raise RuntimeError("Demo seeding is not allowed in production")
 
     if settings.demo_tenant_enabled:
