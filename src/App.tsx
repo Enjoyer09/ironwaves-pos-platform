@@ -240,8 +240,23 @@ export default function App() {
       String(mappedTenantFromHost || '') !== String(user?.tenant_id || '');
     if (shouldBlockForTenantMismatch) setSessionChecking(true);
     const syncSession = async () => {
+      const extractErrorMessage = (error: unknown) =>
+        String(error instanceof Error ? error.message : error || '').toLowerCase();
       try {
-        const me = await authApi.me();
+        let me: any = null;
+        try {
+          me = await authApi.me();
+        } catch (firstError) {
+          const message = extractErrorMessage(firstError);
+          const transientTenantFailure =
+            message.includes('tenant not configured') ||
+            message.includes('backendə qoşulma alınmadı') ||
+            message.includes('failed to fetch') ||
+            message.includes('sorğu vaxt limiti keçdi');
+          if (!transientTenantFailure) throw firstError;
+          await new Promise((resolve) => window.setTimeout(resolve, 700));
+          me = await authApi.me();
+        }
         if (!me || cancelled) return;
         const nextRole = String(me.role || '');
         const nextTenant = String(me.tenant_id || '');
