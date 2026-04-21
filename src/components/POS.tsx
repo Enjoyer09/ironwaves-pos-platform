@@ -14,6 +14,7 @@ import { find_feedback_coupon_live, isFeedbackCouponCode, redeem_feedback_coupon
 import { logUiError } from '../lib/logger';
 import { qzPrintHtml } from '../lib/qz';
 import { hostScopedKey } from '../lib/storage_keys';
+import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
 import {
   cacheMenuOffline,
   clearSyncedOfflineSales,
@@ -236,6 +237,7 @@ export default function POS() {
   const [tenantSettings, setTenantSettings] = useState<any>({});
   const [aiHints, setAiHints] = useState<AiDecisionInsight[]>([]);
   const [aiHintsLoading, setAiHintsLoading] = useState(false);
+  const safeReceiptHtml = useMemo(() => sanitizeHtmlForIframe(receiptHtml), [receiptHtml]);
   const receiptIframeRef = useRef<HTMLIFrameElement | null>(null);
   const refreshInFlightRef = useRef(false);
   const lastRefreshAtRef = useRef(0);
@@ -1196,9 +1198,9 @@ export default function POS() {
   }, [tenantId, ctx.rewardClaimCode]);
 
   const printReceiptOnly = async () => {
-    if (printSettings.use_qz && receiptHtml) {
+    if (printSettings.use_qz && safeReceiptHtml) {
       try {
-        await qzPrintHtml(receiptHtml, printSettings.printer_name);
+        await qzPrintHtml(safeReceiptHtml, printSettings.printer_name);
         notify('success', tx(lang, 'QZ Tray ilə çap göndərildi', 'Печать отправлена через QZ Tray', 'Print job sent via QZ Tray'));
         return;
       } catch (e: any) {
@@ -1778,7 +1780,13 @@ export default function POS() {
               </button>
             </div>
           </div>
-          <iframe ref={receiptIframeRef} title="receipt" srcDoc={receiptHtml} className="h-[70vh] w-full rounded-lg bg-white" />
+          <iframe
+            ref={receiptIframeRef}
+            title="receipt"
+            srcDoc={safeReceiptHtml}
+            sandbox="allow-same-origin allow-modals allow-popups"
+            className="h-[70vh] w-full rounded-lg bg-white"
+          />
         </div>
       </div>
     );

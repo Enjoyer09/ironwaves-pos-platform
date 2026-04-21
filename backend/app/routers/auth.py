@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 import json
 import time
 
@@ -48,6 +48,7 @@ from app.security import (
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 _pin_attempt_tracker: dict[str, dict[str, datetime | int]] = {}
+_login_attempt_tracker: dict[str, dict[str, datetime | int]] = {}
 _redis_security_client = None
 
 
@@ -74,7 +75,7 @@ def _pin_attempt_key(request: Request, tenant_id: str) -> str:
 
 def _consume_pin_attempts(request: Request, tenant_id: str) -> None:
     key = _pin_attempt_key(request, tenant_id)
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     redis_client = _get_redis_security_client()
     if redis_client:
         try:
@@ -123,6 +124,65 @@ def _reset_pin_attempts(request: Request, tenant_id: str) -> None:
         except Exception:
             pass
     _pin_attempt_tracker.pop(_pin_attempt_key(request, tenant_id), None)
+
+
+def _login_attempt_key(request: Request, tenant_id: str, username: str) -> str:
+    client_host = request.client.host if request.client else ""
+    safe_username = str(username or "").strip().lower() or "unknown_user"
+    return f"{tenant_id}:{safe_username}:{client_host or 'unknown'}"
+
+
+def _consume_login_attempts(request: Request, tenant_id: str, username: str) -> None:
+    key = _login_attempt_key(request, tenant_id, username)
+    now = datetime.now(UTC)
+    redis_client = _get_redis_security_client()
+    if redis_client:
+        try:
+            redis_key = f"ironwaves:login-attempts:{key}"
+            raw = redis_client.get(redis_key)
+            if raw:
+                state = json.loads(str(raw))
+                locked_until_ts = float(state.get("locked_until_ts") or 0)
+                if locked_until_ts and time.time() < locked_until_ts:
+                    raise HTTPException(status_code=423, detail="Too many invalid login attempts. Try again later.")
+            else:
+                state = {}
+            attempts = int(state.get("attempts", 0)) + 1
+            next_state: dict[str, int | float] = {"attempts": attempts}
+            ttl = max(60, int(settings.pin_lockout_minutes * 60))
+            if attempts >= settings.pin_max_failed_attempts:
+                next_state["locked_until_ts"] = time.time() + (settings.pin_lockout_minutes * 60)
+                ttl = max(ttl, int(settings.pin_lockout_minutes * 60) + 30)
+            redis_client.setex(redis_key, ttl, json.dumps(next_state))
+            return
+        except HTTPException:
+            raise
+        except Exception:
+            # fallback to in-memory tracker
+            pass
+
+    state = _login_attempt_tracker.get(key, {})
+    locked_until = state.get("locked_until")
+    if isinstance(locked_until, datetime) and now < locked_until:
+        raise HTTPException(status_code=423, detail="Too many invalid login attempts. Try again later.")
+    if isinstance(locked_until, datetime) and now >= locked_until:
+        state = {}
+
+    attempts = int(state.get("attempts", 0)) + 1
+    next_state: dict[str, datetime | int] = {"attempts": attempts}
+    if attempts >= settings.pin_max_failed_attempts:
+        next_state["locked_until"] = now + timedelta(minutes=settings.pin_lockout_minutes)
+    _login_attempt_tracker[key] = next_state
+
+
+def _reset_login_attempts(request: Request, tenant_id: str, username: str) -> None:
+    redis_client = _get_redis_security_client()
+    if redis_client:
+        try:
+            redis_client.delete(f"ironwaves:login-attempts:{_login_attempt_key(request, tenant_id, username)}")
+        except Exception:
+            pass
+    _login_attempt_tracker.pop(_login_attempt_key(request, tenant_id, username), None)
 
 
 def _issue_tokens_for_user(db: Session, tenant: Tenant, user: User) -> dict:
@@ -447,6 +507,7 @@ def bootstrap_owner(
 @router.post("/login", response_model=TokenOut)
 def login(payload: LoginIn, request: Request, response: Response, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant)):
     username_norm = (payload.username or "").strip().lower()
+    _consume_login_attempts(request, tenant.id, username_norm)
     user = (
         db.query(User)
         .filter(User.tenant_id == tenant.id, func.lower(User.username) == username_norm, User.is_active == True)
@@ -491,6 +552,7 @@ def login(payload: LoginIn, request: Request, response: Response, db: Session = 
 
     user.failed_attempts = 0
     user.locked_until = None
+    _reset_login_attempts(request, tenant.id, username_norm)
 
     result = _issue_tokens_for_user(db, tenant, user)
     remember_device = bool(payload.remember_device)

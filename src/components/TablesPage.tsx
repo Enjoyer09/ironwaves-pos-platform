@@ -16,6 +16,7 @@ import { verifyLocalCredential } from '../lib/local_auth';
 import { logEvent } from '../lib/logger';
 import { qzPrintHtml } from '../lib/qz';
 import { hostScopedKey } from '../lib/storage_keys';
+import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
 import { formatRestaurantLocalTime, formatServerUtcDateTime, formatServerUtcTime, localDateInputValue, parseRestaurantLocalTimestamp } from '../lib/time';
 import TableGrid from './tables/TableGrid';
 import MenuGrid from './tables/MenuGrid';
@@ -49,6 +50,7 @@ export default function TablesPage() {
   const [itemActionQuantityDelta, setItemActionQuantityDelta] = useState('1');
   const [itemActionManagerPassword, setItemActionManagerPassword] = useState('');
   const [tableReceiptHtml, setTableReceiptHtml] = useState<string | null>(null);
+  const safeTableReceiptHtml = useMemo(() => sanitizeHtmlForIframe(tableReceiptHtml), [tableReceiptHtml]);
   const [revisionTarget, setRevisionTarget] = useState<{ tableId: string; itemName: string; nextItems: any[] } | null>(null);
   const [revisionReason, setRevisionReason] = useState('');
   const [revisionOverridePassword, setRevisionOverridePassword] = useState('');
@@ -1224,9 +1226,9 @@ export default function TablesPage() {
 
 
   const printTableReceiptOnly = async () => {
-    if (printSettings.use_qz && tableReceiptHtml) {
+    if (printSettings.use_qz && safeTableReceiptHtml) {
       try {
-        await qzPrintHtml(tableReceiptHtml, printSettings.printer_name);
+        await qzPrintHtml(safeTableReceiptHtml, printSettings.printer_name);
         notify('success', tx(lang, 'QZ Tray ilə çap göndərildi', 'Печать отправлена через QZ Tray', 'Print job sent via QZ Tray'));
         return;
       } catch (e: any) {
@@ -2663,7 +2665,13 @@ export default function TablesPage() {
                 <button onClick={() => setTableReceiptHtml(null)} className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200">{tx(lang, 'Bağla', 'Закрыть')}</button>
               </div>
             </div>
-            <iframe ref={receiptRef} title="table-receipt" srcDoc={tableReceiptHtml} className="h-[70vh] w-full rounded-lg bg-white" />
+            <iframe
+              ref={receiptRef}
+              title="table-receipt"
+              srcDoc={safeTableReceiptHtml}
+              sandbox="allow-same-origin allow-modals allow-popups"
+              className="h-[70vh] w-full rounded-lg bg-white"
+            />
           </div>
         </div>
       )}

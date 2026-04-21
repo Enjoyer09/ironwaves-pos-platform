@@ -325,6 +325,67 @@ def _log_finance_anomaly_snapshot(
         _anomaly_snapshot_cache[tenant_id] = (now, flag_signature)
 
 
+def _build_finance_anomalies(db: Session, tenant_id: str) -> dict:
+    ledger_balances = _ledger_balances_snapshot(db, tenant_id)
+    cash_balance = ledger_balances.get("cash", Decimal("0.00"))
+    deposit_balance = ledger_balances.get("deposit", Decimal("0.00"))
+    investor_ledger_balance = ledger_balances.get("investor", Decimal("0.00"))
+    investor_calculated_debt = investor_ledger_balance
+    investor_gap = Decimal("0.00")
+
+    total_revenue = Decimal(
+        str(
+            db.query(func.coalesce(func.sum(Sale.total), 0))
+            .filter(Sale.tenant_id == tenant_id)
+            .scalar()
+            or 0
+        )
+    )
+    ledger_sales_total = Decimal(
+        str(
+            db.query(func.coalesce(func.sum(FinanceTransaction.amount), 0))
+            .filter(
+                FinanceTransaction.tenant_id == tenant_id,
+                FinanceTransaction.status == "posted",
+                FinanceTransaction.transaction_type.in_(["income", "deposit_apply_to_bill"]),
+                FinanceTransaction.related_order_id.isnot(None),
+            )
+            .scalar()
+            or 0
+        )
+    )
+    reconciliation_gap = total_revenue - ledger_sales_total
+
+    active_shift = _active_shift(db, tenant_id)
+    expected_cash = Decimal("0")
+    shift_cash_gap = Decimal("0")
+    if active_shift:
+        shift_breakdown = _shift_cash_breakdown_from_ledger(db, tenant_id, active_shift)
+        expected_cash = shift_breakdown["expected_cash"]
+        shift_cash_gap = abs(cash_balance - expected_cash)
+
+    return {
+        "cash_balance": str(cash_balance.quantize(Decimal("0.01"))),
+        "deposit_balance": str(deposit_balance.quantize(Decimal("0.01"))),
+        "investor_ledger_balance": str(investor_ledger_balance.quantize(Decimal("0.01"))),
+        "investor_calculated_debt": str(investor_calculated_debt.quantize(Decimal("0.01"))),
+        "investor_ledger_gap": str(investor_gap.quantize(Decimal("0.01"))),
+        "legacy_wallet_sync_enabled": bool(_finance_policy(db, tenant_id).get("legacy_wallet_sync_enabled", True)),
+        "has_investor_mismatch": False,
+        "total_revenue": str(total_revenue.quantize(Decimal("0.01"))),
+        "ledger_sales_total": str(ledger_sales_total.quantize(Decimal("0.01"))),
+        "reconciliation_gap": str(reconciliation_gap.quantize(Decimal("0.01"))),
+        "has_reconciliation_issue": abs(reconciliation_gap) > Decimal("0.01"),
+        "expected_cash": str(expected_cash.quantize(Decimal("0.01"))),
+        "shift_cash_gap": str(shift_cash_gap.quantize(Decimal("0.01"))),
+        "has_shift_cash_mismatch": shift_cash_gap > Decimal("0.01"),
+        "has_deposit_risk": deposit_balance > cash_balance,
+        "deposit_cash_gap": str(Decimal.max(Decimal("0"), deposit_balance - cash_balance).quantize(Decimal("0.01"))),
+        "has_closed_shift_open_deposit": active_shift is None and deposit_balance > Decimal("0.01"),
+        "shift_open": active_shift is not None,
+    }
+
+
 @router.get("/balances")
 def get_balances(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     _ensure_finance_read_access(user)
@@ -1547,68 +1608,25 @@ def create_reconciliation(payload: FinanceReconciliationIn, db: Session = Depend
 
 
 @router.get("/anomalies")
-def get_finance_anomalies(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+def get_finance_anomalies(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user=Depends(get_current_user),
+):
     _ensure_finance_read_access(user)
-    ledger_balances = _ledger_balances_snapshot(db, tenant.id)
-    cash_balance = ledger_balances.get("cash", Decimal("0.00"))
-    deposit_balance = ledger_balances.get("deposit", Decimal("0.00"))
-    investor_ledger_balance = ledger_balances.get("investor", Decimal("0.00"))
-    investor_calculated_debt = investor_ledger_balance
-    investor_gap = Decimal("0.00")
+    return _build_finance_anomalies(db, tenant.id)
 
-    total_revenue = Decimal(
-        str(
-            db.query(func.coalesce(func.sum(Sale.total), 0))
-            .filter(Sale.tenant_id == tenant.id)
-            .scalar()
-            or 0
-        )
-    )
-    ledger_sales_total = Decimal(
-        str(
-            db.query(func.coalesce(func.sum(FinanceTransaction.amount), 0))
-            .filter(
-                FinanceTransaction.tenant_id == tenant.id,
-                FinanceTransaction.status == "posted",
-                FinanceTransaction.transaction_type.in_(["income", "deposit_apply_to_bill"]),
-                FinanceTransaction.related_order_id.isnot(None),
-            )
-            .scalar()
-            or 0
-        )
-    )
-    reconciliation_gap = total_revenue - ledger_sales_total
 
-    active_shift = _active_shift(db, tenant.id)
-    expected_cash = Decimal("0")
-    shift_cash_gap = Decimal("0")
-    if active_shift:
-        shift_breakdown = _shift_cash_breakdown_from_ledger(db, tenant.id, active_shift)
-        expected_cash = shift_breakdown["expected_cash"]
-        shift_cash_gap = abs(cash_balance - expected_cash)
-
-    result = {
-        "cash_balance": str(cash_balance.quantize(Decimal("0.01"))),
-        "deposit_balance": str(deposit_balance.quantize(Decimal("0.01"))),
-        "investor_ledger_balance": str(investor_ledger_balance.quantize(Decimal("0.01"))),
-        "investor_calculated_debt": str(investor_calculated_debt.quantize(Decimal("0.01"))),
-        "investor_ledger_gap": str(investor_gap.quantize(Decimal("0.01"))),
-        "legacy_wallet_sync_enabled": bool(_finance_policy(db, tenant.id).get("legacy_wallet_sync_enabled", True)),
-        "has_investor_mismatch": False,
-        "total_revenue": str(total_revenue.quantize(Decimal("0.01"))),
-        "ledger_sales_total": str(ledger_sales_total.quantize(Decimal("0.01"))),
-        "reconciliation_gap": str(reconciliation_gap.quantize(Decimal("0.01"))),
-        "has_reconciliation_issue": abs(reconciliation_gap) > Decimal("0.01"),
-        "expected_cash": str(expected_cash.quantize(Decimal("0.01"))),
-        "shift_cash_gap": str(shift_cash_gap.quantize(Decimal("0.01"))),
-        "has_shift_cash_mismatch": shift_cash_gap > Decimal("0.01"),
-        "has_deposit_risk": deposit_balance > cash_balance,
-        "deposit_cash_gap": str(Decimal.max(Decimal("0"), deposit_balance - cash_balance).quantize(Decimal("0.01"))),
-        "has_closed_shift_open_deposit": active_shift is None and deposit_balance > Decimal("0.01"),
-        "shift_open": active_shift is not None,
-    }
+@router.post("/anomalies/snapshot")
+def create_finance_anomaly_snapshot(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user=Depends(get_current_user),
+):
+    _ensure_finance_read_access(user)
+    result = _build_finance_anomalies(db, tenant.id)
     _log_finance_anomaly_snapshot(db, tenant.id, user.username, result)
-    return result
+    return {"success": True, "snapshot": result}
 
 
 @router.get("/entries")

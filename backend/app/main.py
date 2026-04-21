@@ -19,7 +19,7 @@ from app.core.config import settings
 from app.db import Base, engine, SessionLocal
 from app.models import AuditLog, BusinessProfile, InventoryItem, MenuItem, Recipe, Setting, Table, Tenant, User
 from app.realtime import realtime_hub
-from app.routers import analytics_api, auth, catalog, finance, operations, pos, reports, restaurant, settings as settings_router, tenants
+from app.routers import ai_ops, analytics_api, auth, catalog, customer_feedback_ops, finance, operations, pos, reports, restaurant, settings as settings_router, tenants
 from app.security import decode_token, hash_password
 
 
@@ -200,6 +200,25 @@ def _assert_redis_available_for_production() -> None:
         Redis.from_url(redis_url, decode_responses=True).ping()
     except Exception as exc:
         raise RuntimeError("Redis connection is required in production but could not be established") from exc
+
+
+def _assert_demo_seed_safety() -> None:
+    is_prod = settings.app_env.lower() == "production"
+    if is_prod and (settings.seed_demo_users or settings.demo_tenant_enabled):
+        raise RuntimeError("Demo seeding is not allowed in production")
+
+    if settings.demo_tenant_enabled:
+        missing = []
+        if not str(settings.demo_admin_password or "").strip():
+            missing.append("DEMO_ADMIN_PASSWORD")
+        if not str(settings.demo_manager_password or "").strip():
+            missing.append("DEMO_MANAGER_PASSWORD")
+        if not str(settings.demo_staff_pin or "").strip():
+            missing.append("DEMO_STAFF_PIN")
+        if not str(settings.demo_kitchen_pin or "").strip():
+            missing.append("DEMO_KITCHEN_PIN")
+        if missing:
+            raise RuntimeError(f"Demo tenant requires explicit credentials via env: {', '.join(missing)}")
 
 
 def _get_redis_rate_limiter():
@@ -1054,6 +1073,7 @@ def _run_data_retention_cleanup():
 @app.on_event("startup")
 def on_startup():
     _assert_redis_available_for_production()
+    _assert_demo_seed_safety()
     schema_ready = _schema_ready_for_current_version()
     if settings.startup_create_all_enabled:
         # Keep metadata bootstrap lightweight for first-run/dev environments.
@@ -1111,6 +1131,8 @@ app.include_router(pos.router)
 app.include_router(finance.router)
 app.include_router(catalog.router)
 app.include_router(operations.router)
+app.include_router(ai_ops.router)
+app.include_router(customer_feedback_ops.router)
 app.include_router(analytics_api.router)
 app.include_router(reports.router)
 app.include_router(restaurant.router)

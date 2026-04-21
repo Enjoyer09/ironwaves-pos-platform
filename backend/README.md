@@ -66,6 +66,29 @@ TENANT_DOMAIN="demo.ironwaves.store" \
 python scripts/smoke_test.py
 ```
 
+## Release gate check
+
+Run a quick migration gate check (`current == heads`) before release:
+
+```bash
+DATABASE_URL=postgresql://... \
+JWT_SECRET=... \
+SUPERADMIN_PASSWORD=... \
+python scripts/release_gate_check.py
+```
+
+Optional: run smoke test from the same command:
+
+```bash
+RUN_SMOKE_TEST=1 \
+BASE_URL=https://your-backend \
+SUPERADMIN_USERNAME=ironwaves_owner \
+SUPERADMIN_PASSWORD=... \
+TENANT_DOMAIN=super.ironwaves.store \
+DATABASE_URL=postgresql://... \
+python scripts/release_gate_check.py
+```
+
 ## COGS Snapshot Backfill
 
 Historical sales rows can be enriched with per-item COGS snapshots:

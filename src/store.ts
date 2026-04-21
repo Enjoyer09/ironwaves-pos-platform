@@ -88,7 +88,7 @@ export const useAppStore = create<AppState>()(
           set({
             user: nextUser,
             access_token: String(res.access_token || ''),
-            refresh_token: String((res as any)?.refresh_token || ''),
+            refresh_token: null,
             adminNeeds2FA: false,
             authErrorMessage: '',
           });
@@ -110,8 +110,7 @@ export const useAppStore = create<AppState>()(
           }
           const nextUser = res.user || null;
           const nextAccess = res.access_token || null;
-          const nextRefresh = res.refresh_token || null;
-          set({ user: nextUser, access_token: nextAccess, refresh_token: nextRefresh });
+          set({ user: nextUser, access_token: nextAccess, refresh_token: null });
           setClientAuthSession({ access_token: nextAccess, user: nextUser });
           return true;
         } catch (error: any) {
@@ -128,11 +127,10 @@ export const useAppStore = create<AppState>()(
           setActiveTenantId(resolvedTenant);
           const nextUser = { ...(res.user as any), tenant_id: resolvedTenant };
           const nextAccess = res.access_token || null;
-          const nextRefresh = (res as any)?.refresh_token || null;
           set({
             user: nextUser,
             access_token: nextAccess,
-            refresh_token: nextRefresh,
+            refresh_token: null,
             adminNeeds2FA: false,
             authErrorMessage: '',
           });
@@ -155,11 +153,10 @@ export const useAppStore = create<AppState>()(
           setActiveTenantId(resolvedTenant);
           const nextUser = { ...(res.user as any), tenant_id: resolvedTenant };
           const nextAccess = res.access_token || null;
-          const nextRefresh = (res as any)?.refresh_token || null;
           set({
             user: nextUser,
             access_token: nextAccess,
-            refresh_token: nextRefresh,
+            refresh_token: null,
             adminNeeds2FA: false,
             authErrorMessage: '',
           });
@@ -172,9 +169,9 @@ export const useAppStore = create<AppState>()(
       },
       
       logout: () => {
-        const { refresh_token, access_token, user } = get();
-        if ((refresh_token || access_token) && user) {
-          void authApi.logout((refresh_token || access_token) as string, user.username).catch((error) => {
+        const { user } = get();
+        if (user) {
+          void authApi.logout(undefined, user.username).catch((error) => {
             console.warn('Logout side-effect failed:', error);
           });
         }

@@ -66,6 +66,29 @@ def _get_active_shift(db: Session, tenant_id: str) -> Shift | None:
     return db.query(Shift).filter(Shift.tenant_id == tenant_id, Shift.status == "open").first()
 
 
+def _get_active_shift_for_update(db: Session, tenant_id: str) -> Shift | None:
+    if not hasattr(db, "query"):
+        return _get_active_shift(db, tenant_id)
+    try:
+        return db.query(Shift).filter(Shift.tenant_id == tenant_id, Shift.status == "open").with_for_update().first()
+    except Exception:
+        return _get_active_shift(db, tenant_id)
+
+
+def _get_handover_for_update(db: Session, tenant_id: str, handover_id: str) -> ShiftHandover | None:
+    if not hasattr(db, "query"):
+        return db.query(ShiftHandover).filter(ShiftHandover.id == handover_id, ShiftHandover.tenant_id == tenant_id).first()
+    try:
+        return (
+            db.query(ShiftHandover)
+            .filter(ShiftHandover.id == handover_id, ShiftHandover.tenant_id == tenant_id)
+            .with_for_update()
+            .first()
+        )
+    except Exception:
+        return db.query(ShiftHandover).filter(ShiftHandover.id == handover_id, ShiftHandover.tenant_id == tenant_id).first()
+
+
 def _wallet_balance(db: Session, tenant_id: str, source: str) -> Decimal:
     return _ledger_balances_snapshot(db, tenant_id).get(str(source or "").strip().lower(), Decimal("0.00"))
 
@@ -399,7 +422,7 @@ def x_report(payload: XReportIn, db: Session = Depends(get_db), tenant: Tenant =
 
 @router.post("/z-report")
 def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
-    active = _get_active_shift(db, tenant.id)
+    active = _get_active_shift_for_update(db, tenant.id)
     if not active:
         raise HTTPException(status_code=400, detail="Shift is closed")
 
@@ -606,7 +629,7 @@ def list_handover_users(
 
 @router.post("/handovers")
 def create_handover(payload: ShiftHandoverIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
-    active = db.query(Shift).filter(Shift.tenant_id == tenant.id, Shift.status == "open").first()
+    active = _get_active_shift_for_update(db, tenant.id)
     if not active:
         raise HTTPException(status_code=400, detail="Shift is closed")
     received_by = str(payload.received_by or "").strip()
@@ -640,10 +663,10 @@ def create_handover(payload: ShiftHandoverIn, db: Session = Depends(get_db), ten
 
 @router.post("/handovers/{handover_id}/accept")
 def accept_handover(handover_id: str, payload: ShiftHandoverAcceptIn, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
-    active = db.query(Shift).filter(Shift.tenant_id == tenant.id, Shift.status == "open").first()
+    active = _get_active_shift_for_update(db, tenant.id)
     if not active:
         raise HTTPException(status_code=400, detail="Shift is closed")
-    row = db.query(ShiftHandover).filter(ShiftHandover.id == handover_id, ShiftHandover.tenant_id == tenant.id).first()
+    row = _get_handover_for_update(db, tenant.id, handover_id)
     if not row:
         raise HTTPException(status_code=404, detail="Handover not found")
     if row.status != "PENDING":
