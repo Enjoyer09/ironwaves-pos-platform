@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 import json
+import logging
 import time
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
@@ -47,6 +48,7 @@ from app.security import (
 
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+logger = logging.getLogger("ironwaves.auth")
 _pin_attempt_tracker: dict[str, dict[str, datetime | int]] = {}
 _login_attempt_tracker: dict[str, dict[str, datetime | int]] = {}
 _redis_security_client = None
@@ -506,6 +508,7 @@ def bootstrap_owner(
 
 @router.post("/login", response_model=TokenOut)
 def login(payload: LoginIn, request: Request, response: Response, db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant)):
+    request_id = str(getattr(getattr(request, "state", None), "request_id", "") or "")
     username_norm = (payload.username or "").strip().lower()
     _consume_login_attempts(request, tenant.id, username_norm)
     user = (
@@ -514,16 +517,45 @@ def login(payload: LoginIn, request: Request, response: Response, db: Session = 
         .first()
     )
     if not user:
+        logger.warning(
+            {
+                "event": "auth_login_failed",
+                "reason": "unknown_user",
+                "request_id": request_id,
+                "tenant_id": tenant.id,
+                "username": username_norm,
+                "host": request.headers.get("host"),
+                "x_tenant_domain": request.headers.get("x-tenant-domain"),
+            }
+        )
         _add_auth_audit_log(db, tenant.id, username_norm, "AUTH_LOGIN_FAILED", request, {"reason": "unknown_user"})
         db.commit()
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if user.role == "super_admin" and tenant.domain != settings.platform_tenant_domain:
+        logger.warning(
+            {
+                "event": "auth_login_blocked",
+                "reason": "super_admin_wrong_domain",
+                "request_id": request_id,
+                "tenant_id": tenant.id,
+                "username": user.username,
+            }
+        )
         _add_auth_audit_log(db, tenant.id, user.username, "AUTH_LOGIN_BLOCKED", request, {"reason": "super_admin_wrong_domain"})
         db.commit()
         raise HTTPException(status_code=403, detail="Super admin can only sign in on the platform domain")
 
     now = datetime.utcnow()
     if user.locked_until and now < user.locked_until:
+        logger.warning(
+            {
+                "event": "auth_login_blocked",
+                "reason": "account_locked",
+                "request_id": request_id,
+                "tenant_id": tenant.id,
+                "username": user.username,
+            }
+        )
         _add_auth_audit_log(db, tenant.id, user.username, "AUTH_LOGIN_BLOCKED", request, {"reason": "account_locked"})
         db.commit()
         raise HTTPException(status_code=423, detail="Account temporarily locked")
@@ -532,6 +564,16 @@ def login(payload: LoginIn, request: Request, response: Response, db: Session = 
         user.failed_attempts = (user.failed_attempts or 0) + 1
         if user.failed_attempts >= 5:
             user.locked_until = now + timedelta(minutes=5)
+        logger.warning(
+            {
+                "event": "auth_login_failed",
+                "reason": "bad_password",
+                "request_id": request_id,
+                "tenant_id": tenant.id,
+                "username": user.username,
+                "failed_attempts": user.failed_attempts,
+            }
+        )
         _add_auth_audit_log(db, tenant.id, user.username, "AUTH_LOGIN_FAILED", request, {"reason": "bad_password", "failed_attempts": user.failed_attempts})
         db.commit()
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -564,6 +606,16 @@ def login(payload: LoginIn, request: Request, response: Response, db: Session = 
             device_hash=device_hash,
             ip=_request_ip(request),
         )
+    logger.info(
+        {
+            "event": "auth_login_success",
+            "request_id": request_id,
+            "tenant_id": tenant.id,
+            "user_id": user.id,
+            "username": user.username,
+            "role": user.role,
+        }
+    )
     _add_auth_audit_log(db, tenant.id, user.username, "AUTH_LOGIN_SUCCESS", request)
     db.commit()
     _set_refresh_cookie(response, result.get("refresh_token", ""))
