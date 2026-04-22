@@ -1,6 +1,6 @@
 export type HelpLang = 'az' | 'ru' | 'en';
 
-type HelpManualEntry = {
+export type HelpManualEntry = {
   id: string;
   module: string;
   title_az: string;
@@ -117,6 +117,20 @@ function localizedContent(entry: HelpManualEntry, lang: HelpLang): string {
   return entry.content_az;
 }
 
+export function getManualEntries(lang: HelpLang): Array<{
+  id: string;
+  module: string;
+  title: string;
+  content: string;
+}> {
+  return MANUAL.map((entry) => ({
+    id: entry.id,
+    module: entry.module,
+    title: localizedTitle(entry, lang),
+    content: localizedContent(entry, lang),
+  }));
+}
+
 function scoreEntry(entry: HelpManualEntry, query: string, currentModule: string): number {
   const q = normalize(query);
   let score = 0;
@@ -193,4 +207,3 @@ export function buildHelpAnswer(question: string, lang: HelpLang, currentModule:
     sources: sourceTitles,
   };
 }
-
