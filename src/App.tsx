@@ -11,7 +11,7 @@ import PublicMenu from './components/PublicMenu';
 import CustomerApp from './components/CustomerApp';
 import LandingPage from './components/LandingPage';
 import FeedbackPortal from './components/FeedbackPortal';
-import { LogOut, Wifi, WifiOff, Languages, RotateCcw, Maximize2, Minimize2 } from 'lucide-react';
+import { LogOut, Wifi, WifiOff, Languages, RotateCcw, Maximize2, Minimize2, MessageCircleQuestion } from 'lucide-react';
 import VirtualKeyboard from './components/VirtualKeyboard';
 import { seedDatabase } from './lib/seeder';
 import ToastOverlay from './components/ToastOverlay';
@@ -30,6 +30,7 @@ import { authApi } from './api/auth';
 import { isBackendEnabled } from './api/client';
 import { isPerfDebugEnabled, type PerfEvent } from './lib/perf';
 import { syncPendingOfflineTableOps } from './api/tables';
+import HelpAssistant from './components/HelpAssistant';
 
 type AdminView =
   | 'dashboard'
@@ -299,6 +300,7 @@ export default function App() {
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [demoGuideBubble, setDemoGuideBubble] = useState<DemoGuideBubble | null>(null);
   const [manualRefreshing, setManualRefreshing] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const demoGuideShownModulesRef = useRef<Set<ModuleKey>>(new Set());
   const offlineCountRef = useRef(0);
   const pendingOfflineInFlightRef = useRef(false);
@@ -1418,6 +1420,17 @@ export default function App() {
                 </button>
               )}
               <button
+                onClick={() => setHelpOpen(true)}
+                className="neon-btn px-3 py-2"
+                title={tx(safeLang, 'Kömək', 'Помощь', 'Help')}
+                onMouseEnter={(e) => handleDemoGuideHover(tx(safeLang, 'User manual və AI kömək paneli', 'Панель помощи по manual и AI', 'User manual + AI help panel'), e)}
+                onMouseMove={(e) => handleDemoGuideHover(tx(safeLang, 'User manual və AI kömək paneli', 'Панель помощи по manual и AI', 'User manual + AI help panel'), e)}
+                onMouseLeave={() => setDemoGuideBubble(null)}
+              >
+                <MessageCircleQuestion size={16} />
+                <span>{tx(safeLang, 'Help', 'Помощь', 'Help')}</span>
+              </button>
+              <button
                 onClick={logout}
                 className="neon-btn-active px-3 py-2"
                 onMouseEnter={(e) => handleDemoGuideHover(describeActionAz('çıxış'), e)}
@@ -1515,6 +1528,12 @@ export default function App() {
           </div>
         </div>
       )}
+      <HelpAssistant
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        lang={safeLang}
+        currentModule={resolvedModule}
+      />
       <VirtualKeyboard lang={safeLang} enabled={virtualKeyboardEnabled} />
     </div>
   );
