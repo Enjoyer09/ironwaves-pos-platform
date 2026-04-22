@@ -1,6 +1,8 @@
+import handbookAzRaw from '../content/user_handbook_az.md?raw';
+
 export type HelpLang = 'az' | 'ru' | 'en';
 
-export type HelpManualEntry = {
+type HelpManualEntry = {
   id: string;
   module: string;
   title_az: string;
@@ -16,64 +18,6 @@ export type HelpAnswer = {
   answer: string;
   sources: string[];
 };
-
-const MANUAL: HelpManualEntry[] = [
-  {
-    id: 'pos_sale',
-    module: 'pos',
-    title_az: 'POS Satış Axını',
-    title_ru: 'Поток продаж POS',
-    title_en: 'POS Sales Flow',
-    content_az: 'POS-da məhsul seç, səbətə əlavə et, endirim və ödəniş növünü yoxla, sonra satışı tamamla. Offline rejimdə satışlar növbədə saxlanılır və internet bərpa olunanda sync edilir.',
-    content_ru: 'В POS выберите товар, добавьте в корзину, проверьте скидку и способ оплаты, затем завершите продажу. В офлайн-режиме продажи ставятся в очередь и синхронизируются после восстановления интернета.',
-    content_en: 'In POS, select items, add to cart, verify discount and payment method, then complete the sale. In offline mode sales are queued and synced when connection returns.',
-    keywords: ['pos', 'satış', 'sale', 'səbət', 'cart', 'ödəniş', 'payment', 'offline', 'sync'],
-  },
-  {
-    id: 'tables_kitchen',
-    module: 'tables',
-    title_az: 'Masa və Mətbəx',
-    title_ru: 'Столы и кухня',
-    title_en: 'Tables and Kitchen',
-    content_az: 'Masada sifariş açıldıqda item-ləri mətbəxə göndər. Statuslar NEW/SENT/PREPARING/READY ardıcıllığı ilə izlənir. Gecikən sifarişlər üçün KDS və masa statusunu yoxla.',
-    content_ru: 'После открытия заказа за столом отправляйте позиции на кухню. Статусы отслеживаются как NEW/SENT/PREPARING/READY. При задержках проверьте KDS и статус стола.',
-    content_en: 'When a table order is open, send items to kitchen. Track statuses as NEW/SENT/PREPARING/READY. For delays, check KDS and table status.',
-    keywords: ['masa', 'table', 'mətbəx', 'kitchen', 'kds', 'new', 'sent', 'ready', 'preparing'],
-  },
-  {
-    id: 'finance_shift',
-    module: 'finance',
-    title_az: 'Maliyyə və Shift Bağlanışı',
-    title_ru: 'Финансы и закрытие смены',
-    title_en: 'Finance and Shift Closing',
-    content_az: 'Shift açılış/bağlanışında faktiki kassanı daxil et. Böyük fərqlərdə approval gözlənir. Investor repayment və kritik cash adjustment əməliyyatları təsdiqlə tamamlanmalıdır.',
-    content_ru: 'При открытии/закрытии смены указывайте фактическую кассу. При больших расхождениях требуется approval. Investor repayment и критические cash adjustment должны завершаться через подтверждение.',
-    content_en: 'Enter actual cash on shift open/close. Large variances require approval. Investor repayment and critical cash adjustments must go through approval.',
-    keywords: ['maliyyə', 'finance', 'shift', 'z-report', 'x-report', 'approval', 'cash', 'investor'],
-  },
-  {
-    id: 'inventory_recipe',
-    module: 'inventory',
-    title_az: 'Anbar və Resept',
-    title_ru: 'Склад и рецепты',
-    title_en: 'Inventory and Recipes',
-    content_az: 'Anbara mədaxil/məxaric yazanda maliyyə və COGS təsirləri yoxlanmalıdır. Reseptdə ingredient bağlılığı düzgün qurulanda satış zamanı xammal sərfi avtomatik çıxılır.',
-    content_ru: 'При приходе/расходе на складе проверяйте влияние на финансы и COGS. При корректных связях рецепта расход сырья списывается автоматически во время продажи.',
-    content_en: 'When adding stock in/out, verify finance and COGS impact. With proper recipe links, ingredient consumption is deducted automatically on sale.',
-    keywords: ['anbar', 'inventory', 'resept', 'recipe', 'cogs', 'xammal', 'stock', 'ingredient'],
-  },
-  {
-    id: 'tenant_domain',
-    module: 'settings',
-    title_az: 'Tenant və Domain Problemləri',
-    title_ru: 'Проблемы tenant и домена',
-    title_en: 'Tenant and Domain Issues',
-    content_az: '“Tenant not configured” xətasında domain mapping və tenant statusunu yoxla. Backend request-id ilə logları müqayisə et. Bəzən ilk refresh-də gecikmə ola bilər, ikinci yoxlama ilə bərpa olunur.',
-    content_ru: 'При ошибке “Tenant not configured” проверьте domain mapping и статус tenant. Сопоставьте логи по request-id на backend. Иногда на первом refresh бывает задержка, на втором восстанавливается.',
-    content_en: 'For “Tenant not configured”, verify domain mapping and tenant status. Correlate backend logs by request-id. Sometimes first refresh can lag and recover on second check.',
-    keywords: ['tenant', 'domain', 'not configured', 'request-id', 'mapping', 'super', 'socialbee'],
-  },
-];
 
 const GLOBAL_HINTS: Record<string, { az: string; ru: string; en: string }> = {
   pin: {
@@ -105,6 +49,84 @@ function normalize(value: string): string {
     .replace(/[ğ]/g, 'g');
 }
 
+function slugify(value: string): string {
+  return normalize(value)
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 64);
+}
+
+function inferModuleFromText(title: string, content: string): string {
+  const text = normalize(`${title} ${content}`);
+  if (/(z-hesabat|z report|x-hesabat|x report|smen)/.test(text)) return 'zreport';
+  if (/(kds|metbex|kitchen)/.test(text)) return 'kds';
+  if (/(masa|tables)/.test(text)) return 'tables';
+  if (/(maliyye|finance|depozit)/.test(text)) return 'finance';
+  if (/(analytics)/.test(text)) return 'analytics';
+  if (/(logs|log)/.test(text)) return 'logs';
+  if (/(crm|loyalliq|loyalty)/.test(text)) return 'crm';
+  if (/(menu|qr menu|menyu)/.test(text)) return 'menu';
+  if (/(anbar|inventory|resept|recipe|stock)/.test(text)) return 'inventory';
+  if (/(dashboard)/.test(text)) return 'analytics';
+  return 'pos';
+}
+
+function buildKeywords(title: string, content: string): string[] {
+  const base = `${title} ${content}`
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter((part) => part.length >= 3);
+  const unique = Array.from(new Set(base));
+  return unique.slice(0, 16);
+}
+
+function parseHandbookMarkdownToEntries(raw: string): HelpManualEntry[] {
+  const lines = String(raw || '').split(/\r?\n/);
+  const sections: Array<{ title: string; content: string }> = [];
+
+  let currentTitle = '';
+  let currentContent: string[] = [];
+
+  const flush = () => {
+    if (!currentTitle) return;
+    const content = currentContent.join('\n').trim();
+    sections.push({ title: currentTitle.trim(), content });
+  };
+
+  for (const line of lines) {
+    const heading = line.match(/^##\s+(.+)$/);
+    if (heading) {
+      flush();
+      currentTitle = heading[1].trim();
+      currentContent = [];
+      continue;
+    }
+    if (!currentTitle) continue;
+    currentContent.push(line);
+  }
+  flush();
+
+  return sections
+    .filter((section) => section.title && section.content)
+    .map((section, index) => {
+      const module = inferModuleFromText(section.title, section.content);
+      return {
+        id: slugify(section.title) || `manual_${index + 1}`,
+        module,
+        title_az: section.title,
+        title_ru: section.title,
+        title_en: section.title,
+        content_az: section.content,
+        content_ru: section.content,
+        content_en: section.content,
+        keywords: buildKeywords(section.title, section.content),
+      };
+    });
+}
+
+const MANUAL: HelpManualEntry[] = parseHandbookMarkdownToEntries(handbookAzRaw);
+
 function localizedTitle(entry: HelpManualEntry, lang: HelpLang): string {
   if (lang === 'ru') return entry.title_ru;
   if (lang === 'en') return entry.title_en;
@@ -115,20 +137,6 @@ function localizedContent(entry: HelpManualEntry, lang: HelpLang): string {
   if (lang === 'ru') return entry.content_ru;
   if (lang === 'en') return entry.content_en;
   return entry.content_az;
-}
-
-export function getManualEntries(lang: HelpLang): Array<{
-  id: string;
-  module: string;
-  title: string;
-  content: string;
-}> {
-  return MANUAL.map((entry) => ({
-    id: entry.id,
-    module: entry.module,
-    title: localizedTitle(entry, lang),
-    content: localizedContent(entry, lang),
-  }));
 }
 
 function scoreEntry(entry: HelpManualEntry, query: string, currentModule: string): number {
@@ -155,6 +163,20 @@ function pickGlobalHints(query: string, lang: HelpLang): string[] {
   return Array.from(new Set(hints)).slice(0, 2);
 }
 
+export function getManualEntries(lang: HelpLang): Array<{
+  id: string;
+  module: string;
+  title: string;
+  content: string;
+}> {
+  return MANUAL.map((entry) => ({
+    id: entry.id,
+    module: entry.module,
+    title: localizedTitle(entry, lang),
+    content: localizedContent(entry, lang),
+  }));
+}
+
 export function buildHelpAnswer(question: string, lang: HelpLang, currentModule: string): HelpAnswer {
   const raw = String(question || '').trim();
   if (!raw) {
@@ -179,14 +201,12 @@ export function buildHelpAnswer(question: string, lang: HelpLang, currentModule:
   const sourceTitles = ranked.map(({ entry }) => localizedTitle(entry, lang));
   const globalHints = pickGlobalHints(raw, lang).map((line) => `• ${line}`);
 
-  let lead = '';
-  if (lang === 'ru') {
-    lead = 'Kраткий ответ ассистента:';
-  } else if (lang === 'en') {
-    lead = 'Assistant quick answer:';
-  } else {
-    lead = 'Assistant qısa cavabı:';
-  }
+  const lead =
+    lang === 'ru'
+      ? 'Kраткий ответ ассистента:'
+      : lang === 'en'
+        ? 'Assistant quick answer:'
+        : 'Assistant qısa cavabı:';
 
   const sections: string[] = [lead];
   if (manualLines.length) {
@@ -207,3 +227,4 @@ export function buildHelpAnswer(question: string, lang: HelpLang, currentModule:
     sources: sourceTitles,
   };
 }
+
