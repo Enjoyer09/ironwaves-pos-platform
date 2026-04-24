@@ -910,135 +910,126 @@ export default function POS() {
       const saleFinal = toDecimalSafe((sale as any)?.totals?.final_total ?? payableTotal);
       const saleFreeCoffees = Number((sale as any)?.totals?.free_coffees ?? totals.free_coffees ?? 0);
 
-      const lines = cart
-        .map(
-          (item) =>
-            `<tr><td style="padding:3px 0">${item.qty}x ${item.item_name}</td><td style="text-align:right">${toDecimalSafe(item.price)
-              .times(item.qty)
-              .toFixed(2)} ₼</td></tr>`,
-        )
-        .join('');
-      let latestSettings: any = tenantSettings;
-      try {
-        latestSettings = await get_settings_live(tenantId);
-        setTenantSettings(latestSettings || {});
-      } catch {
-        latestSettings = get_settings(tenantId) || tenantSettings || {};
-      }
-      const configuredBase = String(latestSettings?.qr_settings?.base_url || tenantSettings?.qr_settings?.base_url || businessProfile?.website || '').trim();
-      const baseUrl = (configuredBase || window.location.origin).replace(/\/+$/, '');
-      const tenantDomainRows = getTenantDomains();
-      const tenantDomain =
-        tenantDomainRows.find((row) => String(row?.tenant_id || '') === tenantId && Boolean(row?.is_primary))?.domain ||
-        tenantDomainRows.find((row) => String(row?.tenant_id || '') === tenantId)?.domain ||
-        '';
-      const tenantBaseUrl = tenantDomain ? `https://${String(tenantDomain).trim().replace(/^https?:\/\//, '')}` : baseUrl;
-      const receiptRef = (sale as any).receipt_code || sale.sale_id;
-      const receiptUrl = `${baseUrl}/?r=${encodeURIComponent(receiptRef)}&t=${encodeURIComponent((sale as any).receipt_token || '')}`;
-      const feedbackSettings = latestSettings?.feedback_settings || tenantSettings?.feedback_settings || {};
-      const feedbackButtonText =
-        safeLang === 'ru'
-          ? String(feedbackSettings?.receipt_button_text_ru || 'Оставить отзыв')
-          : safeLang === 'en'
-            ? String(feedbackSettings?.receipt_button_text_en || 'Leave feedback')
-            : String(feedbackSettings?.receipt_button_text_az || 'Rəy bildirin');
-      const feedbackPromptText =
-        safeLang === 'ru'
-          ? String(
-              feedbackSettings?.receipt_qr_prompt_ru ||
-                'Ваше мнение очень важно для нас. Пожалуйста, отсканируйте QR и оставьте отзыв.',
-            )
-          : safeLang === 'en'
+      const receiptCart = cart.map((item) => ({ ...item }));
+      const receiptCustomer = ctx.customer;
+      const receiptOrderType = ctx.orderType;
+      const settingsSnapshot = tenantSettings && Object.keys(tenantSettings).length > 0
+        ? tenantSettings
+        : (get_settings(tenantId) || {});
+      const renderReceipt = async () => {
+        const lines = receiptCart
+          .map(
+            (item) =>
+              `<tr><td style="padding:3px 0">${item.qty}x ${item.item_name}</td><td style="text-align:right">${toDecimalSafe(item.price)
+                .times(item.qty)
+                .toFixed(2)} ₼</td></tr>`,
+          )
+          .join('');
+        const configuredBase = String(settingsSnapshot?.qr_settings?.base_url || businessProfile?.website || '').trim();
+        const baseUrl = (configuredBase || window.location.origin).replace(/\/+$/, '');
+        const tenantDomainRows = getTenantDomains();
+        const tenantDomain =
+          tenantDomainRows.find((row) => String(row?.tenant_id || '') === tenantId && Boolean(row?.is_primary))?.domain ||
+          tenantDomainRows.find((row) => String(row?.tenant_id || '') === tenantId)?.domain ||
+          '';
+        const tenantBaseUrl = tenantDomain ? `https://${String(tenantDomain).trim().replace(/^https?:\/\//, '')}` : baseUrl;
+        const receiptRef = (sale as any).receipt_code || sale.sale_id;
+        const receiptUrl = `${baseUrl}/?r=${encodeURIComponent(receiptRef)}&t=${encodeURIComponent((sale as any).receipt_token || '')}`;
+        const feedbackSettings = settingsSnapshot?.feedback_settings || {};
+        const feedbackPromptText =
+          safeLang === 'ru'
             ? String(
-                feedbackSettings?.receipt_qr_prompt_en ||
-                  'Your feedback matters to us. Please scan the QR code and share your review.',
+                feedbackSettings?.receipt_qr_prompt_ru ||
+                  'Ваше мнение очень важно для нас. Пожалуйста, отсканируйте QR и оставьте отзыв.',
               )
-            : String(
-                feedbackSettings?.receipt_qr_prompt_az ||
-                  'Rəyiniz bizim üçün çox önəmlidir, lütfən QR skan edib rəyinizi bildirin.',
-              );
-      const defaultFeedbackPortalUrl = `${tenantBaseUrl.replace(/\/+$/, '')}/feedback`;
-      const feedbackBaseUrl = String(
-        feedbackSettings?.portal_url || defaultFeedbackPortalUrl || '',
-      ).trim();
-      const feedbackEnabled = feedbackSettings?.enabled !== false && Boolean(feedbackBaseUrl);
-      let feedbackUrl = '';
-      if (feedbackBaseUrl) {
-        try {
-          const u = new URL(feedbackBaseUrl, tenantBaseUrl);
-          // If settings were accidentally saved with super domain, force tenant primary domain.
-          if (tenantDomain && u.hostname === 'super.ironwaves.store') {
-            u.hostname = String(tenantDomain).trim().replace(/^https?:\/\//, '');
+            : safeLang === 'en'
+              ? String(
+                  feedbackSettings?.receipt_qr_prompt_en ||
+                    'Your feedback matters to us. Please scan the QR code and share your review.',
+                )
+              : String(
+                  feedbackSettings?.receipt_qr_prompt_az ||
+                    'Rəyiniz bizim üçün çox önəmlidir, lütfən QR skan edib rəyinizi bildirin.',
+                );
+        const defaultFeedbackPortalUrl = `${tenantBaseUrl.replace(/\/+$/, '')}/feedback`;
+        const feedbackBaseUrl = String(feedbackSettings?.portal_url || defaultFeedbackPortalUrl || '').trim();
+        const feedbackEnabled = feedbackSettings?.enabled !== false && Boolean(feedbackBaseUrl);
+        let feedbackUrl = '';
+        if (feedbackBaseUrl) {
+          try {
+            const u = new URL(feedbackBaseUrl, tenantBaseUrl);
+            if (tenantDomain && u.hostname === 'super.ironwaves.store') {
+              u.hostname = String(tenantDomain).trim().replace(/^https?:\/\//, '');
+            }
+            u.pathname = '/feedback';
+            u.searchParams.set('tenant_id', tenantId);
+            u.searchParams.set('sale_id', String(sale.sale_id || ''));
+            u.searchParams.set('receipt_id', String(receiptRef || ''));
+            u.searchParams.set('r', String(receiptRef || ''));
+            u.searchParams.set('t', String((sale as any).receipt_token || ''));
+            feedbackUrl = u.toString();
+          } catch {
+            feedbackUrl = feedbackBaseUrl;
           }
-          // Always keep receipt QR on tenant feedback endpoint.
-          u.pathname = '/feedback';
-          u.searchParams.set('tenant_id', tenantId);
-          u.searchParams.set('sale_id', String(sale.sale_id || ''));
-          u.searchParams.set('receipt_id', String(receiptRef || ''));
-          u.searchParams.set('r', String(receiptRef || ''));
-          u.searchParams.set('t', String((sale as any).receipt_token || ''));
-          feedbackUrl = u.toString();
-        } catch {
-          feedbackUrl = feedbackBaseUrl;
         }
-      }
-      const barcodeSvg = generateBarcodeSvg(`SALE:${sale.sale_id}`);
-      const receiptCustomerId = String((sale as any)?.customer_card_id || ctx.customer?.card_id || '').trim();
-      const receiptStarsAfter = Number((sale as any)?.customer_stars_after ?? totals.customer_stars_after ?? 0);
-      const qrDataUrl = await QRCode.toDataURL(feedbackUrl || receiptUrl, {
-        width: 156,
-        margin: 2,
-        errorCorrectionLevel: 'L',
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF',
-        },
-      });
+        const barcodeSvg = generateBarcodeSvg(`SALE:${sale.sale_id}`);
+        const receiptCustomerId = String((sale as any)?.customer_card_id || receiptCustomer?.card_id || '').trim();
+        const receiptStarsAfter = Number((sale as any)?.customer_stars_after ?? totals.customer_stars_after ?? 0);
+        const qrDataUrl = await QRCode.toDataURL(feedbackUrl || receiptUrl, {
+          width: 156,
+          margin: 2,
+          errorCorrectionLevel: 'L',
+          color: {
+            dark: '#000000',
+            light: '#FFFFFF',
+          },
+        });
 
-      setReceiptHtml(`
-        <html>
-          <head>
-            <style>
-              @page { size: 80mm auto; margin: 4mm; }
-              body { font-family: Inter, Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
-              .line { display:flex; justify-content:space-between; gap:8px; margin: 2px 0; }
-              .muted { color:#555; font-size:11px; }
-              .bold { font-weight: 700; }
-              hr { border: none; border-top: 1px dashed #999; margin: 8px 0; }
-            </style>
-          </head>
-          <body style="font-family:Arial;padding:16px;max-width:320px;margin:0 auto">
-            ${businessProfile?.logo_url ? `<img src="${businessProfile.logo_url}" style="height:34px;max-width:180px;object-fit:contain;margin-bottom:6px" />` : ''}
-            <div class="bold" style="font-size:15px">${businessProfile?.company_name || 'IRONWAVES POS'}</div>
-            <div class="muted">VÖEN: ${businessProfile?.voen || '-'}</div>
-            <div class="muted">Tel: ${businessProfile?.phone || '-'}</div>
-            <div class="muted">${businessProfile?.address || '-'}</div>
-            <hr />
-            <div class="line"><span>${tx(lang, 'Satış ID', 'ID продажи', 'Sale ID')}</span><span>${formatDisplayId(sale.sale_id)}</span></div>
-            <div class="line"><span>${tx(lang, 'Operator', 'Оператор', 'Operator')}</span><span>${user.username}</span></div>
-            <div class="line"><span>${tx(lang, 'Tarix', 'Дата', 'Date')}</span><span>${new Date().toLocaleString()}</span></div>
-            <div class="line"><span>${tx(lang, 'Tip', 'Тип', 'Type')}</span><span>${ctx.orderType}</span></div>
-            <div style="margin-top:8px;text-align:center">${barcodeSvg || ''}</div>
-            <div class="muted" style="text-align:center">SALE:${formatDisplayId(sale.sale_id)}</div>
-            <hr />
-            <table style="width:100%;font-size:13px">${lines}</table>
-            <hr />
-            <div class="line"><span>${tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span><span>${saleRaw.toFixed(2)} ₼</span></div>
-            <div class="line"><span>${tx(lang, 'Endirim', 'Скидка', 'Discount')}</span><span>- ${saleDiscount.toFixed(2)} ₼</span></div>
-            ${saleFreeCoffees > 0 ? `<div class="line"><span>${tx(lang, 'Pulsuz kofe', 'Бесплатный кофе', 'Free coffee')}</span><span>${saleFreeCoffees}</span></div>` : ''}
-            ${receiptCustomerId ? `<div class="line"><span>${tx(lang, 'Müştəri ID', 'ID клиента', 'Customer ID')}</span><span>${receiptCustomerId}</span></div>` : ''}
-            ${receiptCustomerId ? `<div class="line"><span>${tx(lang, 'Ulduz balansı', 'Баланс звезд', 'Star Balance')}</span><span>${receiptStarsAfter}</span></div>` : ''}
-            <div class="line bold" style="font-size:13px"><span>${tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>${saleFinal.toFixed(2)} ₼</span></div>
-            <hr />
-            <div style="display:flex;justify-content:center;margin:8px 0 6px 0">
-              <img src="${qrDataUrl}" alt="receipt qr" style="width:108px;height:108px" />
-            </div>
-            ${feedbackEnabled ? `<div class="muted" style="font-size:10px;text-align:center">${feedbackPromptText}</div>` : ''}
-            <hr />
-            <div class="muted">${businessProfile?.receipt_footer || tx(lang, 'Bizi seçdiyiniz üçün təşəkkür edirik!', 'Спасибо, что выбрали нас!', 'Thank you for choosing us!')}</div>
-          </body>
-        </html>
-      `);
+        setReceiptHtml(`
+          <html>
+            <head>
+              <style>
+                @page { size: 80mm auto; margin: 4mm; }
+                body { font-family: Inter, Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
+                .line { display:flex; justify-content:space-between; gap:8px; margin: 2px 0; }
+                .muted { color:#555; font-size:11px; }
+                .bold { font-weight: 700; }
+                hr { border: none; border-top: 1px dashed #999; margin: 8px 0; }
+              </style>
+            </head>
+            <body style="font-family:Arial;padding:16px;max-width:320px;margin:0 auto">
+              ${businessProfile?.logo_url ? `<img src="${businessProfile.logo_url}" style="height:34px;max-width:180px;object-fit:contain;margin-bottom:6px" />` : ''}
+              <div class="bold" style="font-size:15px">${businessProfile?.company_name || 'IRONWAVES POS'}</div>
+              <div class="muted">VÖEN: ${businessProfile?.voen || '-'}</div>
+              <div class="muted">Tel: ${businessProfile?.phone || '-'}</div>
+              <div class="muted">${businessProfile?.address || '-'}</div>
+              <hr />
+              <div class="line"><span>${tx(lang, 'Satış ID', 'ID продажи', 'Sale ID')}</span><span>${formatDisplayId(sale.sale_id)}</span></div>
+              <div class="line"><span>${tx(lang, 'Operator', 'Оператор', 'Operator')}</span><span>${user.username}</span></div>
+              <div class="line"><span>${tx(lang, 'Tarix', 'Дата', 'Date')}</span><span>${new Date().toLocaleString()}</span></div>
+              <div class="line"><span>${tx(lang, 'Tip', 'Тип', 'Type')}</span><span>${receiptOrderType}</span></div>
+              <div style="margin-top:8px;text-align:center">${barcodeSvg || ''}</div>
+              <div class="muted" style="text-align:center">SALE:${formatDisplayId(sale.sale_id)}</div>
+              <hr />
+              <table style="width:100%;font-size:13px">${lines}</table>
+              <hr />
+              <div class="line"><span>${tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span><span>${saleRaw.toFixed(2)} ₼</span></div>
+              <div class="line"><span>${tx(lang, 'Endirim', 'Скидка', 'Discount')}</span><span>- ${saleDiscount.toFixed(2)} ₼</span></div>
+              ${saleFreeCoffees > 0 ? `<div class="line"><span>${tx(lang, 'Pulsuz kofe', 'Бесплатный кофе', 'Free coffee')}</span><span>${saleFreeCoffees}</span></div>` : ''}
+              ${receiptCustomerId ? `<div class="line"><span>${tx(lang, 'Müştəri ID', 'ID клиента', 'Customer ID')}</span><span>${receiptCustomerId}</span></div>` : ''}
+              ${receiptCustomerId ? `<div class="line"><span>${tx(lang, 'Ulduz balansı', 'Баланс звезд', 'Star Balance')}</span><span>${receiptStarsAfter}</span></div>` : ''}
+              <div class="line bold" style="font-size:13px"><span>${tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>${saleFinal.toFixed(2)} ₼</span></div>
+              <hr />
+              <div style="display:flex;justify-content:center;margin:8px 0 6px 0">
+                <img src="${qrDataUrl}" alt="receipt qr" style="width:108px;height:108px" />
+              </div>
+              ${feedbackEnabled ? `<div class="muted" style="font-size:10px;text-align:center">${feedbackPromptText}</div>` : ''}
+              <hr />
+              <div class="muted">${businessProfile?.receipt_footer || tx(lang, 'Bizi seçdiyiniz üçün təşəkkür edirik!', 'Спасибо, что выбрали нас!', 'Thank you for choosing us!')}</div>
+            </body>
+          </html>
+        `);
+      };
 
       if (queuedOffline) {
         void refreshOfflineState();
@@ -1048,11 +1039,16 @@ export default function POS() {
       window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { tenant_id: tenantId, sale_id: sale.sale_id, source: 'pos' } }));
       window.dispatchEvent(new CustomEvent('logs-updated', { detail: { tenant_id: tenantId, sale_id: sale.sale_id, source: 'pos' } }));
       if (feedbackCouponPreview?.status === 'PENDING' && isFeedbackCouponCode(enteredClaimCode)) {
-        await redeem_feedback_coupon_live(tenantId, enteredClaimCode, String(sale.sale_id || ''));
+        void redeem_feedback_coupon_live(tenantId, enteredClaimCode, String(sale.sale_id || ''));
       }
       clearCart(activeCart);
       patchCtx({ ...defaultCtx });
       setSplitCashInput('0');
+      window.setTimeout(() => {
+        void renderReceipt().catch((error) => {
+          logUiError(tenantId, 'pos', error instanceof Error ? error.message : String(error), { phase: 'receipt_render' });
+        });
+      }, 0);
       void refreshData();
     } catch (error: any) {
         logUiError(tenantId, 'pos', error?.message || String(error), { phase: 'checkout_create_sale' });
