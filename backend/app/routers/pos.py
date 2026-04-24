@@ -1,6 +1,7 @@
 import json
 import logging
 import secrets
+from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 
@@ -89,6 +90,10 @@ def _yield_settings(db: Session, tenant_id: str) -> dict:
 
 def _find_yield_rule(db: Session, tenant_id: str, inventory: InventoryItem) -> dict | None:
     settings = _yield_settings(db, tenant_id)
+    return _find_yield_rule_from_settings(settings, inventory)
+
+
+def _find_yield_rule_from_settings(settings: dict, inventory: InventoryItem) -> dict | None:
     if not settings.get("enabled"):
         return None
     inventory_name = _normalize_inventory_key(inventory.name)
@@ -310,32 +315,57 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
     line_cogs_totals: dict[int, Decimal] = {}
     line_cogs_unresolved: dict[int, bool] = {}
     beverage_settings = _setting_value(db, tenant.id, "beverage_service_settings", DEFAULT_BEVERAGE_SERVICE_SETTINGS)
+    yield_settings = _yield_settings(db, tenant.id)
     remove_packaging_for_table = bool((beverage_settings or {}).get("remove_paper_packaging_for_table", True))
+    menu_item_names = {
+        str(item.item_name or "").strip().lower()
+        for item in payload.cart_items
+        if str(item.item_name or "").strip()
+    }
+    recipe_rows = (
+        db.query(Recipe)
+        .filter(Recipe.tenant_id == tenant.id, func.lower(Recipe.menu_item_name).in_(menu_item_names))
+        .all()
+        if menu_item_names
+        else []
+    )
+    recipes_by_item: dict[str, list[Recipe]] = defaultdict(list)
+    ingredient_names: set[str] = set()
+    for recipe in recipe_rows:
+        key = str(recipe.menu_item_name or "").strip().lower()
+        recipes_by_item[key].append(recipe)
+        ingredient_name = str(recipe.ingredient_name or "").strip().lower()
+        if ingredient_name:
+            ingredient_names.add(ingredient_name)
+    inventory_rows = (
+        db.query(InventoryItem)
+        .filter(InventoryItem.tenant_id == tenant.id, func.lower(InventoryItem.name).in_(ingredient_names))
+        .all()
+        if ingredient_names
+        else []
+    )
+    inventory_by_name = {
+        str(row.name or "").strip().lower(): row
+        for row in inventory_rows
+    }
     for index, item in enumerate(payload.cart_items):
         line_cogs_totals[index] = Decimal("0.0000")
         line_cogs_unresolved[index] = False
         item_cup_mode = str(getattr(item, "cup_mode", None) or "paper").strip().lower()
         skip_packaging = remove_packaging_for_table and item_cup_mode == "glass"
-        recipes = (
-            db.query(Recipe)
-            .filter(Recipe.tenant_id == tenant.id, func.lower(Recipe.menu_item_name) == str(item.item_name).lower())
-            .all()
-        )
+        item_name_key = str(item.item_name or "").strip().lower()
+        recipes = recipes_by_item.get(item_name_key, [])
         if not recipes:
             line_cogs_unresolved[index] = True
         for recipe in recipes:
             if skip_packaging and any(token in str(recipe.ingredient_name or "").lower() for token in ["stəkan", "stakan", "qapaq", "kapak", "cup", "lid"]):
                 continue
-            inventory = (
-                db.query(InventoryItem)
-                .filter(InventoryItem.tenant_id == tenant.id, func.lower(InventoryItem.name) == str(recipe.ingredient_name).lower())
-                .first()
-            )
+            inventory = inventory_by_name.get(str(recipe.ingredient_name or "").strip().lower())
             if not inventory:
                 line_cogs_unresolved[index] = True
                 continue
             base_qty_required = (Decimal(str(recipe.quantity_required)) * Decimal(str(item.qty or 0))).quantize(Decimal("0.0001"))
-            yield_rule = _find_yield_rule(db, tenant.id, inventory)
+            yield_rule = _find_yield_rule_from_settings(yield_settings, inventory)
             sold_ready_qty = base_qty_required.quantize(Decimal("0.0001"))
             qty_required = (
                 (base_qty_required * Decimal(str(yield_rule.get("raw_to_ready_ratio") or 1))).quantize(Decimal("0.0001"))
