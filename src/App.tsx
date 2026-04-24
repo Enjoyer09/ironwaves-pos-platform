@@ -297,6 +297,7 @@ export default function App() {
   }, [backendMode, hasValidUser, user?.role, user?.tenant_id, user?.username, applySessionUser, logout, mappedTenantFromHost]);
 
   const [currentModule, setCurrentModule] = useState<ModuleKey>('pos');
+  const [mountedModules, setMountedModules] = useState<ModuleKey[]>(['pos']);
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [pendingOfflineCount, setPendingOfflineCount] = useState(0);
   const [lowStockModal, setLowStockModal] = useState<Array<{ name: string; stock_qty: string; min_limit: string; unit: string }> | null>(null);
@@ -978,6 +979,14 @@ export default function App() {
   }, [sessionRole, currentModule, visibleModuleKeys]);
 
   useEffect(() => {
+    setMountedModules((prev) => (prev.includes(resolvedModule) ? prev : [...prev, resolvedModule]));
+  }, [resolvedModule]);
+
+  useEffect(() => {
+    setMountedModules(['pos']);
+  }, [moduleTenantKey]);
+
+  useEffect(() => {
     if (safeLang !== lang) {
       setLang(safeLang);
     }
@@ -1472,10 +1481,30 @@ export default function App() {
 
         <div className="relative min-h-0 flex-1 overflow-hidden">
           <AppErrorBoundary>
-            {resolvedModule === 'pos' && <POS key={moduleTenantKey} />}
-            {resolvedModule === 'kds' && <KDS key={moduleTenantKey} />}
-            {resolvedModule === 'tables' && <TablesPage key={moduleTenantKey} />}
-            {!['pos', 'kds', 'tables'].includes(resolvedModule) && <AdminPanel key={moduleTenantKey} externalTab={resolvedModule as AdminView} />}
+            {mountedModules.includes('pos') && (
+              <div className={`${resolvedModule === 'pos' ? 'flex h-full min-h-0 flex-col' : 'hidden'}`}>
+                <POS key={`pos:${moduleTenantKey}`} isActive={resolvedModule === 'pos'} />
+              </div>
+            )}
+            {mountedModules.includes('kds') && (
+              <div className={`${resolvedModule === 'kds' ? 'flex h-full min-h-0 flex-col' : 'hidden'}`}>
+                <KDS key={`kds:${moduleTenantKey}`} isActive={resolvedModule === 'kds'} />
+              </div>
+            )}
+            {mountedModules.includes('tables') && (
+              <div className={`${resolvedModule === 'tables' ? 'flex h-full min-h-0 flex-col' : 'hidden'}`}>
+                <TablesPage key={`tables:${moduleTenantKey}`} isActive={resolvedModule === 'tables'} />
+              </div>
+            )}
+            {mountedModules.some((moduleKey) => !['pos', 'kds', 'tables'].includes(moduleKey)) && (
+              <div className={`${!['pos', 'kds', 'tables'].includes(resolvedModule) ? 'flex h-full min-h-0 flex-col' : 'hidden'}`}>
+                <AdminPanel
+                  key={`admin:${moduleTenantKey}`}
+                  externalTab={resolvedModule as AdminView}
+                  isActive={!['pos', 'kds', 'tables'].includes(resolvedModule)}
+                />
+              </div>
+            )}
           </AppErrorBoundary>
         </div>
 

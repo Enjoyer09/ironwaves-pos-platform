@@ -7,8 +7,9 @@ import { useAppStore } from '../store';
 import { tx } from '../i18n';
 import { logUiError } from '../lib/logger';
 
-export default function KDS() {
-  const { user, lang } = useAppStore();
+export default function KDS({ isActive = true }: { isActive?: boolean }) {
+  const user = useAppStore((state) => state.user);
+  const lang = useAppStore((state) => state.lang);
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [readySelections, setReadySelections] = useState<Record<string, string[]>>({});
   const tenant_id = user?.tenant_id || 'tenant_default';
@@ -60,6 +61,7 @@ export default function KDS() {
 
   // Sifarişləri mütəmadi olaraq yoxla (Simulyativ WebSocket)
   useEffect(() => {
+    if (!isActive) return;
     let mounted = true;
     let pollTimer: number | null = null;
     let clockTimer: number | null = null;
@@ -117,9 +119,10 @@ export default function KDS() {
       if (clockTimer) window.clearTimeout(clockTimer);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [tenant_id]);
+  }, [tenant_id, isActive]);
 
   useEffect(() => {
+    if (!isActive) return;
     let refreshTimer: number | null = null;
     const unsubscribe = subscribeTenantRealtime(tenant_id, (message) => {
       if (!['kitchen.updated', 'check.updated', 'table.updated'].includes(String(message.event || ''))) return;
@@ -141,7 +144,7 @@ export default function KDS() {
       if (refreshTimer) window.clearTimeout(refreshTimer);
       unsubscribe();
     };
-  }, [tenant_id]);
+  }, [tenant_id, isActive]);
 
   useEffect(() => {
     const onOnline = () => setIsOnline(true);

@@ -34,9 +34,10 @@ type AdminTab = 'dashboard' | 'analytics' | 'menu' | 'tables' | 'finance' | 'inv
 
 interface AdminPanelProps {
   externalTab?: AdminTab;
+  isActive?: boolean;
 }
 
-export default function AdminPanel({ externalTab }: AdminPanelProps) {
+export default function AdminPanel({ externalTab, isActive = true }: AdminPanelProps) {
   const user = useAppStore((state) => state.user);
   const lang = useAppStore((state) => state.lang);
   const notify = useAppStore((state) => state.notify);
@@ -108,6 +109,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
   ]), [lang, currentRole]);
 
   useEffect(() => {
+    if (!isActive) return;
     fetchAbortRef.current?.abort();
     const controller = new AbortController();
     fetchAbortRef.current = controller;
@@ -120,7 +122,7 @@ export default function AdminPanel({ externalTab }: AdminPanelProps) {
     return () => {
       controller.abort();
     };
-  }, [activeTab, dateFrom, dateTo, tenant_id, notify, lang]);
+  }, [activeTab, dateFrom, dateTo, tenant_id, notify, lang, isActive]);
 
   useEffect(() => {
     return () => {
