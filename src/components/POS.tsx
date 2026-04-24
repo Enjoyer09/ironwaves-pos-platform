@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Decimal } from 'decimal.js';
 import QRCode from 'qrcode';
 import JsBarcode from 'jsbarcode';
@@ -62,6 +62,18 @@ type CartContext = {
   cupMode: 'paper' | 'glass';
   kitchenSent?: boolean;
   rewardClaimCode?: string;
+};
+
+type MenuGroup = {
+  group_key: string;
+  base: string;
+  category: string;
+  image_url: string;
+  description: string;
+  items: any[];
+  minPrice: Decimal;
+  hasVariants: boolean;
+  initials: string;
 };
 
 const SIZE_TOKENS = ['XS', 'S', 'M', 'L', 'XL', 'DOUBLE', 'SINGLE'];
@@ -266,6 +278,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   const pendingRefreshTimerRef = useRef<number | null>(null);
   const lastPersistedCartsRef = useRef('');
   const lastPersistedCtxRef = useRef('');
+  const lastCartAddRef = useRef<{ key: string; at: number } | null>(null);
   const businessProfile = get_business_profile(tenantId);
   const printSettings = tenantSettings.print_settings || { use_qz: false, printer_name: '' };
   const beverageServiceSettings = tenantSettings.beverage_service_settings || {
@@ -579,8 +592,14 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
 
   const addToCart = (item: any, options?: { cup_mode?: 'paper' | 'glass' }) => {
     const defaultSeatLabel = undefined;
+    const nextCupMode = options?.cup_mode;
+    const addKey = `${activeCart}:${String(item?.id || '')}:${String(nextCupMode || '')}`;
+    const now = Date.now();
+    if (lastCartAddRef.current?.key === addKey && now - lastCartAddRef.current.at < 180) {
+      return;
+    }
+    lastCartAddRef.current = { key: addKey, at: now };
     setCarts((prev) => {
-      const nextCupMode = options?.cup_mode;
       const existing = prev[activeCart].find(
         (c) =>
           c.id === item.id &&
@@ -816,14 +835,15 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   }, [selectedTableData]);
 
   const filteredMenu = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
     return menu.filter((item) => {
       const matchesCategory = category === 'ALL' || item.category === category;
-      const matchesSearch = item.item_name.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = normalizedSearch.length === 0 || item.item_name.toLowerCase().includes(normalizedSearch);
       return matchesCategory && matchesSearch;
     });
   }, [menu, category, search]);
 
-  const groupedMenu = useMemo(() => {
+  const groupedMenu = useMemo<MenuGroup[]>(() => {
     const groups = new Map<string, any[]>();
     filteredMenu.forEach((item) => {
       const { base } = splitVariantName(item.item_name);
@@ -832,18 +852,52 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       groups.get(key)!.push(item);
     });
 
-    return Array.from(groups.values()).map((items) => {
+    return Array.from(groups.entries()).map(([groupKey, items]) => {
       const first = items[0];
       const firstSplit = splitVariantName(first.item_name);
+      const resolvedBase = firstSplit.base || first.item_name;
       return {
+        group_key: `${groupKey}:${items.length}`,
         base: firstSplit.base || first.item_name,
         category: first.category || '',
         image_url: resolveMenuImage(first),
         description: String(first.description || ''),
         items: [...items].sort((a, b) => toDecimalSafe(a.price).minus(toDecimalSafe(b.price)).toNumber()),
+        minPrice: items.reduce(
+          (acc, cur) => Decimal.min(acc, toDecimalSafe(cur.price)),
+          toDecimalSafe(items[0]?.price),
+        ),
+        hasVariants: items.length > 1,
+        initials: String(resolvedBase || '')
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((token) => token.slice(0, 1).toUpperCase())
+          .join(''),
       };
     });
   }, [filteredMenu]);
+
+  const cartQtyByItemId = useMemo(() => {
+    const quantities = new Map<string, number>();
+    cart.forEach((item) => {
+      const current = quantities.get(item.id) || 0;
+      quantities.set(item.id, current + Number(item.qty || 0));
+    });
+    return quantities;
+  }, [cart]);
+
+  const groupQtyByKey = useMemo(() => {
+    const quantities = new Map<string, number>();
+    groupedMenu.forEach((group) => {
+      let total = 0;
+      group.items.forEach((item) => {
+        total += cartQtyByItemId.get(item.id) || 0;
+      });
+      quantities.set(group.group_key, total);
+    });
+    return quantities;
+  }, [groupedMenu, cartQtyByItemId]);
 
   const totals = useMemo(() => {
     const converted = cart.map((item) => ({
@@ -1688,15 +1742,10 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         return (
           <div key={widget} className="pos2-product-grid grid flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 2xl:grid-cols-3">
             {groupedMenu.map((group) => {
-              const hasVariants = group.items.length > 1;
-              const minPrice = group.items.reduce(
-                (acc, cur) => Decimal.min(acc, toDecimalSafe(cur.price)),
-                toDecimalSafe(group.items[0].price),
-              );
               const preview = group.items[0];
-              const qtyInCart = group.items.reduce((acc, item) => acc + (cart.find((c) => c.id === item.id)?.qty || 0), 0);
+              const qtyInCart = getGroupQty(group);
               return (
-                <div key={`${group.base}_${group.items.length}`} className="pos2-product-card">
+                <div key={group.group_key} className="pos2-product-card">
                   <button onClick={() => openProductPicker(group)} className="w-full text-left">
                     <div className="pos2-product-media">
                       {group.image_url ? (
@@ -1712,12 +1761,12 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                       <div className="line-clamp-1 text-sm font-semibold text-slate-100">{group.base}</div>
                       <div className="line-clamp-1 text-xs text-slate-400">{group.description || group.category || tx(lang, 'Menyu məhsulu', 'Позиция меню', 'Menu item')}</div>
                       <div className="mt-1 text-sm font-bold text-amber-300">
-                        {minPrice.toFixed(2)} ₼ {hasVariants ? `• ${tx(lang, 'variant', 'вариант', 'variant')}` : ''}
+                        {group.minPrice.toFixed(2)} ₼ {group.hasVariants ? `• ${tx(lang, 'variant', 'вариант', 'variant')}` : ''}
                       </div>
                     </div>
                   </button>
                   <div className="mt-3 flex items-center justify-between gap-2">
-                    {hasVariants ? (
+                    {group.hasVariants ? (
                       <>
                         <span className="rounded-lg border border-slate-600/80 bg-slate-900/50 px-2 py-1 text-xs text-slate-300">{qtyInCart} {tx(lang, 'ədəd', 'шт', 'pcs')}</span>
                         <button onClick={() => openProductPicker(group)} className="rounded-xl border border-amber-300/50 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-100">
@@ -1742,15 +1791,9 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       return (
         <div key={widget} className={`grid flex-1 auto-rows-max grid-cols-1 gap-2 overflow-y-auto pr-1 ${productGridClass}`}>
           {groupedMenu.map((group) => {
-            const hasVariants = group.items.length > 1;
-            const minPrice = group.items.reduce(
-              (acc, cur) => Decimal.min(acc, toDecimalSafe(cur.price)),
-              toDecimalSafe(group.items[0].price),
-            );
-
             return (
               <button
-                key={`${group.base}_${group.items.length}`}
+                key={group.group_key}
                 onClick={() => {
                   openProductPicker(group);
                 }}
@@ -1759,7 +1802,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                 <div className="flex w-full items-center justify-between gap-2">
                   <span>{group.base}</span>
                   <span className="text-slate-300">
-                    {minPrice.toFixed(2)} ₼ {hasVariants ? '▾' : ''}
+                    {group.minPrice.toFixed(2)} ₼ {group.hasVariants ? '▾' : ''}
                   </span>
                 </div>
               </button>
@@ -1771,24 +1814,22 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     return null;
   };
 
-  const getGroupQty = (group: { items: any[] }) =>
-    group.items.reduce((acc, row) => acc + cart.reduce((local, c) => (c.id === row.id ? local + Number(c.qty || 0) : local), 0), 0);
+  const getGroupQty = useCallback((group: MenuGroup) => groupQtyByKey.get(group.group_key) || 0, [groupQtyByKey]);
 
-  const increaseGroupQty = (group: { items: any[] }) => {
+  const increaseGroupQty = useCallback((group: MenuGroup) => {
     const preferred = group.items.find((row) => {
-      const exists = cart.find((c) => c.id === row.id);
-      return Boolean(exists);
+      return (cartQtyByItemId.get(row.id) || 0) > 0;
     });
     addToCart(preferred || group.items[0]);
-  };
+  }, [addToCart, cartQtyByItemId]);
 
-  const decreaseGroupQty = (group: { items: any[] }) => {
+  const decreaseGroupQty = useCallback((group: MenuGroup) => {
     const target = [...cart]
       .reverse()
       .find((c) => group.items.some((row) => row.id === c.id));
     if (!target) return;
     updateCartItem(target.line_id, target.qty - 1);
-  };
+  }, [cart]);
 
   if (receiptHtml) {
     return (
@@ -1911,34 +1952,23 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             </div>
             <div className="pos3-product-grid">
               {groupedMenu.map((group) => {
-                const hasVariants = group.items.length > 1;
-                const minPrice = group.items.reduce(
-                  (acc, cur) => Decimal.min(acc, toDecimalSafe(cur.price)),
-                  toDecimalSafe(group.items[0].price),
-                );
                 const qtyInCart = getGroupQty(group);
-                const initials = String(group.base || '')
-                  .split(/\s+/)
-                  .filter(Boolean)
-                  .slice(0, 2)
-                  .map((token) => token.slice(0, 1).toUpperCase())
-                  .join('');
                 return (
-                  <div key={`${group.base}_${group.items.length}`} className={`pos3-card ${qtyInCart > 0 ? 'pos3-card-active' : ''}`}>
+                  <div key={group.group_key} className={`pos3-card ${qtyInCart > 0 ? 'pos3-card-active' : ''}`}>
                     <button className="w-full text-left" onClick={() => increaseGroupQty(group)}>
                       <div className="pos3-card-image">
                         {group.image_url ? (
                           <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" />
                         ) : (
                           <div className="pos3-card-fallback">
-                            <span className="pos3-card-fallback-mark">{initials || 'M'}</span>
+                            <span className="pos3-card-fallback-mark">{group.initials || 'M'}</span>
                           </div>
                         )}
                       </div>
                       <div className="mt-2">
                         <div className="line-clamp-1 text-[13px] font-semibold leading-5 text-slate-100">{group.base}</div>
                         <div className="line-clamp-1 text-[11px] leading-4 text-slate-400">{group.description || group.category || tx(lang, 'Menyu məhsulu', 'Позиция меню', 'Menu item')}</div>
-                        <div className="mt-1 text-[15px] font-bold leading-5 text-amber-300">{minPrice.toFixed(2)} ₼</div>
+                        <div className="mt-1 text-[15px] font-bold leading-5 text-amber-300">{group.minPrice.toFixed(2)} ₼</div>
                       </div>
                     </button>
                     <div className="mt-2 flex items-center justify-between gap-2">
@@ -1962,7 +1992,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                       >
                         <Plus size={14} />
                       </button>
-                      {hasVariants && (
+                      {group.hasVariants && (
                         <button
                           className="rounded-lg border border-amber-300/40 bg-amber-300/10 px-2 py-1 text-[10px] font-semibold text-amber-100"
                           onClick={(e) => {
