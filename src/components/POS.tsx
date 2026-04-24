@@ -685,7 +685,10 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       if (shouldRefreshMenu && (force || now - lastMenuRefreshAtRef.current >= 15000)) {
         tasks.push((async () => {
           const nextMenu = isBackendEnabled()
-            ? await apiRequest<any[]>('/api/v1/pos/menu')
+            ? await apiRequest<any[]>('/api/v1/pos/menu', {
+              timeoutMs: 5000,
+              retryCount: 0,
+            })
             : get_menu_for_pos(tenantId);
           setMenu(Array.isArray(nextMenu) ? nextMenu : []);
           if (Array.isArray(nextMenu)) {

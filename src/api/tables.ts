@@ -751,7 +751,11 @@ export const merge_tables = (table_id: string, target_table_id: string, actor: s
 export const get_tables_live = async (tenant_id: string) => {
   if (!isBackendEnabled()) return get_tables(tenant_id);
   try {
-    return await apiRequest<any[]>('/api/v1/ops/tables', { tenantId: null });
+    return await apiRequest<any[]>('/api/v1/ops/tables', {
+      tenantId: null,
+      timeoutMs: 5000,
+      retryCount: 0,
+    });
   } catch (error) {
     if (!isRecoverableNetworkFailure(error)) throw error;
     return get_tables(tenant_id);
