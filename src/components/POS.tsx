@@ -210,7 +210,7 @@ const normalizeRewardClaimCode = (value: string) => {
   return raw.replace(/\s+/g, '');
 };
 
-export default function POS() {
+export default function POS({ isActive = true }: { isActive?: boolean }) {
   const user = useAppStore((state) => state.user);
   const lang = useAppStore((state) => state.lang);
   const notify = useAppStore((state) => state.notify);
@@ -730,10 +730,17 @@ export default function POS() {
   }, [posMenuSnapshotKey, posTablesSnapshotKey]);
 
   useEffect(() => {
+    if (!isActive) return;
     void refreshData({ force: true, menu: true, tables: true });
-  }, [tenantId]);
+  }, [tenantId, isActive]);
 
   useEffect(() => {
+    if (!isActive) return;
+    void refreshData({ force: true, menu: menu.length === 0, tables: true });
+  }, [isActive]);
+
+  useEffect(() => {
+    if (!isActive) return;
     const handleFocus = () => {
       scheduleRefreshData({ tables: true, menu: false });
       void refreshOfflineState();
@@ -762,15 +769,16 @@ export default function POS() {
       document.removeEventListener('visibilitychange', handleVisibility);
       if (pendingRefreshTimerRef.current) window.clearTimeout(pendingRefreshTimerRef.current);
     };
-  }, [tenantId]);
+  }, [tenantId, isActive]);
 
   useEffect(() => {
+    if (!isActive) return;
     void refreshOfflineState();
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void refreshOfflineState();
     }, 60000);
     return () => window.clearInterval(timer);
-  }, [tenantId]);
+  }, [tenantId, isActive]);
 
   const categories = useMemo(() => ['ALL', ...Array.from(new Set(menu.map((m) => m.category)))], [menu]);
 

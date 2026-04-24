@@ -22,7 +22,7 @@ import TableGrid from './tables/TableGrid';
 import MenuGrid from './tables/MenuGrid';
 import StickyActionBar from './tables/StickyActionBar';
 
-export default function TablesPage() {
+export default function TablesPage({ isActive = true }: { isActive?: boolean }) {
   const [tables, setTables] = useState<any[]>([]);
   const [kitchenOrders, setKitchenOrders] = useState<any[]>([]);
   const [menuCatalog, setMenuCatalog] = useState<any[]>([]);
@@ -355,12 +355,14 @@ export default function TablesPage() {
   }, [kitchenOrders]);
 
   useEffect(() => {
+    if (!isActive) return;
     void loadData();
-  }, [tenant_id]);
+  }, [tenant_id, isActive]);
 
   useEffect(() => {
+    if (!isActive) return;
     void loadRestaurantData();
-  }, [tenant_id, reservationDate]);
+  }, [tenant_id, reservationDate, isActive]);
 
   useEffect(() => {
     if (floorPlans.length === 0) {
@@ -397,17 +399,19 @@ export default function TablesPage() {
   }, [floorPlans, activeFloorId, copyLayoutSourceFloorId]);
 
   useEffect(() => {
+    if (!isActive) return;
     if (!activeFloorId) return;
     void loadFloorState(activeFloorId);
-  }, [activeFloorId]);
+  }, [activeFloorId, isActive]);
 
   useEffect(() => {
+    if (!isActive) return;
     if (workspaceView !== 'floor' || activeFloorId) return;
     const timer = window.setInterval(() => {
       void loadRestaurantData();
     }, 6000);
     return () => window.clearInterval(timer);
-  }, [workspaceView, activeFloorId, tenant_id, reservationDate]);
+  }, [workspaceView, activeFloorId, tenant_id, reservationDate, isActive]);
 
   useEffect(() => {
     if (!floorEditMode) {
@@ -509,6 +513,7 @@ export default function TablesPage() {
   }, [tables, viewTableId]);
 
   useEffect(() => {
+    if (!isActive) return;
     const runRealtimeRefresh = async () => {
       if (realtimeRefreshInFlightRef.current) {
         realtimeRefreshPendingRef.current = true;
@@ -603,7 +608,7 @@ export default function TablesPage() {
       realtimeRefreshScopesRef.current = new Set();
       unsubscribe();
     };
-  }, [tenant_id, reservationDate]);
+  }, [tenant_id, reservationDate, isActive]);
 
   useEffect(() => {
     try {
