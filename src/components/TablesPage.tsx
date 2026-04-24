@@ -70,6 +70,7 @@ export default function TablesPage() {
   const [servedItemsMap, setServedItemsMap] = useState<Record<string, Record<string, number>>>({});
   const [tableWorkspaceTab, setTableWorkspaceTab] = useState<'compose' | 'service' | 'history' | 'ops'>('compose');
   const [floorPlans, setFloorPlans] = useState<FloorPlanRecord[]>([]);
+  const [isFloorPlansLoading, setIsFloorPlansLoading] = useState(true);
   const [activeFloorId, setActiveFloorId] = useState<string>('');
   const [floorTables, setFloorTables] = useState<FloorTableState[]>([]);
   const [floorEditMode, setFloorEditMode] = useState(false);
@@ -694,6 +695,7 @@ export default function TablesPage() {
   };
 
   const loadRestaurantData = async () => {
+    setIsFloorPlansLoading(true);
     const [floorsResult, reservationsResult] = await Promise.allSettled([
       get_floor_plans_live(tenant_id),
       get_reservations_live(tenant_id, reservationDate),
@@ -704,6 +706,7 @@ export default function TablesPage() {
     if (reservationsResult.status === 'fulfilled') {
       setReservations(Array.isArray(reservationsResult.value) ? reservationsResult.value : []);
     }
+    setIsFloorPlansLoading(false);
   };
 
   const loadFloorState = async (floorId: string) => {
@@ -2744,7 +2747,13 @@ export default function TablesPage() {
       </div>
       {workspaceView === 'floor' && (
         <div className="mb-6 rounded-[28px] border border-white/10 bg-slate-900/35 p-4">
-          {!activeFloorId ? (
+          {isFloorPlansLoading ? (
+            <div className="rounded-2xl border border-sky-300/30 bg-sky-500/10 p-4">
+              <div className="text-sm font-semibold text-sky-100">
+                {tx(lang, 'Masa planı yüklənir...', 'План зала загружается...', 'Floor plan is loading...')}
+              </div>
+            </div>
+          ) : !activeFloorId ? (
             <div className="rounded-2xl border border-amber-300/30 bg-amber-500/10 p-4">
               <div className="text-sm font-semibold text-amber-100">
                 {tx(lang, 'Masa planı yüklənmədi. Backend bağlantısı gecikə bilər.', 'План зала не загрузился. Подключение к backend может быть медленным.', 'Floor plan is not loaded yet. Backend connection may be slow.')}
