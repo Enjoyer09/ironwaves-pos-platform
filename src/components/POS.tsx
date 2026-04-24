@@ -182,6 +182,25 @@ const generateLineId = () => {
   return `line_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 };
 
+const readSnapshot = <T,>(key: string, fallback: T): T => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed === undefined || parsed === null ? fallback : parsed;
+  } catch {
+    return fallback;
+  }
+};
+
+const writeSnapshot = (key: string, value: unknown) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Snapshot cache is best-effort only.
+  }
+};
+
 const normalizeRewardClaimCode = (value: string) => {
   const raw = String(value || '').trim().toUpperCase();
   if (!raw) return '';
@@ -202,6 +221,8 @@ export default function POS() {
   const posCartsStorageKey = hostScopedKey(`${tenantId}_pos_carts`);
   const posCartCtxStorageKey = hostScopedKey(`${tenantId}_pos_cart_ctx`);
   const posActiveCartStorageKey = hostScopedKey(`${tenantId}_pos_active_cart`);
+  const posMenuSnapshotKey = hostScopedKey(`${tenantId}_pos_menu_snapshot`);
+  const posTablesSnapshotKey = hostScopedKey(`${tenantId}_pos_tables_snapshot`);
 
   const [menu, setMenu] = useState<any[]>([]);
   const [tables, setTables] = useState<any[]>([]);
@@ -650,6 +671,7 @@ export default function POS() {
           setMenu(Array.isArray(nextMenu) ? nextMenu : []);
           if (Array.isArray(nextMenu)) {
             lastMenuRefreshAtRef.current = Date.now();
+            writeSnapshot(posMenuSnapshotKey, nextMenu);
             void cacheMenuOffline(tenantId, nextMenu);
           }
         })());
@@ -659,6 +681,9 @@ export default function POS() {
           const nextTables = await get_tables_live(tenantId);
           setTables(Array.isArray(nextTables) ? nextTables : []);
           lastTablesRefreshAtRef.current = Date.now();
+          if (Array.isArray(nextTables)) {
+            writeSnapshot(posTablesSnapshotKey, nextTables);
+          }
         })());
       }
       await Promise.all(tasks);
@@ -668,11 +693,16 @@ export default function POS() {
       logUiError(tenantId, 'pos', e instanceof Error ? e.message : String(e), { phase: 'refreshData' });
       if (shouldRefreshMenu) {
         void getCachedMenuOffline(tenantId).then((cached) => {
-          setMenu(Array.isArray(cached) ? (cached as any[]) : []);
+          if (Array.isArray(cached) && cached.length > 0) {
+            setMenu(cached as any[]);
+            writeSnapshot(posMenuSnapshotKey, cached);
+            return;
+          }
+          setMenu(readSnapshot<any[]>(posMenuSnapshotKey, []));
         });
       }
       if (shouldRefreshTables) {
-        setTables([]);
+        setTables(readSnapshot<any[]>(posTablesSnapshotKey, []));
       }
       void refreshOfflineState();
       notify('error', tx(safeLang, 'POS məlumatları yüklənmədi', 'Не удалось загрузить данные POS', 'Failed to load POS data'));
@@ -687,6 +717,17 @@ export default function POS() {
       void refreshData(options);
     }, options.force ? 0 : 350);
   };
+
+  useEffect(() => {
+    const cachedMenu = readSnapshot<any[]>(posMenuSnapshotKey, []);
+    const cachedTables = readSnapshot<any[]>(posTablesSnapshotKey, []);
+    if (Array.isArray(cachedMenu) && cachedMenu.length > 0) {
+      setMenu(cachedMenu);
+    }
+    if (Array.isArray(cachedTables) && cachedTables.length > 0) {
+      setTables(cachedTables);
+    }
+  }, [posMenuSnapshotKey, posTablesSnapshotKey]);
 
   useEffect(() => {
     void refreshData({ force: true, menu: true, tables: true });
