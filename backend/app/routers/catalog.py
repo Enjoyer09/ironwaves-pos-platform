@@ -15,6 +15,19 @@ from app.services.finance_service import post_inventory_loss, post_inventory_res
 
 router = APIRouter(prefix="/api/v1/catalog", tags=["catalog"])
 
+MAX_IMAGE_URL_LENGTH = 2048
+
+
+def _validate_image_url(value: str | None) -> str | None:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return None
+    if normalized.startswith("data:"):
+        raise HTTPException(status_code=400, detail="image_url must be a normal URL, raw data images are not allowed")
+    if len(normalized) > MAX_IMAGE_URL_LENGTH:
+        raise HTTPException(status_code=400, detail=f"image_url too long (max {MAX_IMAGE_URL_LENGTH} chars)")
+    return normalized
+
 
 def _ensure_catalog_write_access(user: User):
     if str(user.role or "").lower() not in {"admin", "super_admin", "manager"}:
@@ -214,7 +227,7 @@ def create_menu_item(
         category=category,
         price=Decimal(str(payload.price)),
         is_coffee=bool(payload.is_coffee),
-        image_url=str(payload.image_url or "").strip() or None,
+        image_url=_validate_image_url(payload.image_url),
         description=str(payload.description or "").strip() or None,
         is_active=True,
     )
@@ -298,7 +311,7 @@ def update_menu_item(
     if payload.is_coffee is not None:
         row.is_coffee = bool(payload.is_coffee)
     if payload.image_url is not None:
-        row.image_url = str(payload.image_url or "").strip() or None
+        row.image_url = _validate_image_url(payload.image_url)
     if payload.description is not None:
         row.description = str(payload.description or "").strip() or None
 

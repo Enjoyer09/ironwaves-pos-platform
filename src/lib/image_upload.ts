@@ -1,0 +1,81 @@
+const MAX_IMAGE_FILE_BYTES = 2 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION = 1280;
+const OUTPUT_IMAGE_QUALITY = 0.82;
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Şəkil faylı oxunmadı'));
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function dataUrlToImage(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Şəkil açıla bilmədi'));
+    img.src = dataUrl;
+  });
+}
+
+function normalizeTargetSize(width: number, height: number) {
+  const maxSide = Math.max(width, height);
+  if (!Number.isFinite(maxSide) || maxSide <= 0 || maxSide <= MAX_IMAGE_DIMENSION) {
+    return { width, height };
+  }
+  const scale = MAX_IMAGE_DIMENSION / maxSide;
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
+}
+
+export async function prepareImageDataUrl(file: File): Promise<string> {
+  if (!String(file.type || '').startsWith('image/')) {
+    throw new Error('Yalnız şəkil faylı seçin');
+  }
+  if (file.size > MAX_IMAGE_FILE_BYTES) {
+    throw new Error('Şəkil maksimum 2 MB ola bilər');
+  }
+
+  const sourceDataUrl = await fileToDataUrl(file);
+  const image = await dataUrlToImage(sourceDataUrl);
+  const target = normalizeTargetSize(image.naturalWidth || image.width, image.naturalHeight || image.height);
+
+  if (
+    target.width === (image.naturalWidth || image.width) &&
+    target.height === (image.naturalHeight || image.height) &&
+    file.size <= 350 * 1024
+  ) {
+    return sourceDataUrl;
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = target.width;
+  canvas.height = target.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('Şəkil emalı mümkün olmadı');
+  }
+  ctx.drawImage(image, 0, 0, target.width, target.height);
+
+  const compressed = await new Promise<string>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('Şəkil sıxılmadı'));
+        return;
+      }
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Şəkil sıxılmış formada oxunmadı'));
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.readAsDataURL(blob);
+    }, 'image/jpeg', OUTPUT_IMAGE_QUALITY);
+  });
+
+  if (compressed.length > 2_000_000) {
+    throw new Error('Şəkil hələ də çox böyükdür, daha kiçik fayl seçin');
+  }
+  return compressed;
+}
