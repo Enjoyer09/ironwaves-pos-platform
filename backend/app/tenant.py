@@ -1,4 +1,6 @@
 import logging
+from threading import Lock
+from time import monotonic
 
 from fastapi import Request
 from sqlalchemy import text
@@ -8,6 +10,10 @@ from app.core.config import settings
 from app.models import Tenant
 
 logger = logging.getLogger("ironwaves.tenant")
+
+_TENANT_CACHE_TTL_SECONDS = 300.0
+_TENANT_HOST_CACHE: dict[str, tuple[str, float]] = {}
+_TENANT_HOST_CACHE_LOCK = Lock()
 
 
 def _normalize_domain(raw: str | None) -> str:
@@ -62,6 +68,74 @@ def _sync_single_domain_alias(db: Session, tenant_id: str, domain: str) -> None:
     _sync_domain_aliases(db, tenant_id, [safe_domain])
 
 
+def _read_cached_tenant_id(domain: str) -> str | None:
+    if not domain:
+        return None
+    with _TENANT_HOST_CACHE_LOCK:
+        cached = _TENANT_HOST_CACHE.get(domain)
+        if not cached:
+            return None
+        tenant_id, expires_at = cached
+        if expires_at <= monotonic():
+            _TENANT_HOST_CACHE.pop(domain, None)
+            return None
+        return tenant_id
+
+
+def _write_cached_tenant_id(domain: str, tenant_id: str) -> None:
+    if not domain or not tenant_id:
+        return
+    with _TENANT_HOST_CACHE_LOCK:
+        _TENANT_HOST_CACHE[domain] = (tenant_id, monotonic() + _TENANT_CACHE_TTL_SECONDS)
+
+
+def _drop_cached_tenant_id(domain: str) -> None:
+    if not domain:
+        return
+    with _TENANT_HOST_CACHE_LOCK:
+        _TENANT_HOST_CACHE.pop(domain, None)
+
+
+def _ensure_domain_alias(db: Session, tenant_id: str, domain: str) -> bool:
+    safe_domain = _normalize_domain(domain)
+    if not safe_domain or not tenant_id:
+        return False
+    try:
+        row = db.execute(
+            text(
+                """
+                SELECT tenant_id, COALESCE(is_active, TRUE)
+                FROM tenant_domains
+                WHERE domain = :domain
+                LIMIT 1
+                """
+            ),
+            {"domain": safe_domain},
+        ).fetchone()
+        if row and row[0] == tenant_id and bool(row[1]):
+            return False
+    except Exception:
+        try:
+            row = db.execute(
+                text(
+                    """
+                    SELECT tenant_id
+                    FROM tenant_domains
+                    WHERE domain = :domain
+                    LIMIT 1
+                    """
+                ),
+                {"domain": safe_domain},
+            ).fetchone()
+            if row and row[0] == tenant_id:
+                return False
+        except Exception:
+            pass
+
+    _sync_single_domain_alias(db, tenant_id, safe_domain)
+    return True
+
+
 def _resolve_slug_fallback_tenant(domain: str, db: Session) -> Tenant | None:
     safe_domain = _normalize_domain(domain)
     if not safe_domain:
@@ -72,8 +146,8 @@ def _resolve_slug_fallback_tenant(domain: str, db: Session) -> Tenant | None:
     tenant = db.query(Tenant).filter(Tenant.slug == slug).first()
     if not tenant:
         return None
-    _sync_single_domain_alias(db, tenant.id, safe_domain)
-    db.commit()
+    if _ensure_domain_alias(db, tenant.id, safe_domain):
+        db.commit()
     return tenant
 
 
@@ -121,8 +195,12 @@ def _resolve_known_alias_tenant(domain: str, db: Session) -> Tenant | None:
         # Deleted/suspended tenants must stay deleted/suspended until a super admin
         # explicitly provisions them again.
         return None
-    _sync_domain_aliases(db, tenant.id, alias["aliases"])
-    db.commit()
+    did_change = False
+    for alias_domain in alias["aliases"]:
+        if _ensure_domain_alias(db, tenant.id, alias_domain):
+            did_change = True
+    if did_change:
+        db.commit()
     return tenant
 
 
@@ -181,6 +259,15 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
     )
 
     if domain:
+        cached_tenant_id = _read_cached_tenant_id(domain)
+        if cached_tenant_id:
+            tenant = db.get(Tenant, cached_tenant_id)
+            if tenant:
+                _remember("tenant_cache", domain, tenant)
+                _log("tenant_resolved", source="tenant_cache", domain=domain, tenant_id=tenant.id, tenant_slug=tenant.slug)
+                return tenant
+            _drop_cached_tenant_id(domain)
+
         # 1) Use tenant_domains mapping table if present
         try:
             row = db.execute(
@@ -204,9 +291,11 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
                         if tenant_by_slug:
                             _sync_single_domain_alias(db, tenant_by_slug.id, domain)
                             db.commit()
+                            _write_cached_tenant_id(domain, tenant_by_slug.id)
                             _remember("tenant_domains_slug_override", domain, tenant_by_slug)
                             _log("tenant_resolved", source="tenant_domains_slug_override", domain=domain, tenant_id=tenant_by_slug.id, tenant_slug=tenant_by_slug.slug)
                             return tenant_by_slug
+                    _write_cached_tenant_id(domain, tenant.id)
                     _remember("tenant_domains_active", domain, tenant)
                     _log("tenant_resolved", source="tenant_domains_active", domain=domain, tenant_id=tenant.id, tenant_slug=tenant.slug)
                     return tenant
@@ -233,9 +322,11 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
                             if tenant_by_slug:
                                 _sync_single_domain_alias(db, tenant_by_slug.id, domain)
                                 db.commit()
+                                _write_cached_tenant_id(domain, tenant_by_slug.id)
                                 _remember("tenant_domains_legacy_slug_override", domain, tenant_by_slug)
                                 _log("tenant_resolved", source="tenant_domains_legacy_slug_override", domain=domain, tenant_id=tenant_by_slug.id, tenant_slug=tenant_by_slug.slug)
                                 return tenant_by_slug
+                        _write_cached_tenant_id(domain, tenant.id)
                         _remember("tenant_domains_legacy", domain, tenant)
                         _log("tenant_resolved", source="tenant_domains_legacy", domain=domain, tenant_id=tenant.id, tenant_slug=tenant.slug)
                         return tenant
@@ -246,12 +337,14 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
         # 2) Fallback: tenants.domain
         tenant = db.query(Tenant).filter(Tenant.domain == domain).first()
         if tenant:
+            _write_cached_tenant_id(domain, tenant.id)
             _remember("tenant_domain_column", domain, tenant)
             _log("tenant_resolved", source="tenant_domain_column", domain=domain, tenant_id=tenant.id, tenant_slug=tenant.slug)
             return tenant
 
         tenant = _resolve_known_alias_tenant(domain, db)
         if tenant:
+            _write_cached_tenant_id(domain, tenant.id)
             _remember("known_domain_alias", domain, tenant)
             _log("tenant_resolved", source="known_domain_alias", domain=domain, tenant_id=tenant.id, tenant_slug=tenant.slug)
             return tenant
@@ -260,6 +353,7 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
         # (e.g. socialbee.ironwaves.store -> slug: socialbee).
         tenant = _resolve_slug_fallback_tenant(domain, db)
         if tenant:
+            _write_cached_tenant_id(domain, tenant.id)
             _remember("slug_wildcard", domain, tenant)
             _log("tenant_resolved", source="slug_wildcard", domain=domain, tenant_id=tenant.id, tenant_slug=tenant.slug)
             return tenant
@@ -268,10 +362,13 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
     if explicit and has_auth_context and settings.allow_legacy_tenant_header_fallback:
         tenant = db.query(Tenant).filter(Tenant.id == explicit).first()
         if tenant:
+            if domain:
+                _write_cached_tenant_id(domain, tenant.id)
             _remember("legacy_header_fallback", domain, tenant)
             _log("tenant_resolved", source="legacy_header_fallback", domain=domain, tenant_id=tenant.id, tenant_slug=tenant.slug)
             return tenant
 
+    _drop_cached_tenant_id(domain)
     _remember("not_found", domain, None)
     _log("tenant_resolve_failed", domain=domain, host=request.headers.get("host"), x_tenant_domain=request.headers.get("x-tenant-domain"), x_tenant_id=explicit or None)
     return None
