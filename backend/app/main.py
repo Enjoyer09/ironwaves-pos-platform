@@ -1127,6 +1127,13 @@ def health():
     return {"status": "ok", "app": settings.app_name}
 
 
+@app.get("/health/deep")
+def health_deep():
+    with SessionLocal() as db:
+        db.execute(text("SELECT 1"))
+    return {"status": "ok", "app": settings.app_name, "db": "ok"}
+
+
 @app.get("/health/tenant-debug")
 def health_tenant_debug(request: Request):
     if settings.app_env == "production" and not settings.enable_public_tenant_debug:
