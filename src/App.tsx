@@ -128,6 +128,7 @@ export default function App() {
   );
 
   useEffect(() => {
+    if (isBackendEnabled()) return;
     try {
       seedDatabase();
     } catch (error) {
