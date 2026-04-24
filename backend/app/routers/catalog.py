@@ -1,7 +1,7 @@
 import json
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -124,9 +124,11 @@ class RecipeReplaceIn(BaseModel):
 
 @router.get("/public-menu", response_model=list[MenuItemOut])
 def list_public_menu_items(
+    response: Response,
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
 ):
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
     rows = (
         db.query(MenuItem)
         .filter(MenuItem.tenant_id == tenant.id, MenuItem.is_active == True)
@@ -151,10 +153,12 @@ def list_public_menu_items(
 
 @router.get("/menu", response_model=list[MenuItemOut])
 def list_menu_items(
+    response: Response,
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
 ):
+    response.headers["Cache-Control"] = "private, max-age=30, stale-while-revalidate=300"
     rows = (
         db.query(MenuItem)
         .filter(MenuItem.tenant_id == tenant.id, MenuItem.is_active == True)
