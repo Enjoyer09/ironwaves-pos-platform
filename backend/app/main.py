@@ -10,6 +10,7 @@ import traceback
 import uuid
 
 import anyio.to_thread
+from cachetools import TTLCache
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -59,7 +60,7 @@ logging.basicConfig(level=getattr(logging, str(settings.log_level or "INFO").upp
 logger = logging.getLogger("ironwaves.api")
 
 try:
-    from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+    from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 
     HTTP_REQUESTS_TOTAL = Counter(
         "ironwaves_http_requests_total",
@@ -71,10 +72,30 @@ try:
         "HTTP request latency in seconds",
         ["method", "path"],
     )
+    DB_POOL_SIZE_GAUGE = Gauge(
+        "ironwaves_db_pool_size",
+        "Current SQLAlchemy pool size",
+    )
+    DB_POOL_IN_USE_GAUGE = Gauge(
+        "ironwaves_db_pool_in_use",
+        "Checked-out SQLAlchemy connections",
+    )
+    DB_POOL_OVERFLOW_GAUGE = Gauge(
+        "ironwaves_db_pool_overflow",
+        "SQLAlchemy pool overflow connections",
+    )
+    DB_POOL_WAIT_GAUGE = Gauge(
+        "ironwaves_db_pool_waiters",
+        "Best-effort SQLAlchemy pool waiter proxy",
+    )
 except Exception:
     CONTENT_TYPE_LATEST = "text/plain; version=0.0.4"
     HTTP_REQUESTS_TOTAL = None
     HTTP_REQUEST_LATENCY_SECONDS = None
+    DB_POOL_SIZE_GAUGE = None
+    DB_POOL_IN_USE_GAUGE = None
+    DB_POOL_OVERFLOW_GAUGE = None
+    DB_POOL_WAIT_GAUGE = None
     generate_latest = None
 
 
@@ -88,6 +109,23 @@ async def metrics_middleware(request: Request, call_next):
         HTTP_REQUESTS_TOTAL.labels(request.method, path, str(response.status_code)).inc()
         HTTP_REQUEST_LATENCY_SECONDS.labels(request.method, path).observe(elapsed)
     return response
+
+
+@app.middleware("http")
+async def pool_metrics_middleware(request: Request, call_next):
+    if DB_POOL_SIZE_GAUGE is not None:
+        try:
+            pool = engine.pool
+            pool_size = pool.size()
+            checked_out = pool.checkedout()
+            overflow = pool.overflow()
+            DB_POOL_SIZE_GAUGE.set(pool_size)
+            DB_POOL_IN_USE_GAUGE.set(checked_out)
+            DB_POOL_OVERFLOW_GAUGE.set(overflow)
+            DB_POOL_WAIT_GAUGE.set(max(0, checked_out - pool_size))
+        except Exception:
+            pass
+    return await call_next(request)
 
 
 @app.get("/metrics")
@@ -188,7 +226,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-_rate_limit_bucket: dict[str, tuple[int, int]] = {}
+_rate_limit_bucket: TTLCache = TTLCache(maxsize=10000, ttl=120)
 _redis_rate_limiter = None
 _SKIP_RATE_LIMIT_PREFIXES = ("/health", "/metrics", "/static", "/assets")
 
@@ -246,14 +284,14 @@ def _get_redis_rate_limiter():
 
 
 def _in_memory_rate_limit(bucket_key: str, limit: int) -> bool:
-    now_window = int(time.time() // 60)
-    current_count, current_window = _rate_limit_bucket.get(bucket_key, (0, now_window))
-    if current_window != now_window:
-        current_count = 0
-        current_window = now_window
-    if current_count >= limit:
+    now_ts = time.time()
+    stamps = _rate_limit_bucket.get(bucket_key) or []
+    recent = [stamp for stamp in stamps if now_ts - stamp < 60]
+    if len(recent) >= limit:
+        _rate_limit_bucket[bucket_key] = recent
         return False
-    _rate_limit_bucket[bucket_key] = (current_count + 1, current_window)
+    recent.append(now_ts)
+    _rate_limit_bucket[bucket_key] = recent
     return True
 
 
@@ -291,7 +329,15 @@ async def security_boundary_middleware(request: Request, call_next):
     started = time.perf_counter()
     request_id = str(request.headers.get("x-request-id") or "").strip()[:80] or str(uuid.uuid4())
     request.state.request_id = request_id
-    if not request.url.path.startswith(_SKIP_RATE_LIMIT_PREFIXES):
+    path = request.url.path
+    is_cheap_path = (
+        path == "/health"
+        or path == "/healthz"
+        or path.startswith("/metrics")
+        or path.startswith("/static/")
+        or path.startswith("/assets/")
+    )
+    if not is_cheap_path:
         client_host = request.client.host if request.client else ""
         client_ip = client_host or "unknown"
         tenant_scope = (
@@ -304,15 +350,15 @@ async def security_boundary_middleware(request: Request, call_next):
         if limit > 0 and not _rate_limit_allowed(f"{path_group}:{tenant_scope}:{client_ip}", limit):
             return JSONResponse(status_code=429, content={"detail": "Too many requests"}, headers={"X-Request-ID": request_id})
 
-    if settings.csrf_origin_check_enabled and request.method.upper() in {"POST", "PUT", "PATCH", "DELETE"}:
-        origin = request.headers.get("origin")
-        referer = request.headers.get("referer")
-        referer_origin = None
-        if referer:
-            match = re.match(r"^(https?://[^/]+)", referer)
-            referer_origin = match.group(1) if match else None
-        if (origin and not _origin_allowed(origin)) or (not origin and referer_origin and not _origin_allowed(referer_origin)):
-            return JSONResponse(status_code=403, content={"detail": "Request origin is not allowed"}, headers={"X-Request-ID": request_id})
+        if settings.csrf_origin_check_enabled and request.method.upper() in {"POST", "PUT", "PATCH", "DELETE"}:
+            origin = request.headers.get("origin")
+            referer = request.headers.get("referer")
+            referer_origin = None
+            if referer:
+                match = re.match(r"^(https?://[^/]+)", referer)
+                referer_origin = match.group(1) if match else None
+            if (origin and not _origin_allowed(origin)) or (not origin and referer_origin and not _origin_allowed(referer_origin)):
+                return JSONResponse(status_code=403, content={"detail": "Request origin is not allowed"}, headers={"X-Request-ID": request_id})
 
     response = await call_next(request)
     elapsed_ms = int((time.perf_counter() - started) * 1000)
