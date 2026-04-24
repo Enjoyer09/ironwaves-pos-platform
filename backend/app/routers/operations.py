@@ -15,7 +15,7 @@ except Exception:  # pragma: no cover
 from urllib import request as urllib_request
 from urllib.error import HTTPError, URLError
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import case, func, text
@@ -968,6 +968,7 @@ def _resolve_customer_session(db: Session, tenant_id: str, card_id: str, token: 
 
 @router.get("/settings")
 def get_app_settings(
+    response: Response,
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
@@ -1110,6 +1111,7 @@ def get_app_settings(
         "ai_config",
         {"provider": "unknown", "model": "auto", "autodetected": True, "ollama_freeapi_enabled": False, "updated_at": ""},
     )
+    response.headers["Cache-Control"] = "private, max-age=30, stale-while-revalidate=300"
     return {
         "tenant_id": tenant.id,
         "service_fee_percent": getv("service_fee_percent", 0),
@@ -2720,11 +2722,13 @@ def send_email(
 
 @router.get("/business-profile")
 def get_business_profile(
+    response: Response,
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
 ):
     row = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant.id).first()
+    response.headers["Cache-Control"] = "private, max-age=30, stale-while-revalidate=300"
     if not row:
         return {
             "tenant_id": tenant.id,
@@ -2750,11 +2754,13 @@ def get_business_profile(
 
 @router.get("/public-branding")
 def get_public_branding(
+    response: Response,
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
 ):
     row = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant.id).first()
     feedback_settings = _setting_value(db, tenant.id, "feedback_settings", DEFAULT_FEEDBACK_SETTINGS)
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
     if not isinstance(feedback_settings, dict):
         feedback_settings = DEFAULT_FEEDBACK_SETTINGS
     google_review_url = str(feedback_settings.get("google_review_url") or "").strip()
@@ -2822,9 +2828,11 @@ def get_customer_app_bootstrap(
 
 @router.get("/public-menu-bootstrap")
 def get_public_menu_bootstrap(
+    response: Response,
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
 ):
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
     branding = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant.id).first()
     qr_menu_settings = _setting_value(
         db,
