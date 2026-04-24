@@ -1,16 +1,7 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useMemo, useRef } from 'react';
 import { useAppStore } from './store';
 import { i18n, tx } from './i18n';
 import PinLogin from './components/PinLogin';
-import POS from './components/POS';
-import KDS from './components/KDS';
-import AdminPanel from './components/AdminPanel';
-import TablesPage from './components/TablesPage';
-import PublicReceipt from './components/PublicReceipt';
-import PublicMenu from './components/PublicMenu';
-import CustomerApp from './components/CustomerApp';
-import LandingPage from './components/LandingPage';
-import FeedbackPortal from './components/FeedbackPortal';
 import { LogOut, Wifi, WifiOff, Languages, RotateCcw, Maximize2, Minimize2, MessageCircleQuestion } from 'lucide-react';
 import VirtualKeyboard from './components/VirtualKeyboard';
 import { seedDatabase } from './lib/seeder';
@@ -31,6 +22,16 @@ import { isBackendEnabled } from './api/client';
 import { isPerfDebugEnabled, type PerfEvent } from './lib/perf';
 import { syncPendingOfflineTableOps } from './api/tables';
 import HelpAssistant from './components/HelpAssistant';
+
+const POS = lazy(() => import('./components/POS'));
+const KDS = lazy(() => import('./components/KDS'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+const TablesPage = lazy(() => import('./components/TablesPage'));
+const PublicReceipt = lazy(() => import('./components/PublicReceipt'));
+const PublicMenu = lazy(() => import('./components/PublicMenu'));
+const CustomerApp = lazy(() => import('./components/CustomerApp'));
+const LandingPage = lazy(() => import('./components/LandingPage'));
+const FeedbackPortal = lazy(() => import('./components/FeedbackPortal'));
 
 type AdminView =
   | 'dashboard'
@@ -104,6 +105,17 @@ const DEMO_MODULE_GUIDE_AZ: Record<ModuleKey, string> = {
   landing: 'Landing məzmunu və vizual təqdimat buradan redaktə olunur.',
   database: 'Backup/restore və texniki baza əməliyyatları bu bölmədə icra edilir.',
 };
+
+function AppLoadingShell({ label }: { label: string }) {
+  return (
+    <div className="flex h-full min-h-0 items-center justify-center bg-[#0f1722] px-6 text-center">
+      <div className="rounded-2xl border border-slate-700/60 bg-slate-900/50 px-6 py-5 text-sm text-slate-300 shadow-[0_16px_50px_rgba(0,0,0,0.35)]">
+        <div className="mb-2 text-base font-semibold text-slate-100">{label}</div>
+        <div>{tx('az', 'Modul açılır...', 'Модуль загружается...', 'Module is loading...')}</div>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const user = useAppStore((state) => state.user);
@@ -1158,11 +1170,19 @@ export default function App() {
   }
 
   if (publicPathname === '/menu' || publicPathname === '/menu/') {
-    return <PublicMenu />;
+    return (
+      <Suspense fallback={<AppLoadingShell label={tx(safeLang, 'Menyu açılır', 'Меню открывается', 'Opening menu')} />}>
+        <PublicMenu />
+      </Suspense>
+    );
   }
 
   if (publicPathname === '/landing' || publicPathname === '/landing/') {
-    return <LandingPage />;
+    return (
+      <Suspense fallback={<AppLoadingShell label={tx(safeLang, 'Landing açılır', 'Лендинг открывается', 'Opening landing')} />}>
+        <LandingPage />
+      </Suspense>
+    );
   }
 
   if (publicPathname === '/feedback' || publicPathname === '/feedback/') {
@@ -1171,13 +1191,15 @@ export default function App() {
       String(mappedTenantFromHost || '').trim() ||
       String(activeTenant || '').trim();
     return (
-      <FeedbackPortal
-        tenantId={resolvedFeedbackTenant}
-        saleId={feedbackParams.saleId}
-        receiptId={feedbackParams.receiptId}
-        receiptToken={feedbackParams.receiptToken}
-        source="receipt"
-      />
+      <Suspense fallback={<AppLoadingShell label={tx(safeLang, 'Feedback açılır', 'Открывается feedback', 'Opening feedback')} />}>
+        <FeedbackPortal
+          tenantId={resolvedFeedbackTenant}
+          saleId={feedbackParams.saleId}
+          receiptId={feedbackParams.receiptId}
+          receiptToken={feedbackParams.receiptToken}
+          source="receipt"
+        />
+      </Suspense>
     );
   }
 
@@ -1185,15 +1207,27 @@ export default function App() {
   // Keep this check after explicit public path handlers (e.g. /feedback),
   // because feedback links also carry r/t query params.
   if (publicReceiptParams.receiptId) {
-    return <PublicReceipt receiptId={publicReceiptParams.receiptId} token={publicReceiptParams.token} />;
+    return (
+      <Suspense fallback={<AppLoadingShell label={tx(safeLang, 'Çek açılır', 'Чек открывается', 'Opening receipt')} />}>
+        <PublicReceipt receiptId={publicReceiptParams.receiptId} token={publicReceiptParams.token} />
+      </Suspense>
+    );
   }
 
   if (customerAppParams.join || (customerAppParams.cardId && customerAppParams.token)) {
-    return <CustomerApp cardId={customerAppParams.cardId} token={customerAppParams.token} joinMode={customerAppParams.join} />;
+    return (
+      <Suspense fallback={<AppLoadingShell label={tx(safeLang, 'Müştəri tətbiqi açılır', 'Клиентское приложение открывается', 'Opening customer app')} />}>
+        <CustomerApp cardId={customerAppParams.cardId} token={customerAppParams.token} joinMode={customerAppParams.join} />
+      </Suspense>
+    );
   }
 
   if (hostMode === 'landing') {
-    return <LandingPage />;
+    return (
+      <Suspense fallback={<AppLoadingShell label={tx(safeLang, 'Landing açılır', 'Лендинг открывается', 'Opening landing')} />}>
+        <LandingPage />
+      </Suspense>
+    );
   }
 
   if (!hasValidUser) {
@@ -1482,30 +1516,32 @@ export default function App() {
 
         <div className="relative min-h-0 flex-1 overflow-hidden">
           <AppErrorBoundary>
-            {mountedModules.includes('pos') && (
-              <div className={`${resolvedModule === 'pos' ? 'flex h-full min-h-0 flex-col' : 'hidden'}`}>
-                <POS key={`pos:${moduleTenantKey}`} isActive={resolvedModule === 'pos'} />
-              </div>
-            )}
-            {mountedModules.includes('kds') && (
-              <div className={`${resolvedModule === 'kds' ? 'flex h-full min-h-0 flex-col' : 'hidden'}`}>
-                <KDS key={`kds:${moduleTenantKey}`} isActive={resolvedModule === 'kds'} />
-              </div>
-            )}
-            {mountedModules.includes('tables') && (
-              <div className={`${resolvedModule === 'tables' ? 'flex h-full min-h-0 flex-col' : 'hidden'}`}>
-                <TablesPage key={`tables:${moduleTenantKey}`} isActive={resolvedModule === 'tables'} />
-              </div>
-            )}
-            {mountedModules.some((moduleKey) => !['pos', 'kds', 'tables'].includes(moduleKey)) && (
-              <div className={`${!['pos', 'kds', 'tables'].includes(resolvedModule) ? 'flex h-full min-h-0 flex-col' : 'hidden'}`}>
-                <AdminPanel
-                  key={`admin:${moduleTenantKey}`}
-                  externalTab={resolvedModule as AdminView}
-                  isActive={!['pos', 'kds', 'tables'].includes(resolvedModule)}
-                />
-              </div>
-            )}
+            <Suspense fallback={<AppLoadingShell label={tx(safeLang, 'Modul açılır', 'Модуль открывается', 'Opening module')} />}>
+              {mountedModules.includes('pos') && (
+                <div className={`${resolvedModule === 'pos' ? 'flex h-full min-h-0 flex-col' : 'hidden'}`}>
+                  <POS key={`pos:${moduleTenantKey}`} isActive={resolvedModule === 'pos'} />
+                </div>
+              )}
+              {mountedModules.includes('kds') && (
+                <div className={`${resolvedModule === 'kds' ? 'flex h-full min-h-0 flex-col' : 'hidden'}`}>
+                  <KDS key={`kds:${moduleTenantKey}`} isActive={resolvedModule === 'kds'} />
+                </div>
+              )}
+              {mountedModules.includes('tables') && (
+                <div className={`${resolvedModule === 'tables' ? 'flex h-full min-h-0 flex-col' : 'hidden'}`}>
+                  <TablesPage key={`tables:${moduleTenantKey}`} isActive={resolvedModule === 'tables'} />
+                </div>
+              )}
+              {mountedModules.some((moduleKey) => !['pos', 'kds', 'tables'].includes(moduleKey)) && (
+                <div className={`${!['pos', 'kds', 'tables'].includes(resolvedModule) ? 'flex h-full min-h-0 flex-col' : 'hidden'}`}>
+                  <AdminPanel
+                    key={`admin:${moduleTenantKey}`}
+                    externalTab={resolvedModule as AdminView}
+                    isActive={!['pos', 'kds', 'tables'].includes(resolvedModule)}
+                  />
+                </div>
+              )}
+            </Suspense>
           </AppErrorBoundary>
         </div>
 
