@@ -436,6 +436,8 @@ export const authApi = {
     return apiRequest<any>('/api/v1/auth/me', {
       method: 'GET',
       tenantId: null,
+      timeoutMs: 5000,
+      retryCount: 0,
     });
   },
 

@@ -253,17 +253,24 @@ export default function App() {
     const syncSession = async () => {
       const extractErrorMessage = (error: unknown) =>
         String(error instanceof Error ? error.message : error || '').toLowerCase();
+      const isTransientSessionError = (message: string) =>
+        message.includes('tenant not configured') ||
+        message.includes('backendə qoşulma alınmadı') ||
+        message.includes('failed to fetch') ||
+        message.includes('sorğu vaxt limiti keçdi');
+      const isHardAuthFailure = (message: string) =>
+        message.includes('invalid token') ||
+        message.includes('unauthorized') ||
+        message.includes('token revoked') ||
+        message.includes('tenant mismatch') ||
+        message.includes('user not found');
       try {
         let me: any = null;
         try {
           me = await authApi.me();
         } catch (firstError) {
           const message = extractErrorMessage(firstError);
-          const transientTenantFailure =
-            message.includes('tenant not configured') ||
-            message.includes('backendə qoşulma alınmadı') ||
-            message.includes('failed to fetch') ||
-            message.includes('sorğu vaxt limiti keçdi');
+          const transientTenantFailure = isTransientSessionError(message);
           if (!transientTenantFailure) throw firstError;
           await new Promise((resolve) => window.setTimeout(resolve, 700));
           me = await authApi.me();
@@ -283,9 +290,14 @@ export default function App() {
             tenant_id: nextTenant,
           });
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
-          logout();
+          const message = extractErrorMessage(error);
+          if (isHardAuthFailure(message)) {
+            logout();
+          } else if (!isTransientSessionError(message)) {
+            logout();
+          }
         }
       } finally {
         if (!cancelled) setSessionChecking(false);
