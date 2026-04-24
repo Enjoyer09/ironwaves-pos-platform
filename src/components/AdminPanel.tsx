@@ -11,6 +11,7 @@ import ConfirmModal from './ConfirmModal';
 import { getDB } from '../lib/db_sim';
 import { verifyLocalCredential } from '../lib/local_auth';
 import { formatServerUtcDateTime } from '../lib/time';
+import { prepareImageDataUrl } from '../lib/image_upload';
 
 const FinancePanel = lazy(() => import('./admin/FinancePanel'));
 const InventoryPanel = lazy(() => import('./admin/InventoryPanel'));
@@ -252,24 +253,30 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
     setEditMenuModal(null);
   };
 
-  const handleEditMenuImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleEditMenuImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setEditMenuModal((prev) => (prev ? { ...prev, image_url: String(reader.result || '') } : prev));
-    };
-    reader.readAsDataURL(file);
+    try {
+      const dataUrl = await prepareImageDataUrl(file);
+      setEditMenuModal((prev) => (prev ? { ...prev, image_url: dataUrl } : prev));
+    } catch (error: any) {
+      notify('error', error?.message || tx(lang, 'Şəkil yüklənmədi', 'Изображение не загрузилось', 'Image upload failed'));
+    } finally {
+      e.target.value = '';
+    }
   };
 
-  const handleMenuImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMenuImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setNewItemImageUrl(String(reader.result || ''));
-    };
-    reader.readAsDataURL(file);
+    try {
+      const dataUrl = await prepareImageDataUrl(file);
+      setNewItemImageUrl(dataUrl);
+    } catch (error: any) {
+      notify('error', error?.message || tx(lang, 'Şəkil yüklənmədi', 'Изображение не загрузилось', 'Image upload failed'));
+    } finally {
+      e.target.value = '';
+    }
   };
 
   const removeNote = (noteId: number) => {

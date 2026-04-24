@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 import { get_settings_live, update_customer_app_settings_live } from '../../api/settings';
+import { prepareImageDataUrl } from '../../lib/image_upload';
 
 const CRM_MEMBER_TYPES = [
   { value: 'golden', label: 'Golden (5%)', discount: 5 },
@@ -112,11 +113,14 @@ export default function CustomerAppPanel() {
     window.setTimeout(() => setSuccess(''), 2500);
   };
 
-  const handleImage = (field: 'hero_image_url' | 'background_image_url', file?: File | null) => {
+  const handleImage = async (field: 'hero_image_url' | 'background_image_url', file?: File | null) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setForm((prev) => ({ ...prev, [field]: String(reader.result || '') }));
-    reader.readAsDataURL(file);
+    try {
+      const dataUrl = await prepareImageDataUrl(file);
+      setForm((prev) => ({ ...prev, [field]: dataUrl }));
+    } catch (error: any) {
+      notify('error', error?.message || tx(lang, 'Şəkil yüklənmədi', 'Изображение не загрузилось', 'Image upload failed'));
+    }
   };
 
   const save = async () => {

@@ -93,6 +93,28 @@ from app.security import hash_password, hash_token, verify_password
 
 router = APIRouter(prefix="/api/v1/ops", tags=["operations"])
 
+MAX_IMAGE_URL_LENGTH = 2048
+
+
+def _normalize_image_url(value: str | None) -> str:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return ""
+    if normalized.startswith("data:"):
+        raise HTTPException(status_code=400, detail="Large embedded images are not allowed. Please use a smaller image or URL.")
+    if len(normalized) > MAX_IMAGE_URL_LENGTH:
+        raise HTTPException(status_code=400, detail=f"Image URL too long (max {MAX_IMAGE_URL_LENGTH} chars)")
+    return normalized
+
+
+def _normalize_screenshot_items(items) -> list[dict]:
+    rows = []
+    for item in list(items or []):
+        row = dict(item or {})
+        row["image_url"] = _normalize_image_url(row.get("image_url"))
+        rows.append(row)
+    return rows
+
 
 def _utcnow() -> datetime:
     # Keep stored timestamps UTC-naive (existing DB model expectation) without deprecated utcnow().
@@ -232,7 +254,7 @@ def _normalize_landing_settings(value: dict | None) -> dict:
     for item in screenshots[:8]:
         if not isinstance(item, dict):
             continue
-        image_url = str(item.get("image_url") or "").strip()
+        image_url = _normalize_image_url(item.get("image_url"))
         if not image_url:
             continue
         cleaned_screenshots.append(
@@ -248,7 +270,12 @@ def _normalize_landing_settings(value: dict | None) -> dict:
         )
     if not cleaned_screenshots:
         cleaned_screenshots = DEFAULT_LANDING_SETTINGS["screenshot_items"]
-    return {**DEFAULT_LANDING_SETTINGS, **raw, "screenshot_items": cleaned_screenshots}
+    return {
+        **DEFAULT_LANDING_SETTINGS,
+        **raw,
+        "hero_image_url": _normalize_image_url(raw.get("hero_image_url")),
+        "screenshot_items": cleaned_screenshots,
+    }
 
 POS_RIGHT_WIDGET_KEYS = ["customer", "discount", "orderType", "table", "cartItems", "cartSummary", "payments"]
 POS_LEFT_WIDGET_KEYS = ["menuHeader", "search", "categories", "productGrid"]
@@ -2031,7 +2058,7 @@ def update_qr_menu_settings(
         "background_color": str(payload.get("background_color") or current.get("background_color") or "#efe2c1").strip() or "#efe2c1",
         "surface_color": str(payload.get("surface_color") or current.get("surface_color") or "#fff7e8").strip() or "#fff7e8",
         "text_color": str(payload.get("text_color") or current.get("text_color") or "#2b1708").strip() or "#2b1708",
-        "hero_image_url": str(payload.get("hero_image_url") or current.get("hero_image_url") or "").strip(),
+        "hero_image_url": _normalize_image_url(payload.get("hero_image_url") or current.get("hero_image_url") or ""),
         "poster_background_color": str(payload.get("poster_background_color") or current.get("poster_background_color") or "#d59b2d").strip() or "#d59b2d",
         "logo_shape": str(payload.get("logo_shape") or current.get("logo_shape") or "rounded").strip() or "rounded",
     }
@@ -2209,8 +2236,8 @@ def update_customer_app_settings(
         "app_name": str(payload.get("app_name") or "").strip() or "Loyalty Club",
         "hero_title": str(payload.get("hero_title") or "").strip() or "Xoş gəldiniz",
         "hero_subtitle": str(payload.get("hero_subtitle") or "").strip() or "Bonuslarınızı, kampaniyaları və reward-ları bir yerdə izləyin.",
-        "hero_image_url": str(payload.get("hero_image_url") or "").strip(),
-        "background_image_url": str(payload.get("background_image_url") or "").strip(),
+        "hero_image_url": _normalize_image_url(payload.get("hero_image_url") or ""),
+        "background_image_url": _normalize_image_url(payload.get("background_image_url") or ""),
         "background_color": str(payload.get("background_color") or "").strip() or "#0b1220",
         "points_label": str(payload.get("points_label") or "").strip() or "Ulduz",
         "reward_name": str(payload.get("reward_name") or "").strip() or "Reward",
@@ -3228,7 +3255,7 @@ def put_business_profile(
             phone=payload.phone or None,
             address=payload.address or None,
             website=payload.website or None,
-            logo_url=payload.logo_url or None,
+            logo_url=_normalize_image_url(payload.logo_url) or None,
             receipt_footer=payload.receipt_footer or None,
         )
         db.add(row)
@@ -3237,7 +3264,7 @@ def put_business_profile(
         row.phone = payload.phone or None
         row.address = payload.address or None
         row.website = payload.website or None
-        row.logo_url = payload.logo_url or None
+        row.logo_url = _normalize_image_url(payload.logo_url) or None
         row.receipt_footer = payload.receipt_footer or None
     db.commit()
     return {"success": True}

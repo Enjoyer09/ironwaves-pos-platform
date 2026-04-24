@@ -34,6 +34,7 @@ import {
 import { get_menu_items_live } from '../../api/menu';
 import { get_inventory_items_live } from '../../api/inventory';
 import ConfirmModal from '../ConfirmModal';
+import { prepareImageDataUrl } from '../../lib/image_upload';
 
 type RoleModules = { staff: string[]; manager: string[]; kitchen: string[] };
 
@@ -508,20 +509,30 @@ export default function SettingsPanel() {
     };
   }, [profile?.company_name, profile?.qr_base_url, qrMenuSettings.poster_title, qrMenuSettings.poster_subtitle, qrMenuSettings.background_color, qrMenuSettings.surface_color, qrMenuSettings.text_color, qrMenuSettings.poster_background_color]);
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !profile) return;
-    const reader = new FileReader();
-    reader.onload = () => setProfile((prev: any) => ({ ...(prev || {}), logo_url: reader.result as string }));
-    reader.readAsDataURL(file);
+    try {
+      const dataUrl = await prepareImageDataUrl(file);
+      setProfile((prev: any) => ({ ...(prev || {}), logo_url: dataUrl }));
+    } catch (error: any) {
+      notify('error', error?.message || tx(lang, 'Şəkil yüklənmədi', 'Изображение не загрузилось', 'Image upload failed'));
+    } finally {
+      e.target.value = '';
+    }
   };
 
-  const handleQrHeroUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleQrHeroUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setQrMenuSettings((prev) => ({ ...prev, hero_image_url: String(reader.result || '') }));
-    reader.readAsDataURL(file);
+    try {
+      const dataUrl = await prepareImageDataUrl(file);
+      setQrMenuSettings((prev) => ({ ...prev, hero_image_url: dataUrl }));
+    } catch (error: any) {
+      notify('error', error?.message || tx(lang, 'Şəkil yüklənmədi', 'Изображение не загрузилось', 'Image upload failed'));
+    } finally {
+      e.target.value = '';
+    }
   };
 
   const saveBusinessProfile = async () => {

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 import { get_landing_studio_live, publish_landing_live, update_landing_draft_live } from '../../api/settings';
+import { prepareImageDataUrl } from '../../lib/image_upload';
 
 const DEFAULT_SCREENSHOTS = [
   {
@@ -147,23 +148,27 @@ export default function LandingPanel() {
       return { ...prev, screenshot_items: rows };
     });
 
-  const readImageAsDataUrl = (file: File, cb: (url: string) => void) => {
-    const reader = new FileReader();
-    reader.onload = () => cb(String(reader.result || ''));
-    reader.readAsDataURL(file);
-  };
-
-  const handleHeroImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleHeroImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    readImageAsDataUrl(file, (url) => setField('hero_image_url', url));
+    try {
+      const dataUrl = await prepareImageDataUrl(file);
+      setField('hero_image_url', dataUrl);
+    } catch (error: any) {
+      notify('error', error?.message || tx(lang, 'Şəkil yüklənmədi', 'Изображение не загрузилось', 'Image upload failed'));
+    }
     e.target.value = '';
   };
 
-  const handleShotImageUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleShotImageUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    readImageAsDataUrl(file, (url) => setShot(index, 'image_url', url));
+    try {
+      const dataUrl = await prepareImageDataUrl(file);
+      setShot(index, 'image_url', dataUrl);
+    } catch (error: any) {
+      notify('error', error?.message || tx(lang, 'Şəkil yüklənmədi', 'Изображение не загрузилось', 'Image upload failed'));
+    }
     e.target.value = '';
   };
 
