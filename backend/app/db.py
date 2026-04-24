@@ -19,7 +19,11 @@ engine = create_engine(
 )
 
 
-if settings.database_url.startswith("postgresql") and int(settings.db_statement_timeout_ms or 0) > 0:
+if (
+    settings.database_url.startswith("postgresql")
+    and int(settings.db_statement_timeout_ms or 0) > 0
+    and bool(settings.db_apply_statement_timeout_on_connect)
+):
     @event.listens_for(engine, "connect")
     def _set_statement_timeout(dbapi_connection, _connection_record):
         # Neon pooler rejects startup-package options like "-c statement_timeout=...".
