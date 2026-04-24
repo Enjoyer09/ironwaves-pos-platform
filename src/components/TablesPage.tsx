@@ -26,7 +26,9 @@ export default function TablesPage() {
   const [tables, setTables] = useState<any[]>([]);
   const [kitchenOrders, setKitchenOrders] = useState<any[]>([]);
   const [menuCatalog, setMenuCatalog] = useState<any[]>([]);
-  const { user, lang, notify } = useAppStore();
+  const user = useAppStore((state) => state.user);
+  const lang = useAppStore((state) => state.lang);
+  const notify = useAppStore((state) => state.notify);
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [newTableName, setNewTableName] = useState('');
@@ -103,6 +105,7 @@ export default function TablesPage() {
   const realtimeRefreshTimerRef = useRef<number | null>(null);
   const realtimeRefreshInFlightRef = useRef(false);
   const realtimeRefreshPendingRef = useRef(false);
+  const realtimeRefreshScopesRef = useRef<Set<'tables' | 'kitchen' | 'floor' | 'reservations' | 'detail'>>(new Set());
   const activeFloorIdRef = useRef<string>('');
   const viewTableIdRef = useRef<string | null>(null);
   const workspaceViewRef = useRef<'floor' | 'reservations'>('floor');
@@ -515,31 +518,43 @@ export default function TablesPage() {
         const currentFloorId = activeFloorIdRef.current;
         const currentViewTableId = viewTableIdRef.current;
         const currentWorkspace = workspaceViewRef.current;
+        const scopes = realtimeRefreshScopesRef.current.size
+          ? Array.from(realtimeRefreshScopesRef.current)
+          : ['tables', 'kitchen', 'floor', 'reservations', 'detail'];
+        realtimeRefreshScopesRef.current = new Set();
 
         const tasks: Array<Promise<any>> = [
-          get_tables_live(tenant_id)
-            .then((nextTables) => setTables(Array.isArray(nextTables) ? nextTables : []))
-            .catch(() => {}),
-          get_kitchen_orders_live(tenant_id)
-            .then((nextOrders) => setKitchenOrders(Array.isArray(nextOrders) ? nextOrders : []))
-            .catch(() => {}),
         ];
+        if (scopes.includes('tables')) {
+          tasks.push(
+            get_tables_live(tenant_id)
+              .then((nextTables) => setTables(Array.isArray(nextTables) ? nextTables : []))
+              .catch(() => {}),
+          );
+        }
+        if (scopes.includes('kitchen')) {
+          tasks.push(
+            get_kitchen_orders_live(tenant_id)
+              .then((nextOrders) => setKitchenOrders(Array.isArray(nextOrders) ? nextOrders : []))
+              .catch(() => {}),
+          );
+        }
 
-        if (currentFloorId) {
+        if (scopes.includes('floor') && currentFloorId) {
           tasks.push(
             get_floor_state_live(tenant_id, currentFloorId)
               .then((state) => setFloorTables(Array.isArray(state?.tables) ? state.tables : []))
               .catch(() => {}),
           );
         }
-        if (currentWorkspace === 'reservations') {
+        if (scopes.includes('reservations') && currentWorkspace === 'reservations') {
           tasks.push(
             get_reservations_live(tenant_id, reservationDate)
               .then((rows) => setReservations(Array.isArray(rows) ? rows : []))
               .catch(() => {}),
           );
         }
-        if (currentViewTableId) {
+        if (scopes.includes('detail') && currentViewTableId) {
           tasks.push(
             get_table_detail_live(tenant_id, currentViewTableId)
               .then((next) => setTableDetailRecord(next))
@@ -556,7 +571,8 @@ export default function TablesPage() {
       }
     };
 
-    const scheduleRealtimeRefresh = () => {
+    const scheduleRealtimeRefresh = (scopes: Array<'tables' | 'kitchen' | 'floor' | 'reservations' | 'detail'>) => {
+      scopes.forEach((scope) => realtimeRefreshScopesRef.current.add(scope));
       if (realtimeRefreshTimerRef.current) window.clearTimeout(realtimeRefreshTimerRef.current);
       realtimeRefreshTimerRef.current = window.setTimeout(() => {
         void runRealtimeRefresh();
@@ -566,11 +582,24 @@ export default function TablesPage() {
     const unsubscribe = subscribeTenantRealtime(tenant_id, (message) => {
       const event = String(message.event || '');
       if (!['floor.updated', 'reservation.updated', 'table.updated', 'check.updated', 'kitchen.updated'].includes(event)) return;
-      scheduleRealtimeRefresh();
+      if (event === 'reservation.updated') {
+        scheduleRealtimeRefresh(['reservations', 'floor']);
+        return;
+      }
+      if (event === 'kitchen.updated') {
+        scheduleRealtimeRefresh(['kitchen', 'tables', 'detail']);
+        return;
+      }
+      if (event === 'floor.updated') {
+        scheduleRealtimeRefresh(['floor', 'tables']);
+        return;
+      }
+      scheduleRealtimeRefresh(['tables', 'kitchen', 'detail', 'floor']);
     });
     return () => {
       if (realtimeRefreshTimerRef.current) window.clearTimeout(realtimeRefreshTimerRef.current);
       realtimeRefreshPendingRef.current = false;
+      realtimeRefreshScopesRef.current = new Set();
       unsubscribe();
     };
   }, [tenant_id, reservationDate]);

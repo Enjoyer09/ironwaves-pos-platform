@@ -192,7 +192,9 @@ const normalizeRewardClaimCode = (value: string) => {
 };
 
 export default function POS() {
-  const { user, lang, notify } = useAppStore();
+  const user = useAppStore((state) => state.user);
+  const lang = useAppStore((state) => state.lang);
+  const notify = useAppStore((state) => state.notify);
   const safeLang = (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az';
   const t = i18n[safeLang];
   const tenantId = user?.tenant_id || 'tenant_default';
@@ -238,6 +240,8 @@ export default function POS() {
   const receiptIframeRef = useRef<HTMLIFrameElement | null>(null);
   const refreshInFlightRef = useRef(false);
   const lastRefreshAtRef = useRef(0);
+  const lastMenuRefreshAtRef = useRef(0);
+  const lastTablesRefreshAtRef = useRef(0);
   const pendingRefreshTimerRef = useRef<number | null>(null);
   const lastPersistedCartsRef = useRef('');
   const lastPersistedCtxRef = useRef('');
@@ -628,29 +632,48 @@ export default function POS() {
     });
   };
 
-  const refreshData = async (force = false) => {
+  const refreshData = async (options: { force?: boolean; menu?: boolean; tables?: boolean } = {}) => {
+    const force = options.force === true;
+    const shouldRefreshMenu = options.menu !== false;
+    const shouldRefreshTables = options.tables !== false;
     const now = Date.now();
     if (!force && (refreshInFlightRef.current || now - lastRefreshAtRef.current < 2500)) return;
     refreshInFlightRef.current = true;
     lastRefreshAtRef.current = now;
     try {
-      const nextMenu = isBackendEnabled()
-        ? await apiRequest<any[]>('/api/v1/pos/menu')
-        : get_menu_for_pos(tenantId);
-      const nextTables = await get_tables_live(tenantId);
-      setMenu(Array.isArray(nextMenu) ? nextMenu : []);
-      setTables(Array.isArray(nextTables) ? nextTables : []);
-      if (Array.isArray(nextMenu)) {
-        void cacheMenuOffline(tenantId, nextMenu);
+      const tasks: Promise<void>[] = [];
+      if (shouldRefreshMenu && (force || now - lastMenuRefreshAtRef.current >= 15000)) {
+        tasks.push((async () => {
+          const nextMenu = isBackendEnabled()
+            ? await apiRequest<any[]>('/api/v1/pos/menu')
+            : get_menu_for_pos(tenantId);
+          setMenu(Array.isArray(nextMenu) ? nextMenu : []);
+          if (Array.isArray(nextMenu)) {
+            lastMenuRefreshAtRef.current = Date.now();
+            void cacheMenuOffline(tenantId, nextMenu);
+          }
+        })());
       }
+      if (shouldRefreshTables && (force || now - lastTablesRefreshAtRef.current >= 1200)) {
+        tasks.push((async () => {
+          const nextTables = await get_tables_live(tenantId);
+          setTables(Array.isArray(nextTables) ? nextTables : []);
+          lastTablesRefreshAtRef.current = Date.now();
+        })());
+      }
+      await Promise.all(tasks);
       void refreshOfflineState();
     } catch (e) {
       console.error('POS refreshData failed:', e);
       logUiError(tenantId, 'pos', e instanceof Error ? e.message : String(e), { phase: 'refreshData' });
-      void getCachedMenuOffline(tenantId).then((cached) => {
-        setMenu(Array.isArray(cached) ? (cached as any[]) : []);
-      });
-      setTables([]);
+      if (shouldRefreshMenu) {
+        void getCachedMenuOffline(tenantId).then((cached) => {
+          setMenu(Array.isArray(cached) ? (cached as any[]) : []);
+        });
+      }
+      if (shouldRefreshTables) {
+        setTables([]);
+      }
       void refreshOfflineState();
       notify('error', tx(safeLang, 'POS məlumatları yüklənmədi', 'Не удалось загрузить данные POS', 'Failed to load POS data'));
     } finally {
@@ -658,33 +681,43 @@ export default function POS() {
     }
   };
 
-  const scheduleRefreshData = (force = false) => {
+  const scheduleRefreshData = (options: { force?: boolean; menu?: boolean; tables?: boolean } = {}) => {
     if (pendingRefreshTimerRef.current) window.clearTimeout(pendingRefreshTimerRef.current);
     pendingRefreshTimerRef.current = window.setTimeout(() => {
-      void refreshData(force);
-    }, force ? 0 : 350);
+      void refreshData(options);
+    }, options.force ? 0 : 350);
   };
 
   useEffect(() => {
-    void refreshData(true);
+    void refreshData({ force: true, menu: true, tables: true });
   }, [tenantId]);
 
   useEffect(() => {
-    const handleRefresh = () => {
-      scheduleRefreshData();
+    const handleFocus = () => {
+      scheduleRefreshData({ tables: true, menu: false });
       void refreshOfflineState();
     };
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        scheduleRefreshData();
+        scheduleRefreshData({ tables: true, menu: false });
       }
     };
-    window.addEventListener('focus', handleRefresh);
-    window.addEventListener('catalog-updated', handleRefresh as EventListener);
+    const handleCatalogUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ scope?: string; tenant_id?: string }>).detail;
+      if (detail?.tenant_id && detail.tenant_id !== tenantId) return;
+      const scope = String(detail?.scope || 'all').toLowerCase();
+      if (scope === 'menu' || scope === 'all') {
+        scheduleRefreshData({ menu: true, tables: false });
+      } else if (scope === 'tables') {
+        scheduleRefreshData({ tables: true, menu: false });
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('catalog-updated', handleCatalogUpdated as EventListener);
     document.addEventListener('visibilitychange', handleVisibility);
     return () => {
-      window.removeEventListener('focus', handleRefresh);
-      window.removeEventListener('catalog-updated', handleRefresh as EventListener);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('catalog-updated', handleCatalogUpdated as EventListener);
       document.removeEventListener('visibilitychange', handleVisibility);
       if (pendingRefreshTimerRef.current) window.clearTimeout(pendingRefreshTimerRef.current);
     };
@@ -1049,7 +1082,7 @@ export default function POS() {
           logUiError(tenantId, 'pos', error instanceof Error ? error.message : String(error), { phase: 'receipt_render' });
         });
       }, 0);
-      void refreshData();
+      void refreshData({ tables: true, menu: false });
     } catch (error: any) {
         logUiError(tenantId, 'pos', error?.message || String(error), { phase: 'checkout_create_sale' });
         notify('error', error?.message || tx(lang, 'Satış zamanı xəta baş verdi', 'Ошибка при продаже', 'An error occurred during the sale'));
@@ -1071,7 +1104,7 @@ export default function POS() {
       clearCart(activeCart);
       patchCtx({ kitchenSent: true });
       window.dispatchEvent(new CustomEvent('table-order-sent', { detail: { tenant_id: tenantId, table_id: sentTable } }));
-      void refreshData();
+      void refreshData({ tables: true, menu: false });
       notify('success', tx(lang, 'Sifariş mətbəxə göndərildi. Ödəniş üçün masa seçimi saxlanıldı.', 'Заказ отправлен на кухню. Для оплаты стол сохранен.', 'Order sent to the kitchen. The table remains open for payment.'));
     } catch (error: any) {
       logUiError(tenantId, 'pos', error?.message || String(error), { phase: 'send_to_kitchen' });

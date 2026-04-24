@@ -37,7 +37,9 @@ interface AdminPanelProps {
 }
 
 export default function AdminPanel({ externalTab }: AdminPanelProps) {
-  const { user, lang, notify } = useAppStore();
+  const user = useAppStore((state) => state.user);
+  const lang = useAppStore((state) => state.lang);
+  const notify = useAppStore((state) => state.notify);
   const tenant_id = user?.tenant_id || 'tenant_default';
   const currentRole = String(user?.role || '').toLowerCase();
 
