@@ -275,6 +275,8 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   const lastRefreshAtRef = useRef(0);
   const lastMenuRefreshAtRef = useRef(0);
   const lastTablesRefreshAtRef = useRef(0);
+  const lastMenuImagesAtRef = useRef(0);
+  const menuImagesRef = useRef<Map<string, { image_url: string; description: string }>>(new Map());
   const pendingRefreshTimerRef = useRef<number | null>(null);
   const lastPersistedCartsRef = useRef('');
   const lastPersistedCtxRef = useRef('');
@@ -352,6 +354,44 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       },
     }));
   };
+
+  const mergeMenuWithImages = useCallback((items: any[]) => {
+    const imageMeta = menuImagesRef.current;
+    return (Array.isArray(items) ? items : []).map((item) => {
+      const meta = imageMeta.get(String(item?.id || ''));
+      return meta
+        ? {
+            ...item,
+            image_url: meta.image_url,
+            description: meta.description,
+          }
+        : item;
+    });
+  }, []);
+
+  const refreshMenuImages = useCallback(async (force: boolean = false) => {
+    if (!isBackendEnabled()) return;
+    const now = Date.now();
+    if (!force && now - lastMenuImagesAtRef.current < 5 * 60_000) return;
+    try {
+      const images = await apiRequest<Array<{ id: string; image_url: string; description: string }>>('/api/v1/pos/menu/images', {
+        timeoutMs: 7000,
+        retryCount: 0,
+      });
+      const nextMap = new Map<string, { image_url: string; description: string }>();
+      (images || []).forEach((row) => {
+        nextMap.set(String(row?.id || ''), {
+          image_url: String(row?.image_url || ''),
+          description: String(row?.description || ''),
+        });
+      });
+      menuImagesRef.current = nextMap;
+      lastMenuImagesAtRef.current = now;
+      setMenu((prev) => mergeMenuWithImages(prev));
+    } catch {
+      // Non-fatal: menu tiles can render without images.
+    }
+  }, [mergeMenuWithImages]);
 
 
   const clearCart = (key: 'S1' | 'S2' | 'S3' = activeCart) => {
@@ -684,17 +724,18 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       const tasks: Promise<void>[] = [];
       if (shouldRefreshMenu && (force || now - lastMenuRefreshAtRef.current >= 15000)) {
         tasks.push((async () => {
-          const nextMenu = isBackendEnabled()
+          const liteMenu = isBackendEnabled()
             ? await apiRequest<any[]>('/api/v1/pos/menu', {
               timeoutMs: 5000,
               retryCount: 0,
             })
             : get_menu_for_pos(tenantId);
-          setMenu(Array.isArray(nextMenu) ? nextMenu : []);
-          if (Array.isArray(nextMenu)) {
+          const nextMenu = mergeMenuWithImages(Array.isArray(liteMenu) ? liteMenu : []);
+          setMenu(nextMenu);
+          if (Array.isArray(liteMenu)) {
             lastMenuRefreshAtRef.current = Date.now();
-            writeSnapshot(posMenuSnapshotKey, nextMenu);
-            void cacheMenuOffline(tenantId, nextMenu);
+            writeSnapshot(posMenuSnapshotKey, liteMenu);
+            void cacheMenuOffline(tenantId, liteMenu);
           }
         })());
       }
@@ -716,11 +757,11 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       if (shouldRefreshMenu) {
         void getCachedMenuOffline(tenantId).then((cached) => {
           if (Array.isArray(cached) && cached.length > 0) {
-            setMenu(cached as any[]);
+            setMenu(mergeMenuWithImages(cached as any[]));
             writeSnapshot(posMenuSnapshotKey, cached);
             return;
           }
-          setMenu(readSnapshot<any[]>(posMenuSnapshotKey, []));
+          setMenu(mergeMenuWithImages(readSnapshot<any[]>(posMenuSnapshotKey, [])));
         });
       }
       if (shouldRefreshTables) {
@@ -744,17 +785,18 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     const cachedMenu = readSnapshot<any[]>(posMenuSnapshotKey, []);
     const cachedTables = readSnapshot<any[]>(posTablesSnapshotKey, []);
     if (Array.isArray(cachedMenu) && cachedMenu.length > 0) {
-      setMenu(cachedMenu);
+      setMenu(mergeMenuWithImages(cachedMenu));
     }
     if (Array.isArray(cachedTables) && cachedTables.length > 0) {
       setTables(cachedTables);
     }
-  }, [posMenuSnapshotKey, posTablesSnapshotKey]);
+  }, [mergeMenuWithImages, posMenuSnapshotKey, posTablesSnapshotKey]);
 
   useEffect(() => {
     if (!isActive) return;
+    void refreshMenuImages(true);
     void refreshData({ force: true, menu: true, tables: true });
-  }, [tenantId, isActive]);
+  }, [tenantId, isActive, refreshMenuImages]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -769,6 +811,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     };
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
+        void refreshMenuImages();
         scheduleRefreshData({ tables: true, menu: false });
       }
     };
@@ -777,6 +820,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       if (detail?.tenant_id && detail.tenant_id !== tenantId) return;
       const scope = String(detail?.scope || 'all').toLowerCase();
       if (scope === 'menu' || scope === 'all') {
+        void refreshMenuImages(true);
         scheduleRefreshData({ menu: true, tables: false });
       } else if (scope === 'tables') {
         scheduleRefreshData({ tables: true, menu: false });
@@ -791,7 +835,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       document.removeEventListener('visibilitychange', handleVisibility);
       if (pendingRefreshTimerRef.current) window.clearTimeout(pendingRefreshTimerRef.current);
     };
-  }, [tenantId, isActive]);
+  }, [tenantId, isActive, refreshMenuImages]);
 
   useEffect(() => {
     if (!isActive) return;

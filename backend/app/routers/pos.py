@@ -203,9 +203,32 @@ def get_menu(
             "category": row.category,
             "price": str(row.price),
             "is_coffee": row.is_coffee,
+            "image_url": "",
+            "description": "",
+            "is_active": row.is_active,
+        }
+        for row in rows
+    ]
+
+
+@router.get("/menu/images")
+def get_menu_images(
+    response: Response,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user=Depends(get_current_user),
+):
+    response.headers["Cache-Control"] = "private, max-age=300, stale-while-revalidate=3600"
+    rows = (
+        db.query(MenuItem.id, MenuItem.image_url, MenuItem.description)
+        .filter(MenuItem.tenant_id == tenant.id, MenuItem.is_active == True)
+        .all()
+    )
+    return [
+        {
+            "id": row.id,
             "image_url": row.image_url or "",
             "description": row.description or "",
-            "is_active": row.is_active,
         }
         for row in rows
     ]
