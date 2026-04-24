@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowDown, ArrowUp, Grip, LayoutTemplate, Lock, Monitor, ShieldCheck, Tablet } from 'lucide-react';
 import { useAppStore } from '../../store';
 import { get_settings_live, publish_pos_layout_draft_live, reset_pos_layout_draft_live, update_pos_layout_draft_live } from '../../api/settings';
@@ -228,7 +228,9 @@ const INDUSTRY_PRESETS = [
 ] as const;
 
 export default function PosBuilderPanel() {
-  const { user, lang, notify } = useAppStore();
+  const user = useAppStore((state) => state.user);
+  const lang = useAppStore((state) => state.lang);
+  const notify = useAppStore((state) => state.notify);
   const tenantId = user?.tenant_id || 'tenant_default';
   const [layout, setLayout] = useState<PosLayoutSettings>(DEFAULT_LAYOUT);
   const [isSaving, setIsSaving] = useState(false);
@@ -593,17 +595,25 @@ export default function PosBuilderPanel() {
     }
   };
 
-  const widgetLabel = (key: string) => {
-    const row = WIDGETS.find((widget) => widget.key === key);
-    if (!row) return key;
-    return lang === 'ru' ? row.labelRu : lang === 'en' ? row.labelEn : row.labelAz;
-  };
+  const widgetLabels = useMemo(() => {
+    const map = new Map<string, string>();
+    WIDGETS.forEach((widget) => {
+      map.set(widget.key, lang === 'ru' ? widget.labelRu : lang === 'en' ? widget.labelEn : widget.labelAz);
+    });
+    return map;
+  }, [lang]);
 
-  const leftWidgetLabel = (key: string) => {
-    const row = LEFT_WIDGETS.find((widget) => widget.key === key);
-    if (!row) return key;
-    return lang === 'ru' ? row.labelRu : lang === 'en' ? row.labelEn : row.labelAz;
-  };
+  const leftWidgetLabels = useMemo(() => {
+    const map = new Map<string, string>();
+    LEFT_WIDGETS.forEach((widget) => {
+      map.set(widget.key, lang === 'ru' ? widget.labelRu : lang === 'en' ? widget.labelEn : widget.labelAz);
+    });
+    return map;
+  }, [lang]);
+
+  const widgetLabel = useCallback((key: string) => widgetLabels.get(key) || key, [widgetLabels]);
+
+  const leftWidgetLabel = useCallback((key: string) => leftWidgetLabels.get(key) || key, [leftWidgetLabels]);
 
   const sizeLabel = (key: 'compact' | 'comfortable' | 'expanded') => {
     const row = SIZE_OPTIONS.find((item) => item.key === key);
