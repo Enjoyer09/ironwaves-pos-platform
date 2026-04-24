@@ -11,12 +11,14 @@ class Settings(BaseSettings):
     sentry_traces_sample_rate: float = 0.0
     sentry_profiles_sample_rate: float = 0.0
     metrics_bearer_token: str | None = None
+    log_level: str = "INFO"
+    thread_pool_tokens: int = 64
 
     database_url: str
-    db_pool_size: int = 5
-    db_max_overflow: int = 10
-    db_pool_timeout: int = 15
-    db_pool_recycle_seconds: int = 1800
+    db_pool_size: int = 10
+    db_max_overflow: int = 20
+    db_pool_timeout: int = 10
+    db_pool_recycle_seconds: int = 240
     db_pool_pre_ping: bool = True
     db_statement_timeout_ms: int = 30000
     startup_schema_guard_enabled: bool = True
