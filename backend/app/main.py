@@ -9,6 +9,7 @@ import time
 import traceback
 import uuid
 
+import anyio.to_thread
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,6 +29,8 @@ from app.tenant import resolve_tenant_from_request
 def _init_error_tracking() -> None:
     dsn = str(settings.sentry_dsn or "").strip()
     if not dsn:
+        return
+    if str(settings.app_env or "").lower() not in {"production", "staging"}:
         return
     try:
         import sentry_sdk
@@ -52,7 +55,7 @@ def _init_error_tracking() -> None:
 
 _init_error_tracking()
 app = FastAPI(title=settings.app_name)
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+logging.basicConfig(level=getattr(logging, str(settings.log_level or "INFO").upper(), logging.INFO), format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("ironwaves.api")
 
 try:
@@ -185,9 +188,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-_rate_limit_bucket: dict[str, list[float]] = {}
+_rate_limit_bucket: dict[str, tuple[int, int]] = {}
 _redis_rate_limiter = None
-_rate_limit_last_cleanup = 0.0
+_SKIP_RATE_LIMIT_PREFIXES = ("/health", "/metrics", "/static", "/assets")
 
 
 def _assert_redis_available_for_production() -> None:
@@ -243,21 +246,14 @@ def _get_redis_rate_limiter():
 
 
 def _in_memory_rate_limit(bucket_key: str, limit: int) -> bool:
-    global _rate_limit_last_cleanup
-    now_ts = time.time()
-    if now_ts - _rate_limit_last_cleanup > 120 or len(_rate_limit_bucket) > 5000:
-        stale_keys = [
-            key for key, stamps in _rate_limit_bucket.items()
-            if not any(now_ts - stamp < 60 for stamp in stamps)
-        ]
-        for key in stale_keys:
-            _rate_limit_bucket.pop(key, None)
-        _rate_limit_last_cleanup = now_ts
-    recent = [stamp for stamp in _rate_limit_bucket.get(bucket_key, []) if now_ts - stamp < 60]
-    if len(recent) >= limit:
+    now_window = int(time.time() // 60)
+    current_count, current_window = _rate_limit_bucket.get(bucket_key, (0, now_window))
+    if current_window != now_window:
+        current_count = 0
+        current_window = now_window
+    if current_count >= limit:
         return False
-    recent.append(now_ts)
-    _rate_limit_bucket[bucket_key] = recent
+    _rate_limit_bucket[bucket_key] = (current_count + 1, current_window)
     return True
 
 
@@ -295,7 +291,7 @@ async def security_boundary_middleware(request: Request, call_next):
     started = time.perf_counter()
     request_id = str(request.headers.get("x-request-id") or "").strip()[:80] or str(uuid.uuid4())
     request.state.request_id = request_id
-    if request.url.path != "/health":
+    if not request.url.path.startswith(_SKIP_RATE_LIMIT_PREFIXES):
         client_host = request.client.host if request.client else ""
         client_ip = client_host or "unknown"
         tenant_scope = (
@@ -329,20 +325,22 @@ async def security_boundary_middleware(request: Request, call_next):
         if domain:
             response.headers.setdefault("X-Tenant-Domain", str(domain))
     if settings.request_logging_enabled:
-        logger.info(
-            {
-                "event": "http_request",
-                "request_id": request_id,
-                "method": request.method,
-                "path": request.url.path,
-                "status_code": response.status_code,
-                "duration_ms": elapsed_ms,
-                "host": request.headers.get("host"),
-                "x_tenant_domain": request.headers.get("x-tenant-domain"),
-                "tenant_resolution_source": getattr(request.state, "tenant_resolution_source", None),
-                "tenant_resolution_tenant_id": getattr(request.state, "tenant_resolution_tenant_id", None),
-            }
-        )
+        should_log = not request.url.path.startswith(_SKIP_RATE_LIMIT_PREFIXES)
+        if should_log:
+            logger.info(
+                {
+                    "event": "http_request",
+                    "request_id": request_id,
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status_code": response.status_code,
+                    "duration_ms": elapsed_ms,
+                    "host": request.headers.get("host"),
+                    "x_tenant_domain": request.headers.get("x-tenant-domain"),
+                    "tenant_resolution_source": getattr(request.state, "tenant_resolution_source", None),
+                    "tenant_resolution_tenant_id": getattr(request.state, "tenant_resolution_tenant_id", None),
+                }
+            )
     if settings.security_headers_enabled:
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
@@ -1099,7 +1097,12 @@ def _run_data_retention_cleanup():
 
 
 @app.on_event("startup")
-def on_startup():
+async def on_startup():
+    try:
+        limiter = anyio.to_thread.current_default_thread_limiter()
+        limiter.total_tokens = max(int(settings.thread_pool_tokens or 64), 8)
+    except Exception:
+        pass
     _assert_redis_available_for_production()
     _assert_demo_seed_safety()
     schema_ready = _schema_ready_for_current_version()
