@@ -229,6 +229,7 @@ app.add_middleware(
 _rate_limit_bucket: TTLCache = TTLCache(maxsize=10000, ttl=120)
 _redis_rate_limiter = None
 _SKIP_RATE_LIMIT_PREFIXES = ("/health", "/metrics", "/static", "/assets")
+_ERROR_LOG_BUCKET: TTLCache = TTLCache(maxsize=2000, ttl=60)
 
 
 def _assert_redis_available_for_production() -> None:
@@ -444,6 +445,19 @@ def _safe_log_backend_error(request: Request, exc: Exception) -> None:
     try:
         tenant_id = _resolve_tenant_id_from_request(request)
         request_id = str(getattr(request.state, "request_id", "") or "")
+        bucket_key = f"{request.url.path}:{exc.__class__.__name__}"
+        if bucket_key in _ERROR_LOG_BUCKET:
+            logger.error(
+                {
+                    "event": "backend_unhandled_exception_dedup",
+                    "request_id": request_id,
+                    "path": request.url.path,
+                    "error_type": exc.__class__.__name__,
+                    "error_message": str(exc),
+                }
+            )
+            return
+        _ERROR_LOG_BUCKET[bucket_key] = True
         with SessionLocal() as db:
             db.add(
                 AuditLog(
