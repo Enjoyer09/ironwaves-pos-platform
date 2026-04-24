@@ -14,6 +14,7 @@ from cachetools import TTLCache
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -56,6 +57,7 @@ def _init_error_tracking() -> None:
 
 _init_error_tracking()
 app = FastAPI(title=settings.app_name)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 logging.basicConfig(level=getattr(logging, str(settings.log_level or "INFO").upper(), logging.INFO), format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("ironwaves.api")
 

@@ -5,7 +5,7 @@ from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -174,25 +174,40 @@ def _calculate_staff_due(items: list, used_today: Decimal, config: dict) -> tupl
 
 
 @router.get("/menu")
-def get_menu(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
+def get_menu(
+    response: Response,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user=Depends(get_current_user),
+):
+    response.headers["Cache-Control"] = "private, max-age=30, stale-while-revalidate=300"
     rows = (
-        db.query(MenuItem)
+        db.query(
+            MenuItem.id,
+            MenuItem.item_name,
+            MenuItem.category,
+            MenuItem.price,
+            MenuItem.is_coffee,
+            MenuItem.image_url,
+            MenuItem.description,
+            MenuItem.is_active,
+        )
         .filter(MenuItem.tenant_id == tenant.id, MenuItem.is_active == True)
         .order_by(MenuItem.category.asc(), MenuItem.item_name.asc())
         .all()
     )
     return [
         {
-            "id": r.id,
-            "item_name": r.item_name,
-            "category": r.category,
-            "price": str(r.price),
-            "is_coffee": r.is_coffee,
-            "image_url": r.image_url or "",
-            "description": r.description or "",
-            "is_active": r.is_active,
+            "id": row.id,
+            "item_name": row.item_name,
+            "category": row.category,
+            "price": str(row.price),
+            "is_coffee": row.is_coffee,
+            "image_url": row.image_url or "",
+            "description": row.description or "",
+            "is_active": row.is_active,
         }
-        for r in rows
+        for row in rows
     ]
 
 
