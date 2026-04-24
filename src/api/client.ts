@@ -3,7 +3,6 @@ import { emitPerfEvent } from '../lib/perf';
 const ENV = ((import.meta as any)?.env || {}) as Record<string, string | undefined>;
 const BACKEND_FLAG = String(ENV.VITE_USE_BACKEND || '').toLowerCase();
 const FORCE_LOCAL_KEY = 'ironwaves_force_local_mode';
-const BACKEND_SUSPENDED_UNTIL_KEY = 'ironwaves_backend_suspended_until';
 
 function normalizeConfiguredApiBaseUrl() {
   const configured = String(ENV.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
@@ -15,8 +14,6 @@ function normalizeConfiguredApiBaseUrl() {
 export function isBackendEnabled() {
   try {
     if (typeof localStorage !== 'undefined' && localStorage.getItem(FORCE_LOCAL_KEY) === '1') return false;
-    const suspendedUntil = Number(localStorage.getItem(BACKEND_SUSPENDED_UNTIL_KEY) || 0);
-    if (suspendedUntil && Date.now() < suspendedUntil) return false;
   } catch {
     // no-op
   }
@@ -37,15 +34,6 @@ export function setForceLocalMode(enabled: boolean) {
     if (typeof localStorage === 'undefined') return;
     if (enabled) localStorage.setItem(FORCE_LOCAL_KEY, '1');
     else localStorage.removeItem(FORCE_LOCAL_KEY);
-  } catch {
-    // no-op
-  }
-}
-
-export function suspendBackendTemporarily(ms: number = 60000) {
-  try {
-    if (typeof localStorage === 'undefined') return;
-    localStorage.setItem(BACKEND_SUSPENDED_UNTIL_KEY, String(Date.now() + ms));
   } catch {
     // no-op
   }
@@ -113,7 +101,6 @@ type ApiRequestOptions = {
   timeoutMs?: number;
   retryCount?: number;
   retryDelayMs?: number;
-  suspendOnNetworkError?: boolean;
   // pass null to skip x-tenant-id header (use backend host/domain resolver)
   tenantId?: string | null;
   signal?: AbortSignal;
@@ -235,9 +222,6 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
           online: typeof navigator !== 'undefined' ? navigator.onLine : true,
           request_id: requestId,
         });
-        if (options.suspendOnNetworkError === true && !aborted) {
-          suspendBackendTemporarily();
-        }
         throw new Error(`Backendə qoşulma alınmadı (${method} ${path}, request_id: ${requestId}): ${message}`);
       }
       await sleep(retryDelayMs * (attempt + 1));
