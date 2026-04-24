@@ -1,10 +1,7 @@
 import logging
-import random
 
 from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
-from datetime import datetime
-
 from app.db import get_db
 from app.core.config import settings
 from app.models import RevokedToken, Tenant, User
@@ -91,12 +88,6 @@ def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Tenant mismatch")
 
     token_hash = hash_token(token)
-    if random.random() < 0.002:
-        try:
-            db.query(RevokedToken).filter(RevokedToken.expires_at < datetime.utcnow()).delete(synchronize_session=False)
-            db.commit()
-        except Exception:
-            db.rollback()
     if _is_token_revoked(tenant.id, token_hash, db):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token revoked")
 
