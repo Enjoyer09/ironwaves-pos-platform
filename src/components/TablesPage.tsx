@@ -107,6 +107,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const realtimeRefreshInFlightRef = useRef(false);
   const realtimeRefreshPendingRef = useRef(false);
   const realtimeRefreshScopesRef = useRef<Set<'tables' | 'kitchen' | 'floor' | 'reservations' | 'detail'>>(new Set());
+  const loadDataInFlightRef = useRef(false);
+  const loadRestaurantInFlightRef = useRef(false);
   const activeFloorIdRef = useRef<string>('');
   const viewTableIdRef = useRef<string | null>(null);
   const workspaceViewRef = useRef<'floor' | 'reservations'>('floor');
@@ -356,12 +358,18 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 
   useEffect(() => {
     if (!isActive) return;
-    void loadData();
+    const timer = window.setTimeout(() => {
+      void loadData();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [tenant_id, isActive]);
 
   useEffect(() => {
     if (!isActive) return;
-    void loadRestaurantData();
+    const timer = window.setTimeout(() => {
+      void loadRestaurantData();
+    }, 180);
+    return () => window.clearTimeout(timer);
   }, [tenant_id, reservationDate, isActive]);
 
   useEffect(() => {
@@ -401,7 +409,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   useEffect(() => {
     if (!isActive) return;
     if (!activeFloorId) return;
-    void loadFloorState(activeFloorId);
+    const timer = window.setTimeout(() => {
+      void loadFloorState(activeFloorId);
+    }, 320);
+    return () => window.clearTimeout(timer);
   }, [activeFloorId, isActive]);
 
   useEffect(() => {
@@ -683,35 +694,47 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   }, [resizingReservation, reservationDurationDrafts, reservationTimeline.minuteHeight, lang, reservationZoom]);
 
   const loadData = async () => {
-    const [tablesResult, kitchenResult, menuResult] = await Promise.allSettled([
-      get_tables_live(tenant_id),
-      get_kitchen_orders_live(tenant_id),
-      get_menu_items_live(tenant_id),
-    ]);
-    if (tablesResult.status === 'fulfilled') {
-      setTables(Array.isArray(tablesResult.value) ? tablesResult.value : []);
-    }
-    if (kitchenResult.status === 'fulfilled') {
-      setKitchenOrders(Array.isArray(kitchenResult.value) ? kitchenResult.value : []);
-    }
-    if (menuResult.status === 'fulfilled') {
-      setMenuCatalog(Array.isArray(menuResult.value) ? menuResult.value : []);
+    if (loadDataInFlightRef.current) return;
+    loadDataInFlightRef.current = true;
+    try {
+      const [tablesResult, kitchenResult, menuResult] = await Promise.allSettled([
+        get_tables_live(tenant_id),
+        get_kitchen_orders_live(tenant_id),
+        get_menu_items_live(tenant_id),
+      ]);
+      if (tablesResult.status === 'fulfilled') {
+        setTables(Array.isArray(tablesResult.value) ? tablesResult.value : []);
+      }
+      if (kitchenResult.status === 'fulfilled') {
+        setKitchenOrders(Array.isArray(kitchenResult.value) ? kitchenResult.value : []);
+      }
+      if (menuResult.status === 'fulfilled') {
+        setMenuCatalog(Array.isArray(menuResult.value) ? menuResult.value : []);
+      }
+    } finally {
+      loadDataInFlightRef.current = false;
     }
   };
 
   const loadRestaurantData = async () => {
+    if (loadRestaurantInFlightRef.current) return;
+    loadRestaurantInFlightRef.current = true;
     setIsFloorPlansLoading(true);
-    const [floorsResult, reservationsResult] = await Promise.allSettled([
-      get_floor_plans_live(tenant_id),
-      get_reservations_live(tenant_id, reservationDate),
-    ]);
-    if (floorsResult.status === 'fulfilled') {
-      setFloorPlans(Array.isArray(floorsResult.value) ? floorsResult.value : []);
+    try {
+      const [floorsResult, reservationsResult] = await Promise.allSettled([
+        get_floor_plans_live(tenant_id),
+        get_reservations_live(tenant_id, reservationDate),
+      ]);
+      if (floorsResult.status === 'fulfilled') {
+        setFloorPlans(Array.isArray(floorsResult.value) ? floorsResult.value : []);
+      }
+      if (reservationsResult.status === 'fulfilled') {
+        setReservations(Array.isArray(reservationsResult.value) ? reservationsResult.value : []);
+      }
+    } finally {
+      setIsFloorPlansLoading(false);
+      loadRestaurantInFlightRef.current = false;
     }
-    if (reservationsResult.status === 'fulfilled') {
-      setReservations(Array.isArray(reservationsResult.value) ? reservationsResult.value : []);
-    }
-    setIsFloorPlansLoading(false);
   };
 
   const loadFloorState = async (floorId: string) => {

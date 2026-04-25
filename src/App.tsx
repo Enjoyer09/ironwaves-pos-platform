@@ -1090,7 +1090,7 @@ export default function App() {
       const detail = { tenant_id: tenantForRefresh };
       window.dispatchEvent(new CustomEvent('business-profile-updated', { detail }));
       window.dispatchEvent(new CustomEvent('settings-updated', { detail }));
-      window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { ...detail, scope: 'all' } }));
+      window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { ...detail, scope: 'menu' } }));
 
       if (source === 'manual') {
         notify('success', tx(safeLang, 'Məlumatlar yeniləndi', 'Данные обновлены', 'Data refreshed'));
