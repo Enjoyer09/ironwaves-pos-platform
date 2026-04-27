@@ -71,10 +71,13 @@ class SystemResetIn(BaseModel):
 
 class MenuItemOut(BaseModel):
     id: str
+    tenant_id: str | None = None
     item_name: str
     category: str
     price: Decimal
     is_coffee: bool
+    is_active: bool | None = None
+    sort_order: int | None = None
     image_url: str | None = None
     description: str | None = None
 

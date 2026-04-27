@@ -110,7 +110,14 @@ class MenuItemOut(BaseModel):
     category: str
     price: str
     is_coffee: bool
+    sort_order: int
+    image_url: str | None = None
+    description: str | None = None
     is_active: bool
+
+
+class MenuReorderIn(BaseModel):
+    item_ids: list[str]
 
 
 class RecipeIngredientOut(BaseModel):
@@ -145,7 +152,7 @@ def list_public_menu_items(
     rows = (
         db.query(MenuItem)
         .filter(MenuItem.tenant_id == tenant.id, MenuItem.is_active == True)
-        .order_by(MenuItem.category.asc(), MenuItem.item_name.asc())
+        .order_by(MenuItem.sort_order.asc(), MenuItem.category.asc(), MenuItem.item_name.asc())
         .all()
     )
     return [
@@ -156,6 +163,7 @@ def list_public_menu_items(
             "category": row.category,
             "price": str(row.price),
             "is_coffee": bool(row.is_coffee),
+            "sort_order": int(row.sort_order or 0),
             "image_url": row.image_url or "",
             "description": row.description or "",
             "is_active": bool(row.is_active),
@@ -175,7 +183,7 @@ def list_menu_items(
     rows = (
         db.query(MenuItem)
         .filter(MenuItem.tenant_id == tenant.id, MenuItem.is_active == True)
-        .order_by(MenuItem.category.asc(), MenuItem.item_name.asc())
+        .order_by(MenuItem.sort_order.asc(), MenuItem.category.asc(), MenuItem.item_name.asc())
         .all()
     )
     return [
@@ -186,6 +194,7 @@ def list_menu_items(
             "category": row.category,
             "price": str(row.price),
             "is_coffee": bool(row.is_coffee),
+            "sort_order": int(row.sort_order or 0),
             "image_url": row.image_url or "",
             "description": row.description or "",
             "is_active": bool(row.is_active),
@@ -221,12 +230,19 @@ def create_menu_item(
     if existing:
         raise HTTPException(status_code=409, detail="Menu item already exists")
 
+    current_max_sort = (
+        db.query(func.coalesce(func.max(MenuItem.sort_order), 0))
+        .filter(MenuItem.tenant_id == tenant.id)
+        .scalar()
+    )
+
     row = MenuItem(
         tenant_id=tenant.id,
         item_name=item_name,
         category=category,
         price=Decimal(str(payload.price)),
         is_coffee=bool(payload.is_coffee),
+        sort_order=int(current_max_sort or 0) + 1,
         image_url=_validate_image_url(payload.image_url),
         description=str(payload.description or "").strip() or None,
         is_active=True,
@@ -241,10 +257,52 @@ def create_menu_item(
         "category": row.category,
         "price": str(row.price),
         "is_coffee": bool(row.is_coffee),
+        "sort_order": int(row.sort_order or 0),
         "image_url": row.image_url or "",
         "description": row.description or "",
         "is_active": bool(row.is_active),
     }
+
+
+@router.post("/menu/reorder")
+def reorder_menu_items(
+    payload: MenuReorderIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_catalog_write_access(user)
+    submitted_ids = [str(item_id or "").strip() for item_id in payload.item_ids if str(item_id or "").strip()]
+    active_rows = (
+        db.query(MenuItem)
+        .filter(MenuItem.tenant_id == tenant.id, MenuItem.is_active == True)
+        .order_by(MenuItem.sort_order.asc(), MenuItem.category.asc(), MenuItem.item_name.asc(), MenuItem.id.asc())
+        .all()
+    )
+    if not active_rows:
+        return {"success": True, "updated": 0}
+
+    by_id = {row.id: row for row in active_rows}
+    next_ids: list[str] = []
+    seen: set[str] = set()
+    for item_id in submitted_ids:
+        if item_id in by_id and item_id not in seen:
+            next_ids.append(item_id)
+            seen.add(item_id)
+    for row in active_rows:
+        if row.id not in seen:
+            next_ids.append(row.id)
+            seen.add(row.id)
+
+    updated = 0
+    for index, item_id in enumerate(next_ids):
+        row = by_id[item_id]
+        if int(row.sort_order or 0) != index:
+            row.sort_order = index
+            updated += 1
+    if updated:
+        db.commit()
+    return {"success": True, "updated": updated}
 
 
 @router.delete("/menu/{item_id}")
@@ -341,6 +399,7 @@ def update_menu_item(
         "category": row.category,
         "price": str(row.price),
         "is_coffee": bool(row.is_coffee),
+        "sort_order": int(row.sort_order or 0),
         "image_url": row.image_url or "",
         "description": row.description or "",
         "is_active": bool(row.is_active),

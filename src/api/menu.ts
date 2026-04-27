@@ -20,6 +20,7 @@ const isRecoverableNetworkFailure = (error: unknown) => {
 export interface MenuItem {
   id: string;
   tenant_id: string;
+  sort_order?: number;
   item_name: string;
   price: Decimal;
   category: string;
@@ -30,7 +31,15 @@ export interface MenuItem {
 }
 
 export function get_menu_items(tenant_id: string, search?: string, category_filter?: string) {
-  let items = getDB<any>('menu_items').filter((i) => i.tenant_id === tenant_id && i.is_active);
+  let items = getDB<any>('menu_items')
+    .filter((i) => i.tenant_id === tenant_id && i.is_active)
+    .sort((a, b) => {
+      const sortDiff = Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0);
+      if (sortDiff !== 0) return sortDiff;
+      const categoryDiff = String(a.category || '').localeCompare(String(b.category || ''));
+      if (categoryDiff !== 0) return categoryDiff;
+      return String(a.item_name || '').localeCompare(String(b.item_name || ''));
+    });
   if (category_filter && category_filter !== 'ALL') {
     items = items.filter(i => i.category === category_filter);
   }
@@ -49,6 +58,7 @@ export function create_menu_item(
   const newItem: MenuItem = {
     id: uuidv4(),
     tenant_id,
+    sort_order: menuItems.filter((i) => i.tenant_id === tenant_id).length,
     ...data,
     is_active: true
   };
@@ -112,10 +122,21 @@ export async function get_menu_items_live(
     }
     throw error;
   }
+  const normalizedItems = items
+    .map((i, index) => ({ ...i, tenant_id: i?.tenant_id || tenant_id, sort_order: Number(i?.sort_order ?? index) }))
+    .sort((a, b) => {
+      const sortDiff = Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0);
+      if (sortDiff !== 0) return sortDiff;
+      const categoryDiff = String(a.category || '').localeCompare(String(b.category || ''));
+      if (categoryDiff !== 0) return categoryDiff;
+      return String(a.item_name || '').localeCompare(String(b.item_name || ''));
+    });
   const all = getDB<any>('menu_items').filter((i) => i.tenant_id !== tenant_id);
-  setDB('menu_items', [...all, ...items.map((i) => ({ ...i, tenant_id: i?.tenant_id || tenant_id }))]);
+  setDB('menu_items', [...all, ...normalizedItems]);
   if (category_filter && category_filter !== 'ALL') {
-    items = items.filter((i) => i.category === category_filter);
+    items = normalizedItems.filter((i) => i.category === category_filter);
+  } else {
+    items = normalizedItems;
   }
   if (search) {
     items = items.filter((i) => String(i.item_name || '').toLowerCase().includes(search.toLowerCase()));
@@ -229,5 +250,45 @@ export async function soft_delete_menu_item_live(tenant_id: string, item_id: str
       return { success: true };
     }
     throw new Error(`Menu backend delete failed: ${message}`);
+  }
+}
+
+export async function reorder_menu_items_live(tenant_id: string, orderedIds: string[]) {
+  const normalizedIds = orderedIds.map((itemId) => String(itemId || '').trim()).filter(Boolean);
+  const menuItems = getDB<any>('menu_items');
+  const localTenantItems = menuItems
+    .filter((i) => i.tenant_id === tenant_id && i.is_active)
+    .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0));
+  const orderedLocalIds = [
+    ...normalizedIds.filter((itemId, index) => normalizedIds.indexOf(itemId) === index),
+    ...localTenantItems.map((i) => String(i.id)).filter((itemId) => !normalizedIds.includes(itemId)),
+  ];
+
+  const applyLocalOrder = () => {
+    const sortOrderById = new Map<string, number>();
+    orderedLocalIds.forEach((itemId, index) => sortOrderById.set(itemId, index));
+    const nextItems = menuItems.map((item) => {
+      if (item.tenant_id !== tenant_id) return item;
+      const nextSortOrder = sortOrderById.get(String(item.id));
+      return nextSortOrder === undefined ? item : { ...item, sort_order: nextSortOrder };
+    });
+    setDB('menu_items', nextItems);
+  };
+
+  if (!isBackendEnabled()) {
+    applyLocalOrder();
+    return { success: true, updated: orderedLocalIds.length };
+  }
+  try {
+    const result = await apiRequest<{ success: boolean; updated: number }>('/api/v1/catalog/menu/reorder', {
+      method: 'POST',
+      tenantId: null,
+      body: { item_ids: orderedLocalIds },
+    });
+    applyLocalOrder();
+    return result;
+  } catch (error: any) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Menu backend reorder failed: ${message}`);
   }
 }
