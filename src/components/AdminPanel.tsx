@@ -202,7 +202,7 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
     if (!newItemName || !newItemPrice) return;
     const finalCategory = newItemCategory === '__custom__' ? customCategory.trim() : newItemCategory;
     if (!finalCategory) return;
-    await create_menu_item_live(tenant_id, {
+    const created = await create_menu_item_live(tenant_id, {
       item_name: newItemName,
       price: new Decimal(newItemPrice),
       category: finalCategory,
@@ -210,6 +210,10 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
       description: newItemDescription.trim(),
       image_url: newItemImageUrl.trim(),
     }, user?.username);
+    setMenu((prev) => {
+      const next = [...prev.filter((item: any) => String(item.id) !== String(created?.id)), created];
+      return next.sort((a: any, b: any) => Number(a?.sort_order ?? 0) - Number(b?.sort_order ?? 0));
+    });
     setNewItemName('');
     setNewItemPrice('');
     setNewItemDescription('');
@@ -224,6 +228,7 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
 
   const handleDeleteMenu = async (id: string) => {
     await soft_delete_menu_item_live(tenant_id, id, user?.username || 'admin');
+    setMenu((prev) => prev.filter((item: any) => String(item.id) !== String(id)));
     window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { scope: 'menu' } }));
     delete fetchCacheRef.current[`menu:${tenant_id}`];
     const seq = ++fetchSeqRef.current;
@@ -243,12 +248,17 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
       notify('error', tx(lang, 'Qiymət düzgün deyil', 'Некорректная цена', 'Price is invalid'));
       return;
     }
-    await update_menu_item_live(
+    const updated = await update_menu_item_live(
       tenant_id,
       editMenuModal.id,
       { item_name: nextName, price: new Decimal(nextPrice), image_url: String(editMenuModal.image_url || '').trim() } as any,
       user?.username || 'admin',
     );
+    setMenu((prev) => prev.map((item: any) => (
+      String(item.id) === String(editMenuModal.id)
+        ? { ...item, ...updated }
+        : item
+    )));
     window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { scope: 'menu' } }));
     delete fetchCacheRef.current[`menu:${tenant_id}`];
     const seq = ++fetchSeqRef.current;

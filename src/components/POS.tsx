@@ -867,7 +867,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       const scope = String(detail?.scope || 'all').toLowerCase();
       if (scope === 'menu' || scope === 'all') {
         void refreshMenuImages(true);
-        scheduleRefreshData({ menu: true, tables: false });
+        scheduleRefreshData({ force: true, menu: true, tables: false });
       } else if (scope === 'tables') {
         scheduleRefreshData({ tables: true, menu: false });
       }
