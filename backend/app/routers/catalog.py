@@ -257,13 +257,14 @@ def soft_delete_menu_item(
     _ensure_catalog_write_access(user)
     row = (
         db.query(MenuItem)
-        .filter(MenuItem.id == item_id, MenuItem.tenant_id == tenant.id, MenuItem.is_active == True)
+        .filter(MenuItem.id == item_id, MenuItem.tenant_id == tenant.id)
         .first()
     )
     if not row:
         raise HTTPException(status_code=404, detail="Menu item not found")
-    row.is_active = False
-    db.commit()
+    if row.is_active:
+        row.is_active = False
+        db.commit()
     return {"success": True}
 
 
