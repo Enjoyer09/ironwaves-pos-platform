@@ -899,7 +899,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     [tables, ctx.selectedTable],
   );
   const currentRole = String(user?.role || '').toLowerCase();
-  const canEditPosMenuOrder = currentRole === 'admin' || currentRole === 'manager' || currentRole === 'super_admin';
+  const canEditPosMenuOrder = false;
 
   const occupiedTables = useMemo(
     () => tables.filter((t) => t.is_occupied),

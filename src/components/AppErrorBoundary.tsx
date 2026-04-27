@@ -8,12 +8,13 @@ type Props = {
 
 type State = {
   hasError: boolean;
+  errorMessage: string;
 };
 
 export default class AppErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, errorMessage: '' };
   }
 
   static getDerivedStateFromError() {
@@ -23,11 +24,12 @@ export default class AppErrorBoundary extends React.Component<Props, State> {
   componentDidCatch(error: unknown) {
     // Guard the app shell and keep user in control.
     console.error('UI crash captured by ErrorBoundary:', error);
+    const message = error instanceof Error ? error.message : String(error);
+    this.setState({ errorMessage: message });
     try {
       const raw = readScopedStorage('emalatkhana-pos-session');
       const parsed = raw ? JSON.parse(raw) : null;
       const tenant = parsed?.state?.user?.tenant_id || 'tenant_default';
-      const message = error instanceof Error ? error.message : String(error);
       logUiError(tenant, 'app-shell', message, {
         stack: error instanceof Error ? error.stack : undefined,
       });
@@ -45,6 +47,11 @@ export default class AppErrorBoundary extends React.Component<Props, State> {
             <p className="mt-2 text-slate-300">
               Səhifəni yeniləyin. Problem davam edərsə təhlükəsiz sıfırlama edin.
             </p>
+            {this.state.errorMessage ? (
+              <div className="mt-3 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-left text-sm text-red-100">
+                {this.state.errorMessage}
+              </div>
+            ) : null}
             <div className="mt-5 flex flex-wrap justify-center gap-2">
               <button
                 onClick={() => window.location.reload()}
