@@ -1520,6 +1520,8 @@ export async function reset_system_live(current_password: string, code?: string)
   await apiRequest('/api/v1/settings/reset-system', {
     method: 'POST',
     tenantId: null,
+    timeoutMs: 120000,
+    retryCount: 0,
     body: { current_password: String(current_password || ''), code: String(code || '').trim() || undefined },
   });
   return { success: true };
