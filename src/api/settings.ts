@@ -6,7 +6,7 @@ import { getActiveTenantId } from '../lib/tenant';
 import { apiRequest, isBackendEnabled } from './client';
 import { hashLocalCredential } from '../lib/local_auth';
 import { readScopedStorage, removeScopedStorage } from '../lib/storage_keys';
-import { clearAllOfflineSales } from '../lib/offline';
+import { clearOfflineSalesStore } from '../lib/offline';
 
 const resolveTenant = (tenant_id?: string) => tenant_id || getActiveTenantId();
 
@@ -1525,17 +1525,11 @@ export async function reset_system_live(current_password: string, code?: string)
     retryCount: 0,
     body: { current_password: String(current_password || ''), code: String(code || '').trim() || undefined },
   });
-  const activeTenant = (() => {
-    try {
-      const raw = readScopedStorage('emalatkhana-pos-session');
-      const parsed = raw ? JSON.parse(raw) : null;
-      return String(parsed?.state?.user?.tenant_id || '').trim();
-    } catch {
-      return '';
-    }
-  })();
-  if (activeTenant) {
-    await clearAllOfflineSales(activeTenant);
+  await clearOfflineSalesStore();
+  try {
+    window.dispatchEvent(new CustomEvent('offline-sales-reset'));
+  } catch {
+    // no-op
   }
   return { success: true };
 }
