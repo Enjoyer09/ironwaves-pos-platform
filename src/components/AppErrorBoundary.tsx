@@ -11,6 +11,17 @@ type State = {
   errorMessage: string;
 };
 
+const CHUNK_RELOAD_ONCE_KEY = 'ui_chunk_reload_once';
+
+const isChunkLoadFailure = (message: string) => {
+  const text = String(message || '').toLowerCase();
+  return (
+    text.includes('failed to fetch dynamically imported module') ||
+    text.includes('importing a module script failed') ||
+    text.includes('chunkloaderror')
+  );
+};
+
 export default class AppErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
@@ -26,6 +37,17 @@ export default class AppErrorBoundary extends React.Component<Props, State> {
     console.error('UI crash captured by ErrorBoundary:', error);
     const message = error instanceof Error ? error.message : String(error);
     this.setState({ errorMessage: message });
+    if (isChunkLoadFailure(message)) {
+      try {
+        if (sessionStorage.getItem(CHUNK_RELOAD_ONCE_KEY) !== 'done') {
+          sessionStorage.setItem(CHUNK_RELOAD_ONCE_KEY, 'done');
+          window.location.reload();
+          return;
+        }
+      } catch {
+        // ignore storage access issues
+      }
+    }
     try {
       const raw = readScopedStorage('emalatkhana-pos-session');
       const parsed = raw ? JSON.parse(raw) : null;
