@@ -355,6 +355,7 @@ class Sale(Base):
     offline_request_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     receipt_code: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     receipt_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    receipt_html: Mapped[str | None] = mapped_column(Text, nullable=True)
     reward_claim_code: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     discount_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))

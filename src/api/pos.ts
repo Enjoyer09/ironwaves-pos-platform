@@ -612,6 +612,14 @@ export const get_public_receipt_live = async (sale_ref: string, token: string) =
   });
 };
 
+export const save_sale_receipt_html_live = async (sale_id: string, receipt_html: string) => {
+  if (!isBackendEnabled()) return { success: true };
+  return apiRequest<any>(`/api/v1/pos/sale/${encodeURIComponent(String(sale_id || '').trim())}/receipt-html`, {
+    method: 'PUT',
+    body: { receipt_html },
+  });
+};
+
 // FUNKSIYA: get_menu_for_pos
 export const get_menu_for_pos = (tenant_id: string) => {
   // Gələcəkdə real DB və Redis Cache 60s
