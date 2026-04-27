@@ -207,20 +207,27 @@ export async function soft_delete_menu_item_live(tenant_id: string, item_id: str
   if (!isBackendEnabled()) {
     return soft_delete_menu_item(tenant_id, item_id, user);
   }
-  try {
-    const result = await apiRequest<{ success: boolean }>(`/api/v1/catalog/menu/${encodeURIComponent(item_id)}`, {
-      method: 'DELETE',
-      tenantId: null,
-    });
+  const markLocalInactive = () => {
     const menuItems = getDB<any>('menu_items');
     const idx = menuItems.findIndex((i) => String(i.id) === String(item_id) && i.tenant_id === tenant_id);
     if (idx >= 0) {
       menuItems[idx] = { ...menuItems[idx], is_active: false };
       setDB('menu_items', menuItems);
     }
+  };
+  try {
+    const result = await apiRequest<{ success: boolean }>(`/api/v1/catalog/menu/${encodeURIComponent(item_id)}`, {
+      method: 'DELETE',
+      tenantId: null,
+    });
+    markLocalInactive();
     return result;
   } catch (error: any) {
     const message = error instanceof Error ? error.message : String(error);
+    if (message.toLowerCase().includes('menu item not found')) {
+      markLocalInactive();
+      return { success: true };
+    }
     throw new Error(`Menu backend delete failed: ${message}`);
   }
 }
