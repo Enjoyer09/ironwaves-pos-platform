@@ -296,6 +296,23 @@ const shiftStatusCache: Record<
 > = {};
 const expectedCashCache: Record<string, Decimal> = {};
 
+export const invalidate_report_runtime_cache = (tenant_id?: string) => {
+  if (tenant_id) {
+    delete shiftStatusCache[tenant_id];
+    delete expectedCashCache[tenant_id];
+    return;
+  }
+  Object.keys(shiftStatusCache).forEach((key) => delete shiftStatusCache[key]);
+  Object.keys(expectedCashCache).forEach((key) => delete expectedCashCache[key]);
+};
+
+const emitReportsUpdated = (tenant_id: string, detail: Record<string, any> = {}) => {
+  if (typeof window === 'undefined') return;
+  const payload = { tenant_id, ...detail };
+  window.dispatchEvent(new CustomEvent('reports-updated', { detail: payload }));
+  window.dispatchEvent(new CustomEvent('finance-updated', { detail: payload }));
+};
+
 const saveShiftState = (tenant_id: string, payload: any) => {
   saveTenantRows(tenant_id, 'shift_state', 'shift_state', [payload]);
 };
@@ -349,6 +366,7 @@ export const open_shift = async (
       staff_session_opened_at: res?.staff_session_opened_at || new Date().toISOString(),
     };
     logEvent(opened_by, 'SHIFT_OPENED', { tenant_id, backend: true, funding_source: fundingSource, topup_amount: topupAmount.toFixed(2) });
+    emitReportsUpdated(tenant_id, { action: 'shift-opened' });
     return next;
   }
   const current_shift = getShiftState(tenant_id);
@@ -459,6 +477,7 @@ export const open_shift = async (
     funding_source: fundingSource,
     topup_amount: topupAmount.toFixed(2),
   });
+  emitReportsUpdated(tenant_id, { action: 'shift-opened' });
   return next;
 };
 
@@ -730,6 +749,7 @@ export const x_report = async (actual_cash: string, handed_by: string, tenant_id
       difference: String(res?.difference || '0'),
       backend: true,
     });
+    emitReportsUpdated(tenant_id, { action: 'x-report', actual_cash: String(res?.actual_cash || actual_cash) });
     return {
       expected_cash: String(res?.expected_cash || '0'),
       actual_cash: String(res?.actual_cash || actual_cash),
@@ -770,6 +790,7 @@ export const x_report = async (actual_cash: string, handed_by: string, tenant_id
   });
 
   expectedCashCache[tenant_id] = actual;
+  emitReportsUpdated(tenant_id, { action: 'x-report', actual_cash: actual.toString() });
 
   return { expected_cash: expected_cash.toString(), actual_cash: actual.toString(), difference: difference.toString() };
 };
@@ -807,6 +828,7 @@ export const z_report = async (
       opened_by: currentShift?.opened_by,
       timestamp: currentShift?.timestamp,
     };
+    expectedCashCache[tenant_id] = new Decimal(String(res?.actual_cash || actual_cash || '0'));
 
     const profile = getBusinessProfile(tenant_id);
     const reportId = String(res?.shift_id || '').slice(0, 8).toUpperCase() || 'Z-REPORT';
@@ -847,6 +869,7 @@ export const z_report = async (
       </html>
     `;
 
+    emitReportsUpdated(tenant_id, { action: 'z-report', actual_cash: String(res?.actual_cash || actual_cash || '0') });
     return {
       success: Boolean(res?.success),
       total_sales: new Decimal(res?.cash_sales || 0).plus(new Decimal(res?.card_sales || 0)).toString(),
@@ -977,6 +1000,7 @@ export const z_report = async (
     email_sent,
     email_error,
   });
+  emitReportsUpdated(tenant_id, { action: 'z-report', actual_cash: actual.toString() });
 
   const receipt_html = `
     <html>
