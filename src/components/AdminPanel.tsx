@@ -150,6 +150,24 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
     }
   }, [externalTab, activeTab]);
 
+  useEffect(() => {
+    if (!isActive) return;
+    const handleCatalogUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ scope?: string; tenant_id?: string }>).detail;
+      if (detail?.tenant_id && detail.tenant_id !== tenant_id) return;
+      const scope = String(detail?.scope || 'all').toLowerCase();
+      if (scope !== 'menu' && scope !== 'all') return;
+      if (activeTab !== 'menu') return;
+      delete fetchCacheRef.current[`menu:${tenant_id}`];
+      const seq = ++fetchSeqRef.current;
+      void fetchData(seq);
+    };
+    window.addEventListener('catalog-updated', handleCatalogUpdated as EventListener);
+    return () => {
+      window.removeEventListener('catalog-updated', handleCatalogUpdated as EventListener);
+    };
+  }, [activeTab, isActive, tenant_id]);
+
   const fetchData = async (seq = ++fetchSeqRef.current, signal?: AbortSignal) => {
     if (signal?.aborted) return;
     const now = Date.now();
