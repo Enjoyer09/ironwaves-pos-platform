@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../store';
-import { get_sales_summary_live, get_sales_list_live, update_sale_amount_live, void_sale_with_reason_live, partial_refund_sale_live } from '../api/analytics';
+import { get_sales_summary, get_sales_summary_live, get_sales_list, get_sales_list_live, update_sale_amount_live, void_sale_with_reason_live, partial_refund_sale_live } from '../api/analytics';
 import { get_menu_items_live, create_menu_item_live, reorder_menu_items_live, soft_delete_menu_item_live, update_menu_item_live } from '../api/menu';
 import { get_logs_live } from '../api/logs';
 import { apiRequest, isBackendEnabled } from '../api/client';
@@ -250,12 +250,13 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
       if (seq !== fetchSeqRef.current) return;
       if (summaryResult.status === 'fulfilled') {
         setSummary(summaryResult.value);
+      } else {
+        setSummary(get_sales_summary(tenant_id, from_d.toISOString(), to_d.toISOString()));
       }
       if (salesResult.status === 'fulfilled') {
         setSales(salesResult.value);
-      }
-      if (summaryResult.status === 'rejected' && salesResult.status === 'rejected') {
-        throw summaryResult.reason || salesResult.reason;
+      } else {
+        setSales(get_sales_list(tenant_id, from_d.toISOString(), to_d.toISOString()));
       }
       fetchCacheRef.current[cacheKey] = Date.now();
       return;
