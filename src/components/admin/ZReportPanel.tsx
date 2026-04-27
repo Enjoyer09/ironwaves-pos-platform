@@ -16,6 +16,7 @@ import {
   get_shift_handover_history_live,
   get_shift_status,
   handover_shift_live,
+  invalidate_report_runtime_cache,
   open_doner_batch_live,
   open_shift,
   YieldBatchRow,
@@ -470,10 +471,14 @@ export default function ZReportPanel() {
   }, [tenant_id, reportRefreshKey, yieldEnabled]);
 
   React.useEffect(() => {
-    const onFocusRefresh = () => setReportRefreshKey((prev) => prev + 1);
-    const onFinanceRefresh = (event: Event) => {
+    const onFocusRefresh = () => {
+      setReportRefreshKey((prev) => prev + 1);
+      void refreshOperationalState(true);
+    };
+    const onRuntimeRefresh = (event: Event) => {
       const detail = (event as CustomEvent<{ tenant_id?: string }>).detail;
       if (detail?.tenant_id && detail.tenant_id !== tenant_id) return;
+      invalidate_report_runtime_cache(tenant_id);
       const optimisticBalances = get_balance(tenant_id, 'all', false) as any;
       const optimisticCash = get_expected_cash(tenant_id);
       setCurrentBalances(optimisticBalances);
@@ -488,17 +493,20 @@ export default function ZReportPanel() {
         window.clearTimeout(refreshTimerRef.current);
       }
       refreshTimerRef.current = window.setTimeout(() => {
-        void refreshOperationalState();
+        void refreshOperationalState(true);
       }, 350);
+      setReportRefreshKey((prev) => prev + 1);
     };
     window.addEventListener('focus', onFocusRefresh);
-    window.addEventListener('finance-updated', onFinanceRefresh as EventListener);
+    window.addEventListener('finance-updated', onRuntimeRefresh as EventListener);
+    window.addEventListener('reports-updated', onRuntimeRefresh as EventListener);
     const timer = window.setInterval(() => {
       setReportRefreshKey((prev) => prev + 1);
     }, 30000);
     return () => {
       window.removeEventListener('focus', onFocusRefresh);
-      window.removeEventListener('finance-updated', onFinanceRefresh as EventListener);
+      window.removeEventListener('finance-updated', onRuntimeRefresh as EventListener);
+      window.removeEventListener('reports-updated', onRuntimeRefresh as EventListener);
       window.clearInterval(timer);
       if (refreshTimerRef.current) {
         window.clearTimeout(refreshTimerRef.current);

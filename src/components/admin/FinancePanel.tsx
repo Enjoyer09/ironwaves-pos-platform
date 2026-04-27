@@ -527,6 +527,11 @@ export default function FinancePanel() {
   }, [ledgerServerFilters, tenant_id]);
 
   useEffect(() => {
+    const handleHardRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<{ tenant_id?: string }>).detail;
+      if (detail?.tenant_id && detail.tenant_id !== tenant_id) return;
+      void reloadFinance(true);
+    };
     const handleFinanceUpdated = (event: Event) => {
       const detail = (event as CustomEvent<{ tenant_id?: string }>).detail;
       if (!detail?.tenant_id || detail.tenant_id === tenant_id) {
@@ -538,13 +543,17 @@ export default function FinancePanel() {
           window.clearTimeout(reloadTimerRef.current);
         }
         reloadTimerRef.current = window.setTimeout(() => {
-          void reloadFinance();
+          void reloadFinance(true);
         }, 350);
       }
     };
+    window.addEventListener('focus', handleHardRefresh);
     window.addEventListener('finance-updated', handleFinanceUpdated as EventListener);
+    window.addEventListener('reports-updated', handleHardRefresh as EventListener);
     return () => {
+      window.removeEventListener('focus', handleHardRefresh);
       window.removeEventListener('finance-updated', handleFinanceUpdated as EventListener);
+      window.removeEventListener('reports-updated', handleHardRefresh as EventListener);
       if (reloadTimerRef.current) {
         window.clearTimeout(reloadTimerRef.current);
       }
