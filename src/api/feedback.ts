@@ -138,6 +138,10 @@ function issueFeedbackCoupon(payload: FeedbackSubmission): FeedbackCoupon {
   return coupon;
 }
 
+function isFeedbackPromoEnabled(tenantId: string): boolean {
+  return get_settings(tenantId)?.feedback_settings?.promo_enabled !== false;
+}
+
 function findCouponByReceipt(tenantId: string, receiptId: string, receiptToken: string): FeedbackCoupon | null {
   const safeTenant = String(tenantId || 'tenant_default').trim();
   const safeReceipt = String(receiptId || '').trim();
@@ -355,6 +359,24 @@ export async function submit_feedback_live(payload: FeedbackSubmission) {
       coupon_code: existingCoupon.code,
       coupon_percent: existingCoupon.percent,
     };
+  }
+
+  if (!isFeedbackPromoEnabled(safePayload.tenant_id)) {
+    if (isBackendEnabled()) {
+      try {
+        return await apiRequest('/api/v1/ops/feedback/submit', {
+          method: 'POST',
+          auth: false,
+          tenantId: null,
+          body: safePayload,
+        });
+      } catch {
+        saveLocally(safePayload);
+        return { success: true, already_submitted: false, coupon_code: null, coupon_percent: null };
+      }
+    }
+    saveLocally(safePayload);
+    return { success: true, already_submitted: false, coupon_code: null, coupon_percent: null };
   }
 
   if (isBackendEnabled()) {

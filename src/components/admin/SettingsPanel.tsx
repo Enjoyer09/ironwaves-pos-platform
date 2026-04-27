@@ -148,6 +148,7 @@ export default function SettingsPanel() {
   });
   const [feedbackSettings, setFeedbackSettings] = useState({
     enabled: false,
+    promo_enabled: true,
     coupon_percent: 5,
     portal_url: '',
     google_review_url: '',
@@ -396,6 +397,7 @@ export default function SettingsPanel() {
       });
       setFeedbackSettings({
         enabled: settingsRes.value.feedback_settings?.enabled === true,
+        promo_enabled: settingsRes.value.feedback_settings?.promo_enabled !== false,
         coupon_percent: Number(settingsRes.value.feedback_settings?.coupon_percent || 5),
         portal_url: String(settingsRes.value.feedback_settings?.portal_url || derivedFeedbackPortalUrl),
         google_review_url: String(settingsRes.value.feedback_settings?.google_review_url || ''),
@@ -868,6 +870,7 @@ export default function SettingsPanel() {
     const resolvedPortalUrl = String(feedbackSettings.portal_url || '').trim() || autoFeedbackPortalUrl;
     await update_feedback_settings_live({
       enabled: feedbackSettings.enabled,
+      promo_enabled: feedbackSettings.promo_enabled,
       coupon_percent: Math.max(1, Math.min(100, Number(feedbackSettings.coupon_percent || 5))),
       portal_url: resolvedPortalUrl,
       google_review_url: String(feedbackSettings.google_review_url || '').trim(),
@@ -1381,6 +1384,14 @@ export default function SettingsPanel() {
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, enabled: e.target.checked }))}
             />
             <span>{tx(lang, 'Feedback portalını aktiv et', 'Включить feedback портал', 'Enable feedback portal')}</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-2">
+            <input
+              type="checkbox"
+              checked={feedbackSettings.promo_enabled}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, promo_enabled: e.target.checked }))}
+            />
+            <span>{tx(lang, 'Promo / feedback kuponunu aktiv et', 'Включить promo / coupon за feedback', 'Enable promo / feedback coupon')}</span>
           </label>
           <div className="field-stack form-card md:col-span-2">
             <label className="field-label">{tx(lang, 'Feedback portal URL', 'URL feedback портала', 'Feedback portal URL')}</label>

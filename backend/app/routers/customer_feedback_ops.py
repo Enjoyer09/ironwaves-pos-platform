@@ -79,6 +79,19 @@ def _feedback_coupon_percent(db: Session, tenant_id: str) -> int:
     return max(1, min(100, percent))
 
 
+def _feedback_promo_enabled(db: Session, tenant_id: str) -> bool:
+    row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == "feedback_settings").first()
+    if not row or row.value is None:
+        return True
+    try:
+        raw = json.loads(row.value)
+    except Exception:
+        return True
+    if not isinstance(raw, dict):
+        return True
+    return bool(raw.get("promo_enabled", True))
+
+
 def _generate_feedback_coupon_code(db: Session) -> str:
     chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
     for _ in range(20):
@@ -467,20 +480,23 @@ def submit_feedback(
     db.add(feedback_entry)
     db.flush()
 
-    coupon_percent = _feedback_coupon_percent(db, tenant_id)
-    coupon = FeedbackCoupon(
-        tenant_id=tenant_id,
-        feedback_entry_id=feedback_entry.id,
-        sale_id=sale.id,
-        receipt_id=canonical_receipt_id,
-        receipt_token=receipt_token,
-        code=_generate_feedback_coupon_code(db),
-        percent=coupon_percent,
-        status="PENDING",
-        source="feedback",
-        issued_at=now,
-    )
-    db.add(coupon)
+    promo_enabled = _feedback_promo_enabled(db, tenant_id)
+    coupon = None
+    if promo_enabled:
+        coupon_percent = _feedback_coupon_percent(db, tenant_id)
+        coupon = FeedbackCoupon(
+            tenant_id=tenant_id,
+            feedback_entry_id=feedback_entry.id,
+            sale_id=sale.id,
+            receipt_id=canonical_receipt_id,
+            receipt_token=receipt_token,
+            code=_generate_feedback_coupon_code(db),
+            percent=coupon_percent,
+            status="PENDING",
+            source="feedback",
+            issued_at=now,
+        )
+        db.add(coupon)
     db.add(
         AuditLog(
             tenant_id=tenant_id,
@@ -493,14 +509,20 @@ def submit_feedback(
                     "receipt_id": canonical_receipt_id,
                     "receipt_ref": receipt_id,
                     "score": int(feedback_entry.score or 0),
-                    "coupon_code": coupon.code,
+                    "coupon_code": coupon.code if coupon else None,
+                    "promo_enabled": promo_enabled,
                 },
                 ensure_ascii=False,
             ),
         )
     )
     db.commit()
-    return {"success": True, "already_submitted": False, "coupon_code": coupon.code, "coupon_percent": int(coupon.percent or 5)}
+    return {
+        "success": True,
+        "already_submitted": False,
+        "coupon_code": coupon.code if coupon else None,
+        "coupon_percent": int(coupon.percent or 5) if coupon else None,
+    }
 
 
 @router.get("/feedback/coupon/by-receipt")
