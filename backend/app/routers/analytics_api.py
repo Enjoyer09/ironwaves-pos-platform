@@ -10,7 +10,15 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.json_utils import safe_json_list
-from app.models import Customer, FinanceEntry, InventoryItem, LoyaltyLedgerEntry, Recipe, RewardClaim, Sale, Setting, Tenant, User
+from app.models import Customer, FinanceEntry, FinanceTransaction, InventoryItem, LoyaltyLedgerEntry, Recipe, RewardClaim, Sale, Setting, Tenant, User
+from app.services.finance_service import (
+    finance_account_code as _finance_account_code,
+    mark_original_transaction_reversed as _mark_original_transaction_reversed,
+    mirror_posted_transaction_to_legacy_wallet as _mirror_posted_transaction_to_legacy_wallet,
+    post_existing_transaction as _post_existing_transaction,
+    post_finance_transaction as _post_finance_transaction,
+    post_sale_payment,
+)
 
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
@@ -19,6 +27,9 @@ router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
 class SaleAdjustIn(BaseModel):
     new_total: Decimal
     reason: str | None = None
+    payment_method: str | None = None
+    split_cash: Decimal | None = None
+    split_card: Decimal | None = None
 
 
 class SaleVoidIn(BaseModel):
@@ -49,6 +60,60 @@ def _setting_value(db: Session, tenant_id: str, key: str, default):
         return json.loads(row.value)
     except Exception:
         return default
+
+
+def _normalize_payment_method(value: str | None) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized in {"cash", "nəğd", "nagd", "nağd"}:
+        return "cash"
+    if normalized in {"split", "bölünmüş", "bolunmus"}:
+        return "split"
+    if normalized == "staff":
+        return "staff"
+    return "card"
+
+
+def _display_payment_method(value: str) -> str:
+    if value == "cash":
+        return "Nəğd"
+    if value == "split":
+        return "Split"
+    if value == "staff":
+        return "Staff"
+    return "Kart"
+
+
+def _reverse_sale_finance_transactions(db: Session, tenant_id: str, sale_id: str, username: str) -> None:
+    rows = (
+        db.query(FinanceTransaction)
+        .filter(
+            FinanceTransaction.tenant_id == tenant_id,
+            FinanceTransaction.related_order_id == sale_id,
+            FinanceTransaction.status == "posted",
+            FinanceTransaction.transaction_type.in_(["income", "expense"]),
+        )
+        .all()
+    )
+    for original in rows:
+        source_code = _finance_account_code(db, tenant_id, original.destination_account_id)
+        destination_code = _finance_account_code(db, tenant_id, original.source_account_id)
+        if not source_code or not destination_code:
+            continue
+        reversal = _post_finance_transaction(
+            db,
+            tenant_id=tenant_id,
+            transaction_type="reversal",
+            amount=Decimal(str(original.amount)).quantize(Decimal("0.01")),
+            source_code=source_code,
+            destination_code=destination_code,
+            created_by=username,
+            category=f"Sale Correction: {original.category or original.transaction_type}",
+            reference=original.id,
+            note=f"Sale correction reversal for {sale_id}",
+            related_order_id=sale_id,
+        )
+        _mark_original_transaction_reversed(db, reversal, username)
+        _mirror_posted_transaction_to_legacy_wallet(db, reversal, username)
 
 
 @router.get("/summary")
@@ -144,6 +209,8 @@ def get_sales_list(
                 "cogs": str(Decimal(str(row.cogs or 0)).quantize(Decimal("0.01"))),
                 "payment_method": row.payment_method,
                 "order_type": row.order_type,
+                "receipt_code": row.receipt_code,
+                "receipt_token": row.receipt_token,
                 "items": items,
                 "items_display": ", ".join([f"{item.get('item_name')} x{item.get('qty')}" for item in items]),
                 "status": row.status,
@@ -284,7 +351,73 @@ def adjust_sale(
         raise HTTPException(status_code=404, detail="Sale not found")
     if row.status == "VOIDED":
         raise HTTPException(status_code=400, detail="Voided sale cannot be adjusted")
-    row.total = payload.new_total.quantize(Decimal("0.01"))
+
+    next_total = Decimal(str(payload.new_total or 0)).quantize(Decimal("0.01"))
+    if next_total <= 0:
+        raise HTTPException(status_code=400, detail="New total must be greater than 0")
+
+    next_method = _normalize_payment_method(payload.payment_method or row.payment_method)
+    split_cash = Decimal(str(payload.split_cash or 0)).quantize(Decimal("0.01"))
+    split_card = Decimal(str(payload.split_card or 0)).quantize(Decimal("0.01"))
+    if next_method == "split":
+        if split_cash < 0 or split_card < 0:
+            raise HTTPException(status_code=400, detail="Split amounts cannot be negative")
+        if (split_cash + split_card - next_total).copy_abs() > Decimal("0.01"):
+            raise HTTPException(status_code=400, detail="Split amounts must equal total")
+
+    _reverse_sale_finance_transactions(db, tenant.id, row.id, user.username)
+    row.total = next_total
+    row.payment_method = _display_payment_method(next_method)
+
+    card_sale_percent = Decimal(str(_setting_value(db, tenant.id, "bank_commission", {"card_sale_percent": 2}).get("card_sale_percent", 2) or 2))
+    if next_method == "split":
+        if split_cash > 0:
+            post_sale_payment(
+                db,
+                tenant_id=tenant.id,
+                sale_id=row.id,
+                amount=split_cash,
+                payment_source="cash",
+                created_by=user.username,
+                category="Satış (Nağd)",
+                note=f"Sale correction {row.id} split cash",
+            )
+        if split_card > 0:
+            post_sale_payment(
+                db,
+                tenant_id=tenant.id,
+                sale_id=row.id,
+                amount=split_card,
+                payment_source="card",
+                created_by=user.username,
+                category="Satış (Kart)",
+                note=f"Sale correction {row.id} split card",
+                card_fee_percent=card_sale_percent,
+            )
+    elif next_method == "staff":
+        post_sale_payment(
+            db,
+            tenant_id=tenant.id,
+            sale_id=row.id,
+            amount=next_total,
+            payment_source="cash",
+            created_by=user.username,
+            category="Staff Ödənişi",
+            note=f"Sale correction {row.id} staff payment",
+        )
+    else:
+        payment_source = "cash" if next_method == "cash" else "card"
+        post_sale_payment(
+            db,
+            tenant_id=tenant.id,
+            sale_id=row.id,
+            amount=next_total,
+            payment_source=payment_source,
+            created_by=user.username,
+            category="Satış (Nağd)" if payment_source == "cash" else "Satış (Kart)",
+            note=f"Sale correction {row.id}",
+            card_fee_percent=card_sale_percent if payment_source == "card" else Decimal("0"),
+        )
     db.commit()
     return {"success": True}
 

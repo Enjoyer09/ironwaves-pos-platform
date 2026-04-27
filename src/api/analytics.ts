@@ -350,6 +350,7 @@ export function update_sale_amount(
   new_total: string,
   reason: string,
   actor: string,
+  payment_method?: string,
 ) {
   const sales = getSalesLocal(tenant_id);
   const idx = sales.findIndex((s) => s.id === sale_id && s.tenant_id === tenant_id);
@@ -361,6 +362,9 @@ export function update_sale_amount(
   if (nextTotal.lte(0)) throw new Error('Yeni məbləğ 0-dan böyük olmalıdır');
 
   (sales[idx] as any).total = nextTotal.toString();
+  if (payment_method) {
+    (sales[idx] as any).payment_method = payment_method;
+  }
   saveSalesLocal(tenant_id, sales);
 
   logEvent(actor, 'SALE_EDITED', {
@@ -368,6 +372,7 @@ export function update_sale_amount(
     sale_id,
     old_total: oldTotal.toString(),
     new_total: nextTotal.toString(),
+    payment_method: payment_method || sales[idx].payment_method,
     reason,
   });
   return { success: true };
@@ -420,12 +425,15 @@ export async function update_sale_amount_live(
   new_total: string,
   reason: string,
   actor: string,
+  payment_method?: string,
+  split_cash?: string,
+  split_card?: string,
 ) {
-  if (!isBackendEnabled()) return update_sale_amount(tenant_id, sale_id, new_total, reason, actor);
+  if (!isBackendEnabled()) return update_sale_amount(tenant_id, sale_id, new_total, reason, actor, payment_method);
   return apiRequest<{ success: boolean }>(`/api/v1/analytics/sales/${encodeURIComponent(sale_id)}/adjust`, {
     method: 'POST',
     tenantId: null,
-    body: { new_total, reason },
+    body: { new_total, reason, payment_method, split_cash, split_card },
   });
 }
 
