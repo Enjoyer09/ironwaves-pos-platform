@@ -26,6 +26,7 @@ import {
   syncPendingOfflineSales,
   type OfflineSaleSummary,
 } from '../lib/offline';
+import { reorder_menu_items_live } from '../api/menu';
 import { apiRequest, isBackendEnabled } from '../api/client';
 import ConfirmModal from './ConfirmModal';
 import { getTenantDomains } from '../lib/tenant';
@@ -258,6 +259,10 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   const [isSyncingOffline, setIsSyncingOffline] = useState(false);
   const [mobilePane, setMobilePane] = useState<'menu' | 'cart'>('menu');
   const [showMobileCheckout, setShowMobileCheckout] = useState(false);
+  const [isPosMenuEditMode, setIsPosMenuEditMode] = useState(false);
+  const [isReorderingPosMenu, setIsReorderingPosMenu] = useState(false);
+  const [draggingMenuGroupKey, setDraggingMenuGroupKey] = useState<string | null>(null);
+  const [dropMenuGroupKey, setDropMenuGroupKey] = useState<string | null>(null);
   const [layoutRefreshKey, setLayoutRefreshKey] = useState(0);
   const [isTabletViewport, setIsTabletViewport] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -774,6 +779,47 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     }
   };
 
+  const persistPosMenuOrder = useCallback(async (nextMenu: any[]) => {
+    setMenu(nextMenu);
+    const liteMenu = nextMenu.map((item) => ({
+      ...item,
+      image_url: '',
+      description: '',
+    }));
+    writeSnapshot(posMenuSnapshotKey, liteMenu);
+    void cacheMenuOffline(tenantId, liteMenu);
+    setIsReorderingPosMenu(true);
+    try {
+      await reorder_menu_items_live(tenantId, nextMenu.map((item) => String(item.id)));
+      window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { scope: 'menu' } }));
+    } catch (error: any) {
+      notify('error', error?.message || tx(safeLang, 'POS menyu sırası yenilənmədi', 'Порядок POS меню не обновился', 'POS menu order update failed'));
+      void refreshData({ force: true, menu: true, tables: false });
+    } finally {
+      setIsReorderingPosMenu(false);
+    }
+  }, [notify, posMenuSnapshotKey, refreshData, safeLang, tenantId]);
+
+  const handlePosMenuDrop = useCallback(async (targetGroupKey: string) => {
+    if (!draggingMenuGroupKey || draggingMenuGroupKey === targetGroupKey || isReorderingPosMenu) {
+      setDraggingMenuGroupKey(null);
+      setDropMenuGroupKey(null);
+      return;
+    }
+    const nextMenu = moveGroupedMenu(draggingMenuGroupKey, targetGroupKey);
+    setDraggingMenuGroupKey(null);
+    setDropMenuGroupKey(null);
+    if (nextMenu === menu) return;
+    await persistPosMenuOrder(nextMenu);
+  }, [draggingMenuGroupKey, isReorderingPosMenu, menu, moveGroupedMenu, persistPosMenuOrder]);
+
+  useEffect(() => {
+    if (!isPosMenuEditMode) {
+      setDraggingMenuGroupKey(null);
+      setDropMenuGroupKey(null);
+    }
+  }, [isPosMenuEditMode]);
+
   const scheduleRefreshData = (options: { force?: boolean; menu?: boolean; tables?: boolean } = {}) => {
     if (pendingRefreshTimerRef.current) window.clearTimeout(pendingRefreshTimerRef.current);
     pendingRefreshTimerRef.current = window.setTimeout(() => {
@@ -853,6 +899,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     [tables, ctx.selectedTable],
   );
   const currentRole = String(user?.role || '').toLowerCase();
+  const canEditPosMenuOrder = currentRole === 'admin' || currentRole === 'manager' || currentRole === 'super_admin';
 
   const occupiedTables = useMemo(
     () => tables.filter((t) => t.is_occupied),
@@ -924,6 +971,30 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       };
     });
   }, [filteredMenu]);
+
+  const moveGroupedMenu = useCallback((sourceKey: string, targetKey: string) => {
+    if (!sourceKey || !targetKey || sourceKey === targetKey) return menu;
+    const visibleGroups = [...groupedMenu];
+    const sourceIndex = visibleGroups.findIndex((group) => group.group_key === sourceKey);
+    const targetIndex = visibleGroups.findIndex((group) => group.group_key === targetKey);
+    if (sourceIndex < 0 || targetIndex < 0) return menu;
+    const [movedGroup] = visibleGroups.splice(sourceIndex, 1);
+    visibleGroups.splice(targetIndex, 0, movedGroup);
+
+    const visibleItemById = new Map<string, any>();
+    const reorderedVisibleItems = visibleGroups.flatMap((group) => group.items);
+    reorderedVisibleItems.forEach((item) => visibleItemById.set(String(item.id), item));
+    let cursor = 0;
+    return menu
+      .map((item) => {
+        const replacement = visibleItemById.get(String(item.id));
+        if (!replacement) return item;
+        const next = reorderedVisibleItems[cursor++];
+        return next || item;
+      })
+      .map((item, index) => ({ ...item, sort_order: index }));
+  }, [groupedMenu, menu]);
+
 
   const cartQtyByItemId = useMemo(() => {
     const quantities = new Map<string, number>();
@@ -1770,16 +1841,40 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     if (widget === 'categories') {
       const size = getLeftWidgetSize(widget);
       return (
-        <div key={widget} className={`mb-3 flex flex-wrap overflow-x-auto pb-1 ${size === 'compact' ? 'gap-1' : size === 'expanded' ? 'gap-3' : 'gap-2'}`}>
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setCategory(cat)}
-              className={`neon-chip ${category === cat ? 'neon-chip-active' : ''}`}
-            >
-              {cat === 'ALL' ? t.all_categories : cat}
-            </button>
-          ))}
+        <div key={widget} className="mb-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div className={`flex flex-wrap overflow-x-auto pb-1 ${size === 'compact' ? 'gap-1' : size === 'expanded' ? 'gap-3' : 'gap-2'}`}>
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setCategory(cat)}
+                  disabled={isPosMenuEditMode}
+                  className={`neon-chip ${category === cat ? 'neon-chip-active' : ''} ${isPosMenuEditMode ? 'cursor-not-allowed opacity-70' : ''}`}
+                >
+                  {cat === 'ALL' ? t.all_categories : cat}
+                </button>
+              ))}
+            </div>
+            {canEditPosMenuOrder && (
+              <button
+                type="button"
+                disabled={isReorderingPosMenu}
+                onClick={() => setIsPosMenuEditMode((prev) => !prev)}
+                className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${isPosMenuEditMode ? 'border-amber-300/70 bg-amber-300/15 text-amber-100' : 'border-slate-600 bg-slate-900/60 text-slate-200'} disabled:cursor-not-allowed disabled:opacity-60`}
+              >
+                {isReorderingPosMenu
+                  ? tx(lang, 'Yazılır...', 'Сохраняется...', 'Saving...')
+                  : isPosMenuEditMode
+                    ? tx(lang, 'Bağla', 'Закрыть', 'Close')
+                    : tx(lang, 'Düzənlə', 'Редактировать', 'Edit')}
+              </button>
+            )}
+          </div>
+          {isPosMenuEditMode && (
+            <div className="text-[11px] text-amber-200/90">
+              {tx(lang, 'Kartı tutub başqa yerə sürüşdürün.', 'Перетащите карточку на новое место.', 'Drag a card to a new position.')}
+            </div>
+          )}
         </div>
       );
     }
@@ -1792,8 +1887,31 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               const preview = group.items[0];
               const qtyInCart = getGroupQty(group);
               return (
-                <div key={group.group_key} className="pos2-product-card">
-                  <button onClick={() => openProductPicker(group)} className="w-full text-left">
+                <div
+                  key={group.group_key}
+                  draggable={isPosMenuEditMode && canEditPosMenuOrder && !isReorderingPosMenu}
+                  onDragStart={() => {
+                    if (!isPosMenuEditMode) return;
+                    setDraggingMenuGroupKey(group.group_key);
+                    setDropMenuGroupKey(group.group_key);
+                  }}
+                  onDragOver={(e) => {
+                    if (!isPosMenuEditMode || !draggingMenuGroupKey || draggingMenuGroupKey === group.group_key) return;
+                    e.preventDefault();
+                    setDropMenuGroupKey(group.group_key);
+                  }}
+                  onDrop={(e) => {
+                    if (!isPosMenuEditMode) return;
+                    e.preventDefault();
+                    void handlePosMenuDrop(group.group_key);
+                  }}
+                  onDragEnd={() => {
+                    setDraggingMenuGroupKey(null);
+                    setDropMenuGroupKey(null);
+                  }}
+                  className={`pos2-product-card ${dropMenuGroupKey === group.group_key && draggingMenuGroupKey !== group.group_key ? 'ring-2 ring-cyan-300/70' : ''} ${draggingMenuGroupKey === group.group_key ? 'opacity-60' : ''}`}
+                >
+                  <button onClick={() => { if (!isPosMenuEditMode) openProductPicker(group); }} className="w-full text-left">
                     <div className="pos2-product-media">
                       {group.image_url ? (
                         <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" />
@@ -1841,10 +1959,30 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             return (
               <button
                 key={group.group_key}
-                onClick={() => {
-                  openProductPicker(group);
+                draggable={isPosMenuEditMode && canEditPosMenuOrder && !isReorderingPosMenu}
+                onDragStart={() => {
+                  if (!isPosMenuEditMode) return;
+                  setDraggingMenuGroupKey(group.group_key);
+                  setDropMenuGroupKey(group.group_key);
                 }}
-                className={`neon-item ${size === 'compact' ? 'text-xs' : size === 'expanded' ? 'text-base' : 'text-sm'} ${productItemClass} text-left`}
+                onDragOver={(e) => {
+                  if (!isPosMenuEditMode || !draggingMenuGroupKey || draggingMenuGroupKey === group.group_key) return;
+                  e.preventDefault();
+                  setDropMenuGroupKey(group.group_key);
+                }}
+                onDrop={(e) => {
+                  if (!isPosMenuEditMode) return;
+                  e.preventDefault();
+                  void handlePosMenuDrop(group.group_key);
+                }}
+                onDragEnd={() => {
+                  setDraggingMenuGroupKey(null);
+                  setDropMenuGroupKey(null);
+                }}
+                onClick={() => {
+                  if (!isPosMenuEditMode) openProductPicker(group);
+                }}
+                className={`neon-item ${size === 'compact' ? 'text-xs' : size === 'expanded' ? 'text-base' : 'text-sm'} ${productItemClass} text-left ${dropMenuGroupKey === group.group_key && draggingMenuGroupKey !== group.group_key ? 'ring-2 ring-cyan-300/70' : ''} ${draggingMenuGroupKey === group.group_key ? 'opacity-60' : ''}`}
               >
                 <div className="flex w-full items-center justify-between gap-2">
                   <span>{group.base}</span>
@@ -1991,18 +2129,67 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               </div>
             </div>
             <div className="mb-3 flex flex-wrap gap-1.5">
-              {categories.map((cat) => (
-                <button key={cat} onClick={() => setCategory(cat)} className={`pos3-chip ${category === cat ? 'pos3-chip-active' : ''}`}>
-                  {cat === 'ALL' ? t.all_categories : cat}
+              <div className="flex flex-1 flex-wrap gap-1.5">
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setCategory(cat)}
+                    disabled={isPosMenuEditMode}
+                    className={`pos3-chip ${category === cat ? 'pos3-chip-active' : ''} ${isPosMenuEditMode ? 'cursor-not-allowed opacity-70' : ''}`}
+                  >
+                    {cat === 'ALL' ? t.all_categories : cat}
+                  </button>
+                ))}
+              </div>
+              {canEditPosMenuOrder && (
+                <button
+                  type="button"
+                  disabled={isReorderingPosMenu}
+                  onClick={() => setIsPosMenuEditMode((prev) => !prev)}
+                  className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${isPosMenuEditMode ? 'border-amber-300/70 bg-amber-300/15 text-amber-100' : 'border-slate-600 bg-slate-900/60 text-slate-200'} disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  {isReorderingPosMenu
+                    ? tx(lang, 'Yazılır...', 'Сохраняется...', 'Saving...')
+                    : isPosMenuEditMode
+                      ? tx(lang, 'Bağla', 'Закрыть', 'Close')
+                      : tx(lang, 'Düzənlə', 'Редактировать', 'Edit')}
                 </button>
-              ))}
+              )}
             </div>
+            {isPosMenuEditMode && (
+              <div className="mb-3 text-[11px] text-amber-200/90">
+                {tx(lang, 'Kartı tutub başqa yerə sürüşdürün.', 'Перетащите карточку на новое место.', 'Drag a card to a new position.')}
+              </div>
+            )}
             <div className="pos3-product-grid">
               {groupedMenu.map((group) => {
                 const qtyInCart = getGroupQty(group);
                 return (
-                  <div key={group.group_key} className={`pos3-card ${qtyInCart > 0 ? 'pos3-card-active' : ''}`}>
-                    <button className="w-full text-left" onClick={() => increaseGroupQty(group)}>
+                  <div
+                    key={group.group_key}
+                    draggable={isPosMenuEditMode && canEditPosMenuOrder && !isReorderingPosMenu}
+                    onDragStart={() => {
+                      if (!isPosMenuEditMode) return;
+                      setDraggingMenuGroupKey(group.group_key);
+                      setDropMenuGroupKey(group.group_key);
+                    }}
+                    onDragOver={(e) => {
+                      if (!isPosMenuEditMode || !draggingMenuGroupKey || draggingMenuGroupKey === group.group_key) return;
+                      e.preventDefault();
+                      setDropMenuGroupKey(group.group_key);
+                    }}
+                    onDrop={(e) => {
+                      if (!isPosMenuEditMode) return;
+                      e.preventDefault();
+                      void handlePosMenuDrop(group.group_key);
+                    }}
+                    onDragEnd={() => {
+                      setDraggingMenuGroupKey(null);
+                      setDropMenuGroupKey(null);
+                    }}
+                    className={`pos3-card ${qtyInCart > 0 ? 'pos3-card-active' : ''} ${dropMenuGroupKey === group.group_key && draggingMenuGroupKey !== group.group_key ? 'ring-2 ring-cyan-300/70' : ''} ${draggingMenuGroupKey === group.group_key ? 'opacity-60' : ''}`}
+                  >
+                    <button className="w-full text-left" onClick={() => { if (!isPosMenuEditMode) increaseGroupQty(group); }}>
                       <div className="pos3-card-image">
                         {group.image_url ? (
                           <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" />
@@ -2023,6 +2210,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                         className="pos3-qty-btn"
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (isPosMenuEditMode) return;
                           decreaseGroupQty(group);
                         }}
                         disabled={qtyInCart <= 0}
@@ -2034,6 +2222,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                         className="pos3-qty-btn"
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (isPosMenuEditMode) return;
                           increaseGroupQty(group);
                         }}
                       >
@@ -2044,6 +2233,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                           className="rounded-lg border border-amber-300/40 bg-amber-300/10 px-2 py-1 text-[10px] font-semibold text-amber-100"
                           onClick={(e) => {
                             e.stopPropagation();
+                            if (isPosMenuEditMode) return;
                             openProductPicker(group);
                           }}
                         >
