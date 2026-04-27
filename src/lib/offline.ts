@@ -13,6 +13,19 @@ const MAX_SYNC_BATCH = 25;
 const MAX_RETRY_COUNT = 8;
 const BASE_RETRY_DELAY_MS = 15_000;
 
+const normalizeOfflineSyncError = (message: string) => {
+  const raw = String(message || '').trim();
+  const lower = raw.toLowerCase();
+  if (
+    lower.includes('unauthorized') ||
+    lower.includes('invalid token') ||
+    lower.includes('token revoked')
+  ) {
+    return 'Sessiya vaxtı bitib və ya giriş etibarsızdır. Zəhmət olmasa yenidən daxil olun.';
+  }
+  return raw;
+};
+
 type OfflineSaleRecord = {
   id: string;
   tenant_id: string;
@@ -309,7 +322,7 @@ export const syncPendingOfflineSales = async (tenantId: string) => {
         });
         synced += 1;
       } catch (error) {
-        const message = String((error as any)?.message || 'sync_failed');
+        const message = normalizeOfflineSyncError(String((error as any)?.message || 'sync_failed'));
         const retryCount = Number(row.retry_count || 0) + 1;
         const cappedRetry = Math.min(retryCount, MAX_RETRY_COUNT);
         const nextAttemptDelay = BASE_RETRY_DELAY_MS * (2 ** Math.min(cappedRetry, 6));
