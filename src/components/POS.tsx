@@ -1333,25 +1333,61 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     }
   };
 
+  const applyRewardCode = (rawCode: string, mode: 'reward' | 'feedback' = 'reward') => {
+    const normalized = normalizeRewardClaimCode(rawCode);
+    if (!normalized) return;
+    patchCtx({ rewardClaimCode: normalized, customerQR: '' });
+    if (isFeedbackCouponCode(normalized)) {
+      void (async () => {
+        const found = await find_feedback_coupon_live(tenantId, normalized);
+        if (!found) {
+          notify('error', tx(lang, 'Kupon tapılmadı', 'Купон не найден', 'Coupon not found'));
+          setFeedbackCouponPreview(null);
+          return;
+        }
+        setFeedbackCouponPreview({
+          code: found.code,
+          percent: Number(found.percent || 5),
+          status: String(found.status || 'PENDING'),
+        });
+        notify(
+          found.status === 'PENDING' ? 'success' : 'info',
+          found.status === 'PENDING'
+            ? tx(lang, `Feedback kuponu aktivdir: -${Number(found.percent || 5)}%`, `Купон feedback активен: -${Number(found.percent || 5)}%`, `Feedback coupon active: -${Number(found.percent || 5)}%`)
+            : tx(lang, 'Bu feedback kuponu artıq istifadə olunub', 'Этот feedback купон уже использован', 'This feedback coupon is already used'),
+        );
+      })();
+      return;
+    }
+    notify(
+      'success',
+      mode === 'feedback'
+        ? tx(lang, 'Feedback kuponu oxundu', 'Купон feedback считан', 'Feedback coupon scanned')
+        : tx(lang, 'Reward kodu oxundu', 'Код награды считан', 'Reward code scanned'),
+    );
+  };
+
   const handleFindCustomer = () => {
     const code = (ctx.customerQR || '').trim();
     if (!code) return;
+    const upper = code.toUpperCase();
     let extracted = code;
     if (code.includes('id=')) {
       extracted = code.split('id=')[1]?.split('&')[0] || code;
-    } else if (code.toUpperCase().startsWith('IWPOS:CARD:')) {
+    } else if (upper.startsWith('IWPOS:CARD:')) {
       extracted = code.split(':').slice(2).join(':') || code;
-    } else if (code.toUpperCase().startsWith('CARD:')) {
+    } else if (upper.startsWith('CARD:')) {
       extracted = code.split(':').slice(1).join(':') || code;
-    } else if (code.toUpperCase().startsWith('IWPOS:CLAIM:')) {
-      const claimCode = code.split(':').slice(2).join(':').trim().toUpperCase();
-      patchCtx({ rewardClaimCode: claimCode });
-      notify('success', tx(lang, 'Reward kodu oxundu', 'Код награды считан', 'Reward code scanned'));
+    } else if (upper.startsWith('IWPOS:CLAIM:')) {
+      applyRewardCode(code, 'reward');
       return;
-    } else if (code.toUpperCase().startsWith('IWPOS:FB:')) {
-      const feedbackCode = code.split(':').slice(2).join(':').trim().toUpperCase();
-      patchCtx({ rewardClaimCode: feedbackCode });
-      notify('success', tx(lang, 'Feedback kuponu oxundu', 'Купон feedback считан', 'Feedback coupon scanned'));
+    } else if (upper.startsWith('IWPOS:FB:')) {
+      applyRewardCode(code, 'feedback');
+      return;
+    }
+    const normalizedCode = normalizeRewardClaimCode(code);
+    if (isFeedbackCouponCode(normalizedCode)) {
+      applyRewardCode(normalizedCode, 'feedback');
       return;
     }
     const customers = getDB<any>(`${tenantId}_customers`) || [];
@@ -1360,7 +1396,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       notify('error', tx(lang, 'Müştəri tapılmadı', 'Клиент не найден', 'Customer not found'));
       return;
     }
-    patchCtx({ customer: found });
+    patchCtx({ customer: found, customerQR: '' });
     notify('success', tx(lang, 'Müştəri tapıldı', 'Клиент найден', 'Customer found'));
   };
 
@@ -1533,7 +1569,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           <div className={`relative ${size === 'expanded' ? 'mb-1' : ''}`}>
             <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
-              placeholder={tx(lang, 'Skan et...', 'Сканируйте...', 'Scan...')}
+              placeholder={tx(lang, 'Kart / reward / feedback kodunu skan et...', 'Сканируйте карту / reward / feedback код...', 'Scan member / reward / feedback code...')}
               className={`neon-input pl-9 ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}
               value={ctx.customerQR}
               onChange={(e) => patchCtx({ customerQR: e.target.value })}
@@ -1544,10 +1580,10 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             <button
               onClick={handleFindCustomer}
               className="pay-btn h-12 w-full"
-              title={tx(lang, 'Kart/QR üzrə müştərini tapır.', 'Ищет клиента по карте/QR.', 'Finds customer by card/QR.')}
-              data-guide={tx(lang, 'Kart/QR üzrə müştərini tapır.', 'Ищет клиента по карте/QR.', 'Finds customer by card/QR.')}
+              title={tx(lang, 'Kodu oxuyub müştəri və ya kupon kimi özü tətbiq edir.', 'Считывает код и сам применяет как клиента или купон.', 'Reads the code and auto-applies it as customer or coupon.')}
+              data-guide={tx(lang, 'Kodu oxuyub müştəri və ya kupon kimi özü tətbiq edir.', 'Считывает код и сам применяет как клиента или купон.', 'Reads the code and auto-applies it as customer or coupon.')}
             >
-              {tx(lang, 'Müştəri Tap', 'Найти клиента', 'Find Customer')}
+              {tx(lang, 'Kodu Oxu', 'Считать код', 'Read Code')}
             </button>
             <button
               onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '' })}
@@ -1570,18 +1606,6 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       const size = getWidgetSize(widget);
       return (
         <React.Fragment key={widget}>
-          <input
-            placeholder={tx(lang, 'Reward/Feedback kodu (opsional)', 'Код награды/feedback (необязательно)', 'Reward/Feedback code (optional)')}
-            className={`neon-input ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}
-            value={ctx.rewardClaimCode || ''}
-            onChange={(e) => patchCtx({ rewardClaimCode: e.target.value.toUpperCase() })}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                handleRewardCodeEnter();
-              }
-            }}
-          />
           {feedbackCouponPreview ? (
             <div
               className={`rounded-md border px-2 py-1 text-xs ${
@@ -2259,7 +2283,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               <div className="relative">
                 <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <input
-                  placeholder={tx(lang, 'Skan et...', 'Сканируйте...', 'Scan...')}
+                  placeholder={tx(lang, 'Kart / reward / feedback kodunu skan et...', 'Сканируйте карту / reward / feedback код...', 'Scan member / reward / feedback code...')}
                   className="neon-input pl-9"
                   value={ctx.customerQR}
                   onChange={(e) => patchCtx({ customerQR: e.target.value })}
@@ -2267,21 +2291,9 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <button onClick={handleFindCustomer} className="pay-btn h-10">{tx(lang, 'Müştəri Tap', 'Найти клиента', 'Find Customer')}</button>
+                <button onClick={handleFindCustomer} className="pay-btn h-10">{tx(lang, 'Kodu Oxu', 'Считать код', 'Read Code')}</button>
                 <button onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '' })} className="pay-btn h-10">{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</button>
               </div>
-              <input
-                placeholder={tx(lang, 'Reward/Feedback kodu', 'Код reward/feedback', 'Reward/Feedback code')}
-                className="neon-input h-10"
-                value={ctx.rewardClaimCode || ''}
-                onChange={(e) => patchCtx({ rewardClaimCode: e.target.value.toUpperCase() })}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleRewardCodeEnter();
-                  }
-                }}
-              />
               {feedbackCouponPreview ? (
                 <div className={`rounded-md border px-2 py-1 text-xs ${feedbackCouponPreview.status === 'PENDING' ? 'border-emerald-400/50 bg-emerald-500/10 text-emerald-200' : 'border-slate-600/60 bg-slate-700/30 text-slate-300'}`}>
                   {feedbackCouponPreview.status === 'PENDING'
