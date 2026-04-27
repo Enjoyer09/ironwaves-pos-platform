@@ -291,11 +291,10 @@ async function assertValidReceiptLink(payload: FeedbackSubmission) {
   }
 
   if (isBackendEnabled()) {
-    await apiRequest(`/api/v1/pos/receipt/${encodeURIComponent(receiptId)}?token=${encodeURIComponent(receiptToken)}`, {
-      method: 'GET',
-      auth: false,
-      tenantId: null,
-    });
+    // Backend submit endpoint already validates receipt_id + receipt_token
+    // against the sale table. Avoid an extra network round-trip here, because
+    // public receipt may be temporarily unreachable while feedback submit still
+    // can succeed.
     return;
   }
 
