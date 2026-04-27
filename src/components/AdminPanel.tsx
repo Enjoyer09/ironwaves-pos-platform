@@ -5,7 +5,7 @@ import { get_menu_items_live, create_menu_item_live, reorder_menu_items_live, so
 import { get_logs_live } from '../api/logs';
 import { apiRequest, isBackendEnabled } from '../api/client';
 import { Decimal } from 'decimal.js';
-import { GripVertical, Plus, Trash2, TrendingUp, ShoppingBag, DollarSign, Pencil, ChevronDown, ChevronUp } from 'lucide-react';
+import { GripVertical, Plus, Trash2, TrendingUp, ShoppingBag, DollarSign, Pencil, ChevronDown, ChevronUp, Printer } from 'lucide-react';
 import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
 import { getDB } from '../lib/db_sim';
@@ -82,6 +82,9 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
   const [voidPreset, setVoidPreset] = useState<'TEST' | 'ZAY_MEHSUL'>('TEST');
   const [managerPass, setManagerPass] = useState('');
   const [newSaleTotal, setNewSaleTotal] = useState('');
+  const [editSalePaymentMethod, setEditSalePaymentMethod] = useState<'Nəğd' | 'Kart' | 'Split'>('Nəğd');
+  const [editSaleSplitCash, setEditSaleSplitCash] = useState('');
+  const [editSaleSplitCard, setEditSaleSplitCard] = useState('');
   const [showRecentSales, setShowRecentSales] = useState(true);
   const fetchCacheRef = useRef<Record<string, number>>({});
   const fetchSeqRef = useRef(0);
@@ -131,6 +134,23 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
       label: tx(lang, 'Tamamlandı', 'Завершено', 'Completed'),
       className: 'bg-emerald-500/20 text-emerald-200 border-emerald-300/40',
     };
+  };
+
+  const reprintSaleReceipt = (sale: any) => {
+    const receiptRef = String(sale?.receipt_code || sale?.id || '').trim();
+    if (!receiptRef) {
+      notify('error', tx(lang, 'Bu satış üçün receipt ID tapılmadı', 'Для этой продажи receipt ID не найден', 'Receipt ID was not found for this sale'));
+      return;
+    }
+    const token = String(sale?.receipt_token || '').trim();
+    const url = new URL(window.location.origin);
+    url.searchParams.set('r', receiptRef);
+    if (token) url.searchParams.set('t', token);
+    url.searchParams.set('autoprint', '1');
+    const popup = window.open(url.toString(), '_blank', 'noopener,noreferrer');
+    if (!popup) {
+      notify('error', tx(lang, 'Receipt pəncərəsi açıla bilmədi', 'Не удалось открыть окно receipt', 'Could not open receipt window'));
+    }
   };
 
   useEffect(() => {
@@ -699,6 +719,16 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
                                 {tx(lang, 'Partial', 'Частично', 'Partial')}
                               </button>
                               <button
+                                className="rounded-lg border border-cyan-300/40 bg-cyan-500/15 px-2 py-1 text-[11px] font-semibold text-cyan-100"
+                                title={tx(lang, 'Çeki yenidən açır və çap pəncərəsini başladır.', 'Открывает чек заново и запускает печать.', 'Reopens the receipt and starts printing.')}
+                                onClick={() => reprintSaleReceipt(s)}
+                              >
+                                <span className="inline-flex items-center gap-1">
+                                  <Printer size={12} />
+                                  {tx(lang, 'Çap', 'Печать', 'Print')}
+                                </span>
+                              </button>
+                              <button
                                 className="glossy-gold rounded-lg px-2 py-1 text-[11px] font-semibold"
                                 disabled={s.status === 'VOIDED'}
                                 title={tx(lang, 'Satış məbləğini menecer təsdiqi ilə düzəldir.', 'Корректирует сумму продажи с подтверждением менеджера.', 'Adjusts sale amount with manager approval.')}
@@ -707,6 +737,9 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
                                   setSaleReason('');
                                   setManagerPass('');
                                   setNewSaleTotal(String(s.total || ''));
+                                  setEditSalePaymentMethod(String(s.payment_method || '').toLowerCase().includes('kart') ? 'Kart' : String(s.payment_method || '').toLowerCase().includes('split') ? 'Split' : 'Nəğd');
+                                  setEditSaleSplitCash(String(s.total || ''));
+                                  setEditSaleSplitCard('0');
                                 }}
                               >
                                 {tx(lang, 'Düzəlt', 'Исправить')}
@@ -756,7 +789,36 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
                       />
                       <input className="neon-input" type="password" placeholder={tx(lang, 'Admin/Manager şifrəsi', 'Пароль админа/менеджера')} value={managerPass} onChange={(e) => setManagerPass(e.target.value)} />
                       {saleActionModal.mode === 'edit' && (
-                        <input className="neon-input" type="number" placeholder={tx(lang, 'Yeni total', 'Новый итог')} value={newSaleTotal} onChange={(e) => setNewSaleTotal(e.target.value)} />
+                        <>
+                          <input className="neon-input" type="number" placeholder={tx(lang, 'Yeni total', 'Новый итог')} value={newSaleTotal} onChange={(e) => setNewSaleTotal(e.target.value)} />
+                          <select
+                            className="neon-input"
+                            value={editSalePaymentMethod}
+                            onChange={(e) => setEditSalePaymentMethod(e.target.value as 'Nəğd' | 'Kart' | 'Split')}
+                          >
+                            <option value="Nəğd">{tx(lang, 'Nağd', 'Наличные', 'Cash')}</option>
+                            <option value="Kart">{tx(lang, 'Kart', 'Карта', 'Card')}</option>
+                            <option value="Split">{tx(lang, 'Bölünmüş ödəniş', 'Раздельная оплата', 'Split')}</option>
+                          </select>
+                          {editSalePaymentMethod === 'Split' && (
+                            <div className="grid grid-cols-2 gap-2">
+                              <input
+                                className="neon-input"
+                                type="number"
+                                placeholder={tx(lang, 'Split cash', 'Наличные часть', 'Split cash')}
+                                value={editSaleSplitCash}
+                                onChange={(e) => setEditSaleSplitCash(e.target.value)}
+                              />
+                              <input
+                                className="neon-input"
+                                type="number"
+                                placeholder={tx(lang, 'Split card', 'Карта часть', 'Split card')}
+                                value={editSaleSplitCard}
+                                onChange={(e) => setEditSaleSplitCard(e.target.value)}
+                              />
+                            </div>
+                          )}
+                        </>
                       )}
                       {saleActionModal.mode === 'partial' && (
                         <input className="neon-input" type="number" placeholder={tx(lang, 'Refund məbləği', 'Сумма возврата', 'Refund amount')} value={newSaleTotal} onChange={(e) => setNewSaleTotal(e.target.value)} />
@@ -785,7 +847,16 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
                               notify('success', tx(lang, 'Satış VOID edildi', 'Продажа VOID выполнена'));
                             } else if (saleActionModal.mode === 'edit') {
                               if (!newSaleTotal) return;
-                              await update_sale_amount_live(tenant_id, saleActionModal.sale.id, newSaleTotal, saleReason, user?.username || 'admin');
+                              await update_sale_amount_live(
+                                tenant_id,
+                                saleActionModal.sale.id,
+                                newSaleTotal,
+                                saleReason,
+                                user?.username || 'admin',
+                                editSalePaymentMethod,
+                                editSalePaymentMethod === 'Split' ? editSaleSplitCash : undefined,
+                                editSalePaymentMethod === 'Split' ? editSaleSplitCard : undefined,
+                              );
                               notify('success', tx(lang, 'Satış düzəlişi tətbiq olundu', 'Изменение продажи применено'));
                             } else {
                               if (!newSaleTotal) return;

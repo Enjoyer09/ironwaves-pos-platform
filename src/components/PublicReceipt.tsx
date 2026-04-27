@@ -59,6 +59,16 @@ export default function PublicReceipt({ receiptId, token }: Props) {
     };
   }, [receiptId, token]);
 
+  React.useEffect(() => {
+    if (loading || !receipt) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('autoprint') !== '1') return;
+    const timer = window.setTimeout(() => {
+      window.print();
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [loading, receipt]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0f1722] p-6 text-slate-200">
