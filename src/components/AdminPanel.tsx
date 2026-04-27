@@ -95,6 +95,37 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
       setActiveTab(tab);
     });
   };
+
+  const normalizeEditPaymentMethod = (value: unknown): 'Nəğd' | 'Kart' | 'Split' => {
+    const raw = String(value || '').trim().toLowerCase();
+    if (raw.includes('split')) return 'Split';
+    if (raw.includes('kart') || raw.includes('card')) return 'Kart';
+    return 'Nəğd';
+  };
+
+  const currentEditSalePaymentMethod = saleActionModal?.mode === 'edit'
+    ? normalizeEditPaymentMethod(saleActionModal?.sale?.payment_method)
+    : 'Nəğd';
+  const currentEditSaleTotal = saleActionModal?.mode === 'edit'
+    ? String(saleActionModal?.sale?.total || '')
+    : '';
+  const splitTotalMatches = editSalePaymentMethod !== 'Split'
+    ? true
+    : Math.abs((Number(editSaleSplitCash || 0) + Number(editSaleSplitCard || 0)) - Number(newSaleTotal || 0)) < 0.01;
+  const hasEditSaleChanges = saleActionModal?.mode === 'edit'
+    ? (
+      String(newSaleTotal || '').trim() !== String(currentEditSaleTotal || '').trim() ||
+      editSalePaymentMethod !== currentEditSalePaymentMethod ||
+      editSalePaymentMethod === 'Split'
+    )
+    : true;
+  const canConfirmSaleAction =
+    Boolean(managerPass) &&
+    (
+      saleActionModal?.mode !== 'edit'
+        ? Boolean(String(newSaleTotal || saleReason || voidPreset || '').trim() || saleActionModal?.mode === 'void')
+        : Boolean(String(newSaleTotal || '').trim()) && hasEditSaleChanges && splitTotalMatches
+    );
   const mobileTabOptions: Array<{ key: AdminTab; label: string }> = useMemo(() => ([
     { key: 'dashboard', label: tx(lang, 'Dashboard', 'Дашборд', 'Dashboard') },
     { key: 'finance', label: tx(lang, 'Maliyyə', 'Финансы', 'Finance') },
@@ -859,6 +890,7 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
                       </button>
                       <button
                         className="glossy-gold rounded-lg px-4 py-2 font-semibold"
+                        disabled={!canConfirmSaleAction}
                         onClick={async () => {
                           if (!managerPass) return;
                           if (!(await verifyManagerOrAdminPass(managerPass))) {
