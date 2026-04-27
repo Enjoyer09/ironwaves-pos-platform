@@ -1,11 +1,11 @@
 import React, { Suspense, lazy, startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../store';
 import { get_sales_summary_live, get_sales_list_live, update_sale_amount_live, void_sale_with_reason_live, partial_refund_sale_live } from '../api/analytics';
-import { get_menu_items_live, create_menu_item_live, soft_delete_menu_item_live, update_menu_item_live } from '../api/menu';
+import { get_menu_items_live, create_menu_item_live, reorder_menu_items_live, soft_delete_menu_item_live, update_menu_item_live } from '../api/menu';
 import { get_logs_live } from '../api/logs';
 import { apiRequest, isBackendEnabled } from '../api/client';
 import { Decimal } from 'decimal.js';
-import { Plus, Trash2, TrendingUp, ShoppingBag, DollarSign, Pencil } from 'lucide-react';
+import { GripVertical, Plus, Trash2, TrendingUp, ShoppingBag, DollarSign, Pencil } from 'lucide-react';
 import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
 import { getDB } from '../lib/db_sim';
@@ -60,6 +60,7 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
   const [customCategory, setCustomCategory] = useState('');
   const [menuSearch, setMenuSearch] = useState('');
   const [isAddingMenu, setIsAddingMenu] = useState(false);
+  const [isReorderingMenu, setIsReorderingMenu] = useState(false);
   const [adminNote, setAdminNote] = useState('');
   const [notes, setNotes] = useState<Array<{ id: number; text: string; by?: string; created_at: string }>>([]);
   const [deleteMenuId, setDeleteMenuId] = useState<string | null>(null);
@@ -67,6 +68,8 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
   const [deleteNoteId, setDeleteNoteId] = useState<number | null>(null);
   const [editNoteId, setEditNoteId] = useState<number | null>(null);
   const [editNoteText, setEditNoteText] = useState('');
+  const [draggingMenuId, setDraggingMenuId] = useState<string | null>(null);
+  const [dropMenuId, setDropMenuId] = useState<string | null>(null);
 
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date(); d.setHours(0,0,0,0); return d.toISOString().split('T')[0];
@@ -335,6 +338,61 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
     if (!q) return true;
     return `${item.item_name || ''} ${item.category || ''} ${item.description || ''}`.toLowerCase().includes(q);
   });
+
+  const moveMenuItem = (items: any[], sourceId: string, targetId: string) => {
+    if (!sourceId || !targetId || sourceId === targetId) return items;
+    const q = menuSearch.trim().toLowerCase();
+    const matchesFilter = (item: any) => {
+      if (!q) return true;
+      return `${item.item_name || ''} ${item.category || ''} ${item.description || ''}`.toLowerCase().includes(q);
+    };
+    const visibleItems = items.filter(matchesFilter);
+    const sourceIndex = visibleItems.findIndex((item) => String(item.id) === sourceId);
+    const targetIndex = visibleItems.findIndex((item) => String(item.id) === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return items;
+    const nextVisible = [...visibleItems];
+    const [moved] = nextVisible.splice(sourceIndex, 1);
+    nextVisible.splice(targetIndex, 0, moved);
+    const visibleIds = new Set(visibleItems.map((item) => String(item.id)));
+    let cursor = 0;
+    return items
+      .map((item) => {
+        if (!visibleIds.has(String(item.id))) return item;
+        const replacement = nextVisible[cursor++];
+        return replacement || item;
+      })
+      .map((item, index) => ({ ...item, sort_order: index }));
+  };
+
+  const handleMenuDrop = async (targetId: string) => {
+    if (!draggingMenuId || draggingMenuId === targetId || isReorderingMenu) {
+      setDraggingMenuId(null);
+      setDropMenuId(null);
+      return;
+    }
+    const nextMenu = moveMenuItem(menu, draggingMenuId, targetId);
+    if (nextMenu === menu) {
+      setDraggingMenuId(null);
+      setDropMenuId(null);
+      return;
+    }
+    setMenu(nextMenu);
+    setDraggingMenuId(null);
+    setDropMenuId(null);
+    setIsReorderingMenu(true);
+    try {
+      await reorder_menu_items_live(tenant_id, nextMenu.map((item: any) => String(item.id)));
+      window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { scope: 'menu' } }));
+      notify('success', tx(lang, 'Menyu sırası yeniləndi', 'Порядок меню обновлен', 'Menu order updated'));
+    } catch (error: any) {
+      notify('error', error?.message || tx(lang, 'Menyu sırası yenilənmədi', 'Порядок меню не обновился', 'Menu order update failed'));
+      delete fetchCacheRef.current[`menu:${tenant_id}`];
+      const seq = ++fetchSeqRef.current;
+      await fetchData(seq);
+    } finally {
+      setIsReorderingMenu(false);
+    }
+  };
 
   const analyticsBreakdown = useMemo(() => {
     const validSales = sales.filter((s: any) => String(s.status || '').toUpperCase() !== 'VOIDED');
@@ -748,10 +806,15 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
             )}
 
             <div className="metal-panel rounded-xl p-6">
+              <div className="mb-3 flex items-center justify-between gap-3 text-xs text-slate-400">
+                <span>{tx(lang, 'Sıralamanı dəyişmək üçün məhsulu sürüşdürün.', 'Перетащите товар, чтобы изменить порядок.', 'Drag an item to change its order.')}</span>
+                {isReorderingMenu && <span className="text-amber-300">{tx(lang, 'Sıra yazılır...', 'Порядок сохраняется...', 'Saving order...')}</span>}
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="text-slate-300 border-b border-slate-700/70">
+                      <th className="pb-3 w-12">{tx(lang, 'Sıra', 'Порядок', 'Order')}</th>
                       <th className="pb-3">{tx(lang, 'Məhsul', 'Товар', 'Item')}</th>
                       <th className="pb-3">{tx(lang, 'Kateqoriya', 'Категория', 'Category')}</th>
                       <th className="pb-3">{tx(lang, 'Qiymət', 'Цена', 'Price')}</th>
@@ -761,7 +824,37 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
                   </thead>
                   <tbody>
                     {filteredMenu.map(item => (
-                      <tr key={item.id} className="border-b border-slate-700/60">
+                      <tr
+                        key={item.id}
+                        className={`border-b border-slate-700/60 ${dropMenuId === item.id && draggingMenuId !== item.id ? 'bg-cyan-400/5' : ''} ${draggingMenuId === item.id ? 'opacity-60' : ''}`}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          if (draggingMenuId && draggingMenuId !== item.id) setDropMenuId(item.id);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          void handleMenuDrop(String(item.id));
+                        }}
+                      >
+                        <td className="py-3">
+                          <button
+                            type="button"
+                            draggable={!isReorderingMenu}
+                            onDragStart={() => {
+                              setDraggingMenuId(String(item.id));
+                              setDropMenuId(String(item.id));
+                            }}
+                            onDragEnd={() => {
+                              setDraggingMenuId(null);
+                              setDropMenuId(null);
+                            }}
+                            className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={isReorderingMenu}
+                            title={tx(lang, 'Sürüşdürüb sıranı dəyiş', 'Перетащите, чтобы изменить порядок', 'Drag to reorder')}
+                          >
+                            <GripVertical size={16} />
+                          </button>
+                        </td>
                         <td className="py-3">
                           <div className="flex min-w-0 items-center gap-3">
                             {item.image_url ? (
@@ -806,7 +899,7 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
                     ))}
                     {filteredMenu.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="py-8 text-center text-slate-500">
+                        <td colSpan={6} className="py-8 text-center text-slate-500">
                           {tx(lang, 'Axtarışa uyğun məhsul tapılmadı.', 'По запросу ничего не найдено.', 'No matching menu item found.')}
                         </td>
                       </tr>

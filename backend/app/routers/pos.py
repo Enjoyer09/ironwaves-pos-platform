@@ -184,6 +184,7 @@ def get_menu(
     rows = (
         db.query(
             MenuItem.id,
+            MenuItem.sort_order,
             MenuItem.item_name,
             MenuItem.category,
             MenuItem.price,
@@ -193,12 +194,13 @@ def get_menu(
             MenuItem.is_active,
         )
         .filter(MenuItem.tenant_id == tenant.id, MenuItem.is_active == True)
-        .order_by(MenuItem.category.asc(), MenuItem.item_name.asc())
+        .order_by(MenuItem.sort_order.asc(), MenuItem.category.asc(), MenuItem.item_name.asc())
         .all()
     )
     return [
         {
             "id": row.id,
+            "sort_order": int(row.sort_order or 0),
             "item_name": row.item_name,
             "category": row.category,
             "price": str(row.price),

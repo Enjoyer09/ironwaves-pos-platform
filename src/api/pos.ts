@@ -629,7 +629,13 @@ export const get_menu_for_pos = (tenant_id: string) => {
   // Yalnız aktiv məhsullar, kateqoriyaya görə sıralanmış
   return items
     .filter(item => item.is_active && (!item.tenant_id || item.tenant_id === tenant_id))
-    .sort((a, b) => a.category.localeCompare(b.category));
+    .sort((a, b) => {
+      const sortDiff = Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0);
+      if (sortDiff !== 0) return sortDiff;
+      const categoryDiff = String(a.category || '').localeCompare(String(b.category || ''));
+      if (categoryDiff !== 0) return categoryDiff;
+      return String(a.item_name || '').localeCompare(String(b.item_name || ''));
+    });
 };
 
 // FUNKSIYA: sync_offline_sales
