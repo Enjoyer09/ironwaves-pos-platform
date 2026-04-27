@@ -5,7 +5,7 @@ import { get_menu_items_live, create_menu_item_live, reorder_menu_items_live, so
 import { get_logs_live } from '../api/logs';
 import { apiRequest, isBackendEnabled } from '../api/client';
 import { Decimal } from 'decimal.js';
-import { GripVertical, Plus, Trash2, TrendingUp, ShoppingBag, DollarSign, Pencil } from 'lucide-react';
+import { GripVertical, Plus, Trash2, TrendingUp, ShoppingBag, DollarSign, Pencil, ChevronDown, ChevronUp } from 'lucide-react';
 import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
 import { getDB } from '../lib/db_sim';
@@ -82,6 +82,7 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
   const [voidPreset, setVoidPreset] = useState<'TEST' | 'ZAY_MEHSUL'>('TEST');
   const [managerPass, setManagerPass] = useState('');
   const [newSaleTotal, setNewSaleTotal] = useState('');
+  const [showRecentSales, setShowRecentSales] = useState(true);
   const fetchCacheRef = useRef<Record<string, number>>({});
   const fetchSeqRef = useRef(0);
   const fetchAbortRef = useRef<AbortController | null>(null);
@@ -111,6 +112,26 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
     { key: 'ai', label: tx(lang, 'AI Menecer', 'AI Менеджер', 'AI Manager') },
     { key: 'tenants', label: tx(lang, 'Tenantlər', 'Тенанты', 'Tenants') },
   ]), [lang, currentRole]);
+
+  const saleStatusMeta = (status: any) => {
+    const normalized = String(status || '').toUpperCase();
+    if (normalized === 'VOIDED') {
+      return {
+        label: tx(lang, 'Ləğv edildi', 'Отменено', 'Voided'),
+        className: 'bg-red-500/20 text-red-200 border-red-300/40',
+      };
+    }
+    if (normalized === 'PARTIAL_REFUND') {
+      return {
+        label: tx(lang, 'Qismən qaytarma', 'Частичный возврат', 'Partial refund'),
+        className: 'bg-amber-500/20 text-amber-200 border-amber-300/40',
+      };
+    }
+    return {
+      label: tx(lang, 'Tamamlandı', 'Завершено', 'Completed'),
+      className: 'bg-emerald-500/20 text-emerald-200 border-emerald-300/40',
+    };
+  };
 
   useEffect(() => {
     if (!isActive) return;
@@ -588,9 +609,20 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
             <div className="grid grid-cols-1 gap-8">
               {/* Son Satışlar Cədvəli */}
               <div className="metal-panel overflow-hidden">
-                <div className="p-6 border-b border-slate-700/70">
-                  <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Son Satışlar', 'Последние продажи')}</h2>
+                <div className="flex items-center justify-between gap-3 p-6 border-b border-slate-700/70">
+                  <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Son Satışlar', 'Последние продажи', 'Recent Sales')}</h2>
+                  <button
+                    type="button"
+                    onClick={() => setShowRecentSales((prev) => !prev)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-600/70 bg-slate-800/70 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-700/80"
+                  >
+                    {showRecentSales
+                      ? tx(lang, 'Yığ', 'Свернуть', 'Collapse')
+                      : tx(lang, 'Aç', 'Открыть', 'Expand')}
+                    {showRecentSales ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </button>
                 </div>
+                {showRecentSales && (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left">
                     <thead className="bg-slate-900/40 text-xs font-semibold text-slate-300 uppercase tracking-wider">
@@ -628,9 +660,14 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
                             </span>
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`px-2 py-1 text-xs font-semibold rounded-full border ${s.status === 'VOIDED' ? 'bg-red-500/20 text-red-200 border-red-300/40' : s.status === 'PARTIAL_REFUND' ? 'bg-amber-500/20 text-amber-200 border-amber-300/40' : 'bg-emerald-500/20 text-emerald-200 border-emerald-300/40'}`}>
-                               {s.status === 'VOIDED' ? 'VOID' : s.status === 'PARTIAL_REFUND' ? 'PARTIAL' : tx(lang, 'COMPLETED', 'ЗАВЕРШЕН', 'COMPLETED')}
-                            </span>
+                            {(() => {
+                              const statusMeta = saleStatusMeta(s.status);
+                              return (
+                                <span className={`px-2 py-1 text-xs font-semibold rounded-full border ${statusMeta.className}`}>
+                                  {statusMeta.label}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex gap-2">
@@ -684,6 +721,7 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
                     </tbody>
                   </table>
                 </div>
+                )}
               </div>
 
               <FeedbackInboxPanel tenantId={tenant_id} dateFrom={dateFrom} dateTo={dateTo} lang={lang} />
