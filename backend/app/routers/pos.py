@@ -13,7 +13,7 @@ from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.json_utils import safe_json_list
 from app.models import AuditLog, Customer, DonerBatch, FinanceEntry, InventoryItem, LoyaltyLedgerEntry, MenuItem, Recipe, RewardClaim, Sale, Setting, Shift, Tenant
-from app.schemas import SaleCreateIn, SaleCreateOut
+from app.schemas import SaleCreateIn, SaleCreateOut, SaleReceiptHtmlIn
 from app.services.finance_service import mirror_posted_transaction_to_legacy_wallet, post_finance_transaction, post_sale_cogs, post_sale_payment
 
 
@@ -633,6 +633,27 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
     }
 
 
+@router.put("/sale/{sale_id}/receipt-html")
+def save_sale_receipt_html(
+    sale_id: str,
+    payload: SaleReceiptHtmlIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user=Depends(get_current_user),
+):
+    row = (
+        db.query(Sale)
+        .filter(Sale.tenant_id == tenant.id, Sale.id == str(sale_id or "").strip())
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Sale not found")
+    row.receipt_html = str(payload.receipt_html or "").strip()
+    db.add(row)
+    db.commit()
+    return {"success": True}
+
+
 @router.post("/sync")
 def sync_offline_sales(payload: list[SaleCreateIn], db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
     synced = 0
@@ -691,6 +712,7 @@ def public_receipt(
         "total": str(row.total),
         "original_total": str(original_total),
         "discount_amount": str(row.discount_amount or 0),
+        "receipt_html": row.receipt_html or "",
         "items": items,
         "status": row.status,
     }

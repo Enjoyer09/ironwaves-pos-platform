@@ -13,6 +13,7 @@ export default function PublicReceipt({ receiptId, token }: Props) {
   const [profile, setProfile] = React.useState<any>(null);
   const [feedback, setFeedback] = React.useState<{ label: string; url: string } | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const receiptIframeRef = React.useRef<HTMLIFrameElement | null>(null);
 
   React.useEffect(() => {
     let mounted = true;
@@ -64,6 +65,11 @@ export default function PublicReceipt({ receiptId, token }: Props) {
     const params = new URLSearchParams(window.location.search);
     if (params.get('autoprint') !== '1') return;
     const timer = window.setTimeout(() => {
+      if (receipt?.receipt_html && receiptIframeRef.current?.contentWindow) {
+        receiptIframeRef.current.contentWindow.focus();
+        receiptIframeRef.current.contentWindow.print();
+        return;
+      }
       window.print();
     }, 450);
     return () => window.clearTimeout(timer);
@@ -85,6 +91,21 @@ export default function PublicReceipt({ receiptId, token }: Props) {
         <div className="mx-auto max-w-xl rounded-xl border border-slate-700 bg-[#101722] p-6 text-center">
           <h1 className="text-xl font-semibold">Receipt not found</h1>
           <p className="mt-2 text-sm text-slate-400">Please check the QR code and try again.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (receipt?.receipt_html) {
+    return (
+      <div className="min-h-screen bg-[#0f1722] p-4">
+        <div className="mx-auto max-w-xl rounded-xl border border-slate-700 bg-[#101722] p-3">
+          <iframe
+            ref={receiptIframeRef}
+            title="receipt-html"
+            srcDoc={receipt.receipt_html}
+            className="h-[80vh] w-full rounded-lg bg-white"
+          />
         </div>
       </div>
     );

@@ -4,7 +4,7 @@ import QRCode from 'qrcode';
 import JsBarcode from 'jsbarcode';
 import { Search, ShoppingCart, ClipboardList, Plus, Minus, Check, ScanLine, ChevronDown } from 'lucide-react';
 import { useAppStore } from '../store';
-import { get_menu_for_pos, create_sale, calculate_total, calculate_staff_payable } from '../api/pos';
+import { get_menu_for_pos, create_sale, calculate_total, calculate_staff_payable, save_sale_receipt_html_live } from '../api/pos';
 import { get_tables_live, send_to_kitchen_live, pay_table_live } from '../api/tables';
 import { get_shift_status, refresh_shift_status } from '../api/reports';
 import { getDB } from '../lib/db_sim';
@@ -1239,7 +1239,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           },
         });
 
-        setReceiptHtml(`
+        const receiptMarkup = `
           <html>
             <head>
               <style>
@@ -1282,7 +1282,11 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               <div class="muted">${businessProfile?.receipt_footer || tx(lang, 'Bizi seçdiyiniz üçün təşəkkür edirik!', 'Спасибо, что выбрали нас!', 'Thank you for choosing us!')}</div>
             </body>
           </html>
-        `);
+        `;
+        setReceiptHtml(receiptMarkup);
+        if (isBackendEnabled() && !queuedOffline && String(sale.sale_id || '').trim()) {
+          void save_sale_receipt_html_live(String(sale.sale_id), receiptMarkup).catch(() => undefined);
+        }
       };
 
       if (queuedOffline) {
