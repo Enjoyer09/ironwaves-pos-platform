@@ -972,7 +972,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     });
   }, [filteredMenu]);
 
-  const moveGroupedMenu = useCallback((sourceKey: string, targetKey: string) => {
+  function moveGroupedMenu(sourceKey: string, targetKey: string) {
     if (!sourceKey || !targetKey || sourceKey === targetKey) return menu;
     const visibleGroups = [...groupedMenu];
     const sourceIndex = visibleGroups.findIndex((group) => group.group_key === sourceKey);
@@ -993,7 +993,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         return next || item;
       })
       .map((item, index) => ({ ...item, sort_order: index }));
-  }, [groupedMenu, menu]);
+  }
 
 
   const cartQtyByItemId = useMemo(() => {
