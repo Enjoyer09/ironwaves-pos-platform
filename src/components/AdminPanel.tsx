@@ -143,6 +143,27 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
       return;
     }
     const token = String(sale?.receipt_token || '').trim();
+    try {
+      const fallbackKey = `receipt_fallback:${receiptRef}:${token}`;
+      const fallbackPayload = {
+        id: sale?.id,
+        tenant_id: sale?.tenant_id,
+        created_at: sale?.created_at,
+        cashier: sale?.cashier,
+        customer_card_id: sale?.customer_card_id || null,
+        payment_method: sale?.payment_method,
+        order_type: sale?.order_type,
+        total: sale?.total,
+        original_total: sale?.original_total,
+        discount_amount: sale?.discount_amount,
+        items: Array.isArray(sale?.items) ? sale.items : [],
+        status: sale?.status,
+        receipt_html: String(sale?.receipt_html || ''),
+      };
+      sessionStorage.setItem(fallbackKey, JSON.stringify(fallbackPayload));
+    } catch {
+      // ignore fallback cache errors
+    }
     const url = new URL(window.location.origin);
     url.searchParams.set('r', receiptRef);
     if (token) url.searchParams.set('t', token);
