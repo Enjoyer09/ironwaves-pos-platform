@@ -17,6 +17,7 @@ export default function PublicReceipt({ receiptId, token }: Props) {
 
   React.useEffect(() => {
     let mounted = true;
+    const fallbackKey = `receipt_fallback:${String(receiptId || '').trim()}:${String(token || '').trim()}`;
     void (async () => {
       try {
         const res = await get_public_receipt_live(receiptId, token);
@@ -49,8 +50,20 @@ export default function PublicReceipt({ receiptId, token }: Props) {
         }
       } catch {
         if (!mounted) return;
-        setReceipt(null);
-        setFeedback(null);
+        try {
+          const raw = sessionStorage.getItem(fallbackKey);
+          const parsed = raw ? JSON.parse(raw) : null;
+          if (parsed) {
+            setReceipt(parsed);
+            setFeedback(null);
+          } else {
+            setReceipt(null);
+            setFeedback(null);
+          }
+        } catch {
+          setReceipt(null);
+          setFeedback(null);
+        }
       } finally {
         if (mounted) setLoading(false);
       }

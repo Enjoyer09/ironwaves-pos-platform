@@ -220,6 +220,7 @@ def get_sales_list(
                 "order_type": row.order_type,
                 "receipt_code": row.receipt_code,
                 "receipt_token": row.receipt_token,
+                "receipt_html": row.receipt_html or "",
                 "items": items,
                 "items_display": ", ".join([f"{item.get('item_name')} x{item.get('qty')}" for item in items]),
                 "status": row.status,
