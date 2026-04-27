@@ -118,6 +118,14 @@ export default function App() {
   const restoreSession = useAppStore((state) => state.restoreSession);
   const activeTenant = getActiveTenantId();
   const safeLang = (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az';
+
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem('ui_chunk_reload_once');
+    } catch {
+      // ignore
+    }
+  }, []);
   const t = i18n[safeLang];
   const hasValidUser = Boolean(
     user &&
