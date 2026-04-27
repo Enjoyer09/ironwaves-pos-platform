@@ -9,14 +9,27 @@ from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import (
     AuditLog,
+    Check,
     Customer,
+    FeedbackCoupon,
+    FeedbackEntry,
+    FinanceAccount,
     FinanceEntry,
+    FinanceLedgerEntry,
+    FinanceTransaction,
+    FloorPlan,
+    Guest,
     HappyHour,
+    ItemStatusLog,
     InventoryItem,
     KitchenOrder,
     LoyaltyLedgerEntry,
     MenuItem,
     Notification,
+    OrderItem,
+    OrderRound,
+    Payment,
+    Reservation,
     RewardClaim,
     Sale,
     Setting,
@@ -24,6 +37,7 @@ from app.models import (
     ShiftHandover,
     StaffNotification,
     Table,
+    TableSession,
     Tenant,
     User,
     Recipe,
@@ -335,23 +349,37 @@ def reset_system(
         if not totp.verify(code, valid_window=1):
             raise HTTPException(status_code=400, detail="Invalid authenticator code")
 
-    db.query(AuditLog).filter(AuditLog.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(Sale).filter(Sale.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(FeedbackCoupon).filter(FeedbackCoupon.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(FeedbackEntry).filter(FeedbackEntry.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(ItemStatusLog).filter(ItemStatusLog.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Payment).filter(Payment.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(OrderItem).filter(OrderItem.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(OrderRound).filter(OrderRound.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Check).filter(Check.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(TableSession).filter(TableSession.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Reservation).filter(Reservation.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Guest).filter(Guest.tenant_id == tenant.id).delete(synchronize_session=False)
     db.query(KitchenOrder).filter(KitchenOrder.tenant_id == tenant.id).delete(synchronize_session=False)
     db.query(Table).filter(Table.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(InventoryItem).filter(InventoryItem.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(Recipe).filter(Recipe.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(Setting).filter(Setting.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(ShiftHandover).filter(ShiftHandover.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(Customer).filter(Customer.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(Notification).filter(Notification.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(StaffNotification).filter(StaffNotification.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(HappyHour).filter(HappyHour.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(MenuItem).filter(MenuItem.tenant_id == tenant.id).delete(synchronize_session=False)
-    db.query(Shift).filter(Shift.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(FloorPlan).filter(FloorPlan.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(FinanceLedgerEntry).filter(FinanceLedgerEntry.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(FinanceTransaction).filter(FinanceTransaction.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Sale).filter(Sale.tenant_id == tenant.id).delete(synchronize_session=False)
     db.query(RewardClaim).filter(RewardClaim.tenant_id == tenant.id).delete(synchronize_session=False)
     db.query(LoyaltyLedgerEntry).filter(LoyaltyLedgerEntry.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Notification).filter(Notification.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(StaffNotification).filter(StaffNotification.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Customer).filter(Customer.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(ShiftHandover).filter(ShiftHandover.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Shift).filter(Shift.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(HappyHour).filter(HappyHour.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(InventoryItem).filter(InventoryItem.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Recipe).filter(Recipe.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(MenuItem).filter(MenuItem.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(Setting).filter(Setting.tenant_id == tenant.id).delete(synchronize_session=False)
+    db.query(AuditLog).filter(AuditLog.tenant_id == tenant.id).delete(synchronize_session=False)
     db.commit()
     return {"success": True}
 

@@ -351,6 +351,8 @@ export function update_sale_amount(
   reason: string,
   actor: string,
   payment_method?: string,
+  split_cash?: string,
+  split_card?: string,
 ) {
   const sales = getSalesLocal(tenant_id);
   const idx = sales.findIndex((s) => s.id === sale_id && s.tenant_id === tenant_id);
@@ -361,18 +363,57 @@ export function update_sale_amount(
   const nextTotal = new Decimal(new_total || 0);
   if (nextTotal.lte(0)) throw new Error('Yeni məbləğ 0-dan böyük olmalıdır');
 
+  const normalizedMethod = String(payment_method || sales[idx].payment_method || '').toLowerCase();
+  const nextMethod =
+    normalizedMethod.includes('split') ? 'Split' :
+    (normalizedMethod.includes('kart') || normalizedMethod.includes('card')) ? 'Kart' :
+    normalizedMethod.includes('staff') ? 'Staff' : 'Nəğd';
+
   (sales[idx] as any).total = nextTotal.toString();
-  if (payment_method) {
-    (sales[idx] as any).payment_method = payment_method;
-  }
+  (sales[idx] as any).payment_method = nextMethod;
   saveSalesLocal(tenant_id, sales);
+
+  const finances = getDB<any>('finance');
+  const keptFinance = finances.filter((row: any) => {
+    if (String(row?.tenant_id || '') !== tenant_id) return true;
+    const description = String(row?.description || '');
+    return !description.includes(sale_id);
+  });
+  setDB('finance', keptFinance);
+  const scopedFinance = getDB<any>(`${tenant_id}_finance`).filter((row: any) => {
+    const description = String(row?.description || '');
+    return !description.includes(sale_id);
+  });
+  setDB(`${tenant_id}_finance`, scopedFinance);
+
+  const addFinanceRow = (category: string, amount: Decimal, source: 'cash' | 'card') => {
+    create_finance_entry(
+      tenant_id,
+      'in',
+      category,
+      amount.toFixed(2),
+      source,
+      `Sale correction ${sale_id}${reason ? `: ${reason}` : ''}`,
+      actor,
+    );
+  };
+  if (nextMethod === 'Split') {
+    const splitCash = new Decimal(split_cash || 0);
+    const splitCard = new Decimal(split_card || 0);
+    if (splitCash.gt(0)) addFinanceRow('Satış (Nağd)', splitCash, 'cash');
+    if (splitCard.gt(0)) addFinanceRow('Satış (Kart)', splitCard, 'card');
+  } else if (nextMethod === 'Kart') {
+    addFinanceRow('Satış (Kart)', nextTotal, 'card');
+  } else {
+    addFinanceRow(nextMethod === 'Staff' ? 'Staff Ödənişi' : 'Satış (Nağd)', nextTotal, 'cash');
+  }
 
   logEvent(actor, 'SALE_EDITED', {
     tenant_id,
     sale_id,
     old_total: oldTotal.toString(),
     new_total: nextTotal.toString(),
-    payment_method: payment_method || sales[idx].payment_method,
+    payment_method: nextMethod,
     reason,
   });
   return { success: true };
@@ -429,7 +470,7 @@ export async function update_sale_amount_live(
   split_cash?: string,
   split_card?: string,
 ) {
-  if (!isBackendEnabled()) return update_sale_amount(tenant_id, sale_id, new_total, reason, actor, payment_method);
+  if (!isBackendEnabled()) return update_sale_amount(tenant_id, sale_id, new_total, reason, actor, payment_method, split_cash, split_card);
   return apiRequest<{ success: boolean }>(`/api/v1/analytics/sales/${encodeURIComponent(sale_id)}/adjust`, {
     method: 'POST',
     tenantId: null,
