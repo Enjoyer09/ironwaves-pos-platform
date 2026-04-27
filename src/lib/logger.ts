@@ -63,6 +63,12 @@ export const logEvent = (
   tenantLogs.push(logEntry);
   writeArraySafely(tenantKey, tenantLogs, TENANT_LOG_LIMIT);
 
+  try {
+    window.dispatchEvent(new CustomEvent('logs-updated', { detail: { tenant_id: tenantId, action } }));
+  } catch {
+    // ignore event dispatch failures
+  }
+
   if (isBackendEnabled()) {
     const base = getApiBaseUrl();
     if (base) {

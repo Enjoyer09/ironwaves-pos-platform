@@ -37,6 +37,14 @@ const saveInventory = (tenant_id: string, tenantItems: any[]) => {
   setDB('ingredients', merged);
 };
 
+const emitInventoryUpdated = (tenant_id: string, detail: Record<string, any> = {}) => {
+  try {
+    window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { tenant_id, ...detail } }));
+  } catch {
+    // ignore event dispatch failures
+  }
+};
+
 export function add_inventory_item(data: {
   tenant_id?: string;
   name: string;
@@ -257,7 +265,9 @@ export async function add_inventory_item_live(data: {
     });
     const inventoryItems = getInventory(data.tenant_id || 'tenant_default');
     const filtered = inventoryItems.filter((row) => String(row.id) !== String(created?.id));
-    saveInventory(data.tenant_id || 'tenant_default', [...filtered, { ...created, tenant_id: created?.tenant_id || data.tenant_id || 'tenant_default' }]);
+    const resolvedTenantId = created?.tenant_id || data.tenant_id || 'tenant_default';
+    saveInventory(resolvedTenantId, [...filtered, { ...created, tenant_id: resolvedTenantId }]);
+    emitInventoryUpdated(resolvedTenantId, { action: 'add', item_id: created?.id || null });
     return created;
   } catch (error: any) {
     const message = error instanceof Error ? error.message : String(error);
@@ -290,6 +300,7 @@ export async function restock_item_live(
     });
     const inventoryItems = getInventory(tenant_id).filter((row) => String(row.id) !== String(updated?.id));
     saveInventory(tenant_id, [...inventoryItems, { ...updated, tenant_id: updated?.tenant_id || tenant_id }]);
+    emitInventoryUpdated(tenant_id, { action: 'restock', item_id: updated?.id || item_id });
     return updated;
   } catch (error: any) {
     const message = error instanceof Error ? error.message : String(error);
@@ -302,7 +313,7 @@ export async function record_loss_live(item_id: string, qty_removed: Decimal, re
     return record_loss(item_id, qty_removed, reason, recorded_by);
   }
   try {
-    return await apiRequest<{ success: boolean; loss_amount: string }>(`/api/v1/catalog/inventory/${encodeURIComponent(item_id)}/loss`, {
+    const result = await apiRequest<{ success: boolean; loss_amount: string }>(`/api/v1/catalog/inventory/${encodeURIComponent(item_id)}/loss`, {
       method: 'POST',
       tenantId: null,
       body: {
@@ -310,6 +321,10 @@ export async function record_loss_live(item_id: string, qty_removed: Decimal, re
         reason,
       },
     });
+    const allInventory = getDB<any>('inventory');
+    const found = allInventory.find(i => i.id === item_id);
+    emitInventoryUpdated(found?.tenant_id || 'tenant_default', { action: 'loss', item_id });
+    return result;
   } catch (error: any) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Inventory backend loss write failed: ${message}`);
@@ -330,6 +345,7 @@ export async function delete_inventory_item_live(item_id: string, user: string =
     const tenant_id = found?.tenant_id || 'tenant_default';
     const filtered = getInventory(tenant_id).filter(i => i.id !== item_id);
     saveInventory(tenant_id, filtered);
+    emitInventoryUpdated(tenant_id, { action: 'delete', item_id });
     return result;
   } catch (error: any) {
     const message = error instanceof Error ? error.message : String(error);
