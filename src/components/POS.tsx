@@ -177,8 +177,12 @@ const isRecoverableNetworkFailure = (error: unknown) => {
 const formatOfflineError = (value: unknown) => {
   const raw = String(value || '').trim();
   if (!raw) return '';
-  if (raw.length <= 180) return raw;
-  return `${raw.slice(0, 177)}...`;
+  if (raw.includes('Sessiya vaxtı bitib')) return raw;
+  const firstLine = raw.split(/\s+(?=Backendə qoşulma alınmadı \(|Unauthorized\b|Invalid token\b)/i)[0]?.trim() || raw;
+  const normalized = firstLine.replace(/\s*\(request_id:[^)]+\)\s*/gi, '').trim();
+  const compact = normalized || raw;
+  if (compact.length <= 180) return compact;
+  return `${compact.slice(0, 177)}...`;
 };
 
 const generateOfflineRequestId = () => {
