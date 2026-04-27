@@ -260,6 +260,7 @@ export interface Settings {
   };
   feedback_settings?: {
     enabled: boolean;
+    promo_enabled?: boolean;
     coupon_percent?: number;
     portal_url?: string;
     google_review_url?: string;

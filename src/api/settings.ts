@@ -257,6 +257,7 @@ const DEFAULT_Z_REPORT_RECEIPT_SETTINGS: NonNullable<Settings['z_report_receipt_
 
 const DEFAULT_FEEDBACK_SETTINGS: NonNullable<Settings['feedback_settings']> = {
   enabled: false,
+  promo_enabled: true,
   coupon_percent: 5,
   portal_url: '',
   google_review_url: '',
@@ -287,6 +288,7 @@ function normalizeFeedbackSettings(source?: Settings['feedback_settings']): NonN
     ...DEFAULT_FEEDBACK_SETTINGS,
     ...raw,
     enabled: enabledNormalized,
+    promo_enabled: raw.promo_enabled !== false,
     coupon_percent: Math.max(1, Math.min(100, Number(raw.coupon_percent ?? DEFAULT_FEEDBACK_SETTINGS.coupon_percent) || DEFAULT_FEEDBACK_SETTINGS.coupon_percent)),
     portal_url: String(raw.portal_url || '').trim(),
     google_review_url: String(raw.google_review_url || '').trim(),

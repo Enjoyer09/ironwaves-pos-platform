@@ -155,6 +155,7 @@ DEFAULT_Z_REPORT_RECEIPT_SETTINGS = {
 
 DEFAULT_FEEDBACK_SETTINGS = {
     "enabled": True,
+    "promo_enabled": True,
     "coupon_percent": 5,
     "portal_url": "",
     "google_review_url": "",
@@ -2082,6 +2083,7 @@ def update_feedback_settings(
 
     cleaned = {
         "enabled": bool(merged.get("enabled", True)),
+        "promo_enabled": bool(merged.get("promo_enabled", True)),
         "coupon_percent": max(1, min(100, int(merged.get("coupon_percent", 5) or 5))),
         "portal_url": str(merged.get("portal_url") or "").strip(),
         "google_review_url": str(merged.get("google_review_url") or "").strip(),
