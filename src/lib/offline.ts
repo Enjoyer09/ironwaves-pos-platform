@@ -256,6 +256,29 @@ export const clearSyncedOfflineSales = async (tenantId: string) => {
   }
 };
 
+export const clearAllOfflineSales = async (tenantId: string) => {
+  try {
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(SALES_STORE, 'readwrite');
+      const store = tx.objectStore(SALES_STORE);
+      const req = store.getAll();
+      req.onsuccess = () => {
+        const rows = (req.result || []) as OfflineSaleRecord[];
+        rows
+          .filter((row) => row.tenant_id === tenantId)
+          .forEach((row) => store.delete(row.id));
+      };
+      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch {
+    // No-op
+  }
+};
+
 export const pruneSyncedOfflineSales = async (tenantId: string, maxAgeDays = 7) => {
   try {
     const cutoff = Date.now() - (maxAgeDays * 24 * 60 * 60 * 1000);

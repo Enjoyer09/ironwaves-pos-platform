@@ -714,6 +714,10 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       getPendingOfflineSales(tenantId),
     ]);
     setPendingSyncCount((prev) => (prev === count ? prev : count));
+    if (count === 0) {
+      setPendingOfflineSales([]);
+      return;
+    }
     setPendingOfflineSales((prev) => {
       const prevKey = `${prev.length}:${prev[0]?.sale_id || ''}:${prev[prev.length - 1]?.sale_id || ''}`;
       const nextKey = `${rows.length}:${rows[0]?.sale_id || ''}:${rows[rows.length - 1]?.sale_id || ''}`;
