@@ -222,13 +222,20 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
       from_d.setHours(0, 0, 0, 0);
       const to_d = new Date(dateTo);
       to_d.setHours(23, 59, 59, 999);
-      const [nextSummary, nextSales] = await Promise.all([
+      const [summaryResult, salesResult] = await Promise.allSettled([
         get_sales_summary_live(tenant_id, from_d.toISOString(), to_d.toISOString(), undefined, { signal }),
         get_sales_list_live(tenant_id, from_d.toISOString(), to_d.toISOString(), undefined, { signal }),
       ]);
       if (seq !== fetchSeqRef.current) return;
-      setSummary(nextSummary);
-      setSales(nextSales);
+      if (summaryResult.status === 'fulfilled') {
+        setSummary(summaryResult.value);
+      }
+      if (salesResult.status === 'fulfilled') {
+        setSales(salesResult.value);
+      }
+      if (summaryResult.status === 'rejected' && salesResult.status === 'rejected') {
+        throw summaryResult.reason || salesResult.reason;
+      }
       fetchCacheRef.current[cacheKey] = Date.now();
       return;
     }

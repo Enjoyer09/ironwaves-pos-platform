@@ -127,30 +127,36 @@ def get_sales_summary(
 ):
     start = datetime.fromisoformat(date_from.replace("Z", "+00:00")).replace(tzinfo=None)
     end = datetime.fromisoformat(date_to.replace("Z", "+00:00")).replace(tzinfo=None)
-    rows = db.query(Sale).filter(Sale.tenant_id == tenant.id).all()
+    sales_query = db.query(Sale).filter(
+        Sale.tenant_id == tenant.id,
+        Sale.created_at >= start,
+        Sale.created_at <= end,
+    )
+    if cashier:
+        sales_query = sales_query.filter(Sale.cashier == cashier)
+    rows = sales_query.all()
     total_revenue = Decimal("0")
     cash_sales = Decimal("0")
     card_sales = Decimal("0")
     void_count = 0
     total_cogs = Decimal("0")
     for row in rows:
-        if not _in_range(row.created_at, start, end):
-            continue
-        if cashier and row.cashier != cashier:
-            continue
         if row.status == "VOIDED":
             void_count += 1
             continue
         total_revenue += Decimal(str(row.total))
         total_cogs += Decimal(str(row.cogs or 0))
-    finance_rows = db.query(FinanceEntry).filter(FinanceEntry.tenant_id == tenant.id).all()
+    finance_query = db.query(FinanceEntry).filter(
+        FinanceEntry.tenant_id == tenant.id,
+        FinanceEntry.created_at >= start,
+        FinanceEntry.created_at <= end,
+    )
+    if cashier:
+        finance_query = finance_query.filter(FinanceEntry.created_by == cashier)
+    finance_rows = finance_query.all()
     cash_total = Decimal("0")
     card_total = Decimal("0")
     for row in finance_rows:
-        if not _in_range(row.created_at, start, end):
-            continue
-        if cashier and row.created_by != cashier:
-            continue
         if row.type != "in":
             continue
         category = str(row.category or "")
@@ -186,13 +192,16 @@ def get_sales_list(
 ):
     start = datetime.fromisoformat(date_from.replace("Z", "+00:00")).replace(tzinfo=None)
     end = datetime.fromisoformat(date_to.replace("Z", "+00:00")).replace(tzinfo=None)
-    rows = db.query(Sale).filter(Sale.tenant_id == tenant.id).order_by(Sale.created_at.desc()).all()
+    sales_query = db.query(Sale).filter(
+        Sale.tenant_id == tenant.id,
+        Sale.created_at >= start,
+        Sale.created_at <= end,
+    )
+    if cashier:
+        sales_query = sales_query.filter(Sale.cashier == cashier)
+    rows = sales_query.order_by(Sale.created_at.desc()).all()
     result = []
     for row in rows:
-        if not _in_range(row.created_at, start, end):
-            continue
-        if cashier and row.cashier != cashier:
-            continue
         items = safe_json_list(row.items_json)
         original_total = Decimal(str(row.total)) + Decimal(str(row.discount_amount or 0))
         result.append(
