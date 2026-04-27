@@ -1136,7 +1136,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         order_type: ctx.orderType,
         cup_mode: ctx.cupMode,
       };
-      const useBackendNow = isBackendEnabled() && navigator.onLine;
+      const useBackendNow = isBackendEnabled();
       let sale: any;
       let queuedOffline = false;
 
