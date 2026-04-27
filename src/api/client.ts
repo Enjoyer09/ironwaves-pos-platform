@@ -98,6 +98,7 @@ type ApiRequestOptions = {
   headers?: Record<string, string>;
   body?: unknown;
   auth?: boolean;
+  cacheMode?: RequestCache;
   timeoutMs?: number;
   retryCount?: number;
   retryDelayMs?: number;
@@ -187,6 +188,7 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
         headers,
         body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
         credentials: 'include',
+        cache: options.cacheMode || 'no-store',
         signal: requestSignal,
       });
       if (!res.ok && isRetryableStatus(res.status) && attempt < retryCount) {
