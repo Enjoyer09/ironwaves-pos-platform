@@ -279,6 +279,21 @@ export const clearAllOfflineSales = async (tenantId: string) => {
   }
 };
 
+export const clearOfflineSalesStore = async () => {
+  try {
+    const db = await openDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(SALES_STORE, 'readwrite');
+      tx.objectStore(SALES_STORE).clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch {
+    // No-op
+  }
+};
+
 export const pruneSyncedOfflineSales = async (tenantId: string, maxAgeDays = 7) => {
   try {
     const cutoff = Date.now() - (maxAgeDays * 24 * 60 * 60 * 1000);

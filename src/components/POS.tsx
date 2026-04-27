@@ -894,10 +894,19 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   useEffect(() => {
     if (!isActive) return;
     void refreshOfflineState();
+    const handleOfflineSalesReset = () => {
+      setPendingSyncCount(0);
+      setPendingOfflineSales([]);
+      void refreshOfflineState();
+    };
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void refreshOfflineState();
     }, 60000);
-    return () => window.clearInterval(timer);
+    window.addEventListener('offline-sales-reset', handleOfflineSalesReset as EventListener);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('offline-sales-reset', handleOfflineSalesReset as EventListener);
+    };
   }, [tenantId, isActive]);
 
   const categories = useMemo(() => ['ALL', ...Array.from(new Set(menu.map((m) => m.category)))], [menu]);
