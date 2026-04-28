@@ -3,7 +3,7 @@ import { get_tables_live, create_table_live, delete_table_live, open_table_live,
 import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
 import { subscribeTenantRealtime } from '../api/realtime';
-import { act_on_order_item_live, add_check_draft_item_live, combine_tables_live, create_reservation_live, delete_draft_item_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_order_item_status_logs_live, get_reservations_live, get_table_detail_live, seat_reservation_live, send_check_drafts_live, send_table_round_live, settle_table_check_live, split_table_group_live, transfer_table_lock_live, unlock_table_live, update_draft_item_live, update_reservation_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
+import { act_on_order_item_live, add_check_draft_item_live, combine_tables_live, create_reservation_live, delete_draft_item_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_order_item_status_logs_live, get_reservations_live, get_table_detail_live, get_tables_bootstrap_live, seat_reservation_live, send_check_drafts_live, send_table_round_live, settle_table_check_live, split_table_group_live, transfer_table_lock_live, unlock_table_live, update_draft_item_live, update_reservation_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
 import { LayoutGrid, Plus, CalendarClock, Users, MapPinned } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
@@ -107,11 +107,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const realtimeRefreshInFlightRef = useRef(false);
   const realtimeRefreshPendingRef = useRef(false);
   const realtimeRefreshScopesRef = useRef<Set<'tables' | 'kitchen' | 'floor' | 'reservations' | 'detail'>>(new Set());
+  const loadBootstrapInFlightRef = useRef(false);
   const loadDataInFlightRef = useRef(false);
   const loadRestaurantInFlightRef = useRef(false);
   const loadKitchenFeedInFlightRef = useRef(false);
   const loadMenuCatalogInFlightRef = useRef(false);
   const loadReservationsInFlightRef = useRef(false);
+  const skipNextFloorStateLoadRef = useRef<string>('');
   const activeFloorIdRef = useRef<string>('');
   const viewTableIdRef = useRef<string | null>(null);
   const workspaceViewRef = useRef<'floor' | 'reservations'>('floor');
@@ -362,16 +364,17 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   useEffect(() => {
     if (!isActive) return;
     const timer = window.setTimeout(() => {
-      void loadData();
+      void loadTablesBootstrap();
     }, 0);
     return () => window.clearTimeout(timer);
   }, [tenant_id, isActive]);
 
   useEffect(() => {
     if (!isActive) return;
+    if (workspaceView !== 'reservations') return;
     const timer = window.setTimeout(() => {
-      void loadRestaurantData();
-    }, 180);
+      void loadReservations();
+    }, 120);
     return () => window.clearTimeout(timer);
   }, [tenant_id, reservationDate, workspaceView, isActive]);
 
@@ -423,6 +426,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   useEffect(() => {
     if (!isActive) return;
     if (!activeFloorId) return;
+    if (skipNextFloorStateLoadRef.current === activeFloorId) {
+      skipNextFloorStateLoadRef.current = '';
+      return;
+    }
     void loadFloorState(activeFloorId);
   }, [activeFloorId, isActive]);
 
@@ -720,6 +727,30 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       setTables(Array.isArray(nextTables) ? nextTables : []);
     } finally {
       loadDataInFlightRef.current = false;
+    }
+  };
+
+  const loadTablesBootstrap = async () => {
+    if (loadBootstrapInFlightRef.current) return;
+    loadBootstrapInFlightRef.current = true;
+    try {
+      const bootstrap = await get_tables_bootstrap_live(tenant_id);
+      const nextFloorPlans = Array.isArray(bootstrap.floor_plans) ? bootstrap.floor_plans : [];
+      const nextFloorState = bootstrap.floor_state;
+      const nextActiveFloorId = String(nextFloorState?.floor?.id || nextFloorPlans.find((row) => row.is_active)?.id || nextFloorPlans[0]?.id || '');
+      setTables(Array.isArray(bootstrap.tables) ? bootstrap.tables : []);
+      setFloorPlans(nextFloorPlans);
+      setFloorTables(Array.isArray(nextFloorState?.tables) ? nextFloorState.tables : []);
+      if (nextActiveFloorId) {
+        skipNextFloorStateLoadRef.current = nextActiveFloorId;
+        setActiveFloorId(nextActiveFloorId);
+      } else {
+        setActiveFloorId('');
+      }
+    } catch {
+      await Promise.allSettled([loadData(), loadRestaurantData()]);
+    } finally {
+      loadBootstrapInFlightRef.current = false;
     }
   };
 

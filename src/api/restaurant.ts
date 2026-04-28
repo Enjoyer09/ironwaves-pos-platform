@@ -3,7 +3,7 @@ import { apiRequest, isBackendEnabled } from './client';
 import { getDB, setDB } from '../lib/db_sim';
 import { Decimal } from 'decimal.js';
 import { PaymentMethod } from '../types/pos';
-import { pay_table } from './tables';
+import { get_tables, pay_table } from './tables';
 import { get_settings } from './settings';
 
 export type FloorPlanRecord = {
@@ -135,6 +135,15 @@ export type TableDetailRecord = {
   }>;
 };
 
+export type TablesBootstrapRecord = {
+  tables: any[];
+  floor_plans: FloorPlanRecord[];
+  floor_state: {
+    floor: FloorPlanRecord;
+    tables: FloorTableState[];
+  };
+};
+
 const localReservationKey = 'restaurant_reservations';
 const localFloorKey = 'restaurant_floor_plans';
 
@@ -227,6 +236,24 @@ export async function get_floor_state_live(tenant_id: string, floorId: string): 
     return { floor, tables };
   }
   return apiRequest<{ floor: FloorPlanRecord; tables: FloorTableState[] }>(`/api/v1/restaurant/floor-plans/${encodeURIComponent(floorId)}/state`, { tenantId: null });
+}
+
+export async function get_tables_bootstrap_live(tenant_id: string): Promise<TablesBootstrapRecord> {
+  if (!isBackendEnabled()) {
+    const floorPlans = getLocalFloorPlans(tenant_id);
+    const activeFloor = floorPlans.find((row) => row.is_active) || floorPlans[0];
+    const floorState = await get_floor_state_live(tenant_id, activeFloor.id);
+    return {
+      tables: get_tables(tenant_id),
+      floor_plans: floorPlans,
+      floor_state: floorState,
+    };
+  }
+  return apiRequest<TablesBootstrapRecord>('/api/v1/restaurant/tables-bootstrap', {
+    tenantId: null,
+    timeoutMs: 5000,
+    retryCount: 0,
+  });
 }
 
 export async function update_table_layout_live(tableId: string, payload: TableLayoutUpdatePayload) {
