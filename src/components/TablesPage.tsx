@@ -109,6 +109,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const realtimeRefreshScopesRef = useRef<Set<'tables' | 'kitchen' | 'floor' | 'reservations' | 'detail'>>(new Set());
   const loadDataInFlightRef = useRef(false);
   const loadRestaurantInFlightRef = useRef(false);
+  const loadMenuCatalogInFlightRef = useRef(false);
+  const loadReservationsInFlightRef = useRef(false);
   const activeFloorIdRef = useRef<string>('');
   const viewTableIdRef = useRef<string | null>(null);
   const workspaceViewRef = useRef<'floor' | 'reservations'>('floor');
@@ -370,7 +372,18 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       void loadRestaurantData();
     }, 180);
     return () => window.clearTimeout(timer);
-  }, [tenant_id, reservationDate, isActive]);
+  }, [tenant_id, reservationDate, workspaceView, isActive]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    if (!viewTableId) return;
+    if (tableWorkspaceTab !== 'compose') return;
+    if (menuCatalog.length > 0) return;
+    const timer = window.setTimeout(() => {
+      void loadMenuCatalog();
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [viewTableId, tableWorkspaceTab, menuCatalog.length, tenant_id, isActive]);
 
   useEffect(() => {
     if (floorPlans.length === 0) {
@@ -668,7 +681,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       void update_reservation_live(resizingReservation.id, { duration_minutes: nextDuration })
         .then(async () => {
           notify('success', tx(lang, 'Rezervasiya müddəti yeniləndi', 'Длительность брони обновлена', 'Reservation duration updated'));
-          await loadRestaurantData();
+          await loadReservations();
         })
         .catch((error: any) => {
           notify('error', error?.message || tx(lang, 'Rezervasiya müddəti dəyişmədi', 'Длительность брони не изменилась', 'Reservation duration was not updated'));
@@ -697,10 +710,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     if (loadDataInFlightRef.current) return;
     loadDataInFlightRef.current = true;
     try {
-      const [tablesResult, kitchenResult, menuResult] = await Promise.allSettled([
+      const [tablesResult, kitchenResult] = await Promise.allSettled([
         get_tables_live(tenant_id),
         get_kitchen_orders_live(tenant_id),
-        get_menu_items_live(tenant_id),
       ]);
       if (tablesResult.status === 'fulfilled') {
         setTables(Array.isArray(tablesResult.value) ? tablesResult.value : []);
@@ -708,11 +720,31 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       if (kitchenResult.status === 'fulfilled') {
         setKitchenOrders(Array.isArray(kitchenResult.value) ? kitchenResult.value : []);
       }
-      if (menuResult.status === 'fulfilled') {
-        setMenuCatalog(Array.isArray(menuResult.value) ? menuResult.value : []);
-      }
     } finally {
       loadDataInFlightRef.current = false;
+    }
+  };
+
+  const loadMenuCatalog = async () => {
+    if (loadMenuCatalogInFlightRef.current) return;
+    loadMenuCatalogInFlightRef.current = true;
+    try {
+      const nextMenu = await get_menu_items_live(tenant_id);
+      setMenuCatalog(Array.isArray(nextMenu) ? nextMenu : []);
+    } finally {
+      loadMenuCatalogInFlightRef.current = false;
+    }
+  };
+
+  const loadReservations = async () => {
+    if (workspaceViewRef.current !== 'reservations') return;
+    if (loadReservationsInFlightRef.current) return;
+    loadReservationsInFlightRef.current = true;
+    try {
+      const rows = await get_reservations_live(tenant_id, reservationDate);
+      setReservations(Array.isArray(rows) ? rows : []);
+    } finally {
+      loadReservationsInFlightRef.current = false;
     }
   };
 
@@ -721,19 +753,14 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     loadRestaurantInFlightRef.current = true;
     setIsFloorPlansLoading(true);
     try {
-      const [floorsResult, reservationsResult] = await Promise.allSettled([
-        get_floor_plans_live(tenant_id),
-        get_reservations_live(tenant_id, reservationDate),
-      ]);
-      if (floorsResult.status === 'fulfilled') {
-        setFloorPlans(Array.isArray(floorsResult.value) ? floorsResult.value : []);
-      }
-      if (reservationsResult.status === 'fulfilled') {
-        setReservations(Array.isArray(reservationsResult.value) ? reservationsResult.value : []);
-      }
+      const floors = await get_floor_plans_live(tenant_id);
+      setFloorPlans(Array.isArray(floors) ? floors : []);
     } finally {
       setIsFloorPlansLoading(false);
       loadRestaurantInFlightRef.current = false;
+    }
+    if (workspaceViewRef.current === 'reservations') {
+      await loadReservations();
     }
   };
 
@@ -1021,7 +1048,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       setReservationNote('');
       setReservationAssignedTableId('');
       setReservationStatusDraft('BOOKED');
-      await loadRestaurantData();
+      await loadReservations();
     } catch (e: any) {
       notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message);
     }
@@ -3288,7 +3315,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       try {
                         await update_reservation_live(draggingReservationId, { reservation_at: nextReservationAt, assigned_table_id: assignedTableId });
                         notify('success', tx(lang, 'Rezervasiya vaxtı və masası yeniləndi', 'Время и стол брони обновлены', 'Reservation time and table updated'));
-                        await Promise.all([loadRestaurantData(), activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve()]);
+                        await Promise.all([loadReservations(), activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve()]);
                       } catch (error: any) {
                         notify('error', error?.message || tx(lang, 'Rezervasiya dəyişmədi', 'Бронь не изменилась', 'Reservation was not updated'));
                       } finally {
@@ -3469,7 +3496,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           )}
                           <button
                             type="button"
-                            onClick={() => { void delete_reservation_live(reservation.id).then(() => loadRestaurantData()); }}
+                            onClick={() => { void delete_reservation_live(reservation.id).then(() => loadReservations()); }}
                             className="rounded-full border border-rose-300/40 bg-rose-500/10 px-3 py-1 text-[11px] font-semibold text-rose-100"
                           >
                             {tx(lang, 'Ləğv et', 'Отменить', 'Cancel')}
