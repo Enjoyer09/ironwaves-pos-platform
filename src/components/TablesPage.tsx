@@ -733,6 +733,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const loadTablesBootstrap = async () => {
     if (loadBootstrapInFlightRef.current) return;
     loadBootstrapInFlightRef.current = true;
+    const hasVisibleFloorData = floorPlans.length > 0 || floorTables.length > 0 || Boolean(activeFloorId);
+    if (!hasVisibleFloorData) {
+      setIsFloorPlansLoading(true);
+    }
     try {
       const bootstrap = await get_tables_bootstrap_live(tenant_id);
       const nextFloorPlans = Array.isArray(bootstrap.floor_plans) ? bootstrap.floor_plans : [];
@@ -750,6 +754,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     } catch {
       await Promise.allSettled([loadData(), loadRestaurantData()]);
     } finally {
+      setIsFloorPlansLoading(false);
       loadBootstrapInFlightRef.current = false;
     }
   };
@@ -2842,7 +2847,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       </div>
       {workspaceView === 'floor' && (
         <div className="mb-6 rounded-[28px] border border-white/10 bg-slate-900/35 p-4">
-          {isFloorPlansLoading ? (
+          {isFloorPlansLoading && !activeFloorId && floorTables.length === 0 ? (
             <div className="rounded-2xl border border-sky-300/30 bg-sky-500/10 p-4">
               <div className="text-sm font-semibold text-sky-100">
                 {tx(lang, 'Masa planı yüklənir...', 'План зала загружается...', 'Floor plan is loading...')}
@@ -2857,7 +2862,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 type="button"
                 className="mt-3 rounded-lg border border-amber-200/40 bg-amber-500/20 px-4 py-2 text-sm font-semibold text-amber-50"
                 onClick={() => {
-                  void Promise.all([loadRestaurantData(), loadData()]);
+                  void loadTablesBootstrap();
                 }}
               >
                 {tx(lang, 'Yenidən yoxla', 'Проверить снова', 'Retry')}
