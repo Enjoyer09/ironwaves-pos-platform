@@ -109,6 +109,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const realtimeRefreshScopesRef = useRef<Set<'tables' | 'kitchen' | 'floor' | 'reservations' | 'detail'>>(new Set());
   const loadDataInFlightRef = useRef(false);
   const loadRestaurantInFlightRef = useRef(false);
+  const loadKitchenFeedInFlightRef = useRef(false);
   const loadMenuCatalogInFlightRef = useRef(false);
   const loadReservationsInFlightRef = useRef(false);
   const activeFloorIdRef = useRef<string>('');
@@ -422,11 +423,16 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   useEffect(() => {
     if (!isActive) return;
     if (!activeFloorId) return;
-    const timer = window.setTimeout(() => {
-      void loadFloorState(activeFloorId);
-    }, 320);
-    return () => window.clearTimeout(timer);
+    void loadFloorState(activeFloorId);
   }, [activeFloorId, isActive]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    const timer = window.setTimeout(() => {
+      void loadKitchenFeed();
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [tenant_id, isActive]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -710,18 +716,21 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     if (loadDataInFlightRef.current) return;
     loadDataInFlightRef.current = true;
     try {
-      const [tablesResult, kitchenResult] = await Promise.allSettled([
-        get_tables_live(tenant_id),
-        get_kitchen_orders_live(tenant_id),
-      ]);
-      if (tablesResult.status === 'fulfilled') {
-        setTables(Array.isArray(tablesResult.value) ? tablesResult.value : []);
-      }
-      if (kitchenResult.status === 'fulfilled') {
-        setKitchenOrders(Array.isArray(kitchenResult.value) ? kitchenResult.value : []);
-      }
+      const nextTables = await get_tables_live(tenant_id);
+      setTables(Array.isArray(nextTables) ? nextTables : []);
     } finally {
       loadDataInFlightRef.current = false;
+    }
+  };
+
+  const loadKitchenFeed = async () => {
+    if (loadKitchenFeedInFlightRef.current) return;
+    loadKitchenFeedInFlightRef.current = true;
+    try {
+      const nextOrders = await get_kitchen_orders_live(tenant_id);
+      setKitchenOrders(Array.isArray(nextOrders) ? nextOrders : []);
+    } finally {
+      loadKitchenFeedInFlightRef.current = false;
     }
   };
 
