@@ -13,7 +13,6 @@ import {
   fetch_finance_entries,
   fetch_finance_ledger_accounts,
   fetch_finance_ledger_entries,
-  fetch_finance_ledger_transactions,
   fetch_finance_ledger_transactions_page,
   fetch_finance_pending_approvals,
   fetch_finance_reconciliations,
@@ -327,6 +326,7 @@ export default function FinancePanel() {
   const [aiError, setAiError] = useState('');
   const lastReloadAtRef = useRef(0);
   const reloadTimerRef = useRef<number | null>(null);
+  const initialWorkspaceLoadTimerRef = useRef<number | null>(null);
 
   const applyRangePreset = (preset: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom') => {
     setRangePreset(preset);
@@ -416,11 +416,11 @@ export default function FinancePanel() {
     }
     lastReloadAtRef.current = now;
     try {
-      const [summary, b, serverAnomalies] = await Promise.all([
+      const [summary, serverAnomalies] = await Promise.all([
         fetch_finance_summary(tenant_id).catch(() => null),
-        fetch_finance_balances(tenant_id),
         fetch_finance_anomalies(tenant_id).catch(() => null),
       ]);
+      const fallbackBalances = summary?.balances ? null : await fetch_finance_balances(tenant_id).catch(() => null);
       const summaryBalances = summary?.balances
         ? {
             cash_balance: String(summary.balances.cash || '0'),
@@ -431,7 +431,7 @@ export default function FinancePanel() {
             deposit_balance: String(summary.balances.deposit || '0'),
           }
         : null;
-      setBalance(summaryBalances || b || {
+      setBalance(summaryBalances || fallbackBalances || {
         cash_balance: '0',
         card_balance: '0',
         debt_balance: '0',
@@ -446,20 +446,20 @@ export default function FinancePanel() {
 
       if (!force) return;
 
-      const [e, settings, accounts, transactions, ledgerRows, recRows, pendingRows, alertRows, reportOverview] = await Promise.all([
+      const shouldFetchPending = !summary?.pending_approvals_preview?.length;
+      const shouldFetchAlerts = !summary?.alerts?.length;
+      const [e, settings, accounts, ledgerRows, recRows, pendingRows, alertRows, reportOverview] = await Promise.all([
         fetch_finance_entries(tenant_id).catch(() => []),
         get_settings_live(tenant_id),
         fetch_finance_ledger_accounts(tenant_id).catch(() => []),
-        fetch_finance_ledger_transactions(tenant_id, 250).catch(() => []),
         fetch_finance_ledger_entries(tenant_id, 500).catch(() => []),
         fetch_finance_reconciliations(tenant_id, 100).catch(() => []),
-        fetch_finance_pending_approvals(tenant_id).catch(() => []),
-        fetch_finance_alerts(tenant_id).catch(() => null),
+        shouldFetchPending ? fetch_finance_pending_approvals(tenant_id).catch(() => []) : Promise.resolve([]),
+        shouldFetchAlerts ? fetch_finance_alerts(tenant_id).catch(() => null) : Promise.resolve(null),
         fetch_finance_reports_overview(tenant_id, { date_from: fromDate, date_to: toDate }).catch(() => null),
       ]);
       setEntries(e || []);
       setLedgerAccounts(accounts);
-      setLedgerTransactions(transactions);
       setLedgerEntries(ledgerRows);
       setReconciliations(recRows);
       setEnterpriseReports(reportOverview);
@@ -486,7 +486,19 @@ export default function FinancePanel() {
   }, [tenant_id, notify, lang, fromDate, toDate]);
 
   useEffect(() => {
-    void reloadFinance(true);
+    void reloadFinance(false);
+    if (initialWorkspaceLoadTimerRef.current) {
+      window.clearTimeout(initialWorkspaceLoadTimerRef.current);
+    }
+    initialWorkspaceLoadTimerRef.current = window.setTimeout(() => {
+      void reloadFinance(true);
+    }, 700);
+    return () => {
+      if (initialWorkspaceLoadTimerRef.current) {
+        window.clearTimeout(initialWorkspaceLoadTimerRef.current);
+        initialWorkspaceLoadTimerRef.current = null;
+      }
+    };
   }, [tenant_id, reloadFinance]);
 
   useEffect(() => {
