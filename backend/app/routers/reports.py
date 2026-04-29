@@ -4,12 +4,12 @@ import json
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import AuditLog, FinanceAccount, FinanceTransaction, Setting, Shift, ShiftHandover, Tenant, User
+from app.models import AuditLog, FinanceAccount, FinanceTransaction, Sale, Setting, Shift, ShiftHandover, Tenant, User
 from app.services.finance_service import finance_policy as _finance_policy
 from app.services.finance_service import create_finance_transaction_record as _create_finance_transaction_record
 from app.services.finance_service import ledger_balances_snapshot as _ledger_balances_snapshot
@@ -132,11 +132,14 @@ def _shift_sales_payment_totals(db: Session, tenant_id: str, opened_at: datetime
             FinanceTransaction.destination_account_id,
             func.coalesce(func.sum(FinanceTransaction.amount), 0),
         )
+        .select_from(FinanceTransaction)
+        .join(Sale, and_(Sale.id == FinanceTransaction.related_order_id, Sale.tenant_id == FinanceTransaction.tenant_id))
         .filter(
             FinanceTransaction.tenant_id == tenant_id,
             FinanceTransaction.status == "posted",
             FinanceTransaction.transaction_type == "income",
             FinanceTransaction.related_order_id.isnot(None),
+            Sale.status != "VOIDED",
         )
     )
     if opened_at:
@@ -604,40 +607,15 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
             category="Kassa Artığı" if difference > 0 else "Kassa Kəsiri",
             note="Z-report difference",
             related_shift_id=active.id,
-        )
+    )
     account_codes = _finance_account_code_map(db, tenant.id)
     account_id_by_code = {code: account_id for account_id, code in account_codes.items()}
-    cash_account_id = account_id_by_code.get("cash")
-    card_account_id = account_id_by_code.get("card")
     report_account_ids = [
         account_id
         for code, account_id in account_id_by_code.items()
         if code in {"cash", "card", "safe", "debt"} and account_id
     ]
-    cash_sales = (
-        _posted_transaction_sum(
-            db,
-            tenant.id,
-            active.opened_at,
-            FinanceTransaction.transaction_type == "income",
-            FinanceTransaction.related_order_id.isnot(None),
-            FinanceTransaction.destination_account_id == cash_account_id,
-        )
-        if cash_account_id
-        else Decimal("0.00")
-    )
-    card_sales = (
-        _posted_transaction_sum(
-            db,
-            tenant.id,
-            active.opened_at,
-            FinanceTransaction.transaction_type == "income",
-            FinanceTransaction.related_order_id.isnot(None),
-            FinanceTransaction.destination_account_id == card_account_id,
-        )
-        if card_account_id
-        else Decimal("0.00")
-    )
+    cash_sales, card_sales = _shift_sales_payment_totals(db, tenant.id, active.opened_at, None)
     deposit_total = _posted_transaction_sum(
         db,
         tenant.id,
