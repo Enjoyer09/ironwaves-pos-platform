@@ -171,11 +171,13 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
   const isDedupableGet = method === 'GET' && options.body === undefined;
   if (isDedupableGet) {
     const cacheTtlMs = getResponseCacheTtl(path);
+    const authTokenForKey = options.auth !== false ? String(getClientAuthSession().access_token || '') : '';
     const dedupeKey = JSON.stringify({
       base: getApiBaseUrl(),
       path,
       tenantId: options.tenantId ?? '',
       auth: options.auth !== false,
+      token: authTokenForKey ? authTokenForKey.slice(-16) : '',
       headers: options.headers || {},
     });
     if (cacheTtlMs > 0) {
@@ -228,6 +230,7 @@ async function apiRequestNetwork<T = any>(path: string, options: ApiRequestOptio
   const method = String(options.method || 'GET').toUpperCase();
 
   const { access_token } = getClientAuthSession();
+  const requestAccessToken = String(access_token || '');
   // Tenant id header is now opt-in only.
   // By default backend resolves tenant from x-tenant-domain to avoid stale local tenant mismatches.
   const tenantId = options.tenantId;
@@ -243,8 +246,8 @@ async function apiRequestNetwork<T = any>(path: string, options: ApiRequestOptio
   headers['x-tenant-domain'] = window.location.host;
   headers['x-request-id'] = requestId;
   if (tenantId) headers['x-tenant-id'] = tenantId;
-  if (options.auth !== false && access_token) {
-    headers.Authorization = `Bearer ${access_token}`;
+  if (options.auth !== false && requestAccessToken) {
+    headers.Authorization = `Bearer ${requestAccessToken}`;
   }
 
   const startedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
@@ -362,9 +365,11 @@ async function apiRequestNetwork<T = any>(path: string, options: ApiRequestOptio
       : `Server düzgün JSON cavabı qaytarmadı (HTTP ${res.status})`;
     const backendRequestId = String(res.headers.get('x-request-id') || requestId);
     if (res.status === 401) {
-      setClientAuthSession({ access_token: null, user: null });
+      const currentAccessToken = String(getClientAuthSession().access_token || '');
+      const shouldExpireCurrentSession = Boolean(requestAccessToken && currentAccessToken && currentAccessToken === requestAccessToken);
       const now = Date.now();
-      if (now - lastAuthExpiredEventAt > 1000) {
+      if (shouldExpireCurrentSession && now - lastAuthExpiredEventAt > 1000) {
+        setClientAuthSession({ access_token: null, user: null });
         lastAuthExpiredEventAt = now;
         window.dispatchEvent(
           new CustomEvent('ironwaves-auth-expired', {
