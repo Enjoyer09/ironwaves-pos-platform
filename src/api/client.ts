@@ -53,6 +53,44 @@ const telemetryThrottle: Record<string, number> = {};
 const inFlightGetRequests = new Map<string, Promise<any>>();
 const IN_FLIGHT_GET_TTL_MS = 1000;
 let lastAuthExpiredEventAt = 0;
+const getResponseCache = new Map<string, { expiresAt: number; data: any }>();
+
+function cloneCachedData<T>(data: T): T {
+  try {
+    if (typeof structuredClone === 'function') return structuredClone(data);
+  } catch {
+    // fall through
+  }
+  try {
+    return JSON.parse(JSON.stringify(data)) as T;
+  } catch {
+    return data;
+  }
+}
+
+function getResponseCacheTtl(path: string): number {
+  const cleanPath = String(path || '').split('?')[0];
+  if (
+    cleanPath === '/api/v1/pos/menu' ||
+    cleanPath === '/api/v1/ops/tables' ||
+    cleanPath === '/api/v1/restaurant/tables-bootstrap' ||
+    cleanPath === '/api/v1/ops/settings' ||
+    cleanPath === '/api/v1/finance/summary' ||
+    cleanPath === '/api/v1/finance/balances' ||
+    cleanPath === '/api/v1/finance/anomalies' ||
+    cleanPath === '/api/v1/finance/ledger/accounts' ||
+    cleanPath === '/api/v1/reports/status' ||
+    cleanPath === '/api/v1/analytics/summary' ||
+    cleanPath === '/api/v1/analytics/sales'
+  ) {
+    return 12000;
+  }
+  if (cleanPath === '/api/v1/pos/menu/images') return 120000;
+  if (cleanPath === '/api/v1/restaurant/kitchen-feed') return 5000;
+  if (cleanPath.startsWith('/api/v1/restaurant/floor-plans/') && cleanPath.endsWith('/state')) return 12000;
+  if (cleanPath.startsWith('/api/v1/finance/reports/')) return 12000;
+  return 0;
+}
 
 export function setClientAuthSession(snapshot: SessionAuthSnapshot | null | undefined): void {
   sessionAuthSnapshot = {
@@ -132,6 +170,7 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
   const method = String(options.method || 'GET').toUpperCase();
   const isDedupableGet = method === 'GET' && options.body === undefined;
   if (isDedupableGet) {
+    const cacheTtlMs = getResponseCacheTtl(path);
     const dedupeKey = JSON.stringify({
       base: getApiBaseUrl(),
       path,
@@ -139,9 +178,23 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
       auth: options.auth !== false,
       headers: options.headers || {},
     });
+    if (cacheTtlMs > 0) {
+      const cached = getResponseCache.get(dedupeKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        return Promise.resolve(cloneCachedData(cached.data));
+      }
+    }
     const existing = inFlightGetRequests.get(dedupeKey);
     if (existing) return existing as Promise<T>;
-    const promise = apiRequestNetwork<T>(path, { ...options, signal: undefined });
+    const promise = apiRequestNetwork<T>(path, { ...options, signal: undefined }).then((data) => {
+      if (cacheTtlMs > 0) {
+        getResponseCache.set(dedupeKey, {
+          expiresAt: Date.now() + cacheTtlMs,
+          data: cloneCachedData(data),
+        });
+      }
+      return data;
+    });
     inFlightGetRequests.set(dedupeKey, promise);
     window.setTimeout(() => {
       if (inFlightGetRequests.get(dedupeKey) === promise) {
@@ -158,7 +211,13 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
     promise.then(clearDedupe, clearDedupe);
     return promise;
   }
-  return apiRequestNetwork<T>(path, options);
+  return apiRequestNetwork<T>(path, options).then((data) => {
+    if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+      getResponseCache.clear();
+      inFlightGetRequests.clear();
+    }
+    return data;
+  });
 }
 
 async function apiRequestNetwork<T = any>(path: string, options: ApiRequestOptions = {}): Promise<T> {
