@@ -50,6 +50,8 @@ type SessionAuthSnapshot = {
 
 let sessionAuthSnapshot: SessionAuthSnapshot = {};
 const telemetryThrottle: Record<string, number> = {};
+const inFlightGetRequests = new Map<string, Promise<any>>();
+const IN_FLIGHT_GET_TTL_MS = 1000;
 
 export function setClientAuthSession(snapshot: SessionAuthSnapshot | null | undefined): void {
   sessionAuthSnapshot = {
@@ -126,6 +128,38 @@ const isAbortError = (error: unknown) =>
   typeof DOMException !== 'undefined' && error instanceof DOMException && error.name === 'AbortError';
 
 export async function apiRequest<T = any>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const method = String(options.method || 'GET').toUpperCase();
+  const isDedupableGet = method === 'GET' && options.body === undefined;
+  if (isDedupableGet) {
+    const dedupeKey = JSON.stringify({
+      base: getApiBaseUrl(),
+      path,
+      tenantId: options.tenantId ?? '',
+      auth: options.auth !== false,
+      headers: options.headers || {},
+    });
+    const existing = inFlightGetRequests.get(dedupeKey);
+    if (existing) return existing as Promise<T>;
+    const promise = apiRequestNetwork<T>(path, { ...options, signal: undefined });
+    inFlightGetRequests.set(dedupeKey, promise);
+    window.setTimeout(() => {
+      if (inFlightGetRequests.get(dedupeKey) === promise) {
+        inFlightGetRequests.delete(dedupeKey);
+      }
+    }, IN_FLIGHT_GET_TTL_MS);
+    promise.finally(() => {
+      window.setTimeout(() => {
+        if (inFlightGetRequests.get(dedupeKey) === promise) {
+          inFlightGetRequests.delete(dedupeKey);
+        }
+      }, 50);
+    });
+    return promise;
+  }
+  return apiRequestNetwork<T>(path, options);
+}
+
+async function apiRequestNetwork<T = any>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const base = getApiBaseUrl();
   if (!base) {
     throw new Error('VITE_API_BASE_URL konfiqurasiya edilməyib');
@@ -154,7 +188,6 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
   const startedAt = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   let res: Response | null = null;
   const timeoutMs = typeof options.timeoutMs === 'number' ? options.timeoutMs : 20000;
-  const method = String(options.method || 'GET').toUpperCase();
   const isIdempotent = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
   const retryCount = Math.max(0, Number.isFinite(options.retryCount as number) ? Number(options.retryCount) : (isIdempotent ? 1 : 0));
   const retryDelayMs = Math.max(100, Number(options.retryDelayMs || 350));
