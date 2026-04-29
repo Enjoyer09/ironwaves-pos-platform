@@ -2,6 +2,7 @@ import React from 'react';
 import { get_public_receipt_live } from '../api/pos';
 import { get_business_profile, get_public_branding_live, get_settings } from '../api/settings';
 import { formatServerUtcDateTime } from '../lib/time';
+import { buildSaleReceiptHtml } from '../lib/receipt_html';
 
 type Props = {
   receiptId: string;
@@ -20,34 +21,48 @@ export default function PublicReceipt({ receiptId, token }: Props) {
     const fallbackKey = `receipt_fallback:${String(receiptId || '').trim()}:${String(token || '').trim()}`;
     void (async () => {
       try {
+        const rawFallback = sessionStorage.getItem(fallbackKey);
+        const parsedFallback = rawFallback ? JSON.parse(rawFallback) : null;
         const res = await get_public_receipt_live(receiptId, token);
         if (!mounted) return;
-        setReceipt(res);
-        setProfile(await get_public_branding_live(res.tenant_id).catch(() => get_business_profile(res.tenant_id)));
+        const nextProfile = await get_public_branding_live(res.tenant_id).catch(() => get_business_profile(res.tenant_id));
+        setProfile(nextProfile);
         const settings = get_settings(res.tenant_id);
         const feedbackSettings = settings?.feedback_settings || {};
         const defaultFeedbackPortalUrl = `${window.location.origin.replace(/\/+$/, '')}/feedback`;
         const baseFeedbackUrl = String(feedbackSettings.portal_url || defaultFeedbackPortalUrl || feedbackSettings.google_review_url || '').trim();
         const feedbackEnabled = feedbackSettings.enabled === true && Boolean(baseFeedbackUrl);
+        let nextFeedbackUrl = '';
         if (feedbackEnabled && baseFeedbackUrl) {
-          let nextUrl = baseFeedbackUrl;
+          nextFeedbackUrl = baseFeedbackUrl;
           try {
             const url = new URL(baseFeedbackUrl);
             url.searchParams.set('tenant_id', String(res.tenant_id || ''));
             url.searchParams.set('receipt_id', String(res.id || receiptId || ''));
             url.searchParams.set('r', String(receiptId || res.id || ''));
             url.searchParams.set('t', String(token || ''));
-            nextUrl = url.toString();
+            nextFeedbackUrl = url.toString();
           } catch {
-            nextUrl = baseFeedbackUrl;
+            nextFeedbackUrl = baseFeedbackUrl;
           }
           setFeedback({
             label: String(feedbackSettings.receipt_button_text_az || 'Rəy bildirin'),
-            url: nextUrl,
+            url: nextFeedbackUrl,
           });
         } else {
           setFeedback(null);
         }
+        const savedHtml = String(res?.receipt_html || '').trim();
+        const fallbackHtml = String(parsedFallback?.receipt_html || '').trim();
+        const receiptHtml = savedHtml || fallbackHtml || await buildSaleReceiptHtml({
+          sale: res,
+          profile: nextProfile,
+          lang: 'az',
+          receiptUrl: window.location.href,
+          feedbackUrl: nextFeedbackUrl,
+          operator: String(res?.cashier || ''),
+        });
+        setReceipt({ ...res, receipt_html: receiptHtml });
       } catch {
         if (!mounted) return;
         try {
