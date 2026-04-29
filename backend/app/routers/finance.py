@@ -478,6 +478,140 @@ def _period_bounds(date_from: str | None, date_to: str | None) -> tuple[datetime
     return start, end
 
 
+def _sale_period_filters(tenant_id: str, start: datetime | None, end: datetime | None) -> list:
+    filters = [Sale.tenant_id == tenant_id, Sale.status == "COMPLETED"]
+    if start:
+        filters.append(Sale.created_at >= start)
+    if end:
+        filters.append(Sale.created_at <= end)
+    return filters
+
+
+def _posted_sale_ledger_filters(tenant_id: str) -> list:
+    return [
+        FinanceTransaction.tenant_id == tenant_id,
+        FinanceTransaction.status == "posted",
+        FinanceTransaction.transaction_type.in_(["income", "deposit_apply_to_bill"]),
+        FinanceTransaction.related_order_id.isnot(None),
+    ]
+
+
+def _sales_ledger_reconciliation_report(
+    db: Session,
+    tenant_id: str,
+    start: datetime | None,
+    end: datetime | None,
+    *,
+    sample_limit: int = 50,
+) -> dict:
+    sales_filters = _sale_period_filters(tenant_id, start, end)
+    sales_id_rows = db.query(Sale.id).filter(*sales_filters).subquery()
+    sales_id_select = db.query(sales_id_rows.c.id)
+    ledger_filters = _posted_sale_ledger_filters(tenant_id) + [
+        FinanceTransaction.related_order_id.in_(sales_id_select),
+    ]
+    ledger_by_sale = (
+        db.query(
+            FinanceTransaction.related_order_id.label("sale_id"),
+            func.coalesce(func.sum(FinanceTransaction.amount), 0).label("ledger_total"),
+            func.count(FinanceTransaction.id).label("transaction_count"),
+        )
+        .filter(*ledger_filters)
+        .group_by(FinanceTransaction.related_order_id)
+        .subquery()
+    )
+    sales_total = Decimal(
+        str(
+            db.query(func.coalesce(func.sum(Sale.total), 0))
+            .filter(*sales_filters)
+            .scalar()
+            or 0
+        )
+    )
+    sales_count = int(db.query(func.count(Sale.id)).filter(*sales_filters).scalar() or 0)
+    ledger_total = Decimal(
+        str(
+            db.query(func.coalesce(func.sum(FinanceTransaction.amount), 0))
+            .filter(*ledger_filters)
+            .scalar()
+            or 0
+        )
+    )
+    ledger_transaction_count = int(
+        db.query(func.count(FinanceTransaction.id))
+        .filter(*ledger_filters)
+        .scalar()
+        or 0
+    )
+    missing_query = (
+        db.query(Sale.id, Sale.receipt_code, Sale.total, Sale.payment_method, Sale.created_at)
+        .outerjoin(ledger_by_sale, Sale.id == ledger_by_sale.c.sale_id)
+        .filter(*sales_filters, ledger_by_sale.c.sale_id.is_(None))
+    )
+    missing_count = int(missing_query.count())
+    mismatch_query = (
+        db.query(
+            Sale.id,
+            Sale.receipt_code,
+            Sale.total,
+            Sale.payment_method,
+            Sale.created_at,
+            ledger_by_sale.c.ledger_total,
+            ledger_by_sale.c.transaction_count,
+        )
+        .join(ledger_by_sale, Sale.id == ledger_by_sale.c.sale_id)
+        .filter(
+            *sales_filters,
+            func.abs(func.coalesce(ledger_by_sale.c.ledger_total, 0) - Sale.total) > Decimal("0.01"),
+        )
+    )
+    mismatch_count = int(mismatch_query.count())
+
+    def sale_sample(row, *, include_ledger: bool = False) -> dict:
+        payload = {
+            "sale_id": row.id,
+            "receipt_code": row.receipt_code,
+            "sale_total": _money(row.total),
+            "payment_method": row.payment_method,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+        if include_ledger:
+            ledger_value = Decimal(str(row.ledger_total or 0))
+            sale_value = Decimal(str(row.total or 0))
+            payload.update(
+                {
+                    "ledger_total": _money(ledger_value),
+                    "gap": _money(sale_value - ledger_value),
+                    "transaction_count": int(row.transaction_count or 0),
+                }
+            )
+        return payload
+
+    gap = (sales_total - ledger_total).quantize(Decimal("0.01"))
+    return {
+        "period": {
+            "date_from": start.isoformat() if start else None,
+            "date_to": end.isoformat() if end else None,
+        },
+        "sales_count": sales_count,
+        "sales_total": _money(sales_total),
+        "ledger_transaction_count": ledger_transaction_count,
+        "ledger_sales_total": _money(ledger_total),
+        "reconciliation_gap": str(gap),
+        "has_reconciliation_issue": bool(abs(gap) > Decimal("0.01") or missing_count or mismatch_count),
+        "missing_ledger_count": missing_count,
+        "amount_mismatch_count": mismatch_count,
+        "missing_ledger_sales": [
+            sale_sample(row)
+            for row in missing_query.order_by(Sale.created_at.desc()).limit(sample_limit).all()
+        ],
+        "amount_mismatch_sales": [
+            sale_sample(row, include_ledger=True)
+            for row in mismatch_query.order_by(Sale.created_at.desc()).limit(sample_limit).all()
+        ],
+    }
+
+
 def _transaction_date(row: FinanceTransaction) -> datetime | None:
     return (
         getattr(row, "posted_at", None)
@@ -818,6 +952,46 @@ def get_finance_reports_overview(
         "profit_loss": _profit_loss_report(db, tenant.id, start, end),
         "cash_flow": _cash_flow_report(db, tenant.id, start, end),
     }
+
+
+@router.get("/reports/sales-ledger-reconciliation")
+def get_sales_ledger_reconciliation(
+    date_from: str | None = None,
+    date_to: str | None = None,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user=Depends(get_current_user),
+):
+    _ensure_finance_read_access(user)
+    start, end = _period_bounds(date_from, date_to)
+    sample_limit = min(max(int(limit or 50), 1), 200)
+    return _sales_ledger_reconciliation_report(db, tenant.id, start, end, sample_limit=sample_limit)
+
+
+@router.post("/reports/sales-ledger-reconciliation/audit")
+def audit_sales_ledger_reconciliation(
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user=Depends(get_current_user),
+):
+    _ensure_finance_write_access(user)
+    start, end = _period_bounds(date_from, date_to)
+    payload = _sales_ledger_reconciliation_report(db, tenant.id, start, end, sample_limit=50)
+    if not payload.get("has_reconciliation_issue"):
+        return {"logged": False, "report": payload}
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="SALES_LEDGER_RECONCILIATION_MISMATCH",
+            details=json.dumps(payload, ensure_ascii=False),
+        )
+    )
+    db.commit()
+    return {"logged": True, "report": payload}
 
 
 def _account_out(account: FinanceAccount, totals: dict[str, Decimal]) -> dict:
