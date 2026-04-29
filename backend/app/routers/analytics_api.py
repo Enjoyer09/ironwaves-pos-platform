@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.json_utils import safe_json_list
-from app.models import Customer, FinanceEntry, FinanceTransaction, InventoryItem, LoyaltyLedgerEntry, Recipe, RewardClaim, Sale, Setting, Tenant, User
+from app.models import Customer, FinanceAccount, FinanceEntry, FinanceTransaction, InventoryItem, LoyaltyLedgerEntry, Recipe, RewardClaim, Sale, Setting, Tenant, User
 from app.services.finance_service import (
     finance_account_code as _finance_account_code,
     mark_original_transaction_reversed as _mark_original_transaction_reversed,
@@ -81,6 +81,30 @@ def _display_payment_method(value: str) -> str:
     if value == "staff":
         return "Staff"
     return "Kart"
+
+
+def _sale_payment_split(db: Session, tenant_id: str, sale_id: str) -> tuple[Decimal, Decimal]:
+    rows = (
+        db.query(FinanceAccount.code, func.coalesce(func.sum(FinanceTransaction.amount), 0))
+        .join(FinanceAccount, FinanceAccount.id == FinanceTransaction.destination_account_id)
+        .filter(
+            FinanceTransaction.tenant_id == tenant_id,
+            FinanceTransaction.related_order_id == sale_id,
+            FinanceTransaction.status == "posted",
+            FinanceTransaction.transaction_type == "income",
+            FinanceAccount.code.in_(["cash", "card"]),
+        )
+        .group_by(FinanceAccount.code)
+        .all()
+    )
+    cash = Decimal("0.00")
+    card = Decimal("0.00")
+    for code, amount in rows:
+        if code == "cash":
+            cash = Decimal(str(amount or 0)).quantize(Decimal("0.01"))
+        elif code == "card":
+            card = Decimal(str(amount or 0)).quantize(Decimal("0.01"))
+    return cash, card
 
 
 def _reverse_sale_finance_transactions(db: Session, tenant_id: str, sale_id: str, username: str) -> None:
@@ -252,6 +276,7 @@ def get_sales_list(
     for row in rows:
         items = safe_json_list(row.items_json)
         original_total = Decimal(str(row.total)) + Decimal(str(row.discount_amount or 0))
+        split_cash, split_card = _sale_payment_split(db, tenant.id, row.id)
         result.append(
             {
                 "id": row.id,
@@ -265,6 +290,8 @@ def get_sales_list(
                 "total": str(Decimal(str(row.total)).quantize(Decimal("0.01"))),
                 "cogs": str(Decimal(str(row.cogs or 0)).quantize(Decimal("0.01"))),
                 "payment_method": row.payment_method,
+                "split_cash": str(split_cash) if split_cash > 0 else None,
+                "split_card": str(split_card) if split_card > 0 else None,
                 "order_type": row.order_type,
                 "receipt_code": row.receipt_code,
                 "receipt_token": row.receipt_token,

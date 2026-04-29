@@ -18,6 +18,28 @@ function money(value: unknown): string {
   return Number.isFinite(n) ? n.toFixed(2) : '0.00';
 }
 
+function numeric(value: unknown): number {
+  const n = Number(String(value ?? '').replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function splitAmounts(sale: any): { cash: number; card: number } {
+  const directCash = numeric(sale?.split_cash);
+  const directCard = numeric(sale?.split_card);
+  if (directCash > 0 || directCard > 0) return { cash: directCash, card: directCard };
+  const parts = Array.isArray(sale?.payment_parts) ? sale.payment_parts : [];
+  return parts.reduce(
+    (acc: { cash: number; card: number }, part: any) => {
+      const method = String(part?.method || part?.source || '').toLowerCase();
+      const amount = numeric(part?.amount);
+      if (method.includes('cash') || method.includes('nəğd') || method.includes('nagd')) acc.cash += amount;
+      if (method.includes('card') || method.includes('kart')) acc.card += amount;
+      return acc;
+    },
+    { cash: 0, card: 0 },
+  );
+}
+
 export function formatReceiptDisplayId(id: string): string {
   if (!id) return '-';
   return String(id).split('-')[0].toUpperCase();
@@ -78,6 +100,9 @@ export async function buildSaleReceiptHtml({
   const subtotal = Number(sale?.original_total ?? 0) || (Number(sale?.total || 0) + Number(sale?.discount_amount || 0));
   const total = Number(sale?.total || 0);
   const discount = Number(sale?.discount_amount || 0);
+  const paymentMethod = String(sale?.payment_method || '').trim();
+  const split = splitAmounts(sale);
+  const isSplit = paymentMethod.toLowerCase().includes('split') || split.cash > 0 || split.card > 0;
   const freeCoffees = Number(sale?.free_coffees_applied || 0);
   const customerId = String(sale?.customer_card_id || '').trim();
   const starsAfter = Number(sale?.customer_stars_after || 0);
@@ -119,6 +144,9 @@ export async function buildSaleReceiptHtml({
         ${customerId ? `<div class="line"><span>${tx(lang, 'Müştəri ID', 'ID клиента', 'Customer ID')}</span><span>${esc(customerId)}</span></div>` : ''}
         ${customerId ? `<div class="line"><span>${tx(lang, 'Ulduz balansı', 'Баланс звезд', 'Star Balance')}</span><span>${starsAfter}</span></div>` : ''}
         <div class="line bold" style="font-size:13px"><span>${tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>${money(total)} ₼</span></div>
+        <div class="line"><span>${tx(lang, 'Ödəniş', 'Оплата', 'Payment')}</span><span>${esc(paymentMethod || '-')}</span></div>
+        ${isSplit ? `<div class="line"><span>${tx(lang, 'Split nağd', 'Split наличные', 'Split cash')}</span><span>${money(split.cash)} ₼</span></div>` : ''}
+        ${isSplit ? `<div class="line"><span>${tx(lang, 'Split kart', 'Split карта', 'Split card')}</span><span>${money(split.card)} ₼</span></div>` : ''}
         <hr />
         <div style="display:flex;justify-content:center;margin:8px 0 6px 0">
           <img src="${qrDataUrl}" alt="receipt qr" style="width:108px;height:108px" />
