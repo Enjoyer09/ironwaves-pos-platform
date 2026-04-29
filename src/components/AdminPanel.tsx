@@ -12,6 +12,8 @@ import { getDB } from '../lib/db_sim';
 import { verifyLocalCredential } from '../lib/local_auth';
 import { formatServerUtcDateTime } from '../lib/time';
 import { prepareImageDataUrl } from '../lib/image_upload';
+import { buildSaleReceiptHtml } from '../lib/receipt_html';
+import { get_business_profile } from '../api/settings';
 
 const FinancePanel = lazy(() => import('./admin/FinancePanel'));
 const InventoryPanel = lazy(() => import('./admin/InventoryPanel'));
@@ -177,15 +179,32 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
     };
   };
 
-  const reprintSaleReceipt = (sale: any) => {
+  const reprintSaleReceipt = async (sale: any) => {
     const receiptRef = String(sale?.receipt_code || sale?.id || '').trim();
     if (!receiptRef) {
       notify('error', tx(lang, 'Bu satış üçün receipt ID tapılmadı', 'Для этой продажи receipt ID не найден', 'Receipt ID was not found for this sale'));
       return;
     }
     const token = String(sale?.receipt_token || '').trim();
+    const url = new URL(window.location.origin);
+    url.searchParams.set('r', receiptRef);
+    if (token) url.searchParams.set('t', token);
+    url.searchParams.set('autoprint', '1');
+    const popup = window.open('', '_blank', 'noopener,noreferrer');
+    if (!popup) {
+      notify('error', tx(lang, 'Receipt pəncərəsi açıla bilmədi', 'Не удалось открыть окно receipt', 'Could not open receipt window'));
+      return;
+    }
     try {
       const fallbackKey = `receipt_fallback:${receiptRef}:${token}`;
+      const profile = get_business_profile(String(sale?.tenant_id || tenant_id || ''));
+      const receiptHtml = String(sale?.receipt_html || '').trim() || await buildSaleReceiptHtml({
+        sale,
+        profile,
+        lang,
+        receiptUrl: url.toString(),
+        operator: String(sale?.cashier || user?.username || ''),
+      });
       const fallbackPayload = {
         id: sale?.id,
         tenant_id: sale?.tenant_id,
@@ -199,20 +218,13 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
         discount_amount: sale?.discount_amount,
         items: Array.isArray(sale?.items) ? sale.items : [],
         status: sale?.status,
-        receipt_html: String(sale?.receipt_html || ''),
+        receipt_html: receiptHtml,
       };
       sessionStorage.setItem(fallbackKey, JSON.stringify(fallbackPayload));
     } catch {
       // ignore fallback cache errors
     }
-    const url = new URL(window.location.origin);
-    url.searchParams.set('r', receiptRef);
-    if (token) url.searchParams.set('t', token);
-    url.searchParams.set('autoprint', '1');
-    const popup = window.open(url.toString(), '_blank', 'noopener,noreferrer');
-    if (!popup) {
-      notify('error', tx(lang, 'Receipt pəncərəsi açıla bilmədi', 'Не удалось открыть окно receipt', 'Could not open receipt window'));
-    }
+    popup.location.href = url.toString();
   };
 
   useEffect(() => {
