@@ -425,7 +425,6 @@ def _ensure_default_floor(db: Session, tenant_id: str) -> FloorPlan:
         .first()
     )
     if row:
-        _assign_unassigned_tables_to_floor(db, tenant_id, row)
         return row
     row = FloorPlan(tenant_id=tenant_id, name="Main Floor", width_units=12, height_units=8, is_active=True)
     db.add(row)
@@ -532,10 +531,15 @@ def _tables_list_payload(db: Session, tenant_id: str) -> list[dict]:
 
 
 def _floor_state_payload(db: Session, tenant_id: str, floor: FloorPlan) -> dict:
-    changed = _assign_unassigned_tables_to_floor(db, tenant_id, floor)
-    if changed:
-        db.commit()
-    tables = db.query(Table).filter(Table.tenant_id == tenant_id, Table.floor_plan_id == floor.id).order_by(Table.label.asc()).all()
+    tables = (
+        db.query(Table)
+        .filter(
+            Table.tenant_id == tenant_id,
+            (Table.floor_plan_id == floor.id) | Table.floor_plan_id.is_(None),
+        )
+        .order_by(Table.label.asc())
+        .all()
+    )
     table_ids = [row.id for row in tables]
 
     active_sessions_by_table: dict[str, TableSession] = {}
@@ -678,23 +682,45 @@ def _find_existing_guest(db: Session, tenant_id: str, phone: str | None, email: 
     return None
 
 
-def _compute_table_status(db: Session, tenant_id: str, table: Table) -> str:
-    active_session, active_check = _ensure_active_session_and_check(db, tenant_id, table)
+def _compute_table_status(
+    db: Session,
+    tenant_id: str,
+    table: Table,
+    active_session: TableSession | None = None,
+    active_check: Check | None = None,
+    reserved: Reservation | None = None,
+    active_loaded: bool = False,
+    reservation_loaded: bool = False,
+) -> str:
+    if not active_loaded:
+        active_session, active_check = _ensure_active_session_and_check(db, tenant_id, table)
     if str(table.status or "").upper() == "DIRTY":
         return "DIRTY"
     if active_session:
         if active_check:
             return "ACTIVE_CHECK"
         return "SEATED"
-    reserved = _find_locked_reservation(db, tenant_id, table.id)
+    if not active_session and not reservation_loaded:
+        reserved = _find_locked_reservation(db, tenant_id, table.id)
     if reserved:
         return "RESERVED"
     return "AVAILABLE"
 
 
-def _table_state_payload(db: Session, tenant_id: str, table: Table) -> dict:
-    active_session, active_check = _ensure_active_session_and_check(db, tenant_id, table)
-    reserved = _find_locked_reservation(db, tenant_id, table.id)
+def _table_state_payload(
+    db: Session,
+    tenant_id: str,
+    table: Table,
+    active_session: TableSession | None = None,
+    active_check: Check | None = None,
+    reserved: Reservation | None = None,
+    active_loaded: bool = False,
+    reservation_loaded: bool = False,
+) -> dict:
+    if not active_loaded:
+        active_session, active_check = _ensure_active_session_and_check(db, tenant_id, table)
+    if not active_session and not reservation_loaded:
+        reserved = _find_locked_reservation(db, tenant_id, table.id)
     minutes_seated = None
     if active_session and active_session.seated_at:
         minutes_seated = int(max(0, (datetime.utcnow() - active_session.seated_at).total_seconds() // 60))
@@ -712,7 +738,16 @@ def _table_state_payload(db: Session, tenant_id: str, table: Table) -> dict:
         "locked_by": _table_lock_holder(table),
         "active_session_id": table.active_session_id,
         "locked_at": table.locked_at.isoformat() if table.locked_at else None,
-        "status": _compute_table_status(db, tenant_id, table),
+        "status": _compute_table_status(
+            db,
+            tenant_id,
+            table,
+            active_session,
+            active_check,
+            reserved,
+            active_loaded=True,
+            reservation_loaded=True,
+        ),
         "guest_count": active_session.guest_count if active_session else table.guest_count,
         "assigned_waiter": active_session.assigned_waiter if active_session else table.assigned_to,
         "minutes_seated": minutes_seated,
@@ -729,6 +764,7 @@ def _table_state_payload(db: Session, tenant_id: str, table: Table) -> dict:
 
 def _table_detail_payload(db: Session, tenant_id: str, table: Table) -> dict:
     active_session, active_check = _ensure_active_session_and_check(db, tenant_id, table)
+    reserved = None if active_session else _find_locked_reservation(db, tenant_id, table.id)
     payments_payload: list[dict] = []
     amount_paid = Decimal("0.00")
     rounds_payload: list[dict] = []
@@ -826,7 +862,16 @@ def _table_detail_payload(db: Session, tenant_id: str, table: Table) -> dict:
         ]
 
     return {
-        "table": _table_state_payload(db, tenant_id, table),
+        "table": _table_state_payload(
+            db,
+            tenant_id,
+            table,
+            active_session,
+            active_check,
+            reserved,
+            active_loaded=True,
+            reservation_loaded=True,
+        ),
         "session": None if not active_session else {
             "id": active_session.id,
             "status": active_session.status,
@@ -1391,6 +1436,24 @@ def get_floor_state(
     if not floor:
         raise HTTPException(status_code=404, detail="Floor plan not found")
     return _floor_state_payload(db, tenant.id, floor)
+
+
+@router.post("/floor-plans/{floor_id}/repair-orphans")
+def repair_floor_orphan_tables(
+    floor_id: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_floor_admin(user)
+    floor = db.query(FloorPlan).filter(FloorPlan.id == floor_id, FloorPlan.tenant_id == tenant.id).first()
+    if not floor:
+        raise HTTPException(status_code=404, detail="Floor plan not found")
+    changed = _assign_unassigned_tables_to_floor(db, tenant.id, floor)
+    if changed:
+        db.commit()
+        _emit_realtime(tenant.id, "floor.updated", {"floor_id": floor.id, "action": "repair-orphans"})
+    return {"ok": True, "changed": bool(changed)}
 
 
 @router.patch("/tables/{table_id}/layout")
@@ -2472,13 +2535,20 @@ def get_kitchen_feed(
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
 ):
+    active_statuses = ["NEW", "SENT", "PREPARING", "READY", "VOID_REQUESTED"]
+    recent_cutoff = datetime.utcnow() - timedelta(hours=6)
     rows = (
         db.query(OrderRound, Table, Check)
         .join(Check, Check.id == OrderRound.check_id)
         .join(TableSession, TableSession.id == Check.table_session_id)
         .join(Table, Table.id == TableSession.table_id)
-        .filter(OrderRound.tenant_id == tenant.id, OrderRound.status.in_(["NEW", "SENT", "PREPARING", "READY", "VOID_REQUESTED"]))
+        .filter(
+            OrderRound.tenant_id == tenant.id,
+            OrderRound.status.in_(active_statuses),
+            OrderRound.sent_at >= recent_cutoff,
+        )
         .order_by(OrderRound.sent_at.desc())
+        .limit(200)
         .all()
     )
     round_ids = [round_row.id for round_row, _, _ in rows]
