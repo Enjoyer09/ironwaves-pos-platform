@@ -276,7 +276,7 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
       to_d.setHours(23, 59, 59, 999);
       const [summaryResult, salesResult] = await Promise.allSettled([
         get_sales_summary_live(tenant_id, from_d.toISOString(), to_d.toISOString(), undefined, { signal }),
-        get_sales_list_live(tenant_id, from_d.toISOString(), to_d.toISOString(), undefined, { signal }),
+        get_sales_list_live(tenant_id, from_d.toISOString(), to_d.toISOString(), undefined, { signal, limit: 300 }),
       ]);
       if (seq !== fetchSeqRef.current) return;
       if (summaryResult.status === 'fulfilled') {
