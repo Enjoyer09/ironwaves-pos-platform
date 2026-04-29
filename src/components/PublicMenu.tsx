@@ -45,6 +45,7 @@ export default function PublicMenu() {
   const surfaceColor = String(branding.surface_color || '#fff7e8');
   const textColor = String(branding.text_color || '#2b1708');
   const heroImageUrl = String(branding.hero_image_url || '');
+  const posterImageUrl = String(branding.poster_image_url || '');
   const logoShape = String(branding.logo_shape || 'rounded');
   const heroTitle = String(branding.hero_title || companyName);
   const heroSubtitle = String(branding.hero_subtitle || 'QR Menu');
@@ -65,7 +66,7 @@ export default function PublicMenu() {
 
   if (loading) {
     return (
-      <div className="min-h-screen px-4 py-10 text-slate-100" style={{ background: `linear-gradient(180deg, ${backgroundColor}, #09111d)` }}>
+      <div className="h-screen overflow-y-auto px-4 py-10 text-slate-100" style={{ background: `linear-gradient(180deg, ${backgroundColor}, #09111d)` }}>
         <div className="mx-auto max-w-5xl rounded-3xl border border-white/10 bg-white/5 p-8 text-center backdrop-blur">
           <div className="text-xl font-semibold">Menu yüklənir...</div>
         </div>
@@ -74,7 +75,7 @@ export default function PublicMenu() {
   }
 
   return (
-    <div className="min-h-screen px-4 py-6" style={{ background: `linear-gradient(180deg, ${backgroundColor}, #f7ecd2)` }}>
+    <div className="h-screen overflow-y-auto overscroll-contain px-4 py-6" style={{ background: `linear-gradient(180deg, ${backgroundColor}, #f7ecd2)` }}>
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="overflow-hidden rounded-[2rem] border shadow-[0_20px_60px_rgba(55,31,8,0.18)]" style={{ borderColor: `${textColor}22`, backgroundColor: surfaceColor }}>
           <div
@@ -122,33 +123,38 @@ export default function PublicMenu() {
               <div className="relative z-10 flex justify-center md:justify-end">
                 <div className="relative mt-2 w-full max-w-[320px] rounded-[2rem] p-4 shadow-[0_24px_50px_rgba(40,22,6,0.18)]" style={{ backgroundColor: String(branding.poster_background_color || primaryColor) }}>
                   <div className="rounded-[1.6rem] border px-4 pb-4 pt-5" style={{ backgroundColor: surfaceColor, borderColor: `${textColor}18` }}>
-                    <div className="mb-3 flex items-center gap-3">
-                      {logoUrl ? (
-                        <img
-                          src={logoUrl}
-                          alt={companyName}
-                          className={`h-12 w-12 object-cover ${logoShape === 'circle' ? 'rounded-full' : logoShape === 'square' ? 'rounded-lg' : 'rounded-2xl'}`}
-                        />
-                      ) : null}
-                      <div>
-                        <div className="text-xs uppercase tracking-[0.24em]" style={{ color: `${textColor}88` }}>MENU</div>
-                        <div className="text-lg font-black" style={{ color: textColor }}>{companyName}</div>
-                      </div>
-                    </div>
-                    {heroImageUrl ? (
-                      <img src={heroImageUrl} alt={heroTitle} className="mb-3 h-36 w-full rounded-[1.25rem] object-cover" />
-                    ) : null}
-                    <div className="space-y-2">
-                      {filteredItems.slice(0, 3).map((item) => (
-                        <div key={item.id} className="flex items-center justify-between rounded-2xl px-3 py-2" style={{ backgroundColor: `${primaryColor}18` }}>
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-bold" style={{ color: textColor }}>{item.item_name}</div>
-                            <div className="text-[11px]" style={{ color: `${textColor}88` }}>{item.category}</div>
-                          </div>
-                          {showPrices ? <div className="text-sm font-black" style={{ color: textColor }}>{Number(item.price || 0).toFixed(2)} ₼</div> : null}
+                    {posterImageUrl ? (
+                      <img src={posterImageUrl} alt={companyName} className="h-72 w-full rounded-[1.25rem] object-cover" loading="lazy" />
+                    ) : heroImageUrl ? (
+                      <img src={heroImageUrl} alt={heroTitle} className="mb-3 h-36 w-full rounded-[1.25rem] object-cover" loading="lazy" />
+                    ) : (
+                      <div className="mb-3 flex items-center gap-3">
+                        {logoUrl ? (
+                          <img
+                            src={logoUrl}
+                            alt={companyName}
+                            className={`h-12 w-12 object-cover ${logoShape === 'circle' ? 'rounded-full' : logoShape === 'square' ? 'rounded-lg' : 'rounded-2xl'}`}
+                          />
+                        ) : null}
+                        <div>
+                          <div className="text-xs uppercase tracking-[0.24em]" style={{ color: `${textColor}88` }}>MENU</div>
+                          <div className="text-lg font-black" style={{ color: textColor }}>{companyName}</div>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    )}
+                    {posterImageUrl ? null : (
+                      <div className="space-y-2">
+                        {filteredItems.slice(0, 3).map((item) => (
+                          <div key={item.id} className="flex items-center justify-between rounded-2xl px-3 py-2" style={{ backgroundColor: `${primaryColor}18` }}>
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-bold" style={{ color: textColor }}>{item.item_name}</div>
+                              <div className="text-[11px]" style={{ color: `${textColor}88` }}>{item.category}</div>
+                            </div>
+                            {showPrices ? <div className="text-sm font-black" style={{ color: textColor }}>{Number(item.price || 0).toFixed(2)} ₼</div> : null}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

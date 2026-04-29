@@ -94,6 +94,7 @@ from app.security import hash_password, hash_token, verify_password
 router = APIRouter(prefix="/api/v1/ops", tags=["operations"])
 
 MAX_IMAGE_URL_LENGTH = 2048
+MAX_EMBEDDED_IMAGE_CHARS = 350_000
 
 
 def _normalize_image_url(value: str | None) -> str:
@@ -101,7 +102,9 @@ def _normalize_image_url(value: str | None) -> str:
     if not normalized:
         return ""
     if normalized.startswith("data:"):
-        raise HTTPException(status_code=400, detail="Large embedded images are not allowed. Please use a smaller image or URL.")
+        if not normalized.startswith("data:image/") or len(normalized) > MAX_EMBEDDED_IMAGE_CHARS:
+            raise HTTPException(status_code=400, detail=f"Embedded image too large (max {MAX_EMBEDDED_IMAGE_CHARS} chars)")
+        return normalized
     if len(normalized) > MAX_IMAGE_URL_LENGTH:
         raise HTTPException(status_code=400, detail=f"Image URL too long (max {MAX_IMAGE_URL_LENGTH} chars)")
     return normalized
@@ -1038,6 +1041,7 @@ def get_app_settings(
             "surface_color": "#fff7e8",
             "text_color": "#2b1708",
             "hero_image_url": "",
+            "poster_image_url": "",
             "poster_background_color": "#d59b2d",
             "logo_shape": "rounded",
         },
@@ -2043,6 +2047,7 @@ def update_qr_menu_settings(
             "surface_color": "#fff7e8",
             "text_color": "#2b1708",
             "hero_image_url": "",
+            "poster_image_url": "",
             "poster_background_color": "#d59b2d",
             "logo_shape": "rounded",
         },
@@ -2059,7 +2064,8 @@ def update_qr_menu_settings(
         "background_color": str(payload.get("background_color") or current.get("background_color") or "#efe2c1").strip() or "#efe2c1",
         "surface_color": str(payload.get("surface_color") or current.get("surface_color") or "#fff7e8").strip() or "#fff7e8",
         "text_color": str(payload.get("text_color") or current.get("text_color") or "#2b1708").strip() or "#2b1708",
-        "hero_image_url": _normalize_image_url(payload.get("hero_image_url") or current.get("hero_image_url") or ""),
+        "hero_image_url": _normalize_image_url(payload.get("hero_image_url") if "hero_image_url" in payload else current.get("hero_image_url") or ""),
+        "poster_image_url": _normalize_image_url(payload.get("poster_image_url") if "poster_image_url" in payload else current.get("poster_image_url") or ""),
         "poster_background_color": str(payload.get("poster_background_color") or current.get("poster_background_color") or "#d59b2d").strip() or "#d59b2d",
         "logo_shape": str(payload.get("logo_shape") or current.get("logo_shape") or "rounded").strip() or "rounded",
     }
@@ -2892,6 +2898,7 @@ def get_public_menu_bootstrap(
             "surface_color": "#fff7e8",
             "text_color": "#2b1708",
             "hero_image_url": "",
+            "poster_image_url": "",
             "poster_background_color": "#d59b2d",
             "logo_shape": "rounded",
         },
@@ -2920,6 +2927,7 @@ def get_public_menu_bootstrap(
             "surface_color": str(qr_menu_settings.get("surface_color") or "#fff7e8"),
             "text_color": str(qr_menu_settings.get("text_color") or "#2b1708"),
             "hero_image_url": str(qr_menu_settings.get("hero_image_url") or ""),
+            "poster_image_url": str(qr_menu_settings.get("poster_image_url") or ""),
             "poster_background_color": str(qr_menu_settings.get("poster_background_color") or "#d59b2d"),
             "logo_shape": str(qr_menu_settings.get("logo_shape") or "rounded"),
             "primary_color": str(app_settings.get("primary_color") or "#facc15"),

@@ -255,6 +255,7 @@ export interface Settings {
     surface_color?: string;
     text_color?: string;
     hero_image_url?: string;
+    poster_image_url?: string;
     poster_background_color?: string;
     logo_shape?: 'rounded' | 'circle' | 'square';
   };
