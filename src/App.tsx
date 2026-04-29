@@ -27,7 +27,7 @@ import { get_low_stock_items } from './api/inventory';
 import { list_tenants, type TenantRecord } from './api/tenants';
 import { clearDBCache } from './lib/db_sim';
 import { authApi } from './api/auth';
-import { isBackendEnabled } from './api/client';
+import { apiRequest, isBackendEnabled } from './api/client';
 import { isPerfDebugEnabled, type PerfEvent } from './lib/perf';
 import { syncPendingOfflineTableOps } from './api/tables';
 import HelpAssistant from './components/HelpAssistant';
@@ -184,6 +184,35 @@ export default function App() {
     void get_business_profile_live(user.tenant_id).catch(() => {});
     void get_settings_live(user.tenant_id).catch(() => {});
   }, [hasValidUser, user?.tenant_id]);
+
+  useEffect(() => {
+    if (!hasValidUser || !user?.tenant_id || !backendMode) return;
+    const timerId = window.setTimeout(() => {
+      const today = new Date().toISOString().slice(0, 10);
+      const hotPaths = [
+        '/api/v1/ops/settings',
+        '/api/v1/pos/menu',
+        '/api/v1/pos/menu/images',
+        '/api/v1/ops/tables',
+        '/api/v1/restaurant/tables-bootstrap',
+        '/api/v1/finance/summary',
+        '/api/v1/finance/balances',
+        '/api/v1/finance/anomalies',
+        `/api/v1/finance/reports/overview?date_from=${today}&date_to=${today}`,
+        '/api/v1/reports/status',
+      ];
+      void Promise.allSettled(
+        hotPaths.map((path) =>
+          apiRequest(path, {
+            tenantId: null,
+            timeoutMs: 5000,
+            retryCount: 0,
+          }),
+        ),
+      );
+    }, 500);
+    return () => window.clearTimeout(timerId);
+  }, [backendMode, hasValidUser, user?.tenant_id]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
