@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -15,7 +15,7 @@ from app.services.finance_service import ledger_balances_snapshot as _ledger_bal
 from app.services.finance_service import post_deposit_apply_to_bill as _post_deposit_apply_to_bill
 from app.services.finance_service import post_finance_transaction_with_legacy_mirror as _post_finance_transaction
 from app.services.finance_service import shift_cash_breakdown_from_ledger as _shift_cash_breakdown
-from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XReportIn, ZReportIn
+from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XReportIn, ZReportIn, ZReportReceiptHtmlIn
 
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
@@ -29,6 +29,15 @@ def _utcnow() -> datetime:
 
 def _normalized(value: str | None) -> str:
     return (value or "").strip().lower()
+
+
+def _parse_iso_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(timezone.utc).replace(tzinfo=None)
+    except Exception:
+        return None
 
 
 def _group_transaction_amounts(rows: list[FinanceTransaction], exclude_categories: set[str] | None = None) -> tuple[Decimal, list[dict]]:
@@ -573,6 +582,67 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         "other_expense_total": str(other_expense_total),
         "other_expense_lines": other_expense_lines,
     }
+
+
+@router.put("/shifts/{shift_id}/z-receipt-html")
+def save_z_report_receipt_html(
+    shift_id: str,
+    payload: ZReportReceiptHtmlIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user=Depends(get_current_user),
+):
+    row = db.query(Shift).filter(Shift.id == shift_id, Shift.tenant_id == tenant.id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Shift not found")
+    row.z_report_html = payload.receipt_html
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="Z_REPORT_RECEIPT_SNAPSHOT_SAVED",
+            details=json.dumps({"shift_id": row.id}, ensure_ascii=False),
+        )
+    )
+    db.commit()
+    return {"success": True, "shift_id": row.id}
+
+
+@router.get("/z-receipts")
+def list_z_report_receipts(
+    date_from: str | None = Query(default=None),
+    date_to: str | None = Query(default=None),
+    limit: int = Query(default=30, ge=1, le=100),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user=Depends(get_current_user),
+):
+    start = _parse_iso_datetime(date_from)
+    end = _parse_iso_datetime(date_to)
+    query = db.query(Shift).filter(
+        Shift.tenant_id == tenant.id,
+        Shift.status == "closed",
+        Shift.z_report_html.isnot(None),
+    )
+    if start:
+        query = query.filter(Shift.closed_at >= start)
+    if end:
+        query = query.filter(Shift.closed_at <= end)
+    rows = query.order_by(Shift.closed_at.desc()).limit(limit).all()
+    return [
+        {
+            "id": row.id,
+            "opened_at": row.opened_at.isoformat() if row.opened_at else None,
+            "closed_at": row.closed_at.isoformat() if row.closed_at else None,
+            "opened_by": row.opened_by,
+            "closed_by": row.closed_by,
+            "actual_cash": str(row.actual_cash) if row.actual_cash is not None else None,
+            "cash_variance": str(row.cash_variance) if row.cash_variance is not None else None,
+            "z_report_html": row.z_report_html or "",
+        }
+        for row in rows
+        if row.z_report_html
+    ]
 
 
 @router.get("/handovers")

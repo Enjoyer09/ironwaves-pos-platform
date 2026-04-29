@@ -83,6 +83,7 @@ class Shift(Base):
     deposit_settled_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     closed_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    z_report_html: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class ShiftHandover(Base):
