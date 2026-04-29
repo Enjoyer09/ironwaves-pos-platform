@@ -3,7 +3,7 @@ import { get_tables_live, create_table_live, delete_table_live, open_table_live,
 import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
 import { subscribeTenantRealtime } from '../api/realtime';
-import { act_on_order_item_live, add_check_draft_item_live, combine_tables_live, create_reservation_live, delete_draft_item_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_order_item_status_logs_live, get_reservations_live, get_table_detail_live, get_tables_bootstrap_live, seat_reservation_live, send_check_drafts_live, send_table_round_live, settle_table_check_live, split_table_group_live, transfer_table_lock_live, unlock_table_live, update_draft_item_live, update_reservation_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord } from '../api/restaurant';
+import { act_on_order_item_live, add_check_draft_item_live, combine_tables_live, create_reservation_live, delete_draft_item_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_order_item_status_logs_live, get_reservations_live, get_table_detail_live, get_tables_bootstrap_live, seat_reservation_live, send_check_drafts_live, send_table_round_live, settle_table_check_live, split_table_group_live, transfer_table_lock_live, unlock_table_live, update_draft_item_live, update_reservation_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord, type TablesBootstrapRecord } from '../api/restaurant';
 import { LayoutGrid, Plus, CalendarClock, Users, MapPinned } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
@@ -21,6 +21,11 @@ import { formatRestaurantLocalTime, formatServerUtcDateTime, formatServerUtcTime
 import TableGrid from './tables/TableGrid';
 import MenuGrid from './tables/MenuGrid';
 import StickyActionBar from './tables/StickyActionBar';
+
+const TABLES_BOOTSTRAP_TTL_MS = 12_000;
+const KITCHEN_FEED_TTL_MS = 12_000;
+const tablesBootstrapCache = new Map<string, { at: number; data: TablesBootstrapRecord }>();
+const kitchenFeedCache = new Map<string, { at: number; data: any[] }>();
 
 export default function TablesPage({ isActive = true }: { isActive?: boolean }) {
   const [tables, setTables] = useState<any[]>([]);
@@ -107,7 +112,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const realtimeRefreshInFlightRef = useRef(false);
   const realtimeRefreshPendingRef = useRef(false);
   const realtimeRefreshScopesRef = useRef<Set<'tables' | 'kitchen' | 'floor' | 'reservations' | 'detail'>>(new Set());
+  const isActiveRef = useRef(isActive);
   const loadBootstrapInFlightRef = useRef(false);
+  const bootstrapRevalidateInFlightRef = useRef(false);
   const loadDataInFlightRef = useRef(false);
   const loadRestaurantInFlightRef = useRef(false);
   const loadKitchenFeedInFlightRef = useRef(false);
@@ -199,6 +206,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   };
 
   const servedStorageKey = hostScopedKey(`${tenant_id}_table_served_items`);
+
+  useEffect(() => {
+    isActiveRef.current = isActive;
+  }, [isActive]);
 
   const roundCategories = useMemo(
     () => ['ALL', ...Array.from(new Set(menuCatalog.map((row) => String(row.category || '').trim()).filter(Boolean)))],
@@ -550,8 +561,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   }, [tables, viewTableId]);
 
   useEffect(() => {
-    if (!isActive) return;
     const runRealtimeRefresh = async () => {
+      if (!isActiveRef.current) return;
       if (realtimeRefreshInFlightRef.current) {
         realtimeRefreshPendingRef.current = true;
         return;
@@ -625,12 +636,20 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     const unsubscribe = subscribeTenantRealtime(tenant_id, (message) => {
       const event = String(message.event || '');
       if (!['floor.updated', 'reservation.updated', 'table.updated', 'check.updated', 'kitchen.updated'].includes(event)) return;
+      const payload = message.payload || {};
+      const eventTableId = String(payload.table_id || '');
+      const currentViewTableId = viewTableIdRef.current;
+      tablesBootstrapCache.delete(tenant_id);
+      if (event === 'kitchen.updated') {
+        kitchenFeedCache.delete(tenant_id);
+      }
+      if (!isActiveRef.current) return;
       if (event === 'reservation.updated') {
         scheduleRealtimeRefresh(['reservations', 'floor']);
         return;
       }
       if (event === 'kitchen.updated') {
-        scheduleRealtimeRefresh(['kitchen', 'tables', 'detail']);
+        scheduleRealtimeRefresh(eventTableId && currentViewTableId === eventTableId ? ['kitchen', 'detail'] : ['kitchen']);
         return;
       }
       if (event === 'floor.updated') {
@@ -645,7 +664,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       realtimeRefreshScopesRef.current = new Set();
       unsubscribe();
     };
-  }, [tenant_id, reservationDate, isActive]);
+  }, [tenant_id, reservationDate]);
 
   useEffect(() => {
     try {
@@ -724,47 +743,90 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     loadDataInFlightRef.current = true;
     try {
       const nextTables = await get_tables_live(tenant_id);
-      setTables(Array.isArray(nextTables) ? nextTables : []);
+      const safeTables = Array.isArray(nextTables) ? nextTables : [];
+      setTables(safeTables);
+      const cached = tablesBootstrapCache.get(tenant_id);
+      if (cached?.data) {
+        tablesBootstrapCache.set(tenant_id, { at: Date.now(), data: { ...cached.data, tables: safeTables } });
+      }
     } finally {
       loadDataInFlightRef.current = false;
     }
   };
 
-  const loadTablesBootstrap = async () => {
-    if (loadBootstrapInFlightRef.current) return;
-    loadBootstrapInFlightRef.current = true;
-    const hasVisibleFloorData = floorPlans.length > 0 || floorTables.length > 0 || Boolean(activeFloorId);
-    if (!hasVisibleFloorData) {
+  const applyTablesBootstrap = (bootstrap: TablesBootstrapRecord | null | undefined) => {
+    if (!bootstrap) return;
+    const nextFloorPlans = Array.isArray(bootstrap.floor_plans) ? bootstrap.floor_plans : [];
+    const nextFloorState = bootstrap.floor_state;
+    const nextActiveFloorId = String(nextFloorState?.floor?.id || nextFloorPlans.find((row) => row.is_active)?.id || nextFloorPlans[0]?.id || '');
+    setTables(Array.isArray(bootstrap.tables) ? bootstrap.tables : []);
+    setFloorPlans(nextFloorPlans);
+    setFloorTables(Array.isArray(nextFloorState?.tables) ? nextFloorState.tables : []);
+    if (nextActiveFloorId) {
+      skipNextFloorStateLoadRef.current = nextActiveFloorId;
+      setActiveFloorId(nextActiveFloorId);
+    } else {
+      setActiveFloorId('');
+    }
+  };
+
+  const loadTablesBootstrap = async (opts: { force?: boolean; background?: boolean } = {}) => {
+    const cacheKey = tenant_id;
+    const cached = tablesBootstrapCache.get(cacheKey);
+    const now = Date.now();
+    const isFresh = cached && now - cached.at < TABLES_BOOTSTRAP_TTL_MS;
+    if (!opts.force && cached?.data) {
+      applyTablesBootstrap(cached.data);
+      if (isFresh) {
+        setIsFloorPlansLoading(false);
+        return;
+      }
+    }
+    if (loadBootstrapInFlightRef.current || bootstrapRevalidateInFlightRef.current) return;
+    if (opts.background || cached?.data) {
+      bootstrapRevalidateInFlightRef.current = true;
+    } else {
+      loadBootstrapInFlightRef.current = true;
+    }
+    const hasVisibleFloorData = floorPlans.length > 0 || floorTables.length > 0 || Boolean(activeFloorId) || Boolean(cached?.data);
+    if (!hasVisibleFloorData && !opts.background) {
       setIsFloorPlansLoading(true);
     }
     try {
       const bootstrap = await get_tables_bootstrap_live(tenant_id);
-      const nextFloorPlans = Array.isArray(bootstrap.floor_plans) ? bootstrap.floor_plans : [];
-      const nextFloorState = bootstrap.floor_state;
-      const nextActiveFloorId = String(nextFloorState?.floor?.id || nextFloorPlans.find((row) => row.is_active)?.id || nextFloorPlans[0]?.id || '');
-      setTables(Array.isArray(bootstrap.tables) ? bootstrap.tables : []);
-      setFloorPlans(nextFloorPlans);
-      setFloorTables(Array.isArray(nextFloorState?.tables) ? nextFloorState.tables : []);
-      if (nextActiveFloorId) {
-        skipNextFloorStateLoadRef.current = nextActiveFloorId;
-        setActiveFloorId(nextActiveFloorId);
-      } else {
-        setActiveFloorId('');
-      }
+      tablesBootstrapCache.set(cacheKey, { at: Date.now(), data: bootstrap });
+      applyTablesBootstrap(bootstrap);
     } catch {
-      await Promise.allSettled([loadData(), loadRestaurantData()]);
+      if (!cached?.data) {
+        await Promise.allSettled([loadData(), loadRestaurantData()]);
+      }
     } finally {
       setIsFloorPlansLoading(false);
       loadBootstrapInFlightRef.current = false;
+      bootstrapRevalidateInFlightRef.current = false;
     }
   };
 
-  const loadKitchenFeed = async () => {
+  const forceTablesBootstrapRefresh = async () => {
+    tablesBootstrapCache.delete(tenant_id);
+    await loadTablesBootstrap({ force: true });
+  };
+
+  const loadKitchenFeed = async (opts: { force?: boolean } = {}) => {
+    const cacheKey = tenant_id;
+    const cached = kitchenFeedCache.get(cacheKey);
+    const now = Date.now();
+    if (!opts.force && cached?.data && now - cached.at < KITCHEN_FEED_TTL_MS) {
+      setKitchenOrders(cached.data);
+      return;
+    }
     if (loadKitchenFeedInFlightRef.current) return;
     loadKitchenFeedInFlightRef.current = true;
     try {
       const nextOrders = await get_kitchen_orders_live(tenant_id);
-      setKitchenOrders(Array.isArray(nextOrders) ? nextOrders : []);
+      const safeOrders = Array.isArray(nextOrders) ? nextOrders : [];
+      kitchenFeedCache.set(cacheKey, { at: Date.now(), data: safeOrders });
+      setKitchenOrders(safeOrders);
     } finally {
       loadKitchenFeedInFlightRef.current = false;
     }
@@ -808,11 +870,21 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       await loadReservations();
     }
   };
-
   const loadFloorState = async (floorId: string) => {
     const state = await get_floor_state_live(tenant_id, floorId).catch(() => null);
     if (!state) return;
-    setFloorTables(Array.isArray(state.tables) ? state.tables : []);
+    const safeTables = Array.isArray(state.tables) ? state.tables : [];
+    setFloorTables(safeTables);
+    const cached = tablesBootstrapCache.get(tenant_id);
+    if (cached?.data) {
+      tablesBootstrapCache.set(tenant_id, {
+        at: Date.now(),
+        data: {
+          ...cached.data,
+          floor_state: { ...state, tables: safeTables },
+        },
+      });
+    }
   };
 
   const persistFloorLayout = async (tableId: string, payload: any) => {
@@ -2862,7 +2934,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 type="button"
                 className="mt-3 rounded-lg border border-amber-200/40 bg-amber-500/20 px-4 py-2 text-sm font-semibold text-amber-50"
                 onClick={() => {
-                  void loadTablesBootstrap();
+                  void forceTablesBootstrapRefresh();
                 }}
               >
                 {tx(lang, 'Yenidən yoxla', 'Проверить снова', 'Retry')}
