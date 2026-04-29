@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -127,43 +127,83 @@ def get_sales_summary(
 ):
     start = datetime.fromisoformat(date_from.replace("Z", "+00:00")).replace(tzinfo=None)
     end = datetime.fromisoformat(date_to.replace("Z", "+00:00")).replace(tzinfo=None)
-    sales_query = db.query(Sale).filter(
+    sales_filters = [
         Sale.tenant_id == tenant.id,
         Sale.created_at >= start,
         Sale.created_at <= end,
-    )
+    ]
     if cashier:
-        sales_query = sales_query.filter(Sale.cashier == cashier)
-    rows = sales_query.all()
-    total_revenue = Decimal("0")
-    cash_sales = Decimal("0")
-    card_sales = Decimal("0")
-    void_count = 0
-    total_cogs = Decimal("0")
-    for row in rows:
-        if row.status == "VOIDED":
-            void_count += 1
-            continue
-        total_revenue += Decimal(str(row.total))
-        total_cogs += Decimal(str(row.cogs or 0))
-    finance_query = db.query(FinanceEntry).filter(
+        sales_filters.append(Sale.cashier == cashier)
+    total_revenue_raw, total_cogs_raw, void_count_raw = (
+        db.query(
+            func.coalesce(
+                func.sum(
+                    case(
+                        (Sale.status != "VOIDED", Sale.total),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (Sale.status != "VOIDED", Sale.cogs),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (Sale.status == "VOIDED", 1),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+        )
+        .filter(*sales_filters)
+        .one()
+    )
+    total_revenue = Decimal(str(total_revenue_raw or 0))
+    total_cogs = Decimal(str(total_cogs_raw or 0))
+    void_count = int(void_count_raw or 0)
+    finance_filters = [
         FinanceEntry.tenant_id == tenant.id,
         FinanceEntry.created_at >= start,
         FinanceEntry.created_at <= end,
-    )
+        FinanceEntry.type == "in",
+    ]
     if cashier:
-        finance_query = finance_query.filter(FinanceEntry.created_by == cashier)
-    finance_rows = finance_query.all()
-    cash_total = Decimal("0")
-    card_total = Decimal("0")
-    for row in finance_rows:
-        if row.type != "in":
-            continue
-        category = str(row.category or "")
-        if category in {"Satış (Nağd)", "Staff Ödənişi"}:
-            cash_total += Decimal(str(row.amount))
-        elif category == "Satış (Kart)":
-            card_total += Decimal(str(row.amount))
+        finance_filters.append(FinanceEntry.created_by == cashier)
+    cash_total_raw, card_total_raw = (
+        db.query(
+            func.coalesce(
+                func.sum(
+                    case(
+                        (FinanceEntry.category.in_(["Satış (Nağd)", "Staff Ödənişi"]), FinanceEntry.amount),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (FinanceEntry.category == "Satış (Kart)", FinanceEntry.amount),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+        )
+        .filter(*finance_filters)
+        .one()
+    )
+    cash_total = Decimal(str(cash_total_raw or 0))
+    card_total = Decimal(str(card_total_raw or 0))
     cash_sales = cash_total
     card_sales = card_total
     ledger_total = cash_sales + card_sales
