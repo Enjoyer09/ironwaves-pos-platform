@@ -102,6 +102,12 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
     if (raw.includes('kart') || raw.includes('card')) return 'Kart';
     return 'Nəğd';
   };
+  const parseEditMoney = (value: unknown) => {
+    const n = Number(String(value ?? '').replace(',', '.'));
+    return Number.isFinite(n) ? n : 0;
+  };
+  const formatEditMoney = (value: number) => Math.max(0, value).toFixed(2);
+  const editSaleTotalNumber = parseEditMoney(newSaleTotal);
 
   const currentEditSalePaymentMethod = saleActionModal?.mode === 'edit'
     ? normalizeEditPaymentMethod(saleActionModal?.sale?.payment_method)
@@ -111,7 +117,14 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
     : '';
   const splitTotalMatches = editSalePaymentMethod !== 'Split'
     ? true
-    : Math.abs((Number(editSaleSplitCash || 0) + Number(editSaleSplitCard || 0)) - Number(newSaleTotal || 0)) < 0.01;
+    : Math.abs((parseEditMoney(editSaleSplitCash) + parseEditMoney(editSaleSplitCard)) - editSaleTotalNumber) < 0.01;
+  const splitAmountsValid = editSalePaymentMethod !== 'Split'
+    ? true
+    : editSaleTotalNumber > 0 &&
+      parseEditMoney(editSaleSplitCash) >= 0 &&
+      parseEditMoney(editSaleSplitCard) >= 0 &&
+      parseEditMoney(editSaleSplitCash) + parseEditMoney(editSaleSplitCard) > 0 &&
+      splitTotalMatches;
   const hasEditSaleChanges = saleActionModal?.mode === 'edit'
     ? (
       String(newSaleTotal || '').trim() !== String(currentEditSaleTotal || '').trim() ||
@@ -120,12 +133,9 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
     )
     : true;
   const canConfirmSaleAction =
-    Boolean(managerPass) &&
-    (
-      saleActionModal?.mode !== 'edit'
-        ? Boolean(String(newSaleTotal || saleReason || voidPreset || '').trim() || saleActionModal?.mode === 'void')
-        : Boolean(String(newSaleTotal || '').trim()) && hasEditSaleChanges && splitTotalMatches
-    );
+    saleActionModal?.mode !== 'edit'
+      ? Boolean(String(newSaleTotal || saleReason || voidPreset || '').trim() || saleActionModal?.mode === 'void')
+      : editSaleTotalNumber > 0 && hasEditSaleChanges && splitAmountsValid;
   const mobileTabOptions: Array<{ key: AdminTab; label: string }> = useMemo(() => ([
     { key: 'dashboard', label: tx(lang, 'Dashboard', 'Дашборд', 'Dashboard') },
     { key: 'finance', label: tx(lang, 'Maliyyə', 'Финансы', 'Finance') },
@@ -798,8 +808,8 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
                                   setManagerPass('');
                                   setNewSaleTotal(String(s.total || ''));
                                   setEditSalePaymentMethod(String(s.payment_method || '').toLowerCase().includes('kart') ? 'Kart' : String(s.payment_method || '').toLowerCase().includes('split') ? 'Split' : 'Nəğd');
-                                  setEditSaleSplitCash(String(s.total || ''));
-                                  setEditSaleSplitCard('0');
+                                  setEditSaleSplitCash(String(s.payment_method || '').toLowerCase().includes('kart') ? '0' : String(s.total || ''));
+                                  setEditSaleSplitCard(String(s.payment_method || '').toLowerCase().includes('kart') ? String(s.total || '') : '0');
                                 }}
                               >
                                 {tx(lang, 'Düzəlt', 'Исправить')}
@@ -850,11 +860,50 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
                       <input className="neon-input" type="password" placeholder={tx(lang, 'Admin/Manager şifrəsi', 'Пароль админа/менеджера')} value={managerPass} onChange={(e) => setManagerPass(e.target.value)} />
                       {saleActionModal.mode === 'edit' && (
                         <>
-                          <input className="neon-input" type="number" placeholder={tx(lang, 'Yeni total', 'Новый итог')} value={newSaleTotal} onChange={(e) => setNewSaleTotal(e.target.value)} />
+                          <input
+                            className="neon-input"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder={tx(lang, 'Yeni total', 'Новый итог')}
+                            value={newSaleTotal}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setNewSaleTotal(value);
+                              if (editSalePaymentMethod === 'Split') {
+                                const total = parseEditMoney(value);
+                                const cash = Math.min(parseEditMoney(editSaleSplitCash), total);
+                                setEditSaleSplitCash(formatEditMoney(cash));
+                                setEditSaleSplitCard(formatEditMoney(total - cash));
+                              }
+                            }}
+                          />
                           <select
                             className="neon-input"
                             value={editSalePaymentMethod}
-                            onChange={(e) => setEditSalePaymentMethod(e.target.value as 'Nəğd' | 'Kart' | 'Split')}
+                            onChange={(e) => {
+                              const nextMethod = e.target.value as 'Nəğd' | 'Kart' | 'Split';
+                              setEditSalePaymentMethod(nextMethod);
+                              const total = parseEditMoney(newSaleTotal);
+                              if (nextMethod === 'Split') {
+                                const currentCash = parseEditMoney(editSaleSplitCash);
+                                const currentCard = parseEditMoney(editSaleSplitCard);
+                                if (currentCash <= 0 && currentCard <= 0) {
+                                  setEditSaleSplitCash(formatEditMoney(total));
+                                  setEditSaleSplitCard('0.00');
+                                } else {
+                                  const cash = Math.min(currentCash, total);
+                                  setEditSaleSplitCash(formatEditMoney(cash));
+                                  setEditSaleSplitCard(formatEditMoney(total - cash));
+                                }
+                              } else if (nextMethod === 'Kart') {
+                                setEditSaleSplitCash('0.00');
+                                setEditSaleSplitCard(formatEditMoney(total));
+                              } else {
+                                setEditSaleSplitCash(formatEditMoney(total));
+                                setEditSaleSplitCard('0.00');
+                              }
+                            }}
                           >
                             <option value="Nəğd">{tx(lang, 'Nağd', 'Наличные', 'Cash')}</option>
                             <option value="Kart">{tx(lang, 'Kart', 'Карта', 'Card')}</option>
@@ -865,17 +914,38 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
                               <input
                                 className="neon-input"
                                 type="number"
+                                min="0"
+                                step="0.01"
                                 placeholder={tx(lang, 'Split cash', 'Наличные часть', 'Split cash')}
                                 value={editSaleSplitCash}
-                                onChange={(e) => setEditSaleSplitCash(e.target.value)}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  const total = parseEditMoney(newSaleTotal);
+                                  const cash = Math.min(parseEditMoney(value), total);
+                                  setEditSaleSplitCash(value);
+                                  setEditSaleSplitCard(formatEditMoney(total - cash));
+                                }}
                               />
                               <input
                                 className="neon-input"
                                 type="number"
+                                min="0"
+                                step="0.01"
                                 placeholder={tx(lang, 'Split card', 'Карта часть', 'Split card')}
                                 value={editSaleSplitCard}
-                                onChange={(e) => setEditSaleSplitCard(e.target.value)}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  const total = parseEditMoney(newSaleTotal);
+                                  const card = Math.min(parseEditMoney(value), total);
+                                  setEditSaleSplitCard(value);
+                                  setEditSaleSplitCash(formatEditMoney(total - card));
+                                }}
                               />
+                            </div>
+                          )}
+                          {editSalePaymentMethod === 'Split' && !splitTotalMatches && (
+                            <div className="rounded-xl border border-amber-300/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
+                              {tx(lang, 'Split cəmi satış yekununa bərabər olmalıdır.', 'Сумма split должна равняться итогу продажи.', 'Split total must equal sale total.')}
                             </div>
                           )}
                         </>
@@ -892,7 +962,10 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
                         className="glossy-gold rounded-lg px-4 py-2 font-semibold"
                         disabled={!canConfirmSaleAction}
                         onClick={async () => {
-                          if (!managerPass) return;
+                          if (!managerPass) {
+                            notify('error', tx(lang, 'Admin şifrəsini daxil edin', 'Введите пароль администратора', 'Enter admin password'));
+                            return;
+                          }
                           if (!(await verifyManagerOrAdminPass(managerPass))) {
                             notify('error', tx(lang, 'Şifrə yanlışdır', 'Неверный пароль'));
                             return;
