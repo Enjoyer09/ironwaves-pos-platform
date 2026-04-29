@@ -10,6 +10,7 @@ except Exception:  # pragma: no cover - Python fallback safety
 
 from anyio import from_thread
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -670,15 +671,39 @@ def _normalize_guest_email(value: str | None) -> str:
 def _find_existing_guest(db: Session, tenant_id: str, phone: str | None, email: str | None) -> Guest | None:
     normalized_phone = _normalize_guest_phone(phone)
     normalized_email = _normalize_guest_email(email)
-    rows = db.query(Guest).filter(Guest.tenant_id == tenant_id).order_by(Guest.created_at.asc()).all()
     if normalized_phone:
-        for row in rows:
-            if _normalize_guest_phone(row.phone) == normalized_phone:
-                return row
+        try:
+            row = (
+                db.query(Guest)
+                .filter(
+                    Guest.tenant_id == tenant_id,
+                    func.regexp_replace(Guest.phone, "[^0-9+]", "", "g") == normalized_phone,
+                )
+                .order_by(Guest.created_at.asc())
+                .first()
+            )
+        except Exception:
+            db.rollback()
+            phone_tail = normalized_phone[-7:] if len(normalized_phone) >= 7 else normalized_phone
+            candidates = (
+                db.query(Guest)
+                .filter(Guest.tenant_id == tenant_id, Guest.phone.ilike(f"%{phone_tail}%"))
+                .order_by(Guest.created_at.asc())
+                .limit(100)
+                .all()
+            )
+            row = next((candidate for candidate in candidates if _normalize_guest_phone(candidate.phone) == normalized_phone), None)
+        if row:
+            return row
     if normalized_email:
-        for row in rows:
-            if _normalize_guest_email(row.email) == normalized_email:
-                return row
+        row = (
+            db.query(Guest)
+            .filter(Guest.tenant_id == tenant_id, func.lower(Guest.email) == normalized_email)
+            .order_by(Guest.created_at.asc())
+            .first()
+        )
+        if row:
+            return row
     return None
 
 

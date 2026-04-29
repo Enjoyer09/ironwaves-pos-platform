@@ -189,8 +189,6 @@ def get_menu(
             MenuItem.category,
             MenuItem.price,
             MenuItem.is_coffee,
-            MenuItem.image_url,
-            MenuItem.description,
             MenuItem.is_active,
         )
         .filter(MenuItem.tenant_id == tenant.id, MenuItem.is_active == True)
