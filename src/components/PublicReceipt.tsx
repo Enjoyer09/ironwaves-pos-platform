@@ -52,17 +52,35 @@ export default function PublicReceipt({ receiptId, token }: Props) {
         } else {
           setFeedback(null);
         }
+        const receiptData = {
+          ...(parsedFallback || {}),
+          ...res,
+          split_cash: res?.split_cash ?? parsedFallback?.split_cash ?? null,
+          split_card: res?.split_card ?? parsedFallback?.split_card ?? null,
+        };
+        const shouldRegenerateFromFallback = Boolean(
+          parsedFallback &&
+          (
+            parsedFallback.payment_method ||
+            parsedFallback.split_cash ||
+            parsedFallback.split_card ||
+            parsedFallback.receipt_html
+          )
+        );
         const savedHtml = String(res?.receipt_html || '').trim();
         const fallbackHtml = String(parsedFallback?.receipt_html || '').trim();
-        const receiptHtml = savedHtml || fallbackHtml || await buildSaleReceiptHtml({
-          sale: res,
+        const generatedHtml = () => buildSaleReceiptHtml({
+          sale: receiptData,
           profile: nextProfile,
           lang: 'az',
           receiptUrl: window.location.href,
           feedbackUrl: nextFeedbackUrl,
-          operator: String(res?.cashier || ''),
+          operator: String(receiptData?.cashier || ''),
         });
-        setReceipt({ ...res, receipt_html: receiptHtml });
+        const receiptHtml = shouldRegenerateFromFallback
+          ? await generatedHtml()
+          : savedHtml || fallbackHtml || await generatedHtml();
+        setReceipt({ ...receiptData, receipt_html: receiptHtml });
       } catch {
         if (!mounted) return;
         try {

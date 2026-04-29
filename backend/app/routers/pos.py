@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.json_utils import safe_json_list
-from app.models import AuditLog, Customer, DonerBatch, FinanceEntry, InventoryItem, LoyaltyLedgerEntry, MenuItem, Recipe, RewardClaim, Sale, Setting, Shift, Tenant
+from app.models import AuditLog, Customer, DonerBatch, FinanceAccount, FinanceEntry, FinanceTransaction, InventoryItem, LoyaltyLedgerEntry, MenuItem, Recipe, RewardClaim, Sale, Setting, Shift, Tenant
 from app.schemas import SaleCreateIn, SaleCreateOut, SaleReceiptHtmlIn
 from app.services.finance_service import mirror_posted_transaction_to_legacy_wallet, post_finance_transaction, post_sale_cogs, post_sale_payment
 
@@ -36,6 +36,30 @@ DEFAULT_BEVERAGE_SERVICE_SETTINGS = {
     "coffee_selection_mode": "size_and_service",
     "remove_paper_packaging_for_table": True,
 }
+
+
+def _sale_payment_split(db: Session, tenant_id: str, sale_id: str) -> tuple[Decimal, Decimal]:
+    rows = (
+        db.query(FinanceAccount.code, func.coalesce(func.sum(FinanceTransaction.amount), 0))
+        .join(FinanceAccount, FinanceAccount.id == FinanceTransaction.destination_account_id)
+        .filter(
+            FinanceTransaction.tenant_id == tenant_id,
+            FinanceTransaction.related_order_id == sale_id,
+            FinanceTransaction.status == "posted",
+            FinanceTransaction.transaction_type == "income",
+            FinanceAccount.code.in_(["cash", "card"]),
+        )
+        .group_by(FinanceAccount.code)
+        .all()
+    )
+    cash = Decimal("0.00")
+    card = Decimal("0.00")
+    for code, amount in rows:
+        if code == "cash":
+            cash = Decimal(str(amount or 0)).quantize(Decimal("0.01"))
+        elif code == "card":
+            card = Decimal(str(amount or 0)).quantize(Decimal("0.01"))
+    return cash, card
 
 
 def _is_coffee_like(item_name: str | None, category: str | None, is_coffee: bool | None) -> bool:
@@ -697,6 +721,7 @@ def public_receipt(
 
     items = safe_json_list(row.items_json)
     original_total = Decimal(str(row.total)) + Decimal(str(row.discount_amount or 0))
+    split_cash, split_card = _sale_payment_split(db, tenant.id, row.id)
     return {
         "id": row.id,
         "tenant_id": row.tenant_id,
@@ -706,6 +731,8 @@ def public_receipt(
         "customer_stars_after": 0,
         "free_coffees_applied": 0,
         "payment_method": row.payment_method,
+        "split_cash": str(split_cash) if split_cash > 0 else None,
+        "split_card": str(split_card) if split_card > 0 else None,
         "order_type": row.order_type,
         "total": str(row.total),
         "original_total": str(original_total),
