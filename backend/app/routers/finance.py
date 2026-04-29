@@ -620,6 +620,27 @@ def _transaction_date(row: FinanceTransaction) -> datetime | None:
     )
 
 
+def _transaction_date_expr():
+    return func.coalesce(FinanceTransaction.posted_at, FinanceTransaction.approved_at, FinanceTransaction.created_at)
+
+
+def _finance_transaction_period_filters(
+    tenant_id: str,
+    start: datetime | None,
+    end: datetime | None,
+) -> list:
+    txn_date = _transaction_date_expr()
+    filters = [
+        FinanceTransaction.tenant_id == tenant_id,
+        FinanceTransaction.status == "posted",
+    ]
+    if start:
+        filters.append(txn_date >= start)
+    if end:
+        filters.append(txn_date <= end)
+    return filters
+
+
 def _in_period(value: datetime | None, start: datetime | None, end: datetime | None) -> bool:
     if start and (not value or value < start):
         return False
@@ -844,17 +865,23 @@ def _profit_loss_report(db: Session, tenant_id: str, start: datetime | None, end
         else Decimal("100.00")
     )
 
-    posted_txns = (
-        db.query(FinanceTransaction)
-        .filter(FinanceTransaction.tenant_id == tenant_id, FinanceTransaction.status == "posted")
-        .all()
-    )
-    expense_rows = [
-        row
-        for row in posted_txns
-        if row.transaction_type == "expense" and _in_period(_transaction_date(row), start, end)
+    expense_filters = _finance_transaction_period_filters(tenant_id, start, end) + [
+        FinanceTransaction.transaction_type == "expense",
     ]
-    operating_expenses = sum((Decimal(str(row.amount or 0)) for row in expense_rows), Decimal("0.00"))
+    operating_expenses = Decimal(
+        str(
+            db.query(func.coalesce(func.sum(FinanceTransaction.amount), 0))
+            .filter(*expense_filters)
+            .scalar()
+            or 0
+        )
+    )
+    expense_count = int(
+        db.query(func.count(FinanceTransaction.id))
+        .filter(*expense_filters)
+        .scalar()
+        or 0
+    )
     gross_profit = revenue - cogs
     net_profit = gross_profit - operating_expenses
     return {
@@ -867,7 +894,7 @@ def _profit_loss_report(db: Session, tenant_id: str, start: datetime | None, end
         "operating_expenses": _money(operating_expenses),
         "net_profit": _money(net_profit),
         "sales_count": len(sales_rows),
-        "expense_count": len(expense_rows),
+        "expense_count": expense_count,
         "has_uncomputed_cogs": unresolved_estimate_count > 0,
         "cogs_uncomputed_sales_count": cogs_uncomputed_sales_count,
         "cogs_uncomputed_revenue": _money(cogs_uncomputed_revenue),
@@ -886,32 +913,49 @@ def _profit_loss_report(db: Session, tenant_id: str, start: datetime | None, end
 
 
 def _cash_flow_report(db: Session, tenant_id: str, start: datetime | None, end: datetime | None) -> dict:
-    posted_txns = (
-        db.query(FinanceTransaction)
-        .filter(FinanceTransaction.tenant_id == tenant_id, FinanceTransaction.status == "posted")
+    period_filters = _finance_transaction_period_filters(tenant_id, start, end)
+    grouped_rows = (
+        db.query(
+            FinanceTransaction.transaction_type,
+            func.coalesce(func.sum(FinanceTransaction.amount), 0),
+            func.count(FinanceTransaction.id),
+        )
+        .filter(*period_filters)
+        .group_by(FinanceTransaction.transaction_type)
         .all()
     )
-    rows = [row for row in posted_txns if _in_period(_transaction_date(row), start, end)]
-    operating_inflow = sum((Decimal(str(row.amount or 0)) for row in rows if row.transaction_type == "income"), Decimal("0.00"))
-    operating_outflow = sum((Decimal(str(row.amount or 0)) for row in rows if row.transaction_type == "expense"), Decimal("0.00"))
-    financing_inflow = sum((Decimal(str(row.amount or 0)) for row in rows if row.transaction_type == "investor_injection"), Decimal("0.00"))
-    financing_outflow = sum((Decimal(str(row.amount or 0)) for row in rows if row.transaction_type == "investor_repayment"), Decimal("0.00"))
-    deposit_inflow = sum((Decimal(str(row.amount or 0)) for row in rows if row.transaction_type == "deposit_hold"), Decimal("0.00"))
-    deposit_outflow = sum(
-        (Decimal(str(row.amount or 0)) for row in rows if row.transaction_type in {"deposit_release", "deposit_refund"}),
-        Decimal("0.00"),
-    )
+    totals_by_type = {
+        str(transaction_type or ""): Decimal(str(total or 0))
+        for transaction_type, total, _count in grouped_rows
+    }
+    transaction_count = sum((int(count or 0) for _transaction_type, _total, count in grouped_rows), 0)
+    operating_inflow = totals_by_type.get("income", Decimal("0.00"))
+    operating_outflow = totals_by_type.get("expense", Decimal("0.00"))
+    financing_inflow = totals_by_type.get("investor_injection", Decimal("0.00"))
+    financing_outflow = totals_by_type.get("investor_repayment", Decimal("0.00"))
+    deposit_inflow = totals_by_type.get("deposit_hold", Decimal("0.00"))
+    deposit_outflow = totals_by_type.get("deposit_release", Decimal("0.00")) + totals_by_type.get("deposit_refund", Decimal("0.00"))
     account_code_by_id = {
         str(account_id): str(code or "").strip().lower()
         for account_id, code in db.query(FinanceAccount.id, FinanceAccount.code).filter(FinanceAccount.tenant_id == tenant_id).all()
     }
     adjustment_net = Decimal("0.00")
-    for row in rows:
-        if row.transaction_type not in {"cash_adjustment", "reconciliation_adjustment"}:
-            continue
-        amount = Decimal(str(row.amount or 0))
-        source_code = account_code_by_id.get(str(row.source_account_id or ""), "")
-        destination_code = account_code_by_id.get(str(row.destination_account_id or ""), "")
+    adjustment_rows = (
+        db.query(
+            FinanceTransaction.amount,
+            FinanceTransaction.source_account_id,
+            FinanceTransaction.destination_account_id,
+        )
+        .filter(
+            *period_filters,
+            FinanceTransaction.transaction_type.in_(["cash_adjustment", "reconciliation_adjustment"]),
+        )
+        .all()
+    )
+    for amount_raw, source_account_id, destination_account_id in adjustment_rows:
+        amount = Decimal(str(amount_raw or 0))
+        source_code = account_code_by_id.get(str(source_account_id or ""), "")
+        destination_code = account_code_by_id.get(str(destination_account_id or ""), "")
         # Directional effect on cash flow:
         # - cash as destination -> inflow
         # - cash as source -> outflow
@@ -929,7 +973,7 @@ def _cash_flow_report(db: Session, tenant_id: str, start: datetime | None, end: 
         "deposit_outflow": _money(deposit_outflow),
         "adjustment_net": _money(adjustment_net),
         "net_cash_flow": _money(net_cash_flow),
-        "transaction_count": len(rows),
+        "transaction_count": transaction_count,
     }
 
 
