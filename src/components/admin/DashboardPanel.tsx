@@ -178,7 +178,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         get_sales_summary_live(tenant_id, activeRange.fromIso, activeRange.toIso).catch(() =>
           get_sales_summary(tenant_id, activeRange.fromIso, activeRange.toIso),
         ),
-        get_sales_list_live(tenant_id, activeRange.fromIso, activeRange.toIso).catch(() =>
+        get_sales_list_live(tenant_id, activeRange.fromIso, activeRange.toIso, undefined, { limit: 200 }).catch(() =>
           get_sales_list(tenant_id, activeRange.fromIso, activeRange.toIso),
         ),
         get_kitchen_orders_live(tenant_id).catch(() => get_kitchen_orders(tenant_id)),

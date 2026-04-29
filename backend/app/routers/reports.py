@@ -3,7 +3,7 @@ from decimal import Decimal
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -52,6 +52,59 @@ def _group_transaction_amounts(rows: list[FinanceTransaction], exclude_categorie
         {"label": label, "amount": str(amount.quantize(Decimal("0.01")))}
         for label, amount in sorted(groups.items(), key=lambda item: item[1], reverse=True)
     ]
+    total = sum((Decimal(str(row["amount"])) for row in lines), Decimal("0"))
+    return total.quantize(Decimal("0.01")), lines
+
+
+def _posted_transaction_filters(tenant_id: str, opened_at: datetime | None) -> list:
+    filters = [
+        FinanceTransaction.tenant_id == tenant_id,
+        FinanceTransaction.status == "posted",
+    ]
+    if opened_at:
+        filters.append(FinanceTransaction.created_at >= opened_at)
+    return filters
+
+
+def _posted_transaction_sum(db: Session, tenant_id: str, opened_at: datetime | None, *extra_filters) -> Decimal:
+    return Decimal(
+        str(
+            db.query(func.coalesce(func.sum(FinanceTransaction.amount), 0))
+            .filter(*_posted_transaction_filters(tenant_id, opened_at), *extra_filters)
+            .scalar()
+            or 0
+        )
+    ).quantize(Decimal("0.01"))
+
+
+def _group_posted_transaction_amounts(
+    db: Session,
+    tenant_id: str,
+    opened_at: datetime | None,
+    *extra_filters,
+    exclude_categories: set[str] | None = None,
+) -> tuple[Decimal, list[dict]]:
+    excluded = exclude_categories or set()
+    rows = (
+        db.query(
+            FinanceTransaction.category,
+            FinanceTransaction.transaction_type,
+            func.coalesce(func.sum(FinanceTransaction.amount), 0),
+        )
+        .filter(*_posted_transaction_filters(tenant_id, opened_at), *extra_filters)
+        .group_by(FinanceTransaction.category, FinanceTransaction.transaction_type)
+        .all()
+    )
+    lines: list[dict] = []
+    for category, transaction_type, amount_raw in rows:
+        label = str(category or "").strip() or str(transaction_type or "").strip() or "Maliyyə əməliyyatı"
+        if _normalized(label) in excluded:
+            continue
+        amount = Decimal(str(amount_raw or 0)).quantize(Decimal("0.01"))
+        if amount == 0:
+            continue
+        lines.append({"label": label, "amount": str(amount)})
+    lines.sort(key=lambda row: Decimal(str(row["amount"])), reverse=True)
     total = sum((Decimal(str(row["amount"])) for row in lines), Decimal("0"))
     return total.quantize(Decimal("0.01")), lines
 
@@ -504,46 +557,70 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
             note="Z-report difference",
             related_shift_id=active.id,
         )
-    shift_txns = _posted_transactions_since(db, tenant.id, active.opened_at)
     account_codes = _finance_account_code_map(db, tenant.id)
-    sale_payment_txns = [
-        txn
-        for txn in shift_txns
-        if txn.transaction_type == "income" and txn.related_order_id and account_codes.get(txn.destination_account_id) in {"cash", "card"}
+    account_id_by_code = {code: account_id for account_id, code in account_codes.items()}
+    cash_account_id = account_id_by_code.get("cash")
+    card_account_id = account_id_by_code.get("card")
+    report_account_ids = [
+        account_id
+        for code, account_id in account_id_by_code.items()
+        if code in {"cash", "card", "safe", "debt"} and account_id
     ]
-    cash_sales = sum(
-        (Decimal(str(txn.amount or 0)) for txn in sale_payment_txns if account_codes.get(txn.destination_account_id) == "cash"),
-        Decimal("0"),
-    )
-    card_sales = sum(
-        (Decimal(str(txn.amount or 0)) for txn in sale_payment_txns if account_codes.get(txn.destination_account_id) == "card"),
-        Decimal("0"),
-    )
-    deposit_total = sum(
-        (Decimal(str(txn.amount or 0)) for txn in shift_txns if txn.transaction_type == "deposit_hold"),
-        Decimal("0"),
-    )
-    other_income_rows = [
-        txn
-        for txn in shift_txns
-        if (
-            (txn.transaction_type == "income" and not txn.related_order_id)
-            or (txn.transaction_type in {"cash_adjustment", "reconciliation_adjustment"} and account_codes.get(txn.destination_account_id) in {"cash", "card", "safe", "debt"})
-            or txn.transaction_type == "investor_injection"
+    cash_sales = (
+        _posted_transaction_sum(
+            db,
+            tenant.id,
+            active.opened_at,
+            FinanceTransaction.transaction_type == "income",
+            FinanceTransaction.related_order_id.isnot(None),
+            FinanceTransaction.destination_account_id == cash_account_id,
         )
-    ]
-    other_expense_rows = [
-        txn
-        for txn in shift_txns
-        if txn.transaction_type == "expense"
-        or (txn.transaction_type in {"cash_adjustment", "reconciliation_adjustment"} and account_codes.get(txn.source_account_id) in {"cash", "card", "safe", "debt"})
-    ]
-    other_income_total, other_income_lines = _group_transaction_amounts(
-        other_income_rows,
+        if cash_account_id
+        else Decimal("0.00")
+    )
+    card_sales = (
+        _posted_transaction_sum(
+            db,
+            tenant.id,
+            active.opened_at,
+            FinanceTransaction.transaction_type == "income",
+            FinanceTransaction.related_order_id.isnot(None),
+            FinanceTransaction.destination_account_id == card_account_id,
+        )
+        if card_account_id
+        else Decimal("0.00")
+    )
+    deposit_total = _posted_transaction_sum(
+        db,
+        tenant.id,
+        active.opened_at,
+        FinanceTransaction.transaction_type == "deposit_hold",
+    )
+    other_income_total, other_income_lines = _group_posted_transaction_amounts(
+        db,
+        tenant.id,
+        active.opened_at,
+        or_(
+            (FinanceTransaction.transaction_type == "income") & FinanceTransaction.related_order_id.is_(None),
+            (
+                FinanceTransaction.transaction_type.in_(["cash_adjustment", "reconciliation_adjustment"])
+                & FinanceTransaction.destination_account_id.in_(report_account_ids)
+            ),
+            FinanceTransaction.transaction_type == "investor_injection",
+        ),
         exclude_categories={"satış (nağd)", "satış (kart)", "staff ödənişi", "depozit alındı"},
     )
-    other_expense_total, other_expense_lines = _group_transaction_amounts(
-        other_expense_rows,
+    other_expense_total, other_expense_lines = _group_posted_transaction_amounts(
+        db,
+        tenant.id,
+        active.opened_at,
+        or_(
+            FinanceTransaction.transaction_type == "expense",
+            (
+                FinanceTransaction.transaction_type.in_(["cash_adjustment", "reconciliation_adjustment"])
+                & FinanceTransaction.source_account_id.in_(report_account_ids)
+            ),
+        ),
         exclude_categories={"maaş"},
     )
 

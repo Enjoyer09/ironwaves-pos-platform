@@ -226,6 +226,8 @@ def get_sales_list(
     date_from: str,
     date_to: str,
     cashier: str | None = None,
+    limit: int | None = Query(default=None, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
@@ -239,7 +241,12 @@ def get_sales_list(
     )
     if cashier:
         sales_query = sales_query.filter(Sale.cashier == cashier)
-    rows = sales_query.order_by(Sale.created_at.desc()).all()
+    sales_query = sales_query.order_by(Sale.created_at.desc())
+    if offset:
+        sales_query = sales_query.offset(offset)
+    if limit:
+        sales_query = sales_query.limit(limit)
+    rows = sales_query.all()
     result = []
     for row in rows:
         items = safe_json_list(row.items_json)
