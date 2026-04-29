@@ -164,6 +164,7 @@ async function apiRequestNetwork<T = any>(path: string, options: ApiRequestOptio
   if (!base) {
     throw new Error('VITE_API_BASE_URL konfiqurasiya edilməyib');
   }
+  const method = String(options.method || 'GET').toUpperCase();
 
   const { access_token } = getClientAuthSession();
   // Tenant id header is now opt-in only.
