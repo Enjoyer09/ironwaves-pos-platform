@@ -77,6 +77,9 @@ export type ZReportReceiptRecord = {
   closed_by?: string | null;
   actual_cash?: string | null;
   cash_variance?: string | null;
+  cash_sales?: string | null;
+  card_sales?: string | null;
+  total_sales?: string | null;
   z_report_html?: string | null;
 };
 
