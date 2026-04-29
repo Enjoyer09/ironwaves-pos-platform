@@ -361,7 +361,7 @@ async function apiRequestNetwork<T = any>(path: string, options: ApiRequestOptio
       ? (data as any).detail
       : `Server düzgün JSON cavabı qaytarmadı (HTTP ${res.status})`;
     const backendRequestId = String(res.headers.get('x-request-id') || requestId);
-    if (res.status === 401 || res.status === 403) {
+    if (res.status === 401) {
       setClientAuthSession({ access_token: null, user: null });
       const now = Date.now();
       if (now - lastAuthExpiredEventAt > 1000) {
