@@ -68,6 +68,18 @@ type HandoverUserRow = {
   role: string;
 };
 
+export type ZReportReceiptRecord = {
+  id: string;
+  tenant_id?: string;
+  opened_at?: string | null;
+  closed_at?: string | null;
+  opened_by?: string | null;
+  closed_by?: string | null;
+  actual_cash?: string | null;
+  cash_variance?: string | null;
+  z_report_html?: string | null;
+};
+
 export type YieldBatchRow = {
   id: string;
   inventory_name: string;
@@ -205,6 +217,74 @@ export const get_shift_handover_users_live = async (tenant_id: string) => {
     method: 'GET',
     tenantId: tenant_id,
   });
+};
+
+export const get_z_report_receipts_live = async (
+  tenant_id: string,
+  opts?: { date_from?: string; date_to?: string; limit?: number },
+): Promise<ZReportReceiptRecord[]> => {
+  if (!isBackendEnabled()) {
+    const rows = getTenantRows<ZReportReceiptRecord>(tenant_id, 'z_report_receipts', 'z_report_receipts');
+    const start = opts?.date_from ? new Date(opts.date_from).getTime() : Number.NEGATIVE_INFINITY;
+    const end = opts?.date_to ? new Date(opts.date_to).getTime() : Number.POSITIVE_INFINITY;
+    return rows
+      .filter((row) => {
+        const ts = new Date(row.closed_at || row.opened_at || 0).getTime();
+        return Number.isFinite(ts) && ts >= start && ts <= end && Boolean(row.z_report_html);
+      })
+      .sort((a, b) => String(b.closed_at || '').localeCompare(String(a.closed_at || '')))
+      .slice(0, opts?.limit || 30);
+  }
+  const params = new URLSearchParams();
+  if (opts?.date_from) params.set('date_from', opts.date_from);
+  if (opts?.date_to) params.set('date_to', opts.date_to);
+  if (opts?.limit) params.set('limit', String(opts.limit));
+  const query = params.toString();
+  return apiRequest<ZReportReceiptRecord[]>(`/api/v1/reports/z-receipts${query ? `?${query}` : ''}`, {
+    method: 'GET',
+    tenantId: tenant_id,
+  });
+};
+
+export const save_z_report_receipt_html = async (
+  tenant_id: string,
+  shift_id: string,
+  receipt_html: string,
+  meta?: Partial<ZReportReceiptRecord>,
+) => {
+  const safeShiftId = String(shift_id || '').trim();
+  const safeHtml = String(receipt_html || '');
+  if (!safeShiftId || !safeHtml) return { success: false };
+
+  if (isBackendEnabled()) {
+    return apiRequest<{ success: boolean; shift_id: string }>(
+      `/api/v1/reports/shifts/${encodeURIComponent(safeShiftId)}/z-receipt-html`,
+      {
+        method: 'PUT',
+        tenantId: tenant_id,
+        body: { receipt_html: safeHtml },
+      },
+    );
+  }
+
+  const rows = getTenantRows<ZReportReceiptRecord>(tenant_id, 'z_report_receipts', 'z_report_receipts');
+  const now = new Date().toISOString();
+  const next = [
+    {
+      id: safeShiftId,
+      tenant_id,
+      opened_at: meta?.opened_at || null,
+      closed_at: meta?.closed_at || now,
+      opened_by: meta?.opened_by || null,
+      closed_by: meta?.closed_by || null,
+      actual_cash: meta?.actual_cash || null,
+      cash_variance: meta?.cash_variance || null,
+      z_report_html: safeHtml,
+    },
+    ...rows.filter((row) => row.id !== safeShiftId),
+  ].slice(0, 100);
+  saveTenantRows(tenant_id, 'z_report_receipts', 'z_report_receipts', next);
+  return { success: true, shift_id: safeShiftId };
 };
 
 export const get_active_doner_batches_live = async (tenant_id: string) => {
@@ -872,6 +952,8 @@ export const z_report = async (
     emitReportsUpdated(tenant_id, { action: 'z-report', actual_cash: String(res?.actual_cash || actual_cash || '0') });
     return {
       success: Boolean(res?.success),
+      shift_id: String(res?.shift_id || ''),
+      closed_at: String(res?.closed_at || new Date().toISOString()),
       total_sales: new Decimal(res?.cash_sales || 0).plus(new Decimal(res?.card_sales || 0)).toString(),
       wage: String(res?.wage_amount || wage_amount || '0'),
       open_deposit_liability: String(res?.open_deposit_liability || '0'),
@@ -1040,6 +1122,8 @@ export const z_report = async (
   
   return {
     success: true,
+    shift_id: reportId,
+    closed_at: new Date().toISOString(),
     total_sales: total_sales.toString(),
     wage: wage.toString(),
     receipt_html,

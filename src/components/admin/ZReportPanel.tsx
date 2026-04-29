@@ -12,6 +12,7 @@ import {
   get_shift_handover_users_live,
   refresh_expected_cash,
   refresh_shift_status,
+  get_z_report_receipts_live,
   get_yield_waste_logs_live,
   get_shift_handover_history_live,
   get_shift_status,
@@ -21,6 +22,8 @@ import {
   open_shift,
   YieldBatchRow,
   YieldWasteLogRow,
+  save_z_report_receipt_html,
+  type ZReportReceiptRecord,
   x_report,
   z_report,
 } from '../../api/reports';
@@ -61,6 +64,8 @@ export default function ZReportPanel() {
   const [openingTopupSource, setOpeningTopupSource] = useState<'safe' | 'card' | 'investor' | 'cash'>('safe');
   const [zReceiptHtml, setZReceiptHtml] = useState<string | null>(null);
   const safeZReceiptHtml = useMemo(() => sanitizeHtmlForIframe(zReceiptHtml), [zReceiptHtml]);
+  const [zReceiptHistory, setZReceiptHistory] = useState<ZReportReceiptRecord[]>([]);
+  const [zReceiptHistoryLoading, setZReceiptHistoryLoading] = useState(false);
   const [handoverTo, setHandoverTo] = useState('');
   const [handoverActualCash, setHandoverActualCash] = useState('0');
   const [availablePrinters, setAvailablePrinters] = useState<string[]>([]);
@@ -116,6 +121,22 @@ export default function ZReportPanel() {
     d.setHours(23, 59, 59, 999);
     return d.toISOString();
   }, [toDate]);
+
+  const loadZReceiptHistory = useCallback(async () => {
+    setZReceiptHistoryLoading(true);
+    try {
+      const rows = await get_z_report_receipts_live(tenant_id, {
+        date_from: start,
+        date_to: end,
+        limit: 30,
+      });
+      setZReceiptHistory(Array.isArray(rows) ? rows : []);
+    } catch {
+      setZReceiptHistory([]);
+    } finally {
+      setZReceiptHistoryLoading(false);
+    }
+  }, [tenant_id, start, end]);
 
   const shiftStatus = shiftStatusState;
   const latestReceived = handovers.find((h) => h.received_by === user?.username && String(h.status || '').toUpperCase() === 'ACCEPTED');
@@ -444,6 +465,10 @@ export default function ZReportPanel() {
   }, [tenant_id, start, end, user?.role, user?.username, reportRefreshKey]);
 
   React.useEffect(() => {
+    void loadZReceiptHistory();
+  }, [loadZReceiptHistory, reportRefreshKey]);
+
+  React.useEffect(() => {
     let mounted = true;
     if (!yieldEnabled) {
       setActiveYieldBatches([]);
@@ -582,13 +607,28 @@ export default function ZReportPanel() {
     }
   };
 
+  const showAndPersistZReceipt = async (result: any) => {
+    const receiptHtml = buildZReceiptHtml(result);
+    setZReceiptHtml(receiptHtml);
+    const shiftId = String(result?.shift_id || '').trim();
+    if (shiftId) {
+      await save_z_report_receipt_html(tenant_id, shiftId, receiptHtml, {
+        closed_at: String(result?.closed_at || new Date().toISOString()),
+        closed_by: user?.username || 'admin',
+        actual_cash: String(result?.actual_cash || zActualCash || '0'),
+        cash_variance: String(result?.difference || '0'),
+      }).catch(() => undefined);
+      void loadZReceiptHistory();
+    }
+  };
+
   const handleZ = async () => {
     if (!zActualCash) return;
     const runZReport = async (allowOpenDepositClose = false) =>
       z_report(zActualCash, zWage || '0', user?.username || 'admin', tenant_id, { allowOpenDepositClose });
     try {
       const result = await runZReport(false);
-      setZReceiptHtml(buildZReceiptHtml(result));
+      await showAndPersistZReceipt(result);
       await refreshOperationalState(true).catch(() => undefined);
       setXActualCash('0');
       setZActualCash('0');
@@ -626,7 +666,7 @@ export default function ZReportPanel() {
         }
         try {
           const result = await runZReport(true);
-          setZReceiptHtml(buildZReceiptHtml(result));
+          await showAndPersistZReceipt(result);
           await refreshOperationalState(true).catch(() => undefined);
           setXActualCash('0');
           setZActualCash('0');
@@ -916,6 +956,66 @@ export default function ZReportPanel() {
               <span className="text-slate-400">{tx(lang, 'Qəbul edilmiş təhvil yoxdur', 'Нет принятой передачи', 'No accepted handover yet')}</span>
             )}
           </div>
+        </div>
+      </div>
+
+      <div className="metal-panel border border-slate-700/70 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-100">
+              {tx(lang, 'Keçmiş Z çekləri', 'Прошлые Z-чеки', 'Past Z receipts')}
+            </h3>
+            <p className="text-xs text-slate-400">
+              {tx(
+                lang,
+                'Z bağlananda çek burada saxlanır və sonra yenidən çap olunur.',
+                'При закрытии Z чек сохраняется здесь и доступен для повторной печати.',
+                'When Z closes, the receipt is saved here for reprint.',
+              )}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadZReceiptHistory()}
+            className="rounded-lg border border-slate-600 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800"
+            disabled={zReceiptHistoryLoading}
+          >
+            {zReceiptHistoryLoading
+              ? tx(lang, 'Yüklənir...', 'Загрузка...', 'Loading...')
+              : tx(lang, 'Yenilə', 'Обновить', 'Refresh')}
+          </button>
+        </div>
+        <div className="mt-3 overflow-hidden rounded-xl border border-slate-700/70">
+          {zReceiptHistory.length === 0 ? (
+            <div className="p-4 text-sm text-slate-400">
+              {zReceiptHistoryLoading
+                ? tx(lang, 'Z çekləri yüklənir...', 'Z-чеки загружаются...', 'Loading Z receipts...')
+                : tx(lang, 'Bu tarix aralığında saxlanmış Z çeki yoxdur.', 'В этом диапазоне нет сохраненных Z-чеков.', 'No saved Z receipts in this date range.')}
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-700/70">
+              {zReceiptHistory.map((row) => (
+                <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-slate-100">
+                      {formatServerUtcDateTime(row.closed_at || row.opened_at || '', lang)}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-400">
+                      ID: {String(row.id || '').slice(0, 8).toUpperCase()} · {tx(lang, 'Bağlayan', 'Закрыл', 'Closed by')}: {row.closed_by || '-'} · {tx(lang, 'Faktiki', 'Факт', 'Actual')}: {new Decimal(row.actual_cash || 0).toFixed(2)} ₼
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setZReceiptHtml(row.z_report_html || '')}
+                    className="rounded-lg bg-yellow-400 px-3 py-2 text-sm font-semibold text-slate-900"
+                    disabled={!row.z_report_html}
+                  >
+                    {tx(lang, 'Yenidən çap', 'Повторная печать', 'Reprint')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

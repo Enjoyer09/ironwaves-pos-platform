@@ -166,6 +166,10 @@ class SaleReceiptHtmlIn(BaseModel):
     receipt_html: str = Field(min_length=1, max_length=200_000)
 
 
+class ZReportReceiptHtmlIn(BaseModel):
+    receipt_html: str = Field(min_length=1, max_length=300_000)
+
+
 class OpenShiftIn(BaseModel):
     opening_cash: Decimal = Decimal("0")
     funding_source: str | None = None
