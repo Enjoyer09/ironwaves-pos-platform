@@ -34,7 +34,7 @@ import {
 import { get_menu_items_live } from '../../api/menu';
 import { get_inventory_items_live } from '../../api/inventory';
 import ConfirmModal from '../ConfirmModal';
-import { prepareImageDataUrl } from '../../lib/image_upload';
+import { prepareImageDataUrl, prepareSmallImageDataUrl } from '../../lib/image_upload';
 
 type RoleModules = { staff: string[]; manager: string[]; kitchen: string[] };
 
@@ -143,6 +143,7 @@ export default function SettingsPanel() {
     surface_color: '#fff7e8',
     text_color: '#2b1708',
     hero_image_url: '',
+    poster_image_url: '',
     poster_background_color: '#d59b2d',
     logo_shape: 'rounded' as 'rounded' | 'circle' | 'square',
   });
@@ -392,6 +393,7 @@ export default function SettingsPanel() {
         surface_color: String(settingsRes.value.qr_menu_settings?.surface_color || '#fff7e8'),
         text_color: String(settingsRes.value.qr_menu_settings?.text_color || '#2b1708'),
         hero_image_url: String(settingsRes.value.qr_menu_settings?.hero_image_url || ''),
+        poster_image_url: String((settingsRes.value.qr_menu_settings as any)?.poster_image_url || ''),
         poster_background_color: String(settingsRes.value.qr_menu_settings?.poster_background_color || '#d59b2d'),
         logo_shape: (String(settingsRes.value.qr_menu_settings?.logo_shape || 'rounded') as any),
       });
@@ -530,6 +532,19 @@ export default function SettingsPanel() {
     try {
       const dataUrl = await prepareImageDataUrl(file);
       setQrMenuSettings((prev) => ({ ...prev, hero_image_url: dataUrl }));
+    } catch (error: any) {
+      notify('error', error?.message || tx(lang, 'Şəkil yüklənmədi', 'Изображение не загрузилось', 'Image upload failed'));
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const handleQrPosterImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const dataUrl = await prepareSmallImageDataUrl(file);
+      setQrMenuSettings((prev) => ({ ...prev, poster_image_url: dataUrl }));
     } catch (error: any) {
       notify('error', error?.message || tx(lang, 'Şəkil yüklənmədi', 'Изображение не загрузилось', 'Image upload failed'));
     } finally {
@@ -860,6 +875,7 @@ export default function SettingsPanel() {
       surface_color: qrMenuSettings.surface_color,
       text_color: qrMenuSettings.text_color,
       hero_image_url: qrMenuSettings.hero_image_url,
+      poster_image_url: qrMenuSettings.poster_image_url,
       poster_background_color: qrMenuSettings.poster_background_color,
       logo_shape: qrMenuSettings.logo_shape,
     });
@@ -1307,6 +1323,19 @@ export default function SettingsPanel() {
           <div className="field-stack form-card md:col-span-2">
             <label className="field-label">{tx(lang, 'Hero şəkil yüklə', 'Загрузить hero-изображение', 'Upload hero image')}</label>
             <input className="neon-input" type="file" accept="image/*" onChange={handleQrHeroUpload} />
+          </div>
+          <div className="field-stack form-card md:col-span-2">
+            <label className="field-label">{tx(lang, 'Sağ poster şəkli', 'Изображение правого постера', 'Right poster image')}</label>
+            <input className="neon-input" value={qrMenuSettings.poster_image_url} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_image_url: e.target.value }))} placeholder={tx(lang, 'Kiçik şəkil URL və ya yüklənmiş şəkil', 'URL маленького изображения или загруженное изображение', 'Small image URL or uploaded image')} />
+            <input className="neon-input" type="file" accept="image/*" onChange={handleQrPosterImageUpload} />
+            <div className="text-xs text-slate-400">
+              {tx(lang, 'Şəkil avtomatik kiçildilir: maksimum 768 KB fayl, 640px tərəf və ~350 KB saxlanılan data.', 'Изображение автоматически уменьшается: файл до 768 KB, сторона 640px и ~350 KB данных.', 'Image is auto-compressed: max 768 KB file, 640px side and ~350 KB stored data.')}
+            </div>
+            {qrMenuSettings.poster_image_url ? (
+              <button type="button" className="neon-btn rounded-xl px-3 py-2 text-xs" onClick={() => setQrMenuSettings((prev) => ({ ...prev, poster_image_url: '' }))}>
+                {tx(lang, 'Poster şəklini sil', 'Удалить изображение постера', 'Remove poster image')}
+              </button>
+            ) : null}
           </div>
           <div className="field-stack form-card">
             <label className="field-label">{tx(lang, 'Logo forması', 'Форма логотипа', 'Logo shape')}</label>

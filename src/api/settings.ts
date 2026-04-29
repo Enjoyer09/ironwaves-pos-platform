@@ -400,6 +400,7 @@ function getSettings(tenant_id?: string): Settings {
         surface_color: '#fff7e8',
         text_color: '#2b1708',
         hero_image_url: '',
+        poster_image_url: '',
         poster_background_color: '#d59b2d',
         logo_shape: 'rounded',
       },
@@ -780,6 +781,7 @@ export function get_settings(tenant_id?: string) {
       surface_color: '#fff7e8',
       text_color: '#2b1708',
       hero_image_url: '',
+      poster_image_url: '',
       poster_background_color: '#d59b2d',
       logo_shape: 'rounded',
     };
@@ -1035,6 +1037,7 @@ export function update_qr_menu_settings(payload: NonNullable<Settings['qr_menu_s
     surface_color: String(payload.surface_color || '').trim() || '#fff7e8',
     text_color: String(payload.text_color || '').trim() || '#2b1708',
     hero_image_url: String(payload.hero_image_url || '').trim(),
+    poster_image_url: String((payload as any).poster_image_url || '').trim(),
     poster_background_color: String(payload.poster_background_color || '').trim() || '#d59b2d',
     logo_shape: payload.logo_shape === 'circle' || payload.logo_shape === 'square' ? payload.logo_shape : 'rounded',
   };
@@ -1258,6 +1261,7 @@ export async function get_public_qr_menu_bootstrap_live() {
       surface_color: string;
       text_color: string;
       hero_image_url: string;
+      poster_image_url: string;
       poster_background_color: string;
       logo_shape: string;
       primary_color: string;

@@ -2,6 +2,13 @@ const MAX_IMAGE_FILE_BYTES = 2 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 1280;
 const OUTPUT_IMAGE_QUALITY = 0.82;
 
+type ImagePrepareOptions = {
+  maxFileBytes?: number;
+  maxDimension?: number;
+  outputQuality?: number;
+  maxOutputChars?: number;
+};
+
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -20,34 +27,39 @@ async function dataUrlToImage(dataUrl: string): Promise<HTMLImageElement> {
   });
 }
 
-function normalizeTargetSize(width: number, height: number) {
+function normalizeTargetSize(width: number, height: number, maxDimension = MAX_IMAGE_DIMENSION) {
   const maxSide = Math.max(width, height);
-  if (!Number.isFinite(maxSide) || maxSide <= 0 || maxSide <= MAX_IMAGE_DIMENSION) {
+  if (!Number.isFinite(maxSide) || maxSide <= 0 || maxSide <= maxDimension) {
     return { width, height };
   }
-  const scale = MAX_IMAGE_DIMENSION / maxSide;
+  const scale = maxDimension / maxSide;
   return {
     width: Math.max(1, Math.round(width * scale)),
     height: Math.max(1, Math.round(height * scale)),
   };
 }
 
-export async function prepareImageDataUrl(file: File): Promise<string> {
+export async function prepareImageDataUrl(file: File, options: ImagePrepareOptions = {}): Promise<string> {
+  const maxFileBytes = options.maxFileBytes ?? MAX_IMAGE_FILE_BYTES;
+  const maxDimension = options.maxDimension ?? MAX_IMAGE_DIMENSION;
+  const outputQuality = options.outputQuality ?? OUTPUT_IMAGE_QUALITY;
+  const maxOutputChars = options.maxOutputChars ?? 2_000_000;
   if (!String(file.type || '').startsWith('image/')) {
     throw new Error('Yalnız şəkil faylı seçin');
   }
-  if (file.size > MAX_IMAGE_FILE_BYTES) {
-    throw new Error('Şəkil maksimum 2 MB ola bilər');
+  if (file.size > maxFileBytes) {
+    throw new Error(`Şəkil maksimum ${Math.round(maxFileBytes / 1024)} KB ola bilər`);
   }
 
   const sourceDataUrl = await fileToDataUrl(file);
   const image = await dataUrlToImage(sourceDataUrl);
-  const target = normalizeTargetSize(image.naturalWidth || image.width, image.naturalHeight || image.height);
+  const target = normalizeTargetSize(image.naturalWidth || image.width, image.naturalHeight || image.height, maxDimension);
 
   if (
     target.width === (image.naturalWidth || image.width) &&
     target.height === (image.naturalHeight || image.height) &&
-    file.size <= 350 * 1024
+    sourceDataUrl.length <= maxOutputChars &&
+    file.size <= Math.min(350 * 1024, maxFileBytes)
   ) {
     return sourceDataUrl;
   }
@@ -71,11 +83,20 @@ export async function prepareImageDataUrl(file: File): Promise<string> {
       reader.onerror = () => reject(new Error('Şəkil sıxılmış formada oxunmadı'));
       reader.onload = () => resolve(String(reader.result || ''));
       reader.readAsDataURL(blob);
-    }, 'image/jpeg', OUTPUT_IMAGE_QUALITY);
+    }, 'image/jpeg', outputQuality);
   });
 
-  if (compressed.length > 2_000_000) {
+  if (compressed.length > maxOutputChars) {
     throw new Error('Şəkil hələ də çox böyükdür, daha kiçik fayl seçin');
   }
   return compressed;
+}
+
+export async function prepareSmallImageDataUrl(file: File): Promise<string> {
+  return prepareImageDataUrl(file, {
+    maxFileBytes: 768 * 1024,
+    maxDimension: 640,
+    outputQuality: 0.72,
+    maxOutputChars: 350_000,
+  });
 }
