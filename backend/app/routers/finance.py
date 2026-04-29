@@ -806,15 +806,62 @@ def _balance_sheet_report(db: Session, tenant_id: str) -> dict:
 
 
 def _profit_loss_report(db: Session, tenant_id: str, start: datetime | None, end: datetime | None) -> dict:
-    sales_query = db.query(Sale).filter(Sale.tenant_id == tenant_id, Sale.status == "COMPLETED")
+    sales_filters = [Sale.tenant_id == tenant_id, Sale.status == "COMPLETED"]
     if start:
-        sales_query = sales_query.filter(Sale.created_at >= start)
+        sales_filters.append(Sale.created_at >= start)
     if end:
-        sales_query = sales_query.filter(Sale.created_at <= end)
-    sales_rows = sales_query.all()
-    revenue = sum((Decimal(str(row.total or 0)) for row in sales_rows), Decimal("0.00"))
-    cogs_recorded = sum((Decimal(str(row.cogs or 0)) for row in sales_rows if row.cogs is not None), Decimal("0.00"))
-    cogs_uncomputed_rows = [row for row in sales_rows if row.cogs is None]
+        sales_filters.append(Sale.created_at <= end)
+    (
+        sales_count_raw,
+        revenue_raw,
+        cogs_recorded_raw,
+        cogs_uncomputed_count_raw,
+        cogs_uncomputed_revenue_raw,
+    ) = (
+        db.query(
+            func.count(Sale.id),
+            func.coalesce(func.sum(Sale.total), 0),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (Sale.cogs.isnot(None), Sale.cogs),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (Sale.cogs.is_(None), 1),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (Sale.cogs.is_(None), Sale.total),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+        )
+        .filter(*sales_filters)
+        .one()
+    )
+    sales_count = int(sales_count_raw or 0)
+    revenue = Decimal(str(revenue_raw or 0))
+    cogs_recorded = Decimal(str(cogs_recorded_raw or 0))
+    cogs_uncomputed_sales_count = int(cogs_uncomputed_count_raw or 0)
+    cogs_uncomputed_revenue = Decimal(str(cogs_uncomputed_revenue_raw or 0))
+    cogs_uncomputed_rows = (
+        db.query(Sale.items_json)
+        .filter(*sales_filters, Sale.cogs.is_(None))
+        .all()
+    )
     estimated_cogs = Decimal("0.0000")
     cogs_estimated_sales_count = 0
     unresolved_estimate_count = 0
@@ -857,11 +904,9 @@ def _profit_loss_report(db: Session, tenant_id: str, start: datetime | None, end
                 unresolved_estimate_count += 1
             estimated_cogs += estimate
     cogs = (cogs_recorded + estimated_cogs).quantize(Decimal("0.0001"))
-    cogs_uncomputed_sales_count = len(cogs_uncomputed_rows)
-    cogs_uncomputed_revenue = sum((Decimal(str(row.total or 0)) for row in cogs_uncomputed_rows), Decimal("0.00"))
     cogs_coverage_percent = (
-        (Decimal(str(len(sales_rows) - unresolved_estimate_count)) / Decimal(str(len(sales_rows))) * Decimal("100")).quantize(Decimal("0.01"))
-        if sales_rows
+        (Decimal(str(sales_count - unresolved_estimate_count)) / Decimal(str(sales_count)) * Decimal("100")).quantize(Decimal("0.01"))
+        if sales_count
         else Decimal("100.00")
     )
 
@@ -893,7 +938,7 @@ def _profit_loss_report(db: Session, tenant_id: str, start: datetime | None, end
         "gross_profit": _money(gross_profit),
         "operating_expenses": _money(operating_expenses),
         "net_profit": _money(net_profit),
-        "sales_count": len(sales_rows),
+        "sales_count": sales_count,
         "expense_count": expense_count,
         "has_uncomputed_cogs": unresolved_estimate_count > 0,
         "cogs_uncomputed_sales_count": cogs_uncomputed_sales_count,
