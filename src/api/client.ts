@@ -52,6 +52,7 @@ let sessionAuthSnapshot: SessionAuthSnapshot = {};
 const telemetryThrottle: Record<string, number> = {};
 const inFlightGetRequests = new Map<string, Promise<any>>();
 const IN_FLIGHT_GET_TTL_MS = 1000;
+let lastAuthExpiredEventAt = 0;
 
 export function setClientAuthSession(snapshot: SessionAuthSnapshot | null | undefined): void {
   sessionAuthSnapshot = {
@@ -147,13 +148,14 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
         inFlightGetRequests.delete(dedupeKey);
       }
     }, IN_FLIGHT_GET_TTL_MS);
-    promise.finally(() => {
+    const clearDedupe = () => {
       window.setTimeout(() => {
         if (inFlightGetRequests.get(dedupeKey) === promise) {
           inFlightGetRequests.delete(dedupeKey);
         }
       }, 50);
-    });
+    };
+    promise.then(clearDedupe, clearDedupe);
     return promise;
   }
   return apiRequestNetwork<T>(path, options);
@@ -300,6 +302,23 @@ async function apiRequestNetwork<T = any>(path: string, options: ApiRequestOptio
       ? (data as any).detail
       : `Server düzgün JSON cavabı qaytarmadı (HTTP ${res.status})`;
     const backendRequestId = String(res.headers.get('x-request-id') || requestId);
+    if (res.status === 401 || res.status === 403) {
+      setClientAuthSession({ access_token: null, user: null });
+      const now = Date.now();
+      if (now - lastAuthExpiredEventAt > 1000) {
+        lastAuthExpiredEventAt = now;
+        window.dispatchEvent(
+          new CustomEvent('ironwaves-auth-expired', {
+            detail: {
+              status: res.status,
+              path,
+              request_id: backendRequestId,
+              detail: String(detail),
+            },
+          }),
+        );
+      }
+    }
     if (res.status >= 500 || res.status === 429) {
       emitClientTelemetry('API_SERVER_ERROR', {
         method: options.method || 'GET',
