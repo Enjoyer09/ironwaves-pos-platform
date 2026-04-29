@@ -118,6 +118,7 @@ export default function App() {
   const restoreSession = useAppStore((state) => state.restoreSession);
   const activeTenant = getActiveTenantId();
   const safeLang = (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az';
+  const backendMode = isBackendEnabled();
 
   useEffect(() => {
     try {
@@ -243,7 +244,6 @@ export default function App() {
 
   const mappedTenantFromHost = useMemo(() => getResolvedTenantIdFromHost(currentHost), [currentHost]);
   const isDemoTourHost = currentHost === 'demo.ironwaves.store' || currentHost === 'demo.ironwaves';
-  const backendMode = isBackendEnabled();
 
   const [sessionChecking, setSessionChecking] = useState(false);
   const [sessionRestorePending, setSessionRestorePending] = useState(false);
