@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_
@@ -122,6 +123,53 @@ def _posted_transactions_since(db: Session, tenant_id: str, opened_at: datetime 
 def _finance_account_code_map(db: Session, tenant_id: str) -> dict[str, str]:
     rows = db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant_id).all()
     return {row.id: row.code for row in rows}
+
+
+def _shift_sales_payment_totals(db: Session, tenant_id: str, opened_at: datetime | None, closed_at: datetime | None) -> tuple[Decimal, Decimal]:
+    account_codes = _finance_account_code_map(db, tenant_id)
+    rows = (
+        db.query(
+            FinanceTransaction.destination_account_id,
+            func.coalesce(func.sum(FinanceTransaction.amount), 0),
+        )
+        .filter(
+            FinanceTransaction.tenant_id == tenant_id,
+            FinanceTransaction.status == "posted",
+            FinanceTransaction.transaction_type == "income",
+            FinanceTransaction.related_order_id.isnot(None),
+        )
+    )
+    if opened_at:
+        rows = rows.filter(FinanceTransaction.created_at >= opened_at)
+    if closed_at:
+        rows = rows.filter(FinanceTransaction.created_at <= closed_at)
+    grouped = rows.group_by(FinanceTransaction.destination_account_id).all()
+    cash = Decimal("0.00")
+    card = Decimal("0.00")
+    for account_id, amount_raw in grouped:
+        code = account_codes.get(str(account_id or ""))
+        amount = Decimal(str(amount_raw or 0)).quantize(Decimal("0.01"))
+        if code == "cash":
+            cash += amount
+        elif code == "card":
+            card += amount
+    return cash.quantize(Decimal("0.01")), card.quantize(Decimal("0.01"))
+
+
+def _replace_z_report_money_line(html: str, label: str, amount: Decimal) -> str:
+    safe_amount = f"{amount.quantize(Decimal('0.01'))} ₼"
+    pattern = rf"(<div class=\"line\"><span>{re.escape(label)}</span><span>)([^<]*)(</span></div>)"
+    replacement = rf"\g<1>{safe_amount}\3"
+    return re.sub(pattern, replacement, html, count=1)
+
+
+def _correct_z_report_receipt_html(html: str, cash_sales: Decimal, card_sales: Decimal) -> str:
+    if not html:
+        return html
+    corrected = _replace_z_report_money_line(html, "Nağd Satış", cash_sales)
+    corrected = _replace_z_report_money_line(corrected, "Kart Satış", card_sales)
+    corrected = _replace_z_report_money_line(corrected, "Ümumi Satış", cash_sales + card_sales)
+    return corrected
 
 
 def _get_active_shift(db: Session, tenant_id: str) -> Shift | None:
@@ -706,20 +754,28 @@ def list_z_report_receipts(
     if end:
         query = query.filter(Shift.closed_at <= end)
     rows = query.order_by(Shift.closed_at.desc()).limit(limit).all()
-    return [
-        {
-            "id": row.id,
-            "opened_at": row.opened_at.isoformat() if row.opened_at else None,
-            "closed_at": row.closed_at.isoformat() if row.closed_at else None,
-            "opened_by": row.opened_by,
-            "closed_by": row.closed_by,
-            "actual_cash": str(row.actual_cash) if row.actual_cash is not None else None,
-            "cash_variance": str(row.cash_variance) if row.cash_variance is not None else None,
-            "z_report_html": row.z_report_html or "",
-        }
-        for row in rows
-        if row.z_report_html
-    ]
+    result = []
+    for row in rows:
+        if not row.z_report_html:
+            continue
+        cash_sales, card_sales = _shift_sales_payment_totals(db, tenant.id, row.opened_at, row.closed_at)
+        corrected_html = _correct_z_report_receipt_html(row.z_report_html or "", cash_sales, card_sales)
+        result.append(
+            {
+                "id": row.id,
+                "opened_at": row.opened_at.isoformat() if row.opened_at else None,
+                "closed_at": row.closed_at.isoformat() if row.closed_at else None,
+                "opened_by": row.opened_by,
+                "closed_by": row.closed_by,
+                "actual_cash": str(row.actual_cash) if row.actual_cash is not None else None,
+                "cash_variance": str(row.cash_variance) if row.cash_variance is not None else None,
+                "cash_sales": str(cash_sales),
+                "card_sales": str(card_sales),
+                "total_sales": str((cash_sales + card_sales).quantize(Decimal("0.01"))),
+                "z_report_html": corrected_html,
+            }
+        )
+    return result
 
 
 @router.get("/handovers")
