@@ -437,13 +437,14 @@ export async function get_sales_list_live(
   date_from: string,
   date_to: string,
   cashier?: string,
-  options?: { signal?: AbortSignal; limit?: number; offset?: number },
+  options?: { signal?: AbortSignal; limit?: number; offset?: number; includeReceiptHtml?: boolean },
 ) {
   if (!isBackendEnabled()) return get_sales_list(tenant_id, date_from, date_to, cashier);
   const qs = new URLSearchParams({ date_from, date_to });
   if (cashier) qs.set('cashier', cashier);
   if (options?.limit) qs.set('limit', String(options.limit));
   if (options?.offset) qs.set('offset', String(options.offset));
+  if (options?.includeReceiptHtml) qs.set('include_receipt_html', 'true');
   return apiRequest<any[]>(`/api/v1/analytics/sales?${qs.toString()}`, { tenantId: null, signal: options?.signal });
 }
 
