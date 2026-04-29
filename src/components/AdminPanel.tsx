@@ -198,7 +198,11 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
     try {
       const fallbackKey = `receipt_fallback:${receiptRef}:${token}`;
       const profile = get_business_profile(String(sale?.tenant_id || tenant_id || ''));
-      const receiptHtml = String(sale?.receipt_html || '').trim() || await buildSaleReceiptHtml({
+      const isSplitSale = String(sale?.payment_method || '').toLowerCase().includes('split');
+      const hasSplitAmounts = Number(sale?.split_cash || 0) > 0 || Number(sale?.split_card || 0) > 0;
+      const savedReceiptHtml = String(sale?.receipt_html || '').trim();
+      const shouldRegenerateReceipt = isSplitSale && hasSplitAmounts;
+      const receiptHtml = (!shouldRegenerateReceipt && savedReceiptHtml) || await buildSaleReceiptHtml({
         sale,
         profile,
         lang,
@@ -212,6 +216,8 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
         cashier: sale?.cashier,
         customer_card_id: sale?.customer_card_id || null,
         payment_method: sale?.payment_method,
+        split_cash: sale?.split_cash || null,
+        split_card: sale?.split_card || null,
         order_type: sale?.order_type,
         total: sale?.total,
         original_total: sale?.original_total,
