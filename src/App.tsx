@@ -185,6 +185,16 @@ export default function App() {
     void get_settings_live(user.tenant_id).catch(() => {});
   }, [hasValidUser, user?.tenant_id]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleAuthExpired = () => {
+      notify('info', tx(safeLang, 'Sessiya bitdi, yenidən giriş edin', 'Сессия истекла, войдите снова', 'Session expired, please sign in again'));
+      logout();
+    };
+    window.addEventListener('ironwaves-auth-expired', handleAuthExpired as EventListener);
+    return () => window.removeEventListener('ironwaves-auth-expired', handleAuthExpired as EventListener);
+  }, [logout, notify, safeLang]);
+
   const hostMode = useMemo(() => {
     if (typeof window === 'undefined') return 'app';
     const host = String(window.location.host || '').toLowerCase().split(':')[0];
