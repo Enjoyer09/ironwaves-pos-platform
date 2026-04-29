@@ -1034,6 +1034,52 @@ def _sync_check_and_table_from_items(db: Session, tenant_id: str, table: Table, 
     table.items_json = json.dumps(visible_items, ensure_ascii=False)
 
 
+def _billable_items_for_check(
+    db: Session,
+    tenant_id: str,
+    check_id: str,
+    *,
+    legacy_items: list[dict] | None = None,
+) -> tuple[list[dict], Decimal, bool]:
+    rows = (
+        db.query(OrderItem)
+        .filter(OrderItem.tenant_id == tenant_id, OrderItem.check_id == check_id)
+        .order_by(OrderItem.created_at.asc())
+        .all()
+    )
+    if not rows:
+        fallback_items = list(legacy_items or [])
+        fallback_total = sum(
+            (
+                Decimal(str(item.get("price") or 0)) * Decimal(str(item.get("qty") or 0))
+                for item in fallback_items
+            ),
+            Decimal("0.00"),
+        ).quantize(Decimal("0.01"))
+        return fallback_items, fallback_total, False
+
+    billable_items: list[dict] = []
+    total = Decimal("0.00")
+    for row in rows:
+        effective_price = _billable_item_price(row)
+        qty = Decimal(str(row.qty or 0))
+        if effective_price <= 0 or qty <= 0:
+            continue
+        item_payload = {
+            "id": row.menu_item_id or row.id,
+            "order_item_id": row.id,
+            "item_name": row.item_name,
+            "qty": int(row.qty or 0),
+            "price": str(effective_price),
+            "seat_label": f"Seat {row.seat_no}" if row.seat_no else None,
+            "status": row.status,
+            "status_reason": row.status_reason,
+        }
+        billable_items.append(item_payload)
+        total += effective_price * qty
+    return billable_items, total.quantize(Decimal("0.01")), True
+
+
 def _latest_item_action_log(db: Session, tenant_id: str, item_id: str) -> ItemStatusLog | None:
     return (
         db.query(ItemStatusLog)
@@ -1080,6 +1126,58 @@ def _nonbillable_stock_items_for_check(db: Session, tenant_id: str, check_id: st
             }
         )
     return stock_items
+
+
+def _unconsumed_stock_items_from_payload(db: Session, tenant_id: str, items: list[dict]) -> tuple[list[dict], list[str]]:
+    order_item_ids = [
+        str(item.get("order_item_id") or "").strip()
+        for item in items
+        if str(item.get("order_item_id") or "").strip()
+    ]
+    if not order_item_ids:
+        return items, []
+    consumed_ids = {
+        row.id
+        for row in db.query(OrderItem.id)
+        .filter(
+            OrderItem.tenant_id == tenant_id,
+            OrderItem.id.in_(order_item_ids),
+            OrderItem.stock_consumed_at.isnot(None),
+        )
+        .all()
+    }
+    stock_items = [
+        item for item in items
+        if str(item.get("order_item_id") or "").strip() not in consumed_ids
+    ]
+    consumed_later_ids = [
+        str(item.get("order_item_id") or "").strip()
+        for item in stock_items
+        if str(item.get("order_item_id") or "").strip()
+    ]
+    return stock_items, consumed_later_ids
+
+
+def _mark_order_items_stock_consumed(db: Session, tenant_id: str, order_item_ids: list[str], reason: str) -> None:
+    safe_ids = [str(item_id or "").strip() for item_id in order_item_ids if str(item_id or "").strip()]
+    if not safe_ids:
+        return
+    now = datetime.utcnow()
+    (
+        db.query(OrderItem)
+        .filter(
+            OrderItem.tenant_id == tenant_id,
+            OrderItem.id.in_(safe_ids),
+            OrderItem.stock_consumed_at.is_(None),
+        )
+        .update(
+            {
+                "stock_consumed_at": now,
+                "stock_consumption_reason": reason,
+            },
+            synchronize_session=False,
+        )
+    )
 
 
 def _apply_stock_consumption(
@@ -2370,9 +2468,40 @@ def settle_check(
     if not active_check:
         raise HTTPException(status_code=400, detail="Open check not found")
 
-    items = _json_load(table.items_json, [])
+    legacy_items = _json_load(table.items_json, [])
+    items, items_total, used_order_items = _billable_items_for_check(
+        db,
+        tenant.id,
+        active_check.id,
+        legacy_items=legacy_items,
+    )
+    if used_order_items:
+        legacy_total = sum(
+            (
+                Decimal(str(item.get("price") or 0)) * Decimal(str(item.get("qty") or 0))
+                for item in legacy_items
+            ),
+            Decimal("0.00"),
+        ).quantize(Decimal("0.01"))
+        if abs(legacy_total - items_total) > Decimal("0.01"):
+            db.add(
+                AuditLog(
+                    tenant_id=tenant.id,
+                    user=user.username,
+                    action="CHECK_SETTLE_LEGACY_TOTAL_DIVERGENCE",
+                    details=json.dumps(
+                        {
+                            "table_id": table.id,
+                            "table_label": table.label,
+                            "check_id": active_check.id,
+                            "legacy_total": str(legacy_total),
+                            "order_items_total": str(items_total),
+                        },
+                        ensure_ascii=False,
+                    ),
+                )
+            )
     deposit_amount = Decimal(str(table.deposit_amount or 0)).quantize(Decimal("0.01"))
-    items_total = sum((Decimal(str(item.get("price") or 0)) * Decimal(str(item.get("qty") or 0)) for item in items), Decimal("0.00")).quantize(Decimal("0.01"))
     service_fee_percent = Decimal(str(_setting_value(db, tenant.id, "service_fee_percent", 0) or 0))
     service_fee_amount = (items_total * service_fee_percent / Decimal("100")).quantize(Decimal("0.01"))
     final_total = max(items_total + service_fee_amount, deposit_amount).quantize(Decimal("0.01"))
@@ -2388,10 +2517,10 @@ def settle_check(
 
     payment_parts: list[tuple[str, Decimal]] = []
     if payload.parts:
-      for row in payload.parts:
-        amount = Decimal(str(row.amount or 0)).quantize(Decimal("0.01"))
-        if amount > 0:
-            payment_parts.append((_normalize_payment_method(row.method), amount))
+        for row in payload.parts:
+            amount = Decimal(str(row.amount or 0)).quantize(Decimal("0.01"))
+            if amount > 0:
+                payment_parts.append((_normalize_payment_method(row.method), amount))
     else:
         payment_method = _normalize_payment_method(payload.payment_method)
         if payment_method == "split":
@@ -2408,7 +2537,8 @@ def settle_check(
     if payment_total != balance_due:
         raise HTTPException(status_code=400, detail="Payment parts must match the outstanding balance")
 
-    stock_ops, cogs_total = _collect_stock_ops(db, tenant.id, items)
+    billable_stock_items, billable_stock_item_ids = _unconsumed_stock_items_from_payload(db, tenant.id, items)
+    stock_ops, cogs_total = _collect_stock_ops(db, tenant.id, billable_stock_items)
     receipt_code = secrets.token_hex(5).upper()
     receipt_token = secrets.token_hex(10)
     sale = Sale(
@@ -2475,6 +2605,7 @@ def settle_check(
         source="restaurant_settlement",
         table=table,
     )
+    _mark_order_items_stock_consumed(db, tenant.id, billable_stock_item_ids, "restaurant_settlement")
     _post_sale_cogs(
         db,
         tenant_id=tenant.id,
@@ -2487,7 +2618,8 @@ def settle_check(
 
     nonbillable_stock_items = _nonbillable_stock_items_for_check(db, tenant.id, active_check.id)
     if nonbillable_stock_items:
-        waste_stock_ops, waste_cogs_total = _collect_stock_ops(db, tenant.id, nonbillable_stock_items)
+        waste_stock_items, waste_stock_item_ids = _unconsumed_stock_items_from_payload(db, tenant.id, nonbillable_stock_items)
+        waste_stock_ops, waste_cogs_total = _collect_stock_ops(db, tenant.id, waste_stock_items)
         _apply_stock_consumption(
             db,
             tenant.id,
@@ -2502,6 +2634,7 @@ def settle_check(
                 "waste_cogs": str(waste_cogs_total),
             },
         )
+        _mark_order_items_stock_consumed(db, tenant.id, waste_stock_item_ids, "restaurant_nonbillable_waste")
 
     done_time = datetime.utcnow()
     active_check.subtotal = items_total
