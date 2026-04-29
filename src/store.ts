@@ -169,14 +169,23 @@ export const useAppStore = create<AppState>()(
       },
       
       logout: () => {
-        const { user } = get();
-        if (user) {
-          void authApi.logout(undefined, user.username).catch((error) => {
-            console.warn('Logout side-effect failed:', error);
-          });
-        }
+        const { user, refresh_token } = get();
+        const username = String(user?.username || '');
+        const refreshToken = String(refresh_token || '');
         set({ user: null, access_token: null, refresh_token: null, cart: [] });
         setClientAuthSession({ access_token: null, user: null });
+        if (username) {
+          const runLogoutSideEffect = () => {
+            void authApi.logout(refreshToken || undefined, username).catch((error) => {
+              console.warn('Logout side-effect failed:', error);
+            });
+          };
+          if (typeof window !== 'undefined') {
+            window.setTimeout(runLogoutSideEffect, 0);
+          } else {
+            runLogoutSideEffect();
+          }
+        }
       },
       applySessionUser: (user) => {
         if (user?.tenant_id) {

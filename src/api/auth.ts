@@ -395,7 +395,7 @@ export const authApi = {
           method: 'POST',
           auth: false,
           tenantId,
-          timeoutMs: 6000,
+          timeoutMs: 1500,
           retryCount: 0,
           suspendOnNetworkError: false,
           body: safeToken ? { refresh_token: safeToken } : {},
