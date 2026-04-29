@@ -913,36 +913,51 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
                           </select>
                           {editSalePaymentMethod === 'Split' && (
                             <div className="grid grid-cols-2 gap-2">
-                              <input
-                                className="neon-input"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                placeholder={tx(lang, 'Split cash', 'Наличные часть', 'Split cash')}
-                                value={editSaleSplitCash}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  const total = parseEditMoney(newSaleTotal);
-                                  const cash = Math.min(parseEditMoney(value), total);
-                                  setEditSaleSplitCash(value);
-                                  setEditSaleSplitCard(formatEditMoney(total - cash));
-                                }}
-                              />
-                              <input
-                                className="neon-input"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                placeholder={tx(lang, 'Split card', 'Карта часть', 'Split card')}
-                                value={editSaleSplitCard}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  const total = parseEditMoney(newSaleTotal);
-                                  const card = Math.min(parseEditMoney(value), total);
-                                  setEditSaleSplitCard(value);
-                                  setEditSaleSplitCash(formatEditMoney(total - card));
-                                }}
-                              />
+                              <label className="space-y-1">
+                                <span className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-200">
+                                  {tx(lang, 'Nağd hissə', 'Наличные', 'Cash part')}
+                                </span>
+                                <input
+                                  className="neon-input"
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder={tx(lang, 'Nağd məbləğ', 'Сумма наличными', 'Cash amount')}
+                                  value={editSaleSplitCash}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    const total = parseEditMoney(newSaleTotal);
+                                    const cash = Math.min(parseEditMoney(value), total);
+                                    setEditSaleSplitCash(value);
+                                    setEditSaleSplitCard(formatEditMoney(total - cash));
+                                  }}
+                                />
+                              </label>
+                              <label className="space-y-1">
+                                <span className="text-xs font-bold uppercase tracking-[0.14em] text-sky-200">
+                                  {tx(lang, 'Kart hissə', 'Карта', 'Card part')}
+                                </span>
+                                <input
+                                  className="neon-input"
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder={tx(lang, 'Kart məbləği', 'Сумма картой', 'Card amount')}
+                                  value={editSaleSplitCard}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    const total = parseEditMoney(newSaleTotal);
+                                    const card = Math.min(parseEditMoney(value), total);
+                                    setEditSaleSplitCard(value);
+                                    setEditSaleSplitCash(formatEditMoney(total - card));
+                                  }}
+                                />
+                              </label>
+                            </div>
+                          )}
+                          {editSalePaymentMethod === 'Split' && (
+                            <div className="rounded-xl border border-slate-600/60 bg-slate-950/40 px-3 py-2 text-xs text-slate-300">
+                              {tx(lang, 'Soldakı nağd, sağdakı kartdır. Birini dəyişəndə digəri avtomatik qalıq olur.', 'Слева наличные, справа карта. При изменении одного второе пересчитывается автоматически.', 'Left is cash, right is card. Changing one recalculates the other automatically.')}
                             </div>
                           )}
                           {editSalePaymentMethod === 'Split' && !splitTotalMatches && (
