@@ -70,7 +70,10 @@ export default function PinLogin() {
 
   React.useEffect(() => {
     if (typeof document === 'undefined') return;
-    document.title = String(branding?.company_name || 'iRonWaves POS').trim() || 'iRonWaves POS';
+    const companyName = String(branding?.company_name || '').trim();
+    document.title = companyName
+      ? `${companyName}${/ironwaves/i.test(companyName) ? '' : ' by IronWaves'}`
+      : 'iRonWaves POS';
   }, [branding?.company_name]);
 
   React.useEffect(() => {

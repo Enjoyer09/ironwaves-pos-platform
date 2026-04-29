@@ -978,7 +978,9 @@ export default function App() {
       return;
     }
     const companyName = String(profile?.company_name || '').trim();
-    document.title = companyName || 'iRonWaves POS';
+    document.title = companyName
+      ? `${companyName}${/ironwaves/i.test(companyName) ? '' : ' by IronWaves'}`
+      : 'iRonWaves POS';
   }, [hostMode, profile?.company_name]);
 
   useEffect(() => {
