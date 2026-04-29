@@ -2784,28 +2784,40 @@ def get_business_profile(
 @router.get("/public-branding")
 def get_public_branding(
     response: Response,
+    tenant_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
 ):
-    row = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant.id).first()
-    feedback_settings = _setting_value(db, tenant.id, "feedback_settings", DEFAULT_FEEDBACK_SETTINGS)
+    resolved_tenant = tenant
+    requested_tenant_id = str(tenant_id or "").strip()
+    if requested_tenant_id:
+        requested_tenant = (
+            db.query(Tenant)
+            .filter(Tenant.id == requested_tenant_id, Tenant.status == "active")
+            .first()
+        )
+        if requested_tenant:
+            resolved_tenant = requested_tenant
+
+    row = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == resolved_tenant.id).first()
+    feedback_settings = _setting_value(db, resolved_tenant.id, "feedback_settings", DEFAULT_FEEDBACK_SETTINGS)
     response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
     if not isinstance(feedback_settings, dict):
         feedback_settings = DEFAULT_FEEDBACK_SETTINGS
     google_review_url = str(feedback_settings.get("google_review_url") or "").strip()
     if not row:
       return {
-          "tenant_id": tenant.id,
-          "company_name": tenant.name,
-          "website": f"https://{tenant.domain}",
+          "tenant_id": resolved_tenant.id,
+          "company_name": resolved_tenant.name,
+          "website": f"https://{resolved_tenant.domain}",
           "logo_url": "",
           "receipt_footer": "Bizi secdiyiniz ucun tesekkur edirik!",
           "google_review_url": google_review_url,
       }
     return {
-        "tenant_id": tenant.id,
+        "tenant_id": resolved_tenant.id,
         "company_name": row.company_name,
-        "website": row.website or f"https://{tenant.domain}",
+        "website": row.website or f"https://{resolved_tenant.domain}",
         "logo_url": row.logo_url or "",
         "receipt_footer": row.receipt_footer or "",
         "google_review_url": google_review_url,
