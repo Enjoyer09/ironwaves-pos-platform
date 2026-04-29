@@ -158,9 +158,14 @@ export default function ZReportPanel() {
         card: new Decimal(0),
       };
       const total = new Decimal(sale.total || 0);
+      const splitCash = new Decimal(sale.split_cash || 0);
+      const splitCard = new Decimal(sale.split_card || 0);
       current.salesCount += 1;
       current.total = current.total.plus(total);
-      if (String(sale.payment_method || '').toLowerCase().includes('kart') || String(sale.payment_method || '').toLowerCase().includes('card')) {
+      if (splitCash.greaterThan(0) || splitCard.greaterThan(0)) {
+        current.cash = current.cash.plus(splitCash);
+        current.card = current.card.plus(splitCard);
+      } else if (String(sale.payment_method || '').toLowerCase().includes('kart') || String(sale.payment_method || '').toLowerCase().includes('card')) {
         current.card = current.card.plus(total);
       } else {
         current.cash = current.cash.plus(total);
@@ -224,6 +229,9 @@ export default function ZReportPanel() {
     const expectedCash = new Decimal(result?.expected_cash || 0);
     const actualCash = new Decimal(result?.actual_cash || zActualCash || 0);
     const closingDifference = actualCash.minus(expectedCash);
+    const cashSales = new Decimal(result?.cash_sales ?? summary.cash_sales ?? 0);
+    const cardSales = new Decimal(result?.card_sales ?? summary.card_sales ?? 0);
+    const totalSales = cashSales.plus(cardSales);
     const depositCollected = new Decimal(result?.deposit_total || 0);
     const activeDepositLiability = new Decimal(currentBalances.deposit_balance || 0);
     const otherIncomeTotal = new Decimal(result?.other_income_total || 0);
@@ -257,10 +265,14 @@ export default function ZReportPanel() {
           <hr />
           ${zReportReceiptSettings.show_sales_summary ? `
             <div class="section-title">Satış xülasəsi</div>
-            <div class="line"><span>Ümumi Satış</span><span>${new Decimal(summary.total_revenue || 0).toFixed(2)} ₼</span></div>
-            <div class="line"><span>Nağd Satış</span><span>${new Decimal(summary.cash_sales || 0).toFixed(2)} ₼</span></div>
-            <div class="line"><span>Kart Satış</span><span>${new Decimal(summary.card_sales || 0).toFixed(2)} ₼</span></div>
-          ` : ''}
+            <div class="line"><span>Ümumi Satış</span><span>${totalSales.toFixed(2)} ₼</span></div>
+            <div class="line"><span>Nağd Satış</span><span>${cashSales.toFixed(2)} ₼</span></div>
+            <div class="line"><span>Kart Satış</span><span>${cardSales.toFixed(2)} ₼</span></div>
+          ` : `
+            <div class="section-title">Ödəniş bölgüsü</div>
+            <div class="line"><span>Nağd Satış</span><span>${cashSales.toFixed(2)} ₼</span></div>
+            <div class="line"><span>Kart Satış</span><span>${cardSales.toFixed(2)} ₼</span></div>
+          `}
           ${zReportReceiptSettings.show_profit_summary ? `
             <div class="section-title">Mənfəət xülasəsi</div>
             <div class="line"><span>Maya (COGS)</span><span>${new Decimal(summary.total_cogs || 0).toFixed(2)} ₼</span></div>
