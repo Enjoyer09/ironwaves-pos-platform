@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import case, func
+from sqlalchemy import and_, case, func
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -107,6 +107,88 @@ def _sale_payment_split(db: Session, tenant_id: str, sale_id: str) -> tuple[Deci
     return cash, card
 
 
+def _sale_has_posted_ledger_payments(db: Session, tenant_id: str, sale_id: str) -> bool:
+    return (
+        db.query(FinanceTransaction.id)
+        .filter(
+            FinanceTransaction.tenant_id == tenant_id,
+            FinanceTransaction.related_order_id == sale_id,
+            FinanceTransaction.status == "posted",
+            FinanceTransaction.transaction_type == "income",
+        )
+        .first()
+        is not None
+    )
+
+
+def _post_sale_payment_parts(
+    db: Session,
+    *,
+    tenant_id: str,
+    sale_id: str,
+    total: Decimal,
+    payment_method: str,
+    split_cash: Decimal = Decimal("0.00"),
+    split_card: Decimal = Decimal("0.00"),
+    username: str,
+    card_fee_percent: Decimal,
+    note_prefix: str,
+) -> None:
+    method = _normalize_payment_method(payment_method)
+    total = Decimal(str(total)).quantize(Decimal("0.01"))
+    split_cash = Decimal(str(split_cash or 0)).quantize(Decimal("0.01"))
+    split_card = Decimal(str(split_card or 0)).quantize(Decimal("0.01"))
+    if method == "split":
+        if split_cash > 0:
+            post_sale_payment(
+                db,
+                tenant_id=tenant_id,
+                sale_id=sale_id,
+                amount=split_cash,
+                payment_source="cash",
+                created_by=username,
+                category="Satış (Nağd)",
+                note=f"{note_prefix} split cash",
+            )
+        if split_card > 0:
+            post_sale_payment(
+                db,
+                tenant_id=tenant_id,
+                sale_id=sale_id,
+                amount=split_card,
+                payment_source="card",
+                created_by=username,
+                category="Satış (Kart)",
+                note=f"{note_prefix} split card",
+                card_fee_percent=card_fee_percent,
+            )
+        return
+    if method == "staff":
+        post_sale_payment(
+            db,
+            tenant_id=tenant_id,
+            sale_id=sale_id,
+            amount=total,
+            payment_source="cash",
+            created_by=username,
+            category="Staff Ödənişi",
+            note=f"{note_prefix} staff payment",
+        )
+        return
+    payment_source = "cash" if method == "cash" else "card"
+    post_sale_payment(
+        db,
+        tenant_id=tenant_id,
+        sale_id=sale_id,
+        amount=total,
+        payment_source=payment_source,
+        created_by=username,
+        category="Satış (Nağd)" if payment_source == "cash" else "Satış (Kart)",
+        note=note_prefix,
+        card_fee_percent=card_fee_percent if payment_source == "card" else Decimal("0"),
+    )
+
+
 def _reverse_sale_finance_transactions(db: Session, tenant_id: str, sale_id: str, username: str) -> None:
     rows = (
         db.query(FinanceTransaction)
@@ -194,20 +276,25 @@ def get_sales_summary(
     total_revenue = Decimal(str(total_revenue_raw or 0))
     total_cogs = Decimal(str(total_cogs_raw or 0))
     void_count = int(void_count_raw or 0)
-    finance_filters = [
-        FinanceEntry.tenant_id == tenant.id,
-        FinanceEntry.created_at >= start,
-        FinanceEntry.created_at <= end,
-        FinanceEntry.type == "in",
+    ledger_filters = [
+        FinanceTransaction.tenant_id == tenant.id,
+        FinanceTransaction.status == "posted",
+        FinanceTransaction.transaction_type == "income",
+        FinanceTransaction.related_order_id.isnot(None),
+        Sale.tenant_id == tenant.id,
+        Sale.created_at >= start,
+        Sale.created_at <= end,
+        Sale.status != "VOIDED",
+        FinanceAccount.code.in_(["cash", "card"]),
     ]
     if cashier:
-        finance_filters.append(FinanceEntry.created_by == cashier)
+        ledger_filters.append(Sale.cashier == cashier)
     cash_total_raw, card_total_raw = (
         db.query(
             func.coalesce(
                 func.sum(
                     case(
-                        (FinanceEntry.category.in_(["Satış (Nağd)", "Staff Ödənişi"]), FinanceEntry.amount),
+                        (FinanceAccount.code == "cash", FinanceTransaction.amount),
                         else_=0,
                     )
                 ),
@@ -216,14 +303,17 @@ def get_sales_summary(
             func.coalesce(
                 func.sum(
                     case(
-                        (FinanceEntry.category == "Satış (Kart)", FinanceEntry.amount),
+                        (FinanceAccount.code == "card", FinanceTransaction.amount),
                         else_=0,
                     )
                 ),
                 0,
             ),
         )
-        .filter(*finance_filters)
+        .select_from(FinanceTransaction)
+        .join(FinanceAccount, FinanceAccount.id == FinanceTransaction.destination_account_id)
+        .join(Sale, and_(Sale.id == FinanceTransaction.related_order_id, Sale.tenant_id == FinanceTransaction.tenant_id))
+        .filter(*ledger_filters)
         .one()
     )
     cash_total = Decimal(str(cash_total_raw or 0))
@@ -344,48 +434,52 @@ def void_sale(
     loyalty_cfg = _setting_value(db, tenant.id, "customer_app_settings", {"program_mode": "points", "cashback_percent": 5})
     program_mode = str(loyalty_cfg.get("program_mode") or "points").lower()
     cashback_percent = Decimal(str(loyalty_cfg.get("cashback_percent") or 0))
-    if pm == "split":
-        finance_rows = (
-            db.query(FinanceEntry)
-            .filter(FinanceEntry.tenant_id == tenant.id, FinanceEntry.type == "in", FinanceEntry.description.ilike(f"%{row.id}%"))
-            .all()
-        )
-        for finance_row in finance_rows:
-            db.add(
-                FinanceEntry(
-                    tenant_id=tenant.id,
-                    type="out",
-                    category="Refund / Ləğv",
-                    source=finance_row.source,
-                    amount=Decimal(str(finance_row.amount)).quantize(Decimal("0.01")),
-                    description=f"VOID: {payload.reason} ({row.id})",
-                    created_by=user.username,
-                )
-            )
+    ledger_backed = _sale_has_posted_ledger_payments(db, tenant.id, row.id)
+    if ledger_backed:
+        _reverse_sale_finance_transactions(db, tenant.id, row.id, user.username)
     else:
-        source = "cash" if pm in {"cash", "nəğd", "staff"} else "card"
-        db.add(FinanceEntry(tenant_id=tenant.id, type="out", category="Refund / Ləğv", source=source, amount=amount, description=f"VOID: {payload.reason}", created_by=user.username))
-        if pm == "staff":
-            benefit_rows = (
+        if pm == "split":
+            finance_rows = (
                 db.query(FinanceEntry)
-                .filter(
-                    FinanceEntry.tenant_id == tenant.id,
-                    FinanceEntry.type == "out",
-                    FinanceEntry.category == "Staff Benefit",
-                    FinanceEntry.description.ilike(f"%{row.id}%"),
-                )
+                .filter(FinanceEntry.tenant_id == tenant.id, FinanceEntry.type == "in", FinanceEntry.description.ilike(f"%{row.id}%"))
                 .all()
             )
-            for benefit_row in benefit_rows:
+            for finance_row in finance_rows:
                 db.add(
                     FinanceEntry(
                         tenant_id=tenant.id,
-                        type="in",
-                        category="Staff Benefit Reversal",
-                        source="cash",
-                        amount=Decimal(str(benefit_row.amount)).quantize(Decimal("0.01")),
-                        description=f"VOID reverse benefit: {payload.reason} ({row.id})",
+                        type="out",
+                        category="Refund / Ləğv",
+                        source=finance_row.source,
+                        amount=Decimal(str(finance_row.amount)).quantize(Decimal("0.01")),
+                        description=f"VOID: {payload.reason} ({row.id})",
                         created_by=user.username,
+                    )
+                )
+        else:
+            source = "cash" if pm in {"cash", "nəğd", "staff"} else "card"
+            db.add(FinanceEntry(tenant_id=tenant.id, type="out", category="Refund / Ləğv", source=source, amount=amount, description=f"VOID: {payload.reason}", created_by=user.username))
+    if pm == "staff":
+        benefit_rows = (
+            db.query(FinanceEntry)
+            .filter(
+                FinanceEntry.tenant_id == tenant.id,
+                FinanceEntry.type == "out",
+                FinanceEntry.category == "Staff Benefit",
+                FinanceEntry.description.ilike(f"%{row.id}%"),
+            )
+            .all()
+        )
+        for benefit_row in benefit_rows:
+            db.add(
+                FinanceEntry(
+                    tenant_id=tenant.id,
+                    type="in",
+                    category="Staff Benefit Reversal",
+                    source="cash",
+                    amount=Decimal(str(benefit_row.amount)).quantize(Decimal("0.01")),
+                    description=f"VOID reverse benefit: {payload.reason} ({row.id})",
+                    created_by=user.username,
                 )
             )
     if row.customer_card_id and program_mode == "cashback":
@@ -532,51 +626,99 @@ def partial_refund_sale(
     loyalty_cfg = _setting_value(db, tenant.id, "customer_app_settings", {"program_mode": "points", "cashback_percent": 5})
     program_mode = str(loyalty_cfg.get("program_mode") or "points").lower()
     cashback_percent = Decimal(str(loyalty_cfg.get("cashback_percent") or 0))
-    if pm == "split":
-        finance_rows = (
-            db.query(FinanceEntry)
-            .filter(FinanceEntry.tenant_id == tenant.id, FinanceEntry.type == "in", FinanceEntry.description.ilike(f"%{row.id}%"))
-            .all()
-        )
-        total_in = sum((Decimal(str(finance_row.amount or 0)) for finance_row in finance_rows), Decimal("0.00"))
-        remaining = refund_amount
-        for idx, finance_row in enumerate(finance_rows):
-            if total_in <= 0:
-                break
-            if idx == len(finance_rows) - 1:
-                part = remaining
-            else:
-                ratio = Decimal(str(finance_row.amount or 0)) / total_in
-                part = (refund_amount * ratio).quantize(Decimal("0.01"))
-                remaining -= part
-            if part <= 0:
-                continue
+    next_total = (current_total - refund_amount).quantize(Decimal("0.01"))
+    ledger_backed = _sale_has_posted_ledger_payments(db, tenant.id, row.id)
+    if ledger_backed:
+        current_cash, current_card = _sale_payment_split(db, tenant.id, row.id)
+        current_paid = (current_cash + current_card).quantize(Decimal("0.01"))
+        _reverse_sale_finance_transactions(db, tenant.id, row.id, user.username)
+        card_sale_percent = Decimal(str(_setting_value(db, tenant.id, "bank_commission", {"card_sale_percent": 2}).get("card_sale_percent", 2) or 2))
+        if current_paid > 0 and current_cash > 0 and current_card > 0:
+            next_cash = (next_total * (current_cash / current_paid)).quantize(Decimal("0.01"))
+            next_card = (next_total - next_cash).quantize(Decimal("0.01"))
+            row.payment_method = "Split"
+            _post_sale_payment_parts(
+                db,
+                tenant_id=tenant.id,
+                sale_id=row.id,
+                total=next_total,
+                payment_method="split",
+                split_cash=next_cash,
+                split_card=next_card,
+                username=user.username,
+                card_fee_percent=card_sale_percent,
+                note_prefix=f"Partial refund remaining {row.id}",
+            )
+        elif current_cash > 0 or pm in {"cash", "nəğd", "staff"}:
+            row.payment_method = "Staff" if pm == "staff" else "Nəğd"
+            _post_sale_payment_parts(
+                db,
+                tenant_id=tenant.id,
+                sale_id=row.id,
+                total=next_total,
+                payment_method="staff" if pm == "staff" else "cash",
+                username=user.username,
+                card_fee_percent=card_sale_percent,
+                note_prefix=f"Partial refund remaining {row.id}",
+            )
+        else:
+            row.payment_method = "Kart"
+            _post_sale_payment_parts(
+                db,
+                tenant_id=tenant.id,
+                sale_id=row.id,
+                total=next_total,
+                payment_method="card",
+                username=user.username,
+                card_fee_percent=card_sale_percent,
+                note_prefix=f"Partial refund remaining {row.id}",
+            )
+    else:
+        if pm == "split":
+            finance_rows = (
+                db.query(FinanceEntry)
+                .filter(FinanceEntry.tenant_id == tenant.id, FinanceEntry.type == "in", FinanceEntry.description.ilike(f"%{row.id}%"))
+                .all()
+            )
+            total_in = sum((Decimal(str(finance_row.amount or 0)) for finance_row in finance_rows), Decimal("0.00"))
+            remaining = refund_amount
+            for idx, finance_row in enumerate(finance_rows):
+                if total_in <= 0:
+                    break
+                if idx == len(finance_rows) - 1:
+                    part = remaining
+                else:
+                    ratio = Decimal(str(finance_row.amount or 0)) / total_in
+                    part = (refund_amount * ratio).quantize(Decimal("0.01"))
+                    remaining -= part
+                if part <= 0:
+                    continue
+                db.add(
+                    FinanceEntry(
+                        tenant_id=tenant.id,
+                        type="out",
+                        category="Partial Refund",
+                        source=finance_row.source,
+                        amount=part,
+                        description=f"PARTIAL REFUND: {payload.reason} ({row.id})",
+                        created_by=user.username,
+                    )
+                )
+        else:
+            source = "cash" if pm in {"cash", "nəğd", "staff"} else "card"
             db.add(
                 FinanceEntry(
                     tenant_id=tenant.id,
                     type="out",
                     category="Partial Refund",
-                    source=finance_row.source,
-                    amount=part,
+                    source=source,
+                    amount=refund_amount,
                     description=f"PARTIAL REFUND: {payload.reason} ({row.id})",
                     created_by=user.username,
                 )
             )
-    else:
-        source = "cash" if pm in {"cash", "nəğd", "staff"} else "card"
-        db.add(
-            FinanceEntry(
-                tenant_id=tenant.id,
-                type="out",
-                category="Partial Refund",
-                source=source,
-                amount=refund_amount,
-                description=f"PARTIAL REFUND: {payload.reason} ({row.id})",
-                created_by=user.username,
-            )
-        )
 
-    row.total = (current_total - refund_amount).quantize(Decimal("0.01"))
+    row.total = next_total
     row.status = "PARTIAL_REFUND"
     if row.customer_card_id and program_mode == "cashback":
         cashback_amount = (refund_amount * (cashback_percent / Decimal("100"))).quantize(Decimal("0.01"))
