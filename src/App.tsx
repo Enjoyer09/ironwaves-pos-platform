@@ -190,30 +190,35 @@ export default function App() {
     if (!hasValidUser || !user?.tenant_id || !backendMode) return;
     const timerId = window.setTimeout(() => {
       const today = new Date().toISOString().slice(0, 10);
+      const role = String(user?.role || '').toLowerCase();
+      const canUseFinance = ['manager', 'admin', 'finance_admin', 'super_admin'].includes(role);
       const hotPaths = [
         '/api/v1/ops/settings',
         '/api/v1/pos/menu',
-        '/api/v1/pos/menu/images',
         '/api/v1/ops/tables',
         '/api/v1/restaurant/tables-bootstrap',
-        '/api/v1/finance/summary',
-        '/api/v1/finance/balances',
-        '/api/v1/finance/anomalies',
-        `/api/v1/finance/reports/overview?date_from=${today}&date_to=${today}`,
-        '/api/v1/reports/status',
+        ...(canUseFinance
+          ? [
+              '/api/v1/finance/summary',
+              '/api/v1/finance/balances',
+              '/api/v1/finance/anomalies',
+              `/api/v1/finance/reports/overview?date_from=${today}&date_to=${today}`,
+              '/api/v1/reports/status',
+            ]
+          : []),
       ];
-      void Promise.allSettled(
-        hotPaths.map((path) =>
-          apiRequest(path, {
+      hotPaths.forEach((path, index) => {
+        window.setTimeout(() => {
+          void apiRequest(path, {
             tenantId: null,
             timeoutMs: 5000,
             retryCount: 0,
-          }),
-        ),
-      );
+          }).catch(() => null);
+        }, index * 180);
+      });
     }, 500);
     return () => window.clearTimeout(timerId);
-  }, [backendMode, hasValidUser, user?.tenant_id]);
+  }, [backendMode, hasValidUser, user?.role, user?.tenant_id]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
