@@ -188,6 +188,7 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
     url.searchParams.set('r', receiptRef);
     if (token) url.searchParams.set('t', token);
     url.searchParams.set('autoprint', '1');
+    url.searchParams.set('fresh', '1');
     try {
       const fallbackKey = `receipt_fallback:${receiptRef}:${token}`;
       const fallbackPayload = {
