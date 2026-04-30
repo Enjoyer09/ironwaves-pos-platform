@@ -4,7 +4,7 @@ import { i18n, tx } from '../i18n';
 import { Delete } from 'lucide-react';
 import { getDeviceHash, getPublicIp, LoginRiskContext } from '../lib/risk';
 import { get_business_profile, get_public_branding_live, get_settings_live } from '../api/settings';
-import { resolveTenantIdFromHost } from '../lib/tenant';
+import { getResolvedTenantIdFromHost } from '../lib/tenant';
 import { authApi } from '../api/auth';
 
 export default function PinLogin() {
@@ -22,8 +22,8 @@ export default function PinLogin() {
   const [riskContext, setRiskContext] = useState<LoginRiskContext>({ device_hash: getDeviceHash(), ip: 'ip_unknown' });
   const isDemoHost = typeof window !== 'undefined' && window.location.host.toLowerCase() === 'demo.ironwaves.store';
   const isPlatformHost = typeof window !== 'undefined' && window.location.host.toLowerCase() === 'super.ironwaves.store';
-  const tenantId = resolveTenantIdFromHost();
-  const [branding, setBranding] = useState(() => get_business_profile(tenantId));
+  const tenantId = getResolvedTenantIdFromHost() || '';
+  const [branding, setBranding] = useState(() => (tenantId ? get_business_profile(tenantId) : { company_name: 'iRonWaves POS', logo_url: '' }));
   const [tenantAccessState, setTenantAccessState] = useState<'ok' | 'not_found' | 'suspended'>('ok');
   const [ownerBootstrapAvailable, setOwnerBootstrapAvailable] = useState(false);
   const [ownerUser, setOwnerUser] = useState('owner');
@@ -43,9 +43,9 @@ export default function PinLogin() {
 
   React.useEffect(() => {
     let mounted = true;
-    setBranding(get_business_profile(tenantId));
+    setBranding(tenantId ? get_business_profile(tenantId) : { company_name: 'iRonWaves POS', logo_url: '' });
     setTenantAccessState('ok');
-    get_public_branding_live(tenantId)
+    get_public_branding_live(tenantId || undefined)
       .then((data) => {
         if (mounted && data) {
           setBranding(data);
@@ -78,6 +78,11 @@ export default function PinLogin() {
 
   React.useEffect(() => {
     const syncPinLength = () => {
+      if (!tenantId) {
+        setStaffPinLength(4);
+        setPin((prev) => prev.slice(0, 4));
+        return;
+      }
       get_settings_live(tenantId)
         .then((settings) => {
           const next = Number(settings?.session_settings?.staff_pin_length || 4) === 4 ? 4 : 6;

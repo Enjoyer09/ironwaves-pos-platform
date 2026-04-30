@@ -1595,7 +1595,7 @@ export async function get_business_profile_live(tenant_id?: string) {
 
 export async function get_public_branding_live(tenant_id?: string) {
   if (!isBackendEnabled()) return get_business_profile(tenant_id);
-  const requestedTenant = resolveTenant(tenant_id);
+  const requestedTenant = String(tenant_id || '').trim();
   const query = requestedTenant ? `?tenant_id=${encodeURIComponent(requestedTenant)}` : '';
   const data = await apiRequest<any>(`/api/v1/ops/public-branding${query}`, { tenantId: null, auth: false });
   const profiles = getDB<any>('business_profile');
