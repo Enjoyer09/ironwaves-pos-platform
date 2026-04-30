@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import AuditLog, Check, FinanceEntry, FloorPlan, Guest, ItemStatusLog, KitchenOrder, OrderItem, OrderRound, Payment, Reservation, Sale, Setting, Table, TableSession, Tenant, User
+from app.models import AuditLog, Check, FinanceEntry, FloorPlan, Guest, ItemStatusLog, KitchenOrder, OrderItem, OrderRound, Payment, Reservation, Sale, Setting, Shift, Table, TableSession, Tenant, User
 from app.realtime import broadcast_tenant_event
 from app.services.finance_service import (
     post_deposit_apply_to_bill as _post_deposit_apply_to_bill,
@@ -45,6 +45,7 @@ from app.security import verify_password
 
 
 router = APIRouter(prefix="/api/v1/restaurant", tags=["restaurant"])
+STAFF_SHIFT_SESSIONS_KEY = "staff_shift_sessions"
 
 
 STATUS_ALIASES = {
@@ -236,6 +237,30 @@ def _setting_value(db: Session, tenant_id: str, key: str, default):
         except Exception:
             return default
     return row.value
+
+
+def _active_shift(db: Session, tenant_id: str) -> Shift | None:
+    return db.query(Shift).filter(Shift.tenant_id == tenant_id, Shift.status == "open").first()
+
+
+def _staff_shift_session_open(db: Session, tenant_id: str, username: str | None) -> bool:
+    safe_username = str(username or "").strip().lower()
+    if not safe_username:
+        return False
+    sessions = _setting_value(db, tenant_id, STAFF_SHIFT_SESSIONS_KEY, {})
+    if not isinstance(sessions, dict):
+        return False
+    return safe_username in {str(key or "").strip().lower() for key in sessions.keys()}
+
+
+def _require_active_sales_shift(db: Session, tenant_id: str, user: User) -> Shift:
+    active = _active_shift(db, tenant_id)
+    if not active:
+        raise HTTPException(status_code=400, detail="Masa sifarişi/satışı üçün əvvəlcə günü açın (Z-Hesabat > Günü Aç)")
+    role = str(getattr(user, "role", "") or "").strip().lower()
+    if role in {"staff", "manager", "admin"} and not _staff_shift_session_open(db, tenant_id, getattr(user, "username", None)):
+        raise HTTPException(status_code=403, detail="Masa sifarişi/satışı üçün əvvəlcə öz növbənizi açın (Z-Hesabat > Günü Aç)")
+    return active
 
 
 def _normalize_payment_method(value: str | None) -> str:
@@ -2021,6 +2046,7 @@ def add_check_draft_item(
     user: User = Depends(get_current_user),
 ):
     _ensure_floor_admin(user)
+    _require_active_sales_shift(db, tenant.id, user)
     check = db.query(Check).filter(Check.id == check_id, Check.tenant_id == tenant.id, Check.status == "OPEN").first()
     if not check:
         raise HTTPException(status_code=404, detail="Open check not found")
@@ -2066,6 +2092,7 @@ def send_check_drafts(
     user: User = Depends(get_current_user),
 ):
     _ensure_floor_admin(user)
+    _require_active_sales_shift(db, tenant.id, user)
     check = db.query(Check).filter(Check.id == check_id, Check.tenant_id == tenant.id, Check.status == "OPEN").first()
     if not check:
         raise HTTPException(status_code=404, detail="Open check not found")
@@ -2218,6 +2245,7 @@ def send_round(
     user: User = Depends(get_current_user),
 ):
     _ensure_floor_admin(user)
+    _require_active_sales_shift(db, tenant.id, user)
     table = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
@@ -2458,6 +2486,7 @@ def settle_check(
     user: User = Depends(get_current_user),
 ):
     _ensure_floor_admin(user)
+    _require_active_sales_shift(db, tenant.id, user)
     table = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
@@ -2674,6 +2703,8 @@ def settle_check(
     return {
         "ok": True,
         "sale_id": sale.id,
+        "receipt_code": sale.receipt_code,
+        "receipt_token": sale.receipt_token,
         "check_id": active_check.id,
         "check_number": active_check.check_number,
         "items_total": str(items_total),
