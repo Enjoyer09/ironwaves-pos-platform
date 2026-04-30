@@ -67,6 +67,7 @@ export default function PublicReceipt({ receiptId, token }: Props) {
             parsedFallback.receipt_html
           )
         );
+        const forceFreshReceipt = new URLSearchParams(window.location.search).get('fresh') === '1';
         const savedHtml = String(res?.receipt_html || '').trim();
         const fallbackHtml = String(parsedFallback?.receipt_html || '').trim();
         const generatedHtml = () => buildSaleReceiptHtml({
@@ -77,7 +78,7 @@ export default function PublicReceipt({ receiptId, token }: Props) {
           feedbackUrl: nextFeedbackUrl,
           operator: String(receiptData?.cashier || ''),
         });
-        const receiptHtml = shouldRegenerateFromFallback
+        const receiptHtml = forceFreshReceipt || shouldRegenerateFromFallback
           ? await generatedHtml()
           : savedHtml || fallbackHtml || await generatedHtml();
         setReceipt({ ...receiptData, receipt_html: receiptHtml });
