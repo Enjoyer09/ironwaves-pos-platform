@@ -66,7 +66,7 @@ export default function PublicMenu() {
 
   if (loading) {
     return (
-      <div className="h-screen overflow-y-auto px-4 py-10 text-slate-100" style={{ background: `linear-gradient(180deg, ${backgroundColor}, #09111d)` }}>
+      <div className="min-h-dvh overflow-x-hidden overflow-y-auto px-4 py-10 text-slate-100" style={{ background: `linear-gradient(180deg, ${backgroundColor}, #09111d)` }}>
         <div className="mx-auto max-w-5xl rounded-3xl border border-white/10 bg-white/5 p-8 text-center backdrop-blur">
           <div className="text-xl font-semibold">Menu yüklənir...</div>
         </div>
@@ -75,11 +75,11 @@ export default function PublicMenu() {
   }
 
   return (
-    <div className="h-screen overflow-y-auto overscroll-contain px-4 py-6" style={{ background: `linear-gradient(180deg, ${backgroundColor}, #f7ecd2)` }}>
-      <div className="mx-auto max-w-6xl space-y-6">
+    <div className="min-h-dvh overflow-x-hidden overflow-y-auto overscroll-contain px-3 py-4 sm:px-4 sm:py-6" style={{ background: `linear-gradient(180deg, ${backgroundColor}, #f7ecd2)` }}>
+      <div className="mx-auto max-w-6xl space-y-4 sm:space-y-6">
         <div className="overflow-hidden rounded-[2rem] border shadow-[0_20px_60px_rgba(55,31,8,0.18)]" style={{ borderColor: `${textColor}22`, backgroundColor: surfaceColor }}>
           <div
-            className="relative overflow-hidden px-6 py-8 md:px-10"
+            className="relative overflow-hidden px-4 py-5 sm:px-6 sm:py-8 md:px-10"
             style={{
               background: `radial-gradient(circle at top right, ${accentColor}44 0%, transparent 38%), linear-gradient(135deg, ${primaryColor}30, transparent 60%)`,
             }}
@@ -97,17 +97,17 @@ export default function PublicMenu() {
                   <img
                     src={logoUrl}
                     alt={companyName}
-                    className={`h-16 w-16 object-cover ring-1 ${logoShape === 'circle' ? 'rounded-full' : logoShape === 'square' ? 'rounded-lg' : 'rounded-2xl'}`}
+                    className={`h-14 w-14 shrink-0 object-cover ring-1 sm:h-16 sm:w-16 ${logoShape === 'circle' ? 'rounded-full' : logoShape === 'square' ? 'rounded-lg' : 'rounded-2xl'}`}
                     style={{ borderColor: `${textColor}25` }}
                   />
                 ) : (
-                  <div className={`flex h-16 w-16 items-center justify-center text-lg font-black ${logoShape === 'circle' ? 'rounded-full' : logoShape === 'square' ? 'rounded-lg' : 'rounded-2xl'}`} style={{ backgroundColor: primaryColor, color: textColor }}>
+                  <div className={`flex h-14 w-14 shrink-0 items-center justify-center text-lg font-black sm:h-16 sm:w-16 ${logoShape === 'circle' ? 'rounded-full' : logoShape === 'square' ? 'rounded-lg' : 'rounded-2xl'}`} style={{ backgroundColor: primaryColor, color: textColor }}>
                     QR
                   </div>
                 )}
-                <div>
+                <div className="min-w-0">
                   <div className="text-xs uppercase tracking-[0.35em]" style={{ color: `${textColor}99` }}>QR MENU</div>
-                  <h1 className="mt-2 text-4xl font-black leading-none md:text-6xl" style={{ color: textColor }}>{heroTitle}</h1>
+                  <h1 className="mt-2 break-words text-3xl font-black leading-tight sm:text-4xl md:text-6xl" style={{ color: textColor }}>{heroTitle}</h1>
                   <p className="mt-3 max-w-2xl text-sm md:text-base" style={{ color: `${textColor}CC` }}>{heroSubtitle}</p>
                 </div>
               </div>
@@ -121,10 +121,10 @@ export default function PublicMenu() {
               </div>
             </div>
               <div className="relative z-10 flex justify-center md:justify-end">
-                <div className="relative mt-2 w-full max-w-[320px] rounded-[2rem] p-4 shadow-[0_24px_50px_rgba(40,22,6,0.18)]" style={{ backgroundColor: String(branding.poster_background_color || primaryColor) }}>
+                <div className="relative mt-2 w-full max-w-[320px] rounded-[1.75rem] p-3 shadow-[0_24px_50px_rgba(40,22,6,0.18)] sm:rounded-[2rem] sm:p-4" style={{ backgroundColor: String(branding.poster_background_color || primaryColor) }}>
                   <div className="rounded-[1.6rem] border px-4 pb-4 pt-5" style={{ backgroundColor: surfaceColor, borderColor: `${textColor}18` }}>
                     {posterImageUrl ? (
-                      <img src={posterImageUrl} alt={companyName} className="h-72 w-full rounded-[1.25rem] object-cover" loading="lazy" />
+                      <img src={posterImageUrl} alt={companyName} className="h-56 w-full rounded-[1.25rem] object-cover sm:h-72" loading="lazy" />
                     ) : heroImageUrl ? (
                       <img src={heroImageUrl} alt={heroTitle} className="mb-3 h-36 w-full rounded-[1.25rem] object-cover" loading="lazy" />
                     ) : (
@@ -162,13 +162,13 @@ export default function PublicMenu() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2 sm:flex-wrap sm:overflow-visible">
           {categories.map((category) => (
             <button
               key={category}
               type="button"
               onClick={() => setActiveCategory(category)}
-              className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+              className={`shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition ${
                 activeCategory === category
                   ? 'text-slate-900'
                   : 'hover:bg-white/60'
@@ -187,12 +187,13 @@ export default function PublicMenu() {
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filteredItems.map((item) => (
-              <div key={item.id} className="rounded-[1.75rem] border p-5 shadow-[0_10px_30px_rgba(55,31,8,0.12)]" style={{ borderColor: `${textColor}18`, backgroundColor: surfaceColor }}>
+              <div key={item.id} className="rounded-[1.5rem] border p-4 shadow-[0_10px_30px_rgba(55,31,8,0.12)] sm:rounded-[1.75rem] sm:p-5" style={{ borderColor: `${textColor}18`, backgroundColor: surfaceColor }}>
                 {showImages && item.image_url ? (
                   <img
                     src={String(item.image_url)}
                     alt={String(item.item_name || 'Menu item')}
-                    className="mb-4 h-48 w-full rounded-[1.25rem] object-cover"
+                    className="mb-4 h-40 w-full rounded-[1.25rem] object-cover sm:h-48"
+                    loading="lazy"
                   />
                 ) : null}
                 <div className="mb-4 flex items-start justify-between gap-4">
@@ -200,7 +201,7 @@ export default function PublicMenu() {
                     <div className="rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em]" style={{ backgroundColor: `${accentColor}22`, color: textColor }}>
                       {item.category}
                     </div>
-                    <h3 className="mt-3 text-2xl font-bold" style={{ color: textColor }}>{item.item_name}</h3>
+                    <h3 className="mt-3 break-words text-xl font-bold sm:text-2xl" style={{ color: textColor }}>{item.item_name}</h3>
                     {showDescriptions && item.description ? (
                       <p className="mt-2 text-sm leading-6" style={{ color: `${textColor}CC` }}>{String(item.description)}</p>
                     ) : null}

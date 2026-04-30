@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
+import QRCode from 'qrcode';
 import { get_tables_live, create_table_live, delete_table_live, open_table_live, transfer_table_live, revise_table_items_live } from '../api/tables';
 import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
@@ -10,6 +11,7 @@ import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
 import { Decimal } from 'decimal.js';
 import { get_business_profile, get_settings_live } from '../api/settings';
+import { save_sale_receipt_html_live } from '../api/pos';
 import { isBackendEnabled } from '../api/client';
 import { getDB } from '../lib/db_sim';
 import { verifyLocalCredential } from '../lib/local_auth';
@@ -17,6 +19,7 @@ import { logEvent } from '../lib/logger';
 import { qzPrintHtml } from '../lib/qz';
 import { hostScopedKey } from '../lib/storage_keys';
 import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
+import { getTenantDomains } from '../lib/tenant';
 import { formatRestaurantLocalTime, formatServerUtcDateTime, formatServerUtcTime, localDateInputValue, parseRestaurantLocalTimestamp } from '../lib/time';
 import TableGrid from './tables/TableGrid';
 import MenuGrid from './tables/MenuGrid';
@@ -1819,6 +1822,59 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     const receiptDeposit = new Decimal(result.deposit_amount || deposit);
                     const receiptExtraDue = new Decimal(result.extra_due || dueNow);
                     const receiptFinalTotal = new Decimal(result.final_total || finalTotal);
+                    const settingsSnapshot = tenantSettings && Object.keys(tenantSettings).length > 0
+                      ? tenantSettings
+                      : {};
+                    const configuredBase = String(settingsSnapshot?.qr_settings?.base_url || businessProfile?.website || '').trim();
+                    const baseUrl = (configuredBase || window.location.origin).replace(/\/+$/, '');
+                    const tenantDomainRows = getTenantDomains();
+                    const tenantDomain =
+                      tenantDomainRows.find((row) => String(row?.tenant_id || '') === tenant_id && Boolean(row?.is_primary))?.domain ||
+                      tenantDomainRows.find((row) => String(row?.tenant_id || '') === tenant_id)?.domain ||
+                      '';
+                    const tenantBaseUrl = tenantDomain ? `https://${String(tenantDomain).trim().replace(/^https?:\/\//, '')}` : baseUrl;
+                    const receiptRefValue = String(result.receipt_code || paidSale?.receipt_code || result.sale_id || '').trim();
+                    const receiptTokenValue = String(result.receipt_token || paidSale?.receipt_token || '').trim();
+                    const receiptUrl = receiptTokenValue
+                      ? `${baseUrl}/?r=${encodeURIComponent(receiptRefValue)}&t=${encodeURIComponent(receiptTokenValue)}`
+                      : `${baseUrl}/?r=${encodeURIComponent(receiptRefValue)}`;
+                    const feedbackSettings = settingsSnapshot?.feedback_settings || {};
+                    const feedbackPromptText =
+                      lang === 'ru'
+                        ? String(feedbackSettings?.receipt_qr_prompt_ru || 'Ваше мнение очень важно для нас. Пожалуйста, отсканируйте QR и оставьте отзыв.')
+                        : lang === 'en'
+                          ? String(feedbackSettings?.receipt_qr_prompt_en || 'Your feedback matters to us. Please scan the QR code and share your review.')
+                          : String(feedbackSettings?.receipt_qr_prompt_az || 'Rəyiniz bizim üçün çox önəmlidir, lütfən QR skan edib rəyinizi bildirin.');
+                    const defaultFeedbackPortalUrl = `${tenantBaseUrl.replace(/\/+$/, '')}/feedback`;
+                    const feedbackBaseUrl = String(feedbackSettings?.portal_url || defaultFeedbackPortalUrl || '').trim();
+                    const feedbackEnabled = feedbackSettings?.enabled !== false && Boolean(feedbackBaseUrl && receiptTokenValue);
+                    let feedbackUrl = '';
+                    if (feedbackBaseUrl && receiptTokenValue) {
+                      try {
+                        const u = new URL(feedbackBaseUrl, tenantBaseUrl);
+                        if (tenantDomain && u.hostname === 'super.ironwaves.store') {
+                          u.hostname = String(tenantDomain).trim().replace(/^https?:\/\//, '');
+                        }
+                        u.pathname = '/feedback';
+                        u.searchParams.set('tenant_id', tenant_id);
+                        u.searchParams.set('sale_id', String(result.sale_id || ''));
+                        u.searchParams.set('receipt_id', receiptRefValue);
+                        u.searchParams.set('r', receiptRefValue);
+                        u.searchParams.set('t', receiptTokenValue);
+                        feedbackUrl = u.toString();
+                      } catch {
+                        feedbackUrl = feedbackBaseUrl;
+                      }
+                    }
+                    const qrDataUrl = await QRCode.toDataURL(feedbackUrl || receiptUrl || `SALE:${result.sale_id}`, {
+                      width: 156,
+                      margin: 2,
+                      errorCorrectionLevel: 'L',
+                      color: {
+                        dark: '#000000',
+                        light: '#FFFFFF',
+                      },
+                    });
 
                     const breakdown = paymentMethod === 'Split'
                       ? `<div style="display:flex;justify-content:space-between"><span>Nağd</span><span>${cash?.toFixed(2)} ₼</span></div>
@@ -1831,7 +1887,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                          ).map((part, idx) => `<div style="display:flex;justify-content:space-between"><span>Hissə ${idx + 1} · ${part.method}</span><span>${new Decimal(part.amount || 0).toFixed(2)} ₼</span></div>`).join('')}`
                       : `<div style="display:flex;justify-content:space-between"><span>Ödəniş</span><span>${paymentMethod}</span></div>`;
 
-                    setTableReceiptHtml(`
+                    const receiptMarkup = `
                       <html>
                         <head>
                           <style>
@@ -1870,10 +1926,19 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           <div class="line"><span>Əlavə ödəniş</span><span>${receiptExtraDue.toFixed(2)} ₼</span></div>
                           <div class="line bold" style="font-size:13px"><span>YEKUN</span><span>${receiptFinalTotal.toFixed(2)} ₼</span></div>
                           <hr />
+                          <div style="display:flex;justify-content:center;margin:8px 0 6px 0">
+                            <img src="${qrDataUrl}" alt="feedback qr" style="width:108px;height:108px" />
+                          </div>
+                          ${feedbackEnabled ? `<div class="muted" style="font-size:10px;text-align:center">${feedbackPromptText}</div>` : ''}
+                          <hr />
                           <div class="muted">${businessProfile?.receipt_footer || 'Bizi seçdiyiniz üçün təşəkkür edirik!'}</div>
                         </body>
                       </html>
-                    `);
+                    `;
+                    setTableReceiptHtml(receiptMarkup);
+                    if (isBackendEnabled() && String(result.sale_id || '').trim()) {
+                      void save_sale_receipt_html_live(String(result.sale_id), receiptMarkup).catch(() => undefined);
+                    }
                     notify('success', tx(lang, 'Masa hesabı bağlandı', 'Счет стола закрыт'));
                     window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { tenant_id, sale_id: result.sale_id, source: 'table' } }));
                     window.dispatchEvent(new CustomEvent('logs-updated', { detail: { tenant_id, sale_id: result.sale_id, source: 'table' } }));

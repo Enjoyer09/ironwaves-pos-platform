@@ -112,6 +112,9 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
   const accentColor = String(settings?.customer_app_settings?.accent_color || '#22d3ee');
   const backgroundColor = String(settings?.customer_app_settings?.background_color || '#0b1220');
   const textColor = '#0F172A';
+  const companyName = String(profile?.company_name || profile?.name || 'iRonWaves').trim();
+  const logoUrl = String(profile?.logo_url || '').trim();
+  const brandInitial = (companyName.match(/\p{L}|\p{N}/u)?.[0] || 'I').toUpperCase();
   const heading = 'Rəy və məmnuniyyət sorğusu';
   const subHeading = 'Xidmət keyfiyyətini yaxşılaşdırmaq üçün 30 saniyə ayırın.';
   const lowScoreThreshold = 3;
@@ -311,7 +314,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
 
   return (
     <div
-      className="relative min-h-screen overflow-hidden px-3 pb-28 pt-5"
+      className="relative min-h-dvh overflow-x-hidden overflow-y-auto px-3 pb-24 pt-4 sm:px-4 sm:pb-28 sm:pt-5"
       style={{
         background:
           'linear-gradient(155deg, #8ec5ff 0%, #a48bff 28%, #ef8cf9 57%, #ffb58f 100%)',
@@ -322,17 +325,26 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
       <div className="blob-wave blob-wave-c" />
 
       <div className="mx-auto w-full max-w-[430px]">
-        <div className="glass-card relative overflow-hidden rounded-[30px] p-5 text-slate-900">
+        <div className="glass-card relative overflow-hidden rounded-[26px] p-4 text-slate-900 sm:rounded-[30px] sm:p-5">
           <div className="glass-inner-highlight" />
 
           <div className="mb-4 flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-yellow-400 font-black text-slate-900 shadow-[0_8px_24px_rgba(234,179,8,0.38)]">
-                D
-              </div>
+            <div className="min-w-0 flex items-center gap-3">
+              {logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt={companyName}
+                  className="h-12 w-12 shrink-0 rounded-2xl object-cover shadow-[0_8px_24px_rgba(15,23,42,0.18)]"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-yellow-400 font-black text-slate-900 shadow-[0_8px_24px_rgba(234,179,8,0.38)]">
+                  {brandInitial}
+                </div>
+              )}
               <div>
-                <h1 className="text-[22px] font-extrabold leading-tight" style={{ color: textColor }}>
-                  Daily Coffee & Drinks
+                <h1 className="line-clamp-2 text-[20px] font-extrabold leading-tight sm:text-[22px]" style={{ color: textColor }}>
+                  {companyName}
                 </h1>
                 <p className="text-[12px] font-medium text-slate-600">{heading}</p>
               </div>
