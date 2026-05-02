@@ -72,7 +72,7 @@ export default function ZReportPanel() {
   const [loadingPrinters, setLoadingPrinters] = useState(false);
   const [shiftStatusState, setShiftStatusState] = useState(get_shift_status(tenant_id));
   const [expectedCashState, setExpectedCashState] = useState<Decimal>(() => get_expected_cash(tenant_id));
-  const [summary, setSummary] = useState<any>({ total_revenue: '0', cash_sales: '0', card_sales: '0', gross_profit: '0', total_cogs: '0', void_count: 0 });
+  const [summary, setSummary] = useState<any>({ total_revenue: '0', cash_sales: '0', card_sales: '0', ledger_sales_total: '0', gross_sales: '0', void_sales: '0', gross_profit: '0', total_cogs: '0', void_count: 0 });
   const [sales, setSales] = useState<any[]>([]);
   const [handovers, setHandovers] = useState<any[]>([]);
   const [pendingReceived, setPendingReceived] = useState<any | null>(null);
@@ -232,6 +232,7 @@ export default function ZReportPanel() {
     const cashSales = new Decimal(result?.cash_sales ?? summary.cash_sales ?? 0);
     const cardSales = new Decimal(result?.card_sales ?? summary.card_sales ?? 0);
     const totalSales = cashSales.plus(cardSales);
+    const voidSales = new Decimal(result?.void_sales ?? summary.void_sales ?? 0);
     const depositCollected = new Decimal(result?.deposit_total || 0);
     const activeDepositLiability = new Decimal(currentBalances.deposit_balance || 0);
     const otherIncomeTotal = new Decimal(result?.other_income_total || 0);
@@ -268,10 +269,12 @@ export default function ZReportPanel() {
             <div class="line"><span>Ümumi Satış</span><span>${totalSales.toFixed(2)} ₼</span></div>
             <div class="line"><span>Nağd Satış</span><span>${cashSales.toFixed(2)} ₼</span></div>
             <div class="line"><span>Kart Satış</span><span>${cardSales.toFixed(2)} ₼</span></div>
+            ${voidSales.gt(0) ? `<div class="line"><span>Void/Cancel</span><span>${voidSales.toFixed(2)} ₼</span></div>` : ''}
           ` : `
             <div class="section-title">Ödəniş bölgüsü</div>
             <div class="line"><span>Nağd Satış</span><span>${cashSales.toFixed(2)} ₼</span></div>
             <div class="line"><span>Kart Satış</span><span>${cardSales.toFixed(2)} ₼</span></div>
+            ${voidSales.gt(0) ? `<div class="line"><span>Void/Cancel</span><span>${voidSales.toFixed(2)} ₼</span></div>` : ''}
           `}
           ${zReportReceiptSettings.show_profit_summary ? `
             <div class="section-title">Mənfəət xülasəsi</div>
@@ -463,11 +466,11 @@ export default function ZReportPanel() {
           get_sales_list_live(tenant_id, start, end, user?.role === 'staff' ? user.username : undefined),
         ]);
         if (!mounted) return;
-        setSummary(nextSummary || { total_revenue: '0', cash_sales: '0', card_sales: '0', gross_profit: '0', total_cogs: '0', void_count: 0 });
+        setSummary(nextSummary || { total_revenue: '0', cash_sales: '0', card_sales: '0', ledger_sales_total: '0', gross_sales: '0', void_sales: '0', gross_profit: '0', total_cogs: '0', void_count: 0 });
         setSales(nextSales || []);
       } catch {
         if (!mounted) return;
-        setSummary({ total_revenue: '0', cash_sales: '0', card_sales: '0', gross_profit: '0', total_cogs: '0', void_count: 0 });
+        setSummary({ total_revenue: '0', cash_sales: '0', card_sales: '0', ledger_sales_total: '0', gross_sales: '0', void_sales: '0', gross_profit: '0', total_cogs: '0', void_count: 0 });
         setSales([]);
       }
     })();
@@ -825,6 +828,15 @@ export default function ZReportPanel() {
       setLoadingPrinters(false);
     }
   };
+
+  const summaryCashSales = useMemo(() => new Decimal(summary.cash_sales || 0), [summary.cash_sales]);
+  const summaryCardSales = useMemo(() => new Decimal(summary.card_sales || 0), [summary.card_sales]);
+  const summaryNetSales = useMemo(() => {
+    if (summary.ledger_sales_total !== undefined && summary.ledger_sales_total !== null) {
+      return new Decimal(summary.ledger_sales_total || 0);
+    }
+    return summaryCashSales.plus(summaryCardSales);
+  }, [summary.ledger_sales_total, summaryCashSales, summaryCardSales]);
 
   if (zReceiptHtml) {
     return (
@@ -1377,7 +1389,7 @@ export default function ZReportPanel() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
-        <Metric title={tx(lang, 'Ümumi Satış', 'Общие продажи', 'Total Sales')} value={summary.total_revenue} />
+        <Metric title={tx(lang, 'Ümumi Satış', 'Общие продажи', 'Total Sales')} value={summaryNetSales.toFixed(2)} />
         <Metric title={tx(lang, 'Nağd', 'Наличные', 'Cash')} value={summary.cash_sales} />
         <Metric title={tx(lang, 'Kart', 'Карта', 'Card')} value={summary.card_sales} />
         <Metric title={tx(lang, 'Maya (COGS)', 'Себестоимость (COGS)', 'COGS')} value={summary.total_cogs} />

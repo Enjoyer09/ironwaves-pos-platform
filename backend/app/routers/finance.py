@@ -3,7 +3,7 @@ from decimal import Decimal
 from threading import Lock
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import case, func, or_
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -28,6 +28,7 @@ from app.schemas import FinanceEntryIn, FinanceReconciliationIn, FinanceTransact
 
 
 router = APIRouter(prefix="/api/v1/finance", tags=["finance"])
+VOID_SALE_STATUSES = ["VOIDED", "VOID", "CANCELLED", "CANCELED"]
 
 
 FINANCE_CATEGORY_LABELS: dict[str, str] = {
@@ -336,7 +337,10 @@ def _build_finance_anomalies(db: Session, tenant_id: str) -> dict:
     total_revenue = Decimal(
         str(
             db.query(func.coalesce(func.sum(Sale.total), 0))
-            .filter(Sale.tenant_id == tenant_id)
+            .filter(
+                Sale.tenant_id == tenant_id,
+                ~func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
+            )
             .scalar()
             or 0
         )
@@ -344,11 +348,14 @@ def _build_finance_anomalies(db: Session, tenant_id: str) -> dict:
     ledger_sales_total = Decimal(
         str(
             db.query(func.coalesce(func.sum(FinanceTransaction.amount), 0))
+            .select_from(FinanceTransaction)
+            .join(Sale, and_(Sale.id == FinanceTransaction.related_order_id, Sale.tenant_id == FinanceTransaction.tenant_id))
             .filter(
                 FinanceTransaction.tenant_id == tenant_id,
                 FinanceTransaction.status == "posted",
                 FinanceTransaction.transaction_type.in_(["income", "deposit_apply_to_bill"]),
                 FinanceTransaction.related_order_id.isnot(None),
+                ~func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
             )
             .scalar()
             or 0
@@ -479,7 +486,10 @@ def _period_bounds(date_from: str | None, date_to: str | None) -> tuple[datetime
 
 
 def _sale_period_filters(tenant_id: str, start: datetime | None, end: datetime | None) -> list:
-    filters = [Sale.tenant_id == tenant_id, Sale.status == "COMPLETED"]
+    filters = [
+        Sale.tenant_id == tenant_id,
+        ~func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
+    ]
     if start:
         filters.append(Sale.created_at >= start)
     if end:
@@ -806,11 +816,7 @@ def _balance_sheet_report(db: Session, tenant_id: str) -> dict:
 
 
 def _profit_loss_report(db: Session, tenant_id: str, start: datetime | None, end: datetime | None) -> dict:
-    sales_filters = [Sale.tenant_id == tenant_id, Sale.status == "COMPLETED"]
-    if start:
-        sales_filters.append(Sale.created_at >= start)
-    if end:
-        sales_filters.append(Sale.created_at <= end)
+    sales_filters = _sale_period_filters(tenant_id, start, end)
     (
         sales_count_raw,
         revenue_raw,

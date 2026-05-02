@@ -22,6 +22,7 @@ from app.services.finance_service import (
 
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
+VOID_SALE_STATUSES = ["VOIDED", "VOID", "CANCELLED", "CANCELED"]
 
 
 class SaleAdjustIn(BaseModel):
@@ -240,12 +241,15 @@ def get_sales_summary(
     ]
     if cashier:
         sales_filters.append(Sale.cashier == cashier)
-    total_revenue_raw, total_cogs_raw, void_count_raw = (
+    sale_status = func.upper(func.coalesce(Sale.status, ""))
+    sale_is_void = sale_status.in_(VOID_SALE_STATUSES)
+    sale_is_net = ~sale_is_void
+    total_revenue_raw, total_cogs_raw, void_count_raw, void_sales_raw, gross_sales_raw = (
         db.query(
             func.coalesce(
                 func.sum(
                     case(
-                        (Sale.status != "VOIDED", Sale.total),
+                        (sale_is_net, Sale.total),
                         else_=0,
                     )
                 ),
@@ -254,7 +258,7 @@ def get_sales_summary(
             func.coalesce(
                 func.sum(
                     case(
-                        (Sale.status != "VOIDED", Sale.cogs),
+                        (sale_is_net, Sale.cogs),
                         else_=0,
                     )
                 ),
@@ -263,12 +267,22 @@ def get_sales_summary(
             func.coalesce(
                 func.sum(
                     case(
-                        (Sale.status == "VOIDED", 1),
+                        (sale_is_void, 1),
                         else_=0,
                     )
                 ),
                 0,
             ),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (sale_is_void, Sale.total),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+            func.coalesce(func.sum(Sale.total), 0),
         )
         .filter(*sales_filters)
         .one()
@@ -276,6 +290,8 @@ def get_sales_summary(
     total_revenue = Decimal(str(total_revenue_raw or 0))
     total_cogs = Decimal(str(total_cogs_raw or 0))
     void_count = int(void_count_raw or 0)
+    void_sales = Decimal(str(void_sales_raw or 0))
+    gross_sales = Decimal(str(gross_sales_raw or 0))
     ledger_filters = [
         FinanceTransaction.tenant_id == tenant.id,
         FinanceTransaction.status == "posted",
@@ -284,7 +300,7 @@ def get_sales_summary(
         Sale.tenant_id == tenant.id,
         Sale.created_at >= start,
         Sale.created_at <= end,
-        Sale.status != "VOIDED",
+        ~func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
         FinanceAccount.code.in_(["cash", "card"]),
     ]
     if cashier:
@@ -327,6 +343,8 @@ def get_sales_summary(
         "cash_sales": str(cash_sales.quantize(Decimal("0.01"))),
         "card_sales": str(card_sales.quantize(Decimal("0.01"))),
         "ledger_sales_total": str(ledger_total.quantize(Decimal("0.01"))),
+        "gross_sales": str(gross_sales.quantize(Decimal("0.01"))),
+        "void_sales": str(void_sales.quantize(Decimal("0.01"))),
         "reconciliation_gap": str(reconciliation_gap),
         "has_reconciliation_issue": abs(reconciliation_gap) > Decimal("0.01"),
         "total_cogs": str(total_cogs.quantize(Decimal("0.01"))),
