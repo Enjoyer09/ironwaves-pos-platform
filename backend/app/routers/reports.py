@@ -21,6 +21,7 @@ from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XRe
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
 STAFF_SHIFT_SESSIONS_KEY = "staff_shift_sessions"
+VOID_SALE_STATUSES = ["VOIDED", "VOID", "CANCELLED", "CANCELED"]
 
 
 def _utcnow() -> datetime:
@@ -139,7 +140,7 @@ def _shift_sales_payment_totals(db: Session, tenant_id: str, opened_at: datetime
             FinanceTransaction.status == "posted",
             FinanceTransaction.transaction_type == "income",
             FinanceTransaction.related_order_id.isnot(None),
-            Sale.status != "VOIDED",
+            ~func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
         )
     )
     if opened_at:
@@ -157,6 +158,18 @@ def _shift_sales_payment_totals(db: Session, tenant_id: str, opened_at: datetime
         elif code == "card":
             card += amount
     return cash.quantize(Decimal("0.01")), card.quantize(Decimal("0.01"))
+
+
+def _shift_void_sales_total(db: Session, tenant_id: str, opened_at: datetime | None, closed_at: datetime | None) -> Decimal:
+    query = db.query(func.coalesce(func.sum(Sale.total), 0)).filter(
+        Sale.tenant_id == tenant_id,
+        func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
+    )
+    if opened_at:
+        query = query.filter(Sale.created_at >= opened_at)
+    if closed_at:
+        query = query.filter(Sale.created_at <= closed_at)
+    return Decimal(str(query.scalar() or 0)).quantize(Decimal("0.01"))
 
 
 def _replace_z_report_money_line(html: str, label: str, amount: Decimal) -> str:
@@ -616,6 +629,7 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         if code in {"cash", "card", "safe", "debt"} and account_id
     ]
     cash_sales, card_sales = _shift_sales_payment_totals(db, tenant.id, active.opened_at, None)
+    void_sales = _shift_void_sales_total(db, tenant.id, active.opened_at, None)
     deposit_total = _posted_transaction_sum(
         db,
         tenant.id,
@@ -666,8 +680,10 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         "success": True,
         "shift_id": active.id,
         "closed_at": active.closed_at.isoformat(),
+        "total_sales": str((cash_sales + card_sales).quantize(Decimal("0.01"))),
         "cash_sales": str(cash_sales.quantize(Decimal("0.01"))),
         "card_sales": str(card_sales.quantize(Decimal("0.01"))),
+        "void_sales": str(void_sales.quantize(Decimal("0.01"))),
         "deposit_total": str(deposit_total.quantize(Decimal("0.01"))),
         "expected_cash": str(expected.quantize(Decimal("0.01"))),
         "actual_cash": str(actual_cash),
@@ -737,6 +753,7 @@ def list_z_report_receipts(
         if not row.z_report_html:
             continue
         cash_sales, card_sales = _shift_sales_payment_totals(db, tenant.id, row.opened_at, row.closed_at)
+        void_sales = _shift_void_sales_total(db, tenant.id, row.opened_at, row.closed_at)
         corrected_html = _correct_z_report_receipt_html(row.z_report_html or "", cash_sales, card_sales)
         result.append(
             {
@@ -749,6 +766,7 @@ def list_z_report_receipts(
                 "cash_variance": str(row.cash_variance) if row.cash_variance is not None else None,
                 "cash_sales": str(cash_sales),
                 "card_sales": str(card_sales),
+                "void_sales": str(void_sales),
                 "total_sales": str((cash_sales + card_sales).quantize(Decimal("0.01"))),
                 "z_report_html": corrected_html,
             }
