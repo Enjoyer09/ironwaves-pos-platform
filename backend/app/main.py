@@ -24,7 +24,7 @@ from app.db import Base, engine, SessionLocal
 from app.models import AuditLog, BusinessProfile, InventoryItem, MenuItem, Recipe, Setting, Table, Tenant, User
 from app.realtime import realtime_hub
 from app.routers import ai_ops, analytics_api, auth, catalog, customer_feedback_ops, finance, operations, pos, reports, restaurant, settings as settings_router, tenants
-from app.security import decode_token, hash_password
+from app.security import decode_token, hash_password, get_client_ip
 from app.tenant import resolve_tenant_from_request
 
 
@@ -341,8 +341,7 @@ async def security_boundary_middleware(request: Request, call_next):
         or path.startswith("/assets/")
     )
     if not is_cheap_path:
-        client_host = request.client.host if request.client else ""
-        client_ip = client_host or "unknown"
+        client_ip = get_client_ip(request) or "unknown"
         tenant_scope = (
             str(request.headers.get("x-tenant-domain") or "").strip().lower()
             or str(request.headers.get("host") or "").strip().lower()

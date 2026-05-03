@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
 
+from fastapi import Request
 from jose import jwt
 from passlib.context import CryptContext
 
@@ -101,3 +102,13 @@ def decode_token(token: str) -> dict:
 
 def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def get_client_ip(request: Request) -> str:
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip.strip()
+    return request.client.host if request.client else ""

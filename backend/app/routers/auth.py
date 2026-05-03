@@ -44,6 +44,7 @@ from app.security import (
     hash_token,
     validate_password_policy,
     verify_password,
+    get_client_ip,
 )
 
 
@@ -71,8 +72,8 @@ def _get_redis_security_client():
 
 
 def _pin_attempt_key(request: Request, tenant_id: str) -> str:
-    client_host = request.client.host if request.client else ""
-    return f"{tenant_id}:{client_host or 'unknown'}"
+    client_ip = get_client_ip(request)
+    return f"{tenant_id}:{client_ip or 'unknown'}"
 
 
 def _consume_pin_attempts(request: Request, tenant_id: str) -> None:
@@ -129,9 +130,9 @@ def _reset_pin_attempts(request: Request, tenant_id: str) -> None:
 
 
 def _login_attempt_key(request: Request, tenant_id: str, username: str) -> str:
-    client_host = request.client.host if request.client else ""
+    client_ip = get_client_ip(request)
     safe_username = str(username or "").strip().lower() or "unknown_user"
-    return f"{tenant_id}:{safe_username}:{client_host or 'unknown'}"
+    return f"{tenant_id}:{safe_username}:{client_ip or 'unknown'}"
 
 
 def _consume_login_attempts(request: Request, tenant_id: str, username: str) -> None:

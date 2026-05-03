@@ -368,6 +368,9 @@ class Sale(Base):
 
 class FinanceEntry(Base):
     __tablename__ = "finance_entries"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_finance_entries_amount_positive"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
