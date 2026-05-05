@@ -922,7 +922,10 @@ html {
   html[data-theme='light'] .bg-slate-950\/35,
   html[data-theme='light'] .bg-slate-950\/30,
   html[data-theme='light'] .bg-slate-950\/25,
-  html[data-theme='light'] .bg-slate-950\/20,
+  html[data-theme='light'] .bg-slate-950\/20 {
+    background-color: rgba(248, 250, 252, 0.95) !important;
+  }
+
   html[data-theme='light'] .bg-slate-900,
   html[data-theme='light'] .bg-slate-900\/95,
   html[data-theme='light'] .bg-slate-900\/80,
@@ -936,14 +939,20 @@ html {
   html[data-theme='light'] .bg-slate-900\/30,
   html[data-theme='light'] .bg-slate-900\/25,
   html[data-theme='light'] .bg-slate-900\/20,
-  html[data-theme='light'] .bg-slate-900\/15,
+  html[data-theme='light'] .bg-slate-900\/15 {
+    background-color: rgba(255, 255, 255, 0.98) !important;
+  }
+
   html[data-theme='light'] .bg-slate-800,
   html[data-theme='light'] .bg-slate-800\/80,
   html[data-theme='light'] .bg-slate-800\/70,
   html[data-theme='light'] .bg-slate-800\/60,
   html[data-theme='light'] .bg-slate-800\/50,
   html[data-theme='light'] .bg-slate-800\/40,
-  html[data-theme='light'] .bg-slate-800\/30,
+  html[data-theme='light'] .bg-slate-800\/30 {
+    background-color: rgba(241, 245, 249, 0.9) !important;
+  }
+
   html[data-theme='light'] .bg-slate-700,
   html[data-theme='light'] .bg-slate-700\/80,
   html[data-theme='light'] .bg-slate-700\/70,
@@ -953,7 +962,7 @@ html {
   html[data-theme='light'] .bg-slate-600\/60,
   html[data-theme='light'] .bg-slate-500,
   html[data-theme='light'] .bg-slate-500\/80 {
-    background-color: rgba(255, 255, 255, 0.72) !important;
+    background-color: rgba(226, 232, 240, 0.9) !important;
   }
 
   html[data-theme='light'] .bg-black\/20,
