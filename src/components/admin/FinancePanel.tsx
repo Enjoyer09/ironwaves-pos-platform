@@ -40,7 +40,7 @@ import { get_settings_live } from '../../api/settings';
 import { send_email } from '../../api/email';
 import { generate_ai_insight_engine, type AiDecisionInsight } from '../../api/ai_manager';
 import { tx } from '../../i18n';
-import { formatServerUtcDateTime, localDateInputValue } from '../../lib/time';
+import { formatServerUtcDateTime, localDateInputValue, localDateTimeNextStart, localDateTimeStart } from '../../lib/time';
 import {
   FinanceAlertsBar,
   FinanceControlCard,
@@ -348,8 +348,8 @@ export default function FinancePanel() {
       start.setMonth(0, 1);
     }
     if (preset !== 'custom') {
-      setFromDate(start.toISOString().slice(0, 10));
-      setToDate(end.toISOString().slice(0, 10));
+      setFromDate(localDateInputValue(start));
+      setToDate(localDateInputValue(end));
     }
   };
 
@@ -907,12 +907,10 @@ export default function FinancePanel() {
     setAiLoading(true);
     setAiError('');
     try {
-      const dateFrom = new Date(`${fromDate}T00:00:00`).toISOString();
-      const dateTo = new Date(`${toDate}T23:59:59`).toISOString();
       const generated = generate_ai_insight_engine({
         tenant_id,
-        date_from: dateFrom,
-        date_to: dateTo,
+        date_from: localDateTimeStart(fromDate),
+        date_to: localDateTimeNextStart(toDate),
         max_items: 12,
       });
       const filtered = generated

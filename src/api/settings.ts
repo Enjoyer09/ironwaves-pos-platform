@@ -206,6 +206,8 @@ function normalizePosLayoutConfig(source: any, fallback?: Partial<PosLayoutConfi
         value === 'compact' || value === 'expanded' ? value : 'comfortable',
       ]),
     ) as Record<string, 'compact' | 'comfortable' | 'expanded'>,
+    panel_ratio: source?.panel_ratio || base.panel_ratio || '50:50',
+    widget_options: source?.widget_options || base.widget_options || {},
     role_overrides: {
       staff: source?.role_overrides?.staff ? normalizePosLayoutConfig(source.role_overrides.staff, base) : {},
       manager: source?.role_overrides?.manager ? normalizePosLayoutConfig(source.role_overrides.manager, base) : {},
@@ -1190,7 +1192,7 @@ export function update_role_modules(payload: { staff: string[]; manager: string[
 
 export async function get_settings_live(tenant_id?: string) {
   if (!isBackendEnabled()) return get_settings(tenant_id);
-  const data = await apiRequest<Settings>('/api/v1/ops/settings', { tenantId: null });
+  const data = await apiRequest<Settings>(`/api/v1/ops/settings?_t=${Date.now()}`, { tenantId: null });
   const requestedTenant = String(resolveTenant(tenant_id));
   const responseTenant = String(data?.tenant_id || '');
   const resolvedTenant = String(responseTenant || requestedTenant);

@@ -43,3 +43,20 @@ export const formatRestaurantLocalTime = (value?: string | null, lang?: string |
 export const localDateInputValue = (date = new Date()) => {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 };
+
+export const localDateTimeStart = (dateValue?: string | null) => {
+  const date = String(dateValue || localDateInputValue()).slice(0, 10);
+  return `${date}T00:00:00`;
+};
+
+export const localDateTimeNextStart = (dateValue?: string | null) => {
+  const raw = String(dateValue || localDateInputValue()).slice(0, 10);
+  const [year, month, day] = raw.split('-').map((part) => Number(part));
+  if (!year || !month || !day) {
+    const fallback = new Date();
+    fallback.setDate(fallback.getDate() + 1);
+    return localDateTimeStart(localDateInputValue(fallback));
+  }
+  const next = new Date(year, month - 1, day + 1);
+  return localDateTimeStart(localDateInputValue(next));
+};

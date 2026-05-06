@@ -335,8 +335,8 @@ def sales_payment_totals(
         sale_filters.append(Sale.created_at >= start)
         void_filters.append(Sale.created_at >= start)
     if end:
-        sale_filters.append(Sale.created_at <= end)
-        void_filters.append(Sale.created_at <= end)
+        sale_filters.append(Sale.created_at < end)
+        void_filters.append(Sale.created_at < end)
     if cashier:
         sale_filters.append(Sale.cashier == cashier)
         void_filters.append(Sale.cashier == cashier)

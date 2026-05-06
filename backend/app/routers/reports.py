@@ -38,7 +38,10 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(timezone.utc).replace(tzinfo=None)
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is not None:
+            return parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed.replace(tzinfo=None)
     except Exception:
         return None
 
@@ -144,7 +147,7 @@ def _shift_void_sales_total(db: Session, tenant_id: str, opened_at: datetime | N
     if opened_at:
         query = query.filter(Sale.created_at >= opened_at)
     if closed_at:
-        query = query.filter(Sale.created_at <= closed_at)
+        query = query.filter(Sale.created_at < closed_at)
     return Decimal(str(query.scalar() or 0)).quantize(Decimal("0.01"))
 
 
@@ -158,12 +161,51 @@ def _replace_z_report_money_line(html: str, label: str, amount: Decimal) -> str:
     return re.sub(pattern, replacement, html, count=1, flags=re.IGNORECASE)
 
 
-def _correct_z_report_receipt_html(html: str, cash_sales: Decimal, card_sales: Decimal, total_sales: Decimal | None = None) -> str:
+def _z_report_money_line_exists(html: str, label: str) -> bool:
+    pattern = (
+        rf"<div\b[^>]*class=[\"'][^\"']*\bline\b[^\"']*[\"'][^>]*>\s*"
+        rf"<span[^>]*>\s*{re.escape(label)}\s*</span>\s*<span[^>]*>[^<]*</span>\s*</div>"
+    )
+    return re.search(pattern, html or "", flags=re.IGNORECASE) is not None
+
+
+def _insert_z_report_money_line_after(html: str, anchor_label: str, label: str, amount: Decimal) -> str:
+    if not html or _z_report_money_line_exists(html, label):
+        return html
+    safe_amount = f"{amount.quantize(Decimal('0.01'))} ₼"
+    line = f'<div class="line"><span>{label}</span><span>{safe_amount}</span></div>'
+    anchor_pattern = (
+        rf"(<div\b[^>]*class=[\"'][^\"']*\bline\b[^\"']*[\"'][^>]*>\s*"
+        rf"<span[^>]*>\s*{re.escape(anchor_label)}\s*</span>\s*<span[^>]*>[^<]*</span>\s*</div>)"
+    )
+    if re.search(anchor_pattern, html, flags=re.IGNORECASE):
+        return re.sub(anchor_pattern, rf"\1\n            {line}", html, count=1, flags=re.IGNORECASE)
+    total_pattern = (
+        r"(<div\b[^>]*class=[\"'][^\"']*\bline\b[^\"']*[\"'][^>]*>\s*"
+        r"<span[^>]*>\s*Ümumi Satış\s*</span>\s*<span[^>]*>[^<]*</span>\s*</div>)"
+    )
+    return re.sub(total_pattern, rf"{line}\n            \1", html, count=1, flags=re.IGNORECASE)
+
+
+def _correct_z_report_receipt_html(
+    html: str,
+    cash_sales: Decimal,
+    card_sales: Decimal,
+    total_sales: Decimal | None = None,
+    deposit_applied_sales: Decimal = Decimal("0.00"),
+    void_sales: Decimal = Decimal("0.00"),
+) -> str:
     if not html:
         return html
     final_total = (total_sales if total_sales is not None else cash_sales + card_sales).quantize(Decimal("0.01"))
     corrected = _replace_z_report_money_line(html, "Nağd Satış", cash_sales)
     corrected = _replace_z_report_money_line(corrected, "Kart Satış", card_sales)
+    if deposit_applied_sales > Decimal("0.00"):
+        corrected = _replace_z_report_money_line(corrected, "Depozitdən ödənən", deposit_applied_sales)
+        corrected = _insert_z_report_money_line_after(corrected, "Kart Satış", "Depozitdən ödənən", deposit_applied_sales)
+    if void_sales > Decimal("0.00"):
+        corrected = _replace_z_report_money_line(corrected, "Void/Cancel", void_sales)
+        corrected = _insert_z_report_money_line_after(corrected, "Depozitdən ödənən" if deposit_applied_sales > Decimal("0.00") else "Kart Satış", "Void/Cancel", void_sales)
     corrected = _replace_z_report_money_line(corrected, "Ümumi Satış", final_total)
     return corrected
 
@@ -735,7 +777,7 @@ def list_z_report_receipts(
     if start:
         query = query.filter(Shift.closed_at >= start)
     if end:
-        query = query.filter(Shift.closed_at <= end)
+        query = query.filter(Shift.closed_at < end)
     rows = query.order_by(Shift.closed_at.desc()).limit(limit).all()
     result = []
     for row in rows:
@@ -747,7 +789,14 @@ def list_z_report_receipts(
         deposit_applied_sales = sales_totals["deposit_applied"]
         total_sales = sales_totals["sales_total"]
         void_sales = sales_totals["void_sales"]
-        corrected_html = _correct_z_report_receipt_html(row.z_report_html or "", cash_sales, card_sales, total_sales)
+        corrected_html = _correct_z_report_receipt_html(
+            row.z_report_html or "",
+            cash_sales,
+            card_sales,
+            total_sales,
+            deposit_applied_sales,
+            void_sales,
+        )
         result.append(
             {
                 "id": row.id,

@@ -55,7 +55,7 @@ const getFinanceLocal = (tenant_id: string) => {
 
 const inDateRange = (createdAt: string, date_from: string, date_to: string) => {
   const current = new Date(createdAt).getTime();
-  return current >= new Date(date_from).getTime() && current <= new Date(date_to).getTime();
+  return current >= new Date(date_from).getTime() && current < new Date(date_to).getTime();
 };
 
 export function get_sales_summary(tenant_id: string, date_from: string, date_to: string, cashier_filter?: string) {

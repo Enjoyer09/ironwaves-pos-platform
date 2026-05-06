@@ -32,7 +32,7 @@ import { get_settings_live, get_users_live } from '../../api/settings';
 import { qzListPrinters, qzPrintHtml } from '../../lib/qz';
 import { tx } from '../../i18n';
 import { isBackendEnabled } from '../../api/client';
-import { formatServerUtcDateTime, localDateInputValue } from '../../lib/time';
+import { formatServerUtcDateTime, localDateInputValue, localDateTimeNextStart, localDateTimeStart } from '../../lib/time';
 import { sanitizeHtmlForIframe } from '../../lib/html_sanitize';
 
 const DEFAULT_PRINT_SETTINGS = { use_qz: false, printer_name: '' };
@@ -111,15 +111,11 @@ export default function ZReportPanel() {
   const requiredTopup = Decimal.max(new Decimal(0), targetCash.minus(carryoverCash));
 
   const start = useMemo(() => {
-    const d = new Date(fromDate);
-    d.setHours(0, 0, 0, 0);
-    return d.toISOString();
+    return localDateTimeStart(fromDate);
   }, [fromDate]);
 
   const end = useMemo(() => {
-    const d = new Date(toDate);
-    d.setHours(23, 59, 59, 999);
-    return d.toISOString();
+    return localDateTimeNextStart(toDate);
   }, [toDate]);
 
   const loadZReceiptHistory = useCallback(async () => {
