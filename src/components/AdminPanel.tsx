@@ -36,9 +36,10 @@ type AdminTab = 'dashboard' | 'analytics' | 'menu' | 'tables' | 'finance' | 'inv
 interface AdminPanelProps {
   externalTab?: AdminTab;
   isActive?: boolean;
+  onTabChange?: (tab: AdminTab) => void;
 }
 
-export default function AdminPanel({ externalTab, isActive = true }: AdminPanelProps) {
+export default function AdminPanel({ externalTab, isActive = true, onTabChange }: AdminPanelProps) {
   const user = useAppStore((state) => state.user);
   const lang = useAppStore((state) => state.lang);
   const notify = useAppStore((state) => state.notify);
@@ -90,7 +91,10 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
   const fetchSeqRef = useRef(0);
   const fetchAbortRef = useRef<AbortController | null>(null);
 
-  const setActiveTabSoft = (tab: AdminTab) => {
+  const setActiveTabSoft = (tab: AdminTab, syncParent = true) => {
+    if (syncParent) {
+      onTabChange?.(tab);
+    }
     startTransition(() => {
       setActiveTab(tab);
     });
@@ -252,7 +256,7 @@ export default function AdminPanel({ externalTab, isActive = true }: AdminPanelP
 
   useEffect(() => {
     if (externalTab && externalTab !== activeTab) {
-      setActiveTabSoft(externalTab);
+      setActiveTabSoft(externalTab, false);
     }
   }, [externalTab, activeTab]);
 
