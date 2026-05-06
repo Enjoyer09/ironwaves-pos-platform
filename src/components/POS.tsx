@@ -15,6 +15,7 @@ import { logUiError } from '../lib/logger';
 import { qzPrintHtml } from '../lib/qz';
 import { hostScopedKey } from '../lib/storage_keys';
 import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
+import { THERMAL_RECEIPT_PRINT_CSS } from '../lib/receipt_print_css';
 import {
   cacheMenuOffline,
   clearSyncedOfflineSales,
@@ -1191,7 +1192,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         const lines = receiptCart
           .map(
             (item) =>
-              `<tr><td style="padding:3px 0">${item.qty}x ${item.item_name}</td><td style="text-align:right">${toDecimalSafe(item.price)
+              `<tr><td>${item.qty}x ${item.item_name}</td><td>${toDecimalSafe(item.price)
                 .times(item.qty)
                 .toFixed(2)} ₼</td></tr>`,
           )
@@ -1260,15 +1261,10 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           <html>
             <head>
               <style>
-                @page { size: 80mm auto; margin: 4mm; }
-                body { font-family: Inter, Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
-                .line { display:flex; justify-content:space-between; gap:8px; margin: 2px 0; }
-                .muted { color:#555; font-size:11px; }
-                .bold { font-weight: 700; }
-                hr { border: none; border-top: 1px dashed #999; margin: 8px 0; }
+                ${THERMAL_RECEIPT_PRINT_CSS}
               </style>
             </head>
-            <body style="font-family:Arial;padding:16px;max-width:320px;margin:0 auto">
+            <body>
               ${businessProfile?.logo_url ? `<img src="${businessProfile.logo_url}" style="height:34px;max-width:180px;object-fit:contain;margin-bottom:6px" />` : ''}
               <div class="bold" style="font-size:15px">${businessProfile?.company_name || 'IRONWAVES POS'}</div>
               <div class="muted">VÖEN: ${businessProfile?.voen || '-'}</div>
@@ -1282,14 +1278,14 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               <div style="margin-top:8px;text-align:center">${barcodeSvg || ''}</div>
               <div class="muted" style="text-align:center">SALE:${formatDisplayId(sale.sale_id)}</div>
               <hr />
-              <table style="width:100%;font-size:13px">${lines}</table>
+              <table>${lines}</table>
               <hr />
               <div class="line"><span>${tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span><span>${saleRaw.toFixed(2)} ₼</span></div>
               <div class="line"><span>${tx(lang, 'Endirim', 'Скидка', 'Discount')}</span><span>- ${saleDiscount.toFixed(2)} ₼</span></div>
               ${saleFreeCoffees > 0 ? `<div class="line"><span>${tx(lang, 'Pulsuz kofe', 'Бесплатный кофе', 'Free coffee')}</span><span>${saleFreeCoffees}</span></div>` : ''}
               ${receiptCustomerId ? `<div class="line"><span>${tx(lang, 'Müştəri ID', 'ID клиента', 'Customer ID')}</span><span>${receiptCustomerId}</span></div>` : ''}
               ${receiptCustomerId ? `<div class="line"><span>${tx(lang, 'Ulduz balansı', 'Баланс звезд', 'Star Balance')}</span><span>${receiptStarsAfter}</span></div>` : ''}
-              <div class="line bold" style="font-size:13px"><span>${tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>${saleFinal.toFixed(2)} ₼</span></div>
+              <div class="line bold"><span>${tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>${saleFinal.toFixed(2)} ₼</span></div>
               <div class="line"><span>${tx(lang, 'Ödəniş', 'Оплата', 'Payment')}</span><span>${paymentMethod}</span></div>
               ${paymentMethod === 'Split' ? `<div class="line"><span>${tx(lang, 'Split nağd', 'Split наличные', 'Split cash')}</span><span>${(splitCash || new Decimal(0)).toFixed(2)} ₼</span></div>` : ''}
               ${paymentMethod === 'Split' ? `<div class="line"><span>${tx(lang, 'Split kart', 'Split карта', 'Split card')}</span><span>${(splitCard || new Decimal(0)).toFixed(2)} ₼</span></div>` : ''}

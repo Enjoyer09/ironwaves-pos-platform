@@ -34,6 +34,7 @@ import { tx } from '../../i18n';
 import { isBackendEnabled } from '../../api/client';
 import { formatServerUtcDateTime, formatServerUtcDateTime24, formatServerUtcTime24, localDateInputValue, localDateTimeNextStart, localDateTimeStart } from '../../lib/time';
 import { sanitizeHtmlForIframe } from '../../lib/html_sanitize';
+import { THERMAL_RECEIPT_PRINT_CSS } from '../../lib/receipt_print_css';
 
 const DEFAULT_PRINT_SETTINGS = { use_qz: false, printer_name: '' };
 const DEFAULT_Z_REPORT_RECEIPT_SETTINGS = {
@@ -267,13 +268,7 @@ export default function ZReportPanel() {
       <html>
         <head>
           <style>
-            @page { size: 80mm auto; margin: 4mm; }
-            body { font-family: Inter, Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
-            .line { display:flex; justify-content:space-between; gap:8px; margin: 2px 0; }
-            .muted { color:#555; font-size:11px; }
-            .bold { font-weight: 700; }
-            .section-title { margin-top: 8px; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: .04em; }
-            hr { border: none; border-top: 1px dashed #999; margin: 8px 0; }
+            ${THERMAL_RECEIPT_PRINT_CSS}
           </style>
         </head>
         <body>

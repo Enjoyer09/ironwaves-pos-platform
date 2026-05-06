@@ -3,6 +3,7 @@ import { get_public_receipt_live } from '../api/pos';
 import { get_business_profile, get_public_branding_live, get_settings } from '../api/settings';
 import { formatServerUtcDateTime } from '../lib/time';
 import { buildSaleReceiptHtml } from '../lib/receipt_html';
+import { withThermalReceiptPrintCss } from '../lib/receipt_print_css';
 
 type Props = {
   receiptId: string;
@@ -95,14 +96,14 @@ export default function PublicReceipt({ receiptId, token }: Props) {
         const receiptHtml = forceFreshReceipt || shouldRegenerateFromFallback
           ? await generatedHtml()
           : savedHtml || fallbackHtml || await generatedHtml();
-        setReceipt({ ...receiptData, receipt_html: receiptHtml });
+        setReceipt({ ...receiptData, receipt_html: withThermalReceiptPrintCss(receiptHtml) });
       } catch {
         if (!mounted) return;
         try {
           const raw = sessionStorage.getItem(fallbackKey);
           const parsed = raw ? JSON.parse(raw) : null;
           if (parsed) {
-            setReceipt(parsed);
+            setReceipt({ ...parsed, receipt_html: withThermalReceiptPrintCss(String(parsed.receipt_html || '')) });
             setFeedback(null);
           } else {
             setReceipt(null);
@@ -164,7 +165,7 @@ export default function PublicReceipt({ receiptId, token }: Props) {
           <iframe
             ref={receiptIframeRef}
             title="receipt-html"
-            srcDoc={receipt.receipt_html}
+            srcDoc={withThermalReceiptPrintCss(receipt.receipt_html)}
             className="h-[80vh] w-full rounded-lg bg-white"
           />
         </div>

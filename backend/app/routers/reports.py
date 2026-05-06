@@ -42,6 +42,65 @@ VOID_SALE_STATUSES = [
 SALE_PAYMENT_TRANSACTION_TYPES = ["income", "deposit_apply_to_bill"]
 SALE_PAYMENT_LEDGER_TRANSACTION_TYPES = ["income", "deposit_apply_to_bill", "reversal"]
 BAKU_TIME_ZONE = ZoneInfo("Asia/Baku")
+THERMAL_RECEIPT_PRINT_CSS = """
+  @page { size: 80mm auto; margin: 3mm; }
+  * { box-sizing: border-box; }
+  html,
+  body {
+    width: 74mm;
+    max-width: 74mm;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #000 !important;
+    background: #fff !important;
+    font-family: "Courier New", "DejaVu Sans Mono", "Liberation Mono", monospace !important;
+    font-size: 14px !important;
+    line-height: 1.26 !important;
+    font-weight: 600 !important;
+    -webkit-font-smoothing: none;
+    text-rendering: geometricPrecision;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body { overflow-wrap: break-word; }
+  .line {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    align-items: start;
+    gap: 6px;
+    margin: 3px 0;
+  }
+  .line span:first-child { min-width: 0; overflow-wrap: anywhere; }
+  .line span:last-child {
+    text-align: right;
+    white-space: nowrap;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+  .muted { color: #111; font-size: 12px; line-height: 1.22; font-weight: 600; }
+  .bold { font-weight: 900; }
+  .section-title {
+    margin-top: 9px;
+    font-size: 13px;
+    line-height: 1.25;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 14px !important; line-height: 1.25 !important; }
+  td { vertical-align: top; padding: 4px 0; font-weight: 700; }
+  td:first-child { overflow-wrap: anywhere; padding-right: 6px; }
+  td:last-child {
+    width: 24mm;
+    text-align: right;
+    white-space: nowrap;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+  }
+  hr { border: 0; border-top: 1.5px dashed #000; margin: 9px 0; }
+  svg { max-width: 100%; }
+  img { max-width: 100%; image-rendering: crisp-edges; }
+"""
 
 
 def _utcnow() -> datetime:
@@ -631,13 +690,7 @@ def _build_z_report_receipt_html(
       <html>
         <head>
           <style>
-            @page {{ size: 80mm auto; margin: 4mm; }}
-            body {{ font-family: Inter, Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }}
-            .line {{ display:flex; justify-content:space-between; gap:8px; margin: 2px 0; }}
-            .muted {{ color:#555; font-size:11px; }}
-            .bold {{ font-weight: 700; }}
-            .section-title {{ margin-top: 8px; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: .04em; }}
-            hr {{ border: none; border-top: 1px dashed #999; margin: 8px 0; }}
+            {THERMAL_RECEIPT_PRINT_CSS}
           </style>
         </head>
         <body>
