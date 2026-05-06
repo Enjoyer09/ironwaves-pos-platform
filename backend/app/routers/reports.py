@@ -153,6 +153,74 @@ def _shift_void_sales_total(db: Session, tenant_id: str, opened_at: datetime | N
     return Decimal(str(query.scalar() or 0)).quantize(Decimal("0.01"))
 
 
+def _shift_cashier_breakdown(db: Session, tenant_id: str, opened_at: datetime | None, closed_at: datetime | None) -> list[dict]:
+    filters = [
+        Sale.tenant_id == tenant_id,
+        ~func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
+    ]
+    if opened_at:
+        filters.append(Sale.created_at >= opened_at)
+    if closed_at:
+        filters.append(Sale.created_at < closed_at)
+
+    rows = db.query(Sale.id, Sale.cashier, Sale.total, Sale.payment_method).filter(*filters).all()
+    sale_ids = [row.id for row in rows]
+    payments_by_sale: dict[str, dict[str, Decimal]] = {}
+    if sale_ids:
+        payment_rows = (
+            db.query(
+                FinanceTransaction.related_order_id,
+                FinanceAccount.code,
+                func.coalesce(func.sum(FinanceTransaction.amount), 0),
+            )
+            .join(FinanceAccount, FinanceAccount.id == FinanceTransaction.destination_account_id)
+            .filter(
+                FinanceTransaction.tenant_id == tenant_id,
+                FinanceTransaction.related_order_id.in_(sale_ids),
+                FinanceTransaction.status == "posted",
+                FinanceTransaction.transaction_type == "income",
+                FinanceAccount.code.in_(["cash", "card"]),
+            )
+            .group_by(FinanceTransaction.related_order_id, FinanceAccount.code)
+            .all()
+        )
+        for sale_id, code, amount_raw in payment_rows:
+            bucket = payments_by_sale.setdefault(str(sale_id), {"cash": Decimal("0.00"), "card": Decimal("0.00")})
+            bucket[str(code or "")] = Decimal(str(amount_raw or 0)).quantize(Decimal("0.01"))
+
+    grouped: dict[str, dict[str, Decimal | int | str]] = {}
+    for row in rows:
+        cashier = str(row.cashier or "-")
+        current = grouped.setdefault(
+            cashier,
+            {"cashier": cashier, "sales_count": 0, "total": Decimal("0.00"), "cash": Decimal("0.00"), "card": Decimal("0.00")},
+        )
+        total = Decimal(str(row.total or 0)).quantize(Decimal("0.01"))
+        current["sales_count"] = int(current["sales_count"]) + 1
+        current["total"] = Decimal(str(current["total"])) + total
+        split = payments_by_sale.get(str(row.id), {"cash": Decimal("0.00"), "card": Decimal("0.00")})
+        split_cash = Decimal(str(split.get("cash") or 0)).quantize(Decimal("0.01"))
+        split_card = Decimal(str(split.get("card") or 0)).quantize(Decimal("0.01"))
+        if split_cash > 0 or split_card > 0:
+            current["cash"] = Decimal(str(current["cash"])) + split_cash
+            current["card"] = Decimal(str(current["card"])) + split_card
+        elif "kart" in str(row.payment_method or "").lower() or "card" in str(row.payment_method or "").lower():
+            current["card"] = Decimal(str(current["card"])) + total
+        else:
+            current["cash"] = Decimal(str(current["cash"])) + total
+
+    return [
+        {
+            "cashier": str(row["cashier"]),
+            "sales_count": int(row["sales_count"]),
+            "total": str(Decimal(str(row["total"])).quantize(Decimal("0.01"))),
+            "cash": str(Decimal(str(row["cash"])).quantize(Decimal("0.01"))),
+            "card": str(Decimal(str(row["card"])).quantize(Decimal("0.01"))),
+        }
+        for row in sorted(grouped.values(), key=lambda item: Decimal(str(item["total"])), reverse=True)
+    ]
+
+
 def _replace_z_report_money_line(html: str, label: str, amount: Decimal) -> str:
     safe_amount = f"{amount.quantize(Decimal('0.01'))} ₼"
     pattern = (
@@ -217,6 +285,27 @@ def _insert_z_report_text_line_after(html: str, anchor_label: str, label: str, v
     return html
 
 
+def _replace_z_report_cashier_breakdown(html: str, rows: list[dict]) -> str:
+    corrected = html or ""
+    for row in rows or []:
+        cashier = str(row.get("cashier") or "-")
+        sales_count = int(row.get("sales_count") or 0)
+        total = Decimal(str(row.get("total") or 0)).quantize(Decimal("0.01"))
+        cash = Decimal(str(row.get("cash") or 0)).quantize(Decimal("0.01"))
+        card = Decimal(str(row.get("card") or 0)).quantize(Decimal("0.01"))
+        replacement = (
+            f'<div class="line"><span>{cashier} ({sales_count})</span><span>{total} ₼</span></div>\n'
+            f'        <div class="muted">cash {cash} ₼ • card {card} ₼</div>'
+        )
+        pattern = (
+            rf"<div\b[^>]*class=[\"'][^\"']*\bline\b[^\"']*[\"'][^>]*>\s*"
+            rf"<span[^>]*>\s*{re.escape(cashier)}\s*\(\d+\)\s*</span>\s*<span[^>]*>[^<]*</span>\s*</div>\s*"
+            rf"<div\b[^>]*class=[\"'][^\"']*\bmuted\b[^\"']*[\"'][^>]*>[^<]*</div>"
+        )
+        corrected = re.sub(pattern, replacement, corrected, count=1, flags=re.IGNORECASE)
+    return corrected
+
+
 def _correct_z_report_receipt_html(
     html: str,
     cash_sales: Decimal,
@@ -226,6 +315,7 @@ def _correct_z_report_receipt_html(
     void_sales: Decimal = Decimal("0.00"),
     opened_at: datetime | None = None,
     closed_at: datetime | None = None,
+    cashier_breakdown: list[dict] | None = None,
 ) -> str:
     if not html:
         return html
@@ -241,6 +331,8 @@ def _correct_z_report_receipt_html(
     corrected = _replace_z_report_money_line(corrected, "Ümumi Satış", final_total)
     corrected = _insert_z_report_text_line_after(corrected, "Operator", "Açılış saatı", _format_z_report_time(opened_at))
     corrected = _insert_z_report_text_line_after(corrected, "Açılış saatı", "Bağlanış saatı", _format_z_report_time(closed_at))
+    if cashier_breakdown:
+        corrected = _replace_z_report_cashier_breakdown(corrected, cashier_breakdown)
     return corrected
 
 
@@ -689,9 +781,11 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
     card_sales = sales_totals["card_sales"]
     deposit_applied_sales = sales_totals["deposit_applied"]
     total_sales = sales_totals["sales_total"]
+    sales_count = int(sales_totals["sales_count"])
     ledger_sales_total = sales_totals["ledger_sales_total"]
     reconciliation_gap = sales_totals["reconciliation_gap"]
     void_sales = sales_totals["void_sales"]
+    cashier_breakdown = _shift_cashier_breakdown(db, tenant.id, active.opened_at, None)
     deposit_total = _posted_transaction_sum(
         db,
         tenant.id,
@@ -744,6 +838,7 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         "opened_at": active.opened_at.isoformat() if active.opened_at else None,
         "closed_at": active.closed_at.isoformat(),
         "total_sales": str(total_sales.quantize(Decimal("0.01"))),
+        "sales_count": sales_count,
         "cash_sales": str(cash_sales.quantize(Decimal("0.01"))),
         "card_sales": str(card_sales.quantize(Decimal("0.01"))),
         "deposit_applied_sales": str(deposit_applied_sales.quantize(Decimal("0.01"))),
@@ -766,6 +861,7 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         "other_income_lines": other_income_lines,
         "other_expense_total": str(other_expense_total),
         "other_expense_lines": other_expense_lines,
+        "cashier_breakdown": cashier_breakdown,
     }
 
 
@@ -824,6 +920,7 @@ def list_z_report_receipts(
         deposit_applied_sales = sales_totals["deposit_applied"]
         total_sales = sales_totals["sales_total"]
         void_sales = sales_totals["void_sales"]
+        cashier_breakdown = _shift_cashier_breakdown(db, tenant.id, row.opened_at, row.closed_at)
         corrected_html = _correct_z_report_receipt_html(
             row.z_report_html or "",
             cash_sales,
@@ -833,6 +930,7 @@ def list_z_report_receipts(
             void_sales,
             row.opened_at,
             row.closed_at,
+            cashier_breakdown,
         )
         result.append(
             {
