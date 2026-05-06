@@ -49,7 +49,7 @@ def _in_range(created_at: datetime | None, date_from: datetime | None, date_to: 
         return False
     if date_from and created_at < date_from:
         return False
-    if date_to and created_at > date_to:
+    if date_to and created_at >= date_to:
         return False
     return True
 
@@ -262,7 +262,7 @@ def get_sales_summary(
     sales_filters = [
         Sale.tenant_id == tenant.id,
         Sale.created_at >= start,
-        Sale.created_at <= end,
+        Sale.created_at < end,
     ]
     if cashier:
         sales_filters.append(Sale.cashier == cashier)
@@ -329,7 +329,7 @@ def get_sales_list(
     sales_query = db.query(Sale).filter(
         Sale.tenant_id == tenant.id,
         Sale.created_at >= start,
-        Sale.created_at <= end,
+        Sale.created_at < end,
     )
     if cashier:
         sales_query = sales_query.filter(Sale.cashier == cashier)

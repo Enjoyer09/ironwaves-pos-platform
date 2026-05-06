@@ -233,7 +233,7 @@ export const get_z_report_receipts_live = async (
     return rows
       .filter((row) => {
         const ts = new Date(row.closed_at || row.opened_at || 0).getTime();
-        return Number.isFinite(ts) && ts >= start && ts <= end && Boolean(row.z_report_html);
+        return Number.isFinite(ts) && ts >= start && ts < end && Boolean(row.z_report_html);
       })
       .sort((a, b) => String(b.closed_at || '').localeCompare(String(a.closed_at || '')))
       .slice(0, opts?.limit || 30);
@@ -957,9 +957,19 @@ export const z_report = async (
       success: Boolean(res?.success),
       shift_id: String(res?.shift_id || ''),
       closed_at: String(res?.closed_at || new Date().toISOString()),
-      total_sales: new Decimal(res?.cash_sales || 0).plus(new Decimal(res?.card_sales || 0)).toString(),
+      total_sales: String(
+        res?.total_sales
+        ?? new Decimal(res?.cash_sales || 0)
+          .plus(new Decimal(res?.card_sales || 0))
+          .plus(new Decimal(res?.deposit_applied_sales || 0))
+          .toString(),
+      ),
       cash_sales: String(res?.cash_sales || '0'),
       card_sales: String(res?.card_sales || '0'),
+      deposit_applied_sales: String(res?.deposit_applied_sales || '0'),
+      ledger_sales_total: String(res?.ledger_sales_total || '0'),
+      reconciliation_gap: String(res?.reconciliation_gap || '0'),
+      void_sales: String(res?.void_sales || '0'),
       wage: String(res?.wage_amount || wage_amount || '0'),
       wage_amount: String(res?.wage_amount || wage_amount || '0'),
       expected_cash: String(res?.expected_cash || '0'),

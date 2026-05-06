@@ -471,7 +471,7 @@ def _period_bounds(date_from: str | None, date_to: str | None) -> tuple[datetime
             raise HTTPException(status_code=400, detail="date_from format must be YYYY-MM-DD")
     if date_to:
         try:
-            end = datetime.fromisoformat(str(date_to)[:10]).replace(hour=23, minute=59, second=59, microsecond=999999)
+            end = datetime.fromisoformat(str(date_to)[:10]) + timedelta(days=1)
         except Exception:
             raise HTTPException(status_code=400, detail="date_to format must be YYYY-MM-DD")
     return start, end
@@ -485,7 +485,7 @@ def _sale_period_filters(tenant_id: str, start: datetime | None, end: datetime |
     if start:
         filters.append(Sale.created_at >= start)
     if end:
-        filters.append(Sale.created_at <= end)
+        filters.append(Sale.created_at < end)
     return filters
 
 
@@ -1304,7 +1304,10 @@ def list_ledger_transactions(
         try:
             raw = value.strip()
             if len(raw) == 10:
-                raw = f"{raw}T{'23:59:59.999999' if end_of_day else '00:00:00'}"
+                parsed_date = datetime.fromisoformat(raw)
+                if end_of_day:
+                    return parsed_date + timedelta(days=1)
+                return parsed_date
             return datetime.fromisoformat(raw.replace("Z", "+00:00")).replace(tzinfo=None)
         except Exception:
             return None
@@ -1315,7 +1318,7 @@ def list_ledger_transactions(
     if start:
         query = query.filter(FinanceTransaction.created_at >= start)
     if end:
-        query = query.filter(FinanceTransaction.created_at <= end)
+        query = query.filter(FinanceTransaction.created_at < end)
     if transaction_type and transaction_type != "all":
         query = query.filter(FinanceTransaction.transaction_type == transaction_type)
     if status and status != "all":

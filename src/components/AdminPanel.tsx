@@ -10,7 +10,7 @@ import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
 import { getDB } from '../lib/db_sim';
 import { verifyLocalCredential } from '../lib/local_auth';
-import { formatServerUtcDateTime } from '../lib/time';
+import { formatServerUtcDateTime, localDateInputValue, localDateTimeNextStart, localDateTimeStart } from '../lib/time';
 import { prepareImageDataUrl } from '../lib/image_upload';
 
 const FinancePanel = lazy(() => import('./admin/FinancePanel'));
@@ -74,10 +74,10 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
   const [dropMenuId, setDropMenuId] = useState<string | null>(null);
 
   const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date(); d.setHours(0,0,0,0); return d.toISOString().split('T')[0];
+    return localDateInputValue();
   });
   const [dateTo, setDateTo] = useState(() => {
-    const d = new Date(); d.setHours(23,59,59,999); return d.toISOString().split('T')[0];
+    return localDateInputValue();
   });
   const [saleActionModal, setSaleActionModal] = useState<null | { mode: 'void' | 'edit' | 'partial'; sale: any }>(null);
   const [saleReason, setSaleReason] = useState('');
@@ -288,24 +288,22 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
       if (fetchCacheRef.current[cacheKey] && now - fetchCacheRef.current[cacheKey] < 15000) {
         return;
       }
-      const from_d = new Date(dateFrom);
-      from_d.setHours(0, 0, 0, 0);
-      const to_d = new Date(dateTo);
-      to_d.setHours(23, 59, 59, 999);
+      const fromIso = localDateTimeStart(dateFrom);
+      const toIso = localDateTimeNextStart(dateTo);
       const [summaryResult, salesResult] = await Promise.allSettled([
-        get_sales_summary_live(tenant_id, from_d.toISOString(), to_d.toISOString(), undefined, { signal }),
-        get_sales_list_live(tenant_id, from_d.toISOString(), to_d.toISOString(), undefined, { signal, limit: 300 }),
+        get_sales_summary_live(tenant_id, fromIso, toIso, undefined, { signal }),
+        get_sales_list_live(tenant_id, fromIso, toIso, undefined, { signal, limit: 300 }),
       ]);
       if (seq !== fetchSeqRef.current) return;
       if (summaryResult.status === 'fulfilled') {
         setSummary(summaryResult.value);
       } else {
-        setSummary(get_sales_summary(tenant_id, from_d.toISOString(), to_d.toISOString()));
+        setSummary(get_sales_summary(tenant_id, fromIso, toIso));
       }
       if (salesResult.status === 'fulfilled') {
         setSales(salesResult.value);
       } else {
-        setSales(get_sales_list(tenant_id, from_d.toISOString(), to_d.toISOString()));
+        setSales(get_sales_list(tenant_id, fromIso, toIso));
       }
       fetchCacheRef.current[cacheKey] = Date.now();
       return;

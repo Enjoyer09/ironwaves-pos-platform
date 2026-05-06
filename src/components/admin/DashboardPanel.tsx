@@ -24,7 +24,7 @@ import { get_tables, get_tables_live, getPendingOfflineTableOps, getPendingOffli
 import { getPendingOfflineSalesCount } from '../../lib/offline';
 import { get_logs_live } from '../../api/logs';
 import { subscribeTenantRealtime } from '../../api/realtime';
-import { formatServerUtcTime, localDateInputValue, parseServerUtcTimestamp } from '../../lib/time';
+import { formatServerUtcTime, localDateInputValue, localDateTimeNextStart, localDateTimeStart, parseServerUtcTimestamp } from '../../lib/time';
 import { generate_ai_insight_engine, type AiDecisionInsight } from '../../api/ai_manager';
 
 type DashboardTab = 'inventory' | 'finance' | 'analytics' | 'tables' | 'crm' | 'ai';
@@ -142,13 +142,9 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
   }, [rangePreset]);
 
   const activeRange = useMemo(() => {
-    const from = new Date(fromDate || localDateInputValue());
-    from.setHours(0, 0, 0, 0);
-    const to = new Date(toDate || localDateInputValue());
-    to.setHours(23, 59, 59, 999);
     return {
-      fromIso: from.toISOString(),
-      toIso: to.toISOString(),
+      fromIso: localDateTimeStart(fromDate),
+      toIso: localDateTimeNextStart(toDate),
       label:
         rangePreset === 'daily'
           ? tx(lang, 'Bu gün', 'Сегодня', 'Today')
