@@ -5,8 +5,8 @@ from datetime import datetime
 from decimal import Decimal
 
 from fastapi import HTTPException
-from sqlalchemy import and_, case, func
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, case, exists, func, or_
+from sqlalchemy.orm import Session, aliased
 
 from app.models import AuditLog, FinanceAccount, FinanceEntry, FinanceLedgerEntry, FinanceTransaction, Sale, Setting, Shift
 
@@ -53,6 +53,8 @@ VOID_SALE_STATUSES = [
     "LAGV",
     "LAGV EDILDI",
 ]
+SALE_PAYMENT_TRANSACTION_TYPES = ["income", "deposit_apply_to_bill"]
+SALE_PAYMENT_LEDGER_TRANSACTION_TYPES = ["income", "deposit_apply_to_bill", "reversal"]
 
 
 def _setting_value(db: Session, tenant_id: str, key: str, default):
@@ -338,13 +340,34 @@ def sales_payment_totals(
     movements, while deposit_applied is held deposit recognized against a bill.
     The three together should reconcile back to sales_total.
     """
+    sale_status = func.upper(func.trim(func.coalesce(Sale.status, "")))
+    sale_status_is_void = sale_status.in_(VOID_SALE_STATUSES)
+    posted_payment_txn = aliased(FinanceTransaction)
+    payment_ledger_txn = aliased(FinanceTransaction)
+    sale_has_posted_payment = exists().where(
+        and_(
+            posted_payment_txn.tenant_id == tenant_id,
+            posted_payment_txn.related_order_id == Sale.id,
+            posted_payment_txn.status == "posted",
+            posted_payment_txn.transaction_type.in_(SALE_PAYMENT_TRANSACTION_TYPES),
+        )
+    )
+    sale_has_payment_ledger = exists().where(
+        and_(
+            payment_ledger_txn.tenant_id == tenant_id,
+            payment_ledger_txn.related_order_id == Sale.id,
+            payment_ledger_txn.transaction_type.in_(SALE_PAYMENT_LEDGER_TRANSACTION_TYPES),
+        )
+    )
+    sale_ledger_is_void = and_(sale_has_payment_ledger, ~sale_has_posted_payment)
+    sale_is_void = or_(sale_status_is_void, sale_ledger_is_void)
     sale_filters = [
         Sale.tenant_id == tenant_id,
-        ~func.upper(func.trim(func.coalesce(Sale.status, ""))).in_(VOID_SALE_STATUSES),
+        ~sale_is_void,
     ]
     void_filters = [
         Sale.tenant_id == tenant_id,
-        func.upper(func.trim(func.coalesce(Sale.status, ""))).in_(VOID_SALE_STATUSES),
+        sale_is_void,
     ]
     if start:
         sale_filters.append(Sale.created_at >= start)
@@ -373,7 +396,7 @@ def sales_payment_totals(
         .filter(
             FinanceTransaction.tenant_id == tenant_id,
             FinanceTransaction.status == "posted",
-            FinanceTransaction.transaction_type.in_(["income", "deposit_apply_to_bill"]),
+            FinanceTransaction.transaction_type.in_(SALE_PAYMENT_TRANSACTION_TYPES),
             FinanceTransaction.related_order_id.isnot(None),
             *sale_filters,
         )

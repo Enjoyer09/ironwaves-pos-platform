@@ -33,6 +33,8 @@ VOID_SALE_STATUSES = {
     "LAGV",
     "LAGV EDILDI",
 }
+SALE_PAYMENT_TRANSACTION_TYPES = ["income", "deposit_apply_to_bill"]
+SALE_PAYMENT_LEDGER_TRANSACTION_TYPES = ["income", "deposit_apply_to_bill", "reversal"]
 
 
 DEFAULT_YIELD_SETTINGS = {
@@ -53,6 +55,32 @@ DEFAULT_BEVERAGE_SERVICE_SETTINGS = {
 
 def _is_void_sale_status(value: str | None) -> bool:
     return str(value or "").strip().upper() in VOID_SALE_STATUSES
+
+
+def _sale_is_ledger_voided(db: Session, tenant_id: str, sale_id: str) -> bool:
+    has_posted_payment = (
+        db.query(FinanceTransaction.id)
+        .filter(
+            FinanceTransaction.tenant_id == tenant_id,
+            FinanceTransaction.related_order_id == sale_id,
+            FinanceTransaction.status == "posted",
+            FinanceTransaction.transaction_type.in_(SALE_PAYMENT_TRANSACTION_TYPES),
+        )
+        .first()
+        is not None
+    )
+    if has_posted_payment:
+        return False
+    return (
+        db.query(FinanceTransaction.id)
+        .filter(
+            FinanceTransaction.tenant_id == tenant_id,
+            FinanceTransaction.related_order_id == sale_id,
+            FinanceTransaction.transaction_type.in_(SALE_PAYMENT_LEDGER_TRANSACTION_TYPES),
+        )
+        .first()
+        is not None
+    )
 
 
 def _sale_payment_split(db: Session, tenant_id: str, sale_id: str) -> tuple[Decimal, Decimal]:
@@ -687,7 +715,7 @@ def save_sale_receipt_html(
     )
     if not row:
         raise HTTPException(status_code=404, detail="Sale not found")
-    if _is_void_sale_status(row.status):
+    if _is_void_sale_status(row.status) or _sale_is_ledger_voided(db, tenant.id, row.id):
         row.receipt_html = None
         db.add(row)
         db.commit()
@@ -744,7 +772,7 @@ def public_receipt(
     items = safe_json_list(row.items_json)
     original_total = Decimal(str(row.total)) + Decimal(str(row.discount_amount or 0))
     split_cash, split_card = _sale_payment_split(db, tenant.id, row.id)
-    is_void = _is_void_sale_status(row.status)
+    is_void = _is_void_sale_status(row.status) or _sale_is_ledger_voided(db, tenant.id, row.id)
     return {
         "id": row.id,
         "tenant_id": row.tenant_id,
@@ -762,5 +790,5 @@ def public_receipt(
         "discount_amount": str(row.discount_amount or 0),
         "receipt_html": "" if is_void else (row.receipt_html or ""),
         "items": items,
-        "status": row.status,
+        "status": "VOIDED" if is_void else row.status,
     }

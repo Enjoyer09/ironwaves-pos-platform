@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import case, func
+from sqlalchemy import and_, case, exists, func, or_
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -39,10 +39,32 @@ VOID_SALE_STATUSES = [
     "LAGV",
     "LAGV EDILDI",
 ]
+SALE_PAYMENT_TRANSACTION_TYPES = ["income", "deposit_apply_to_bill"]
+SALE_PAYMENT_LEDGER_TRANSACTION_TYPES = ["income", "deposit_apply_to_bill", "reversal"]
 
 
 def _is_void_sale_status(value: str | None) -> bool:
     return str(value or "").strip().upper() in VOID_SALE_STATUSES
+
+
+def _sale_is_void_expr(tenant_id: str):
+    sale_status_is_void = func.upper(func.trim(func.coalesce(Sale.status, ""))).in_(VOID_SALE_STATUSES)
+    sale_has_posted_payment = exists().where(
+        and_(
+            FinanceTransaction.tenant_id == tenant_id,
+            FinanceTransaction.related_order_id == Sale.id,
+            FinanceTransaction.status == "posted",
+            FinanceTransaction.transaction_type.in_(SALE_PAYMENT_TRANSACTION_TYPES),
+        )
+    )
+    sale_has_payment_ledger = exists().where(
+        and_(
+            FinanceTransaction.tenant_id == tenant_id,
+            FinanceTransaction.related_order_id == Sale.id,
+            FinanceTransaction.transaction_type.in_(SALE_PAYMENT_LEDGER_TRANSACTION_TYPES),
+        )
+    )
+    return or_(sale_status_is_void, and_(sale_has_payment_ledger, ~sale_has_posted_payment))
 
 
 class SaleAdjustIn(BaseModel):
@@ -285,9 +307,7 @@ def get_sales_summary(
     ]
     if cashier:
         sales_filters.append(Sale.cashier == cashier)
-    sale_status = func.upper(func.trim(func.coalesce(Sale.status, "")))
-    sale_is_void = sale_status.in_(VOID_SALE_STATUSES)
-    sale_is_net = ~sale_is_void
+    sale_is_net = ~_sale_is_void_expr(tenant.id)
     total_cogs_raw, gross_sales_raw = (
         db.query(
             func.coalesce(
@@ -366,12 +386,41 @@ def get_sales_list(
     if limit:
         sales_query = sales_query.limit(limit)
     rows = sales_query.all()
+    sale_ids = [str(row.id) for row in rows]
+    ledger_void_sale_ids: set[str] = set()
+    if sale_ids:
+        posted_payment_sale_ids = {
+            str(row[0])
+            for row in db.query(FinanceTransaction.related_order_id)
+            .filter(
+                FinanceTransaction.tenant_id == tenant.id,
+                FinanceTransaction.related_order_id.in_(sale_ids),
+                FinanceTransaction.status == "posted",
+                FinanceTransaction.transaction_type.in_(SALE_PAYMENT_TRANSACTION_TYPES),
+            )
+            .distinct()
+            .all()
+            if row[0]
+        }
+        payment_ledger_sale_ids = {
+            str(row[0])
+            for row in db.query(FinanceTransaction.related_order_id)
+            .filter(
+                FinanceTransaction.tenant_id == tenant.id,
+                FinanceTransaction.related_order_id.in_(sale_ids),
+                FinanceTransaction.transaction_type.in_(SALE_PAYMENT_LEDGER_TRANSACTION_TYPES),
+            )
+            .distinct()
+            .all()
+            if row[0]
+        }
+        ledger_void_sale_ids = payment_ledger_sale_ids - posted_payment_sale_ids
     result = []
     for row in rows:
         items = safe_json_list(row.items_json)
         original_total = Decimal(str(row.total)) + Decimal(str(row.discount_amount or 0))
         split_cash, split_card = _sale_payment_split(db, tenant.id, row.id)
-        is_void = _is_void_sale_status(row.status)
+        is_void = _is_void_sale_status(row.status) or str(row.id) in ledger_void_sale_ids
         result.append(
             {
                 "id": row.id,
@@ -393,7 +442,7 @@ def get_sales_list(
                 "receipt_html": "" if is_void else ((row.receipt_html or "") if include_receipt_html else ""),
                 "items": items,
                 "items_display": ", ".join([f"{item.get('item_name')} x{item.get('qty')}" for item in items]),
-                "status": row.status,
+                "status": "VOIDED" if is_void else row.status,
                 "is_test": False,
             }
         )
