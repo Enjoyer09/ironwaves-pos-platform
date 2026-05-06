@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import and_, case, func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -18,6 +18,7 @@ from app.services.finance_service import (
     post_existing_transaction as _post_existing_transaction,
     post_finance_transaction as _post_finance_transaction,
     post_sale_payment,
+    sales_payment_totals as _sales_payment_totals,
 )
 
 
@@ -115,7 +116,21 @@ def _sale_has_posted_ledger_payments(db: Session, tenant_id: str, sale_id: str) 
             FinanceTransaction.tenant_id == tenant_id,
             FinanceTransaction.related_order_id == sale_id,
             FinanceTransaction.status == "posted",
-            FinanceTransaction.transaction_type == "income",
+            FinanceTransaction.transaction_type.in_(["income", "expense", "deposit_apply_to_bill", "cogs_recognition"]),
+        )
+        .first()
+        is not None
+    )
+
+
+def _sale_has_deposit_application(db: Session, tenant_id: str, sale_id: str) -> bool:
+    return (
+        db.query(FinanceTransaction.id)
+        .filter(
+            FinanceTransaction.tenant_id == tenant_id,
+            FinanceTransaction.related_order_id == sale_id,
+            FinanceTransaction.status == "posted",
+            FinanceTransaction.transaction_type == "deposit_apply_to_bill",
         )
         .first()
         is not None
@@ -190,14 +205,24 @@ def _post_sale_payment_parts(
     )
 
 
-def _reverse_sale_finance_transactions(db: Session, tenant_id: str, sale_id: str, username: str) -> None:
+def _reverse_sale_finance_transactions(
+    db: Session,
+    tenant_id: str,
+    sale_id: str,
+    username: str,
+    *,
+    include_cogs: bool = False,
+) -> None:
+    transaction_types = ["income", "expense", "deposit_apply_to_bill"]
+    if include_cogs:
+        transaction_types.append("cogs_recognition")
     rows = (
         db.query(FinanceTransaction)
         .filter(
             FinanceTransaction.tenant_id == tenant_id,
             FinanceTransaction.related_order_id == sale_id,
             FinanceTransaction.status == "posted",
-            FinanceTransaction.transaction_type.in_(["income", "expense"]),
+            FinanceTransaction.transaction_type.in_(transaction_types),
         )
         .all()
     )
@@ -244,39 +269,12 @@ def get_sales_summary(
     sale_status = func.upper(func.coalesce(Sale.status, ""))
     sale_is_void = sale_status.in_(VOID_SALE_STATUSES)
     sale_is_net = ~sale_is_void
-    total_revenue_raw, total_cogs_raw, void_count_raw, void_sales_raw, gross_sales_raw = (
+    total_cogs_raw, gross_sales_raw = (
         db.query(
             func.coalesce(
                 func.sum(
                     case(
-                        (sale_is_net, Sale.total),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
-            func.coalesce(
-                func.sum(
-                    case(
                         (sale_is_net, Sale.cogs),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (sale_is_void, 1),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (sale_is_void, Sale.total),
                         else_=0,
                     )
                 ),
@@ -287,61 +285,22 @@ def get_sales_summary(
         .filter(*sales_filters)
         .one()
     )
-    total_revenue = Decimal(str(total_revenue_raw or 0))
     total_cogs = Decimal(str(total_cogs_raw or 0))
-    void_count = int(void_count_raw or 0)
-    void_sales = Decimal(str(void_sales_raw or 0))
     gross_sales = Decimal(str(gross_sales_raw or 0))
-    ledger_filters = [
-        FinanceTransaction.tenant_id == tenant.id,
-        FinanceTransaction.status == "posted",
-        FinanceTransaction.transaction_type == "income",
-        FinanceTransaction.related_order_id.isnot(None),
-        Sale.tenant_id == tenant.id,
-        Sale.created_at >= start,
-        Sale.created_at <= end,
-        ~func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
-        FinanceAccount.code.in_(["cash", "card"]),
-    ]
-    if cashier:
-        ledger_filters.append(Sale.cashier == cashier)
-    cash_total_raw, card_total_raw = (
-        db.query(
-            func.coalesce(
-                func.sum(
-                    case(
-                        (FinanceAccount.code == "cash", FinanceTransaction.amount),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
-            func.coalesce(
-                func.sum(
-                    case(
-                        (FinanceAccount.code == "card", FinanceTransaction.amount),
-                        else_=0,
-                    )
-                ),
-                0,
-            ),
-        )
-        .select_from(FinanceTransaction)
-        .join(FinanceAccount, FinanceAccount.id == FinanceTransaction.destination_account_id)
-        .join(Sale, and_(Sale.id == FinanceTransaction.related_order_id, Sale.tenant_id == FinanceTransaction.tenant_id))
-        .filter(*ledger_filters)
-        .one()
-    )
-    cash_total = Decimal(str(cash_total_raw or 0))
-    card_total = Decimal(str(card_total_raw or 0))
-    cash_sales = cash_total
-    card_sales = card_total
-    ledger_total = cash_sales + card_sales
-    reconciliation_gap = (total_revenue - ledger_total).quantize(Decimal("0.01"))
+    totals = _sales_payment_totals(db, tenant.id, start, end, cashier=cashier)
+    total_revenue = totals["sales_total"]
+    cash_sales = totals["cash_sales"]
+    card_sales = totals["card_sales"]
+    deposit_applied = totals["deposit_applied"]
+    ledger_total = totals["ledger_sales_total"]
+    reconciliation_gap = totals["reconciliation_gap"]
+    void_count = int(totals["void_count"])
+    void_sales = totals["void_sales"]
     return {
         "total_revenue": str(total_revenue.quantize(Decimal("0.01"))),
         "cash_sales": str(cash_sales.quantize(Decimal("0.01"))),
         "card_sales": str(card_sales.quantize(Decimal("0.01"))),
+        "deposit_applied_sales": str(deposit_applied.quantize(Decimal("0.01"))),
         "ledger_sales_total": str(ledger_total.quantize(Decimal("0.01"))),
         "gross_sales": str(gross_sales.quantize(Decimal("0.01"))),
         "void_sales": str(void_sales.quantize(Decimal("0.01"))),
@@ -454,7 +413,7 @@ def void_sale(
     cashback_percent = Decimal(str(loyalty_cfg.get("cashback_percent") or 0))
     ledger_backed = _sale_has_posted_ledger_payments(db, tenant.id, row.id)
     if ledger_backed:
-        _reverse_sale_finance_transactions(db, tenant.id, row.id, user.username)
+        _reverse_sale_finance_transactions(db, tenant.id, row.id, user.username, include_cogs=True)
     else:
         if pm == "split":
             finance_rows = (
@@ -548,6 +507,11 @@ def adjust_sale(
         raise HTTPException(status_code=404, detail="Sale not found")
     if row.status == "VOIDED":
         raise HTTPException(status_code=400, detail="Voided sale cannot be adjusted")
+    if _sale_has_deposit_application(db, tenant.id, row.id):
+        raise HTTPException(
+            status_code=400,
+            detail="Depozitlə ödənmiş masa satışını Analitikadan düzəltmək olmaz. Depozit balansı qarışmaması üçün VOID edib yenidən hesab alın.",
+        )
 
     next_total = Decimal(str(payload.new_total or 0)).quantize(Decimal("0.01"))
     if next_total <= 0:
@@ -565,6 +529,7 @@ def adjust_sale(
     _reverse_sale_finance_transactions(db, tenant.id, row.id, user.username)
     row.total = next_total
     row.payment_method = _display_payment_method(next_method)
+    row.receipt_html = None
 
     card_sale_percent = Decimal(str(_setting_value(db, tenant.id, "bank_commission", {"card_sale_percent": 2}).get("card_sale_percent", 2) or 2))
     if next_method == "split":
@@ -632,6 +597,11 @@ def partial_refund_sale(
         raise HTTPException(status_code=404, detail="Sale not found")
     if row.status == "VOIDED":
         raise HTTPException(status_code=400, detail="Voided sale cannot be refunded")
+    if _sale_has_deposit_application(db, tenant.id, row.id):
+        raise HTTPException(
+            status_code=400,
+            detail="Depozitlə ödənmiş masa satışına partial refund Analitikadan tətbiq olunmur. Depozit balansı qarışmaması üçün VOID edin.",
+        )
 
     current_total = Decimal(str(row.total or 0)).quantize(Decimal("0.01"))
     refund_amount = Decimal(str(payload.refund_amount or 0)).quantize(Decimal("0.01"))
@@ -650,6 +620,7 @@ def partial_refund_sale(
         current_cash, current_card = _sale_payment_split(db, tenant.id, row.id)
         current_paid = (current_cash + current_card).quantize(Decimal("0.01"))
         _reverse_sale_finance_transactions(db, tenant.id, row.id, user.username)
+        row.receipt_html = None
         card_sale_percent = Decimal(str(_setting_value(db, tenant.id, "bank_commission", {"card_sale_percent": 2}).get("card_sale_percent", 2) or 2))
         if current_paid > 0 and current_cash > 0 and current_card > 0:
             next_cash = (next_total * (current_cash / current_paid)).quantize(Decimal("0.01"))
@@ -738,6 +709,7 @@ def partial_refund_sale(
 
     row.total = next_total
     row.status = "PARTIAL_REFUND"
+    row.receipt_html = None
     if row.customer_card_id and program_mode == "cashback":
         cashback_amount = (refund_amount * (cashback_percent / Decimal("100"))).quantize(Decimal("0.01"))
         if cashback_amount > 0:

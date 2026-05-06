@@ -5,10 +5,10 @@ from datetime import datetime
 from decimal import Decimal
 
 from fastapi import HTTPException
-from sqlalchemy import case, func
+from sqlalchemy import and_, case, func
 from sqlalchemy.orm import Session
 
-from app.models import AuditLog, FinanceAccount, FinanceEntry, FinanceLedgerEntry, FinanceTransaction, Setting, Shift
+from app.models import AuditLog, FinanceAccount, FinanceEntry, FinanceLedgerEntry, FinanceTransaction, Sale, Setting, Shift
 
 
 FINANCE_ACCOUNT_DEFS: dict[str, tuple[str, str]] = {
@@ -37,6 +37,7 @@ DEFAULT_FINANCE_POLICY = {
     "legacy_wallet_sync_enabled": False,
     "approver_roles": ["manager", "admin", "finance_admin", "super_admin"],
 }
+VOID_SALE_STATUSES = ["VOIDED", "VOID", "CANCELLED", "CANCELED"]
 
 
 def _setting_value(db: Session, tenant_id: str, key: str, default):
@@ -306,6 +307,88 @@ def finance_account_code(db: Session, tenant_id: str, account_id: str | None) ->
         return None
     row = db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant_id, FinanceAccount.id == account_id).first()
     return row.code if row else None
+
+
+def sales_payment_totals(
+    db: Session,
+    tenant_id: str,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    *,
+    cashier: str | None = None,
+) -> dict[str, Decimal]:
+    """Single source of truth for sale/ledger reconciliation totals.
+
+    Sales revenue is the non-void Sale.total. Cash/card are posted income
+    movements, while deposit_applied is held deposit recognized against a bill.
+    The three together should reconcile back to sales_total.
+    """
+    sale_filters = [
+        Sale.tenant_id == tenant_id,
+        ~func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
+    ]
+    void_filters = [
+        Sale.tenant_id == tenant_id,
+        func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
+    ]
+    if start:
+        sale_filters.append(Sale.created_at >= start)
+        void_filters.append(Sale.created_at >= start)
+    if end:
+        sale_filters.append(Sale.created_at <= end)
+        void_filters.append(Sale.created_at <= end)
+    if cashier:
+        sale_filters.append(Sale.cashier == cashier)
+        void_filters.append(Sale.cashier == cashier)
+
+    sales_total = Decimal(str(db.query(func.coalesce(func.sum(Sale.total), 0)).filter(*sale_filters).scalar() or 0)).quantize(Decimal("0.01"))
+    sales_count = Decimal(str(db.query(func.count(Sale.id)).filter(*sale_filters).scalar() or 0))
+    void_sales = Decimal(str(db.query(func.coalesce(func.sum(Sale.total), 0)).filter(*void_filters).scalar() or 0)).quantize(Decimal("0.01"))
+    void_count = Decimal(str(db.query(func.count(Sale.id)).filter(*void_filters).scalar() or 0))
+
+    payment_rows = (
+        db.query(
+            FinanceAccount.code,
+            FinanceTransaction.transaction_type,
+            func.coalesce(func.sum(FinanceTransaction.amount), 0),
+        )
+        .select_from(FinanceTransaction)
+        .join(Sale, and_(Sale.id == FinanceTransaction.related_order_id, Sale.tenant_id == FinanceTransaction.tenant_id))
+        .outerjoin(FinanceAccount, FinanceAccount.id == FinanceTransaction.destination_account_id)
+        .filter(
+            FinanceTransaction.tenant_id == tenant_id,
+            FinanceTransaction.status == "posted",
+            FinanceTransaction.transaction_type.in_(["income", "deposit_apply_to_bill"]),
+            FinanceTransaction.related_order_id.isnot(None),
+            *sale_filters,
+        )
+        .group_by(FinanceAccount.code, FinanceTransaction.transaction_type)
+        .all()
+    )
+    cash_sales = Decimal("0.00")
+    card_sales = Decimal("0.00")
+    deposit_applied = Decimal("0.00")
+    for code, transaction_type, amount_raw in payment_rows:
+        amount = Decimal(str(amount_raw or 0)).quantize(Decimal("0.01"))
+        if transaction_type == "deposit_apply_to_bill":
+            deposit_applied += amount
+        elif code == "cash":
+            cash_sales += amount
+        elif code == "card":
+            card_sales += amount
+
+    ledger_sales_total = (cash_sales + card_sales + deposit_applied).quantize(Decimal("0.01"))
+    return {
+        "sales_total": sales_total,
+        "sales_count": sales_count,
+        "cash_sales": cash_sales.quantize(Decimal("0.01")),
+        "card_sales": card_sales.quantize(Decimal("0.01")),
+        "deposit_applied": deposit_applied.quantize(Decimal("0.01")),
+        "ledger_sales_total": ledger_sales_total,
+        "reconciliation_gap": (sales_total - ledger_sales_total).quantize(Decimal("0.01")),
+        "void_sales": void_sales,
+        "void_count": void_count,
+    }
 
 
 def add_ledger_entry(

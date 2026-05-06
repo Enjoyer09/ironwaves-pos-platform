@@ -144,6 +144,7 @@ from app.services.finance_service import (  # noqa: E402 - keep router API thin 
     post_existing_transaction as _post_existing_transaction,
     post_finance_transaction as _post_finance_transaction,
     post_finance_transaction_with_legacy_mirror as _post_finance_transaction_with_legacy_mirror,
+    sales_payment_totals as _sales_payment_totals,
     shift_cash_breakdown_from_ledger as _shift_cash_breakdown_from_ledger,
 )
 
@@ -332,46 +333,8 @@ def _sales_reconciliation_totals(
     start: datetime | None = None,
     end: datetime | None = None,
 ) -> tuple[Decimal, Decimal, Decimal]:
-    sales_filters = [
-        Sale.tenant_id == tenant_id,
-        ~func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
-    ]
-    if start:
-        sales_filters.append(Sale.created_at >= start)
-    if end:
-        sales_filters.append(Sale.created_at <= end)
-
-    ledger_filters = [
-        FinanceTransaction.tenant_id == tenant_id,
-        FinanceTransaction.status == "posted",
-        FinanceTransaction.transaction_type.in_(["income", "deposit_apply_to_bill"]),
-        FinanceTransaction.related_order_id.isnot(None),
-        ~func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
-    ]
-    if start:
-        ledger_filters.append(Sale.created_at >= start)
-    if end:
-        ledger_filters.append(Sale.created_at <= end)
-
-    total_revenue = Decimal(
-        str(
-            db.query(func.coalesce(func.sum(Sale.total), 0))
-            .filter(*sales_filters)
-            .scalar()
-            or 0
-        )
-    ).quantize(Decimal("0.01"))
-    ledger_sales_total = Decimal(
-        str(
-            db.query(func.coalesce(func.sum(FinanceTransaction.amount), 0))
-            .select_from(FinanceTransaction)
-            .join(Sale, and_(Sale.id == FinanceTransaction.related_order_id, Sale.tenant_id == FinanceTransaction.tenant_id))
-            .filter(*ledger_filters)
-            .scalar()
-            or 0
-        )
-    ).quantize(Decimal("0.01"))
-    return total_revenue, ledger_sales_total, (total_revenue - ledger_sales_total).quantize(Decimal("0.01"))
+    totals = _sales_payment_totals(db, tenant_id, start, end)
+    return totals["sales_total"], totals["ledger_sales_total"], totals["reconciliation_gap"]
 
 
 def _build_finance_anomalies(db: Session, tenant_id: str) -> dict:
