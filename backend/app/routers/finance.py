@@ -28,7 +28,22 @@ from app.schemas import FinanceEntryIn, FinanceReconciliationIn, FinanceTransact
 
 
 router = APIRouter(prefix="/api/v1/finance", tags=["finance"])
-VOID_SALE_STATUSES = ["VOIDED", "VOID", "CANCELLED", "CANCELED"]
+VOID_SALE_STATUSES = [
+    "VOIDED",
+    "VOID",
+    "CANCELLED",
+    "CANCELED",
+    "CANCELLED SALE",
+    "CANCELED SALE",
+    "LƏĞV",
+    "LƏĞV EDILDI",
+    "LƏĞV EDİLDİ",
+    "LEĞV",
+    "LEĞV EDILDI",
+    "LEĞV EDİLDİ",
+    "LAGV",
+    "LAGV EDILDI",
+]
 
 
 FINANCE_CATEGORY_LABELS: dict[str, str] = {
@@ -480,7 +495,7 @@ def _period_bounds(date_from: str | None, date_to: str | None) -> tuple[datetime
 def _sale_period_filters(tenant_id: str, start: datetime | None, end: datetime | None) -> list:
     filters = [
         Sale.tenant_id == tenant_id,
-        ~func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
+        ~func.upper(func.trim(func.coalesce(Sale.status, ""))).in_(VOID_SALE_STATUSES),
     ]
     if start:
         filters.append(Sale.created_at >= start)

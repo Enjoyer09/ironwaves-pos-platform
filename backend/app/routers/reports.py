@@ -23,7 +23,22 @@ from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XRe
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
 STAFF_SHIFT_SESSIONS_KEY = "staff_shift_sessions"
-VOID_SALE_STATUSES = ["VOIDED", "VOID", "CANCELLED", "CANCELED"]
+VOID_SALE_STATUSES = [
+    "VOIDED",
+    "VOID",
+    "CANCELLED",
+    "CANCELED",
+    "CANCELLED SALE",
+    "CANCELED SALE",
+    "LƏĞV",
+    "LƏĞV EDILDI",
+    "LƏĞV EDİLDİ",
+    "LEĞV",
+    "LEĞV EDILDI",
+    "LEĞV EDİLDİ",
+    "LAGV",
+    "LAGV EDILDI",
+]
 BAKU_TIME_ZONE = ZoneInfo("Asia/Baku")
 
 
@@ -144,7 +159,7 @@ def _shift_sales_totals(db: Session, tenant_id: str, opened_at: datetime | None,
 def _shift_void_sales_total(db: Session, tenant_id: str, opened_at: datetime | None, closed_at: datetime | None) -> Decimal:
     query = db.query(func.coalesce(func.sum(Sale.total), 0)).filter(
         Sale.tenant_id == tenant_id,
-        func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
+        func.upper(func.trim(func.coalesce(Sale.status, ""))).in_(VOID_SALE_STATUSES),
     )
     if opened_at:
         query = query.filter(Sale.created_at >= opened_at)
@@ -156,7 +171,7 @@ def _shift_void_sales_total(db: Session, tenant_id: str, opened_at: datetime | N
 def _shift_cashier_breakdown(db: Session, tenant_id: str, opened_at: datetime | None, closed_at: datetime | None) -> list[dict]:
     filters = [
         Sale.tenant_id == tenant_id,
-        ~func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
+        ~func.upper(func.trim(func.coalesce(Sale.status, ""))).in_(VOID_SALE_STATUSES),
     ]
     if opened_at:
         filters.append(Sale.created_at >= opened_at)
