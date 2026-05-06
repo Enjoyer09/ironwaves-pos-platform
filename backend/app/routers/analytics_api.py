@@ -23,7 +23,22 @@ from app.services.finance_service import (
 
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
-VOID_SALE_STATUSES = ["VOIDED", "VOID", "CANCELLED", "CANCELED"]
+VOID_SALE_STATUSES = [
+    "VOIDED",
+    "VOID",
+    "CANCELLED",
+    "CANCELED",
+    "CANCELLED SALE",
+    "CANCELED SALE",
+    "LƏĞV",
+    "LƏĞV EDILDI",
+    "LƏĞV EDİLDİ",
+    "LEĞV",
+    "LEĞV EDILDI",
+    "LEĞV EDİLDİ",
+    "LAGV",
+    "LAGV EDILDI",
+]
 
 
 class SaleAdjustIn(BaseModel):
@@ -266,7 +281,7 @@ def get_sales_summary(
     ]
     if cashier:
         sales_filters.append(Sale.cashier == cashier)
-    sale_status = func.upper(func.coalesce(Sale.status, ""))
+    sale_status = func.upper(func.trim(func.coalesce(Sale.status, "")))
     sale_is_void = sale_status.in_(VOID_SALE_STATUSES)
     sale_is_net = ~sale_is_void
     total_cogs_raw, gross_sales_raw = (

@@ -37,7 +37,22 @@ DEFAULT_FINANCE_POLICY = {
     "legacy_wallet_sync_enabled": False,
     "approver_roles": ["manager", "admin", "finance_admin", "super_admin"],
 }
-VOID_SALE_STATUSES = ["VOIDED", "VOID", "CANCELLED", "CANCELED"]
+VOID_SALE_STATUSES = [
+    "VOIDED",
+    "VOID",
+    "CANCELLED",
+    "CANCELED",
+    "CANCELLED SALE",
+    "CANCELED SALE",
+    "LƏĞV",
+    "LƏĞV EDILDI",
+    "LƏĞV EDİLDİ",
+    "LEĞV",
+    "LEĞV EDILDI",
+    "LEĞV EDİLDİ",
+    "LAGV",
+    "LAGV EDILDI",
+]
 
 
 def _setting_value(db: Session, tenant_id: str, key: str, default):
@@ -325,11 +340,11 @@ def sales_payment_totals(
     """
     sale_filters = [
         Sale.tenant_id == tenant_id,
-        ~func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
+        ~func.upper(func.trim(func.coalesce(Sale.status, ""))).in_(VOID_SALE_STATUSES),
     ]
     void_filters = [
         Sale.tenant_id == tenant_id,
-        func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
+        func.upper(func.trim(func.coalesce(Sale.status, ""))).in_(VOID_SALE_STATUSES),
     ]
     if start:
         sale_filters.append(Sale.created_at >= start)
