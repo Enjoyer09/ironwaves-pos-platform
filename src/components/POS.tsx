@@ -1960,16 +1960,18 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                   className={`pos2-product-card ${dropMenuGroupKey === group.group_key && draggingMenuGroupKey !== group.group_key ? 'ring-2 ring-cyan-300/70' : ''} ${draggingMenuGroupKey === group.group_key ? 'opacity-60' : ''}`}
                 >
                   <button onClick={() => { if (!isPosMenuEditMode) openProductPicker(group); }} className="w-full text-left">
-                    <div className="pos2-product-media">
-                      {group.image_url ? (
-                        <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="pos2-product-fallback">
-                          <ImageOff size={16} />
-                          <span>{group.base.slice(0, 1).toUpperCase()}</span>
-                        </div>
-                      )}
-                    </div>
+                    {posLayout.widget_options?.productGrid?.show_images !== false && (
+                      <div className="pos2-product-media">
+                        {group.image_url ? (
+                          <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="pos2-product-fallback">
+                            <ImageOff size={16} />
+                            <span>{group.base.slice(0, 1).toUpperCase()}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="mt-3">
                       <div className="line-clamp-1 text-sm font-semibold text-slate-100">{group.base}</div>
                       <div className="line-clamp-1 text-xs text-slate-400">{group.description || group.category || tx(lang, 'Menyu məhsulu', 'Позиция меню', 'Menu item')}</div>
@@ -2238,15 +2240,17 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                     className={`pos3-card ${qtyInCart > 0 ? 'pos3-card-active' : ''} ${dropMenuGroupKey === group.group_key && draggingMenuGroupKey !== group.group_key ? 'ring-2 ring-cyan-300/70' : ''} ${draggingMenuGroupKey === group.group_key ? 'opacity-60' : ''}`}
                   >
                     <button className="w-full text-left" onClick={() => { if (!isPosMenuEditMode) increaseGroupQty(group); }}>
-                      <div className="pos3-card-image">
-                        {group.image_url ? (
-                          <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="pos3-card-fallback">
-                            <span className="pos3-card-fallback-mark">{group.initials || 'M'}</span>
-                          </div>
-                        )}
-                      </div>
+                      {posLayout.widget_options?.productGrid?.show_images !== false && (
+                        <div className="pos3-card-image">
+                          {group.image_url ? (
+                            <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="pos3-card-fallback">
+                              <span className="pos3-card-fallback-mark">{group.initials || 'M'}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div className="mt-2">
                         <div className="line-clamp-1 text-[13px] font-semibold leading-5 text-slate-100">{group.base}</div>
                         <div className="line-clamp-1 text-[11px] leading-4 text-slate-400">{group.description || group.category || tx(lang, 'Menyu məhsulu', 'Позиция меню', 'Menu item')}</div>
@@ -2502,8 +2506,17 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           }}
         />
       </div>
-    );
   }
+
+  const panelRatioClass = useMemo(() => {
+    const r = posLayout.panel_ratio || '50:50';
+    if (r === '50:50') return 'xl:grid-cols-[minmax(0,1fr)_minmax(420px,1fr)]';
+    if (r === '55:45') return 'xl:grid-cols-[minmax(0,1.2fr)_minmax(420px,1fr)]';
+    if (r === '60:40') return 'xl:grid-cols-[minmax(0,1.5fr)_minmax(420px,1fr)]';
+    if (r === '65:35') return 'xl:grid-cols-[minmax(0,1.85fr)_minmax(420px,1fr)]';
+    if (r === '70:30') return 'xl:grid-cols-[minmax(0,2.33fr)_minmax(420px,1fr)]';
+    return 'xl:grid-cols-[minmax(0,1.5fr)_minmax(420px,1fr)]';
+  }, [posLayout.panel_ratio]);
 
   return (
     <div
@@ -2640,7 +2653,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         </button>
       </div>
 
-      <div className={`compact-pos-grid grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(420px,2fr)] ${isNewUiMode ? 'pos2-workspace' : ''}`}>
+      <div className={`compact-pos-grid grid min-h-0 flex-1 grid-cols-1 gap-4 ${panelRatioClass} ${isNewUiMode ? 'pos2-workspace' : ''}`}>
         <section className={`flex min-h-0 flex-col ${isNewUiMode ? 'pos2-menu-pane rounded-3xl border border-slate-700/70 bg-slate-950/30 p-4' : ''} ${mobilePane !== 'menu' ? 'hidden xl:flex' : ''}`}>
           {(posLayout.left_widget_order || ['menuHeader', 'search', 'categories', 'productGrid']).map((widget) => renderLeftWidget(widget))}
         </section>
