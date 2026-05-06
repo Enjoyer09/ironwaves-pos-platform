@@ -583,7 +583,7 @@ def _sales_ledger_reconciliation_report(
         or 0
     )
     missing_query = (
-        db.query(Sale.id, Sale.receipt_code, Sale.total, Sale.payment_method, Sale.created_at)
+        db.query(Sale.id, Sale.receipt_code, Sale.total, Sale.payment_method, Sale.cashier, Sale.created_at)
         .outerjoin(ledger_by_sale, Sale.id == ledger_by_sale.c.sale_id)
         .filter(*sales_filters, ledger_by_sale.c.sale_id.is_(None))
     )
@@ -594,6 +594,7 @@ def _sales_ledger_reconciliation_report(
             Sale.receipt_code,
             Sale.total,
             Sale.payment_method,
+            Sale.cashier,
             Sale.created_at,
             ledger_by_sale.c.ledger_total,
             ledger_by_sale.c.transaction_count,
@@ -612,8 +613,17 @@ def _sales_ledger_reconciliation_report(
             "receipt_code": row.receipt_code,
             "sale_total": _money(row.total),
             "payment_method": row.payment_method,
+            "cashier": row.cashier,
             "created_at": row.created_at.isoformat() if row.created_at else None,
         }
+        if not include_ledger:
+            payload.update(
+                {
+                    "ledger_total": "0.00",
+                    "gap": _money(row.total),
+                    "transaction_count": 0,
+                }
+            )
         if include_ledger:
             ledger_value = Decimal(str(row.ledger_total or 0))
             sale_value = Decimal(str(row.total or 0))

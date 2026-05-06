@@ -18,11 +18,14 @@ import {
   fetch_finance_reconciliations,
   fetch_finance_reports_overview,
   fetch_finance_transaction_detail,
+  fetch_sales_ledger_reconciliation_report,
   financeCategoryCodeFromValue,
   reject_finance_transaction_async,
   type FinanceAnomalies,
   type FinanceAlert,
   type FinanceReportsOverview,
+  type FinanceSalesLedgerReconciliationReport,
+  type FinanceSalesLedgerReconciliationRow,
   type FinanceTransactionDetail,
   type FinanceLedgerAccount,
   type FinanceLedgerEntry,
@@ -283,6 +286,8 @@ export default function FinancePanel() {
   const [ledgerEntries, setLedgerEntries] = useState<FinanceLedgerEntry[]>([]);
   const [reconciliations, setReconciliations] = useState<FinanceReconciliation[]>([]);
   const [enterpriseReports, setEnterpriseReports] = useState<FinanceReportsOverview | null>(null);
+  const [salesLedgerReport, setSalesLedgerReport] = useState<FinanceSalesLedgerReconciliationReport | null>(null);
+  const [salesLedgerLoading, setSalesLedgerLoading] = useState(false);
   const [pendingApprovals, setPendingApprovals] = useState<FinanceLedgerTransaction[]>([]);
   const [pendingApprovalsTotal, setPendingApprovalsTotal] = useState(0);
   const [selectedLedgerDetail, setSelectedLedgerDetail] = useState<FinanceTransactionDetail | null>(null);
@@ -448,7 +453,7 @@ export default function FinancePanel() {
 
       const shouldFetchPending = !summary?.pending_approvals_preview?.length;
       const shouldFetchAlerts = !summary?.alerts?.length;
-      const [e, settings, accounts, ledgerRows, recRows, pendingRows, alertRows, reportOverview] = await Promise.all([
+      const [e, settings, accounts, ledgerRows, recRows, pendingRows, alertRows, reportOverview, salesLedgerAudit] = await Promise.all([
         fetch_finance_entries(tenant_id).catch(() => []),
         get_settings_live(tenant_id),
         fetch_finance_ledger_accounts(tenant_id).catch(() => []),
@@ -457,12 +462,14 @@ export default function FinancePanel() {
         shouldFetchPending ? fetch_finance_pending_approvals(tenant_id).catch(() => []) : Promise.resolve([]),
         shouldFetchAlerts ? fetch_finance_alerts(tenant_id).catch(() => null) : Promise.resolve(null),
         fetch_finance_reports_overview(tenant_id, { date_from: fromDate, date_to: toDate }).catch(() => null),
+        fetch_sales_ledger_reconciliation_report(tenant_id, { date_from: fromDate, date_to: toDate, limit: 100 }).catch(() => null),
       ]);
       setEntries(e || []);
       setLedgerAccounts(accounts);
       setLedgerEntries(ledgerRows);
       setReconciliations(recRows);
       setEnterpriseReports(reportOverview);
+      setSalesLedgerReport(salesLedgerAudit);
       setPendingApprovals((summary?.pending_approvals_preview?.length ? summary.pending_approvals_preview : pendingRows) || []);
       setPendingApprovalsTotal(Number(summary?.pending_approvals_count ?? pendingRows.length ?? 0));
       setServerFinanceAlerts((summary?.alerts?.length ? summary.alerts : alertRows) || null);
@@ -484,6 +491,19 @@ export default function FinancePanel() {
       notify('error', err?.message || tx(lang, 'Maliyyə məlumatları yüklənmədi', 'Не удалось загрузить финансы'));
     }
   }, [tenant_id, notify, lang, fromDate, toDate]);
+
+  const reloadSalesLedgerReport = useCallback(async () => {
+    setSalesLedgerLoading(true);
+    try {
+      const report = await fetch_sales_ledger_reconciliation_report(tenant_id, { date_from: fromDate, date_to: toDate, limit: 100 });
+      setSalesLedgerReport(report);
+      notify('success', tx(lang, 'Satış-maliyyə audit yeniləndi', 'Аудит продаж и финансов обновлен', 'Sales-finance audit refreshed'));
+    } catch (err: any) {
+      notify('error', err?.message || tx(lang, 'Satış-maliyyə audit alınmadı', 'Не удалось получить аудит продаж и финансов', 'Sales-finance audit failed'));
+    } finally {
+      setSalesLedgerLoading(false);
+    }
+  }, [tenant_id, fromDate, toDate, notify, lang]);
 
   useEffect(() => {
     void reloadFinance(false);
@@ -1769,6 +1789,75 @@ export default function FinancePanel() {
     />
   );
 
+  const salesLedgerRows = useMemo<FinanceSalesLedgerReconciliationRow[]>(() => {
+    if (!salesLedgerReport) return [];
+    return [
+      ...(salesLedgerReport.missing_ledger_sales || []),
+      ...(salesLedgerReport.amount_mismatch_sales || []),
+    ];
+  }, [salesLedgerReport]);
+
+  const salesLedgerAuditCard = (
+    <FinanceControlCard
+      title={tx(lang, 'Satış və maliyyə yazılışı auditi', 'Аудит продаж и финансовых проводок', 'Sales and ledger audit')}
+      subtitle={tx(lang, 'Bu bölmə fərqin hansı çekdən yarandığını göstərir.', 'Показывает, по какому чеку возникло расхождение.', 'Shows which receipt caused the gap.')}
+    >
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+        <FinanceMiniMetric label={tx(lang, 'Satış cəmi', 'Продажи', 'Sales total')} value={`${new Decimal(salesLedgerReport?.sales_total || 0).toFixed(2)} ₼`} tone="sky" />
+        <FinanceMiniMetric label={tx(lang, 'Maliyyə yazılışı', 'Финансовые проводки', 'Ledger total')} value={`${new Decimal(salesLedgerReport?.ledger_sales_total || 0).toFixed(2)} ₼`} tone="violet" />
+        <FinanceMiniMetric label={tx(lang, 'Fərq', 'Разница', 'Gap')} value={`${new Decimal(salesLedgerReport?.reconciliation_gap || 0).toFixed(2)} ₼`} tone={new Decimal(salesLedgerReport?.reconciliation_gap || 0).abs().gt(0.01) ? 'rose' : 'emerald'} />
+        <FinanceMiniMetric label={tx(lang, 'Problemli çek', 'Проблемных чеков', 'Problem receipts')} value={String(salesLedgerRows.length)} tone={salesLedgerRows.length ? 'amber' : 'emerald'} />
+      </div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-950/50 p-3">
+        <div className="text-sm text-slate-300">
+          {tx(lang, 'Aralıq', 'Период', 'Period')}: <b>{fromDate}</b> → <b>{toDate}</b>
+        </div>
+        <button
+          type="button"
+          onClick={() => void reloadSalesLedgerReport()}
+          disabled={salesLedgerLoading}
+          className="min-h-11 rounded-2xl border border-slate-700 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900 disabled:opacity-60"
+        >
+          {salesLedgerLoading ? tx(lang, 'Yoxlanır...', 'Проверяется...', 'Checking...') : tx(lang, 'Fərqi tap', 'Найти расхождение', 'Find gap')}
+        </button>
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        {salesLedgerRows.length > 0 ? (
+          <table className="min-w-[900px] w-full text-left text-sm">
+            <thead className="text-xs uppercase tracking-[0.14em] text-slate-400">
+              <tr>
+                <th className="py-3">{tx(lang, 'Tarix', 'Дата', 'Date')}</th>
+                <th className="py-3">{tx(lang, 'Çek', 'Чек', 'Receipt')}</th>
+                <th className="py-3">{tx(lang, 'Kassir', 'Кассир', 'Cashier')}</th>
+                <th className="py-3">{tx(lang, 'Ödəniş', 'Оплата', 'Payment')}</th>
+                <th className="py-3 text-right">{tx(lang, 'Satış', 'Продажа', 'Sale')}</th>
+                <th className="py-3 text-right">{tx(lang, 'Maliyyə', 'Финансы', 'Ledger')}</th>
+                <th className="py-3 text-right">{tx(lang, 'Fərq', 'Разница', 'Gap')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800">
+              {salesLedgerRows.map((row) => (
+                <tr key={`${row.sale_id}:${row.gap}`} className="text-slate-200">
+                  <td className="py-3 text-slate-400">{row.created_at ? formatServerUtcDateTime(row.created_at) : '-'}</td>
+                  <td className="py-3 font-black text-white">{row.receipt_code || row.sale_id.slice(0, 8)}</td>
+                  <td className="py-3">{row.cashier || '-'}</td>
+                  <td className="py-3">{row.payment_method || '-'}</td>
+                  <td className="py-3 text-right font-black">{new Decimal(row.sale_total || 0).toFixed(2)} ₼</td>
+                  <td className="py-3 text-right font-black">{new Decimal(row.ledger_total || 0).toFixed(2)} ₼</td>
+                  <td className={`py-3 text-right font-black ${new Decimal(row.gap || 0).abs().gt(0.01) ? 'text-rose-200' : 'text-emerald-200'}`}>{new Decimal(row.gap || 0).toFixed(2)} ₼</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-950/20 p-4 text-sm font-bold text-emerald-100">
+            {tx(lang, 'Bu aralıqda fərq yaradan çek tapılmadı.', 'За этот период чеков с расхождением не найдено.', 'No receipts causing a gap were found for this period.')}
+          </div>
+        )}
+      </div>
+    </FinanceControlCard>
+  );
+
   const overviewInsights = (
     <FinanceOverviewInsightsCard
       lang={lang}
@@ -2202,6 +2291,7 @@ export default function FinancePanel() {
                 <FinanceMiniMetric label={tx(lang, 'Net nəticə', 'Нетто', 'Net')} value={`${financeSummary.net.toFixed(2)} ₼`} tone={financeSummary.net.gte(0) ? 'emerald' : 'rose'} />
               </div>
             </FinanceControlCard>
+            {salesLedgerAuditCard}
             {enterpriseReportsCard}
             {overviewInsights}
           </div>

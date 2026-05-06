@@ -798,6 +798,35 @@ export type FinanceReportsOverview = {
   };
 };
 
+export type FinanceSalesLedgerReconciliationRow = {
+  sale_id: string;
+  receipt_code?: string | null;
+  sale_total: string;
+  ledger_total: string;
+  gap: string;
+  payment_method?: string | null;
+  cashier?: string | null;
+  created_at?: string | null;
+  transaction_count?: number;
+};
+
+export type FinanceSalesLedgerReconciliationReport = {
+  period: {
+    date_from?: string | null;
+    date_to?: string | null;
+  };
+  sales_count: number;
+  sales_total: string;
+  ledger_transaction_count: number;
+  ledger_sales_total: string;
+  reconciliation_gap: string;
+  has_reconciliation_issue: boolean;
+  missing_ledger_count: number;
+  amount_mismatch_count: number;
+  missing_ledger_sales: FinanceSalesLedgerReconciliationRow[];
+  amount_mismatch_sales: FinanceSalesLedgerReconciliationRow[];
+};
+
 export const fetch_finance_reports_overview = async (
   tenant_id: string,
   filters: { date_from?: string; date_to?: string } = {},
@@ -812,6 +841,46 @@ export const fetch_finance_reports_overview = async (
     tenantId: tenant_id,
   });
   return data as FinanceReportsOverview;
+};
+
+export const fetch_sales_ledger_reconciliation_report = async (
+  tenant_id: string,
+  filters: { date_from?: string; date_to?: string; limit?: number } = {},
+): Promise<FinanceSalesLedgerReconciliationReport | null> => {
+  if (!isBackendEnabled()) return null;
+  const params = new URLSearchParams();
+  if (filters.date_from) params.set('date_from', filters.date_from);
+  if (filters.date_to) params.set('date_to', filters.date_to);
+  if (filters.limit) params.set('limit', String(filters.limit));
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  const data = await apiRequest<any>(`/api/v1/finance/reports/sales-ledger-reconciliation${suffix}`, {
+    method: 'GET',
+    tenantId: tenant_id,
+  });
+  const mapRow = (row: any): FinanceSalesLedgerReconciliationRow => ({
+    sale_id: String(row?.sale_id || ''),
+    receipt_code: row?.receipt_code ?? null,
+    sale_total: String(row?.sale_total ?? '0'),
+    ledger_total: String(row?.ledger_total ?? '0'),
+    gap: String(row?.gap ?? '0'),
+    payment_method: row?.payment_method ?? null,
+    cashier: row?.cashier ?? null,
+    created_at: row?.created_at ?? null,
+    transaction_count: Number(row?.transaction_count ?? 0),
+  });
+  return {
+    period: data?.period || {},
+    sales_count: Number(data?.sales_count ?? 0),
+    sales_total: String(data?.sales_total ?? '0'),
+    ledger_transaction_count: Number(data?.ledger_transaction_count ?? 0),
+    ledger_sales_total: String(data?.ledger_sales_total ?? '0'),
+    reconciliation_gap: String(data?.reconciliation_gap ?? '0'),
+    has_reconciliation_issue: Boolean(data?.has_reconciliation_issue),
+    missing_ledger_count: Number(data?.missing_ledger_count ?? 0),
+    amount_mismatch_count: Number(data?.amount_mismatch_count ?? 0),
+    missing_ledger_sales: (data?.missing_ledger_sales || []).map(mapRow),
+    amount_mismatch_sales: (data?.amount_mismatch_sales || []).map(mapRow),
+  };
 };
 
 export type FinanceLedgerAccount = {
