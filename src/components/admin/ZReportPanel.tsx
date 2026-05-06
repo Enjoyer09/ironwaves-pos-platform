@@ -72,7 +72,7 @@ export default function ZReportPanel() {
   const [loadingPrinters, setLoadingPrinters] = useState(false);
   const [shiftStatusState, setShiftStatusState] = useState(get_shift_status(tenant_id));
   const [expectedCashState, setExpectedCashState] = useState<Decimal>(() => get_expected_cash(tenant_id));
-  const [summary, setSummary] = useState<any>({ total_revenue: '0', cash_sales: '0', card_sales: '0', ledger_sales_total: '0', gross_sales: '0', void_sales: '0', gross_profit: '0', total_cogs: '0', void_count: 0 });
+  const [summary, setSummary] = useState<any>({ total_revenue: '0', cash_sales: '0', card_sales: '0', deposit_applied_sales: '0', ledger_sales_total: '0', gross_sales: '0', void_sales: '0', gross_profit: '0', total_cogs: '0', void_count: 0 });
   const [sales, setSales] = useState<any[]>([]);
   const [handovers, setHandovers] = useState<any[]>([]);
   const [pendingReceived, setPendingReceived] = useState<any | null>(null);
@@ -231,7 +231,8 @@ export default function ZReportPanel() {
     const closingDifference = actualCash.minus(expectedCash);
     const cashSales = new Decimal(result?.cash_sales ?? summary.cash_sales ?? 0);
     const cardSales = new Decimal(result?.card_sales ?? summary.card_sales ?? 0);
-    const totalSales = cashSales.plus(cardSales);
+    const depositAppliedSales = new Decimal(result?.deposit_applied_sales ?? summary.deposit_applied_sales ?? 0);
+    const totalSales = new Decimal(result?.total_sales ?? cashSales.plus(cardSales).plus(depositAppliedSales));
     const voidSales = new Decimal(result?.void_sales ?? summary.void_sales ?? 0);
     const depositCollected = new Decimal(result?.deposit_total || 0);
     const activeDepositLiability = new Decimal(currentBalances.deposit_balance || 0);
@@ -269,11 +270,13 @@ export default function ZReportPanel() {
             <div class="line"><span>Ümumi Satış</span><span>${totalSales.toFixed(2)} ₼</span></div>
             <div class="line"><span>Nağd Satış</span><span>${cashSales.toFixed(2)} ₼</span></div>
             <div class="line"><span>Kart Satış</span><span>${cardSales.toFixed(2)} ₼</span></div>
+            ${depositAppliedSales.gt(0) ? `<div class="line"><span>Depozitdən ödənən</span><span>${depositAppliedSales.toFixed(2)} ₼</span></div>` : ''}
             ${voidSales.gt(0) ? `<div class="line"><span>Void/Cancel</span><span>${voidSales.toFixed(2)} ₼</span></div>` : ''}
           ` : `
             <div class="section-title">Ödəniş bölgüsü</div>
             <div class="line"><span>Nağd Satış</span><span>${cashSales.toFixed(2)} ₼</span></div>
             <div class="line"><span>Kart Satış</span><span>${cardSales.toFixed(2)} ₼</span></div>
+            ${depositAppliedSales.gt(0) ? `<div class="line"><span>Depozitdən ödənən</span><span>${depositAppliedSales.toFixed(2)} ₼</span></div>` : ''}
             ${voidSales.gt(0) ? `<div class="line"><span>Void/Cancel</span><span>${voidSales.toFixed(2)} ₼</span></div>` : ''}
           `}
           ${zReportReceiptSettings.show_profit_summary ? `
@@ -466,11 +469,11 @@ export default function ZReportPanel() {
           get_sales_list_live(tenant_id, start, end, user?.role === 'staff' ? user.username : undefined),
         ]);
         if (!mounted) return;
-        setSummary(nextSummary || { total_revenue: '0', cash_sales: '0', card_sales: '0', ledger_sales_total: '0', gross_sales: '0', void_sales: '0', gross_profit: '0', total_cogs: '0', void_count: 0 });
+        setSummary(nextSummary || { total_revenue: '0', cash_sales: '0', card_sales: '0', deposit_applied_sales: '0', ledger_sales_total: '0', gross_sales: '0', void_sales: '0', gross_profit: '0', total_cogs: '0', void_count: 0 });
         setSales(nextSales || []);
       } catch {
         if (!mounted) return;
-        setSummary({ total_revenue: '0', cash_sales: '0', card_sales: '0', ledger_sales_total: '0', gross_sales: '0', void_sales: '0', gross_profit: '0', total_cogs: '0', void_count: 0 });
+        setSummary({ total_revenue: '0', cash_sales: '0', card_sales: '0', deposit_applied_sales: '0', ledger_sales_total: '0', gross_sales: '0', void_sales: '0', gross_profit: '0', total_cogs: '0', void_count: 0 });
         setSales([]);
       }
     })();
