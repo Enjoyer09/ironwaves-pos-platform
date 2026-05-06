@@ -391,7 +391,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         title: tx(lang, 'Satış və maliyyə yazılışı fərqi', 'Расхождение продаж и финансовых проводок', 'Sales vs ledger gap'),
         body: `${tx(lang, 'Cari dövr fərqi', 'Разница текущего периода', 'Current period gap')}: ${money(financeAnomalies.current_period_reconciliation_gap)}`,
         tone: 'critical',
-        actionLabel: tx(lang, 'Bax', 'Проверить', 'Review'),
+        actionLabel: tx(lang, 'Maliyyəyə keç', 'Открыть финансы', 'Open finance'),
         action: () => onOpenTab('finance'),
       });
     }

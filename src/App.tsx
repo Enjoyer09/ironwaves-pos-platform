@@ -1579,6 +1579,7 @@ export default function App() {
                   <AdminPanel
                     key={`admin:${moduleTenantKey}`}
                     externalTab={resolvedModule as AdminView}
+                    onTabChange={(tab) => setCurrentModule(tab as ModuleKey)}
                     isActive={!['pos', 'kds', 'tables'].includes(resolvedModule)}
                   />
                 </div>
