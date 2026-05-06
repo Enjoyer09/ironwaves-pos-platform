@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import AuditLog, BusinessProfile, FinanceAccount, FinanceTransaction, Sale, Setting, Shift, ShiftHandover, Tenant, User
+from app.models import AuditLog, BusinessProfile, FinanceAccount, FinanceLedgerEntry, FinanceTransaction, Sale, Setting, Shift, ShiftHandover, Tenant, User
 from app.services.finance_service import finance_policy as _finance_policy
 from app.services.finance_service import create_finance_transaction_record as _create_finance_transaction_record
 from app.services.finance_service import ledger_balances_snapshot as _ledger_balances_snapshot
@@ -81,21 +81,29 @@ def _group_transaction_amounts(rows: list[FinanceTransaction], exclude_categorie
     return total.quantize(Decimal("0.01")), lines
 
 
-def _posted_transaction_filters(tenant_id: str, opened_at: datetime | None) -> list:
+def _posted_transaction_filters(tenant_id: str, opened_at: datetime | None, closed_at: datetime | None = None) -> list:
     filters = [
         FinanceTransaction.tenant_id == tenant_id,
         FinanceTransaction.status == "posted",
     ]
     if opened_at:
         filters.append(FinanceTransaction.created_at >= opened_at)
+    if closed_at:
+        filters.append(FinanceTransaction.created_at < closed_at)
     return filters
 
 
-def _posted_transaction_sum(db: Session, tenant_id: str, opened_at: datetime | None, *extra_filters) -> Decimal:
+def _posted_transaction_sum(
+    db: Session,
+    tenant_id: str,
+    opened_at: datetime | None,
+    *extra_filters,
+    closed_at: datetime | None = None,
+) -> Decimal:
     return Decimal(
         str(
             db.query(func.coalesce(func.sum(FinanceTransaction.amount), 0))
-            .filter(*_posted_transaction_filters(tenant_id, opened_at), *extra_filters)
+            .filter(*_posted_transaction_filters(tenant_id, opened_at, closed_at), *extra_filters)
             .scalar()
             or 0
         )
@@ -107,6 +115,7 @@ def _group_posted_transaction_amounts(
     tenant_id: str,
     opened_at: datetime | None,
     *extra_filters,
+    closed_at: datetime | None = None,
     exclude_categories: set[str] | None = None,
 ) -> tuple[Decimal, list[dict]]:
     excluded = exclude_categories or set()
@@ -116,7 +125,7 @@ def _group_posted_transaction_amounts(
             FinanceTransaction.transaction_type,
             func.coalesce(func.sum(FinanceTransaction.amount), 0),
         )
-        .filter(*_posted_transaction_filters(tenant_id, opened_at), *extra_filters)
+        .filter(*_posted_transaction_filters(tenant_id, opened_at, closed_at), *extra_filters)
         .group_by(FinanceTransaction.category, FinanceTransaction.transaction_type)
         .all()
     )
@@ -134,14 +143,13 @@ def _group_posted_transaction_amounts(
     return total.quantize(Decimal("0.01")), lines
 
 
-def _posted_transactions_since(db: Session, tenant_id: str, opened_at: datetime | None) -> list[FinanceTransaction]:
-    query = db.query(FinanceTransaction).filter(
-        FinanceTransaction.tenant_id == tenant_id,
-        FinanceTransaction.status == "posted",
-    )
-    if opened_at:
-        query = query.filter(FinanceTransaction.created_at >= opened_at)
-    return query.all()
+def _posted_transactions_since(
+    db: Session,
+    tenant_id: str,
+    opened_at: datetime | None,
+    closed_at: datetime | None = None,
+) -> list[FinanceTransaction]:
+    return db.query(FinanceTransaction).filter(*_posted_transaction_filters(tenant_id, opened_at, closed_at)).all()
 
 
 def _finance_account_code_map(db: Session, tenant_id: str) -> dict[str, str]:
@@ -307,6 +315,152 @@ def _shift_item_sales_breakdown(db: Session, tenant_id: str, opened_at: datetime
     return result
 
 
+def _shift_cogs_total(db: Session, tenant_id: str, opened_at: datetime | None, closed_at: datetime | None) -> Decimal:
+    filters = [
+        Sale.tenant_id == tenant_id,
+        ~_sale_is_void_expr(tenant_id),
+    ]
+    if opened_at:
+        filters.append(Sale.created_at >= opened_at)
+    if closed_at:
+        filters.append(Sale.created_at < closed_at)
+    return Decimal(
+        str(db.query(func.coalesce(func.sum(Sale.cogs), 0)).filter(*filters).scalar() or 0)
+    ).quantize(Decimal("0.01"))
+
+
+def _shift_cash_breakdown_for_receipt(db: Session, tenant_id: str, shift: Shift) -> dict[str, Decimal]:
+    opening_cash = Decimal(str(shift.opening_cash or 0)).quantize(Decimal("0.01"))
+    account_id_by_code = {code: account_id for account_id, code in _finance_account_code_map(db, tenant_id).items()}
+    cash_account_id = account_id_by_code.get("cash")
+    if not cash_account_id:
+        actual_cash = Decimal(str(shift.actual_cash or shift.closing_cash or opening_cash)).quantize(Decimal("0.01"))
+        return {
+            "opening_cash": opening_cash,
+            "cash_in": Decimal("0.00"),
+            "cash_out": Decimal("0.00"),
+            "expected_cash": actual_cash,
+        }
+
+    query = db.query(FinanceLedgerEntry.entry_side, FinanceLedgerEntry.amount).filter(
+        FinanceLedgerEntry.tenant_id == tenant_id,
+        FinanceLedgerEntry.account_id == cash_account_id,
+    )
+    if shift.opened_at:
+        query = query.filter(FinanceLedgerEntry.created_at >= shift.opened_at)
+    if shift.closed_at:
+        query = query.filter(FinanceLedgerEntry.created_at < shift.closed_at)
+    rows = query.all()
+    cash_in = sum(
+        (Decimal(str(amount or 0)) for side, amount in rows if str(side or "").lower() == "debit"),
+        Decimal("0"),
+    ).quantize(Decimal("0.01"))
+    cash_out = sum(
+        (Decimal(str(amount or 0)) for side, amount in rows if str(side or "").lower() == "credit"),
+        Decimal("0"),
+    ).quantize(Decimal("0.01"))
+    expected_cash = (opening_cash + cash_in - cash_out).quantize(Decimal("0.01"))
+    return {
+        "opening_cash": opening_cash,
+        "cash_in": cash_in,
+        "cash_out": cash_out,
+        "expected_cash": expected_cash,
+    }
+
+
+def _z_report_financial_context(
+    db: Session,
+    tenant_id: str,
+    shift: Shift,
+    total_sales: Decimal,
+    report_account_ids: list[str] | None = None,
+) -> dict:
+    account_ids = report_account_ids
+    if account_ids is None:
+        account_id_by_code = {code: account_id for account_id, code in _finance_account_code_map(db, tenant_id).items()}
+        account_ids = [
+            account_id
+            for code, account_id in account_id_by_code.items()
+            if code in {"cash", "card", "safe", "debt"} and account_id
+        ]
+
+    opened_at = shift.opened_at
+    closed_at = shift.closed_at
+    total_cogs = _shift_cogs_total(db, tenant_id, opened_at, closed_at)
+    bank_fee_total = _posted_transaction_sum(
+        db,
+        tenant_id,
+        opened_at,
+        FinanceTransaction.transaction_type == "expense",
+        FinanceTransaction.category == "Bank Komissiyası",
+        closed_at=closed_at,
+    )
+    wage_amount = _posted_transaction_sum(
+        db,
+        tenant_id,
+        opened_at,
+        FinanceTransaction.transaction_type == "expense",
+        FinanceTransaction.category == "Maaş",
+        closed_at=closed_at,
+    )
+    deposit_total = _posted_transaction_sum(
+        db,
+        tenant_id,
+        opened_at,
+        FinanceTransaction.transaction_type == "deposit_hold",
+        closed_at=closed_at,
+    )
+    other_income_total, other_income_lines = _group_posted_transaction_amounts(
+        db,
+        tenant_id,
+        opened_at,
+        or_(
+            (FinanceTransaction.transaction_type == "income") & FinanceTransaction.related_order_id.is_(None),
+            (
+                FinanceTransaction.transaction_type.in_(["cash_adjustment", "reconciliation_adjustment"])
+                & FinanceTransaction.destination_account_id.in_(account_ids)
+            ),
+            FinanceTransaction.transaction_type == "investor_injection",
+        ),
+        closed_at=closed_at,
+        exclude_categories={"satış (nağd)", "satış (kart)", "staff ödənişi", "depozit alındı"},
+    )
+    other_expense_total, other_expense_lines = _group_posted_transaction_amounts(
+        db,
+        tenant_id,
+        opened_at,
+        or_(
+            FinanceTransaction.transaction_type == "expense",
+            (
+                FinanceTransaction.transaction_type.in_(["cash_adjustment", "reconciliation_adjustment"])
+                & FinanceTransaction.source_account_id.in_(account_ids)
+            ),
+        ),
+        closed_at=closed_at,
+        exclude_categories={"maaş", "bank komissiyası"},
+    )
+    cash_breakdown = _shift_cash_breakdown_for_receipt(db, tenant_id, shift)
+    return {
+        "total_cogs": total_cogs,
+        "gross_profit": (total_sales - total_cogs).quantize(Decimal("0.01")),
+        "bank_fee_total": bank_fee_total,
+        "wage_amount": wage_amount,
+        "deposit_total": deposit_total,
+        "other_income_total": other_income_total,
+        "other_income_lines": other_income_lines,
+        "other_expense_total": other_expense_total,
+        "other_expense_lines": other_expense_lines,
+        "opening_cash": cash_breakdown["opening_cash"],
+        "cash_movements_in": cash_breakdown["cash_in"],
+        "cash_movements_out": cash_breakdown["cash_out"],
+        "expected_cash": cash_breakdown["expected_cash"],
+        "actual_cash": Decimal(str(shift.actual_cash or shift.closing_cash or 0)).quantize(Decimal("0.01")),
+        "difference": Decimal(str(shift.cash_variance or 0)).quantize(Decimal("0.01")),
+        "closing_deposit_liability": Decimal(str(shift.closing_deposit_liability or 0)).quantize(Decimal("0.01")),
+        "deposit_settled_amount": Decimal(str(shift.deposit_settled_amount or 0)).quantize(Decimal("0.01")),
+    }
+
+
 def _replace_z_report_money_line(html: str, label: str, amount: Decimal) -> str:
     safe_amount = f"{amount.quantize(Decimal('0.01'))} ₼"
     pattern = (
@@ -420,6 +574,24 @@ def _build_z_report_receipt_html(
     void_sales: Decimal,
     cashier_breakdown: list[dict],
     item_breakdown: list[dict] | None = None,
+    sales_count: int = 0,
+    wage_amount: Decimal = Decimal("0.00"),
+    total_cogs: Decimal = Decimal("0.00"),
+    gross_profit: Decimal = Decimal("0.00"),
+    bank_fee_total: Decimal = Decimal("0.00"),
+    opening_cash: Decimal = Decimal("0.00"),
+    expected_cash: Decimal = Decimal("0.00"),
+    actual_cash: Decimal = Decimal("0.00"),
+    difference: Decimal = Decimal("0.00"),
+    cash_movements_in: Decimal = Decimal("0.00"),
+    cash_movements_out: Decimal = Decimal("0.00"),
+    deposit_total: Decimal = Decimal("0.00"),
+    closing_deposit_liability: Decimal = Decimal("0.00"),
+    deposit_settled_amount: Decimal = Decimal("0.00"),
+    other_income_total: Decimal = Decimal("0.00"),
+    other_income_lines: list[dict] | None = None,
+    other_expense_total: Decimal = Decimal("0.00"),
+    other_expense_lines: list[dict] | None = None,
 ) -> str:
     profile = _business_profile(db, tenant)
     report_id = str(shift.id or "Z-REPORT")[:8].upper()
@@ -440,14 +612,19 @@ def _build_z_report_receipt_html(
         )
         for row in (item_breakdown or [])
     )
+    other_income_rows = "\n".join(
+        f'<div class="line"><span>{row.get("label") or "Digər giriş"}</span>'
+        f'<span>{Decimal(str(row.get("amount") or 0)).quantize(Decimal("0.01"))} ₼</span></div>'
+        for row in (other_income_lines or [])
+    )
+    other_expense_rows = "\n".join(
+        f'<div class="line"><span>{row.get("label") or "Digər xərc"}</span>'
+        f'<span>{Decimal(str(row.get("amount") or 0)).quantize(Decimal("0.01"))} ₼</span></div>'
+        for row in (other_expense_lines or [])
+    )
     deposit_line = (
         f'<div class="line"><span>Depozitdən ödənən</span><span>{deposit_applied_sales.quantize(Decimal("0.01"))} ₼</span></div>'
         if deposit_applied_sales > Decimal("0.00")
-        else ""
-    )
-    void_line = (
-        f'<div class="line"><span>Void/Cancel</span><span>{void_sales.quantize(Decimal("0.01"))} ₼</span></div>'
-        if void_sales > Decimal("0.00")
         else ""
     )
     return f"""
@@ -479,7 +656,36 @@ def _build_z_report_receipt_html(
           <div class="line"><span>Nağd Satış</span><span>{cash_sales.quantize(Decimal("0.01"))} ₼</span></div>
           <div class="line"><span>Kart Satış</span><span>{card_sales.quantize(Decimal("0.01"))} ₼</span></div>
           {deposit_line}
-          {void_line}
+          <div class="line"><span>Void/Cancel</span><span>{void_sales.quantize(Decimal("0.01"))} ₼</span></div>
+          <hr />
+          <div class="section-title">Mənfəət xülasəsi</div>
+          <div class="line"><span>Maya (COGS)</span><span>{total_cogs.quantize(Decimal("0.01"))} ₼</span></div>
+          <div class="line"><span>Brutto Mənfəət</span><span>{gross_profit.quantize(Decimal("0.01"))} ₼</span></div>
+          <div class="line"><span>Bank faizi</span><span>{bank_fee_total.quantize(Decimal("0.01"))} ₼</span></div>
+          <div class="line"><span>Maaş Çıxışı</span><span>{wage_amount.quantize(Decimal("0.01"))} ₼</span></div>
+          <hr />
+          <div class="section-title">Kassa bağlanışı</div>
+          <div class="line"><span>Növbə Açılışı</span><span>{opening_cash.quantize(Decimal("0.01"))} ₼</span></div>
+          <div class="line"><span>Olmalı kassa</span><span>{expected_cash.quantize(Decimal("0.01"))} ₼</span></div>
+          <div class="line"><span>Faktiki bağlanış</span><span>{actual_cash.quantize(Decimal("0.01"))} ₼</span></div>
+          <div class="line"><span>Bağlanış fərqi</span><span>{difference.quantize(Decimal("0.01"))} ₼</span></div>
+          <hr />
+          <div class="section-title">Kassa hərəkətləri</div>
+          <div class="line"><span>Kassa girişləri</span><span>{cash_movements_in.quantize(Decimal("0.01"))} ₼</span></div>
+          <div class="line"><span>Kassa çıxışları</span><span>{cash_movements_out.quantize(Decimal("0.01"))} ₼</span></div>
+          <hr />
+          <div class="section-title">Digər giriş pulları</div>
+          <div class="line"><span>Cəmi</span><span>{other_income_total.quantize(Decimal("0.01"))} ₼</span></div>
+          {other_income_rows or '<div class="muted">Bu növbədə əlavə giriş yoxdur</div>'}
+          <hr />
+          <div class="section-title">Digər xərclər</div>
+          <div class="line"><span>Cəmi</span><span>{other_expense_total.quantize(Decimal("0.01"))} ₼</span></div>
+          {other_expense_rows or '<div class="muted">Bu növbədə əlavə xərc yoxdur</div>'}
+          <hr />
+          <div class="section-title">Depozit xülasəsi</div>
+          <div class="line"><span>Bu növbədə toplanan depozit</span><span>{deposit_total.quantize(Decimal("0.01"))} ₼</span></div>
+          <div class="line"><span>Depozitdən bağlanan</span><span>{deposit_settled_amount.quantize(Decimal("0.01"))} ₼</span></div>
+          <div class="line"><span>Aktiv depozit öhdəliyi</span><span>{closing_deposit_liability.quantize(Decimal("0.01"))} ₼</span></div>
           <hr />
           <div class="section-title">Kassir Breakdown</div>
           {cashier_rows or '<div class="muted">Kassir fəaliyyəti yoxdur</div>'}
@@ -487,6 +693,7 @@ def _build_z_report_receipt_html(
           <div class="section-title">Məhsul Satışları</div>
           {item_rows or '<div class="muted">Məhsul satışı yoxdur</div>'}
           <hr />
+          <div class="line"><span>Satış sayı</span><span>{int(sales_count or 0)}</span></div>
           <div class="muted">{profile["receipt_footer"]}</div>
         </body>
       </html>
@@ -1005,7 +1212,14 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
                 & FinanceTransaction.source_account_id.in_(report_account_ids)
             ),
         ),
-        exclude_categories={"maaş"},
+        exclude_categories={"maaş", "bank komissiyası"},
+    )
+    receipt_context = _z_report_financial_context(
+        db,
+        tenant.id,
+        active,
+        total_sales,
+        report_account_ids=report_account_ids,
     )
 
     active.status = "closed"
@@ -1033,6 +1247,9 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         "ledger_sales_total": str(ledger_sales_total.quantize(Decimal("0.01"))),
         "reconciliation_gap": str(reconciliation_gap.quantize(Decimal("0.01"))),
         "void_sales": str(void_sales.quantize(Decimal("0.01"))),
+        "total_cogs": str(receipt_context["total_cogs"].quantize(Decimal("0.01"))),
+        "gross_profit": str(receipt_context["gross_profit"].quantize(Decimal("0.01"))),
+        "bank_fee_total": str(receipt_context["bank_fee_total"].quantize(Decimal("0.01"))),
         "deposit_total": str(deposit_total.quantize(Decimal("0.01"))),
         "expected_cash": str(expected.quantize(Decimal("0.01"))),
         "actual_cash": str(actual_cash),
@@ -1108,9 +1325,11 @@ def list_z_report_receipts(
         card_sales = sales_totals["card_sales"]
         deposit_applied_sales = sales_totals["deposit_applied"]
         total_sales = sales_totals["sales_total"]
+        sales_count = int(sales_totals["sales_count"])
         void_sales = sales_totals["void_sales"]
         cashier_breakdown = _shift_cashier_breakdown(db, tenant.id, row.opened_at, row.closed_at)
         item_breakdown = _shift_item_sales_breakdown(db, tenant.id, row.opened_at, row.closed_at)
+        receipt_context = _z_report_financial_context(db, tenant.id, row, total_sales)
         corrected_html = _build_z_report_receipt_html(
             db=db,
             tenant=tenant,
@@ -1122,6 +1341,24 @@ def list_z_report_receipts(
             void_sales=void_sales,
             cashier_breakdown=cashier_breakdown,
             item_breakdown=item_breakdown,
+            sales_count=sales_count,
+            wage_amount=receipt_context["wage_amount"],
+            total_cogs=receipt_context["total_cogs"],
+            gross_profit=receipt_context["gross_profit"],
+            bank_fee_total=receipt_context["bank_fee_total"],
+            opening_cash=receipt_context["opening_cash"],
+            expected_cash=receipt_context["expected_cash"],
+            actual_cash=receipt_context["actual_cash"],
+            difference=receipt_context["difference"],
+            cash_movements_in=receipt_context["cash_movements_in"],
+            cash_movements_out=receipt_context["cash_movements_out"],
+            deposit_total=receipt_context["deposit_total"],
+            closing_deposit_liability=receipt_context["closing_deposit_liability"],
+            deposit_settled_amount=receipt_context["deposit_settled_amount"],
+            other_income_total=receipt_context["other_income_total"],
+            other_income_lines=receipt_context["other_income_lines"],
+            other_expense_total=receipt_context["other_expense_total"],
+            other_expense_lines=receipt_context["other_expense_lines"],
         )
         result.append(
             {
