@@ -189,7 +189,7 @@ export default function LogsPanel() {
     if ((action === 'SHIFT_HANDOVER' || action === 'SHIFT_HANDOVER_ACCEPTED') && targetUser) return `${tx(lang, 'İşçi', 'Сотрудник', 'Staff')}: ${targetUser}`;
     if (action === 'FINANCE_ANOMALY_SNAPSHOT') {
       const bits: string[] = [];
-      if (details.has_reconciliation_issue) bits.push(tx(lang, 'sales vs ledger fərqi', 'разница sales vs ledger', 'sales vs ledger gap'));
+      if (details.has_reconciliation_issue) bits.push(tx(lang, 'satış və maliyyə yazılışı fərqi', 'разница продаж и финансовых проводок', 'sales vs ledger gap'));
       if (details.has_investor_mismatch) bits.push(tx(lang, 'investor uyğunsuzluğu', 'несовпадение инвестора', 'investor mismatch'));
       if (details.has_shift_cash_mismatch) bits.push(tx(lang, 'shift kassa fərqi', 'разница кассы смены', 'shift cash gap'));
       if (details.has_deposit_risk) bits.push(tx(lang, 'depozit riski', 'риск депозитов', 'deposit risk'));
@@ -207,12 +207,12 @@ export default function LogsPanel() {
     if (parsed.has_reconciliation_issue !== undefined || parsed.has_investor_mismatch !== undefined || parsed.has_shift_cash_mismatch !== undefined) {
       const riskRows = [
         {
-          label: tx(lang, 'Sales vs ledger fərqi', 'Разница sales vs ledger', 'Sales vs ledger gap'),
+          label: tx(lang, 'Satış və maliyyə yazılışı fərqi', 'Разница продаж и финансовых проводок', 'Sales vs ledger gap'),
           active: Boolean(parsed.has_reconciliation_issue),
           value: parsed.reconciliation_gap,
         },
         {
-          label: tx(lang, 'Investor ledger fərqi', 'Разница investor ledger', 'Investor ledger gap'),
+          label: tx(lang, 'Investor maliyyə yazılışı fərqi', 'Разница инвесторских финансовых проводок', 'Investor ledger gap'),
           active: Boolean(parsed.has_investor_mismatch),
           value: parsed.investor_ledger_gap,
         },

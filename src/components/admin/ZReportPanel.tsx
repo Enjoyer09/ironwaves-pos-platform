@@ -1415,7 +1415,7 @@ export default function ZReportPanel() {
           </div>
           <div className="rounded-2xl border border-slate-700/70 bg-slate-900/40 p-3 text-sm text-slate-300">
             <div className="mt-5 font-semibold text-slate-100">{tx(lang, 'Kassada qalan', 'Остаток в кассе', 'Carryover cash')}</div>
-            <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Finance ledger üzrə cari cash wallet balansı.', 'Текущий баланс cash wallet по finance ledger.', 'Current cash wallet balance from finance ledger.')}</div>
+            <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Maliyyə yazılışına görə cari nağd kassa balansı.', 'Текущий баланс кассы по финансовым проводкам.', 'Current cash wallet balance from finance ledger.')}</div>
           </div>
           <div className="rounded-2xl border border-slate-700/70 bg-slate-900/40 p-3 text-sm text-slate-300">
             <div className="mt-5 font-semibold text-slate-100">{tx(lang, 'Aktiv depozit öhdəliyi', 'Активный депозитный долг', 'Active deposit liability')}</div>

@@ -388,7 +388,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
     if (financeAnomalies?.has_reconciliation_issue) {
       alerts.push({
         id: 'sales-ledger-gap',
-        title: tx(lang, 'Satış və ledger fərqi', 'Расхождение продаж и ledger', 'Sales vs ledger gap'),
+        title: tx(lang, 'Satış və maliyyə yazılışı fərqi', 'Расхождение продаж и финансовых проводок', 'Sales vs ledger gap'),
         body: `${tx(lang, 'Fərq', 'Разница', 'Gap')}: ${money(financeAnomalies.reconciliation_gap)}`,
         tone: 'critical',
         actionLabel: tx(lang, 'Bax', 'Проверить', 'Review'),

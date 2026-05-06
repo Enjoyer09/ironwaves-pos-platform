@@ -64,7 +64,7 @@ export function FinanceSummaryStrip({
           <div className="text-xs font-black uppercase tracking-[0.24em] text-yellow-300">{tx(lang, 'Maliyyə iş sahəsi', 'Maliyyə iş sahəsi', 'Maliyyə iş sahəsi')}</div>
           <h2 className="mt-2 text-xl font-black text-white md:text-3xl">{tx(lang, 'Maliyyə nəzarət mərkəzi', 'Центр финансового контроля', 'Finance control center')}</h2>
           <p className="mt-2 max-w-3xl text-sm text-slate-300">
-            {tx(lang, 'Pul axını, öhdəliklər, uyğunlaşdırma və maliyyə jurnalı eyni iş sahəsindədir.', 'Денежный поток, обязательства, сверка и ledger в одном рабочем пространстве.', 'Cashflow, liabilities, reconciliation and ledger in one workspace.')}
+            {tx(lang, 'Pul axını, öhdəliklər, uyğunlaşdırma və maliyyə jurnalı eyni iş sahəsindədir.', 'Денежный поток, обязательства, сверка и финансовый журнал в одном рабочем пространстве.', 'Cashflow, liabilities, reconciliation and ledger in one workspace.')}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
