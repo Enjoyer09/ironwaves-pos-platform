@@ -4,6 +4,7 @@ import { FinanceEntry } from '../types/pos';
 import { v4 as uuidv4 } from 'uuid';
 import { send_email } from './email';
 import { apiRequest, isBackendEnabled } from './client';
+import { formatServerUtcDateTime24, formatServerUtcTime24 } from '../lib/time';
 
 import { getDB, setDB } from '../lib/db_sim';
 
@@ -915,6 +916,8 @@ export const z_report = async (
 
     const profile = getBusinessProfile(tenant_id);
     const reportId = String(res?.shift_id || '').slice(0, 8).toUpperCase() || 'Z-REPORT';
+    const openedAt = String(res?.opened_at || currentShift?.timestamp || '');
+    const closedAt = String(res?.closed_at || new Date().toISOString());
     const receipt_html = `
       <html>
         <head>
@@ -934,10 +937,11 @@ export const z_report = async (
           <div class="muted">Tel: ${profile?.phone || '-'}</div>
           <div class="muted">${profile?.address || '-'}</div>
           <hr />
-          <div class="line"><span>Z-Hesabat</span><span>${new Date().toLocaleDateString()}</span></div>
+          <div class="line"><span>Z-Hesabat</span><span>${formatServerUtcDateTime24(closedAt)}</span></div>
           <div class="line"><span>Report ID</span><span>${reportId}</span></div>
           <div class="line"><span>Operator</span><span>${generated_by}</span></div>
-          <div class="line"><span>Tarix</span><span>${new Date().toLocaleString()}</span></div>
+          <div class="line"><span>Açılış saatı</span><span>${formatServerUtcTime24(openedAt)}</span></div>
+          <div class="line"><span>Bağlanış saatı</span><span>${formatServerUtcTime24(closedAt)}</span></div>
           <hr />
           <div class="line"><span>Nağd Satış</span><span>${new Decimal(res?.cash_sales || 0).toFixed(2)} ₼</span></div>
           <div class="line"><span>Kart Satış</span><span>${new Decimal(res?.card_sales || 0).toFixed(2)} ₼</span></div>
@@ -956,7 +960,8 @@ export const z_report = async (
     return {
       success: Boolean(res?.success),
       shift_id: String(res?.shift_id || ''),
-      closed_at: String(res?.closed_at || new Date().toISOString()),
+      opened_at: openedAt,
+      closed_at: closedAt,
       total_sales: String(
         res?.total_sales
         ?? new Decimal(res?.cash_sales || 0)
@@ -1114,6 +1119,7 @@ export const z_report = async (
   });
   emitReportsUpdated(tenant_id, { action: 'z-report', actual_cash: actual.toString() });
 
+  const closedAt = new Date().toISOString();
   const receipt_html = `
     <html>
       <head>
@@ -1133,10 +1139,11 @@ export const z_report = async (
         <div class="muted">Tel: ${profile?.phone || '-'}</div>
         <div class="muted">${profile?.address || '-'}</div>
         <hr />
-        <div class="line"><span>Z-Hesabat</span><span>${new Date().toLocaleDateString()}</span></div>
+        <div class="line"><span>Z-Hesabat</span><span>${formatServerUtcDateTime24(closedAt)}</span></div>
         <div class="line"><span>Report ID</span><span>${reportId.slice(0, 8).toUpperCase()}</span></div>
         <div class="line"><span>Operator</span><span>${generated_by}</span></div>
-        <div class="line"><span>Tarix</span><span>${new Date().toLocaleString()}</span></div>
+        <div class="line"><span>Açılış saatı</span><span>${formatServerUtcTime24(shift.timestamp || '')}</span></div>
+        <div class="line"><span>Bağlanış saatı</span><span>${formatServerUtcTime24(closedAt)}</span></div>
         <hr />
         <div class="line"><span>Nağd Satış</span><span>${cash_sales.toFixed(2)} ₼</span></div>
         <div class="line"><span>Kart Satış</span><span>${card_sales.toFixed(2)} ₼</span></div>
@@ -1153,7 +1160,8 @@ export const z_report = async (
   return {
     success: true,
     shift_id: reportId,
-    closed_at: new Date().toISOString(),
+    opened_at: shift.timestamp || '',
+    closed_at: closedAt,
     total_sales: total_sales.toString(),
     wage: wage.toString(),
     receipt_html,

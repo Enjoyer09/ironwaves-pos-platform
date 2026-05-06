@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
 import re
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_
@@ -23,6 +24,7 @@ from app.schemas import OpenShiftIn, ShiftHandoverAcceptIn, ShiftHandoverIn, XRe
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
 STAFF_SHIFT_SESSIONS_KEY = "staff_shift_sessions"
 VOID_SALE_STATUSES = ["VOIDED", "VOID", "CANCELLED", "CANCELED"]
+BAKU_TIME_ZONE = ZoneInfo("Asia/Baku")
 
 
 def _utcnow() -> datetime:
@@ -161,6 +163,13 @@ def _replace_z_report_money_line(html: str, label: str, amount: Decimal) -> str:
     return re.sub(pattern, replacement, html, count=1, flags=re.IGNORECASE)
 
 
+def _format_z_report_time(value: datetime | None) -> str:
+    if not value:
+        return "-"
+    source = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    return source.astimezone(BAKU_TIME_ZONE).strftime("%H:%M:%S")
+
+
 def _z_report_money_line_exists(html: str, label: str) -> bool:
     pattern = (
         rf"<div\b[^>]*class=[\"'][^\"']*\bline\b[^\"']*[\"'][^>]*>\s*"
@@ -187,6 +196,27 @@ def _insert_z_report_money_line_after(html: str, anchor_label: str, label: str, 
     return re.sub(total_pattern, rf"{line}\n            \1", html, count=1, flags=re.IGNORECASE)
 
 
+def _z_report_text_line_exists(html: str, label: str) -> bool:
+    pattern = (
+        rf"<div\b[^>]*class=[\"'][^\"']*\bline\b[^\"']*[\"'][^>]*>\s*"
+        rf"<span[^>]*>\s*{re.escape(label)}\s*</span>\s*<span[^>]*>[^<]*</span>\s*</div>"
+    )
+    return re.search(pattern, html or "", flags=re.IGNORECASE) is not None
+
+
+def _insert_z_report_text_line_after(html: str, anchor_label: str, label: str, value: str) -> str:
+    if not html or _z_report_text_line_exists(html, label):
+        return html
+    line = f'<div class="line"><span>{label}</span><span>{value}</span></div>'
+    anchor_pattern = (
+        rf"(<div\b[^>]*class=[\"'][^\"']*\bline\b[^\"']*[\"'][^>]*>\s*"
+        rf"<span[^>]*>\s*{re.escape(anchor_label)}\s*</span>\s*<span[^>]*>[^<]*</span>\s*</div>)"
+    )
+    if re.search(anchor_pattern, html, flags=re.IGNORECASE):
+        return re.sub(anchor_pattern, rf"\1\n            {line}", html, count=1, flags=re.IGNORECASE)
+    return html
+
+
 def _correct_z_report_receipt_html(
     html: str,
     cash_sales: Decimal,
@@ -194,6 +224,8 @@ def _correct_z_report_receipt_html(
     total_sales: Decimal | None = None,
     deposit_applied_sales: Decimal = Decimal("0.00"),
     void_sales: Decimal = Decimal("0.00"),
+    opened_at: datetime | None = None,
+    closed_at: datetime | None = None,
 ) -> str:
     if not html:
         return html
@@ -207,6 +239,8 @@ def _correct_z_report_receipt_html(
         corrected = _replace_z_report_money_line(corrected, "Void/Cancel", void_sales)
         corrected = _insert_z_report_money_line_after(corrected, "Depozitdən ödənən" if deposit_applied_sales > Decimal("0.00") else "Kart Satış", "Void/Cancel", void_sales)
     corrected = _replace_z_report_money_line(corrected, "Ümumi Satış", final_total)
+    corrected = _insert_z_report_text_line_after(corrected, "Operator", "Açılış saatı", _format_z_report_time(opened_at))
+    corrected = _insert_z_report_text_line_after(corrected, "Açılış saatı", "Bağlanış saatı", _format_z_report_time(closed_at))
     return corrected
 
 
@@ -707,6 +741,7 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
     return {
         "success": True,
         "shift_id": active.id,
+        "opened_at": active.opened_at.isoformat() if active.opened_at else None,
         "closed_at": active.closed_at.isoformat(),
         "total_sales": str(total_sales.quantize(Decimal("0.01"))),
         "cash_sales": str(cash_sales.quantize(Decimal("0.01"))),
@@ -796,6 +831,8 @@ def list_z_report_receipts(
             total_sales,
             deposit_applied_sales,
             void_sales,
+            row.opened_at,
+            row.closed_at,
         )
         result.append(
             {

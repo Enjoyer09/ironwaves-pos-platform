@@ -32,7 +32,7 @@ import { get_settings_live, get_users_live } from '../../api/settings';
 import { qzListPrinters, qzPrintHtml } from '../../lib/qz';
 import { tx } from '../../i18n';
 import { isBackendEnabled } from '../../api/client';
-import { formatServerUtcDateTime, localDateInputValue, localDateTimeNextStart, localDateTimeStart } from '../../lib/time';
+import { formatServerUtcDateTime, formatServerUtcDateTime24, formatServerUtcTime24, localDateInputValue, localDateTimeNextStart, localDateTimeStart } from '../../lib/time';
 import { sanitizeHtmlForIframe } from '../../lib/html_sanitize';
 
 const DEFAULT_PRINT_SETTINGS = { use_qz: false, printer_name: '' };
@@ -236,6 +236,8 @@ export default function ZReportPanel() {
     const otherExpenseTotal = new Decimal(result?.other_expense_total || 0);
     const otherIncomeLines = Array.isArray(result?.other_income_lines) ? result.other_income_lines : [];
     const otherExpenseLines = Array.isArray(result?.other_expense_lines) ? result.other_expense_lines : [];
+    const openedAt = String(result?.opened_at || shiftStatusState.opened_at || shiftStatusState.timestamp || '');
+    const closedAt = String(result?.closed_at || new Date().toISOString());
     const cashierRows = cashierBreakdown
       .map((row) => `
         <div class="line"><span>${row.cashier} (${row.salesCount})</span><span>${row.total.toFixed(2)} ₼</span></div>
@@ -257,9 +259,11 @@ export default function ZReportPanel() {
         </head>
         <body>
           <div class="bold" style="font-size:15px">iRonWaves POS</div>
-          <div class="line"><span>Z-Hesabat</span><span>${new Date().toLocaleDateString()}</span></div>
+          <div class="line"><span>Z-Hesabat</span><span>${formatServerUtcDateTime24(closedAt, lang)}</span></div>
           ${zReportReceiptSettings.show_operator ? `<div class="line"><span>Operator</span><span>${user?.username || '-'}</span></div>` : ''}
           ${zReportReceiptSettings.show_date_range ? `<div class="line"><span>Aralıq</span><span>${fromDate} - ${toDate}</span></div>` : ''}
+          <div class="line"><span>Açılış saatı</span><span>${formatServerUtcTime24(openedAt, lang)}</span></div>
+          <div class="line"><span>Bağlanış saatı</span><span>${formatServerUtcTime24(closedAt, lang)}</span></div>
           <hr />
           ${zReportReceiptSettings.show_sales_summary ? `
             <div class="section-title">Satış xülasəsi</div>
@@ -627,6 +631,7 @@ export default function ZReportPanel() {
     const shiftId = String(result?.shift_id || '').trim();
     if (shiftId) {
       await save_z_report_receipt_html(tenant_id, shiftId, receiptHtml, {
+        opened_at: String(result?.opened_at || ''),
         closed_at: String(result?.closed_at || new Date().toISOString()),
         closed_by: user?.username || 'admin',
         actual_cash: String(result?.actual_cash || zActualCash || '0'),
