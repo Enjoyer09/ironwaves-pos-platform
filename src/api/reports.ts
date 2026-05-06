@@ -82,6 +82,7 @@ export type ZReportReceiptRecord = {
   card_sales?: string | null;
   total_sales?: string | null;
   z_report_html?: string | null;
+  item_breakdown?: any[];
 };
 
 export type YieldBatchRow = {

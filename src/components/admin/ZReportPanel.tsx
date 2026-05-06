@@ -48,6 +48,7 @@ const DEFAULT_Z_REPORT_RECEIPT_SETTINGS = {
   show_other_expense: true,
   show_deposit_summary: true,
   show_cashier_breakdown: true,
+  show_item_breakdown: true,
   show_counts: true,
 };
 
@@ -120,6 +121,7 @@ export default function ZReportPanel() {
     ['show_other_expense', tx(lang, 'Digər xərclər görünsün', 'Показывать прочие расходы', 'Show other expenses')],
     ['show_deposit_summary', tx(lang, 'Depozit xülasəsi görünsün', 'Показывать сводку депозитов', 'Show deposit summary')],
     ['show_cashier_breakdown', tx(lang, 'Kassir breakdown-u görünsün', 'Показывать разбивку по кассирам', 'Show cashier breakdown')],
+    ['show_item_breakdown', tx(lang, 'Məhsul satışları görünsün', 'Показывать продажи товаров', 'Show item sales breakdown')],
     ['show_counts', tx(lang, 'Satış və void sayları görünsün', 'Показывать количество продаж и void', 'Show sales and void counts')],
   ] as const, [lang]);
 
@@ -270,6 +272,10 @@ export default function ZReportPanel() {
         <div class="muted">cash ${row.cash.toFixed(2)} ₼ • card ${row.card.toFixed(2)} ₼</div>
       `)
       .join('');
+    const itemBreakdownRows = Array.isArray(result?.item_breakdown) ? result.item_breakdown : [];
+    const itemRowsHtml = itemBreakdownRows.length > 0 
+      ? itemBreakdownRows.map((row: any) => `<div class="line"><span>${row.item_name} <span class="muted">(${row.qty}x)</span></span><span>${new Decimal(row.total || 0).toFixed(2)} ₼</span></div>`).join('')
+      : '<div class="muted">Məhsul satışı yoxdur</div>';
     return `
       <html>
         <head>
@@ -343,6 +349,11 @@ export default function ZReportPanel() {
             <hr />
             <div class="section-title">Kassir Breakdown</div>
             ${cashierRows || '<div class="muted">Kassir fəaliyyəti yoxdur</div>'}
+          ` : ''}
+          ${zReportReceiptSettings.show_item_breakdown ? `
+            <hr />
+            <div class="section-title">Məhsul Satışları</div>
+            ${itemRowsHtml}
           ` : ''}
           ${zReportReceiptSettings.show_counts ? `
             <hr />
