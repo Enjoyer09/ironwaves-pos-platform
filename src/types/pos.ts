@@ -134,6 +134,8 @@ export type PosLayoutConfig = {
   left_widget_order?: string[];
   widget_sizes?: Record<string, 'compact' | 'comfortable' | 'expanded'>;
   left_widget_sizes?: Record<string, 'compact' | 'comfortable' | 'expanded'>;
+  panel_ratio?: '50:50' | '55:45' | '60:40' | '65:35' | '70:30';
+  widget_options?: Record<string, any>;
   device_layouts?: {
     desktop?: Partial<PosLayoutConfig>;
     tablet?: Partial<PosLayoutConfig>;

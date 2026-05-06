@@ -1092,6 +1092,8 @@ def get_app_settings(
             "left_widget_order": ["menuHeader", "search", "categories", "productGrid"],
             "widget_sizes": {},
             "left_widget_sizes": {},
+            "panel_ratio": "50:50",
+            "widget_options": {},
             "device_layouts": {
                 "desktop": {},
                 "tablet": {
@@ -1307,6 +1309,8 @@ def update_pos_layout_draft_settings(
                 for k, v in dict(source.get("left_widget_sizes") or base.get("left_widget_sizes") or {}).items()
                 if str(k or "").strip()
             },
+            "panel_ratio": source.get("panel_ratio", base.get("panel_ratio", "50:50")) if source.get("panel_ratio", base.get("panel_ratio", "50:50")) in {"50:50", "55:45", "60:40", "65:35", "70:30"} else "50:50",
+            "widget_options": dict(source.get("widget_options") or base.get("widget_options") or {}),
         }
         role_overrides = source.get("role_overrides") or {}
         cleaned["role_overrides"] = {

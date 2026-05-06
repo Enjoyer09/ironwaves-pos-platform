@@ -56,11 +56,21 @@ const REQUIRED_RIGHT_WIDGETS = ['cartItems', 'cartSummary', 'payments'] as const
 const REQUIRED_LEFT_WIDGETS = ['productGrid'] as const;
 const FIXED_FOOTER_WIDGETS = ['cartSummary', 'payments'] as const;
 
+const FIXED_FOOTER_WIDGETS = ['cartSummary', 'payments'] as const;
+
 const stripNestedLayoutMeta = (patch: Partial<PosLayoutSettings> | undefined | null) => {
   if (!patch) return {};
   const { device_layouts, role_overrides, ...rest } = patch as any;
   return rest as Partial<PosLayoutSettings>;
 };
+
+const PANEL_RATIO_OPTIONS = [
+  { key: '50:50', label: '50% / 50%' },
+  { key: '55:45', label: '55% / 45%' },
+  { key: '60:40', label: '60% / 40%' },
+  { key: '65:35', label: '65% / 35%' },
+  { key: '70:30', label: '70% / 30%' },
+] as const;
 
 const SIZE_OPTIONS = [
   { key: 'compact', az: 'Kompakt', ru: 'Компактно', en: 'Compact' },
@@ -290,6 +300,19 @@ export default function PosBuilderPanel() {
   const activeProfile = useMemo(
     () => buildActiveProfile(layout, activeDevice, activeScope),
     [layout, activeDevice, activeScope],
+  );
+
+  const hasOverride = useCallback(
+    (key: keyof PosLayoutSettings) => {
+      if (activeScope === 'base') return false;
+      const roleData = layout.role_overrides?.[activeScope];
+      if (!roleData) return false;
+      const deviceData = roleData.device_layouts?.[activeDevice];
+      if (deviceData && deviceData[key] !== undefined) return true;
+      if (roleData[key] !== undefined) return true;
+      return false;
+    },
+    [layout, activeScope, activeDevice]
   );
 
   const updateActiveProfile = (patch: Partial<PosLayoutSettings>) => {
@@ -655,7 +678,10 @@ export default function PosBuilderPanel() {
               </select>
             </label>
             <label className="space-y-2">
-              <span className="text-sm text-slate-300">{tx(lang, 'Məhsul sütunları', 'Колонки товаров', 'Product columns')}</span>
+              <span className="flex items-center text-sm text-slate-300">
+                {tx(lang, 'Məhsul sütunları', 'Колонки товаров', 'Product columns')}
+                {hasOverride('product_columns') && <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]" title="Overridden" />}
+              </span>
               <select value={activeProfile.product_columns} onChange={(e) => updateActiveProfile({ product_columns: Number(e.target.value) as 2 | 3 | 4 })} className="neon-input">
                 <option value={2}>2</option>
                 <option value={3}>3</option>
@@ -663,12 +689,29 @@ export default function PosBuilderPanel() {
               </select>
             </label>
             <label className="space-y-2">
-              <span className="text-sm text-slate-300">{tx(lang, 'Accent rəngi', 'Accent цвет', 'Accent color')}</span>
+              <span className="flex items-center text-sm text-slate-300">
+                {tx(lang, 'Panel Nisbəti', 'Соотношение панелей', 'Panel Ratio')}
+                {hasOverride('panel_ratio') && <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]" title="Overridden" />}
+              </span>
+              <select value={activeProfile.panel_ratio || '50:50'} onChange={(e) => updateActiveProfile({ panel_ratio: e.target.value as PosLayoutSettings['panel_ratio'] })} className="neon-input">
+                {PANEL_RATIO_OPTIONS.map(opt => (
+                  <option key={opt.key} value={opt.key}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-2">
+              <span className="flex items-center text-sm text-slate-300">
+                {tx(lang, 'Accent rəngi', 'Accent цвет', 'Accent color')}
+                {hasOverride('accent_color') && <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]" title="Overridden" />}
+              </span>
               <input type="color" value={activeProfile.accent_color} onChange={(e) => updateActiveProfile({ accent_color: e.target.value })} className="h-12 w-full rounded-xl border border-slate-700/60 bg-slate-900/20" />
             </label>
             <label className="flex items-center gap-3 rounded-2xl border border-slate-700/60 bg-slate-900/25 px-4 py-4">
               <input type="checkbox" checked={activeProfile.show_cart_tabs} onChange={(e) => updateActiveProfile({ show_cart_tabs: e.target.checked })} />
-              <span className="text-sm text-slate-200">{tx(lang, '3 səbət tab-ı görünsün', 'Показывать 3 вкладки корзины', 'Show 3 cart tabs')}</span>
+              <span className="flex items-center text-sm text-slate-200">
+                {tx(lang, '3 səbət tab-ı görünsün', 'Показывать 3 вкладки корзины', 'Show 3 cart tabs')}
+                {hasOverride('show_cart_tabs') && <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]" title="Overridden" />}
+              </span>
             </label>
           </div>
         </div>
@@ -801,29 +844,45 @@ export default function PosBuilderPanel() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-[1.1fr_0.9fr] gap-3">
+                <div 
+                  className="grid gap-3" 
+                  style={{ gridTemplateColumns: activeProfile.panel_ratio ? `${activeProfile.panel_ratio.split(':')[0]}fr ${activeProfile.panel_ratio.split(':')[1]}fr` : '50fr 50fr' }}
+                >
                   <div className="rounded-2xl border border-slate-700/60 bg-slate-950/35 p-3">
                     <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-slate-500">{tx(lang, 'Sol panel', 'Левая панель', 'Left panel')}</div>
                     <div className="space-y-2">
-                      {visibleLeftWidgets.map((key) => (
-                        <div
-                          key={`live_left_${key}`}
-                          className={`rounded-2xl border border-slate-700/60 bg-slate-900/35 text-slate-200 ${previewBlockClass(activeProfile.left_widget_sizes?.[key])}`}
-                        >
-                          {leftWidgetLabel(key)}
-                          {key === 'productGrid' && (
-                            <div className="mt-2 grid grid-cols-2 gap-1.5">
-                              {Array.from({ length: Math.min(activeProfile.product_columns + 2, 6) }).map((_, index) => (
-                                <div
-                                  key={`product_tile_${index}`}
-                                  className="rounded-xl text-slate-900"
-                                  style={{ backgroundColor: activeProfile.accent_color, padding: '8px 6px' }}
-                                />
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                      {visibleLeftWidgets.map((key) => {
+                        const widgetOpts = activeProfile.widget_options?.[key] || {};
+                        return (
+                          <div
+                            key={`live_left_${key}`}
+                            className={`rounded-2xl border border-slate-700/60 bg-slate-900/35 text-slate-200 ${previewBlockClass(activeProfile.left_widget_sizes?.[key])}`}
+                          >
+                            <div className="mb-1 font-semibold opacity-90">{leftWidgetLabel(key)}</div>
+                            {key === 'productGrid' && (
+                              <div className="mt-2 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${activeProfile.product_columns}, minmax(0, 1fr))` }}>
+                                {Array.from({ length: Math.min(activeProfile.product_columns * 2, 8) }).map((_, index) => (
+                                  <div
+                                    key={`product_tile_${index}`}
+                                    className="flex flex-col gap-1 overflow-hidden rounded-xl text-slate-900"
+                                    style={{ backgroundColor: activeProfile.accent_color }}
+                                  >
+                                    {widgetOpts.show_images !== false && <div className="h-8 bg-black/10" />}
+                                    <div className="px-1.5 pb-1.5 text-[8px] font-bold leading-tight opacity-90">Kofe {index + 1}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {key === 'categories' && (
+                              <div className="mt-1.5 flex flex-wrap gap-1">
+                                {['İsti', 'Soyuq', 'Şirniyyat'].map(c => (
+                                  <div key={c} className="rounded-full bg-slate-800 px-2 py-0.5 text-[8px]">{c}</div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -835,7 +894,17 @@ export default function PosBuilderPanel() {
                           key={`live_right_${key}`}
                           className={`rounded-2xl border border-slate-700/60 bg-slate-900/35 text-slate-200 ${previewBlockClass(activeProfile.widget_sizes?.[key])}`}
                         >
-                          {widgetLabel(key)}
+                          <div className="font-semibold opacity-90">{widgetLabel(key)}</div>
+                          {key === 'cartItems' && (
+                            <div className="mt-2 space-y-1">
+                              {[1, 2].map(i => (
+                                <div key={i} className="flex items-center justify-between rounded bg-slate-800/50 px-2 py-1 text-[9px]">
+                                  <span>Məhsul {i}</span>
+                                  <span className="font-mono text-[8px]">4.50 ₼</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                       <div className="mt-3 border-t border-slate-700/60 pt-3">
@@ -846,7 +915,13 @@ export default function PosBuilderPanel() {
                               key={`live_footer_${key}`}
                               className={`rounded-2xl border border-slate-700/60 bg-slate-900/35 text-slate-200 ${previewBlockClass(activeProfile.widget_sizes?.[key])}`}
                             >
-                              {widgetLabel(key)}
+                              <div className="font-semibold opacity-90">{widgetLabel(key)}</div>
+                              {key === 'cartSummary' && (
+                                <div className="mt-1 flex items-end justify-between">
+                                  <span className="text-[8px] opacity-70">Yekun</span>
+                                  <span className="font-mono text-sm font-bold text-emerald-400">9.00 ₼</span>
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -944,6 +1019,21 @@ export default function PosBuilderPanel() {
                     <input type="checkbox" checked={!hidden} onChange={() => toggleLeftHidden(widgetKey)} disabled={isRequired} />
                     {tx(lang, 'Görünsün', 'Показывать', 'Visible')}
                   </label>
+                  {widgetKey === 'productGrid' && (
+                    <label className="flex items-center gap-2 text-xs text-slate-300">
+                      <input 
+                        type="checkbox" 
+                        checked={activeProfile.widget_options?.productGrid?.show_images !== false} 
+                        onChange={(e) => updateActiveProfile({ 
+                          widget_options: { 
+                            ...(activeProfile.widget_options || {}), 
+                            productGrid: { ...(activeProfile.widget_options?.productGrid || {}), show_images: e.target.checked } 
+                          } 
+                        })} 
+                      />
+                      {tx(lang, 'Şəkil', 'Фото', 'Images')}
+                    </label>
+                  )}
                   <select
                     value={activeProfile.left_widget_sizes?.[widgetKey] || 'comfortable'}
                     onChange={(e) => updateLeftWidgetSize(widgetKey, e.target.value as 'compact' | 'comfortable' | 'expanded')}
