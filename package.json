@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "serve -s dist -l tcp://0.0.0.0:${PORT:-8080}"
   },
   "dependencies": {
     "@fontsource/geist-sans": "^5.2.5",
@@ -24,6 +25,7 @@
     "react-i18next": "^16.5.8",
     "react-router-dom": "^7.13.1",
     "recharts": "^3.8.0",
+    "serve": "^14.2.6",
     "tailwind-merge": "^3.4.0",
     "uuid": "^13.0.0",
     "vite-plugin-pwa": "^1.2.0",
