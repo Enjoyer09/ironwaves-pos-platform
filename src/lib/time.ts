@@ -35,6 +35,35 @@ export const formatServerUtcDateTime = (value?: string | null, lang?: string | n
   return parsed ? parsed.toLocaleString(localeForLang(lang), { timeZone: BAKU_TIME_ZONE }) : '-';
 };
 
+export const formatServerUtcDateTime24 = (value?: string | null, lang?: string | null) => {
+  const parsed = parseServerUtcTimestamp(value);
+  return parsed
+    ? parsed.toLocaleString(localeForLang(lang), {
+      timeZone: BAKU_TIME_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    })
+    : '-';
+};
+
+export const formatServerUtcTime24 = (value?: string | null, lang?: string | null) => {
+  const parsed = parseServerUtcTimestamp(value);
+  return parsed
+    ? parsed.toLocaleTimeString(localeForLang(lang), {
+      timeZone: BAKU_TIME_ZONE,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    })
+    : '-';
+};
+
 export const formatRestaurantLocalTime = (value?: string | null, lang?: string | null) => {
   const parsed = parseRestaurantLocalTimestamp(value);
   return parsed ? parsed.toLocaleTimeString(localeForLang(lang), { hour: '2-digit', minute: '2-digit' }) : '-';
