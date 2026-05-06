@@ -60,6 +60,7 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
   const [newItemImageUrl, setNewItemImageUrl] = useState('');
   const [customCategory, setCustomCategory] = useState('');
   const [menuSearch, setMenuSearch] = useState('');
+  const [selectedMenuCategory, setSelectedMenuCategory] = useState('__all__');
   const [isAddingMenu, setIsAddingMenu] = useState(false);
   const [isReorderingMenu, setIsReorderingMenu] = useState(false);
   const [adminNote, setAdminNote] = useState('');
@@ -355,6 +356,7 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
     setNewItemDescription('');
     setNewItemImageUrl('');
     setCustomCategory('');
+    setSelectedMenuCategory(finalCategory);
     setIsAddingMenu(false);
     window.dispatchEvent(new CustomEvent('catalog-updated', { detail: { scope: 'menu' } }));
     delete fetchCacheRef.current[`menu:${tenant_id}`];
@@ -484,12 +486,6 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
     return verifyLocalCredential(normalized, currentUser.password_hash || currentUser.password);
   };
 
-  const filteredMenu = menu.filter((item: any) => {
-    const q = menuSearch.trim().toLowerCase();
-    if (!q) return true;
-    return `${item.item_name || ''} ${item.category || ''} ${item.description || ''}`.toLowerCase().includes(q);
-  });
-
   const menuCategoryOptions = useMemo(() => (
     Array.from(
       new Set(
@@ -498,21 +494,28 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
     )
   ), [menu]);
 
-  const groupedMenuSections = useMemo(() => {
-    const sections = new Map<string, any[]>();
-    for (const item of filteredMenu) {
-      const category = String(item.category || '').trim() || tx(lang, 'Kateqoriyasız', 'Без категории', 'Uncategorized');
-      const current = sections.get(category) || [];
-      current.push(item);
-      sections.set(category, current);
+  useEffect(() => {
+    if (selectedMenuCategory !== '__all__' && !menuCategoryOptions.includes(selectedMenuCategory)) {
+      setSelectedMenuCategory('__all__');
     }
-    return Array.from(sections.entries()).map(([category, items]) => ({ category, items }));
-  }, [filteredMenu, lang]);
+  }, [menuCategoryOptions, selectedMenuCategory]);
+
+  const filteredMenu = useMemo(() => (
+    menu.filter((item: any) => {
+      const q = menuSearch.trim().toLowerCase();
+      const category = String(item.category || '').trim();
+      if (selectedMenuCategory !== '__all__' && category !== selectedMenuCategory) return false;
+      if (!q) return true;
+      return `${item.item_name || ''} ${item.category || ''} ${item.description || ''}`.toLowerCase().includes(q);
+    })
+  ), [menu, menuSearch, selectedMenuCategory]);
 
   const moveMenuItem = (items: any[], sourceId: string, targetId: string) => {
     if (!sourceId || !targetId || sourceId === targetId) return items;
     const q = menuSearch.trim().toLowerCase();
     const matchesFilter = (item: any) => {
+      const category = String(item.category || '').trim();
+      if (selectedMenuCategory !== '__all__' && category !== selectedMenuCategory) return false;
       if (!q) return true;
       return `${item.item_name || ''} ${item.category || ''} ${item.description || ''}`.toLowerCase().includes(q);
     };
@@ -1079,13 +1082,55 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
                   onChange={(e) => setMenuSearch(e.target.value)}
                 />
                 <button
-                  onClick={() => setIsAddingMenu((prev) => !prev)}
+                  onClick={() => {
+                    if (selectedMenuCategory !== '__all__') {
+                      setNewItemCategory(selectedMenuCategory);
+                      setCustomCategory('');
+                    }
+                    setIsAddingMenu((prev) => !prev);
+                  }}
                   className="neon-btn px-4 py-2 rounded-lg flex items-center gap-2"
                 >
                   <Plus size={18} />
                   {tx(lang, 'Məhsul Əlavə Et', 'Добавить товар', 'Add item')}
                 </button>
               </div>
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              <button
+                type="button"
+                onClick={() => setSelectedMenuCategory('__all__')}
+                className={`shrink-0 rounded-xl px-4 py-2 text-sm font-bold transition ${
+                  selectedMenuCategory === '__all__'
+                    ? 'glossy-gold text-slate-950'
+                    : 'border border-slate-600 bg-slate-900/70 text-slate-200 hover:border-yellow-300/60'
+                }`}
+              >
+                {tx(lang, 'Bütün kateqoriyalar', 'Все категории', 'All categories')}
+              </button>
+              {menuCategoryOptions.map((category) => {
+                const count = menu.filter((item: any) => String(item.category || '').trim() === category).length;
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => {
+                      setSelectedMenuCategory(category);
+                      setNewItemCategory(category);
+                      setCustomCategory('');
+                    }}
+                    className={`shrink-0 rounded-xl px-4 py-2 text-sm font-bold transition ${
+                      selectedMenuCategory === category
+                        ? 'glossy-gold text-slate-950'
+                        : 'border border-slate-600 bg-slate-900/70 text-slate-200 hover:border-yellow-300/60'
+                    }`}
+                  >
+                    {category}
+                    <span className="ml-2 text-xs opacity-70">{count}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {isAddingMenu && (
@@ -1125,10 +1170,10 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
             <div className="metal-panel rounded-xl p-6">
               <div className="mb-3 flex items-center justify-between gap-3 text-xs text-slate-400">
                 <span>
-                  {tx(lang, 'Məhsullar kateqoriyalara bölünüb. Sıralamanı dəyişmək üçün məhsulu sürüşdürün.', 'Товары сгруппированы по категориям. Перетащите товар, чтобы изменить порядок.', 'Items are grouped by category. Drag an item to change its order.')}
+                  {tx(lang, 'Kateqoriyanı yuxarıdan seçin. Sıralamanı dəyişmək üçün məhsulu sürüşdürün.', 'Выберите категорию сверху. Перетащите товар, чтобы изменить порядок.', 'Choose a category above. Drag an item to change its order.')}
                   {' '}
                   <span className="text-slate-500">
-                    {filteredMenu.length} {tx(lang, 'məhsul', 'товаров', 'items')} · {groupedMenuSections.length} {tx(lang, 'kateqoriya', 'категорий', 'categories')}
+                    {filteredMenu.length} {tx(lang, 'məhsul', 'товаров', 'items')}
                   </span>
                 </span>
                 {isReorderingMenu && <span className="text-amber-300">{tx(lang, 'Sıra yazılır...', 'Порядок сохраняется...', 'Saving order...')}</span>}
@@ -1146,94 +1191,80 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
                     </tr>
                   </thead>
                   <tbody>
-                    {groupedMenuSections.map((section) => (
-                      <React.Fragment key={section.category}>
-                        <tr>
-                          <td colSpan={6} className="bg-slate-950/50 px-3 py-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="text-sm font-black uppercase tracking-[0.18em] text-yellow-200">{section.category}</div>
-                              <div className="rounded-full border border-slate-600/70 px-3 py-1 text-xs text-slate-400">
-                                {section.items.length} {tx(lang, 'məhsul', 'товаров', 'items')}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                        {section.items.map((item) => (
-                          <tr
-                            key={item.id}
-                            className={`border-b border-slate-700/60 ${dropMenuId === item.id && draggingMenuId !== item.id ? 'bg-cyan-400/5' : ''} ${draggingMenuId === item.id ? 'opacity-60' : ''}`}
-                            onDragOver={(e) => {
-                              e.preventDefault();
-                              if (draggingMenuId && draggingMenuId !== item.id) setDropMenuId(item.id);
+                    {filteredMenu.map((item) => (
+                      <tr
+                        key={item.id}
+                        className={`border-b border-slate-700/60 ${dropMenuId === item.id && draggingMenuId !== item.id ? 'bg-cyan-400/5' : ''} ${draggingMenuId === item.id ? 'opacity-60' : ''}`}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          if (draggingMenuId && draggingMenuId !== item.id) setDropMenuId(item.id);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          void handleMenuDrop(String(item.id));
+                        }}
+                      >
+                        <td className="py-3">
+                          <button
+                            type="button"
+                            draggable={!isReorderingMenu}
+                            onDragStart={() => {
+                              setDraggingMenuId(String(item.id));
+                              setDropMenuId(String(item.id));
                             }}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              void handleMenuDrop(String(item.id));
+                            onDragEnd={() => {
+                              setDraggingMenuId(null);
+                              setDropMenuId(null);
                             }}
+                            className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={isReorderingMenu}
+                            title={tx(lang, 'Sürüşdürüb sıranı dəyiş', 'Перетащите, чтобы изменить порядок', 'Drag to reorder')}
                           >
-                            <td className="py-3">
-                              <button
-                                type="button"
-                                draggable={!isReorderingMenu}
-                                onDragStart={() => {
-                                  setDraggingMenuId(String(item.id));
-                                  setDropMenuId(String(item.id));
-                                }}
-                                onDragEnd={() => {
-                                  setDraggingMenuId(null);
-                                  setDropMenuId(null);
-                                }}
-                                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-800 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
-                                disabled={isReorderingMenu}
-                                title={tx(lang, 'Sürüşdürüb sıranı dəyiş', 'Перетащите, чтобы изменить порядок', 'Drag to reorder')}
-                              >
-                                <GripVertical size={16} />
-                              </button>
-                            </td>
-                            <td className="py-3">
-                              <div className="flex min-w-0 items-center gap-3">
-                                {item.image_url ? (
-                                  <img src={String(item.image_url)} alt={String(item.item_name)} className="h-12 w-12 rounded-xl object-cover ring-1 ring-slate-700/60" />
-                                ) : (
-                                  <div className="h-12 w-12 rounded-xl bg-slate-800 text-[10px] text-slate-500 flex items-center justify-center">IMG</div>
-                                )}
-                                <div className="font-semibold text-slate-100">{item.item_name}</div>
-                              </div>
-                            </td>
-                            <td className="py-3 text-slate-200">{item.category}</td>
-                            <td className="py-3 text-yellow-300 font-semibold">{parseFloat(item.price).toFixed(2)} ₼</td>
-                            <td className="py-3 text-slate-300">{item.description ? String(item.description) : '-'}</td>
-                            <td className="py-3">
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => setDeleteMenuId(item.id)}
-                                  className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
-                                  title={tx(lang, 'Məhsulu deaktiv edir/silməyə hazırlayır.', 'Деактивирует товар / подготавливает к удалению.', 'Deactivates item / prepares it for deletion.')}
-                                  data-guide={tx(lang, 'Məhsulu deaktiv edir/silməyə hazırlayır.', 'Деактивирует товар / подготавливает к удалению.', 'Deactivates item / prepares it for deletion.')}
-                                >
-                                  <Trash2 size={18} />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setEditMenuModal({
-                                      id: String(item.id),
-                                      item_name: String(item.item_name || ''),
-                                      price: String(item.price || ''),
-                                      category: String(item.category || menuCategoryOptions[0] || 'Qəhvə'),
-                                      image_url: String(item.image_url || ''),
-                                    });
-                                  }}
-                                  className="text-cyan-300 hover:text-cyan-100 p-2 hover:bg-cyan-400/10 rounded-lg transition-colors"
-                                  title={tx(lang, 'Məhsulu düzəlt', 'Редактировать товар', 'Edit item')}
-                                  data-guide={tx(lang, 'Məhsulun ad, kateqoriya və qiymətini düzəldir.', 'Редактирует название, категорию и цену товара.', 'Edits item name, category and price.')}
-                                >
-                                  <Pencil size={18} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </React.Fragment>
+                            <GripVertical size={16} />
+                          </button>
+                        </td>
+                        <td className="py-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            {item.image_url ? (
+                              <img src={String(item.image_url)} alt={String(item.item_name)} className="h-12 w-12 rounded-xl object-cover ring-1 ring-slate-700/60" />
+                            ) : (
+                              <div className="h-12 w-12 rounded-xl bg-slate-800 text-[10px] text-slate-500 flex items-center justify-center">IMG</div>
+                            )}
+                            <div className="font-semibold text-slate-100">{item.item_name}</div>
+                          </div>
+                        </td>
+                        <td className="py-3 text-slate-200">{item.category}</td>
+                        <td className="py-3 text-yellow-300 font-semibold">{parseFloat(item.price).toFixed(2)} ₼</td>
+                        <td className="py-3 text-slate-300">{item.description ? String(item.description) : '-'}</td>
+                        <td className="py-3">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setDeleteMenuId(item.id)}
+                              className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
+                              title={tx(lang, 'Məhsulu deaktiv edir/silməyə hazırlayır.', 'Деактивирует товар / подготавливает к удалению.', 'Deactivates item / prepares it for deletion.')}
+                              data-guide={tx(lang, 'Məhsulu deaktiv edir/silməyə hazırlayır.', 'Деактивирует товар / подготавливает к удалению.', 'Deactivates item / prepares it for deletion.')}
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditMenuModal({
+                                  id: String(item.id),
+                                  item_name: String(item.item_name || ''),
+                                  price: String(item.price || ''),
+                                  category: String(item.category || menuCategoryOptions[0] || 'Qəhvə'),
+                                  image_url: String(item.image_url || ''),
+                                });
+                              }}
+                              className="text-cyan-300 hover:text-cyan-100 p-2 hover:bg-cyan-400/10 rounded-lg transition-colors"
+                              title={tx(lang, 'Məhsulu düzəlt', 'Редактировать товар', 'Edit item')}
+                              data-guide={tx(lang, 'Məhsulun ad, kateqoriya və qiymətini düzəldir.', 'Редактирует название, категорию и цену товара.', 'Edits item name, category and price.')}
+                            >
+                              <Pencil size={18} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
                     ))}
                     {filteredMenu.length === 0 && (
                       <tr>
