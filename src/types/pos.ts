@@ -199,6 +199,7 @@ export interface Settings {
     show_other_expense: boolean;
     show_deposit_summary: boolean;
     show_cashier_breakdown: boolean;
+    show_item_breakdown: boolean;
     show_counts: boolean;
   };
   email_settings: {

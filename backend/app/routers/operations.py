@@ -153,6 +153,7 @@ DEFAULT_Z_REPORT_RECEIPT_SETTINGS = {
     "show_other_expense": True,
     "show_deposit_summary": True,
     "show_cashier_breakdown": True,
+    "show_item_breakdown": True,
     "show_counts": True,
 }
 
