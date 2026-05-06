@@ -1,3 +1,5 @@
+import { withThermalReceiptPrintCss } from './receipt_print_css';
+
 type QzTrayWindow = Window & {
   qz?: any;
 };
@@ -62,7 +64,7 @@ export const qzPrintHtml = async (html: string, printerName?: string) => {
       type: 'pixel',
       format: 'html',
       flavor: 'plain',
-      data: html,
+          data: withThermalReceiptPrintCss(html),
     },
   ];
 

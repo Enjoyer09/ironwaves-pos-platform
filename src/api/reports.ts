@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { send_email } from './email';
 import { apiRequest, isBackendEnabled } from './client';
 import { formatServerUtcDateTime24, formatServerUtcTime24 } from '../lib/time';
+import { THERMAL_RECEIPT_PRINT_CSS } from '../lib/receipt_print_css';
 
 import { getDB, setDB } from '../lib/db_sim';
 
@@ -923,12 +924,7 @@ export const z_report = async (
       <html>
         <head>
           <style>
-            @page { size: 80mm auto; margin: 4mm; }
-            body { font-family: Inter, Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
-            .line { display:flex; justify-content:space-between; gap:8px; margin: 2px 0; }
-            .muted { color:#555; font-size:11px; }
-            .bold { font-weight: 700; }
-            hr { border: none; border-top: 1px dashed #999; margin: 8px 0; }
+            ${THERMAL_RECEIPT_PRINT_CSS}
           </style>
         </head>
         <body>
@@ -1126,13 +1122,8 @@ export const z_report = async (
   const receipt_html = `
     <html>
       <head>
-        <style>
-          @page { size: 80mm auto; margin: 4mm; }
-          body { font-family: Inter, Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
-          .line { display:flex; justify-content:space-between; gap:8px; margin: 2px 0; }
-          .muted { color:#555; font-size:11px; }
-          .bold { font-weight: 700; }
-          hr { border: none; border-top: 1px dashed #999; margin: 8px 0; }
+          <style>
+          ${THERMAL_RECEIPT_PRINT_CSS}
         </style>
       </head>
       <body>

@@ -19,6 +19,7 @@ import { logEvent } from '../lib/logger';
 import { qzPrintHtml } from '../lib/qz';
 import { hostScopedKey } from '../lib/storage_keys';
 import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
+import { THERMAL_RECEIPT_PRINT_CSS } from '../lib/receipt_print_css';
 import { getTenantDomains } from '../lib/tenant';
 import { formatRestaurantLocalTime, formatServerUtcDateTime, formatServerUtcTime, localDateInputValue, parseRestaurantLocalTimestamp } from '../lib/time';
 import TableGrid from './tables/TableGrid';
@@ -1814,7 +1815,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     const itemsHtml = itemsSnapshot
                       .map((it: any) => {
                         const line = new Decimal(it.price || 0).times(it.qty || 0);
-                        return `<tr><td style="padding:4px 0">${it.qty}x ${it.item_name}</td><td style="text-align:right">${line.toFixed(2)} ₼</td></tr>`;
+                        return `<tr><td>${it.qty}x ${it.item_name}</td><td>${line.toFixed(2)} ₼</td></tr>`;
                       })
                       .join('');
 
@@ -1891,15 +1892,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       <html>
                         <head>
                           <style>
-                            @page { size: 80mm auto; margin: 4mm; }
-                            body { font-family: 'Inter', Arial, sans-serif; font-size: 12px; color: #111; }
-                            .line { display:flex; justify-content:space-between; gap:8px; margin: 2px 0; }
-                            .muted { color:#555; font-size:11px; }
-                            .bold { font-weight: 700; }
-                            hr { border: none; border-top: 1px dashed #999; margin: 8px 0; }
+                            ${THERMAL_RECEIPT_PRINT_CSS}
                           </style>
                         </head>
-                        <body style="font-family:Arial;padding:16px;max-width:320px;margin:0 auto;color:#111">
+                        <body>
                           ${businessProfile?.logo_url ? `<img src="${businessProfile.logo_url}" style="height:34px;max-width:180px;object-fit:contain;margin-bottom:6px" />` : ''}
                           <h2 style="margin:0 0 4px;font-size:16px">${businessProfile?.company_name || 'IRONWAVES POS'}</h2>
                           <div class="muted">VÖEN: ${businessProfile?.voen || '-'}</div>
@@ -1912,7 +1908,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           <div class="line"><span>Operator</span><span>${user?.username || 'staff'}</span></div>
                           <div class="line"><span>Tarix</span><span>${new Date().toLocaleString()}</span></div>
                           <hr />
-                          <table style="width:100%;font-size:14px">${itemsHtml}</table>
+                          <table>${itemsHtml}</table>
                           <hr style="margin:12px 0" />
                           ${breakdown}
                           ${receiptFreeCoffees > 0 ? `<div class="line"><span>Pulsuz kofe</span><span>${receiptFreeCoffees}</span></div>` : ''}
@@ -1924,7 +1920,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           <div class="line"><span>Depozit</span><span>${receiptDeposit.toFixed(2)} ₼</span></div>
                           ${Number(table.guest_count || 0) > 0 ? `<div class="line"><span>1 qonaq üçün depozit</span><span>${receiptDeposit.div(Math.max(1, Number(table.guest_count || 1))).toDecimalPlaces(2).toFixed(2)} ₼</span></div>` : ''}
                           <div class="line"><span>Əlavə ödəniş</span><span>${receiptExtraDue.toFixed(2)} ₼</span></div>
-                          <div class="line bold" style="font-size:13px"><span>YEKUN</span><span>${receiptFinalTotal.toFixed(2)} ₼</span></div>
+                          <div class="line bold"><span>YEKUN</span><span>${receiptFinalTotal.toFixed(2)} ₼</span></div>
                           <hr />
                           <div style="display:flex;justify-content:center;margin:8px 0 6px 0">
                             <img src="${qrDataUrl}" alt="feedback qr" style="width:108px;height:108px" />

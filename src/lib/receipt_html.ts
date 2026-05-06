@@ -1,6 +1,7 @@
 import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
 import { tx } from '../i18n';
+import { THERMAL_RECEIPT_PRINT_CSS } from './receipt_print_css';
 
 type ReceiptLang = 'az' | 'ru' | 'en';
 
@@ -108,8 +109,8 @@ export async function buildSaleReceiptHtml({
     const price = Number(item?.line_total ?? item?.total ?? 0) || (Number(item?.price || 0) * qty);
     return `
       <tr>
-        <td style="padding:4px 4px 4px 0">${qty}x ${name}</td>
-        <td style="padding:4px 0;text-align:right;white-space:nowrap">${money(price)} ₼</td>
+        <td>${qty}x ${name}</td>
+        <td>${money(price)} ₼</td>
       </tr>
     `;
   }).join('');
@@ -133,15 +134,10 @@ export async function buildSaleReceiptHtml({
     <html>
       <head>
         <style>
-          @page { size: 80mm auto; margin: 4mm; }
-          body { font-family: Inter, Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
-          .line { display:flex; justify-content:space-between; gap:8px; margin: 2px 0; }
-          .muted { color:#555; font-size:11px; }
-          .bold { font-weight: 700; }
-          hr { border: none; border-top: 1px dashed #999; margin: 8px 0; }
+          ${THERMAL_RECEIPT_PRINT_CSS}
         </style>
       </head>
-      <body style="font-family:Arial;padding:16px;max-width:320px;margin:0 auto">
+      <body>
         ${profile?.logo_url ? `<img src="${esc(profile.logo_url)}" style="height:34px;max-width:180px;object-fit:contain;margin-bottom:6px" />` : ''}
         <div class="bold" style="font-size:15px">${esc(companyName)}</div>
         <div class="muted">VÖEN: ${esc(profile?.voen || '-')}</div>
@@ -156,14 +152,14 @@ export async function buildSaleReceiptHtml({
         <div style="margin-top:8px;text-align:center">${barcodeSvg || ''}</div>
         <div class="muted" style="text-align:center">SALE:${esc(displayId)}</div>
         <hr />
-        <table style="width:100%;font-size:13px">${lines || `<tr><td style="padding:4px 0">${tx(lang, 'Məhsul məlumatı yoxdur', 'Нет данных о товарах', 'No item details')}</td></tr>`}</table>
+        <table>${lines || `<tr><td>${tx(lang, 'Məhsul məlumatı yoxdur', 'Нет данных о товарах', 'No item details')}</td></tr>`}</table>
         <hr />
         <div class="line"><span>${tx(lang, 'Ara cəm', 'Промежуточный итог', 'Subtotal')}</span><span>${money(subtotal)} ₼</span></div>
         <div class="line"><span>${tx(lang, 'Endirim', 'Скидка', 'Discount')}</span><span>- ${money(discount)} ₼</span></div>
         ${freeCoffees > 0 ? `<div class="line"><span>${tx(lang, 'Pulsuz kofe', 'Бесплатный кофе', 'Free coffee')}</span><span>${freeCoffees}</span></div>` : ''}
         ${customerId ? `<div class="line"><span>${tx(lang, 'Müştəri ID', 'ID клиента', 'Customer ID')}</span><span>${esc(customerId)}</span></div>` : ''}
         ${customerId ? `<div class="line"><span>${tx(lang, 'Ulduz balansı', 'Баланс звезд', 'Star Balance')}</span><span>${starsAfter}</span></div>` : ''}
-        <div class="line bold" style="font-size:13px"><span>${tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>${money(total)} ₼</span></div>
+        <div class="line bold"><span>${tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>${money(total)} ₼</span></div>
         <div class="line"><span>${tx(lang, 'Ödəniş', 'Оплата', 'Payment')}</span><span>${esc(paymentMethod || '-')}</span></div>
         ${isSplit ? `<div class="line"><span>${tx(lang, 'Split nağd', 'Split наличные', 'Split cash')}</span><span>${money(split.cash)} ₼</span></div>` : ''}
         ${isSplit ? `<div class="line"><span>${tx(lang, 'Split kart', 'Split карта', 'Split card')}</span><span>${money(split.card)} ₼</span></div>` : ''}
