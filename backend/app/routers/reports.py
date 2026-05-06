@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import AuditLog, FinanceAccount, FinanceTransaction, Sale, Setting, Shift, ShiftHandover, Tenant, User
+from app.models import AuditLog, BusinessProfile, FinanceAccount, FinanceTransaction, Sale, Setting, Shift, ShiftHandover, Tenant, User
 from app.services.finance_service import finance_policy as _finance_policy
 from app.services.finance_service import create_finance_transaction_record as _create_finance_transaction_record
 from app.services.finance_service import ledger_balances_snapshot as _ledger_balances_snapshot
@@ -319,6 +319,95 @@ def _replace_z_report_cashier_breakdown(html: str, rows: list[dict]) -> str:
         )
         corrected = re.sub(pattern, replacement, corrected, count=1, flags=re.IGNORECASE)
     return corrected
+
+
+def _business_profile(db: Session, tenant: Tenant) -> dict[str, str]:
+    profile = None
+    if hasattr(db, "query"):
+        try:
+            profile = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant.id).first()
+        except Exception:
+            profile = None
+    return {
+        "company_name": str(getattr(profile, "company_name", "") or tenant.name or "iRonWaves POS"),
+        "voen": "-",
+        "phone": str(getattr(profile, "phone", "") or "-"),
+        "address": str(getattr(profile, "address", "") or "-"),
+        "receipt_footer": str(getattr(profile, "receipt_footer", "") or "Bizi seçdiyiniz üçün təşəkkür edirik!"),
+    }
+
+
+def _build_z_report_receipt_html(
+    *,
+    db: Session,
+    tenant: Tenant,
+    shift: Shift,
+    cash_sales: Decimal,
+    card_sales: Decimal,
+    total_sales: Decimal,
+    deposit_applied_sales: Decimal,
+    void_sales: Decimal,
+    cashier_breakdown: list[dict],
+) -> str:
+    profile = _business_profile(db, tenant)
+    report_id = str(shift.id or "Z-REPORT")[:8].upper()
+    cashier_rows = "\n".join(
+        (
+            f'<div class="line"><span>{row.get("cashier") or "-"} ({int(row.get("sales_count") or 0)})</span>'
+            f'<span>{Decimal(str(row.get("total") or 0)).quantize(Decimal("0.01"))} ₼</span></div>\n'
+            f'<div class="muted">cash {Decimal(str(row.get("cash") or 0)).quantize(Decimal("0.01"))} ₼ • '
+            f'card {Decimal(str(row.get("card") or 0)).quantize(Decimal("0.01"))} ₼</div>'
+        )
+        for row in cashier_breakdown
+    )
+    deposit_line = (
+        f'<div class="line"><span>Depozitdən ödənən</span><span>{deposit_applied_sales.quantize(Decimal("0.01"))} ₼</span></div>'
+        if deposit_applied_sales > Decimal("0.00")
+        else ""
+    )
+    void_line = (
+        f'<div class="line"><span>Void/Cancel</span><span>{void_sales.quantize(Decimal("0.01"))} ₼</span></div>'
+        if void_sales > Decimal("0.00")
+        else ""
+    )
+    return f"""
+      <html>
+        <head>
+          <style>
+            @page {{ size: 80mm auto; margin: 4mm; }}
+            body {{ font-family: Inter, Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }}
+            .line {{ display:flex; justify-content:space-between; gap:8px; margin: 2px 0; }}
+            .muted {{ color:#555; font-size:11px; }}
+            .bold {{ font-weight: 700; }}
+            .section-title {{ margin-top: 8px; font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: .04em; }}
+            hr {{ border: none; border-top: 1px dashed #999; margin: 8px 0; }}
+          </style>
+        </head>
+        <body>
+          <div class="bold" style="font-size:15px">{profile["company_name"]}</div>
+          <div class="muted">VÖEN: {profile["voen"]}</div>
+          <div class="muted">Tel: {profile["phone"]}</div>
+          <div class="muted">{profile["address"]}</div>
+          <hr />
+          <div class="line"><span>Z-Hesabat</span><span>{report_id}</span></div>
+          <div class="line"><span>Operator</span><span>{shift.closed_by or shift.opened_by or "-"}</span></div>
+          <div class="line"><span>Açılış saatı</span><span>{_format_z_report_time(shift.opened_at)}</span></div>
+          <div class="line"><span>Bağlanış saatı</span><span>{_format_z_report_time(shift.closed_at)}</span></div>
+          <hr />
+          <div class="section-title">Satış xülasəsi</div>
+          <div class="line"><span>Ümumi Satış</span><span>{total_sales.quantize(Decimal("0.01"))} ₼</span></div>
+          <div class="line"><span>Nağd Satış</span><span>{cash_sales.quantize(Decimal("0.01"))} ₼</span></div>
+          <div class="line"><span>Kart Satış</span><span>{card_sales.quantize(Decimal("0.01"))} ₼</span></div>
+          {deposit_line}
+          {void_line}
+          <hr />
+          <div class="section-title">Kassir Breakdown</div>
+          {cashier_rows or '<div class="muted">Kassir fəaliyyəti yoxdur</div>'}
+          <hr />
+          <div class="muted">{profile["receipt_footer"]}</div>
+        </body>
+      </html>
+    """
 
 
 def _correct_z_report_receipt_html(
@@ -936,16 +1025,16 @@ def list_z_report_receipts(
         total_sales = sales_totals["sales_total"]
         void_sales = sales_totals["void_sales"]
         cashier_breakdown = _shift_cashier_breakdown(db, tenant.id, row.opened_at, row.closed_at)
-        corrected_html = _correct_z_report_receipt_html(
-            row.z_report_html or "",
-            cash_sales,
-            card_sales,
-            total_sales,
-            deposit_applied_sales,
-            void_sales,
-            row.opened_at,
-            row.closed_at,
-            cashier_breakdown,
+        corrected_html = _build_z_report_receipt_html(
+            db=db,
+            tenant=tenant,
+            shift=row,
+            cash_sales=cash_sales,
+            card_sales=card_sales,
+            total_sales=total_sales,
+            deposit_applied_sales=deposit_applied_sales,
+            void_sales=void_sales,
+            cashier_breakdown=cashier_breakdown,
         )
         result.append(
             {
