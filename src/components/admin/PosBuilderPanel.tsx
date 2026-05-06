@@ -56,8 +56,6 @@ const REQUIRED_RIGHT_WIDGETS = ['cartItems', 'cartSummary', 'payments'] as const
 const REQUIRED_LEFT_WIDGETS = ['productGrid'] as const;
 const FIXED_FOOTER_WIDGETS = ['cartSummary', 'payments'] as const;
 
-const FIXED_FOOTER_WIDGETS = ['cartSummary', 'payments'] as const;
-
 const stripNestedLayoutMeta = (patch: Partial<PosLayoutSettings> | undefined | null) => {
   if (!patch) return {};
   const { device_layouts, role_overrides, ...rest } = patch as any;

@@ -2506,6 +2506,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           }}
         />
       </div>
+    );
   }
 
   const panelRatioClass = useMemo(() => {
