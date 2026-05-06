@@ -41,6 +41,10 @@ VOID_SALE_STATUSES = [
 ]
 
 
+def _is_void_sale_status(value: str | None) -> bool:
+    return str(value or "").strip().upper() in VOID_SALE_STATUSES
+
+
 class SaleAdjustIn(BaseModel):
     new_total: Decimal
     reason: str | None = None
@@ -295,7 +299,15 @@ def get_sales_summary(
                 ),
                 0,
             ),
-            func.coalesce(func.sum(Sale.total), 0),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (sale_is_net, Sale.total),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
         )
         .filter(*sales_filters)
         .one()
@@ -359,6 +371,7 @@ def get_sales_list(
         items = safe_json_list(row.items_json)
         original_total = Decimal(str(row.total)) + Decimal(str(row.discount_amount or 0))
         split_cash, split_card = _sale_payment_split(db, tenant.id, row.id)
+        is_void = _is_void_sale_status(row.status)
         result.append(
             {
                 "id": row.id,
@@ -377,7 +390,7 @@ def get_sales_list(
                 "order_type": row.order_type,
                 "receipt_code": row.receipt_code,
                 "receipt_token": row.receipt_token,
-                "receipt_html": (row.receipt_html or "") if include_receipt_html else "",
+                "receipt_html": "" if is_void else ((row.receipt_html or "") if include_receipt_html else ""),
                 "items": items,
                 "items_display": ", ".join([f"{item.get('item_name')} x{item.get('qty')}" for item in items]),
                 "status": row.status,
@@ -398,7 +411,7 @@ def void_sale(
     row = db.query(Sale).filter(Sale.id == sale_id, Sale.tenant_id == tenant.id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Sale not found")
-    if row.status == "VOIDED":
+    if _is_void_sale_status(row.status):
         raise HTTPException(status_code=400, detail="Sale already voided")
 
     items = safe_json_list(row.items_json)
@@ -421,6 +434,7 @@ def void_sale(
                 inventory.stock_qty = (Decimal(str(inventory.stock_qty or 0)) + add_qty).quantize(Decimal("0.001"))
 
     row.status = "VOIDED"
+    row.receipt_html = None
     amount = Decimal(str(row.total)).quantize(Decimal("0.01"))
     pm = str(row.payment_method or "").lower()
     loyalty_cfg = _setting_value(db, tenant.id, "customer_app_settings", {"program_mode": "points", "cashback_percent": 5})
@@ -520,7 +534,7 @@ def adjust_sale(
     row = db.query(Sale).filter(Sale.id == sale_id, Sale.tenant_id == tenant.id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Sale not found")
-    if row.status == "VOIDED":
+    if _is_void_sale_status(row.status):
         raise HTTPException(status_code=400, detail="Voided sale cannot be adjusted")
     if _sale_has_deposit_application(db, tenant.id, row.id):
         raise HTTPException(
@@ -610,7 +624,7 @@ def partial_refund_sale(
     row = db.query(Sale).filter(Sale.id == sale_id, Sale.tenant_id == tenant.id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Sale not found")
-    if row.status == "VOIDED":
+    if _is_void_sale_status(row.status):
         raise HTTPException(status_code=400, detail="Voided sale cannot be refunded")
     if _sale_has_deposit_application(db, tenant.id, row.id):
         raise HTTPException(
