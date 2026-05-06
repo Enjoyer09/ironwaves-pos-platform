@@ -1091,6 +1091,61 @@ html {
   html[data-theme='light'] .virtual-keyboard-host .text-slate-100 {
     color: #0f172a !important;
   }
+
+  /* Premium Light Mode Overrides for UI Elements */
+  html[data-theme='light'] .staff-payment-btn,
+  html[data-theme='light'] .staff-qty-btn,
+  html[data-theme='light'] .pos3-nav-btn,
+  html[data-theme='light'] .pos3-utility-btn,
+  html[data-theme='light'] .pos3-qty-btn,
+  html[data-theme='light'] .staff-head-btn,
+  html[data-theme='light'] .staff-search-input {
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05) !important;
+  }
+
+  html[data-theme='light'] .staff-payment-btn:hover,
+  html[data-theme='light'] .staff-qty-btn:hover,
+  html[data-theme='light'] .pos3-nav-btn:hover,
+  html[data-theme='light'] .pos3-utility-btn:hover,
+  html[data-theme='light'] .pos3-qty-btn:hover,
+  html[data-theme='light'] .staff-head-btn:hover {
+    background-color: #f1f5f9 !important;
+  }
+
+  /* Premium Active States (Amber) */
+  html[data-theme='light'] .staff-payment-btn-active,
+  html[data-theme='light'] .staff-category-chip-active,
+  html[data-theme='light'] .pos3-card-active,
+  html[data-theme='light'] .pos3-cart-tab-active,
+  html[data-theme='light'] .pos3-chip-active,
+  html[data-theme='light'] .neon-btn-active,
+  html[data-theme='light'] .pay-btn-active {
+    background-color: #fef3c7 !important;
+    border-color: #f59e0b !important;
+    color: #78350f !important;
+    box-shadow: inset 0 0 0 1px #f59e0b !important;
+  }
+
+  /* Hover overrides for Cards */
+  html[data-theme='light'] .staff-product-card:hover,
+  html[data-theme='light'] .staff-recent-card:hover,
+  html[data-theme='light'] .pos3-card:hover,
+  html[data-theme='light'] .pos3-recent-card:hover,
+  html[data-theme='light'] .neon-item:hover {
+    background-color: #f8fafc !important;
+    border-color: #94a3b8 !important;
+  }
+
+  /* Category Chips */
+  html[data-theme='light'] .staff-category-chip,
+  html[data-theme='light'] .pos3-chip {
+    background-color: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+    color: #334155 !important;
+  }
 }
 
 @layer utilities {
