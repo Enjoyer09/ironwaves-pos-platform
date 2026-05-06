@@ -611,7 +611,7 @@ Hər sətirdə görünür:
 - qeyd
 
 Sətir detalında görünür:
-- debit/credit ledger yazılışları
+- debit/credit maliyyə yazılışları
 - audit log tarixçəsi
 - təsdiq edən istifadəçi
 - reversal bağlantıları
@@ -716,7 +716,7 @@ Burada kritik xəbərdarlıqlar görünür:
 - `Offline satışlar`
 - `Mətbəx gecikməsi`
 - `Void / İsraf` nəzarəti
-- `Satış və ledger fərqi`
+- `Satış və maliyyə yazılışı fərqi`
 - `Kritik stok`
 
 Hər alert-in yanında action düyməsi var.
@@ -796,7 +796,7 @@ Burada görünür:
 - `Kart`
 - `Depozit öhdəliyi`
 
-Əgər `Gap` sıfırdan fərqlidirsə, kassa sayımı və finance ledger yoxlanmalıdır.
+Əgər `Gap` sıfırdan fərqlidirsə, kassa sayımı və maliyyə yazılışları yoxlanmalıdır.
 
 ### 12.7. Staff performance
 
@@ -849,7 +849,7 @@ Burada adətən izlənilir:
 - top məhsullar
 - gross profit
 
-Əgər satış rəqəmi ilə ledger satış rəqəmi uyğun gəlmirsə, sistem warning göstərə bilər.
+Əgər satış rəqəmi ilə maliyyə yazılışı rəqəmi uyğun gəlmirsə, sistem xəbərdarlıq göstərə bilər.
 
 ## 14. Logs
 
@@ -860,7 +860,7 @@ Burada artıq ayrıca:
 filter-i də var
 
 Bu hissədə sistemin gördüyü risklər saxlanılır:
-- `sales vs ledger fərqi`
+- `satış və maliyyə yazılışı fərqi`
 - `investor mismatch`
 - `shift cash gap`
 - `deposit risk`

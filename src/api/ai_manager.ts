@@ -253,14 +253,14 @@ export function generate_ai_insight_engine(payload: {
       phase: 'finance',
       severity: 'critical',
       title: 'Maliyyə uyğunlaşdırma fərqi',
-      body: `Kassa/satış/ledger tərəfində fərq görünür. Bu bağlanmadan gün sonu hesabatına keçmək risklidir.`,
+      body: `Kassa/satış/maliyyə yazılışı tərəfində fərq görünür. Bu bağlanmadan gün sonu hesabatına keçmək risklidir.`,
       action_label: 'Maliyyəni aç',
       module: 'finance',
       score: 98,
       metric: money(anomalies.shift_cash_gap || anomalies.reconciliation_gap || 0),
       evidence: [
         `Kassa fərqi: ${money(anomalies.shift_cash_gap || 0)}`,
-        `Satış-ledger fərqi: ${money(anomalies.reconciliation_gap || 0)}`,
+        `Satış-maliyyə yazılışı fərqi: ${money(anomalies.reconciliation_gap || 0)}`,
       ],
     });
   }
@@ -271,13 +271,13 @@ export function generate_ai_insight_engine(payload: {
       phase: 'finance',
       severity: 'warning',
       title: 'Investor borcu izlənməlidir',
-      body: `Qalan investor borcu ${money(investor.debt_remaining || balances.investor_balance || 0)} görünür. Ödəniş planı və ledger uyğunluğu yoxlanmalıdır.`,
+      body: `Qalan investor borcu ${money(investor.debt_remaining || balances.investor_balance || 0)} görünür. Ödəniş planı və maliyyə yazılışı uyğunluğu yoxlanmalıdır.`,
       action_label: 'Investor tabına bax',
       module: 'finance',
       score: 74,
       metric: money(investor.debt_remaining || balances.investor_balance || 0),
       evidence: [
-        `Ledger investor balansı: ${money(balances.investor_balance || 0)}`,
+        `Maliyyə yazılışı investor balansı: ${money(balances.investor_balance || 0)}`,
         `Hesablanmış borc: ${money(investor.debt_remaining || 0)}`,
       ],
     });

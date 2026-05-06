@@ -407,7 +407,7 @@ export function FinanceLedgerTab({
               </tr>
             ))}
             {visibleLedgerTransactions.length === 0 && (
-              <tr><td colSpan={7} className="py-10 text-center text-slate-400">{tx(lang, 'Bu filterlə maliyyə jurnalı qeydi tapılmadı', 'По этим фильтрам ledger записей нет', 'No ledger rows match these filters')}</td></tr>
+              <tr><td colSpan={7} className="py-10 text-center text-slate-400">{tx(lang, 'Bu filterlə maliyyə jurnalı qeydi tapılmadı', 'По этим фильтрам финансовых проводок нет', 'No ledger rows match these filters')}</td></tr>
             )}
           </tbody>
         </table>

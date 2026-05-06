@@ -832,11 +832,11 @@ export default function FinancePanel() {
 
     if (anomalies?.has_reconciliation_issue) {
       items.push({
-        title: tx(lang, 'Satış və ledger fərqi', 'Расхождение продаж и ledger', 'Sales vs ledger gap'),
+        title: tx(lang, 'Satış və maliyyə yazılışı fərqi', 'Расхождение продаж и финансовых проводок', 'Sales vs ledger gap'),
         body: tx(
           lang,
-          `Backend audit satış gəliri ilə ledger satış daxilolması arasında ${new Decimal(anomalies.reconciliation_gap || 0).toFixed(2)} ₼ fərq göstərir.`,
-          `Backend audit показывает расхождение ${new Decimal(anomalies.reconciliation_gap || 0).toFixed(2)} ₼ между выручкой и ledger.`,
+          `Backend audit satış gəliri ilə maliyyə yazılışları arasında ${new Decimal(anomalies.reconciliation_gap || 0).toFixed(2)} ₼ fərq göstərir.`,
+          `Backend audit показывает расхождение ${new Decimal(anomalies.reconciliation_gap || 0).toFixed(2)} ₼ между выручкой и финансовыми проводками.`,
           `Backend audit shows a ${new Decimal(anomalies.reconciliation_gap || 0).toFixed(2)} ₼ gap between revenue and ledger.`,
         ),
         tone: 'rose',
@@ -944,7 +944,7 @@ export default function FinancePanel() {
       }));
       const ledgerRowsForExport = exportPage.rows || filteredLedgerTransactions;
       if (!ledgerRowsForExport.length) {
-        notify('error', tx(lang, 'Export üçün ledger məlumatı yoxdur', 'Нет ledger данных для экспорта', 'No ledger data to export'));
+        notify('error', tx(lang, 'Export üçün maliyyə yazılışı məlumatı yoxdur', 'Нет данных финансовых проводок для экспорта', 'No ledger data to export'));
         return;
       }
       const header = [
@@ -1350,7 +1350,7 @@ export default function FinancePanel() {
       ? [{
           id: 'negative-cash',
           title: tx(lang, 'Mənfi kassa riski', 'Риск отрицательной кассы', 'Negative cash risk'),
-          body: tx(lang, 'Nağd kassa mənfidir. Ledger və manual entry-ləri yoxlayın.', 'Касса отрицательная. Проверьте ledger и ручные записи.', 'Cash drawer is negative. Review ledger and manual entries.'),
+          body: tx(lang, 'Nağd kassa mənfidir. Maliyyə yazılışlarını və manual qeydləri yoxlayın.', 'Касса отрицательная. Проверьте финансовые проводки и ручные записи.', 'Cash drawer is negative. Review ledger and manual entries.'),
           tone: 'rose' as const,
           action: tx(lang, 'Bax', 'Проверить', 'Review'),
           tab: 'ledger' as FinanceWorkspaceTab,
@@ -1658,7 +1658,7 @@ export default function FinancePanel() {
         </div>
       ) : (
         <div className="mt-4 rounded-2xl border border-emerald-400/30 bg-emerald-950/25 p-4 text-sm font-bold text-emerald-100">
-          {tx(lang, 'Policy-yə görə bu ödəniş birbaşa ledger-ə post olunacaq.', 'По policy выплата будет posted сразу.', 'Per policy, this repayment will post directly to the ledger.')}
+          {tx(lang, 'Qaydaya görə bu ödəniş birbaşa maliyyə yazılışına düşəcək.', 'По правилу выплата будет сразу проведена в финансовых проводках.', 'Per policy, this repayment will post directly to the ledger.')}
         </div>
       )}
         <div className="sticky bottom-2 z-10 mt-5 rounded-2xl bg-slate-950/90 p-2 backdrop-blur md:static md:bg-transparent md:p-0">
@@ -1883,7 +1883,7 @@ export default function FinancePanel() {
     },
     ledger: {
       title: tx(lang, 'Maliyyə jurnalı', 'Maliyyə jurnalı', 'Maliyyə jurnalı'),
-      subtitle: tx(lang, 'Audit, approval və reversal tarixçəsi ayrıca iş sahəsindədir.', 'Audit, approval və reversal tarixçəsi ayrıca iş sahəsindədir.', 'Audit, approval və reversal tarixçəsi ayrıca iş sahəsindədir.'),
+      subtitle: tx(lang, 'Audit, təsdiq və geri çevirmə tarixçəsi ayrıca iş sahəsindədir.', 'Audit, təsdiq və geri çevirmə tarixçəsi ayrıca iş sahəsindədir.', 'Audit, approval və reversal tarixçəsi ayrıca iş sahəsindədir.'),
     },
   };
 
