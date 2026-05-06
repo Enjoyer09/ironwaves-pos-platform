@@ -5,7 +5,7 @@ import re
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, or_
+from sqlalchemy import and_, exists, func, or_
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -39,6 +39,8 @@ VOID_SALE_STATUSES = [
     "LAGV",
     "LAGV EDILDI",
 ]
+SALE_PAYMENT_TRANSACTION_TYPES = ["income", "deposit_apply_to_bill"]
+SALE_PAYMENT_LEDGER_TRANSACTION_TYPES = ["income", "deposit_apply_to_bill", "reversal"]
 BAKU_TIME_ZONE = ZoneInfo("Asia/Baku")
 
 
@@ -156,10 +158,30 @@ def _shift_sales_totals(db: Session, tenant_id: str, opened_at: datetime | None,
     return _sales_payment_totals(db, tenant_id, opened_at, closed_at)
 
 
+def _sale_is_void_expr(tenant_id: str):
+    sale_status_is_void = func.upper(func.trim(func.coalesce(Sale.status, ""))).in_(VOID_SALE_STATUSES)
+    sale_has_posted_payment = exists().where(
+        and_(
+            FinanceTransaction.tenant_id == tenant_id,
+            FinanceTransaction.related_order_id == Sale.id,
+            FinanceTransaction.status == "posted",
+            FinanceTransaction.transaction_type.in_(SALE_PAYMENT_TRANSACTION_TYPES),
+        )
+    )
+    sale_has_payment_ledger = exists().where(
+        and_(
+            FinanceTransaction.tenant_id == tenant_id,
+            FinanceTransaction.related_order_id == Sale.id,
+            FinanceTransaction.transaction_type.in_(SALE_PAYMENT_LEDGER_TRANSACTION_TYPES),
+        )
+    )
+    return or_(sale_status_is_void, and_(sale_has_payment_ledger, ~sale_has_posted_payment))
+
+
 def _shift_void_sales_total(db: Session, tenant_id: str, opened_at: datetime | None, closed_at: datetime | None) -> Decimal:
     query = db.query(func.coalesce(func.sum(Sale.total), 0)).filter(
         Sale.tenant_id == tenant_id,
-        func.upper(func.trim(func.coalesce(Sale.status, ""))).in_(VOID_SALE_STATUSES),
+        _sale_is_void_expr(tenant_id),
     )
     if opened_at:
         query = query.filter(Sale.created_at >= opened_at)
@@ -171,7 +193,7 @@ def _shift_void_sales_total(db: Session, tenant_id: str, opened_at: datetime | N
 def _shift_cashier_breakdown(db: Session, tenant_id: str, opened_at: datetime | None, closed_at: datetime | None) -> list[dict]:
     filters = [
         Sale.tenant_id == tenant_id,
-        ~func.upper(func.trim(func.coalesce(Sale.status, ""))).in_(VOID_SALE_STATUSES),
+        ~_sale_is_void_expr(tenant_id),
     ]
     if opened_at:
         filters.append(Sale.created_at >= opened_at)
