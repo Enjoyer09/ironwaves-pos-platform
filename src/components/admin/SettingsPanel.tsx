@@ -128,6 +128,7 @@ export default function SettingsPanel() {
     show_other_expense: true,
     show_deposit_summary: true,
     show_cashier_breakdown: true,
+    show_item_breakdown: true,
     show_counts: true,
   });
   const [qrMenuSettings, setQrMenuSettings] = useState({
@@ -378,6 +379,7 @@ export default function SettingsPanel() {
         show_other_expense: settingsRes.value.z_report_receipt_settings?.show_other_expense !== false,
         show_deposit_summary: settingsRes.value.z_report_receipt_settings?.show_deposit_summary !== false,
         show_cashier_breakdown: settingsRes.value.z_report_receipt_settings?.show_cashier_breakdown !== false,
+        show_item_breakdown: settingsRes.value.z_report_receipt_settings?.show_item_breakdown !== false,
         show_counts: settingsRes.value.z_report_receipt_settings?.show_counts !== false,
       });
       setQrMenuSettings({
@@ -1251,6 +1253,7 @@ export default function SettingsPanel() {
             ['show_other_expense', tx(lang, 'Digər xərclər görünsün', 'Показывать прочие расходы', 'Show other expenses')],
             ['show_deposit_summary', tx(lang, 'Depozit xülasəsi görünsün', 'Показывать сводку депозитов', 'Show deposit summary')],
             ['show_cashier_breakdown', tx(lang, 'Kassir breakdown-u görünsün', 'Показывать разбивку по кассирам', 'Show cashier breakdown')],
+            ['show_item_breakdown', tx(lang, 'Məhsul satışları görünsün', 'Показывать продажи товаров', 'Show item sales breakdown')],
             ['show_counts', tx(lang, 'Satış və void sayları görünsün', 'Показывать количество продаж и void', 'Show sales and void counts')],
           ].map(([key, label]) => (
             <label key={String(key)} className="flex items-center gap-3 rounded-2xl border border-slate-700/60 bg-slate-950/35 px-4 py-3 text-sm text-slate-200">

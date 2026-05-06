@@ -419,6 +419,7 @@ def _build_z_report_receipt_html(
     deposit_applied_sales: Decimal,
     void_sales: Decimal,
     cashier_breakdown: list[dict],
+    item_breakdown: list[dict] | None = None,
 ) -> str:
     profile = _business_profile(db, tenant)
     report_id = str(shift.id or "Z-REPORT")[:8].upper()
@@ -430,6 +431,14 @@ def _build_z_report_receipt_html(
             f'card {Decimal(str(row.get("card") or 0)).quantize(Decimal("0.01"))} ₼</div>'
         )
         for row in cashier_breakdown
+    )
+    item_rows = "\n".join(
+        (
+            f'<div class="line"><span>{row.get("item_name") or "Bilinməyən"} '
+            f'<span class="muted">({row.get("qty") or 0}x)</span></span>'
+            f'<span>{Decimal(str(row.get("total") or 0)).quantize(Decimal("0.01"))} ₼</span></div>'
+        )
+        for row in (item_breakdown or [])
     )
     deposit_line = (
         f'<div class="line"><span>Depozitdən ödənən</span><span>{deposit_applied_sales.quantize(Decimal("0.01"))} ₼</span></div>'
@@ -474,6 +483,9 @@ def _build_z_report_receipt_html(
           <hr />
           <div class="section-title">Kassir Breakdown</div>
           {cashier_rows or '<div class="muted">Kassir fəaliyyəti yoxdur</div>'}
+          <hr />
+          <div class="section-title">Məhsul Satışları</div>
+          {item_rows or '<div class="muted">Məhsul satışı yoxdur</div>'}
           <hr />
           <div class="muted">{profile["receipt_footer"]}</div>
         </body>
@@ -1098,6 +1110,7 @@ def list_z_report_receipts(
         total_sales = sales_totals["sales_total"]
         void_sales = sales_totals["void_sales"]
         cashier_breakdown = _shift_cashier_breakdown(db, tenant.id, row.opened_at, row.closed_at)
+        item_breakdown = _shift_item_sales_breakdown(db, tenant.id, row.opened_at, row.closed_at)
         corrected_html = _build_z_report_receipt_html(
             db=db,
             tenant=tenant,
@@ -1108,6 +1121,7 @@ def list_z_report_receipts(
             deposit_applied_sales=deposit_applied_sales,
             void_sales=void_sales,
             cashier_breakdown=cashier_breakdown,
+            item_breakdown=item_breakdown,
         )
         result.append(
             {

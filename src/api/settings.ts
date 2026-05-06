@@ -255,6 +255,7 @@ const DEFAULT_Z_REPORT_RECEIPT_SETTINGS: NonNullable<Settings['z_report_receipt_
   show_other_expense: true,
   show_deposit_summary: true,
   show_cashier_breakdown: true,
+  show_item_breakdown: true,
   show_counts: true,
 };
 
