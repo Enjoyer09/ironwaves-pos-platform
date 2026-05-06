@@ -326,6 +326,54 @@ def _log_finance_anomaly_snapshot(
         _anomaly_snapshot_cache[tenant_id] = (now, flag_signature)
 
 
+def _sales_reconciliation_totals(
+    db: Session,
+    tenant_id: str,
+    start: datetime | None = None,
+    end: datetime | None = None,
+) -> tuple[Decimal, Decimal, Decimal]:
+    sales_filters = [
+        Sale.tenant_id == tenant_id,
+        ~func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
+    ]
+    if start:
+        sales_filters.append(Sale.created_at >= start)
+    if end:
+        sales_filters.append(Sale.created_at <= end)
+
+    ledger_filters = [
+        FinanceTransaction.tenant_id == tenant_id,
+        FinanceTransaction.status == "posted",
+        FinanceTransaction.transaction_type.in_(["income", "deposit_apply_to_bill"]),
+        FinanceTransaction.related_order_id.isnot(None),
+        ~func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
+    ]
+    if start:
+        ledger_filters.append(Sale.created_at >= start)
+    if end:
+        ledger_filters.append(Sale.created_at <= end)
+
+    total_revenue = Decimal(
+        str(
+            db.query(func.coalesce(func.sum(Sale.total), 0))
+            .filter(*sales_filters)
+            .scalar()
+            or 0
+        )
+    ).quantize(Decimal("0.01"))
+    ledger_sales_total = Decimal(
+        str(
+            db.query(func.coalesce(func.sum(FinanceTransaction.amount), 0))
+            .select_from(FinanceTransaction)
+            .join(Sale, and_(Sale.id == FinanceTransaction.related_order_id, Sale.tenant_id == FinanceTransaction.tenant_id))
+            .filter(*ledger_filters)
+            .scalar()
+            or 0
+        )
+    ).quantize(Decimal("0.01"))
+    return total_revenue, ledger_sales_total, (total_revenue - ledger_sales_total).quantize(Decimal("0.01"))
+
+
 def _build_finance_anomalies(db: Session, tenant_id: str) -> dict:
     ledger_balances = _ledger_balances_snapshot(db, tenant_id)
     cash_balance = ledger_balances.get("cash", Decimal("0.00"))
@@ -334,36 +382,12 @@ def _build_finance_anomalies(db: Session, tenant_id: str) -> dict:
     investor_calculated_debt = investor_ledger_balance
     investor_gap = Decimal("0.00")
 
-    total_revenue = Decimal(
-        str(
-            db.query(func.coalesce(func.sum(Sale.total), 0))
-            .filter(
-                Sale.tenant_id == tenant_id,
-                ~func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
-            )
-            .scalar()
-            or 0
-        )
-    )
-    ledger_sales_total = Decimal(
-        str(
-            db.query(func.coalesce(func.sum(FinanceTransaction.amount), 0))
-            .select_from(FinanceTransaction)
-            .join(Sale, and_(Sale.id == FinanceTransaction.related_order_id, Sale.tenant_id == FinanceTransaction.tenant_id))
-            .filter(
-                FinanceTransaction.tenant_id == tenant_id,
-                FinanceTransaction.status == "posted",
-                FinanceTransaction.transaction_type.in_(["income", "deposit_apply_to_bill"]),
-                FinanceTransaction.related_order_id.isnot(None),
-                ~func.upper(func.coalesce(Sale.status, "")).in_(VOID_SALE_STATUSES),
-            )
-            .scalar()
-            or 0
-        )
-    )
-    reconciliation_gap = total_revenue - ledger_sales_total
-
     active_shift = _active_shift(db, tenant_id)
+    total_revenue, ledger_sales_total, reconciliation_gap = _sales_reconciliation_totals(db, tenant_id)
+    now = datetime.utcnow()
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    period_start = active_shift.opened_at if active_shift and active_shift.opened_at else day_start
+    current_revenue, current_ledger_total, current_reconciliation_gap = _sales_reconciliation_totals(db, tenant_id, period_start, None)
     expected_cash = Decimal("0")
     shift_cash_gap = Decimal("0")
     if active_shift:
@@ -383,6 +407,11 @@ def _build_finance_anomalies(db: Session, tenant_id: str) -> dict:
         "ledger_sales_total": str(ledger_sales_total.quantize(Decimal("0.01"))),
         "reconciliation_gap": str(reconciliation_gap.quantize(Decimal("0.01"))),
         "has_reconciliation_issue": abs(reconciliation_gap) > Decimal("0.01"),
+        "current_period_revenue": str(current_revenue.quantize(Decimal("0.01"))),
+        "current_period_ledger_sales_total": str(current_ledger_total.quantize(Decimal("0.01"))),
+        "current_period_reconciliation_gap": str(current_reconciliation_gap.quantize(Decimal("0.01"))),
+        "has_current_period_reconciliation_issue": abs(current_reconciliation_gap) > Decimal("0.01"),
+        "current_period_start": period_start.isoformat() if period_start else None,
         "expected_cash": str(expected_cash.quantize(Decimal("0.01"))),
         "shift_cash_gap": str(shift_cash_gap.quantize(Decimal("0.01"))),
         "has_shift_cash_mismatch": shift_cash_gap > Decimal("0.01"),

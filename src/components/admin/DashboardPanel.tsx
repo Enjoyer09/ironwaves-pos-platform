@@ -385,11 +385,11 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         action: () => onOpenTab('analytics'),
       });
     }
-    if (financeAnomalies?.has_reconciliation_issue) {
+    if (financeAnomalies?.has_current_period_reconciliation_issue) {
       alerts.push({
         id: 'sales-ledger-gap',
         title: tx(lang, 'Satış və maliyyə yazılışı fərqi', 'Расхождение продаж и финансовых проводок', 'Sales vs ledger gap'),
-        body: `${tx(lang, 'Fərq', 'Разница', 'Gap')}: ${money(financeAnomalies.reconciliation_gap)}`,
+        body: `${tx(lang, 'Cari dövr fərqi', 'Разница текущего периода', 'Current period gap')}: ${money(financeAnomalies.current_period_reconciliation_gap)}`,
         tone: 'critical',
         actionLabel: tx(lang, 'Bax', 'Проверить', 'Review'),
         action: () => onOpenTab('finance'),

@@ -706,6 +706,11 @@ export type FinanceAnomalies = {
   ledger_sales_total: string;
   reconciliation_gap: string;
   has_reconciliation_issue: boolean;
+  current_period_revenue: string;
+  current_period_ledger_sales_total: string;
+  current_period_reconciliation_gap: string;
+  has_current_period_reconciliation_issue: boolean;
+  current_period_start: string | null;
   expected_cash: string;
   shift_cash_gap: string;
   has_shift_cash_mismatch: boolean;
@@ -1304,6 +1309,11 @@ export const get_finance_anomalies = (tenant_id: string): FinanceAnomalies => {
     ledger_sales_total: '0.00',
     reconciliation_gap: '0.00',
     has_reconciliation_issue: false,
+    current_period_revenue: '0.00',
+    current_period_ledger_sales_total: '0.00',
+    current_period_reconciliation_gap: '0.00',
+    has_current_period_reconciliation_issue: false,
+    current_period_start: null,
     expected_cash: cashBalance.toFixed(2),
     shift_cash_gap: '0.00',
     has_shift_cash_mismatch: false,
@@ -1333,6 +1343,11 @@ export const fetch_finance_anomalies = async (tenant_id: string): Promise<Financ
     ledger_sales_total: String(data?.ledger_sales_total ?? '0'),
     reconciliation_gap: String(data?.reconciliation_gap ?? '0'),
     has_reconciliation_issue: Boolean(data?.has_reconciliation_issue),
+    current_period_revenue: String(data?.current_period_revenue ?? data?.total_revenue ?? '0'),
+    current_period_ledger_sales_total: String(data?.current_period_ledger_sales_total ?? data?.ledger_sales_total ?? '0'),
+    current_period_reconciliation_gap: String(data?.current_period_reconciliation_gap ?? data?.reconciliation_gap ?? '0'),
+    has_current_period_reconciliation_issue: Boolean(data?.has_current_period_reconciliation_issue ?? data?.has_reconciliation_issue),
+    current_period_start: data?.current_period_start ? String(data.current_period_start) : null,
     expected_cash: String(data?.expected_cash ?? '0'),
     shift_cash_gap: String(data?.shift_cash_gap ?? '0'),
     has_shift_cash_mismatch: Boolean(data?.has_shift_cash_mismatch),
