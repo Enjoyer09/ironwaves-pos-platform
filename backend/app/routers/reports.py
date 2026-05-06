@@ -258,6 +258,55 @@ def _shift_cashier_breakdown(db: Session, tenant_id: str, opened_at: datetime | 
     ]
 
 
+def _shift_item_sales_breakdown(db: Session, tenant_id: str, opened_at: datetime | None, closed_at: datetime | None) -> list[dict]:
+    filters = [
+        Sale.tenant_id == tenant_id,
+        ~_sale_is_void_expr(tenant_id),
+    ]
+    if opened_at:
+        filters.append(Sale.created_at >= opened_at)
+    if closed_at:
+        filters.append(Sale.created_at < closed_at)
+
+    rows = db.query(Sale.items_json).filter(*filters).all()
+    
+    item_totals: dict[str, dict[str, Decimal]] = {}
+    for (items_json_str,) in rows:
+        try:
+            items = json.loads(items_json_str)
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                name = str(item.get("item_name") or item.get("name") or "Bilinməyən")
+                qty = Decimal(str(item.get("qty") or 0))
+                price = Decimal(str(item.get("price") or 0))
+                total = qty * price
+                if name not in item_totals:
+                    item_totals[name] = {"qty": Decimal("0"), "total": Decimal("0.00")}
+                item_totals[name]["qty"] += qty
+                item_totals[name]["total"] += total
+        except Exception:
+            pass
+
+    result = []
+    for name, data in item_totals.items():
+        qty_val = data["qty"]
+        # Determine if qty should be formatted as int or decimal
+        if qty_val == qty_val.to_integral_value():
+            qty_str = str(int(qty_val))
+        else:
+            qty_str = str(qty_val.normalize())
+            
+        result.append({
+            "item_name": name,
+            "qty": qty_str,
+            "total": str(data["total"].quantize(Decimal("0.01"))),
+        })
+    
+    result.sort(key=lambda x: Decimal(x["total"]), reverse=True)
+    return result
+
+
 def _replace_z_report_money_line(html: str, label: str, amount: Decimal) -> str:
     safe_amount = f"{amount.quantize(Decimal('0.01'))} ₼"
     pattern = (
@@ -912,6 +961,7 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
     reconciliation_gap = sales_totals["reconciliation_gap"]
     void_sales = sales_totals["void_sales"]
     cashier_breakdown = _shift_cashier_breakdown(db, tenant.id, active.opened_at, None)
+    item_breakdown = _shift_item_sales_breakdown(db, tenant.id, active.opened_at, None)
     deposit_total = _posted_transaction_sum(
         db,
         tenant.id,
@@ -988,6 +1038,7 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
         "other_expense_total": str(other_expense_total),
         "other_expense_lines": other_expense_lines,
         "cashier_breakdown": cashier_breakdown,
+        "item_breakdown": item_breakdown,
     }
 
 
