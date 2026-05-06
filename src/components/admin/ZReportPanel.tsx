@@ -238,7 +238,16 @@ export default function ZReportPanel() {
     const otherExpenseLines = Array.isArray(result?.other_expense_lines) ? result.other_expense_lines : [];
     const openedAt = String(result?.opened_at || shiftStatusState.opened_at || shiftStatusState.timestamp || '');
     const closedAt = String(result?.closed_at || new Date().toISOString());
-    const cashierRows = cashierBreakdown
+    const cashierBreakdownRows = Array.isArray(result?.cashier_breakdown) && result.cashier_breakdown.length
+      ? result.cashier_breakdown.map((row: any) => ({
+        cashier: String(row.cashier || '-'),
+        salesCount: Number(row.sales_count || row.salesCount || 0),
+        total: new Decimal(row.total || 0),
+        cash: new Decimal(row.cash || 0),
+        card: new Decimal(row.card || 0),
+      }))
+      : cashierBreakdown;
+    const cashierRows = cashierBreakdownRows
       .map((row) => `
         <div class="line"><span>${row.cashier} (${row.salesCount})</span><span>${row.total.toFixed(2)} ₼</span></div>
         <div class="muted">cash ${row.cash.toFixed(2)} ₼ • card ${row.card.toFixed(2)} ₼</div>
@@ -320,7 +329,7 @@ export default function ZReportPanel() {
           ` : ''}
           ${zReportReceiptSettings.show_counts ? `
             <hr />
-            <div class="line"><span>Satış sayı</span><span>${sales.length}</span></div>
+            <div class="line"><span>Satış sayı</span><span>${result?.sales_count ?? sales.length}</span></div>
             <div class="line"><span>Void sayı</span><span>${summary.void_count || 0}</span></div>
           ` : ''}
         </body>

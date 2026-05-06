@@ -971,6 +971,8 @@ export const z_report = async (
       ),
       cash_sales: String(res?.cash_sales || '0'),
       card_sales: String(res?.card_sales || '0'),
+      sales_count: Number(res?.sales_count || 0),
+      cashier_breakdown: Array.isArray(res?.cashier_breakdown) ? res.cashier_breakdown : [],
       deposit_applied_sales: String(res?.deposit_applied_sales || '0'),
       ledger_sales_total: String(res?.ledger_sales_total || '0'),
       reconciliation_gap: String(res?.reconciliation_gap || '0'),
