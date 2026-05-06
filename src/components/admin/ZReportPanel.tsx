@@ -28,7 +28,7 @@ import {
   z_report,
 } from '../../api/reports';
 import { fetch_finance_anomalies, fetch_finance_balances, get_balance, type FinanceAnomalies } from '../../api/finance';
-import { get_settings_live, get_users_live, update_z_report_receipt_settings_live } from '../../api/settings';
+import { get_settings_live, get_users_live } from '../../api/settings';
 import { qzListPrinters, qzPrintHtml } from '../../lib/qz';
 import { tx } from '../../i18n';
 import { isBackendEnabled } from '../../api/client';
@@ -109,22 +109,6 @@ export default function ZReportPanel() {
     ...(panelSettings?.z_report_receipt_settings || {}),
   };
   const trackedYieldItems = Array.isArray(yieldSettings?.tracked_items) ? yieldSettings!.tracked_items!.filter((row: any) => row.enabled !== false) : [];
-  const zReportReceiptSettingOptions = useMemo(() => [
-    ['show_operator', tx(lang, 'Operator görünsün', 'Показывать оператора', 'Show operator')],
-    ['show_date_range', tx(lang, 'Tarix aralığı görünsün', 'Показывать диапазон дат', 'Show date range')],
-    ['show_sales_summary', tx(lang, 'Satış xülasəsi görünsün', 'Показывать сводку продаж', 'Show sales summary')],
-    ['show_profit_summary', tx(lang, 'Maya və mənfəət görünsün', 'Показывать себестоимость и прибыль', 'Show COGS and profit')],
-    ['show_wage', tx(lang, 'Maaş çıxışı görünsün', 'Показывать списание зарплаты', 'Show wage deduction')],
-    ['show_shift_cash', tx(lang, 'Açılış və bağlanış kassası görünsün', 'Показывать открытие и закрытие кассы', 'Show opening and closing cash')],
-    ['show_cash_movements', tx(lang, 'Kassa giriş/çıxışları görünsün', 'Показывать движения по кассе', 'Show cash movements')],
-    ['show_other_income', tx(lang, 'Digər giriş pulları görünsün', 'Показывать прочие поступления', 'Show other income')],
-    ['show_other_expense', tx(lang, 'Digər xərclər görünsün', 'Показывать прочие расходы', 'Show other expenses')],
-    ['show_deposit_summary', tx(lang, 'Depozit xülasəsi görünsün', 'Показывать сводку депозитов', 'Show deposit summary')],
-    ['show_cashier_breakdown', tx(lang, 'Kassir breakdown-u görünsün', 'Показывать разбивку по кассирам', 'Show cashier breakdown')],
-    ['show_item_breakdown', tx(lang, 'Məhsul satışları görünsün', 'Показывать продажи товаров', 'Show item sales breakdown')],
-    ['show_counts', tx(lang, 'Satış və void sayları görünsün', 'Показывать количество продаж и void', 'Show sales and void counts')],
-  ] as const, [lang]);
-
   const carryoverCash = new Decimal(currentBalances.cash_balance || 0);
   const targetCash = new Decimal(openingTarget || '0');
   const requiredTopup = Decimal.max(new Decimal(0), targetCash.minus(carryoverCash));
@@ -253,6 +237,9 @@ export default function ZReportPanel() {
     const activeDepositLiability = new Decimal(currentBalances.deposit_balance || 0);
     const otherIncomeTotal = new Decimal(result?.other_income_total || 0);
     const otherExpenseTotal = new Decimal(result?.other_expense_total || 0);
+    const totalCogs = new Decimal(result?.total_cogs ?? summary.total_cogs ?? 0);
+    const grossProfit = new Decimal(result?.gross_profit ?? summary.gross_profit ?? 0);
+    const bankFeeTotal = new Decimal(result?.bank_fee_total || 0);
     const otherIncomeLines = Array.isArray(result?.other_income_lines) ? result.other_income_lines : [];
     const otherExpenseLines = Array.isArray(result?.other_expense_lines) ? result.other_expense_lines : [];
     const openedAt = String(result?.opened_at || shiftStatusState.opened_at || shiftStatusState.timestamp || '');
@@ -313,8 +300,9 @@ export default function ZReportPanel() {
           `}
           ${zReportReceiptSettings.show_profit_summary ? `
             <div class="section-title">Mənfəət xülasəsi</div>
-            <div class="line"><span>Maya (COGS)</span><span>${new Decimal(summary.total_cogs || 0).toFixed(2)} ₼</span></div>
-            <div class="line"><span>Brutto Mənfəət</span><span>${new Decimal(summary.gross_profit || 0).toFixed(2)} ₼</span></div>
+            <div class="line"><span>Maya (COGS)</span><span>${totalCogs.toFixed(2)} ₼</span></div>
+            <div class="line"><span>Brutto Mənfəət</span><span>${grossProfit.toFixed(2)} ₼</span></div>
+            <div class="line"><span>Bank faizi</span><span>${bankFeeTotal.toFixed(2)} ₼</span></div>
           ` : ''}
           ${zReportReceiptSettings.show_wage ? `<div class="line"><span>Maaş Çıxışı</span><span>${new Decimal(result?.wage_amount || result?.wage || zWage || 0).toFixed(2)} ₼</span></div>` : ''}
           ${zReportReceiptSettings.show_shift_cash ? `
@@ -403,31 +391,6 @@ export default function ZReportPanel() {
       mounted = false;
     };
   }, [tenant_id]);
-
-  const updateZReportReceiptSetting = (key: keyof typeof DEFAULT_Z_REPORT_RECEIPT_SETTINGS, checked: boolean) => {
-    setPanelSettings((prev: any) => ({
-      ...(prev || {}),
-      z_report_receipt_settings: {
-        ...DEFAULT_Z_REPORT_RECEIPT_SETTINGS,
-        ...((prev || {}).z_report_receipt_settings || {}),
-        [key]: checked,
-      },
-    }));
-  };
-
-  const saveZReportReceiptSettings = async () => {
-    const payload = {
-      ...DEFAULT_Z_REPORT_RECEIPT_SETTINGS,
-      ...(panelSettings?.z_report_receipt_settings || {}),
-    };
-    try {
-      await update_z_report_receipt_settings_live(payload);
-      setPanelSettings((prev: any) => ({ ...(prev || {}), z_report_receipt_settings: payload }));
-      notify('success', tx(lang, 'Z-Hesabat çek ayarları yadda saxlanıldı', 'Настройки чека Z-отчёта сохранены', 'Z-report receipt settings saved'));
-    } catch (error: any) {
-      notify('error', tx(lang, `Ayarlar saxlanmadı: ${error?.message || error}`, `Настройки не сохранены: ${error?.message || error}`, `Settings were not saved: ${error?.message || error}`));
-    }
-  };
 
   React.useEffect(() => {
     let mounted = true;
@@ -1046,46 +1009,6 @@ export default function ZReportPanel() {
               <span className="text-slate-400">{tx(lang, 'Qəbul edilmiş təhvil yoxdur', 'Нет принятой передачи', 'No accepted handover yet')}</span>
             )}
           </div>
-        </div>
-      </div>
-
-      <div className="metal-panel border border-slate-700/70 p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h3 className="text-lg font-semibold text-slate-100">
-              {tx(lang, 'Z-Hesabat Çek Ayarları', 'Настройки чека Z-отчёта', 'Z-report receipt settings')}
-            </h3>
-            <p className="mt-1 max-w-3xl text-xs text-slate-400">
-              {tx(
-                lang,
-                'Admin buradan Z-Hesabat çekində hansı hissələrin görünəcəyini seçə bilər. Maaş, xərclər, giriş pulları, depozit və kassir breakdown-u checkbox ilə idarə olunur.',
-                'Здесь администратор выбирает, какие секции будут показаны в чеке Z-отчёта. Зарплата, расходы, поступления, депозиты и разбивка по кассирам управляются чекбоксами.',
-                'Choose which sections appear on the Z-report receipt. Wage, expenses, inflows, deposits, and cashier breakdown are controlled here.',
-              )}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void saveZReportReceiptSettings()}
-            className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-semibold text-slate-900"
-          >
-            {tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
-          </button>
-        </div>
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {zReportReceiptSettingOptions.map(([key, label]) => (
-            <label
-              key={key}
-              className="flex min-h-12 items-center gap-3 rounded-2xl border border-slate-700/60 bg-slate-950/35 px-4 py-3 text-sm text-slate-200"
-            >
-              <input
-                type="checkbox"
-                checked={Boolean(zReportReceiptSettings[key])}
-                onChange={(event) => updateZReportReceiptSetting(key, event.target.checked)}
-              />
-              <span>{label}</span>
-            </label>
-          ))}
         </div>
       </div>
 
