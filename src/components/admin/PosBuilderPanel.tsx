@@ -374,157 +374,45 @@ export default function PosBuilderPanel() {
   };
 
   const moveWidget = (widgetKey: string, direction: -1 | 1) => {
-    setLayout((prev) => {
-      const currentProfile = {
-        ...prev,
-        ...(prev.device_layouts?.[activeDevice] || {}),
-        ...(activeScope === 'staff' ? (prev.role_overrides?.staff || {}) : activeScope === 'manager' ? (prev.role_overrides?.manager || {}) : {}),
-      };
-      const next = [...currentProfile.widget_order];
-      const index = next.indexOf(widgetKey);
-      if (index < 0) return prev;
-      const target = index + direction;
-      if (target < 0 || target >= next.length) return prev;
-      [next[index], next[target]] = [next[target], next[index]];
-      if (activeScope === 'staff' || activeScope === 'manager') {
-        return {
-          ...prev,
-          role_overrides: {
-            ...(prev.role_overrides || {}),
-            [activeScope]: {
-              ...(prev.role_overrides?.[activeScope] || {}),
-              widget_order: next,
-            },
-          },
-        };
-      }
-      return {
-        ...prev,
-        device_layouts: {
-          ...(prev.device_layouts || {}),
-          [activeDevice]: {
-            ...(prev.device_layouts?.[activeDevice] || {}),
-            widget_order: next,
-          },
-        },
-      };
-    });
+    const next = [...activeProfile.widget_order];
+    const index = next.indexOf(widgetKey);
+    if (index < 0) return;
+    const target = index + direction;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    updateActiveProfile({ widget_order: next });
   };
 
   const moveWidgetTo = (fromKey: string, toKey: string) => {
     if (!fromKey || !toKey || fromKey === toKey) return;
-    setLayout((prev) => {
-      const currentProfile = {
-        ...prev,
-        ...(prev.device_layouts?.[activeDevice] || {}),
-        ...(activeScope === 'staff' ? (prev.role_overrides?.staff || {}) : activeScope === 'manager' ? (prev.role_overrides?.manager || {}) : {}),
-      };
-      const current = [...currentProfile.widget_order];
-      const fromIndex = current.indexOf(fromKey);
-      const toIndex = current.indexOf(toKey);
-      if (fromIndex < 0 || toIndex < 0) return prev;
-      const [moved] = current.splice(fromIndex, 1);
-      current.splice(toIndex, 0, moved);
-      if (activeScope === 'staff' || activeScope === 'manager') {
-        return {
-          ...prev,
-          role_overrides: {
-            ...(prev.role_overrides || {}),
-            [activeScope]: {
-              ...(prev.role_overrides?.[activeScope] || {}),
-              widget_order: current,
-            },
-          },
-        };
-      }
-      return {
-        ...prev,
-        device_layouts: {
-          ...(prev.device_layouts || {}),
-          [activeDevice]: {
-            ...(prev.device_layouts?.[activeDevice] || {}),
-            widget_order: current,
-          },
-        },
-      };
-    });
+    const current = [...activeProfile.widget_order];
+    const fromIndex = current.indexOf(fromKey);
+    const toIndex = current.indexOf(toKey);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const [moved] = current.splice(fromIndex, 1);
+    current.splice(toIndex, 0, moved);
+    updateActiveProfile({ widget_order: current });
   };
 
   const moveLeftWidget = (widgetKey: string, direction: -1 | 1) => {
-    setLayout((prev) => {
-      const currentProfile = {
-        ...prev,
-        ...(prev.device_layouts?.[activeDevice] || {}),
-        ...(activeScope === 'staff' ? (prev.role_overrides?.staff || {}) : activeScope === 'manager' ? (prev.role_overrides?.manager || {}) : {}),
-      };
-      const next = [...currentProfile.left_widget_order];
-      const index = next.indexOf(widgetKey);
-      if (index < 0) return prev;
-      const target = index + direction;
-      if (target < 0 || target >= next.length) return prev;
-      [next[index], next[target]] = [next[target], next[index]];
-      if (activeScope === 'staff' || activeScope === 'manager') {
-        return {
-          ...prev,
-          role_overrides: {
-            ...(prev.role_overrides || {}),
-            [activeScope]: {
-              ...(prev.role_overrides?.[activeScope] || {}),
-              left_widget_order: next,
-            },
-          },
-        };
-      }
-      return {
-        ...prev,
-        device_layouts: {
-          ...(prev.device_layouts || {}),
-          [activeDevice]: {
-            ...(prev.device_layouts?.[activeDevice] || {}),
-            left_widget_order: next,
-          },
-        },
-      };
-    });
+    const next = [...activeProfile.left_widget_order];
+    const index = next.indexOf(widgetKey);
+    if (index < 0) return;
+    const target = index + direction;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    updateActiveProfile({ left_widget_order: next });
   };
 
   const moveLeftWidgetTo = (fromKey: string, toKey: string) => {
     if (!fromKey || !toKey || fromKey === toKey) return;
-    setLayout((prev) => {
-      const currentProfile = {
-        ...prev,
-        ...(prev.device_layouts?.[activeDevice] || {}),
-        ...(activeScope === 'staff' ? (prev.role_overrides?.staff || {}) : activeScope === 'manager' ? (prev.role_overrides?.manager || {}) : {}),
-      };
-      const current = [...currentProfile.left_widget_order];
-      const fromIndex = current.indexOf(fromKey);
-      const toIndex = current.indexOf(toKey);
-      if (fromIndex < 0 || toIndex < 0) return prev;
-      const [moved] = current.splice(fromIndex, 1);
-      current.splice(toIndex, 0, moved);
-      if (activeScope === 'staff' || activeScope === 'manager') {
-        return {
-          ...prev,
-          role_overrides: {
-            ...(prev.role_overrides || {}),
-            [activeScope]: {
-              ...(prev.role_overrides?.[activeScope] || {}),
-              left_widget_order: current,
-            },
-          },
-        };
-      }
-      return {
-        ...prev,
-        device_layouts: {
-          ...(prev.device_layouts || {}),
-          [activeDevice]: {
-            ...(prev.device_layouts?.[activeDevice] || {}),
-            left_widget_order: current,
-          },
-        },
-      };
-    });
+    const current = [...activeProfile.left_widget_order];
+    const fromIndex = current.indexOf(fromKey);
+    const toIndex = current.indexOf(toKey);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const [moved] = current.splice(fromIndex, 1);
+    current.splice(toIndex, 0, moved);
+    updateActiveProfile({ left_widget_order: current });
   };
 
   const resetLayout = () => {
