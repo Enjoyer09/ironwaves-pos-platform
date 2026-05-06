@@ -20,6 +20,19 @@ from app.services.finance_service import mirror_posted_transaction_to_legacy_wal
 router = APIRouter(prefix="/api/v1/pos", tags=["pos"])
 logger = logging.getLogger(__name__)
 STAFF_SHIFT_SESSIONS_KEY = "staff_shift_sessions"
+VOID_SALE_STATUSES = {
+    "VOIDED",
+    "VOID",
+    "CANCELLED",
+    "CANCELED",
+    "CANCELLED SALE",
+    "CANCELED SALE",
+    "LƏĞV",
+    "LƏĞV EDILDI",
+    "LƏĞV EDİLDİ",
+    "LAGV",
+    "LAGV EDILDI",
+}
 
 
 DEFAULT_YIELD_SETTINGS = {
@@ -36,6 +49,10 @@ DEFAULT_BEVERAGE_SERVICE_SETTINGS = {
     "coffee_selection_mode": "size_and_service",
     "remove_paper_packaging_for_table": True,
 }
+
+
+def _is_void_sale_status(value: str | None) -> bool:
+    return str(value or "").strip().upper() in VOID_SALE_STATUSES
 
 
 def _sale_payment_split(db: Session, tenant_id: str, sale_id: str) -> tuple[Decimal, Decimal]:
@@ -670,6 +687,11 @@ def save_sale_receipt_html(
     )
     if not row:
         raise HTTPException(status_code=404, detail="Sale not found")
+    if _is_void_sale_status(row.status):
+        row.receipt_html = None
+        db.add(row)
+        db.commit()
+        return {"success": True, "ignored": True, "reason": "sale_voided"}
     row.receipt_html = str(payload.receipt_html or "").strip()
     db.add(row)
     db.commit()
@@ -722,6 +744,7 @@ def public_receipt(
     items = safe_json_list(row.items_json)
     original_total = Decimal(str(row.total)) + Decimal(str(row.discount_amount or 0))
     split_cash, split_card = _sale_payment_split(db, tenant.id, row.id)
+    is_void = _is_void_sale_status(row.status)
     return {
         "id": row.id,
         "tenant_id": row.tenant_id,
@@ -737,7 +760,7 @@ def public_receipt(
         "total": str(row.total),
         "original_total": str(original_total),
         "discount_amount": str(row.discount_amount or 0),
-        "receipt_html": row.receipt_html or "",
+        "receipt_html": "" if is_void else (row.receipt_html or ""),
         "items": items,
         "status": row.status,
     }

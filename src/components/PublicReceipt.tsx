@@ -9,6 +9,20 @@ type Props = {
   token: string;
 };
 
+const isVoidSaleStatus = (status: unknown) => [
+  'VOIDED',
+  'VOID',
+  'CANCELLED',
+  'CANCELED',
+  'CANCELLED SALE',
+  'CANCELED SALE',
+  'LƏĞV',
+  'LƏĞV EDILDI',
+  'LƏĞV EDİLDİ',
+  'LAGV',
+  'LAGV EDILDI',
+].includes(String(status || '').trim().toUpperCase());
+
 export default function PublicReceipt({ receiptId, token }: Props) {
   const [receipt, setReceipt] = React.useState<any | null>(null);
   const [profile, setProfile] = React.useState<any>(null);
@@ -179,7 +193,7 @@ export default function PublicReceipt({ receiptId, token }: Props) {
           <div>Cashier</div>
           <div className="text-right">{receipt.cashier}</div>
           <div>Payment</div>
-          <div className="text-right">{receipt.payment_method}</div>
+          <div className="text-right">{isVoidSaleStatus(receipt.status) ? 'Ləğv edildi' : receipt.payment_method}</div>
           <div>Status</div>
           <div className="text-right">{receipt.status}</div>
           {receipt.customer_card_id ? (

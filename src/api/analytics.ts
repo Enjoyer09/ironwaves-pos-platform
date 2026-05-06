@@ -58,9 +58,27 @@ const inDateRange = (createdAt: string, date_from: string, date_to: string) => {
   return current >= new Date(date_from).getTime() && current < new Date(date_to).getTime();
 };
 
+const VOID_SALE_STATUSES = new Set([
+  'VOIDED',
+  'VOID',
+  'CANCELLED',
+  'CANCELED',
+  'CANCELLED SALE',
+  'CANCELED SALE',
+  'LƏĞV',
+  'LƏĞV EDILDI',
+  'LƏĞV EDİLDİ',
+  'LAGV',
+  'LAGV EDILDI',
+]);
+
+const normalizeSaleStatus = (status?: string | null) => String(status || '').trim().toUpperCase();
+const isVoidSaleStatus = (status?: string | null) => VOID_SALE_STATUSES.has(normalizeSaleStatus(status));
+const isNetSaleStatus = (status?: string | null) => !isVoidSaleStatus(status);
+
 export function get_sales_summary(tenant_id: string, date_from: string, date_to: string, cashier_filter?: string) {
   const sales = getSalesLocal(tenant_id).filter(
-    (s) => s.status === 'COMPLETED' && inDateRange(s.created_at, date_from, date_to)
+    (s) => isNetSaleStatus(s.status) && inDateRange(s.created_at, date_from, date_to)
   );
   
   let total_revenue = new Decimal(0);
@@ -68,7 +86,7 @@ export function get_sales_summary(tenant_id: string, date_from: string, date_to:
   let card_sales = new Decimal(0);
   let total_cogs = new Decimal(0);
   const void_count = getSalesLocal(tenant_id).filter(
-    (s) => s.status === 'VOIDED' && inDateRange(s.created_at, date_from, date_to)
+    (s) => isVoidSaleStatus(s.status) && inDateRange(s.created_at, date_from, date_to)
   ).length;
 
   sales.forEach(sale => {
@@ -139,7 +157,7 @@ export function get_sales_list(tenant_id: string, date_from: string, date_to: st
 
 export function get_product_stats(tenant_id: string, date_from: string, date_to: string) {
   const sales = getSalesLocal(tenant_id).filter(
-    (s) => s.status === 'COMPLETED' && inDateRange(s.created_at, date_from, date_to)
+    (s) => isNetSaleStatus(s.status) && inDateRange(s.created_at, date_from, date_to)
   );
   const product_counts: Record<string, number> = {};
 
@@ -157,7 +175,7 @@ export function get_product_stats(tenant_id: string, date_from: string, date_to:
 
 export function get_staff_performance(tenant_id: string, date_from: string, date_to: string) {
   const sales = getSalesLocal(tenant_id).filter(
-    (s) => s.status === 'COMPLETED' && inDateRange(s.created_at, date_from, date_to)
+    (s) => isNetSaleStatus(s.status) && inDateRange(s.created_at, date_from, date_to)
   );
   const staff_stats: Record<string, { sale_count: number, total_revenue: Decimal; discount_total: Decimal }> = {};
 
@@ -194,6 +212,7 @@ export function create_refund(sale_id: string, refund_type: 'VOID' | 'PARTIAL', 
     
     // Satış statusunu dəyiş
     sales[saleIndex].status = refund_type === 'VOID' ? 'VOIDED' : 'PARTIAL_REFUND';
+    (sales[saleIndex] as any).receipt_html = '';
     saveSalesLocal(tenant_id, sales);
 
     // Refund loga yaz
@@ -247,9 +266,10 @@ export function void_sale_with_reason(
   const idx = sales.findIndex((s) => s.id === sale_id && s.tenant_id === tenant_id);
   if (idx === -1) throw new Error('Satış tapılmadı');
   const sale: any = sales[idx];
-  if (sale.status === 'VOIDED') throw new Error('Satış artıq VOID olunub');
+  if (isVoidSaleStatus(sale.status)) throw new Error('Satış artıq VOID olunub');
 
   sale.status = 'VOIDED';
+  sale.receipt_html = '';
   sales[idx] = sale;
   saveSalesLocal(tenant_id, sales);
 
@@ -491,7 +511,7 @@ export function partial_refund_sale(
   const sales = getSalesLocal(tenant_id);
   const idx = sales.findIndex((s) => s.id === sale_id && s.tenant_id === tenant_id);
   if (idx === -1) throw new Error('Satış tapılmadı');
-  if (sales[idx].status === 'VOIDED') throw new Error('VOID olunmuş satışa partial refund tətbiq edilə bilməz');
+  if (isVoidSaleStatus(sales[idx].status)) throw new Error('VOID olunmuş satışa partial refund tətbiq edilə bilməz');
 
   const refund = new Decimal(refund_amount || 0);
   const currentTotal = new Decimal((sales[idx] as any).total || 0);
@@ -501,6 +521,7 @@ export function partial_refund_sale(
   const sale: any = sales[idx];
   (sales[idx] as any).total = currentTotal.minus(refund).toFixed(2);
   (sales[idx] as any).status = 'PARTIAL_REFUND';
+  (sales[idx] as any).receipt_html = '';
   saveSalesLocal(tenant_id, sales);
 
   create_finance_entry(

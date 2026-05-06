@@ -40,6 +40,22 @@ function splitAmounts(sale: any): { cash: number; card: number } {
   );
 }
 
+function isVoidSaleStatus(status: unknown): boolean {
+  return [
+    'VOIDED',
+    'VOID',
+    'CANCELLED',
+    'CANCELED',
+    'CANCELLED SALE',
+    'CANCELED SALE',
+    'LƏĞV',
+    'LƏĞV EDILDI',
+    'LƏĞV EDİLDİ',
+    'LAGV',
+    'LAGV EDILDI',
+  ].includes(String(status || '').trim().toUpperCase());
+}
+
 export function formatReceiptDisplayId(id: string): string {
   if (!id) return '-';
   return String(id).split('-')[0].toUpperCase();
@@ -100,9 +116,12 @@ export async function buildSaleReceiptHtml({
   const subtotal = Number(sale?.original_total ?? 0) || (Number(sale?.total || 0) + Number(sale?.discount_amount || 0));
   const total = Number(sale?.total || 0);
   const discount = Number(sale?.discount_amount || 0);
-  const paymentMethod = String(sale?.payment_method || '').trim();
+  const isVoided = isVoidSaleStatus(sale?.status);
+  const paymentMethod = isVoided
+    ? tx(lang, 'Ləğv edildi', 'Отменено', 'Voided')
+    : String(sale?.payment_method || '').trim();
   const split = splitAmounts(sale);
-  const isSplit = paymentMethod.toLowerCase().includes('split') || split.cash > 0 || split.card > 0;
+  const isSplit = !isVoided && (paymentMethod.toLowerCase().includes('split') || split.cash > 0 || split.card > 0);
   const freeCoffees = Number(sale?.free_coffees_applied || 0);
   const customerId = String(sale?.customer_card_id || '').trim();
   const starsAfter = Number(sale?.customer_stars_after || 0);
@@ -133,6 +152,7 @@ export async function buildSaleReceiptHtml({
         <div class="line"><span>${tx(lang, 'Operator', 'Оператор', 'Operator')}</span><span>${esc(operator || sale?.cashier || '-')}</span></div>
         <div class="line"><span>${tx(lang, 'Tarix', 'Дата', 'Date')}</span><span>${esc(createdAt)}</span></div>
         <div class="line"><span>${tx(lang, 'Tip', 'Тип', 'Type')}</span><span>${esc(sale?.order_type || 'Take Away')}</span></div>
+        ${isVoided ? `<div class="line bold"><span>${tx(lang, 'Status', 'Статус', 'Status')}</span><span>${tx(lang, 'LƏĞV EDİLDİ', 'ОТМЕНЕНО', 'VOIDED')}</span></div>` : ''}
         <div style="margin-top:8px;text-align:center">${barcodeSvg || ''}</div>
         <div class="muted" style="text-align:center">SALE:${esc(displayId)}</div>
         <hr />
