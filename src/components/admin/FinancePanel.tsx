@@ -830,16 +830,27 @@ export default function FinancePanel() {
       });
     }
 
-    if (anomalies?.has_reconciliation_issue) {
+    if (anomalies?.has_current_period_reconciliation_issue) {
       items.push({
         title: tx(lang, 'Satış və maliyyə yazılışı fərqi', 'Расхождение продаж и финансовых проводок', 'Sales vs ledger gap'),
         body: tx(
           lang,
-          `Backend audit satış gəliri ilə maliyyə yazılışları arasında ${new Decimal(anomalies.reconciliation_gap || 0).toFixed(2)} ₼ fərq göstərir.`,
-          `Backend audit показывает расхождение ${new Decimal(anomalies.reconciliation_gap || 0).toFixed(2)} ₼ между выручкой и финансовыми проводками.`,
-          `Backend audit shows a ${new Decimal(anomalies.reconciliation_gap || 0).toFixed(2)} ₼ gap between revenue and ledger.`,
+          `Cari dövrdə satış gəliri ilə maliyyə yazılışları arasında ${new Decimal(anomalies.current_period_reconciliation_gap || 0).toFixed(2)} ₼ fərq var.`,
+          `В текущем периоде расхождение между выручкой и финансовыми проводками составляет ${new Decimal(anomalies.current_period_reconciliation_gap || 0).toFixed(2)} ₼.`,
+          `Current period revenue and ledger differ by ${new Decimal(anomalies.current_period_reconciliation_gap || 0).toFixed(2)} ₼.`,
         ),
         tone: 'rose',
+      });
+    } else if (anomalies?.has_reconciliation_issue) {
+      items.push({
+        title: tx(lang, 'Tarixi maliyyə fərqi', 'Историческое финансовое расхождение', 'Historical finance gap'),
+        body: tx(
+          lang,
+          `Cari dövr təmizdir. Köhnə tarixlərdə ${new Decimal(anomalies.reconciliation_gap || 0).toFixed(2)} ₼ fərq qalıb.`,
+          `Текущий период чистый. В старых периодах осталось расхождение ${new Decimal(anomalies.reconciliation_gap || 0).toFixed(2)} ₼.`,
+          `Current period is clean. Historical data still has a ${new Decimal(anomalies.reconciliation_gap || 0).toFixed(2)} ₼ gap.`,
+        ),
+        tone: 'sky',
       });
     }
 
