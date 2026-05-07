@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import hashlib
 import json
 import logging
+from pathlib import Path
 import re
 import secrets
 import time
@@ -16,6 +17,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -60,6 +62,10 @@ app = FastAPI(title=settings.app_name)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 logging.basicConfig(level=getattr(logging, str(settings.log_level or "INFO").upper(), logging.INFO), format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("ironwaves.api")
+
+UPLOADS_DIR = Path(__file__).resolve().parents[1] / "uploads"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 try:
     from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest

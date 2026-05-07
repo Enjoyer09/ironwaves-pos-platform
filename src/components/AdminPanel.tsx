@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../store';
 import { get_sales_summary, get_sales_summary_live, get_sales_list, get_sales_list_live, update_sale_amount_live, void_sale_with_reason_live, partial_refund_sale_live } from '../api/analytics';
-import { get_menu_items_live, create_menu_item_live, reorder_menu_items_live, soft_delete_menu_item_live, update_menu_item_live } from '../api/menu';
+import { get_menu_items_live, create_menu_item_live, reorder_menu_items_live, soft_delete_menu_item_live, update_menu_item_live, upload_menu_image_live } from '../api/menu';
 import { get_logs_live } from '../api/logs';
 import { apiRequest, isBackendEnabled } from '../api/client';
 import { Decimal } from 'decimal.js';
@@ -11,7 +11,7 @@ import ConfirmModal from './ConfirmModal';
 import { getDB } from '../lib/db_sim';
 import { verifyLocalCredential } from '../lib/local_auth';
 import { formatServerUtcDateTime, localDateInputValue, localDateTimeNextStart, localDateTimeStart } from '../lib/time';
-import { prepareImageDataUrl } from '../lib/image_upload';
+import { prepareImageUploadFile } from '../lib/image_upload';
 
 const FinancePanel = lazy(() => import('./admin/FinancePanel'));
 const InventoryPanel = lazy(() => import('./admin/InventoryPanel'));
@@ -411,8 +411,14 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const dataUrl = await prepareImageDataUrl(file);
-      setEditMenuModal((prev) => (prev ? { ...prev, image_url: dataUrl } : prev));
+      const prepared = await prepareImageUploadFile(file, {
+        maxFileBytes: 2 * 1024 * 1024,
+        maxDimension: 1280,
+        outputQuality: 0.82,
+      });
+      const imageUrl = await upload_menu_image_live(prepared.file);
+      setEditMenuModal((prev) => (prev ? { ...prev, image_url: imageUrl } : prev));
+      notify('success', tx(lang, 'Şəkil yükləndi', 'Изображение загружено', 'Image uploaded'));
     } catch (error: any) {
       notify('error', error?.message || tx(lang, 'Şəkil yüklənmədi', 'Изображение не загрузилось', 'Image upload failed'));
     } finally {
@@ -424,8 +430,14 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const dataUrl = await prepareImageDataUrl(file);
-      setNewItemImageUrl(dataUrl);
+      const prepared = await prepareImageUploadFile(file, {
+        maxFileBytes: 2 * 1024 * 1024,
+        maxDimension: 1280,
+        outputQuality: 0.82,
+      });
+      const imageUrl = await upload_menu_image_live(prepared.file);
+      setNewItemImageUrl(imageUrl);
+      notify('success', tx(lang, 'Şəkil yükləndi', 'Изображение загружено', 'Image uploaded'));
     } catch (error: any) {
       notify('error', error?.message || tx(lang, 'Şəkil yüklənmədi', 'Изображение не загрузилось', 'Image upload failed'));
     } finally {

@@ -189,6 +189,24 @@ export async function create_menu_item_live(
   }
 }
 
+export async function upload_menu_image_live(file: File): Promise<string> {
+  if (!isBackendEnabled()) {
+    throw new Error('Şəkil yükləmə backend tələb edir');
+  }
+  const form = new FormData();
+  form.append('file', file);
+  const result = await apiRequest<{ success?: boolean; image_url?: string }>('/api/v1/catalog/uploads/menu-image', {
+    method: 'POST',
+    tenantId: null,
+    body: form,
+  });
+  const imageUrl = String(result?.image_url || '').trim();
+  if (!imageUrl) {
+    throw new Error('Şəkil URL qaytarılmadı');
+  }
+  return imageUrl;
+}
+
 export async function update_menu_item_live(
   tenant_id: string,
   item_id: string,

@@ -54,6 +54,8 @@ const inFlightGetRequests = new Map<string, Promise<any>>();
 const IN_FLIGHT_GET_TTL_MS = 1000;
 let lastAuthExpiredEventAt = 0;
 const getResponseCache = new Map<string, { expiresAt: number; data: any }>();
+let refreshInFlight: Promise<boolean> | null = null;
+let lastRefreshFailureAt = 0;
 
 function cloneCachedData<T>(data: T): T {
   try {
@@ -113,7 +115,7 @@ function emitClientTelemetry(action: string, details: Record<string, any>) {
     if (telemetryThrottle[key] && now - telemetryThrottle[key] < 10000) return;
     telemetryThrottle[key] = now;
     const body = JSON.stringify({
-      user: String(getPersistedSession().user ? 'client' : 'anonymous'),
+      user: String(getClientAuthSession().user ? 'client' : 'anonymous'),
       action,
       details: {
         ...details,
@@ -143,10 +145,16 @@ type ApiRequestOptions = {
   timeoutMs?: number;
   retryCount?: number;
   retryDelayMs?: number;
+  suspendOnNetworkError?: boolean;
   // pass null to skip x-tenant-id header (use backend host/domain resolver)
   tenantId?: string | null;
   signal?: AbortSignal;
+  _skip401Refresh?: boolean;
 };
+
+function isFormDataBody(value: unknown): value is FormData {
+  return typeof FormData !== 'undefined' && value instanceof FormData;
+}
 
 function createRequestId(): string {
   try {
@@ -165,6 +173,48 @@ const isRetryableStatus = (status: number) => status === 429 || status === 502 |
 
 const isAbortError = (error: unknown) =>
   typeof DOMException !== 'undefined' && error instanceof DOMException && error.name === 'AbortError';
+
+async function tryRefreshSession(): Promise<boolean> {
+  const now = Date.now();
+  if (now - lastRefreshFailureAt < 1500) return false;
+  if (refreshInFlight) return refreshInFlight;
+  const base = getApiBaseUrl();
+  if (!base) return false;
+  refreshInFlight = (async () => {
+    try {
+      const response = await fetch(`${base}/api/v1/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-tenant-domain': window.location.host,
+          'x-request-id': createRequestId(),
+        },
+        credentials: 'include',
+        cache: 'no-store',
+        body: JSON.stringify({}),
+      });
+      if (!response.ok) {
+        lastRefreshFailureAt = Date.now();
+        return false;
+      }
+      const payload = await response.json().catch(() => ({} as any));
+      const accessToken = String(payload?.access_token || '').trim();
+      if (!accessToken) {
+        lastRefreshFailureAt = Date.now();
+        return false;
+      }
+      const user = payload?.user && typeof payload.user === 'object' ? payload.user : getClientAuthSession().user || null;
+      setClientAuthSession({ access_token: accessToken, user });
+      return true;
+    } catch {
+      lastRefreshFailureAt = Date.now();
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
+}
 
 export async function apiRequest<T = any>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const method = String(options.method || 'GET').toUpperCase();
@@ -235,8 +285,9 @@ async function apiRequestNetwork<T = any>(path: string, options: ApiRequestOptio
   // By default backend resolves tenant from x-tenant-domain to avoid stale local tenant mismatches.
   const tenantId = options.tenantId;
 
+  const bodyIsFormData = isFormDataBody(options.body);
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(bodyIsFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers || {}),
   };
   const requestId = createRequestId();
@@ -284,7 +335,9 @@ async function apiRequestNetwork<T = any>(path: string, options: ApiRequestOptio
       res = await fetch(`${base}${path}`, {
         method,
         headers,
-        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+        body: options.body !== undefined
+          ? (bodyIsFormData ? (options.body as FormData) : JSON.stringify(options.body))
+          : undefined,
         credentials: 'include',
         cache: options.cacheMode || 'no-store',
         signal: requestSignal,
@@ -365,6 +418,16 @@ async function apiRequestNetwork<T = any>(path: string, options: ApiRequestOptio
       : `Server düzgün JSON cavabı qaytarmadı (HTTP ${res.status})`;
     const backendRequestId = String(res.headers.get('x-request-id') || requestId);
     if (res.status === 401) {
+      const canTryRefresh =
+        options.auth !== false &&
+        options._skip401Refresh !== true &&
+        !path.startsWith('/api/v1/auth/');
+      if (canTryRefresh) {
+        const refreshed = await tryRefreshSession();
+        if (refreshed) {
+          return apiRequestNetwork<T>(path, { ...options, _skip401Refresh: true });
+        }
+      }
       const currentAccessToken = String(getClientAuthSession().access_token || '');
       const shouldExpireCurrentSession = Boolean(requestAccessToken && currentAccessToken && currentAccessToken === requestAccessToken);
       const now = Date.now();
