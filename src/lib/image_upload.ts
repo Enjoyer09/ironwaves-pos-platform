@@ -9,6 +9,12 @@ type ImagePrepareOptions = {
   maxOutputChars?: number;
 };
 
+type PreparedUploadFile = {
+  file: File;
+  width: number;
+  height: number;
+};
+
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -99,4 +105,55 @@ export async function prepareSmallImageDataUrl(file: File): Promise<string> {
     outputQuality: 0.72,
     maxOutputChars: 350_000,
   });
+}
+
+export async function prepareImageUploadFile(file: File, options: ImagePrepareOptions = {}): Promise<PreparedUploadFile> {
+  const maxFileBytes = options.maxFileBytes ?? MAX_IMAGE_FILE_BYTES;
+  const maxDimension = options.maxDimension ?? MAX_IMAGE_DIMENSION;
+  const outputQuality = options.outputQuality ?? OUTPUT_IMAGE_QUALITY;
+
+  if (!String(file.type || '').startsWith('image/')) {
+    throw new Error('Yalnız şəkil faylı seçin');
+  }
+  if (file.size > maxFileBytes) {
+    throw new Error(`Şəkil maksimum ${Math.round(maxFileBytes / 1024)} KB ola bilər`);
+  }
+
+  const sourceDataUrl = await fileToDataUrl(file);
+  const image = await dataUrlToImage(sourceDataUrl);
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+  const target = normalizeTargetSize(sourceWidth, sourceHeight, maxDimension);
+  const shouldKeepOriginal =
+    target.width === sourceWidth &&
+    target.height === sourceHeight &&
+    file.size <= Math.min(350 * 1024, maxFileBytes);
+  if (shouldKeepOriginal) {
+    return { file, width: sourceWidth, height: sourceHeight };
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = target.width;
+  canvas.height = target.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('Şəkil emalı mümkün olmadı');
+  }
+  ctx.drawImage(image, 0, 0, target.width, target.height);
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((nextBlob) => {
+      if (!nextBlob) {
+        reject(new Error('Şəkil sıxılmadı'));
+        return;
+      }
+      resolve(nextBlob);
+    }, 'image/jpeg', outputQuality);
+  });
+  if (blob.size > maxFileBytes) {
+    throw new Error('Şəkil hələ də çox böyükdür, daha kiçik fayl seçin');
+  }
+  const baseName = String(file.name || 'menu-image').replace(/\.[^.]+$/, '');
+  const compressedFile = new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' });
+  return { file: compressedFile, width: target.width, height: target.height };
 }

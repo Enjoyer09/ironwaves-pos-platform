@@ -1,7 +1,9 @@
 import json
+import uuid
+from pathlib import Path
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -16,6 +18,9 @@ from app.services.finance_service import post_inventory_loss, post_inventory_res
 router = APIRouter(prefix="/api/v1/catalog", tags=["catalog"])
 
 MAX_IMAGE_URL_LENGTH = 2048
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+ALLOWED_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}
+MENU_UPLOADS_ROOT = Path(__file__).resolve().parents[2] / "uploads" / "menu-images"
 
 
 def _validate_image_url(value: str | None) -> str | None:
@@ -32,6 +37,37 @@ def _validate_image_url(value: str | None) -> str | None:
 def _ensure_catalog_write_access(user: User):
     if str(user.role or "").lower() not in {"admin", "super_admin", "manager"}:
         raise HTTPException(status_code=403, detail="Catalog write access required")
+
+
+@router.post("/uploads/menu-image")
+async def upload_menu_image(
+    request: Request,
+    file: UploadFile = File(...),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_catalog_write_access(user)
+    content_type = str(file.content_type or "").lower().strip()
+    if content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="only jpeg/png/webp/gif image types are allowed")
+
+    payload = await file.read()
+    if not payload:
+        raise HTTPException(status_code=400, detail="empty file")
+    if len(payload) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="image too large (max 5MB)")
+
+    tenant_dir = MENU_UPLOADS_ROOT / str(tenant.id)
+    tenant_dir.mkdir(parents=True, exist_ok=True)
+    ext = ALLOWED_IMAGE_TYPES.get(content_type, ".jpg")
+    filename = f"{uuid.uuid4().hex}{ext}"
+    full_path = tenant_dir / filename
+    with open(full_path, "wb") as output:
+        output.write(payload)
+
+    base = str(request.base_url).rstrip("/")
+    image_url = f"{base}/uploads/menu-images/{tenant.id}/{filename}"
+    return {"success": True, "image_url": image_url}
 
 
 def _normalize_unit(raw: str) -> str:
