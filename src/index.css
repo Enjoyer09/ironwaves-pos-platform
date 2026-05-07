@@ -1957,6 +1957,47 @@ html {
 
 .dg-panel-dark .dg-group-title { color: rgba(255, 255, 255, 0.3); }
 
+.pos-dashboard-amber {
+  background:
+    radial-gradient(1100px 620px at -10% -20%, rgba(249, 115, 22, 0.24), transparent 60%),
+    radial-gradient(920px 520px at 120% 10%, rgba(194, 65, 12, 0.20), transparent 58%),
+    linear-gradient(180deg, #120b08 0%, #090707 100%);
+}
+
+.pos-dashboard-amber .metal-panel {
+  background: linear-gradient(145deg, rgba(41, 21, 14, 0.82), rgba(24, 14, 11, 0.92));
+  border-color: rgba(251, 146, 60, 0.24);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.pos-dashboard-amber .neon-chip,
+.pos-dashboard-amber .neon-tab {
+  border-color: rgba(251, 146, 60, 0.28);
+  background: linear-gradient(145deg, rgba(35, 21, 15, 0.72), rgba(27, 17, 13, 0.86));
+}
+
+.pos-dashboard-amber .neon-chip-active,
+.pos-dashboard-amber .neon-tab-active,
+.pos-dashboard-amber .glossy-gold {
+  background: linear-gradient(135deg, #fb923c 0%, #ea580c 100%);
+  border-color: rgba(251, 146, 60, 0.72);
+  color: #fff7ed;
+  box-shadow: 0 10px 24px rgba(194, 65, 12, 0.38);
+}
+
+.pos-dashboard-amber .neon-input,
+.pos-dashboard-amber .neon-item {
+  border-color: rgba(251, 146, 60, 0.22);
+  background: linear-gradient(165deg, rgba(31, 19, 14, 0.92), rgba(24, 15, 11, 0.94));
+}
+
+.pos-dashboard-amber .neon-item:hover {
+  border-color: rgba(251, 146, 60, 0.46);
+  box-shadow: 0 12px 22px rgba(194, 65, 12, 0.22);
+}
+
 .dg-badge-row { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .dg-pill {
