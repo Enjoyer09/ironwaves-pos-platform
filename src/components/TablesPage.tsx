@@ -20,6 +20,7 @@ import { qzPrintHtml } from '../lib/qz';
 import { hostScopedKey } from '../lib/storage_keys';
 import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
 import { THERMAL_RECEIPT_PRINT_CSS } from '../lib/receipt_print_css';
+import { printViaLocalAgent } from '../lib/local_print_agent';
 import { getTenantDomains } from '../lib/tenant';
 import { formatRestaurantLocalTime, formatServerUtcDateTime, formatServerUtcTime, localDateInputValue, parseRestaurantLocalTimestamp } from '../lib/time';
 import TableGrid from './tables/TableGrid';
@@ -1434,6 +1435,15 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 
 
   const printTableReceiptOnly = async () => {
+    if (safeTableReceiptHtml) {
+      try {
+        await printViaLocalAgent(safeTableReceiptHtml, printSettings.printer_name);
+        notify('success', tx(lang, 'iRonWaves Print Agent ilə çap göndərildi', 'Печать отправлена через iRonWaves Print Agent', 'Print job sent via iRonWaves Print Agent'));
+        return;
+      } catch {
+        // Local agent is optional; fall back to QZ/browser print.
+      }
+    }
     if (printSettings.use_qz && safeTableReceiptHtml) {
       try {
         await qzPrintHtml(safeTableReceiptHtml, printSettings.printer_name);

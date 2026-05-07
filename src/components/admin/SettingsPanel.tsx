@@ -1199,9 +1199,9 @@ export default function SettingsPanel() {
         <p className="text-sm text-slate-400">
           {tx(
             lang,
-            'Brauzerin print pəncərəsini səssiz keçməyin ən praktik yolu QZ Tray-dir. Bu aktiv olanda POS, masa çeki və Z-report birbaşa printerə göndərilir.',
-            'Самый практичный способ обойти окно печати браузера — QZ Tray. Когда он активен, POS, чеки столов и Z-отчет отправляются прямо на принтер.',
-            'The most practical way to bypass the browser print dialog is QZ Tray. When enabled, POS, table receipts, and Z-report go directly to the printer.',
+            'Ən sərfəli səssiz çap yolu iRonWaves Print Agent-dir. Agent bu kompüterdə işləyirsə POS, masa çeki və Z-report əvvəlcə ona göndərilir; agent yoxdursa QZ/browser fallback qalır.',
+            'Самый выгодный способ тихой печати — iRonWaves Print Agent. Если агент запущен на этом компьютере, POS, чеки столов и Z-отчет сначала отправляются ему; если агента нет, остается QZ/browser fallback.',
+            'The most cost-effective silent printing path is iRonWaves Print Agent. If it is running on this computer, POS, table receipts, and Z-report print through it first; otherwise QZ/browser fallback remains.',
           )}
         </p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -1219,9 +1219,9 @@ export default function SettingsPanel() {
         <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-xs text-slate-300">
           {tx(
             lang,
-            'Qeyd: QZ Tray quraşdırılmayıbsa, sistem yenə brauzer print pəncərəsinə düşəcək. Safari-də səssiz çap praktik deyil; Chrome/Edge + QZ daha uyğundur.',
-            'Примечание: если QZ Tray не установлен, система вернется к окну печати браузера. Для тихой печати лучше Chrome/Edge + QZ.',
-            'Note: if QZ Tray is not installed, the system falls back to the browser print dialog. For silent printing, Chrome/Edge + QZ is the practical setup.',
+            'Qeyd: iRonWaves Print Agent lokal olaraq 127.0.0.1:17777 portunda işləməlidir. Printer adı boş qalarsa Windows default printer istifadə olunur. QZ Tray checkbox-u əlavə fallback üçündür.',
+            'Примечание: iRonWaves Print Agent должен локально работать на 127.0.0.1:17777. Если имя принтера пустое, используется принтер Windows по умолчанию. Checkbox QZ Tray остается как дополнительный fallback.',
+            'Note: iRonWaves Print Agent must run locally on 127.0.0.1:17777. If printer name is empty, Windows default printer is used. The QZ Tray checkbox remains as an extra fallback.',
           )}
         </div>
         {renderPanelSuccess('print')}

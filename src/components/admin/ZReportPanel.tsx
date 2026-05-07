@@ -35,6 +35,7 @@ import { isBackendEnabled } from '../../api/client';
 import { formatServerUtcDateTime, formatServerUtcDateTime24, formatServerUtcTime24, localDateInputValue, localDateTimeNextStart, localDateTimeStart } from '../../lib/time';
 import { sanitizeHtmlForIframe } from '../../lib/html_sanitize';
 import { THERMAL_RECEIPT_PRINT_CSS } from '../../lib/receipt_print_css';
+import { printViaLocalAgent } from '../../lib/local_print_agent';
 
 const DEFAULT_PRINT_SETTINGS = { use_qz: false, printer_name: '' };
 const DEFAULT_Z_REPORT_RECEIPT_SETTINGS = {
@@ -821,6 +822,15 @@ export default function ZReportPanel() {
   };
 
   const printZReceiptOnly = async () => {
+    if (safeZReceiptHtml) {
+      try {
+        await printViaLocalAgent(safeZReceiptHtml, printSettings.printer_name);
+        notify('success', tx(lang, 'iRonWaves Print Agent ilə çap göndərildi', 'Печать отправлена через iRonWaves Print Agent'));
+        return;
+      } catch {
+        // Local agent is optional; fall back to QZ/browser print.
+      }
+    }
     if (printSettings.use_qz && safeZReceiptHtml) {
       try {
         await qzPrintHtml(safeZReceiptHtml, printSettings.printer_name);
