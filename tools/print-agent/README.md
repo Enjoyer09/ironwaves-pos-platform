@@ -89,3 +89,33 @@ Set:
 - `latest_version` to new version
 - `minimum_version` to minimum supported version
 - `published_at` to release timestamp
+
+## macOS `.pkg` installer (very simple flow)
+
+On your Mac:
+
+```bash
+cd /Users/macbookair/Documents/GitHub/ironwaves-pos-platform/tools/print-agent
+npm install
+npm run build:mac:all
+```
+
+Output:
+
+```text
+tools/print-agent/dist/ironwaves-print-agent-macos-installer.pkg
+```
+
+Install test:
+
+1. Double click `.pkg`
+2. Finish installer
+3. Check agent:
+
+```bash
+curl -s http://127.0.0.1:17777/health
+```
+
+Auto-start at login:
+- Installer adds LaunchAgent: `/Library/LaunchAgents/com.ironwaves.print-agent.plist`
+- Agent starts automatically after user login.

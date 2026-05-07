@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import QRCode from 'qrcode';
-import { get_tables_live, create_table_live, delete_table_live, open_table_live, transfer_table_live, revise_table_items_live } from '../api/tables';
+import { get_tables_live, create_table_live, delete_table_live, open_table_live, transfer_table_live, revise_table_items_live, abort_table_live } from '../api/tables';
 import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
 import { subscribeTenantRealtime } from '../api/realtime';
@@ -63,7 +63,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const [itemActionManagerPassword, setItemActionManagerPassword] = useState('');
   const [tableReceiptHtml, setTableReceiptHtml] = useState<string | null>(null);
   const safeTableReceiptHtml = useMemo(() => sanitizeHtmlForIframe(tableReceiptHtml), [tableReceiptHtml]);
-  const [revisionTarget, setRevisionTarget] = useState<{ tableId: string; itemName: string; nextItems: any[] } | null>(null);
+  const [revisionTarget, setRevisionTarget] = useState<{ tableId: string; itemName: string; nextItems: any[]; hasSentItems: boolean } | null>(null);
   const [revisionReason, setRevisionReason] = useState('');
   const [revisionOverridePassword, setRevisionOverridePassword] = useState('');
   const [showFullOrderList, setShowFullOrderList] = useState(false);
@@ -1566,21 +1566,28 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           <div className="metal-panel w-full max-w-md p-5">
             <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Manager/Admin Təsdiqi', 'Подтверждение manager/admin', 'Manager/Admin Override')}</h3>
             <p className="mt-2 text-sm text-slate-300">
-              {tx(lang, `"${revisionTarget.itemName}" mətbəxə göndərilib. Dəyişiklik üçün manager/admin şifrəsi və səbəb lazımdır.`, `"${revisionTarget.itemName}" уже отправлен на кухню. Для изменения нужны пароль manager/admin и причина.`, `"${revisionTarget.itemName}" was already sent to the kitchen. Manager/admin password and reason are required to change it.`)}
+              {revisionTarget?.hasSentItems
+                ? tx(lang, `"${revisionTarget?.itemName}" mətbəxə göndərilib. Dəyişiklik üçün manager/admin şifrəsi və səbəb lazımdır.`, `"${revisionTarget?.itemName}" уже отправлен на кухню. Для изменения нужны пароль manager/admin и причина.`, `"${revisionTarget?.itemName}" was already sent to the kitchen. Manager/admin password and reason are required.`)
+                : tx(lang, `"${revisionTarget?.itemName}" hələ mətbəxə göndərilməyib. Bilavasitə silinir.`, `"${revisionTarget?.itemName}" еще не отправлялся на кухню. Будет удалено немедленно.`, `"${revisionTarget?.itemName}" has not been sent to the kitchen yet. It will be removed directly.`)
+              }
             </p>
-            <input
-              className="neon-input mt-3"
-              value={revisionReason}
-              onChange={(e) => setRevisionReason(e.target.value)}
-              placeholder={tx(lang, 'Səbəb', 'Причина', 'Reason')}
-            />
-            <input
-              type="password"
-              className="neon-input mt-3"
-              value={revisionOverridePassword}
-              onChange={(e) => setRevisionOverridePassword(e.target.value)}
-              placeholder={tx(lang, 'Manager/Admin şifrəsi', 'Пароль manager/admin', 'Manager/Admin password')}
-            />
+            {revisionTarget?.hasSentItems ? (
+              <>
+                <input
+                  className="neon-input mt-3"
+                  value={revisionReason}
+                  onChange={(e) => setRevisionReason(e.target.value)}
+                  placeholder={tx(lang, 'Səbəb', 'Причина', 'Reason')}
+                />
+                <input
+                  type="password"
+                  className="neon-input mt-3"
+                  value={revisionOverridePassword}
+                  onChange={(e) => setRevisionOverridePassword(e.target.value)}
+                  placeholder={tx(lang, 'Manager/Admin şifrəsi', 'Пароль manager/admin', 'Manager/Admin password')}
+                />
+              </>
+            ) : null}
             <div className="mt-4 flex justify-end gap-2">
               <button
                 className="neon-btn rounded-lg px-4 py-2"
@@ -1599,17 +1606,17 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                   try {
                     await revise_table_items_live(revisionTarget.tableId, {
                       items: revisionTarget.nextItems,
-                      reason: revisionReason,
+                      reason: revisionReason || 'Draft silindi',
                       override_password: revisionOverridePassword,
                       actor: user?.username || 'staff',
                     });
-                    notify('success', tx(lang, 'Düzəliş mətbəx reviziyası ilə yazıldı', 'Изменение записано как ревизия кухни', 'Change was written as a kitchen revision'));
+                    notify('success', tx(lang, 'Düzəliş yazıldı', 'Изменение записано', 'Change applied'));
                     setRevisionTarget(null);
                     setRevisionReason('');
                     setRevisionOverridePassword('');
                     await loadData();
                   } catch (e: any) {
-                    notify('error', e?.message || tx(lang, 'Düzəliş alınmadı', 'Изменение не выполнено', 'Revision failed'));
+                    notify('error', e?.message || tx(lang, 'Düzəliş alınmadı', 'Изменение не выполneno', 'Revision failed'));
                   }
                 }}
               >
@@ -2670,7 +2677,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     const nextItems = buildRevisionNextItems(it.item_name, 1);
-                                    setRevisionTarget({ tableId: t.id, itemName: it.item_name, nextItems });
+                                    // Items without an id haven't been sent to kitchen yet
+                                    setRevisionTarget({ tableId: t.id, itemName: it.item_name, nextItems, hasSentItems: false });
                                   }}
                                 >
                                   {tx(lang, 'Azalt', 'Уменьшить', 'Reduce')}

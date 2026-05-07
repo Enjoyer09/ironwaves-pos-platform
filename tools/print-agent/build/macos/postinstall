@@ -1,0 +1,21 @@
+#!/bin/bash
+set -euo pipefail
+
+BIN_PATH="/usr/local/ironwaves-print-agent/ironwaves-print-agent"
+PLIST_PATH="/Library/LaunchAgents/com.ironwaves.print-agent.plist"
+
+chmod 755 "$BIN_PATH" || true
+chown root:wheel "$PLIST_PATH" || true
+chmod 644 "$PLIST_PATH" || true
+
+CONSOLE_USER="$(stat -f %Su /dev/console || true)"
+if [[ -n "$CONSOLE_USER" && "$CONSOLE_USER" != "root" ]]; then
+  USER_UID="$(id -u "$CONSOLE_USER" || true)"
+  if [[ -n "$USER_UID" ]]; then
+    launchctl bootout "gui/$USER_UID/com.ironwaves.print-agent" >/dev/null 2>&1 || true
+    launchctl bootstrap "gui/$USER_UID" "$PLIST_PATH" >/dev/null 2>&1 || true
+    launchctl kickstart -k "gui/$USER_UID/com.ironwaves.print-agent" >/dev/null 2>&1 || true
+  fi
+fi
+
+exit 0

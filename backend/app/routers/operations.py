@@ -60,6 +60,7 @@ from app.services.finance_service import (
     create_finance_transaction_record as _create_finance_transaction_record,
     post_deposit_apply_to_bill as _post_deposit_apply_to_bill,
     post_deposit_hold as _post_deposit_hold,
+    post_deposit_refund as _post_deposit_refund,
     post_finance_transaction_with_legacy_mirror as _post_finance_transaction,
     post_sale_cogs as _post_sale_cogs,
     post_sale_payment as _post_sale_payment,
@@ -915,8 +916,8 @@ class TableTargetIn(BaseModel):
 
 class TableRevisionIn(BaseModel):
     items: list[dict]
-    reason: str
-    override_password: str
+    reason: str | None = None
+    override_password: str | None = None
 
 
 class KitchenCompleteIn(BaseModel):
@@ -3582,8 +3583,12 @@ def send_to_kitchen(
             raise HTTPException(status_code=409, detail="Bu sifariş artıq mətbəxə göndərilib")
 
     existing = _json_load(row.items_json, [])
-    merged = list(existing)
-    for incoming in payload.cart_items:
+    # Mark all already-stored items as kitchen_sent so we can later distinguish them
+    existing_marked = [dict(item, kitchen_sent=True) for item in existing]
+    merged = list(existing_marked)
+    # Incoming items are fresh (not yet sent) — they get kitchen_sent=True after this round
+    incoming_with_flag = [dict(item, kitchen_sent=True) for item in payload.cart_items]
+    for incoming in incoming_with_flag:
         idx = next(
             (
                 i
@@ -3643,56 +3648,30 @@ def revise_table_items(
 ):
     row = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
     if not row:
-      raise HTTPException(status_code=404, detail="Table not found")
-
-    override_password = str(payload.override_password or "").strip()
-    reason = str(payload.reason or "").strip()
-    if not override_password:
-        raise HTTPException(status_code=400, detail="Manager/Admin password required")
-    if len(reason) < 3:
-        raise HTTPException(status_code=400, detail="Reason is required")
-
-    override_user = None
-    candidates = (
-        db.query(User)
-        .filter(User.tenant_id == tenant.id, User.is_active == True)
-        .all()
-    )
-    for candidate in candidates:
-        if str(candidate.role or "").lower() not in {"admin", "manager", "super_admin"}:
-            continue
-        if candidate.password_hash and verify_password(override_password, candidate.password_hash):
-            override_user = candidate
-            break
-    if not override_user:
-        raise HTTPException(status_code=403, detail="Manager/Admin override failed")
+        raise HTTPException(status_code=404, detail="Table not found")
 
     old_items = _json_load(row.items_json, [])
-    next_items = []
+    next_items_raw = []
     for item in payload.items:
         qty = int(item.get("qty") or 0)
         if qty <= 0:
             continue
-        next_items.append(
-            {
-                "id": item.get("id"),
-                "item_name": str(item.get("item_name") or "").strip(),
-                "price": str(item.get("price") or "0"),
-                "qty": qty,
-                "is_coffee": bool(item.get("is_coffee")),
-                "category": str(item.get("category") or ""),
-            }
-        )
+        next_items_raw.append(item)
 
-    removed_items: list[dict] = []
+    # Classify which removed items were already sent to the kitchen
+    # kitchen_sent flag is set when send_to_kitchen is called
+    removed_draft: list[dict] = []     # Not sent to kitchen — free to remove
+    removed_sent: list[dict] = []      # Already sent — requires manager override
+
     for old in old_items:
         old_name = str(old.get("item_name") or "").strip()
         old_seat = str(old.get("seat_label") or "").strip()
         old_qty = int(old.get("qty") or 0)
+        was_sent = bool(old.get("kitchen_sent", False))
         matching = next(
             (
                 item
-                for item in next_items
+                for item in next_items_raw
                 if str(item.get("item_name") or "").strip() == old_name
                 and str(item.get("seat_label") or "").strip() == old_seat
             ),
@@ -3701,27 +3680,93 @@ def revise_table_items(
         next_qty = int(matching.get("qty") or 0) if matching else 0
         removed_qty = old_qty - next_qty
         if removed_qty > 0:
-            removed_items.append(
-                {
-                    "id": old.get("id"),
-                    "item_name": old_name,
-                    "price": str(old.get("price") or "0"),
-                    "qty": removed_qty,
-                    "is_coffee": bool(old.get("is_coffee")),
-                    "category": str(old.get("category") or ""),
-                    "action": "CANCEL",
-                    "reason": reason,
-                    "updated_by": override_user.username,
-                    "updated_at": datetime.utcnow().isoformat(),
-                }
-            )
+            entry = {
+                "id": old.get("id"),
+                "item_name": old_name,
+                "price": str(old.get("price") or "0"),
+                "qty": removed_qty,
+                "is_coffee": bool(old.get("is_coffee")),
+                "category": str(old.get("category") or ""),
+                "seat_label": old_seat,
+            }
+            if was_sent:
+                removed_sent.append(entry)
+            else:
+                removed_draft.append(entry)
 
-    if not removed_items:
+    all_removed = removed_draft + removed_sent
+    if not all_removed:
         raise HTTPException(status_code=400, detail="No removable item changes detected")
 
-    next_total = Decimal("0.00")
-    for item in next_items:
-        next_total += Decimal(str(item.get("price") or 0)) * Decimal(str(item.get("qty") or 0))
+    # If any kitchen-sent item needs to be removed, manager override is mandatory
+    override_user = None
+    reason = str(payload.reason or "").strip()
+    if removed_sent:
+        override_password = str(payload.override_password or "").strip()
+        if not override_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Manager/Admin password required to remove kitchen-sent items",
+            )
+        if len(reason) < 3:
+            raise HTTPException(status_code=400, detail="Reason is required for kitchen-sent item removal")
+        candidates = (
+            db.query(User)
+            .filter(User.tenant_id == tenant.id, User.is_active == True)
+            .all()
+        )
+        for candidate in candidates:
+            if str(candidate.role or "").lower() not in {"admin", "manager", "super_admin"}:
+                continue
+            if candidate.password_hash and verify_password(override_password, candidate.password_hash):
+                override_user = candidate
+                break
+        if not override_user:
+            raise HTTPException(status_code=403, detail="Manager/Admin override failed")
+
+    now_iso = datetime.utcnow().isoformat()
+    override_username = override_user.username if override_user else user.username
+
+    # Build annotated removed list for kitchen notification
+    removed_annotated = [
+        {
+            **item,
+            "action": "CANCEL",
+            "reason": reason or "Draft silindi",
+            "updated_by": override_username,
+            "updated_at": now_iso,
+        }
+        for item in all_removed
+    ]
+
+    # Build next_items preserving kitchen_sent flag and seat_label from old_items
+    old_map = {}
+    for old in old_items:
+        key = (str(old.get("item_name") or "").strip(), str(old.get("seat_label") or "").strip())
+        old_map[key] = old
+
+    next_items = []
+    for item in next_items_raw:
+        qty = int(item.get("qty") or 0)
+        if qty <= 0:
+            continue
+        key = (str(item.get("item_name") or "").strip(), str(item.get("seat_label") or "").strip())
+        old_ref = old_map.get(key, {})
+        next_items.append({
+            "id": item.get("id") or old_ref.get("id"),
+            "item_name": str(item.get("item_name") or "").strip(),
+            "price": str(item.get("price") or old_ref.get("price") or "0"),
+            "qty": qty,
+            "seat_label": str(item.get("seat_label") or old_ref.get("seat_label") or ""),
+            "is_coffee": bool(item.get("is_coffee") or old_ref.get("is_coffee")),
+            "category": str(item.get("category") or old_ref.get("category") or ""),
+            "kitchen_sent": bool(old_ref.get("kitchen_sent", False)),
+        })
+
+    next_total = sum(
+        Decimal(str(item.get("price") or 0)) * Decimal(str(item.get("qty") or 0))
+        for item in next_items
+    )
 
     row.items_json = json.dumps(next_items, ensure_ascii=False)
     row.total = next_total.quantize(Decimal("0.01"))
@@ -3729,20 +3774,32 @@ def revise_table_items(
     row.is_occupied = still_open
     row.assigned_to = row.assigned_to if still_open else None
 
-    active_order = (
-        db.query(KitchenOrder)
-        .filter(
-            KitchenOrder.tenant_id == tenant.id,
-            KitchenOrder.table_label == row.label,
-            KitchenOrder.status.in_(["NEW", "PREPARING", "READY"]),
+    # Notify kitchen only if sent items were removed
+    if removed_sent:
+        active_order = (
+            db.query(KitchenOrder)
+            .filter(
+                KitchenOrder.tenant_id == tenant.id,
+                KitchenOrder.table_label == row.label,
+                KitchenOrder.status.in_(["NEW", "PREPARING", "READY"]),
+            )
+            .order_by(KitchenOrder.created_at.desc())
+            .first()
         )
-        .order_by(KitchenOrder.created_at.desc())
-        .first()
-    )
-    if active_order:
-        active_items = _json_load(active_order.items_json, [])
-        active_order.items_json = json.dumps([*active_items, *removed_items], ensure_ascii=False)
-        active_order.priority = "URGENT"
+        if active_order:
+            active_items = _json_load(active_order.items_json, [])
+            cancel_entries = [
+                {
+                    **item,
+                    "action": "CANCEL",
+                    "reason": reason,
+                    "updated_by": override_username,
+                    "updated_at": now_iso,
+                }
+                for item in removed_sent
+            ]
+            active_order.items_json = json.dumps([*active_items, *cancel_entries], ensure_ascii=False)
+            active_order.priority = "URGENT"
 
     db.add(
         AuditLog(
@@ -3753,28 +3810,105 @@ def revise_table_items(
                 {
                     "table_id": row.id,
                     "table_label": row.label,
-                    "reason": reason,
-                    "removed_items": removed_items,
-                    "override_by": override_user.username,
+                    "reason": reason or "Draft silindi",
+                    "removed_draft": removed_draft,
+                    "removed_sent": removed_sent,
+                    "override_by": override_username,
                 },
                 ensure_ascii=False,
             ),
         )
     )
-    _notify_front_of_house(
-        db,
-        tenant.id,
-        "Masa Sifarişi Dəyişdirildi",
-        f"{row.label} üçün sifariş düzəlişi edildi: {reason}",
-        {
-            "table_label": row.label,
-            "status": "REVISION",
-            "removed_items": _summarize_items(removed_items),
-            "override_by": override_user.username,
-        },
+
+    if removed_sent:
+        _notify_front_of_house(
+            db,
+            tenant.id,
+            "Masa Sifarişi Dəyişdirildi",
+            f"{row.label} üçün sifariş düzəlişi edildi: {reason}",
+            {
+                "table_label": row.label,
+                "status": "REVISION",
+                "removed_items": _summarize_items(removed_sent),
+                "override_by": override_username,
+            },
+        )
+
+    db.commit()
+    return {
+        "success": True,
+        "table_total": str(row.total),
+        "override_by": override_username,
+        "removed_draft_count": len(removed_draft),
+        "removed_sent_count": len(removed_sent),
+    }
+
+
+@router.post("/tables/{table_id}/abort")
+def abort_table(
+    table_id: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Close a table that was opened by mistake. Only allowed if no items have been sent to the kitchen."""
+    row = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Table not found")
+    if not row.is_occupied:
+        raise HTTPException(status_code=400, detail="Masa artıq bağlıdır")
+
+    role = str(user.role or "").lower()
+    if row.assigned_to and row.assigned_to != user.username and role not in {"admin", "manager", "super_admin"}:
+        raise HTTPException(status_code=403, detail=f"Bu masa {row.assigned_to} üçün aktivdir")
+
+    # Check for kitchen-sent items — cannot abort if kitchen already received order
+    items = _json_load(row.items_json, [])
+    has_sent_items = any(bool(item.get("kitchen_sent", False)) for item in items)
+    if has_sent_items:
+        raise HTTPException(
+            status_code=400,
+            detail="Mətbəxə göndərilmiş sifariş var. Masanı ləğv etmək üçün menecer şifrəsi ilə items revision istifadə edin.",
+        )
+
+    # No items sent to kitchen: safe to abort
+    # Reverse any deposit hold if present
+    deposit_amount = Decimal(str(row.deposit_amount or 0))
+    if deposit_amount > 0:
+        _post_deposit_refund(
+            db,
+            tenant_id=tenant.id,
+            amount=deposit_amount,
+            source_code="cash",
+            created_by=user.username,
+            note=f"{row.label} - masa ləğv edildi (depozit geri qaytarıldı)",
+            related_table_id=row.id,
+        )
+
+    row.is_occupied = False
+    row.assigned_to = None
+    row.locked_by = None
+    row.locked_at = None
+    row.guest_count = 0
+    row.deposit_guest_count = 0
+    row.deposit_amount = Decimal("0.00")
+    row.deposit_seats_json = "[]"
+    row.items_json = "[]"
+    row.total = Decimal("0.00")
+
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="TABLE_ABORTED",
+            details=json.dumps(
+                {"table_id": row.id, "table_label": row.label},
+                ensure_ascii=False,
+            ),
+        )
     )
     db.commit()
-    return {"success": True, "table_total": str(row.total), "override_by": override_user.username}
+    return {"success": True, "table_id": table_id}
 
 
 @router.post("/tables/{table_id}/seats/reassign")
