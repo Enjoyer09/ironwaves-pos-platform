@@ -2098,6 +2098,15 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     if (r === '70:30') return 'lg:grid-cols-[minmax(0,2.33fr)_minmax(380px,1fr)] xl:grid-cols-[minmax(0,2.33fr)_minmax(420px,1fr)]';
     return 'lg:grid-cols-[minmax(0,1.5fr)_minmax(380px,1fr)] xl:grid-cols-[minmax(0,1.5fr)_minmax(420px,1fr)]';
   }, [posLayout.panel_ratio]);
+  const isDashboardAmberTheme = useMemo(() => {
+    const accent = String(posLayout.accent_color || '').toLowerCase();
+    const isWarmAccent =
+      accent === '#f97316' ||
+      accent === '#f59e0b' ||
+      accent === '#fb923c' ||
+      accent === '#ea580c';
+    return isNewUiMode && isWarmAccent;
+  }, [isNewUiMode, posLayout.accent_color]);
   // ─────────────────────────────────────────────────────────────────────────────
 
   if (receiptHtml) {
@@ -2545,7 +2554,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
 
   return (
     <div
-      className={`compact-pos-shell ${isNewUiMode ? 'pos2-shell' : ''} flex h-full min-h-0 flex-col px-3 pb-24 pt-3 text-slate-200 md:px-4 md:pb-3 xl:px-6 ${shellClass} ${densityClass}`}
+      className={`compact-pos-shell ${isNewUiMode ? 'pos2-shell' : ''} ${isDashboardAmberTheme ? 'pos-dashboard-amber' : ''} flex h-full min-h-0 flex-col px-3 pb-24 pt-3 text-slate-200 md:px-4 md:pb-3 xl:px-6 ${shellClass} ${densityClass}`}
       style={{ ['--pos-accent' as any]: posLayout.accent_color }}
     >
 
