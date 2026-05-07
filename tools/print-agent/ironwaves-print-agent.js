@@ -28,56 +28,6 @@ const PORT = Number(process.env.IW_PRINT_AGENT_PORT || 17777);
 const ALLOWED_ORIGIN_RE =
   /^(https:\/\/([a-z0-9-]+\.)?ironwaves\.store|http:\/\/localhost:\d+|http:\/\/127\.0\.0\.1:\d+)$/i;
 
-// ─── Tray icon (optional – gracefully skipped if module unavailable) ──────────
-function tryStartTray() {
-  try {
-    // node-systray is optional; pkg bundles it only when present in node_modules
-    const SysTray = require('node-systray').default || require('node-systray');
-    const iconPath = path.join(__dirname, 'icon.ico');
-    const iconExists = fs.existsSync(iconPath);
-
-    const tray = new SysTray({
-      menu: {
-        // base64 icon or empty string (tray still shows a placeholder)
-        icon: iconExists ? fs.readFileSync(iconPath).toString('base64') : '',
-        title: '',
-        tooltip: `iRonWaves Print Agent v${VERSION}`,
-        items: [
-          {
-            title: `iRonWaves Print Agent v${VERSION}`,
-            tooltip: 'Running on 127.0.0.1:17777',
-            enabled: false,
-            name: 'title',
-          },
-          SysTray.separator,
-          {
-            title: 'Quit',
-            tooltip: 'Stop the print agent',
-            enabled: true,
-            name: 'quit',
-          },
-        ],
-      },
-      debug: false,
-      copyDir: true,
-    });
-
-    tray.onClick((action) => {
-      if (action.item.name === 'quit') {
-        tray.kill(true);
-        process.exit(0);
-      }
-    });
-
-    tray.onError((err) => {
-      // Tray errors are non-fatal
-      console.error('[tray]', err);
-    });
-  } catch (_err) {
-    // node-systray not bundled or failed – continue without tray
-  }
-}
-
 // ─── Utilities ────────────────────────────────────────────────────────────────
 function sendJson(res, statusCode, payload) {
   const body = JSON.stringify(payload);
@@ -326,9 +276,8 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  // Only log to console during dev (console is hidden when run as windowless .exe)
+  // Console output is hidden when running as a windowless .exe
   console.log(`iRonWaves Print Agent ${VERSION} listening on http://${HOST}:${PORT}`);
-  tryStartTray();
 });
 
 server.on('error', (err) => {
