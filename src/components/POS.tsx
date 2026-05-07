@@ -2072,6 +2072,19 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     updateCartItem(target.line_id, target.qty - 1);
   }, [cart]);
 
+  // ── IMPORTANT: useMemo hooks must come BEFORE any early returns ──────────────
+  // This must stay here to avoid React error #300 (fewer hooks than expected)
+  const panelRatioClass = useMemo(() => {
+    const r = posLayout.panel_ratio || '50:50';
+    if (r === '50:50') return 'lg:grid-cols-[minmax(0,1fr)_minmax(380px,1fr)] xl:grid-cols-[minmax(0,1fr)_minmax(420px,1fr)]';
+    if (r === '55:45') return 'lg:grid-cols-[minmax(0,1.2fr)_minmax(380px,1fr)] xl:grid-cols-[minmax(0,1.2fr)_minmax(420px,1fr)]';
+    if (r === '60:40') return 'lg:grid-cols-[minmax(0,1.5fr)_minmax(380px,1fr)] xl:grid-cols-[minmax(0,1.5fr)_minmax(420px,1fr)]';
+    if (r === '65:35') return 'lg:grid-cols-[minmax(0,1.85fr)_minmax(380px,1fr)] xl:grid-cols-[minmax(0,1.85fr)_minmax(420px,1fr)]';
+    if (r === '70:30') return 'lg:grid-cols-[minmax(0,2.33fr)_minmax(380px,1fr)] xl:grid-cols-[minmax(0,2.33fr)_minmax(420px,1fr)]';
+    return 'lg:grid-cols-[minmax(0,1.5fr)_minmax(380px,1fr)] xl:grid-cols-[minmax(0,1.5fr)_minmax(420px,1fr)]';
+  }, [posLayout.panel_ratio]);
+  // ─────────────────────────────────────────────────────────────────────────────
+
   if (receiptHtml) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-[#121922] p-6">
@@ -2514,16 +2527,6 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       </div>
     );
   }
-
-  const panelRatioClass = useMemo(() => {
-    const r = posLayout.panel_ratio || '50:50';
-    if (r === '50:50') return 'lg:grid-cols-[minmax(0,1fr)_minmax(380px,1fr)] xl:grid-cols-[minmax(0,1fr)_minmax(420px,1fr)]';
-    if (r === '55:45') return 'lg:grid-cols-[minmax(0,1.2fr)_minmax(380px,1fr)] xl:grid-cols-[minmax(0,1.2fr)_minmax(420px,1fr)]';
-    if (r === '60:40') return 'lg:grid-cols-[minmax(0,1.5fr)_minmax(380px,1fr)] xl:grid-cols-[minmax(0,1.5fr)_minmax(420px,1fr)]';
-    if (r === '65:35') return 'lg:grid-cols-[minmax(0,1.85fr)_minmax(380px,1fr)] xl:grid-cols-[minmax(0,1.85fr)_minmax(420px,1fr)]';
-    if (r === '70:30') return 'lg:grid-cols-[minmax(0,2.33fr)_minmax(380px,1fr)] xl:grid-cols-[minmax(0,2.33fr)_minmax(420px,1fr)]';
-    return 'lg:grid-cols-[minmax(0,1.5fr)_minmax(380px,1fr)] xl:grid-cols-[minmax(0,1.5fr)_minmax(420px,1fr)]';
-  }, [posLayout.panel_ratio]);
 
   return (
     <div
