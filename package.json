@@ -8,7 +8,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "serve -s dist -l tcp://0.0.0.0:${PORT:-8080}",
-    "print-agent": "node tools/print-agent/ironwaves-print-agent.js"
+    "print-agent": "node tools/print-agent/ironwaves-print-agent.js",
+    "print-agent:build:exe": "npm --prefix tools/print-agent run build:exe",
+    "print-agent:build:installer": "npm --prefix tools/print-agent run build:installer",
+    "print-agent:build:all": "npm --prefix tools/print-agent run build:all"
   },
   "dependencies": {
     "@fontsource/geist-sans": "^5.2.5",

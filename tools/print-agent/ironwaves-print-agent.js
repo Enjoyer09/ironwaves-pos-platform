@@ -162,6 +162,10 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 200, { ok: true, name: 'ironwaves-print-agent', version: VERSION, platform: process.platform });
       return;
     }
+    if (req.method === 'GET' && url.pathname === '/version') {
+      sendJson(res, 200, { ok: true, version: VERSION, name: 'ironwaves-print-agent' });
+      return;
+    }
     if (req.method === 'GET' && url.pathname === '/printers') {
       sendJson(res, 200, { ok: true, printers: await listPrinters() });
       return;

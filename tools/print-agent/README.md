@@ -25,4 +25,67 @@ Invoke-RestMethod http://127.0.0.1:17777/printers
 
 ## Production note
 
-This is the first lightweight agent. The next stronger version should be packaged as a Windows `.exe` and installed at startup. Later we can add true ESC/POS raw output for supported thermal printers.
+This agent can now be packaged as a Windows `.exe` and installer.
+
+## Build Windows `.exe` and installer
+
+Run these on a Windows machine:
+
+```powershell
+cd C:\path\to\ironwaves-pos-platform\tools\print-agent
+npm install
+npm run build:exe
+```
+
+Output:
+
+```text
+tools\print-agent\dist\ironwaves-print-agent.exe
+```
+
+For installer (`.exe setup`):
+
+1. Install [Inno Setup 6](https://jrsoftware.org/isinfo.php)
+2. Ensure `ISCC.exe` is available in `PATH`
+3. Run:
+
+```powershell
+npm run build:installer
+```
+
+Or build both in one command:
+
+```powershell
+npm run build:all
+```
+
+Final installer output:
+
+```text
+tools\print-agent\dist\ironwaves-print-agent-setup.exe
+```
+
+## Deploy for POS Settings download button
+
+Copy installer to:
+
+```text
+public/downloads/ironwaves-print-agent-setup.exe
+```
+
+Then in admin settings the "Printer Agentini yüklə" button downloads it from:
+
+```text
+/downloads/ironwaves-print-agent-setup.exe
+```
+
+Also update:
+
+```text
+public/downloads/print-agent-latest.json
+```
+
+Set:
+- `latest_version` to new version
+- `minimum_version` to minimum supported version
+- `published_at` to release timestamp
