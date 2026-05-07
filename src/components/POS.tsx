@@ -16,6 +16,7 @@ import { qzPrintHtml } from '../lib/qz';
 import { hostScopedKey } from '../lib/storage_keys';
 import { sanitizeHtmlForIframe } from '../lib/html_sanitize';
 import { THERMAL_RECEIPT_PRINT_CSS } from '../lib/receipt_print_css';
+import { printViaLocalAgent } from '../lib/local_print_agent';
 import {
   cacheMenuOffline,
   clearSyncedOfflineSales,
@@ -1501,6 +1502,15 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   }, [tenantId, ctx.rewardClaimCode]);
 
   const printReceiptOnly = async () => {
+    if (safeReceiptHtml) {
+      try {
+        await printViaLocalAgent(safeReceiptHtml, printSettings.printer_name);
+        notify('success', tx(lang, 'iRonWaves Print Agent ilə çap göndərildi', 'Печать отправлена через iRonWaves Print Agent', 'Print job sent via iRonWaves Print Agent'));
+        return;
+      } catch {
+        // Local agent is optional; fall back to QZ/browser print.
+      }
+    }
     if (printSettings.use_qz && safeReceiptHtml) {
       try {
         await qzPrintHtml(safeReceiptHtml, printSettings.printer_name);

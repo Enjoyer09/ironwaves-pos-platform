@@ -1,0 +1,10 @@
+{
+  "name": "ironwaves-print-agent",
+  "private": true,
+  "version": "0.1.0",
+  "type": "commonjs",
+  "main": "ironwaves-print-agent.js",
+  "scripts": {
+    "start": "node ironwaves-print-agent.js"
+  }
+}
