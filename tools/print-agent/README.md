@@ -1,121 +1,105 @@
 # iRonWaves Print Agent
 
-Local Windows print helper for iRonWaves POS. It runs on `127.0.0.1:17777` and lets the web POS send receipt HTML to the cashier computer without using QZ Tray.
+Local Windows (+ macOS) silent print helper for iRonWaves POS.
 
-## MVP behaviour
+## User experience (sıfır iş öhdəliyi)
 
-- Accepts `POST /print-html` with `{ "html": "...", "printer_name": "optional printer name" }`.
-- Uses installed Chrome or Microsoft Edge with `--kiosk-printing`.
-- Prints to the Windows default printer, or temporarily switches the default printer when `printer_name` is provided.
-- Binds only to `127.0.0.1`.
+1. User `ironwaves-print-agent-setup.exe`-ni yükləyib qurur.
+2. Installer "Next → Install → Finish" — başqa heç nə soruşmur.
+3. Agent sistem tepsisindən (tray) işə düşür — pəncərə, terminal yoxdur.
+4. Windows-a hər giriş etdikdə agent avtomatik başlayır (Registry `HKCU\Run`).
+5. POS bir dəfə ayarlarda printer adını yazır — bundan sonra hər çap sessiz gedir.
 
-## Run manually on Windows
+## Texniki arxitektura
 
-```powershell
-cd C:\path\to\ironwaves-pos-platform\tools\print-agent
-node .\ironwaves-print-agent.js
+```
+Browser (POS)  →  POST http://127.0.0.1:17777/print-html  →  Agent
+                                                              ↓
+                                                 Chrome --kiosk-printing (dialog yoxdur)
+                                                              ↓
+                                                    Printer ← spool job
+                                                              ↓
+                                                 Chrome prosesi 12 saniyə sonra kill olunur
 ```
 
-Health check:
+## Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | `{ ok, version, platform }` |
+| GET | `/version` | `{ ok, version }` |
+| GET | `/printers` | `{ ok, printers: [{name, default}] }` |
+| POST | `/print-html` | `{ html, printer_name? }` → `{ ok, result }` |
+
+## Build — Windows `.exe` + installer
+
+**Tələb:** Windows PC, Node.js 20+, [Inno Setup 6](https://jrsoftware.org/isinfo.php)
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:17777/health
-Invoke-RestMethod http://127.0.0.1:17777/printers
-```
+cd tools\print-agent
 
-## Production note
-
-This agent can now be packaged as a Windows `.exe` and installer.
-
-## Build Windows `.exe` and installer
-
-Run these on a Windows machine:
-
-```powershell
-cd C:\path\to\ironwaves-pos-platform\tools\print-agent
+# 1. Asılılıqları yüklə
 npm install
-npm run build:exe
-```
 
-Output:
-
-```text
-tools\print-agent\dist\ironwaves-print-agent.exe
-```
-
-For installer (`.exe setup`):
-
-1. Install [Inno Setup 6](https://jrsoftware.org/isinfo.php)
-2. Ensure `ISCC.exe` is available in `PATH`
-3. Run:
-
-```powershell
-npm run build:installer
-```
-
-Or build both in one command:
-
-```powershell
+# 2. Standalone .exe + Inno Setup installer birlikdə build et
 npm run build:all
 ```
 
-Final installer output:
-
-```text
+Nəticə:
+```
 tools\print-agent\dist\ironwaves-print-agent-setup.exe
 ```
 
-## Deploy for POS Settings download button
+## Deploy
 
-Copy installer to:
-
-```text
-public/downloads/ironwaves-print-agent-setup.exe
+```powershell
+# POS-un public qovluğuna kopyala
+copy tools\print-agent\dist\ironwaves-print-agent-setup.exe public\downloads\ironwaves-print-agent-setup.exe
 ```
 
-Then in admin settings the "Printer Agentini yüklə" button downloads it from:
+Sonra `public/downloads/print-agent-latest.json` içindəki `latest_version` dəyərini yeni versiya ilə yenilə.
 
-```text
-/downloads/ironwaves-print-agent-setup.exe
-```
+---
 
-Also update:
-
-```text
-public/downloads/print-agent-latest.json
-```
-
-Set:
-- `latest_version` to new version
-- `minimum_version` to minimum supported version
-- `published_at` to release timestamp
-
-## macOS `.pkg` installer (very simple flow)
-
-On your Mac:
+## macOS `.pkg` installer
 
 ```bash
-cd /Users/macbookair/Documents/GitHub/ironwaves-pos-platform/tools/print-agent
+cd tools/print-agent
 npm install
 npm run build:mac:all
 ```
 
-Output:
+Output: `tools/print-agent/dist/ironwaves-print-agent-macos-installer.pkg`
 
-```text
-tools/print-agent/dist/ironwaves-print-agent-macos-installer.pkg
+---
+
+## Inkişaf — lokal test
+
+```powershell
+cd tools\print-agent
+node ironwaves-print-agent.js
 ```
 
-Install test:
-
-1. Double click `.pkg`
-2. Finish installer
-3. Check agent:
-
-```bash
-curl -s http://127.0.0.1:17777/health
+Health check:
+```
+curl http://127.0.0.1:17777/health
+curl http://127.0.0.1:17777/printers
 ```
 
-Auto-start at login:
-- Installer adds LaunchAgent: `/Library/LaunchAgents/com.ironwaves.print-agent.plist`
-- Agent starts automatically after user login.
+---
+
+## Sistem tepsisi (Tray) ikonası
+
+`tools/print-agent/icon.ico` mövcud olduqda agent tray-da göstərilir.
+İkon olmasa belə agent işləyir (tray ikonasız).
+
+Tövsiyə: 256×256 ICO faylı. Windows Task Manager-də `ironwaves-print-agent.exe` kimi görünür.
+
+---
+
+## Versiya tarixi
+
+| Versiya | Dəyişiklik |
+|---------|------------|
+| 0.2.0 | Tray ikonası, terminal pəncərəsiz background iş, Chrome-u çap sonrası kill edir, EADDRINUSE-da silent exit |
+| 0.1.0 | İlk MVP — Chrome kiosk print |

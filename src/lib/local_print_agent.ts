@@ -1,7 +1,7 @@
 import { withThermalReceiptPrintCss } from './receipt_print_css';
 
 const AGENT_BASE_URL = 'http://127.0.0.1:17777';
-const REQUEST_TIMEOUT_MS = 900;
+const REQUEST_TIMEOUT_MS = 1500;
 
 function timeoutSignal(ms: number): AbortSignal {
   const controller = new AbortController();
