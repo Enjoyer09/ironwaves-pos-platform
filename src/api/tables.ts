@@ -294,8 +294,12 @@ export const send_to_kitchen = (
   // Masa məlumatlarını yeniləyək
   table.is_occupied = true;
   const existing = Array.isArray(table.items) ? table.items : [];
-  const merged = [...existing];
-  cart_items.forEach((incoming) => {
+  // Mark all already-stored items as kitchen_sent so they're distinguishable
+  const existingMarked = existing.map((item: any) => ({ ...item, kitchen_sent: true }));
+  const merged = [...existingMarked];
+  // New incoming items also get kitchen_sent=true (they're being sent now)
+  const incomingMarked = cart_items.map((item) => ({ ...item, kitchen_sent: true }));
+  incomingMarked.forEach((incoming) => {
     const idx = merged.findIndex((m: any) => m.id === incoming.id || (m.item_name === incoming.item_name && String(m.seat_label || '') === String((incoming as any).seat_label || '')));
     if (idx >= 0) {
       merged[idx] = { ...merged[idx], qty: Number(merged[idx].qty || 0) + Number(incoming.qty || 0) };
@@ -607,60 +611,130 @@ export const revise_table_items = (table_id: string, payload: TableRevisionPaylo
   const table = tables.find((t) => t.id === table_id);
   if (!table) throw new Error('Masa tapılmadı');
 
-  const users = getDB<any>('users');
-  const overrideUser = users.find((row: any) => {
-    const role = String(row.role || '').toLowerCase();
-    if (!['admin', 'manager', 'super_admin'].includes(role)) return false;
-    return verifyLocalCredential(payload.override_password, row.password_hash || row.password);
-  });
-  if (!overrideUser) throw new Error('Manager/Admin override alınmadı');
-
   const currentItems = Array.isArray(table.items) ? table.items : [];
   const nextItems = payload.items.filter((item) => Number(item.qty || 0) > 0);
-  const removedItems = currentItems.reduce<any[]>((acc, oldItem: any) => {
+
+  // Split removed items into draft (not yet kitchen-sent) and sent categories
+  const removedDraft: any[] = [];
+  const removedSent: any[] = [];
+  currentItems.forEach((oldItem: any) => {
     const next = nextItems.find((item: any) => item.item_name === oldItem.item_name && String(item.seat_label || '') === String(oldItem.seat_label || ''));
     const removedQty = Number(oldItem.qty || 0) - Number(next?.qty || 0);
     if (removedQty > 0) {
-      acc.push({
-        ...oldItem,
-        qty: removedQty,
-        action: 'CANCEL',
-        reason: payload.reason,
-        updated_by: overrideUser.username,
-        updated_at: new Date().toISOString(),
-      });
+      const entry = { ...oldItem, qty: removedQty };
+      if (oldItem.kitchen_sent) {
+        removedSent.push(entry);
+      } else {
+        removedDraft.push(entry);
+      }
     }
-    return acc;
-  }, []);
-  if (removedItems.length === 0) throw new Error('Dəyişiklik tapılmadı');
+  });
 
-  table.items = nextItems as any;
-  table.total = nextItems
+  if (removedDraft.length === 0 && removedSent.length === 0) throw new Error('Dəyişiklik tapılmadı');
+
+  // Manager override required only if kitchen-sent items are being removed
+  let overrideUsername = payload.actor;
+  if (removedSent.length > 0) {
+    const users = getDB<any>('users');
+    const overrideUser = users.find((row: any) => {
+      const role = String(row.role || '').toLowerCase();
+      if (!['admin', 'manager', 'super_admin'].includes(role)) return false;
+      return verifyLocalCredential(payload.override_password || '', row.password_hash || row.password);
+    });
+    if (!overrideUser) throw new Error('Manager/Admin override alınmadı');
+    overrideUsername = overrideUser.username;
+  }
+
+  const nowIso = new Date().toISOString();
+  const removedItems = [
+    ...removedDraft.map((item) => ({ ...item, action: 'CANCEL', reason: payload.reason || 'Draft silindi', updated_by: overrideUsername, updated_at: nowIso })),
+    ...removedSent.map((item) => ({ ...item, action: 'CANCEL', reason: payload.reason, updated_by: overrideUsername, updated_at: nowIso })),
+  ];
+
+  // Preserve kitchen_sent flag from existing items
+  const oldMap: Record<string, any> = {};
+  currentItems.forEach((item: any) => {
+    const key = `${String(item.item_name || '').trim()}__${String(item.seat_label || '').trim()}`;
+    oldMap[key] = item;
+  });
+  const nextItemsWithFlags = nextItems.map((item) => {
+    const key = `${String(item.item_name || '').trim()}__${String(item.seat_label || '').trim()}`;
+    const oldRef = oldMap[key] || {};
+    return { ...item, kitchen_sent: Boolean(oldRef.kitchen_sent) };
+  }).filter((item) => Number(item.qty || 0) > 0);
+
+  table.items = nextItemsWithFlags as any;
+  table.total = nextItemsWithFlags
     .reduce((acc, item) => acc.plus(new Decimal(item.price).times(item.qty)), new Decimal(0))
     .toFixed(2);
-  table.is_occupied = nextItems.length > 0;
+  table.is_occupied = nextItemsWithFlags.length > 0;
   setDB('tables', tables);
 
-  const kitchenOrders = getDB<any>('kitchen_orders');
-  const activeOrder = [...kitchenOrders]
-    .filter((row: any) => row.tenant_id === table.tenant_id && row.table_label === table.label && ['NEW', 'PREPARING', 'READY'].includes(String(row.status || '')))
-    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-  if (activeOrder) {
-    const items = Array.isArray(activeOrder.items) ? activeOrder.items : [];
-    activeOrder.items = [...items, ...removedItems];
-    activeOrder.priority = 'URGENT';
-    setDB('kitchen_orders', kitchenOrders);
+  // Notify kitchen only when sent items were removed
+  if (removedSent.length > 0) {
+    const kitchenOrders = getDB<any>('kitchen_orders');
+    const activeOrder = [...kitchenOrders]
+      .filter((row: any) => row.tenant_id === table.tenant_id && row.table_label === table.label && ['NEW', 'PREPARING', 'READY'].includes(String(row.status || '')))
+      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+    if (activeOrder) {
+      const items = Array.isArray(activeOrder.items) ? activeOrder.items : [];
+      activeOrder.items = [...items, ...removedSent.map((item) => ({ ...item, action: 'CANCEL', reason: payload.reason, updated_by: overrideUsername, updated_at: nowIso }))];
+      activeOrder.priority = 'URGENT';
+      setDB('kitchen_orders', kitchenOrders);
+    }
   }
 
   logEvent(payload.actor, 'TABLE_ITEM_REVISED', {
     tenant_id: table.tenant_id,
     table_id,
     table_label: table.label,
-    reason: payload.reason,
-    override_by: overrideUser.username,
-    removed_items: removedItems.map((item: any) => `${item.qty}x ${item.item_name}`),
+    reason: payload.reason || 'Draft silindi',
+    override_by: overrideUsername,
+    removed_draft_count: removedDraft.length,
+    removed_sent_count: removedSent.length,
   });
-  return { success: true, override_by: overrideUser.username, table_total: table.total };
+  return { success: true, override_by: overrideUsername, table_total: table.total };
+};
+
+export const abort_table = (table_id: string, actor: string) => {
+  const tables = getDB<Table>('tables');
+  const table = tables.find((t) => t.id === table_id);
+  if (!table) throw new Error('Masa tapılmadı');
+  if (!table.is_occupied) throw new Error('Masa artıq bağlıdır');
+
+  const items = Array.isArray(table.items) ? table.items : [];
+  const hasSentItems = items.some((item: any) => Boolean(item.kitchen_sent));
+  if (hasSentItems) {
+    throw new Error('Mətbəxə göndərilmiş sifariş var. Masanı ləğv etmək üçün menecer override istifadə edin.');
+  }
+
+  table.is_occupied = false;
+  table.assigned_to = null;
+  table.guest_count = 0;
+  table.deposit_guest_count = 0;
+  table.deposit_amount = '0';
+  table.deposit_seat_labels = [];
+  table.items = [];
+  table.total = '0';
+  setDB('tables', tables);
+
+  logEvent(actor, 'TABLE_ABORTED', { tenant_id: table.tenant_id, table_id, table_label: table.label });
+  return { success: true };
+};
+
+export const abort_table_live = async (table_id: string, actor: string) => {
+  if (!isBackendEnabled()) return abort_table(table_id, actor);
+  try {
+    return await apiRequest<{ success: boolean }>(`/api/v1/ops/tables/${encodeURIComponent(table_id)}/abort`, {
+      method: 'POST',
+      tenantId: null,
+      body: {},
+    });
+  } catch (error) {
+    if (isRecoverableNetworkFailure(error)) return abort_table(table_id, actor);
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Tables backend abort failed: ${message}`);
+  }
 };
 
 export const transfer_table = (table_id: string, target_table_id: string, actor: string) => {

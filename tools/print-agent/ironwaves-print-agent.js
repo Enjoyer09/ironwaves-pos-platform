@@ -61,29 +61,67 @@ function runPowerShell(script) {
   });
 }
 
+function runCommand(command, args = [], timeout = 15000) {
+  return new Promise((resolve, reject) => {
+    execFile(
+      command,
+      args,
+      { windowsHide: true, timeout },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(String(stderr || error.message || error)));
+          return;
+        }
+        resolve(String(stdout || '').trim());
+      },
+    );
+  });
+}
+
 async function listPrinters() {
-  if (process.platform !== 'win32') {
+  if (process.platform === 'win32') {
+    const output = await runPowerShell(
+      'Get-CimInstance Win32_Printer | Select-Object Name,Default | ConvertTo-Json -Compress',
+    );
+    if (!output) return [];
+    const parsed = JSON.parse(output);
+    return (Array.isArray(parsed) ? parsed : [parsed])
+      .filter((row) => row && row.Name)
+      .map((row) => ({ name: String(row.Name), default: Boolean(row.Default) }));
+  }
+  if (process.platform === 'darwin') {
+    const printersRaw = await runCommand('/bin/sh', ['-lc', "lpstat -p 2>/dev/null | awk '{print $2}'"]).catch(() => '');
+    const defaultRaw = await runCommand('/bin/sh', ['-lc', "lpstat -d 2>/dev/null | sed 's/^system default destination: //'"]).catch(() => '');
+    const defaultName = String(defaultRaw || '').trim();
+    const names = String(printersRaw || '')
+      .split('\n')
+      .map((value) => value.trim())
+      .filter(Boolean);
+    return names.map((name) => ({ name, default: name === defaultName }));
+  }
+  {
     return [];
   }
-  const output = await runPowerShell(
-    'Get-CimInstance Win32_Printer | Select-Object Name,Default | ConvertTo-Json -Compress',
-  );
-  if (!output) return [];
-  const parsed = JSON.parse(output);
-  return (Array.isArray(parsed) ? parsed : [parsed])
-    .filter((row) => row && row.Name)
-    .map((row) => ({ name: String(row.Name), default: Boolean(row.Default) }));
 }
 
 function findBrowserExecutable() {
-  if (process.platform !== 'win32') return '';
-  const candidates = [
-    process.env.IW_PRINT_BROWSER,
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-  ].filter(Boolean);
+  const envPath = String(process.env.IW_PRINT_BROWSER || '').trim();
+  const candidates = process.platform === 'win32'
+    ? [
+      envPath,
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+      'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    ]
+    : process.platform === 'darwin'
+      ? [
+        envPath,
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+        '/Applications/Chromium.app/Contents/MacOS/Chromium',
+      ]
+      : [];
   return candidates.find((candidate) => fs.existsSync(candidate)) || '';
 }
 
@@ -99,8 +137,8 @@ async function setDefaultPrinter(name) {
 }
 
 async function printHtml(payload) {
-  if (process.platform !== 'win32') {
-    throw new Error('Print Agent MVP currently supports Windows only');
+  if (!['win32', 'darwin'].includes(process.platform)) {
+    throw new Error('Print Agent currently supports Windows and macOS');
   }
   const html = String(payload.html || '').trim();
   if (!html) {
@@ -113,7 +151,7 @@ async function printHtml(payload) {
 
   const printerName = String(payload.printer_name || payload.printerName || '').trim();
   const previousDefault = printerName ? await getDefaultPrinterName().catch(() => '') : '';
-  if (printerName) {
+  if (printerName && process.platform === 'win32') {
     await setDefaultPrinter(printerName);
   }
 
@@ -136,7 +174,7 @@ async function printHtml(payload) {
   child.unref();
 
   setTimeout(() => {
-    if (previousDefault && printerName && previousDefault !== printerName) {
+    if (process.platform === 'win32' && previousDefault && printerName && previousDefault !== printerName) {
       setDefaultPrinter(previousDefault).catch(() => undefined);
     }
   }, 8000);
@@ -145,7 +183,14 @@ async function printHtml(payload) {
     fs.rm(dir, { recursive: true, force: true }, () => undefined);
   }, 60000);
 
-  return { queued: true, browser: path.basename(browser), printer_name: printerName || 'default' };
+  return {
+    queued: true,
+    browser: path.basename(browser),
+    printer_name: printerName || 'default',
+    note: process.platform === 'darwin' && printerName
+      ? 'macOS-də printer_name hələ fallback modda default printer ilə işləyir'
+      : undefined,
+  };
 }
 
 const server = http.createServer(async (req, res) => {
