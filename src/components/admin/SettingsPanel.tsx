@@ -882,6 +882,50 @@ export default function SettingsPanel() {
 
   const printAgentSetupUrl = `${window.location.origin.replace(/\/+$/, '')}/downloads/ironwaves-print-agent-setup.exe`;
 
+  const downloadPrintAgentSetup = async () => {
+    try {
+      const probe = await fetch(printAgentSetupUrl, { method: 'HEAD', cache: 'no-store' });
+      if (!probe.ok) {
+        notify(
+          'error',
+          tx(
+            lang,
+            'Printer Agent setup faylı serverdə tapılmadı. Support ilə əlaqə saxlayın.',
+            'Файл setup Printer Agent не найден на сервере. Обратитесь в поддержку.',
+            'Printer Agent setup file was not found on the server. Please contact support.',
+          ),
+        );
+        return;
+      }
+      const link = document.createElement('a');
+      link.href = printAgentSetupUrl;
+      link.download = 'ironwaves-print-agent-setup.exe';
+      link.rel = 'noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      notify(
+        'success',
+        tx(
+          lang,
+          'Yükləmə başladı. Faylı açıb quraşdırmanı tamamlayın.',
+          'Загрузка началась. Откройте файл и завершите установку.',
+          'Download started. Open the file and finish installation.',
+        ),
+      );
+    } catch {
+      notify(
+        'error',
+        tx(
+          lang,
+          'Yükləmə başlamadı. İnternet bağlantısını və server faylını yoxlayın.',
+          'Загрузка не началась. Проверьте интернет и файл на сервере.',
+          'Download did not start. Check internet and server file.',
+        ),
+      );
+    }
+  };
+
   const saveZReportReceiptSettings = async () => {
     await update_z_report_receipt_settings_live(zReportReceiptSettings);
     flashSuccess(tx(lang, 'Z-Hesabat çek ayarları yadda saxlanıldı', 'Настройки чека Z-отчёта сохранены', 'Z-report receipt settings saved'), 'zreport_receipt');
@@ -2534,14 +2578,13 @@ export default function SettingsPanel() {
             </ol>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              <a
-                href={printAgentSetupUrl}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={() => void downloadPrintAgentSetup()}
                 className="rounded-lg border border-cyan-300/40 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100"
               >
                 {tx(lang, '.exe yüklə', 'Скачать .exe', 'Download .exe')}
-              </a>
+              </button>
               <button
                 type="button"
                 className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200"
@@ -2550,14 +2593,13 @@ export default function SettingsPanel() {
                 {tx(lang, 'Statusu yoxla', 'Проверить статус', 'Check status')}
               </button>
               {printAgentVersion && isAgentVersionOutdated(printAgentVersion, printAgentMinVersion) ? (
-                <a
-                  href={printAgentSetupUrl}
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  onClick={() => void downloadPrintAgentSetup()}
                   className="rounded-lg border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200"
                 >
                   {tx(lang, 'Avtomatik yenilə (.exe)', 'Автообновление (.exe)', 'Auto update (.exe)')}
-                </a>
+                </button>
               ) : null}
             </div>
 
