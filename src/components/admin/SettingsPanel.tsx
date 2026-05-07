@@ -120,7 +120,7 @@ export default function SettingsPanel() {
   const [printAgentModalOpen, setPrintAgentModalOpen] = useState(false);
   const [printAgentHealth, setPrintAgentHealth] = useState<'unknown' | 'checking' | 'online' | 'offline'>('unknown');
   const [printAgentVersion, setPrintAgentVersion] = useState('');
-  const [printAgentMinVersion, setPrintAgentMinVersion] = useState('0.1.0');
+  const [printAgentMinVersion, setPrintAgentMinVersion] = useState('0.2.0');
   const [zReportReceiptSettings, setZReportReceiptSettings] = useState({
     show_operator: true,
     show_date_range: true,
