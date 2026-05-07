@@ -440,13 +440,15 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="relative h-[280px] overflow-hidden border-l border-[#d4a723]/80 md:h-[360px]">
-            <img src={slideImage} alt={slideTitle} className="h-full w-full object-cover" />
+            <img src="/landing/barista-template.png" alt="Barista hero" className="h-full w-full object-cover object-center" />
             <div className="absolute left-[-26px] top-[-26px] h-[120px] w-[120px] rounded-full bg-[#f1c533]" />
             <div className="absolute left-4 top-[42%] rounded-full bg-[#323234e6] px-3 py-2 text-xs font-black text-[#ffdc88]">30% OFF</div>
             <div className="absolute left-1/2 top-[31%] -translate-x-1/2 rounded-full bg-[#1f1f1fe0] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#ffe5a8]">
               iRonWaves Coffee POS
             </div>
-            <div className="absolute bottom-4 left-4 rounded-xl bg-[#252525cc] px-3 py-2 text-xs font-semibold text-[#ffe5a8]">{slideTitle}</div>
+            <div className="absolute bottom-4 left-4 right-4 rounded-xl bg-[#252525cc] px-3 py-2 text-xs font-semibold text-[#ffe5a8]">
+              {slideDesc || slideTitle}
+            </div>
             </div>
           </div>
         </div>
