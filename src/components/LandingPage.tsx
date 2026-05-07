@@ -321,24 +321,22 @@ export default function LandingPage() {
   const whatsappLink = `https://wa.me/${whatsapp.replace(/[^\d]/g, "")}`;
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#3f4147] px-3 py-5 text-[#fff7e6] md:px-8 md:py-10">
-      <div className="mx-auto w-full max-w-[1220px] overflow-hidden rounded-[26px] border border-[#ffb34733] bg-[#1f120f] shadow-[0_24px_70px_rgba(0,0,0,0.45)]">
-      <div className="pt-6 text-center">
-        <div className="text-xl font-black tracking-[0.12em] text-[#ffe6b8]">LANDING PAGE TEMPLATE</div>
-        <div className="text-sm text-[#ffd7a0]">Coffee Shop</div>
+    <div className="min-h-screen overflow-x-hidden bg-[#4a4a4f] px-4 py-6 text-[#fff7e6] md:px-8 md:py-10">
+      <div className="mx-auto w-full max-w-[1080px]">
+      <div className="pb-5 pt-2 text-center">
+        <div className="text-2xl font-black tracking-[0.08em] text-[#fff4dc]">LANDING PAGE TEMPLATE</div>
+        <div className="text-sm text-[#f3dfbe]">Coffee Shop</div>
       </div>
-      <header className="sticky top-0 z-40 mt-5 border-b border-[#f6c86c26] bg-[#1f120f]/95 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-3 px-4 py-4 md:px-8">
-          <div className="flex items-center gap-3">
-            <img src="/landing/ironwaves-logo.jpeg" alt="iRonWaves" className="h-9 w-auto rounded-md object-contain" />
-            <div className="text-sm font-semibold text-[#ffe2aa]">iRonWaves POS</div>
-          </div>
-          <nav className="hidden items-center gap-6 rounded-full border border-[#f6c86c26] bg-[#2b1814] px-5 py-2 md:flex">
+
+      <section id="mehsul" className="rounded-sm border border-[#292421] bg-[#f1c533] p-0 shadow-[0_14px_26px_rgba(0,0,0,0.45)]">
+        <header className="border-b border-[#d4a723]/80 px-5 py-3 md:px-8">
+          <div className="flex items-center justify-between gap-3">
+            <nav className="flex flex-wrap items-center gap-5 text-xs font-semibold uppercase tracking-[0.08em] text-[#3c2e1f] md:gap-8">
             {navLabels.map((item: string, idx: number) => (
               <a
                 key={item || idx}
                 href={idx === 0 ? "#mehsul" : idx === 1 ? "#isleyis" : idx === 2 ? "#modullar" : "#elaqe"}
-                className="text-sm text-[#f6d7ad] transition hover:text-[#ffd26f]"
+                className={idx === 0 ? "text-[#c33e2e]" : "transition hover:text-[#c33e2e]"}
                 onMouseEnter={(e) => handleActionGuideHover(idx === 0 ? "Məhsul bölməsinə keçid edir." : idx === 1 ? "İş axını bölməsini göstərir." : idx === 2 ? "Bütün modullar siyahısını açır." : "Əlaqə məlumatlarına aparır.", e)}
                 onMouseMove={(e) => handleActionGuideHover(idx === 0 ? "Məhsul bölməsinə keçid edir." : idx === 1 ? "İş axını bölməsini göstərir." : idx === 2 ? "Bütün modullar siyahısını açır." : "Əlaqə məlumatlarına aparır.", e)}
                 onMouseLeave={() => setActionGuide(null)}
@@ -346,14 +344,14 @@ export default function LandingPage() {
                 {item || c.nav[idx]}
               </a>
             ))}
-          </nav>
-          <div className="flex items-center gap-2">
+            </nav>
+            <div className="hidden items-center gap-2 md:flex">
             {(["az", "ru", "en"] as Lang[]).map((l) => (
               <button
                 key={l}
                 type="button"
                 onClick={() => setLang(l)}
-                className={l === lang ? "rounded-full border border-[#ffca6a] bg-[#f59e0b] px-3 py-1.5 text-[11px] font-bold text-[#22130f]" : "rounded-full border border-[#f6c86c55] bg-[#2c1a15] px-3 py-1.5 text-[11px] font-semibold text-[#f6d7ad]"}
+                className={l === lang ? "rounded-full border border-[#3c2e1f] bg-[#fff0c7] px-2.5 py-1 text-[10px] font-bold text-[#3a2b1d]" : "rounded-full border border-[#3c2e1f66] bg-[#f5ce57] px-2.5 py-1 text-[10px] font-semibold text-[#3a2b1d]"}
                 onMouseEnter={(e) => handleActionGuideHover("İnterfeys dilini dəyişir.", e)}
                 onMouseMove={(e) => handleActionGuideHover("İnterfeys dilini dəyişir.", e)}
                 onMouseLeave={() => setActionGuide(null)}
@@ -361,42 +359,39 @@ export default function LandingPage() {
                 {l.toUpperCase()}
               </button>
             ))}
-              <button
+            <button
                 type="button"
                 onClick={() => {
                   setDemoGuideOpen((prev) => !prev);
                   if (demoGuideOpen) setDemoGuide(null);
                 }}
-              className={demoGuideOpen ? "rounded-full border border-[#ffca6a] bg-[#f59e0b] px-3 py-1.5 text-[11px] font-bold text-[#22130f]" : "rounded-full border border-[#f6c86c55] bg-[#2c1a15] px-3 py-1.5 text-[11px] font-semibold text-[#f6d7ad]"}
+              className={demoGuideOpen ? "rounded-full border border-[#3c2e1f] bg-[#fff0c7] px-3 py-1 text-[10px] font-bold text-[#3a2b1d]" : "rounded-full border border-[#3c2e1f66] bg-[#f5ce57] px-3 py-1 text-[10px] font-semibold text-[#3a2b1d]"}
               onMouseEnter={(e) => handleActionGuideHover("Demo bələdçisini açır və ya bağlayır.", e)}
               onMouseMove={(e) => handleActionGuideHover("Demo bələdçisini açır və ya bağlayır.", e)}
               onMouseLeave={() => setActionGuide(null)}
             >
               Bələdçi
             </button>
-            <a
+              <a
               href="https://demo.ironwaves.store"
               target="_blank"
               rel="noreferrer"
-              className="rounded-full border border-[#ffca6a] bg-gradient-to-r from-[#f59e0b] to-[#fb923c] px-4 py-2 text-sm font-extrabold text-[#25140f] shadow-[0_8px_20px_rgba(245,158,11,0.32)]"
+              className="rounded-full border border-[#9a4220] bg-[#d94f2b] px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-[#fff3d8]"
               onMouseEnter={(e) => handleActionGuideHover("Canlı demo platformasını yeni tabda açır.", e)}
               onMouseMove={(e) => handleActionGuideHover("Canlı demo platformasını yeni tabda açır.", e)}
               onMouseLeave={() => setActionGuide(null)}
             >
               {ctaPrimary}
             </a>
+            </div>
           </div>
-        </div>
-      </header>
-
-      <section id="mehsul" className="mx-auto w-full max-w-[1280px] px-4 pb-10 pt-8 md:px-8">
-        <div className="overflow-hidden rounded-xl border border-[#d39a31] bg-[#efc233] shadow-[0_18px_40px_rgba(0,0,0,0.35)]">
-          <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1.2fr]">
-            <div className="p-6 md:p-8">
-              <div className="text-xs font-black tracking-[0.2em] text-[#603f17]">***</div>
-              <h1 className="mt-2 max-w-[460px] text-3xl font-black uppercase leading-[1.05] text-[#22140f] md:text-5xl">{heroTitle}</h1>
-              <p className="mt-4 max-w-[520px] text-sm leading-6 text-[#4c2f1d] md:text-base">{heroBody}</p>
-              <div className="mt-5 flex flex-wrap gap-3">
+        </header>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.15fr]">
+          <div className="relative p-6 md:p-8">
+            <div className="text-sm font-black tracking-[0.2em] text-[#603f17]">***</div>
+            <h1 className="mt-2 max-w-[380px] text-[34px] font-black uppercase leading-[0.97] text-[#22140f] md:text-[50px]">{heroTitle}</h1>
+            <p className="mt-4 max-w-[360px] text-sm leading-5 text-[#4c2f1d]">{heroBody}</p>
+            <div className="mt-6">
                 <a
                   href="https://demo.ironwaves.store"
                   target="_blank"
@@ -405,16 +400,20 @@ export default function LandingPage() {
                 >
                   {ctaPrimary}
                 </a>
-              </div>
-              <div className="mt-6 flex flex-wrap items-center gap-4 text-xs font-semibold text-[#57361e]">
-                <span>www.ironwaves.store</span>
-                <span>● ● ● ●</span>
-              </div>
             </div>
-            <div className="relative h-[280px] overflow-hidden md:h-[360px]">
-              <img src={slideImage} alt={slideTitle} className="h-full w-full object-cover" />
-              <div className="absolute left-4 top-4 rounded-full bg-[#1f1f1fcc] px-3 py-1.5 text-xs font-black text-[#ffdc88]">30% OFF</div>
-              <div className="absolute bottom-4 left-4 rounded-xl bg-[#252525cc] px-3 py-2 text-xs font-semibold text-[#ffe5a8]">{slideTitle}</div>
+            <div className="mt-10 flex items-center justify-between text-xs font-semibold text-[#57361e]">
+              <span>www.ironwaves.store</span>
+              <span>● ● ● ●</span>
+            </div>
+          </div>
+          <div className="relative h-[280px] overflow-hidden border-l border-[#d4a723]/80 md:h-[360px]">
+            <img src={slideImage} alt={slideTitle} className="h-full w-full object-cover" />
+            <div className="absolute left-[-26px] top-[-26px] h-[120px] w-[120px] rounded-full bg-[#f1c533]" />
+            <div className="absolute left-4 top-[42%] rounded-full bg-[#323234e6] px-3 py-2 text-xs font-black text-[#ffdc88]">30% OFF</div>
+            <div className="absolute left-1/2 top-[31%] -translate-x-1/2 rounded-full bg-[#1f1f1fe0] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-[#ffe5a8]">
+              iRonWaves Coffee POS
+            </div>
+            <div className="absolute bottom-4 left-4 rounded-xl bg-[#252525cc] px-3 py-2 text-xs font-semibold text-[#ffe5a8]">{slideTitle}</div>
             </div>
           </div>
         </div>
@@ -429,6 +428,11 @@ export default function LandingPage() {
             />
           ))}
         </div>
+      </section>
+
+      <section className="pb-4 pt-6 text-center text-xs text-[#e9d4ab]">
+        <img src="/landing/ironwaves-logo.jpeg" alt="iRonWaves" className="mx-auto mb-2 h-8 w-auto rounded-md object-contain" />
+        <div>iRonWaves POS</div>
       </section>
 
       <section className="mx-auto max-w-[1280px] px-4 pb-8 md:px-8">
