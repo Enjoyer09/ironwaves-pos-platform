@@ -321,19 +321,20 @@ export default function LandingPage() {
   const whatsappLink = `https://wa.me/${whatsapp.replace(/[^\d]/g, "")}`;
 
   return (
-    <div className="metal-app min-h-screen overflow-x-hidden">
-      <header className="sticky top-0 z-40 border-b border-slate-600/40 bg-[#121826]/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-3 px-4 py-3 md:px-6">
+    <div className="min-h-screen overflow-x-hidden bg-[#3f4147] px-3 py-5 text-[#fff7e6] md:px-8 md:py-10">
+      <div className="mx-auto w-full max-w-[1220px] overflow-hidden rounded-[26px] border border-[#ffb34733] bg-[#1f120f] shadow-[0_24px_70px_rgba(0,0,0,0.45)]">
+      <header className="sticky top-0 z-40 border-b border-[#f6c86c26] bg-[#1f120f]/95 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-3 px-4 py-4 md:px-8">
           <div className="flex items-center gap-3">
             <img src="/landing/ironwaves-logo.jpeg" alt="iRonWaves" className="h-9 w-auto rounded-md object-contain" />
-            <div className="text-sm text-slate-300">iRonWaves POS</div>
+            <div className="text-sm font-semibold text-[#ffe2aa]">iRonWaves POS</div>
           </div>
-          <nav className="hidden items-center gap-6 md:flex">
+          <nav className="hidden items-center gap-6 rounded-full border border-[#f6c86c26] bg-[#2b1814] px-5 py-2 md:flex">
             {navLabels.map((item: string, idx: number) => (
               <a
                 key={item || idx}
                 href={idx === 0 ? "#mehsul" : idx === 1 ? "#isleyis" : idx === 2 ? "#modullar" : "#elaqe"}
-                className="text-sm text-slate-300 transition hover:text-white"
+                className="text-sm text-[#f6d7ad] transition hover:text-[#ffd26f]"
                 onMouseEnter={(e) => handleActionGuideHover(idx === 0 ? "Məhsul bölməsinə keçid edir." : idx === 1 ? "İş axını bölməsini göstərir." : idx === 2 ? "Bütün modullar siyahısını açır." : "Əlaqə məlumatlarına aparır.", e)}
                 onMouseMove={(e) => handleActionGuideHover(idx === 0 ? "Məhsul bölməsinə keçid edir." : idx === 1 ? "İş axını bölməsini göstərir." : idx === 2 ? "Bütün modullar siyahısını açır." : "Əlaqə məlumatlarına aparır.", e)}
                 onMouseLeave={() => setActionGuide(null)}
@@ -348,7 +349,7 @@ export default function LandingPage() {
                 key={l}
                 type="button"
                 onClick={() => setLang(l)}
-                className={l === lang ? "neon-chip neon-chip-active px-3 py-1.5 text-[11px]" : "neon-chip px-3 py-1.5 text-[11px]"}
+                className={l === lang ? "rounded-full border border-[#ffca6a] bg-[#f59e0b] px-3 py-1.5 text-[11px] font-bold text-[#22130f]" : "rounded-full border border-[#f6c86c55] bg-[#2c1a15] px-3 py-1.5 text-[11px] font-semibold text-[#f6d7ad]"}
                 onMouseEnter={(e) => handleActionGuideHover("İnterfeys dilini dəyişir.", e)}
                 onMouseMove={(e) => handleActionGuideHover("İnterfeys dilini dəyişir.", e)}
                 onMouseLeave={() => setActionGuide(null)}
@@ -356,13 +357,13 @@ export default function LandingPage() {
                 {l.toUpperCase()}
               </button>
             ))}
-            <button
-              type="button"
-              onClick={() => {
-                setDemoGuideOpen((prev) => !prev);
-                if (demoGuideOpen) setDemoGuide(null);
-              }}
-              className={demoGuideOpen ? "neon-chip neon-chip-active px-3 py-1.5 text-[11px]" : "neon-chip px-3 py-1.5 text-[11px]"}
+              <button
+                type="button"
+                onClick={() => {
+                  setDemoGuideOpen((prev) => !prev);
+                  if (demoGuideOpen) setDemoGuide(null);
+                }}
+              className={demoGuideOpen ? "rounded-full border border-[#ffca6a] bg-[#f59e0b] px-3 py-1.5 text-[11px] font-bold text-[#22130f]" : "rounded-full border border-[#f6c86c55] bg-[#2c1a15] px-3 py-1.5 text-[11px] font-semibold text-[#f6d7ad]"}
               onMouseEnter={(e) => handleActionGuideHover("Demo bələdçisini açır və ya bağlayır.", e)}
               onMouseMove={(e) => handleActionGuideHover("Demo bələdçisini açır və ya bağlayır.", e)}
               onMouseLeave={() => setActionGuide(null)}
@@ -373,7 +374,7 @@ export default function LandingPage() {
               href="https://demo.ironwaves.store"
               target="_blank"
               rel="noreferrer"
-              className="neon-btn-active rounded-xl px-4 py-2 text-sm font-semibold"
+              className="rounded-full border border-[#ffca6a] bg-gradient-to-r from-[#f59e0b] to-[#fb923c] px-4 py-2 text-sm font-extrabold text-[#25140f] shadow-[0_8px_20px_rgba(245,158,11,0.32)]"
               onMouseEnter={(e) => handleActionGuideHover("Canlı demo platformasını yeni tabda açır.", e)}
               onMouseMove={(e) => handleActionGuideHover("Canlı demo platformasını yeni tabda açır.", e)}
               onMouseLeave={() => setActionGuide(null)}
@@ -384,19 +385,19 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <section id="mehsul" className="mx-auto grid w-full max-w-[1280px] grid-cols-1 gap-8 px-4 pb-10 pt-10 md:px-6 lg:grid-cols-2 lg:pt-14">
+      <section id="mehsul" className="mx-auto grid w-full max-w-[1280px] grid-cols-1 gap-8 px-4 pb-10 pt-10 md:px-8 lg:grid-cols-2 lg:pt-12">
         <div className="space-y-6">
-          <div className="inline-flex items-center rounded-full border border-emerald-300/25 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-200">
+          <div className="inline-flex items-center rounded-full border border-[#ffca6a66] bg-[#f59e0b22] px-3 py-1 text-xs font-semibold text-[#ffd88c]">
             {c.badge}
           </div>
-          <h1 className="text-4xl font-black leading-tight text-white md:text-6xl">{heroTitle}</h1>
-          <p className="max-w-xl text-base leading-7 text-slate-300 md:text-lg">{heroBody}</p>
+          <h1 className="text-4xl font-black leading-tight text-[#fff3d8] md:text-6xl">{heroTitle}</h1>
+          <p className="max-w-xl text-base leading-7 text-[#f6d7ad] md:text-lg">{heroBody}</p>
           <div className="flex flex-wrap gap-3">
             <a
               href="https://demo.ironwaves.store"
               target="_blank"
               rel="noreferrer"
-              className="neon-btn-active rounded-xl px-6 py-3 text-sm font-bold"
+              className="rounded-full border border-[#ffca6a] bg-gradient-to-r from-[#f59e0b] to-[#fb923c] px-6 py-3 text-sm font-extrabold text-[#25140f] shadow-[0_8px_20px_rgba(245,158,11,0.32)]"
               onMouseEnter={(e) => handleActionGuideHover("Canlı demo mühitinə birbaşa keçid edir.", e)}
               onMouseMove={(e) => handleActionGuideHover("Canlı demo mühitinə birbaşa keçid edir.", e)}
               onMouseLeave={() => setActionGuide(null)}
@@ -406,7 +407,7 @@ export default function LandingPage() {
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {c.trust.map((item: string) => (
-              <div key={item} className="metal-panel rounded-xl px-3 py-2 text-center text-xs text-slate-200">
+              <div key={item} className="rounded-xl border border-[#f6c86c3a] bg-[#2c1915] px-3 py-2 text-center text-xs text-[#ffe8c2]">
                 {item}
               </div>
             ))}
@@ -414,11 +415,11 @@ export default function LandingPage() {
         </div>
 
         <div className="space-y-3">
-          <div className="metal-panel overflow-hidden rounded-2xl border shadow-[0_0_36px_rgba(56,189,248,0.14)]">
+          <div className="overflow-hidden rounded-2xl border border-[#f6c86c3d] bg-[#2a1713] shadow-[0_0_36px_rgba(251,146,60,0.2)]">
             <img src={slideImage} alt={slideTitle} className="h-[320px] w-full object-cover transition duration-700 hover:scale-[1.02] md:h-[400px]" />
-            <div className="border-t border-slate-700/70 bg-[#101722] p-4">
-              <h3 className="text-base font-bold text-slate-100">{slideTitle}</h3>
-              <p className="mt-1 text-sm text-slate-400">{slideDesc}</p>
+            <div className="border-t border-[#f6c86c3d] bg-[#1d120f] p-4">
+              <h3 className="text-base font-bold text-[#fff0d0]">{slideTitle}</h3>
+              <p className="mt-1 text-sm text-[#f6d7ad]">{slideDesc}</p>
             </div>
           </div>
           <div className="flex items-center justify-center gap-2">
@@ -427,7 +428,7 @@ export default function LandingPage() {
                 key={`${s[0]}_${idx}`}
                 type="button"
                 onClick={() => setSlideIndex(idx)}
-                className={idx === slideIndex ? "h-2.5 w-7 rounded-full bg-yellow-300" : "h-2.5 w-2.5 rounded-full bg-slate-500/80"}
+                className={idx === slideIndex ? "h-2.5 w-7 rounded-full bg-[#f59e0b]" : "h-2.5 w-2.5 rounded-full bg-[#7b5a43]"}
                 aria-label={`slide-${idx + 1}`}
                 onMouseEnter={(e) => handleActionGuideHover("Ekran görüntüsü slaydını dəyişir.", e)}
                 onMouseMove={(e) => handleActionGuideHover("Ekran görüntüsü slaydını dəyişir.", e)}
@@ -438,25 +439,25 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1280px] px-4 pb-8 md:px-6">
+      <section className="mx-auto max-w-[1280px] px-4 pb-8 md:px-8">
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className="metal-panel rounded-2xl p-5">
-            <h2 className="mb-3 text-lg font-extrabold text-rose-200">{c.problemTitle}</h2>
+          <div className="rounded-2xl border border-[#f6c86c30] bg-[#2b1714] p-5">
+            <h2 className="mb-3 text-lg font-extrabold text-[#ffb3a0]">{c.problemTitle}</h2>
             <div className="space-y-2">
               {c.problems.map((item: string) => (
-                <div key={item} className="flex items-start gap-2 text-sm text-slate-300">
-                  <span className="mt-1 inline-block h-2 w-2 rounded-full bg-rose-300" />
+                <div key={item} className="flex items-start gap-2 text-sm text-[#f6d7ad]">
+                  <span className="mt-1 inline-block h-2 w-2 rounded-full bg-[#f97316]" />
                   <span>{item}</span>
                 </div>
               ))}
             </div>
           </div>
-          <div className="metal-panel rounded-2xl p-5">
-            <h2 className="mb-3 text-lg font-extrabold text-emerald-200">{c.solutionTitle}</h2>
+          <div className="rounded-2xl border border-[#f6c86c30] bg-[#2b1714] p-5">
+            <h2 className="mb-3 text-lg font-extrabold text-[#ffd48b]">{c.solutionTitle}</h2>
             <div className="space-y-2">
               {c.solutions.map((item: string) => (
-                <div key={item} className="flex items-start gap-2 text-sm text-slate-300">
-                  <span className="mt-1 inline-block h-2 w-2 rounded-full bg-emerald-300" />
+                <div key={item} className="flex items-start gap-2 text-sm text-[#f6d7ad]">
+                  <span className="mt-1 inline-block h-2 w-2 rounded-full bg-[#f59e0b]" />
                   <span>{item}</span>
                 </div>
               ))}
@@ -465,27 +466,27 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="isleyis" className="mx-auto max-w-[1280px] px-4 pb-8 md:px-6">
-        <div className="metal-panel rounded-2xl p-5">
-          <h2 className="mb-4 text-2xl font-extrabold text-white">{c.howTitle}</h2>
+      <section id="isleyis" className="mx-auto max-w-[1280px] px-4 pb-8 md:px-8">
+        <div className="rounded-2xl border border-[#f6c86c30] bg-[#2b1714] p-5">
+          <h2 className="mb-4 text-2xl font-extrabold text-[#fff0d0]">{c.howTitle}</h2>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
             {c.steps.map((step: string, idx: number) => (
-              <div key={step} className="rounded-xl border border-slate-700/70 bg-[#0f1521] p-4">
-                <div className="mb-2 text-xs font-black text-yellow-300">0{idx + 1}</div>
-                <div className="text-sm text-slate-200">{step}</div>
+              <div key={step} className="rounded-xl border border-[#f6c86c30] bg-[#201310] p-4">
+                <div className="mb-2 text-xs font-black text-[#f59e0b]">0{idx + 1}</div>
+                <div className="text-sm text-[#f8e5c4]">{step}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="border-y border-slate-700/40 bg-[#0f1522]/40">
+      <section className="border-y border-[#f6c86c2c] bg-[#1d120f]">
         <div className="mx-auto max-w-[1280px] overflow-hidden px-4 py-4 md:px-6">
           <div className="flex w-max animate-marquee gap-2">
             {[...c.modules, ...c.modules].map((tab: string, idx: number) => (
               <span
                 key={`${tab}_${idx}`}
-                className={idx % 7 === 0 ? "neon-chip neon-chip-active whitespace-nowrap px-3 py-2" : "neon-chip whitespace-nowrap px-3 py-2"}
+                className={idx % 7 === 0 ? "whitespace-nowrap rounded-full border border-[#ffca6a] bg-[#f59e0b] px-3 py-2 text-xs font-bold text-[#25140f]" : "whitespace-nowrap rounded-full border border-[#f6c86c55] bg-[#2c1a15] px-3 py-2 text-xs font-semibold text-[#f6d7ad]"}
                 onMouseEnter={(e) => handleDemoGuideHover(tab, e)}
                 onMouseMove={(e) => handleDemoGuideHover(tab, e)}
                 onMouseLeave={() => setDemoGuide(null)}
@@ -498,61 +499,61 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="modullar" className="mx-auto max-w-[1280px] px-4 py-14 md:px-6">
-        <h2 className="mb-6 text-2xl font-extrabold text-white md:text-3xl">{modulesTitle}</h2>
+      <section id="modullar" className="mx-auto max-w-[1280px] px-4 py-14 md:px-8">
+        <h2 className="mb-6 text-2xl font-extrabold text-[#fff0d0] md:text-3xl">{modulesTitle}</h2>
         <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
           {c.modules.map((item: string) => (
             <div
               key={item}
-              className="metal-panel rounded-xl p-4"
+              className="rounded-xl border border-[#f6c86c30] bg-[#2b1714] p-4"
               onMouseEnter={(e) => handleDemoGuideHover(item, e)}
               onMouseMove={(e) => handleDemoGuideHover(item, e)}
               onMouseLeave={() => setDemoGuide(null)}
               onClick={() => setSelectedGuideLabel(item)}
             >
-              <div className="text-sm font-bold text-slate-100">{item}</div>
-              <div className="mt-2 text-xs leading-5 text-slate-400">iRonWaves Platform daxilində inteqrasiya olunmuş modul.</div>
+              <div className="text-sm font-bold text-[#fff0d0]">{item}</div>
+              <div className="mt-2 text-xs leading-5 text-[#f6d7ad]">iRonWaves Platform daxilində inteqrasiya olunmuş modul.</div>
             </div>
           ))}
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {slides.map(([title, src, desc], idx) => (
-            <article key={`${title}_${idx}`} className="metal-panel overflow-hidden rounded-xl border">
+            <article key={`${title}_${idx}`} className="overflow-hidden rounded-xl border border-[#f6c86c30] bg-[#2b1714]">
               <img src={src} alt={title} className="h-52 w-full object-cover transition duration-700 hover:scale-[1.03]" />
               <div className="p-4">
-                <h3 className="text-base font-bold text-slate-100">{title}</h3>
-                <p className="mt-1 text-sm text-slate-400">{desc}</p>
+                <h3 className="text-base font-bold text-[#fff0d0]">{title}</h3>
+                <p className="mt-1 text-sm text-[#f6d7ad]">{desc}</p>
               </div>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-[1280px] grid-cols-1 gap-6 px-4 pb-14 md:px-6 lg:grid-cols-2">
-        <div className="metal-panel rounded-2xl p-6">
-          <h3 className="mb-4 text-xl font-extrabold text-white">{c.whyTitle}</h3>
+      <section className="mx-auto grid max-w-[1280px] grid-cols-1 gap-6 px-4 pb-14 md:px-8 lg:grid-cols-2">
+        <div className="rounded-2xl border border-[#f6c86c30] bg-[#2b1714] p-6">
+          <h3 className="mb-4 text-xl font-extrabold text-[#fff0d0]">{c.whyTitle}</h3>
           <div className="space-y-3">
             {c.why.map((item: string) => (
-              <div key={item} className="flex items-start gap-3 text-sm text-slate-300">
-                <span className="mt-1 inline-block h-2.5 w-2.5 rounded-full bg-yellow-300" />
+              <div key={item} className="flex items-start gap-3 text-sm text-[#f6d7ad]">
+                <span className="mt-1 inline-block h-2.5 w-2.5 rounded-full bg-[#f59e0b]" />
                 <span>{item}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <div id="elaqe" className="metal-panel rounded-2xl p-6">
-          <h3 className="mb-4 text-xl font-extrabold text-white">{c.contactTitle}</h3>
-          <div className="space-y-3 text-sm text-slate-300">
-            <a href={`tel:${phone.replace(/\s+/g, "")}`} className="neon-item">
+        <div id="elaqe" className="rounded-2xl border border-[#f6c86c30] bg-[#2b1714] p-6">
+          <h3 className="mb-4 text-xl font-extrabold text-[#fff0d0]">{c.contactTitle}</h3>
+          <div className="space-y-3 text-sm text-[#f6d7ad]">
+            <a href={`tel:${phone.replace(/\s+/g, "")}`} className="flex items-center justify-between rounded-lg border border-[#f6c86c2b] bg-[#201310] px-3 py-2">
               <span>{c.phoneLabel}</span>
               <span>{phone}</span>
             </a>
-            <a href={`mailto:${email}`} className="neon-item">
+            <a href={`mailto:${email}`} className="flex items-center justify-between rounded-lg border border-[#f6c86c2b] bg-[#201310] px-3 py-2">
               <span>{c.mailLabel}</span>
               <span>{email}</span>
             </a>
-            <a href={whatsappLink} target="_blank" rel="noreferrer" className="neon-item">
+            <a href={whatsappLink} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-lg border border-[#f6c86c2b] bg-[#201310] px-3 py-2">
               <span>{c.waLabel}</span>
               <span>{whatsapp}</span>
             </a>
@@ -560,7 +561,7 @@ export default function LandingPage() {
               href="https://demo.ironwaves.store"
               target="_blank"
               rel="noreferrer"
-              className="glossy-gold mt-2 inline-flex w-full items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold"
+              className="mt-2 inline-flex w-full items-center justify-center rounded-full border border-[#ffca6a] bg-gradient-to-r from-[#f59e0b] to-[#fb923c] px-4 py-3 text-sm font-extrabold text-[#25140f] shadow-[0_8px_20px_rgba(245,158,11,0.32)]"
               onMouseEnter={(e) => handleActionGuideHover("Demo mühitinə keçid edir.", e)}
               onMouseMove={(e) => handleActionGuideHover("Demo mühitinə keçid edir.", e)}
               onMouseLeave={() => setActionGuide(null)}
@@ -571,7 +572,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <footer className="border-t border-slate-700/40 px-4 py-5 text-center text-xs text-slate-400 md:px-6">{footerText}</footer>
+      <footer className="border-t border-[#f6c86c24] px-4 py-5 text-center text-xs text-[#d8bb96] md:px-6">{footerText}</footer>
       {demoGuideOpen && demoGuide && (
         <div
           className="pointer-events-none fixed z-[80] w-[300px] rounded-2xl border border-cyan-300/35 bg-slate-950/90 p-3 shadow-[0_14px_42px_rgba(0,0,0,0.45)] backdrop-blur"
@@ -599,6 +600,7 @@ export default function LandingPage() {
           <div className="mt-2 text-[11px] text-slate-400">İpucu: modul kartına toxunun və ya cursor yaxınlaşdırın.</div>
         </div>
       )}
+      </div>
     </div>
   );
 }
