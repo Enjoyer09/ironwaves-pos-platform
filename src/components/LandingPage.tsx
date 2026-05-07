@@ -249,6 +249,39 @@ export default function LandingPage() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!("serviceWorker" in navigator)) return;
+    const CLEANUP_FLAG = "iw-landing-sw-reset-v1";
+    if (window.localStorage.getItem(CLEANUP_FLAG) === "done") return;
+    void (async () => {
+      try {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((reg) => reg.unregister()));
+      } catch {
+        // ignore
+      }
+      try {
+        if ("caches" in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((key) => caches.delete(key)));
+        }
+      } catch {
+        // ignore
+      }
+      try {
+        window.localStorage.setItem(CLEANUP_FLAG, "done");
+      } catch {
+        // ignore
+      }
+      try {
+        window.location.reload();
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     let mounted = true;
     const load = async () => {
       try {
