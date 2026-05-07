@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Decimal } from 'decimal.js';
 import QRCode from 'qrcode';
 import JsBarcode from 'jsbarcode';
-import { Search, ShoppingCart, ClipboardList, Plus, Minus, Check, ScanLine, ChevronDown } from 'lucide-react';
+import { Search, ShoppingCart, ClipboardList, Plus, Minus, Check, ScanLine, ChevronDown, WifiOff } from 'lucide-react';
 import { useAppStore } from '../store';
 import { get_menu_for_pos, create_sale, calculate_total, calculate_staff_payable, save_sale_receipt_html_live } from '../api/pos';
 import { get_tables_live, send_to_kitchen_live, pay_table_live } from '../api/tables';
@@ -263,6 +263,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   const [pendingOfflineSales, setPendingOfflineSales] = useState<OfflineSaleSummary[]>([]);
   const [showOfflineQueue, setShowOfflineQueue] = useState(false);
   const [isSyncingOffline, setIsSyncingOffline] = useState(false);
+  const [isPosOnline, setIsPosOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [mobilePane, setMobilePane] = useState<'menu' | 'cart'>('menu');
   const [showMobileCheckout, setShowMobileCheckout] = useState(false);
   const [isPosMenuEditMode, setIsPosMenuEditMode] = useState(false);
@@ -892,6 +893,20 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       if (pendingRefreshTimerRef.current) window.clearTimeout(pendingRefreshTimerRef.current);
     };
   }, [tenantId, isActive, refreshMenuImages]);
+
+
+
+  // ── Lightweight online/offline tracking for POS status badge ──────────────
+  useEffect(() => {
+    const onOnline = () => setIsPosOnline(true);
+    const onOffline = () => setIsPosOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isActive) return;
@@ -2545,6 +2560,16 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           <button onClick={() => setActiveCart('S3')} className={`neon-tab ${activeCart === 'S3' ? 'neon-tab-active' : ''}`}>
             <ShoppingCart size={14} /> {resolveCartTabLabel('S3')}
           </button>
+        </div>
+      )}
+
+      {/* ── Offline status indicator ─────────────────────────────────────── */}
+      {!isPosOnline && (
+        <div className="mb-3 flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-2.5 text-amber-100 animate-pulse">
+          <WifiOff size={16} className="shrink-0 text-amber-300" />
+          <span className="text-sm font-medium">
+            {tx(safeLang, 'Oflayn rejim — satışlar yerli yaddaşda saxlanır', 'Офлайн-режим — продажи сохраняются локально', 'Offline mode — sales are stored locally')}
+          </span>
         </div>
       )}
 
