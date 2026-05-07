@@ -323,7 +323,11 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#3f4147] px-3 py-5 text-[#fff7e6] md:px-8 md:py-10">
       <div className="mx-auto w-full max-w-[1220px] overflow-hidden rounded-[26px] border border-[#ffb34733] bg-[#1f120f] shadow-[0_24px_70px_rgba(0,0,0,0.45)]">
-      <header className="sticky top-0 z-40 border-b border-[#f6c86c26] bg-[#1f120f]/95 backdrop-blur-xl">
+      <div className="pt-6 text-center">
+        <div className="text-xl font-black tracking-[0.12em] text-[#ffe6b8]">LANDING PAGE TEMPLATE</div>
+        <div className="text-sm text-[#ffd7a0]">Coffee Shop</div>
+      </div>
+      <header className="sticky top-0 z-40 mt-5 border-b border-[#f6c86c26] bg-[#1f120f]/95 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-3 px-4 py-4 md:px-8">
           <div className="flex items-center gap-3">
             <img src="/landing/ironwaves-logo.jpeg" alt="iRonWaves" className="h-9 w-auto rounded-md object-contain" />
@@ -385,57 +389,45 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <section id="mehsul" className="mx-auto grid w-full max-w-[1280px] grid-cols-1 gap-8 px-4 pb-10 pt-10 md:px-8 lg:grid-cols-2 lg:pt-12">
-        <div className="space-y-6">
-          <div className="inline-flex items-center rounded-full border border-[#ffca6a66] bg-[#f59e0b22] px-3 py-1 text-xs font-semibold text-[#ffd88c]">
-            {c.badge}
-          </div>
-          <h1 className="text-4xl font-black leading-tight text-[#fff3d8] md:text-6xl">{heroTitle}</h1>
-          <p className="max-w-xl text-base leading-7 text-[#f6d7ad] md:text-lg">{heroBody}</p>
-          <div className="flex flex-wrap gap-3">
-            <a
-              href="https://demo.ironwaves.store"
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-full border border-[#ffca6a] bg-gradient-to-r from-[#f59e0b] to-[#fb923c] px-6 py-3 text-sm font-extrabold text-[#25140f] shadow-[0_8px_20px_rgba(245,158,11,0.32)]"
-              onMouseEnter={(e) => handleActionGuideHover("Canlı demo mühitinə birbaşa keçid edir.", e)}
-              onMouseMove={(e) => handleActionGuideHover("Canlı demo mühitinə birbaşa keçid edir.", e)}
-              onMouseLeave={() => setActionGuide(null)}
-            >
-              {ctaPrimary}
-            </a>
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {c.trust.map((item: string) => (
-              <div key={item} className="rounded-xl border border-[#f6c86c3a] bg-[#2c1915] px-3 py-2 text-center text-xs text-[#ffe8c2]">
-                {item}
+      <section id="mehsul" className="mx-auto w-full max-w-[1280px] px-4 pb-10 pt-8 md:px-8">
+        <div className="overflow-hidden rounded-xl border border-[#d39a31] bg-[#efc233] shadow-[0_18px_40px_rgba(0,0,0,0.35)]">
+          <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1.2fr]">
+            <div className="p-6 md:p-8">
+              <div className="text-xs font-black tracking-[0.2em] text-[#603f17]">***</div>
+              <h1 className="mt-2 max-w-[460px] text-3xl font-black uppercase leading-[1.05] text-[#22140f] md:text-5xl">{heroTitle}</h1>
+              <p className="mt-4 max-w-[520px] text-sm leading-6 text-[#4c2f1d] md:text-base">{heroBody}</p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <a
+                  href="https://demo.ironwaves.store"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-full border border-[#9a4220] bg-[#d94f2b] px-6 py-2.5 text-sm font-bold text-[#fff3d8]"
+                >
+                  {ctaPrimary}
+                </a>
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <div className="overflow-hidden rounded-2xl border border-[#f6c86c3d] bg-[#2a1713] shadow-[0_0_36px_rgba(251,146,60,0.2)]">
-            <img src={slideImage} alt={slideTitle} className="h-[320px] w-full object-cover transition duration-700 hover:scale-[1.02] md:h-[400px]" />
-            <div className="border-t border-[#f6c86c3d] bg-[#1d120f] p-4">
-              <h3 className="text-base font-bold text-[#fff0d0]">{slideTitle}</h3>
-              <p className="mt-1 text-sm text-[#f6d7ad]">{slideDesc}</p>
+              <div className="mt-6 flex flex-wrap items-center gap-4 text-xs font-semibold text-[#57361e]">
+                <span>www.ironwaves.store</span>
+                <span>● ● ● ●</span>
+              </div>
+            </div>
+            <div className="relative h-[280px] overflow-hidden md:h-[360px]">
+              <img src={slideImage} alt={slideTitle} className="h-full w-full object-cover" />
+              <div className="absolute left-4 top-4 rounded-full bg-[#1f1f1fcc] px-3 py-1.5 text-xs font-black text-[#ffdc88]">30% OFF</div>
+              <div className="absolute bottom-4 left-4 rounded-xl bg-[#252525cc] px-3 py-2 text-xs font-semibold text-[#ffe5a8]">{slideTitle}</div>
             </div>
           </div>
-          <div className="flex items-center justify-center gap-2">
-            {slides.map((s, idx) => (
-              <button
-                key={`${s[0]}_${idx}`}
-                type="button"
-                onClick={() => setSlideIndex(idx)}
-                className={idx === slideIndex ? "h-2.5 w-7 rounded-full bg-[#f59e0b]" : "h-2.5 w-2.5 rounded-full bg-[#7b5a43]"}
-                aria-label={`slide-${idx + 1}`}
-                onMouseEnter={(e) => handleActionGuideHover("Ekran görüntüsü slaydını dəyişir.", e)}
-                onMouseMove={(e) => handleActionGuideHover("Ekran görüntüsü slaydını dəyişir.", e)}
-                onMouseLeave={() => setActionGuide(null)}
-              />
-            ))}
-          </div>
+        </div>
+        <div className="mt-3 flex items-center justify-center gap-2">
+          {slides.map((s, idx) => (
+            <button
+              key={`${s[0]}_${idx}`}
+              type="button"
+              onClick={() => setSlideIndex(idx)}
+              className={idx === slideIndex ? "h-2.5 w-7 rounded-full bg-[#f59e0b]" : "h-2.5 w-2.5 rounded-full bg-[#7b5a43]"}
+              aria-label={`slide-${idx + 1}`}
+            />
+          ))}
         </div>
       </section>
 
