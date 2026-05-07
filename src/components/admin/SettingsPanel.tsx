@@ -35,6 +35,7 @@ import { get_menu_items_live } from '../../api/menu';
 import { get_inventory_items_live } from '../../api/inventory';
 import ConfirmModal from '../ConfirmModal';
 import { prepareImageDataUrl, prepareSmallImageDataUrl } from '../../lib/image_upload';
+import { isAgentVersionOutdated, localPrintAgentInfo } from '../../lib/local_print_agent';
 
 type RoleModules = { staff: string[]; manager: string[]; kitchen: string[] };
 
@@ -116,6 +117,10 @@ export default function SettingsPanel() {
     use_qz: false,
     printer_name: '',
   });
+  const [printAgentModalOpen, setPrintAgentModalOpen] = useState(false);
+  const [printAgentHealth, setPrintAgentHealth] = useState<'unknown' | 'checking' | 'online' | 'offline'>('unknown');
+  const [printAgentVersion, setPrintAgentVersion] = useState('');
+  const [printAgentMinVersion, setPrintAgentMinVersion] = useState('0.1.0');
   const [zReportReceiptSettings, setZReportReceiptSettings] = useState({
     show_operator: true,
     show_date_range: true,
@@ -858,6 +863,25 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Çap ayarları yadda saxlanıldı', 'Настройки печати сохранены', 'Print settings saved'), 'print');
   };
 
+  const checkPrintAgentStatus = async () => {
+    setPrintAgentHealth('checking');
+    const info = await localPrintAgentInfo();
+    setPrintAgentHealth(info.online ? 'online' : 'offline');
+    setPrintAgentVersion(info.version);
+    try {
+      const response = await fetch(`${window.location.origin.replace(/\/+$/, '')}/downloads/print-agent-latest.json`, { method: 'GET' });
+      if (response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { minimum_version?: string };
+        const minVersion = String(payload?.minimum_version || '').trim();
+        if (minVersion) setPrintAgentMinVersion(minVersion);
+      }
+    } catch {
+      // ignore manifest errors
+    }
+  };
+
+  const printAgentSetupUrl = `${window.location.origin.replace(/\/+$/, '')}/downloads/ironwaves-print-agent-setup.exe`;
+
   const saveZReportReceiptSettings = async () => {
     await update_z_report_receipt_settings_live(zReportReceiptSettings);
     flashSuccess(tx(lang, 'Z-Hesabat çek ayarları yadda saxlanıldı', 'Настройки чека Z-отчёта сохранены', 'Z-report receipt settings saved'), 'zreport_receipt');
@@ -1215,6 +1239,34 @@ export default function SettingsPanel() {
             onChange={(e) => setPrintSettings((prev) => ({ ...prev, printer_name: e.target.value }))}
             placeholder={tx(lang, 'Printer adı (opsional)', 'Имя принтера (необязательно)', 'Printer name (optional)')}
           />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="rounded-lg border border-cyan-300/40 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100"
+            onClick={() => {
+              setPrintAgentModalOpen(true);
+              void checkPrintAgentStatus();
+            }}
+          >
+            {tx(lang, 'Printer Agentini yüklə', 'Установить Printer Agent', 'Install Printer Agent')}
+          </button>
+          <button
+            type="button"
+            className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200"
+            onClick={() => void checkPrintAgentStatus()}
+          >
+            {tx(lang, 'Agent statusu yoxla', 'Проверить статус агента', 'Check agent status')}
+          </button>
+          <span className="text-xs text-slate-300">
+            {printAgentHealth === 'online'
+              ? tx(lang, 'Status: online', 'Статус: online', 'Status: online')
+              : printAgentHealth === 'offline'
+                ? tx(lang, 'Status: offline', 'Статус: offline', 'Status: offline')
+                : printAgentHealth === 'checking'
+                  ? tx(lang, 'Status: yoxlanır...', 'Статус: проверяется...', 'Status: checking...')
+                  : tx(lang, 'Status: bilinmir', 'Статус: неизвестно', 'Status: unknown')}
+          </span>
         </div>
         <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-xs text-slate-300">
           {tx(
@@ -2458,6 +2510,74 @@ export default function SettingsPanel() {
           }
         }}
       />
+
+      {printAgentModalOpen ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4">
+          <div className="w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-100">
+                {tx(lang, 'Printer Agent quraşdırılması', 'Установка Printer Agent', 'Printer Agent setup')}
+              </h3>
+              <button
+                type="button"
+                className="rounded-lg border border-slate-600 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+                onClick={() => setPrintAgentModalOpen(false)}
+              >
+                {tx(lang, 'Bağla', 'Закрыть', 'Close')}
+              </button>
+            </div>
+
+            <ol className="list-decimal space-y-2 pl-5 text-sm text-slate-200">
+              <li>{tx(lang, 'Windows kompüterdə agent setup faylını yükləyin.', 'Скачайте setup-файл агента на Windows ПК.', 'Download the agent setup file on the Windows PC.')}</li>
+              <li>{tx(lang, 'Faylı run edib quraşdırmanı tamamlayın.', 'Запустите файл и завершите установку.', 'Run the file and finish installation.')}</li>
+              <li>{tx(lang, 'Quraşdırmadan sonra statusu yoxlayın (127.0.0.1:17777).', 'После установки проверьте статус (127.0.0.1:17777).', 'After install, check status (127.0.0.1:17777).')}</li>
+            </ol>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <a
+                href={printAgentSetupUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg border border-cyan-300/40 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100"
+              >
+                {tx(lang, '.exe yüklə', 'Скачать .exe', 'Download .exe')}
+              </a>
+              <button
+                type="button"
+                className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-200"
+                onClick={() => void checkPrintAgentStatus()}
+              >
+                {tx(lang, 'Statusu yoxla', 'Проверить статус', 'Check status')}
+              </button>
+            </div>
+
+            <div className="mt-3 rounded-xl border border-slate-700/60 bg-slate-950/50 px-3 py-2 text-xs text-slate-300">
+              {printAgentHealth === 'online'
+                ? tx(lang, 'Agent işləyir: online ✅', 'Агент работает: online ✅', 'Agent is running: online ✅')
+                : printAgentHealth === 'offline'
+                  ? tx(lang, 'Agent tapılmadı: offline. Quraşdırmadan sonra bu pəncərədə yenidən status yoxlayın.', 'Агент не найден: offline. После установки снова проверьте статус.', 'Agent not found: offline. After install, check status again here.')
+                  : printAgentHealth === 'checking'
+                    ? tx(lang, 'Status yoxlanır...', 'Проверка статуса...', 'Checking status...')
+                    : tx(lang, 'Status hələ yoxlanmayıb.', 'Статус еще не проверен.', 'Status not checked yet.')}
+              {printAgentVersion ? (
+                <div className="mt-1">
+                  {tx(lang, 'Agent versiyası', 'Версия агента', 'Agent version')}: <span className="font-semibold">{printAgentVersion}</span>
+                </div>
+              ) : null}
+              {printAgentVersion && isAgentVersionOutdated(printAgentVersion, printAgentMinVersion) ? (
+                <div className="mt-1 text-amber-300">
+                  {tx(
+                    lang,
+                    `Yeniləmə tövsiyə olunur (minimum: ${printAgentMinVersion}).`,
+                    `Рекомендуется обновление (минимум: ${printAgentMinVersion}).`,
+                    `Update recommended (minimum: ${printAgentMinVersion}).`,
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

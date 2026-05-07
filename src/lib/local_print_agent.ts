@@ -39,3 +39,41 @@ export async function localPrintAgentHealth(): Promise<boolean> {
     return false;
   }
 }
+
+export type LocalPrintAgentInfo = {
+  online: boolean;
+  version: string;
+};
+
+export async function localPrintAgentInfo(): Promise<LocalPrintAgentInfo> {
+  try {
+    const response = await fetch(`${AGENT_BASE_URL}/version`, {
+      method: 'GET',
+      signal: timeoutSignal(REQUEST_TIMEOUT_MS),
+    });
+    if (!response.ok) return { online: false, version: '' };
+    const payload = (await response.json().catch(() => ({}))) as { version?: string };
+    return { online: true, version: String(payload?.version || '').trim() };
+  } catch {
+    return { online: false, version: '' };
+  }
+}
+
+function semverToParts(input: string): number[] {
+  return String(input || '')
+    .split('.')
+    .slice(0, 3)
+    .map((part) => Number(String(part).replace(/\D+/g, '')) || 0);
+}
+
+export function isAgentVersionOutdated(currentVersion: string, minimumVersion: string): boolean {
+  const current = semverToParts(currentVersion);
+  const minimum = semverToParts(minimumVersion);
+  for (let index = 0; index < Math.max(current.length, minimum.length); index += 1) {
+    const currentPart = current[index] ?? 0;
+    const minimumPart = minimum[index] ?? 0;
+    if (currentPart < minimumPart) return true;
+    if (currentPart > minimumPart) return false;
+  }
+  return false;
+}

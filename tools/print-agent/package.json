@@ -5,6 +5,12 @@
   "type": "commonjs",
   "main": "ironwaves-print-agent.js",
   "scripts": {
-    "start": "node ironwaves-print-agent.js"
+    "start": "node ironwaves-print-agent.js",
+    "build:exe": "pkg ironwaves-print-agent.js --targets node20-win-x64 --output dist/ironwaves-print-agent.exe",
+    "build:installer": "powershell -ExecutionPolicy Bypass -File ./build/build-installer.ps1",
+    "build:all": "npm run build:exe && npm run build:installer"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
   }
 }
