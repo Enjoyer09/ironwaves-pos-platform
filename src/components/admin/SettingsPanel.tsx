@@ -2549,6 +2549,16 @@ export default function SettingsPanel() {
               >
                 {tx(lang, 'Statusu yoxla', 'Проверить статус', 'Check status')}
               </button>
+              {printAgentVersion && isAgentVersionOutdated(printAgentVersion, printAgentMinVersion) ? (
+                <a
+                  href={printAgentSetupUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-lg border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200"
+                >
+                  {tx(lang, 'Avtomatik yenilə (.exe)', 'Автообновление (.exe)', 'Auto update (.exe)')}
+                </a>
+              ) : null}
             </div>
 
             <div className="mt-3 rounded-xl border border-slate-700/60 bg-slate-950/50 px-3 py-2 text-xs text-slate-300">
@@ -2571,6 +2581,16 @@ export default function SettingsPanel() {
                     `Yeniləmə tövsiyə olunur (minimum: ${printAgentMinVersion}).`,
                     `Рекомендуется обновление (минимум: ${printAgentMinVersion}).`,
                     `Update recommended (minimum: ${printAgentMinVersion}).`,
+                  )}
+                </div>
+              ) : null}
+              {printAgentVersion && isAgentVersionOutdated(printAgentVersion, printAgentMinVersion) ? (
+                <div className="mt-1 text-slate-300">
+                  {tx(
+                    lang,
+                    'Yenilə düyməsini basın, setup faylını run edin, sonra bu pəncərədə Statusu yoxla edin.',
+                    'Нажмите кнопку обновления, запустите setup, затем снова проверьте статус в этом окне.',
+                    'Click update, run the setup file, then check status again in this window.',
                   )}
                 </div>
               ) : null}
