@@ -38,18 +38,22 @@ const getBeverageServiceSettings = (tenant_id: string) => {
   return settings.beverage_service_settings || {
     coffee_selection_mode: 'size_and_service',
     remove_paper_packaging_for_table: true,
+    discount_scope: 'all_items',
   };
 };
 
 // FUNKSIYA: calculate_total
 export const calculate_total = (
   cart_items: { price: Decimal; qty: number; is_coffee: boolean; category: string }[],
+  tenant_id: string,
   customer_type: string = 'Normal',
   manual_discount_percent: number = 0,
   is_eco_cup: boolean = false,
   happy_hour: any = null,
   customer_stars: number | null = null
 ) => {
+  const beverageSettings = getBeverageServiceSettings(tenant_id);
+  const discountScope = beverageSettings.discount_scope === 'coffee_only' ? 'coffee_only' : 'all_items';
   const normalizedType = (customer_type || 'Normal').toLowerCase();
   let raw_total = new Decimal(0);
   let cogs_total = new Decimal(0);
@@ -86,7 +90,8 @@ export const calculate_total = (
   cart_items.forEach((item) => {
     const isCoffee = isCoffeeLike(item as any);
     const coffeeRate = Decimal.min(new Decimal(1), manual_discount_rate.plus(tier_discount_rate).plus(eco_rate));
-    const nonCoffeeRate = Decimal.min(new Decimal(1), manual_discount_rate.plus(eco_rate));
+    const nonCoffeeManual = discountScope === 'coffee_only' ? new Decimal(0) : manual_discount_rate;
+    const nonCoffeeRate = Decimal.min(new Decimal(1), nonCoffeeManual.plus(eco_rate));
     const appliedRate = isCoffee ? coffeeRate : nonCoffeeRate;
     const discounted_unit_price = item.price.times(new Decimal(1).minus(appliedRate)).toDecimalPlaces(2);
     discounted_subtotal = discounted_subtotal.plus(discounted_unit_price.times(item.qty));
@@ -224,6 +229,7 @@ export const create_sale = (payload: SalePayload) => {
 
     let { raw_total, final_total, discount_amount, cogs_total, free_coffees, customer_stars_after } = calculate_total(
       payload.cart_items,
+      payload.tenant_id,
       apply_customer_type,
       apply_discount_percent,
       payload.is_eco_cup,

@@ -140,6 +140,7 @@ DEFAULT_FINANCE_POLICY = {
 DEFAULT_BEVERAGE_SERVICE_SETTINGS = {
     "coffee_selection_mode": "size_and_service",
     "remove_paper_packaging_for_table": True,
+    "discount_scope": "all_items",
 }
 
 DEFAULT_Z_REPORT_RECEIPT_SETTINGS = {
@@ -2414,6 +2415,7 @@ def update_beverage_service_settings(
     cleaned = {
         "coffee_selection_mode": "size_only" if str(payload.get("coffee_selection_mode") or "").strip().lower() == "size_only" else "size_and_service",
         "remove_paper_packaging_for_table": bool(payload.get("remove_paper_packaging_for_table", True)),
+        "discount_scope": "coffee_only" if str(payload.get("discount_scope") or "").strip().lower() == "coffee_only" else "all_items",
     }
     _set_setting_value(db, tenant.id, "beverage_service_settings", cleaned)
     db.commit()
