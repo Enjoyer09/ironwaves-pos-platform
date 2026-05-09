@@ -1061,13 +1061,14 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
 
     return calculate_total(
       converted,
+      tenantId,
       ctx.customer?.type || 'Normal',
       effectiveDiscountPercent,
       false,
       null,
       ctx.customer ? Number(ctx.customer?.stars || 0) : null,
     );
-  }, [cart, ctx.customer, effectiveDiscountPercent]);
+  }, [cart, ctx.customer, effectiveDiscountPercent, tenantId]);
 
   const rawTotal = totals.raw_total;
   const discountAmount = totals.discount_amount;

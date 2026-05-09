@@ -112,6 +112,7 @@ export default function SettingsPanel() {
   const [beverageServiceSettings, setBeverageServiceSettings] = useState({
     coffee_selection_mode: 'size_and_service' as 'size_only' | 'size_and_service',
     remove_paper_packaging_for_table: true,
+    discount_scope: 'all_items' as 'all_items' | 'coffee_only',
   });
   const [printSettings, setPrintSettings] = useState({
     use_qz: false,
@@ -367,6 +368,7 @@ export default function SettingsPanel() {
       setBeverageServiceSettings({
         coffee_selection_mode: settingsRes.value.beverage_service_settings?.coffee_selection_mode === 'size_only' ? 'size_only' : 'size_and_service',
         remove_paper_packaging_for_table: settingsRes.value.beverage_service_settings?.remove_paper_packaging_for_table !== false,
+        discount_scope: settingsRes.value.beverage_service_settings?.discount_scope === 'coffee_only' ? 'coffee_only' : 'all_items',
       });
       setPrintSettings({
         use_qz: Boolean(settingsRes.value.print_settings?.use_qz),
@@ -1020,6 +1022,7 @@ export default function SettingsPanel() {
     await update_beverage_service_settings_live({
       coffee_selection_mode: beverageServiceSettings.coffee_selection_mode,
       remove_paper_packaging_for_table: beverageServiceSettings.remove_paper_packaging_for_table,
+      discount_scope: beverageServiceSettings.discount_scope,
     });
     flashSuccess(tx(lang, 'İçki servis ayarları yadda saxlanıldı', 'Настройки подачи напитков сохранены', 'Beverage service settings saved'), 'beverage');
   };
@@ -1692,6 +1695,30 @@ export default function SettingsPanel() {
                 'Məsələn Amerikano seçiləndə ayrıca Kağız stəkan (to go) və ya Stəkan (masa) soruşmaq istəyirsinizsə birinci variantı seçin.',
                 'Если при выборе Американо нужно спрашивать Бумажный стакан (to go) или Стакан (table), выберите первый вариант.',
                 'Choose the first option if Americano should ask for Paper cup (to go) or Glass (table).',
+              )}
+            </div>
+          </div>
+          <div className="field-stack form-card md:col-span-2">
+            <label className="field-label">{tx(lang, 'Endirim tətbiqi sahəsi', 'Область применения скидки', 'Discount scope')}</label>
+            <select
+              className="neon-input"
+              value={beverageServiceSettings.discount_scope}
+              onChange={(e) =>
+                setBeverageServiceSettings((prev) => ({
+                  ...prev,
+                  discount_scope: e.target.value === 'coffee_only' ? 'coffee_only' : 'all_items',
+                }))
+              }
+            >
+              <option value="all_items">{tx(lang, 'Bütün məhsullara', 'Ко всем товарам', 'All items')}</option>
+              <option value="coffee_only">{tx(lang, 'Yalnız kofe məhsullarına', 'Только к кофейным товарам', 'Coffee items only')}</option>
+            </select>
+            <div className="field-hint">
+              {tx(
+                lang,
+                'Bu ayar manual endirimin tətbiq sahəsini idarə edir. Müştəri tipinə görə kofe endirimləri əvvəlki kimi qalır.',
+                'Эта настройка управляет ручной скидкой. Скидки по типу клиента для кофе остаются как раньше.',
+                'This controls manual discount scope. Coffee tier discounts by customer type remain unchanged.',
               )}
             </div>
           </div>

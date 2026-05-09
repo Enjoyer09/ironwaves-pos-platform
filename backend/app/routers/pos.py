@@ -50,6 +50,7 @@ DEFAULT_YIELD_SETTINGS = {
 DEFAULT_BEVERAGE_SERVICE_SETTINGS = {
     "coffee_selection_mode": "size_and_service",
     "remove_paper_packaging_for_table": True,
+    "discount_scope": "all_items",
 }
 
 
@@ -360,8 +361,21 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
     )
     program_mode = str(customer_program.get("program_mode") or "points").strip().lower()
     cashback_percent = Decimal(str(customer_program.get("cashback_percent") or 0))
+    beverage_settings = _setting_value(db, tenant.id, "beverage_service_settings", DEFAULT_BEVERAGE_SERVICE_SETTINGS)
+    discount_scope = (
+        "coffee_only"
+        if str((beverage_settings or {}).get("discount_scope") or "").strip().lower() == "coffee_only"
+        else "all_items"
+    )
+    discount_rate = effective_discount / Decimal("100")
     subtotal = sum((Decimal(str(i.price)) * i.qty for i in payload.cart_items), Decimal("0"))
-    discount = (subtotal * (effective_discount / Decimal("100"))).quantize(Decimal("0.01"))
+    discount = Decimal("0.00")
+    for item in payload.cart_items:
+        line_total = (Decimal(str(item.price)) * Decimal(str(item.qty or 0))).quantize(Decimal("0.01"))
+        apply_manual = discount_scope == "all_items" or _is_coffee_like(item.item_name, item.category, item.is_coffee)
+        if apply_manual and discount_rate > 0:
+            discount += (line_total * discount_rate).quantize(Decimal("0.01"))
+    discount = discount.quantize(Decimal("0.01"))
     total = (subtotal - discount).quantize(Decimal("0.01"))
     reward_claim = None
     reward_discount = Decimal("0.00")
@@ -369,9 +383,12 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
     coffee_unit_prices: list[Decimal] = []
     coffee_qty = 0
     for item in payload.cart_items:
-        if _is_coffee_like(item.item_name, item.category, item.is_coffee):
+        is_coffee_item = _is_coffee_like(item.item_name, item.category, item.is_coffee)
+        apply_manual = discount_scope == "all_items" or is_coffee_item
+        unit_discount_rate = discount_rate if apply_manual else Decimal("0")
+        if is_coffee_item:
             coffee_qty += int(item.qty or 0)
-            discounted_unit = (Decimal(str(item.price)) * (Decimal("1") - (effective_discount / Decimal("100")))).quantize(Decimal("0.01"))
+            discounted_unit = (Decimal(str(item.price)) * (Decimal("1") - unit_discount_rate)).quantize(Decimal("0.01"))
             for _ in range(int(item.qty or 0)):
                 coffee_unit_prices.append(discounted_unit)
     free_coffees = 0
@@ -408,7 +425,9 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
             raise HTTPException(status_code=400, detail="Reward code etibarlı deyil")
         reward_candidates = []
         for item in payload.cart_items:
-            unit_price = (Decimal(str(item.price)) * (Decimal("1") - (effective_discount / Decimal("100")))).quantize(Decimal("0.01"))
+            apply_manual = discount_scope == "all_items" or _is_coffee_like(item.item_name, item.category, item.is_coffee)
+            unit_discount_rate = discount_rate if apply_manual else Decimal("0")
+            unit_price = (Decimal(str(item.price)) * (Decimal("1") - unit_discount_rate)).quantize(Decimal("0.01"))
             for _ in range(int(item.qty or 0)):
                 reward_candidates.append(unit_price)
         if reward_candidates:
@@ -421,7 +440,6 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
     cogs_total = Decimal("0.0000")
     line_cogs_totals: dict[int, Decimal] = {}
     line_cogs_unresolved: dict[int, bool] = {}
-    beverage_settings = _setting_value(db, tenant.id, "beverage_service_settings", DEFAULT_BEVERAGE_SERVICE_SETTINGS)
     yield_settings = _yield_settings(db, tenant.id)
     remove_packaging_for_table = bool((beverage_settings or {}).get("remove_paper_packaging_for_table", True))
     menu_item_names = {

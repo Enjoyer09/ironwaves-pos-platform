@@ -186,6 +186,7 @@ export interface Settings {
   beverage_service_settings?: {
     coffee_selection_mode: 'size_only' | 'size_and_service';
     remove_paper_packaging_for_table: boolean;
+    discount_scope?: 'all_items' | 'coffee_only';
   };
   z_report_receipt_settings?: {
     show_operator: boolean;
