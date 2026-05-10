@@ -1,6 +1,3 @@
-[providers]
-node = "22"
-
 [phases.install]
 cmds = ["npm ci"]
 
