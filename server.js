@@ -11,6 +11,8 @@ const port = Number(process.env.PORT || 8080);
 const BLOCKED_PATTERNS = [
   /^\/\.env(?:\.|$)/i,
   /\/\.env(?:\.|$)/i,
+  /^\/\.git(?:\/|$)/i,
+  /\/\.git(?:\/|$)/i,
   /\.php(?:$|\/|\?)/i,
   /^\/wp-admin(?:\/|$)/i,
   /^\/wp-content(?:\/|$)/i,
