@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Decimal } from 'decimal.js';
-import { get_inventory_items_live, add_inventory_item_live, record_loss_live, restock_item_live, delete_inventory_item_live } from '../../api/inventory';
+import { get_inventory_items_live, add_inventory_item_live, update_inventory_item_live, record_loss_live, restock_item_live, delete_inventory_item_live } from '../../api/inventory';
 import { get_logs_live } from '../../api/logs';
 import { get_settings_live } from '../../api/settings';
 import { generate_ai_insight_engine, type AiDecisionInsight } from '../../api/ai_manager';
@@ -126,6 +126,8 @@ export default function InventoryPanel() {
   const [restockPaymentSource, setRestockPaymentSource] = useState<'payable' | 'cash' | 'card' | 'safe'>('payable');
   const [restockSupplier, setRestockSupplier] = useState('');
   const [restockInvoiceNo, setRestockInvoiceNo] = useState('');
+  const [editModal, setEditModal] = useState<{ id: string; name: string; type: string; unit: string; min_limit: string } | null>(null);
+  const [editCustomType, setEditCustomType] = useState('');
   const [deleteModal, setDeleteModal] = useState<{ id: string; name: string } | null>(null);
   const [deletePass, setDeletePass] = useState('');
   const [aiInsights, setAiInsights] = useState<AiDecisionInsight[]>([]);
@@ -242,6 +244,52 @@ export default function InventoryPanel() {
     }
   };
 
+  const openEditModal = (item: any) => {
+    const currentType = String(item.type || item.category || '').trim() || 'Xammal';
+    const optionExists = inventoryTypeOptions.includes(currentType);
+    setEditModal({
+      id: item.id,
+      name: item.name || '',
+      type: optionExists ? currentType : '__custom__',
+      unit: item.unit || 'qram',
+      min_limit: String(item.min_limit ?? inventoryConfig.default_critical_threshold ?? 0),
+    });
+    setEditCustomType(optionExists ? '' : currentType);
+  };
+
+  const handleEditSave = async () => {
+    if (!editModal) return;
+    const name = editModal.name.trim();
+    const resolvedType = editModal.type === '__custom__' ? editCustomType.trim() : editModal.type.trim();
+    if (name.length < 2) {
+      notify('error', tx(lang, 'Məhsul adı ən az 2 simvol olmalıdır', 'Название должно быть минимум 2 символа', 'Name must be at least 2 characters'));
+      return;
+    }
+    if (!resolvedType) {
+      notify('error', tx(lang, 'Tip boş ola bilməz', 'Тип не может быть пустым', 'Type cannot be empty'));
+      return;
+    }
+    if (!isNonNegativeDecimalInput(editModal.min_limit)) {
+      notify('error', tx(lang, 'Min limit mənfi ola bilməz', 'Мин. лимит не может быть отрицательным', 'Min limit cannot be negative'));
+      return;
+    }
+    try {
+      await update_inventory_item_live(tenant_id, editModal.id, {
+        name,
+        unit: editModal.unit,
+        category: resolvedType,
+        type: resolvedType,
+        min_limit: parseDecimalInput(editModal.min_limit),
+      }, user?.username || 'Admin');
+      notify('success', tx(lang, 'Məhsul məlumatları yeniləndi', 'Данные продукта обновлены', 'Inventory item updated'));
+      setEditModal(null);
+      setEditCustomType('');
+      await loadData();
+    } catch (e: any) {
+      notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message);
+    }
+  };
+
   const filteredItems = useMemo(() => items.filter((item: any) => {
     const q = search.trim().toLowerCase();
     if (!q) return true;
@@ -311,6 +359,14 @@ export default function InventoryPanel() {
         `${itemName} anbardan tam silindi`,
         `${itemName} полностью удален со склада`,
         `${itemName} was fully deleted from inventory`,
+      );
+    }
+    if (action === 'INVENTORY_EDIT') {
+      return tx(
+        lang,
+        `${itemName} məlumatları düzəldildi`,
+        `${itemName} обновлен`,
+        `${itemName} was updated`,
       );
     }
     if (action === 'INVENTORY_CONSUMED') {
@@ -414,6 +470,73 @@ export default function InventoryPanel() {
               </button>
               <button className="neon-btn rounded-lg px-4 py-2" onClick={() => { setRestockModal(null); setRestockQty(''); setRestockTotalPrice(''); setRestockPaymentSource('payable'); setRestockSupplier(''); setRestockInvoiceNo(''); }}>
                 {tx(lang, 'Ləğv et', 'Отмена')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="metal-panel w-full max-w-lg p-5">
+            <h3 className="mb-2 text-lg font-bold text-slate-100">{tx(lang, 'Anbar məhsulunu düzəlt', 'Редактировать товар склада', 'Edit inventory item')}</h3>
+            <p className="mb-4 text-sm text-slate-400">
+              {tx(
+                lang,
+                'Bu pəncərə yalnız ad, tip, vahid və min limit üçündür. Miqdar/maya üçün mədaxil və məxaric istifadə olunur.',
+                'Это окно только для названия, типа, единицы и мин. лимита. Для количества/себестоимости используйте приход/расход.',
+                'This edits name, type, unit, and min limit only. Use restock/loss for quantity and cost.',
+              )}
+            </p>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <input
+                className="neon-input"
+                placeholder={tx(lang, 'Məhsul adı', 'Название продукта', 'Item name')}
+                value={editModal.name}
+                onChange={(e) => setEditModal((prev) => prev ? { ...prev, name: e.target.value } : prev)}
+              />
+              <select
+                className="neon-input"
+                value={editModal.type}
+                onChange={(e) => setEditModal((prev) => prev ? { ...prev, type: e.target.value } : prev)}
+              >
+                {inventoryTypeOptions.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+                <option value="__custom__">{tx(lang, 'Yeni tip...', 'Новый тип...', 'New type...')}</option>
+              </select>
+              {editModal.type === '__custom__' && (
+                <input
+                  className="neon-input"
+                  placeholder={tx(lang, 'Manual tip adı', 'Название типа вручную', 'Manual type name')}
+                  value={editCustomType}
+                  onChange={(e) => setEditCustomType(e.target.value)}
+                />
+              )}
+              <select
+                className="neon-input"
+                value={editModal.unit}
+                onChange={(e) => setEditModal((prev) => prev ? { ...prev, unit: e.target.value } : prev)}
+              >
+                {(inventoryConfig.unit_options || []).map((unit) => (
+                  <option key={unit} value={unit}>{unit}</option>
+                ))}
+              </select>
+              <input
+                className="neon-input"
+                type="text"
+                inputMode="decimal"
+                placeholder={tx(lang, 'Min limit', 'Мин. лимит', 'Min limit')}
+                value={editModal.min_limit}
+                onChange={(e) => setEditModal((prev) => prev ? { ...prev, min_limit: e.target.value } : prev)}
+              />
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button className="glossy-gold rounded-lg px-4 py-2 font-semibold" onClick={() => { void handleEditSave(); }}>
+                {tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
+              </button>
+              <button className="neon-btn rounded-lg px-4 py-2" onClick={() => { setEditModal(null); setEditCustomType(''); }}>
+                {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
               </button>
             </div>
           </div>
@@ -637,6 +760,7 @@ export default function InventoryPanel() {
                   </td>
                   <td className="py-3">
                     <div className="flex flex-wrap gap-2">
+                      <button onClick={() => openEditModal(item)} className="rounded-lg border border-sky-300/40 bg-sky-400/10 px-3 py-2 text-xs font-semibold text-sky-200">{tx(lang, 'Düzəlt', 'Изменить', 'Edit')}</button>
                       <button onClick={() => setRestockModal({ id: item.id, name: item.name })} className="rounded-lg border border-emerald-300/40 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-200">{tx(lang, 'Mədaxil', 'Приход', 'Restock')}</button>
                       <button onClick={() => setLossModal({ id: item.id, name: item.name })} className="rounded-lg border border-amber-300/40 bg-amber-400/10 px-3 py-2 text-xs font-semibold text-amber-200">{tx(lang, 'Məxaric', 'Расход', 'Loss')}</button>
                       <button onClick={() => setDeleteModal({ id: item.id, name: item.name })} className="rounded-lg border border-red-300/40 bg-red-400/10 px-3 py-2 text-xs font-semibold text-red-200">{tx(lang, 'Sil', 'Удалить', 'Delete')}</button>

@@ -113,6 +113,14 @@ class InventoryItemCreateIn(BaseModel):
     invoice_no: str | None = None
 
 
+class InventoryItemUpdateIn(BaseModel):
+    name: str | None = None
+    unit: str | None = None
+    category: str | None = None
+    type: str | None = None
+    min_limit: Decimal | None = None
+
+
 class InventoryRestockIn(BaseModel):
     qty_added: Decimal
     total_price: Decimal

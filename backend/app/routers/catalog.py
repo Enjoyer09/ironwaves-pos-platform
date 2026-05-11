@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import AuditLog, InventoryItem, MenuItem, Recipe, Tenant, User
-from app.schemas import InventoryItemCreateIn, InventoryRestockIn, InventoryLossIn, MenuItemCreateIn, MenuItemUpdateIn, RecipeIngredientCreateIn
+from app.schemas import InventoryItemCreateIn, InventoryItemUpdateIn, InventoryRestockIn, InventoryLossIn, MenuItemCreateIn, MenuItemUpdateIn, RecipeIngredientCreateIn
 from app.services.finance_service import post_inventory_loss, post_inventory_restock
 
 
@@ -570,6 +570,91 @@ def create_inventory_item(
         db.commit()
         db.refresh(row)
 
+    return {
+        "id": row.id,
+        "tenant_id": row.tenant_id,
+        "name": row.name,
+        "unit": row.unit,
+        "category": row.category,
+        "type": row.category,
+        "stock_qty": str(row.stock_qty),
+        "unit_cost": str(row.unit_cost),
+        "min_limit": str(row.min_limit),
+    }
+
+
+@router.put("/inventory/{item_id}", response_model=InventoryItemOut)
+def update_inventory_item(
+    item_id: str,
+    payload: InventoryItemUpdateIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_catalog_write_access(user)
+    row = db.query(InventoryItem).filter(InventoryItem.id == item_id, InventoryItem.tenant_id == tenant.id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Inventory item not found")
+
+    before = {
+        "name": row.name,
+        "unit": row.unit,
+        "category": row.category,
+        "min_limit": str(row.min_limit),
+    }
+
+    if payload.name is not None:
+        name = str(payload.name or "").strip()
+        if len(name) < 2:
+            raise HTTPException(status_code=400, detail="Inventory item name is required")
+        duplicate = (
+            db.query(InventoryItem)
+            .filter(
+                InventoryItem.tenant_id == tenant.id,
+                InventoryItem.id != item_id,
+                func.lower(InventoryItem.name) == name.lower(),
+            )
+            .first()
+        )
+        if duplicate:
+            raise HTTPException(status_code=400, detail="Inventory item with this name already exists")
+        row.name = name
+
+    if payload.unit is not None:
+        unit = str(payload.unit or "").strip()
+        if not unit:
+            raise HTTPException(status_code=400, detail="Inventory unit is required")
+        row.unit = unit
+
+    if payload.category is not None or payload.type is not None:
+        category = payload.category if payload.category is not None else payload.type
+        row.category = str(category or "").strip() or None
+
+    if payload.min_limit is not None:
+        min_limit = Decimal(str(payload.min_limit)).quantize(Decimal("0.001"))
+        if min_limit < 0:
+            raise HTTPException(status_code=400, detail="Min limit cannot be negative")
+        row.min_limit = min_limit
+
+    after = {
+        "name": row.name,
+        "unit": row.unit,
+        "category": row.category,
+        "min_limit": str(row.min_limit),
+    }
+    _log_inventory_audit(
+        db,
+        tenant.id,
+        user.username,
+        "INVENTORY_EDIT",
+        {
+            "item_name": row.name,
+            "before": before,
+            "after": after,
+        },
+    )
+    db.commit()
+    db.refresh(row)
     return {
         "id": row.id,
         "tenant_id": row.tenant_id,
