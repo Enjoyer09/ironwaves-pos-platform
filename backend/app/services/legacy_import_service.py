@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 import json
+import re
 import secrets
+import unicodedata
 
 from sqlalchemy.orm import Session
 
@@ -296,7 +298,7 @@ def restore_sales_rows(
         items = row.get("items_json")
         if items is None:
             items = row.get("items") or []
-        items_json = items if isinstance(items, str) else json.dumps(items, ensure_ascii=False)
+        items_json = _normalize_sale_items_json(items)
         cashier = str(row.get("cashier") or default_cashier or "staff").strip()
         db.add(
             Sale(
@@ -320,6 +322,43 @@ def restore_sales_rows(
         )
         restored_count += 1
     return restored_count
+
+
+def _normalize_sale_items_json(raw_items) -> str:
+    if raw_items in (None, ""):
+        return "[]"
+    if isinstance(raw_items, list):
+        return json.dumps(raw_items, ensure_ascii=False)
+    if isinstance(raw_items, dict):
+        return json.dumps([raw_items], ensure_ascii=False)
+    if isinstance(raw_items, str):
+        text = raw_items.strip()
+        if not text:
+            return "[]"
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, list):
+                return json.dumps(parsed, ensure_ascii=False)
+            if isinstance(parsed, dict):
+                return json.dumps([parsed], ensure_ascii=False)
+            return json.dumps([{"name": str(parsed)}], ensure_ascii=False)
+        except Exception:
+            # Legacy backup-larda items çox vaxt "Americano, Su" kimi plain text olur
+            # və model isə JSON list gözləyir.
+            parts = [part.strip() for part in text.split(",") if part and part.strip()]
+            payload = [{"name": part, "qty": 1} for part in parts] if parts else [{"name": text, "qty": 1}]
+            return json.dumps(payload, ensure_ascii=False)
+    return json.dumps([{"name": str(raw_items), "qty": 1}], ensure_ascii=False)
+
+
+def _normalize_name_for_match(value: str | None) -> str:
+    text = str(value or "").strip().lower()
+    if not text:
+        return ""
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def restore_kitchen_order_rows(
@@ -536,7 +575,7 @@ def verify_restore_dependencies(
     menu_model = verification_models.get("menu_items") or verification_models.get("menu")
     if recipe_model is not None and menu_model is not None and ({"recipes", "menu_items", "menu"} & restored):
         menu_names = {
-            str(row[0]).strip().lower()
+            _normalize_name_for_match(row[0])
             for row in db.query(menu_model.item_name).filter(menu_model.tenant_id == tenant_id).all()
             if row and row[0]
         }
@@ -548,7 +587,7 @@ def verify_restore_dependencies(
         missing_count = 0
         samples: list[str] = []
         for row_id, menu_item_name in recipe_rows:
-            key = str(menu_item_name or "").strip().lower()
+            key = _normalize_name_for_match(menu_item_name)
             if not key or key in menu_names:
                 continue
             missing_count += 1
@@ -561,8 +600,10 @@ def verify_restore_dependencies(
         if samples:
             dependency_report["recipes.menu_item_name -> menu_items.item_name"]["sample_recipe_ids"] = samples
         if missing_count:
-            success = False
-            warnings.append(f"Resept cədvəlində {missing_count} ədəd `menu_item_name` menyuda tapılmadı.")
+            warnings.append(
+                f"Resept cədvəlində {missing_count} ədəd `menu_item_name` menyuda tapılmadı "
+                "(ad dəyişiklikləri/silinmiş məhsullar ola bilər)."
+            )
 
     customer_model = verification_models.get("customers")
     if sales_model is not None and customer_model is not None and ({"sales", "customers"} & restored):
