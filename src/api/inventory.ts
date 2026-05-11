@@ -308,6 +308,41 @@ export async function restock_item_live(
   }
 }
 
+export async function update_inventory_item_live(
+  tenant_id: string,
+  item_id: string,
+  updates: {
+    name?: string;
+    unit?: string;
+    category?: string;
+    type?: string;
+    min_limit?: Decimal;
+  },
+  user: string = 'system',
+) {
+  const payload = {
+    ...updates,
+    min_limit: updates.min_limit !== undefined ? new Decimal(updates.min_limit).toFixed(3) : undefined,
+  };
+  if (!isBackendEnabled()) {
+    return update_inventory_item(item_id, payload as Partial<InventoryItem>, user);
+  }
+  try {
+    const updated = await apiRequest<any>(`/api/v1/catalog/inventory/${encodeURIComponent(item_id)}`, {
+      method: 'PUT',
+      tenantId: null,
+      body: payload,
+    });
+    const inventoryItems = getInventory(tenant_id).filter((row) => String(row.id) !== String(updated?.id));
+    saveInventory(tenant_id, [...inventoryItems, { ...updated, tenant_id: updated?.tenant_id || tenant_id }]);
+    emitInventoryUpdated(tenant_id, { action: 'edit', item_id: updated?.id || item_id });
+    return updated;
+  } catch (error: any) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Inventory backend edit failed: ${message}`);
+  }
+}
+
 export async function record_loss_live(item_id: string, qty_removed: Decimal, reason: string, recorded_by: string) {
   if (!isBackendEnabled()) {
     return record_loss(item_id, qty_removed, reason, recorded_by);
