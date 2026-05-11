@@ -581,9 +581,10 @@ export default function InventoryPanel() {
               <ChevronRight size={16} />
             </button>
             <select value={itemsPageSize} onChange={(e) => setItemsPageSize(Number(e.target.value))} className="neon-input min-h-12 w-28">
-              <option value={5}>5</option>
               <option value={10}>10</option>
               <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
             </select>
           </div>
         </div>

@@ -454,6 +454,14 @@ DATABASE_TABLE_ALIASES = {
     "logs": ["system_logs"],
 }
 
+DATABASE_CANONICAL_RESTORE_TABLES = {
+    "menu": "menu_items",
+    "ingredients": "inventory",
+    "recipe": "recipes",
+    "system_logs": "logs",
+    "expenses": "finance",
+}
+
 DATABASE_SUPPORTED_TABLES = [
     "users",
     "menu_items",
@@ -473,6 +481,12 @@ DATABASE_SUPPORTED_TABLES = [
     "notifications",
     "business_profile",
     "logs",
+]
+
+DATABASE_RESTORE_TABLES = [
+    table
+    for table in DATABASE_SUPPORTED_TABLES
+    if DATABASE_CANONICAL_RESTORE_TABLES.get(table, table) == table
 ]
 
 _restore_guard_lock = threading.Lock()
@@ -589,6 +603,26 @@ def _resolve_restore_rows(payload: dict, table: str) -> tuple[list, str] | tuple
         if isinstance(alias_rows, list):
             return alias_rows, alias
     return None, None
+
+
+def _canonical_restore_table(table: str) -> str:
+    return DATABASE_CANONICAL_RESTORE_TABLES.get(str(table or "").strip(), str(table or "").strip())
+
+
+def _normalize_restore_tables(selected_tables: list[str] | None) -> tuple[set[str], list[str]]:
+    raw_tables = selected_tables or DATABASE_SUPPORTED_TABLES
+    selected: set[str] = set()
+    unsupported: list[str] = []
+    for raw_table in raw_tables:
+        table = str(raw_table or "").strip()
+        if not table:
+            continue
+        canonical = _canonical_restore_table(table)
+        if table not in DATABASE_SUPPORTED_TABLES and canonical not in DATABASE_SUPPORTED_TABLES:
+            unsupported.append(table)
+            continue
+        selected.add(canonical)
+    return selected, sorted(set(unsupported))
 
 
 def _extract_settings_rows(payload: dict, tenant_id: str) -> list[dict]:
@@ -1474,7 +1508,7 @@ def database_restore_preview(
     warnings: list[str] = []
     if data.get("_tenant_id") and str(data.get("_tenant_id")) != str(tenant.id):
         warnings.append("Backup fərqli tenant üçün yaradılıb.")
-    for table in DATABASE_SUPPORTED_TABLES:
+    for table in DATABASE_RESTORE_TABLES:
         rows, source = _resolve_restore_rows(data, table)
         if rows is None:
             continue
@@ -1483,6 +1517,7 @@ def database_restore_preview(
         if source != table:
             warnings.append(f"'{table}' bölməsi '{source}' aliasından bərpa olunacaq.")
     known_aliases = {alias for aliases in DATABASE_TABLE_ALIASES.values() for alias in aliases}
+    known_aliases.update(DATABASE_CANONICAL_RESTORE_TABLES.keys())
     unsupported = [
         key
         for key, value in data.items()
@@ -1554,8 +1589,8 @@ def database_restore(
         raise HTTPException(status_code=409, detail="Bu tenant üçün hazırda bərpa prosesi artıq gedir. Zəhmət olmasa tamamlanmasını gözləyin.")
     restore_run_id = secrets.token_hex(8)
     started_at = time.perf_counter()
-    selected = set(payload.selected_tables or DATABASE_SUPPORTED_TABLES)
-    total_tables = len([table for table in DATABASE_SUPPORTED_TABLES if table in selected])
+    selected, unsupported_selected = _normalize_restore_tables(payload.selected_tables)
+    total_tables = len([table for table in DATABASE_RESTORE_TABLES if table in selected])
     _set_restore_status(
         tenant.id,
         {
@@ -1572,7 +1607,6 @@ def database_restore(
         },
     )
     try:
-        unsupported_selected = sorted(selected.difference(DATABASE_SUPPORTED_TABLES))
         expected_counts: dict[str, int] = {}
         processed_tables = 0
         report = {
@@ -1648,7 +1682,7 @@ def database_restore(
             restore_kitchen_orders="kitchen_orders",
         )
 
-        for table in DATABASE_SUPPORTED_TABLES:
+        for table in DATABASE_RESTORE_TABLES:
             if table not in selected:
                 continue
             rows, source = _resolve_restore_rows(data, table)
@@ -1835,6 +1869,10 @@ def database_restore(
                 "required_fields": ["label", "status"],
                 "nonnegative_fields": ["capacity", "guest_count", "deposit_amount", "total"],
                 "json_fields": {"items_json": "list"},
+            },
+            "inventory": {
+                "required_fields": ["name", "unit"],
+                "nonnegative_fields": ["unit_cost", "min_limit"],
             },
             "customers": {
                 "required_fields": ["card_id", "secret_token", "type"],
