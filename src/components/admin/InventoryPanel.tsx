@@ -141,6 +141,23 @@ export default function InventoryPanel() {
     return qty.toDecimalPlaces(3).toString();
   };
 
+  const normalizeDecimalInput = (value: string) => String(value || '').trim().replace(',', '.');
+  const parseDecimalInput = (value: string, fallback = '0') => new Decimal(normalizeDecimalInput(value) || fallback);
+  const isPositiveDecimalInput = (value: string) => {
+    try {
+      return parseDecimalInput(value).gt(0);
+    } catch {
+      return false;
+    }
+  };
+  const isNonNegativeDecimalInput = (value: string) => {
+    try {
+      return parseDecimalInput(value).gte(0);
+    } catch {
+      return false;
+    }
+  };
+
   const inventoryTypeOptions = useMemo(
     () => Array.from(
       new Set(
@@ -151,15 +168,15 @@ export default function InventoryPanel() {
   );
 
   const handleAdd = async () => {
-    if (!newName || !newQty || !newCost || Number(newQty) <= 0 || Number(newCost) < 0) return;
+    if (!newName || !newQty || !newCost || !isPositiveDecimalInput(newQty) || !isNonNegativeDecimalInput(newCost)) return;
     const resolvedType = newType === '__custom__' ? customType.trim() : newType.trim();
     if (!resolvedType) {
       notify('error', tx(lang, 'Kateqoriya boş ola bilməz', 'Категория не может быть пустой', 'Category cannot be empty'));
       return;
     }
     try {
-      const qty = new Decimal(newQty);
-      const totalPrice = new Decimal(newCost);
+      const qty = parseDecimalInput(newQty);
+      const totalPrice = parseDecimalInput(newCost);
       await add_inventory_item_live({
         tenant_id,
         name: newName,
@@ -168,7 +185,7 @@ export default function InventoryPanel() {
         category: measureType,
         type: resolvedType,
         unit_cost: qty.gt(0) ? totalPrice.div(qty).toDecimalPlaces(4) : new Decimal(0),
-        min_limit: new Decimal(newMinLimit || 0),
+        min_limit: parseDecimalInput(newMinLimit),
         payment_source: newPaymentSource,
         supplier: newSupplier.trim() || undefined,
         invoice_no: newInvoiceNo.trim() || undefined,
@@ -191,10 +208,10 @@ export default function InventoryPanel() {
   };
 
   const handleLoss = async (id: string, name: string, qtyRaw: string) => {
-    const qty = parseFloat(qtyRaw || '0');
-    if (!qty || qty <= 0) return;
+    const qty = parseDecimalInput(qtyRaw);
+    if (qty.lte(0)) return;
     try {
-      await record_loss_live(id, new Decimal(qty), 'Zay oldu', user?.username || 'Admin');
+      await record_loss_live(id, qty, 'Zay oldu', user?.username || 'Admin');
       notify('success', tx(lang, 'İtki maliyyəyə yazıldı və anbardan silindi!', 'Списание записано в финансы и удалено со склада!'));
       await loadData();
     } catch(e:any) {
@@ -203,8 +220,8 @@ export default function InventoryPanel() {
   };
 
   const handleRestock = async (id: string) => {
-    const qty = new Decimal(restockQty || 0);
-    const totalPrice = new Decimal(restockTotalPrice || 0);
+    const qty = parseDecimalInput(restockQty);
+    const totalPrice = parseDecimalInput(restockTotalPrice);
     if (qty.lte(0) || totalPrice.lt(0)) return;
     try {
       await restock_item_live(tenant_id, id, qty, totalPrice, user?.username || 'Admin', {
@@ -354,7 +371,7 @@ export default function InventoryPanel() {
           <div className="metal-panel w-full max-w-md p-5">
             <h3 className="mb-2 text-lg font-bold text-slate-100">{tx(lang, 'Zay/İtki Yaz', 'Списание потерь')}</h3>
             <p className="mb-3 text-sm text-slate-300">{lossModal.name}</p>
-            <input className="neon-input" type="number" min={0} placeholder={tx(lang, 'Miqdar', 'Количество')} value={lossQty} onChange={(e) => setLossQty(e.target.value)} />
+            <input className="neon-input" type="text" inputMode="decimal" placeholder={tx(lang, 'Miqdar (məs: 0.2)', 'Количество (напр.: 0.2)')} value={lossQty} onChange={(e) => setLossQty(e.target.value)} />
             <div className="mt-4 flex gap-2">
               <button
                 className="glossy-gold rounded-lg px-4 py-2 font-semibold"
@@ -380,8 +397,8 @@ export default function InventoryPanel() {
             <h3 className="mb-2 text-lg font-bold text-slate-100">{tx(lang, 'Mədaxil et', 'Пополнить')}</h3>
             <p className="mb-3 text-sm text-slate-300">{restockModal.name}</p>
             <div className="grid grid-cols-2 gap-2">
-              <input className="neon-input" type="number" min={0} placeholder={tx(lang, 'Miqdar', 'Количество')} value={restockQty} onChange={(e) => setRestockQty(e.target.value)} />
-              <input className="neon-input" type="number" min={0} placeholder={tx(lang, 'Toplam qiymət', 'Общая цена')} value={restockTotalPrice} onChange={(e) => setRestockTotalPrice(e.target.value)} />
+              <input className="neon-input" type="text" inputMode="decimal" placeholder={tx(lang, 'Miqdar (məs: 0.2)', 'Количество (напр.: 0.2)')} value={restockQty} onChange={(e) => setRestockQty(e.target.value)} />
+              <input className="neon-input" type="text" inputMode="decimal" placeholder={tx(lang, 'Toplam qiymət', 'Общая цена')} value={restockTotalPrice} onChange={(e) => setRestockTotalPrice(e.target.value)} />
               <select className="neon-input" value={restockPaymentSource} onChange={(e) => setRestockPaymentSource(e.target.value as any)}>
                 <option value="payable">{tx(lang, 'Öhdəlik (AP)', 'Кредиторка (AP)', 'Payable (AP)')}</option>
                 <option value="cash">{tx(lang, 'Nağd', 'Наличные', 'Cash')}</option>
@@ -527,25 +544,25 @@ export default function InventoryPanel() {
             <option value="say">{tx(lang, 'Say', 'Штуки', 'Count')}</option>
             <option value="həcm">{tx(lang, 'Həcm', 'Объем', 'Volume')}</option>
           </select>
-          <input className="neon-input min-h-13" type="number" placeholder={tx(lang, 'Miqdar', 'Количество', 'Quantity')} value={newQty} onChange={e => setNewQty(e.target.value)} />
+          <input className="neon-input min-h-13" type="text" inputMode="decimal" placeholder={tx(lang, 'Miqdar (məs: 1.2)', 'Количество (напр.: 1.2)', 'Quantity (e.g. 1.2)')} value={newQty} onChange={e => setNewQty(e.target.value)} />
           <select className="neon-input min-h-13" value={newUnit} onChange={e => setNewUnit(e.target.value)}>
             {(inventoryConfig.unit_options || []).map((u) => (
               <option key={u} value={u}>{u}</option>
             ))}
           </select>
-          <input className="neon-input min-h-13" type="number" placeholder={tx(lang, 'Toplam alış qiyməti (₼)', 'Общая закупочная цена (₼)', 'Total purchase price (₼)')} value={newCost} onChange={e => setNewCost(e.target.value)} />
+          <input className="neon-input min-h-13" type="text" inputMode="decimal" placeholder={tx(lang, 'Toplam alış qiyməti (₼)', 'Общая закупочная цена (₼)', 'Total purchase price (₼)')} value={newCost} onChange={e => setNewCost(e.target.value)} />
           <select className="neon-input min-h-13" value={newPaymentSource} onChange={(e) => setNewPaymentSource(e.target.value as any)}>
             <option value="payable">{tx(lang, 'Öhdəlik (AP)', 'Кредиторка (AP)', 'Payable (AP)')}</option>
             <option value="cash">{tx(lang, 'Nağd', 'Наличные', 'Cash')}</option>
             <option value="card">{tx(lang, 'Kart', 'Карта', 'Card')}</option>
             <option value="safe">{tx(lang, 'Seyf', 'Сейф', 'Safe')}</option>
           </select>
-          <input className="neon-input min-h-13" type="number" placeholder={tx(lang, 'Min limit', 'Мин. лимит', 'Min limit')} value={newMinLimit} onChange={e => setNewMinLimit(e.target.value)} />
+          <input className="neon-input min-h-13" type="text" inputMode="decimal" placeholder={tx(lang, 'Min limit', 'Мин. лимит', 'Min limit')} value={newMinLimit} onChange={e => setNewMinLimit(e.target.value)} />
           <input className="neon-input min-h-13" placeholder={tx(lang, 'Təchizatçı (opsional)', 'Поставщик (опц.)', 'Supplier (optional)')} value={newSupplier} onChange={e => setNewSupplier(e.target.value)} />
           <input className="neon-input min-h-13" placeholder={tx(lang, 'Invoice № (opsional)', 'Invoice № (опц.)', 'Invoice № (optional)')} value={newInvoiceNo} onChange={e => setNewInvoiceNo(e.target.value)} />
           <button
             onClick={() => { void handleAdd(); }}
-            disabled={!newName.trim() || Number(newQty || 0) <= 0 || Number(newCost || -1) < 0}
+            disabled={!newName.trim() || !isPositiveDecimalInput(newQty) || !isNonNegativeDecimalInput(newCost)}
             className="glossy-gold disabled:opacity-60 disabled:cursor-not-allowed min-h-13 px-4 py-3 rounded-lg font-semibold"
           >
             {tx(lang, 'Əlavə Et', 'Добавить', 'Add')}
