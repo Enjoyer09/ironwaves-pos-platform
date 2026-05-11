@@ -95,7 +95,16 @@ export default function DatabasePanel() {
 
   const normalizeRestoreSelection = (selected: string[], available: string[]) => {
     const availableSet = new Set(available);
-    const selectedAvailable = selected.filter((table) => availableSet.has(table));
+    const canonicalTable = (table: string) => ({
+      menu: 'menu_items',
+      ingredients: 'inventory',
+      recipe: 'recipes',
+      system_logs: 'logs',
+      expenses: 'finance',
+    } as Record<string, string>)[table] || table;
+    const selectedAvailable = Array.from(
+      new Set(selected.map(canonicalTable).filter((table) => availableSet.has(table))),
+    );
     const selectedSet = new Set(selectedAvailable);
     return selectedAvailable.filter((table) => {
       // Bu cütlər eyni backend modelinə yazılır. İkisini də göndərmək
