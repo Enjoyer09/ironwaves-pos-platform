@@ -182,7 +182,7 @@ export default function InventoryPanel() {
         name: newName,
         stock_qty: qty,
         unit: newUnit,
-        category: measureType,
+        category: resolvedType,
         type: resolvedType,
         unit_cost: qty.gt(0) ? totalPrice.div(qty).toDecimalPlaces(4) : new Decimal(0),
         min_limit: parseDecimalInput(newMinLimit),
