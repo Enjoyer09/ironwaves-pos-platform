@@ -9,7 +9,7 @@ backend_dir = os.path.abspath(os.path.join(current_dir, '..'))
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
-from app.database import SessionLocal
+from app.db import SessionLocal
 from app.models import Shift, Sale
 
 def get_item_breakdown(db, tenant_id, opened_at, closed_at):
