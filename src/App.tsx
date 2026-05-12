@@ -106,6 +106,43 @@ const DEMO_MODULE_GUIDE_AZ: Record<ModuleKey, string> = {
   database: 'Backup/restore və texniki baza əməliyyatları bu bölmədə icra edilir.',
 };
 
+const LAZY_FALLBACK_RECOVERY_KEY = 'ui_lazy_fallback_recovery_once';
+
+function LazyModuleFallback({ lang }: { lang: 'az' | 'ru' | 'en' }) {
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          if (sessionStorage.getItem(LAZY_FALLBACK_RECOVERY_KEY) === 'done') return;
+          sessionStorage.setItem(LAZY_FALLBACK_RECOVERY_KEY, 'done');
+          if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map((registration) => registration.unregister()));
+          }
+          if ('caches' in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((key) => caches.delete(key)));
+          }
+          const url = new URL(window.location.href);
+          url.searchParams.set('_app_reset', String(Date.now()));
+          window.location.replace(url.toString());
+        } catch {
+          window.location.reload();
+        }
+      })();
+    }, 10_000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className="metal-app flex min-h-screen items-center justify-center text-slate-300">
+      <div className="metal-panel rounded-xl px-6 py-4 text-sm">
+        {tx(lang, 'Bölmə yüklənir...', 'Раздел загружается...', 'Loading section...')}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const user = useAppStore((state) => state.user);
   const access_token = useAppStore((state) => state.access_token);
@@ -129,13 +166,7 @@ export default function App() {
     }
   }, []);
   const t = i18n[safeLang];
-  const lazyModuleFallback = (
-    <div className="metal-app flex min-h-screen items-center justify-center text-slate-300">
-      <div className="metal-panel rounded-xl px-6 py-4 text-sm">
-        {tx(safeLang, 'Bölmə yüklənir...', 'Раздел загружается...', 'Loading section...')}
-      </div>
-    </div>
-  );
+  const lazyModuleFallback = <LazyModuleFallback lang={safeLang} />;
   const hasValidUser = Boolean(
     user &&
     typeof user.username === 'string' &&
