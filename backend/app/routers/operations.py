@@ -111,6 +111,15 @@ def _normalize_image_url(value: str | None) -> str:
     return normalized
 
 
+def _public_image_url(value: str | None) -> str:
+    normalized = str(value or "").strip()
+    if not normalized or normalized.startswith("data:"):
+        return ""
+    if len(normalized) > MAX_IMAGE_URL_LENGTH:
+        return ""
+    return normalized
+
+
 def _normalize_screenshot_items(items) -> list[dict]:
     rows = []
     for item in list(items or []):
@@ -2870,7 +2879,7 @@ def get_public_branding(
         "tenant_id": resolved_tenant.id,
         "company_name": row.company_name,
         "website": row.website or f"https://{resolved_tenant.domain}",
-        "logo_url": row.logo_url or "",
+        "logo_url": _public_image_url(row.logo_url),
         "receipt_footer": row.receipt_footer or "",
         "google_review_url": google_review_url,
     }
@@ -2905,7 +2914,7 @@ def get_customer_app_bootstrap(
         "branding": {
             "company_name": branding.company_name if branding else tenant.name,
             "website": (branding.website if branding else f"https://{tenant.domain}") or f"https://{tenant.domain}",
-            "logo_url": (branding.logo_url if branding else "") or "",
+            "logo_url": _public_image_url(branding.logo_url if branding else ""),
             "app_name": str(app_settings.get("app_name") or "Loyalty Club"),
             "hero_title": str(app_settings.get("hero_title") or "Xoş gəldiniz"),
             "hero_subtitle": str(app_settings.get("hero_subtitle") or "QR-ni skan et və reward dünyasına qoşul."),
@@ -2964,7 +2973,7 @@ def get_public_menu_bootstrap(
         "enabled": bool(qr_menu_settings.get("enabled", True)),
         "branding": {
             "company_name": branding.company_name if branding else tenant.name,
-            "logo_url": (branding.logo_url if branding else "") or "",
+            "logo_url": _public_image_url(branding.logo_url if branding else ""),
             "hero_title": str(qr_menu_settings.get("hero_title") or "QR Menu"),
             "hero_subtitle": str(qr_menu_settings.get("hero_subtitle") or "Telefonunuzdan menyuya baxın"),
             "poster_title": str(qr_menu_settings.get("poster_title") or "Menyuya baxmaq üçün skan et"),
@@ -2972,8 +2981,8 @@ def get_public_menu_bootstrap(
             "background_color": str(qr_menu_settings.get("background_color") or "#efe2c1"),
             "surface_color": str(qr_menu_settings.get("surface_color") or "#fff7e8"),
             "text_color": str(qr_menu_settings.get("text_color") or "#2b1708"),
-            "hero_image_url": str(qr_menu_settings.get("hero_image_url") or ""),
-            "poster_image_url": str(qr_menu_settings.get("poster_image_url") or ""),
+            "hero_image_url": _public_image_url(qr_menu_settings.get("hero_image_url")),
+            "poster_image_url": _public_image_url(qr_menu_settings.get("poster_image_url")),
             "poster_background_color": str(qr_menu_settings.get("poster_background_color") or "#d59b2d"),
             "logo_shape": str(qr_menu_settings.get("logo_shape") or "rounded"),
             "primary_color": str(app_settings.get("primary_color") or "#facc15"),
@@ -3136,13 +3145,13 @@ def get_customer_app_session(
         "branding": {
             "company_name": branding.company_name if branding else tenant.name,
             "website": (branding.website if branding else f"https://{tenant.domain}") or f"https://{tenant.domain}",
-            "logo_url": (branding.logo_url if branding else "") or "",
+            "logo_url": _public_image_url(branding.logo_url if branding else ""),
             "receipt_footer": (branding.receipt_footer if branding else "") or "",
             "app_name": str(app_settings.get("app_name") or "Loyalty Club"),
             "hero_title": str(app_settings.get("hero_title") or "Xoş gəldiniz"),
             "hero_subtitle": str(app_settings.get("hero_subtitle") or ""),
-            "hero_image_url": str(app_settings.get("hero_image_url") or ""),
-            "background_image_url": str(app_settings.get("background_image_url") or ""),
+            "hero_image_url": _public_image_url(app_settings.get("hero_image_url")),
+            "background_image_url": _public_image_url(app_settings.get("background_image_url")),
             "background_color": str(app_settings.get("background_color") or "#0b1220"),
             "primary_color": str(app_settings.get("primary_color") or "#facc15"),
             "accent_color": str(app_settings.get("accent_color") or "#22d3ee"),
