@@ -521,14 +521,17 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     const handleTableOrderSent = async (event: Event) => {
       const detail = (event as CustomEvent<{ tenant_id?: string; table_id?: string }>).detail;
       if (!detail?.tenant_id || detail.tenant_id !== tenant_id) return;
-      await loadData();
+      await Promise.all([
+        loadData(),
+        activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(),
+      ]);
       if (detail.table_id) setViewTableId(detail.table_id);
     };
     window.addEventListener('table-order-sent', handleTableOrderSent as EventListener);
     return () => {
       window.removeEventListener('table-order-sent', handleTableOrderSent as EventListener);
     };
-  }, [tenant_id]);
+  }, [tenant_id, activeFloorId]);
 
   useEffect(() => {
     clearRoundComposer();
@@ -900,6 +903,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const refreshActiveTableDetail = async (tableId: string) => {
     await Promise.all([
       loadData(),
+      activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(),
       get_table_detail_live(tenant_id, tableId).then((next) => setTableDetailRecord(next)).catch(() => {}),
     ]);
   };
@@ -1044,7 +1048,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     });
     notify('success', tx(lang, 'Yeni raund mətbəxə göndərildi', 'Новый раунд отправлен на кухню', 'New round sent to kitchen'));
     clearRoundComposer();
-    await Promise.all([loadData(), get_table_detail_live(tenant_id, table.id).then((next) => setTableDetailRecord(next)).catch(() => {})]);
+    await refreshActiveTableDetail(table.id);
   };
 
   const handleAddTable = async () => {
@@ -1083,7 +1087,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       setOpenTableId(null);
       setGuestCount('1');
       setDepositGuestCount('0');
-      await loadData();
+      await refreshActiveTableDetail(currentTableId);
       setViewTableId(currentTableId);
     } catch (e: any) {
       notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message);
@@ -1614,7 +1618,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     setRevisionTarget(null);
                     setRevisionReason('');
                     setRevisionOverridePassword('');
-                    await loadData();
+                    await Promise.all([
+                      loadData(),
+                      activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(),
+                    ]);
                   } catch (e: any) {
                     notify('error', e?.message || tx(lang, 'Düzəliş alınmadı', 'Изменение не выполneno', 'Revision failed'));
                   }
@@ -1963,7 +1970,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     setSplitCount('2');
                     setSplitParts([]);
                     setSplitCash('0');
-                    await loadData();
+                    await Promise.all([
+                      loadData(),
+                      activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(),
+                    ]);
                   } catch (e: any) {
                     notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message);
                   }
@@ -2252,7 +2262,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     setItemActionManagerPassword('');
                     notify('success', tx(lang, 'Item statusu yeniləndi', 'Статус позиции обновлен', 'Item status updated'));
                     if (viewTableId) {
-                      await Promise.all([loadData(), get_table_detail_live(tenant_id, viewTableId).then((next) => setTableDetailRecord(next)).catch(() => {})]);
+                      await refreshActiveTableDetail(viewTableId);
                     }
                   } catch (e: any) {
                     notify('error', e?.message || tx(lang, 'Item əməliyyatı alınmadı', 'Операция по позиции не выполнена', 'Item action failed'));
@@ -2493,7 +2503,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                               await unlock_table_live(t.id, lockReason || 'manager override');
                               notify('success', tx(lang, 'Masa lock-u açıldı', 'Блокировка стола снята', 'Table lock released'));
                               setLockReason('');
-                              await Promise.all([loadData(), get_table_detail_live(tenant_id, t.id).then((next) => setTableDetailRecord(next)).catch(() => {})]);
+                              await refreshActiveTableDetail(t.id);
                             } catch (e: any) {
                               notify('error', e?.message || tx(lang, 'Lock açılmadı', 'Блокировка не снята', 'Lock was not released'));
                             }
@@ -2514,7 +2524,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                               notify('success', tx(lang, 'Masa ötürüldü', 'Стол передан', 'Table transferred'));
                               setLockTransferTarget('');
                               setLockReason('');
-                              await Promise.all([loadData(), get_table_detail_live(tenant_id, t.id).then((next) => setTableDetailRecord(next)).catch(() => {})]);
+                              await refreshActiveTableDetail(t.id);
                             } catch (e: any) {
                               notify('error', e?.message || tx(lang, 'Masa ötürülmədi', 'Стол не передан', 'Table was not transferred'));
                             }
@@ -2868,7 +2878,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                                   notify('success', tx(lang, 'Masa köçürüldü', 'Стол перенесен', 'Table transferred'));
                                   setTransferTargetId('');
                                   setViewTableId(null);
-                                  await loadData();
+                                  await Promise.all([
+                                    loadData(),
+                                    activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(),
+                                  ]);
                                 } catch (e: any) {
                                   notify('error', e.message);
                                 }

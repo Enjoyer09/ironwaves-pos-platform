@@ -60,7 +60,12 @@ function TableGrid({
         const localTable = tablesById[String(table.id)] || null;
         const tableLockHolder = String((table as any).locked_by || localTable?.assigned_to || '').trim();
         const otherOwner = Boolean(localTable?.is_occupied && tableLockHolder && tableLockHolder !== currentUsername && !isManagerUser);
-        const status = String(table.status || 'AVAILABLE').toUpperCase();
+        const floorStatus = String(table.status || '').toUpperCase();
+        const hasLocalActiveCheck = Boolean(localTable?.is_occupied || new Decimal(localTable?.total || 0).greaterThan(0));
+        const status = hasLocalActiveCheck && (!floorStatus || floorStatus === 'AVAILABLE')
+          ? 'ACTIVE_CHECK'
+          : (floorStatus || 'AVAILABLE');
+        const displayedTotal = new Decimal(table.check_total || localTable?.total || 0);
         const statusTone: Record<string, string> = {
           AVAILABLE: 'border-emerald-300/35 bg-emerald-500/12',
           RESERVED: 'border-amber-300/35 bg-amber-500/12',
@@ -131,9 +136,9 @@ function TableGrid({
                   </span>
                 </div>
               </div>
-              {new Decimal(table.check_total || 0).greaterThan(0) ? (
+              {displayedTotal.greaterThan(0) ? (
                 <div className="rounded-xl bg-black/20 px-3 py-2 text-sm font-bold text-slate-100">
-                  {new Decimal(table.check_total || 0).toFixed(2)} ₼
+                  {displayedTotal.toFixed(2)} ₼
                 </div>
               ) : null}
             </div>
