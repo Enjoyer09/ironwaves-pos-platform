@@ -1,1 +1,24 @@
-if(!self.define){let s,e={};const l=(l,n)=>(l=new URL(l+".js",n).href,e[l]||new Promise(e=>{if("document"in self){const s=document.createElement("script");s.src=l,s.onload=e,document.head.appendChild(s)}else s=l,importScripts(l),e()}).then(()=>{let s=e[l];if(!s)throw new Error(`Module ${l} didn’t register its module`);return s}));self.define=(n,i)=>{const r=s||("document"in self?document.currentScript.src:"")||location.href;if(e[r])return;let a={};const u=s=>l(s,r),t={module:{uri:r},exports:a,require:u};e[r]=Promise.all(n.map(s=>t[s]||u(s))).then(s=>(i(...s),a))}}define(["./workbox-c3a76fe0"],function(s){"use strict";self.skipWaiting(),s.clientsClaim(),s.precacheAndRoute([{url:"registerSW.js",revision:"e4dde5bf2bfa1acbecfbbb24f51b0c2b"},{url:"index.html",revision:"ce6baf9ca0fd0fb5b71ea15fc0a39ea5"},{url:"assets/zip-DWnUAUAA.js",revision:null},{url:"assets/restaurant-UNoQKTkf.js",revision:null},{url:"assets/realtime-DZrBcRb_.js",revision:null},{url:"assets/react-CWlDXkhO.js",revision:null},{url:"assets/qr-Dyuq_T0S.js",revision:null},{url:"assets/menu-Djsrn6uc.js",revision:null},{url:"assets/local_print_agent-CsCs2ZOM.js",revision:null},{url:"assets/kds-CWqwX7TE.js",revision:null},{url:"assets/index-Cakg0A9l.css",revision:null},{url:"assets/index-BfEou9z2.js",revision:null},{url:"assets/icons-DTCrD5ob.js",revision:null},{url:"assets/i18n-CLD0j1sg.js",revision:null},{url:"assets/html_sanitize-CF_tGaSD.js",revision:null},{url:"assets/geist-sans-latin-700-normal-BmN9tIp5.woff2",revision:null},{url:"assets/geist-sans-latin-600-normal-DFOURf8L.woff2",revision:null},{url:"assets/geist-sans-latin-500-normal-uokXdC-Q.woff2",revision:null},{url:"assets/geist-sans-latin-400-normal-gapTbOY8.woff2",revision:null},{url:"assets/feedback-CmhM4Ghv.js",revision:null},{url:"assets/decimal-CNo3oIkL.js",revision:null},{url:"assets/crm-DAC9G7zS.js",revision:null},{url:"assets/charts-CLD0j1sg.js",revision:null},{url:"assets/browser-BcO_zNZy.js",revision:null},{url:"assets/ai_manager-B-0Zzkvu.js",revision:null},{url:"assets/ai_config-BcYJ6qXB.js",revision:null},{url:"assets/ZReportPanel-D1uYH6Ro.js",revision:null},{url:"assets/TenantsPanel-CPqjkBLL.js",revision:null},{url:"assets/TablesPage-BkIHYCYL.js",revision:null},{url:"assets/TablesHappyHourPanel-8nt5QH0b.js",revision:null},{url:"assets/SettingsPanel-cml3q2oW.js",revision:null},{url:"assets/RecipesPanel-B3hX0J5p.js",revision:null},{url:"assets/PublicReceipt-D-ZJvi0a.js",revision:null},{url:"assets/PublicMenu--rlCjeqt.js",revision:null},{url:"assets/PosBuilderPanel-Lnf6_TCg.js",revision:null},{url:"assets/POS-CbK2Ro-k.js",revision:null},{url:"assets/LogsPanel-CrPVXIGl.js",revision:null},{url:"assets/LandingPanel-bwfnN5tQ.js",revision:null},{url:"assets/LandingPage-Xua9emTb.js",revision:null},{url:"assets/KDS-vlmXGC24.js",revision:null},{url:"assets/JsBarcode-Cpp-jXMt.js",revision:null},{url:"assets/InventoryPanel-BH8YQQX5.js",revision:null},{url:"assets/FinancePanel-BP55DMmv.js",revision:null},{url:"assets/FeedbackPortal-_BQBb_Mq.js",revision:null},{url:"assets/FeedbackInboxPanel-BexCU0If.js",revision:null},{url:"assets/DatabasePanel-DCdZCq0M.js",revision:null},{url:"assets/DashboardPanel-8Vbly53q.js",revision:null},{url:"assets/CustomerAppPanel-DbkhBLkH.js",revision:null},{url:"assets/CustomerApp-l5rIg_wp.js",revision:null},{url:"assets/ConfirmModal-DDtsPdcS.js",revision:null},{url:"assets/CombosPanel-DEa3vG0B.js",revision:null},{url:"assets/CRMPanel-CxHPzTNw.js",revision:null},{url:"assets/AdminPanel-pYEt7lHJ.js",revision:null},{url:"assets/AIManagerPanel-Dj4g_h83.js",revision:null},{url:"manifest.webmanifest",revision:"87a25686a5358bc8d76ad58196907f7d"}],{}),s.cleanupOutdatedCaches(),s.registerRoute(new s.NavigationRoute(s.createHandlerBoundToURL("index.html"),{denylist:[/^\/api\//,/^\/downloads\//,/^\/health/]})),s.registerRoute(/\/api\//,new s.NetworkOnly,"GET"),s.registerRoute(/^https:\/\/fonts\.googleapis\.com\//,new s.StaleWhileRevalidate({cacheName:"iw-gfonts-css-v1",plugins:[new s.ExpirationPlugin({maxEntries:10,maxAgeSeconds:31536e3}),new s.CacheableResponsePlugin({statuses:[0,200]})]}),"GET"),s.registerRoute(/^https:\/\/fonts\.gstatic\.com\//,new s.CacheFirst({cacheName:"iw-gfonts-assets-v1",plugins:[new s.ExpirationPlugin({maxEntries:30,maxAgeSeconds:31536e3}),new s.CacheableResponsePlugin({statuses:[0,200]})]}),"GET")});
+
+self.addEventListener('install', (e) => {
+  self.skipWaiting();
+});
+self.addEventListener('activate', (e) => {
+  self.registration.unregister()
+    .then(() => self.clients.matchAll())
+    .then((clients) => {
+      clients.forEach((client) => {
+        if (client instanceof WindowClient)
+          client.navigate(client.url);
+      });
+      return Promise.resolve();
+    })
+    .then(() => {
+      self.caches.keys().then((cacheNames) => {
+        Promise.all(
+          cacheNames.map((cacheName) => {
+            return self.caches.delete(cacheName);
+          }),
+        );
+      })
+    });
+});

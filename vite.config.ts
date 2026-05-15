@@ -24,72 +24,13 @@ export default defineConfig(({ command }) => {
       react(),
       tailwindcss(),
 
-      // ── Progressive Web App / Service Worker ───────────────────────────────
-      // Caches the app shell (JS, CSS, HTML) so the app loads offline.
-      // API requests are always NetworkOnly — we never serve stale auth/data.
-      // The generated dist/sw.js replaces the retirement worker in public/sw.js.
+      // ── Service Worker retirement ─────────────────────────────────────────
+      // POS must never keep an old app-shell while live tables are changing.
+      // This deploy ships an unregistering SW and clears old Workbox caches.
       // ──────────────────────────────────────────────────────────────────────
       VitePWA({
-        registerType: "autoUpdate",
         injectRegister: "auto",
-
-        workbox: {
-          // Cache app-shell assets: JS bundles, CSS, HTML, fonts, small icons.
-          // Large media files (landing page images, downloads) are excluded —
-          // they are not part of the app shell and exceed the 2 MiB limit.
-          globPatterns: ["**/*.{js,css,html,woff2,svg,ico}"],
-          globIgnores: ["landing/**", "downloads/**"],
-
-          // For SPA navigation: serve index.html for any URL the SW controls
-          navigateFallback: "index.html",
-
-          // Do NOT intercept API calls, file downloads or health-check endpoints
-          navigateFallbackDenylist: [
-            /^\/api\//,
-            /^\/downloads\//,
-            /^\/health/,
-          ],
-
-          runtimeCaching: [
-            {
-              // Backend API — always go to the network, never cache
-              urlPattern: /\/api\//,
-              handler: "NetworkOnly",
-            },
-            {
-              // Google Fonts stylesheet — stale-while-revalidate, 1-year TTL
-              urlPattern: /^https:\/\/fonts\.googleapis\.com\//,
-              handler: "StaleWhileRevalidate",
-              options: {
-                cacheName: "iw-gfonts-css-v1",
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365,
-                },
-                cacheableResponse: { statuses: [0, 200] },
-              },
-            },
-            {
-              // Google Fonts binary assets — cache-first, 1-year TTL
-              urlPattern: /^https:\/\/fonts\.gstatic\.com\//,
-              handler: "CacheFirst",
-              options: {
-                cacheName: "iw-gfonts-assets-v1",
-                expiration: {
-                  maxEntries: 30,
-                  maxAgeSeconds: 60 * 60 * 24 * 365,
-                },
-                cacheableResponse: { statuses: [0, 200] },
-              },
-            },
-          ],
-
-          // Remove caches from previous SW versions on activation
-          cleanupOutdatedCaches: true,
-          // Activate new SW immediately — don't wait for old tabs to close
-          skipWaiting: true,
-          clientsClaim: true,
-        },
+        selfDestroying: true,
 
         manifest: {
           name: "iRonWaves POS",
