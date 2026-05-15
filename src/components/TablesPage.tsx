@@ -2551,6 +2551,26 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                      <div className="mt-0.5 text-sm font-bold text-slate-100">{new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼</div>
 	                    </div>
 	                  </div>
+                  {tableNeedsSafeCancel && (
+                    <div className="mt-3 rounded-2xl border border-rose-300/50 bg-rose-500/15 p-4 shadow-[0_0_28px_rgba(244,63,94,0.16)]">
+                      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                        <div>
+                          <div className="text-base font-black text-rose-50">{tx(lang, 'Boş masada məbləğ qalıb', 'На пустом столе осталась сумма', 'Empty table has a remaining total')}</div>
+                          <div className="mt-1 text-sm text-rose-100/85">
+                            {tx(lang, `${visibleCheckTotal.toFixed(2)} ₼ görünür, amma sifariş siyahısı boşdur. Kassaya səhv satış düşməsin deyə bu masanı satışsız ləğv edin.`, `Отображается ${visibleCheckTotal.toFixed(2)} ₼, но список заказа пуст. Отмените без продажи, чтобы не создать ошибочную кассу.`, `${visibleCheckTotal.toFixed(2)} ₼ is shown, but the order list is empty. Cancel without sale to avoid a wrong cash entry.`)}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-xl border border-rose-200/70 bg-rose-500/30 px-5 py-3 text-sm font-black text-white shadow-[0_0_22px_rgba(244,63,94,0.18)] disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={!isManagerUser || !userCanEditTable}
+                          onClick={() => { void handleCancelTableCheck(t.id, t.label); }}
+                        >
+                          {tx(lang, 'Satışsız ləğv et', 'Отменить без продажи', 'Cancel without sale')}
+                        </button>
+                      </div>
+                    </div>
+                  )}
 	                  <div className="mt-2 flex flex-wrap gap-2">
                     {tableLockHolder && (
 	                      <div className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${userCanEditTable ? 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100' : 'border-rose-300/30 bg-rose-500/10 text-rose-100'}`}>

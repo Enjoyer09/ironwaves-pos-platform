@@ -44,7 +44,17 @@ function setSecurityHeaders(res) {
 }
 
 function setCacheHeaders(filePath, res) {
+  const fileName = path.basename(filePath);
   if (filePath.endsWith('index.html')) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    return;
+  }
+  if (
+    fileName === 'sw.js' ||
+    fileName === 'registerSW.js' ||
+    fileName === 'manifest.webmanifest' ||
+    /^workbox-.*\.js$/i.test(fileName)
+  ) {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     return;
   }
