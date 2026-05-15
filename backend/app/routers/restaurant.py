@@ -2504,14 +2504,38 @@ def settle_check(
         active_check.id,
         legacy_items=legacy_items,
     )
+    legacy_total = sum(
+        (
+            Decimal(str(item.get("price") or 0)) * Decimal(str(item.get("qty") or 0))
+            for item in legacy_items
+        ),
+        Decimal("0.00"),
+    ).quantize(Decimal("0.01"))
+    check_total_snapshot = Decimal(str(active_check.total or 0)).quantize(Decimal("0.01"))
+    if check_total_snapshot > Decimal("0.00") and items_total <= Decimal("0.00") and legacy_total <= Decimal("0.00"):
+        db.add(
+            AuditLog(
+                tenant_id=tenant.id,
+                user=user.username,
+                action="CHECK_SETTLE_EMPTY_ITEMS_BLOCKED",
+                details=json.dumps(
+                    {
+                        "table_id": table.id,
+                        "table_label": table.label,
+                        "check_id": active_check.id,
+                        "check_total": str(check_total_snapshot),
+                        "items_total": str(items_total),
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
+        db.commit()
+        raise HTTPException(
+            status_code=409,
+            detail="Bu masada məbləğ görünür, amma hesabda bağlanacaq sifariş tapılmadı. Səhv satış yaratmamaq üçün masa yenilənməli və admin tərəfindən yoxlanmalıdır.",
+        )
     if used_order_items:
-        legacy_total = sum(
-            (
-                Decimal(str(item.get("price") or 0)) * Decimal(str(item.get("qty") or 0))
-                for item in legacy_items
-            ),
-            Decimal("0.00"),
-        ).quantize(Decimal("0.01"))
         if abs(legacy_total - items_total) > Decimal("0.01"):
             db.add(
                 AuditLog(
