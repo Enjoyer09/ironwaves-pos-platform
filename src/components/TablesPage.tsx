@@ -3059,6 +3059,16 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                   )}
                   <div className="mt-4 flex justify-end gap-2">
                     <button className="neon-btn rounded-lg px-4 py-2" onClick={() => setViewTableId(null)}>{tx(lang, 'Paneli gizlət', 'Скрыть панель', 'Hide panel')}</button>
+                    {tableNeedsSafeCancel && (
+                      <button
+                        type="button"
+                        className="inline-flex min-h-12 items-center justify-center rounded-xl border border-rose-200/70 bg-rose-500/25 px-5 py-3 text-sm font-black text-rose-50 shadow-[0_0_24px_rgba(244,63,94,0.18)] disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!isManagerUser || !userCanEditTable}
+                        onClick={() => { void handleCancelTableCheck(t.id, t.label); }}
+                      >
+                        {tx(lang, 'Satışsız ləğv et', 'Отменить без продажи', 'Cancel without sale')}
+                      </button>
+                    )}
                     {t.is_occupied && (
                       <button
                         className="glossy-gold min-h-12 rounded-xl px-5 py-3 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
