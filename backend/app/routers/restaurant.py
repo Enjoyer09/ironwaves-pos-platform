@@ -35,6 +35,7 @@ from app.schemas import (
     SettleCheckIn,
     SendDraftItemsIn,
     SendRoundIn,
+    TableCancelIn,
     TableCombineIn,
     TableLockTransferIn,
     TableLayoutUpdateIn,
@@ -1713,6 +1714,131 @@ def unlock_table(
     _emit_realtime(tenant.id, "table.updated", {"table_id": table.id, "action": "unlocked"})
     _emit_realtime(tenant.id, "floor.updated", {"table_id": table.id, "action": "unlocked"})
     return {"ok": True, "old_owner": previous_owner}
+
+
+@router.post("/tables/{table_id}/cancel-check")
+def cancel_table_check(
+    table_id: str,
+    payload: TableCancelIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    if not _is_manager(user):
+        raise HTTPException(status_code=403, detail="Manager/Admin required")
+    table = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    _ensure_table_write_access(table, user)
+    active_session, active_check = _ensure_active_session_and_check(db, tenant.id, table)
+    if not active_session:
+        table.is_occupied = False
+        table.guest_count = 0
+        table.deposit_guest_count = 0
+        table.deposit_amount = Decimal("0.00")
+        table.deposit_seats_json = "[]"
+        table.items_json = "[]"
+        table.total = Decimal("0.00")
+        table.status = "AVAILABLE"
+        _release_table_lock(table)
+        db.commit()
+        _emit_realtime(tenant.id, "floor.updated", {"table_id": table.id, "action": "cancelled"})
+        return {"ok": True, "table_id": table.id, "check_id": None}
+    if not active_check:
+        raise HTTPException(status_code=400, detail="Open check not found")
+
+    posted_payment_count = (
+        db.query(Payment)
+        .filter(Payment.tenant_id == tenant.id, Payment.check_id == active_check.id, Payment.status == "POSTED")
+        .count()
+    )
+    if posted_payment_count > 0:
+        raise HTTPException(status_code=409, detail="Bu check-də ödəniş var. Ödənişli check ləğv edilə bilməz.")
+
+    previous_check_total = Decimal(str(active_check.total or 0)).quantize(Decimal("0.01"))
+    previous_table_total = Decimal(str(table.total or 0)).quantize(Decimal("0.01"))
+    reason = str(payload.reason or "").strip() or "Admin cancelled open table check"
+    done_time = datetime.utcnow()
+    order_items = (
+        db.query(OrderItem)
+        .filter(OrderItem.tenant_id == tenant.id, OrderItem.check_id == active_check.id)
+        .all()
+    )
+    for item in order_items:
+        old_status = item.status
+        item.status = "VOIDED"
+        item.cancelled_at = item.cancelled_at or done_time
+        item.action_by = user.username
+        item.status_reason = reason
+        _log_item_status(
+            db,
+            tenant.id,
+            item,
+            old_status,
+            "VOIDED",
+            user.username,
+            reason,
+            action_type="CANCEL_CHECK",
+            quantity_before=item.qty,
+            quantity_after=0,
+            approved_by=user.username,
+            reason_code="CHECK_CANCELLED",
+            billing_effect="remove_from_bill",
+            kitchen_effect="cancel_check",
+            meta={"table_id": table.id, "check_id": active_check.id},
+        )
+    db.query(OrderRound).filter(OrderRound.tenant_id == tenant.id, OrderRound.check_id == active_check.id).update({"status": "CANCELLED"}, synchronize_session=False)
+    kitchen_rows = (
+        db.query(KitchenOrder)
+        .filter(KitchenOrder.tenant_id == tenant.id, KitchenOrder.table_label == table.label, KitchenOrder.status.in_(["NEW", "PREPARING", "READY"]))
+        .all()
+    )
+    for kitchen_row in kitchen_rows:
+        kitchen_row.status = "CANCELLED"
+        kitchen_row.completed_at = done_time
+
+    active_check.subtotal = Decimal("0.00")
+    active_check.service_charge = Decimal("0.00")
+    active_check.tax_amount = Decimal("0.00")
+    active_check.total = Decimal("0.00")
+    active_check.status = "CANCELLED"
+    active_check.closed_at = done_time
+    active_session.status = "CANCELLED"
+    active_session.closed_at = done_time
+    table.is_occupied = False
+    table.guest_count = 0
+    table.deposit_guest_count = 0
+    table.deposit_amount = Decimal("0.00")
+    table.deposit_seats_json = "[]"
+    table.items_json = "[]"
+    table.total = Decimal("0.00")
+    table.status = "AVAILABLE"
+    _release_table_lock(table)
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="TABLE_CHECK_CANCELLED",
+            details=json.dumps(
+                {
+                    "table_id": table.id,
+                    "table_label": table.label,
+                    "check_id": active_check.id,
+                    "reason": reason,
+                    "previous_check_total": str(previous_check_total),
+                    "previous_table_total": str(previous_table_total),
+                    "order_item_count": len(order_items),
+                    "kitchen_row_count": len(kitchen_rows),
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    db.commit()
+    _emit_realtime(tenant.id, "check.updated", {"table_id": table.id, "check_id": active_check.id, "action": "cancelled"})
+    _emit_realtime(tenant.id, "floor.updated", {"table_id": table.id, "action": "cancelled"})
+    _emit_realtime(tenant.id, "kitchen.updated", {"table_id": table.id, "action": "cancelled"})
+    return {"ok": True, "table_id": table.id, "check_id": active_check.id, "previous_total": str(previous_check_total)}
 
 
 @router.post("/tables/{table_id}/transfer-lock")

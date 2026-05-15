@@ -4,7 +4,7 @@ import { get_tables_live, create_table_live, delete_table_live, open_table_live,
 import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
 import { subscribeTenantRealtime } from '../api/realtime';
-import { act_on_order_item_live, add_check_draft_item_live, combine_tables_live, create_reservation_live, delete_draft_item_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_order_item_status_logs_live, get_reservations_live, get_table_detail_live, get_tables_bootstrap_live, seat_reservation_live, send_check_drafts_live, send_table_round_live, settle_table_check_live, split_table_group_live, transfer_table_lock_live, unlock_table_live, update_draft_item_live, update_reservation_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord, type TablesBootstrapRecord } from '../api/restaurant';
+import { act_on_order_item_live, add_check_draft_item_live, cancel_table_check_live, combine_tables_live, create_reservation_live, delete_draft_item_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_order_item_status_logs_live, get_reservations_live, get_table_detail_live, get_tables_bootstrap_live, seat_reservation_live, send_check_drafts_live, send_table_round_live, settle_table_check_live, split_table_group_live, transfer_table_lock_live, unlock_table_live, update_draft_item_live, update_reservation_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord, type TablesBootstrapRecord } from '../api/restaurant';
 import { LayoutGrid, Plus, CalendarClock, Users, MapPinned } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
@@ -1134,6 +1134,23 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       notify('success', tx(lang, 'Masa təmiz kimi qeyd olundu', 'Стол отмечен как чистый', 'Table marked as clean'));
     } catch (error: any) {
       notify('error', error?.message || tx(lang, 'Masa təmizlənmədi', 'Стол не очищен', 'Table was not cleaned'));
+    }
+  }, [activeFloorId, notify, lang]);
+
+  const handleCancelTableCheck = useCallback(async (tableId: string, label?: string) => {
+    const reason = window.prompt(tx(lang, 'Masanı satış yaratmadan ləğv etmə səbəbi', 'Причина отмены стола без продажи', 'Reason for cancelling the table without sale'), 'Səhv açılmış/boş masa') || '';
+    if (!reason.trim()) return;
+    const ok = window.confirm(tx(lang, `${label || 'Masa'} ləğv edilsin? Bu əməliyyat satış yaratmayacaq və kassaya məbləğ düşməyəcək.`, `${label || 'Стол'} отменить? Продажа не будет создана и сумма не попадет в кассу.`, `Cancel ${label || 'table'}? This will not create a sale or add money to cash.`));
+    if (!ok) return;
+    try {
+      await cancel_table_check_live(tableId, reason);
+      notify('success', tx(lang, 'Masa satış yaratmadan ləğv edildi', 'Стол отменен без создания продажи', 'Table cancelled without creating a sale'));
+      setViewTableId(null);
+      setPayTableId(null);
+      setTableDetailRecord(null);
+      await Promise.all([loadFloorState(activeFloorId), loadData()]);
+    } catch (error: any) {
+      notify('error', error?.message || tx(lang, 'Masa ləğv edilmədi', 'Стол не отменен', 'Table was not cancelled'));
     }
   }, [activeFloorId, notify, lang]);
 
@@ -2897,7 +2914,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                   {tableWorkspaceTab === 'ops' && t.is_occupied && (
                     <div className="min-h-0 overflow-y-auto">
                     <div className="grid gap-3 rounded-lg border border-slate-700/70 bg-slate-900/40 p-3">
-                      <div className="grid gap-3 lg:grid-cols-3">
+                      <div className="grid gap-3 lg:grid-cols-4">
                         <div className="rounded-xl border border-blue-300/20 bg-blue-500/10 p-3">
                           <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-blue-200">{tx(lang, 'Masanı köçür', 'Перенести стол', 'Transfer table')}</div>
                           <div className="text-xs text-slate-300">{tx(lang, 'Açıq check-i başqa boş masaya keçir', 'Переносит открытый чек на другой свободный стол', 'Move the open check to another empty table')}</div>
@@ -2957,6 +2974,17 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                             onClick={() => { void handleSplitTables(t.id, (t as any).merged_group_id || null); }}
                           >
                             {tx(lang, 'Ayır', 'Разделить', 'Split')}
+                          </button>
+                        </div>
+                        <div className="rounded-xl border border-rose-300/20 bg-rose-500/10 p-3">
+                          <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-rose-200">{tx(lang, 'Masanı ləğv et', 'Отменить стол', 'Cancel table')}</div>
+                          <div className="text-xs text-slate-300">{tx(lang, 'Satış yaratmadan açıq check-i ləğv edir və masanı boşaldır', 'Отменяет открытый чек без продажи и освобождает стол', 'Cancel the open check without a sale and release the table')}</div>
+                          <button
+                            className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-rose-300/40 bg-rose-500/15 px-3 py-2 text-sm font-semibold text-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={!isManagerUser || !userCanEditTable}
+                            onClick={() => { void handleCancelTableCheck(t.id, t.label); }}
+                          >
+                            {tx(lang, 'Satışsız ləğv et', 'Отменить без продажи', 'Cancel without sale')}
                           </button>
                         </div>
                       </div>
