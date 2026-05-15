@@ -3,10 +3,21 @@ import { emitPerfEvent } from '../lib/perf';
 const ENV = ((import.meta as any)?.env || {}) as Record<string, string | undefined>;
 const BACKEND_FLAG = String(ENV.VITE_USE_BACKEND || '').toLowerCase();
 const FORCE_LOCAL_KEY = 'ironwaves_force_local_mode';
+const PRODUCTION_API_BASE_URL = 'https://ironwaves-pos-platform-production.up.railway.app';
 
 function normalizeConfiguredApiBaseUrl() {
   const configured = String(ENV.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
-  if (!configured) return '';
+  if (!configured) {
+    try {
+      const host = String(window.location.hostname || '').toLowerCase();
+      if (host.endsWith('.ironwaves.store') || host === 'ironwaves.store' || host.endsWith('.up.railway.app')) {
+        return PRODUCTION_API_BASE_URL;
+      }
+    } catch {
+      // no-op
+    }
+    return '';
+  }
   if (configured.startsWith('http://') || configured.startsWith('https://')) return configured;
   return `https://${configured}`;
 }
