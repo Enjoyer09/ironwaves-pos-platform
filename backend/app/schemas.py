@@ -349,6 +349,10 @@ class TableUnlockIn(BaseModel):
     reason: str | None = None
 
 
+class TableCancelIn(BaseModel):
+    reason: str | None = None
+
+
 class RestaurantRoundItemIn(BaseModel):
     id: str | None = None
     item_name: str

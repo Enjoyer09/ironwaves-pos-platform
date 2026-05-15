@@ -381,6 +381,33 @@ export async function transfer_table_lock_live(tableId: string, newOwner: string
   });
 }
 
+export async function cancel_table_check_live(tableId: string, reason?: string) {
+  if (!isBackendEnabled()) {
+    const tables = getDB<any>('tables');
+    const idx = tables.findIndex((row) => row.id === tableId);
+    if (idx < 0) throw new Error('Table not found');
+    tables[idx] = {
+      ...tables[idx],
+      is_occupied: false,
+      guest_count: 0,
+      deposit_guest_count: 0,
+      deposit_amount: '0.00',
+      items: [],
+      total: '0.00',
+      status: 'AVAILABLE',
+      assigned_to: null,
+      locked_by: null,
+    };
+    setDB('tables', tables);
+    return { ok: true, table_id: tableId, previous_total: '0.00' };
+  }
+  return apiRequest(`/api/v1/restaurant/tables/${encodeURIComponent(tableId)}/cancel-check`, {
+    method: 'POST',
+    tenantId: null,
+    body: { reason: reason || '' },
+  });
+}
+
 export async function act_on_order_item_live(
   itemId: string,
   payload: {
