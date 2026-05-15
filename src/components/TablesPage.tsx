@@ -1414,8 +1414,43 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     return parts;
   };
 
+  const isBillablePaymentItem = (item: any) => {
+    const status = normalizeOrderItemStatus(item?.status || item?.raw_status);
+    const qty = new Decimal(item?.qty || 0);
+    const price = new Decimal(item?.price || 0);
+    return qty.greaterThan(0) && price.greaterThan(0) && !['VOID_REQUESTED', 'VOIDED', 'WASTE', 'REMAKE', 'COMPED'].includes(status);
+  };
+
+  const getDetailPaymentItems = (detail: TableDetailRecord | null | undefined) => {
+    if (!detail?.check?.id) return [];
+    const roundItems = (Array.isArray(detail.rounds) ? detail.rounds : []).flatMap((round: any) => (
+      Array.isArray(round.items) ? round.items : []
+    ));
+    const draftItems = Array.isArray(detail.draft_items) ? detail.draft_items : [];
+    return [...roundItems, ...draftItems].filter(isBillablePaymentItem);
+  };
+
+  const getActiveDetailForTable = (table: any) => (
+    tableDetailRecord?.table?.id === table?.id ? tableDetailRecord : null
+  );
+
+  const getTablePaymentItems = (table: any) => {
+    const detail = getActiveDetailForTable(table);
+    if (detail?.check?.id) return getDetailPaymentItems(detail);
+    return Array.isArray(table?.items) ? table.items.filter(isBillablePaymentItem) : [];
+  };
+
+  const hasEmptyActiveCheckTotalMismatch = (table: any) => {
+    const detail = getActiveDetailForTable(table);
+    if (!detail?.check?.id) return false;
+    const detailItems = getDetailPaymentItems(detail);
+    const visibleTotal = new Decimal(detail.check?.total || detail.table?.check_total || table?.total || 0);
+    const deposit = new Decimal(table?.deposit_amount || 0);
+    return detailItems.length === 0 && visibleTotal.greaterThan(0) && deposit.lessThanOrEqualTo(0);
+  };
+
   const getTableBillBreakdown = (table: any) => {
-    const payItems = Array.isArray(table?.items) ? table.items : [];
+    const payItems = getTablePaymentItems(table);
     const itemsTotal = payItems.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0));
     const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
     const deposit = new Decimal(table?.deposit_amount || 0);
@@ -1792,7 +1827,11 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                   try {
                     const table = tables.find((x) => x.id === payTableId);
                     if (!table) return;
-                    const itemsSnapshot = Array.isArray(table.items) ? [...table.items] : [];
+                    if (hasEmptyActiveCheckTotalMismatch(table)) {
+                      notify('error', tx(lang, 'Bu masada məbləğ görünür, amma check daxilində sifariş tapılmadı. Səhv satış bağlamamaq üçün əvvəl masanı yeniləyin və ya admin yoxlasın.', 'У стола есть сумма, но внутри чека нет позиций. Чтобы не закрыть неверную продажу, обновите стол или проверьте через администратора.', 'This table shows a total but the check has no order items. Refresh or ask an admin before closing to avoid a wrong sale.'));
+                      return;
+                    }
+                    const itemsSnapshot = getTablePaymentItems(table);
                     const { itemsTotal, serviceFee, deposit, finalTotal, dueNow, splitBasis, guestCount } = getTableBillBreakdown(table);
                     let cash: Decimal | null = null;
                     let card: Decimal | null = null;
@@ -2932,6 +2971,11 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         className="glossy-gold min-h-12 rounded-xl px-5 py-3 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={!userCanEditTable}
                         onClick={() => {
+                          if (hasEmptyActiveCheckTotalMismatch(t)) {
+                            notify('error', tx(lang, 'Bu masada məbləğ görünür, amma sifariş siyahısı boşdur. Səhv bağlanmaması üçün hesab açılmadı.', 'У стола есть сумма, но список заказов пуст. Закрытие заблокировано, чтобы не создать неверную продажу.', 'This table shows a total but the order list is empty, so closing is blocked.'));
+                            setShowFullOrderList(true);
+                            return;
+                          }
                           setPayTableId(t.id);
                           setViewTableId(null);
                           setPaymentMethod('Nəğd');
