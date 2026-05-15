@@ -2458,6 +2458,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	              const draftTotal = draftRows.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0)).toFixed(2);
 	              const sentDisplayItems = detailCheck?.id ? detailActiveItems : (detailActiveItems.length > 0 ? detailActiveItems : items);
 	              const fullOrderRows = detailCheck?.id ? [...draftRows, ...detailActiveItems] : (detailActiveItems.length > 0 ? detailActiveItems : items);
+	              const visibleCheckTotal = new Decimal(detailCheck?.total || (tableDetailRecord?.table?.id === t.id ? tableDetailRecord.table.check_total : null) || t.total || 0);
+	              const tableNeedsSafeCancel = Boolean(
+	                t.is_occupied &&
+	                fullOrderRows.length === 0 &&
+	                visibleCheckTotal.greaterThan(0) &&
+	                new Decimal(t.deposit_amount || 0).lessThanOrEqualTo(0)
+	              );
 	              const clearVisibleDrafts = async () => {
 	                if (detailCheck?.id && serverDraftItems.length > 0) {
 	                  try {
@@ -2846,7 +2853,25 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                        </div>
 	                        <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/70 bg-slate-950/35 p-3">
 	                          {fullOrderRows.length === 0 ? (
-	                            <div className="py-8 text-center text-sm text-slate-400">{tx(lang, 'Sifariş yoxdur', 'Заказов нет', 'No order items')}</div>
+	                            <div className="py-8 text-center text-sm text-slate-400">
+	                              <div>{tx(lang, 'Sifariş yoxdur', 'Заказов нет', 'No order items')}</div>
+	                              {tableNeedsSafeCancel && (
+	                                <div className="mx-auto mt-4 max-w-md rounded-2xl border border-rose-300/30 bg-rose-500/10 p-4 text-left">
+	                                  <div className="text-sm font-black text-rose-100">{tx(lang, 'Uyğunsuz masa məbləği', 'Несовпадающая сумма стола', 'Mismatched table total')}</div>
+	                                  <div className="mt-1 text-xs text-rose-100/80">
+	                                    {tx(lang, 'Bu masada məbləğ var, amma sifariş yoxdur. Kassaya səhv satış düşməsin deyə satışsız ləğv edin.', 'У стола есть сумма, но нет заказа. Отмените без продажи, чтобы не создать ошибочную кассу.', 'This table has a total but no order items. Cancel without sale to avoid a wrong cash entry.')}
+	                                  </div>
+	                                  <button
+	                                    type="button"
+	                                    className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-rose-300/50 bg-rose-500/20 px-4 py-2 text-sm font-black text-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+	                                    disabled={!isManagerUser || !userCanEditTable}
+	                                    onClick={() => { void handleCancelTableCheck(t.id, t.label); }}
+	                                  >
+	                                    {tx(lang, 'Satışsız ləğv et', 'Отменить без продажи', 'Cancel without sale')}
+	                                  </button>
+	                                </div>
+	                              )}
+	                            </div>
 	                          ) : (
 	                            <div className="space-y-2">
 	                              {fullOrderRows.map((row: any, idx: number) => (
@@ -2992,6 +3017,26 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     </div>
                   )}
                   </div>
+                  {tableNeedsSafeCancel && (
+                    <div className="mt-4 rounded-2xl border border-rose-300/40 bg-rose-500/10 p-4 shadow-[0_0_24px_rgba(244,63,94,0.12)]">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                          <div className="text-sm font-black text-rose-100">{tx(lang, 'Boş masada məbləğ qalıb', 'На пустом столе осталась сумма', 'Empty table has a remaining total')}</div>
+                          <div className="mt-1 text-xs text-rose-100/80">
+                            {tx(lang, `${visibleCheckTotal.toFixed(2)} ₼ görünür, amma sifariş siyahısı boşdur. Bu check satış yaratmadan ləğv edilməlidir.`, `Отображается ${visibleCheckTotal.toFixed(2)} ₼, но список заказа пуст. Этот чек нужно отменить без продажи.`, `${visibleCheckTotal.toFixed(2)} ₼ is shown, but the order list is empty. This check should be cancelled without sale.`)}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="inline-flex min-h-11 items-center justify-center rounded-xl border border-rose-300/50 bg-rose-500/20 px-4 py-2 text-sm font-black text-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={!isManagerUser || !userCanEditTable}
+                          onClick={() => { void handleCancelTableCheck(t.id, t.label); }}
+                        >
+                          {tx(lang, 'Satışsız ləğv et', 'Отменить без продажи', 'Cancel without sale')}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <div className="mt-4 flex justify-end gap-2">
                     <button className="neon-btn rounded-lg px-4 py-2" onClick={() => setViewTableId(null)}>{tx(lang, 'Paneli gizlət', 'Скрыть панель', 'Hide panel')}</button>
                     {t.is_occupied && (
