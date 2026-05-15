@@ -13,8 +13,8 @@ export default defineConfig(({ command }) => {
   if (command === "build") {
     const apiBase = String(process.env.VITE_API_BASE_URL || "").trim();
     if (!apiBase) {
-      throw new Error(
-        "VITE_API_BASE_URL konfiqurasiya edilməyib. Build üçün environment dəyişəni mütləq verilməlidir."
+      console.warn(
+        "VITE_API_BASE_URL konfiqurasiya edilməyib. Production runtime default backend URL istifadə edəcək."
       );
     }
   }
