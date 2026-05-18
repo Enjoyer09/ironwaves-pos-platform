@@ -7,6 +7,7 @@ import { apiRequest, isBackendEnabled } from './client';
 import { readScopedStorage } from '../lib/storage_keys';
 import { get_inventory_items_live } from './inventory';
 import { detectAiConfigFromApiKey } from '../lib/ai_config';
+import { platform_ai_generate } from './platform_ai';
 
 const getRecipes = (tenant_id: string = 'tenant_default') =>
   getDB<any>('recipes').filter((r) => !r.tenant_id || r.tenant_id === tenant_id);
@@ -480,7 +481,7 @@ async function generate_recipe_ai_rows(
 
   let aiRows: Array<{ ingredient: string; qty: number; qty_unit?: string }> = [];
   try {
-    if (!canUseGeminiRemote && selectedProvider !== 'ollama_freeapi') {
+    if (!canUseGeminiRemote && selectedProvider !== 'ollama' && selectedProvider !== 'ollama_freeapi' && selectedProvider !== 'opencode') {
       throw new Error('REMOTE_PROVIDER_SKIPPED');
     }
     const invText = inventory
@@ -571,6 +572,19 @@ async function generate_recipe_ai_rows(
           },
         );
         responseText = String(generated?.text || '');
+      }
+    } else if (selectedProvider === 'opencode') {
+      if (!isBackendEnabled()) {
+        fallbackReason = 'OpenCode Platform AI üçün backend tələb olunur';
+      } else {
+        responseText = await platform_ai_generate({
+          model: selectedModel && selectedModel !== 'auto' ? selectedModel : 'deepseek-v4-flash',
+          prompt,
+          system: 'You are a senior restaurant R&D chef and cost controller. Return only valid JSON when asked.',
+          temperature: 0.2,
+          max_tokens: 600,
+          timeout_seconds: 45,
+        });
       }
     }
 

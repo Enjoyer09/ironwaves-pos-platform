@@ -82,6 +82,12 @@ class Settings(BaseSettings):
     resend_api_key: str | None = None
     email_from: str = "no-reply@ironwaves.store"
 
+    opencode_api_key: str | None = None
+    opencode_base_url: str = "https://opencode.ai/zen/go/v1"
+    opencode_allowed_models: str = "deepseek-v4-flash,glm-5,qwen3.5-plus"
+    opencode_default_model: str = "deepseek-v4-flash"
+    opencode_timeout_seconds: int = 45
+
     # Multi-tenant should be enabled by default. Set true only for per-deployment single-tenant mode.
     single_tenant_mode: bool = False
     single_tenant_id: str = ""

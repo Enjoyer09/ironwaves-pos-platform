@@ -10,6 +10,12 @@ from app.services.ollama_service import (
     find_servers_for_model as _ollama_find_servers_for_model,
     generate_once as _ollama_generate_once,
 )
+from app.services.opencode_service import (
+    default_model_id as _opencode_default_model_id,
+    generate_text as _opencode_generate_text,
+    get_allowed_models as _opencode_get_allowed_models,
+    normalize_opencode_error as _normalize_opencode_error,
+)
 
 
 router = APIRouter(prefix="/api/v1/ops/ai", tags=["operations-ai"])
@@ -35,6 +41,15 @@ class OllamaGenerateIn(BaseModel):
     temperature: float = Field(default=0.2, ge=0.0, le=2.0)
     num_predict: int = Field(default=256, ge=16, le=4096)
     timeout_seconds: int = Field(default=35, ge=5, le=120)
+
+
+class OpenCodeGenerateIn(BaseModel):
+    model: str | None = Field(default=None, max_length=128)
+    prompt: str = Field(min_length=3, max_length=20000)
+    system: str | None = Field(default="", max_length=4000)
+    temperature: float = Field(default=0.2, ge=0.0, le=2.0)
+    max_tokens: int = Field(default=800, ge=16, le=4096)
+    timeout_seconds: int = Field(default=45, ge=5, le=120)
 
 
 @router.post("/ollamafreeapi/generate")
@@ -124,3 +139,48 @@ def ollama_generate(
         "text": text,
     }
 
+
+@router.get("/opencode/models")
+def opencode_models(
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_manager(user)
+    return {
+        "success": True,
+        "tenant_id": tenant.id,
+        "provider": "opencode",
+        "default_model": _opencode_default_model_id(),
+        "models": _opencode_get_allowed_models(),
+    }
+
+
+@router.post("/opencode/generate")
+def opencode_generate(
+    payload: OpenCodeGenerateIn,
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_manager(user)
+    model = str(payload.model or _opencode_default_model_id()).strip()
+    try:
+        text = _opencode_generate_text(
+            model=model,
+            prompt=payload.prompt,
+            system=payload.system or "",
+            temperature=payload.temperature,
+            max_tokens=payload.max_tokens,
+            timeout_seconds=payload.timeout_seconds,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=_normalize_opencode_error(exc))
+
+    return {
+        "success": True,
+        "tenant_id": tenant.id,
+        "provider": "opencode",
+        "model": model,
+        "text": text,
+    }
