@@ -19,6 +19,7 @@ import { readScopedStorage, writeScopedStorage } from '../../lib/storage_keys';
 import { Bot, Clipboard, Loader2, PackageSearch, ShieldAlert, Sparkles, TrendingUp, WalletCards } from 'lucide-react';
 import { send_email } from '../../api/email';
 import { DEFAULT_MODEL_BY_PROVIDER, detectAiConfigFromApiKey, providerLabel } from '../../lib/ai_config';
+import { get_platform_ai_models, type PlatformAiModel } from '../../api/platform_ai';
 
 type AiWorkspace = 'copilot' | 'shift' | 'finance' | 'stock' | 'campaign' | 'security';
 
@@ -37,7 +38,11 @@ export default function AIManagerPanel() {
   const detection = useMemo(() => detectAiConfigFromApiKey(apiKey), [apiKey]);
   const [modelOverride, setModelOverride] = useState('');
   const [experimentalOllamaEnabled, setExperimentalOllamaEnabled] = useState(false);
-  const selectedProvider = experimentalOllamaEnabled ? 'ollama_freeapi' : detection.provider;
+  const [platformAiEnabled, setPlatformAiEnabled] = useState(false);
+  const [platformModels, setPlatformModels] = useState<PlatformAiModel[]>([]);
+  const [platformModelsLoading, setPlatformModelsLoading] = useState(false);
+  const [platformModelsError, setPlatformModelsError] = useState('');
+  const selectedProvider = platformAiEnabled ? 'opencode' : experimentalOllamaEnabled ? 'ollama_freeapi' : detection.provider;
   const selectedModel = modelOverride.trim() || DEFAULT_MODEL_BY_PROVIDER[selectedProvider];
   const [loading, setLoading] = useState(false);
   const [auditWindow, setAuditWindow] = useState<'7' | '30' | '90'>('30');
@@ -56,6 +61,7 @@ export default function AIManagerPanel() {
         if (!alive) return;
         const aiConfig = settings?.ai_config || {};
         setExperimentalOllamaEnabled(Boolean(aiConfig.ollama_freeapi_enabled));
+        setPlatformAiEnabled(String(aiConfig.provider || '').toLowerCase() === 'opencode');
         if (!modelOverride.trim() && String(aiConfig.model || '').trim()) {
           setModelOverride(String(aiConfig.model || ''));
         }
@@ -67,6 +73,35 @@ export default function AIManagerPanel() {
       alive = false;
     };
   }, [tenant_id]);
+
+  React.useEffect(() => {
+    let alive = true;
+    if (!platformAiEnabled) return () => {
+      alive = false;
+    };
+    setPlatformModelsLoading(true);
+    setPlatformModelsError('');
+    void get_platform_ai_models()
+      .then((payload) => {
+        if (!alive) return;
+        const models = Array.isArray(payload.models) ? payload.models : [];
+        setPlatformModels(models);
+        const current = modelOverride.trim();
+        if (!current && payload.default_model) {
+          setModelOverride(String(payload.default_model));
+        }
+      })
+      .catch((error: any) => {
+        if (!alive) return;
+        setPlatformModelsError(error?.message || 'OpenCode model siyahısı alınmadı');
+      })
+      .finally(() => {
+        if (alive) setPlatformModelsLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [platformAiEnabled, tenant_id]);
 
   const pushCampaignToCrm = () => {
     if (!structuredResult || structuredResult.kind !== 'campaign') return;
@@ -118,6 +153,21 @@ export default function AIManagerPanel() {
       model,
       autodetected: !modelOverride.trim() && !nextEnabled,
       ollama_freeapi_enabled: nextEnabled,
+    });
+  };
+
+  const persistPlatformAiToggle = (nextEnabled: boolean) => {
+    const provider = nextEnabled ? 'opencode' : detection.provider;
+    const model = nextEnabled
+      ? (modelOverride.trim() || platformModels[0]?.id || DEFAULT_MODEL_BY_PROVIDER.opencode)
+      : (modelOverride.trim() || DEFAULT_MODEL_BY_PROVIDER[provider]);
+    if (nextEnabled) setExperimentalOllamaEnabled(false);
+    update_api_key(apiKey);
+    void update_api_key_live(apiKey, {
+      provider,
+      model,
+      autodetected: !nextEnabled && !modelOverride.trim(),
+      ollama_freeapi_enabled: false,
     });
   };
 
@@ -399,17 +449,80 @@ export default function AIManagerPanel() {
               </div>
             </div>
             <div className="mt-2 text-xs text-slate-400">
-              {experimentalOllamaEnabled
+              {platformAiEnabled
+                ? tx(lang, 'Platform AI aktivdir: API key və base URL Railway backend-də gizli saxlanılır.', 'Platform AI активен: API key и base URL скрыты в Railway backend.', 'Platform AI is enabled: API key and base URL are hidden in the Railway backend.')
+                : experimentalOllamaEnabled
                 ? tx(lang, 'Manual seçim: OllamaFreeAPI experimental provider aktivdir.', 'Ручной выбор: активирован экспериментальный провайдер OllamaFreeAPI.', 'Manual selection: OllamaFreeAPI experimental provider is enabled.')
                 : detection.reason}
             </div>
-            <div className="mt-2">
-              <input
-                value={modelOverride}
-                onChange={(e) => setModelOverride(e.target.value)}
-                placeholder={tx(lang, 'Model override (opsional)', 'Model override (опционально)', 'Model override (optional)')}
-                className="neon-input"
-              />
+            {platformAiEnabled ? (
+              <div className="mt-2">
+                <select
+                  value={selectedModel}
+                  onChange={(e) => {
+                    const model = e.target.value;
+                    setModelOverride(model);
+                    void update_api_key_live(apiKey, {
+                      provider: 'opencode',
+                      model,
+                      autodetected: false,
+                      ollama_freeapi_enabled: false,
+                    });
+                  }}
+                  className="neon-input"
+                  disabled={platformModelsLoading}
+                >
+                  {(platformModels.length ? platformModels : [{ id: DEFAULT_MODEL_BY_PROVIDER.opencode, name: 'DeepSeek V4 Flash Free' }]).map((model) => (
+                    <option key={model.id} value={model.id}>{model.name}</option>
+                  ))}
+                </select>
+                {platformModelsError && <div className="mt-2 text-xs text-rose-200">{platformModelsError}</div>}
+              </div>
+            ) : (
+              <div className="mt-2">
+                <input
+                  value={modelOverride}
+                  onChange={(e) => setModelOverride(e.target.value)}
+                  placeholder={tx(lang, 'Model override (opsional)', 'Model override (опционально)', 'Model override (optional)')}
+                  className="neon-input"
+                />
+              </div>
+            )}
+            <div className="mt-4 rounded-xl border border-emerald-400/35 bg-emerald-500/10 p-3">
+              <label className="flex items-center justify-between gap-3 text-sm font-semibold text-emerald-100">
+                <span>{tx(lang, 'OpenCode Platform AI', 'OpenCode Platform AI', 'OpenCode Platform AI')}</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={platformAiEnabled}
+                  onClick={() =>
+                    setPlatformAiEnabled((prev) => {
+                      const next = !prev;
+                      persistPlatformAiToggle(next);
+                      return next;
+                    })
+                  }
+                  className={`relative inline-flex h-7 w-14 items-center rounded-full border transition ${pressFxClass} ${
+                    platformAiEnabled
+                      ? 'border-emerald-300/70 bg-emerald-500/30'
+                      : 'border-slate-600 bg-slate-800/70'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+                      platformAiEnabled ? 'translate-x-8' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </label>
+              <div className="mt-2 text-xs leading-5 text-emerald-100/90">
+                {tx(
+                  lang,
+                  'Tenant API key görmür. Railway backend-də OPENCODE_API_KEY və OPENCODE_BASE_URL saxlanır, burada yalnız icazəli/free modellər seçilir.',
+                  'Tenant не видит API key. OPENCODE_API_KEY и OPENCODE_BASE_URL хранятся в Railway backend, здесь выбираются только разрешённые/free модели.',
+                  'Tenants never see the API key. OPENCODE_API_KEY and OPENCODE_BASE_URL stay in Railway backend; only allowed/free models are selectable here.',
+                )}
+              </div>
             </div>
             <div className="mt-4 rounded-xl border border-amber-400/35 bg-amber-500/10 p-3">
               <label className="flex items-center justify-between gap-3 text-sm font-semibold text-amber-100">
@@ -421,6 +534,7 @@ export default function AIManagerPanel() {
                   onClick={() =>
                     setExperimentalOllamaEnabled((prev) => {
                       const next = !prev;
+                      if (next) setPlatformAiEnabled(false);
                       persistExperimentalToggle(next);
                       return next;
                     })

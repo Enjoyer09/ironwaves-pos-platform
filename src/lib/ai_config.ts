@@ -1,4 +1,4 @@
-export type AiProvider = 'google' | 'openai' | 'anthropic' | 'openrouter' | 'xai' | 'huggingface' | 'ollama' | 'ollama_freeapi' | 'unknown';
+export type AiProvider = 'google' | 'openai' | 'anthropic' | 'openrouter' | 'xai' | 'huggingface' | 'ollama' | 'ollama_freeapi' | 'opencode' | 'unknown';
 
 export type AiDetectionResult = {
   provider: AiProvider;
@@ -16,6 +16,7 @@ export const DEFAULT_MODEL_BY_PROVIDER: Record<AiProvider, string> = {
   huggingface: 'mistralai/Mistral-7B-Instruct-v0.3',
   ollama: 'gpt-oss:20b',
   ollama_freeapi: 'llama3.2:3b',
+  opencode: 'deepseek-v4-flash',
   unknown: 'auto',
 };
 
@@ -29,6 +30,7 @@ export function providerLabel(provider: AiProvider): string {
     huggingface: 'Hugging Face',
     ollama: 'Ollama Cloud',
     ollama_freeapi: 'OllamaFreeAPI (Experimental)',
+    opencode: 'OpenCode Platform',
     unknown: 'Unknown',
   };
   return map[provider];

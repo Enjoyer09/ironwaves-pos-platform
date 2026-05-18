@@ -39,6 +39,9 @@ export const resolveAiRuntimeConfig = (tenantId: string): { provider: AiProvider
 const ensureAiKey = (tenantId: string) => {
   const runtime = resolveAiRuntimeConfig(tenantId);
   const key = runtime.key;
+  if (runtime.provider === 'opencode') {
+    return key || '__opencode_platform__';
+  }
   if (runtime.provider === 'ollama_freeapi') {
     return key || '__ollama_freeapi__';
   }
