@@ -177,10 +177,6 @@ export default function AIManagerPanel() {
     return insights;
   };
 
-  React.useEffect(() => {
-    refreshDecisionEngine();
-  }, [tenant_id, range.date_from, range.date_to]);
-
   const runWorkspace = async (nextWorkspace: AiWorkspace = workspace) => {
     setLoading(true);
     setWorkspace(nextWorkspace);
@@ -663,7 +659,16 @@ export default function AIManagerPanel() {
                 </div>
 
                 <div className="grid gap-4">
-                  {decisionInsights.map((insight) => (
+                  {decisionInsights.length === 0 ? (
+                    <div className="rounded-2xl border border-cyan-400/30 bg-cyan-500/10 p-5 text-sm leading-6 text-cyan-50">
+                      {tx(
+                        lang,
+                        'AI Komanda Mərkəzi hazırdır. Ağır analiz artıq tab açılan kimi avtomatik işləmir — donmanın qarşısını almaq üçün “Yenidən analiz et” düyməsi ilə başladılır.',
+                        'AI командный центр готов. Тяжёлый анализ больше не запускается автоматически при открытии вкладки — чтобы избежать зависания, запускайте его кнопкой “Анализировать снова”.',
+                        'AI Command Center is ready. Heavy analysis no longer runs automatically on tab open; use “Analyze again” to start it and avoid UI freezes.',
+                      )}
+                    </div>
+                  ) : decisionInsights.map((insight) => (
                     <div key={insight.id} className={`rounded-2xl border p-4 ${severityTone(insight.severity)}`}>
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                         <div>
