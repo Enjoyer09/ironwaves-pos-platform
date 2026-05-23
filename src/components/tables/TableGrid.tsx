@@ -14,6 +14,7 @@ type TableGridProps = {
   currentUserRole?: string;
   onSelectTable: (table: any) => void;
   onMarkClean: (tableId: string) => void;
+  showMyTablesFilter?: boolean;
 };
 
 const tapFeedback = () => {
@@ -35,8 +36,10 @@ function TableGrid({
   currentUserRole,
   onSelectTable,
   onMarkClean,
+  showMyTablesFilter,
 }: TableGridProps) {
   const [quickActionsTableId, setQuickActionsTableId] = useState<string | null>(null);
+  const [showOnlyMine, setShowOnlyMine] = useState(false);
   const longPressRef = useRef<number | null>(null);
 
   const isManagerUser = useMemo(
@@ -51,14 +54,48 @@ function TableGrid({
     }
   };
 
+  // BahaY: filter tables to show only mine
+  const visibleTables = useMemo(() => {
+    if (!showOnlyMine || !currentUsername) return floorTables;
+    return floorTables.filter((table) => {
+      const localTable = tablesById[String(table.id)] || null;
+      const holder = String((table as any).locked_by || localTable?.assigned_to || '').trim().toLowerCase();
+      return holder === currentUsername.toLowerCase();
+    });
+  }, [floorTables, tablesById, showOnlyMine, currentUsername]);
+
   return (
+    <div>
+      {showMyTablesFilter && currentUsername && (
+        <div className="mb-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setShowOnlyMine(!showOnlyMine)}
+            className={`rounded-full px-4 py-2 text-sm font-bold transition ${
+              showOnlyMine
+                ? 'bg-yellow-400 text-slate-900 shadow-lg shadow-yellow-400/20'
+                : 'border border-slate-600/60 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60'
+            }`}
+          >
+            {showOnlyMine
+              ? tx(lang, '★ Yalnız mənim', '★ Только мои', '★ Only mine')
+              : tx(lang, 'Yalnız mənim', 'Только мои', 'Only mine')}
+          </button>
+          {showOnlyMine && (
+            <span className="text-xs text-slate-400">
+              {visibleTables.length} {tx(lang, 'masa', 'столов', 'tables')}
+            </span>
+          )}
+        </div>
+      )}
     <div
       className="grid gap-3"
       style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${tableGridMinWidth}px, 1fr))` }}
     >
-      {floorTables.map((table) => {
+      {visibleTables.map((table) => {
         const localTable = tablesById[String(table.id)] || null;
         const tableLockHolder = String((table as any).locked_by || localTable?.assigned_to || '').trim();
+        const isMyTable = Boolean(currentUsername && tableLockHolder.toLowerCase() === currentUsername.toLowerCase());
         const otherOwner = Boolean(localTable?.is_occupied && tableLockHolder && tableLockHolder !== currentUsername && !isManagerUser);
         const floorStatus = String(table.status || '').toUpperCase();
         const hasLocalActiveCheck = Boolean(localTable?.is_occupied || new Decimal(localTable?.total || 0).greaterThan(0));
@@ -123,7 +160,7 @@ function TableGrid({
               }, 450);
             }}
             onTouchEnd={clearLongPress}
-            className={`min-h-[120px] rounded-[26px] border p-4 text-left transition active:scale-[0.99] ${statusTone[status] || statusTone.AVAILABLE} ${viewTableId === table.id ? 'ring-2 ring-yellow-300/80' : ''}`}
+            className={`min-h-[120px] rounded-[26px] border p-4 text-left transition active:scale-[0.99] ${statusTone[status] || statusTone.AVAILABLE} ${viewTableId === table.id ? 'ring-2 ring-yellow-300/80' : ''} ${isMyTable && showMyTablesFilter ? 'ring-2 ring-yellow-400/50 shadow-[0_0_16px_rgba(250,204,21,0.12)]' : ''}`}
           >
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -193,6 +230,7 @@ function TableGrid({
           </div>
         );
       })}
+    </div>
     </div>
   );
 }
