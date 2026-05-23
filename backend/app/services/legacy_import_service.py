@@ -127,8 +127,10 @@ def restore_generic_model_rows(
 ) -> int:
     if not isinstance(rows, list):
         return 0
+    # Delete existing rows and commit immediately so INSERT doesn't hit
+    # duplicate key errors (PostgreSQL enforces PK even within same txn).
     db.query(model).filter(model.tenant_id == tenant_id).delete(synchronize_session=False)
-    db.flush()
+    db.commit()
     restored_count = 0
     for idx, row in enumerate(rows):
         if not isinstance(row, dict):
