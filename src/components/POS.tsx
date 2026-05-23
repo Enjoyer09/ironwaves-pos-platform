@@ -1091,10 +1091,13 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
 
   const handleCheckout = async (paymentMethod: PaymentMethod) => {
     if (!user) return;
-    const shift = await refresh_shift_status(tenantId).catch(() => get_shift_status(tenantId));
-    if (shift.status !== 'Open') {
-      setShowOpenShiftModal(true);
-      return;
+    // BahaY: skip shift check for staff on super lab (shift managed by manager)
+    if (!isSuperTenantHost) {
+      const shift = await refresh_shift_status(tenantId).catch(() => get_shift_status(tenantId));
+      if (shift.status !== 'Open') {
+        setShowOpenShiftModal(true);
+        return;
+      }
     }
 
     if (shouldLockTableCheckoutInPos) {
