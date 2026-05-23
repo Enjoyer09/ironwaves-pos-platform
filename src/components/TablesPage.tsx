@@ -2804,6 +2804,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           onSearchChange={setRoundSearch}
                           onCategoryChange={setRoundCategory}
                           onSelectItem={addMenuItemToRound}
+                          draftItems={roundDraft}
                         />
                       </div>
 
@@ -2854,6 +2855,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           disabled={draftRows.length === 0 || !userCanEditTable}
                           onClear={draftRows.length > 0 ? clearVisibleDrafts : undefined}
                           onSend={() => { void sendRoundDirectly(t); }}
+                          draftCount={draftRows.length}
                         />
                       </div>
                     </div>
