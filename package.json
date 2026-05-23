@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && cp public/sw.js dist/sw.js",
     "preview": "vite preview",
     "start": "node server.js",
     "print-agent": "node tools/print-agent/ironwaves-print-agent.js",

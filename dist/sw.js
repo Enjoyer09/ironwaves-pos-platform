@@ -1,25 +1,18 @@
-
-self.addEventListener('install', (e) => {
+// iRonWaves POS — Self-destroying service worker
+// Unregisters itself and clears all caches. No navigation loop.
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
-self.addEventListener('activate', (e) => {
-  self.registration.unregister()
-    .then(() => self.clients.matchAll())
-    .then((clients) => {
-      clients.forEach((client) => {
-        if (client instanceof WindowClient)
-          client.navigate(client.url);
-      });
-      return Promise.resolve();
-    })
-    .then(() => {
-      self.caches.keys().then((cacheNames) => {
-        Promise.all(
-          cacheNames.map((cacheName) => {
-            return self.caches.delete(cacheName);
-          }),
-        );
-      })
-    });
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+      await self.clients.claim();
+      await self.registration.unregister();
+    })()
+  );
 });
-    
+
+self.addEventListener('fetch', () => {});
