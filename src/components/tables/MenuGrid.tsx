@@ -63,7 +63,7 @@ function MenuGrid({
                 <div className="line-clamp-2 text-base font-bold text-slate-100">{item.item_name}</div>
                 <div className="mt-2 text-xs text-slate-400">{item.category}</div>
               </div>
-              <div className="rounded-xl bg-yellow-400/15 px-3 py-2 text-base font-black text-yellow-200">
+              <div className="rounded-xl bg-yellow-400/15 px-3 py-2 text-lg font-black text-yellow-200">
                 {Number(item.price || 0).toFixed(2)} ₼
               </div>
             </div>

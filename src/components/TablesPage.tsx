@@ -26,6 +26,7 @@ import { formatRestaurantLocalTime, formatServerUtcDateTime, formatServerUtcTime
 import TableGrid from './tables/TableGrid';
 import MenuGrid from './tables/MenuGrid';
 import StickyActionBar from './tables/StickyActionBar';
+import { localizeError } from '../lib/error_localize';
 
 const TABLES_BOOTSTRAP_TTL_MS = 12_000;
 const KITCHEN_FEED_TTL_MS = 12_000;
@@ -1027,7 +1028,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         await refreshActiveTableDetail(table.id);
         return;
       } catch (e: any) {
-        const message = e?.message || tx(lang, 'Mətbəxə göndərilmədi. Məhsullar göndərilmiş kimi işarələnmədi.', 'Не отправлено на кухню. Позиции не отмечены отправленными.', 'Kitchen send failed. Items were not marked as sent.');
+        const message = localizeError(e?.message) || tx(lang, 'Mətbəxə göndərilmədi. Məhsullar göndərilmiş kimi işarələnmədi.', 'Не отправлено на кухню. Позиции не отмечены отправленными.', 'Kitchen send failed. Items were not marked as sent.');
         setDraftSendError(message);
         notify('error', message);
         return;
@@ -1064,7 +1065,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       ]);
       setShowCreate(false);
       setNewTableName('');
-    } catch(e:any) { notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message); }
+    } catch(e:any) { notify('error', localizeError(e.message)); }
   };
 
   const handleOpenTable = async () => {
@@ -1090,7 +1091,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       await refreshActiveTableDetail(currentTableId);
       setViewTableId(currentTableId);
     } catch (e: any) {
-      notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message);
+      notify('error', localizeError(e.message));
     }
   };
 
@@ -1166,7 +1167,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         loadRestaurantData(),
         activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(),
       ]);
-    } catch(e:any) { notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message); }
+    } catch(e:any) { notify('error', localizeError(e.message)); }
   };
 
   const handleCreateReservation = async () => {
@@ -1193,7 +1194,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       setReservationStatusDraft('BOOKED');
       await loadReservations();
     } catch (e: any) {
-      notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message);
+      notify('error', localizeError(e.message));
     }
   };
 
@@ -1214,7 +1215,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       setWorkspaceView('floor');
       await Promise.all([loadRestaurantData(), activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(), loadData()]);
     } catch (e: any) {
-      notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message);
+      notify('error', localizeError(e.message));
     }
   };
 
@@ -1733,16 +1734,51 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       }
                     }
                   }}
-                  className={`pay-btn h-11 ${paymentMethod === m ? 'pay-btn-active' : ''}`}
+                  className={`pay-btn min-h-12 rounded-2xl text-sm font-bold ${paymentMethod === m ? 'pay-btn-active ring-2 ring-yellow-300/60' : ''}`}
                 >
                   {m === 'Nəğd'
-                    ? tx(lang, 'Tam nəğd', 'Полностью наличными', 'All cash')
+                    ? tx(lang, '💵 Nəğd', '💵 Наличные', '💵 Cash')
                     : m === 'Kart'
-                      ? tx(lang, 'Tam kart', 'Полностью картой', 'All card')
-                      : tx(lang, 'Split ödə', 'Split оплата', 'Split payment')}
+                      ? tx(lang, '💳 Kart', '💳 Карта', '💳 Card')
+                      : tx(lang, '✂️ Split', '✂️ Split', '✂️ Split')}
                 </button>
               ))}
             </div>
+            {paymentMethod === 'Split' && (() => {
+              const table = tables.find((x) => x.id === payTableId);
+              if (!table) return null;
+              const { splitBasis, guestCount } = getTableBillBreakdown(table);
+              return (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    className="rounded-xl border border-emerald-300/30 bg-emerald-500/10 px-3 py-2.5 text-xs font-bold text-emerald-100 active:scale-[0.97]"
+                    onClick={() => {
+                      const count = Math.max(2, guestCount);
+                      setSplitCount(String(count));
+                      setSplitParts(buildEqualSplitParts(count, splitBasis));
+                    }}
+                  >
+                    {tx(lang, '👥 Bərabər böl', '👥 Поровну', '👥 Equal split')}
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-xl border border-cyan-300/30 bg-cyan-500/10 px-3 py-2.5 text-xs font-bold text-cyan-100 active:scale-[0.97]"
+                    onClick={() => {
+                      setSplitCount('2');
+                      const half = splitBasis.div(2).toDecimalPlaces(2);
+                      const remainder = splitBasis.minus(half).toDecimalPlaces(2);
+                      setSplitParts([
+                        { amount: half.toFixed(2), method: 'Nəğd' },
+                        { amount: remainder.toFixed(2), method: 'Kart' },
+                      ]);
+                    }}
+                  >
+                    {tx(lang, '💵+💳 Yarı-yarı', '💵+💳 Пополам', '💵+💳 Half-half')}
+                  </button>
+                </div>
+              );
+            })()}
             </div>
             {paymentMethod === 'Split' && (
               (() => {
@@ -2031,7 +2067,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(),
                     ]);
                   } catch (e: any) {
-                    notify('error', tx(lang, 'Xəta: ', 'Ошибка: ') + e.message);
+                    notify('error', localizeError(e.message));
                   }
                 }}
               >
@@ -2069,32 +2105,32 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               </label>
             </div>
             <div className="mt-4 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3">
-              <div className="text-sm font-semibold text-slate-100">{tx(lang, 'Depozit qaydası', 'Правило депозита', 'Deposit rule')}</div>
-              <div className="mt-2 text-xs text-slate-400">
-                {tx(
-                  lang,
-                  'Masa bir açıq check kimi qalır. Sadəcə neçə qonaq üçün depozit alındığını yazın.',
-                  'Стол остается одним открытым чеком. Просто укажите, за скольких гостей взят депозит.',
-                  'The table stays as one open check. Just enter how many guests paid a deposit.',
-                )}
-              </div>
-              <label className="mt-3 block text-sm text-slate-300">
-                {tx(lang, 'Depozitli qonaq sayı', 'Количество гостей с депозитом', 'Deposited guest count')}
-                <input
-                  className="neon-input mt-1"
-                  type="number"
-                  min={0}
-                  max={Math.max(1, Number(guestCount || 1))}
-                  value={depositGuestCount}
-                  onChange={(e) => setDepositGuestCount(String(Math.max(0, Math.min(Math.max(1, Number(guestCount || 1)), Number(e.target.value || 0)))))}
-                />
-              </label>
-              <div className="mt-3 text-xs text-slate-400">
-                {tx(lang, 'Nəfər başı depozit', 'Депозит с человека', 'Deposit per guest')}: {depositPerGuest.toFixed(2)} ₼
-              </div>
-              <div className="mt-1 text-sm font-semibold text-emerald-200">
-                {tx(lang, 'Toplam depozit', 'Итоговый депозит', 'Total deposit')}: {depositPerGuest.times(Math.max(0, Number(depositGuestCount || 0))).toFixed(2)} ₼
-              </div>
+              {depositPerGuest.greaterThan(0) ? (
+                <>
+                  <div className="text-sm font-semibold text-slate-100">{tx(lang, 'Depozit', 'Депозит', 'Deposit')}</div>
+                  <div className="mt-2 text-xs text-slate-400">
+                    {tx(lang, 'Nəfər başı depozit', 'Депозит с человека', 'Deposit per guest')}: {depositPerGuest.toFixed(2)} ₼
+                  </div>
+                  <label className="mt-3 block text-sm text-slate-300">
+                    {tx(lang, 'Depozitli qonaq sayı', 'Количество гостей с депозитом', 'Deposited guest count')}
+                    <input
+                      className="neon-input mt-1"
+                      type="number"
+                      min={0}
+                      max={Math.max(1, Number(guestCount || 1))}
+                      value={depositGuestCount}
+                      onChange={(e) => setDepositGuestCount(String(Math.max(0, Math.min(Math.max(1, Number(guestCount || 1)), Number(e.target.value || 0)))))}
+                    />
+                  </label>
+                  <div className="mt-2 text-sm font-semibold text-emerald-200">
+                    {tx(lang, 'Toplam depozit', 'Итоговый депозит', 'Total deposit')}: {depositPerGuest.times(Math.max(0, Number(depositGuestCount || 0))).toFixed(2)} ₼
+                  </div>
+                </>
+              ) : (
+                <div className="text-xs text-slate-500">
+                  {tx(lang, 'Depozit konfiqurasiya edilməyib', 'Депозит не настроен', 'Deposit not configured')}
+                </div>
+              )}
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button
@@ -2387,7 +2423,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	          ref={detailPanelRef}
 	          className={`${
 	            workspaceView === 'floor'
-	              ? 'fixed inset-y-3 right-3 z-[90] h-[calc(100vh-1.5rem)] w-[calc(100vw-1.5rem)] overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur lg:w-[min(70vw,1240px)]'
+	              ? 'fixed inset-y-3 right-3 z-[90] h-[calc(100vh-1.5rem)] w-[92vw] max-w-[560px] overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur md:w-[50vw] md:max-w-[640px] lg:w-[42vw] lg:max-w-[720px] xl:w-[38vw] xl:max-w-[800px]'
 	              : 'mt-6'
 	          }`}
         >
@@ -2527,9 +2563,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                      <button
 	                        type="button"
 	                        onClick={() => setViewTableId(null)}
-	                        className="inline-flex min-h-9 shrink-0 items-center rounded-full border border-slate-700/70 bg-slate-900/50 px-3 py-1.5 text-xs font-semibold text-slate-200"
+	                        className="inline-flex min-h-11 min-w-11 shrink-0 items-center rounded-2xl border border-slate-700/70 bg-slate-900/50 px-4 py-2.5 text-sm font-bold text-slate-200 active:scale-[0.97] transition"
 	                      >
-	                        ← {tx(lang, 'Masalara qayıt', 'Назад к столам', 'Back to tables')}
+	                        ← {tx(lang, 'Geri', 'Назад', 'Back')}
 	                      </button>
 	                      <h3 className="truncate text-xl font-black text-slate-100">{t.label}</h3>
 	                    </div>
@@ -2628,7 +2664,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                  <div className="mt-2 rounded-xl border border-slate-700/70 bg-slate-900/30 p-2">
 	                    <div className="flex flex-wrap gap-2">
                       {([
-                        ['compose', tx(lang, 'Sifariş', 'Заказ', 'Order')],
+                        ['compose', `${tx(lang, 'Sifariş', 'Заказ', 'Order')}${draftRows.length > 0 ? ` · ${draftRows.length}` : ''}`],
                         ['service', `${tx(lang, 'Servis', 'Сервис', 'Service')}${readyItems.length > 0 ? ` · ${readyItems.length}` : ''}`],
                         ['history', `${tx(lang, 'Raundlar', 'Раунды', 'Rounds')} · ${rounds.length}`],
                         ['ops', tx(lang, 'Əməliyyatlar', 'Операции', 'Operations')],
@@ -2851,6 +2887,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         <StickyActionBar
                           lang={lang}
                           total={draftTotal}
+                          draftCount={draftRows.length}
                           disabled={draftRows.length === 0 || !userCanEditTable}
                           onClear={draftRows.length > 0 ? clearVisibleDrafts : undefined}
                           onSend={() => { void sendRoundDirectly(t); }}

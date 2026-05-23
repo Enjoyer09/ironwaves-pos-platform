@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Lang } from './i18n';
 import { authApi } from './api/auth';
-import { setClientAuthSession } from './api/client';
+import { isBackendEnabled, setClientAuthSession } from './api/client';
 import { logEvent } from './lib/logger';
 import { getActiveTenantId, setActiveTenantId } from './lib/tenant';
 import { LoginRiskContext } from './lib/risk';
@@ -71,6 +71,12 @@ export const useAppStore = create<AppState>()(
       restoreSession: async () => {
         const currentUser = get().user;
         if (!currentUser?.username) return false;
+        if (!isBackendEnabled()) {
+          // Local mode: no backend to refresh from, just clear stale session
+          set({ user: null, access_token: null, refresh_token: null, cart: [] });
+          setClientAuthSession({ access_token: null, user: null });
+          return false;
+        }
         try {
           const tenantId = String(currentUser.tenant_id || getActiveTenantId() || '').trim();
           const res = await authApi.refresh_token(undefined, tenantId);
