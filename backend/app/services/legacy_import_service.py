@@ -147,6 +147,10 @@ def restore_generic_model_rows(
             if key == "tenant_id":
                 setattr(instance, key, tenant_id)
                 continue
+            # Skip primary key ID from backup to avoid conflicts with other tenants.
+            # Let PostgreSQL generate a new ID via sequence/default.
+            if key == "id" and column.primary_key:
+                continue
             if key not in row:
                 continue
             value = row.get(key)
