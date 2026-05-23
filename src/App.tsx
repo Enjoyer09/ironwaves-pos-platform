@@ -293,6 +293,7 @@ export default function App() {
   const [sessionRestorePending, setSessionRestorePending] = useState(false);
   const [readyPopup, setReadyPopup] = useState<any | null>(null);
   const sessionRestoreTriedRef = useRef(false);
+  const syncSessionRanRef = useRef(false);
 
   useEffect(() => {
     if (!hasHydrated) return;
@@ -334,7 +335,15 @@ export default function App() {
   }, [backendMode, hasHydrated, hasValidUser, user?.username, user?.tenant_id, restoreSession, mappedTenantFromHost, logout]);
 
   useEffect(() => {
-    if (!hasValidUser) return;
+    if (!hasValidUser) {
+      // Reset so that next login triggers syncSession again.
+      syncSessionRanRef.current = false;
+      return;
+    }
+    // Prevent re-running syncSession on every tenant_id/role change it causes itself.
+    // Run only once per valid session establishment.
+    if (syncSessionRanRef.current) return;
+    syncSessionRanRef.current = true;
     let cancelled = false;
     const shouldBlockForTenantMismatch =
       !backendMode &&
