@@ -3575,6 +3575,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                   currentUserRole={String(user?.role || '')}
                   onSelectTable={handleSelectWaiterTable}
                   onMarkClean={(tableId) => { void handleMarkTableClean(tableId); }}
+                  showMyTablesFilter={isBahaYLab}
                 />
               </div>
               <div className="hidden lg:block" />
