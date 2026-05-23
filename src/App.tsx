@@ -23,6 +23,12 @@ import { isPerfDebugEnabled, type PerfEvent } from './lib/perf';
 import { syncPendingOfflineTableOps } from './api/tables';
 import HelpAssistant from './components/HelpAssistant';
 
+// BahaY: detect super lab for v2 features
+const isBahaYLab = (() => {
+  try { return String(window.location.hostname || '').toLowerCase() === 'super.ironwaves.store'; }
+  catch { return false; }
+})();
+
 const POS = lazy(() => import('./components/POS'));
 const KDS = lazy(() => import('./components/KDS'));
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
@@ -472,7 +478,7 @@ export default function App() {
   const defaultUiVisibility = { staff_show_tables: true, manager_show_tables: true, staff_show_kitchen: true };
   const defaultInventorySettings = { default_critical_threshold: 5, unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'] };
   const defaultRoleModules = {
-    staff: ['pos', 'tables', 'kds', 'zreport'],
+    staff: isBahaYLab ? ['pos', 'tables', 'kds'] : ['pos', 'tables', 'kds', 'zreport'],
     manager: ['pos', 'tables', 'kds', 'zreport', 'dashboard', 'finance', 'inventory', 'combos', 'analytics', 'logs', 'crm', 'customerapp', 'ai', 'menu', 'recipes'],
     kitchen: ['kds'],
   };
