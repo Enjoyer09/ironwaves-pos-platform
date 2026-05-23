@@ -227,9 +227,14 @@ export default function App() {
 
   useEffect(() => {
     if (!hasValidUser || !user?.tenant_id || !backendMode) return;
+    const role = String(user?.role || '').toLowerCase();
+    const isSuperAdmin = role === 'super_admin';
+    // Super admin triggers many more requests (finance + list_tenants).
+    // Stagger more aggressively to avoid overwhelming the DB connection pool.
+    const initialDelay = isSuperAdmin ? 2000 : 500;
+    const staggerMs = isSuperAdmin ? 400 : 180;
     const timerId = window.setTimeout(() => {
       const today = new Date().toISOString().slice(0, 10);
-      const role = String(user?.role || '').toLowerCase();
       const canUseFinance = ['manager', 'admin', 'finance_admin', 'super_admin'].includes(role);
       const hotPaths = [
         '/api/v1/ops/settings',
@@ -250,12 +255,12 @@ export default function App() {
         window.setTimeout(() => {
           void apiRequest(path, {
             tenantId: null,
-            timeoutMs: 5000,
+            timeoutMs: 8000,
             retryCount: 0,
           }).catch(() => null);
-        }, index * 180);
+        }, index * staggerMs);
       });
-    }, 500);
+    }, initialDelay);
     return () => window.clearTimeout(timerId);
   }, [backendMode, hasValidUser, user?.role, user?.tenant_id]);
 
@@ -293,6 +298,7 @@ export default function App() {
   const [sessionRestorePending, setSessionRestorePending] = useState(false);
   const [readyPopup, setReadyPopup] = useState<any | null>(null);
   const sessionRestoreTriedRef = useRef(false);
+  const syncSessionRanRef = useRef(false);
 
   useEffect(() => {
     if (!hasHydrated) return;
@@ -334,7 +340,12 @@ export default function App() {
   }, [backendMode, hasHydrated, hasValidUser, user?.username, user?.tenant_id, restoreSession, mappedTenantFromHost, logout]);
 
   useEffect(() => {
-    if (!hasValidUser) return;
+    if (!hasValidUser) {
+      syncSessionRanRef.current = false;
+      return;
+    }
+    if (syncSessionRanRef.current) return;
+    syncSessionRanRef.current = true;
     let cancelled = false;
     const shouldBlockForTenantMismatch =
       !backendMode &&
@@ -840,29 +851,33 @@ export default function App() {
       return;
     }
     let cancelled = false;
-    const loadTenants = async () => {
-      try {
-        const rows = await list_tenants();
-        if (cancelled) return;
-        setAvailableTenants(
-          (rows || [])
-            .filter((row) => String(row?.tenant_id || '').trim())
-            .sort((a, b) =>
-              String(a.company_name || a.slug || a.tenant_id).localeCompare(
-                String(b.company_name || b.slug || b.tenant_id),
+    // Delay tenant list load to avoid overwhelming backend during login burst.
+    const timerId = window.setTimeout(() => {
+      const loadTenants = async () => {
+        try {
+          const rows = await list_tenants();
+          if (cancelled) return;
+          setAvailableTenants(
+            (rows || [])
+              .filter((row) => String(row?.tenant_id || '').trim())
+              .sort((a, b) =>
+                String(a.company_name || a.slug || a.tenant_id).localeCompare(
+                  String(b.company_name || b.slug || b.tenant_id),
+                ),
               ),
-            ),
-        );
-      } catch (error: any) {
-        if (!cancelled) {
-          setAvailableTenants([]);
-          logUiError(selectedTenantId, 'tenant-switcher', error?.message || 'Failed to load tenants');
+          );
+        } catch (error: any) {
+          if (!cancelled) {
+            setAvailableTenants([]);
+            logUiError(selectedTenantId, 'tenant-switcher', error?.message || 'Failed to load tenants');
+          }
         }
-      }
-    };
-    void loadTenants();
+      };
+      void loadTenants();
+    }, 5000);
     return () => {
       cancelled = true;
+      window.clearTimeout(timerId);
     };
   }, [hasValidUser, sessionRole, selectedTenantId]);
 
