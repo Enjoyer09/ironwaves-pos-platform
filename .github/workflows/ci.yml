@@ -71,7 +71,7 @@ jobs:
     name: Backend Integration (PostgreSQL)
     runs-on: ubuntu-latest
     needs: backend-checks
-    if: ${{ secrets.INTEGRATION_DATABASE_URL != '' }}
+    if: ${{ vars.HAS_INTEGRATION_DB == 'true' }}
     defaults:
       run:
         working-directory: backend
