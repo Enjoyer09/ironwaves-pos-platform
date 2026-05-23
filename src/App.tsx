@@ -1010,6 +1010,7 @@ export default function App() {
 
   const visibleModuleKeys = visibleModules.map((m) => m.key).join('|');
   const shouldHoldForTenantResolution = Boolean(
+    !backendMode &&
     hasValidUser &&
     currentHost &&
     currentHost !== 'localhost' &&
