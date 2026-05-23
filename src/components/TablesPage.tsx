@@ -32,6 +32,12 @@ const KITCHEN_FEED_TTL_MS = 12_000;
 const tablesBootstrapCache = new Map<string, { at: number; data: TablesBootstrapRecord }>();
 const kitchenFeedCache = new Map<string, { at: number; data: any[] }>();
 
+// BahaY: detect super lab for new UI
+const isBahaYLab = (() => {
+  try { return String(window.location.hostname || '').toLowerCase() === 'super.ironwaves.store'; }
+  catch { return false; }
+})();
+
 export default function TablesPage({ isActive = true }: { isActive?: boolean }) {
   const [tables, setTables] = useState<any[]>([]);
   const [kitchenOrders, setKitchenOrders] = useState<any[]>([]);
@@ -2387,7 +2393,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	          ref={detailPanelRef}
 	          className={`${
 	            workspaceView === 'floor'
-	              ? 'fixed inset-y-3 right-3 z-[90] h-[calc(100vh-1.5rem)] w-[calc(100vw-1.5rem)] overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur lg:w-[min(70vw,1240px)]'
+	              ? `fixed inset-y-3 right-3 z-[90] h-[calc(100vh-1.5rem)] overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur ${isBahaYLab ? 'left-3 w-[calc(100vw-1.5rem)]' : 'w-[calc(100vw-1.5rem)] lg:w-[min(70vw,1240px)]'}`
 	              : 'mt-6'
 	          }`}
         >
