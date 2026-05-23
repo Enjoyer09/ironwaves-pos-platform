@@ -835,7 +835,12 @@ def _collect_stock_ops(db: Session, tenant_id: str, items: list[dict]) -> tuple[
             yield_rule = _find_yield_rule(db, tenant_id, inventory)
             sold_ready_qty, qty_required = _apply_yield_to_qty(base_qty_required, yield_rule)
             if Decimal(str(inventory.stock_qty or 0)) < qty_required:
-                raise HTTPException(status_code=400, detail=f"{inventory.name} üçün anbarda kifayət qədər qalıq yoxdur")
+                # BahaY: Don't block - stock might be miscounted or not yet entered.
+                # Allow negative stock, log a warning instead of raising.
+                import logging
+                logging.getLogger("ironwaves.stock").warning(
+                    f"Negative stock allowed: {inventory.name} has {inventory.stock_qty}, needs {qty_required} (tenant={tenant_id})"
+                )
             stock_ops.append((inventory, qty_required))
             line_cogs = (qty_required * Decimal(str(inventory.unit_cost or 0))).quantize(Decimal("0.0001"))
             cogs_total += line_cogs
