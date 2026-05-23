@@ -518,7 +518,11 @@ export default function App() {
   const themeMode: 'dark' | 'light' = settings?.session_settings?.theme_mode === 'light' ? 'light' : 'dark';
   const roleModules = settings?.role_modules || null;
   const safeRoleModules = {
-    staff: Array.isArray(roleModules?.staff) ? roleModules!.staff : defaultRoleModules.staff,
+    staff: (() => {
+      const base = Array.isArray(roleModules?.staff) ? roleModules!.staff : defaultRoleModules.staff;
+      // BahaY: staff should not see Z-report on super lab
+      return isBahaYLab ? base.filter((m: string) => m !== 'zreport') : base;
+    })(),
     manager: Array.isArray(roleModules?.manager)
       ? Array.from(new Set([...roleModules!.manager, 'dashboard']))
       : defaultRoleModules.manager,
