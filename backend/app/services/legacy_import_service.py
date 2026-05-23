@@ -128,6 +128,7 @@ def restore_generic_model_rows(
     if not isinstance(rows, list):
         return 0
     db.query(model).filter(model.tenant_id == tenant_id).delete(synchronize_session=False)
+    db.flush()
     restored_count = 0
     for idx, row in enumerate(rows):
         if not isinstance(row, dict):
