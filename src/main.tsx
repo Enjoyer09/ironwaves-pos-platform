@@ -26,6 +26,12 @@ window.addEventListener("error", (event) => {
 
 window.addEventListener("unhandledrejection", (event) => {
   const reason = event.reason instanceof Error ? `${event.reason.name}: ${event.reason.message}` : String(event.reason || "Unhandled promise rejection");
+  // BahaY: ignore non-critical API permission errors (e.g. staff hitting finance endpoints)
+  const ignorable = reason.includes('Finance view access') || reason.includes('access required') || reason.includes('Unauthorized');
+  if (ignorable) {
+    event.preventDefault();
+    return;
+  }
   renderBootError(reason);
 });
 
