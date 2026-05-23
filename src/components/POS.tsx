@@ -1599,7 +1599,18 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         : posLayout.preset === 'tables'
           ? 'bg-[radial-gradient(circle_at_top,#2e3247,#151b26_58%)]'
           : 'bg-[radial-gradient(circle_at_top,#2a3342,#141b24_55%)]';
-  const isNewUiMode = false;
+  // Super tenant only: enable Aelia-style new POS UI for staff.
+  // Other tenants keep the legacy UI to avoid disrupting real customers.
+  const isSuperTenantHost = (() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      const host = String(window.location.host || '').toLowerCase().split(':')[0];
+      return host === 'super.ironwaves.store';
+    } catch {
+      return false;
+    }
+  })();
+  const isNewUiMode = isSuperTenantHost;
   const orderTypeBlockVisible = isWidgetVisible('orderType');
   const tableBlockVisible = isWidgetVisible('table');
   const sidebarWidgetOrder = posLayout.widget_order || [];
