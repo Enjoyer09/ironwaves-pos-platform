@@ -131,8 +131,8 @@ function MenuGrid({
         ))}
       </div>
 
-      {/* Product grid - large cards with images */}
-      <div className="grid min-h-[240px] flex-1 grid-cols-2 gap-3 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/30 p-3 md:grid-cols-3 xl:grid-cols-4">
+      {/* Product grid - compact cards, scrollable */}
+      <div className="grid min-h-0 flex-1 auto-rows-max grid-cols-3 gap-2 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/30 p-2 md:grid-cols-4 xl:grid-cols-5">
         {items.map((item: any) => {
           const imageUrl = resolveItemImage(item);
           const qtyInDraft = draftQtyMap.get(item.id) || 0;
@@ -141,38 +141,38 @@ function MenuGrid({
               key={item.id}
               type="button"
               onClick={() => { tapFeedback(); void onSelectItem(item); }}
-              className={`relative flex flex-col overflow-hidden rounded-2xl border transition active:scale-[0.97] ${
+              className={`relative flex flex-col overflow-hidden rounded-xl border transition active:scale-[0.97] ${
                 qtyInDraft > 0
                   ? 'border-yellow-400/60 bg-slate-900/80 shadow-lg shadow-yellow-400/10'
                   : 'border-slate-700/50 bg-slate-900/50 hover:border-yellow-300/30 hover:bg-slate-900/70'
               }`}
             >
-              {/* Image or fallback */}
+              {/* Image or compact fallback */}
               {imageUrl ? (
-                <div className="aspect-[4/3] w-full overflow-hidden bg-slate-800">
+                <div className="aspect-[3/2] w-full overflow-hidden bg-slate-800">
                   <img src={imageUrl} alt={item.item_name} className="h-full w-full object-cover" loading="lazy" />
                 </div>
               ) : (
-                <div className="flex aspect-[4/3] w-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
-                  <span className="text-2xl font-black text-slate-600">
+                <div className="flex h-12 w-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
+                  <span className="text-lg font-black text-slate-600">
                     {String(item.item_name || '').slice(0, 2).toUpperCase()}
                   </span>
                 </div>
               )}
 
-              {/* Info */}
-              <div className="flex flex-1 flex-col justify-between p-3">
-                <div className="line-clamp-2 text-sm font-bold leading-tight text-slate-100">
+              {/* Info - compact */}
+              <div className="flex flex-1 flex-col justify-between p-2">
+                <div className="line-clamp-2 text-xs font-bold leading-tight text-slate-100">
                   {item.item_name}
                 </div>
-                <div className="mt-2 text-base font-black text-yellow-300">
+                <div className="mt-1 text-sm font-black text-yellow-300">
                   {Number(item.price || 0).toFixed(2)} ₼
                 </div>
               </div>
 
               {/* Qty badge */}
               {qtyInDraft > 0 && (
-                <div className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-yellow-400 text-sm font-black text-slate-900 shadow-lg">
+                <div className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400 text-xs font-black text-slate-900 shadow-lg">
                   {qtyInDraft}
                 </div>
               )}
