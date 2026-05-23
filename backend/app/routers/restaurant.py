@@ -255,6 +255,17 @@ def _staff_shift_session_open(db: Session, tenant_id: str, username: str | None)
 
 
 def _require_active_sales_shift(db: Session, tenant_id: str, user: User) -> Shift:
+    # BahaY: skip shift requirement on platform/super tenant for easier testing
+    from app.core.config import settings as app_settings
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if tenant and str(tenant.slug or "").strip().lower() == str(app_settings.platform_tenant_slug or "").strip().lower():
+        active = _active_shift(db, tenant_id)
+        if active:
+            return active
+        # Create a virtual shift object so callers don't crash
+        virtual = Shift(tenant_id=tenant_id, status="open", opened_by=getattr(user, "username", "system"))
+        return virtual
+
     active = _active_shift(db, tenant_id)
     if not active:
         raise HTTPException(status_code=400, detail="Masa sifarişi/satışı üçün əvvəlcə günü açın (Z-Hesabat > Günü Aç)")
