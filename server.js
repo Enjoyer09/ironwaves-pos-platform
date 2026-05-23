@@ -81,8 +81,17 @@ function sendFile(filePath, res) {
 }
 
 const server = http.createServer((req, res) => {
-  const requestUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-  const pathname = decodeURIComponent(requestUrl.pathname || '/');
+  let requestUrl;
+  let pathname;
+  try {
+    requestUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+    pathname = decodeURIComponent(requestUrl.pathname || '/');
+  } catch {
+    res.statusCode = 400;
+    setSecurityHeaders(res);
+    res.end('Bad request');
+    return;
+  }
 
   if (BLOCKED_PATTERNS.some((pattern) => pattern.test(pathname))) {
     res.statusCode = 403;
@@ -91,11 +100,11 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (pathname === '/healthz') {
+  if (pathname === '/health' || pathname === '/healthz') {
     res.statusCode = 200;
     setSecurityHeaders(res);
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.end(JSON.stringify({ status: 'ok' }));
+    res.end(JSON.stringify({ status: 'ok', app: 'iRonWaves POS frontend' }));
     return;
   }
 
@@ -118,4 +127,9 @@ const server = http.createServer((req, res) => {
 
 server.listen(port, '0.0.0.0', () => {
   console.log(`[frontend] secure static server listening on ${port}`);
+});
+
+server.on('error', (error) => {
+  console.error('[frontend] server failed to start', error);
+  process.exit(1);
 });
