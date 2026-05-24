@@ -24,6 +24,7 @@ type BahaYTableComposeProps = {
   tableOccupied: boolean;
   userCanEdit: boolean;
   onSettle: () => void;
+  onCancelTable: () => void;
   // Sent items
   sentItems: any[];
   onShowFullList: () => void;
@@ -35,6 +36,8 @@ type BahaYTableComposeProps = {
   roundsCount: number;
   activeTab: string;
   onTabChange: (tab: string) => void;
+  // Back
+  onBack: () => void;
 };
 
 function BahaYTableCompose(props: BahaYTableComposeProps) {
@@ -42,10 +45,11 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
     lang, filteredRoundMenu, roundCategories, roundSearch, roundCategory,
     onSearchChange, onCategoryChange, onSelectItem, roundDraft,
     draftRows, draftTotal, draftSendError, onClearDrafts, onUpdateQty, onSend,
-    tableOccupied, userCanEdit, onSettle,
+    tableOccupied, userCanEdit, onSettle, onCancelTable,
     sentItems, onShowFullList,
     lockHolder, userCanEditTable,
     readyCount, roundsCount, activeTab, onTabChange,
+    onBack,
   } = props;
 
   return (
@@ -172,6 +176,26 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-emerald-300/40 bg-emerald-500/15 px-3 py-2 text-sm font-bold text-emerald-100 disabled:opacity-50"
               >
                 {tx(lang, 'Hesab', 'Счёт', 'Bill')}
+              </button>
+            )}
+          </div>
+          {/* Cancel table + Back */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex min-h-9 flex-1 items-center justify-center rounded-xl border border-slate-700/70 bg-slate-900/60 px-3 py-1.5 text-xs font-semibold text-slate-300"
+            >
+              ← {tx(lang, 'Geri', 'Назад', 'Back')}
+            </button>
+            {tableOccupied && (
+              <button
+                type="button"
+                disabled={!userCanEdit}
+                onClick={onCancelTable}
+                className="inline-flex min-h-9 flex-1 items-center justify-center rounded-xl border border-rose-300/30 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-200 disabled:opacity-50"
+              >
+                {tx(lang, 'Ləğv et', 'Отменить', 'Cancel')}
               </button>
             )}
           </div>
