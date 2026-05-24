@@ -2578,7 +2578,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       </div>
                     </div>
                   )}
-	                  <div className={`mt-2 flex flex-wrap gap-2 ${isBahaYLab ? 'hidden' : ''}`}>
+	                  <div className={`mt-2 flex flex-wrap gap-2`}>
                     {tableLockHolder && (
 	                      <div className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${userCanEditTable ? 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100' : 'border-rose-300/30 bg-rose-500/10 text-rose-100'}`}>
                         {`👤 ${tableLockHolder} ${tx(lang, 'istifadə edir', 'использует', 'is using')}`}
@@ -2632,7 +2632,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       <input className="neon-input" value={lockReason} onChange={(e) => setLockReason(e.target.value)} placeholder={tx(lang, 'Override səbəbi', 'Причина override', 'Override reason')} />
                     </div>
                   )}
-	                  <div className={`mt-2 rounded-xl border border-slate-700/70 bg-slate-900/30 p-2 ${isBahaYLab ? 'hidden' : ''}`}>
+	                  <div className={`mt-2 rounded-xl border border-slate-700/70 bg-slate-900/30 p-2`}>
 	                    <div className="flex flex-wrap gap-2">
                       {([
                         ['compose', tx(lang, 'Sifariş', 'Заказ', 'Order')],
