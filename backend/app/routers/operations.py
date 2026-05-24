@@ -947,6 +947,7 @@ class TablePayIn(BaseModel):
     payment_method: str
     split_cash: Decimal | None = None
     split_card: Decimal | None = None
+    discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=50)
     cup_mode: str | None = "paper"
     pay_scope: str | None = "full"
     seat_label: str | None = None
@@ -4109,8 +4110,15 @@ def pay_table(
     if not items and seat_deposit_amount <= 0:
         raise HTTPException(status_code=400, detail="Table is empty")
 
-    service_fee_amount = (items_total * service_fee_percent / Decimal("100")).quantize(Decimal("0.01"))
-    total = max(items_total + service_fee_amount, seat_deposit_amount).quantize(Decimal("0.01"))
+    discount_percent = Decimal(str(payload.discount_percent or 0)).quantize(Decimal("0.01"))
+    discount_percent = max(Decimal("0.00"), min(discount_percent, Decimal("50.00")))
+    pre_discount_service_fee_amount = (items_total * service_fee_percent / Decimal("100")).quantize(Decimal("0.01"))
+    pre_discount_total = max(items_total + pre_discount_service_fee_amount, seat_deposit_amount).quantize(Decimal("0.01"))
+    raw_discount_amount = (items_total * discount_percent / Decimal("100")).quantize(Decimal("0.01"))
+    discounted_items_total = max(items_total - raw_discount_amount, Decimal("0.00")).quantize(Decimal("0.01"))
+    service_fee_amount = (discounted_items_total * service_fee_percent / Decimal("100")).quantize(Decimal("0.01"))
+    total = max(discounted_items_total + service_fee_amount, seat_deposit_amount).quantize(Decimal("0.01"))
+    discount_amount = max(pre_discount_total - total, Decimal("0.00")).quantize(Decimal("0.01"))
     extra_due = max(total - seat_deposit_amount, Decimal("0.00")).quantize(Decimal("0.01"))
     stock_ops, cogs_total = _collect_stock_ops(db, tenant.id, items)
     receipt_code = secrets.token_hex(5).upper()
@@ -4124,7 +4132,7 @@ def pay_table(
         receipt_code=receipt_code,
         receipt_token=receipt_token,
         total=total,
-        discount_amount=Decimal("0.00"),
+        discount_amount=discount_amount,
         cogs=cogs_total,
         items_json=json.dumps(items, ensure_ascii=False),
         status="COMPLETED",
@@ -4265,6 +4273,9 @@ def pay_table(
         "receipt_code": receipt_code,
         "receipt_token": receipt_token,
         "items_total": str(items_total),
+        "discount_percent": str(discount_percent),
+        "discount_amount": str(discount_amount),
+        "discounted_items_total": str(discounted_items_total),
         "service_fee_amount": str(service_fee_amount),
         "deposit_amount": str(seat_deposit_amount),
         "extra_due": str(extra_due),

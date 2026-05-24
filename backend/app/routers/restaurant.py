@@ -2695,8 +2695,15 @@ def settle_check(
             )
     deposit_amount = Decimal(str(table.deposit_amount or 0)).quantize(Decimal("0.01"))
     service_fee_percent = Decimal(str(_setting_value(db, tenant.id, "service_fee_percent", 0) or 0))
-    service_fee_amount = (items_total * service_fee_percent / Decimal("100")).quantize(Decimal("0.01"))
-    final_total = max(items_total + service_fee_amount, deposit_amount).quantize(Decimal("0.01"))
+    discount_percent = Decimal(str(payload.discount_percent or 0)).quantize(Decimal("0.01"))
+    discount_percent = max(Decimal("0.00"), min(discount_percent, Decimal("50.00")))
+    pre_discount_service_fee_amount = (items_total * service_fee_percent / Decimal("100")).quantize(Decimal("0.01"))
+    pre_discount_final_total = max(items_total + pre_discount_service_fee_amount, deposit_amount).quantize(Decimal("0.01"))
+    raw_discount_amount = (items_total * discount_percent / Decimal("100")).quantize(Decimal("0.01"))
+    discounted_items_total = max(items_total - raw_discount_amount, Decimal("0.00")).quantize(Decimal("0.01"))
+    service_fee_amount = (discounted_items_total * service_fee_percent / Decimal("100")).quantize(Decimal("0.01"))
+    final_total = max(discounted_items_total + service_fee_amount, deposit_amount).quantize(Decimal("0.01"))
+    discount_amount = max(pre_discount_final_total - final_total, Decimal("0.00")).quantize(Decimal("0.01"))
     extra_due = max(final_total - deposit_amount, Decimal("0.00")).quantize(Decimal("0.01"))
 
     existing_payments = (
@@ -2742,7 +2749,7 @@ def settle_check(
         receipt_code=receipt_code,
         receipt_token=receipt_token,
         total=final_total,
-        discount_amount=Decimal("0.00"),
+        discount_amount=discount_amount,
         cogs=cogs_total,
         items_json=json.dumps(items, ensure_ascii=False),
         status="COMPLETED",
@@ -2829,7 +2836,7 @@ def settle_check(
         _mark_order_items_stock_consumed(db, tenant.id, waste_stock_item_ids, "restaurant_nonbillable_waste")
 
     done_time = datetime.utcnow()
-    active_check.subtotal = items_total
+    active_check.subtotal = discounted_items_total
     active_check.service_charge = service_fee_amount
     active_check.tax_amount = Decimal("0.00")
     active_check.total = final_total
@@ -2858,7 +2865,26 @@ def settle_check(
     table.status = "DIRTY"
     _release_table_lock(table)
 
-    db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="CHECK_SETTLED", details=f"{table.label}:{active_check.check_number}"))
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="CHECK_SETTLED",
+            details=json.dumps(
+                {
+                    "table_label": table.label,
+                    "check_number": active_check.check_number,
+                    "items_total": str(items_total),
+                    "discount_percent": str(discount_percent),
+                    "discount_amount": str(discount_amount),
+                    "service_fee_amount": str(service_fee_amount),
+                    "final_total": str(final_total),
+                    "payment_total": str(payment_total),
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
     db.commit()
     _emit_realtime(tenant.id, "check.updated", {"table_id": table.id, "check_id": active_check.id, "action": "settled"})
     _emit_realtime(tenant.id, "floor.updated", {"table_id": table.id, "action": "dirty"})
@@ -2871,6 +2897,9 @@ def settle_check(
         "check_id": active_check.id,
         "check_number": active_check.check_number,
         "items_total": str(items_total),
+        "discount_percent": str(discount_percent),
+        "discount_amount": str(discount_amount),
+        "discounted_items_total": str(discounted_items_total),
         "service_fee_amount": str(service_fee_amount),
         "deposit_amount": str(deposit_amount),
         "extra_due": str(extra_due),
