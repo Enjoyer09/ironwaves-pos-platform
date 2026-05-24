@@ -30,6 +30,7 @@ import BahaYTableCompose from './tables/BahaYTableCompose';
 
 const TABLES_BOOTSTRAP_TTL_MS = 12_000;
 const KITCHEN_FEED_TTL_MS = 12_000;
+const TABLE_DISCOUNT_PRESETS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50] as const;
 const tablesBootstrapCache = new Map<string, { at: number; data: TablesBootstrapRecord }>();
 const kitchenFeedCache = new Map<string, { at: number; data: any[] }>();
 
@@ -75,6 +76,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const [revisionOverridePassword, setRevisionOverridePassword] = useState('');
   const [showFullOrderList, setShowFullOrderList] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'Nəğd' | 'Kart' | 'Split'>('Nəğd');
+  const [tableDiscountPercent, setTableDiscountPercent] = useState('0');
   const [splitCash, setSplitCash] = useState('0');
   const [splitCount, setSplitCount] = useState('2');
   const [splitParts, setSplitParts] = useState<Array<{ amount: string; method: 'Nəğd' | 'Kart' }>>([]);
@@ -1420,6 +1422,24 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     return Math.min(maxAllowed, Math.max(2, Number.isFinite(parsed) ? parsed : 2));
   };
 
+  const normalizeTableDiscountPercent = (value: unknown) => {
+    const parsed = Number(value || 0);
+    if (!Number.isFinite(parsed)) return 0;
+    return Math.max(0, Math.min(50, Math.round(parsed)));
+  };
+
+  const updateTableDiscountPercent = (value: unknown) => {
+    const nextPercent = normalizeTableDiscountPercent(value);
+    setTableDiscountPercent(String(nextPercent));
+    if (paymentMethod !== 'Split' || !payTableId) return;
+    const table = tables.find((row) => row.id === payTableId);
+    if (!table) return;
+    const count = normalizeSplitCount(table, splitCount);
+    const nextBreakdown = getTableBillBreakdown(table, nextPercent);
+    setSplitCount(String(count));
+    setSplitParts(buildEqualSplitParts(count, nextBreakdown.splitBasis));
+  };
+
   const rebalanceSplitParts = (
     baseParts: Array<{ amount: string; method: 'Nəğd' | 'Kart' }>,
     total: Decimal,
@@ -1479,17 +1499,23 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     return detailItems.length === 0 && visibleTotal.greaterThan(0) && deposit.lessThanOrEqualTo(0);
   };
 
-  const getTableBillBreakdown = (table: any) => {
+  const getTableBillBreakdown = (table: any, discountPercentOverride?: number) => {
     const payItems = getTablePaymentItems(table);
     const itemsTotal = payItems.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0));
-    const serviceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
+    const discountPercent = new Decimal(normalizeTableDiscountPercent(discountPercentOverride ?? tableDiscountPercent)).toDecimalPlaces(2);
+    const preDiscountServiceFee = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
     const deposit = new Decimal(table?.deposit_amount || 0);
-    const finalTotal = Decimal.max(itemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
+    const preDiscountFinalTotal = Decimal.max(itemsTotal.plus(preDiscountServiceFee), deposit).toDecimalPlaces(2);
+    const rawDiscountAmount = itemsTotal.times(discountPercent).div(100).toDecimalPlaces(2);
+    const discountedItemsTotal = Decimal.max(new Decimal(0), itemsTotal.minus(rawDiscountAmount)).toDecimalPlaces(2);
+    const serviceFee = discountedItemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
+    const finalTotal = Decimal.max(discountedItemsTotal.plus(serviceFee), deposit).toDecimalPlaces(2);
+    const discountAmount = Decimal.max(new Decimal(0), preDiscountFinalTotal.minus(finalTotal)).toDecimalPlaces(2);
     const dueNow = Decimal.max(new Decimal(0), finalTotal.minus(deposit)).toDecimalPlaces(2);
     const splitBasis = dueNow.greaterThan(0) ? dueNow : finalTotal;
     const guestCount = Math.max(1, Number(table?.guest_count || 1));
     const depositPerGuestShare = guestCount > 0 ? deposit.div(guestCount).toDecimalPlaces(2) : new Decimal(0);
-    return { itemsTotal, serviceFee, deposit, finalTotal, dueNow, splitBasis, guestCount, depositPerGuestShare };
+    return { itemsTotal, discountPercent, discountAmount, discountedItemsTotal, serviceFee, deposit, finalTotal, dueNow, splitBasis, guestCount, depositPerGuestShare };
   };
 
   useEffect(() => {
@@ -1715,10 +1741,16 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               {(() => {
                 const t = tables.find((x) => x.id === payTableId);
                 if (!t) return null;
-                const { itemsTotal, serviceFee, deposit, finalTotal, dueNow } = getTableBillBreakdown(t);
+                const { itemsTotal, discountPercent, discountAmount, discountedItemsTotal, serviceFee, deposit, finalTotal, dueNow } = getTableBillBreakdown(t);
                 return (
                 <div className="mt-3 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3 text-sm text-slate-300">
                   <div className="flex justify-between"><span>{tx(lang, 'Sifariş cəmi', 'Сумма заказа', 'Items total')}</span><span>{itemsTotal.toFixed(2)} ₼</span></div>
+                  {discountAmount.greaterThan(0) && (
+                    <>
+                      <div className="mt-1 flex justify-between text-amber-200"><span>{tx(lang, `Endirim (${discountPercent.toFixed(0)}%)`, `Скидка (${discountPercent.toFixed(0)}%)`, `Discount (${discountPercent.toFixed(0)}%)`)}</span><span>-{discountAmount.toFixed(2)} ₼</span></div>
+                      <div className="mt-1 flex justify-between"><span>{tx(lang, 'Endirimdən sonra', 'После скидки', 'After discount')}</span><span>{discountedItemsTotal.toFixed(2)} ₼</span></div>
+                    </>
+                  )}
                   <div className="mt-1 flex justify-between"><span>{tx(lang, 'Servis haqqı', 'Сервисный сбор', 'Service fee')}</span><span>{serviceFee.toFixed(2)} ₼</span></div>
                   <div className="mt-1 flex justify-between"><span>{tx(lang, 'Depozit', 'Депозит', 'Deposit')}</span><span>{deposit.toFixed(2)} ₼</span></div>
                   <div className="mt-1 flex justify-between font-semibold text-slate-100"><span>{tx(lang, 'Yekun hesab', 'Итоговый счет', 'Final bill')}</span><span>{finalTotal.toFixed(2)} ₼</span></div>
@@ -1726,6 +1758,46 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 </div>
               );
             })()}
+            <div className="mt-4 rounded-xl border border-amber-300/25 bg-amber-400/10 p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-100">
+                  {tx(lang, 'Endirim tətbiq et', 'Применить скидку', 'Apply discount')}
+                </div>
+                <select
+                  className="neon-input max-w-[132px] py-2 text-sm"
+                  value={tableDiscountPercent}
+                  onChange={(event) => updateTableDiscountPercent(event.target.value)}
+                >
+                  <option value="0">{tx(lang, 'Endirim yox', 'Без скидки', 'No discount')}</option>
+                  {TABLE_DISCOUNT_PRESETS.map((preset) => (
+                    <option key={preset} value={preset}>{preset}%</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-5 gap-2">
+                {TABLE_DISCOUNT_PRESETS.map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => updateTableDiscountPercent(preset)}
+                    className={`rounded-lg border px-2 py-2 text-xs font-black transition ${
+                      Number(tableDiscountPercent) === preset
+                        ? 'border-amber-200 bg-amber-300 text-slate-950'
+                        : 'border-amber-300/25 bg-slate-950/25 text-amber-100 hover:border-amber-200/70'
+                    }`}
+                  >
+                    {preset}%
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="mt-2 text-xs font-semibold text-slate-300 hover:text-white"
+                onClick={() => updateTableDiscountPercent(0)}
+              >
+                {tx(lang, 'Endirimi sıfırla', 'Сбросить скидку', 'Reset discount')}
+              </button>
+            </div>
             <div className="mt-4">
               <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
                 {tx(lang, 'Ödəniş ssenarisi', 'Сценарий оплаты', 'Payment scenario')}
@@ -1850,6 +1922,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 setSplitCount('2');
                 setSplitParts([]);
                 setSplitCash('0');
+                setTableDiscountPercent('0');
               }}>{tx(lang, 'Ləğv et', 'Отмена')}</button>
               <button
                 className="glossy-gold rounded-lg px-4 py-2 font-semibold"
@@ -1862,7 +1935,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       return;
                     }
                     const itemsSnapshot = getTablePaymentItems(table);
-                    const { itemsTotal, serviceFee, deposit, finalTotal, dueNow, splitBasis, guestCount } = getTableBillBreakdown(table);
+                    const { itemsTotal, discountPercent, discountAmount, discountedItemsTotal, serviceFee, deposit, finalTotal, dueNow, splitBasis, guestCount } = getTableBillBreakdown(table);
                     let cash: Decimal | null = null;
                     let card: Decimal | null = null;
                     if (paymentMethod === 'Split') {
@@ -1898,6 +1971,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                               : buildEqualSplitParts(normalizeSplitCount(table, splitCount), splitBasis)
                           )
                         : undefined,
+                      discount_percent: discountPercent.toFixed(2),
                     });
                     window.dispatchEvent(new CustomEvent('table-paid', { detail: { tenant_id, table_id: table.id } }));
                     const sales = getDB<any>('sales');
@@ -1916,6 +1990,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     const receiptDeposit = new Decimal(result.deposit_amount || deposit);
                     const receiptExtraDue = new Decimal(result.extra_due || dueNow);
                     const receiptFinalTotal = new Decimal(result.final_total || finalTotal);
+                    const receiptDiscountPercent = new Decimal(result.discount_percent || discountPercent);
+                    const receiptDiscountAmount = new Decimal(result.discount_amount || discountAmount);
+                    const receiptDiscountedItemsTotal = new Decimal(result.discounted_items_total || discountedItemsTotal);
                     const settingsSnapshot = tenantSettings && Object.keys(tenantSettings).length > 0
                       ? tenantSettings
                       : {};
@@ -2008,6 +2085,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           ${receiptCustomerId ? `<div class="line"><span>Müştəri ID</span><span>${receiptCustomerId}</span></div>` : ''}
                           ${receiptCustomerId ? `<div class="line"><span>Ulduz balansı</span><span>${receiptStarsAfter}</span></div>` : ''}
                           <div class="line"><span>Sifariş cəmi</span><span>${itemsTotal.toFixed(2)} ₼</span></div>
+                          ${receiptDiscountAmount.greaterThan(0) ? `<div class="line"><span>Endirim (${receiptDiscountPercent.toFixed(0)}%)</span><span>-${receiptDiscountAmount.toFixed(2)} ₼</span></div>` : ''}
+                          ${receiptDiscountAmount.greaterThan(0) ? `<div class="line"><span>Endirimdən sonra</span><span>${receiptDiscountedItemsTotal.toFixed(2)} ₼</span></div>` : ''}
                           <div class="line"><span>Servis faizi</span><span>${serviceFeePercent.toFixed(2)}%</span></div>
                           <div class="line"><span>Servis haqqı</span><span>${receiptServiceFee.toFixed(2)} ₼</span></div>
                           <div class="line"><span>Depozit</span><span>${receiptDeposit.toFixed(2)} ₼</span></div>
@@ -2039,6 +2118,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     setSplitCount('2');
                     setSplitParts([]);
                     setSplitCash('0');
+                    setTableDiscountPercent('0');
                     await Promise.all([
                       loadData(),
                       activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(),
@@ -2817,7 +2897,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                        userCanEdit={userCanEditTable}
 	                        onSettle={() => {
 	                          if (hasEmptyActiveCheckTotalMismatch(t)) { notify('error', tx(lang, 'Sifariş boşdur', 'Заказ пуст', 'Order empty')); return; }
-	                          setPayTableId(t.id); setViewTableId(null); setPaymentMethod('Nəğd'); setSplitCount('2'); setSplitParts([]); setSplitCash('0');
+	                          setPayTableId(t.id); setViewTableId(null); setPaymentMethod('Nəğd'); setSplitCount('2'); setSplitParts([]); setSplitCash('0'); setTableDiscountPercent('0');
 	                        }}
 	                        sentItems={sentDisplayItems}
 	                        onShowFullList={() => setShowFullOrderList(true)}
@@ -2917,6 +2997,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                             setSplitCount('2');
                             setSplitParts([]);
                             setSplitCash('0');
+                            setTableDiscountPercent('0');
                           }}
                         />
                       </div>
@@ -3150,6 +3231,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           setSplitCount('2');
                           setSplitParts([]);
                           setSplitCash('0');
+                          setTableDiscountPercent('0');
                         }}
                       >
                         {tx(lang, 'Hesabı Al', 'Закрыть счет')}

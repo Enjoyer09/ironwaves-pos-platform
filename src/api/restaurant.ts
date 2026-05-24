@@ -607,6 +607,7 @@ export async function settle_table_check_live(
     payment_method: PaymentMethod;
     split_cash?: Decimal | null;
     split_card?: Decimal | null;
+    discount_percent?: number | string | Decimal | null;
     parts?: Array<{ method: 'Nəğd' | 'Kart'; amount: string }>;
   },
 ) {
@@ -617,7 +618,7 @@ export async function settle_table_check_live(
       'staff',
       payload.split_cash || null,
       payload.split_card || null,
-      { pay_scope: 'full' },
+      { pay_scope: 'full', discount_percent: payload.discount_percent || 0 },
     );
   }
   return apiRequest(`/api/v1/restaurant/tables/${encodeURIComponent(tableId)}/settle-check`, {
@@ -627,6 +628,9 @@ export async function settle_table_check_live(
       payment_method: payload.payment_method,
       split_cash: payload.split_cash ? payload.split_cash.toFixed(2) : null,
       split_card: payload.split_card ? payload.split_card.toFixed(2) : null,
+      discount_percent: payload.discount_percent !== null && payload.discount_percent !== undefined
+        ? new Decimal(payload.discount_percent || 0).toDecimalPlaces(2).toFixed(2)
+        : '0.00',
       parts: (payload.parts || []).map((row) => ({
         method: row.method,
         amount: row.amount,

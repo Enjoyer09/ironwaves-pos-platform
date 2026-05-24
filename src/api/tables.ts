@@ -453,7 +453,7 @@ export const pay_table = (
   paid_by: string,
   split_cash: Decimal | null = null,
   split_card: Decimal | null = null,
-  options?: { cup_mode?: 'paper' | 'glass'; pay_scope?: 'full' | 'seat'; seat_label?: string }
+  options?: { cup_mode?: 'paper' | 'glass'; pay_scope?: 'full' | 'seat'; seat_label?: string; discount_percent?: number | string | Decimal | null }
 ) => {
   let tables = getDB<Table>('tables');
   const table = tables.find(t => t.id === table_id);
@@ -471,12 +471,18 @@ export const pay_table = (
   const remainingItems = payScope === 'seat' ? allItems.filter((item: any) => String(item.seat_label || '') !== seatLabel) : [];
   const itemsTotal = itemsForSale.reduce((acc, item) => acc.plus(new Decimal(item.price || 0).times(item.qty || 0)), new Decimal(0));
   const serviceFeePercent = new Decimal(settings.service_fee_percent || 0);
-  const serviceFeeAmount = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
+  const discountPercent = Decimal.max(new Decimal(0), Decimal.min(new Decimal(options?.discount_percent || 0), new Decimal(50))).toDecimalPlaces(2);
+  const preDiscountServiceFeeAmount = itemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
   const depositPerGuest = new Decimal(settings.table_service_settings?.deposit_per_guest_azn || 0);
   const depositAmount = payScope === 'seat'
     ? ((table.deposit_seat_labels || []).includes(seatLabel) ? depositPerGuest : new Decimal(0))
     : new Decimal(table.deposit_amount || 0);
-  const payableTotal = Decimal.max(itemsTotal.plus(serviceFeeAmount), depositAmount).toDecimalPlaces(2);
+  const preDiscountPayableTotal = Decimal.max(itemsTotal.plus(preDiscountServiceFeeAmount), depositAmount).toDecimalPlaces(2);
+  const rawDiscountAmount = itemsTotal.times(discountPercent).div(100).toDecimalPlaces(2);
+  const discountedItemsTotal = Decimal.max(new Decimal(0), itemsTotal.minus(rawDiscountAmount)).toDecimalPlaces(2);
+  const serviceFeeAmount = discountedItemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
+  const payableTotal = Decimal.max(discountedItemsTotal.plus(serviceFeeAmount), depositAmount).toDecimalPlaces(2);
+  const discountAmount = Decimal.max(new Decimal(0), preDiscountPayableTotal.minus(payableTotal)).toDecimalPlaces(2);
   const extraDue = Decimal.max(new Decimal(0), payableTotal.minus(depositAmount)).toDecimalPlaces(2);
   const paidTotal = payableTotal.toFixed(2);
 
@@ -486,7 +492,7 @@ export const pay_table = (
     payment_method,
     cashier: paid_by,
     customer_card_id: null,
-    discount_percent: 0,
+    discount_percent: discountPercent,
     is_eco_cup: false,
     is_test: false,
     split_cash,
@@ -502,6 +508,9 @@ export const pay_table = (
   if (sale) {
     sale.original_total = itemsTotal.toFixed(2);
     sale.total = paidTotal;
+    sale.discount_amount = discountAmount.toFixed(2);
+    (sale as any).discount_percent = discountPercent.toFixed(2);
+    (sale as any).discounted_items_total = discountedItemsTotal.toFixed(2);
     (sale as any).service_fee_amount = serviceFeeAmount.toFixed(2);
     (sale as any).deposit_amount = depositAmount.toFixed(2);
     (sale as any).extra_due = extraDue.toFixed(2);
@@ -599,6 +608,9 @@ export const pay_table = (
     sale_id: result.sale_id,
     success: true,
     items_total: itemsTotal.toFixed(2),
+    discount_percent: discountPercent.toFixed(2),
+    discount_amount: discountAmount.toFixed(2),
+    discounted_items_total: discountedItemsTotal.toFixed(2),
     service_fee_amount: serviceFeeAmount.toFixed(2),
     deposit_amount: depositAmount.toFixed(2),
     extra_due: extraDue.toFixed(2),
@@ -921,7 +933,7 @@ export const pay_table_live = async (
   paid_by: string,
   split_cash: Decimal | null = null,
   split_card: Decimal | null = null,
-  options?: { cup_mode?: 'paper' | 'glass'; pay_scope?: 'full' | 'seat'; seat_label?: string }
+  options?: { cup_mode?: 'paper' | 'glass'; pay_scope?: 'full' | 'seat'; seat_label?: string; discount_percent?: number | string | Decimal | null }
 ) => {
   if (!isBackendEnabled()) return pay_table(table_id, payment_method, paid_by, split_cash, split_card, options);
   try {
@@ -935,6 +947,9 @@ export const pay_table_live = async (
         cup_mode: options?.cup_mode || 'paper',
         pay_scope: options?.pay_scope || 'full',
         seat_label: options?.seat_label || null,
+        discount_percent: options?.discount_percent !== null && options?.discount_percent !== undefined
+          ? new Decimal(options.discount_percent || 0).toDecimalPlaces(2).toFixed(2)
+          : '0.00',
       },
     });
   } catch (error) {
@@ -949,6 +964,9 @@ export const pay_table_live = async (
           cup_mode: options?.cup_mode || 'paper',
           pay_scope: options?.pay_scope || 'full',
           seat_label: options?.seat_label || null,
+          discount_percent: options?.discount_percent !== null && options?.discount_percent !== undefined
+            ? new Decimal(options.discount_percent || 0).toDecimalPlaces(2).toFixed(2)
+            : '0.00',
         });
       }
       return result;
