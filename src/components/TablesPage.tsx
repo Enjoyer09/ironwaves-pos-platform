@@ -26,6 +26,7 @@ import { formatRestaurantLocalTime, formatServerUtcDateTime, formatServerUtcTime
 import TableGrid from './tables/TableGrid';
 import MenuGrid from './tables/MenuGrid';
 import StickyActionBar from './tables/StickyActionBar';
+import BahaYTableCompose from './tables/BahaYTableCompose';
 
 const TABLES_BOOTSTRAP_TTL_MS = 12_000;
 const KITCHEN_FEED_TTL_MS = 12_000;
@@ -2788,7 +2789,42 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         );
                       })}
 	                  </div>
-	                  {tableWorkspaceTab === 'compose' && (
+	                  {tableWorkspaceTab === 'compose' && isBahaYLab && (
+	                    <div className="order-1 flex min-h-0 flex-[1.2] flex-col overflow-hidden">
+	                      <BahaYTableCompose
+	                        lang={lang}
+	                        filteredRoundMenu={filteredRoundMenu}
+	                        roundCategories={roundCategories}
+	                        roundSearch={roundSearch}
+	                        roundCategory={roundCategory}
+	                        onSearchChange={setRoundSearch}
+	                        onCategoryChange={setRoundCategory}
+	                        onSelectItem={addMenuItemToRound}
+	                        roundDraft={roundDraft}
+	                        draftRows={draftRows}
+	                        draftTotal={draftTotal}
+	                        draftSendError={draftSendError}
+	                        onClearDrafts={clearVisibleDrafts}
+	                        onUpdateQty={(id, qty) => updateRoundDraftQty(id, qty)}
+	                        onSend={() => { void sendRoundDirectly(t); }}
+	                        tableOccupied={Boolean(t?.is_occupied)}
+	                        userCanEdit={userCanEditTable}
+	                        onSettle={() => {
+	                          if (hasEmptyActiveCheckTotalMismatch(t)) { notify('error', tx(lang, 'Sifariş boşdur', 'Заказ пуст', 'Order empty')); return; }
+	                          setPayTableId(t.id); setViewTableId(null); setPaymentMethod('Nəğd'); setSplitCount('2'); setSplitParts([]); setSplitCash('0');
+	                        }}
+	                        sentItems={sentDisplayItems}
+	                        onShowFullList={() => setShowFullOrderList(true)}
+	                        lockHolder={tableLockHolder}
+	                        userCanEditTable={userCanEditTable}
+	                        readyCount={readyItems.length}
+	                        roundsCount={rounds.length}
+	                        activeTab={tableWorkspaceTab}
+	                        onTabChange={(tab) => setTableWorkspaceTab(tab as any)}
+	                      />
+	                    </div>
+	                  )}
+	                  {tableWorkspaceTab === 'compose' && !isBahaYLab && (
 		                  <div className="order-1 flex min-h-0 flex-[1.2] flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-slate-900/35 p-3 lg:p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div>
