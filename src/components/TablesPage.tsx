@@ -2821,6 +2821,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                        roundsCount={rounds.length}
 	                        activeTab={tableWorkspaceTab}
 	                        onTabChange={(tab) => setTableWorkspaceTab(tab as any)}
+	                        onBack={() => setViewTableId(null)}
+	                        onCancelTable={() => { void handleCancelTableCheck(t.id, t.label); }}
 	                      />
 	                    </div>
 	                  )}
