@@ -1735,7 +1735,9 @@ def cancel_table_check(
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
 ):
-    if not _is_manager(user):
+    # BahaY: allow staff to cancel empty tables on platform tenant
+    is_platform = str(tenant.slug or "").strip().lower() == str(app_settings.platform_tenant_slug or "").strip().lower()
+    if not _is_manager(user) and not is_platform:
         raise HTTPException(status_code=403, detail="Manager/Admin required")
     table = db.query(Table).filter(Table.id == table_id, Table.tenant_id == tenant.id).first()
     if not table:
