@@ -2693,7 +2693,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     </div>
                   </div>
                   )}
-		                  <div className={`order-2 mt-3 max-h-[14vh] min-h-[64px] flex-none overflow-y-auto overscroll-y-contain rounded-lg border border-slate-700/70 bg-slate-900/40 p-3 ${tableWorkspaceTab === 'compose' ? '' : 'hidden'} ${isBahaYLab ? 'max-h-[6vh] min-h-[40px]' : ''}`}>
+		                  <div className={`order-2 mt-3 max-h-[14vh] min-h-[64px] flex-none overflow-y-auto overscroll-y-contain rounded-lg border border-slate-700/70 bg-slate-900/40 p-3 ${tableWorkspaceTab === 'compose' ? '' : 'hidden'} ${isBahaYLab && sentDisplayItems.length === 0 ? 'hidden' : ''} ${isBahaYLab ? 'max-h-[8vh] min-h-[36px] p-2' : ''}`}>
 	                    {!userCanEditTable && (
 	                      <div className="mb-3 rounded-lg border border-rose-300/30 bg-rose-500/10 px-3 py-3 text-sm text-rose-100">
 	                        {tx(lang, 'Bu masa read-only görünüşdədir. Yalnız owner və ya manager əməliyyat edə bilər.', 'Этот стол открыт только для просмотра. Операции доступны только владельцу или менеджеру.', 'This table is read-only. Only the owner or a manager can perform actions.')}
@@ -3077,7 +3077,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       </div>
                     </div>
                   )}
-                  <div className="mt-4 flex justify-end gap-2">
+                  <div className={`mt-4 flex justify-end gap-2 ${isBahaYLab ? 'hidden' : ''}`}>
                     {!isBahaYLab && <button className="neon-btn rounded-lg px-4 py-2" onClick={() => setViewTableId(null)}>{tx(lang, 'Paneli gizlət', 'Скрыть панель', 'Hide panel')}</button>}
                     {isBahaYLab && <button className="neon-btn rounded-lg px-4 py-2" onClick={() => setViewTableId(null)}>← {tx(lang, 'Geri', 'Назад', 'Back')}</button>}
                     {tableNeedsSafeCancel && (
