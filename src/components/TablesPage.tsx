@@ -2799,7 +2799,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       </div>
                     </div>
 
-	                    <div className="mt-3 grid min-h-0 flex-1 gap-4 lg:grid-cols-[1.25fr_0.75fr]">
+	                    <div className={`mt-3 grid min-h-0 flex-1 gap-3 ${isBahaYLab ? 'lg:grid-cols-[1fr_0.4fr]' : 'lg:grid-cols-[1.25fr_0.75fr]'}`}>
                       <div className="flex min-h-0 flex-col overflow-hidden">
                         <MenuGrid
                           items={filteredRoundMenu}
@@ -2843,12 +2843,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                                   <div className="text-xs text-slate-400">{Number(row.price || 0).toFixed(2)} ₼</div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <button type="button" className="rounded-md border border-slate-600 px-2 py-1 text-xs text-slate-200" onClick={() => updateRoundDraftQty(String(row.id), Number(row.qty || 0) - 1)}>{tx(lang, 'Azalt', 'Уменьшить', 'Reduce')}</button>
-                                  <div className="min-w-7 text-center text-sm font-semibold text-slate-100">{row.qty}</div>
-                                  <button type="button" className="rounded-md border border-slate-600 px-2 py-1 text-xs text-slate-200" onClick={() => updateRoundDraftQty(String(row.id), Number(row.qty || 0) + 1)}>+</button>
-                                  <button type="button" className="rounded-md border border-rose-300/40 bg-rose-500/10 px-2 py-1 text-xs font-semibold text-rose-100" onClick={() => updateRoundDraftQty(String(row.id), 0)}>
-                                    {tx(lang, 'Sil', 'Удалить', 'Delete')}
-                                  </button>
+                                  <button type="button" className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-600 text-sm font-bold text-slate-200" onClick={() => updateRoundDraftQty(String(row.id), Number(row.qty || 0) - 1)}>−</button>
+                                  <div className="min-w-6 text-center text-sm font-bold text-slate-100">{row.qty}</div>
+                                  <button type="button" className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-600 text-sm font-bold text-slate-200" onClick={() => updateRoundDraftQty(String(row.id), Number(row.qty || 0) + 1)}>+</button>
+                                  <button type="button" className="flex h-7 w-7 items-center justify-center rounded-lg border border-rose-300/40 bg-rose-500/10 text-xs font-bold text-rose-200" onClick={() => updateRoundDraftQty(String(row.id), 0)}>✕</button>
                                 </div>
                               </div>
                             ))
