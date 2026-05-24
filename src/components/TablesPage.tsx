@@ -1145,13 +1145,19 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   }, [activeFloorId, notify, lang]);
 
   const handleCancelTableCheck = useCallback(async (tableId: string, label?: string) => {
-    const reason = window.prompt(tx(lang, 'Masanı satış yaratmadan ləğv etmə səbəbi', 'Причина отмены стола без продажи', 'Reason for cancelling the table without sale'), 'Səhv açılmış/boş masa') || '';
-    if (!reason.trim()) return;
-    const ok = window.confirm(tx(lang, `${label || 'Masa'} ləğv edilsin? Bu əməliyyat satış yaratmayacaq və kassaya məbləğ düşməyəcək.`, `${label || 'Стол'} отменить? Продажа не будет создана и сумма не попадет в кассу.`, `Cancel ${label || 'table'}? This will not create a sale or add money to cash.`));
-    if (!ok) return;
+    // BahaY: skip prompt for empty tables on super lab
+    let reason = '';
+    if (isBahaYLab) {
+      reason = 'Boş masa bağlandı';
+    } else {
+      reason = window.prompt(tx(lang, 'Masanı satış yaratmadan ləğv etmə səbəbi', 'Причина отмены стола без продажи', 'Reason for cancelling the table without sale'), 'Səhv açılmış/boş masa') || '';
+      if (!reason.trim()) return;
+      const ok = window.confirm(tx(lang, `${label || 'Masa'} ləğv edilsin? Bu əməliyyat satış yaratmayacaq və kassaya məbləğ düşməyəcək.`, `${label || 'Стол'} отменить? Продажа не будет создана и сумма не попадет в кассу.`, `Cancel ${label || 'table'}? This will not create a sale or add money to cash.`));
+      if (!ok) return;
+    }
     try {
       await cancel_table_check_live(tableId, reason);
-      notify('success', tx(lang, 'Masa satış yaratmadan ləğv edildi', 'Стол отменен без создания продажи', 'Table cancelled without creating a sale'));
+      notify('success', tx(lang, 'Masa ləğv edildi', 'Стол отменен', 'Table cancelled'));
       setViewTableId(null);
       setPayTableId(null);
       setTableDetailRecord(null);
