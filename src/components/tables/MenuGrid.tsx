@@ -113,14 +113,14 @@ function MenuGrid({
         placeholder={tx(lang, 'Məhsul axtar...', 'Поиск товара...', 'Search item...')}
       />
 
-      {/* Category tabs - horizontal scroll */}
+      {/* Category tabs - horizontal scroll, touch-friendly */}
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
         {categories.map((cat) => (
           <button
             key={cat}
             type="button"
             onClick={() => onCategoryChange(cat)}
-            className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold transition ${
+            className={`whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-bold transition ${
               selectedCategory === cat
                 ? 'bg-yellow-400 text-slate-900 shadow-lg shadow-yellow-400/20'
                 : 'border border-slate-600/60 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60'
