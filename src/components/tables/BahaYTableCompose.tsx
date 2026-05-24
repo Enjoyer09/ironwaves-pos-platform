@@ -69,47 +69,12 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
         />
       </div>
 
-      {/* ─── RIGHT: Everything else ─── */}
+      {/* ─── RIGHT: Draft + Actions only ─── */}
       <div className="flex min-h-0 w-[300px] shrink-0 flex-col overflow-y-auto rounded-2xl border border-slate-700/60 bg-slate-950/40 p-3">
-        {/* Lock badge */}
-        {lockHolder && (
-          <div className={`mb-2 rounded-full border px-3 py-1 text-center text-xs font-semibold ${userCanEditTable ? 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100' : 'border-rose-300/30 bg-rose-500/10 text-rose-100'}`}>
-            👤 {lockHolder}
-          </div>
-        )}
-
-        {/* Tabs */}
-        <div className="mb-3 flex flex-wrap gap-1">
-          {([
-            ['compose', tx(lang, 'Sifariş', 'Заказ', 'Order')],
-            ['service', `${tx(lang, 'Servis', 'Сервис', 'Service')}${readyCount > 0 ? ` · ${readyCount}` : ''}`],
-            ['history', `${tx(lang, 'Raundlar', 'Раунды', 'Rounds')} · ${roundsCount}`],
-          ] as Array<[string, string]>).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => onTabChange(key)}
-              className={`rounded-full px-3 py-1 text-[11px] font-semibold transition ${activeTab === key ? 'bg-yellow-400 text-slate-950' : 'border border-slate-700/70 bg-slate-950/35 text-slate-300'}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
         {/* Draft error */}
         {draftSendError && (
           <div className="mb-2 rounded-lg border border-rose-300/35 bg-rose-500/10 px-2 py-1.5 text-[11px] text-rose-100">{draftSendError}</div>
         )}
-
-        {/* Draft items header */}
-        <div className="mb-2 flex items-center justify-between">
-          <div className="text-xs font-bold text-slate-200">
-            {tx(lang, 'Göndərilməmişlər', 'Неотправленные', 'Unsent')} ({draftRows.length})
-          </div>
-          {draftRows.length > 0 && (
-            <button type="button" onClick={() => { void onClearDrafts(); }} className="text-[11px] text-slate-400 hover:text-slate-200">✕</button>
-          )}
-        </div>
 
         {/* Draft items list */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
@@ -164,7 +129,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               type="button"
               disabled={draftRows.length === 0 || !userCanEdit}
               onClick={() => { void onSend(); }}
-              className="glossy-gold inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-b from-yellow-400 to-amber-500 px-3 py-2 text-sm font-black text-slate-900 shadow-lg shadow-yellow-500/25 transition active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
             >
               {tx(lang, 'Göndər', 'Отправить', 'Send')}
             </button>
@@ -173,7 +138,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 type="button"
                 disabled={!userCanEdit}
                 onClick={onSettle}
-                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-emerald-300/40 bg-emerald-500/15 px-3 py-2 text-sm font-bold text-emerald-100 disabled:opacity-50"
+                className="inline-flex min-h-12 flex-1 items-center justify-center rounded-xl bg-gradient-to-b from-emerald-400 to-emerald-600 px-3 py-2 text-sm font-black text-white shadow-lg shadow-emerald-500/25 transition active:scale-[0.97] disabled:opacity-50 disabled:shadow-none"
               >
                 {tx(lang, 'Hesab', 'Счёт', 'Bill')}
               </button>
@@ -184,7 +149,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex min-h-9 flex-1 items-center justify-center rounded-xl border border-slate-700/70 bg-slate-900/60 px-3 py-1.5 text-xs font-semibold text-slate-300"
+              className="inline-flex min-h-10 flex-1 items-center justify-center rounded-xl border border-slate-600/80 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 shadow transition hover:bg-slate-700/80 active:scale-[0.97]"
             >
               ← {tx(lang, 'Geri', 'Назад', 'Back')}
             </button>
@@ -193,7 +158,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 type="button"
                 disabled={!userCanEdit}
                 onClick={onCancelTable}
-                className="inline-flex min-h-9 flex-1 items-center justify-center rounded-xl border border-rose-300/30 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-200 disabled:opacity-50"
+                className="inline-flex min-h-10 flex-1 items-center justify-center rounded-xl border border-rose-400/40 bg-gradient-to-b from-rose-500/20 to-rose-600/20 px-3 py-1.5 text-xs font-semibold text-rose-200 shadow transition hover:from-rose-500/30 hover:to-rose-600/30 active:scale-[0.97] disabled:opacity-50"
               >
                 {tx(lang, 'Ləğv et', 'Отменить', 'Cancel')}
               </button>
