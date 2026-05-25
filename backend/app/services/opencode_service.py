@@ -6,15 +6,10 @@ from app.core.config import settings
 
 
 DEFAULT_MODEL_LABELS = {
-    "deepseek-v4-flash": "DeepSeek V4 Flash Free",
-    "glm-5": "GLM 5",
-    "glm-5.1": "GLM 5.1",
-    "kimi-k2.5": "Kimi K2.5",
-    "kimi-k2.6": "Kimi K2.6",
-    "minimax-m2.5": "MiniMax M2.5 Free",
-    "minimax-m2.7": "MiniMax M2.7",
-    "qwen3.5-plus": "Qwen3.5 Plus",
-    "qwen3.6-plus": "Qwen3.6 Plus",
+    "nemotron-3-super-free": "Nemotron 3 Super Free",
+    "minimax-m2.5-free": "MiniMax M2.5 Free",
+    "qwen3.6-plus-free": "Qwen3.6 Plus Free",
+    "deepseek-v4-flash-free": "DeepSeek V4 Flash Free",
 }
 
 
@@ -22,7 +17,7 @@ def get_allowed_models() -> list[dict[str, str]]:
     configured = str(settings.opencode_allowed_models or "").strip()
     model_ids = [item.strip() for item in configured.split(",") if item.strip()]
     if not model_ids:
-        model_ids = ["deepseek-v4-flash"]
+        model_ids = ["nemotron-3-super-free"]
     return [
         {
             "id": model_id,
@@ -43,7 +38,7 @@ def default_model_id() -> str:
     if configured and is_allowed_model(configured):
         return configured
     models = get_allowed_models()
-    return models[0]["id"] if models else "deepseek-v4-flash"
+    return models[0]["id"] if models else "nemotron-3-super-free"
 
 
 def _base_url() -> str:

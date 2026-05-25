@@ -4,10 +4,11 @@ import { get_menu_items_live } from '../../api/menu';
 import { get_recipe_live, calculate_recipe_cost_live, generate_recipe_ai_live, getDefaultRecipeEntryUnit, getRecipeEntryUnitOptions, get_recipe_menu_names_live, replace_recipe_live } from '../../api/recipes';
 import { get_inventory_items_live } from '../../api/inventory';
 import { Decimal } from 'decimal.js';
-import { ChefHat, Plus, Trash2, Calculator, Sparkles } from 'lucide-react';
+import { ChefHat, Plus, Trash2, Calculator, Sparkles, Bot, X } from 'lucide-react';
 import { tx } from '../../i18n';
 import ConfirmModal from '../ConfirmModal';
 import CombosPanel from './CombosPanel';
+import { generate_ai_recipe_api } from '../../api/agent_api';
 
 const normalizeText = (value: string | undefined | null) =>
   String(value || '')
@@ -64,6 +65,7 @@ export default function RecipesPanel() {
   const [missingRecipeSet, setMissingRecipeSet] = useState<Set<string>>(new Set());
   const [workspace, setWorkspace] = useState<'recipes' | 'combos'>('recipes');
   const [lastSavedByAI, setLastSavedByAI] = useState(false);
+  const [agentRecipeModal, setAgentRecipeModal] = useState<{ open: boolean; text: string; loading: boolean }>({ open: false, text: '', loading: false });
 
   const selectedIngredientMeta = ingredients.find((i) => i.name === newIngredient) || null;
   const qtyUnitOptions = getRecipeEntryUnitOptions(String(selectedIngredientMeta?.unit || ''));
@@ -225,6 +227,18 @@ export default function RecipesPanel() {
       });
     } catch(e:any) {
       notify('error', e.message);
+    }
+  };
+
+  const handleAgentGenerate = async () => {
+    if (!selectedMenu) return;
+    setAgentRecipeModal({ open: true, text: '', loading: true });
+    try {
+      const recipeText = await generate_ai_recipe_api(selectedMenu);
+      setAgentRecipeModal({ open: true, text: recipeText, loading: false });
+    } catch (e: any) {
+      setAgentRecipeModal({ open: false, text: '', loading: false });
+      notify('error', e.message || 'Failed to generate recipe via background agent');
     }
   };
 
@@ -405,6 +419,9 @@ export default function RecipesPanel() {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold text-slate-100">{selectedMenu} {tx(lang, 'Resepti', 'Рецепт', 'Recipe')}</h2>
                 <div className="flex gap-4 items-center">
+                  <button onClick={handleAgentGenerate} className="glossy-purple px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors">
+                    <Bot size={16} /> {tx(lang, 'Background AI Resepti', 'Рецепт от фонового AI', 'Background AI Recipe')}
+                  </button>
                   <button onClick={handleGenerateAI} className="glossy-gold px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors">
                     <Sparkles size={16} /> {tx(lang, 'AI İlə Yarat', 'Создать через AI', 'Generate with AI')}
                   </button>
@@ -537,6 +554,45 @@ export default function RecipesPanel() {
         </div>
       </div>
       </>
+      )}
+
+      {agentRecipeModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl rounded-2xl border border-fuchsia-400/30 bg-slate-900 p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-fuchsia-300 flex items-center gap-2">
+                <Bot size={24} />
+                {selectedMenu} {tx(lang, 'üçün Beynəlxalq Standart', 'международный стандарт для', 'International standard for')}
+              </h2>
+              <button
+                onClick={() => setAgentRecipeModal({ open: false, text: '', loading: false })}
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            {agentRecipeModal.loading ? (
+              <div className="flex py-12 justify-center items-center flex-col text-fuchsia-400">
+                <Sparkles className="animate-spin mb-4" size={32} />
+                <p>{tx(lang, 'AI beynəlxalq standartlara uyğun resept hazırlayır...', 'AI создает рецепт по международным стандартам...', 'AI is generating recipe using international standards...')}</p>
+              </div>
+            ) : (
+              <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap rounded-xl bg-slate-950/50 p-4 text-sm leading-6 text-slate-300">
+                {agentRecipeModal.text}
+              </div>
+            )}
+            
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setAgentRecipeModal({ open: false, text: '', loading: false })}
+                className="rounded-xl border border-slate-700 bg-slate-800 px-6 py-2 font-bold text-white hover:bg-slate-700"
+              >
+                {tx(lang, 'Bağla', 'Закрыть', 'Close')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

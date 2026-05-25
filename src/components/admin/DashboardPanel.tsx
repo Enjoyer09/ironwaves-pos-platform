@@ -26,6 +26,7 @@ import { get_logs_live } from '../../api/logs';
 import { subscribeTenantRealtime } from '../../api/realtime';
 import { formatServerUtcTime, localDateInputValue, localDateTimeNextStart, localDateTimeStart, parseServerUtcTimestamp } from '../../lib/time';
 import { generate_ai_insight_engine, type AiDecisionInsight } from '../../api/ai_manager';
+import { fetch_agent_insights, mark_agent_insight_read, type BackgroundAgentInsight } from '../../api/agent_api';
 
 type DashboardTab = 'inventory' | 'finance' | 'analytics' | 'tables' | 'crm' | 'ai';
 type AlertTone = 'critical' | 'warning' | 'info';
@@ -43,6 +44,7 @@ type DashboardSnapshot = {
   pendingOfflineTableOps: number;
   pendingOfflineTableOpItems: OfflineTableOpSummary[];
   auditLogs: any[];
+  agentInsights: BackgroundAgentInsight[];
   loading: boolean;
 };
 
@@ -122,6 +124,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
     pendingOfflineTableOps: 0,
     pendingOfflineTableOpItems: [],
     auditLogs: [],
+    agentInsights: [],
     loading: true,
   });
 
@@ -186,6 +189,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         Promise.resolve(getPendingOfflineTableOps(tenant_id, 10)),
         fetch_finance_anomalies(tenant_id).catch(() => null),
         get_logs_live(tenant_id, 80).catch(() => []),
+        fetch_agent_insights(),
       ]);
 
       setSnapshot({
@@ -200,6 +204,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         pendingOfflineTableOps,
         pendingOfflineTableOpItems,
         auditLogs,
+        agentInsights,
         loading: false,
       });
       setFinanceAnomalies(anomalies);
@@ -489,6 +494,14 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         onOpenTab={onOpenTab}
       />
 
+      {snapshot.agentInsights.length > 0 && (
+        <BackgroundAgentStrip
+          insights={snapshot.agentInsights}
+          lang={lang}
+          onRefresh={() => void loadDashboard()}
+        />
+      )}
+
       <AIManagerStrip
         insights={aiManagerInsights}
         lang={lang}
@@ -551,6 +564,69 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
     <div className="space-y-5 bg-slate-950/20 text-slate-100">
       {children}
     </div>
+  );
+}
+
+function BackgroundAgentStrip({
+  insights,
+  lang,
+  onRefresh,
+}: {
+  insights: BackgroundAgentInsight[];
+  lang: string;
+  onRefresh: () => void;
+}) {
+  const [marking, setMarking] = useState<string | null>(null);
+
+  const handleMarkRead = async (id: string) => {
+    setMarking(id);
+    await mark_agent_insight_read(id);
+    setMarking(null);
+    onRefresh();
+  };
+
+  return (
+    <section className="rounded-[28px] border border-fuchsia-400/25 bg-slate-950 p-4 shadow-[0_24px_80px_rgba(8,47,73,0.18)]">
+      <div className="mb-4 flex items-center gap-3">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-fuchsia-400/12 text-fuchsia-200">
+          <Bot size={22} />
+        </div>
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">
+            {tx(lang, 'Background AI Agent', 'Фоновый AI Агент', 'Background AI Agent')}
+          </div>
+          <p className="mt-1 text-sm text-slate-400">
+            {tx(lang, 'Serverdə arxa planda işləyən agentdən son analizlər', 'Последние анализы от фонового агента на сервере', 'Latest analysis from background agent on the server')}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+        {insights.map((insight) => (
+          <div
+            key={insight.id}
+            className={`rounded-2xl border p-4 transition ${insight.is_read ? 'border-slate-700/50 bg-slate-900/30' : 'border-fuchsia-400/30 bg-fuchsia-950/30'}`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-200">
+                {insight.type}
+              </div>
+              <div className="text-xs font-bold text-slate-400">{formatServerUtcTime(insight.created_at, lang)}</div>
+            </div>
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-300">{insight.content}</p>
+            {!insight.is_read && (
+              <button
+                onClick={() => handleMarkRead(insight.id)}
+                disabled={marking === insight.id}
+                className="mt-3 inline-flex items-center gap-2 rounded-xl bg-fuchsia-500/20 px-3 py-1.5 text-xs font-bold text-fuchsia-100 hover:bg-fuchsia-500/30 disabled:opacity-50"
+              >
+                {marking === insight.id ? tx(lang, 'Gözləyin...', 'Подождите...', 'Wait...') : tx(lang, 'Oxundu', 'Прочитано', 'Mark as read')}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

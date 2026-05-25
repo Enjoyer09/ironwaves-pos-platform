@@ -84,8 +84,8 @@ class Settings(BaseSettings):
 
     opencode_api_key: str | None = None
     opencode_base_url: str = "https://opencode.ai/zen/go/v1"
-    opencode_allowed_models: str = "deepseek-v4-flash,glm-5,qwen3.5-plus"
-    opencode_default_model: str = "deepseek-v4-flash"
+    opencode_allowed_models: str = "nemotron-3-super-free,minimax-m2.5-free,qwen3.6-plus-free,deepseek-v4-flash-free"
+    opencode_default_model: str = "nemotron-3-super-free"
     opencode_timeout_seconds: int = 45
 
     # Multi-tenant should be enabled by default. Set true only for per-deployment single-tenant mode.
