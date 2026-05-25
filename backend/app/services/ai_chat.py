@@ -32,7 +32,7 @@ Please answer in {lang.upper()}.
 """
     
     try:
-        model = default_model_id()
+        model = "deepseek-v4-flash-free" # Force model with large context
         response = generate_chat(
             model=model,
             messages=messages,
@@ -43,8 +43,4 @@ Please answer in {lang.upper()}.
         return response
     except Exception as e:
         logger.error(f"Error calling OpenCode Zen for chat: {e}")
-        if lang == 'ru':
-            return "Извините, в данный момент AI недоступен. Попробуйте позже."
-        elif lang == 'en':
-            return "Sorry, the AI assistant is currently unavailable. Please try again later."
-        return "Bağışlayın, hazırda AI köməkçisi əlçatan deyil. Lütfən bir az sonra təkrar cəhd edin."
+        return f"Xəta baş verdi: {e}"
