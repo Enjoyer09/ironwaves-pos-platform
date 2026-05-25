@@ -32,7 +32,7 @@ Please answer in {lang.upper()}.
 """
     
     try:
-        model = "deepseek-v4-flash-free" # Force model with large context
+        model = "deepseek-v4-flash" # Force model with large context
         response = generate_chat(
             model=model,
             messages=messages,

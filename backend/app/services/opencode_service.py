@@ -6,10 +6,10 @@ from app.core.config import settings
 
 
 DEFAULT_MODEL_LABELS = {
-    "nemotron-3-super-free": "Nemotron 3 Super Free",
-    "minimax-m2.5-free": "MiniMax M2.5 Free",
-    "qwen3.6-plus-free": "Qwen3.6 Plus Free",
-    "deepseek-v4-flash-free": "DeepSeek V4 Flash Free",
+    "hy3-preview": "Nemotron 3 Super Free", # As per API
+    "minimax-m2.5": "MiniMax M2.5 Free",
+    "qwen3.6-plus": "Qwen3.6 Plus Free",
+    "deepseek-v4-flash": "DeepSeek V4 Flash Free",
 }
 
 
@@ -38,7 +38,7 @@ def default_model_id() -> str:
     if configured and is_allowed_model(configured):
         return configured
     models = get_allowed_models()
-    return models[0]["id"] if models else "nemotron-3-super-free"
+    return models[0]["id"] if models else "deepseek-v4-flash"
 
 
 def _base_url() -> str:
