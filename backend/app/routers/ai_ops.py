@@ -14,7 +14,7 @@ from app.services.opencode_service import (
     default_model_id as _opencode_default_model_id,
     generate_text as _opencode_generate_text,
     get_allowed_models as _opencode_get_allowed_models,
-    normalize_opencode_error as _normalize_opencode_error,
+    normalize_openrouter_error as _normalize_opencode_error,
 )
 
 

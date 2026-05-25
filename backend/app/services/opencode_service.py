@@ -124,7 +124,7 @@ def generate_text(
     if not prompt_text:
         raise ValueError("Prompt is required")
 
-    timeout = timeout_seconds or int(settings.opencode_timeout_seconds or 45)
+    timeout = timeout_seconds or int(settings.openrouter_timeout_seconds or 45)
     if model_id.startswith("minimax-"):
         payload = {
             "model": model_id,
