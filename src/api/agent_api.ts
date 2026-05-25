@@ -48,3 +48,20 @@ export async function generate_ai_recipe_api(item_name: string): Promise<string>
     throw error;
   }
 }
+
+export async function chat_with_agent(messages: { role: string; content: string }[], lang: string): Promise<string> {
+  try {
+    const res = await apiRequest<{ success: boolean; reply: string }>(
+      '/api/v1/ops/agent/chat',
+      {
+        method: 'POST',
+        tenantId: null,
+        body: { messages, lang }
+      }
+    );
+    return res?.reply || '';
+  } catch (error) {
+    console.error('Failed to chat with agent', error);
+    throw error;
+  }
+}
