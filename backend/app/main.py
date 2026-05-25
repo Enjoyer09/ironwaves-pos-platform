@@ -25,8 +25,9 @@ from app.core.config import settings
 from app.db import Base, engine, SessionLocal
 from app.models import AuditLog, BusinessProfile, InventoryItem, MenuItem, Recipe, Setting, Table, Tenant, User
 from app.realtime import realtime_hub
-from app.routers import ai_ops, analytics_api, auth, catalog, customer_feedback_ops, finance, operations, pos, reports, restaurant, settings as settings_router, tenants
+from app.routers import agent, ai_ops, analytics_api, auth, catalog, customer_feedback_ops, finance, operations, pos, reports, restaurant, settings as settings_router, tenants
 from app.security import decode_token, hash_password, get_client_ip
+from app.services.ai_agent_bg import start_background_agent
 from app.tenant import resolve_tenant_from_request
 
 
@@ -1187,6 +1188,9 @@ async def on_startup():
     with SessionLocal() as db:
         _seed_initial_data(db)
         _seed_demo_tenant(db)
+    
+    # Start the POS Background AI Agent
+    start_background_agent()
 
 
 @app.get("/health")
@@ -1270,3 +1274,4 @@ app.include_router(reports.router)
 app.include_router(restaurant.router)
 app.include_router(tenants.router)
 app.include_router(settings_router.router)
+app.include_router(agent.router)
