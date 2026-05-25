@@ -84,7 +84,7 @@ class Settings(BaseSettings):
 
     openrouter_api_key: str | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_allowed_models: str = "openrouter/owl-alpha,deepseek/deepseek-chat-free,google/gemini-2.0-flash-exp:free"
+    openrouter_allowed_models: str = "openrouter/owl-alpha,deepseek/deepseek-chat-free,google/gemini-2.0-flash-exp:free,nvidia/nemotron-3-super-120b-a12b:free,nvidia/nemotron-3-nano-30b-a3b:free,minimax/minimax-m2.5:free,google/gemma-4-26b-a4b-it:free,meta-llama/llama-3.3-70b-instruct:free,nousresearch/hermes-3-llama-3.1-405b:free"
     openrouter_default_model: str = "openrouter/owl-alpha"
     openrouter_timeout_seconds: int = 45
 
