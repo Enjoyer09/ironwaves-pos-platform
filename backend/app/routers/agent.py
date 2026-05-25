@@ -7,6 +7,7 @@ from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.models import AgentInsight, Tenant, User
 from app.services.ai_agent_bg import generate_ai_recipe
+from app.services.ai_chat import ask_help_assistant
 
 router = APIRouter(prefix="/api/v1/ops/agent", tags=["ai-agent"])
 
@@ -76,4 +77,30 @@ def generate_recipe(
     return {
         "success": True,
         "recipe": recipe_text
+    }
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class ChatRequest(BaseModel):
+    messages: List[ChatMessage]
+    lang: str = "az"
+
+@router.post("/chat")
+def chat_with_assistant(
+    payload: ChatRequest,
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user)
+):
+    # Ensure they are logged in. Any role can access the help assistant.
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
+    messages_dict = [{"role": msg.role, "content": msg.content} for msg in payload.messages]
+    
+    reply = ask_help_assistant(messages_dict, payload.lang)
+    return {
+        "success": True,
+        "reply": reply
     }

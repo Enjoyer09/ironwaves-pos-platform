@@ -154,6 +154,55 @@ def generate_text(
     return text
 
 
+def generate_chat(
+    *,
+    model: str,
+    messages: list[dict[str, str]],
+    system: str = "",
+    temperature: float = 0.2,
+    max_tokens: int = 1500,
+    timeout_seconds: int | None = None,
+) -> str:
+    model_id = str(model or default_model_id()).strip()
+    if not is_allowed_model(model_id):
+        raise ValueError("Selected OpenCode model is not allowed")
+
+    timeout = timeout_seconds or int(settings.opencode_timeout_seconds or 45)
+    
+    formatted_messages = []
+    if system and not model_id.startswith("minimax-"):
+        formatted_messages.append({"role": "system", "content": str(system).strip()})
+        
+    for msg in messages:
+        if isinstance(msg, dict) and "role" in msg and "content" in msg:
+            formatted_messages.append({"role": str(msg["role"]), "content": str(msg["content"])})
+
+    if model_id.startswith("minimax-"):
+        payload = {
+            "model": model_id,
+            "max_tokens": max(16, min(int(max_tokens or 1500), 4096)),
+            "temperature": max(0.0, min(float(temperature or 0.2), 2.0)),
+            "messages": formatted_messages,
+        }
+        if system:
+            payload["system"] = str(system).strip()
+        data = _read_json(f"{_base_url()}/messages", payload, timeout)
+        text = _extract_messages_text(data)
+    else:
+        payload = {
+            "model": model_id,
+            "messages": formatted_messages,
+            "temperature": max(0.0, min(float(temperature or 0.2), 2.0)),
+            "max_tokens": max(16, min(int(max_tokens or 1500), 4096)),
+        }
+        data = _read_json(f"{_base_url()}/chat/completions", payload, timeout)
+        text = _extract_chat_text(data)
+        
+    if not text:
+        raise RuntimeError("OpenCode returned empty text")
+    return text
+
+
 def normalize_opencode_error(exc: Exception) -> str:
     if isinstance(exc, HTTPError):
         try:
