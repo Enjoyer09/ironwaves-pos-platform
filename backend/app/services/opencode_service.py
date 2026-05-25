@@ -9,6 +9,12 @@ DEFAULT_MODEL_LABELS = {
     "openrouter/owl-alpha": "OpenRouter Owl Alpha",
     "deepseek/deepseek-chat-free": "DeepSeek V3 Free",
     "google/gemini-2.0-flash-exp:free": "Gemini 2.0 Flash Free",
+    "nvidia/nemotron-3-super-120b-a12b:free": "NVIDIA Nemotron-3 Super 120B Free",
+    "nvidia/nemotron-3-nano-30b-a3b:free": "NVIDIA Nemotron-3 Nano 30B Free",
+    "minimax/minimax-m2.5:free": "MiniMax M2.5 Free",
+    "google/gemma-4-26b-a4b-it:free": "Gemma 4 26B IT Free",
+    "meta-llama/llama-3.3-70b-instruct:free": "Llama 3.3 70B Instruct Free",
+    "nousresearch/hermes-3-llama-3.1-405b:free": "Hermes 3 Llama 3.1 405B Free",
 }
 
 
@@ -117,41 +123,66 @@ def generate_text(
     max_tokens: int = 800,
     timeout_seconds: int | None = None,
 ) -> str:
-    model_id = str(model or default_model_id()).strip()
-    if not is_allowed_model(model_id):
-        raise ValueError("Selected OpenRouter model is not allowed")
-    prompt_text = str(prompt or "").strip()
-    if not prompt_text:
-        raise ValueError("Prompt is required")
+    requested_model = str(model or default_model_id()).strip()
+    
+    # Get all allowed models in order
+    allowed_models = [row["id"] for row in get_allowed_models()]
+    
+    # Build list of candidates starting with requested model
+    candidates = []
+    if requested_model:
+        candidates.append(requested_model)
+    for m in allowed_models:
+        if m not in candidates:
+            candidates.append(m)
+            
+    if not candidates:
+        candidates = ["openrouter/owl-alpha"]
 
-    timeout = timeout_seconds or int(settings.openrouter_timeout_seconds or 45)
-    if model_id.startswith("minimax-"):
-        payload = {
-            "model": model_id,
-            "max_tokens": max(16, min(int(max_tokens or 800), 4096)),
-            "temperature": max(0.0, min(float(temperature or 0.2), 2.0)),
-            "messages": [{"role": "user", "content": prompt_text}],
-        }
-        if system:
-            payload["system"] = str(system).strip()
-        data = _read_json(f"{_base_url()}/messages", payload, timeout)
-        text = _extract_messages_text(data)
-    else:
-        messages = []
-        if system:
-            messages.append({"role": "system", "content": str(system).strip()})
-        messages.append({"role": "user", "content": prompt_text})
-        payload = {
-            "model": model_id,
-            "messages": messages,
-            "temperature": max(0.0, min(float(temperature or 0.2), 2.0)),
-            "max_tokens": max(16, min(int(max_tokens or 800), 4096)),
-        }
-        data = _read_json(f"{_base_url()}/chat/completions", payload, timeout)
-        text = _extract_chat_text(data)
-    if not text:
-        raise RuntimeError("OpenCode returned empty text")
-    return text
+    last_error = None
+    for model_id in candidates:
+        try:
+            prompt_text = str(prompt or "").strip()
+            if not prompt_text:
+                raise ValueError("Prompt is required")
+
+            timeout = timeout_seconds or int(settings.openrouter_timeout_seconds or 45)
+            if model_id.startswith("minimax-"):
+                payload = {
+                    "model": model_id,
+                    "max_tokens": max(16, min(int(max_tokens or 800), 4096)),
+                    "temperature": max(0.0, min(float(temperature or 0.2), 2.0)),
+                    "messages": [{"role": "user", "content": prompt_text}],
+                }
+                if system:
+                    payload["system"] = str(system).strip()
+                data = _read_json(f"{_base_url()}/messages", payload, timeout)
+                text = _extract_messages_text(data)
+            else:
+                messages = []
+                if system:
+                    messages.append({"role": "system", "content": str(system).strip()})
+                messages.append({"role": "user", "content": prompt_text})
+                payload = {
+                    "model": model_id,
+                    "messages": messages,
+                    "temperature": max(0.0, min(float(temperature or 0.2), 2.0)),
+                    "max_tokens": max(16, min(int(max_tokens or 800), 4096)),
+                }
+                data = _read_json(f"{_base_url()}/chat/completions", payload, timeout)
+                text = _extract_chat_text(data)
+            if not text:
+                raise RuntimeError("Empty response received")
+            return text
+        except Exception as exc:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Model {model_id} failed with error: {exc}. Trying fallback model if available...")
+            last_error = exc
+            
+    if last_error:
+        raise last_error
+    raise RuntimeError("All models failed to generate text")
 
 
 def generate_chat(
@@ -163,32 +194,56 @@ def generate_chat(
     max_tokens: int = 1500,
     timeout_seconds: int | None = None,
 ) -> str:
-    model_id = str(model or default_model_id()).strip()
-    if not is_allowed_model(model_id):
-        raise ValueError("Selected OpenCode model is not allowed")
-
-    timeout = timeout_seconds or int(settings.openrouter_timeout_seconds or 45)
+    requested_model = str(model or default_model_id()).strip()
     
-    formatted_messages = []
-    if system:
-        formatted_messages.append({"role": "system", "content": str(system).strip()})
-        
-    for msg in messages:
-        if isinstance(msg, dict) and "role" in msg and "content" in msg:
-            formatted_messages.append({"role": str(msg["role"]), "content": str(msg["content"])})
-
-    payload = {
-        "model": model_id,
-        "messages": formatted_messages,
-        "temperature": max(0.0, min(float(temperature or 0.2), 2.0)),
-        "max_tokens": max(16, min(int(max_tokens or 1500), 4096)),
-    }
-    data = _read_json(f"{_base_url()}/chat/completions", payload, timeout)
-    text = _extract_chat_text(data)
+    # Get all allowed models in order
+    allowed_models = [row["id"] for row in get_allowed_models()]
     
-    if not text:
-        raise RuntimeError("OpenRouter returned empty text")
-    return text
+    # Build list of candidates starting with requested model
+    candidates = []
+    if requested_model:
+        candidates.append(requested_model)
+    for m in allowed_models:
+        if m not in candidates:
+            candidates.append(m)
+            
+    if not candidates:
+        candidates = ["openrouter/owl-alpha"]
+
+    last_error = None
+    for model_id in candidates:
+        try:
+            timeout = timeout_seconds or int(settings.openrouter_timeout_seconds or 45)
+            
+            formatted_messages = []
+            if system:
+                formatted_messages.append({"role": "system", "content": str(system).strip()})
+                
+            for msg in messages:
+                if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                    formatted_messages.append({"role": str(msg["role"]), "content": str(msg["content"])})
+
+            payload = {
+                "model": model_id,
+                "messages": formatted_messages,
+                "temperature": max(0.0, min(float(temperature or 0.2), 2.0)),
+                "max_tokens": max(16, min(int(max_tokens or 1500), 4096)),
+            }
+            data = _read_json(f"{_base_url()}/chat/completions", payload, timeout)
+            text = _extract_chat_text(data)
+            
+            if not text:
+                raise RuntimeError("Empty response received")
+            return text
+        except Exception as exc:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Model {model_id} failed with error: {exc}. Trying fallback model if available...")
+            last_error = exc
+            
+    if last_error:
+        raise last_error
+    raise RuntimeError("All models failed to generate chat response")
 
 
 def normalize_openrouter_error(exc: Exception) -> str:
