@@ -415,168 +415,24 @@ export default function AIManagerPanel() {
       </div>
 
       <div className="metal-panel rounded-2xl border border-slate-700/70 p-5">
-        <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <div>
-            <label className="mb-1 block text-sm font-semibold text-slate-300">{tx(lang, 'AI API Key', 'AI API ключ', 'AI API Key')}</label>
-            <div className="flex flex-col gap-3 md:flex-row">
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder={tx(lang, 'API key daxil edin', 'Введите API key', 'Enter API key')}
-                className="neon-input"
-              />
-              <button onClick={saveApiKey} className={`glossy-gold rounded-xl px-5 py-3 text-sm font-bold ${pressFxClass}`}>
-                {tx(lang, 'Yadda Saxla', 'Сохранить', 'Save')}
-              </button>
-            </div>
-            <div className="mt-3 grid gap-2 md:grid-cols-3">
-              <div className="rounded-xl border border-slate-700/70 bg-slate-900/40 px-3 py-2 text-xs text-slate-300">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{tx(lang, 'Provider', 'Провайдер', 'Provider')}</div>
-                <div className="mt-1 font-semibold text-slate-100">{providerLabel(selectedProvider)}</div>
-              </div>
-              <div className="rounded-xl border border-slate-700/70 bg-slate-900/40 px-3 py-2 text-xs text-slate-300">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{tx(lang, 'Model', 'Модель', 'Model')}</div>
-                <div className="mt-1 font-semibold text-slate-100">{selectedModel}</div>
-              </div>
-              <div className="rounded-xl border border-slate-700/70 bg-slate-900/40 px-3 py-2 text-xs text-slate-300">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{tx(lang, 'Aşkarlama', 'Детект', 'Detection')}</div>
-                <div className="mt-1 font-semibold text-slate-100">{detection.confidence.toUpperCase()}</div>
-              </div>
-            </div>
-            <div className="mt-2 text-xs text-slate-400">
-              {platformAiEnabled
-                ? tx(lang, 'Platform AI aktivdir: API key və base URL Railway backend-də gizli saxlanılır.', 'Platform AI активен: API key и base URL скрыты в Railway backend.', 'Platform AI is enabled: API key and base URL are hidden in the Railway backend.')
-                : experimentalOllamaEnabled
-                ? tx(lang, 'Manual seçim: OllamaFreeAPI experimental provider aktivdir.', 'Ручной выбор: активирован экспериментальный провайдер OllamaFreeAPI.', 'Manual selection: OllamaFreeAPI experimental provider is enabled.')
-                : detection.reason}
-            </div>
-            {platformAiEnabled ? (
-              <div className="mt-2">
-                <select
-                  value={selectedModel}
-                  onChange={(e) => {
-                    const model = e.target.value;
-                    setModelOverride(model);
-                    void update_api_key_live(apiKey, {
-                      provider: 'opencode',
-                      model,
-                      autodetected: false,
-                      ollama_freeapi_enabled: false,
-                    });
-                  }}
-                  className="neon-input"
-                  disabled={platformModelsLoading}
-                >
-                  {(platformModels.length ? platformModels : [{ id: DEFAULT_MODEL_BY_PROVIDER.opencode, name: 'DeepSeek V4 Flash Free' }]).map((model) => (
-                    <option key={model.id} value={model.id}>{model.name}</option>
-                  ))}
-                </select>
-                {platformModelsError && <div className="mt-2 text-xs text-rose-200">{platformModelsError}</div>}
-              </div>
-            ) : (
-              <div className="mt-2">
-                <input
-                  value={modelOverride}
-                  onChange={(e) => setModelOverride(e.target.value)}
-                  placeholder={tx(lang, 'Model override (opsional)', 'Model override (опционально)', 'Model override (optional)')}
-                  className="neon-input"
-                />
-              </div>
-            )}
-            <div className="mt-4 rounded-xl border border-emerald-400/35 bg-emerald-500/10 p-3">
-              <label className="flex items-center justify-between gap-3 text-sm font-semibold text-emerald-100">
-                <span>{tx(lang, 'OpenCode Platform AI', 'OpenCode Platform AI', 'OpenCode Platform AI')}</span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={platformAiEnabled}
-                  onClick={() =>
-                    setPlatformAiEnabled((prev) => {
-                      const next = !prev;
-                      persistPlatformAiToggle(next);
-                      return next;
-                    })
-                  }
-                  className={`relative inline-flex h-7 w-14 items-center rounded-full border transition ${pressFxClass} ${
-                    platformAiEnabled
-                      ? 'border-emerald-300/70 bg-emerald-500/30'
-                      : 'border-slate-600 bg-slate-800/70'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
-                      platformAiEnabled ? 'translate-x-8' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </label>
-              <div className="mt-2 text-xs leading-5 text-emerald-100/90">
-                {tx(
-                  lang,
-                  'Tenant API key görmür. Railway backend-də OPENCODE_API_KEY və OPENCODE_BASE_URL saxlanır, burada yalnız icazəli/free modellər seçilir.',
-                  'Tenant не видит API key. OPENCODE_API_KEY и OPENCODE_BASE_URL хранятся в Railway backend, здесь выбираются только разрешённые/free модели.',
-                  'Tenants never see the API key. OPENCODE_API_KEY and OPENCODE_BASE_URL stay in Railway backend; only allowed/free models are selectable here.',
-                )}
-              </div>
-            </div>
-            <div className="mt-4 rounded-xl border border-amber-400/35 bg-amber-500/10 p-3">
-              <label className="flex items-center justify-between gap-3 text-sm font-semibold text-amber-100">
-                <span>{tx(lang, 'Experimental: OllamaFreeAPI', 'Экспериментально: OllamaFreeAPI', 'Experimental: OllamaFreeAPI')}</span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={experimentalOllamaEnabled}
-                  onClick={() =>
-                    setExperimentalOllamaEnabled((prev) => {
-                      const next = !prev;
-                      if (next) setPlatformAiEnabled(false);
-                      persistExperimentalToggle(next);
-                      return next;
-                    })
-                  }
-                  className={`relative inline-flex h-7 w-14 items-center rounded-full border transition ${pressFxClass} ${
-                    experimentalOllamaEnabled
-                      ? 'border-emerald-300/70 bg-emerald-500/30'
-                      : 'border-slate-600 bg-slate-800/70'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
-                      experimentalOllamaEnabled ? 'translate-x-8' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </label>
-              <div className="mt-2 text-xs leading-5 text-amber-200">
-                {tx(
-                  lang,
-                  'Xəbərdarlıq: Bu provider experimental-dir. SLA, sabitlik, cavab keyfiyyəti və data məxfiliyi prod səviyyəsində zəmanətli deyil. Yalnız test məqsədi ilə aktiv edin.',
-                  'Предупреждение: этот провайдер экспериментальный. SLA, стабильность, качество ответов и приватность данных не гарантируются на prod-уровне. Используйте только для теста.',
-                  'Warning: this provider is experimental. SLA, stability, response quality, and data privacy are not guaranteed at production level. Use for testing only.',
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <label className="text-sm text-slate-300">
-              {tx(lang, 'Audit pəncərəsi', 'Окно аудита', 'Audit window')}
-              <select className="neon-input mt-1" value={auditWindow} onChange={(e) => setAuditWindow(e.target.value as '7' | '30' | '90')}>
-                <option value="7">{tx(lang, 'Son 7 gün', 'Последние 7 дней', 'Last 7 days')}</option>
-                <option value="30">{tx(lang, 'Son 30 gün', 'Последние 30 дней', 'Last 30 days')}</option>
-                <option value="90">{tx(lang, 'Son 90 gün', 'Последние 90 дней', 'Last 90 days')}</option>
-              </select>
-            </label>
-            <label className="text-sm text-slate-300">
-              {tx(lang, 'Əlavə fokus', 'Дополнительный фокус', 'Additional focus')}
-              <input
-                className="neon-input mt-1"
-                value={focus}
-                onChange={(e) => setFocus(e.target.value)}
-                placeholder={tx(lang, 'Məs: zəif saatları tap', 'Напр.: найти слабые часы', 'Example: find weak hours')}
-              />
-            </label>
-          </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="text-sm text-slate-300">
+            {tx(lang, 'Audit pəncərəsi', 'Окно аудита', 'Audit window')}
+            <select className="neon-input mt-1" value={auditWindow} onChange={(e) => setAuditWindow(e.target.value as '7' | '30' | '90')}>
+              <option value="7">{tx(lang, 'Son 7 gün', 'Последние 7 дней', 'Last 7 days')}</option>
+              <option value="30">{tx(lang, 'Son 30 gün', 'Последние 30 дней', 'Last 30 days')}</option>
+              <option value="90">{tx(lang, 'Son 90 gün', 'Последние 90 дней', 'Last 90 days')}</option>
+            </select>
+          </label>
+          <label className="text-sm text-slate-300">
+            {tx(lang, 'Əlavə fokus', 'Дополнительный фокус', 'Additional focus')}
+            <input
+              className="neon-input mt-1"
+              value={focus}
+              onChange={(e) => setFocus(e.target.value)}
+              placeholder={tx(lang, 'Məs: zəif saatları tap', 'Напр.: найти слабые часы', 'Example: find weak hours')}
+            />
+          </label>
         </div>
       </div>
 
