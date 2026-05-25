@@ -32,7 +32,7 @@ Please answer in {lang.upper()}.
 """
     
     try:
-        model = "deepseek-v4-flash" # Force model with large context
+        model = "openrouter/owl-alpha" # Force model with large context
         response = generate_chat(
             model=model,
             messages=messages,
@@ -42,5 +42,5 @@ Please answer in {lang.upper()}.
         )
         return response
     except Exception as e:
-        logger.error(f"Error calling OpenCode Zen for chat: {e}")
+        logger.error(f"Error calling OpenRouter for chat: {e}")
         return f"Xəta baş verdi: {e}"

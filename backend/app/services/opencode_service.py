@@ -6,23 +6,22 @@ from app.core.config import settings
 
 
 DEFAULT_MODEL_LABELS = {
-    "hy3-preview": "Nemotron 3 Super Free", # As per API
-    "minimax-m2.5": "MiniMax M2.5 Free",
-    "qwen3.6-plus": "Qwen3.6 Plus Free",
-    "deepseek-v4-flash": "DeepSeek V4 Flash Free",
+    "openrouter/owl-alpha": "OpenRouter Owl Alpha",
+    "deepseek/deepseek-chat-free": "DeepSeek V3 Free",
+    "google/gemini-2.0-flash-exp:free": "Gemini 2.0 Flash Free",
 }
 
 
 def get_allowed_models() -> list[dict[str, str]]:
-    configured = str(settings.opencode_allowed_models or "").strip()
+    configured = str(settings.openrouter_allowed_models or "").strip()
     model_ids = [item.strip() for item in configured.split(",") if item.strip()]
     if not model_ids:
-        model_ids = ["nemotron-3-super-free"]
+        model_ids = ["openrouter/owl-alpha"]
     return [
         {
             "id": model_id,
             "name": DEFAULT_MODEL_LABELS.get(model_id, model_id),
-            "provider": "OpenCode Zen",
+            "provider": "OpenRouter",
         }
         for model_id in dict.fromkeys(model_ids)
     ]
@@ -34,7 +33,7 @@ def is_allowed_model(model_id: str) -> bool:
 
 
 def default_model_id() -> str:
-    configured = str(settings.opencode_default_model or "").strip()
+    configured = str(settings.openrouter_default_model or "").strip()
     if configured and is_allowed_model(configured):
         return configured
     models = get_allowed_models()
@@ -42,21 +41,22 @@ def default_model_id() -> str:
 
 
 def _base_url() -> str:
-    return str(settings.opencode_base_url or "https://opencode.ai/zen/go/v1").strip().rstrip("/")
+    return str(settings.openrouter_base_url or "https://openrouter.ai/api/v1").strip().rstrip("/")
 
 
 def _api_key() -> str:
-    return str(settings.opencode_api_key or "").strip()
+    return str(settings.openrouter_api_key or "").strip()
 
 
 def _headers() -> dict[str, str]:
     key = _api_key()
     if not key:
-        raise RuntimeError("OpenCode API key is not configured")
+        raise RuntimeError("OpenRouter API key is not configured")
     return {
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
-        "User-Agent": "IronWavesPOS/1.0",
+        "HTTP-Referer": "https://ironwaves.store",
+        "X-Title": "IronWaves POS",
     }
 
 
@@ -68,9 +68,9 @@ def _read_json(url: str, payload: dict, timeout_seconds: int) -> dict:
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise RuntimeError("OpenCode returned non-JSON response") from exc
+        raise RuntimeError("OpenRouter returned non-JSON response") from exc
     if not isinstance(data, dict):
-        raise RuntimeError("OpenCode returned invalid response")
+        raise RuntimeError("OpenRouter returned invalid response")
     return data
 
 
@@ -119,7 +119,7 @@ def generate_text(
 ) -> str:
     model_id = str(model or default_model_id()).strip()
     if not is_allowed_model(model_id):
-        raise ValueError("Selected OpenCode model is not allowed")
+        raise ValueError("Selected OpenRouter model is not allowed")
     prompt_text = str(prompt or "").strip()
     if not prompt_text:
         raise ValueError("Prompt is required")
@@ -167,49 +167,37 @@ def generate_chat(
     if not is_allowed_model(model_id):
         raise ValueError("Selected OpenCode model is not allowed")
 
-    timeout = timeout_seconds or int(settings.opencode_timeout_seconds or 45)
+    timeout = timeout_seconds or int(settings.openrouter_timeout_seconds or 45)
     
     formatted_messages = []
-    if system and not model_id.startswith("minimax-"):
+    if system:
         formatted_messages.append({"role": "system", "content": str(system).strip()})
         
     for msg in messages:
         if isinstance(msg, dict) and "role" in msg and "content" in msg:
             formatted_messages.append({"role": str(msg["role"]), "content": str(msg["content"])})
 
-    if model_id.startswith("minimax-"):
-        payload = {
-            "model": model_id,
-            "max_tokens": max(16, min(int(max_tokens or 1500), 4096)),
-            "temperature": max(0.0, min(float(temperature or 0.2), 2.0)),
-            "messages": formatted_messages,
-        }
-        if system:
-            payload["system"] = str(system).strip()
-        data = _read_json(f"{_base_url()}/messages", payload, timeout)
-        text = _extract_messages_text(data)
-    else:
-        payload = {
-            "model": model_id,
-            "messages": formatted_messages,
-            "temperature": max(0.0, min(float(temperature or 0.2), 2.0)),
-            "max_tokens": max(16, min(int(max_tokens or 1500), 4096)),
-        }
-        data = _read_json(f"{_base_url()}/chat/completions", payload, timeout)
-        text = _extract_chat_text(data)
-        
+    payload = {
+        "model": model_id,
+        "messages": formatted_messages,
+        "temperature": max(0.0, min(float(temperature or 0.2), 2.0)),
+        "max_tokens": max(16, min(int(max_tokens or 1500), 4096)),
+    }
+    data = _read_json(f"{_base_url()}/chat/completions", payload, timeout)
+    text = _extract_chat_text(data)
+    
     if not text:
-        raise RuntimeError("OpenCode returned empty text")
+        raise RuntimeError("OpenRouter returned empty text")
     return text
 
 
-def normalize_opencode_error(exc: Exception) -> str:
+def normalize_openrouter_error(exc: Exception) -> str:
     if isinstance(exc, HTTPError):
         try:
             body = exc.read().decode("utf-8", errors="replace")[:500]
         except Exception:
             body = ""
-        return f"OpenCode HTTP {exc.code}: {body}".strip()
+        return f"OpenRouter HTTP {exc.code}: {body}".strip()
     if isinstance(exc, URLError):
-        return f"OpenCode network error: {exc.reason}"
+        return f"OpenRouter network error: {exc.reason}"
     return str(exc)

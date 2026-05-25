@@ -82,11 +82,11 @@ class Settings(BaseSettings):
     resend_api_key: str | None = None
     email_from: str = "no-reply@ironwaves.store"
 
-    opencode_api_key: str | None = None
-    opencode_base_url: str = "https://opencode.ai/zen/go/v1"
-    opencode_allowed_models: str = "hy3-preview,minimax-m2.5,qwen3.6-plus,deepseek-v4-flash"
-    opencode_default_model: str = "deepseek-v4-flash"
-    opencode_timeout_seconds: int = 45
+    openrouter_api_key: str | None = None
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_allowed_models: str = "openrouter/owl-alpha,deepseek/deepseek-chat-free,google/gemini-2.0-flash-exp:free"
+    openrouter_default_model: str = "openrouter/owl-alpha"
+    openrouter_timeout_seconds: int = 45
 
     # Multi-tenant should be enabled by default. Set true only for per-deployment single-tenant mode.
     single_tenant_mode: bool = False
