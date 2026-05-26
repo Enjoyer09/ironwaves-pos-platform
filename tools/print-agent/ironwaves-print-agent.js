@@ -354,8 +354,8 @@ function spawnBrowserForPrint(browser, htmlFile, userDir) {
       '--no-first-run',
       '--disable-default-apps',
       '--no-default-browser-check',
-      '--window-position=-10000,-10000',
-      '--window-size=10,10',
+      '--window-position=3000,3000',
+      '--window-size=800,800',
       htmlFile,
     ];
 
