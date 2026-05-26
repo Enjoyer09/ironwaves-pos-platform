@@ -166,12 +166,14 @@ async function printHtml(payload) {
                     (html.match(/<tr>/g) || []).length +
                     (html.match(/<div class="row"/g) || []).length +
                     (html.match(/<br/g) || []).length;
-  // Standard receipt base is around 75mm, plus 6.5mm per text line
-  const estimatedHeight = Math.max(90, Math.min(450, Math.round(75 + (lineCount * 6.5))));
+  // Standard receipt base is around 110mm (generous space for headers, QR code, barcode, and footers), plus 6.5mm per text line
+  const estimatedHeight = Math.max(120, Math.min(500, Math.round(110 + (lineCount * 6.5))));
 
   // Replace auto height in CSS @page size to prevent Chrome from falling back to US Letter/A4 size
   html = html.replace(/size:\s*([0-9.]+mm)\s*auto/gi, `size: $1 ${estimatedHeight}mm`);
   html = html.replace(/size:\s*auto\s*([0-9.]+mm)/gi, `size: ${estimatedHeight}mm $1`);
+  // Also replace any static page size (e.g. size: 80mm 147mm) inside style tags to safely expand the height
+  html = html.replace(/size:\s*[0-9.]+mm\s*[0-9.]+mm/gi, `size: 80mm ${estimatedHeight}mm`);
 
   // Inject window.print() inside a script tag if it doesn't already trigger printing (using immediate execution)
   if (!html.includes('window.print(')) {
@@ -209,11 +211,20 @@ async function printHtml(payload) {
     const pdfFile = path.join(dir, 'receipt.pdf');
     
     if (browser) {
-      // macOS: Use Chrome headless to convert HTML to PDF silently
+      // macOS: Use Chrome headless to convert HTML to PDF silently (with speed-up flags)
       const chromeArgs = [
         '--headless',
         `--user-data-dir=${userDir}`,
         '--disable-gpu',
+        '--disable-extensions',
+        '--disable-sync',
+        '--no-first-run',
+        '--disable-default-apps',
+        '--no-default-browser-check',
+        '--disable-background-networking',
+        '--disable-background-timer-throttling',
+        '--disable-renderer-backgrounding',
+        '--no-sandbox',
         '--print-to-pdf-no-header',
         `--print-to-pdf=${pdfFile}`,
         `file://${file}`,
@@ -227,20 +238,25 @@ async function printHtml(payload) {
           });
         });
 
-        // Convert the PDF to a high-quality PNG image using macOS built-in sips tool.
-        // We resample the width to exactly 576 pixels (standard for 80mm thermal printers at 203 DPI)
-        // so it prints across the full page width instead of being tiny.
-        const pngFile = path.join(dir, 'receipt.png');
-        await runCommand('sips', [
-          '-s', 'format', 'png',
-          '-s', 'dpiWidth', '203',
-          '-s', 'dpiHeight', '203',
-          '--resampleWidth', '576',
-          pdfFile,
-          '--out', pngFile
+        // 1. Render the PDF vector page to a super high-resolution PNG (3000px height) using macOS's built-in QuickLook engine.
+        // QuickLook is extremely fast and generates perfect, crisp vector renderings!
+        await runCommand('qlmanage', [
+          '-t',
+          '-s', '3000',
+          '-o', dir,
+          pdfFile
         ], 10000);
 
-        // Print the generated PNG file via lp directly to the target printer
+        const pngFile = path.join(dir, 'receipt.pdf.png');
+
+        // 2. Downscale the high-res PNG to exactly 576 pixels wide (the standard printable width for 80mm thermal printers).
+        // Downscaling a high-res rendering (super-sampling) preserves perfect outlines, sharp text, and crisp barcodes!
+        await runCommand('sips', [
+          '--resampleWidth', '576',
+          pngFile
+        ], 10000);
+
+        // 3. Print the crisp resampled PNG file via lp directly to the target printer
         const lpArgs = [];
         if (printerName) lpArgs.push('-d', printerName);
         lpArgs.push(pngFile);
