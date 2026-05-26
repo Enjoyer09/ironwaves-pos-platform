@@ -1306,7 +1306,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               ${receiptCustomerId ? `<div class="line"><span>${tx(lang, 'Müştəri ID', 'ID клиента', 'Customer ID')}</span><span>${receiptCustomerId}</span></div>` : ''}
               ${receiptCustomerId ? `<div class="line"><span>${tx(lang, 'Ulduz balansı', 'Баланс звезд', 'Star Balance')}</span><span>${receiptStarsAfter}</span></div>` : ''}
               <div class="line bold"><span>${tx(lang, 'Yekun', 'Итого', 'Total')}</span><span>${saleFinal.toFixed(2)} ₼</span></div>
-              <div class="line"><span>${tx(lang, 'Ödəniş', 'Оплата', 'Payment')}</span><span>${paymentMethod}</span></div>
+              <div class="line"><span>${tx(lang, 'Ödəniş', 'Оплата', 'Payment')}</span><span>${paymentMethod === 'Nəğd' ? 'Nağd' : paymentMethod}</span></div>
               ${paymentMethod === 'Split' ? `<div class="line"><span>${tx(lang, 'Split nağd', 'Split наличные', 'Split cash')}</span><span>${(splitCash || new Decimal(0)).toFixed(2)} ₼</span></div>` : ''}
               ${paymentMethod === 'Split' ? `<div class="line"><span>${tx(lang, 'Split kart', 'Split карта', 'Split card')}</span><span>${(splitCard || new Decimal(0)).toFixed(2)} ₼</span></div>` : ''}
               <hr />
