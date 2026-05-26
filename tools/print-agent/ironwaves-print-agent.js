@@ -161,9 +161,21 @@ async function printHtml(payload) {
   let html = String(payload.html || '').trim();
   if (!html) throw new Error('html is required');
 
-  // Inject window.print() inside a script tag if it doesn't already trigger printing
+  // Estimate height in mm based on lines/rows inside the HTML to avoid rolling out blank paper in headless PDF
+  const lineCount = (html.match(/class="line"/g) || []).length + 
+                    (html.match(/<tr>/g) || []).length +
+                    (html.match(/<div class="row"/g) || []).length +
+                    (html.match(/<br/g) || []).length;
+  // Standard receipt base is around 75mm, plus 6.5mm per text line
+  const estimatedHeight = Math.max(90, Math.min(450, Math.round(75 + (lineCount * 6.5))));
+
+  // Replace auto height in CSS @page size to prevent Chrome from falling back to US Letter/A4 size
+  html = html.replace(/size:\s*([0-9.]+mm)\s*auto/gi, `size: $1 ${estimatedHeight}mm`);
+  html = html.replace(/size:\s*auto\s*([0-9.]+mm)/gi, `size: ${estimatedHeight}mm $1`);
+
+  // Inject window.print() inside a script tag if it doesn't already trigger printing (using immediate execution)
   if (!html.includes('window.print(')) {
-    const printScript = '\n<script>window.onload = function() { setTimeout(function() { window.print(); }, 500); }</script>';
+    const printScript = '\n<script>setTimeout(function() { window.print(); }, 150);</script>';
     if (html.includes('</body>')) {
       html = html.replace('</body>', printScript + '\n</body>');
     } else if (html.includes('</html>')) {
@@ -184,66 +196,53 @@ async function printHtml(payload) {
   const userDir = path.join(dir, 'chrome-profile');
   fs.mkdirSync(userDir, { recursive: true });
 
-  // Temporarily set default printer if a specific one was requested
+  // Temporarily set default printer if a specific one was requested (Windows only)
   let previousDefault = '';
-  if (printerName) {
-    if (process.platform === 'win32') {
-      previousDefault = await getDefaultPrinterName().catch(() => '');
-      await setDefaultPrinter(printerName).catch(() => {});
-    } else if (process.platform === 'darwin') {
-      try {
-        const defaultRaw = await runCommand('/bin/sh', ['-lc', "lpstat -d 2>/dev/null | sed 's/^system default destination: //'"]).catch(() => '');
-        previousDefault = String(defaultRaw || '').trim();
-        if (previousDefault && previousDefault !== printerName) {
-          await runCommand('/bin/sh', ['-lc', `lpoptions -d "${printerName.replace(/"/g, '\\"')}"`]).catch(() => {});
-        }
-      } catch (_) {}
-    }
+  if (printerName && process.platform === 'win32') {
+    previousDefault = await getDefaultPrinterName().catch(() => '');
+    await setDefaultPrinter(printerName).catch(() => {});
   }
 
   // macOS print logic
   if (process.platform === 'darwin') {
     const browser = findBrowserExecutable();
+    const pdfFile = path.join(dir, 'receipt.pdf');
+    
     if (browser) {
-      // macOS: Use Chrome kiosk-printing (silent print, no dialog, respects @page CSS)
-      // We position the window off-screen at positive 9999,9999 so Aqua does not snap it back, keeping it completely invisible!
+      // macOS: Use Chrome headless to convert HTML to PDF silently, then print via lp
+      // This is 100% invisible, dynamic height (no endless blank paper), and opens no browser windows at all!
       const chromeArgs = [
-        '--kiosk-printing',
+        '--headless',
         `--user-data-dir=${userDir}`,
-        '--disable-background-networking',
-        '--disable-extensions',
-        '--disable-sync',
-        '--no-first-run',
-        '--disable-default-apps',
-        '--no-default-browser-check',
-        '--window-position=9999,9999',
-        '--window-size=10,10',
+        '--disable-gpu',
+        '--print-to-pdf-no-header',
+        `--print-to-pdf=${pdfFile}`,
         `file://${file}`,
       ];
 
-      const child = spawn(browser, chromeArgs, {
-        detached: true,
-        stdio: 'ignore',
-      });
-      child.unref();
-      const chromePid = child.pid;
+      try {
+        await new Promise((resolve, reject) => {
+          execFile(browser, chromeArgs, { timeout: 10000 }, (err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
 
-      // Restore previous default printer after Chrome has time to spool the job
-      const RESTORE_DELAY_MS = 9000;
-      setTimeout(() => {
-        if (previousDefault && previousDefault !== printerName) {
-          runCommand('/bin/sh', ['-lc', `lpoptions -d "${previousDefault.replace(/"/g, '\\"')}"`]).catch(() => {});
-        }
-      }, RESTORE_DELAY_MS);
-
-      // Kill Chrome after it has time to spool the print job
-      const KILL_DELAY_MS = 12000;
-      setTimeout(() => {
-        if (chromePid) {
-          try { process.kill(chromePid, 'SIGTERM'); } catch (_) {}
-        }
-        fs.rm(dir, { recursive: true, force: true }, () => {});
-      }, KILL_DELAY_MS);
+        // Print the generated PDF file via lp directly to the target printer
+        const lpArgs = [];
+        if (printerName) lpArgs.push('-d', printerName);
+        lpArgs.push(pdfFile);
+        await runCommand('/usr/bin/lp', lpArgs, 15000);
+      } catch (err) {
+        // Fallback: try lp with raw text if headless print fails
+        const textContent = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        const textFile = path.join(dir, 'receipt.txt');
+        fs.writeFileSync(textFile, textContent, 'utf8');
+        const lpArgs = [];
+        if (printerName) lpArgs.push('-d', printerName);
+        lpArgs.push(textFile);
+        await runCommand('/usr/bin/lp', lpArgs, 15000);
+      }
     } else {
       // Fallback: try lp with raw text (strip HTML tags)
       const textContent = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -253,15 +252,11 @@ async function printHtml(payload) {
       if (printerName) lpArgs.push('-d', printerName);
       lpArgs.push(textFile);
       await runCommand('/usr/bin/lp', lpArgs, 15000);
-      
-      // Restore previous default printer
-      if (previousDefault && previousDefault !== printerName) {
-        await runCommand('/bin/sh', ['-lc', `lpoptions -d "${previousDefault.replace(/"/g, '\\"')}"`]).catch(() => {});
-      }
-      fs.rm(dir, { recursive: true, force: true }, () => {});
     }
 
-    return { queued: true, method: browser ? 'chrome-kiosk' : 'lp-text', printer_name: printerName || 'default' };
+    // Clean up temp dir
+    fs.rm(dir, { recursive: true, force: true }, () => {});
+    return { queued: true, method: browser ? 'chrome-headless-pdf' : 'lp-text', printer_name: printerName || 'default' };
   }
 
   // Windows: use Chrome kiosk printing
