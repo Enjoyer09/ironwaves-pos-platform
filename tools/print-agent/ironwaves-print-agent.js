@@ -209,8 +209,7 @@ async function printHtml(payload) {
     const pdfFile = path.join(dir, 'receipt.pdf');
     
     if (browser) {
-      // macOS: Use Chrome headless to convert HTML to PDF silently, then print via lp
-      // This is 100% invisible, dynamic height (no endless blank paper), and opens no browser windows at all!
+      // macOS: Use Chrome headless to convert HTML to PDF silently
       const chromeArgs = [
         '--headless',
         `--user-data-dir=${userDir}`,
@@ -228,10 +227,22 @@ async function printHtml(payload) {
           });
         });
 
-        // Print the generated PDF file via lp directly to the target printer
+        // Convert the PDF to a high-quality PNG image using macOS built-in sips tool.
+        // Thermal printers on macOS often print PDFs blank due to driver limitations,
+        // but they print raster PNG images perfectly!
+        const pngFile = path.join(dir, 'receipt.png');
+        await runCommand('sips', [
+          '-s', 'format', 'png',
+          '-s', 'dpiWidth', '203',
+          '-s', 'dpiHeight', '203',
+          pdfFile,
+          '--out', pngFile
+        ], 10000);
+
+        // Print the generated PNG file via lp directly to the target printer
         const lpArgs = [];
         if (printerName) lpArgs.push('-d', printerName);
-        lpArgs.push(pdfFile);
+        lpArgs.push(pngFile);
         await runCommand('/usr/bin/lp', lpArgs, 15000);
       } catch (err) {
         // Fallback: try lp with raw text if headless print fails
