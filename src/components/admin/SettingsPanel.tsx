@@ -22,7 +22,7 @@ import {
   update_table_service_settings_live,
   update_yield_management_settings_live,
   update_business_profile_live,
-  update_print_settings,
+  update_print_settings_live,
   update_qr_menu_settings_live,
   update_z_report_receipt_settings_live,
   update_qr_settings_live,
@@ -468,6 +468,7 @@ export default function SettingsPanel() {
         included_items: Array.isArray(settingsRes.value.staff_benefits?.included_items) ? settingsRes.value.staff_benefits!.included_items : [],
         item_unit_cap_azn: String(settingsRes.value.staff_benefits?.item_unit_cap_azn ?? 6),
       });
+      void checkPrintAgentStatus();
     }
   };
 
@@ -857,12 +858,16 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Email ayarları yadda saxlanıldı', 'Настройки email сохранены', 'Email settings saved'), 'email');
   };
 
-  const savePrintSettings = () => {
-    update_print_settings({
-      use_qz: printSettings.use_qz,
-      printer_name: printSettings.printer_name.trim(),
-    });
-    flashSuccess(tx(lang, 'Çap ayarları yadda saxlanıldı', 'Настройки печати сохранены', 'Print settings saved'), 'print');
+  const savePrintSettings = async () => {
+    try {
+      await update_print_settings_live({
+        use_qz: printSettings.use_qz,
+        printer_name: printSettings.printer_name.trim(),
+      });
+      flashSuccess(tx(lang, 'Çap ayarları yadda saxlanıldı', 'Настройки печати сохранены', 'Print settings saved'), 'print');
+    } catch {
+      notify('error', tx(lang, 'Çap ayarlarını yadda saxlamaq mümkün olmadı', 'Не удалось сохранить настройки печати', 'Failed to save print settings'));
+    }
   };
 
   const checkPrintAgentStatus = async () => {

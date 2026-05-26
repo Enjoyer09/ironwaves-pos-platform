@@ -2492,6 +2492,23 @@ def update_z_report_receipt_settings(
     return {"success": True, "z_report_receipt_settings": cleaned}
 
 
+@router.patch("/settings/print-settings")
+def update_print_settings(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    cleaned = {
+        "use_qz": bool(payload.get("use_qz", False)),
+        "printer_name": str(payload.get("printer_name") or "").strip(),
+    }
+    _set_setting_value(db, tenant.id, "print_settings", cleaned)
+    db.commit()
+    return {"success": True, "print_settings": cleaned}
+
+
 @router.patch("/settings/session")
 def update_session_settings(
     payload: dict,
