@@ -2621,10 +2621,10 @@ export default function SettingsPanel() {
             </div>
 
             <div className="mb-4 rounded-xl border border-slate-700 bg-slate-950/40 p-3 text-xs text-slate-300 space-y-2">
-              <div className="font-bold text-cyan-300">{tx(lang, 'Seçim A: Windows Səssiz Qurulum (Tövsiyə olunur)', 'Вариант А: Тихая установка Windows (Рекомендуется)', 'Option A: Windows Silent Setup (Recommended)')}</div>
+              <div className="font-bold text-cyan-300">{tx(lang, 'Seçim A: Windows Bir-Kliklə Səssiz Qurulum (Tövsiyə olunur)', 'Вариант А: Тихая установка Windows в один клик (Рекомендуется)', 'Option A: Windows One-Click Silent Setup (Recommended)')}</div>
               <ol className="list-decimal pl-4 space-y-1">
                 <li>{tx(lang, 'Qurulum ZIP arxivini kompüterinizə yükləyin və qovluğa çıxarın.', 'Скачайте установочный ZIP-архив на ПК и распакуйте в папку.', 'Download the setup ZIP archive to your PC and extract it to a folder.')}</li>
-                <li>{tx(lang, 'Qovluqdakı "setup-windows.ps1" faylına sağ klikləyib "Run with PowerShell" seçin.', 'Нажмите правой кнопкой на файл "setup-windows.ps1" и выберите "Run with PowerShell".', 'Right-click the "setup-windows.ps1" file in the folder and select "Run with PowerShell".')}</li>
+                <li>{tx(lang, 'Qovluqdakı "setup.bat" faylına sadəcə cüt klikləyin (double-click).', 'Просто дважды кликните на файл "setup.bat" в папке.', 'Simply double-click the "setup.bat" file in the folder.')}</li>
                 <li>{tx(lang, 'Quraşdırma 1 saniyədə tamamlanacaq, agent startap-a yerləşib arxa fonda səssizcə işləyəcək (bloklanmadan).', 'Установка завершится за 1 секунду, агент добавится в автозапуск и будет бесшумно работать в фоне.', 'Setup will complete in 1 second, the agent will go to startup and run silently in the background.')}</li>
               </ol>
             </div>
