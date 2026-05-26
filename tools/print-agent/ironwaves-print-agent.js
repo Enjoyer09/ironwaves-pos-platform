@@ -161,10 +161,54 @@ async function printHtml(payload) {
   const html = String(payload.html || '').trim();
   if (!html) throw new Error('html is required');
 
+  const printerName = String(payload.printer_name || payload.printerName || '').trim();
+
+  // Write HTML to a temp file
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ironwaves-receipt-'));
+  const file = path.join(dir, 'receipt.html');
+  fs.writeFileSync(file, html, 'utf8');
+
+  // macOS: convert HTML to PDF via Chrome headless, then print via lp
+  if (process.platform === 'darwin') {
+    const browser = findBrowserExecutable();
+    const pdfFile = path.join(dir, 'receipt.pdf');
+
+    if (browser) {
+      // Use Chrome headless to convert HTML to PDF
+      const chromeArgs = [
+        '--headless',
+        '--disable-gpu',
+        '--no-sandbox',
+        '--disable-extensions',
+        `--print-to-pdf=${pdfFile}`,
+        '--print-to-pdf-no-header',
+        `file://${file}`,
+      ];
+      await runCommand(browser, chromeArgs, 15000);
+
+      // Print PDF via lp
+      const lpArgs = [];
+      if (printerName) lpArgs.push('-d', printerName);
+      lpArgs.push(pdfFile);
+      await runCommand('/usr/bin/lp', lpArgs, 15000);
+    } else {
+      // Fallback: try lp with raw text (strip HTML tags)
+      const textContent = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      const textFile = path.join(dir, 'receipt.txt');
+      fs.writeFileSync(textFile, textContent, 'utf8');
+      const lpArgs = [];
+      if (printerName) lpArgs.push('-d', printerName);
+      lpArgs.push(textFile);
+      await runCommand('/usr/bin/lp', lpArgs, 15000);
+    }
+
+    setTimeout(() => { fs.rm(dir, { recursive: true, force: true }, () => {}); }, 5000);
+    return { queued: true, method: browser ? 'chrome-headless-pdf' : 'lp-text', printer_name: printerName || 'default' };
+  }
+
+  // Windows: use Chrome kiosk printing
   const browser = findBrowserExecutable();
   if (!browser) throw new Error('Chrome or Microsoft Edge was not found');
-
-  const printerName = String(payload.printer_name || payload.printerName || '').trim();
 
   // Temporarily set default printer if a specific one was requested
   const previousDefault =
@@ -172,11 +216,6 @@ async function printHtml(payload) {
   if (printerName && process.platform === 'win32') {
     await setDefaultPrinter(printerName).catch(() => {});
   }
-
-  // Write HTML to a temp file
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ironwaves-receipt-'));
-  const file = path.join(dir, 'receipt.html');
-  fs.writeFileSync(file, html, 'utf8');
 
   const chromePid = await spawnBrowserForPrint(browser, file);
 
@@ -189,7 +228,6 @@ async function printHtml(payload) {
   }, RESTORE_DELAY_MS);
 
   // Kill the Chrome instance we spawned after it has had time to send the print job.
-  // Without this, every print leaves a headless Chrome process running.
   const KILL_DELAY_MS = 12000;
   setTimeout(() => {
     if (chromePid) {
@@ -201,12 +239,12 @@ async function printHtml(payload) {
         }
       } catch (_) {}
     }
-    // Clean up temp file
     fs.rm(dir, { recursive: true, force: true }, () => {});
   }, KILL_DELAY_MS);
 
   return {
     queued: true,
+    method: 'chrome-kiosk',
     browser: path.basename(browser),
     printer_name: printerName || 'default',
   };
