@@ -56,7 +56,7 @@ $vbsContent = @"
 Set WshShell = CreateObject("WScript.Shell")
 WshShell.Run "$($runCmd.Replace('"', '""'))", 0, false
 "@
-Set-Content -Path $vbsFile -Value $vbsContent -Encoding UTF8
+Set-Content -Path $vbsFile -Value $vbsContent -Encoding Ascii
 
 # 3. Get the Windows Startup folder path
 $startupFolder = [System.IO.Path]::Combine([Environment]::GetFolderPath("Startup"))
