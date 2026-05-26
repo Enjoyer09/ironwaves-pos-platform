@@ -12,6 +12,9 @@ import { getDB } from '../lib/db_sim';
 import { verifyLocalCredential } from '../lib/local_auth';
 import { formatServerUtcDateTime, localDateInputValue, localDateTimeNextStart, localDateTimeStart } from '../lib/time';
 import { prepareImageUploadFile } from '../lib/image_upload';
+import { qzPrintHtml } from '../lib/qz';
+import { buildSaleReceiptHtml } from '../lib/receipt_html';
+import { get_settings_live, get_business_profile_live } from '../api/settings';
 
 const FinancePanel = lazy(() => import('./admin/FinancePanel'));
 const InventoryPanel = lazy(() => import('./admin/InventoryPanel'));
@@ -182,13 +185,66 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
     };
   };
 
-  const reprintSaleReceipt = (sale: any) => {
+  const reprintSaleReceipt = async (sale: any) => {
     const receiptRef = String(sale?.receipt_code || sale?.id || '').trim();
     if (!receiptRef) {
       notify('error', tx(lang, 'Bu satış üçün receipt ID tapılmadı', 'Для этой продажи receipt ID не найден', 'Receipt ID was not found for this sale'));
       return;
     }
     const token = String(sale?.receipt_token || '').trim();
+
+    try {
+      const settings = await get_settings_live(tenant_id);
+      const printSettings = settings?.print_settings || { use_qz: false, printer_name: '' };
+
+      if (printSettings.use_qz) {
+        notify('info', tx(lang, 'QZ Tray vasitəsilə çap edilir...', 'Печать через QZ Tray...', 'Printing via QZ Tray...'));
+        const profile = await get_business_profile_live(tenant_id);
+        
+        const baseUrl = window.location.origin.replace(/\/+$/, '');
+        const receiptUrl = `${baseUrl}/?r=${encodeURIComponent(receiptRef)}&t=${encodeURIComponent(token)}`;
+        
+        let feedbackUrl = '';
+        const feedbackSettings = settings?.feedback_settings || {};
+        if (feedbackSettings?.enabled !== false) {
+          const feedbackBaseUrl = String(feedbackSettings?.portal_url || `${baseUrl}/feedback`).trim();
+          try {
+            const u = new URL(feedbackBaseUrl);
+            u.pathname = '/feedback';
+            u.searchParams.set('tenant_id', tenant_id);
+            u.searchParams.set('sale_id', String(sale?.id || sale?.sale_id || ''));
+            u.searchParams.set('receipt_id', String(receiptRef || ''));
+            u.searchParams.set('r', String(receiptRef || ''));
+            u.searchParams.set('t', String(token || ''));
+            feedbackUrl = u.toString();
+          } catch {
+            feedbackUrl = feedbackBaseUrl;
+          }
+        }
+
+        const html = await buildSaleReceiptHtml({
+          sale,
+          profile,
+          lang: lang as any,
+          receiptUrl,
+          feedbackUrl,
+          operator: String(sale?.cashier || ''),
+        });
+
+        await qzPrintHtml(html, printSettings.printer_name);
+        notify('success', tx(lang, 'QZ ilə uğurla çap edildi', 'Успешно напечатано через QZ', 'Successfully printed via QZ'));
+        return;
+      }
+    } catch (qzError) {
+      console.error('QZ print failed, falling back to browser print:', qzError);
+      notify('warning', tx(
+        lang,
+        'QZ Tray ilə çap alınmadı, brauzer çapına keçilir...',
+        'Ошибка печати через QZ Tray, переключение на печать браузера...',
+        'QZ Tray print failed, falling back to browser print...'
+      ));
+    }
+
     const url = new URL(window.location.origin);
     url.searchParams.set('r', receiptRef);
     if (token) url.searchParams.set('t', token);
