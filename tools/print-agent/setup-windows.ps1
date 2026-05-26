@@ -51,38 +51,31 @@ if ($nodeCmd -eq "node") {
     $runCmd = "`"$($nodeCmd.Replace('\', '\\'))`" `"$($jsFile.Replace('\', '\\'))`""
 }
 
-# 2. Create the silent VBScript launcher
-$vbsContent = @"
-Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run "$($runCmd.Replace('"', '""'))", 0, false
-"@
-Set-Content -Path $vbsFile -Value $vbsContent -Encoding Ascii
-
-# 3. Get the Windows Startup folder path
+# 2. Get the Windows Startup folder path
 $startupFolder = [System.IO.Path]::Combine([Environment]::GetFolderPath("Startup"))
 $shortcutPath = Join-Path $startupFolder "iRonWavesPrintAgent.lnk"
 
-# 4. Create a shortcut to the VBScript inside the Startup folder
+# 3. Create a clean startup shortcut that launches Node.exe silently in the active user session!
 $WshShell = New-Object -ComObject WScript.Shell
 $Shortcut = $WshShell.CreateShortcut($shortcutPath)
-$Shortcut.TargetPath = "wscript.exe"
-$Shortcut.Arguments = """$vbsFile"""
+$Shortcut.TargetPath = "powershell.exe"
+$Shortcut.Arguments = "-NoProfile -WindowStyle Hidden -Command `"Start-Process '$nodeCmd' -ArgumentList '$jsFile' -WindowStyle Hidden`""
 $Shortcut.WorkingDirectory = $scriptPath
 $Shortcut.Description = "iRonWaves Print Agent"
 $Shortcut.Save()
 
-# 5. Stop any existing running print agents (port cleanup)
+# 4. Stop any existing running print agents (port cleanup)
 Stop-Process -Name "node" -ErrorAction SilentlyContinue
 
-# 6. Launch the VBScript silently in the background immediately
-Start-Process "wscript.exe" -ArgumentList "`"$vbsFile`""
+# 5. Launch the print agent silently in the active user session immediately
+Start-Process $nodeCmd -ArgumentList "`"$jsFile`"" -WindowStyle Hidden
 
 Write-Host "==========================================================" -ForegroundColor Green
 Write-Host "iRonWaves Print Agent Windows Setup Completed Successfully!" -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Green
-Write-Host "1. Created silent launcher: $vbsFile"
-Write-Host "2. Added to Startup: $shortcutPath"
-Write-Host "3. Started silently in the background!"
+Write-Host "1. Created active-session silent shortcut: $shortcutPath"
+Write-Host "2. Added to Startup folder."
+Write-Host "3. Started silently in the background of your active user session!"
 Write-Host ""
 Write-Host "Windows Defender will not block this because it runs through official Node.js."
 Write-Host "You can close this window now."
