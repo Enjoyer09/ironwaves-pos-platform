@@ -1420,6 +1420,70 @@ export default function SettingsPanel() {
             'Note: iRonWaves Print Agent must run locally on 127.0.0.1:17777. If printer name is empty, Windows default printer is used. The QZ Tray checkbox remains as an extra fallback.',
           )}
         </div>
+        {printSettings.use_qz && (
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-xs text-slate-300 space-y-2">
+            <span className="font-semibold text-emerald-400 block">
+              {tx(
+                lang,
+                '🔒 QZ Tray İcazə Pəncərəsini Ləğv Etmək Üçün Təlimat:',
+                '🔒 Инструкция по отключению окна подтверждения QZ Tray:',
+                '🔒 Instruction to suppress QZ Tray confirmation dialog:',
+              )}
+            </span>
+            <p>
+              {tx(
+                lang,
+                'QZ Tray-in hər dəfə "Çap etmək istəyirsinizmi?" pəncərəsini çıxarmaması üçün bizim təhlükəsiz rəqəmsal sertifikatı QZ-ə bir dəfəlik tanıtmalısınız:',
+                'Чтобы QZ Tray перестал запрашивать разрешение на каждый чек, импортируйте наш бесплатный цифровой сертификат:',
+                'To prevent QZ Tray from asking for permission on every single print job, import our free digital certificate once:',
+              )}
+            </p>
+            <ol className="list-decimal pl-4 space-y-1">
+              <li>
+                <a
+                  href="/downloads/qz-digital-certificate.txt"
+                  download="qz-digital-certificate.txt"
+                  className="font-bold text-emerald-400 underline hover:text-emerald-300"
+                >
+                  {tx(
+                    lang,
+                    'Buraya klikləyərək qz-digital-certificate.txt faylını yükləyin',
+                    'Нажмите здесь, чтобы скачать qz-digital-certificate.txt',
+                    'Click here to download qz-digital-certificate.txt',
+                  )}
+                </a>
+              </li>
+              <li>
+                {tx(
+                  lang,
+                  'Kompüterinizin sağ aşağı küncündəki (Tray) QZ Tray ikonuna sağ klikləyin.',
+                  'Нажмите правой кнопкой мыши по иконке QZ Tray в трее.',
+                  'Right-click the QZ Tray icon in your system tray.',
+                )}
+              </li>
+              <li>
+                <span className="font-semibold">Advanced &rarr; Site Manager</span>{' '}
+                {tx(lang, 'bölməsinə daxil olun.', 'перейдите в этот раздел.', 'navigate to this section.')}
+              </li>
+              <li>
+                {tx(
+                  lang,
+                  'Açılan pəncərədə "+" düyməsinə klikləyib yüklədiyiniz faylı seçin və ya onu birbaşa pəncərəyə sürükləyib buraxın (Drag & Drop).',
+                  'Нажмите "+" и выберите скачанный файл, либо просто перетащите его в окно (Drag & Drop).',
+                  'Click "+" and select the downloaded file, or simply drag & drop it into the window.',
+                )}
+              </li>
+            </ol>
+            <p className="text-slate-400">
+              {tx(
+                lang,
+                'Qeyd: İdxal edildikdən sonra bütün çap əməliyyatları tamamilə səssiz və saniyələr içində icazəsiz baş verəcək.',
+                'Примечание: После импорта печать будет происходить полностью автоматически и мгновенно без запросов.',
+                'Note: Once imported, all printing will happen completely silently and instantly without prompts.',
+              )}
+            </p>
+          </div>
+        )}
         {renderPanelSuccess('print')}
         <div className="flex justify-end">
           <button onClick={savePrintSettings} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
