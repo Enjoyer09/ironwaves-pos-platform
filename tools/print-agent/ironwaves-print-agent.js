@@ -177,7 +177,23 @@ async function printHtml(payload) {
 
   // Inject window.print() inside a script tag if it doesn't already trigger printing (using immediate execution)
   if (!html.includes('window.print(')) {
-    const printScript = '\n<script>setTimeout(function() { if (!sessionStorage.getItem("iw_printed")) { sessionStorage.setItem("iw_printed", "1"); window.print(); } }, 150);</script>';
+    const printScript = `\n<script>
+(function() {
+  function triggerPrint() {
+    if (!sessionStorage.getItem("iw_printed")) {
+      sessionStorage.setItem("iw_printed", "1");
+      window.print();
+    }
+  }
+  if (document.readyState === "complete" || document.readyState === "interactive") {
+    setTimeout(triggerPrint, 350);
+  } else {
+    window.addEventListener("DOMContentLoaded", function() {
+      setTimeout(triggerPrint, 350);
+    });
+  }
+})();
+</script>`;
     if (html.includes('</body>')) {
       html = html.replace('</body>', printScript + '\n</body>');
     } else if (html.includes('</html>')) {
@@ -340,7 +356,7 @@ function spawnBrowserForPrint(browser, htmlFile, userDir) {
       '--no-default-browser-check',
       '--window-position=-10000,-10000',
       '--window-size=10,10',
-      `file:///${htmlFile.replace(/\\/g, '/')}`,
+      htmlFile,
     ];
 
     const child = spawn(browser, args, {
