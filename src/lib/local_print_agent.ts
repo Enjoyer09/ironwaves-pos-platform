@@ -59,6 +59,25 @@ export async function localPrintAgentInfo(): Promise<LocalPrintAgentInfo> {
   }
 }
 
+export type LocalPrintAgentPrinter = {
+  name: string;
+  default: boolean;
+};
+
+export async function localPrintAgentPrinters(): Promise<LocalPrintAgentPrinter[]> {
+  try {
+    const response = await fetch(`${AGENT_BASE_URL}/printers`, {
+      method: 'GET',
+      signal: timeoutSignal(REQUEST_TIMEOUT_MS),
+    });
+    if (!response.ok) return [];
+    const payload = (await response.json().catch(() => ({}))) as { printers?: LocalPrintAgentPrinter[] };
+    return Array.isArray(payload?.printers) ? payload.printers : [];
+  } catch {
+    return [];
+  }
+}
+
 function semverToParts(input: string): number[] {
   return String(input || '')
     .split('.')
