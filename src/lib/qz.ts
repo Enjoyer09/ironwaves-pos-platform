@@ -109,25 +109,28 @@ const loadQzScript = async () => {
 
   qz.security.setSignatureAlgorithm('SHA256');
   qz.security.setSignaturePromise((toSign: string) => {
-    return new Promise(async (resolve, reject) => {
-      try {
-        const key = await getCryptoKey();
-        const encoder = new TextEncoder();
-        const data = encoder.encode(toSign);
-        const signature = await window.crypto.subtle.sign(
-          {
-            name: 'RSASSA-PKCS1-v1_5',
-            hash: 'SHA-256',
-          },
-          key,
-          data
-        );
-        const base64Sig = btoa(String.fromCharCode(...new Uint8Array(signature)));
-        resolve(base64Sig);
-      } catch (err) {
-        reject(err);
-      }
-    });
+    return (resolve: any, reject: any) => {
+      getCryptoKey()
+        .then((key) => {
+          const encoder = new TextEncoder();
+          const data = encoder.encode(toSign);
+          window.crypto.subtle
+            .sign(
+              {
+                name: 'RSASSA-PKCS1-v1_5',
+                hash: 'SHA-256',
+              },
+              key,
+              data
+            )
+            .then((signature) => {
+              const base64Sig = btoa(String.fromCharCode(...new Uint8Array(signature)));
+              resolve(base64Sig);
+            })
+            .catch(reject);
+        })
+        .catch(reject);
+    };
   });
 
   return qz;
