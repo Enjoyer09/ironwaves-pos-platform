@@ -1736,6 +1736,7 @@ def cancel_table_check(
     user: User = Depends(get_current_user),
 ):
     # BahaY: allow staff to cancel empty tables on platform tenant
+    from app.core.config import settings as app_settings
     is_platform = str(tenant.slug or "").strip().lower() == str(app_settings.platform_tenant_slug or "").strip().lower()
     if not _is_manager(user) and not is_platform:
         raise HTTPException(status_code=403, detail="Manager/Admin required")
