@@ -161,6 +161,10 @@ async function printHtml(payload) {
   let html = String(payload.html || '').trim();
   if (!html) throw new Error('html is required');
 
+  // Replace auto height in CSS @page size to prevent Chrome from falling back to US Letter/A4 size
+  html = html.replace(/size:\s*([0-9.]+mm)\s*auto/gi, 'size: $1 450mm');
+  html = html.replace(/size:\s*auto\s*([0-9.]+mm)/gi, 'size: 450mm $1');
+
   // Inject window.print() inside a script tag if it doesn't already trigger printing
   if (!html.includes('window.print(')) {
     const printScript = '\n<script>window.onload = function() { setTimeout(function() { window.print(); }, 500); }</script>';
