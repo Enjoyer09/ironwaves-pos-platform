@@ -158,8 +158,20 @@ async function printHtml(payload) {
     throw new Error('Print Agent currently supports Windows and macOS');
   }
 
-  const html = String(payload.html || '').trim();
+  let html = String(payload.html || '').trim();
   if (!html) throw new Error('html is required');
+
+  // Inject window.print() inside a script tag if it doesn't already trigger printing
+  if (!html.includes('window.print(')) {
+    const printScript = '\n<script>window.onload = function() { setTimeout(function() { window.print(); }, 500); }</script>';
+    if (html.includes('</body>')) {
+      html = html.replace('</body>', printScript + '\n</body>');
+    } else if (html.includes('</html>')) {
+      html = html.replace('</html>', printScript + '\n</html>');
+    } else {
+      html += printScript;
+    }
+  }
 
   const printerName = String(payload.printer_name || payload.printerName || '').trim();
 
@@ -296,6 +308,8 @@ function spawnBrowserForPrint(browser, htmlFile, userDir) {
       '--no-first-run',
       '--disable-default-apps',
       '--no-default-browser-check',
+      '--window-position=-10000,-10000',
+      '--window-size=10,10',
       `file:///${htmlFile.replace(/\\/g, '/')}`,
     ];
 
