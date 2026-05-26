@@ -882,6 +882,28 @@ export default function SettingsPanel() {
     }
   };
 
+  const printAgentWindowsZipUrl = `${window.location.origin.replace(/\/+$/, '')}/downloads/ironwaves-print-agent-windows.zip`;
+
+  const downloadPrintAgentWindowsZip = async () => {
+    try {
+      const probe = await fetch(printAgentWindowsZipUrl, { method: 'HEAD', cache: 'no-store' });
+      if (!probe.ok) {
+        notify('error', tx(lang, 'Printer Agent ZIP faylı serverdə tapılmadı. Support ilə əlaqə saxlayın.', 'Файл ZIP Printer Agent не найден на сервере. Обратитесь в поддержку.', 'Printer Agent ZIP file was not found on the server. Please contact support.'));
+        return;
+      }
+      const link = document.createElement('a');
+      link.href = printAgentWindowsZipUrl;
+      link.download = 'ironwaves-print-agent-windows.zip';
+      link.rel = 'noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      notify('success', tx(lang, 'Yükləmə başladı. Arxivdən çıxarıb setup-windows.ps1 işə salın.', 'Загрузка началась. Распакуйте архив и запустите setup-windows.ps1.', 'Download started. Extract the archive and run setup-windows.ps1.'));
+    } catch {
+      notify('error', tx(lang, 'Yükləmə başlamadı. İnternet bağlantısını yoxlayın.', 'Загрузка не началась. Проверьте подключение к интернету.', 'Download did not start. Check internet connection.'));
+    }
+  };
+
   const printAgentSetupUrl = `${window.location.origin.replace(/\/+$/, '')}/downloads/ironwaves-print-agent-setup.exe`;
 
   const downloadPrintAgentSetup = async () => {
@@ -2598,19 +2620,37 @@ export default function SettingsPanel() {
               </button>
             </div>
 
-            <ol className="list-decimal space-y-2 pl-5 text-sm text-slate-200">
-              <li>{tx(lang, 'Windows kompüterdə agent setup faylını yükləyin.', 'Скачайте setup-файл агента на Windows ПК.', 'Download the agent setup file on the Windows PC.')}</li>
-              <li>{tx(lang, 'Faylı run edib quraşdırmanı tamamlayın.', 'Запустите файл и завершите установку.', 'Run the file and finish installation.')}</li>
-              <li>{tx(lang, 'Quraşdırmadan sonra statusu yoxlayın (127.0.0.1:17777).', 'После установки проверьте статус (127.0.0.1:17777).', 'After install, check status (127.0.0.1:17777).')}</li>
-            </ol>
+            <div className="mb-4 rounded-xl border border-slate-700 bg-slate-950/40 p-3 text-xs text-slate-300 space-y-2">
+              <div className="font-bold text-cyan-300">{tx(lang, 'Seçim A: Windows Səssiz Qurulum (Tövsiyə olunur)', 'Вариант А: Тихая установка Windows (Рекомендуется)', 'Option A: Windows Silent Setup (Recommended)')}</div>
+              <ol className="list-decimal pl-4 space-y-1">
+                <li>{tx(lang, 'Qurulum ZIP arxivini kompüterinizə yükləyin və qovluğa çıxarın.', 'Скачайте установочный ZIP-архив на ПК и распакуйте в папку.', 'Download the setup ZIP archive to your PC and extract it to a folder.')}</li>
+                <li>{tx(lang, 'Qovluqdakı "setup-windows.ps1" faylına sağ klikləyib "Run with PowerShell" seçin.', 'Нажмите правой кнопкой на файл "setup-windows.ps1" и выберите "Run with PowerShell".', 'Right-click the "setup-windows.ps1" file in the folder and select "Run with PowerShell".')}</li>
+                <li>{tx(lang, 'Quraşdırma 1 saniyədə tamamlanacaq, agent startap-a yerləşib arxa fonda səssizcə işləyəcək (bloklanmadan).', 'Установка завершится за 1 секунду, агент добавится в автозапуск и будет бесшумно работать в фоне.', 'Setup will complete in 1 second, the agent will go to startup and run silently in the background.')}</li>
+              </ol>
+            </div>
+
+            <div className="mb-4 rounded-xl border border-slate-800 bg-slate-950/20 p-3 text-xs text-slate-400 space-y-2">
+              <div className="font-bold text-slate-300">{tx(lang, 'Seçim B: Standart EXE Yükləyici', 'Вариант Б: Стандартный установщик EXE', 'Option B: Standard EXE Installer')}</div>
+              <ol className="list-decimal pl-4 space-y-1">
+                <li>{tx(lang, 'Windows PC-də .exe yükləyicisini endirin.', 'Скачайте установщик .exe на Windows ПК.', 'Download the .exe installer on the Windows PC.')}</li>
+                <li>{tx(lang, 'Faylı işə salın və Next → Finish klikləyin.', 'Запустите файл и нажмите Next → Finish.', 'Run the file and click Next → Finish.')}</li>
+              </ol>
+            </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void downloadPrintAgentWindowsZip()}
+                className="rounded-lg border border-emerald-300/40 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100"
+              >
+                {tx(lang, 'Səssiz Qurulum (ZIP) Yüklə', 'Скачать тихую установку (ZIP)', 'Download Silent Setup (ZIP)')}
+              </button>
               <button
                 type="button"
                 onClick={() => void downloadPrintAgentSetup()}
                 className="rounded-lg border border-cyan-300/40 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100"
               >
-                {tx(lang, '.exe yüklə', 'Скачать .exe', 'Download .exe')}
+                {tx(lang, 'Standart .exe Yüklə', 'Скачать стандартный .exe', 'Download Standard .exe')}
               </button>
               <button
                 type="button"
@@ -2619,15 +2659,6 @@ export default function SettingsPanel() {
               >
                 {tx(lang, 'Statusu yoxla', 'Проверить статус', 'Check status')}
               </button>
-              {printAgentVersion && isAgentVersionOutdated(printAgentVersion, printAgentMinVersion) ? (
-                <button
-                  type="button"
-                  onClick={() => void downloadPrintAgentSetup()}
-                  className="rounded-lg border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200"
-                >
-                  {tx(lang, 'Avtomatik yenilə (.exe)', 'Автообновление (.exe)', 'Auto update (.exe)')}
-                </button>
-              ) : null}
             </div>
 
             <div className="mt-3 rounded-xl border border-slate-700/60 bg-slate-950/50 px-3 py-2 text-xs text-slate-300">
