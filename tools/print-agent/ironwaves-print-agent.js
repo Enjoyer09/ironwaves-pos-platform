@@ -168,37 +168,70 @@ async function printHtml(payload) {
   const file = path.join(dir, 'receipt.html');
   fs.writeFileSync(file, html, 'utf8');
 
-  // macOS: convert HTML to PDF via Chrome headless, then print via lp
+  // Create clean temp profile dir for Chrome to avoid session locking and force silent print
+  const userDir = path.join(dir, 'chrome-profile');
+  fs.mkdirSync(userDir, { recursive: true });
+
+  // Temporarily set default printer if a specific one was requested
+  let previousDefault = '';
+  if (printerName) {
+    if (process.platform === 'win32') {
+      previousDefault = await getDefaultPrinterName().catch(() => '');
+      await setDefaultPrinter(printerName).catch(() => {});
+    } else if (process.platform === 'darwin') {
+      try {
+        const defaultRaw = await runCommand('/bin/sh', ['-lc', "lpstat -d 2>/dev/null | sed 's/^system default destination: //'"]).catch(() => '');
+        previousDefault = String(defaultRaw || '').trim();
+        if (previousDefault && previousDefault !== printerName) {
+          await runCommand('/bin/sh', ['-lc', `lpoptions -d "${printerName.replace(/"/g, '\\"')}"`]).catch(() => {});
+        }
+      } catch (_) {}
+    }
+  }
+
+  // macOS print logic
   if (process.platform === 'darwin') {
     const browser = findBrowserExecutable();
-    const pdfFile = path.join(dir, 'receipt.pdf');
-
     if (browser) {
-      // Wrap HTML with @page CSS for exact 72mm width thermal receipt
-      const receiptCss = `<style>@page{size:72mm 297mm;margin:0mm;}html,body{width:72mm;max-width:72mm;margin:0;padding:1mm 2mm;font-size:12px;font-family:monospace;}</style>`;
-      const wrappedHtml = html.includes('@page') ? html : (html.includes('<head>') ? html.replace('<head>', `<head>${receiptCss}`) : `<html><head>${receiptCss}</head><body>${html}</body></html>`);
-      fs.writeFileSync(file, wrappedHtml, 'utf8');
-
-      // Chrome headless PDF - use virtual-time-budget to ensure page renders
+      // macOS: Use Chrome kiosk-printing (silent print, no dialog, respects @page CSS)
+      // This opens Chrome briefly but prints silently and closes
       const chromeArgs = [
-        '--headless',
-        '--disable-gpu',
-        '--no-sandbox',
+        '--kiosk-printing',
+        `--user-data-dir=${userDir}`,
+        '--disable-background-networking',
         '--disable-extensions',
-        '--print-to-pdf-no-header',
-        `--print-to-pdf=${pdfFile}`,
-        '--no-margins',
-        '--run-all-compositor-stages-before-draw',
-        '--virtual-time-budget=2000',
+        '--disable-sync',
+        '--no-first-run',
+        '--disable-default-apps',
+        '--no-default-browser-check',
+        '--window-position=-10000,-10000',
+        '--window-size=1,1',
         `file://${file}`,
       ];
-      await runCommand(browser, chromeArgs, 15000);
 
-      // Print PDF via lp - fit to 72mm paper width
-      const lpArgs = ['-o', 'fit-to-page', '-o', 'page-left=0', '-o', 'page-right=0', '-o', 'page-top=0', '-o', 'page-bottom=0'];
-      if (printerName) lpArgs.push('-d', printerName);
-      lpArgs.push(pdfFile);
-      await runCommand('/usr/bin/lp', lpArgs, 15000);
+      const child = spawn(browser, chromeArgs, {
+        detached: true,
+        stdio: 'ignore',
+      });
+      child.unref();
+      const chromePid = child.pid;
+
+      // Restore previous default printer after Chrome has time to spool the job
+      const RESTORE_DELAY_MS = 9000;
+      setTimeout(() => {
+        if (previousDefault && previousDefault !== printerName) {
+          runCommand('/bin/sh', ['-lc', `lpoptions -d "${previousDefault.replace(/"/g, '\\"')}"`]).catch(() => {});
+        }
+      }, RESTORE_DELAY_MS);
+
+      // Kill Chrome after it has time to spool the print job
+      const KILL_DELAY_MS = 12000;
+      setTimeout(() => {
+        if (chromePid) {
+          try { process.kill(chromePid, 'SIGTERM'); } catch (_) {}
+        }
+        fs.rm(dir, { recursive: true, force: true }, () => {});
+      }, KILL_DELAY_MS);
     } else {
       // Fallback: try lp with raw text (strip HTML tags)
       const textContent = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -208,29 +241,27 @@ async function printHtml(payload) {
       if (printerName) lpArgs.push('-d', printerName);
       lpArgs.push(textFile);
       await runCommand('/usr/bin/lp', lpArgs, 15000);
+      
+      // Restore previous default printer
+      if (previousDefault && previousDefault !== printerName) {
+        await runCommand('/bin/sh', ['-lc', `lpoptions -d "${previousDefault.replace(/"/g, '\\"')}"`]).catch(() => {});
+      }
+      fs.rm(dir, { recursive: true, force: true }, () => {});
     }
 
-    setTimeout(() => { fs.rm(dir, { recursive: true, force: true }, () => {}); }, 5000);
-    return { queued: true, method: browser ? 'chrome-headless-pdf' : 'lp-text', printer_name: printerName || 'default' };
+    return { queued: true, method: browser ? 'chrome-kiosk' : 'lp-text', printer_name: printerName || 'default' };
   }
 
   // Windows: use Chrome kiosk printing
   const browser = findBrowserExecutable();
   if (!browser) throw new Error('Chrome or Microsoft Edge was not found');
 
-  // Temporarily set default printer if a specific one was requested
-  const previousDefault =
-    printerName && process.platform === 'win32' ? await getDefaultPrinterName().catch(() => '') : '';
-  if (printerName && process.platform === 'win32') {
-    await setDefaultPrinter(printerName).catch(() => {});
-  }
-
-  const chromePid = await spawnBrowserForPrint(browser, file);
+  const chromePid = await spawnBrowserForPrint(browser, file, userDir);
 
   // Restore previous default printer after Chrome has time to spool the job
   const RESTORE_DELAY_MS = 9000;
   setTimeout(() => {
-    if (process.platform === 'win32' && previousDefault && printerName && previousDefault !== printerName) {
+    if (previousDefault && previousDefault !== printerName) {
       setDefaultPrinter(previousDefault).catch(() => {});
     }
   }, RESTORE_DELAY_MS);
@@ -240,11 +271,7 @@ async function printHtml(payload) {
   setTimeout(() => {
     if (chromePid) {
       try {
-        if (process.platform === 'win32') {
-          execFile('taskkill', ['/PID', String(chromePid), '/F', '/T'], { windowsHide: true }, () => {});
-        } else {
-          process.kill(chromePid, 'SIGTERM');
-        }
+        execFile('taskkill', ['/PID', String(chromePid), '/F', '/T'], { windowsHide: true }, () => {});
       } catch (_) {}
     }
     fs.rm(dir, { recursive: true, force: true }, () => {});
@@ -258,10 +285,11 @@ async function printHtml(payload) {
   };
 }
 
-function spawnBrowserForPrint(browser, htmlFile) {
+function spawnBrowserForPrint(browser, htmlFile, userDir) {
   return new Promise((resolve) => {
     const args = [
       '--kiosk-printing',
+      `--user-data-dir=${userDir}`,
       '--disable-background-networking',
       '--disable-extensions',
       '--disable-sync',
