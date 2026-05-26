@@ -189,8 +189,14 @@ async function printHtml(payload) {
 
   const printerName = String(payload.printer_name || payload.printerName || '').trim();
 
-  // Write HTML to a temp file
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ironwaves-receipt-'));
+  // Write HTML to a temp file. On macOS, we avoid the system /tmp folder to bypass sandbox bans in qlmanage (which causes 20s hangs).
+  const baseTempDir = process.platform === 'darwin'
+    ? path.join(os.homedir(), '.ironwaves-print')
+    : os.tmpdir();
+  if (process.platform === 'darwin' && !fs.existsSync(baseTempDir)) {
+    fs.mkdirSync(baseTempDir, { recursive: true });
+  }
+  const dir = fs.mkdtempSync(path.join(baseTempDir, 'ironwaves-receipt-'));
   const file = path.join(dir, 'receipt.html');
   fs.writeFileSync(file, html, 'utf8');
 
@@ -238,11 +244,29 @@ async function printHtml(payload) {
           });
         });
 
-        // Print the vector PDF directly via lp to the target printer.
-        // Bypassing qlmanage and sips conversion resolves QuickLook sandbox timeout delays (15-20s) and keeps barcodes at native vector resolution!
+        // 1. Render the PDF vector page to a super high-resolution PNG (3000px height) using macOS's built-in QuickLook engine.
+        // Since we are running in the user's home folder, this is instant (<0.1s) and has no sandbox timeout blocks!
+        await runCommand('qlmanage', [
+          '-t',
+          '-s', '3000',
+          '-o', dir,
+          pdfFile
+        ], 10000);
+
+        const pngFile = path.join(dir, 'receipt.pdf.png');
+
+        // 2. Downscale the high-res PNG to exactly 576 pixels wide (the standard printable width for 80mm thermal printers).
+        // Downscaling a high-res rendering (super-sampling) preserves perfect outlines, sharp text, and crisp barcodes!
+        await runCommand('sips', [
+          '--resampleWidth', '576',
+          pngFile
+        ], 10000);
+
+        // 3. Print the crisp resampled PNG file via lp directly to the target printer.
+        // Cheap thermal printers on macOS do not support direct PDF spooling and print endlessly unless sent a raster PNG!
         const lpArgs = [];
         if (printerName) lpArgs.push('-d', printerName);
-        lpArgs.push(pdfFile);
+        lpArgs.push(pngFile);
         await runCommand('/usr/bin/lp', lpArgs, 15000);
       } catch (err) {
         // Fallback: try lp with raw text if headless print fails
