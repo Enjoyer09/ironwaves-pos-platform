@@ -1017,6 +1017,13 @@ export function update_print_settings(payload: { use_qz: boolean; printer_name: 
   return { success: true };
 }
 
+export async function update_print_settings_live(payload: { use_qz: boolean; printer_name: string }) {
+  if (!isBackendEnabled()) return update_print_settings(payload);
+  await apiRequest('/api/v1/ops/settings/print-settings', { method: 'PATCH', tenantId: null, body: payload });
+  update_print_settings(payload);
+  return { success: true };
+}
+
 export function update_qr_settings(payload: { base_url: string }) {
   const settings = getSettings();
   settings.qr_settings = {
