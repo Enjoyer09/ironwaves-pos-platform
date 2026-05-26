@@ -53,6 +53,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const [showCreate, setShowCreate] = useState(false);
   const [workspaceView, setWorkspaceView] = useState<'floor' | 'reservations'>('floor');
   const [deleteTableId, setDeleteTableId] = useState<string | null>(null);
+  const [pendingCancelTable, setPendingCancelTable] = useState<{ id: string; label: string } | null>(null);
   const [openTableId, setOpenTableId] = useState<string | null>(null);
   const [guestCount, setGuestCount] = useState('1');
   const [depositGuestCount, setDepositGuestCount] = useState('0');
@@ -1147,16 +1148,15 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   }, [activeFloorId, notify, lang]);
 
   const handleCancelTableCheck = useCallback(async (tableId: string, label?: string) => {
-    // BahaY: skip prompt for empty tables on super lab
-    let reason = '';
+    // BahaY: show custom modal instead of browser prompt
     if (isBahaYLab) {
-      reason = 'Boş masa bağlandı';
-    } else {
-      reason = window.prompt(tx(lang, 'Masanı satış yaratmadan ləğv etmə səbəbi', 'Причина отмены стола без продажи', 'Reason for cancelling the table without sale'), 'Səhv açılmış/boş masa') || '';
-      if (!reason.trim()) return;
-      const ok = window.confirm(tx(lang, `${label || 'Masa'} ləğv edilsin? Bu əməliyyat satış yaratmayacaq və kassaya məbləğ düşməyəcək.`, `${label || 'Стол'} отменить? Продажа не будет создана и сумма не попадет в кассу.`, `Cancel ${label || 'table'}? This will not create a sale or add money to cash.`));
-      if (!ok) return;
+      setPendingCancelTable({ id: tableId, label: label || 'Masa' });
+      return;
     }
+    const reason = window.prompt(tx(lang, 'Masanı satış yaratmadan ləğv etmə səbəbi', 'Причина отмены стола без продажи', 'Reason for cancelling the table without sale'), 'Səhv açılmış/boş masa') || '';
+    if (!reason.trim()) return;
+    const ok = window.confirm(tx(lang, `${label || 'Masa'} ləğv edilsin? Bu əməliyyat satış yaratmayacaq və kassaya məbləğ düşməyəcək.`, `${label || 'Стол'} отменить? Продажа не будет создана и сумма не попадет в кассу.`, `Cancel ${label || 'table'}? This will not create a sale or add money to cash.`));
+    if (!ok) return;
     try {
       await cancel_table_check_live(tableId, reason);
       notify('success', tx(lang, 'Masa ləğv edildi', 'Стол отменен', 'Table cancelled'));
@@ -1582,6 +1582,30 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
             return;
           }
           setShowDeleteAuth(true);
+        }}
+
+      />
+      <ConfirmModal
+        open={Boolean(pendingCancelTable)}
+        lang={lang}
+        title={tx(lang, 'Masa ləğv edilsin?', 'Отменить стол?', 'Cancel table?')}
+        message={tx(lang, `${pendingCancelTable?.label || 'Masa'} satışsız bağlanacaq. Kassaya heç bir məbləğ düşməyəcək.`, `${pendingCancelTable?.label || 'Стол'} будет закрыт без продажи.`, `${pendingCancelTable?.label || 'Table'} will be closed without a sale.`)}
+        confirmLabel={tx(lang, 'Bəli, ləğv et', 'Да, отменить', 'Yes, cancel')}
+        cancelLabel={tx(lang, 'Xeyr', 'Нет', 'No')}
+        onCancel={() => setPendingCancelTable(null)}
+        onConfirm={async () => {
+          if (!pendingCancelTable) return;
+          setPendingCancelTable(null);
+          try {
+            await cancel_table_check_live(pendingCancelTable.id, 'Boş masa bağlandı');
+            notify('success', tx(lang, 'Masa ləğv edildi', 'Стол отменен', 'Table cancelled'));
+            setViewTableId(null);
+            setPayTableId(null);
+            setTableDetailRecord(null);
+            await Promise.all([loadFloorState(activeFloorId), loadData()]);
+          } catch (error: any) {
+            notify('error', error?.message || tx(lang, 'Masa ləğv edilmədi', 'Стол не отменен', 'Table was not cancelled'));
+          }
         }}
       />
 
