@@ -174,26 +174,22 @@ async function printHtml(payload) {
     const pdfFile = path.join(dir, 'receipt.pdf');
 
     if (browser) {
-      // Inject @page CSS for 80mm thermal receipt width
-      const wrappedHtml = html.includes('@page') ? html : `<html><head><style>@page{size:80mm 210mm;margin:0;}body{width:80mm;margin:0;padding:2mm;font-family:monospace;font-size:12px;}</style></head><body>${html}</body></html>`;
-      fs.writeFileSync(file, wrappedHtml, 'utf8');
-
-      // Use Chrome headless to convert HTML to PDF
+      // Use Chrome headless with 72mm viewport (272px at 96dpi)
       const chromeArgs = [
         '--headless',
         '--disable-gpu',
         '--no-sandbox',
         '--disable-extensions',
-        '--no-pdf-header-footer',
         '--print-to-pdf-no-header',
         `--print-to-pdf=${pdfFile}`,
         '--no-margins',
+        '--window-size=230,2000',
         `file://${file}`,
       ];
       await runCommand(browser, chromeArgs, 15000);
 
       // Print PDF via lp
-      const lpArgs = ['-o', 'media=Custom.80x210mm', '-o', 'fit-to-page'];
+      const lpArgs = ['-o', 'media=Custom.72x297mm'];
       if (printerName) lpArgs.push('-d', printerName);
       lpArgs.push(pdfFile);
       await runCommand('/usr/bin/lp', lpArgs, 15000);
