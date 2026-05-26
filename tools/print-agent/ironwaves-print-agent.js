@@ -184,66 +184,52 @@ async function printHtml(payload) {
   const userDir = path.join(dir, 'chrome-profile');
   fs.mkdirSync(userDir, { recursive: true });
 
-  // Temporarily set default printer if a specific one was requested
+  // Temporarily set default printer if a specific one was requested (Windows only)
   let previousDefault = '';
-  if (printerName) {
-    if (process.platform === 'win32') {
-      previousDefault = await getDefaultPrinterName().catch(() => '');
-      await setDefaultPrinter(printerName).catch(() => {});
-    } else if (process.platform === 'darwin') {
-      try {
-        const defaultRaw = await runCommand('/bin/sh', ['-lc', "lpstat -d 2>/dev/null | sed 's/^system default destination: //'"]).catch(() => '');
-        previousDefault = String(defaultRaw || '').trim();
-        if (previousDefault && previousDefault !== printerName) {
-          await runCommand('/bin/sh', ['-lc', `lpoptions -d "${printerName.replace(/"/g, '\\"')}"`]).catch(() => {});
-        }
-      } catch (_) {}
-    }
+  if (printerName && process.platform === 'win32') {
+    previousDefault = await getDefaultPrinterName().catch(() => '');
+    await setDefaultPrinter(printerName).catch(() => {});
   }
 
   // macOS print logic
   if (process.platform === 'darwin') {
     const browser = findBrowserExecutable();
+    const pdfFile = path.join(dir, 'receipt.pdf');
+    
     if (browser) {
-      // macOS: Use Chrome kiosk-printing (silent print, no dialog, respects @page CSS)
-      // This opens Chrome briefly but prints silently and closes
+      // macOS: Use Chrome headless to convert HTML to PDF silently, then print via lp
+      // This is 100% invisible and opens no browser windows at all!
       const chromeArgs = [
-        '--kiosk-printing',
-        `--user-data-dir=${userDir}`,
-        '--disable-background-networking',
-        '--disable-extensions',
-        '--disable-sync',
-        '--no-first-run',
-        '--disable-default-apps',
-        '--no-default-browser-check',
-        '--window-position=-10000,-10000',
-        '--window-size=1,1',
+        '--headless',
+        '--disable-gpu',
+        '--no-margins',
+        `--print-to-pdf=${pdfFile}`,
         `file://${file}`,
       ];
 
-      const child = spawn(browser, chromeArgs, {
-        detached: true,
-        stdio: 'ignore',
-      });
-      child.unref();
-      const chromePid = child.pid;
+      try {
+        await new Promise((resolve, reject) => {
+          execFile(browser, chromeArgs, { timeout: 10000 }, (err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
 
-      // Restore previous default printer after Chrome has time to spool the job
-      const RESTORE_DELAY_MS = 9000;
-      setTimeout(() => {
-        if (previousDefault && previousDefault !== printerName) {
-          runCommand('/bin/sh', ['-lc', `lpoptions -d "${previousDefault.replace(/"/g, '\\"')}"`]).catch(() => {});
-        }
-      }, RESTORE_DELAY_MS);
-
-      // Kill Chrome after it has time to spool the print job
-      const KILL_DELAY_MS = 12000;
-      setTimeout(() => {
-        if (chromePid) {
-          try { process.kill(chromePid, 'SIGTERM'); } catch (_) {}
-        }
-        fs.rm(dir, { recursive: true, force: true }, () => {});
-      }, KILL_DELAY_MS);
+        // Print the generated PDF file via lp directly to the target printer
+        const lpArgs = [];
+        if (printerName) lpArgs.push('-d', printerName);
+        lpArgs.push(pdfFile);
+        await runCommand('/usr/bin/lp', lpArgs, 15000);
+      } catch (err) {
+        // Fallback: try lp with raw text if headless print fails
+        const textContent = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        const textFile = path.join(dir, 'receipt.txt');
+        fs.writeFileSync(textFile, textContent, 'utf8');
+        const lpArgs = [];
+        if (printerName) lpArgs.push('-d', printerName);
+        lpArgs.push(textFile);
+        await runCommand('/usr/bin/lp', lpArgs, 15000);
+      }
     } else {
       // Fallback: try lp with raw text (strip HTML tags)
       const textContent = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -253,15 +239,11 @@ async function printHtml(payload) {
       if (printerName) lpArgs.push('-d', printerName);
       lpArgs.push(textFile);
       await runCommand('/usr/bin/lp', lpArgs, 15000);
-      
-      // Restore previous default printer
-      if (previousDefault && previousDefault !== printerName) {
-        await runCommand('/bin/sh', ['-lc', `lpoptions -d "${previousDefault.replace(/"/g, '\\"')}"`]).catch(() => {});
-      }
-      fs.rm(dir, { recursive: true, force: true }, () => {});
     }
 
-    return { queued: true, method: browser ? 'chrome-kiosk' : 'lp-text', printer_name: printerName || 'default' };
+    // Clean up temp dir
+    fs.rm(dir, { recursive: true, force: true }, () => {});
+    return { queued: true, method: browser ? 'chrome-headless-pdf' : 'lp-text', printer_name: printerName || 'default' };
   }
 
   // Windows: use Chrome kiosk printing
