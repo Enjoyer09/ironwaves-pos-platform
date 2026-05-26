@@ -174,7 +174,12 @@ async function printHtml(payload) {
     const pdfFile = path.join(dir, 'receipt.pdf');
 
     if (browser) {
-      // Use Chrome headless with 72mm viewport (272px at 96dpi)
+      // Wrap HTML with @page CSS for exact 72mm width thermal receipt
+      const receiptCss = `<style>@page{size:72mm 297mm;margin:0mm;}html,body{width:72mm;max-width:72mm;margin:0;padding:1mm 2mm;font-size:12px;font-family:monospace;}</style>`;
+      const wrappedHtml = html.includes('@page') ? html : (html.includes('<head>') ? html.replace('<head>', `<head>${receiptCss}`) : `<html><head>${receiptCss}</head><body>${html}</body></html>`);
+      fs.writeFileSync(file, wrappedHtml, 'utf8');
+
+      // Chrome headless PDF - use virtual-time-budget to ensure page renders
       const chromeArgs = [
         '--headless',
         '--disable-gpu',
@@ -183,13 +188,14 @@ async function printHtml(payload) {
         '--print-to-pdf-no-header',
         `--print-to-pdf=${pdfFile}`,
         '--no-margins',
-        '--window-size=230,2000',
+        '--run-all-compositor-stages-before-draw',
+        '--virtual-time-budget=2000',
         `file://${file}`,
       ];
       await runCommand(browser, chromeArgs, 15000);
 
-      // Print PDF via lp
-      const lpArgs = ['-o', 'media=Custom.72x297mm'];
+      // Print PDF via lp - fit to 72mm paper width
+      const lpArgs = ['-o', 'fit-to-page', '-o', 'page-left=0', '-o', 'page-right=0', '-o', 'page-top=0', '-o', 'page-bottom=0'];
       if (printerName) lpArgs.push('-d', printerName);
       lpArgs.push(pdfFile);
       await runCommand('/usr/bin/lp', lpArgs, 15000);
