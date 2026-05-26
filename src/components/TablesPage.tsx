@@ -2080,7 +2080,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                              ? splitParts
                              : buildEqualSplitParts(normalizeSplitCount(table, splitCount), splitBasis)
                          ).map((part, idx) => `<div style="display:flex;justify-content:space-between"><span>Hissə ${idx + 1} · ${part.method}</span><span>${new Decimal(part.amount || 0).toFixed(2)} ₼</span></div>`).join('')}`
-                      : `<div style="display:flex;justify-content:space-between"><span>Ödəniş</span><span>${paymentMethod}</span></div>`;
+                      : `<div style="display:flex;justify-content:space-between"><span>Ödəniş</span><span>${paymentMethod === 'Nəğd' ? 'Nağd' : paymentMethod}</span></div>`;
 
                     const receiptMarkup = `
                       <html>

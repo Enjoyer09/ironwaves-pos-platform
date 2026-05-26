@@ -3,8 +3,8 @@ export const THERMAL_RECEIPT_PRINT_CSS = `
   * { box-sizing: border-box; }
   html,
   body {
-    width: 74mm;
-    max-width: 74mm;
+    width: 70mm;
+    max-width: 70mm;
     margin: 0 !important;
     padding: 0 !important;
     color: #000 !important;
