@@ -228,13 +228,14 @@ async function printHtml(payload) {
         });
 
         // Convert the PDF to a high-quality PNG image using macOS built-in sips tool.
-        // Thermal printers on macOS often print PDFs blank due to driver limitations,
-        // but they print raster PNG images perfectly!
+        // We resample the width to exactly 576 pixels (standard for 80mm thermal printers at 203 DPI)
+        // so it prints across the full page width instead of being tiny.
         const pngFile = path.join(dir, 'receipt.png');
         await runCommand('sips', [
           '-s', 'format', 'png',
           '-s', 'dpiWidth', '203',
           '-s', 'dpiHeight', '203',
+          '--resampleWidth', '576',
           pdfFile,
           '--out', pngFile
         ], 10000);
