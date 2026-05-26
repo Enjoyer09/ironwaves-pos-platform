@@ -35,7 +35,7 @@ import { get_menu_items_live } from '../../api/menu';
 import { get_inventory_items_live } from '../../api/inventory';
 import ConfirmModal from '../ConfirmModal';
 import { prepareImageDataUrl, prepareSmallImageDataUrl } from '../../lib/image_upload';
-import { isAgentVersionOutdated, localPrintAgentInfo } from '../../lib/local_print_agent';
+import { isAgentVersionOutdated, localPrintAgentInfo, localPrintAgentPrinters, LocalPrintAgentPrinter } from '../../lib/local_print_agent';
 
 type RoleModules = { staff: string[]; manager: string[]; kitchen: string[] };
 
@@ -122,6 +122,8 @@ export default function SettingsPanel() {
   const [printAgentHealth, setPrintAgentHealth] = useState<'unknown' | 'checking' | 'online' | 'offline'>('unknown');
   const [printAgentVersion, setPrintAgentVersion] = useState('');
   const [printAgentMinVersion, setPrintAgentMinVersion] = useState('0.2.0');
+  const [systemPrinters, setSystemPrinters] = useState<LocalPrintAgentPrinter[]>([]);
+  const [customPrinterMode, setCustomPrinterMode] = useState(false);
   const [zReportReceiptSettings, setZReportReceiptSettings] = useState({
     show_operator: true,
     show_date_range: true,
@@ -475,6 +477,17 @@ export default function SettingsPanel() {
   useEffect(() => {
     void loadData();
   }, [tenantId, user?.username]);
+
+  useEffect(() => {
+    if (systemPrinters.length > 0 && printSettings.printer_name) {
+      const isSystemPrinter = systemPrinters.some(
+        (p) => p.name.trim().toLowerCase() === printSettings.printer_name.trim().toLowerCase()
+      );
+      setCustomPrinterMode(!isSystemPrinter);
+    } else {
+      setCustomPrinterMode(false);
+    }
+  }, [systemPrinters, printSettings.printer_name]);
 
   useEffect(() => {
     let cancelled = false;
@@ -873,8 +886,15 @@ export default function SettingsPanel() {
   const checkPrintAgentStatus = async () => {
     setPrintAgentHealth('checking');
     const info = await localPrintAgentInfo();
-    setPrintAgentHealth(info.online ? 'online' : 'offline');
+    const isOnline = info.online;
+    setPrintAgentHealth(isOnline ? 'online' : 'offline');
     setPrintAgentVersion(info.version);
+    if (isOnline) {
+      const printers = await localPrintAgentPrinters();
+      setSystemPrinters(printers);
+    } else {
+      setSystemPrinters([]);
+    }
     try {
       const response = await fetch(`${window.location.origin.replace(/\/+$/, '')}/downloads/print-agent-latest.json`, { method: 'GET' });
       if (response.ok) {
@@ -1307,12 +1327,62 @@ export default function SettingsPanel() {
             <input type="checkbox" checked={printSettings.use_qz} onChange={(e) => setPrintSettings((prev) => ({ ...prev, use_qz: e.target.checked }))} />
             <span>{tx(lang, 'QZ Tray ilə birbaşa çap et', 'Печатать напрямую через QZ Tray', 'Direct print via QZ Tray')}</span>
           </label>
-          <input
-            className="neon-input"
-            value={printSettings.printer_name}
-            onChange={(e) => setPrintSettings((prev) => ({ ...prev, printer_name: e.target.value }))}
-            placeholder={tx(lang, 'Printer adı (opsional)', 'Имя принтера (необязательно)', 'Printer name (optional)')}
-          />
+          <div className="flex flex-col gap-2">
+            {printAgentHealth === 'online' && systemPrinters.length > 0 ? (
+              <>
+                <select
+                  className="neon-input bg-slate-900 border border-slate-700/60 rounded-xl"
+                  value={customPrinterMode ? '__custom__' : printSettings.printer_name}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '__custom__') {
+                      setCustomPrinterMode(true);
+                    } else {
+                      setCustomPrinterMode(false);
+                      setPrintSettings((prev) => ({ ...prev, printer_name: val }));
+                    }
+                  }}
+                >
+                  <option value="">
+                    {tx(
+                      lang,
+                      'Lokal default printer (Windows/Mac default)',
+                      'Локальный принтер по умолчанию (Windows/Mac default)',
+                      'Local default printer (Windows/Mac default)',
+                    )}
+                  </option>
+                  {systemPrinters.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.name} {p.default ? tx(lang, '(Sistem Default)', '(Системный по умолчанию)', '(System Default)') : ''}
+                    </option>
+                  ))}
+                  <option value="__custom__">
+                    {tx(
+                      lang,
+                      'Xüsusi printer daxil et... (Manual)',
+                      'Ввести имя принтера вручную...',
+                      'Enter custom printer name... (Manual)',
+                    )}
+                  </option>
+                </select>
+                {customPrinterMode && (
+                  <input
+                    className="neon-input transition-all duration-300"
+                    value={printSettings.printer_name}
+                    onChange={(e) => setPrintSettings((prev) => ({ ...prev, printer_name: e.target.value }))}
+                    placeholder={tx(lang, 'Printer adı daxil edin', 'Введите имя принтера', 'Enter printer name')}
+                  />
+                )}
+              </>
+            ) : (
+              <input
+                className="neon-input"
+                value={printSettings.printer_name}
+                onChange={(e) => setPrintSettings((prev) => ({ ...prev, printer_name: e.target.value }))}
+                placeholder={tx(lang, 'Printer adı (opsional)', 'Имя принтера (необязательно)', 'Printer name (optional)')}
+              />
+            )}
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
