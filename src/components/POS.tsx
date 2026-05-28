@@ -1602,11 +1602,12 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         : posLayout.preset === 'tables'
           ? 'bg-[radial-gradient(circle_at_top,#2e3247,#151b26_58%)]'
           : 'bg-[radial-gradient(circle_at_top,#2a3342,#141b24_55%)]';
-  // BahaY: Aelia-style new POS UI — active only on super.ironwaves.store lab
+  // BahaY: Aelia-style new POS UI — controlled by tenant setting
   const isNewUiMode = (() => {
     try {
       const host = String(window.location.hostname || '').toLowerCase();
-      return host === 'super.ironwaves.store';
+      if (host === 'super.ironwaves.store') return true;
+      return localStorage.getItem('iw_pos_ui_mode') === 'modern';
     } catch { return false; }
   })();
   const orderTypeBlockVisible = isWidgetVisible('orderType');
