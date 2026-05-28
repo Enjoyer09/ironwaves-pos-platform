@@ -1181,8 +1181,38 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Staff limit ayarları yadda saxlanıldı', 'Настройки лимита staff сохранены', 'Staff benefit settings saved'), 'staff_benefits');
   };
 
+  const settingsSections = [
+    { id: 'sec-profile', label: tx(lang, 'Profil', 'Профиль', 'Profile') },
+    { id: 'sec-print', label: tx(lang, 'Çap', 'Печать', 'Print') },
+    { id: 'sec-interface', label: tx(lang, 'İnterfeys', 'Интерфейс', 'Interface') },
+    { id: 'sec-tables', label: tx(lang, 'Masalar', 'Столы', 'Tables') },
+    { id: 'sec-beverage', label: tx(lang, 'İçkilər', 'Напитки', 'Beverage') },
+    { id: 'sec-finance', label: tx(lang, 'Maliyyə', 'Финансы', 'Finance') },
+    { id: 'sec-security', label: tx(lang, 'Təhlükəsizlik', 'Безопасность', 'Security') },
+    { id: 'sec-staff', label: tx(lang, 'Staff', 'Персонал', 'Staff') },
+    { id: 'sec-qr', label: tx(lang, 'QR & Feedback', 'QR & Отзывы', 'QR & Feedback') },
+    { id: 'sec-roles', label: tx(lang, 'Rollar', 'Роли', 'Roles') },
+  ];
+
   return (
-    <div className="space-y-6">
+    <div className="flex gap-4">
+      {/* Sidebar navigation */}
+      <nav className="sticky top-0 hidden h-fit w-[180px] shrink-0 flex-col gap-1 rounded-2xl border border-slate-700/60 bg-slate-950/40 p-3 lg:flex">
+        <div className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">{tx(lang, 'Bölmələr', 'Разделы', 'Sections')}</div>
+        {settingsSections.map((sec) => (
+          <button
+            key={sec.id}
+            type="button"
+            onClick={() => document.getElementById(sec.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            className="rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-300 transition hover:bg-slate-800/60 hover:text-slate-100"
+          >
+            {sec.label}
+          </button>
+        ))}
+      </nav>
+
+      {/* Content */}
+      <div className="min-w-0 flex-1 space-y-6">
       {resetModalOpen ? (
         <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/70 p-4">
           <div className="metal-panel w-full max-w-md p-5">
@@ -1241,7 +1271,7 @@ export default function SettingsPanel() {
         {successMsg ? <div className="border-b border-emerald-400/20 bg-emerald-500/10 px-6 py-3 text-sm text-emerald-200">{successMsg}</div> : null}
       </div>
 
-      <div className="metal-panel p-6 space-y-4">
+      <div id="sec-profile" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Biznes Profili', 'Профиль бизнеса', 'Business Profile')}</h2>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="field-stack form-card">
@@ -1312,7 +1342,7 @@ export default function SettingsPanel() {
         </div>
       </div>
 
-      <div className="metal-panel p-6 space-y-4">
+      <div id="sec-print" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Çap Ayarları', 'Настройки печати', 'Print Settings')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
@@ -1532,7 +1562,7 @@ export default function SettingsPanel() {
         </div>
       </div>
 
-      <div className="metal-panel p-6 space-y-4">
+      <div id="sec-qr" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'QR menyu ayarları', 'QR Menu Settings', 'QR Menu Settings')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
@@ -1765,7 +1795,7 @@ export default function SettingsPanel() {
         </div>
       </div>
 
-      <div className="metal-panel p-6 space-y-4">
+      <div id="sec-tables" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Masa Xidməti Ayarları', 'Настройки обслуживания столов', 'Table Service Settings')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
@@ -1824,7 +1854,7 @@ export default function SettingsPanel() {
         </div>
       </div>
 
-      <div className="metal-panel p-6 space-y-4">
+      <div id="sec-beverage" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'İçki Servis Ayarları', 'Настройки подачи напитков', 'Beverage Service Settings')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
@@ -1962,7 +1992,7 @@ export default function SettingsPanel() {
         </div>
       </div>
 
-      <div className="metal-panel p-6 space-y-4">
+      <div id="sec-finance" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Maliyyə qayda ayarları', 'Настройки финансовой policy', 'Finance Policy Settings')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
@@ -2259,7 +2289,7 @@ export default function SettingsPanel() {
         </div>
       </div>
 
-      <div className="metal-panel p-6 space-y-4">
+      <div id="sec-interface" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'İnterfeys Ayarları', 'Настройки интерфейса', 'Interface Settings')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
@@ -2368,7 +2398,7 @@ export default function SettingsPanel() {
         </div>
       </div>
 
-      <div className="metal-panel p-6 space-y-4">
+      <div id="sec-security" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Sessiya Təhlükəsizliyi', 'Безопасность сессии', 'Session Security')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
@@ -2425,7 +2455,7 @@ export default function SettingsPanel() {
         {renderPanelSuccess('session')}
       </div>
 
-      <div className="metal-panel p-6 space-y-4">
+      <div id="sec-staff" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Staff Limit Ayarları', 'Настройки лимита staff', 'Staff Benefit Settings')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
@@ -2738,7 +2768,7 @@ export default function SettingsPanel() {
         </div>
       ) : null}
 
-      <div className="metal-panel p-6 space-y-4">
+      <div id="sec-roles" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Rol icazələri', 'Права ролей', 'Role permissions')}</h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {(['staff', 'manager', 'kitchen'] as const).map((role) => (
@@ -2866,6 +2896,7 @@ export default function SettingsPanel() {
           </div>
         </div>
       ) : null}
+    </div>
     </div>
   );
 }
