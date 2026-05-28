@@ -504,8 +504,9 @@ html {
   }
 
   .pos3-product-grid {
-    @apply grid min-h-0 flex-1 auto-rows-max grid-cols-2 gap-1.5 overflow-y-auto pr-1 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5;
+    @apply grid min-h-0 flex-1 auto-rows-max grid-cols-2 gap-1.5 overflow-y-auto overscroll-y-contain pr-1 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5;
     align-content: start;
+    max-height: calc(100vh - 260px);
   }
 
   .pos3-card {
