@@ -433,6 +433,7 @@ export default function App() {
   const [fastSwitchPin, setFastSwitchPin] = useState('');
   const [fastSwitchError, setFastSwitchError] = useState('');
   const [fastSwitchLoading, setFastSwitchLoading] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [demoGuideBubble, setDemoGuideBubble] = useState<DemoGuideBubble | null>(null);
   const [manualRefreshing, setManualRefreshing] = useState(false);
@@ -1480,15 +1481,15 @@ export default function App() {
       {/* Fast User Switch PIN Modal */}
       {fastSwitchOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" onClick={() => setFastSwitchOpen(false)}>
-          <div className="metal-panel w-full max-w-xs rounded-2xl p-5" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-center text-lg font-bold text-slate-100">
+          <div className="metal-panel w-full max-w-sm rounded-2xl p-7" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-center text-xl font-bold text-slate-100">
               {tx(safeLang, 'İstifadəçi dəyiş', 'Сменить пользователя', 'Switch User')}
             </h3>
-            <p className="mt-1 text-center text-xs text-slate-400">
+            <p className="mt-2 text-center text-sm text-slate-400">
               {tx(safeLang, 'Yeni istifadəçinin PIN kodunu daxil edin', 'Введите PIN нового пользователя', 'Enter new user PIN')}
             </p>
             {fastSwitchError && (
-              <div className="mt-3 rounded-lg border border-rose-300/40 bg-rose-500/10 px-3 py-2 text-center text-xs text-rose-200">
+              <div className="mt-3 rounded-lg border border-rose-300/40 bg-rose-500/10 px-3 py-2.5 text-center text-sm text-rose-200">
                 {fastSwitchError}
               </div>
             )}
@@ -1497,7 +1498,7 @@ export default function App() {
               inputMode="none"
               autoFocus
               data-virtual-keyboard="off"
-              className="neon-input mt-4 w-full text-center text-2xl tracking-[0.3em]"
+              className="neon-input mt-5 w-full text-center text-3xl tracking-[0.3em]"
               placeholder="● ● ● ●"
               value={fastSwitchPin}
               onChange={(e) => { setFastSwitchPin(e.target.value.replace(/\D/g, '')); setFastSwitchError(''); }}
@@ -1506,12 +1507,12 @@ export default function App() {
               disabled={fastSwitchLoading}
             />
             {/* Numpad */}
-            <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="mt-5 grid grid-cols-3 gap-2.5">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
                 <button
                   key={n}
                   type="button"
-                  className="flex h-12 items-center justify-center rounded-xl border border-slate-600/60 bg-slate-800/60 text-lg font-bold text-slate-100 transition active:scale-95 active:bg-slate-700"
+                  className="flex h-14 items-center justify-center rounded-xl border border-slate-600/60 bg-slate-800/60 text-xl font-bold text-slate-100 transition active:scale-95 active:bg-slate-700"
                   onClick={() => { setFastSwitchPin((prev) => prev + String(n)); setFastSwitchError(''); }}
                   disabled={fastSwitchLoading}
                 >
@@ -1520,7 +1521,7 @@ export default function App() {
               ))}
               <button
                 type="button"
-                className="flex h-12 items-center justify-center rounded-xl border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-slate-400 transition active:scale-95"
+                className="flex h-14 items-center justify-center rounded-xl border border-slate-600/60 bg-slate-800/60 text-base font-bold text-slate-400 transition active:scale-95"
                 onClick={() => setFastSwitchPin('')}
                 disabled={fastSwitchLoading}
               >
@@ -1528,7 +1529,7 @@ export default function App() {
               </button>
               <button
                 type="button"
-                className="flex h-12 items-center justify-center rounded-xl border border-slate-600/60 bg-slate-800/60 text-lg font-bold text-slate-100 transition active:scale-95 active:bg-slate-700"
+                className="flex h-14 items-center justify-center rounded-xl border border-slate-600/60 bg-slate-800/60 text-xl font-bold text-slate-100 transition active:scale-95 active:bg-slate-700"
                 onClick={() => { setFastSwitchPin((prev) => prev + '0'); setFastSwitchError(''); }}
                 disabled={fastSwitchLoading}
               >
@@ -1536,17 +1537,17 @@ export default function App() {
               </button>
               <button
                 type="button"
-                className="flex h-12 items-center justify-center rounded-xl border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-slate-400 transition active:scale-95"
+                className="flex h-14 items-center justify-center rounded-xl border border-slate-600/60 bg-slate-800/60 text-base font-bold text-slate-400 transition active:scale-95"
                 onClick={() => setFastSwitchPin((prev) => prev.slice(0, -1))}
                 disabled={fastSwitchLoading}
               >
                 ←
               </button>
             </div>
-            <div className="mt-4 flex gap-2">
+            <div className="mt-5 flex gap-3">
               <button
                 type="button"
-                className="flex-1 rounded-xl border border-slate-600/60 bg-slate-800/60 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-700/60"
+                className="flex-1 rounded-xl border border-slate-600/60 bg-slate-800/60 px-4 py-3.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-700/60"
                 onClick={() => setFastSwitchOpen(false)}
                 disabled={fastSwitchLoading}
               >
@@ -1554,13 +1555,43 @@ export default function App() {
               </button>
               <button
                 type="button"
-                className="flex-1 rounded-xl bg-gradient-to-b from-yellow-400 to-amber-500 px-4 py-3 text-sm font-black text-slate-900 shadow-lg shadow-yellow-500/20 transition active:scale-[0.97] disabled:opacity-50"
+                className="flex-1 rounded-xl bg-gradient-to-b from-yellow-400 to-amber-500 px-4 py-3.5 text-base font-black text-slate-900 shadow-lg shadow-yellow-500/20 transition active:scale-[0.97] disabled:opacity-50"
                 onClick={() => void handleFastSwitch()}
                 disabled={fastSwitchLoading || fastSwitchPin.length < 4}
               >
                 {fastSwitchLoading
                   ? tx(safeLang, 'Gözləyin...', 'Подождите...', 'Wait...')
                   : tx(safeLang, 'Daxil ol', 'Войти', 'Enter')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Logout Confirmation Modal */}
+      {logoutConfirmOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" onClick={() => setLogoutConfirmOpen(false)}>
+          <div className="metal-panel w-full max-w-xs rounded-2xl p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-center text-lg font-bold text-slate-100">
+              {tx(safeLang, 'Çıxış etməyə əminsiniz?', 'Вы уверены, что хотите выйти?', 'Are you sure you want to log out?')}
+            </h3>
+            <p className="mt-2 text-center text-sm text-slate-400">
+              {tx(safeLang, 'Sessiya bağlanacaq və giriş ekranına qayıdacaqsınız.', 'Сессия будет закрыта и вы вернетесь на экран входа.', 'Your session will end and you will return to the login screen.')}
+            </p>
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                className="flex-1 rounded-xl border border-slate-600/60 bg-slate-800/60 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-700/60"
+                onClick={() => setLogoutConfirmOpen(false)}
+              >
+                {tx(safeLang, 'Xeyr', 'Нет', 'No')}
+              </button>
+              <button
+                type="button"
+                className="flex-1 rounded-xl border border-rose-400/50 bg-gradient-to-b from-rose-500 to-rose-700 px-4 py-3 text-sm font-bold text-white shadow-lg transition active:scale-[0.97]"
+                onClick={() => { setLogoutConfirmOpen(false); logout(); }}
+              >
+                {tx(safeLang, 'Bəli, çıxış et', 'Да, выйти', 'Yes, log out')}
               </button>
             </div>
           </div>
@@ -1731,7 +1762,7 @@ export default function App() {
                 </span>
               </button>
               <button
-                onClick={logout}
+                onClick={() => setLogoutConfirmOpen(true)}
                 className="neon-btn-active px-3 py-2"
                 onMouseEnter={(e) => handleDemoGuideHover(describeActionAz('çıxış'), e)}
                 onMouseMove={(e) => handleDemoGuideHover(describeActionAz('çıxış'), e)}
