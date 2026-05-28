@@ -2337,6 +2337,7 @@ export default function SettingsPanel() {
                   type="button"
                   onClick={async () => {
                     setSessionSettings((prev) => ({ ...prev, tables_ui_mode: mode } as any));
+                    try { localStorage.setItem('iw_tables_ui_mode', mode); } catch {}
                     try {
                       await update_session_settings_live({
                         idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
