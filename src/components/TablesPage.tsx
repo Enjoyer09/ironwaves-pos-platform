@@ -141,7 +141,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const workspaceViewRef = useRef<'floor' | 'reservations'>('floor');
   const businessProfile = get_business_profile(tenant_id);
   const printSettings = tenantSettings.print_settings || { use_qz: false, printer_name: '' };
-  const tablesUiMode = String(tenantSettings.tables_ui_mode || '').toLowerCase() || 'classic';
+  const tablesUiMode = String(tenantSettings.session_settings?.tables_ui_mode || tenantSettings.tables_ui_mode || '').toLowerCase() || 'classic';
   const isBahaYLab = isBahaYLabHost || tablesUiMode === 'modern';
   const depositPerGuest = new Decimal((tenantSettings as any).table_service_settings?.deposit_per_guest_azn || 0);
   const reservationLockHours = Math.max(0, Number((tenantSettings as any).table_service_settings?.reservation_lock_hours ?? 2));
