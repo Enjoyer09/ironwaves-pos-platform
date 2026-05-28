@@ -2355,7 +2355,7 @@ export default function SettingsPanel() {
                     }
                   }}
                   className={`min-h-11 rounded-xl border px-4 text-sm font-bold transition ${
-                    (sessionSettings as any)?.tables_ui_mode === mode || (!((sessionSettings as any)?.tables_ui_mode) && mode === 'classic')
+                    ((sessionSettings as any)?.tables_ui_mode || (typeof localStorage !== 'undefined' && localStorage.getItem('iw_tables_ui_mode')) || 'classic') === mode
                       ? 'border-amber-300/70 bg-amber-400/20 text-amber-100'
                       : 'border-slate-700 bg-slate-900/70 text-slate-300'
                   }`}
