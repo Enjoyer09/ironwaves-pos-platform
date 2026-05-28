@@ -487,7 +487,7 @@ html {
   }
 
   .pos3-menu {
-    @apply flex min-h-0 flex-col rounded-3xl border border-slate-700/60 bg-slate-950/26 p-3.5 shadow-[0_16px_34px_rgba(2,6,23,0.38)];
+    @apply flex min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-700/60 bg-slate-950/26 p-3.5 shadow-[0_16px_34px_rgba(2,6,23,0.38)];
     backdrop-filter: blur(5px);
   }
 
