@@ -2325,15 +2325,41 @@ export default function SettingsPanel() {
           </div>
           <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 px-4 py-3">
             <div className="text-sm font-semibold text-slate-200">
-              {tx(lang, 'İnterfeys rejimi', 'Режим интерфейса', 'Interface mode')}
+              {tx(lang, 'Masalar UI rejimi', 'Режим UI столов', 'Tables UI mode')}
             </div>
             <div className="mt-2 text-xs text-slate-400">
-              {tx(
-                lang,
-                'Sistem legacy UI rejimində sabitlənib.',
-                'Система зафиксирована в режиме legacy UI.',
-                'The system is locked to legacy UI mode.',
-              )}
+              {tx(lang, 'Classic — standart görünüş. Modern — tam ekran sifariş paneli, şəkilli menü grid.', 'Classic — стандартный вид. Modern — полноэкранная панель заказа, меню с картинками.', 'Classic — standard view. Modern — fullscreen order panel, image menu grid.')}
+            </div>
+            <div className="mt-3 flex gap-2">
+              {(['classic', 'modern'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await update_session_settings_live({
+                        idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
+                        virtual_keyboard_enabled: sessionSettings.virtual_keyboard_enabled,
+                        staff_pin_length: sessionSettings.staff_pin_length,
+                        theme_mode: sessionSettings.theme_mode,
+                        ui_mode: 'old',
+                        tables_ui_mode: mode,
+                      });
+                      notify('success', tx(lang, 'Masalar UI rejimi dəyişdirildi', 'Режим UI столов изменен', 'Tables UI mode changed'));
+                      window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
+                    } catch (e: any) {
+                      notify('error', e?.message || 'Failed');
+                    }
+                  }}
+                  className={`min-h-11 rounded-xl border px-4 text-sm font-bold transition ${
+                    (sessionSettings as any)?.tables_ui_mode === mode || (!((sessionSettings as any)?.tables_ui_mode) && mode === 'classic')
+                      ? 'border-amber-300/70 bg-amber-400/20 text-amber-100'
+                      : 'border-slate-700 bg-slate-900/70 text-slate-300'
+                  }`}
+                >
+                  {mode === 'classic' ? 'Classic' : 'Modern (BahaY)'}
+                </button>
+              ))}
             </div>
           </div>
         </div>
