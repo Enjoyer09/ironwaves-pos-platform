@@ -2325,10 +2325,10 @@ export default function SettingsPanel() {
           </div>
           <div className="rounded-2xl border border-slate-700/60 bg-slate-950/40 px-4 py-3">
             <div className="text-sm font-semibold text-slate-200">
-              {tx(lang, 'Masalar UI rejimi', 'Режим UI столов', 'Tables UI mode')}
+              {tx(lang, 'Satış UI rejimi', 'Режим UI продаж', 'Sales UI mode')}
             </div>
             <div className="mt-2 text-xs text-slate-400">
-              {tx(lang, 'Classic — standart görünüş. Modern — tam ekran sifariş paneli, şəkilli menü grid.', 'Classic — стандартный вид. Modern — полноэкранная панель заказа, меню с картинками.', 'Classic — standard view. Modern — fullscreen order panel, image menu grid.')}
+              {tx(lang, 'Classic — standart görünüş. Modern — Aelia stilində POS + tam ekran masa sifariş paneli.', 'Classic — стандартный вид. Modern — POS в стиле Aelia + полноэкранная панель заказа.', 'Classic — standard view. Modern — Aelia-style POS + fullscreen table order panel.')}
             </div>
             <div className="mt-3 flex gap-2">
               {(['classic', 'modern'] as const).map((mode) => (
@@ -2337,7 +2337,7 @@ export default function SettingsPanel() {
                   type="button"
                   onClick={async () => {
                     setSessionSettings((prev) => ({ ...prev, tables_ui_mode: mode } as any));
-                    try { localStorage.setItem('iw_tables_ui_mode', mode); } catch {}
+                    try { localStorage.setItem('iw_tables_ui_mode', mode); localStorage.setItem('iw_pos_ui_mode', mode); } catch {}
                     try {
                       await update_session_settings_live({
                         idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
