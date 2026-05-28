@@ -520,13 +520,10 @@ export default function App() {
   const safeRoleModules = {
     staff: (() => {
       const base = Array.isArray(roleModules?.staff) ? roleModules!.staff : defaultRoleModules.staff;
-      // BahaY: staff should not see Z-report, but should see analytics (own sales)
-      if (isBahaYLab) {
-        const filtered = base.filter((m: string) => m !== 'zreport');
-        if (!filtered.includes('analytics')) filtered.push('analytics');
-        return filtered;
-      }
-      return base;
+      // Staff should not see Z-report, but should see analytics (own sales only)
+      const filtered = base.filter((m: string) => m !== 'zreport');
+      if (!filtered.includes('analytics')) filtered.push('analytics');
+      return filtered;
     })(),
     manager: Array.isArray(roleModules?.manager)
       ? Array.from(new Set([...roleModules!.manager, 'dashboard']))

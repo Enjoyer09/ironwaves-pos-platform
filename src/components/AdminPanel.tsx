@@ -340,26 +340,28 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
     const now = Date.now();
 
     if (activeTab === 'analytics') {
-      const cacheKey = `analytics:${tenant_id}:${dateFrom}:${dateTo}`;
+      // Staff only sees their own sales
+      const staffCashierFilter = currentRole === 'staff' ? (user?.username || undefined) : undefined;
+      const cacheKey = `analytics:${tenant_id}:${dateFrom}:${dateTo}:${staffCashierFilter || ''}`;
       if (fetchCacheRef.current[cacheKey] && now - fetchCacheRef.current[cacheKey] < 15000) {
         return;
       }
       const fromIso = localDateTimeStart(dateFrom);
       const toIso = localDateTimeNextStart(dateTo);
       const [summaryResult, salesResult] = await Promise.allSettled([
-        get_sales_summary_live(tenant_id, fromIso, toIso, undefined, { signal }),
-        get_sales_list_live(tenant_id, fromIso, toIso, undefined, { signal, limit: 300 }),
+        get_sales_summary_live(tenant_id, fromIso, toIso, staffCashierFilter, { signal }),
+        get_sales_list_live(tenant_id, fromIso, toIso, staffCashierFilter, { signal, limit: 300 }),
       ]);
       if (seq !== fetchSeqRef.current) return;
       if (summaryResult.status === 'fulfilled') {
         setSummary(summaryResult.value);
       } else {
-        setSummary(get_sales_summary(tenant_id, fromIso, toIso));
+        setSummary(get_sales_summary(tenant_id, fromIso, toIso, staffCashierFilter));
       }
       if (salesResult.status === 'fulfilled') {
         setSales(salesResult.value);
       } else {
-        setSales(get_sales_list(tenant_id, fromIso, toIso));
+        setSales(get_sales_list(tenant_id, fromIso, toIso, staffCashierFilter));
       }
       fetchCacheRef.current[cacheKey] = Date.now();
       return;
@@ -720,7 +722,11 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
             <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                   <h1 className="text-3xl font-bold">{tx(lang, 'İdarəetmə Paneli', 'Панель управления')}</h1>
-                  <p className="text-slate-300 mt-1">{tx(lang, 'Seçilmiş tarix aralığına görə statistika', 'Статистика за выбранный период', 'Statistics for the selected date range')}</p>
+                  <p className="text-slate-300 mt-1">
+                    {currentRole === 'staff'
+                      ? tx(lang, 'Yalnız öz satışlarınız göstərilir', 'Показаны только ваши продажи', 'Showing only your sales')
+                      : tx(lang, 'Seçilmiş tarix aralığına görə statistika', 'Статистика за выбранный период', 'Statistics for the selected date range')}
+                  </p>
               </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="neon-input min-h-13" />
@@ -860,6 +866,7 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
                             })()}
                           </td>
                           <td className="px-6 py-4">
+                            {currentRole !== 'staff' && (
                             <div className="flex gap-2">
                               <button
                                 className="neon-btn rounded-lg px-2 py-1 text-[11px]"
@@ -915,6 +922,7 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
                                 {tx(lang, 'Düzəlt', 'Исправить')}
                               </button>
                             </div>
+                            )}
                           </td>
                         </tr>
                       ))}
