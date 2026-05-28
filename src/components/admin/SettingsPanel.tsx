@@ -2336,6 +2336,7 @@ export default function SettingsPanel() {
                   key={mode}
                   type="button"
                   onClick={async () => {
+                    setSessionSettings((prev) => ({ ...prev, tables_ui_mode: mode } as any));
                     try {
                       await update_session_settings_live({
                         idle_logout_minutes: Math.max(0, Number(sessionSettings.idle_logout_minutes || 0)),
@@ -2348,6 +2349,7 @@ export default function SettingsPanel() {
                       notify('success', tx(lang, 'Masalar UI rejimi dəyişdirildi', 'Режим UI столов изменен', 'Tables UI mode changed'));
                       window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
                     } catch (e: any) {
+                      setSessionSettings((prev) => ({ ...prev, tables_ui_mode: mode === 'modern' ? 'classic' : 'modern' } as any));
                       notify('error', e?.message || 'Failed');
                     }
                   }}
