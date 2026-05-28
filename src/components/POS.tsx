@@ -469,6 +469,22 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     };
   }, [tenantId, ctx.selectedTable, activeCart]);
 
+  // Fast user switch: clear all carts when user changes
+  useEffect(() => {
+    const handleUserSwitched = () => {
+      setCarts({ S1: [], S2: [], S3: [] });
+      setCartCtx({ S1: { ...defaultCtx }, S2: { ...defaultCtx }, S3: { ...defaultCtx } });
+      setActiveCart('S1');
+      setTableRoutingBanner(null);
+      setReceiptHtml(null);
+      setVariantPicker(null);
+    };
+    window.addEventListener('user-switched', handleUserSwitched);
+    return () => {
+      window.removeEventListener('user-switched', handleUserSwitched);
+    };
+  }, []);
+
   useEffect(() => {
     let resizeTimer: number | null = null;
     const onResize = () => {
