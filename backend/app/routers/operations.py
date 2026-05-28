@@ -990,6 +990,7 @@ DEFAULT_SESSION_SETTINGS = {
     "staff_pin_length": 4,
     "theme_mode": "dark",
     "ui_mode": "old",
+    "tables_ui_mode": "classic",
 }
 
 
