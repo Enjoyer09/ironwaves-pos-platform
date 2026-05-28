@@ -1494,8 +1494,9 @@ export default function App() {
             )}
             <input
               type="password"
-              inputMode="numeric"
+              inputMode="none"
               autoFocus
+              data-virtual-keyboard="off"
               className="neon-input mt-4 w-full text-center text-2xl tracking-[0.3em]"
               placeholder="● ● ● ●"
               value={fastSwitchPin}
@@ -1721,11 +1722,13 @@ export default function App() {
               </button>
               <button
                 onClick={() => { setFastSwitchOpen(true); setFastSwitchPin(''); setFastSwitchError(''); }}
-                className="neon-btn px-3 py-2"
+                className="rounded-xl border border-rose-400/50 bg-gradient-to-b from-rose-500 to-rose-700 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-rose-500/20 transition active:scale-[0.97]"
                 title={tx(safeLang, 'İstifadəçi dəyiş (PIN)', 'Сменить пользователя (PIN)', 'Switch user (PIN)')}
               >
-                <UserRoundCog size={16} />
-                <span className="hidden sm:inline">{tx(safeLang, 'Dəyiş', 'Сменить', 'Switch')}</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <UserRoundCog size={18} />
+                  {tx(safeLang, 'Dəyiş', 'Сменить', 'Switch')}
+                </span>
               </button>
               <button
                 onClick={logout}
