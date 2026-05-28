@@ -225,6 +225,32 @@ def _auto_join_shift(db: Session, tenant: Tenant, user: User) -> None:
             pass
 
 
+def _auto_leave_shift(db: Session, tenant: Tenant, user_id: str) -> None:
+    """Remove staff from shift sessions on logout."""
+    try:
+        user = db.query(User).filter(User.id == user_id, User.tenant_id == tenant.id).first()
+        if not user:
+            return
+        role = str(user.role or "").lower()
+        if role not in {"staff", "kitchen"}:
+            return
+        sessions_setting = db.query(Setting).filter(Setting.tenant_id == tenant.id, Setting.key == "staff_shift_sessions").first()
+        if not sessions_setting or not sessions_setting.value:
+            return
+        sessions = json.loads(sessions_setting.value) if sessions_setting.value else {}
+        username_lower = str(user.username or "").strip().lower()
+        # Find and remove
+        to_remove = [k for k in sessions.keys() if str(k).lower() == username_lower]
+        if not to_remove:
+            return
+        for k in to_remove:
+            del sessions[k]
+        sessions_setting.value = json.dumps(sessions, ensure_ascii=False)
+        db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="STAFF_AUTO_SHIFT_LEAVE", details="Auto-left shift on logout"))
+    except Exception:
+        pass
+
+
 def _issue_tokens_for_user(db: Session, tenant: Tenant, user: User) -> dict:
     access = create_access_token(subject=user.id, tenant_id=tenant.id, role=user.role)
     refresh = create_refresh_token(subject=user.id, tenant_id=tenant.id)
@@ -814,6 +840,11 @@ def logout(
         request,
         {"refresh_revoked": bool(row), "refresh_token_present": bool(refresh_token_raw)},
     )
+
+    # BahaY: Auto-leave shift on logout
+    if row and row.user_id:
+        _auto_leave_shift(db, tenant, row.user_id)
+
     db.commit()
     _clear_refresh_cookie(response)
     if settings.demo_tenant_enabled and tenant.domain == settings.demo_tenant_domain:
