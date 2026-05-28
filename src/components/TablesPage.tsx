@@ -34,8 +34,8 @@ const TABLE_DISCOUNT_PRESETS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50] as const;
 const tablesBootstrapCache = new Map<string, { at: number; data: TablesBootstrapRecord }>();
 const kitchenFeedCache = new Map<string, { at: number; data: any[] }>();
 
-// BahaY: detect super lab for new UI
-const isBahaYLab = (() => {
+// BahaY: detect modern UI mode from tenant settings (fallback to super lab)
+const isBahaYLabHost = (() => {
   try { return String(window.location.hostname || '').toLowerCase() === 'super.ironwaves.store'; }
   catch { return false; }
 })();
@@ -141,6 +141,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const workspaceViewRef = useRef<'floor' | 'reservations'>('floor');
   const businessProfile = get_business_profile(tenant_id);
   const printSettings = tenantSettings.print_settings || { use_qz: false, printer_name: '' };
+  const tablesUiMode = String(tenantSettings.tables_ui_mode || '').toLowerCase() || 'classic';
+  const isBahaYLab = isBahaYLabHost || tablesUiMode === 'modern';
   const depositPerGuest = new Decimal((tenantSettings as any).table_service_settings?.deposit_per_guest_azn || 0);
   const reservationLockHours = Math.max(0, Number((tenantSettings as any).table_service_settings?.reservation_lock_hours ?? 2));
   const serviceFeePercent = new Decimal(tenantSettings.service_fee_percent || 0);

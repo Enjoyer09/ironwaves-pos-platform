@@ -11,6 +11,7 @@ type MenuGridProps = {
   onCategoryChange: (value: string) => void;
   onSelectItem: (item: any) => void | Promise<void>;
   draftItems?: Array<{ menu_item_id?: string; id?: string; qty?: number }>;
+  modernMode?: boolean;
 };
 
 const tapFeedback = () => {
@@ -21,8 +22,8 @@ const tapFeedback = () => {
   }
 };
 
-// BahaY: detect super lab for new UI
-const isBahaYLab = (() => {
+// BahaY: detect super lab for new UI (module-level fallback, overridden by prop)
+const isBahaYLabDefault = (() => {
   try {
     return String(window.location.hostname || '').toLowerCase() === 'super.ironwaves.store';
   } catch { return false; }
@@ -44,7 +45,9 @@ function MenuGrid({
   onCategoryChange,
   onSelectItem,
   draftItems,
+  modernMode,
 }: MenuGridProps) {
+  const isBahaYLab = modernMode ?? isBahaYLabDefault;
   // Count how many times each item is in draft
   const draftQtyMap = new Map<string, number>();
   if (draftItems) {

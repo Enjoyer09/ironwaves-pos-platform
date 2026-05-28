@@ -66,6 +66,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           onCategoryChange={onCategoryChange}
           onSelectItem={onSelectItem}
           draftItems={roundDraft}
+          modernMode={true}
         />
       </div>
 
