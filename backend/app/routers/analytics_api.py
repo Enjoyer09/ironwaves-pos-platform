@@ -298,6 +298,11 @@ def get_sales_summary(
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
 ):
+    # Staff can only see their own sales
+    effective_cashier = cashier
+    if str(user.role or "").lower() == "staff":
+        effective_cashier = user.username
+
     start = datetime.fromisoformat(date_from.replace("Z", "+00:00")).replace(tzinfo=None)
     end = datetime.fromisoformat(date_to.replace("Z", "+00:00")).replace(tzinfo=None)
     sales_filters = [
@@ -305,8 +310,8 @@ def get_sales_summary(
         Sale.created_at >= start,
         Sale.created_at < end,
     ]
-    if cashier:
-        sales_filters.append(Sale.cashier == cashier)
+    if effective_cashier:
+        sales_filters.append(Sale.cashier == effective_cashier)
     sale_is_net = ~_sale_is_void_expr(tenant.id)
     total_cogs_raw, gross_sales_raw = (
         db.query(
@@ -371,6 +376,11 @@ def get_sales_list(
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
 ):
+    # Staff can only see their own sales
+    effective_cashier = cashier
+    if str(user.role or "").lower() == "staff":
+        effective_cashier = user.username
+
     start = datetime.fromisoformat(date_from.replace("Z", "+00:00")).replace(tzinfo=None)
     end = datetime.fromisoformat(date_to.replace("Z", "+00:00")).replace(tzinfo=None)
     sales_query = db.query(Sale).filter(
@@ -378,8 +388,8 @@ def get_sales_list(
         Sale.created_at >= start,
         Sale.created_at < end,
     )
-    if cashier:
-        sales_query = sales_query.filter(Sale.cashier == cashier)
+    if effective_cashier:
+        sales_query = sales_query.filter(Sale.cashier == effective_cashier)
     sales_query = sales_query.order_by(Sale.created_at.desc())
     if offset:
         sales_query = sales_query.offset(offset)
