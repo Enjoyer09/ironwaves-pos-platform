@@ -2518,12 +2518,14 @@ def update_session_settings(
 ):
     _ensure_admin(user)
     current = _setting_value(db, tenant.id, "session_settings", DEFAULT_SESSION_SETTINGS) or {}
+    tables_ui = str(payload.get("tables_ui_mode") or current.get("tables_ui_mode") or "classic").strip().lower()
     cleaned = {
         "idle_logout_minutes": max(0, int(payload.get("idle_logout_minutes") or 0)),
         "virtual_keyboard_enabled": bool(payload.get("virtual_keyboard_enabled", True)),
         "staff_pin_length": _clean_staff_pin_length(payload.get("staff_pin_length")),
         "theme_mode": _clean_theme_mode(payload.get("theme_mode", current.get("theme_mode"))),
         "ui_mode": _clean_ui_mode(payload.get("ui_mode", current.get("ui_mode"))),
+        "tables_ui_mode": tables_ui if tables_ui in {"classic", "modern"} else "classic",
     }
     _set_setting_value(db, tenant.id, "session_settings", cleaned)
     db.commit()
