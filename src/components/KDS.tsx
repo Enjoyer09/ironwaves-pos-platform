@@ -14,6 +14,7 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
   const [readySelections, setReadySelections] = useState<Record<string, string[]>>({});
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const isStaffReadOnly = String(user?.role || '').toLowerCase() === 'staff';
 
   const [currentTime, setCurrentTime] = useState(Date.now());
   const fetchInFlightRef = useRef(false);
@@ -195,6 +196,7 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
   };
 
   const handleAccept = async (order_id: string) => {
+    if (isStaffReadOnly) return;
     try {
       await accept_order_live(order_id, user?.username || 'kitchen');
       setOrders(await get_kitchen_orders_live(tenant_id));
@@ -205,6 +207,7 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
   };
 
   const handleComplete = async (order_id: string, readyItems: string[] = []) => {
+    if (isStaffReadOnly) return;
     try {
       await complete_order_live(order_id, user?.username || 'kitchen', readyItems);
       setOrders(await get_kitchen_orders_live(tenant_id));
@@ -387,6 +390,7 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
   }, [orders]);
 
   const handleAcceptGroup = async (group: { newIds: string[] }) => {
+    if (isStaffReadOnly) return;
     try {
       await Promise.all(group.newIds.map((orderId) => accept_order_live(orderId, user?.username || 'kitchen')));
       setOrders(await get_kitchen_orders_live(tenant_id));
@@ -397,6 +401,7 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
   };
 
   const handleCompleteGroup = async (group: { key: string; preparingIds: string[] }) => {
+    if (isStaffReadOnly) return;
     try {
       const selectedReadyKeys = readySelections[group.key] || [];
       const selectedReady = selectedReadyKeys.map((entry) => {
@@ -417,6 +422,7 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
   };
 
   const handleItemStatus = async (itemIds: string[], nextStatus: 'PREPARING' | 'READY' | 'SERVED') => {
+    if (isStaffReadOnly) return;
     try {
       const ids = itemIds.filter(Boolean);
       if (ids.length === 0) return;
