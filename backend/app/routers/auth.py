@@ -188,6 +188,43 @@ def _reset_login_attempts(request: Request, tenant_id: str, username: str) -> No
     _login_attempt_tracker.pop(_login_attempt_key(request, tenant_id, username), None)
 
 
+def _auto_join_shift(db: Session, tenant: Tenant, user: User) -> None:
+    """Auto-join staff to active shift on login. No-op if shift not open or user already joined."""
+    try:
+        role = str(user.role or "").lower()
+        if role not in {"staff", "kitchen"}:
+            return
+        # Check if shift is open
+        active_shift = db.query(Shift).filter(Shift.tenant_id == tenant.id, Shift.status == "open").first()
+        if not active_shift:
+            return
+        # Check if already joined
+        sessions_setting = db.query(Setting).filter(Setting.tenant_id == tenant.id, Setting.key == "staff_shift_sessions").first()
+        sessions = {}
+        if sessions_setting and sessions_setting.value:
+            try:
+                sessions = json.loads(sessions_setting.value)
+            except Exception:
+                sessions = {}
+        username_lower = str(user.username or "").strip().lower()
+        if username_lower in {str(k).lower() for k in sessions.keys()}:
+            return
+        # Join shift
+        sessions[user.username] = {"joined_at": datetime.utcnow().isoformat(), "auto": True}
+        if sessions_setting:
+            sessions_setting.value = json.dumps(sessions, ensure_ascii=False)
+        else:
+            db.add(Setting(tenant_id=tenant.id, key="staff_shift_sessions", value=json.dumps(sessions, ensure_ascii=False)))
+        db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="STAFF_AUTO_SHIFT_JOIN", details=f"Auto-joined shift on PIN login"))
+        db.commit()
+    except Exception:
+        # Auto-join must never block login
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
 def _issue_tokens_for_user(db: Session, tenant: Tenant, user: User) -> dict:
     access = create_access_token(subject=user.id, tenant_id=tenant.id, role=user.role)
     refresh = create_refresh_token(subject=user.id, tenant_id=tenant.id)
@@ -666,6 +703,9 @@ def pin_login(payload: PinLoginIn, request: Request, response: Response, db: Ses
     matched.locked_until = None
     db.flush()
     _add_auth_audit_log(db, tenant.id, matched.username, "AUTH_PIN_SUCCESS", request, {"role": matched.role})
+
+    # BahaY: Auto-join shift on staff login
+    _auto_join_shift(db, tenant, matched)
 
     result = _issue_tokens_for_user(db, tenant, matched)
     _set_refresh_cookie(response, result.get("refresh_token", ""))
