@@ -1115,7 +1115,9 @@ export default function App() {
   }, [resolvedModule]);
 
   useEffect(() => {
-    setMountedModules(['pos']);
+    const firstModule = visibleModules[0]?.key || 'pos';
+    setMountedModules([firstModule]);
+    setCurrentModule(firstModule);
   }, [moduleTenantKey]);
 
   useEffect(() => {
