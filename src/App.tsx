@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useState, useEffect, useMemo, useRef } from 'rea
 import { useAppStore } from './store';
 import { i18n, tx } from './i18n';
 import PinLogin from './components/PinLogin';
-import { LogOut, Wifi, WifiOff, Languages, RotateCcw, Maximize2, Minimize2, MessageCircleQuestion } from 'lucide-react';
+import { LogOut, Wifi, WifiOff, Languages, RotateCcw, Maximize2, Minimize2, MessageCircleQuestion, UserRoundCog } from 'lucide-react';
 import VirtualKeyboard from './components/VirtualKeyboard';
 import { seedDatabase } from './lib/seeder';
 import ToastOverlay from './components/ToastOverlay';
@@ -153,6 +153,7 @@ export default function App() {
   const user = useAppStore((state) => state.user);
   const access_token = useAppStore((state) => state.access_token);
   const logout = useAppStore((state) => state.logout);
+  const login = useAppStore((state) => state.login);
   const lang = useAppStore((state) => state.lang);
   const setLang = useAppStore((state) => state.setLang);
   const hasHydrated = useAppStore((state) => state.hasHydrated);
@@ -428,6 +429,10 @@ export default function App() {
   const [settingsVersion, setSettingsVersion] = useState(0);
   const [perfEvents, setPerfEvents] = useState<PerfEvent[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fastSwitchOpen, setFastSwitchOpen] = useState(false);
+  const [fastSwitchPin, setFastSwitchPin] = useState('');
+  const [fastSwitchError, setFastSwitchError] = useState('');
+  const [fastSwitchLoading, setFastSwitchLoading] = useState(false);
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [demoGuideBubble, setDemoGuideBubble] = useState<DemoGuideBubble | null>(null);
   const [manualRefreshing, setManualRefreshing] = useState(false);
@@ -1284,6 +1289,44 @@ export default function App() {
     }
   };
 
+  const handleFastSwitch = async () => {
+    const pin = fastSwitchPin.trim();
+    if (!pin) return;
+    setFastSwitchLoading(true);
+    setFastSwitchError('');
+    try {
+      // First logout current user silently (triggers auto-leave shift in backend)
+      try {
+        await authApi.logout();
+      } catch {
+        // Ignore logout errors — we proceed with new login regardless
+      }
+      // Now login with new PIN
+      const success = await login(pin);
+      if (success) {
+        setFastSwitchOpen(false);
+        setFastSwitchPin('');
+        setFastSwitchError('');
+        // Reset module to POS for new staff
+        setCurrentModule('pos');
+        notify('success', tx(safeLang, 'İstifadəçi dəyişdirildi', 'Пользователь переключен', 'User switched'));
+        // Dispatch event so POS clears cart for new user
+        window.dispatchEvent(new CustomEvent('user-switched'));
+      } else {
+        setFastSwitchError(tx(safeLang, 'Yanlış PIN', 'Неверный PIN', 'Invalid PIN'));
+      }
+    } catch (e: any) {
+      const msg = String(e?.message || e || '');
+      if (msg.includes('kilidlənib') || msg.includes('locked')) {
+        setFastSwitchError(tx(safeLang, 'Hesab kilidlənib, gözləyin', 'Аккаунт заблокирован', 'Account locked'));
+      } else {
+        setFastSwitchError(tx(safeLang, 'Yanlış PIN', 'Неверный PIN', 'Invalid PIN'));
+      }
+    } finally {
+      setFastSwitchLoading(false);
+    }
+  };
+
   if (!hasHydrated) {
     return (
       <div className="metal-app flex min-h-screen items-center justify-center text-slate-300">
@@ -1433,6 +1476,96 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Fast User Switch PIN Modal */}
+      {fastSwitchOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" onClick={() => setFastSwitchOpen(false)}>
+          <div className="metal-panel w-full max-w-xs rounded-2xl p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-center text-lg font-bold text-slate-100">
+              {tx(safeLang, 'İstifadəçi dəyiş', 'Сменить пользователя', 'Switch User')}
+            </h3>
+            <p className="mt-1 text-center text-xs text-slate-400">
+              {tx(safeLang, 'Yeni istifadəçinin PIN kodunu daxil edin', 'Введите PIN нового пользователя', 'Enter new user PIN')}
+            </p>
+            {fastSwitchError && (
+              <div className="mt-3 rounded-lg border border-rose-300/40 bg-rose-500/10 px-3 py-2 text-center text-xs text-rose-200">
+                {fastSwitchError}
+              </div>
+            )}
+            <input
+              type="password"
+              inputMode="numeric"
+              autoFocus
+              className="neon-input mt-4 w-full text-center text-2xl tracking-[0.3em]"
+              placeholder="● ● ● ●"
+              value={fastSwitchPin}
+              onChange={(e) => { setFastSwitchPin(e.target.value.replace(/\D/g, '')); setFastSwitchError(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') void handleFastSwitch(); if (e.key === 'Escape') setFastSwitchOpen(false); }}
+              maxLength={8}
+              disabled={fastSwitchLoading}
+            />
+            {/* Numpad */}
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className="flex h-12 items-center justify-center rounded-xl border border-slate-600/60 bg-slate-800/60 text-lg font-bold text-slate-100 transition active:scale-95 active:bg-slate-700"
+                  onClick={() => { setFastSwitchPin((prev) => prev + String(n)); setFastSwitchError(''); }}
+                  disabled={fastSwitchLoading}
+                >
+                  {n}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="flex h-12 items-center justify-center rounded-xl border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-slate-400 transition active:scale-95"
+                onClick={() => setFastSwitchPin('')}
+                disabled={fastSwitchLoading}
+              >
+                C
+              </button>
+              <button
+                type="button"
+                className="flex h-12 items-center justify-center rounded-xl border border-slate-600/60 bg-slate-800/60 text-lg font-bold text-slate-100 transition active:scale-95 active:bg-slate-700"
+                onClick={() => { setFastSwitchPin((prev) => prev + '0'); setFastSwitchError(''); }}
+                disabled={fastSwitchLoading}
+              >
+                0
+              </button>
+              <button
+                type="button"
+                className="flex h-12 items-center justify-center rounded-xl border border-slate-600/60 bg-slate-800/60 text-sm font-bold text-slate-400 transition active:scale-95"
+                onClick={() => setFastSwitchPin((prev) => prev.slice(0, -1))}
+                disabled={fastSwitchLoading}
+              >
+                ←
+              </button>
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                className="flex-1 rounded-xl border border-slate-600/60 bg-slate-800/60 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-700/60"
+                onClick={() => setFastSwitchOpen(false)}
+                disabled={fastSwitchLoading}
+              >
+                {tx(safeLang, 'Ləğv', 'Отмена', 'Cancel')}
+              </button>
+              <button
+                type="button"
+                className="flex-1 rounded-xl bg-gradient-to-b from-yellow-400 to-amber-500 px-4 py-3 text-sm font-black text-slate-900 shadow-lg shadow-yellow-500/20 transition active:scale-[0.97] disabled:opacity-50"
+                onClick={() => void handleFastSwitch()}
+                disabled={fastSwitchLoading || fastSwitchPin.length < 4}
+              >
+                {fastSwitchLoading
+                  ? tx(safeLang, 'Gözləyin...', 'Подождите...', 'Wait...')
+                  : tx(safeLang, 'Daxil ol', 'Войти', 'Enter')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {readyPopup && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4">
           <div className="metal-panel w-full max-w-lg rounded-2xl p-5">
@@ -1585,6 +1718,14 @@ export default function App() {
               >
                 <MessageCircleQuestion size={16} />
                 <span>{tx(safeLang, 'Help', 'Помощь', 'Help')}</span>
+              </button>
+              <button
+                onClick={() => { setFastSwitchOpen(true); setFastSwitchPin(''); setFastSwitchError(''); }}
+                className="neon-btn px-3 py-2"
+                title={tx(safeLang, 'İstifadəçi dəyiş (PIN)', 'Сменить пользователя (PIN)', 'Switch user (PIN)')}
+              >
+                <UserRoundCog size={16} />
+                <span className="hidden sm:inline">{tx(safeLang, 'Dəyiş', 'Сменить', 'Switch')}</span>
               </button>
               <button
                 onClick={logout}
