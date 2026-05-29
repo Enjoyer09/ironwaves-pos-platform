@@ -627,6 +627,15 @@ export default function App() {
     };
   }, []);
 
+  // Redirect to POS if current module is not available offline
+  useEffect(() => {
+    if (isOnline) return;
+    const offlineAvailable = new Set<ModuleKey>(['pos', 'tables', 'kds', 'settings']);
+    if (!offlineAvailable.has(currentModule)) {
+      setCurrentModule('pos');
+    }
+  }, [isOnline, currentModule]);
+
   useEffect(() => {
     if (!isOnline || !user?.tenant_id) return;
     syncPendingOfflineSales(user.tenant_id).then((result) => {
@@ -1775,22 +1784,43 @@ export default function App() {
           </div>
 
           <div className="hidden md:flex items-center gap-3 overflow-x-auto pb-2">
-            {visibleModules.map((item) => (
+            {visibleModules.map((item) => {
+                const offlineAvailable = new Set<ModuleKey>(['pos', 'tables', 'kds', 'settings']);
+                const isDisabledOffline = !isOnline && !offlineAvailable.has(item.key);
+                return (
                 <button
                   key={item.key}
-                  onClick={() => setCurrentModule(item.key)}
-                  className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap px-4 py-3 text-sm`}
-                  title={item.label}
+                  onClick={() => { if (!isDisabledOffline) setCurrentModule(item.key); }}
+                  disabled={isDisabledOffline}
+                  className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap px-4 py-3 text-sm ${isDisabledOffline ? 'opacity-35 cursor-not-allowed grayscale' : ''}`}
+                  title={isDisabledOffline ? tx(safeLang, 'Offline rejimde əlçatan deyil', 'Недоступно в офлайн режиме', 'Not available offline') : item.label}
                   data-guide={DEMO_MODULE_GUIDE_AZ[item.key]}
-                  onMouseEnter={(e) => handleDemoGuideHover(DEMO_MODULE_GUIDE_AZ[item.key], e)}
-                  onMouseMove={(e) => handleDemoGuideHover(DEMO_MODULE_GUIDE_AZ[item.key], e)}
+                  onMouseEnter={(e) => handleDemoGuideHover(isDisabledOffline ? tx(safeLang, 'Offline rejimde əlçatan deyil', 'Недоступно офлайн', 'Not available offline') : DEMO_MODULE_GUIDE_AZ[item.key], e)}
+                  onMouseMove={(e) => handleDemoGuideHover(isDisabledOffline ? tx(safeLang, 'Offline rejimde əlçatan deyil', 'Недоступно офлайн', 'Not available offline') : DEMO_MODULE_GUIDE_AZ[item.key], e)}
                   onMouseLeave={() => setDemoGuideBubble(null)}
                 >
                   <span>{item.label}</span>
                 </button>
-              ))}
+                );
+              })}
           </div>
         </div>
+
+        {/* Offline Mode Banner */}
+        {!isOnline && (
+          <div className="shrink-0 border-b border-amber-400/30 bg-amber-500/10 px-4 py-2">
+            <div className="flex items-center justify-center gap-3 text-sm">
+              <WifiOff size={14} className="text-amber-300" />
+              <span className="font-semibold text-amber-100">
+                {tx(safeLang, 'Offline rejim', 'Офлайн режим', 'Offline mode')}
+              </span>
+              <span className="text-amber-200/80">—</span>
+              <span className="text-amber-200/80">
+                {tx(safeLang, 'POS, Masalar, Mətbəx işləyir. Digər bölmələr sinxrondan sonra əlçatan olacaq.', 'POS, Столы, Кухня работают. Остальные разделы будут доступны после синхронизации.', 'POS, Tables, Kitchen work. Other sections available after sync.')}
+              </span>
+            </div>
+          </div>
+        )}
 
         <div className="relative min-h-0 flex-1 overflow-hidden">
           <AppErrorBoundary>
@@ -1826,11 +1856,15 @@ export default function App() {
 
         <div className="shrink-0 border-t border-slate-700/40 bg-[#0e141d]/95 px-2 py-2 md:hidden">
           <div className="flex gap-2 overflow-x-auto pb-1">
-            {visibleModules.map((item) => (
+            {visibleModules.map((item) => {
+              const offlineAvailable = new Set<ModuleKey>(['pos', 'tables', 'kds', 'settings']);
+              const isDisabledOffline = !isOnline && !offlineAvailable.has(item.key);
+              return (
               <button
                 key={`mobile_${item.key}`}
-                onClick={() => setCurrentModule(item.key)}
-                className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap`}
+                onClick={() => { if (!isDisabledOffline) setCurrentModule(item.key); }}
+                disabled={isDisabledOffline}
+                className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap ${isDisabledOffline ? 'opacity-35 cursor-not-allowed grayscale' : ''}`}
                 title={item.label}
                 data-guide={DEMO_MODULE_GUIDE_AZ[item.key]}
                 onMouseEnter={(e) => handleDemoGuideHover(DEMO_MODULE_GUIDE_AZ[item.key], e)}
@@ -1839,7 +1873,8 @@ export default function App() {
               >
                 <span>{item.label}</span>
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
 
