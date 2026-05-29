@@ -75,7 +75,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
       </div>
 
       {/* ─── RIGHT: Draft + Actions + Slide-up Sent Panel ─── */}
-      <div className="relative flex min-h-0 w-[300px] shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-950/40">
+      <div className="relative flex h-full min-h-0 w-[300px] shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-950/40">
 
         {/* Main content (draft + actions) */}
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
@@ -187,8 +187,8 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
 
         {/* ─── Slide-up Sent Items Panel ─── */}
         <div
-          className={`absolute inset-0 z-10 flex flex-col rounded-2xl bg-slate-950/95 backdrop-blur-sm transition-transform duration-300 ease-out ${
-            sentPanelOpen ? 'translate-y-0' : 'translate-y-full'
+          className={`absolute bottom-0 left-0 right-0 top-0 z-10 flex flex-col rounded-2xl bg-slate-950 transition-transform duration-300 ease-out ${
+            sentPanelOpen ? 'translate-y-0' : 'translate-y-full pointer-events-none'
           }`}
         >
           {/* Header */}
