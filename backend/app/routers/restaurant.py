@@ -3142,3 +3142,171 @@ def get_order_item_status_logs(
         }
         for row in rows
     ]
+
+
+# ─── Manager Approval Endpoints ──────────────────────────────────────────────
+
+
+@router.get("/pending-approvals")
+def get_pending_approvals(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Get all VOID_REQUESTED items awaiting manager approval."""
+    if not _is_manager(user):
+        raise HTTPException(status_code=403, detail="Manager/Admin required")
+
+    recent_cutoff = datetime.utcnow() - timedelta(hours=12)
+    items = (
+        db.query(OrderItem)
+        .filter(
+            OrderItem.tenant_id == tenant.id,
+            OrderItem.status == "VOID_REQUESTED",
+            OrderItem.cancelled_at >= recent_cutoff,
+        )
+        .order_by(OrderItem.cancelled_at.desc())
+        .limit(50)
+        .all()
+    )
+
+    result = []
+    for item in items:
+        table = db.query(Table).filter(Table.id == item.table_id).first() if item.table_id else None
+        result.append({
+            "id": item.id,
+            "item_name": item.item_name,
+            "qty": item.qty,
+            "price": str(item.price or "0"),
+            "status": item.status,
+            "status_reason": item.status_reason,
+            "action_by": item.action_by,
+            "table_label": table.label if table else None,
+            "table_id": item.table_id,
+            "check_id": item.check_id,
+            "round_id": item.round_id,
+            "cancelled_at": item.cancelled_at.isoformat() if item.cancelled_at else None,
+        })
+
+    return result
+
+
+@router.post("/pending-approvals/{item_id}/approve")
+def approve_void_request(
+    item_id: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Manager approves a VOID_REQUESTED item → finalizes to VOIDED."""
+    if not _is_manager(user):
+        raise HTTPException(status_code=403, detail="Manager/Admin required")
+
+    item = db.query(OrderItem).filter(OrderItem.id == item_id, OrderItem.tenant_id == tenant.id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Order item not found")
+    if _normalize_item_status(item.status) != "VOID_REQUESTED":
+        raise HTTPException(status_code=400, detail="Item is not in VOID_REQUESTED status")
+
+    old_status = _normalize_item_status(item.status)
+    item.status = "VOIDED"
+    item.manager_approved_by = user.username
+
+    _log_item_status(
+        db,
+        tenant.id,
+        item,
+        old_status,
+        "VOIDED",
+        user.username,
+        "Manager approved void request",
+        action_type="VOID",
+        quantity_before=int(item.qty or 0),
+        quantity_after=0,
+        approved_by=user.username,
+        reason_code="MANAGER_APPROVED",
+        billing_effect="remove_from_bill",
+        kitchen_effect="cancel_confirmed",
+    )
+
+    # Sync round status
+    if item.round_id:
+        _sync_round_status_from_items(db, tenant.id, item.round_id)
+
+    # Sync check/table totals
+    table = db.query(Table).filter(Table.id == item.table_id, Table.tenant_id == tenant.id).first() if item.table_id else None
+    active_check = db.query(Check).filter(Check.id == item.check_id, Check.tenant_id == tenant.id).first() if item.check_id else None
+    if table and active_check:
+        _sync_check_and_table_from_items(db, tenant.id, table, active_check)
+
+    db.add(AuditLog(
+        tenant_id=tenant.id,
+        user=user.username,
+        action="VOID_REQUEST_APPROVED",
+        details=json.dumps({"item_id": item.id, "item_name": item.item_name, "requested_by": item.action_by}, ensure_ascii=False),
+    ))
+    db.commit()
+    _emit_realtime(tenant.id, "check.updated", {"table_id": item.table_id, "check_id": item.check_id, "action": "void-approved"})
+
+    return {"success": True, "item_id": item.id, "new_status": "VOIDED"}
+
+
+@router.post("/pending-approvals/{item_id}/reject")
+def reject_void_request(
+    item_id: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Manager rejects a VOID_REQUESTED item → reverts to previous active status."""
+    if not _is_manager(user):
+        raise HTTPException(status_code=403, detail="Manager/Admin required")
+
+    item = db.query(OrderItem).filter(OrderItem.id == item_id, OrderItem.tenant_id == tenant.id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Order item not found")
+    if _normalize_item_status(item.status) != "VOID_REQUESTED":
+        raise HTTPException(status_code=400, detail="Item is not in VOID_REQUESTED status")
+
+    old_status = _normalize_item_status(item.status)
+    # Revert to SENT (safest active status)
+    item.status = "SENT"
+    item.cancelled_at = None
+    item.status_reason = None
+    item.manager_approved_by = user.username
+
+    _log_item_status(
+        db,
+        tenant.id,
+        item,
+        old_status,
+        "SENT",
+        user.username,
+        "Manager rejected void request",
+        action_type="VOID_REJECT",
+        quantity_before=int(item.qty or 0),
+        quantity_after=int(item.qty or 0),
+        approved_by=user.username,
+        reason_code="MANAGER_REJECTED",
+        billing_effect="restore_to_bill",
+        kitchen_effect="continue_prep",
+    )
+
+    if item.round_id:
+        _sync_round_status_from_items(db, tenant.id, item.round_id)
+
+    table = db.query(Table).filter(Table.id == item.table_id, Table.tenant_id == tenant.id).first() if item.table_id else None
+    active_check = db.query(Check).filter(Check.id == item.check_id, Check.tenant_id == tenant.id).first() if item.check_id else None
+    if table and active_check:
+        _sync_check_and_table_from_items(db, tenant.id, table, active_check)
+
+    db.add(AuditLog(
+        tenant_id=tenant.id,
+        user=user.username,
+        action="VOID_REQUEST_REJECTED",
+        details=json.dumps({"item_id": item.id, "item_name": item.item_name, "requested_by": item.action_by}, ensure_ascii=False),
+    ))
+    db.commit()
+    _emit_realtime(tenant.id, "check.updated", {"table_id": item.table_id, "check_id": item.check_id, "action": "void-rejected"})
+
+    return {"success": True, "item_id": item.id, "new_status": "SENT"}

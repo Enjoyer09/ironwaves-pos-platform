@@ -6,6 +6,7 @@ import { KitchenOrder } from '../types/pos';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
 import { logUiError } from '../lib/logger';
+import { approve_void_request_live, get_pending_approvals_live, reject_void_request_live, type PendingApprovalItem } from '../api/restaurant';
 
 export default function KDS({ isActive = true }: { isActive?: boolean }) {
   const user = useAppStore((state) => state.user);
@@ -15,6 +16,8 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const isStaffReadOnly = String(user?.role || '').toLowerCase() === 'staff';
+  const isManager = ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase());
+  const [pendingApprovals, setPendingApprovals] = useState<PendingApprovalItem[]>([]);
 
   const [currentTime, setCurrentTime] = useState(Date.now());
   const fetchInFlightRef = useRef(false);
@@ -157,6 +160,40 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
       window.removeEventListener('offline', onOffline);
     };
   }, []);
+
+  // Fetch pending approvals for managers
+  useEffect(() => {
+    if (!isActive || !isManager) return;
+    let mounted = true;
+    const fetchApprovals = () => {
+      void get_pending_approvals_live()
+        .then((items) => { if (mounted) setPendingApprovals(Array.isArray(items) ? items : []); })
+        .catch(() => { if (mounted) setPendingApprovals([]); });
+    };
+    fetchApprovals();
+    const timer = window.setInterval(fetchApprovals, 10000);
+    return () => { mounted = false; window.clearInterval(timer); };
+  }, [isActive, isManager]);
+
+  const handleApproveVoid = async (itemId: string) => {
+    try {
+      await approve_void_request_live(itemId);
+      setPendingApprovals((prev) => prev.filter((row) => row.id !== itemId));
+      useAppStore.getState().notify('success', tx(lang, 'Ləğv təsdiqləndi', 'Отмена подтверждена', 'Void approved'));
+    } catch (e: any) {
+      useAppStore.getState().notify('error', e?.message || 'Error');
+    }
+  };
+
+  const handleRejectVoid = async (itemId: string) => {
+    try {
+      await reject_void_request_live(itemId);
+      setPendingApprovals((prev) => prev.filter((row) => row.id !== itemId));
+      useAppStore.getState().notify('info', tx(lang, 'Ləğv rədd edildi', 'Отмена отклонена', 'Void rejected'));
+    } catch (e: any) {
+      useAppStore.getState().notify('error', e?.message || 'Error');
+    }
+  };
 
   const getElapsedMinutes = (created_at: string) => {
     const ts = parseServerTimestamp(created_at);
@@ -465,6 +502,48 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
           </div>
         </div>
       </div>
+
+      {/* Pending Approvals Panel - Manager only */}
+      {isManager && pendingApprovals.length > 0 && (
+        <div className="mb-6 rounded-2xl border-2 border-yellow-400/50 bg-yellow-400/5 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <AlertCircle size={20} className="text-yellow-300" />
+            <h2 className="text-lg font-bold text-yellow-100">
+              {tx(lang, 'Gözləyən ləğv tələbləri', 'Ожидающие запросы на отмену', 'Pending void requests')}
+              <span className="ml-2 rounded-full bg-yellow-400/20 px-2.5 py-0.5 text-sm text-yellow-200">{pendingApprovals.length}</span>
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {pendingApprovals.map((item) => (
+              <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-yellow-300/30 bg-slate-900/60 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold text-slate-100">{item.item_name} <span className="text-slate-400">×{item.qty}</span></div>
+                  <div className="text-xs text-slate-400">
+                    {item.table_label ? `Masa: ${item.table_label}` : ''}{item.action_by ? ` · ${item.action_by}` : ''}
+                  </div>
+                  {item.status_reason && <div className="mt-0.5 text-xs text-yellow-200/80">{item.status_reason}</div>}
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleApproveVoid(item.id)}
+                    className="rounded-lg border border-emerald-300/40 bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-100 transition active:scale-95"
+                  >
+                    {tx(lang, 'Təsdiq', 'Одобрить', 'Approve')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleRejectVoid(item.id)}
+                    className="rounded-lg border border-rose-300/40 bg-rose-500/15 px-3 py-2 text-xs font-bold text-rose-100 transition active:scale-95"
+                  >
+                    {tx(lang, 'Rədd', 'Отклонить', 'Reject')}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
         {groupedOrders.map(order => (

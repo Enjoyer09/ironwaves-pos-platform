@@ -752,3 +752,40 @@ export async function seat_reservation_live(reservationId: string, payload: { ta
     body: payload,
   });
 }
+
+
+// ─── Manager Approval API ────────────────────────────────────────────────────
+
+export type PendingApprovalItem = {
+  id: string;
+  item_name: string;
+  qty: number;
+  price: string;
+  status: string;
+  status_reason: string | null;
+  action_by: string | null;
+  table_label: string | null;
+  table_id: string | null;
+  check_id: string | null;
+  round_id: string | null;
+  cancelled_at: string | null;
+};
+
+export async function get_pending_approvals_live(): Promise<PendingApprovalItem[]> {
+  if (!isBackendEnabled()) return [];
+  return apiRequest<PendingApprovalItem[]>('/api/v1/restaurant/pending-approvals', { tenantId: null });
+}
+
+export async function approve_void_request_live(itemId: string) {
+  return apiRequest<{ success: boolean; item_id: string; new_status: string }>(
+    `/api/v1/restaurant/pending-approvals/${encodeURIComponent(itemId)}/approve`,
+    { method: 'POST', tenantId: null },
+  );
+}
+
+export async function reject_void_request_live(itemId: string) {
+  return apiRequest<{ success: boolean; item_id: string; new_status: string }>(
+    `/api/v1/restaurant/pending-approvals/${encodeURIComponent(itemId)}/reject`,
+    { method: 'POST', tenantId: null },
+  );
+}
