@@ -2333,7 +2333,7 @@ export default function SettingsPanel() {
             <div className="mt-3 grid grid-cols-2 gap-2">
               {([
                 ['dark', tx(lang, 'Dark', 'Тёмная', 'Dark')],
-                ['light', tx(lang, 'Light', 'Светлая', 'Light')],
+                ['light', tx(lang, 'Light (beta)', 'Светлая (beta)', 'Light (beta)')],
               ] as Array<['dark' | 'light', string]>).map(([mode, label]) => (
                 <button
                   key={mode}
