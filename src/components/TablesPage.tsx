@@ -2966,11 +2966,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 		                  </div>
 	                  )}
                       {showSentSlideUp && (
-                        <div className="fixed inset-0 z-[140] flex flex-col bg-black/60" onClick={() => setShowSentSlideUp(false)}>
-                          <div className="flex-1" />
+                        <div className="fixed inset-0 z-[140] flex items-end bg-black/50 transition-opacity duration-300" onClick={() => setShowSentSlideUp(false)}>
                           <div
-                            className="mx-auto flex w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl border border-slate-700/60 bg-slate-950 shadow-2xl"
-                            style={{ maxHeight: '75vh' }}
+                            className="flex w-full flex-col overflow-hidden rounded-t-2xl border-t border-slate-700/60 bg-slate-950 shadow-2xl animate-[slideUp_300ms_ease-out]"
+                            style={{ height: 'calc(100vh - 60px)' }}
                             onClick={(e) => e.stopPropagation()}
                           >
                             <div className="flex items-center justify-between border-b border-slate-700/60 px-5 py-4">
