@@ -103,45 +103,30 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           )}
         </div>
 
-        {/* Sent items - grouped by status */}
+        {/* Sent items - button to open full panel */}
         {sentItems.length > 0 && (
-          <div className="mt-3 border-t border-slate-700/50 pt-2">
-            <div className="mb-2 flex items-center justify-between">
-              <div className="text-xs font-bold uppercase tracking-wider text-slate-400">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent')} ({sentItems.length})</div>
-              <button type="button" onClick={onShowFullList} className="text-[11px] font-semibold text-cyan-300 hover:text-cyan-200">{tx(lang, 'Ətraflı', 'Подробнее', 'Details')}</button>
-            </div>
-            <div className="max-h-[180px] space-y-1 overflow-y-auto overscroll-y-contain pr-1">
-              {(() => {
-                const statusOrder = ['READY', 'PREPARING', 'SENT', 'NEW', 'VOID_REQUESTED', 'SERVED'];
-                const sorted = [...sentItems].sort((a, b) => {
-                  const aIdx = statusOrder.indexOf(String(a.status || 'SENT').toUpperCase());
-                  const bIdx = statusOrder.indexOf(String(b.status || 'SENT').toUpperCase());
-                  return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
-                });
-                return sorted.map((it: any, idx: number) => {
-                  const status = String(it.status || 'SENT').toUpperCase();
-                  const dotColor =
-                    status === 'READY' ? 'bg-emerald-400' :
-                    status === 'PREPARING' ? 'bg-orange-400' :
-                    status === 'VOID_REQUESTED' ? 'bg-yellow-400 animate-pulse' :
-                    status === 'SERVED' ? 'bg-slate-500' :
-                    'bg-blue-400';
-                  const rowBorder =
-                    status === 'READY' ? 'border-emerald-400/30' :
-                    status === 'VOID_REQUESTED' ? 'border-yellow-400/30' :
-                    'border-slate-700/40';
-                  return (
-                    <div key={`${it.id || idx}`} className={`flex items-center gap-2 rounded-lg border ${rowBorder} bg-slate-900/30 px-2 py-1.5`}>
-                      <span className={`h-2 w-2 shrink-0 rounded-full ${dotColor}`} />
-                      <div className="min-w-0 flex-1 truncate text-xs text-slate-200">
-                        {it.item_name}
-                      </div>
-                      <span className="shrink-0 text-xs font-bold text-slate-400">×{it.qty}</span>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
+          <div className="mt-3 border-t border-slate-700/50 pt-3">
+            <button
+              type="button"
+              onClick={onShowFullList}
+              className="flex w-full items-center justify-between rounded-xl border border-slate-600/50 bg-slate-800/50 px-3 py-2.5 text-left transition hover:bg-slate-700/50 active:scale-[0.98]"
+            >
+              <div className="flex items-center gap-2">
+                <div className="flex -space-x-1">
+                  {sentItems.some((it: any) => String(it.status || '').toUpperCase() === 'READY') && <span className="h-2.5 w-2.5 rounded-full border border-slate-900 bg-emerald-400" />}
+                  {sentItems.some((it: any) => String(it.status || '').toUpperCase() === 'PREPARING') && <span className="h-2.5 w-2.5 rounded-full border border-slate-900 bg-orange-400" />}
+                  {sentItems.some((it: any) => ['SENT', 'NEW'].includes(String(it.status || '').toUpperCase())) && <span className="h-2.5 w-2.5 rounded-full border border-slate-900 bg-blue-400" />}
+                  {sentItems.some((it: any) => String(it.status || '').toUpperCase() === 'VOID_REQUESTED') && <span className="h-2.5 w-2.5 rounded-full border border-slate-900 bg-yellow-400" />}
+                </div>
+                <span className="text-xs font-bold text-slate-200">
+                  {tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent')}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="rounded-full bg-slate-700/80 px-2 py-0.5 text-xs font-bold text-slate-200">{sentItems.length}</span>
+                <span className="text-slate-500">→</span>
+              </div>
+            </button>
           </div>
         )}
 
