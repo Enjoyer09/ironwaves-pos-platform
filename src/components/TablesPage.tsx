@@ -2963,6 +2963,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       </div>
                     </div>
                       {/* Slide-up Sent Items Panel - fixed overlay */}
+		                  </div>
+	                  )}
                       {showSentSlideUp && (
                         <div className="fixed inset-0 z-[140] flex flex-col bg-black/60" onClick={() => setShowSentSlideUp(false)}>
                           <div className="flex-1" />
@@ -3059,8 +3061,6 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           </div>
                         </div>
                       )}
-		                  </div>
-	                  )}
 	                  {showFullOrderList && (
 	                    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/70 p-4">
 	                      <div className="metal-panel flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl p-5">
