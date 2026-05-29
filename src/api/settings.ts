@@ -1609,7 +1609,13 @@ export async function get_public_branding_live(tenant_id?: string) {
   if (!isBackendEnabled()) return get_business_profile(tenant_id);
   const requestedTenant = String(tenant_id || '').trim();
   const query = requestedTenant ? `?tenant_id=${encodeURIComponent(requestedTenant)}` : '';
-  const data = await apiRequest<any>(`/api/v1/ops/public-branding${query}`, { tenantId: null, auth: false });
+  const data = await apiRequest<any>(`/api/v1/ops/public-branding${query}`, {
+    tenantId: null,
+    auth: false,
+    timeoutMs: 12000,
+    retryCount: 2,
+    retryDelayMs: 1500,
+  });
   const profiles = getDB<any>('business_profile');
   const resolvedTenant = String(data?.tenant_id || requestedTenant);
   const idx = profiles.findIndex((p) => p.tenant_id === resolvedTenant);

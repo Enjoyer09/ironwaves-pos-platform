@@ -43,28 +43,45 @@ export default function PinLogin() {
 
   React.useEffect(() => {
     let mounted = true;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     setBranding(tenantId ? get_business_profile(tenantId) : { company_name: 'iRonWaves POS', logo_url: '' });
     setTenantAccessState('ok');
-    get_public_branding_live(tenantId || undefined)
-      .then((data) => {
-        if (mounted && data) {
-          setBranding(data);
-          setTenantAccessState('ok');
-        }
-      })
-      .catch((error) => {
-        if (!mounted) return;
-        const message = error instanceof Error ? error.message : String(error || '');
-        if (message.includes('Tenant not configured for this domain')) {
-          setTenantAccessState('not_found');
-          return;
-        }
-        if (message.includes('Tenant is suspended')) {
-          setTenantAccessState('suspended');
-        }
-      });
+
+    const fetchBranding = (attempt = 0) => {
+      get_public_branding_live(tenantId || undefined)
+        .then((data) => {
+          if (mounted && data) {
+            setBranding(data);
+            setTenantAccessState('ok');
+          }
+        })
+        .catch((error) => {
+          if (!mounted) return;
+          const message = error instanceof Error ? error.message : String(error || '');
+          if (message.includes('Tenant not configured for this domain')) {
+            // Backend cold start may cause false "not configured" — retry once after delay
+            if (attempt < 2) {
+              retryTimer = setTimeout(() => fetchBranding(attempt + 1), attempt === 0 ? 2000 : 4000);
+              return;
+            }
+            setTenantAccessState('not_found');
+            return;
+          }
+          if (message.includes('Tenant is suspended')) {
+            setTenantAccessState('suspended');
+            return;
+          }
+          // Network error / timeout — retry
+          if (attempt < 3) {
+            retryTimer = setTimeout(() => fetchBranding(attempt + 1), attempt === 0 ? 1500 : 3000);
+          }
+        });
+    };
+
+    fetchBranding(0);
     return () => {
       mounted = false;
+      if (retryTimer) clearTimeout(retryTimer);
     };
   }, [tenantId]);
 
