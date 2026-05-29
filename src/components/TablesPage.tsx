@@ -2931,6 +2931,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                        }}
 	                        sentItems={sentDisplayItems}
 	                        onShowFullList={() => setShowFullOrderList(true)}
+	                        onVoidItem={(item) => { setItemActionTarget({ ...item, action: 'VOID' }); setItemActionReason(''); setItemActionManagerPassword(''); }}
 	                        lockHolder={tableLockHolder}
 	                        userCanEditTable={userCanEditTable}
 	                        readyCount={readyItems.length}
