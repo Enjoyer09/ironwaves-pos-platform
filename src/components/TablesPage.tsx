@@ -76,6 +76,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const [revisionReason, setRevisionReason] = useState('');
   const [revisionOverridePassword, setRevisionOverridePassword] = useState('');
   const [showFullOrderList, setShowFullOrderList] = useState(false);
+  const [showSentSlideUp, setShowSentSlideUp] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'Nəğd' | 'Kart' | 'Split'>('Nəğd');
   const [tableDiscountPercent, setTableDiscountPercent] = useState('0');
   const [splitCash, setSplitCash] = useState('0');
@@ -551,6 +552,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 
   useEffect(() => {
     clearRoundComposer();
+    setShowSentSlideUp(false);
   }, [viewTableId]);
 
   useEffect(() => {
@@ -2810,103 +2812,30 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     </div>
                   </div>
                   )}
-		                  <div className={`order-2 mt-3 max-h-[14vh] min-h-[64px] flex-none overflow-y-auto overscroll-y-contain rounded-lg border border-slate-700/70 bg-slate-900/40 p-3 ${tableWorkspaceTab === 'compose' ? '' : 'hidden'} ${isBahaYLab && sentDisplayItems.length === 0 ? 'hidden' : ''} ${isBahaYLab ? 'max-h-[8vh] min-h-[36px] p-2' : ''}`}>
-	                    {!userCanEditTable && (
-	                      <div className="mb-3 rounded-lg border border-rose-300/30 bg-rose-500/10 px-3 py-3 text-sm text-rose-100">
-	                        {tx(lang, 'Bu masa read-only görünüşdədir. Yalnız owner və ya manager əməliyyat edə bilər.', 'Этот стол открыт только для просмотра. Операции доступны только владельцу или менеджеру.', 'This table is read-only. Only the owner or a manager can perform actions.')}
+		                  <div className={`order-2 mt-3 flex-none ${tableWorkspaceTab === 'compose' ? '' : 'hidden'} ${isBahaYLab && sentDisplayItems.length === 0 ? 'hidden' : ''}`}>
+	                    {/* Trigger bar */}
+	                    <button
+	                      type="button"
+	                      onClick={() => setShowSentSlideUp(true)}
+	                      className="flex w-full items-center justify-between rounded-xl border border-slate-700/60 bg-slate-900/50 px-4 py-3 text-left transition hover:bg-slate-800/60 active:scale-[0.99]"
+	                    >
+	                      <div className="flex items-center gap-2.5">
+	                        <div className="flex -space-x-1.5">
+	                          {sentDisplayItems.some((it: any) => normalizeOrderItemStatus(it.status) === 'READY') && <span className="h-3 w-3 rounded-full border-2 border-slate-900 bg-emerald-400" />}
+	                          {sentDisplayItems.some((it: any) => normalizeOrderItemStatus(it.status) === 'PREPARING') && <span className="h-3 w-3 rounded-full border-2 border-slate-900 bg-orange-400" />}
+	                          {sentDisplayItems.some((it: any) => ['SENT', 'NEW'].includes(normalizeOrderItemStatus(it.status))) && <span className="h-3 w-3 rounded-full border-2 border-slate-900 bg-blue-400" />}
+	                          {sentDisplayItems.some((it: any) => normalizeOrderItemStatus(it.status) === 'VOID_REQUESTED') && <span className="h-3 w-3 rounded-full border-2 border-slate-900 bg-yellow-400 animate-pulse" />}
+	                        </div>
+	                        <span className="text-sm font-bold text-slate-200">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent')}</span>
 	                      </div>
-	                    )}
-	                    <div className="mb-2 flex items-center justify-between gap-2">
-	                      <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent items')}</div>
-	                      <button
-	                        type="button"
-	                        onClick={() => setShowFullOrderList(true)}
-	                        className="rounded-full border border-cyan-300/30 bg-cyan-500/10 px-3 py-1 text-xs font-bold text-cyan-100"
-	                      >
-	                        {tx(lang, 'Tam siyahı', 'Полный список', 'Full list')}
-	                      </button>
-	                    </div>
-	                    {sentDisplayItems.length === 0 && <div className="text-sm text-slate-400">{tx(lang, 'Hələ mətbəxə göndərilmiş sifariş yoxdur', 'Пока нет отправленных на кухню заказов', 'No sent kitchen orders yet')}</div>}
-	                    {sentDisplayItems.map((it: any, idx: number) => {
-                        const status = normalizeOrderItemStatus(it.status || it.raw_status);
-                        const actions = it.id ? sentItemActions({ ...it, status }) : [];
-                        return (
-                          <div key={`${it.id || it.item_name}_${idx}`} className="flex items-center justify-between gap-3 border-b border-slate-700/40 py-2 text-sm last:border-b-0">
-                            <div className="min-w-0">
-                              <div className="truncate font-semibold text-slate-100">{it.item_name}</div>
-                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                                <span>x{it.qty}</span>
-                                <span className="rounded-full border border-slate-600/70 bg-slate-950/50 px-2 py-0.5 text-[10px] font-bold text-slate-300">{status}</span>
-                                {it.round_no ? <span className="rounded-full border border-violet-300/30 bg-violet-500/10 px-2 py-0.5 text-[10px] font-bold text-violet-100">Raund {it.round_no}</span> : null}
-                              </div>
-                              {it.status_reason ? <div className="mt-1 text-[11px] text-slate-500">{it.status_reason}</div> : null}
-                              {it.note ? <div className="mt-1 text-[11px] text-amber-100/80">{it.note}</div> : null}
-                              {it.id ? (
-                                <button
-                                  type="button"
-                                  className="mt-1 text-[11px] font-semibold text-cyan-200 hover:text-cyan-100"
-                                  onClick={async (event) => {
-                                    event.stopPropagation();
-                                    try {
-                                      setStatusLogTarget(it);
-                                      setStatusLogRows(await get_order_item_status_logs_live(it.id));
-                                    } catch (e: any) {
-                                      notify('error', e?.message || tx(lang, 'Status tarixçəsi açılmadı', 'История статуса не открылась', 'Status history did not open'));
-                                    }
-                                  }}
-                                >
-                                  {tx(lang, 'Status tarixçəsi', 'История статуса', 'Status history')}
-                                </button>
-                              ) : null}
-                            </div>
-                            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                              {it.id && userCanEditTable && actions.length > 0 ? (
-                                actions.map((action) => (
-                                  <button
-                                    key={`${it.id}_${action}`}
-                                    type="button"
-                                    className={`rounded-md border px-2 py-1 text-xs font-semibold ${
-                                      action === 'DECREASE'
-                                        ? 'border-amber-300/40 bg-amber-500/10 text-amber-100'
-                                        : action === 'VOID'
-                                          ? 'border-yellow-300/40 bg-yellow-500/10 text-yellow-100'
-                                          : action === 'COMP'
-                                            ? 'border-sky-300/40 bg-sky-500/10 text-sky-100'
-                                            : action === 'WASTE'
-                                              ? 'border-slate-300/30 bg-slate-500/15 text-slate-100'
-                                              : 'border-orange-300/40 bg-orange-500/10 text-orange-100'
-                                    }`}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      setItemActionTarget({ item: { ...it, status }, action });
-                                      setItemActionQuantityDelta('1');
-                                      setItemActionReasonCode(action === 'WASTE' ? 'kitchen_mistake' : 'guest_changed_mind');
-                                    }}
-                                  >
-                                    {itemActionLabel(action)}
-                                  </button>
-                                ))
-                              ) : !it.id ? (
-                                <button
-                                  disabled={!userCanEditTable}
-                                  className="rounded-md border border-amber-300/40 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-100"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const nextItems = buildRevisionNextItems(it.item_name, 1);
-                                    // Items without an id haven't been sent to kitchen yet
-                                    setRevisionTarget({ tableId: t.id, itemName: it.item_name, nextItems, hasSentItems: false });
-                                  }}
-                                >
-                                  {tx(lang, 'Azalt', 'Уменьшить', 'Reduce')}
-                                </button>
-                              ) : null}
-                            </div>
-                          </div>
-                        );
-                      })}
+	                      <div className="flex items-center gap-2">
+	                        <span className="rounded-full bg-slate-700/80 px-2.5 py-0.5 text-xs font-bold text-slate-100">{sentDisplayItems.length}</span>
+	                        <span className="text-lg text-slate-400">↑</span>
+	                      </div>
+	                    </button>
 	                  </div>
 	                  {tableWorkspaceTab === 'compose' && isBahaYLab && (
-	                    <div className="order-1 flex min-h-0 flex-[1.2] flex-col overflow-hidden">
+	                    <div className="relative order-1 flex min-h-0 flex-[1.2] flex-col overflow-hidden">
 	                      <BahaYTableCompose
 	                        lang={lang}
 	                        filteredRoundMenu={filteredRoundMenu}
@@ -3033,6 +2962,106 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         />
                       </div>
                     </div>
+                      {/* Slide-up Sent Items Panel */}
+                      <div
+                        className={`absolute inset-0 z-20 flex flex-col overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-950 transition-transform duration-300 ease-out ${
+                          showSentSlideUp ? 'translate-y-0' : 'translate-y-full pointer-events-none'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between border-b border-slate-700/60 px-4 py-3">
+                          <div>
+                            <div className="text-base font-bold text-slate-100">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent Items')}</div>
+                            <div className="text-xs text-slate-400">{sentDisplayItems.length} {tx(lang, 'item', 'позиций', 'items')}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowSentSlideUp(false)}
+                            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-600/60 bg-slate-800/60 text-lg font-bold text-slate-300 transition hover:bg-slate-700/60"
+                          >
+                            ↓
+                          </button>
+                        </div>
+                        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3">
+                          <div className="space-y-2">
+                            {(() => {
+                              const statusOrder = ['READY', 'PREPARING', 'SENT', 'NEW', 'VOID_REQUESTED', 'SERVED', 'VOIDED', 'COMPED', 'WASTE'];
+                              const sorted = [...sentDisplayItems].sort((a: any, b: any) => {
+                                const aIdx = statusOrder.indexOf(normalizeOrderItemStatus(a.status || 'SENT'));
+                                const bIdx = statusOrder.indexOf(normalizeOrderItemStatus(b.status || 'SENT'));
+                                return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
+                              });
+                              return sorted.map((it: any, idx: number) => {
+                                const status = normalizeOrderItemStatus(it.status || it.raw_status);
+                                const isTerminal = ['VOIDED', 'COMPED', 'WASTE'].includes(status);
+                                const actions = it.id && userCanEditTable ? sentItemActions({ ...it, status }) : [];
+                                const dotColor =
+                                  status === 'READY' ? 'bg-emerald-400' :
+                                  status === 'PREPARING' ? 'bg-orange-400' :
+                                  status === 'VOID_REQUESTED' ? 'bg-yellow-400 animate-pulse' :
+                                  status === 'SERVED' ? 'bg-violet-400' :
+                                  isTerminal ? 'bg-slate-600' :
+                                  'bg-blue-400';
+                                const statusLabel =
+                                  status === 'READY' ? tx(lang, 'Hazır', 'Готово', 'Ready') :
+                                  status === 'PREPARING' ? tx(lang, 'Hazırlanır', 'Готовится', 'Preparing') :
+                                  status === 'VOID_REQUESTED' ? tx(lang, 'Ləğv gözləyir', 'Ожидает', 'Pending') :
+                                  status === 'SERVED' ? tx(lang, 'Servis', 'Подано', 'Served') :
+                                  status === 'VOIDED' ? tx(lang, 'Ləğv edilib', 'Отменено', 'Voided') :
+                                  tx(lang, 'Göndərilib', 'Отправлено', 'Sent');
+                                return (
+                                  <div key={`slide_${it.id || it.item_name}_${idx}`} className={`rounded-xl border px-3 py-2.5 ${isTerminal ? 'border-slate-800/50 opacity-40' : 'border-slate-700/50 bg-slate-900/40'}`}>
+                                    <div className="flex items-center gap-2.5">
+                                      <span className={`h-3 w-3 shrink-0 rounded-full ${dotColor}`} />
+                                      <div className="min-w-0 flex-1">
+                                        <div className="truncate text-sm font-semibold text-slate-100">{it.item_name}</div>
+                                        <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-400">
+                                          <span>×{it.qty}</span>
+                                          <span>·</span>
+                                          <span>{statusLabel}</span>
+                                          {it.round_no ? <><span>·</span><span className="text-violet-300">R{it.round_no}</span></> : null}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    {actions.length > 0 && (
+                                      <div className="mt-2 flex flex-wrap gap-1.5 pl-5">
+                                        {actions.map((action) => (
+                                          <button
+                                            key={`${it.id}_${action}`}
+                                            type="button"
+                                            className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold ${
+                                              action === 'DECREASE' ? 'border-amber-300/40 bg-amber-500/10 text-amber-100' :
+                                              action === 'VOID' ? 'border-yellow-300/40 bg-yellow-500/10 text-yellow-100' :
+                                              action === 'COMP' ? 'border-sky-300/40 bg-sky-500/10 text-sky-100' :
+                                              action === 'WASTE' ? 'border-slate-300/30 bg-slate-500/15 text-slate-100' :
+                                              'border-orange-300/40 bg-orange-500/10 text-orange-100'
+                                            }`}
+                                            onClick={() => {
+                                              setItemActionTarget({ item: { ...it, status }, action });
+                                              setItemActionQuantityDelta('1');
+                                              setItemActionReasonCode(action === 'WASTE' ? 'kitchen_mistake' : 'guest_changed_mind');
+                                            }}
+                                          >
+                                            {itemActionLabel(action)}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              });
+                            })()}
+                          </div>
+                        </div>
+                        <div className="border-t border-slate-700/60 px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => setShowSentSlideUp(false)}
+                            className="w-full rounded-xl border border-slate-600/60 bg-slate-800/60 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:bg-slate-700/60 active:scale-[0.98]"
+                          >
+                            ↓ {tx(lang, 'Bağla', 'Закрыть', 'Close')}
+                          </button>
+                        </div>
+                      </div>
 		                  </div>
 	                  )}
 	                  {showFullOrderList && (
