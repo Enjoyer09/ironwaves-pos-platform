@@ -173,6 +173,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         pendingOfflineTableOpItems,
         anomalies,
         auditLogs,
+        agentInsights,
       ] = await Promise.all([
         get_sales_summary_live(tenant_id, activeRange.fromIso, activeRange.toIso).catch(() =>
           get_sales_summary(tenant_id, activeRange.fromIso, activeRange.toIso),
