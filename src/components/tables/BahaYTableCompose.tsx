@@ -103,18 +103,44 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           )}
         </div>
 
-        {/* Sent items (compact) */}
+        {/* Sent items - grouped by status */}
         {sentItems.length > 0 && (
           <div className="mt-3 border-t border-slate-700/50 pt-2">
-            <div className="mb-1 flex items-center justify-between">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent')}</div>
-              <button type="button" onClick={onShowFullList} className="text-[11px] text-cyan-300">{tx(lang, 'Tam', 'Все', 'All')}</button>
+            <div className="mb-2 flex items-center justify-between">
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-400">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent')} ({sentItems.length})</div>
+              <button type="button" onClick={onShowFullList} className="text-[11px] font-semibold text-cyan-300 hover:text-cyan-200">{tx(lang, 'Ətraflı', 'Подробнее', 'Details')}</button>
             </div>
-            <div className="max-h-[80px] overflow-y-auto text-[11px] text-slate-400">
-              {sentItems.slice(0, 5).map((it: any, idx: number) => (
-                <div key={idx} className="truncate">{it.item_name} ×{it.qty}</div>
-              ))}
-              {sentItems.length > 5 && <div>+{sentItems.length - 5} {tx(lang, 'daha', 'ещё', 'more')}...</div>}
+            <div className="max-h-[180px] space-y-1 overflow-y-auto overscroll-y-contain pr-1">
+              {(() => {
+                const statusOrder = ['READY', 'PREPARING', 'SENT', 'NEW', 'VOID_REQUESTED', 'SERVED'];
+                const sorted = [...sentItems].sort((a, b) => {
+                  const aIdx = statusOrder.indexOf(String(a.status || 'SENT').toUpperCase());
+                  const bIdx = statusOrder.indexOf(String(b.status || 'SENT').toUpperCase());
+                  return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
+                });
+                return sorted.map((it: any, idx: number) => {
+                  const status = String(it.status || 'SENT').toUpperCase();
+                  const dotColor =
+                    status === 'READY' ? 'bg-emerald-400' :
+                    status === 'PREPARING' ? 'bg-orange-400' :
+                    status === 'VOID_REQUESTED' ? 'bg-yellow-400 animate-pulse' :
+                    status === 'SERVED' ? 'bg-slate-500' :
+                    'bg-blue-400';
+                  const rowBorder =
+                    status === 'READY' ? 'border-emerald-400/30' :
+                    status === 'VOID_REQUESTED' ? 'border-yellow-400/30' :
+                    'border-slate-700/40';
+                  return (
+                    <div key={`${it.id || idx}`} className={`flex items-center gap-2 rounded-lg border ${rowBorder} bg-slate-900/30 px-2 py-1.5`}>
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${dotColor}`} />
+                      <div className="min-w-0 flex-1 truncate text-xs text-slate-200">
+                        {it.item_name}
+                      </div>
+                      <span className="shrink-0 text-xs font-bold text-slate-400">×{it.qty}</span>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
         )}
