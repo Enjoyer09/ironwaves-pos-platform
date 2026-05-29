@@ -1378,6 +1378,142 @@ html {
     border-color: #f59e0b !important;
     box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2) !important;
   }
+
+  /* ─── Colored Panels & Status Backgrounds (Dashboard, Finance, Inventory) ─── */
+  html[data-theme='light'] [class*='bg-emerald-400\/'],
+  html[data-theme='light'] [class*='bg-emerald-500\/'],
+  html[data-theme='light'] [class*='bg-green-400\/'],
+  html[data-theme='light'] [class*='bg-green-500\/'] {
+    background-color: rgba(5, 150, 105, 0.12) !important;
+  }
+
+  html[data-theme='light'] [class*='bg-blue-400\/'],
+  html[data-theme='light'] [class*='bg-blue-500\/'],
+  html[data-theme='light'] [class*='bg-indigo-400\/'],
+  html[data-theme='light'] [class*='bg-indigo-500\/'] {
+    background-color: rgba(37, 99, 235, 0.1) !important;
+  }
+
+  html[data-theme='light'] [class*='bg-amber-400\/'],
+  html[data-theme='light'] [class*='bg-amber-500\/'],
+  html[data-theme='light'] [class*='bg-yellow-400\/'],
+  html[data-theme='light'] [class*='bg-yellow-500\/'],
+  html[data-theme='light'] [class*='bg-orange-400\/'],
+  html[data-theme='light'] [class*='bg-orange-500\/'] {
+    background-color: rgba(217, 119, 6, 0.1) !important;
+  }
+
+  html[data-theme='light'] [class*='bg-rose-400\/'],
+  html[data-theme='light'] [class*='bg-rose-500\/'],
+  html[data-theme='light'] [class*='bg-red-400\/'],
+  html[data-theme='light'] [class*='bg-red-500\/'] {
+    background-color: rgba(225, 29, 72, 0.08) !important;
+  }
+
+  html[data-theme='light'] [class*='bg-purple-400\/'],
+  html[data-theme='light'] [class*='bg-purple-500\/'],
+  html[data-theme='light'] [class*='bg-violet-400\/'],
+  html[data-theme='light'] [class*='bg-violet-500\/'],
+  html[data-theme='light'] [class*='bg-fuchsia-400\/'],
+  html[data-theme='light'] [class*='bg-fuchsia-500\/'] {
+    background-color: rgba(124, 58, 237, 0.08) !important;
+  }
+
+  html[data-theme='light'] [class*='bg-cyan-400\/'],
+  html[data-theme='light'] [class*='bg-cyan-500\/'],
+  html[data-theme='light'] [class*='bg-teal-400\/'],
+  html[data-theme='light'] [class*='bg-teal-500\/'] {
+    background-color: rgba(8, 145, 178, 0.1) !important;
+  }
+
+  html[data-theme='light'] [class*='bg-sky-400\/'],
+  html[data-theme='light'] [class*='bg-sky-500\/'] {
+    background-color: rgba(14, 165, 233, 0.1) !important;
+  }
+
+  /* ─── Colored Borders — stronger in light mode ─── */
+  html[data-theme='light'] [class*='border-emerald-300\/'],
+  html[data-theme='light'] [class*='border-emerald-400\/'],
+  html[data-theme='light'] [class*='border-green-300\/'],
+  html[data-theme='light'] [class*='border-green-400\/'] {
+    border-color: rgba(5, 150, 105, 0.35) !important;
+  }
+
+  html[data-theme='light'] [class*='border-blue-300\/'],
+  html[data-theme='light'] [class*='border-blue-400\/'],
+  html[data-theme='light'] [class*='border-indigo-300\/'] {
+    border-color: rgba(37, 99, 235, 0.3) !important;
+  }
+
+  html[data-theme='light'] [class*='border-amber-300\/'],
+  html[data-theme='light'] [class*='border-amber-400\/'],
+  html[data-theme='light'] [class*='border-yellow-300\/'],
+  html[data-theme='light'] [class*='border-yellow-400\/'],
+  html[data-theme='light'] [class*='border-orange-300\/'],
+  html[data-theme='light'] [class*='border-orange-400\/'] {
+    border-color: rgba(217, 119, 6, 0.35) !important;
+  }
+
+  html[data-theme='light'] [class*='border-rose-300\/'],
+  html[data-theme='light'] [class*='border-rose-400\/'],
+  html[data-theme='light'] [class*='border-red-300\/'],
+  html[data-theme='light'] [class*='border-red-400\/'] {
+    border-color: rgba(225, 29, 72, 0.3) !important;
+  }
+
+  html[data-theme='light'] [class*='border-purple-300\/'],
+  html[data-theme='light'] [class*='border-violet-300\/'],
+  html[data-theme='light'] [class*='border-fuchsia-300\/'] {
+    border-color: rgba(124, 58, 237, 0.3) !important;
+  }
+
+  html[data-theme='light'] [class*='border-cyan-300\/'],
+  html[data-theme='light'] [class*='border-cyan-400\/'],
+  html[data-theme='light'] [class*='border-teal-300\/'] {
+    border-color: rgba(8, 145, 178, 0.3) !important;
+  }
+
+  html[data-theme='light'] [class*='border-sky-300\/'],
+  html[data-theme='light'] [class*='border-sky-400\/'] {
+    border-color: rgba(14, 165, 233, 0.3) !important;
+  }
+
+  /* ─── Colored text that was too dark ─── */
+  html[data-theme='light'] [class*='text-emerald-100'],
+  html[data-theme='light'] [class*='text-green-100'] {
+    color: #047857 !important;
+  }
+
+  html[data-theme='light'] [class*='text-blue-100'],
+  html[data-theme='light'] [class*='text-indigo-100'] {
+    color: #1d4ed8 !important;
+  }
+
+  html[data-theme='light'] [class*='text-amber-100'],
+  html[data-theme='light'] [class*='text-yellow-100'],
+  html[data-theme='light'] [class*='text-orange-100'] {
+    color: #b45309 !important;
+  }
+
+  html[data-theme='light'] [class*='text-rose-100'],
+  html[data-theme='light'] [class*='text-red-100'] {
+    color: #be123c !important;
+  }
+
+  html[data-theme='light'] [class*='text-cyan-100'],
+  html[data-theme='light'] [class*='text-teal-100'] {
+    color: #0e7490 !important;
+  }
+
+  html[data-theme='light'] [class*='text-purple-100'],
+  html[data-theme='light'] [class*='text-violet-100'],
+  html[data-theme='light'] [class*='text-fuchsia-100'] {
+    color: #6d28d9 !important;
+  }
+
+  html[data-theme='light'] [class*='text-sky-100'] {
+    color: #0369a1 !important;
+  }
 }
 
 @layer utilities {
