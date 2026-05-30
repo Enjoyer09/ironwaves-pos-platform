@@ -706,11 +706,9 @@ export function get_settings(tenant_id?: string) {
       manager: ['pos', 'tables', 'kds', 'zreport', 'finance', 'inventory', 'combos', 'analytics', 'logs', 'crm', 'customerapp', 'posbuilder', 'ai', 'menu', 'recipes'],
       kitchen: ['kds']
     };
-    saveSettings(s);
   }
   if (!s.print_settings) {
     s.print_settings = { use_qz: false, printer_name: '' };
-    saveSettings(s);
   }
   if (!s.pos_layout) {
     s.pos_layout = {
@@ -730,7 +728,6 @@ export function get_settings(tenant_id?: string) {
         },
       },
     };
-    saveSettings(s);
   } else if (!s.pos_layout.device_layouts) {
     s.pos_layout.device_layouts = {
       desktop: {},
@@ -742,34 +739,26 @@ export function get_settings(tenant_id?: string) {
         left_widget_order: ['search', 'categories', 'productGrid'],
       },
     };
-    saveSettings(s);
   }
   if (!s.pos_layout_draft) {
     s.pos_layout_draft = JSON.parse(JSON.stringify(s.pos_layout || DEFAULT_POS_LAYOUT));
-    saveSettings(s);
   }
   s.pos_layout = normalizePosLayoutConfig(s.pos_layout || DEFAULT_POS_LAYOUT, DEFAULT_POS_LAYOUT);
   s.pos_layout_draft = normalizePosLayoutConfig(s.pos_layout_draft || s.pos_layout || DEFAULT_POS_LAYOUT, s.pos_layout || DEFAULT_POS_LAYOUT);
-  saveSettings(s);
   if (!s.pos_layout.left_hidden_widgets) {
     s.pos_layout.left_hidden_widgets = [];
-    saveSettings(s);
   }
   if (!s.pos_layout.left_widget_order) {
     s.pos_layout.left_widget_order = ['menuHeader', 'search', 'categories', 'productGrid'];
-    saveSettings(s);
   }
   if (!s.pos_layout.widget_sizes) {
     s.pos_layout.widget_sizes = {};
-    saveSettings(s);
   }
   if (!s.pos_layout.left_widget_sizes) {
     s.pos_layout.left_widget_sizes = {};
-    saveSettings(s);
   }
   if (!s.qr_settings) {
     s.qr_settings = { base_url: '' };
-    saveSettings(s);
   }
   if (!s.qr_menu_settings) {
     s.qr_menu_settings = {
@@ -789,18 +778,14 @@ export function get_settings(tenant_id?: string) {
       poster_background_color: '#d59b2d',
       logo_shape: 'rounded',
     };
-    saveSettings(s);
   }
   if (!s.feedback_settings) {
     s.feedback_settings = normalizeFeedbackSettings(DEFAULT_FEEDBACK_SETTINGS);
-    saveSettings(s);
   } else {
     s.feedback_settings = normalizeFeedbackSettings(s.feedback_settings);
-    saveSettings(s);
   }
   if (!s.z_report_receipt_settings) {
     s.z_report_receipt_settings = DEFAULT_Z_REPORT_RECEIPT_SETTINGS;
-    saveSettings(s);
   }
   if (!s.customer_app_settings) {
     s.customer_app_settings = {
@@ -832,11 +817,9 @@ export function get_settings(tenant_id?: string) {
       show_history: true,
       show_notifications: true,
     };
-    saveSettings(s);
   }
   if (!s.pos_layout) {
     s.pos_layout = JSON.parse(JSON.stringify(DEFAULT_POS_LAYOUT));
-    saveSettings(s);
   }
   if (!s.omnitech_settings) {
     s.omnitech_settings = {
@@ -847,7 +830,6 @@ export function get_settings(tenant_id?: string) {
       terminal_id: '',
       fiscal_device_id: ''
     };
-    saveSettings(s);
   }
   if (!s.email_settings) {
     s.email_settings = {
@@ -859,7 +841,6 @@ export function get_settings(tenant_id?: string) {
       webhook_url: '',
       timeout_sec: 15,
     };
-    saveSettings(s);
   } else {
     s.email_settings = {
       enabled: Boolean(s.email_settings.enabled),
@@ -870,14 +851,12 @@ export function get_settings(tenant_id?: string) {
       webhook_url: (s.email_settings as any).webhook_url || '',
       timeout_sec: Number((s.email_settings as any).timeout_sec || 15),
     };
-    saveSettings(s);
   }
   if (!s.inventory_settings) {
     s.inventory_settings = {
       default_critical_threshold: 5,
       unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'],
     };
-    saveSettings(s);
   }
   if (!s.staff_benefits) {
     s.staff_benefits = {
@@ -887,7 +866,6 @@ export function get_settings(tenant_id?: string) {
       included_items: [],
       item_unit_cap_azn: 6,
     };
-    saveSettings(s);
   } else if (!(s.staff_benefits as any).allowed_scope) {
     s.staff_benefits = {
       daily_limit_azn: Number((s.staff_benefits as any).daily_limit_azn ?? 6),
@@ -896,25 +874,20 @@ export function get_settings(tenant_id?: string) {
       included_items: [],
       item_unit_cap_azn: Number((s.staff_benefits as any).non_coffee_unit_cap_azn ?? 6),
     };
-    saveSettings(s);
   }
   if (!s.landing_settings) {
     s.landing_settings = normalizeLandingSettings(DEFAULT_LANDING_SETTINGS);
-    saveSettings(s);
   } else {
     s.landing_settings = normalizeLandingSettings(s.landing_settings);
-    saveSettings(s);
   }
   if (!s.table_service_settings) {
     s.table_service_settings = { deposit_per_guest_azn: 0, reservation_lock_hours: 2 };
-    saveSettings(s);
   }
   if (typeof s.table_service_settings.reservation_lock_hours !== 'number') {
     s.table_service_settings = {
       ...s.table_service_settings,
       reservation_lock_hours: 2,
     };
-    saveSettings(s);
   }
   if (!s.yield_management_settings) {
     s.yield_management_settings = {
@@ -926,7 +899,6 @@ export function get_settings(tenant_id?: string) {
       },
       tracked_items: [],
     };
-    saveSettings(s);
   }
   if (!s.session_settings) {
     s.session_settings = {
@@ -936,7 +908,6 @@ export function get_settings(tenant_id?: string) {
       theme_mode: 'dark',
       ui_mode: 'old',
     };
-    saveSettings(s);
   } else if (
     !s.session_settings.staff_pin_length ||
     typeof s.session_settings.virtual_keyboard_enabled === 'undefined' ||
@@ -950,7 +921,6 @@ export function get_settings(tenant_id?: string) {
       theme_mode: s.session_settings.theme_mode === 'light' ? 'light' : 'dark',
       ui_mode: 'old',
     };
-    saveSettings(s);
   }
   s.bank_commission = {
     min_amount: Number((s.bank_commission as any)?.min_amount ?? 0.10),
@@ -968,7 +938,6 @@ export function get_settings(tenant_id?: string) {
   };
   const feedbackOverrides = readFeedbackOverrides();
   s.feedback_settings = normalizeFeedbackSettings(feedbackOverrides[s.tenant_id] || s.feedback_settings);
-  saveSettings(s);
   return s;
 }
 
