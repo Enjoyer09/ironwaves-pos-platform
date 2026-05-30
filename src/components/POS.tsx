@@ -1423,7 +1423,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     );
   };
 
-  const handleFindCustomer = () => {
+  const handleFindCustomer = async () => {
     const code = (ctx.customerQR || '').trim();
     if (!code) return;
     const upper = code.toUpperCase();
@@ -1446,14 +1446,30 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       applyRewardCode(normalizedCode, 'feedback');
       return;
     }
+    // Try local cache first
     const customers = getDB<any>(`${tenantId}_customers`) || [];
-    const found = customers.find((c: any) => c.card_id === extracted);
-    if (!found) {
-      notify('error', tx(lang, 'Müştəri tapılmadı', 'Клиент не найден', 'Customer not found'));
+    const found = customers.find((c: any) => String(c.card_id || '') === extracted);
+    if (found) {
+      patchCtx({ customer: found, customerQR: '' });
+      notify('success', tx(lang, 'Müştəri tapıldı', 'Клиент найден', 'Customer found'));
       return;
     }
-    patchCtx({ customer: found, customerQR: '' });
-    notify('success', tx(lang, 'Müştəri tapıldı', 'Клиент найден', 'Customer found'));
+    // Try backend lookup
+    if (isBackendEnabled()) {
+      try {
+        const result = await apiRequest<any>(`/api/v1/crm/customers?search=${encodeURIComponent(extracted)}`, { tenantId: null, timeoutMs: 5000, retryCount: 0 });
+        const rows = Array.isArray(result) ? result : (Array.isArray(result?.customers) ? result.customers : []);
+        const backendFound = rows.find((c: any) => String(c.card_id || '') === extracted);
+        if (backendFound) {
+          patchCtx({ customer: backendFound, customerQR: '' });
+          notify('success', tx(lang, 'Müştəri tapıldı', 'Клиент найден', 'Customer found'));
+          return;
+        }
+      } catch {
+        // Backend lookup failed, continue to not-found
+      }
+    }
+    notify('error', tx(lang, 'Müştəri tapılmadı', 'Клиент не найден', 'Customer not found'));
   };
 
   const handleRewardCodeEnter = () => {
