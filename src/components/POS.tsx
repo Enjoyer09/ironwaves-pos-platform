@@ -1450,7 +1450,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     const customers = getDB<any>(`${tenantId}_customers`) || [];
     const found = customers.find((c: any) => String(c.card_id || '') === extracted);
     if (found) {
-      patchCtx({ customer: found, customerQR: '' });
+      patchCtx({ customer: found, customerQR: '', discount: String(Number(found.discount_percent || 0)) });
       notify('success', tx(lang, 'Müştəri tapıldı', 'Клиент найден', 'Customer found'));
       return;
     }
@@ -1461,7 +1461,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         const rows = Array.isArray(result) ? result : (Array.isArray(result?.customers) ? result.customers : []);
         const backendFound = rows.find((c: any) => String(c.card_id || '') === extracted);
         if (backendFound) {
-          patchCtx({ customer: backendFound, customerQR: '' });
+          patchCtx({ customer: backendFound, customerQR: '', discount: String(Number(backendFound.discount_percent || 0)) });
           notify('success', tx(lang, 'Müştəri tapıldı', 'Клиент найден', 'Customer found'));
           return;
         }
@@ -1684,7 +1684,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           </div>
           {ctx.customer && (
             <div className="rounded-md border border-emerald-400/40 bg-emerald-500/10 p-2 text-xs text-emerald-200">
-              QR: {ctx.customer.card_id} | {tx(lang, 'Ulduz', 'Звезды', 'Stars')}: {ctx.customer.stars} | {tx(lang, 'Tip', 'Тип', 'Type')}: {ctx.customer.type}
+              QR: {ctx.customer.card_id} | {tx(lang, 'Ulduz', 'Звезды', 'Stars')}: {ctx.customer.stars} | {tx(lang, 'Tip', 'Тип', 'Type')}: {ctx.customer.type} | {tx(lang, 'Endirim', 'Скидка', 'Discount')}: {Number(ctx.customer.discount_percent || 0)}%
             </div>
           )}
         </React.Fragment>
