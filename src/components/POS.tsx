@@ -1457,7 +1457,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     // Try backend lookup
     if (isBackendEnabled()) {
       try {
-        const result = await apiRequest<any>(`/api/v1/crm/customers?search=${encodeURIComponent(extracted)}`, { tenantId: null, timeoutMs: 5000, retryCount: 0 });
+        const result = await apiRequest<any>(`/api/v1/ops/customers?search=${encodeURIComponent(extracted)}`, { tenantId: null, timeoutMs: 5000, retryCount: 0 });
         const rows = Array.isArray(result) ? result : (Array.isArray(result?.customers) ? result.customers : []);
         const backendFound = rows.find((c: any) => String(c.card_id || '') === extracted);
         if (backendFound) {
