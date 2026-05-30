@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo, useState } from 'react';
 import { tx } from '../../i18n';
 
 type MenuGridProps = {
@@ -13,6 +13,18 @@ type MenuGridProps = {
   draftItems?: Array<{ menu_item_id?: string; id?: string; qty?: number }>;
   modernMode?: boolean;
 };
+
+const SIZE_TOKENS = ['XS', 'S', 'M', 'L', 'XL', 'DOUBLE', 'SINGLE'];
+
+function splitVariantName(name: string) {
+  const trimmed = (name || '').trim();
+  const parts = trimmed.split(/\s+/);
+  const last = (parts[parts.length - 1] || '').toUpperCase();
+  if (SIZE_TOKENS.includes(last) && parts.length > 1) {
+    return { base: parts.slice(0, -1).join(' '), variant: parts[parts.length - 1] };
+  }
+  return { base: trimmed, variant: null as string | null };
+}
 
 const tapFeedback = () => {
   try {
@@ -105,7 +117,31 @@ function MenuGrid({
     );
   }
 
-  // ─── BahaY: Aelia-style menu grid ─────────────────────────────────────────
+  // ─── BahaY: Aelia-style menu grid with variant grouping ─────────────────────
+  const [sizePickerGroup, setSizePickerGroup] = useState<string | null>(null);
+
+  const groupedItems = useMemo(() => {
+    const groups = new Map<string, any[]>();
+    items.forEach((item: any) => {
+      const { base } = splitVariantName(item.item_name);
+      const key = (base || item.item_name || '').toLowerCase();
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(item);
+    });
+    return Array.from(groups.entries()).map(([key, groupItems]) => {
+      const first = groupItems[0];
+      const { base } = splitVariantName(first.item_name);
+      return {
+        key,
+        base: base || first.item_name,
+        items: groupItems,
+        hasVariants: groupItems.length > 1,
+        minPrice: Math.min(...groupItems.map((i: any) => Number(i.price || 0))),
+        image_url: resolveItemImage(first),
+      };
+    });
+  }, [items]);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {/* Search */}
@@ -134,55 +170,79 @@ function MenuGrid({
         ))}
       </div>
 
-      {/* Product grid - compact cards, scrollable */}
+      {/* Product grid - grouped by variant */}
       <div className="grid min-h-0 flex-1 auto-rows-max grid-cols-3 gap-2 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/30 p-2 md:grid-cols-4 xl:grid-cols-5">
-        {items.map((item: any) => {
-          const imageUrl = resolveItemImage(item);
-          const qtyInDraft = draftQtyMap.get(item.id) || 0;
+        {groupedItems.map((group) => {
+          const totalQtyInDraft = group.items.reduce((sum: number, it: any) => sum + (draftQtyMap.get(it.id) || 0), 0);
+          const isPickerOpen = sizePickerGroup === group.key;
           return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => { tapFeedback(); void onSelectItem(item); }}
-              className={`relative flex flex-col overflow-hidden rounded-xl border transition active:scale-[0.97] ${
-                qtyInDraft > 0
-                  ? 'border-yellow-400/60 bg-slate-900/80 shadow-lg shadow-yellow-400/10'
-                  : 'border-slate-700/50 bg-slate-900/50 hover:border-yellow-300/30 hover:bg-slate-900/70'
-              }`}
-            >
-              {/* Image or compact fallback */}
-              {imageUrl ? (
-                <div className="aspect-[3/2] w-full overflow-hidden bg-slate-800">
-                  <img src={imageUrl} alt={item.item_name} className="h-full w-full object-cover" loading="lazy" />
+            <div key={group.key} className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  tapFeedback();
+                  if (group.hasVariants) {
+                    setSizePickerGroup(isPickerOpen ? null : group.key);
+                  } else {
+                    void onSelectItem(group.items[0]);
+                  }
+                }}
+                className={`relative flex w-full flex-col overflow-hidden rounded-xl border transition active:scale-[0.97] ${
+                  totalQtyInDraft > 0
+                    ? 'border-yellow-400/60 bg-slate-900/80 shadow-lg shadow-yellow-400/10'
+                    : 'border-slate-700/50 bg-slate-900/50 hover:border-yellow-300/30 hover:bg-slate-900/70'
+                }`}
+              >
+                {group.image_url ? (
+                  <div className="aspect-[3/2] w-full overflow-hidden bg-slate-800">
+                    <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" loading="lazy" />
+                  </div>
+                ) : (
+                  <div className="flex h-12 w-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
+                    <span className="text-lg font-black text-slate-600">
+                      {String(group.base || '').slice(0, 2).toUpperCase()}
+                    </span>
+                  </div>
+                )}
+                <div className="flex flex-1 flex-col justify-between p-2">
+                  <div className="line-clamp-2 text-xs font-bold leading-tight text-slate-100">
+                    {group.base}
+                  </div>
+                  <div className="mt-1 text-sm font-black text-yellow-300">
+                    {group.minPrice.toFixed(2)} ₼
+                    {group.hasVariants && <span className="ml-1 text-[10px] font-medium text-slate-400">({group.items.length})</span>}
+                  </div>
                 </div>
-              ) : (
-                <div className="flex h-12 w-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
-                  <span className="text-lg font-black text-slate-600">
-                    {String(item.item_name || '').slice(0, 2).toUpperCase()}
-                  </span>
+                {totalQtyInDraft > 0 && (
+                  <div className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400 text-xs font-black text-slate-900 shadow-lg">
+                    {totalQtyInDraft}
+                  </div>
+                )}
+              </button>
+
+              {/* Inline size picker */}
+              {isPickerOpen && (
+                <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-xl border border-yellow-400/40 bg-slate-900 p-2 shadow-xl">
+                  {group.items.map((item: any) => {
+                    const { variant } = splitVariantName(item.item_name);
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => { tapFeedback(); void onSelectItem(item); setSizePickerGroup(null); }}
+                        className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition hover:bg-slate-800 active:scale-[0.97]"
+                      >
+                        <span className="text-xs font-bold text-slate-100">{variant || item.item_name}</span>
+                        <span className="text-xs font-black text-yellow-300">{Number(item.price || 0).toFixed(2)} ₼</span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
-
-              {/* Info - compact */}
-              <div className="flex flex-1 flex-col justify-between p-2">
-                <div className="line-clamp-2 text-xs font-bold leading-tight text-slate-100">
-                  {item.item_name}
-                </div>
-                <div className="mt-1 text-sm font-black text-yellow-300">
-                  {Number(item.price || 0).toFixed(2)} ₼
-                </div>
-              </div>
-
-              {/* Qty badge */}
-              {qtyInDraft > 0 && (
-                <div className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400 text-xs font-black text-slate-900 shadow-lg">
-                  {qtyInDraft}
-                </div>
-              )}
-            </button>
+            </div>
           );
         })}
-        {items.length === 0 && (
+        {groupedItems.length === 0 && (
           <div className="col-span-full rounded-xl border border-dashed border-slate-700/60 px-4 py-8 text-center text-sm text-slate-400">
             {tx(lang, 'Bu filtrlə məhsul tapılmadı', 'По этому фильтру товары не найдены', 'No items found for this filter')}
           </div>
