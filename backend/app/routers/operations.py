@@ -1508,6 +1508,62 @@ def database_verify_admin_password(
     return {"success": bool(verify_password(raw, user.password_hash))}
 
 
+@router.post("/import-legacy-customers")
+def import_legacy_customers(
+    payload: dict,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Import customers from legacy iRonWaves POS backup."""
+    _ensure_admin(user)
+    customers = payload.get("customers", [])
+    if not isinstance(customers, list):
+        raise HTTPException(status_code=400, detail="customers must be a list")
+    if len(customers) > 5000:
+        raise HTTPException(status_code=400, detail="Maximum 5000 customers per import")
+
+    imported = 0
+    skipped = 0
+    for row in customers:
+        card_id = str(row.get("card_id", "")).strip()
+        secret_token = str(row.get("secret_token", "")).strip()
+        if not card_id or not secret_token:
+            skipped += 1
+            continue
+        # Check if already exists
+        existing = db.query(Customer).filter(
+            Customer.tenant_id == tenant.id,
+            Customer.card_id == card_id,
+        ).first()
+        if existing:
+            skipped += 1
+            continue
+        # Create
+        from decimal import Decimal as PyDecimal
+        db.add(Customer(
+            tenant_id=tenant.id,
+            card_id=card_id,
+            secret_token=secret_token,
+            type=str(row.get("type", "Normal")).strip() or "Normal",
+            stars=int(row.get("stars", 0)),
+            discount_percent=PyDecimal(str(row.get("discount_percent", 0))),
+            created_at=datetime.fromisoformat(row["created_at"].replace("Z", "+00:00")).replace(tzinfo=None) if row.get("created_at") else datetime.utcnow(),
+        ))
+        imported += 1
+
+    if imported > 0:
+        db.add(AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="LEGACY_CUSTOMERS_IMPORTED",
+            details=json.dumps({"imported": imported, "skipped": skipped, "total": len(customers)}, ensure_ascii=False),
+        ))
+        db.commit()
+
+    return {"imported": imported, "skipped": skipped, "total": len(customers)}
+
+
 @router.post("/database/restore-preview")
 def database_restore_preview(
     payload: DatabaseRestorePreviewIn,
