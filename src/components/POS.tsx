@@ -2117,14 +2117,23 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
 
   const increaseGroupQty = useCallback((group: MenuGroup) => {
     if (group.items.length > 1) {
-      openProductPicker(group);
+      // Open variant picker for multi-size items
+      const requiresServiceChoice =
+        beverageServiceSettings.coffee_selection_mode === 'size_and_service' && group.items.some((item) => isCoffeeLike(item));
+      setVariantPicker({
+        base: group.base,
+        items: group.items,
+        requiresServiceChoice,
+        selectedItemId: null,
+        selectedCupMode: null,
+      });
       return;
     }
     const preferred = group.items.find((row) => {
       return (cartQtyByItemId.get(row.id) || 0) > 0;
     });
     addToCart(preferred || group.items[0]);
-  }, [addToCart, cartQtyByItemId, openProductPicker]);
+  }, [addToCart, cartQtyByItemId, beverageServiceSettings.coffee_selection_mode]);
 
   const decreaseGroupQty = useCallback((group: MenuGroup) => {
     const target = [...cart]
