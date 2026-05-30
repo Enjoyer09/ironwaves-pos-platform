@@ -342,9 +342,8 @@ function getSettings(tenant_id?: string): Settings {
   const current = settingsArr.find((s) => s.tenant_id === resolvedTenant);
   if (current) return current;
 
-  // Return a static default without mutating the cache array.
-  // In backend mode, settings come from the server via get_settings_live.
-  // Pushing defaults into the array on every call caused OOM (array grew infinitely).
+  // Return a static default and cache it in memCache (without localStorage write).
+  // This prevents get_settings normalization from calling saveSettings 30+ times per render.
   const defaultSettings: Settings = {
     tenant_id: resolvedTenant,
     service_fee_percent: 0,
@@ -479,6 +478,8 @@ function getSettings(tenant_id?: string): Settings {
       ollama_freeapi_enabled: false,
     },
   };
+  // Cache in memCache so subsequent calls find it without re-creating
+  settingsArr.push(defaultSettings);
   return defaultSettings;
 }
 
