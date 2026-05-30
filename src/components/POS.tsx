@@ -2116,24 +2116,13 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   const getGroupQty = useCallback((group: MenuGroup) => groupQtyByKey.get(group.group_key) || 0, [groupQtyByKey]);
 
   const increaseGroupQty = useCallback((group: MenuGroup) => {
-    if (group.items.length > 1) {
-      // Open variant picker for multi-size items
-      const requiresServiceChoice =
-        beverageServiceSettings.coffee_selection_mode === 'size_and_service' && group.items.some((item) => isCoffeeLike(item));
-      setVariantPicker({
-        base: group.base,
-        items: group.items,
-        requiresServiceChoice,
-        selectedItemId: null,
-        selectedCupMode: null,
-      });
-      return;
-    }
+    // For multi-variant groups: if user already has one variant in cart, add same one.
+    // Otherwise add the first (cheapest). Variant picker opens via the card click in classic mode.
     const preferred = group.items.find((row) => {
       return (cartQtyByItemId.get(row.id) || 0) > 0;
     });
     addToCart(preferred || group.items[0]);
-  }, [addToCart, cartQtyByItemId, beverageServiceSettings.coffee_selection_mode]);
+  }, [addToCart, cartQtyByItemId]);
 
   const decreaseGroupQty = useCallback((group: MenuGroup) => {
     const target = [...cart]
@@ -2338,7 +2327,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                     }}
                     className={`pos3-card ${qtyInCart > 0 ? 'pos3-card-active' : ''} ${dropMenuGroupKey === group.group_key && draggingMenuGroupKey !== group.group_key ? 'ring-2 ring-cyan-300/70' : ''} ${draggingMenuGroupKey === group.group_key ? 'opacity-60' : ''}`}
                   >
-                    <button className="w-full text-left" onClick={() => { if (!isPosMenuEditMode) increaseGroupQty(group); }}>
+                    <button className="w-full text-left" onClick={() => { if (!isPosMenuEditMode) openProductPicker(group); }}>
                       {posLayout.widget_options?.productGrid?.show_images !== false && (
                         <div className="pos3-card-image">
                           {group.image_url ? (
