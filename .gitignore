@@ -19,3 +19,5 @@ venv.bak/
 backend/.env
 backend/.env.local
 Emalatkhana_Backup_*.json
+*.har
+Trace-*.json.gz
