@@ -2552,6 +2552,37 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                   );
                 })}
               </div>
+              {variantPicker.requiresServiceChoice && (
+                <div className="mt-4 space-y-3">
+                  <div className="text-sm font-semibold text-slate-200">{tx(lang, 'Servis növü', 'Тип подачи', 'Service type')}</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      className={`neon-btn h-14 rounded-xl px-3 text-sm ${variantPicker.selectedCupMode === 'paper' ? 'border-amber-300 bg-amber-500/15 text-amber-50' : ''}`}
+                      onClick={() => setVariantPicker((prev) => (prev ? { ...prev, selectedCupMode: 'paper' } : prev))}
+                    >
+                      {tx(lang, 'Kağız stəkan', 'Бумажный стакан', 'Paper cup')}
+                    </button>
+                    <button
+                      className={`neon-btn h-14 rounded-xl px-3 text-sm ${variantPicker.selectedCupMode === 'glass' ? 'border-cyan-300 bg-cyan-500/15 text-cyan-50' : ''}`}
+                      onClick={() => setVariantPicker((prev) => (prev ? { ...prev, selectedCupMode: 'glass' } : prev))}
+                    >
+                      {tx(lang, 'Şüşə stəkan', 'Стакан', 'Glass')}
+                    </button>
+                  </div>
+                  <button
+                    className="glossy-gold h-12 w-full rounded-xl px-4 text-sm font-bold disabled:opacity-50"
+                    disabled={!variantPicker.selectedItemId || !variantPicker.selectedCupMode}
+                    onClick={() => {
+                      const selectedItem = variantPicker.items.find((item) => item.id === variantPicker.selectedItemId);
+                      if (!selectedItem || !variantPicker.selectedCupMode) return;
+                      addToCart(selectedItem, { cup_mode: variantPicker.selectedCupMode });
+                      setVariantPicker(null);
+                    }}
+                  >
+                    {tx(lang, 'Əlavə et', 'Добавить', 'Add')}
+                  </button>
+                </div>
+              )}
               <button className="mt-4 w-full rounded-lg border border-slate-600 px-4 py-2 text-sm" onClick={() => setVariantPicker(null)}>
                 {tx(lang, 'Bağla', 'Закрыть', 'Close')}
               </button>
