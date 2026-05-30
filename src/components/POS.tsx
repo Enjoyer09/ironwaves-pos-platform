@@ -1083,8 +1083,9 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       false,
       null,
       ctx.customer ? Number(ctx.customer?.stars || 0) : null,
+      beverageServiceSettings,
     );
-  }, [cart, ctx.customer, effectiveDiscountPercent, tenantId]);
+  }, [cart, ctx.customer, effectiveDiscountPercent, tenantId, beverageServiceSettings]);
 
   const rawTotal = totals.raw_total;
   const discountAmount = totals.discount_amount;
@@ -1098,8 +1099,9 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       category: item.category,
       item_name: item.item_name,
     }));
-    return calculate_staff_payable(converted as any, tenantId, user?.username || 'staff');
-  }, [cart, tenantId, user?.username]);
+    const staffBenefits = tenantSettings.staff_benefits || undefined;
+    return calculate_staff_payable(converted as any, tenantId, user?.username || 'staff', staffBenefits);
+  }, [cart, tenantId, user?.username, tenantSettings.staff_benefits]);
 
   const payableTotal = selectedPayment === 'Staff' ? staffPreview.final_due : finalTotal;
   const checkoutBaseTotal = cart.length > 0 ? payableTotal : tablePendingTotal;

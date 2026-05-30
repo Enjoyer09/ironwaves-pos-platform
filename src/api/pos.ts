@@ -50,9 +50,10 @@ export const calculate_total = (
   manual_discount_percent: number = 0,
   is_eco_cup: boolean = false,
   happy_hour: any = null,
-  customer_stars: number | null = null
+  customer_stars: number | null = null,
+  _beverageSettingsOverride?: { discount_scope?: string; coffee_selection_mode?: string },
 ) => {
-  const beverageSettings = getBeverageServiceSettings(tenant_id);
+  const beverageSettings = _beverageSettingsOverride || getBeverageServiceSettings(tenant_id);
   const discountScope = beverageSettings.discount_scope === 'coffee_only' ? 'coffee_only' : 'all_items';
   const normalizedType = (customer_type || 'Normal').toLowerCase();
   let raw_total = new Decimal(0);
@@ -133,8 +134,9 @@ export const calculate_staff_payable = (
   cart_items: { price: Decimal; qty: number; is_coffee: boolean; category?: string; item_name?: string }[],
   tenant_id: string,
   cashier: string,
+  _staffBenefitsOverride?: { daily_limit_azn?: number; allowed_scope?: string; included_categories?: string[]; included_items?: string[]; item_unit_cap_azn?: number },
 ) => {
-  const cfg = get_settings(tenant_id).staff_benefits || {
+  const cfg = _staffBenefitsOverride || get_settings(tenant_id).staff_benefits || {
     daily_limit_azn: 6,
     allowed_scope: 'all',
     included_categories: [],
