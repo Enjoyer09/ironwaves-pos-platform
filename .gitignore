@@ -18,3 +18,4 @@ venv.bak/
 .env.local
 backend/.env
 backend/.env.local
+Emalatkhana_Backup_*.json
