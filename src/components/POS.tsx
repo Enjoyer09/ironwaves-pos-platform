@@ -2116,11 +2116,15 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   const getGroupQty = useCallback((group: MenuGroup) => groupQtyByKey.get(group.group_key) || 0, [groupQtyByKey]);
 
   const increaseGroupQty = useCallback((group: MenuGroup) => {
+    if (group.items.length > 1) {
+      openProductPicker(group);
+      return;
+    }
     const preferred = group.items.find((row) => {
       return (cartQtyByItemId.get(row.id) || 0) > 0;
     });
     addToCart(preferred || group.items[0]);
-  }, [addToCart, cartQtyByItemId]);
+  }, [addToCart, cartQtyByItemId, openProductPicker]);
 
   const decreaseGroupQty = useCallback((group: MenuGroup) => {
     const target = [...cart]
