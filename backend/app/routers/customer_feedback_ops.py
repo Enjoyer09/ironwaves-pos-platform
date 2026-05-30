@@ -144,12 +144,17 @@ class FeedbackCouponRedeemIn(BaseModel):
 
 @router.get("/customers")
 def list_customers(
+    search: str | None = None,
     db: Session = Depends(get_db),
     tenant: Tenant = Depends(get_tenant),
     user: User = Depends(get_current_user),
 ):
     del user
-    rows = db.query(Customer).filter(Customer.tenant_id == tenant.id).order_by(Customer.created_at.desc()).all()
+    query = db.query(Customer).filter(Customer.tenant_id == tenant.id)
+    if search:
+        safe_search = str(search).strip()
+        query = query.filter(Customer.card_id.ilike(f"%{safe_search}%"))
+    rows = query.order_by(Customer.created_at.desc()).limit(200).all()
     return [
         {
             "id": row.id,
