@@ -44,13 +44,23 @@ export function getDB<T>(key: string): T[] {
 }
 
 export function setDB<T>(key: string, data: T[]): void {
+  const safe = normalizeRows(data);
+  memCache.set(key, safe);
   try {
-    const safe = normalizeRows(data);
     const serialized = JSON.stringify(safe);
+    // Skip localStorage write if data is too large (>2MB) to prevent QuotaExceededError
+    if (serialized.length > 2_000_000) {
+      return;
+    }
     localStorage.setItem(scopedDbKey(key), serialized);
-    memCache.set(key, safe);
-  } catch (e) {
-    console.error('LocalStorage error:', e);
+  } catch {
+    // QuotaExceededError or RangeError — keep memCache but don't crash.
+    // Try to free space by removing the problematic key from localStorage.
+    try {
+      localStorage.removeItem(scopedDbKey(key));
+    } catch {
+      // ignore
+    }
   }
 }
 
