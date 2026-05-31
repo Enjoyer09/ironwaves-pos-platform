@@ -571,7 +571,7 @@ export default function App() {
       if (!target) return;
       const allowedTargets = new Set<ModuleKey>([
         'pos', 'tables', 'kds', 'zreport', 'finance', 'inventory', 'combos', 'dashboard', 'analytics',
-        'logs', 'crm', 'customerapp', 'posbuilder', 'ai', 'menu', 'recipes', 'tenants', 'notes', 'settings', 'landing', 'database',
+        'logs', 'crm', 'customerapp', 'ai', 'menu', 'recipes', 'tenants', 'notes', 'settings', 'landing', 'database',
       ]);
       if (!allowedTargets.has(target)) return;
       setCurrentModule(target);
@@ -940,7 +940,6 @@ export default function App() {
     { key: 'recipes', label: t.modules.recipes, manager: true },
     { key: 'logs', label: t.modules.logs, manager: true },
     { key: 'crm', label: t.modules.crm, manager: true },
-    { key: 'posbuilder', label: t.modules.posbuilder, manager: true },
     { key: 'customerapp', label: t.modules.customerapp, manager: true },
     { key: 'notes', label: t.modules.notes, adminOnly: true },
     { key: 'settings', label: t.modules.settings, adminOnly: true },
