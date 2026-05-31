@@ -1175,16 +1175,21 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
                       notify('info', tx(lang, 'Əvvəlcə kateqoriya seçin', 'Сначала выберите категорию', 'Select a category first'));
                       return;
                     }
+                    const overwrite = window.confirm(tx(lang,
+                      'Mövcud şəkilləri dəyişmək istəyirsiniz? (OK = bəli, hamısını yenilə | Cancel = yalnız boş olanlara qoy)',
+                      'Заменить существующие изображения? (OK = да | Cancel = только пустые)',
+                      'Replace existing images? (OK = yes, replace all | Cancel = only fill empty ones)'
+                    ));
                     notify('info', tx(lang, `"${targetCategory}" üçün şəkillər axtarılır...`, `Поиск изображений для "${targetCategory}"...`, `Searching images for "${targetCategory}"...`));
                     try {
-                      const result = await auto_assign_menu_images({ category: targetCategory, overwrite: false });
+                      const result = await auto_assign_menu_images({ category: targetCategory, overwrite });
                       if (result.assigned > 0) {
                         notify('success', tx(lang, `${result.assigned}/${result.total} məhsula şəkil qoyuldu`, `${result.assigned}/${result.total} товарам назначены изображения`, `${result.assigned}/${result.total} items got images`));
                         delete fetchCacheRef.current[`menu:${tenant_id}`];
                         const seq = ++fetchSeqRef.current;
                         await fetchData(seq);
                       } else if (result.skipped === result.total) {
-                        notify('info', tx(lang, 'Bütün məhsulların artıq şəkli var', 'У всех товаров уже есть изображения', 'All items already have images'));
+                        notify('info', tx(lang, 'Bütün məhsulların artıq şəkli var. Dəyişmək üçün yenidən basıb OK seçin.', 'У всех товаров уже есть изображения. Нажмите снова и выберите OK для замены.', 'All items already have images. Press again and choose OK to replace.'));
                       } else {
                         const detail = result.failed > 0 ? `failed: ${result.failed}, skipped: ${result.skipped}` : '';
                         notify('warning', tx(lang, `${result.total} məhsuldan heç birinə şəkil tapılmadı. ${detail}`, `Для ${result.total} товаров изображения не найдены. ${detail}`, `No images found for ${result.total} items. ${detail}`));
@@ -1194,7 +1199,7 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
                     }
                   }}
                   className="neon-btn px-4 py-2 rounded-lg flex items-center gap-2"
-                  title={tx(lang, 'Seçilmiş kateqoriyadakı şəkilsiz məhsullara avtomatik stock foto qoyur (Pexels)', 'Автоматически назначает стоковые фото товарам без изображений (Pexels)', 'Auto-assigns stock photos to items without images (Pexels)')}
+                  title={tx(lang, 'Seçilmiş kateqoriyadakı məhsullara avtomatik stock foto qoyur (Pexels)', 'Автоматически назначает стоковые фото товарам (Pexels)', 'Auto-assigns stock photos to items (Pexels)')}
                 >
                   <Sparkles size={18} />
                   {tx(lang, 'AI Şəkil', 'AI Фото', 'AI Image')}
