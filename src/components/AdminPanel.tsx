@@ -1179,14 +1179,15 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
                     try {
                       const result = await auto_assign_menu_images({ category: targetCategory, overwrite: false });
                       if (result.assigned > 0) {
-                        notify('success', tx(lang, `${result.assigned} məhsula şəkil qoyuldu`, `${result.assigned} товарам назначены изображения`, `${result.assigned} items got images`));
+                        notify('success', tx(lang, `${result.assigned}/${result.total} məhsula şəkil qoyuldu`, `${result.assigned}/${result.total} товарам назначены изображения`, `${result.assigned}/${result.total} items got images`));
                         delete fetchCacheRef.current[`menu:${tenant_id}`];
                         const seq = ++fetchSeqRef.current;
                         await fetchData(seq);
                       } else if (result.skipped === result.total) {
                         notify('info', tx(lang, 'Bütün məhsulların artıq şəkli var', 'У всех товаров уже есть изображения', 'All items already have images'));
                       } else {
-                        notify('warning', tx(lang, 'Şəkil tapılmadı. Pexels API key yoxlayın.', 'Изображения не найдены. Проверьте Pexels API key.', 'No images found. Check Pexels API key.'));
+                        const detail = result.failed > 0 ? `failed: ${result.failed}, skipped: ${result.skipped}` : '';
+                        notify('warning', tx(lang, `${result.total} məhsuldan heç birinə şəkil tapılmadı. ${detail}`, `Для ${result.total} товаров изображения не найдены. ${detail}`, `No images found for ${result.total} items. ${detail}`));
                       }
                     } catch (error: any) {
                       notify('error', error?.message || tx(lang, 'AI şəkil xətası', 'Ошибка AI изображений', 'AI image error'));
