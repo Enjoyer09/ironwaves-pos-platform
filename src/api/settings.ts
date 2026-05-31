@@ -410,6 +410,8 @@ function getSettings(tenant_id?: string): Settings {
       poster_image_url: '',
       poster_background_color: '#facc15',
       logo_shape: 'rounded',
+      font_family: '',
+      custom_font_url: '',
     },
     feedback_settings: DEFAULT_FEEDBACK_SETTINGS,
     customer_app_settings: {
@@ -781,6 +783,8 @@ export function get_settings(tenant_id?: string) {
       poster_image_url: '',
       poster_background_color: '#facc15',
       logo_shape: 'rounded',
+      font_family: '',
+      custom_font_url: '',
     };
   }
   if (!s.feedback_settings) {
@@ -1026,6 +1030,8 @@ export function update_qr_menu_settings(payload: NonNullable<Settings['qr_menu_s
     poster_image_url: String((payload as any).poster_image_url || '').trim(),
     poster_background_color: String(payload.poster_background_color || '').trim() || '#facc15',
     logo_shape: payload.logo_shape === 'circle' || payload.logo_shape === 'square' ? payload.logo_shape : 'rounded',
+    font_family: String(payload.font_family || '').trim(),
+    custom_font_url: String(payload.custom_font_url || '').trim(),
   };
   saveSettings(settings);
   logEvent('admin', 'QR_MENU_SETTINGS_UPDATED', settings.qr_menu_settings);
@@ -1252,6 +1258,8 @@ export async function get_public_qr_menu_bootstrap_live() {
       logo_shape: string;
       primary_color: string;
       accent_color: string;
+      font_family: string;
+      custom_font_url: string;
     };
     show_prices: boolean;
     show_images: boolean;

@@ -264,6 +264,8 @@ export interface Settings {
     poster_image_url?: string;
     poster_background_color?: string;
     logo_shape?: 'rounded' | 'circle' | 'square';
+    font_family?: string;
+    custom_font_url?: string;
   };
   feedback_settings?: {
     enabled: boolean;

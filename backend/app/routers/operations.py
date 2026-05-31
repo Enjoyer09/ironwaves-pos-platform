@@ -2169,6 +2169,8 @@ def update_qr_menu_settings(
             "poster_image_url": "",
             "poster_background_color": "#facc15",
             "logo_shape": "rounded",
+            "font_family": "",
+            "custom_font_url": "",
         },
     )
     cleaned = {
@@ -2189,6 +2191,8 @@ def update_qr_menu_settings(
         "poster_image_url": _normalize_image_url(payload.get("poster_image_url") if "poster_image_url" in payload else current.get("poster_image_url") or ""),
         "poster_background_color": str(payload.get("poster_background_color") or current.get("poster_background_color") or "#facc15").strip() or "#facc15",
         "logo_shape": str(payload.get("logo_shape") or current.get("logo_shape") or "rounded").strip() or "rounded",
+        "font_family": str(payload.get("font_family") if "font_family" in payload else current.get("font_family") or "").strip(),
+        "custom_font_url": str(payload.get("custom_font_url") if "custom_font_url" in payload else current.get("custom_font_url") or "").strip(),
     }
     _set_setting_value(db, tenant.id, "qr_menu_settings", cleaned)
     db.commit()
@@ -3044,6 +3048,8 @@ def get_public_menu_bootstrap(
             "poster_image_url": "",
             "poster_background_color": "#facc15",
             "logo_shape": "rounded",
+            "font_family": "",
+            "custom_font_url": "",
         },
     )
     app_settings = _setting_value(
@@ -3078,6 +3084,8 @@ def get_public_menu_bootstrap(
             "logo_shape": str(qr_menu_settings.get("logo_shape") or "rounded"),
             "primary_color": resolved_primary,
             "accent_color": resolved_accent,
+            "font_family": str(qr_menu_settings.get("font_family") or ""),
+            "custom_font_url": str(qr_menu_settings.get("custom_font_url") or ""),
         },
         "show_prices": bool(qr_menu_settings.get("show_prices", True)),
         "show_images": bool(qr_menu_settings.get("show_images", True)),

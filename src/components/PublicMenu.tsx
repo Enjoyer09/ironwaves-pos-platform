@@ -29,6 +29,8 @@ interface Branding {
   logo_shape: string;
   primary_color: string;
   accent_color: string;
+  font_family: string;
+  custom_font_url: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -93,6 +95,47 @@ export default function PublicMenu() {
   const heroTitle = String(branding.hero_title || companyName);
   const heroSubtitle = String(branding.hero_subtitle || 'Menyu');
   const logoShape = String(branding.logo_shape || 'rounded');
+  const fontFamily = String(branding.font_family || '');
+  const customFontUrl = String(branding.custom_font_url || '');
+
+  // ─── Font Loading ────────────────────────────────────────────────────────
+  const resolvedFontFamily = React.useMemo(() => {
+    if (!fontFamily || fontFamily === 'custom') {
+      // custom font — name will be extracted from CSS or fallback
+      return customFontUrl ? 'CustomQRFont, system-ui, sans-serif' : '"Geist Sans", "Inter", system-ui, -apple-system, sans-serif';
+    }
+    return `"${fontFamily}", system-ui, sans-serif`;
+  }, [fontFamily, customFontUrl]);
+
+  // Load Google Font or custom font URL
+  React.useEffect(() => {
+    if (!fontFamily && !customFontUrl) return;
+    let link: HTMLLinkElement | null = null;
+
+    const fontUrl = fontFamily === 'custom'
+      ? customFontUrl
+      : fontFamily
+        ? `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fontFamily)}:wght@400;500;600;700;800;900&display=swap`
+        : '';
+
+    if (!fontUrl) return;
+
+    // Check if already loaded
+    const existing = document.querySelector(`link[href="${fontUrl}"]`);
+    if (existing) return;
+
+    link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = fontUrl;
+    link.setAttribute('data-qr-font', 'true');
+    document.head.appendChild(link);
+
+    return () => {
+      if (link && link.parentNode) {
+        link.parentNode.removeChild(link);
+      }
+    };
+  }, [fontFamily, customFontUrl]);
 
   // ─── Categories ──────────────────────────────────────────────────────────
   const categories = React.useMemo(() => {
@@ -139,7 +182,7 @@ export default function PublicMenu() {
       style={{
         background: `linear-gradient(180deg, ${backgroundColor} 0%, ${hexToRgba(primaryColor, 0.03)} 25%, ${backgroundColor} 50%, ${hexToRgba(accentColor, 0.04)} 75%, ${backgroundColor} 100%)`,
         color: textColor,
-        fontFamily: '"Geist Sans", "Inter", system-ui, -apple-system, sans-serif',
+        fontFamily: resolvedFontFamily,
       }}
     >
       {/* ═══════════════════════════════════════════════════════════════════════

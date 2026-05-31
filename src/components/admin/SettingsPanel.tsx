@@ -157,6 +157,8 @@ export default function SettingsPanel() {
     poster_image_url: '',
     poster_background_color: '#facc15',
     logo_shape: 'rounded' as 'rounded' | 'circle' | 'square',
+    font_family: '',
+    custom_font_url: '',
   });
   const [feedbackSettings, setFeedbackSettings] = useState({
     enabled: false,
@@ -411,6 +413,8 @@ export default function SettingsPanel() {
         poster_image_url: String((settingsRes.value.qr_menu_settings as any)?.poster_image_url || ''),
         poster_background_color: String(settingsRes.value.qr_menu_settings?.poster_background_color || '#facc15'),
         logo_shape: (String(settingsRes.value.qr_menu_settings?.logo_shape || 'rounded') as any),
+        font_family: String(settingsRes.value.qr_menu_settings?.font_family || ''),
+        custom_font_url: String(settingsRes.value.qr_menu_settings?.custom_font_url || ''),
       });
       setFeedbackSettings({
         enabled: settingsRes.value.feedback_settings?.enabled === true,
@@ -1003,6 +1007,8 @@ export default function SettingsPanel() {
       poster_image_url: qrMenuSettings.poster_image_url,
       poster_background_color: qrMenuSettings.poster_background_color,
       logo_shape: qrMenuSettings.logo_shape,
+      font_family: qrMenuSettings.font_family,
+      custom_font_url: qrMenuSettings.custom_font_url,
     });
     flashSuccess(tx(lang, 'QR Menu ayarları yadda saxlanıldı', 'Настройки QR Menu сохранены', 'QR Menu settings saved'), 'qr_menu');
   };
@@ -1670,6 +1676,31 @@ export default function SettingsPanel() {
               <option value="square">{tx(lang, 'Kvadrat', 'Квадратный', 'Square')}</option>
             </select>
           </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Şrift ailəsi', 'Семейство шрифтов', 'Font family')}</label>
+            <select className="neon-input" value={qrMenuSettings.font_family} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, font_family: e.target.value }))}>
+              <option value="">{tx(lang, 'Standart (Geist Sans)', 'Стандартный (Geist Sans)', 'Default (Geist Sans)')}</option>
+              <option value="Inter">Inter</option>
+              <option value="Poppins">Poppins</option>
+              <option value="Montserrat">Montserrat</option>
+              <option value="Playfair Display">Playfair Display</option>
+              <option value="Raleway">Raleway</option>
+              <option value="Nunito">Nunito</option>
+              <option value="Lora">Lora</option>
+              <option value="Roboto">Roboto</option>
+              <option value="Open Sans">Open Sans</option>
+              <option value="Oswald">Oswald</option>
+              <option value="custom">{tx(lang, 'Xüsusi şrift (URL ilə)', 'Свой шрифт (по URL)', 'Custom font (via URL)')}</option>
+            </select>
+            <p className="text-[11px] text-slate-400">{tx(lang, 'Google Fonts-dan populyar şriftlər. "Xüsusi şrift" seçsəniz aşağıda URL daxil edin.', 'Популярные шрифты из Google Fonts. Выберите "Свой шрифт" для URL.', 'Popular Google Fonts. Select "Custom font" to provide a URL below.')}</p>
+          </div>
+          {qrMenuSettings.font_family === 'custom' && (
+            <div className="field-stack form-card md:col-span-2">
+              <label className="field-label">{tx(lang, 'Xüsusi şrift URL (CSS @font-face)', 'URL шрифта (CSS @font-face)', 'Custom font URL (CSS @font-face)')}</label>
+              <input className="neon-input" value={qrMenuSettings.custom_font_url} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, custom_font_url: e.target.value }))} placeholder="https://fonts.googleapis.com/css2?family=YourFont&display=swap" />
+              <p className="text-[11px] text-slate-400">{tx(lang, 'Google Fonts və ya hər hansı CSS font URL yapışdırın. Şrift adını yuxarıdakı sahəyə yazın.', 'Вставьте URL Google Fonts или любой CSS font. Имя шрифта укажите выше.', 'Paste a Google Fonts or any CSS font URL. Enter the font name above.')}</p>
+            </div>
+          )}
           <label className="flex items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" checked={qrMenuSettings.show_prices} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, show_prices: e.target.checked }))} />
             <span>{tx(lang, 'Qiymətləri göstər', 'Показывать цены', 'Show prices')}</span>
