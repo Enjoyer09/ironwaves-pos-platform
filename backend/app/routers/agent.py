@@ -122,7 +122,9 @@ def _search_pexels(query: str, per_page: int = 1) -> str | None:
     if not api_key:
         return None
     try:
-        url = f"https://api.pexels.com/v1/search?query={urllib_request.quote(query)}&per_page={per_page}&orientation=landscape"
+        # Force food/drink context by searching in specific Pexels collections
+        refined_query = f"{query} restaurant menu item close up"
+        url = f"https://api.pexels.com/v1/search?query={urllib_request.quote(refined_query)}&per_page={per_page}&orientation=landscape&size=medium"
         req = urllib_request.Request(url, headers={
             "Authorization": api_key,
             "User-Agent": "iRonWaves-POS/1.0",
@@ -131,7 +133,7 @@ def _search_pexels(query: str, per_page: int = 1) -> str | None:
             raw = resp.read().decode("utf-8")
             data = json.loads(raw)
             photos = data.get("photos", [])
-            logger.info(f"Pexels response for '{query}': {len(photos)} photos found, total_results={data.get('total_results', 0)}")
+            logger.info(f"Pexels response for '{refined_query}': {len(photos)} photos found, total_results={data.get('total_results', 0)}")
             if photos:
                 medium_url = str(photos[0].get("src", {}).get("medium", ""))
                 if medium_url:
@@ -206,11 +208,11 @@ def _build_food_search_query(item_name: str, category: str) -> str:
     # Category-aware suffix for better results
     drink_categories = {"içkilər", "içki", "beverages", "drinks", "kofe", "qəhvə", "coffee", "çay", "tea"}
     dessert_categories = {"desert", "şirniyyat", "dessert", "tort", "cake"}
-    suffix = "food dish"
+    suffix = "plated served"
     if cat_lower in drink_categories or any(w in drink_categories for w in translated):
-        suffix = "drink beverage"
+        suffix = "glass cup served"
     elif cat_lower in dessert_categories or any(w in dessert_categories for w in translated):
-        suffix = "dessert sweet"
+        suffix = "plated dessert"
 
     translated.append(suffix)
     return " ".join(translated[:5])
