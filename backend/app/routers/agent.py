@@ -123,14 +123,25 @@ def _search_pexels(query: str, per_page: int = 1) -> str | None:
         return None
     try:
         url = f"https://api.pexels.com/v1/search?query={urllib_request.quote(query)}&per_page={per_page}&orientation=landscape"
-        req = urllib_request.Request(url, headers={"Authorization": api_key})
-        with urllib_request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        req = urllib_request.Request(url, headers={
+            "Authorization": api_key,
+            "User-Agent": "iRonWaves-POS/1.0",
+        })
+        with urllib_request.urlopen(req, timeout=15) as resp:
+            raw = resp.read().decode("utf-8")
+            data = json.loads(raw)
             photos = data.get("photos", [])
+            logger.info(f"Pexels response for '{query}': {len(photos)} photos found, total_results={data.get('total_results', 0)}")
             if photos:
-                return str(photos[0].get("src", {}).get("medium", ""))
-    except (HTTPError, URLError, Exception) as e:
-        logger.warning(f"Pexels search failed for '{query}': {e}")
+                medium_url = str(photos[0].get("src", {}).get("medium", ""))
+                if medium_url:
+                    return medium_url
+    except HTTPError as e:
+        logger.error(f"Pexels HTTP error for '{query}': {e.code} {e.reason}")
+    except URLError as e:
+        logger.error(f"Pexels URL error for '{query}': {e.reason}")
+    except Exception as e:
+        logger.error(f"Pexels unexpected error for '{query}': {type(e).__name__}: {e}")
     return None
 
 
