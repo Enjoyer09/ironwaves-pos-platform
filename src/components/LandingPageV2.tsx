@@ -138,18 +138,26 @@ export default function LandingPageV2() {
               </div>
             </div>
             {/* Right: POS Device Mockup with sliding screenshots */}
-            <div className="relative mx-auto w-full max-w-md lg:max-w-lg">
-              <div className="rounded-[2rem] border-[6px] border-slate-700 bg-slate-900 p-2 shadow-2xl shadow-black/50">
-                <div className="overflow-hidden rounded-[1.4rem] bg-[#0a0f1a]">
-                  <div className="flex transition-transform duration-700 ease-in-out" style={{ transform: `translateX(-${slideIndex * 100}%)` }}>
-                    {SCREENSHOTS.map((src, i) => (
-                      <img key={i} src={src} alt={`Screenshot ${i + 1}`} className="w-full shrink-0 object-cover" loading="lazy" />
-                    ))}
+            <div className="relative mx-auto w-full max-w-md lg:max-w-lg" style={{ perspective: '1200px' }}>
+              <div className="relative" style={{ transform: 'rotateY(-5deg) rotateX(2deg)' }}>
+                {/* POS Stand */}
+                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
+                  <div className="h-16 w-24 rounded-b-xl bg-gradient-to-b from-orange-500 to-orange-600 shadow-lg" />
+                  <div className="mx-auto h-3 w-32 rounded-b-lg bg-slate-800" />
+                </div>
+                {/* Screen frame */}
+                <div className="rounded-2xl border-[8px] border-slate-800 bg-slate-900 p-1 shadow-[0_20px_60px_rgba(0,0,0,0.6)]">
+                  <div className="overflow-hidden rounded-xl bg-[#0a0f1a]">
+                    <div className="flex transition-transform duration-700 ease-in-out" style={{ transform: `translateX(-${slideIndex * 100}%)` }}>
+                      {SCREENSHOTS.map((src, i) => (
+                        <img key={i} src={src} alt={`Screenshot ${i + 1}`} className="w-full shrink-0 object-cover aspect-[16/10]" loading="lazy" />
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
               {/* Slide dots */}
-              <div className="mt-4 flex justify-center gap-2">
+              <div className="mt-12 flex justify-center gap-2">
                 {SCREENSHOTS.map((_, i) => (
                   <button key={i} type="button" onClick={() => setSlideIndex(i)} className={`h-2 rounded-full transition-all ${i === slideIndex ? 'w-6 bg-yellow-400' : 'w-2 bg-slate-600'}`} />
                 ))}
