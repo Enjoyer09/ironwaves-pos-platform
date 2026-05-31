@@ -117,14 +117,12 @@ def chat_with_assistant(
 # ─── Stock Photo Auto-Image for Menu Items ────────────────────────────────────
 
 def _search_pexels(query: str, per_page: int = 1) -> str | None:
-    """Search Pexels for a food photo and return the medium-sized URL."""
+    """Search Pexels for a food/drink photo suitable for a restaurant menu."""
     api_key = app_settings.pexels_api_key
     if not api_key:
         return None
     try:
-        # Force food/drink context by searching in specific Pexels collections
-        refined_query = f"{query} restaurant menu item close up"
-        url = f"https://api.pexels.com/v1/search?query={urllib_request.quote(refined_query)}&per_page={per_page}&orientation=landscape&size=medium"
+        url = f"https://api.pexels.com/v1/search?query={urllib_request.quote(query)}&per_page=15&orientation=landscape&size=medium"
         req = urllib_request.Request(url, headers={
             "Authorization": api_key,
             "User-Agent": "iRonWaves-POS/1.0",
@@ -133,11 +131,52 @@ def _search_pexels(query: str, per_page: int = 1) -> str | None:
             raw = resp.read().decode("utf-8")
             data = json.loads(raw)
             photos = data.get("photos", [])
-            logger.info(f"Pexels response for '{refined_query}': {len(photos)} photos found, total_results={data.get('total_results', 0)}")
-            if photos:
-                medium_url = str(photos[0].get("src", {}).get("medium", ""))
-                if medium_url:
-                    return medium_url
+            logger.info(f"Pexels response for '{query}': {len(photos)} photos, total_results={data.get('total_results', 0)}")
+
+            if not photos:
+                return None
+
+            # Food/drink relevance keywords — photo must match at least one
+            food_signals = {
+                "food", "dish", "plate", "bowl", "cup", "glass", "drink", "beverage",
+                "coffee", "tea", "juice", "cocktail", "beer", "wine", "water",
+                "burger", "pizza", "pasta", "salad", "soup", "cake", "dessert",
+                "sandwich", "wrap", "sushi", "rice", "bread", "meat", "chicken",
+                "fish", "fries", "sauce", "cheese", "chocolate", "ice cream",
+                "restaurant", "cafe", "menu", "served", "cooking", "kitchen",
+                "delicious", "tasty", "gourmet", "homemade", "fresh", "organic",
+                "breakfast", "lunch", "dinner", "snack", "appetizer", "meal",
+                "table", "wooden", "plated", "garnish", "ingredient",
+            }
+
+            # Score each photo by food relevance
+            best_url = None
+            best_score = -1
+
+            for photo in photos:
+                alt = str(photo.get("alt") or "").lower()
+                url_str = str(photo.get("url") or "").lower()
+                combined = f"{alt} {url_str}"
+
+                # Count how many food signals match
+                score = sum(1 for signal in food_signals if signal in combined)
+
+                # Reject photos with no food signals at all
+                if score == 0:
+                    continue
+
+                if score > best_score:
+                    best_score = score
+                    best_url = str(photo.get("src", {}).get("medium", ""))
+
+            if best_url:
+                logger.info(f"Pexels best match for '{query}': score={best_score}")
+                return best_url
+
+            # Fallback: if no scored match, take first result (better than nothing)
+            fallback = str(photos[0].get("src", {}).get("medium", ""))
+            return fallback if fallback else None
+
     except HTTPError as e:
         logger.error(f"Pexels HTTP error for '{query}': {e.code} {e.reason}")
     except URLError as e:
