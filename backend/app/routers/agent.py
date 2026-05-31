@@ -116,6 +116,145 @@ def chat_with_assistant(
 
 # ─── Stock Photo Auto-Image for Menu Items ────────────────────────────────────
 
+def _translate_menu_items_to_english(items: list) -> dict[str, str]:
+    """Use AI to translate menu item names from Azerbaijani to English food search terms."""
+    from app.services.opencode_service import generate_text, default_model_id
+
+    if not items:
+        return {}
+
+    # Build a batch prompt
+    item_lines = []
+    for i, item in enumerate(items[:30]):  # Limit to 30 items per batch
+        item_lines.append(f"{i+1}. {item.item_name}")
+
+    prompt = f"""Translate these restaurant menu item names from Azerbaijani to English. 
+For each item, provide a short English food/drink description suitable for searching stock photos.
+Focus on the actual food/drink, not sizes or quantities.
+
+Examples:
+- "Latte orta" → "latte coffee"
+- "Toyuq burger tək" → "chicken burger"  
+- "Energetik (redbull 225 ml)" → "red bull energy drink can"
+- "Bal pörtləməsi" → "honey glazed dessert"
+- "Kartof fri" → "french fries"
+- "Çoban salatı" → "shepherd salad vegetables"
+
+Menu items:
+{chr(10).join(item_lines)}
+
+Reply ONLY with numbered translations, one per line. Format: "1. english description"
+No explanations, no extra text."""
+
+    try:
+        result = generate_text(
+            model=default_model_id(),
+            prompt=prompt,
+            system="You are a food menu translator. Translate Azerbaijani restaurant menu items to English food descriptions for stock photo search. Be concise and specific about the food/drink.",
+            temperature=0.1,
+            max_tokens=1200,
+            timeout_seconds=30,
+        )
+
+        # Parse response
+        translations: dict[str, str] = {}
+        for line in result.strip().split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            # Parse "1. english description" or "1) english description"
+            parts = line.split(".", 1) if "." in line[:4] else line.split(")", 1)
+            if len(parts) == 2:
+                try:
+                    idx = int(parts[0].strip()) - 1
+                    if 0 <= idx < len(items):
+                        translation = parts[1].strip().strip('"').strip("'")
+                        if translation:
+                            translations[items[idx].id] = translation
+                except (ValueError, IndexError):
+                    continue
+
+        logger.info(f"AI translated {len(translations)}/{len(items)} menu items to English")
+        return translations
+
+    except Exception as e:
+        logger.warning(f"AI translation failed: {e}")
+        return {}
+
+def _search_unsplash(query: str) -> str | None:
+    """Search Unsplash for a food photo. Returns regular-sized URL."""
+    access_key = app_settings.unsplash_access_key
+    if not access_key:
+        return None
+    try:
+        url = f"https://api.unsplash.com/search/photos?query={urllib_request.quote(query)}&per_page=10&orientation=landscape&content_filter=high"
+        req = urllib_request.Request(url, headers={
+            "Authorization": f"Client-ID {access_key}",
+            "Accept-Version": "v1",
+        })
+        with urllib_request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            results = data.get("results", [])
+            logger.info(f"Unsplash response for '{query}': {len(results)} results, total={data.get('total', 0)}")
+
+            if not results:
+                return None
+
+            # Food relevance scoring
+            food_signals = {
+                "food", "dish", "plate", "bowl", "cup", "glass", "drink", "beverage",
+                "coffee", "tea", "juice", "cocktail", "beer", "wine", "water",
+                "burger", "pizza", "pasta", "salad", "soup", "cake", "dessert",
+                "sandwich", "wrap", "sushi", "rice", "bread", "meat", "chicken",
+                "fish", "fries", "sauce", "cheese", "chocolate", "ice cream",
+                "restaurant", "cafe", "menu", "served", "cooking", "kitchen",
+                "delicious", "tasty", "gourmet", "homemade", "fresh",
+                "breakfast", "lunch", "dinner", "snack", "appetizer", "meal",
+            }
+
+            best_url = None
+            best_score = -1
+
+            for photo in results:
+                desc = str(photo.get("description") or "").lower()
+                alt = str(photo.get("alt_description") or "").lower()
+                tags = " ".join(str(t.get("title", "")) for t in (photo.get("tags") or []))
+                combined = f"{desc} {alt} {tags}".lower()
+
+                score = sum(1 for signal in food_signals if signal in combined)
+                if score == 0:
+                    continue
+
+                if score > best_score:
+                    best_score = score
+                    # Use "regular" size (1080px width) — good for menu
+                    best_url = str(photo.get("urls", {}).get("regular", ""))
+
+            if best_url:
+                logger.info(f"Unsplash best match for '{query}': score={best_score}")
+                return best_url
+
+            # Fallback to first result
+            return str(results[0].get("urls", {}).get("regular", "")) or None
+
+    except HTTPError as e:
+        logger.error(f"Unsplash HTTP error for '{query}': {e.code} {e.reason}")
+    except URLError as e:
+        logger.error(f"Unsplash URL error for '{query}': {e.reason}")
+    except Exception as e:
+        logger.error(f"Unsplash unexpected error for '{query}': {type(e).__name__}: {e}")
+    return None
+
+
+def _search_stock_photo(query: str) -> str | None:
+    """Search for food photo — tries Unsplash first (better quality), falls back to Pexels."""
+    # Try Unsplash first (higher quality food photos)
+    url = _search_unsplash(query)
+    if url:
+        return url
+    # Fallback to Pexels
+    return _search_pexels(query)
+
 def _search_pexels(query: str, per_page: int = 1) -> str | None:
     """Search Pexels for a food/drink photo suitable for a restaurant menu."""
     api_key = app_settings.pexels_api_key
@@ -306,6 +445,17 @@ def auto_assign_menu_images(
     results: list[dict] = []
     assigned_count = 0
 
+    # AI translate all item names to English for better search results
+    items_to_process = [item for item in items if not (
+        str(item.image_url or "").strip() and (
+            str(item.image_url or "").startswith("http://") or
+            str(item.image_url or "").startswith("https://") or
+            str(item.image_url or "").startswith("/uploads/") or
+            str(item.image_url or "").startswith("data:image/")
+        ) and not payload.overwrite
+    )]
+    ai_translations = _translate_menu_items_to_english(items_to_process) if items_to_process else {}
+
     for item in items:
         # Skip items that already have valid images (unless overwrite=True)
         existing_url = str(item.image_url or "").strip()
@@ -324,19 +474,25 @@ def auto_assign_menu_images(
             })
             continue
 
-        # Search for a stock photo
-        search_query = _build_food_search_query(item.item_name, item.category or "")
+        # Use AI translation if available, otherwise fall back to keyword mapping
+        ai_query = ai_translations.get(item.id, "")
+        if ai_query:
+            search_query = ai_query
+        else:
+            search_query = _build_food_search_query(item.item_name, item.category or "")
+
         logger.info(f"Auto-image search: item='{item.item_name}' query='{search_query}'")
-        image_url = _search_pexels(search_query)
+        image_url = _search_stock_photo(search_query)
 
         if not image_url:
-            # Try simpler query with just category in English
+            # Try simpler query — just the food type
+            fallback_query = ai_query.split()[0] if ai_query else str(item.category or "food")
             cat_en = {"desert": "dessert", "şirniyyat": "dessert", "salatlar": "salad",
                       "burgerlər": "burger", "içkilər": "beverages", "souslar": "sauce",
                       "pasta": "pasta", "pizza": "pizza"}.get(
-                str(item.category or "").lower().strip(), str(item.category or "").lower()
+                str(item.category or "").lower().strip(), fallback_query
             )
-            image_url = _search_pexels(f"{cat_en} food plate")
+            image_url = _search_stock_photo(f"{cat_en} restaurant")
 
         if image_url:
             item.image_url = image_url
