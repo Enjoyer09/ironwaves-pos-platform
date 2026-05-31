@@ -113,7 +113,13 @@ def _normalize_image_url(value: str | None) -> str:
 
 def _public_image_url(value: str | None) -> str:
     normalized = str(value or "").strip()
-    if not normalized or normalized.startswith("data:"):
+    if not normalized:
+        return ""
+    if normalized.startswith("data:image/"):
+        if len(normalized) > MAX_EMBEDDED_IMAGE_CHARS:
+            return ""
+        return normalized
+    if normalized.startswith("data:"):
         return ""
     if len(normalized) > MAX_IMAGE_URL_LENGTH:
         return ""
