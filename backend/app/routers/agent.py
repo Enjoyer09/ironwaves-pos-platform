@@ -242,7 +242,8 @@ def auto_assign_menu_images(
         query = query.filter(MenuItem.id.in_(payload.item_ids))
     elif payload.category:
         from sqlalchemy import func
-        query = query.filter(func.lower(MenuItem.category) == payload.category.lower())
+        # Use ILIKE for Turkish/Azerbaijani case-insensitive matching (İ/i issue)
+        query = query.filter(MenuItem.category.ilike(payload.category.strip()))
 
     items = query.order_by(MenuItem.sort_order.asc()).all()
 
