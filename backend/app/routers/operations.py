@@ -3109,21 +3109,21 @@ def enroll_customer_app(
     if app_settings.customer_consent_required and not bool(payload.get("consent_accepted", False)):
         raise HTTPException(status_code=400, detail="Consent must be accepted")
 
-    app_settings = _setting_value(db, tenant.id, "customer_app_settings", {"enabled": True})
-    if not bool(app_settings.get("enabled", True)):
+    tenant_app_settings = _setting_value(db, tenant.id, "customer_app_settings", {"enabled": True})
+    if not bool(tenant_app_settings.get("enabled", True)):
         raise HTTPException(status_code=403, detail="Customer app is disabled for this tenant")
 
     card_id = f"QR-{secrets.token_hex(4).upper()}"
     while db.query(Customer).filter(Customer.tenant_id == tenant.id, Customer.card_id == card_id).first():
         card_id = f"QR-{secrets.token_hex(4).upper()}"
     secret_token = secrets.token_urlsafe(18)
-    join_type = _clean_customer_type(payload.get("join_customer_type") or app_settings.get("join_customer_type") or "golden")
+    join_type = _clean_customer_type(payload.get("join_customer_type") or tenant_app_settings.get("join_customer_type") or "golden")
     customer = Customer(
         tenant_id=tenant.id,
         card_id=card_id,
         type=join_type,
         stars=0,
-        discount_percent=Decimal(str(payload.get("join_discount_percent") or app_settings.get("join_discount_percent") or 0)),
+        discount_percent=Decimal(str(payload.get("join_discount_percent") or tenant_app_settings.get("join_discount_percent") or 0)),
         secret_token=secret_token,
     )
     db.add(customer)
