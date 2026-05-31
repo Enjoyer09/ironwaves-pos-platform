@@ -266,12 +266,19 @@ def auto_assign_menu_images(
     assigned_count = 0
 
     for item in items:
-        # Skip items that already have images (unless overwrite=True)
-        if item.image_url and not payload.overwrite:
+        # Skip items that already have valid images (unless overwrite=True)
+        existing_url = str(item.image_url or "").strip()
+        has_valid_image = bool(existing_url) and (
+            existing_url.startswith("http://") or
+            existing_url.startswith("https://") or
+            existing_url.startswith("/uploads/") or
+            existing_url.startswith("data:image/")
+        )
+        if has_valid_image and not payload.overwrite:
             results.append({
                 "item_id": item.id,
                 "item_name": item.item_name,
-                "image_url": item.image_url,
+                "image_url": existing_url,
                 "status": "skipped",
             })
             continue
