@@ -90,6 +90,7 @@ class Settings(BaseSettings):
 
     # Stock photo API for menu item auto-images
     pexels_api_key: str | None = None
+    unsplash_access_key: str | None = None
 
     # Multi-tenant should be enabled by default. Set true only for per-deployment single-tenant mode.
     single_tenant_mode: bool = False
