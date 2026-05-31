@@ -515,12 +515,12 @@ function ProductCard({
 
   return (
     <article
-      className="overflow-hidden rounded-2xl transition-transform active:scale-[0.985]"
-      style={{ backgroundColor: surfaceColor, boxShadow: `0 2px 16px ${hexToRgba(backgroundColor, 0.5)}` }}
+      className="flex gap-3 overflow-hidden rounded-2xl p-3 transition-transform active:scale-[0.985]"
+      style={{ backgroundColor: surfaceColor, boxShadow: `0 2px 16px ${hexToRgba(backgroundColor, 0.4)}` }}
     >
-      {/* Image */}
-      {hasImage && (
-        <div className="relative aspect-[16/10] w-full overflow-hidden">
+      {/* Image — left side, square/3:2 */}
+      {hasImage ? (
+        <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl sm:h-32 sm:w-32">
           <img
             src={String(item.image_url)}
             alt={String(item.item_name || '')}
@@ -529,50 +529,54 @@ function ProductCard({
           />
           {item.is_coffee && (
             <div
-              className="absolute right-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-bold"
+              className="absolute left-1.5 top-1.5 rounded-md px-1.5 py-0.5 text-[9px] font-bold"
               style={{ backgroundColor: accentColor, color: '#000' }}
             >
               ☕
             </div>
           )}
         </div>
+      ) : (
+        <div
+          className="flex h-28 w-28 shrink-0 items-center justify-center rounded-xl sm:h-32 sm:w-32"
+          style={{ background: `linear-gradient(135deg, ${hexToRgba(primaryColor, 0.08)}, ${hexToRgba(accentColor, 0.04)})` }}
+        >
+          <span className="text-2xl">🍽️</span>
+        </div>
       )}
 
-      {/* Body */}
-      <div className="px-4 pb-4 pt-3">
-        {/* Name + Price */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <h3 className="text-[16px] font-bold leading-snug" style={{ color: textColor }}>
-              {item.item_name}
-            </h3>
-            {showDescriptions && item.description && (
-              <p
-                className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed"
-                style={{ color: hexToRgba(textColor, 0.5) }}
-              >
-                {item.description}
-              </p>
-            )}
-          </div>
-          {showPrices && (
+      {/* Content — right side */}
+      <div className="flex min-w-0 flex-1 flex-col justify-between py-0.5">
+        <div className="min-w-0">
+          {/* Name */}
+          <h3
+            className="text-[15px] font-bold leading-snug sm:text-[16px]"
+            style={{ color: textColor }}
+          >
+            {item.item_name}
+          </h3>
+
+          {/* Description */}
+          {showDescriptions && item.description && (
+            <p
+              className="mt-1 line-clamp-3 text-[12px] leading-[1.5] sm:text-[13px]"
+              style={{ color: hexToRgba(textColor, 0.5) }}
+            >
+              {item.description}
+            </p>
+          )}
+        </div>
+
+        {/* Price */}
+        {showPrices && (
+          <div className="mt-2">
             <span
-              className="shrink-0 text-[16px] font-extrabold"
+              className="text-[15px] font-extrabold sm:text-[16px]"
               style={{ color: primaryColor }}
             >
               {Number(item.price || 0).toFixed(2)} ₼
             </span>
-          )}
-        </div>
-
-        {/* No-image coffee badge */}
-        {!hasImage && item.is_coffee && (
-          <span
-            className="mt-2 inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold"
-            style={{ backgroundColor: hexToRgba(accentColor, 0.15), color: accentColor }}
-          >
-            ☕ Coffee
-          </span>
+          </div>
         )}
       </div>
     </article>
