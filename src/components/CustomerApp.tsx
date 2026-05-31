@@ -214,7 +214,21 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   };
 
   if (loading) {
-    return <div className="min-h-screen bg-slate-950 px-4 py-10 text-center text-slate-200">Loading customer app...</div>;
+    return (
+      <div className="flex min-h-dvh items-center justify-center" style={{ background: backgroundColor }}>
+        <div className="flex flex-col items-center gap-5">
+          <div className="relative h-12 w-12">
+            <div
+              className="absolute inset-0 animate-spin rounded-full border-[3px] border-t-transparent"
+              style={{ borderColor: `${primaryColor}33`, borderTopColor: primaryColor }}
+            />
+          </div>
+          <p className="text-[13px] font-medium tracking-wide" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            {tx(safeLang, 'Yüklənir...', 'Загрузка...', 'Loading...')}
+          </p>
+        </div>
+      </div>
+    );
   }
 
   if (!sessionCreds.cardId || !sessionCreds.token) {
@@ -265,10 +279,13 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-slate-950 px-4 py-10 text-center text-slate-200">
-        <div className="mx-auto max-w-lg rounded-3xl border border-red-400/20 bg-red-500/10 p-6">
-          <h1 className="text-2xl font-bold text-white">{tx(safeLang, 'Müştəri tətbiqi açıla bilmədi', 'Клиентское приложение не открылось', 'Customer app could not be opened')}</h1>
-          <p className="mt-3 text-sm text-red-200">{error || 'Invalid customer link'}</p>
+      <div className="flex min-h-dvh items-center justify-center px-6" style={{ background: backgroundColor }}>
+        <div className="w-full max-w-sm rounded-3xl border p-6 text-center" style={{ borderColor: 'rgba(239,68,68,0.2)', backgroundColor: 'rgba(239,68,68,0.06)' }}>
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(239,68,68,0.1)' }}>
+            <span className="text-2xl">⚠️</span>
+          </div>
+          <h1 className="text-lg font-bold text-white">{tx(safeLang, 'Tətbiq açıla bilmədi', 'Приложение не открылось', 'App could not be opened')}</h1>
+          <p className="mt-2 text-[13px] text-red-200/70">{error || 'Invalid customer link'}</p>
         </div>
       </div>
     );
@@ -318,96 +335,114 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   const renderHome = () => (
     <div className="space-y-4">
+      {/* Hero card */}
       <section
-        className="overflow-hidden border border-white/10 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
+        className="relative overflow-hidden border p-5"
         style={{
-          borderRadius: heroRadius,
+          borderRadius: '24px',
+          borderColor: 'rgba(255,255,255,0.08)',
           background: heroImage
-            ? `linear-gradient(180deg, rgba(15,23,42,0.18), rgba(15,23,42,0.68)), url(${heroImage}) center/cover`
-            : layoutPreset === 'cashback'
-            ? `linear-gradient(180deg, ${primaryColor}, #052e2b)`
-            : `linear-gradient(180deg, ${accentColor}, ${primaryColor})`,
+            ? `linear-gradient(180deg, rgba(15,23,42,0.18), rgba(15,23,42,0.72)), url(${heroImage}) center/cover`
+            : `linear-gradient(135deg, ${accentColor}, ${primaryColor})`,
+          boxShadow: `0 12px 40px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)`,
         }}
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="text-xs uppercase tracking-[0.3em] text-white/70">{branding.app_name || 'Loyalty Club'}</div>
-            <h1 className="mt-3 text-3xl font-black text-white">{branding.hero_title || tx(safeLang, 'Xoş gəldiniz', 'Добро пожаловать', 'Welcome')}</h1>
-            <p className="mt-2 max-w-[16rem] text-sm text-white/80">{branding.hero_subtitle || customer.card_id}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/60">{branding.app_name || 'Loyalty Club'}</p>
+            <h1 className="mt-2 text-2xl font-extrabold text-white">{branding.hero_title || tx(safeLang, 'Xoş gəldiniz', 'Добро пожаловать', 'Welcome')}</h1>
+            <p className="mt-1.5 max-w-[14rem] text-[13px] text-white/70">{branding.hero_subtitle || customer.card_id}</p>
           </div>
-          {branding.logo_url ? <img src={branding.logo_url} alt="brand" className="h-12 w-12 rounded-2xl object-cover" /> : null}
+          {branding.logo_url ? <img src={branding.logo_url} alt="brand" className="h-11 w-11 rounded-xl object-cover shadow-lg" style={{ border: `2px solid rgba(255,255,255,0.2)` }} /> : null}
         </div>
-        {showWallet ? (
-          <div className="mt-6 rounded-[28px] bg-white/12 p-4 backdrop-blur">
-            <div className="text-xs uppercase tracking-[0.2em] text-white/70">{wallet.points_label || 'Ulduz'}</div>
-            <div className="mt-2 text-5xl font-black text-white">{Number(wallet.stars_balance ?? 0).toFixed(programMode === 'cashback' ? 2 : 0)}{balanceSuffix}</div>
-            <div className="mt-2 text-sm text-white/80">
-              {programMode === 'cashback'
-                ? `${Number(wallet.cashback_percent || 0).toFixed(0)}% cashback`
-                : (customer.type || 'Member')}
+
+        {/* Wallet */}
+        {showWallet && (
+          <div
+            className="mt-5 rounded-2xl p-4"
+            style={{ backgroundColor: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
+          >
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/60">{wallet.points_label || 'Ulduz'}</p>
+                <p className="mt-1 text-4xl font-black text-white">{Number(wallet.stars_balance ?? 0).toFixed(programMode === 'cashback' ? 2 : 0)}{balanceSuffix}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[11px] font-medium text-white/60">
+                  {programMode === 'cashback' ? `${Number(wallet.cashback_percent || 0).toFixed(0)}% cashback` : (customer.type || 'Member')}
+                </p>
+              </div>
             </div>
-            <div className="mt-4 h-3 overflow-hidden rounded-full bg-black/20">
-              <div className="h-full rounded-full bg-white" style={{ width: `${progressPercent}%` }} />
+            {/* Progress bar */}
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-black/20">
+              <div className="h-full rounded-full bg-white transition-all duration-500" style={{ width: `${progressPercent}%` }} />
             </div>
-            <div className="mt-3 flex items-center justify-between text-xs text-white/75">
+            <div className="mt-2 flex items-center justify-between text-[11px] text-white/60">
               <span>{tx(safeLang, 'Növbəti reward', 'Следующая награда', 'Next reward')}</span>
-              <span>{wallet.reward_name || tx(safeLang, 'Bonus', 'Бонус', 'Reward')}</span>
+              <span className="font-semibold text-white/80">{wallet.reward_name || 'Reward'}</span>
             </div>
           </div>
-        ) : null}
+        )}
       </section>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <section className={cardClass}>
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><Gift size={16} /> {tx(safeLang, 'Reward-lar', 'Награды', 'Rewards')}</div>
-          <div className="mt-3 text-3xl font-black text-slate-900">{wallet.available_rewards ?? 0}</div>
-          <div className="mt-2 text-sm text-slate-600">{wallet.reward_label || 'Reward'}</div>
-          {rewards[0] ? (
+      {/* Rewards + QR grid */}
+      <div className="grid grid-cols-2 gap-3">
+        <section
+          className="rounded-2xl p-4"
+          style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}
+        >
+          <div className="flex items-center gap-2 text-[12px] font-semibold text-white/70"><Gift size={14} /> {tx(safeLang, 'Rewards', 'Награды', 'Rewards')}</div>
+          <div className="mt-2 text-3xl font-black text-white">{wallet.available_rewards ?? 0}</div>
+          <div className="mt-1 text-[11px] text-white/50">{wallet.reward_label || 'Reward'}</div>
+          {rewards[0] && Number(wallet.available_rewards || 0) > 0 ? (
             <button
               type="button"
-              disabled={claiming || Number(wallet.available_rewards || 0) <= 0}
+              disabled={claiming}
               onClick={() => { void claimReward(); }}
-              className="mt-4 w-full rounded-2xl px-4 py-3 text-sm font-bold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ backgroundColor: primaryColor }}
+              className="relative mt-3 w-full overflow-hidden rounded-xl px-3 py-2.5 text-[12px] font-bold text-black disabled:opacity-50"
+              style={{ backgroundColor: primaryColor, boxShadow: `0 4px 16px ${primaryColor}44` }}
             >
-              {claiming ? tx(safeLang, 'Hazırlanır...', 'Подготавливается...', 'Preparing...') : tx(safeLang, 'Reward claim et', 'Забрать награду', 'Claim reward')}
+              <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.25) 0%, transparent 100%)' }} />
+              {claiming ? '...' : tx(safeLang, 'Claim', 'Забрать', 'Claim')}
             </button>
           ) : null}
         </section>
 
-        <section className={cardClass}>
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><QrCode size={16} /> {tx(safeLang, 'QR Kart', 'QR карта', 'QR card')}</div>
-          {showQrCard ? (
-            <div className="mt-3 flex flex-col items-center rounded-[24px] bg-white px-4 py-5 text-slate-900">
-              {cardQr ? <img src={cardQr} alt="customer qr" className="h-36 w-36 rounded-2xl" /> : null}
-              <div className="mt-3 text-sm font-bold">{customer.card_id}</div>
+        <section
+          className="rounded-2xl p-4"
+          style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}
+        >
+          <div className="flex items-center gap-2 text-[12px] font-semibold text-white/70"><QrCode size={14} /> {tx(safeLang, 'QR Kart', 'QR карта', 'QR Card')}</div>
+          {showQrCard && cardQr ? (
+            <div className="mt-2 flex flex-col items-center">
+              <img src={cardQr} alt="qr" className="h-24 w-24 rounded-xl" />
+              <p className="mt-1.5 text-[10px] font-semibold text-white/60">{customer.card_id}</p>
             </div>
           ) : (
-            <div className="mt-3 rounded-[24px] bg-slate-100 p-4 text-sm text-slate-700">{customer.card_id}</div>
+            <p className="mt-3 text-[11px] font-semibold text-white/60">{customer.card_id}</p>
           )}
         </section>
       </div>
 
-      <section className="rounded-[28px] border border-white/10 bg-white p-4 text-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold">{tx(safeLang, 'Hazır claim kodların', 'Готовые коды наград', 'Your ready claim codes')}</div>
-            <div className="mt-1 text-xs text-slate-500">{tx(safeLang, 'Kassada bu kodu göstər və reward istifadə et', 'Покажи код на кассе и используй награду', 'Show this code at checkout to use your reward')}</div>
-          </div>
-          <div className="rounded-full px-3 py-1 text-xs font-bold text-slate-950" style={{ backgroundColor: accentColor }}>
-            {pendingClaims.length}
-          </div>
+      {/* Pending claim codes */}
+      <section
+        className="rounded-2xl p-4"
+        style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}
+      >
+        <div className="flex items-center justify-between">
+          <p className="text-[13px] font-semibold text-white">{tx(safeLang, 'Claim kodları', 'Коды наград', 'Claim codes')}</p>
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ backgroundColor: `${accentColor}33`, color: accentColor }}>{pendingClaims.length}</span>
         </div>
-        <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
+        <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide">
           {pendingClaims.length === 0 ? (
-            <div className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-              {tx(safeLang, 'Hələ aktiv reward kodu yoxdur', 'Пока нет активного reward-кода', 'No active reward code yet')}
+            <div className="w-full rounded-xl py-4 text-center text-[12px] text-white/40">
+              {tx(safeLang, 'Hələ aktiv kod yoxdur', 'Нет активных кодов', 'No active codes yet')}
             </div>
           ) : pendingClaims.map((row: any) => (
-            <div key={row.id} className="min-w-[210px] rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-              <div className="text-xs uppercase tracking-[0.24em] text-slate-500">{tx(lang, 'Kod', 'Код', 'Code')}</div>
-              <div className="mt-2 text-2xl font-black text-slate-900">{row.claim_code}</div>
-              <div className="mt-2 text-sm text-slate-600">{row.reward_name}</div>
+            <div key={row.id} className="min-w-[160px] shrink-0 rounded-xl p-3" style={{ backgroundColor: `${primaryColor}12`, border: `1px solid ${primaryColor}25` }}>
+              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/50">{tx(safeLang, 'Kassada göstər', 'На кассе', 'At POS')}</p>
+              <p className="mt-1 text-xl font-black text-white">{row.claim_code}</p>
+              <p className="mt-1 text-[11px] text-white/50">{row.reward_name}</p>
             </div>
           ))}
         </div>
@@ -417,34 +452,38 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   const renderOffers = () => (
     <div className="space-y-4">
-      <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
+      <section className="rounded-2xl p-4" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}>
         <div className="flex items-center justify-between gap-3">
-          <div className="text-lg font-bold text-white">{tx(safeLang, 'Aktiv kampaniyalar', 'Активные кампании', 'Active offers')}</div>
-          <div className="rounded-full px-3 py-1 text-xs font-semibold text-slate-950" style={{ backgroundColor: primaryColor }}>{campaigns.length}</div>
+          <p className="text-[15px] font-bold text-white">{tx(safeLang, 'Aktiv kampaniyalar', 'Активные кампании', 'Active offers')}</p>
+          <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold text-black" style={{ backgroundColor: primaryColor }}>{campaigns.length}</span>
         </div>
         <div className="mt-4 space-y-3">
           {campaigns.length === 0 ? (
-            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">{tx(safeLang, 'Hazırda aktiv kampaniya yoxdur', 'Сейчас нет активных кампаний', 'No active campaigns right now')}</div>
+            <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <Gift size={28} style={{ color: 'rgba(255,255,255,0.2)' }} />
+              <p className="text-[13px] text-white/40">{tx(safeLang, 'Hazırda aktiv kampaniya yoxdur', 'Сейчас нет активных кампаний', 'No active campaigns right now')}</p>
+            </div>
           ) : campaigns.map((row: any) => (
-            <div key={row.id} className="rounded-[24px] border border-white/10 bg-white px-4 py-4 text-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
-              <div className="text-lg font-bold">{row.name}</div>
-              <div className="mt-2 text-sm text-slate-600">{row.discount_percent}% {tx(safeLang, 'endirim', 'скидка', 'discount')}</div>
-              <div className="mt-3 text-xs text-slate-500">{row.start_time} - {row.end_time} • {row.categories || 'ALL'}</div>
+            <div key={row.id} className="rounded-xl p-4" style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <p className="text-[15px] font-bold text-white">{row.name}</p>
+              <p className="mt-1 text-[13px] font-semibold" style={{ color: primaryColor }}>{row.discount_percent}% {tx(safeLang, 'endirim', 'скидка', 'discount')}</p>
+              <p className="mt-2 text-[11px] text-white/40">{row.start_time} - {row.end_time} • {row.categories || 'ALL'}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
-        <div className="text-lg font-bold text-white">{tx(safeLang, 'Claim kodları', 'Коды наград', 'Claim codes')}</div>
-        <div className="mt-4 space-y-3">
+      {/* Claim codes */}
+      <section className="rounded-2xl p-4" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}>
+        <p className="text-[15px] font-bold text-white">{tx(safeLang, 'Claim kodları', 'Коды наград', 'Claim codes')}</p>
+        <div className="mt-3 space-y-2.5">
           {pendingClaims.length === 0 ? (
-            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/30 p-4 text-sm text-slate-400">{tx(safeLang, 'Aktiv claim kodu yoxdur', 'Активных кодов нет', 'No active claim codes')}</div>
+            <div className="py-6 text-center text-[12px] text-white/40">{tx(safeLang, 'Aktiv claim kodu yoxdur', 'Активных кодов нет', 'No active claim codes')}</div>
           ) : pendingClaims.map((row: any) => (
-            <div key={row.id} className="rounded-[24px] border border-amber-300/20 bg-amber-400/10 p-4">
-              <div className="text-xs uppercase tracking-[0.25em] text-amber-100">{tx(safeLang, 'Kassada göstərin', 'Покажите на кассе', 'Show at POS')}</div>
-              <div className="mt-2 text-3xl font-black text-white">{row.claim_code}</div>
-              <div className="mt-2 text-sm text-slate-200">{row.reward_name}</div>
+            <div key={row.id} className="rounded-xl p-3.5" style={{ backgroundColor: `${primaryColor}10`, border: `1px solid ${primaryColor}20` }}>
+              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/50">{tx(safeLang, 'Kassada göstərin', 'Покажите на кассе', 'Show at POS')}</p>
+              <p className="mt-1 text-2xl font-black text-white">{row.claim_code}</p>
+              <p className="mt-1 text-[11px] text-white/50">{row.reward_name}</p>
             </div>
           ))}
         </div>
@@ -582,23 +621,35 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   return (
     <div
-      className="min-h-screen text-slate-100"
+      className="relative min-h-dvh overflow-x-hidden overflow-y-auto overscroll-contain text-slate-100"
       style={{
-        backgroundImage: `${backgroundImage ? `linear-gradient(rgba(8,12,22,0.82), rgba(8,12,22,0.94)), url(${backgroundImage}), ` : ''}linear-gradient(180deg, #0b1220, #121b2c)`,
-        background: backgroundImage ? undefined : `linear-gradient(180deg, ${backgroundColor}, #121b2c)`,
-        backgroundSize: backgroundImage ? 'cover, auto' : undefined,
-        backgroundPosition: backgroundImage ? 'center, center' : undefined,
+        background: backgroundImage
+          ? `linear-gradient(rgba(8,12,22,0.82), rgba(8,12,22,0.94)), url(${backgroundImage}) center/cover`
+          : `linear-gradient(180deg, ${backgroundColor} 0%, ${backgroundColor}ee 50%, ${backgroundColor} 100%)`,
       }}
     >
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-28 pt-4">
-        <div className="mb-3 flex justify-end">
-          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-slate-200 backdrop-blur">
-            <Languages size={14} />
-            <button type="button" onClick={() => setLang('az')} className={safeLang === 'az' ? 'font-bold underline' : ''}>AZ</button>
-            <button type="button" onClick={() => setLang('en')} className={safeLang === 'en' ? 'font-bold underline' : ''}>EN</button>
-            <button type="button" onClick={() => setLang('ru')} className={safeLang === 'ru' ? 'font-bold underline' : ''}>RU</button>
+      {/* Ambient liquid blobs */}
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
+        <div className="absolute -left-20 -top-20 h-72 w-72 rounded-full opacity-25 blur-[100px]" style={{ background: primaryColor }} />
+        <div className="absolute -bottom-32 -right-20 h-80 w-80 rounded-full opacity-15 blur-[120px]" style={{ background: accentColor }} />
+        <div className="absolute left-1/2 top-1/3 h-56 w-56 -translate-x-1/2 rounded-full opacity-10 blur-[80px]" style={{ background: primaryColor }} />
+      </div>
+
+      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-24 pt-5">
+        {/* Language switcher */}
+        <div className="mb-4 flex justify-end">
+          <div
+            className="flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-medium text-white/70"
+            style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}
+          >
+            <Languages size={13} />
+            <button type="button" onClick={() => setLang('az')} className={`transition ${safeLang === 'az' ? 'font-bold text-white' : ''}`}>AZ</button>
+            <button type="button" onClick={() => setLang('en')} className={`transition ${safeLang === 'en' ? 'font-bold text-white' : ''}`}>EN</button>
+            <button type="button" onClick={() => setLang('ru')} className={`transition ${safeLang === 'ru' ? 'font-bold text-white' : ''}`}>RU</button>
           </div>
         </div>
+
+        {/* Tab content */}
         {resolvedActiveTab === 'home' && renderHome()}
         {resolvedActiveTab === 'offers' && renderOffers()}
         {resolvedActiveTab === 'barista' && aiBaristaEnabled && renderBarista()}
@@ -606,23 +657,45 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         {resolvedActiveTab === 'profile' && renderProfile()}
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-md px-4 pb-4">
-        <div className="grid gap-2 rounded-[28px] border border-white/10 bg-slate-950/85 p-2 shadow-[0_20px_50px_rgba(0,0,0,0.4)] backdrop-blur-xl" style={{ gridTemplateColumns: `repeat(${bottomTabs.length}, minmax(0, 1fr))` }}>
-          {bottomTabs.map((tab) => {
-            const active = tab.key === resolvedActiveTab;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex flex-col items-center gap-1 rounded-[22px] px-2 py-3 text-xs font-semibold transition ${active ? 'text-slate-950' : 'text-slate-300'}`}
-                style={active ? { backgroundColor: primaryColor } : undefined}
-              >
-                {tab.icon}
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
+      {/* Bottom Navigation — compact glassmorphism */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-30"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
+        <div className="mx-auto max-w-md px-4 pb-3">
+          <div
+            className="flex items-center justify-around rounded-2xl py-2"
+            style={{
+              backgroundColor: `${backgroundColor}e8`,
+              backdropFilter: 'blur(16px) saturate(1.2)',
+              WebkitBackdropFilter: 'blur(16px) saturate(1.2)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              boxShadow: '0 -4px 24px rgba(0,0,0,0.3)',
+            }}
+          >
+            {bottomTabs.map((tab) => {
+              const active = tab.key === resolvedActiveTab;
+              const unreadCount = tab.key === 'profile' ? notifications.filter((n: any) => !n.is_read).length : 0;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className="relative flex flex-col items-center gap-0.5 px-3 py-1.5 transition-colors"
+                  style={{ color: active ? primaryColor : 'rgba(255,255,255,0.45)' }}
+                >
+                  {tab.icon}
+                  <span className="text-[10px] font-medium">{tab.label}</span>
+                  {active && <div className="mt-0.5 h-1 w-1 rounded-full" style={{ backgroundColor: primaryColor }} />}
+                  {unreadCount > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-white" style={{ backgroundColor: '#ef4444' }}>
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </nav>
     </div>
