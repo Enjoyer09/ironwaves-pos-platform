@@ -34,6 +34,19 @@ def _validate_image_url(value: str | None) -> str | None:
     return normalized
 
 
+def _normalize_menu_image_url(value: str | None) -> str:
+    """Normalize stored image URLs to relative paths for consistent serving."""
+    url = str(value or "").strip()
+    if not url:
+        return ""
+    # Convert absolute URLs pointing to our uploads to relative paths
+    uploads_marker = "/uploads/menu-images/"
+    idx = url.find(uploads_marker)
+    if idx >= 0:
+        return url[idx:]
+    return url
+
+
 def _ensure_catalog_write_access(user: User):
     if str(user.role or "").lower() not in {"admin", "super_admin", "manager"}:
         raise HTTPException(status_code=403, detail="Catalog write access required")
@@ -66,7 +79,7 @@ async def upload_menu_image(
         output.write(payload)
 
     base = str(request.base_url).rstrip("/")
-    image_url = f"{base}/uploads/menu-images/{tenant.id}/{filename}"
+    image_url = f"/uploads/menu-images/{tenant.id}/{filename}"
     return {"success": True, "image_url": image_url}
 
 
@@ -200,7 +213,7 @@ def list_public_menu_items(
             "price": str(row.price),
             "is_coffee": bool(row.is_coffee),
             "sort_order": int(row.sort_order or 0),
-            "image_url": row.image_url or "",
+            "image_url": _normalize_menu_image_url(row.image_url),
             "description": row.description or "",
             "is_active": bool(row.is_active),
         }
@@ -231,7 +244,7 @@ def list_menu_items(
             "price": str(row.price),
             "is_coffee": bool(row.is_coffee),
             "sort_order": int(row.sort_order or 0),
-            "image_url": row.image_url or "",
+            "image_url": _normalize_menu_image_url(row.image_url),
             "description": row.description or "",
             "is_active": bool(row.is_active),
         }
@@ -294,7 +307,7 @@ def create_menu_item(
         "price": str(row.price),
         "is_coffee": bool(row.is_coffee),
         "sort_order": int(row.sort_order or 0),
-        "image_url": row.image_url or "",
+        "image_url": _normalize_menu_image_url(row.image_url),
         "description": row.description or "",
         "is_active": bool(row.is_active),
     }
@@ -436,7 +449,7 @@ def update_menu_item(
         "price": str(row.price),
         "is_coffee": bool(row.is_coffee),
         "sort_order": int(row.sort_order or 0),
-        "image_url": row.image_url or "",
+        "image_url": _normalize_menu_image_url(row.image_url),
         "description": row.description or "",
         "is_active": bool(row.is_active),
     }
