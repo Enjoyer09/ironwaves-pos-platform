@@ -1202,7 +1202,7 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
                   title={tx(lang, 'Seçilmiş kateqoriyadakı məhsullara avtomatik stock foto qoyur (Pexels)', 'Автоматически назначает стоковые фото товарам (Pexels)', 'Auto-assigns stock photos to items (Pexels)')}
                 >
                   <Sparkles size={18} />
-                  {tx(lang, 'AI Şəkil', 'AI Фото', 'AI Image')}
+                  {tx(lang, 'AI Şəkil (Beta)', 'AI Фото (Beta)', 'AI Image (Beta)')}
                 </button>
               </div>
             </div>
