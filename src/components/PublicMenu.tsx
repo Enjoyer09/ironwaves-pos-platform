@@ -1,7 +1,7 @@
 import React from 'react';
 import { get_public_menu_live } from '../api/menu';
 import { get_public_qr_menu_bootstrap_live } from '../api/settings';
-import { Search, Home, Grid3X3, Heart, ShoppingBag } from 'lucide-react';
+import { Search } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface MenuItem {
@@ -39,7 +39,6 @@ export default function PublicMenu() {
   const [activeCategory, setActiveCategory] = React.useState('ALL');
   const [search, setSearch] = React.useState('');
   const [searchOpen, setSearchOpen] = React.useState(false);
-  const [activeNav, setActiveNav] = React.useState<'home' | 'menu' | 'favorites' | 'cart'>('home');
   const categoryScrollRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -88,7 +87,6 @@ export default function PublicMenu() {
     '--qr-accent': accentColor,
     '--qr-text-muted': `${textColor}99`,
     '--qr-border': `${textColor}15`,
-    '--qr-card-shadow': '0 8px 32px rgba(0,0,0,0.4)',
   } as React.CSSProperties;
 
   // ─── Categories ──────────────────────────────────────────────────────────
@@ -131,7 +129,7 @@ export default function PublicMenu() {
 
   return (
     <div
-      className="relative min-h-dvh overflow-x-hidden overscroll-contain pb-24"
+      className="relative min-h-dvh overflow-x-hidden overflow-y-auto overscroll-contain"
       style={{ ...cssVars, background: 'var(--qr-bg)', color: 'var(--qr-text)' }}
     >
       {/* ─── Header ─────────────────────────────────────────────────────── */}
@@ -221,7 +219,7 @@ export default function PublicMenu() {
       </header>
 
       {/* ─── Content ────────────────────────────────────────────────────── */}
-      <main className="mx-auto max-w-lg px-4 pt-4">
+      <main className="mx-auto max-w-lg px-4 pt-4 pb-6">
         {filteredItems.length === 0 ? (
           <div
             className="mt-16 flex flex-col items-center gap-3 rounded-2xl p-8 text-center"
@@ -233,7 +231,7 @@ export default function PublicMenu() {
             </p>
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
             {filteredItems.map((item) => (
               <MenuCard
                 key={item.id}
@@ -249,55 +247,7 @@ export default function PublicMenu() {
             ))}
           </div>
         )}
-
-        {/* Footer spacer for bottom nav */}
-        <div className="h-8" />
       </main>
-
-      {/* ─── Bottom Navigation ──────────────────────────────────────────── */}
-      <nav
-        className="fixed inset-x-0 bottom-0 z-40 border-t backdrop-blur-xl"
-        style={{
-          background: `${backgroundColor}f0`,
-          borderColor: 'var(--qr-border)',
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        }}
-      >
-        <div className="mx-auto flex max-w-lg items-center justify-around py-2">
-          <NavItem
-            icon={<Home size={20} />}
-            label="Ana səhifə"
-            active={activeNav === 'home'}
-            primaryColor={primaryColor}
-            textColor={textColor}
-            onClick={() => setActiveNav('home')}
-          />
-          <NavItem
-            icon={<Grid3X3 size={20} />}
-            label="Menu"
-            active={activeNav === 'menu'}
-            primaryColor={primaryColor}
-            textColor={textColor}
-            onClick={() => { setActiveNav('menu'); }}
-          />
-          <NavItem
-            icon={<Heart size={20} />}
-            label="Sevimlilər"
-            active={activeNav === 'favorites'}
-            primaryColor={primaryColor}
-            textColor={textColor}
-            onClick={() => setActiveNav('favorites')}
-          />
-          <NavItem
-            icon={<ShoppingBag size={20} />}
-            label="Səbət"
-            active={activeNav === 'cart'}
-            primaryColor={primaryColor}
-            textColor={textColor}
-            onClick={() => setActiveNav('cart')}
-          />
-        </div>
-      </nav>
     </div>
   );
 }
@@ -324,15 +274,15 @@ function MenuCard({
 }) {
   return (
     <article
-      className="flex gap-3 rounded-2xl p-3 transition-transform active:scale-[0.98]"
+      className="flex gap-4 rounded-2xl p-3.5"
       style={{
         backgroundColor: surfaceColor,
-        boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
       }}
     >
       {/* Image */}
       {showImages && item.image_url ? (
-        <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl">
+        <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl sm:h-32 sm:w-32">
           <img
             src={String(item.image_url)}
             alt={String(item.item_name || '')}
@@ -341,7 +291,7 @@ function MenuCard({
           />
           {item.is_coffee && (
             <div
-              className="absolute left-1 top-1 rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase"
+              className="absolute left-1.5 top-1.5 rounded-md px-1.5 py-0.5 text-[10px] font-bold"
               style={{ backgroundColor: accentColor, color: '#000' }}
             >
               ☕
@@ -350,7 +300,7 @@ function MenuCard({
         </div>
       ) : (
         <div
-          className="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl text-2xl"
+          className="flex h-28 w-28 shrink-0 items-center justify-center rounded-xl text-3xl sm:h-32 sm:w-32"
           style={{ backgroundColor: `${textColor}08` }}
         >
           🍽️
@@ -358,25 +308,23 @@ function MenuCard({
       )}
 
       {/* Content */}
-      <div className="flex min-w-0 flex-1 flex-col justify-between py-0.5">
+      <div className="flex min-w-0 flex-1 flex-col justify-between py-1">
         <div className="min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <h3
-              className="truncate text-sm font-bold leading-tight"
-              style={{ color: textColor }}
-            >
-              {item.item_name}
-            </h3>
-          </div>
+          <h3
+            className="text-base font-bold leading-snug sm:text-lg"
+            style={{ color: textColor }}
+          >
+            {item.item_name}
+          </h3>
           <span
-            className="mt-0.5 inline-block text-[10px] font-semibold uppercase tracking-wider"
+            className="mt-1 inline-block text-[11px] font-semibold uppercase tracking-wider"
             style={{ color: `${primaryColor}cc` }}
           >
             {item.category}
           </span>
           {showDescriptions && item.description && (
             <p
-              className="mt-1 line-clamp-2 text-xs leading-relaxed"
+              className="mt-1.5 line-clamp-2 text-sm leading-relaxed"
               style={{ color: `${textColor}77` }}
             >
               {item.description}
@@ -386,59 +334,16 @@ function MenuCard({
 
         {/* Price */}
         {showPrices && (
-          <div className="mt-2 flex items-center justify-between">
+          <div className="mt-2">
             <span
-              className="text-base font-black"
+              className="text-lg font-black sm:text-xl"
               style={{ color: primaryColor }}
             >
               {Number(item.price || 0).toFixed(2)} ₼
             </span>
-            <button
-              type="button"
-              className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
-              style={{ backgroundColor: primaryColor, color: '#000' }}
-              aria-label="Səbətə əlavə et"
-            >
-              +
-            </button>
           </div>
         )}
       </div>
     </article>
-  );
-}
-
-// ─── Bottom Nav Item ─────────────────────────────────────────────────────────
-function NavItem({
-  icon,
-  label,
-  active,
-  primaryColor,
-  textColor,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  active: boolean;
-  primaryColor: string;
-  textColor: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex flex-col items-center gap-0.5 px-3 py-1 transition-colors"
-      style={{ color: active ? primaryColor : `${textColor}55` }}
-    >
-      {icon}
-      <span className="text-[10px] font-medium">{label}</span>
-      {active && (
-        <div
-          className="mt-0.5 h-1 w-1 rounded-full"
-          style={{ backgroundColor: primaryColor }}
-        />
-      )}
-    </button>
   );
 }
