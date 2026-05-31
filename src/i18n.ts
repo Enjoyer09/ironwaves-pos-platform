@@ -49,8 +49,8 @@ export const i18n = {
       analytics: 'Analitika',
       logs: 'Loqlar',
       crm: 'CRM',
-      customerapp: 'Customer App',
-      posbuilder: 'POS Dizaynı',
+      customerapp: 'Müştəri Tətbiqi',
+      posbuilder: 'Dizayn & QR',
       ai: 'AI Menecer',
       menu: 'Menyu',
       recipes: 'Resept',
@@ -58,7 +58,7 @@ export const i18n = {
       notes: 'Qeydlər',
       settings: 'Ayarlar',
       landing: 'Landing Studio',
-      database: 'Baza'
+      database: 'Backup/Restore'
     }
   },
   ru: {
@@ -111,8 +111,8 @@ export const i18n = {
       analytics: 'Аналитика',
       logs: 'Логи',
       crm: 'CRM',
-      customerapp: 'Customer App',
-      posbuilder: 'Дизайн POS',
+      customerapp: 'Приложение клиента',
+      posbuilder: 'Дизайн & QR',
       ai: 'AI Менеджер',
       menu: 'Меню',
       recipes: 'Рецепт',
@@ -120,7 +120,7 @@ export const i18n = {
       notes: 'Заметки',
       settings: 'Настройки',
       landing: 'Landing Studio',
-      database: 'База'
+      database: 'Backup/Restore'
     }
   },
   en: {
@@ -174,7 +174,7 @@ export const i18n = {
       logs: 'Logs',
       crm: 'CRM',
       customerapp: 'Customer App',
-      posbuilder: 'POS Layout',
+      posbuilder: 'Design & QR',
       ai: 'AI Manager',
       menu: 'Menu',
       recipes: 'Recipes',
@@ -182,7 +182,7 @@ export const i18n = {
       notes: 'Notes',
       settings: 'Settings',
       landing: 'Landing Studio',
-      database: 'Database'
+      database: 'Backup/Restore'
     }
   }
 };
