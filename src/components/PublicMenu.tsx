@@ -1,13 +1,46 @@
 import React from 'react';
 import { get_public_menu_live } from '../api/menu';
 import { get_public_qr_menu_bootstrap_live } from '../api/settings';
+import { Search, Home, Grid3X3, Heart, ShoppingBag } from 'lucide-react';
 
+// ─── Types ───────────────────────────────────────────────────────────────────
+interface MenuItem {
+  id: string;
+  item_name: string;
+  category: string;
+  price: number;
+  description?: string;
+  image_url?: string;
+  is_coffee?: boolean;
+  sort_order?: number;
+}
+
+interface Branding {
+  company_name: string;
+  logo_url: string;
+  hero_title: string;
+  hero_subtitle: string;
+  background_color: string;
+  surface_color: string;
+  text_color: string;
+  hero_image_url: string;
+  poster_image_url: string;
+  poster_background_color: string;
+  logo_shape: string;
+  primary_color: string;
+  accent_color: string;
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
 export default function PublicMenu() {
   const [loading, setLoading] = React.useState(true);
-  const [menuItems, setMenuItems] = React.useState<any[]>([]);
+  const [menuItems, setMenuItems] = React.useState<MenuItem[]>([]);
   const [bootstrap, setBootstrap] = React.useState<any | null>(null);
   const [activeCategory, setActiveCategory] = React.useState('ALL');
   const [search, setSearch] = React.useState('');
+  const [searchOpen, setSearchOpen] = React.useState(false);
+  const [activeNav, setActiveNav] = React.useState<'home' | 'menu' | 'favorites' | 'cart'>('home');
+  const categoryScrollRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     let mounted = true;
@@ -28,33 +61,45 @@ export default function PublicMenu() {
         if (mounted) setLoading(false);
       }
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
-  const branding = bootstrap?.branding || {};
+  // ─── Branding / CSS Variables ────────────────────────────────────────────
+  const branding: Partial<Branding> = bootstrap?.branding || {};
   const showPrices = bootstrap?.show_prices !== false;
   const showImages = bootstrap?.show_images !== false;
   const showDescriptions = bootstrap?.show_descriptions !== false;
+
   const companyName = String(branding.company_name || 'iRonWaves Menu');
   const logoUrl = String(branding.logo_url || '');
   const primaryColor = String(branding.primary_color || '#facc15');
-  const accentColor = String(branding.accent_color || '#22d3ee');
-  const backgroundColor = String(branding.background_color || '#efe2c1');
-  const surfaceColor = String(branding.surface_color || '#fff7e8');
-  const textColor = String(branding.text_color || '#2b1708');
-  const heroImageUrl = String(branding.hero_image_url || '');
-  const posterImageUrl = String(branding.poster_image_url || '');
+  const accentColor = String(branding.accent_color || '#facc15');
+  const backgroundColor = String(branding.background_color || '#0f0f0f');
+  const surfaceColor = String(branding.surface_color || '#1a1a1a');
+  const textColor = String(branding.text_color || '#ffffff');
   const logoShape = String(branding.logo_shape || 'rounded');
-  const heroTitle = String(branding.hero_title || companyName);
-  const heroSubtitle = String(branding.hero_subtitle || 'QR Menu');
 
+  // CSS custom properties for tenant branding
+  const cssVars = {
+    '--qr-bg': backgroundColor,
+    '--qr-surface': surfaceColor,
+    '--qr-text': textColor,
+    '--qr-primary': primaryColor,
+    '--qr-accent': accentColor,
+    '--qr-text-muted': `${textColor}99`,
+    '--qr-border': `${textColor}15`,
+    '--qr-card-shadow': '0 8px 32px rgba(0,0,0,0.4)',
+  } as React.CSSProperties;
+
+  // ─── Categories ──────────────────────────────────────────────────────────
   const categories = React.useMemo(() => {
-    const unique = Array.from(new Set(menuItems.map((item) => String(item.category || '').trim()).filter(Boolean)));
+    const unique = Array.from(
+      new Set(menuItems.map((item) => String(item.category || '').trim()).filter(Boolean))
+    );
     return ['ALL', ...unique];
   }, [menuItems]);
 
+  // ─── Filtered Items ──────────────────────────────────────────────────────
   const filteredItems = React.useMemo(() => {
     return menuItems.filter((item) => {
       const categoryOk = activeCategory === 'ALL' || String(item.category || '') === activeCategory;
@@ -64,164 +109,336 @@ export default function PublicMenu() {
     });
   }, [menuItems, activeCategory, search]);
 
+  // ─── Loading State ───────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-dvh overflow-x-hidden overflow-y-auto px-4 py-10 text-slate-100" style={{ background: `linear-gradient(180deg, ${backgroundColor}, #09111d)` }}>
-        <div className="mx-auto max-w-5xl rounded-3xl border border-white/10 bg-white/5 p-8 text-center backdrop-blur">
-          <div className="text-xl font-semibold">Menu yüklənir...</div>
+      <div
+        className="flex min-h-dvh items-center justify-center"
+        style={{ ...cssVars, background: 'var(--qr-bg)' }}
+      >
+        <div className="flex flex-col items-center gap-4">
+          <div
+            className="h-12 w-12 animate-spin rounded-full border-4 border-t-transparent"
+            style={{ borderColor: `${primaryColor}33`, borderTopColor: primaryColor }}
+          />
+          <p className="text-sm font-medium" style={{ color: `${textColor}88` }}>
+            Menu yüklənir...
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-dvh overflow-x-hidden overflow-y-auto overscroll-contain px-3 py-4 sm:px-4 sm:py-6" style={{ background: `linear-gradient(180deg, ${backgroundColor}, #f7ecd2)` }}>
-      <div className="mx-auto max-w-6xl space-y-4 sm:space-y-6">
-        <div className="overflow-hidden rounded-[2rem] border shadow-[0_20px_60px_rgba(55,31,8,0.18)]" style={{ borderColor: `${textColor}22`, backgroundColor: surfaceColor }}>
-          <div
-            className="relative overflow-hidden px-4 py-5 sm:px-6 sm:py-8 md:px-10"
-            style={{
-              background: `radial-gradient(circle at top right, ${accentColor}44 0%, transparent 38%), linear-gradient(135deg, ${primaryColor}30, transparent 60%)`,
-            }}
-          >
-            {heroImageUrl ? (
-              <div className="absolute inset-x-0 top-0 h-56 md:h-72">
-                <img src={heroImageUrl} alt={heroTitle} className="h-full w-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/15 to-transparent" />
+    <div
+      className="relative min-h-dvh overflow-x-hidden overscroll-contain pb-24"
+      style={{ ...cssVars, background: 'var(--qr-bg)', color: 'var(--qr-text)' }}
+    >
+      {/* ─── Header ─────────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-30 backdrop-blur-xl" style={{ background: `${backgroundColor}ee` }}>
+        <div className="mx-auto flex max-w-lg items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={companyName}
+                className={`h-10 w-10 object-cover ${logoShape === 'circle' ? 'rounded-full' : logoShape === 'square' ? 'rounded-md' : 'rounded-xl'}`}
+              />
+            ) : (
+              <div
+                className={`flex h-10 w-10 items-center justify-center text-xs font-black ${logoShape === 'circle' ? 'rounded-full' : logoShape === 'square' ? 'rounded-md' : 'rounded-xl'}`}
+                style={{ backgroundColor: primaryColor, color: '#000' }}
+              >
+                {companyName.slice(0, 2).toUpperCase()}
               </div>
-            ) : null}
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-[1.05fr_0.95fr] md:items-center">
-              <div className="relative z-10 flex flex-col gap-4">
-                <div className="flex items-center gap-4">
-                {logoUrl ? (
-                  <img
-                    src={logoUrl}
-                    alt={companyName}
-                    className={`h-14 w-14 shrink-0 object-cover ring-1 sm:h-16 sm:w-16 ${logoShape === 'circle' ? 'rounded-full' : logoShape === 'square' ? 'rounded-lg' : 'rounded-2xl'}`}
-                    style={{ borderColor: `${textColor}25` }}
-                  />
-                ) : (
-                  <div className={`flex h-14 w-14 shrink-0 items-center justify-center text-lg font-black sm:h-16 sm:w-16 ${logoShape === 'circle' ? 'rounded-full' : logoShape === 'square' ? 'rounded-lg' : 'rounded-2xl'}`} style={{ backgroundColor: primaryColor, color: textColor }}>
-                    QR
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <div className="text-xs uppercase tracking-[0.35em]" style={{ color: `${textColor}99` }}>QR MENU</div>
-                  <h1 className="mt-2 break-words text-3xl font-black leading-tight sm:text-4xl md:text-6xl" style={{ color: textColor }}>{heroTitle}</h1>
-                  <p className="mt-3 max-w-2xl text-sm md:text-base" style={{ color: `${textColor}CC` }}>{heroSubtitle}</p>
-                </div>
-              </div>
-              <div className="w-full md:max-w-sm">
-                <input
-                  className="neon-input"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Məhsul axtar..."
-                />
-              </div>
-            </div>
-              <div className="relative z-10 flex justify-center md:justify-end">
-                <div className="relative mt-2 w-full max-w-[320px] rounded-[1.75rem] p-3 shadow-[0_24px_50px_rgba(40,22,6,0.18)] sm:rounded-[2rem] sm:p-4" style={{ backgroundColor: String(branding.poster_background_color || primaryColor) }}>
-                  <div className="rounded-[1.6rem] border px-4 pb-4 pt-5" style={{ backgroundColor: surfaceColor, borderColor: `${textColor}18` }}>
-                    {posterImageUrl ? (
-                      <img src={posterImageUrl} alt={companyName} className="h-56 w-full rounded-[1.25rem] object-cover sm:h-72" loading="lazy" />
-                    ) : heroImageUrl ? (
-                      <img src={heroImageUrl} alt={heroTitle} className="mb-3 h-36 w-full rounded-[1.25rem] object-cover" loading="lazy" />
-                    ) : (
-                      <div className="mb-3 flex items-center gap-3">
-                        {logoUrl ? (
-                          <img
-                            src={logoUrl}
-                            alt={companyName}
-                            className={`h-12 w-12 object-cover ${logoShape === 'circle' ? 'rounded-full' : logoShape === 'square' ? 'rounded-lg' : 'rounded-2xl'}`}
-                          />
-                        ) : null}
-                        <div>
-                          <div className="text-xs uppercase tracking-[0.24em]" style={{ color: `${textColor}88` }}>MENU</div>
-                          <div className="text-lg font-black" style={{ color: textColor }}>{companyName}</div>
-                        </div>
-                      </div>
-                    )}
-                    {posterImageUrl ? null : (
-                      <div className="space-y-2">
-                        {filteredItems.slice(0, 3).map((item) => (
-                          <div key={item.id} className="flex items-center justify-between rounded-2xl px-3 py-2" style={{ backgroundColor: `${primaryColor}18` }}>
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-bold" style={{ color: textColor }}>{item.item_name}</div>
-                              <div className="text-[11px]" style={{ color: `${textColor}88` }}>{item.category}</div>
-                            </div>
-                            {showPrices ? <div className="text-sm font-black" style={{ color: textColor }}>{Number(item.price || 0).toFixed(2)} ₼</div> : null}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
+            )}
+            <div className="min-w-0">
+              <h1 className="truncate text-base font-bold" style={{ color: textColor }}>
+                {companyName}
+              </h1>
+              <p className="text-[11px] font-medium" style={{ color: `${textColor}66` }}>
+                QR Menu
+              </p>
             </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setSearchOpen(!searchOpen)}
+            className="flex h-9 w-9 items-center justify-center rounded-full transition-colors"
+            style={{ backgroundColor: `${textColor}10` }}
+            aria-label="Axtar"
+          >
+            <Search size={18} style={{ color: primaryColor }} />
+          </button>
         </div>
 
-        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2 sm:flex-wrap sm:overflow-visible">
-          {categories.map((category) => (
-            <button
-              key={category}
-              type="button"
-              onClick={() => setActiveCategory(category)}
-              className={`shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                activeCategory === category
-                  ? 'text-slate-900'
-                  : 'hover:bg-white/60'
-              }`}
-              style={activeCategory === category ? { backgroundColor: primaryColor, borderColor: primaryColor } : { borderColor: `${textColor}18`, backgroundColor: surfaceColor, color: textColor }}
+        {/* Search bar (collapsible) */}
+        {searchOpen && (
+          <div className="border-b px-4 pb-3" style={{ borderColor: 'var(--qr-border)' }}>
+            <div
+              className="flex items-center gap-2 rounded-xl px-3 py-2.5"
+              style={{ backgroundColor: `${textColor}08`, border: `1px solid ${textColor}15` }}
             >
-              {category === 'ALL' ? 'Hamısı' : category}
-            </button>
-          ))}
-        </div>
+              <Search size={16} style={{ color: `${textColor}55` }} />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Məhsul axtar..."
+                className="w-full bg-transparent text-sm outline-none placeholder:opacity-50"
+                style={{ color: textColor }}
+                autoFocus
+              />
+            </div>
+          </div>
+        )}
 
+        {/* Category Tabs */}
+        <div
+          ref={categoryScrollRef}
+          className="scrollbar-hide flex gap-2 overflow-x-auto border-b px-4 py-2.5"
+          style={{ borderColor: 'var(--qr-border)' }}
+        >
+          {categories.map((category) => {
+            const isActive = activeCategory === category;
+            return (
+              <button
+                key={category}
+                type="button"
+                onClick={() => setActiveCategory(category)}
+                className="shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition-all"
+                style={
+                  isActive
+                    ? { backgroundColor: primaryColor, color: '#000' }
+                    : { backgroundColor: `${textColor}08`, color: `${textColor}88` }
+                }
+              >
+                {category === 'ALL' ? 'Hamısı' : category}
+              </button>
+            );
+          })}
+        </div>
+      </header>
+
+      {/* ─── Content ────────────────────────────────────────────────────── */}
+      <main className="mx-auto max-w-lg px-4 pt-4">
         {filteredItems.length === 0 ? (
-          <div className="rounded-3xl border p-10 text-center" style={{ borderColor: `${textColor}18`, backgroundColor: surfaceColor, color: textColor }}>
-            Uyğun məhsul tapılmadı.
+          <div
+            className="mt-16 flex flex-col items-center gap-3 rounded-2xl p-8 text-center"
+            style={{ backgroundColor: surfaceColor }}
+          >
+            <div className="text-3xl">🍽️</div>
+            <p className="text-sm font-medium" style={{ color: `${textColor}88` }}>
+              Uyğun məhsul tapılmadı.
+            </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="flex flex-col gap-3">
             {filteredItems.map((item) => (
-              <div key={item.id} className="rounded-[1.5rem] border p-4 shadow-[0_10px_30px_rgba(55,31,8,0.12)] sm:rounded-[1.75rem] sm:p-5" style={{ borderColor: `${textColor}18`, backgroundColor: surfaceColor }}>
-                {showImages && item.image_url ? (
-                  <img
-                    src={String(item.image_url)}
-                    alt={String(item.item_name || 'Menu item')}
-                    className="mb-4 h-40 w-full rounded-[1.25rem] object-cover sm:h-48"
-                    loading="lazy"
-                  />
-                ) : null}
-                <div className="mb-4 flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em]" style={{ backgroundColor: `${accentColor}22`, color: textColor }}>
-                      {item.category}
-                    </div>
-                    <h3 className="mt-3 break-words text-xl font-bold sm:text-2xl" style={{ color: textColor }}>{item.item_name}</h3>
-                    {showDescriptions && item.description ? (
-                      <p className="mt-2 text-sm leading-6" style={{ color: `${textColor}CC` }}>{String(item.description)}</p>
-                    ) : null}
-                  </div>
-                  {showPrices ? (
-                    <div className="shrink-0 rounded-2xl px-3 py-2 text-lg font-black" style={{ backgroundColor: primaryColor, color: textColor }}>
-                      {Number(item.price || 0).toFixed(2)} ₼
-                    </div>
-                  ) : null}
-                </div>
-                {item.is_coffee ? (
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: accentColor }}>
-                    Coffee Favorite
-                  </div>
-                ) : null}
-              </div>
+              <MenuCard
+                key={item.id}
+                item={item}
+                showPrices={showPrices}
+                showImages={showImages}
+                showDescriptions={showDescriptions}
+                primaryColor={primaryColor}
+                surfaceColor={surfaceColor}
+                textColor={textColor}
+                accentColor={accentColor}
+              />
             ))}
           </div>
         )}
-      </div>
+
+        {/* Footer spacer for bottom nav */}
+        <div className="h-8" />
+      </main>
+
+      {/* ─── Bottom Navigation ──────────────────────────────────────────── */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 border-t backdrop-blur-xl"
+        style={{
+          background: `${backgroundColor}f0`,
+          borderColor: 'var(--qr-border)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        }}
+      >
+        <div className="mx-auto flex max-w-lg items-center justify-around py-2">
+          <NavItem
+            icon={<Home size={20} />}
+            label="Ana səhifə"
+            active={activeNav === 'home'}
+            primaryColor={primaryColor}
+            textColor={textColor}
+            onClick={() => setActiveNav('home')}
+          />
+          <NavItem
+            icon={<Grid3X3 size={20} />}
+            label="Menu"
+            active={activeNav === 'menu'}
+            primaryColor={primaryColor}
+            textColor={textColor}
+            onClick={() => { setActiveNav('menu'); }}
+          />
+          <NavItem
+            icon={<Heart size={20} />}
+            label="Sevimlilər"
+            active={activeNav === 'favorites'}
+            primaryColor={primaryColor}
+            textColor={textColor}
+            onClick={() => setActiveNav('favorites')}
+          />
+          <NavItem
+            icon={<ShoppingBag size={20} />}
+            label="Səbət"
+            active={activeNav === 'cart'}
+            primaryColor={primaryColor}
+            textColor={textColor}
+            onClick={() => setActiveNav('cart')}
+          />
+        </div>
+      </nav>
     </div>
+  );
+}
+
+// ─── Menu Card Component ─────────────────────────────────────────────────────
+function MenuCard({
+  item,
+  showPrices,
+  showImages,
+  showDescriptions,
+  primaryColor,
+  surfaceColor,
+  textColor,
+  accentColor,
+}: {
+  item: MenuItem;
+  showPrices: boolean;
+  showImages: boolean;
+  showDescriptions: boolean;
+  primaryColor: string;
+  surfaceColor: string;
+  textColor: string;
+  accentColor: string;
+}) {
+  return (
+    <article
+      className="flex gap-3 rounded-2xl p-3 transition-transform active:scale-[0.98]"
+      style={{
+        backgroundColor: surfaceColor,
+        boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+      }}
+    >
+      {/* Image */}
+      {showImages && item.image_url ? (
+        <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl">
+          <img
+            src={String(item.image_url)}
+            alt={String(item.item_name || '')}
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
+          {item.is_coffee && (
+            <div
+              className="absolute left-1 top-1 rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase"
+              style={{ backgroundColor: accentColor, color: '#000' }}
+            >
+              ☕
+            </div>
+          )}
+        </div>
+      ) : (
+        <div
+          className="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl text-2xl"
+          style={{ backgroundColor: `${textColor}08` }}
+        >
+          🍽️
+        </div>
+      )}
+
+      {/* Content */}
+      <div className="flex min-w-0 flex-1 flex-col justify-between py-0.5">
+        <div className="min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <h3
+              className="truncate text-sm font-bold leading-tight"
+              style={{ color: textColor }}
+            >
+              {item.item_name}
+            </h3>
+          </div>
+          <span
+            className="mt-0.5 inline-block text-[10px] font-semibold uppercase tracking-wider"
+            style={{ color: `${primaryColor}cc` }}
+          >
+            {item.category}
+          </span>
+          {showDescriptions && item.description && (
+            <p
+              className="mt-1 line-clamp-2 text-xs leading-relaxed"
+              style={{ color: `${textColor}77` }}
+            >
+              {item.description}
+            </p>
+          )}
+        </div>
+
+        {/* Price */}
+        {showPrices && (
+          <div className="mt-2 flex items-center justify-between">
+            <span
+              className="text-base font-black"
+              style={{ color: primaryColor }}
+            >
+              {Number(item.price || 0).toFixed(2)} ₼
+            </span>
+            <button
+              type="button"
+              className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
+              style={{ backgroundColor: primaryColor, color: '#000' }}
+              aria-label="Səbətə əlavə et"
+            >
+              +
+            </button>
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}
+
+// ─── Bottom Nav Item ─────────────────────────────────────────────────────────
+function NavItem({
+  icon,
+  label,
+  active,
+  primaryColor,
+  textColor,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  primaryColor: string;
+  textColor: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col items-center gap-0.5 px-3 py-1 transition-colors"
+      style={{ color: active ? primaryColor : `${textColor}55` }}
+    >
+      {icon}
+      <span className="text-[10px] font-medium">{label}</span>
+      {active && (
+        <div
+          className="mt-0.5 h-1 w-1 rounded-full"
+          style={{ backgroundColor: primaryColor }}
+        />
+      )}
+    </button>
   );
 }
