@@ -96,7 +96,7 @@ export default function LandingPageV2() {
       <nav className="sticky top-0 z-50 border-b border-slate-800/60 bg-[#0a0f1a]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-yellow-400 to-amber-500 text-sm font-black text-slate-900">iW</div>
+            <img src="/landing/ironwaves-logo.jpeg" alt="iRonWaves" className="h-9 w-9 rounded-xl object-cover" />
             <span className="text-lg font-bold">iRonWaves</span>
           </div>
           <div className="hidden items-center gap-8 md:flex">
@@ -144,24 +144,34 @@ export default function LandingPageV2() {
                 </a>
               </div>
             </div>
-            {/* Right: POS Device with sliding screenshots */}
-            <div className="relative mx-auto w-full max-w-md lg:max-w-lg">
-              {/* POS Device image as frame */}
-              <div className="relative">
-                <img src="/landing/pos-device.png" alt="POS Terminal" className="relative z-10 w-full drop-shadow-2xl" />
-                {/* Screenshots inside the screen area */}
-                <div className="absolute z-20 overflow-hidden" style={{ top: '4%', left: '7%', right: '7%', bottom: '35%', borderRadius: '4px' }}>
-                  <div className="flex h-full transition-transform duration-700 ease-in-out" style={{ transform: `translateX(-${slideIndex * 100}%)` }}>
-                    {SCREENSHOTS.map((src, i) => (
-                      <img key={i} src={src} alt={`Screenshot ${i + 1}`} className="h-full w-full shrink-0 object-cover object-top" loading="lazy" />
-                    ))}
+            {/* Right: POS Device (CSS-built) with sliding screenshots */}
+            <div className="relative mx-auto w-full max-w-lg xl:max-w-xl">
+              {/* Device body */}
+              <div className="relative mx-auto" style={{ maxWidth: '520px' }}>
+                {/* Screen bezel */}
+                <div className="rounded-[20px] border-[10px] border-[#1a1a1a] bg-[#111] shadow-[0_30px_80px_rgba(0,0,0,0.7),inset_0_2px_4px_rgba(255,255,255,0.05)]">
+                  {/* Screen */}
+                  <div className="overflow-hidden rounded-[10px] bg-[#0a0f1a]" style={{ aspectRatio: '16/10' }}>
+                    <div className="flex h-full transition-transform duration-700 ease-in-out" style={{ transform: `translateX(-${slideIndex * 100}%)` }}>
+                      {SCREENSHOTS.map((src, i) => (
+                        <img key={i} src={src} alt={`Screenshot ${i + 1}`} className="h-full w-full shrink-0 object-cover object-left-top" loading="lazy" />
+                      ))}
+                    </div>
                   </div>
                 </div>
+                {/* Stand neck */}
+                <div className="mx-auto h-12 w-20 bg-gradient-to-b from-[#1a1a1a] to-[#2a2a2a]" />
+                {/* Stand base with orange accent */}
+                <div className="mx-auto flex h-8 w-36 items-center justify-center rounded-b-2xl bg-gradient-to-b from-orange-500 to-orange-600 shadow-lg">
+                  <div className="h-1 w-16 rounded-full bg-orange-300/40" />
+                </div>
+                {/* Base plate */}
+                <div className="mx-auto h-3 w-44 rounded-b-xl bg-[#1a1a1a] shadow-md" />
               </div>
               {/* Slide dots */}
-              <div className="mt-6 flex justify-center gap-2">
+              <div className="mt-8 flex justify-center gap-2">
                 {SCREENSHOTS.map((_, i) => (
-                  <button key={i} type="button" onClick={() => setSlideIndex(i)} className={`h-2 rounded-full transition-all ${i === slideIndex ? 'w-6 bg-yellow-400' : 'w-2 bg-slate-600'}`} />
+                  <button key={i} type="button" onClick={() => setSlideIndex(i)} className={`h-2.5 rounded-full transition-all ${i === slideIndex ? 'w-7 bg-yellow-400' : 'w-2.5 bg-slate-600'}`} />
                 ))}
               </div>
             </div>
@@ -279,7 +289,7 @@ export default function LandingPageV2() {
       <footer className="border-t border-slate-800/60 px-6 py-10">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 md:flex-row">
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-yellow-400 to-amber-500 text-xs font-black text-slate-900">iW</div>
+            <img src="/landing/ironwaves-logo.jpeg" alt="iRonWaves" className="h-7 w-7 rounded-lg object-cover" />
             <span className="text-sm font-bold text-slate-300">iRonWaves POS</span>
           </div>
           <div className="text-xs text-slate-500">© 2026 iRonWaves. {tx(lang, 'Bütün hüquqlar qorunur.', 'Все права защищены.', 'All rights reserved.')}</div>
