@@ -215,12 +215,12 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   if (loading) {
     return (
-      <div className="flex min-h-dvh items-center justify-center" style={{ background: backgroundColor }}>
+      <div className="flex min-h-dvh items-center justify-center" style={{ background: '#0b1220' }}>
         <div className="flex flex-col items-center gap-5">
           <div className="relative h-12 w-12">
             <div
               className="absolute inset-0 animate-spin rounded-full border-[3px] border-t-transparent"
-              style={{ borderColor: `${primaryColor}33`, borderTopColor: primaryColor }}
+              style={{ borderColor: 'rgba(250,204,21,0.2)', borderTopColor: '#facc15' }}
             />
           </div>
           <p className="text-[13px] font-medium tracking-wide" style={{ color: 'rgba(255,255,255,0.4)' }}>
@@ -279,7 +279,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   if (error || !data) {
     return (
-      <div className="flex min-h-dvh items-center justify-center px-6" style={{ background: backgroundColor }}>
+      <div className="flex min-h-dvh items-center justify-center px-6" style={{ background: '#0b1220' }}>
         <div className="w-full max-w-sm rounded-3xl border p-6 text-center" style={{ borderColor: 'rgba(239,68,68,0.2)', backgroundColor: 'rgba(239,68,68,0.06)' }}>
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full" style={{ backgroundColor: 'rgba(239,68,68,0.1)' }}>
             <span className="text-2xl">⚠️</span>
