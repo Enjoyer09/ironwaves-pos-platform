@@ -282,6 +282,7 @@ export default function PublicMenu() {
                 surfaceColor={surfaceColor}
                 textColor={textColor}
                 accentColor={accentColor}
+                backgroundColor={backgroundColor}
               />
             ))}
           </div>
@@ -301,6 +302,7 @@ function MenuCard({
   surfaceColor,
   textColor,
   accentColor,
+  backgroundColor,
 }: {
   item: MenuItem;
   showPrices: boolean;
@@ -310,6 +312,7 @@ function MenuCard({
   surfaceColor: string;
   textColor: string;
   accentColor: string;
+  backgroundColor: string;
 }) {
   const hasImage = showImages && item.image_url;
 
