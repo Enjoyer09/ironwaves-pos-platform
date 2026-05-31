@@ -37,9 +37,9 @@ const STEPS = [
 const STATS = [] as any[];
 
 const PRICING = [
-  { name: 'Starter', price: '0', priceLabel: { az: 'Pulsuz (Pre-Beta)', ru: 'Бесплатно (Pre-Beta)', en: 'Free (Pre-Beta)' }, az: '15 məhsul, gündəlik 25 satış', ru: '15 товаров, 25 продаж в день', en: '15 products, 25 sales/day', features: ['1 terminal', 'POS + KDS', '15 menu items', '25 daily sales', 'Offline mode'], isFree: true },
-  { name: 'Pro', price: '', priceLabel: { az: 'Bizə yazın', ru: 'Напишите нам', en: 'Contact us' }, az: 'Restoran üçün', ru: 'Для ресторана', en: 'For restaurants', features: ['3 terminal', 'Full modules', 'CRM & Loyalty', 'Unlimited sales', 'Priority support'], popular: true },
-  { name: 'Enterprise', price: '', priceLabel: { az: 'Bizə yazın', ru: 'Напишите нам', en: 'Contact us' }, az: 'Şəbəkə üçün', ru: 'Для сети', en: 'For chains', features: ['Unlimited terminals', 'Multi-location', 'API access', 'Wolt/Bolt integration', 'Dedicated support'] },
+  { name: 'Starter', price: '0', priceLabel: { az: 'Pulsuz (Pre-Beta)', ru: 'Бесплатно (Pre-Beta)', en: 'Free (Pre-Beta)' }, az: '15 məhsul, gündəlik 25 satış', ru: '15 товаров, 25 продаж в день', en: '15 products, 25 sales/day', features: ['1 terminal', 'POS + Mətbəx', '15 menyu məhsulu', 'Gündəlik 25 satış', 'Offline rejim'], isFree: true },
+  { name: 'Pro', price: '', priceLabel: { az: 'Bizə yazın', ru: 'Напишите нам', en: 'Contact us' }, az: 'Restoran üçün', ru: 'Для ресторана', en: 'For restaurants', features: ['3 terminal', 'Bütün modullar', 'CRM & Loyallıq', 'Limitsiz satış', 'Prioritet dəstək'], popular: true },
+  { name: 'Enterprise', price: '', priceLabel: { az: 'Bizə yazın', ru: 'Напишите нам', en: 'Contact us' }, az: 'Şəbəkə üçün', ru: 'Для сети', en: 'For chains', features: ['Limitsiz terminal', 'Çox filial', 'API inteqrasiya', 'Wolt/Bolt inteqrasiya', 'Xüsusi dəstək'] },
 ];
 
 const FAQ_ITEMS = [
@@ -218,7 +218,7 @@ export default function LandingPageV2() {
                   )}
                 </div>
                 <ul className="mt-6 space-y-3">{plan.features.map((f) => (<li key={f} className="flex items-center gap-2 text-sm text-slate-300"><span className="h-1.5 w-1.5 rounded-full bg-yellow-400" />{f}</li>))}</ul>
-                <a href={`${(plan as any).isFree ? 'https://demo.ironwaves.store' : 'https://wa.me/14162680101'}`} target={(plan as any).isFree ? undefined : '_blank'} rel="noopener noreferrer" className={`mt-8 block w-full rounded-xl py-3 text-center text-sm font-bold transition ${plan.popular ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-900' : (plan as any).isFree ? 'border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20' : 'border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700'}`}>
+                <a href="https://wa.me/14162680101" target="_blank" rel="noopener noreferrer" className={`mt-8 block w-full rounded-xl py-3 text-center text-sm font-bold transition ${plan.popular ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-900' : (plan as any).isFree ? 'border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20' : 'border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700'}`}>
                   {(plan as any).isFree ? tx(lang, 'Pulsuz başla', 'Начать бесплатно', 'Start free') : tx(lang, 'Bizə yazın', 'Напишите нам', 'Contact us')}
                 </a>
               </div>
