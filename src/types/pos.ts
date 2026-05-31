@@ -258,6 +258,8 @@ export interface Settings {
     background_color?: string;
     surface_color?: string;
     text_color?: string;
+    primary_color?: string;
+    accent_color?: string;
     hero_image_url?: string;
     poster_image_url?: string;
     poster_background_color?: string;

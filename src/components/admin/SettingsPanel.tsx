@@ -148,12 +148,14 @@ export default function SettingsPanel() {
     show_descriptions: true,
     poster_title: 'Menyuya baxmaq üçün skan et',
     poster_subtitle: 'Telefon kameranızı QR üzərinə yönəldin',
-    background_color: '#efe2c1',
-    surface_color: '#fff7e8',
-    text_color: '#2b1708',
+    background_color: '#0f0f0f',
+    surface_color: '#1a1a1a',
+    text_color: '#ffffff',
+    primary_color: '#facc15',
+    accent_color: '#facc15',
     hero_image_url: '',
     poster_image_url: '',
-    poster_background_color: '#d59b2d',
+    poster_background_color: '#facc15',
     logo_shape: 'rounded' as 'rounded' | 'circle' | 'square',
   });
   const [feedbackSettings, setFeedbackSettings] = useState({
@@ -400,12 +402,14 @@ export default function SettingsPanel() {
         show_descriptions: settingsRes.value.qr_menu_settings?.show_descriptions !== false,
         poster_title: String(settingsRes.value.qr_menu_settings?.poster_title || 'Menyuya baxmaq üçün skan et'),
         poster_subtitle: String(settingsRes.value.qr_menu_settings?.poster_subtitle || 'Telefon kameranızı QR üzərinə yönəldin'),
-        background_color: String(settingsRes.value.qr_menu_settings?.background_color || '#efe2c1'),
-        surface_color: String(settingsRes.value.qr_menu_settings?.surface_color || '#fff7e8'),
-        text_color: String(settingsRes.value.qr_menu_settings?.text_color || '#2b1708'),
+        background_color: String(settingsRes.value.qr_menu_settings?.background_color || '#0f0f0f'),
+        surface_color: String(settingsRes.value.qr_menu_settings?.surface_color || '#1a1a1a'),
+        text_color: String(settingsRes.value.qr_menu_settings?.text_color || '#ffffff'),
+        primary_color: String(settingsRes.value.qr_menu_settings?.primary_color || '#facc15'),
+        accent_color: String(settingsRes.value.qr_menu_settings?.accent_color || '#facc15'),
         hero_image_url: String(settingsRes.value.qr_menu_settings?.hero_image_url || ''),
         poster_image_url: String((settingsRes.value.qr_menu_settings as any)?.poster_image_url || ''),
-        poster_background_color: String(settingsRes.value.qr_menu_settings?.poster_background_color || '#d59b2d'),
+        poster_background_color: String(settingsRes.value.qr_menu_settings?.poster_background_color || '#facc15'),
         logo_shape: (String(settingsRes.value.qr_menu_settings?.logo_shape || 'rounded') as any),
       });
       setFeedbackSettings({
@@ -993,6 +997,8 @@ export default function SettingsPanel() {
       background_color: qrMenuSettings.background_color,
       surface_color: qrMenuSettings.surface_color,
       text_color: qrMenuSettings.text_color,
+      primary_color: qrMenuSettings.primary_color,
+      accent_color: qrMenuSettings.accent_color,
       hero_image_url: qrMenuSettings.hero_image_url,
       poster_image_url: qrMenuSettings.poster_image_url,
       poster_background_color: qrMenuSettings.poster_background_color,
@@ -1595,19 +1601,45 @@ export default function SettingsPanel() {
           </div>
           <div className="field-stack form-card">
             <label className="field-label">{tx(lang, 'Arxa fon rəngi', 'Цвет фона', 'Background color')}</label>
-            <input className="neon-input h-12" type="color" value={qrMenuSettings.background_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, background_color: e.target.value }))} />
+            <div className="flex items-center gap-2">
+              <input className="h-10 w-14 cursor-pointer rounded-lg border-0 bg-transparent p-0" type="color" value={qrMenuSettings.background_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, background_color: e.target.value }))} />
+              <input className="neon-input flex-1 font-mono text-xs" value={qrMenuSettings.background_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, background_color: e.target.value }))} />
+            </div>
           </div>
           <div className="field-stack form-card">
             <label className="field-label">{tx(lang, 'Kart fonu', 'Цвет карточек', 'Surface color')}</label>
-            <input className="neon-input h-12" type="color" value={qrMenuSettings.surface_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, surface_color: e.target.value }))} />
+            <div className="flex items-center gap-2">
+              <input className="h-10 w-14 cursor-pointer rounded-lg border-0 bg-transparent p-0" type="color" value={qrMenuSettings.surface_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, surface_color: e.target.value }))} />
+              <input className="neon-input flex-1 font-mono text-xs" value={qrMenuSettings.surface_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, surface_color: e.target.value }))} />
+            </div>
           </div>
           <div className="field-stack form-card">
             <label className="field-label">{tx(lang, 'Yazı rəngi', 'Цвет текста', 'Text color')}</label>
-            <input className="neon-input h-12" type="color" value={qrMenuSettings.text_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, text_color: e.target.value }))} />
+            <div className="flex items-center gap-2">
+              <input className="h-10 w-14 cursor-pointer rounded-lg border-0 bg-transparent p-0" type="color" value={qrMenuSettings.text_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, text_color: e.target.value }))} />
+              <input className="neon-input flex-1 font-mono text-xs" value={qrMenuSettings.text_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, text_color: e.target.value }))} />
+            </div>
           </div>
           <div className="field-stack form-card">
             <label className="field-label">{tx(lang, 'Poster vurğu rəngi', 'Акцент постера', 'Poster accent color')}</label>
-            <input className="neon-input h-12" type="color" value={qrMenuSettings.poster_background_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_background_color: e.target.value }))} />
+            <div className="flex items-center gap-2">
+              <input className="h-10 w-14 cursor-pointer rounded-lg border-0 bg-transparent p-0" type="color" value={qrMenuSettings.poster_background_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_background_color: e.target.value }))} />
+              <input className="neon-input flex-1 font-mono text-xs" value={qrMenuSettings.poster_background_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, poster_background_color: e.target.value }))} />
+            </div>
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Əsas rəng (qiymət, accent)', 'Основной цвет (цена, акцент)', 'Primary color (price, accent)')}</label>
+            <div className="flex items-center gap-2">
+              <input className="h-10 w-14 cursor-pointer rounded-lg border-0 bg-transparent p-0" type="color" value={qrMenuSettings.primary_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, primary_color: e.target.value }))} />
+              <input className="neon-input flex-1 font-mono text-xs" value={qrMenuSettings.primary_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, primary_color: e.target.value }))} />
+            </div>
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'İkinci vurğu rəngi', 'Вторичный акцент', 'Accent color')}</label>
+            <div className="flex items-center gap-2">
+              <input className="h-10 w-14 cursor-pointer rounded-lg border-0 bg-transparent p-0" type="color" value={qrMenuSettings.accent_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, accent_color: e.target.value }))} />
+              <input className="neon-input flex-1 font-mono text-xs" value={qrMenuSettings.accent_color} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, accent_color: e.target.value }))} />
+            </div>
           </div>
           <div className="field-stack form-card md:col-span-2">
             <label className="field-label">{tx(lang, 'Hero şəkil linki', 'Ссылка hero-изображения', 'Hero image URL')}</label>
