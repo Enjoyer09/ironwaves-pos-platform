@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react';
-import { ChefHat, CreditCard, LayoutDashboard, Monitor, QrCode, ShieldCheck, Smartphone, Users, Wifi, Zap } from 'lucide-react';
+import { ChefHat, ChevronDown, CreditCard, LayoutDashboard, Monitor, QrCode, ShieldCheck, Smartphone, Users, Wifi, Zap, MessageCircle } from 'lucide-react';
 
 type Lang = 'az' | 'ru' | 'en';
 
 const tx = (lang: Lang, az: string, ru: string, en: string) => lang === 'az' ? az : lang === 'ru' ? ru : en;
+
+const SCREENSHOTS = [
+  '/landing/pos-screen.png',
+  '/landing/finance-screen.png',
+  '/landing/golden-card.png',
+  '/landing/elite-card.png',
+];
 
 const FEATURES = [
   { icon: Monitor, key: 'pos', az: 'POS Satış', ru: 'POS Продажи', en: 'POS Sales', descAz: 'Sürətli satış, səbət, ödəniş, çek çapı — bir ekranda', descRu: 'Быстрые продажи, корзина, оплата, печать чека — на одном экране', descEn: 'Fast sales, cart, payment, receipt print — one screen' },
@@ -35,8 +42,33 @@ const PRICING = [
   { name: 'Enterprise', price: '199', az: 'Şəbəkə üçün', ru: 'Для сети', en: 'For chains', features: ['Unlimited', 'Multi-location', 'API access', 'Wolt/Bolt integration', 'Dedicated support'] },
 ];
 
+const FAQ_ITEMS = [
+  { q: { az: 'iRonWaves nədir?', ru: 'Что такое iRonWaves?', en: 'What is iRonWaves?' }, a: { az: 'iRonWaves — Azərbaycanda hazırlanmış cloud-based restoran idarəetmə platformasıdır. POS, masa, mətbəx, maliyyə, CRM və analitika modullarını bir sistemdə birləşdirir.', ru: 'iRonWaves — облачная платформа управления рестораном, разработанная в Азербайджане. Объединяет POS, столы, кухню, финансы, CRM и аналитику в одной системе.', en: 'iRonWaves is a cloud-based restaurant management platform built in Azerbaijan. It combines POS, tables, kitchen, finance, CRM and analytics in one system.' } },
+  { q: { az: 'Quraşdırma lazımdır?', ru: 'Нужна ли установка?', en: 'Is installation required?' }, a: { az: 'Xeyr. iRonWaves tam web-based-dir. Brauzerdən açırsınız, işləyirsiniz. Heç bir proqram yükləmək lazım deyil. Kompüter, planşet və ya telefon — fərqi yoxdur.', ru: 'Нет. iRonWaves полностью веб-приложение. Открываете в браузере и работаете. Никакой установки не нужно. Компьютер, планшет или телефон — без разницы.', en: 'No. iRonWaves is fully web-based. Open in browser and work. No software to install. Computer, tablet or phone — it works everywhere.' } },
+  { q: { az: 'Offline işləyir?', ru: 'Работает ли офлайн?', en: 'Does it work offline?' }, a: { az: 'Bəli. İnternet kəsiləndə POS satış davam edir. Satışlar lokal saxlanılır və internet qayıdanda avtomatik sinxron olunur. Heç bir satış itmir.', ru: 'Да. При отключении интернета POS продолжает работать. Продажи сохраняются локально и автоматически синхронизируются при восстановлении связи.', en: 'Yes. When internet drops, POS sales continue. Sales are stored locally and auto-sync when connection returns. No sale is ever lost.' } },
+  { q: { az: 'Neçə terminal qoşula bilər?', ru: 'Сколько терминалов можно подключить?', en: 'How many terminals can connect?' }, a: { az: 'Starter planda 1, Pro-da 3, Enterprise-da limitsiz terminal. Hər terminal eyni anda işləyə bilər — real-time sinxronizasiya ilə.', ru: 'В плане Starter — 1, Pro — 3, Enterprise — без ограничений. Все терминалы работают одновременно с синхронизацией в реальном времени.', en: 'Starter plan: 1, Pro: 3, Enterprise: unlimited. All terminals work simultaneously with real-time sync.' } },
+  { q: { az: 'Thermal printer dəstəkləyir?', ru: 'Поддерживает ли термопринтер?', en: 'Does it support thermal printers?' }, a: { az: 'Bəli. 80mm thermal printer dəstəklənir. Print Agent vasitəsilə sessiz çap (dialog olmadan) mümkündür. Həmçinin brauzer çapı da işləyir.', ru: 'Да. Поддерживаются 80мм термопринтеры. Через Print Agent возможна тихая печать (без диалога). Также работает печать через браузер.', en: 'Yes. 80mm thermal printers are supported. Silent printing via Print Agent (no dialog). Browser print also works.' } },
+  { q: { az: 'Wolt/Bolt Food inteqrasiyası var?', ru: 'Есть ли интеграция с Wolt/Bolt Food?', en: 'Is there Wolt/Bolt Food integration?' }, a: { az: 'Bəli, hazırlanır. Wolt və Bolt Food sifarişləri birbaşa KDS-ə düşəcək. Menyu sinxronizasiyası avtomatik olacaq.', ru: 'Да, в разработке. Заказы Wolt и Bolt Food будут поступать прямо в KDS. Синхронизация меню будет автоматической.', en: 'Yes, in development. Wolt and Bolt Food orders will flow directly into KDS. Menu sync will be automatic.' } },
+  { q: { az: 'Müştəri loyallıq sistemi necə işləyir?', ru: 'Как работает система лояльности?', en: 'How does the loyalty system work?' }, a: { az: 'QR kart yaradılır, müştəri hər alışda ulduz/cashback toplayır. Müəyyən həddə çatanda reward alır. Müştəri öz telefonundan balansını görə bilir.', ru: 'Создается QR карта, клиент накапливает звезды/кэшбэк с каждой покупки. При достижении порога получает reward. Клиент видит баланс на своем телефоне.', en: 'QR card is created, customer earns stars/cashback with each purchase. Gets reward at threshold. Customer can check balance on their phone.' } },
+  { q: { az: 'Qiymət nə qədərdir?', ru: 'Сколько стоит?', en: 'How much does it cost?' }, a: { az: 'Starter: 49₼/ay, Pro: 99₼/ay, Enterprise: 199₼/ay. Gizli ödəniş yoxdur. İstənilən vaxt ləğv etmək mümkündür.', ru: 'Starter: 49₼/мес, Pro: 99₼/мес, Enterprise: 199₼/мес. Нет скрытых платежей. Можно отменить в любое время.', en: 'Starter: 49₼/mo, Pro: 99₼/mo, Enterprise: 199₼/mo. No hidden fees. Cancel anytime.' } },
+];
+
+function FaqItem({ q, a, lang }: { q: Record<Lang, string>; a: Record<Lang, string>; lang: Lang }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-b border-slate-800/60">
+      <button type="button" onClick={() => setOpen(!open)} className="flex w-full items-center justify-between py-5 text-left">
+        <span className="text-sm font-bold text-slate-100 md:text-base">{q[lang]}</span>
+        <ChevronDown size={18} className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && <p className="pb-5 text-sm leading-relaxed text-slate-400">{a[lang]}</p>}
+    </div>
+  );
+}
+
 export default function LandingPageV2() {
   const [lang, setLang] = useState<Lang>('az');
+  const [slideIndex, setSlideIndex] = useState(0);
 
   useEffect(() => {
     document.body.style.overflow = 'auto';
@@ -44,8 +76,15 @@ export default function LandingPageV2() {
     return () => { document.body.style.overflow = ''; document.body.style.height = ''; };
   }, []);
 
+  // Auto-slide screenshots
+  useEffect(() => {
+    const timer = setInterval(() => setSlideIndex((i) => (i + 1) % SCREENSHOTS.length), 4000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#0a0f1a] text-slate-100 font-sans">
+
       {/* ─── NAV ─── */}
       <nav className="sticky top-0 z-50 border-b border-slate-800/60 bg-[#0a0f1a]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
@@ -57,17 +96,14 @@ export default function LandingPageV2() {
             <a href="#features" className="text-sm text-slate-400 hover:text-white transition">{tx(lang, 'Xüsusiyyətlər', 'Возможности', 'Features')}</a>
             <a href="#how" className="text-sm text-slate-400 hover:text-white transition">{tx(lang, 'Necə işləyir', 'Как работает', 'How it works')}</a>
             <a href="#pricing" className="text-sm text-slate-400 hover:text-white transition">{tx(lang, 'Qiymətlər', 'Цены', 'Pricing')}</a>
+            <a href="#faq" className="text-sm text-slate-400 hover:text-white transition">FAQ</a>
             <a href="#contact" className="text-sm text-slate-400 hover:text-white transition">{tx(lang, 'Əlaqə', 'Контакт', 'Contact')}</a>
           </div>
           <div className="flex items-center gap-3">
             <select value={lang} onChange={(e) => setLang(e.target.value as Lang)} className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-300">
-              <option value="az">AZ</option>
-              <option value="ru">RU</option>
-              <option value="en">EN</option>
+              <option value="az">AZ</option><option value="ru">RU</option><option value="en">EN</option>
             </select>
-            <a href="https://demo.ironwaves.store" className="rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 px-5 py-2 text-sm font-bold text-slate-900 shadow-lg shadow-yellow-500/20 transition hover:shadow-yellow-500/40">
-              {tx(lang, 'Demo', 'Демо', 'Demo')}
-            </a>
+            <a href="https://demo.ironwaves.store" className="rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 px-5 py-2 text-sm font-bold text-slate-900 shadow-lg shadow-yellow-500/20 transition hover:shadow-yellow-500/40">Demo</a>
           </div>
         </div>
       </nav>
@@ -75,27 +111,50 @@ export default function LandingPageV2() {
       {/* ─── HERO ─── */}
       <section className="relative overflow-hidden px-6 pb-20 pt-24 md:pt-32">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(250,204,21,0.08),transparent_60%)]" />
-        <div className="relative mx-auto max-w-7xl text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-yellow-400/30 bg-yellow-400/10 px-4 py-1.5 text-xs font-bold text-yellow-300">
-            <Zap size={12} /> {tx(lang, 'Azərbaycan üçün hazırlanıb', 'Создано для Азербайджана', 'Built for Azerbaijan')}
-          </div>
-          <h1 className="mx-auto mt-6 max-w-4xl text-4xl font-black leading-tight tracking-tight md:text-6xl lg:text-7xl">
-            {tx(lang, 'Restoranınızı ', 'Управляйте рестораном ', 'Run your restaurant ')}
-            <span className="bg-gradient-to-r from-yellow-300 to-amber-400 bg-clip-text text-transparent">
-              {tx(lang, 'bir platformadan', 'с одной платформы', 'from one platform')}
-            </span>
-            {tx(lang, ' idarə edin', '', '')}
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-slate-400 md:text-xl">
-            {tx(lang, 'POS, Masalar, Mətbəx, Maliyyə, CRM, Loyallıq və Analitika — hamısı bir sistemdə. Quraşdırma yoxdur, brauzerdən işləyir.', 'POS, Столы, Кухня, Финансы, CRM, Лояльность и Аналитика — всё в одной системе. Без установки, работает из браузера.', 'POS, Tables, Kitchen, Finance, CRM, Loyalty and Analytics — all in one system. No installation, works from browser.')}
-          </p>
-          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <a href="https://demo.ironwaves.store" className="inline-flex min-h-14 items-center rounded-2xl bg-gradient-to-r from-yellow-400 to-amber-500 px-8 py-4 text-base font-black text-slate-900 shadow-xl shadow-yellow-500/25 transition hover:shadow-yellow-500/40 hover:scale-[1.02]">
-              {tx(lang, 'Pulsuz Demo', 'Бесплатное Демо', 'Free Demo')}
-            </a>
-            <a href="https://super.ironwaves.store" className="inline-flex min-h-14 items-center rounded-2xl border border-slate-600 bg-slate-800/50 px-8 py-4 text-base font-bold text-slate-200 transition hover:bg-slate-700/50">
-              {tx(lang, 'Platformaya keç', 'Открыть платформу', 'Open Platform')} →
-            </a>
+        <div className="relative mx-auto max-w-7xl">
+          <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
+            {/* Left: Text */}
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-yellow-400/30 bg-yellow-400/10 px-4 py-1.5 text-xs font-bold text-yellow-300">
+                <Zap size={12} /> {tx(lang, 'Azərbaycanda hazırlanıb', 'Разработано в Азербайджане', 'Made in Azerbaijan')}
+              </div>
+              <h1 className="mt-6 text-4xl font-black leading-tight tracking-tight md:text-5xl lg:text-6xl">
+                {tx(lang, 'Restoranınızı ', 'Управляйте рестораном ', 'Run your restaurant ')}
+                <span className="bg-gradient-to-r from-yellow-300 to-amber-400 bg-clip-text text-transparent">
+                  {tx(lang, 'bir platformadan', 'с одной платформы', 'from one platform')}
+                </span>
+                {tx(lang, ' idarə edin', '', '')}
+              </h1>
+              <p className="mt-6 max-w-lg text-lg text-slate-400">
+                {tx(lang, 'POS, Masalar, Mətbəx, Maliyyə, CRM, Loyallıq və Analitika — hamısı bir sistemdə. Quraşdırma yoxdur, brauzerdən işləyir.', 'POS, Столы, Кухня, Финансы, CRM, Лояльность и Аналитика — всё в одной системе. Без установки, работает из браузера.', 'POS, Tables, Kitchen, Finance, CRM, Loyalty and Analytics — all in one. No install, works from browser.')}
+              </p>
+              <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+                <a href="https://demo.ironwaves.store" className="inline-flex min-h-14 items-center justify-center rounded-2xl bg-gradient-to-r from-yellow-400 to-amber-500 px-8 py-4 text-base font-black text-slate-900 shadow-xl shadow-yellow-500/25 transition hover:scale-[1.02]">
+                  {tx(lang, 'Pulsuz Demo', 'Бесплатное Демо', 'Free Demo')}
+                </a>
+                <a href="https://wa.me/14162680101" target="_blank" rel="noopener noreferrer" className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-8 py-4 text-base font-bold text-emerald-200 transition hover:bg-emerald-500/20">
+                  <MessageCircle size={20} /> WhatsApp
+                </a>
+              </div>
+            </div>
+            {/* Right: POS Device Mockup with sliding screenshots */}
+            <div className="relative mx-auto w-full max-w-md lg:max-w-lg">
+              <div className="rounded-[2rem] border-[6px] border-slate-700 bg-slate-900 p-2 shadow-2xl shadow-black/50">
+                <div className="overflow-hidden rounded-[1.4rem] bg-[#0a0f1a]">
+                  <div className="flex transition-transform duration-700 ease-in-out" style={{ transform: `translateX(-${slideIndex * 100}%)` }}>
+                    {SCREENSHOTS.map((src, i) => (
+                      <img key={i} src={src} alt={`Screenshot ${i + 1}`} className="w-full shrink-0 object-cover" loading="lazy" />
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {/* Slide dots */}
+              <div className="mt-4 flex justify-center gap-2">
+                {SCREENSHOTS.map((_, i) => (
+                  <button key={i} type="button" onClick={() => setSlideIndex(i)} className={`h-2 rounded-full transition-all ${i === slideIndex ? 'w-6 bg-yellow-400' : 'w-2 bg-slate-600'}`} />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -116,7 +175,7 @@ export default function LandingPageV2() {
       <section id="features" className="px-6 py-24">
         <div className="mx-auto max-w-7xl">
           <div className="text-center">
-            <h2 className="text-3xl font-black md:text-4xl">{tx(lang, 'Bütün lazım olan bir yerdə', 'Всё необходимое в одном месте', 'Everything you need in one place')}</h2>
+            <h2 className="text-3xl font-black md:text-4xl">{tx(lang, 'Üstün funksiyalarımız', 'Наши преимущества', 'Our advantages')}</h2>
             <p className="mx-auto mt-4 max-w-2xl text-slate-400">{tx(lang, 'Hər modul bir-birinə bağlıdır. Ayrıca quraşdırma, ayrıca ödəniş yoxdur.', 'Каждый модуль связан друг с другом. Нет отдельной установки или оплаты.', 'Every module is connected. No separate installation or payment.')}</p>
           </div>
           <div className="mt-16 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -142,7 +201,7 @@ export default function LandingPageV2() {
           </div>
           <div className="mt-16 grid grid-cols-1 gap-8 md:grid-cols-3">
             {STEPS.map((step) => (
-              <div key={step.num} className="relative rounded-2xl border border-slate-800 bg-slate-900/40 p-8">
+              <div key={step.num} className="rounded-2xl border border-slate-800 bg-slate-900/40 p-8">
                 <div className="text-5xl font-black text-yellow-400/20">{step.num}</div>
                 <h3 className="mt-4 text-xl font-bold">{tx(lang, step.az, step.ru, step.en)}</h3>
                 <p className="mt-3 text-sm leading-relaxed text-slate-400">{tx(lang, step.descAz, step.descRu, step.descEn)}</p>
@@ -157,48 +216,39 @@ export default function LandingPageV2() {
         <div className="mx-auto max-w-6xl">
           <div className="text-center">
             <h2 className="text-3xl font-black md:text-4xl">{tx(lang, 'Sadə və şəffaf qiymətlər', 'Простые и прозрачные цены', 'Simple and transparent pricing')}</h2>
-            <p className="mx-auto mt-4 max-w-xl text-slate-400">{tx(lang, 'Gizli ödəniş yoxdur. İstədiyiniz zaman ləğv edin.', 'Нет скрытых платежей. Отмените в любое время.', 'No hidden fees. Cancel anytime.')}</p>
           </div>
           <div className="mt-16 grid grid-cols-1 gap-6 md:grid-cols-3">
             {PRICING.map((plan) => (
               <div key={plan.name} className={`relative rounded-2xl border p-8 ${plan.popular ? 'border-yellow-400/50 bg-slate-900/80 shadow-xl shadow-yellow-500/10' : 'border-slate-800 bg-slate-900/40'}`}>
-                {plan.popular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-yellow-400 to-amber-500 px-4 py-1 text-xs font-black text-slate-900">
-                    {tx(lang, 'Populyar', 'Популярный', 'Popular')}
-                  </div>
-                )}
+                {plan.popular && <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-yellow-400 to-amber-500 px-4 py-1 text-xs font-black text-slate-900">{tx(lang, 'Populyar', 'Популярный', 'Popular')}</div>}
                 <h3 className="text-xl font-bold">{plan.name}</h3>
                 <p className="mt-1 text-sm text-slate-400">{tx(lang, plan.az, plan.ru, plan.en)}</p>
-                <div className="mt-6">
-                  <span className="text-4xl font-black text-white">{plan.price}</span>
-                  <span className="ml-1 text-sm text-slate-400">₼ / {tx(lang, 'ay', 'мес', 'mo')}</span>
-                </div>
-                <ul className="mt-6 space-y-3">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-center gap-2 text-sm text-slate-300">
-                      <span className="h-1.5 w-1.5 rounded-full bg-yellow-400" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <a href="https://demo.ironwaves.store" className={`mt-8 block w-full rounded-xl py-3 text-center text-sm font-bold transition ${plan.popular ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-900 shadow-lg shadow-yellow-500/20' : 'border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700'}`}>
-                  {tx(lang, 'Başla', 'Начать', 'Get Started')}
-                </a>
+                <div className="mt-6"><span className="text-4xl font-black">{plan.price}</span><span className="ml-1 text-sm text-slate-400">₼/{tx(lang, 'ay', 'мес', 'mo')}</span></div>
+                <ul className="mt-6 space-y-3">{plan.features.map((f) => (<li key={f} className="flex items-center gap-2 text-sm text-slate-300"><span className="h-1.5 w-1.5 rounded-full bg-yellow-400" />{f}</li>))}</ul>
+                <a href="https://wa.me/14162680101" target="_blank" rel="noopener noreferrer" className={`mt-8 block w-full rounded-xl py-3 text-center text-sm font-bold transition ${plan.popular ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-900' : 'border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700'}`}>{tx(lang, 'Başla', 'Начать', 'Get Started')}</a>
               </div>
             ))}
           </div>
         </div>
       </section>
 
+      {/* ─── FAQ ─── */}
+      <section id="faq" className="border-t border-slate-800/60 bg-slate-950/50 px-6 py-24">
+        <div className="mx-auto max-w-3xl">
+          <h2 className="text-center text-3xl font-black md:text-4xl">FAQ</h2>
+          <p className="mx-auto mt-4 max-w-xl text-center text-slate-400">{tx(lang, 'Tez-tez verilən suallar', 'Часто задаваемые вопросы', 'Frequently asked questions')}</p>
+          <div className="mt-12">{FAQ_ITEMS.map((item, i) => <FaqItem key={i} q={item.q} a={item.a} lang={lang} />)}</div>
+        </div>
+      </section>
+
       {/* ─── CONTACT ─── */}
-      <section id="contact" className="border-t border-slate-800/60 bg-slate-950/50 px-6 py-24">
+      <section id="contact" className="px-6 py-24">
         <div className="mx-auto max-w-3xl text-center">
           <h2 className="text-3xl font-black md:text-4xl">{tx(lang, 'Əlaqə', 'Контакт', 'Contact')}</h2>
-          <p className="mx-auto mt-4 max-w-xl text-slate-400">{tx(lang, 'Sualınız var? Bizimlə əlaqə saxlayın.', 'Есть вопросы? Свяжитесь с нами.', 'Have questions? Get in touch.')}</p>
           <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <a href="tel:+994552999282" className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 transition hover:border-yellow-400/30">
+            <a href="tel:+14162680101" className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 transition hover:border-yellow-400/30">
               <Smartphone size={24} className="mx-auto text-yellow-400" />
-              <div className="mt-3 text-sm font-bold">+994 55 299 92 82</div>
+              <div className="mt-3 text-sm font-bold">+1 (416) 268-0101</div>
               <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Telefon', 'Телефон', 'Phone')}</div>
             </a>
             <a href="mailto:abbas@laptopmarket.az" className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 transition hover:border-yellow-400/30">
@@ -206,8 +256,8 @@ export default function LandingPageV2() {
               <div className="mt-3 text-sm font-bold">abbas@laptopmarket.az</div>
               <div className="mt-1 text-xs text-slate-400">Email</div>
             </a>
-            <a href="https://wa.me/994552999282" target="_blank" rel="noopener" className="rounded-2xl border border-slate-800 bg-slate-900/50 p-6 transition hover:border-yellow-400/30">
-              <Users size={24} className="mx-auto text-yellow-400" />
+            <a href="https://wa.me/14162680101" target="_blank" rel="noopener noreferrer" className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6 transition hover:border-emerald-400/50">
+              <MessageCircle size={24} className="mx-auto text-emerald-400" />
               <div className="mt-3 text-sm font-bold">WhatsApp</div>
               <div className="mt-1 text-xs text-slate-400">{tx(lang, 'Canlı söhbət', 'Живой чат', 'Live chat')}</div>
             </a>
@@ -223,9 +273,6 @@ export default function LandingPageV2() {
             <span className="text-sm font-bold text-slate-300">iRonWaves POS</span>
           </div>
           <div className="text-xs text-slate-500">© 2026 iRonWaves. {tx(lang, 'Bütün hüquqlar qorunur.', 'Все права защищены.', 'All rights reserved.')}</div>
-          <div className="flex gap-4 text-xs text-slate-500">
-            <a href="https://www.ironwaves.store" className="hover:text-slate-300">www.ironwaves.store</a>
-          </div>
         </div>
       </footer>
     </div>
