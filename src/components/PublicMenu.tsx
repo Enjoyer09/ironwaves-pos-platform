@@ -44,6 +44,20 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
+/** Resolve relative image URLs (e.g. /uploads/...) to full backend URL */
+function resolveImageUrl(url: string): string {
+  if (!url) return '';
+  // Already absolute or data URL
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
+  // Relative path — prepend API base
+  try {
+    const env = ((import.meta as any)?.env || {}) as Record<string, string | undefined>;
+    const base = String(env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
+    if (base) return `${base}${url}`;
+  } catch { /* ignore */ }
+  return url;
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function PublicMenu() {
   const [loading, setLoading] = React.useState(true);
@@ -317,7 +331,7 @@ export default function PublicMenu() {
                 <div className="aspect-[4/3] w-full overflow-hidden">
                   {categoryImages[cat] && showImages ? (
                     <img
-                      src={categoryImages[cat]}
+                      src={resolveImageUrl(categoryImages[cat])}
                       alt={cat}
                       className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                       loading="lazy"
@@ -416,7 +430,7 @@ export default function PublicMenu() {
         <div className="relative mx-5 mt-2 overflow-hidden rounded-2xl">
           <div className="aspect-[21/9] w-full overflow-hidden">
             <img
-              src={categoryImages[activeCategory]}
+              src={resolveImageUrl(categoryImages[activeCategory])}
               alt={activeCategory}
               className="h-full w-full object-cover"
             />
@@ -500,7 +514,7 @@ function ProductCard({
       {hasImage ? (
         <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl sm:h-32 sm:w-32">
           <img
-            src={String(item.image_url)}
+            src={resolveImageUrl(String(item.image_url))}
             alt={String(item.item_name || '')}
             className="h-full w-full object-cover"
             loading="lazy"
