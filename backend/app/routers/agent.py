@@ -167,6 +167,9 @@ def _build_food_search_query(item_name: str, category: str) -> str:
         "sandwich": "sandwich", "sushi": "sushi", "tacos": "tacos",
         "içki": "drink", "içkilər": "beverages", "kofe": "coffee", "qəhvə": "coffee",
         "çay": "tea", "limonad": "lemonade", "smoothie": "smoothie",
+        "energetik": "energy drink", "redbull": "red bull energy drink",
+        "su": "water", "mineral": "mineral water", "moxito": "mojito",
+        "kokteyl": "cocktail", "şirə": "juice", "kompot": "compote",
         "sous": "sauce", "souslar": "sauce", "pendir": "cheese",
         "göbələk": "mushroom", "ananas": "pineapple",
     }
@@ -200,7 +203,16 @@ def _build_food_search_query(item_name: str, category: str) -> str:
     if not translated:
         translated = [category.lower() if category else "food"]
 
-    translated.append("food dish")
+    # Category-aware suffix for better results
+    drink_categories = {"içkilər", "içki", "beverages", "drinks", "kofe", "qəhvə", "coffee", "çay", "tea"}
+    dessert_categories = {"desert", "şirniyyat", "dessert", "tort", "cake"}
+    suffix = "food dish"
+    if cat_lower in drink_categories or any(w in drink_categories for w in translated):
+        suffix = "drink beverage"
+    elif cat_lower in dessert_categories or any(w in dessert_categories for w in translated):
+        suffix = "dessert sweet"
+
+    translated.append(suffix)
     return " ".join(translated[:5])
 
 
