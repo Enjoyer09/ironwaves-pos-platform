@@ -136,15 +136,61 @@ def _search_pexels(query: str, per_page: int = 1) -> str | None:
 
 def _build_food_search_query(item_name: str, category: str) -> str:
     """Build an optimized search query for food stock photos."""
-    # Remove common non-descriptive words
-    noise = {"tək", "tek", "menu", "menyu", "menyular", "ədəd", "əd", "pors", "combo", "kampanyali", "xüsusi"}
-    words = [w for w in item_name.lower().split() if w not in noise and len(w) > 1]
-    # Limit to first 3 meaningful words + "food" for better results
-    query_words = words[:3]
-    if category.lower() not in " ".join(query_words):
-        query_words.append(category.lower())
-    query_words.append("food")
-    return " ".join(query_words)
+    # Remove common non-descriptive Azerbaijani words
+    noise = {"tək", "tek", "menu", "menyu", "menyular", "ədəd", "əd", "pors", "combo",
+             "kampanyali", "xüsusi", "acılı", "acısız", "böyük", "kiçik", "orta", "ölçü",
+             "yeni", "klassik", "mini", "əla", "super", "qr", "gr.", "qr.", "əd."}
+    words = [w.strip("().,!?🌶☕") for w in item_name.lower().split() if w.strip("().,!?🌶☕") not in noise and len(w.strip("().,!?🌶☕")) > 1]
+
+    # Common AZ→EN food term mappings for better Pexels results
+    az_to_en = {
+        "burger": "burger", "burgerler": "burger", "hot-dog": "hotdog", "hotdog": "hotdog",
+        "pizza": "pizza", "salat": "salad", "salatlar": "salad",
+        "desert": "dessert", "şirniyyat": "dessert", "tort": "cake", "pasta": "pasta",
+        "sup": "soup", "şorba": "soup", "kabab": "kebab", "kebab": "kebab",
+        "toyuq": "chicken", "mal": "beef", "dana": "beef", "balıq": "fish",
+        "dönər": "doner kebab", "doner": "doner kebab", "shawarma": "shawarma",
+        "kartof": "fries", "fri": "french fries", "soğan": "onion rings",
+        "nuggets": "chicken nuggets", "tenders": "chicken tenders",
+        "qanad": "chicken wings", "kruasan": "croissant", "wrap": "wrap",
+        "sandwich": "sandwich", "sushi": "sushi", "tacos": "tacos",
+        "içki": "drink", "içkilər": "beverages", "kofe": "coffee", "qəhvə": "coffee",
+        "çay": "tea", "limonad": "lemonade", "smoothie": "smoothie",
+        "sous": "sauce", "souslar": "sauce", "pendir": "cheese",
+        "göbələk": "mushroom", "ananas": "pineapple",
+    }
+
+    translated = []
+    for w in words[:4]:
+        if w in az_to_en:
+            translated.append(az_to_en[w])
+        elif any(c.isascii() and c.isalpha() for c in w):
+            # Already English-ish word, keep it
+            translated.append(w)
+        else:
+            # Try partial match
+            matched = False
+            for az_key, en_val in az_to_en.items():
+                if az_key in w or w in az_key:
+                    translated.append(en_val)
+                    matched = True
+                    break
+            if not matched and len(w) > 2:
+                translated.append(w)
+
+    # Add category translation
+    cat_lower = category.lower().strip()
+    if cat_lower in az_to_en:
+        if az_to_en[cat_lower] not in translated:
+            translated.append(az_to_en[cat_lower])
+    elif cat_lower and cat_lower not in " ".join(translated):
+        translated.append(cat_lower)
+
+    if not translated:
+        translated = [category.lower() if category else "food"]
+
+    translated.append("food dish")
+    return " ".join(translated[:5])
 
 
 class AutoImageRequest(BaseModel):
@@ -208,11 +254,17 @@ def auto_assign_menu_images(
 
         # Search for a stock photo
         search_query = _build_food_search_query(item.item_name, item.category or "")
+        logger.info(f"Auto-image search: item='{item.item_name}' query='{search_query}'")
         image_url = _search_pexels(search_query)
 
         if not image_url:
-            # Try simpler query with just the item name
-            image_url = _search_pexels(f"{item.item_name} food")
+            # Try simpler query with just category in English
+            cat_en = {"desert": "dessert", "şirniyyat": "dessert", "salatlar": "salad",
+                      "burgerlər": "burger", "içkilər": "beverages", "souslar": "sauce",
+                      "pasta": "pasta", "pizza": "pizza"}.get(
+                str(item.category or "").lower().strip(), str(item.category or "").lower()
+            )
+            image_url = _search_pexels(f"{cat_en} food plate")
 
         if image_url:
             item.image_url = image_url
