@@ -136,7 +136,11 @@ export default function PublicMenu() {
   return (
     <div
       className="relative min-h-dvh overflow-x-hidden overflow-y-auto overscroll-contain"
-      style={{ background: backgroundColor, color: textColor, fontFamily: '"Geist Sans", "Inter", system-ui, -apple-system, sans-serif' }}
+      style={{
+        background: `linear-gradient(180deg, ${backgroundColor} 0%, ${hexToRgba(primaryColor, 0.03)} 25%, ${backgroundColor} 50%, ${hexToRgba(accentColor, 0.04)} 75%, ${backgroundColor} 100%)`,
+        color: textColor,
+        fontFamily: '"Geist Sans", "Inter", system-ui, -apple-system, sans-serif',
+      }}
     >
       {/* ═══════════════════════════════════════════════════════════════════════
           HERO
