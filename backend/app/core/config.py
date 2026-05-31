@@ -88,6 +88,9 @@ class Settings(BaseSettings):
     openrouter_default_model: str = "openrouter/owl-alpha"
     openrouter_timeout_seconds: int = 45
 
+    # Stock photo API for menu item auto-images
+    pexels_api_key: str | None = None
+
     # Multi-tenant should be enabled by default. Set true only for per-deployment single-tenant mode.
     single_tenant_mode: bool = False
     single_tenant_id: str = ""

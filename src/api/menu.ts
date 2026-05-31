@@ -310,3 +310,54 @@ export async function reorder_menu_items_live(tenant_id: string, orderedIds: str
     throw new Error(`Menu backend reorder failed: ${message}`);
   }
 }
+
+
+// ─── AI Auto-Image Assignment ────────────────────────────────────────────────
+
+export interface AutoImageResult {
+  item_id: string;
+  item_name: string;
+  image_url: string | null;
+  status: 'assigned' | 'skipped' | 'failed';
+}
+
+export interface AutoImageResponse {
+  success: boolean;
+  total: number;
+  assigned: number;
+  skipped: number;
+  failed: number;
+  results: AutoImageResult[];
+}
+
+export async function auto_assign_menu_images(options: {
+  category?: string;
+  item_ids?: string[];
+  overwrite?: boolean;
+}): Promise<AutoImageResponse> {
+  return apiRequest<AutoImageResponse>('/api/v1/ops/agent/menu/auto-image', {
+    method: 'POST',
+    tenantId: null,
+    body: {
+      category: options.category || null,
+      item_ids: options.item_ids || null,
+      overwrite: options.overwrite || false,
+    },
+  });
+}
+
+export interface StockPhotoResult {
+  id: string;
+  url_medium: string;
+  url_large: string;
+  url_small: string;
+  photographer: string;
+  alt: string;
+}
+
+export async function search_stock_image(query: string): Promise<{ success: boolean; results: StockPhotoResult[] }> {
+  return apiRequest<{ success: boolean; results: StockPhotoResult[] }>(
+    `/api/v1/ops/agent/menu/search-image?query=${encodeURIComponent(query)}`,
+    { method: 'GET', tenantId: null }
+  );
+}
