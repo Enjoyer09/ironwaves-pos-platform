@@ -408,29 +408,7 @@ export default function PublicMenu() {
           )}
         </div>
 
-        {/* Category tabs (horizontal scroll) */}
-        {!searchOpen && (
-          <div className="scrollbar-hide -mx-5 mt-3 flex gap-2 overflow-x-auto px-5 pb-1">
-            {categories.map((cat) => {
-              const isActive = activeCategory === cat;
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setActiveCategory(cat)}
-                  className="shrink-0 rounded-full px-4 py-2 text-[12px] font-bold uppercase tracking-wide transition-all"
-                  style={
-                    isActive
-                      ? { background: primaryColor, color: '#000', boxShadow: `0 2px 12px ${hexToRgba(primaryColor, 0.3)}` }
-                      : { background: hexToRgba(textColor, 0.06), color: hexToRgba(textColor, 0.5) }
-                  }
-                >
-                  {cat}
-                </button>
-              );
-            })}
-          </div>
-        )}
+        {/* Category tabs removed — navigation via back button to categories grid */}
       </header>
 
       {/* Category banner */}
