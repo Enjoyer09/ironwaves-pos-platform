@@ -1,11 +1,11 @@
 import React, { Suspense, lazy, startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../store';
 import { get_sales_summary, get_sales_summary_live, get_sales_list, get_sales_list_live, update_sale_amount_live, void_sale_with_reason_live, partial_refund_sale_live } from '../api/analytics';
-import { get_menu_items_live, create_menu_item_live, reorder_menu_items_live, soft_delete_menu_item_live, update_menu_item_live, upload_menu_image_live } from '../api/menu';
+import { get_menu_items_live, create_menu_item_live, reorder_menu_items_live, soft_delete_menu_item_live, update_menu_item_live, upload_menu_image_live, auto_assign_menu_images } from '../api/menu';
 import { get_logs_live } from '../api/logs';
 import { apiRequest, isBackendEnabled } from '../api/client';
 import { Decimal } from 'decimal.js';
-import { GripVertical, Plus, Trash2, TrendingUp, ShoppingBag, DollarSign, Pencil, ChevronDown, ChevronUp, Printer } from 'lucide-react';
+import { GripVertical, Plus, Trash2, TrendingUp, ShoppingBag, DollarSign, Pencil, ChevronDown, ChevronUp, Printer, Sparkles } from 'lucide-react';
 import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
 import { getDB } from '../lib/db_sim';
@@ -1167,6 +1167,36 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
                 >
                   <Plus size={18} />
                   {tx(lang, 'Məhsul Əlavə Et', 'Добавить товар', 'Add item')}
+                </button>
+                <button
+                  onClick={async () => {
+                    const targetCategory = selectedMenuCategory !== '__all__' ? selectedMenuCategory : undefined;
+                    if (!targetCategory) {
+                      notify('info', tx(lang, 'Əvvəlcə kateqoriya seçin', 'Сначала выберите категорию', 'Select a category first'));
+                      return;
+                    }
+                    notify('info', tx(lang, `"${targetCategory}" üçün şəkillər axtarılır...`, `Поиск изображений для "${targetCategory}"...`, `Searching images for "${targetCategory}"...`));
+                    try {
+                      const result = await auto_assign_menu_images({ category: targetCategory, overwrite: false });
+                      if (result.assigned > 0) {
+                        notify('success', tx(lang, `${result.assigned} məhsula şəkil qoyuldu`, `${result.assigned} товарам назначены изображения`, `${result.assigned} items got images`));
+                        delete fetchCacheRef.current[`menu:${tenant_id}`];
+                        const seq = ++fetchSeqRef.current;
+                        await fetchData(seq);
+                      } else if (result.skipped === result.total) {
+                        notify('info', tx(lang, 'Bütün məhsulların artıq şəkli var', 'У всех товаров уже есть изображения', 'All items already have images'));
+                      } else {
+                        notify('warning', tx(lang, 'Şəkil tapılmadı. Pexels API key yoxlayın.', 'Изображения не найдены. Проверьте Pexels API key.', 'No images found. Check Pexels API key.'));
+                      }
+                    } catch (error: any) {
+                      notify('error', error?.message || tx(lang, 'AI şəkil xətası', 'Ошибка AI изображений', 'AI image error'));
+                    }
+                  }}
+                  className="neon-btn px-4 py-2 rounded-lg flex items-center gap-2"
+                  title={tx(lang, 'Seçilmiş kateqoriyadakı şəkilsiz məhsullara avtomatik stock foto qoyur (Pexels)', 'Автоматически назначает стоковые фото товарам без изображений (Pexels)', 'Auto-assigns stock photos to items without images (Pexels)')}
+                >
+                  <Sparkles size={18} />
+                  {tx(lang, 'AI Şəkil', 'AI Фото', 'AI Image')}
                 </button>
               </div>
             </div>
