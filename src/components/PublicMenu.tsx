@@ -199,7 +199,24 @@ export default function PublicMenu() {
       className="relative min-h-dvh overflow-x-hidden overflow-y-auto overscroll-contain"
       style={{ background: backgroundColor, color: textColor, fontFamily: resolvedFontFamily }}
     >
-      {children}
+      {/* Ambient liquid blobs */}
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
+        <div
+          className="absolute -left-20 -top-20 h-72 w-72 rounded-full opacity-30 blur-[100px]"
+          style={{ background: primaryColor }}
+        />
+        <div
+          className="absolute -bottom-32 -right-20 h-80 w-80 rounded-full opacity-20 blur-[120px]"
+          style={{ background: accentColor }}
+        />
+        <div
+          className="absolute left-1/2 top-1/3 h-56 w-56 -translate-x-1/2 rounded-full opacity-10 blur-[80px]"
+          style={{ background: primaryColor }}
+        />
+      </div>
+      <div className="relative z-10">
+        {children}
+      </div>
     </div>
   );
 
@@ -229,13 +246,18 @@ export default function PublicMenu() {
                 src={logoUrl}
                 alt={companyName}
                 className={`h-24 w-24 object-cover shadow-2xl sm:h-28 sm:w-28 ${logoShape === 'circle' ? 'rounded-full' : logoShape === 'square' ? 'rounded-2xl' : 'rounded-3xl'}`}
-                style={{ border: `3px solid ${hexToRgba(primaryColor, 0.3)}` }}
+                style={{ border: `3px solid ${hexToRgba(primaryColor, 0.3)}`, boxShadow: `0 12px 40px ${hexToRgba(primaryColor, 0.2)}, 0 0 0 1px ${hexToRgba(textColor, 0.08)}` }}
               />
             ) : (
               <div
-                className={`flex h-24 w-24 items-center justify-center text-2xl font-black shadow-2xl sm:h-28 sm:w-28 ${logoShape === 'circle' ? 'rounded-full' : logoShape === 'square' ? 'rounded-2xl' : 'rounded-3xl'}`}
-                style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})`, color: '#000' }}
+                className={`relative flex h-24 w-24 items-center justify-center overflow-hidden text-2xl font-black shadow-2xl sm:h-28 sm:w-28 ${logoShape === 'circle' ? 'rounded-full' : logoShape === 'square' ? 'rounded-2xl' : 'rounded-3xl'}`}
+                style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})`, color: '#000', boxShadow: `0 12px 40px ${hexToRgba(primaryColor, 0.3)}` }}
               >
+                {/* Glossy overlay */}
+                <span
+                  className="pointer-events-none absolute inset-x-0 top-0 h-1/2"
+                  style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0) 100%)' }}
+                />
                 {companyName.slice(0, 2).toUpperCase()}
               </div>
             )}
@@ -262,13 +284,18 @@ export default function PublicMenu() {
             <button
               type="button"
               onClick={goCategories}
-              className="mt-8 rounded-2xl px-10 py-4 text-[15px] font-bold tracking-wide transition-transform active:scale-95"
+              className="relative mt-8 overflow-hidden rounded-2xl px-10 py-4 text-[15px] font-bold tracking-wide transition-transform active:scale-95"
               style={{
                 background: primaryColor,
                 color: '#000',
-                boxShadow: `0 8px 32px ${hexToRgba(primaryColor, 0.35)}`,
+                boxShadow: `0 8px 32px ${hexToRgba(primaryColor, 0.35)}, inset 0 1px 1px rgba(255,255,255,0.4)`,
               }}
             >
+              {/* Glossy highlight */}
+              <span
+                className="pointer-events-none absolute inset-x-0 top-0 h-1/2 rounded-t-2xl"
+                style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 100%)' }}
+              />
               Menyu
             </button>
           </div>
@@ -325,7 +352,13 @@ export default function PublicMenu() {
                 type="button"
                 onClick={() => goCategory(cat)}
                 className="group relative overflow-hidden rounded-2xl text-left transition-transform active:scale-[0.97]"
-                style={{ backgroundColor: surfaceColor }}
+                style={{
+                  backgroundColor: hexToRgba(surfaceColor, 0.7),
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  border: `1px solid ${hexToRgba(textColor, 0.06)}`,
+                  boxShadow: `0 4px 20px ${hexToRgba(backgroundColor, 0.3)}, inset 0 1px 0 ${hexToRgba(textColor, 0.05)}`,
+                }}
               >
                 {/* Category image */}
                 <div className="aspect-[4/3] w-full overflow-hidden">
@@ -508,7 +541,13 @@ function ProductCard({
   return (
     <article
       className="flex gap-3 overflow-hidden rounded-2xl p-3 transition-transform active:scale-[0.985]"
-      style={{ backgroundColor: surfaceColor, boxShadow: `0 2px 16px ${hexToRgba(backgroundColor, 0.4)}` }}
+      style={{
+        backgroundColor: hexToRgba(surfaceColor, 0.7),
+        boxShadow: `0 2px 16px ${hexToRgba(backgroundColor, 0.4)}, inset 0 1px 0 ${hexToRgba(textColor, 0.06)}`,
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: `1px solid ${hexToRgba(textColor, 0.06)}`,
+      }}
     >
       {/* Image — left side, square/3:2 */}
       {hasImage ? (
