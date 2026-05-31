@@ -13,9 +13,7 @@ const SCREENSHOTS = [
   '/landing/shot5.png',
   '/landing/shot6.png',
   '/landing/shot7.png',
-  '/landing/shot8.png',
   '/landing/shot9.png',
-  '/landing/shot10.png',
   '/landing/shot11.png',
 ];
 
@@ -36,17 +34,12 @@ const STEPS = [
   { num: '03', az: 'Satışa Başla', ru: 'Начни продавать', en: 'Start Selling', descAz: 'POS açılır, ilk satış 5 dəqiqəyə hazırdır', descRu: 'POS открывается, первая продажа готова за 5 минут', descEn: 'POS opens, first sale ready in 5 minutes' },
 ];
 
-const STATS = [
-  { value: '50+', az: 'Aktiv restoran', ru: 'Активных ресторанов', en: 'Active restaurants' },
-  { value: '99.9%', az: 'Uptime', ru: 'Uptime', en: 'Uptime' },
-  { value: '<2s', az: 'Satış vaxtı', ru: 'Время продажи', en: 'Sale time' },
-  { value: '24/7', az: 'Cloud access', ru: 'Cloud доступ', en: 'Cloud access' },
-];
+const STATS = [] as any[];
 
 const PRICING = [
-  { name: 'Starter', price: '49', az: 'Kiçik kafe üçün', ru: 'Для маленького кафе', en: 'For small cafes', features: ['1 terminal', 'POS + KDS', 'Offline mode', '5 staff'] },
-  { name: 'Pro', price: '99', az: 'Restoran üçün', ru: 'Для ресторана', en: 'For restaurants', features: ['3 terminal', 'Full modules', 'CRM & Loyalty', '20 staff', 'Priority support'], popular: true },
-  { name: 'Enterprise', price: '199', az: 'Şəbəkə üçün', ru: 'Для сети', en: 'For chains', features: ['Unlimited', 'Multi-location', 'API access', 'Wolt/Bolt integration', 'Dedicated support'] },
+  { name: 'Starter', price: '0', priceLabel: { az: 'Pulsuz (Pre-Beta)', ru: 'Бесплатно (Pre-Beta)', en: 'Free (Pre-Beta)' }, az: '15 məhsul, gündəlik 25 satış', ru: '15 товаров, 25 продаж в день', en: '15 products, 25 sales/day', features: ['1 terminal', 'POS + KDS', '15 menu items', '25 daily sales', 'Offline mode'], isFree: true },
+  { name: 'Pro', price: '', priceLabel: { az: 'Bizə yazın', ru: 'Напишите нам', en: 'Contact us' }, az: 'Restoran üçün', ru: 'Для ресторана', en: 'For restaurants', features: ['3 terminal', 'Full modules', 'CRM & Loyalty', 'Unlimited sales', 'Priority support'], popular: true },
+  { name: 'Enterprise', price: '', priceLabel: { az: 'Bizə yazın', ru: 'Напишите нам', en: 'Contact us' }, az: 'Şəbəkə üçün', ru: 'Для сети', en: 'For chains', features: ['Unlimited terminals', 'Multi-location', 'API access', 'Wolt/Bolt integration', 'Dedicated support'] },
 ];
 
 const FAQ_ITEMS = [
@@ -144,50 +137,23 @@ export default function LandingPageV2() {
                 </a>
               </div>
             </div>
-            {/* Right: POS Device (CSS-built) with sliding screenshots */}
+            {/* Right: Screenshot carousel (full size, no device frame) */}
             <div className="relative mx-auto w-full max-w-lg xl:max-w-xl">
-              {/* Device body */}
-              <div className="relative mx-auto" style={{ maxWidth: '520px' }}>
-                {/* Screen bezel */}
-                <div className="rounded-[20px] border-[10px] border-[#1a1a1a] bg-[#111] shadow-[0_30px_80px_rgba(0,0,0,0.7),inset_0_2px_4px_rgba(255,255,255,0.05)]">
-                  {/* Screen */}
-                  <div className="overflow-hidden rounded-[10px] bg-[#0a0f1a]" style={{ aspectRatio: '16/10' }}>
-                    <div className="flex h-full transition-transform duration-700 ease-in-out" style={{ transform: `translateX(-${slideIndex * 100}%)` }}>
-                      {SCREENSHOTS.map((src, i) => (
-                        <img key={i} src={src} alt={`Screenshot ${i + 1}`} className="h-full w-full shrink-0 object-cover object-left-top" loading="lazy" />
-                      ))}
-                    </div>
-                  </div>
+              <div className="overflow-hidden rounded-2xl border border-slate-700/60 shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
+                <div className="flex transition-transform duration-700 ease-in-out" style={{ transform: `translateX(-${slideIndex * 100}%)` }}>
+                  {SCREENSHOTS.map((src, i) => (
+                    <img key={i} src={src} alt={`Screenshot ${i + 1}`} className="w-full shrink-0 object-cover" style={{ aspectRatio: '16/10' }} loading="lazy" />
+                  ))}
                 </div>
-                {/* Stand neck */}
-                <div className="mx-auto h-12 w-20 bg-gradient-to-b from-[#1a1a1a] to-[#2a2a2a]" />
-                {/* Stand base with orange accent */}
-                <div className="mx-auto flex h-8 w-36 items-center justify-center rounded-b-2xl bg-gradient-to-b from-orange-500 to-orange-600 shadow-lg">
-                  <div className="h-1 w-16 rounded-full bg-orange-300/40" />
-                </div>
-                {/* Base plate */}
-                <div className="mx-auto h-3 w-44 rounded-b-xl bg-[#1a1a1a] shadow-md" />
               </div>
               {/* Slide dots */}
-              <div className="mt-8 flex justify-center gap-2">
+              <div className="mt-5 flex justify-center gap-2">
                 {SCREENSHOTS.map((_, i) => (
                   <button key={i} type="button" onClick={() => setSlideIndex(i)} className={`h-2.5 rounded-full transition-all ${i === slideIndex ? 'w-7 bg-yellow-400' : 'w-2.5 bg-slate-600'}`} />
                 ))}
               </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* ─── STATS BAR ─── */}
-      <section className="border-y border-slate-800/60 bg-slate-900/30 py-8">
-        <div className="mx-auto grid max-w-5xl grid-cols-2 gap-6 px-6 md:grid-cols-4">
-          {STATS.map((stat) => (
-            <div key={stat.value} className="text-center">
-              <div className="text-3xl font-black text-yellow-400">{stat.value}</div>
-              <div className="mt-1 text-sm text-slate-400">{tx(lang, stat.az, stat.ru, stat.en)}</div>
-            </div>
-          ))}
         </div>
       </section>
 
@@ -235,7 +201,8 @@ export default function LandingPageV2() {
       <section id="pricing" className="px-6 py-24">
         <div className="mx-auto max-w-6xl">
           <div className="text-center">
-            <h2 className="text-3xl font-black md:text-4xl">{tx(lang, 'Sadə və şəffaf qiymətlər', 'Простые и прозрачные цены', 'Simple and transparent pricing')}</h2>
+            <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-xs font-bold text-amber-300">Pre-Beta</div>
+            <h2 className="mt-4 text-3xl font-black md:text-4xl">{tx(lang, 'Sadə və şəffaf qiymətlər', 'Простые и прозрачные цены', 'Simple and transparent pricing')}</h2>
           </div>
           <div className="mt-16 grid grid-cols-1 gap-6 md:grid-cols-3">
             {PRICING.map((plan) => (
@@ -243,9 +210,17 @@ export default function LandingPageV2() {
                 {plan.popular && <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-yellow-400 to-amber-500 px-4 py-1 text-xs font-black text-slate-900">{tx(lang, 'Populyar', 'Популярный', 'Popular')}</div>}
                 <h3 className="text-xl font-bold">{plan.name}</h3>
                 <p className="mt-1 text-sm text-slate-400">{tx(lang, plan.az, plan.ru, plan.en)}</p>
-                <div className="mt-6"><span className="text-4xl font-black">{plan.price}</span><span className="ml-1 text-sm text-slate-400">₼/{tx(lang, 'ay', 'мес', 'mo')}</span></div>
+                <div className="mt-6">
+                  {(plan as any).isFree ? (
+                    <span className="text-2xl font-black text-emerald-400">{tx(lang, plan.priceLabel.az, plan.priceLabel.ru, plan.priceLabel.en)}</span>
+                  ) : (
+                    <span className="text-2xl font-black text-yellow-400">{tx(lang, plan.priceLabel.az, plan.priceLabel.ru, plan.priceLabel.en)}</span>
+                  )}
+                </div>
                 <ul className="mt-6 space-y-3">{plan.features.map((f) => (<li key={f} className="flex items-center gap-2 text-sm text-slate-300"><span className="h-1.5 w-1.5 rounded-full bg-yellow-400" />{f}</li>))}</ul>
-                <a href="https://wa.me/14162680101" target="_blank" rel="noopener noreferrer" className={`mt-8 block w-full rounded-xl py-3 text-center text-sm font-bold transition ${plan.popular ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-900' : 'border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700'}`}>{tx(lang, 'Başla', 'Начать', 'Get Started')}</a>
+                <a href={`${(plan as any).isFree ? 'https://demo.ironwaves.store' : 'https://wa.me/14162680101'}`} target={(plan as any).isFree ? undefined : '_blank'} rel="noopener noreferrer" className={`mt-8 block w-full rounded-xl py-3 text-center text-sm font-bold transition ${plan.popular ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-900' : (plan as any).isFree ? 'border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20' : 'border border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700'}`}>
+                  {(plan as any).isFree ? tx(lang, 'Pulsuz başla', 'Начать бесплатно', 'Start free') : tx(lang, 'Bizə yazın', 'Напишите нам', 'Contact us')}
+                </a>
               </div>
             ))}
           </div>
