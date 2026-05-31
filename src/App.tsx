@@ -36,7 +36,7 @@ const TablesPage = lazy(() => import('./components/TablesPage'));
 const PublicReceipt = lazy(() => import('./components/PublicReceipt'));
 const PublicMenu = lazy(() => import('./components/PublicMenu'));
 const CustomerApp = lazy(() => import('./components/CustomerApp'));
-const LandingPage = lazy(() => import('./components/LandingPage'));
+const LandingPage = lazy(() => import('./components/LandingPageV2'));
 const FeedbackPortal = lazy(() => import('./components/FeedbackPortal'));
 
 type AdminView =
