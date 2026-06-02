@@ -6,6 +6,7 @@ import { getDeviceHash, getPublicIp, LoginRiskContext } from '../lib/risk';
 import { get_business_profile, get_public_branding_live, get_settings_live } from '../api/settings';
 import { getResolvedTenantIdFromHost } from '../lib/tenant';
 import { authApi } from '../api/auth';
+import { getApiBaseUrl } from '../api/client';
 
 export default function PinLogin() {
   const { login, adminLogin, bootstrapPlatformOwner, lang, setLang, adminNeeds2FA, authErrorMessage, clearAuthError } = useAppStore();
@@ -40,6 +41,29 @@ export default function PinLogin() {
       mounted = false;
     };
   }, []);
+
+  React.useEffect(() => {
+    if (!isDemoHost) return;
+    const recordDemoPageview = async () => {
+      try {
+        const base = getApiBaseUrl() || '';
+        await fetch(`${base}/api/v1/ops/public/landing/pageview`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-tenant-domain': window.location.host,
+          },
+          body: JSON.stringify({
+            referrer: document.referrer || '',
+            path: '/demo',
+          }),
+        });
+      } catch (err) {
+        console.warn('Failed to record demo pageview:', err);
+      }
+    };
+    void recordDemoPageview();
+  }, [isDemoHost]);
 
   React.useEffect(() => {
     let mounted = true;
