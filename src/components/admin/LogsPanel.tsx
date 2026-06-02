@@ -132,6 +132,96 @@ export default function LogsPanel() {
     return details || {};
   };
 
+  const humanizeKey = (keyRaw: string, currentLang: string): string => {
+    const k = String(keyRaw || '').trim().toLowerCase();
+    const mappings: Record<string, { az: string; ru: string; en: string }> = {
+      item_name: { az: 'Məhsul adı', ru: 'Название товара', en: 'Item name' },
+      name: { az: 'Ad', ru: 'Имя / Название', en: 'Name' },
+      item: { az: 'Məhsul', ru: 'Товар', en: 'Item' },
+      price: { az: 'Qiymət', ru: 'Цена', en: 'Price' },
+      qty: { az: 'Miqdar', ru: 'Количество', en: 'Quantity' },
+      quantity: { az: 'Miqdar', ru: 'Количество', en: 'Quantity' },
+      amount: { az: 'Məbləğ', ru: 'Сумма', en: 'Amount' },
+      total: { az: 'Yekun', ru: 'Итого', en: 'Total' },
+      total_amount: { az: 'Yekun məbləğ', ru: 'Итоговая сумма', en: 'Total amount' },
+      payment_method: { az: 'Ödəniş növü', ru: 'Способ оплаты', en: 'Payment method' },
+      sale_id: { az: 'Satış ID', ru: 'ID продажи', en: 'Sale ID' },
+      id: { az: 'ID', ru: 'ID', en: 'ID' },
+      receipt_code: { az: 'Çek kodu', ru: 'Код чека', en: 'Receipt code' },
+      reason: { az: 'Səbəb', ru: 'Причина', en: 'Reason' },
+      discount_percent: { az: 'Endirim (%)', ru: 'Скидка (%)', en: 'Discount (%)' },
+      discount_amount: { az: 'Endirim məbləği', ru: 'Сумма скидки', en: 'Discount amount' },
+      original_total: { az: 'İlkin cəm', ru: 'Исходный итог', en: 'Original subtotal' },
+      split_cash: { az: 'Nağd məbləğ (Split)', ru: 'Наличная часть (Split)', en: 'Cash amount (Split)' },
+      split_card: { az: 'Kart məbləğ (Split)', ru: 'Карточная часть (Split)', en: 'Card amount (Split)' },
+      cashier: { az: 'Kassir', ru: 'Кассир', en: 'Cashier' },
+      user: { az: 'İstifadəçi', ru: 'Пользователь', en: 'User' },
+      by: { az: 'Tərəfindən', ru: 'Выполнил', en: 'By' },
+      stars: { az: 'Ulduz / Bonus', ru: 'Звезды / Бонусы', en: 'Stars' },
+      stars_added: { az: 'Qazanılan ulduz', ru: 'Начислено звезд', en: 'Stars earned' },
+      stars_removed: { az: 'Xərclənən ulduz', ru: 'Списано звезд', en: 'Stars spent' },
+      customer_card_id: { az: 'Müştəri kartı', ru: 'Карта клиента', en: 'Customer card ID' },
+      customer_id: { az: 'Müştəri ID', ru: 'ID клиента', en: 'Customer ID' },
+      table_name: { az: 'Masa', ru: 'Стол', en: 'Table' },
+      table_id: { az: 'Masa ID', ru: 'ID стола', en: 'Table ID' },
+      status: { az: 'Status', ru: 'Статус', en: 'Status' },
+      old_amount: { az: 'Əvvəlki məbləğ', ru: 'Предыдущая сумма', en: 'Old amount' },
+      old_value: { az: 'Əvvəlki dəyər', ru: 'Предыдущее значение', en: 'Old value' },
+      new_amount: { az: 'Yeni məbləğ', ru: 'Новая сумма', en: 'New amount' },
+      new_value: { az: 'Yeni dəyər', ru: 'Новое значение', en: 'New value' },
+      qty_added: { az: 'Əlavə olunan miqdar', ru: 'Добавлено', en: 'Quantity added' },
+      qty_removed: { az: 'Silinən/Zay miqdar', ru: 'Списано потери', en: 'Quantity removed / Loss' },
+      stock_level: { az: 'Mövcud anbar qalığı', ru: 'Текущий остаток', en: 'Current stock level' },
+      unit: { az: 'Ölçü vahidi', ru: 'Единица измерения', en: 'Unit' },
+      message: { az: 'Mesaj / Açıqlama', ru: 'Сообщение / Описание', en: 'Message / Description' },
+      description: { az: 'Açıqlama', ru: 'Описание', en: 'Description' },
+      category: { az: 'Kateqoriya', ru: 'Категория', en: 'Category' },
+      tenant_id: { az: 'Tenant ID', ru: 'ID арендатора (Tenant)', en: 'Tenant ID' },
+      target_user: { az: 'Hədəf istifadəçi', ru: 'Целевой пользователь', en: 'Target user' },
+      received_by: { az: 'Təhvil alan', ru: 'Принял смену', en: 'Received by' },
+      username: { az: 'İstifadəçi adı', ru: 'Имя пользователя', en: 'Username' },
+    };
+
+    const l = currentLang === 'ru' ? 'ru' : currentLang === 'en' ? 'en' : 'az';
+    return mappings[k]?.[l] || keyRaw;
+  };
+
+  const formatValue = (key: string, val: any, currentLang: string): string => {
+    if (val === null || val === undefined) return '-';
+    if (typeof val === 'boolean') {
+      return val
+        ? tx(currentLang, 'Bəli', 'Да', 'Yes')
+        : tx(currentLang, 'Xeyr', 'Нет', 'No');
+    }
+    if (Array.isArray(val)) {
+      return val.map((item: any) => {
+        if (typeof item === 'object' && item !== null) {
+          const name = item.item_name || item.name || '';
+          const qty = item.qty || item.quantity || '';
+          const price = item.price !== undefined ? `${item.price} ₼` : '';
+          return `${qty ? `${qty}x ` : ''}${name}${price ? ` (${price})` : ''}`;
+        }
+        return String(item);
+      }).join(', ');
+    }
+    if (typeof val === 'object') {
+      try {
+        return JSON.stringify(val);
+      } catch {
+        return String(val);
+      }
+    }
+    
+    // Normalize spelling of Cash/Nağd if it appears in payment_method
+    if (key.toLowerCase() === 'payment_method') {
+      const s = String(val).trim();
+      if (s === 'Nəğd' || s === 'NAGD' || s === 'nagd' || s === 'nəğd' || s === 'cash' || s.includes('cash')) {
+        return 'Nağd';
+      }
+    }
+    return String(val);
+  };
+
   const humanizeAction = (actionRaw: string) => {
     const action = String(actionRaw || '').toUpperCase();
     const labels: Record<string, string> = {
@@ -179,24 +269,124 @@ export default function LogsPanel() {
     const itemName = String(details.item_name || details.name || details.item || '').trim();
     const qty = details.qty ?? details.qty_added ?? details.qty_removed;
     const unit = details.unit ? ` ${details.unit}` : '';
-    const amount = details.amount || details.total || details.value;
-    const targetUser = details.received_by || details.username || details.target_user;
-    if (action === 'INVENTORY_ADD' && itemName) return `${itemName} • ${qty || 0}${unit}`;
-    if (action === 'INVENTORY_RESTOCK' && itemName) return `${itemName} • +${qty || 0}${unit}`;
-    if (action === 'INVENTORY_LOSS' && itemName) return `${itemName} • -${qty || 0}${unit}`;
-    if (action === 'SALE_VOIDED' && details.sale_id) return `sale_id: ${details.sale_id}`;
-    if (action === 'SALE_PARTIAL_REFUND' && amount) return `${tx(lang, 'Refund məbləği', 'Сумма возврата', 'Refund amount')}: ${amount}`;
-    if ((action === 'SHIFT_HANDOVER' || action === 'SHIFT_HANDOVER_ACCEPTED') && targetUser) return `${tx(lang, 'İşçi', 'Сотрудник', 'Staff')}: ${targetUser}`;
+    const amount = details.amount || details.total || details.value || details.total_amount;
+    const targetUser = details.received_by || details.username || details.target_user || details.username_target || details.user;
+    const cashier = details.cashier || details.by;
+    const reason = details.reason ? ` • ${tx(lang, 'Səbəb', 'Причина', 'Reason')}: ${details.reason}` : '';
+
+    if (action === 'MENU_ADD' && itemName) {
+      const priceStr = details.price !== undefined ? ` (${details.price} ₼)` : '';
+      return `${tx(lang, 'Yeni məhsul əlavə edildi', 'Добавлен новый товар', 'New menu item added')}: ${itemName}${priceStr}`;
+    }
+    if (action === 'MENU_EDIT' && itemName) {
+      return `${tx(lang, 'Məhsul yeniləndi', 'Товар обновлен', 'Menu item updated')}: ${itemName}`;
+    }
+    if (action === 'MENU_SOFT_DELETE' && itemName) {
+      return `${tx(lang, 'Məhsul deaktiv edildi', 'Товар деактивирован', 'Menu item deactivated')}: ${itemName}`;
+    }
+    if (action === 'INVENTORY_ADD' && itemName) {
+      return `${tx(lang, 'Anbara məhsul əlavə edildi', 'Добавлен товар на склад', 'Added to inventory')}: ${itemName} • ${qty || 0}${unit}`;
+    }
+    if (action === 'INVENTORY_RESTOCK' && itemName) {
+      return `${tx(lang, 'Anbara mədaxil', 'Пополнение склада', 'Restocked')}: ${itemName} • +${qty || 0}${unit}`;
+    }
+    if (action === 'INVENTORY_LOSS' && itemName) {
+      return `${tx(lang, 'Anbardan silinmə/itki', 'Списание потерь', 'Inventory loss')}: ${itemName} • -${qty || 0}${unit}${reason}`;
+    }
+    if (action === 'INVENTORY_DELETE' && itemName) {
+      return `${tx(lang, 'Anbardan tam silindi', 'Удален со склада', 'Deleted from inventory')}: ${itemName}`;
+    }
+    if (action === 'INVENTORY_CONSUMED' && itemName) {
+      return `${tx(lang, 'Xammal sərfiyyatı', 'Расход сырья', 'Consumed')}: ${itemName} • ${qty || 0}${unit}`;
+    }
+    if (action === 'SALE_VOIDED') {
+      const ref = details.receipt_code || details.sale_id || details.id || '';
+      return `${tx(lang, 'Satış ləğv edildi', 'Продажа аннулирована', 'Sale voided')} ${ref ? `(Çek: ${ref})` : ''}${reason}`;
+    }
+    if (action === 'SALE_PARTIAL_REFUND') {
+      const ref = details.receipt_code || details.sale_id || details.id || '';
+      return `${tx(lang, 'Qismən geri qaytarılma', 'Частичный возврат', 'Partial refund')} ${ref ? `(Çek: ${ref})` : ''} • ${tx(lang, 'Məbləğ', 'Сумма', 'Amount')}: ${amount} ₼`;
+    }
+    if (action === 'REFUND_CREATED') {
+      return `${tx(lang, 'Refund yaradıldı', 'Возврат создан', 'Refund created')} • ${tx(lang, 'Məbləğ', 'Сумма', 'Amount')}: ${amount} ₼`;
+    }
+    if (action === 'TABLE_CREATED') {
+      return `${tx(lang, 'Yeni masa', 'Новый стол', 'New table')}: ${details.table_name || details.name || '-'}`;
+    }
+    if (action === 'TABLE_DELETED') {
+      return `${tx(lang, 'Masa silindi', 'Стол удален', 'Table deleted')}: ${details.table_name || details.name || '-'}`;
+    }
+    if (action === 'TABLE_TRANSFERRED') {
+      return `${tx(lang, 'Sifariş köçürüldü', 'Заказ перенесен', 'Order transferred')}: ${details.from_table || ''} ➔ ${details.to_table || ''}`;
+    }
+    if (action === 'TABLE_MERGED') {
+      return `${tx(lang, 'Masalar birləşdirildi', 'Столы объединены', 'Tables merged')}: ${details.source_table || ''} ➔ ${details.target_table || ''}`;
+    }
+    if (action === 'TABLE_SENT_TO_KITCHEN') {
+      return `${tx(lang, 'Mətbəxə sifariş', 'Заказ отправлен на кухню', 'Sent to kitchen')}: ${details.table_name || ''}`;
+    }
+    if (action === 'KITCHEN_ACCEPTED') {
+      return `${tx(lang, 'Mətbəx qəbul etdi', 'Принято на кухне', 'Kitchen accepted')}: ${details.table_name || ''}`;
+    }
+    if (action === 'KITCHEN_COMPLETED') {
+      return `${tx(lang, 'Mətbəx hazırladı', 'Готово на кухне', 'Kitchen completed')}: ${details.table_name || ''}`;
+    }
+    if (action === 'X_REPORT_CREATED') {
+      return `${tx(lang, 'X-Hesabat çap olundu', 'Распечатан X-отчет', 'X report printed')}${cashier ? ` • ${cashier}` : ''}`;
+    }
+    if (action === 'Z_REPORT_CREATED') {
+      return `${tx(lang, 'Z-Hesabat - Növbə bağlandı', 'Z-отчет - Смена закрыта', 'Z report - Shift closed')}${cashier ? ` • ${cashier}` : ''}`;
+    }
+    if (action === 'SHIFT_OPENED') {
+      return `${tx(lang, 'Növbə açıldı', 'Смена открыта', 'Shift opened')} • ${tx(lang, 'Kassa', 'Касса', 'Cash drawer')}: ${amount || 0} ₼`;
+    }
+    if (action === 'SHIFT_CLOSED') {
+      return `${tx(lang, 'Növbə bağlandı', 'Смена закрыта', 'Shift closed')}`;
+    }
+    if (action === 'SHIFT_HANDOVER') {
+      return `${tx(lang, 'Növbə təhvil verildi', 'Смена передана', 'Shift handed over')}${targetUser ? ` ➔ ${targetUser}` : ''}`;
+    }
+    if (action === 'SHIFT_HANDOVER_ACCEPTED') {
+      return `${tx(lang, 'Növbə qəbul edildi', 'Смена принята', 'Shift handover accepted')}${targetUser ? ` ➔ ${targetUser}` : ''}`;
+    }
+    if (action === 'USER_UPSERT') {
+      return `${tx(lang, 'İstifadəçi qeydiyyatı', 'Регистрация пользователя', 'User registration')}: ${details.username || details.name || targetUser || '-'} (${details.role || ''})`;
+    }
+    if (action === 'USER_DELETE') {
+      return `${tx(lang, 'İstifadəçi silindi', 'Пользователь удален', 'User deleted')}: ${details.username || details.name || targetUser || '-'}`;
+    }
+    if (action === 'USER_CREDENTIALS_UPDATED') {
+      return `${tx(lang, 'Şifrə/PIN yeniləndi', 'Пароль/PIN обновлен', 'Credentials updated')}: ${details.username || details.name || targetUser || '-'}`;
+    }
+    if (action === 'BUSINESS_PROFILE_UPDATED') {
+      return tx(lang, 'Profil məlumatları yeniləndi', 'Данные профиля обновлены', 'Profile updated');
+    }
+    if (action === 'PRINT_SETTINGS_UPDATED') {
+      return tx(lang, 'Çap parametrləri dəyişdirildi', 'Параметры печати изменены', 'Print settings modified');
+    }
+    if (action === 'QR_SETTINGS_UPDATED') {
+      return tx(lang, 'QR Menu parametrləri yeniləndi', 'Параметры QR-меню обновлены', 'QR Menu settings updated');
+    }
+    if (action === 'CRM_SEND') {
+      return `${tx(lang, 'CRM kampaniyası', 'CRM кампания', 'CRM campaign')}: ${details.subject || ''}`;
+    }
+    if (action === 'QR_GENERATED') {
+      return `${tx(lang, 'QR kod yaradıldı', 'QR код создан', 'QR code generated')}: ${details.table_name || ''}`;
+    }
+    if (action === 'OFFLINE_SALES_SYNCED') {
+      return `${tx(lang, 'Offline satışların sinxronizasiyası', 'Синхронизация оффлайн продаж', 'Offline sales sync')}: +${qty || 0} ${tx(lang, 'satış', 'продаж', 'sales')}`;
+    }
     if (action === 'FINANCE_ANOMALY_SNAPSHOT') {
       const bits: string[] = [];
-      if (details.has_reconciliation_issue) bits.push(tx(lang, 'satış və maliyyə yazılışı fərqi', 'разница продаж и финансовых проводок', 'sales vs ledger gap'));
-      if (details.has_investor_mismatch) bits.push(tx(lang, 'investor uyğunsuzluğu', 'несовпадение инвестора', 'investor mismatch'));
-      if (details.has_shift_cash_mismatch) bits.push(tx(lang, 'shift kassa fərqi', 'разница кассы смены', 'shift cash gap'));
+      if (details.has_reconciliation_issue) bits.push(tx(lang, 'satış fərqi', 'разница продаж', 'sales gap'));
+      if (details.has_investor_mismatch) bits.push(tx(lang, 'investor fərqi', 'разница инвестора', 'investor gap'));
+      if (details.has_shift_cash_mismatch) bits.push(tx(lang, 'kassa fərqi', 'разница кассы', 'cash gap'));
       if (details.has_deposit_risk) bits.push(tx(lang, 'depozit riski', 'риск депозитов', 'deposit risk'));
-      if (details.has_closed_shift_open_deposit) bits.push(tx(lang, 'bağlı növbədə depozit', 'депозит при закрытой смене', 'deposit on closed shift'));
-      return bits.length > 0 ? bits.join(' • ') : tx(lang, 'Audit warning yoxdur', 'Нет audit warning', 'No audit warning');
+      if (details.has_closed_shift_open_deposit) bits.push(tx(lang, 'növbə kənar depozit', 'депозит вне смены', 'deposit out of shift'));
+      return bits.length > 0 ? bits.join(' • ') : tx(lang, 'Audit xətası yoxdur', 'Нет ошибок аудита', 'No audit warning');
     }
-    if (amount) return `${tx(lang, 'Məbləğ', 'Сумма', 'Amount')}: ${amount}`;
+
+    if (amount) return `${tx(lang, 'Məbləğ', 'Сумма', 'Amount')}: ${amount} ₼`;
     if (itemName) return itemName;
     return details.message || '-';
   };
@@ -250,8 +440,8 @@ export default function LogsPanel() {
       <div className="space-y-1 rounded-md border border-slate-700/70 bg-slate-900/40 p-2">
         {Object.entries(parsed).map(([k, v]) => (
           <div key={k} className="flex items-start gap-2 text-[11px] leading-4 text-slate-200">
-            <span className="min-w-[120px] text-slate-400">{k}</span>
-            <span className="font-mono break-all text-slate-100">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
+            <span className="min-w-[120px] text-slate-400 font-medium">{humanizeKey(k, lang)}</span>
+            <span className="break-all text-slate-100">{formatValue(k, v, lang)}</span>
           </div>
         ))}
       </div>
