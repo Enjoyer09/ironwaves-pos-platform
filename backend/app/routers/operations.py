@@ -5115,7 +5115,7 @@ def log_landing_pageview(
     if not platform_tenant:
         raise HTTPException(status_code=404, detail="Platform tenant not found")
 
-    ip = _client_ip(request)
+    ip = _request_ip(request)
     user_agent = request.headers.get("user-agent", "unknown")
 
     details_dict = {
