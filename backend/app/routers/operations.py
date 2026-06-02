@@ -5098,3 +5098,40 @@ def create_log_event(
     db.add(AuditLog(tenant_id=tenant.id, user=payload.user, action=payload.action, details=json.dumps(details, ensure_ascii=False) if not isinstance(details, str) else details))
     db.commit()
     return {"success": True}
+
+
+class LandingPageViewIn(BaseModel):
+    referrer: str | None = None
+    path: str | None = None
+
+
+@router.post("/public/landing/pageview")
+def log_landing_pageview(
+    payload: LandingPageViewIn,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    platform_tenant = db.query(Tenant).filter(Tenant.slug == app_settings.platform_tenant_slug).first()
+    if not platform_tenant:
+        raise HTTPException(status_code=404, detail="Platform tenant not found")
+
+    ip = _client_ip(request)
+    user_agent = request.headers.get("user-agent", "unknown")
+
+    details_dict = {
+        "ip": ip,
+        "user_agent": user_agent,
+        "referrer": payload.referrer or "",
+        "path": payload.path or "/"
+    }
+
+    log_entry = AuditLog(
+        tenant_id=platform_tenant.id,
+        user="visitor",
+        action="LANDING_PAGEVIEW",
+        details=json.dumps(details_dict, ensure_ascii=False)
+    )
+    db.add(log_entry)
+    db.commit()
+    return {"success": True}
+
