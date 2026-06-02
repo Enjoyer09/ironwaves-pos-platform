@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ChefHat, ChevronDown, CreditCard, LayoutDashboard, Monitor, QrCode, ShieldCheck, Smartphone, Users, Wifi, Zap, MessageCircle } from 'lucide-react';
+import { getApiBaseUrl } from '../api/client';
 
 type Lang = 'az' | 'ru' | 'en';
 
@@ -86,10 +87,12 @@ export default function LandingPageV2() {
   useEffect(() => {
     const recordPageview = async () => {
       try {
-        await fetch('/api/v1/ops/public/landing/pageview', {
+        const base = getApiBaseUrl() || '';
+        await fetch(`${base}/api/v1/ops/public/landing/pageview`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'x-tenant-domain': window.location.host,
           },
           body: JSON.stringify({
             referrer: document.referrer || '',
