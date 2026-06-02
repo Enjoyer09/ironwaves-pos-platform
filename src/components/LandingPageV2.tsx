@@ -82,6 +82,27 @@ export default function LandingPageV2() {
     return () => clearInterval(timer);
   }, []);
 
+  // Record pageview anonymously
+  useEffect(() => {
+    const recordPageview = async () => {
+      try {
+        await fetch('/api/v1/ops/public/landing/pageview', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            referrer: document.referrer || '',
+            path: window.location.pathname || '/',
+          }),
+        });
+      } catch (err) {
+        console.warn('Failed to record pageview:', err);
+      }
+    };
+    void recordPageview();
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#0a0f1a] text-slate-100 font-sans">
 

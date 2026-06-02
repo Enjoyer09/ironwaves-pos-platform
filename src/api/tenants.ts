@@ -431,3 +431,56 @@ export async function clone_tenant_as_demo(payload: {
     demo_admin_2fa_pin: '123456',
   };
 }
+
+export interface LandingAnalytics {
+  total_pageviews: number;
+  unique_visitors: number;
+  recent_views: Array<{
+    ip: string;
+    user_agent: string;
+    referrer: string;
+    path: string;
+    created_at: string;
+  }>;
+}
+
+export async function get_landing_analytics(): Promise<LandingAnalytics> {
+  if (isBackendEnabled()) {
+    return await apiRequest<LandingAnalytics>('/api/v1/admin/tenants/landing-analytics', { timeoutMs: 30000 });
+  }
+
+  // Local/simulation mode fallback
+  const logs = getDB<any>('logs') || [];
+  const landingLogs = logs.filter((l: any) => l.action === 'LANDING_PAGEVIEW');
+  const ips = new Set(
+    landingLogs.map((l: any) => {
+      try {
+        const details = typeof l.details === 'string' ? JSON.parse(l.details) : (l.details || {});
+        return details.ip || 'unknown';
+      } catch {
+        return 'unknown';
+      }
+    })
+  );
+
+  const recent = landingLogs.slice(-100).reverse().map((l: any) => {
+    let details: any = {};
+    try {
+      details = typeof l.details === 'string' ? JSON.parse(l.details) : (l.details || {});
+    } catch {}
+    return {
+      ip: details.ip || 'unknown',
+      user_agent: details.user_agent || 'unknown',
+      referrer: details.referrer || '',
+      path: details.path || '/',
+      created_at: l.created_at || new Date().toISOString(),
+    };
+  });
+
+  return {
+    total_pageviews: landingLogs.length,
+    unique_visitors: ips.size,
+    recent_views: recent,
+  };
+}
+

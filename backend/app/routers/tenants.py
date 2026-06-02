@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
@@ -636,3 +637,78 @@ def delete_tenant(
     db.commit()
 
     return {"success": True}
+
+
+@router.get("/landing-analytics")
+def get_landing_analytics(
+    db: Session = Depends(get_db),
+    _super_admin=Depends(get_super_admin),
+):
+    platform_tenant = db.query(Tenant).filter(Tenant.slug == settings.platform_tenant_slug).first()
+    if not platform_tenant:
+        raise HTTPException(status_code=404, detail="Platform tenant not found")
+
+    total_pageviews = db.query(AuditLog).filter(
+        AuditLog.tenant_id == platform_tenant.id,
+        AuditLog.action == "LANDING_PAGEVIEW"
+    ).count()
+
+    unique_visitors = 0
+    try:
+        dialect_name = db.bind.dialect.name
+        if dialect_name == "postgresql":
+            res = db.execute(
+                text("SELECT COUNT(DISTINCT details::jsonb->>'ip') FROM audit_logs WHERE tenant_id = :t_id AND action = 'LANDING_PAGEVIEW'"),
+                {"t_id": platform_tenant.id}
+            ).scalar()
+            unique_visitors = res or 0
+        else:
+            res = db.execute(
+                text("SELECT COUNT(DISTINCT json_extract(details, '$.ip')) FROM audit_logs WHERE tenant_id = :t_id AND action = 'LANDING_PAGEVIEW'"),
+                {"t_id": platform_tenant.id}
+            ).scalar()
+            unique_visitors = res or 0
+    except Exception:
+        try:
+            res = db.execute(
+                text("SELECT details FROM audit_logs WHERE tenant_id = :t_id AND action = 'LANDING_PAGEVIEW'"),
+                {"t_id": platform_tenant.id}
+            ).fetchall()
+            ips = set()
+            for r in res:
+                try:
+                    d = json.loads(r[0] or "{}")
+                    if "ip" in d:
+                        ips.add(d["ip"])
+                except Exception:
+                    pass
+            unique_visitors = len(ips)
+        except Exception:
+            unique_visitors = 0
+
+    recent_logs = db.query(AuditLog).filter(
+        AuditLog.tenant_id == platform_tenant.id,
+        AuditLog.action == "LANDING_PAGEVIEW"
+    ).order_by(AuditLog.created_at.desc()).limit(100).all()
+
+    recent_views = []
+    for log in recent_logs:
+        details_data = {}
+        try:
+            details_data = json.loads(log.details or "{}")
+        except Exception:
+            pass
+        recent_views.append({
+            "ip": details_data.get("ip", "unknown"),
+            "user_agent": details_data.get("user_agent", "unknown"),
+            "referrer": details_data.get("referrer", ""),
+            "path": details_data.get("path", "/"),
+            "created_at": log.created_at.isoformat()
+        })
+
+    return {
+        "total_pageviews": total_pageviews,
+        "unique_visitors": unique_visitors,
+        "recent_views": recent_views
+    }
+
