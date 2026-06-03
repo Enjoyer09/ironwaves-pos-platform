@@ -1200,9 +1200,25 @@ def health():
 
 @app.get("/health/deep")
 def health_deep():
-    with SessionLocal() as db:
-        db.execute(text("SELECT 1"))
-    return {"status": "ok", "app": settings.app_name, "db": "ok"}
+    try:
+        with SessionLocal() as db:
+            db.execute(text("SELECT 1"))
+    except Exception as exc:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "app": settings.app_name, "db": "error", "detail": str(exc)[:200]},
+        )
+    result = {"status": "ok", "app": settings.app_name, "db": "ok"}
+    try:
+        pool = engine.pool
+        result["pool"] = {
+            "size": pool.size(),
+            "checked_out": pool.checkedout(),
+            "overflow": pool.overflow(),
+        }
+    except Exception:
+        pass
+    return result
 
 
 @app.get("/health/tenant-debug")
