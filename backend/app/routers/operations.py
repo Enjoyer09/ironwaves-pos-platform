@@ -25,8 +25,10 @@ from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.json_utils import safe_json_list
 from app.models import (
+    AgentInsight,
     AuditLog,
     BusinessProfile,
+    Check,
     Customer,
     CustomerConsent,
     DonerBatch,
@@ -35,23 +37,30 @@ from app.models import (
     FinanceAccount,
     FinanceEntry,
     FinanceLedgerEntry,
+    FinanceReconciliation,
+    FinanceTransaction,
     FloorPlan,
     Guest,
     HappyHour,
     InventoryItem,
+    ItemStatusLog,
     KitchenOrder,
     LoyaltyLedgerEntry,
     MenuItem,
     Notification,
+    OrderItem,
+    OrderRound,
+    Payment,
     Recipe,
-    RewardClaim,
     Reservation,
+    RewardClaim,
     Sale,
     Setting,
     Shift,
     ShiftHandover,
     StaffNotification,
     Table,
+    TableSession,
     Tenant,
     User,
     WasteLog,
@@ -1493,8 +1502,199 @@ def export_database_backup(
             _serialize_model_row(row, ["id", "tenant_id", "user", "action", "details", "created_at"])
             for row in db.query(AuditLog).filter(AuditLog.tenant_id == tenant.id).all()
         ],
+        "shifts": [
+            {**_serialize_model_row(row, [c.name for c in Shift.__table__.columns if c.name not in ("z_report_html",)]),
+             "z_report_html_length": len(row.z_report_html or "")}
+            for row in db.query(Shift).filter(Shift.tenant_id == tenant.id).all()
+        ],
+        "floor_plans": [
+            _serialize_model_row(row, [c.name for c in FloorPlan.__table__.columns])
+            for row in db.query(FloorPlan).filter(FloorPlan.tenant_id == tenant.id).all()
+        ],
+        "guests": [
+            _serialize_model_row(row, [c.name for c in Guest.__table__.columns])
+            for row in db.query(Guest).filter(Guest.tenant_id == tenant.id).all()
+        ],
+        "reservations": [
+            _serialize_model_row(row, [c.name for c in Reservation.__table__.columns])
+            for row in db.query(Reservation).filter(Reservation.tenant_id == tenant.id).all()
+        ],
+        "table_sessions": [
+            _serialize_model_row(row, [c.name for c in TableSession.__table__.columns])
+            for row in db.query(TableSession).filter(TableSession.tenant_id == tenant.id).all()
+        ],
+        "checks": [
+            _serialize_model_row(row, [c.name for c in Check.__table__.columns])
+            for row in db.query(Check).filter(Check.tenant_id == tenant.id).all()
+        ],
+        "order_rounds": [
+            _serialize_model_row(row, [c.name for c in OrderRound.__table__.columns])
+            for row in db.query(OrderRound).filter(OrderRound.tenant_id == tenant.id).all()
+        ],
+        "order_items": [
+            {**_serialize_model_row(row, [c.name for c in OrderItem.__table__.columns if c.name != "modifier_json"]),
+             "modifiers": safe_json_list(row.modifier_json)}
+            for row in db.query(OrderItem).filter(OrderItem.tenant_id == tenant.id).all()
+        ],
+        "item_status_logs": [
+            _serialize_model_row(row, [c.name for c in ItemStatusLog.__table__.columns])
+            for row in db.query(ItemStatusLog).filter(ItemStatusLog.tenant_id == tenant.id).all()
+        ],
+        "payments": [
+            _serialize_model_row(row, [c.name for c in Payment.__table__.columns])
+            for row in db.query(Payment).filter(Payment.tenant_id == tenant.id).all()
+        ],
+        "finance_accounts": [
+            _serialize_model_row(row, [c.name for c in FinanceAccount.__table__.columns])
+            for row in db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant.id).all()
+        ],
+        "finance_transactions": [
+            _serialize_model_row(row, [c.name for c in FinanceTransaction.__table__.columns])
+            for row in db.query(FinanceTransaction).filter(FinanceTransaction.tenant_id == tenant.id).all()
+        ],
+        "finance_ledger_entries": [
+            _serialize_model_row(row, [c.name for c in FinanceLedgerEntry.__table__.columns])
+            for row in db.query(FinanceLedgerEntry).filter(FinanceLedgerEntry.tenant_id == tenant.id).all()
+        ],
+        "finance_reconciliations": [
+            _serialize_model_row(row, [c.name for c in FinanceReconciliation.__table__.columns])
+            for row in db.query(FinanceReconciliation).filter(FinanceReconciliation.tenant_id == tenant.id).all()
+        ],
+        "reward_claims": [
+            _serialize_model_row(row, [c.name for c in RewardClaim.__table__.columns])
+            for row in db.query(RewardClaim).filter(RewardClaim.tenant_id == tenant.id).all()
+        ],
+        "feedback_entries": [
+            _serialize_model_row(row, [c.name for c in FeedbackEntry.__table__.columns])
+            for row in db.query(FeedbackEntry).filter(FeedbackEntry.tenant_id == tenant.id).all()
+        ],
+        "feedback_coupons": [
+            _serialize_model_row(row, [c.name for c in FeedbackCoupon.__table__.columns])
+            for row in db.query(FeedbackCoupon).filter(FeedbackCoupon.tenant_id == tenant.id).all()
+        ],
+        "loyalty_ledger": [
+            _serialize_model_row(row, [c.name for c in LoyaltyLedgerEntry.__table__.columns])
+            for row in db.query(LoyaltyLedgerEntry).filter(LoyaltyLedgerEntry.tenant_id == tenant.id).all()
+        ],
+        "staff_notifications": [
+            _serialize_model_row(row, [c.name for c in StaffNotification.__table__.columns])
+            for row in db.query(StaffNotification).filter(StaffNotification.tenant_id == tenant.id).all()
+        ],
+        "doner_batches": [
+            _serialize_model_row(row, [c.name for c in DonerBatch.__table__.columns])
+            for row in db.query(DonerBatch).filter(DonerBatch.tenant_id == tenant.id).all()
+        ],
+        "waste_logs": [
+            _serialize_model_row(row, [c.name for c in WasteLog.__table__.columns])
+            for row in db.query(WasteLog).filter(WasteLog.tenant_id == tenant.id).all()
+        ],
+        "agent_insights": [
+            _serialize_model_row(row, [c.name for c in AgentInsight.__table__.columns])
+            for row in db.query(AgentInsight).filter(AgentInsight.tenant_id == tenant.id).all()
+        ],
     }
     return payload
+
+
+class BackupSettingsIn(BaseModel):
+    backup_enabled: bool = False
+    backup_webhook_url: str = ""
+    backup_webhook_secret: str = ""
+
+
+@router.get("/database/backup-settings")
+def get_backup_settings(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Tenant-ın avtomatik backup parametrlərini oxuyur."""
+    _ensure_admin(user)
+    values = _settings_value_map(db, tenant.id)
+    return {
+        "backup_enabled": str(values.get("backup_enabled") or "").lower() in ("true", "1", "yes"),
+        "backup_webhook_url": values.get("backup_webhook_url") or "",
+        "backup_webhook_secret": "***" if values.get("backup_webhook_secret") else "",
+        "last_backup_status": values.get("last_backup_status") or None,
+        "last_backup_at": values.get("last_backup_at") or None,
+    }
+
+
+@router.put("/database/backup-settings")
+def update_backup_settings(
+    payload: BackupSettingsIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Tenant-ın avtomatik backup parametrlərini yeniləyir."""
+    _ensure_admin(user)
+    url = str(payload.backup_webhook_url or "").strip()
+    if url and not url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="Webhook URL http:// və ya https:// ilə başlamalıdır")
+
+    _set_setting_value(db, tenant.id, "backup_enabled", str(payload.backup_enabled).lower())
+    _set_setting_value(db, tenant.id, "backup_webhook_url", url)
+
+    # Secret yalnız dəyişdirildikdə yenilənir (*** göndərilsə köhnə qalır)
+    secret = str(payload.backup_webhook_secret or "").strip()
+    if secret and secret != "***":
+        _set_setting_value(db, tenant.id, "backup_webhook_secret", secret)
+
+    db.commit()
+    return {"ok": True, "message": "Backup parametrləri yeniləndi"}
+
+
+@router.post("/database/backup-test-webhook")
+def test_backup_webhook(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Tenant-ın webhook URL-unə test mesajı göndərir."""
+    _ensure_admin(user)
+    values = _settings_value_map(db, tenant.id)
+    url = str(values.get("backup_webhook_url") or "").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="Webhook URL təyin olunmayıb")
+
+    secret = str(values.get("backup_webhook_secret") or "").strip() or None
+    test_payload = json.dumps({
+        "_test": True,
+        "_tenant_id": tenant.id,
+        "_tenant_slug": tenant.slug,
+        "_timestamp": datetime.utcnow().isoformat(),
+        "_message": "Bu test mesajıdır. Backup webhook düzgün işləyir.",
+    }, ensure_ascii=False).encode("utf-8")
+
+    import hashlib
+    import hmac as hmac_mod
+    import urllib.request
+    import urllib.error
+    import gzip
+
+    compressed = gzip.compress(test_payload, compresslevel=6)
+    headers = {
+        "Content-Type": "application/json",
+        "Content-Encoding": "gzip",
+        "X-Backup-Tenant": tenant.slug,
+        "X-Backup-Test": "true",
+    }
+    if secret:
+        sig = hmac_mod.new(secret.encode("utf-8"), test_payload, hashlib.sha256).hexdigest()
+        headers["X-Backup-Signature"] = f"sha256={sig}"
+
+    req = urllib.request.Request(url, data=compressed, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            status = resp.getcode()
+            return {"ok": 200 <= status < 300, "status_code": status, "message": f"HTTP {status}"}
+    except urllib.error.HTTPError as e:
+        return {"ok": False, "status_code": e.code, "message": str(e.reason)[:200]}
+    except urllib.error.URLError as e:
+        return {"ok": False, "status_code": 0, "message": f"Bağlantı xətası: {str(e.reason)[:200]}"}
+    except Exception as e:
+        return {"ok": False, "status_code": 0, "message": str(e)[:200]}
 
 
 @router.post("/database/verify-admin-password")
