@@ -1600,6 +1600,9 @@ class BackupSettingsIn(BaseModel):
     backup_enabled: bool = False
     backup_webhook_url: str = ""
     backup_webhook_secret: str = ""
+    backup_hour: int = 3
+    backup_target: str = "webhook"  # webhook | disk | both
+    backup_local_path: str = ""
 
 
 @router.get("/database/backup-settings")
@@ -1611,10 +1614,21 @@ def get_backup_settings(
     """Tenant-ın avtomatik backup parametrlərini oxuyur."""
     _ensure_admin(user)
     values = _settings_value_map(db, tenant.id)
+    
+    try:
+        hour = int(values.get("backup_hour") or 3)
+        if not (0 <= hour <= 23):
+            hour = 3
+    except (ValueError, TypeError):
+        hour = 3
+
     return {
         "backup_enabled": str(values.get("backup_enabled") or "").lower() in ("true", "1", "yes"),
         "backup_webhook_url": values.get("backup_webhook_url") or "",
         "backup_webhook_secret": "***" if values.get("backup_webhook_secret") else "",
+        "backup_hour": hour,
+        "backup_target": values.get("backup_target") or "webhook",
+        "backup_local_path": values.get("backup_local_path") or "",
         "last_backup_status": values.get("last_backup_status") or None,
         "last_backup_at": values.get("last_backup_at") or None,
     }
@@ -1633,8 +1647,17 @@ def update_backup_settings(
     if url and not url.startswith(("http://", "https://")):
         raise HTTPException(status_code=400, detail="Webhook URL http:// və ya https:// ilə başlamalıdır")
 
+    if payload.backup_hour < 0 or payload.backup_hour > 23:
+        raise HTTPException(status_code=400, detail="Backup saatı 0-23 arasında olmalıdır")
+        
+    if payload.backup_target not in ("webhook", "disk", "both"):
+        raise HTTPException(status_code=400, detail="Backup hədəfi 'webhook', 'disk' və ya 'both' olmalıdır")
+
     _set_setting_value(db, tenant.id, "backup_enabled", str(payload.backup_enabled).lower())
     _set_setting_value(db, tenant.id, "backup_webhook_url", url)
+    _set_setting_value(db, tenant.id, "backup_hour", str(payload.backup_hour))
+    _set_setting_value(db, tenant.id, "backup_target", payload.backup_target)
+    _set_setting_value(db, tenant.id, "backup_local_path", str(payload.backup_local_path or "").strip())
 
     # Secret yalnız dəyişdirildikdə yenilənir (*** göndərilsə köhnə qalır)
     secret = str(payload.backup_webhook_secret or "").strip()
