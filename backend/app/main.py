@@ -28,6 +28,7 @@ from app.realtime import realtime_hub
 from app.routers import agent, ai_ops, analytics_api, auth, catalog, customer_feedback_ops, finance, operations, pos, reports, restaurant, settings as settings_router, tenants
 from app.security import decode_token, hash_password, get_client_ip
 from app.services.ai_agent_bg import start_background_agent
+from app.services.backup_scheduler import start_backup_scheduler
 from app.tenant import resolve_tenant_from_request
 
 
@@ -1191,6 +1192,9 @@ async def on_startup():
     
     # Start the POS Background AI Agent
     start_background_agent()
+
+    # Start the automated per-tenant backup scheduler
+    start_backup_scheduler()
 
 
 @app.get("/health")
