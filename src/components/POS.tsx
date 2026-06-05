@@ -424,16 +424,28 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
-      try {
-        const settings = await get_settings_live(tenantId);
-        if (!mounted) return;
-        setTenantSettings(settings || {});
-      } catch {
-        if (!mounted) return;
+    try {
+      const localSettings = get_settings(tenantId);
+      if (mounted) {
+        setTenantSettings(localSettings || {});
+      }
+      if (!localSettings || Object.keys(localSettings).length === 0) {
+        (async () => {
+          try {
+            const settings = await get_settings_live(tenantId);
+            if (!mounted) return;
+            setTenantSettings(settings || {});
+          } catch {
+            if (!mounted) return;
+            setTenantSettings({});
+          }
+        })();
+      }
+    } catch {
+      if (mounted) {
         setTenantSettings({});
       }
-    })();
+    }
     return () => {
       mounted = false;
     };

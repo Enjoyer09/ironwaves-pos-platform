@@ -161,7 +161,11 @@ function ensureKnownWidgetOrder(
   });
 }
 
-function normalizePosLayoutConfig(source: any, fallback?: Partial<PosLayoutConfig>): PosLayoutConfig {
+function normalizePosLayoutConfig(
+  source: any,
+  fallback?: Partial<PosLayoutConfig>,
+  isNested: boolean = false,
+): PosLayoutConfig {
   const base = fallback || {};
   const widget_order = ensureKnownWidgetOrder(
     source?.widget_order,
@@ -209,8 +213,8 @@ function normalizePosLayoutConfig(source: any, fallback?: Partial<PosLayoutConfi
     panel_ratio: source?.panel_ratio || base.panel_ratio || '50:50',
     widget_options: source?.widget_options || base.widget_options || {},
     role_overrides: {
-      staff: source?.role_overrides?.staff ? normalizePosLayoutConfig(source.role_overrides.staff, base) : {},
-      manager: source?.role_overrides?.manager ? normalizePosLayoutConfig(source.role_overrides.manager, base) : {},
+      staff: {},
+      manager: {},
     },
     device_layouts: {
       desktop: {},
@@ -218,11 +222,17 @@ function normalizePosLayoutConfig(source: any, fallback?: Partial<PosLayoutConfi
     },
   };
 
-  const deviceLayouts = source?.device_layouts || {};
-  cleaned.device_layouts = {
-    desktop: deviceLayouts.desktop ? normalizePosLayoutConfig(deviceLayouts.desktop, cleaned) : {},
-    tablet: deviceLayouts.tablet ? normalizePosLayoutConfig(deviceLayouts.tablet, cleaned) : {},
-  };
+  if (!isNested) {
+    cleaned.role_overrides = {
+      staff: source?.role_overrides?.staff ? normalizePosLayoutConfig(source.role_overrides.staff, base, true) : {},
+      manager: source?.role_overrides?.manager ? normalizePosLayoutConfig(source.role_overrides.manager, base, true) : {},
+    };
+    const deviceLayouts = source?.device_layouts || {};
+    cleaned.device_layouts = {
+      desktop: deviceLayouts.desktop ? normalizePosLayoutConfig(deviceLayouts.desktop, cleaned, true) : {},
+      tablet: deviceLayouts.tablet ? normalizePosLayoutConfig(deviceLayouts.tablet, cleaned, true) : {},
+    };
+  }
 
   return cleaned;
 }

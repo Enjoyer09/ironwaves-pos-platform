@@ -10,7 +10,7 @@ import { useAppStore } from '../store';
 import { tx } from '../i18n';
 import ConfirmModal from './ConfirmModal';
 import { Decimal } from 'decimal.js';
-import { get_business_profile, get_settings_live } from '../api/settings';
+import { get_business_profile, get_settings, get_settings_live } from '../api/settings';
 import { save_sale_receipt_html_live } from '../api/pos';
 import { isBackendEnabled } from '../api/client';
 import { getDB } from '../lib/db_sim';
@@ -154,16 +154,28 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
-      try {
-        const settings = await get_settings_live(tenant_id);
-        if (!mounted) return;
-        setTenantSettings(settings || {});
-      } catch {
-        if (!mounted) return;
+    try {
+      const localSettings = get_settings(tenant_id);
+      if (mounted) {
+        setTenantSettings(localSettings || {});
+      }
+      if (!localSettings || Object.keys(localSettings).length === 0) {
+        (async () => {
+          try {
+            const settings = await get_settings_live(tenant_id);
+            if (!mounted) return;
+            setTenantSettings(settings || {});
+          } catch {
+            if (!mounted) return;
+            setTenantSettings({});
+          }
+        })();
+      }
+    } catch {
+      if (mounted) {
         setTenantSettings({});
       }
-    })();
+    }
     return () => {
       mounted = false;
     };
