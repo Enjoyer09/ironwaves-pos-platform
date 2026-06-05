@@ -31,6 +31,7 @@ export default function PinLogin() {
   const [ownerPass, setOwnerPass] = useState('');
   const [ownerPassConfirm, setOwnerPassConfirm] = useState('');
   const [staffPinLength, setStaffPinLength] = useState<4 | 6>(4);
+  const [isBrandingLoading, setIsBrandingLoading] = useState(true);
 
   React.useEffect(() => {
     let mounted = true;
@@ -77,6 +78,7 @@ export default function PinLogin() {
           if (mounted && data) {
             setBranding(data);
             setTenantAccessState('ok');
+            setIsBrandingLoading(false);
           }
         })
         .catch((error) => {
@@ -89,15 +91,19 @@ export default function PinLogin() {
               return;
             }
             setTenantAccessState('not_found');
+            setIsBrandingLoading(false);
             return;
           }
           if (message.includes('Tenant is suspended')) {
             setTenantAccessState('suspended');
+            setIsBrandingLoading(false);
             return;
           }
           // Network error / timeout — retry
           if (attempt < 3) {
             retryTimer = setTimeout(() => fetchBranding(attempt + 1), attempt === 0 ? 1500 : 3000);
+          } else {
+            setIsBrandingLoading(false);
           }
         });
     };
@@ -311,14 +317,23 @@ export default function PinLogin() {
       <div className="relative w-full max-w-5xl">
         <div className="mb-6 flex flex-col gap-3 text-center">
           <div className="mx-auto flex items-center justify-center gap-3">
-            {branding?.logo_url ? (
-              <img src={branding.logo_url} alt="brand logo" className="h-14 w-14 rounded-2xl object-cover shadow-[0_10px_28px_rgba(0,0,0,0.35)] md:h-16 md:w-16" />
+            {isBrandingLoading ? (
+              <>
+                <div className="h-14 w-14 rounded-2xl bg-slate-800/80 animate-pulse md:h-16 md:w-16 shadow-[0_10px_28px_rgba(0,0,0,0.35)]" />
+                <div className="h-8 w-44 rounded-xl bg-slate-800/80 animate-pulse md:h-10 md:w-56" />
+              </>
             ) : (
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-yellow-400 text-xl font-black text-slate-900 shadow-[0_10px_28px_rgba(0,0,0,0.35)] md:h-16 md:w-16">
-                {(branding?.company_name || 'I').trim().slice(0, 1).toUpperCase()}
-              </div>
+              <>
+                {branding?.logo_url ? (
+                  <img src={branding.logo_url} alt="brand logo" className="h-14 w-14 rounded-2xl object-cover shadow-[0_10px_28px_rgba(0,0,0,0.35)] md:h-16 md:w-16" />
+                ) : (
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-yellow-400 text-xl font-black text-slate-900 shadow-[0_10px_28px_rgba(0,0,0,0.35)] md:h-16 md:w-16">
+                    {(branding?.company_name || 'I').trim().slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+                <h1 className="text-4xl font-black tracking-wide text-white md:text-5xl">{branding?.company_name || 'iRonWaves POS'}</h1>
+              </>
             )}
-            <h1 className="text-4xl font-black tracking-wide text-white md:text-5xl">{branding?.company_name || 'iRonWaves POS'}</h1>
           </div>
         </div>
 
@@ -371,7 +386,11 @@ export default function PinLogin() {
           <div className="rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.04))] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.42)] backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-sm text-slate-400">{branding?.website || (typeof window !== 'undefined' ? window.location.host : '')}</div>
+                {isBrandingLoading ? (
+                  <div className="h-4 w-32 rounded bg-slate-800/60 animate-pulse" />
+                ) : (
+                  <div className="text-sm text-slate-400">{branding?.website || (typeof window !== 'undefined' ? window.location.host : '')}</div>
+                )}
               </div>
               <div className="w-24">
                 <select
