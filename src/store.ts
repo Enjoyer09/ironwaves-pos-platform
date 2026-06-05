@@ -8,6 +8,18 @@ import { getActiveTenantId, setActiveTenantId } from './lib/tenant';
 import { LoginRiskContext } from './lib/risk';
 import { hostScopedKey } from './lib/storage_keys';
 
+function broadcastSessionUpdate(type: 'SESSION_UPDATED' | 'LOGOUT', payload?: any) {
+  if (typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined') {
+    try {
+      const channel = new BroadcastChannel('ironwaves-auth-sync');
+      channel.postMessage({ type, payload });
+      channel.close();
+    } catch (e) {
+      // ignore
+    }
+  }
+}
+
 export interface UserSession {
   username: string;
   role: string;
@@ -71,6 +83,52 @@ export const useAppStore = create<AppState>()(
       restoreSession: async () => {
         const currentUser = get().user;
         if (!currentUser?.username) return false;
+
+        // 1. Try to get session from other active tabs via BroadcastChannel first
+        if (typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined') {
+          const channel = new BroadcastChannel('ironwaves-auth-sync');
+          const sessionPromise = new Promise<any | null>((resolve) => {
+            let resolved = false;
+            const handler = (event: MessageEvent) => {
+              const { type, payload } = event.data || {};
+              if (type === 'SESSION_RESPONSE' && payload?.access_token) {
+                resolved = true;
+                resolve(payload);
+              }
+            };
+            channel.addEventListener('message', handler);
+            channel.postMessage({ type: 'REQUEST_SESSION' });
+
+            // Wait 150ms for other tabs to respond
+            setTimeout(() => {
+              if (!resolved) {
+                channel.removeEventListener('message', handler);
+                resolve(null);
+              }
+            }, 150);
+          });
+
+          const sharedSession = await sessionPromise;
+          channel.close();
+
+          if (sharedSession?.access_token) {
+            const nextUser = sharedSession.user || currentUser;
+            if (nextUser.tenant_id) {
+              setActiveTenantId(nextUser.tenant_id);
+            }
+            set({
+              user: nextUser,
+              access_token: String(sharedSession.access_token),
+              refresh_token: null,
+              adminNeeds2FA: false,
+              authErrorMessage: '',
+            });
+            setClientAuthSession({ access_token: String(sharedSession.access_token), user: nextUser });
+            return true;
+          }
+        }
+
+        // 2. If no other tabs responded, proceed with token refresh request to the backend
         try {
           const tenantId = String(currentUser.tenant_id || getActiveTenantId() || '').trim();
           const res = await authApi.refresh_token(undefined, tenantId);
@@ -93,14 +151,16 @@ export const useAppStore = create<AppState>()(
             authErrorMessage: '',
           });
           setClientAuthSession({ access_token: String(res.access_token || ''), user: nextUser });
+          broadcastSessionUpdate('SESSION_UPDATED', { access_token: String(res.access_token || ''), user: nextUser });
           return true;
         } catch {
           set({ user: null, access_token: null, refresh_token: null, cart: [] });
           setClientAuthSession({ access_token: null, user: null });
+          broadcastSessionUpdate('LOGOUT');
           return false;
         }
       },
-      
+
       login: async (pin: string) => {
         try {
           const tenantId = getActiveTenantId();
@@ -112,6 +172,7 @@ export const useAppStore = create<AppState>()(
           const nextAccess = res.access_token || null;
           set({ user: nextUser, access_token: nextAccess, refresh_token: null });
           setClientAuthSession({ access_token: nextAccess, user: nextUser });
+          broadcastSessionUpdate('SESSION_UPDATED', { access_token: nextAccess, user: nextUser });
           return true;
         } catch (error: any) {
           console.error("Login xətası:", error.message);
@@ -135,6 +196,7 @@ export const useAppStore = create<AppState>()(
             authErrorMessage: '',
           });
           setClientAuthSession({ access_token: nextAccess, user: nextUser });
+          broadcastSessionUpdate('SESSION_UPDATED', { access_token: nextAccess, user: nextUser });
           return true;
         } catch (error: any) {
           console.error('Admin login xətası:', error.message);
@@ -161,19 +223,21 @@ export const useAppStore = create<AppState>()(
             authErrorMessage: '',
           });
           setClientAuthSession({ access_token: nextAccess, user: nextUser });
+          broadcastSessionUpdate('SESSION_UPDATED', { access_token: nextAccess, user: nextUser });
           return true;
         } catch (error: any) {
           set({ authErrorMessage: String(error?.message || 'Owner yaradılmadı') });
           return false;
         }
       },
-      
+
       logout: () => {
         const { user, refresh_token } = get();
         const username = String(user?.username || '');
         const refreshToken = String(refresh_token || '');
         set({ user: null, access_token: null, refresh_token: null, cart: [] });
         setClientAuthSession({ access_token: null, user: null });
+        broadcastSessionUpdate('LOGOUT');
         if (username) {
           const runLogoutSideEffect = () => {
             void authApi.logout(refreshToken || undefined, username).catch((error) => {
@@ -192,7 +256,9 @@ export const useAppStore = create<AppState>()(
           setActiveTenantId(user.tenant_id);
         }
         set({ user: user || null, cart: [] });
-        setClientAuthSession({ access_token: get().access_token, user: user || null });
+        const nextAccess = get().access_token;
+        setClientAuthSession({ access_token: nextAccess, user: user || null });
+        broadcastSessionUpdate('SESSION_UPDATED', { access_token: nextAccess, user: user || null });
       },
       switchTenantContext: (tenantId: string) => {
         const safeTenant = String(tenantId || '').trim() || getActiveTenantId();
@@ -208,6 +274,7 @@ export const useAppStore = create<AppState>()(
         }));
         const state = get();
         setClientAuthSession({ access_token: state.access_token, user: state.user });
+        broadcastSessionUpdate('SESSION_UPDATED', { access_token: state.access_token, user: state.user });
       },
       
       cart: [],
@@ -289,3 +356,42 @@ export const useAppStore = create<AppState>()(
     }
   )
 );
+
+if (typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined') {
+  const syncChannel = new BroadcastChannel('ironwaves-auth-sync');
+  syncChannel.onmessage = (event) => {
+    const { type, payload } = event.data || {};
+    try {
+      const store = useAppStore.getState();
+      if (type === 'REQUEST_SESSION') {
+        if (store.access_token) {
+          syncChannel.postMessage({
+            type: 'SESSION_RESPONSE',
+            payload: {
+              access_token: store.access_token,
+              user: store.user,
+            },
+          });
+        }
+      } else if (type === 'SESSION_UPDATED') {
+        if (payload?.access_token && payload.access_token !== store.access_token) {
+          useAppStore.setState({
+            access_token: payload.access_token,
+            user: payload.user || store.user,
+          });
+          setClientAuthSession({
+            access_token: payload.access_token,
+            user: payload.user || store.user,
+          });
+        }
+      } else if (type === 'LOGOUT') {
+        if (store.user) {
+          useAppStore.setState({ user: null, access_token: null, refresh_token: null, cart: [] });
+          setClientAuthSession({ access_token: null, user: null });
+        }
+      }
+    } catch (err) {
+      console.warn('Sync channel error:', err);
+    }
+  };
+}
