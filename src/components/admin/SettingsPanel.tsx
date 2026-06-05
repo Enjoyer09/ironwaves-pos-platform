@@ -33,6 +33,9 @@ import {
   get_backup_settings_live,
   update_backup_settings_live,
   test_backup_webhook_live,
+  get_central_backup_tenants_live,
+  update_central_backup_tenants_live,
+  get_central_backup_logs_live,
 } from '../../api/settings';
 import { get_menu_items_live } from '../../api/menu';
 import { get_inventory_items_live } from '../../api/inventory';
@@ -235,6 +238,10 @@ export default function SettingsPanel() {
     last_backup_status: null as string | null,
     last_backup_at: null as string | null,
   });
+
+  const [isSuperTenant, setIsSuperTenant] = useState(false);
+  const [centralBackupTenants, setCentralBackupTenants] = useState<Array<{ id: string; name: string; slug: string; domain: string; central_backup_enabled: boolean }>>([]);
+  const [centralBackupLogs, setCentralBackupLogs] = useState<Array<{ id: string; tenant_id: string; tenant_slug: string; status: string; detail: string; backup_size_bytes: number; created_at: string }>>([]);
 
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<'staff' | 'kitchen' | 'manager' | 'admin'>('staff');
@@ -507,6 +514,14 @@ export default function SettingsPanel() {
         });
       }
     }).catch(() => {});
+
+    if (settingsRes.status === 'fulfilled' && settingsRes.value.is_super_tenant) {
+      setIsSuperTenant(true);
+      void get_central_backup_tenants_live().then(setCentralBackupTenants).catch(() => {});
+      void get_central_backup_logs_live().then(setCentralBackupLogs).catch(() => {});
+    } else {
+      setIsSuperTenant(false);
+    }
   };
 
   useEffect(() => {
@@ -1232,11 +1247,31 @@ export default function SettingsPanel() {
         backup_target: backupSettings.backup_target,
         backup_local_path: backupSettings.backup_local_path,
       });
+      if (isSuperTenant) {
+        const enabledTenantIds = centralBackupTenants
+          .filter((t) => t.central_backup_enabled)
+          .map((t) => t.id);
+        await update_central_backup_tenants_live(enabledTenantIds);
+      }
       flashSuccess(tx(lang, 'Backup ayarları yadda saxlanıldı', 'Настройки бэкапа сохранены', 'Backup settings saved'), 'backup');
       void loadData();
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Backup ayarları saxlanmadı', 'Настройки бэкапа не сохранены', 'Backup settings were not saved'));
     }
+  };
+
+  const handleTenantCheckboxChange = (tenantId: string, checked: boolean) => {
+    setCentralBackupTenants((prev) =>
+      prev.map((t) => (t.id === tenantId ? { ...t, central_backup_enabled: checked } : t))
+    );
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   const handleTestWebhook = async () => {
@@ -1266,7 +1301,7 @@ export default function SettingsPanel() {
     { id: 'sec-staff', label: tx(lang, 'Staff', 'Персонал', 'Staff') },
     { id: 'sec-qr', label: tx(lang, 'QR & Feedback', 'QR & Отзывы', 'QR & Feedback') },
     { id: 'sec-roles', label: tx(lang, 'Rollar', 'Роли', 'Roles') },
-    { id: 'sec-backup', label: tx(lang, 'Backup', 'Бэкап', 'Backup') },
+    ...(isSuperTenant ? [{ id: 'sec-backup', label: tx(lang, 'Backup', 'Бэкап', 'Backup') }] : []),
   ];
 
   return (
@@ -2915,145 +2950,248 @@ export default function SettingsPanel() {
         </div>
       </div>
 
-      <div id="sec-backup" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Avtomatik Backup Parametrləri', 'Настройки резервного копирования', 'Automated Backup Settings')}</h2>
-        <p className="text-sm text-slate-400">
-          {tx(
-            lang,
-            'Sistem məlumatlarının avtomatik ehtiyat nüsxəsini (backup) yaratmaq üçün hədəfi və vaxtı tənzimləyin.',
-            'Настройте цель и время для автоматического резервного копирования системных данных.',
-            'Configure target and time for automatic system data backups.',
-          )}
-        </p>
+      {isSuperTenant && (
+        <div id="sec-backup" className="metal-panel p-6 space-y-6">
+          <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Avtomatik Mərkəzi Backup Parametrləri', 'Настройки центрального бэкапа', 'Automated Central Backup Settings')}</h2>
+          <p className="text-sm text-slate-400">
+            {tx(
+              lang,
+              'Sistem məlumatlarının avtomatik ehtiyat nüsxəsini (backup) yaratmaq üçün hədəfi və vaxtı tənzimləyin.',
+              'Настройте цель и время для автоматического резервного копирования системных данных.',
+              'Configure target and time for automatic system data backups.',
+            )}
+          </p>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {/* Backup enabled toggle */}
-          <label className="flex items-center gap-3 rounded-xl border border-slate-700/70 bg-slate-900/20 p-4 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={backupSettings.backup_enabled}
-              onChange={(e) => setBackupSettings((prev) => ({ ...prev, backup_enabled: e.target.checked }))}
-              className="h-4 w-4 rounded border-slate-600 bg-slate-700 text-yellow-500 focus:ring-yellow-500"
-            />
-            <div>
-              <div className="font-semibold text-slate-200">{tx(lang, 'Avtomatik Backup Aktivdir', 'Автоматический бэкап активен', 'Automatic Backup Enabled')}</div>
-              <div className="text-xs text-slate-400">{tx(lang, 'Hər gün müəyyən olunmuş saatda backup alınır', 'Резервная копия создается каждый день в указанное время', 'Backup is taken daily at the configured hour')}</div>
-            </div>
-          </label>
-
-          {/* Backup Hour */}
-          <div className="flex flex-col gap-1 rounded-xl border border-slate-700/70 bg-slate-900/20 p-4">
-            <label className="field-label font-semibold text-slate-200">{tx(lang, 'Backup Saatı (Baku UTC+4)', 'Час бэкапа (Баку UTC+4)', 'Backup Hour (Baku UTC+4)')}</label>
-            <select
-              value={backupSettings.backup_hour}
-              onChange={(e) => setBackupSettings((prev) => ({ ...prev, backup_hour: Number(e.target.value) }))}
-              className="neon-input mt-1"
-            >
-              {Array.from({ length: 24 }).map((_, h) => (
-                <option key={h} value={h}>
-                  {String(h).padStart(2, '0')}:00
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Backup Target */}
-          <div className="flex flex-col gap-1 rounded-xl border border-slate-700/70 bg-slate-900/20 p-4">
-            <label className="field-label font-semibold text-slate-200">{tx(lang, 'Backup Hədəfi', 'Цель резервного копирования', 'Backup Target')}</label>
-            <select
-              value={backupSettings.backup_target}
-              onChange={(e) => setBackupSettings((prev) => ({ ...prev, backup_target: e.target.value as any }))}
-              className="neon-input mt-1"
-            >
-              <option value="webhook">Webhook URL</option>
-              <option value="disk">{tx(lang, 'Lokal Server Diski', 'Локальный диск сервера', 'Local Server Disk')}</option>
-              <option value="both">{tx(lang, 'Hər İkisi (Webhook & Disk)', 'И то и другое (Webhook и Диск)', 'Both (Webhook & Disk)')}</option>
-            </select>
-          </div>
-
-          {/* Local Disk Path */}
-          {['disk', 'both'].includes(backupSettings.backup_target) && (
-            <div className="flex flex-col gap-1 rounded-xl border border-slate-700/70 bg-slate-900/20 p-4">
-              <label className="field-label font-semibold text-slate-200">{tx(lang, 'Lokal Disk Qovluğu (İstəyə bağlı)', 'Путь локального диска (Опционально)', 'Local Disk Directory (Optional)')}</label>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {/* Backup enabled toggle */}
+            <label className="flex items-center gap-3 rounded-xl border border-slate-700/70 bg-slate-900/20 p-4 cursor-pointer">
               <input
-                type="text"
-                placeholder="/app/backups/custom"
-                value={backupSettings.backup_local_path}
-                onChange={(e) => setBackupSettings((prev) => ({ ...prev, backup_local_path: e.target.value }))}
-                className="neon-input mt-1"
+                type="checkbox"
+                checked={backupSettings.backup_enabled}
+                onChange={(e) => setBackupSettings((prev) => ({ ...prev, backup_enabled: e.target.checked }))}
+                className="h-4 w-4 rounded border-slate-600 bg-slate-700 text-yellow-500 focus:ring-yellow-500"
               />
-              <div className="text-2xs text-slate-400 mt-1">{tx(lang, 'Boş buraxılsa, default olaraq /app/backups qovluğuna yazılacaq', 'Если пусто, по умолчанию запишется в /app/backups', 'If empty, defaults to /app/backups')}</div>
-            </div>
-          )}
+              <div>
+                <div className="font-semibold text-slate-200">{tx(lang, 'Avtomatik Backup Aktivdir', 'Автоматический бэкап активен', 'Automatic Backup Enabled')}</div>
+                <div className="text-xs text-slate-400">{tx(lang, 'Hər gün müəyyən olunmuş saatda backup alınır', 'Резервная копия создается каждый день в указанное время', 'Backup is taken daily at the configured hour')}</div>
+              </div>
+            </label>
 
-          {/* Webhook URL & Secret */}
-          {['webhook', 'both'].includes(backupSettings.backup_target) && (
-            <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl border border-slate-700/70 bg-slate-900/20 p-4">
-              <div className="flex flex-col gap-1">
-                <label className="field-label font-semibold text-slate-200">Webhook URL</label>
+            {/* Backup Hour */}
+            <div className="flex flex-col gap-1 rounded-xl border border-slate-700/70 bg-slate-900/20 p-4">
+              <label className="field-label font-semibold text-slate-200">{tx(lang, 'Backup Saatı (Baku UTC+4)', 'Час бэкапа (Баку UTC+4)', 'Backup Hour (Baku UTC+4)')}</label>
+              <select
+                value={backupSettings.backup_hour}
+                onChange={(e) => setBackupSettings((prev) => ({ ...prev, backup_hour: Number(e.target.value) }))}
+                className="neon-input mt-1"
+              >
+                {Array.from({ length: 24 }).map((_, h) => (
+                  <option key={h} value={h}>
+                    {String(h).padStart(2, '0')}:00
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Backup Target */}
+            <div className="flex flex-col gap-1 rounded-xl border border-slate-700/70 bg-slate-900/20 p-4">
+              <label className="field-label font-semibold text-slate-200">{tx(lang, 'Backup Hədəfi', 'Цель резервного копирования', 'Backup Target')}</label>
+              <select
+                value={backupSettings.backup_target}
+                onChange={(e) => setBackupSettings((prev) => ({ ...prev, backup_target: e.target.value as any }))}
+                className="neon-input mt-1"
+              >
+                <option value="webhook">Webhook URL</option>
+                <option value="disk">{tx(lang, 'Lokal Server Diski', 'Локальный диск сервера', 'Local Server Disk')}</option>
+                <option value="both">{tx(lang, 'Hər İkisi (Webhook & Disk)', 'И то и другое (Webhook и Диск)', 'Both (Webhook & Disk)')}</option>
+              </select>
+            </div>
+
+            {/* Local Disk Path */}
+            {['disk', 'both'].includes(backupSettings.backup_target) && (
+              <div className="flex flex-col gap-1 rounded-xl border border-slate-700/70 bg-slate-900/20 p-4">
+                <label className="field-label font-semibold text-slate-200">{tx(lang, 'Lokal Disk Qovluğu (İstəyə bağlı)', 'Путь локального диска (Опционально)', 'Local Disk Directory (Optional)')}</label>
                 <input
                   type="text"
-                  placeholder="https://your-domain.com/backup-receiver"
-                  value={backupSettings.backup_webhook_url}
-                  onChange={(e) => setBackupSettings((prev) => ({ ...prev, backup_webhook_url: e.target.value }))}
+                  placeholder="/app/backups/custom"
+                  value={backupSettings.backup_local_path}
+                  onChange={(e) => setBackupSettings((prev) => ({ ...prev, backup_local_path: e.target.value }))}
                   className="neon-input mt-1"
                 />
+                <div className="text-2xs text-slate-400 mt-1">{tx(lang, 'Boş buraxılsa, default olaraq /app/backups qovluğuna yazılacaq', 'Если пусто, по умолчанию запишется в /app/backups', 'If empty, defaults to /app/backups')}</div>
               </div>
-              <div className="flex flex-col gap-1">
-                <label className="field-label font-semibold text-slate-200">{tx(lang, 'Webhook Gizli Açarı (Secret)', 'Секретный ключ вебхука (Secret)', 'Webhook Secret')}</label>
-                <input
-                  type="password"
-                  placeholder={backupSettings.backup_webhook_secret === '***' ? '••••••••' : tx(lang, 'İmzalanma üçün şifrə', 'Секрет для подписи', 'Secret for signature')}
-                  value={backupSettings.backup_webhook_secret === '***' ? '' : backupSettings.backup_webhook_secret}
-                  onChange={(e) => setBackupSettings((prev) => ({ ...prev, backup_webhook_secret: e.target.value }))}
-                  className="neon-input mt-1"
-                />
+            )}
+
+            {/* Webhook URL & Secret */}
+            {['webhook', 'both'].includes(backupSettings.backup_target) && (
+              <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl border border-slate-700/70 bg-slate-900/20 p-4">
+                <div className="flex flex-col gap-1">
+                  <label className="field-label font-semibold text-slate-200">Webhook URL</label>
+                  <input
+                    type="text"
+                    placeholder="https://your-domain.com/backup-receiver"
+                    value={backupSettings.backup_webhook_url}
+                    onChange={(e) => setBackupSettings((prev) => ({ ...prev, backup_webhook_url: e.target.value }))}
+                    className="neon-input mt-1"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="field-label font-semibold text-slate-200">{tx(lang, 'Webhook Gizli Açarı (Secret)', 'Секретный ключ вебхука (Secret)', 'Webhook Secret')}</label>
+                  <input
+                    type="password"
+                    placeholder={backupSettings.backup_webhook_secret === '***' ? '••••••••' : tx(lang, 'İmzalanma üçün şifrə', 'Секрет для подписи', 'Secret for signature')}
+                    value={backupSettings.backup_webhook_secret === '***' ? '' : backupSettings.backup_webhook_secret}
+                    onChange={(e) => setBackupSettings((prev) => ({ ...prev, backup_webhook_secret: e.target.value }))}
+                    className="neon-input mt-1"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Tenant Checklist */}
+            <div className="col-span-1 md:col-span-2 rounded-xl border border-slate-700/70 bg-slate-900/20 p-4 space-y-3">
+              <h3 className="font-semibold text-slate-200">
+                {tx(lang, 'Yedəklənəcək Restoranlar (Tenant-lar)', 'Резервируемые рестораны (Теннанты)', 'Restaurants to Backup (Tenants)')}
+              </h3>
+              <p className="text-xs text-slate-400">
+                {tx(lang, 'Siyahıdan avtomatik backup olunmasını istədiyiniz restoranları seçin. Platforma (super) həmişə yedəklənir.', 'Выберите рестораны для автоматического бэкапа. Платформа (super) всегда резервируется.', 'Select restaurants for automatic backup. Platform (super) is always backed up.')}
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
+                {centralBackupTenants.map((t) => (
+                  <label
+                    key={t.id}
+                    className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition ${
+                      t.central_backup_enabled
+                        ? 'border-yellow-500/40 bg-yellow-500/5'
+                        : 'border-slate-800 bg-slate-950/20 hover:border-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={t.central_backup_enabled}
+                      disabled={t.slug === 'super'} // Super cannot be disabled
+                      onChange={(e) => handleTenantCheckboxChange(t.id, e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-600 bg-slate-700 text-yellow-500 focus:ring-yellow-500 disabled:opacity-50"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-slate-200 truncate">{t.name}</div>
+                      <div className="text-2xs text-slate-400 truncate">{t.slug} • {t.domain}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Status indicator if backup has run */}
+          {(backupSettings.last_backup_at || backupSettings.last_backup_status) && (
+            <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-4 text-xs text-slate-300 space-y-1">
+              <div>
+                <span className="text-slate-400">{tx(lang, 'Son Backup Tarixi', 'Дата последнего бэкапа', 'Last Backup At')}:</span>{' '}
+                <span className="font-semibold text-slate-200">
+                  {backupSettings.last_backup_at ? new Date(backupSettings.last_backup_at).toLocaleString() : '-'}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400">{tx(lang, 'Son Backup Statusu', 'Статус последнего бэкапа', 'Last Backup Status')}:</span>{' '}
+                <span className={`font-bold ${backupSettings.last_backup_status === 'success' || backupSettings.last_backup_status?.includes('✅') || backupSettings.last_backup_status?.toLowerCase().includes('http 200') || backupSettings.last_backup_status?.toLowerCase().includes('yazıldı') ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {backupSettings.last_backup_status || '-'}
+                </span>
               </div>
             </div>
           )}
-        </div>
 
-        {/* Status indicator if backup has run */}
-        {(backupSettings.last_backup_at || backupSettings.last_backup_status) && (
-          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-4 text-xs text-slate-300 space-y-1">
-            <div>
-              <span className="text-slate-400">{tx(lang, 'Son Backup Tarixi', 'Дата последнего бэкапа', 'Last Backup At')}:</span>{' '}
-              <span className="font-semibold text-slate-200">
-                {backupSettings.last_backup_at ? new Date(backupSettings.last_backup_at).toLocaleString() : '-'}
-              </span>
-            </div>
-            <div>
-              <span className="text-slate-400">{tx(lang, 'Son Backup Statusu', 'Статус последнего бэкапа', 'Last Backup Status')}:</span>{' '}
-              <span className={`font-bold ${backupSettings.last_backup_status?.includes('✅') || backupSettings.last_backup_status?.toLowerCase().includes('http 200') || backupSettings.last_backup_status?.toLowerCase().includes('yazıldı') ? 'text-emerald-400' : 'text-red-400'}`}>
-                {backupSettings.last_backup_status || '-'}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {renderPanelSuccess('backup')}
-
-        <div className="flex items-center justify-between border-t border-slate-700/70 pt-4">
-          <div>
-            {['webhook', 'both'].includes(backupSettings.backup_target) && backupSettings.backup_webhook_url && (
+          {/* Backup Logs */}
+          <div className="rounded-xl border border-slate-700 bg-slate-950/20 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-slate-200">
+                {tx(lang, 'Son 100 Backup Loqu', 'Последние 100 бэкап логов', 'Last 100 Backup Logs')}
+              </h3>
               <button
                 type="button"
-                disabled={testingWebhook}
-                onClick={() => { void handleTestWebhook(); }}
-                className="rounded-xl border border-cyan-400/50 bg-cyan-500/10 px-4 py-2 font-semibold text-cyan-200 hover:bg-cyan-500/20 active:scale-98 disabled:opacity-50"
+                onClick={() => {
+                  void get_central_backup_logs_live().then(setCentralBackupLogs).catch(() => {});
+                }}
+                className="rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-1 text-2xs font-semibold text-slate-300 hover:bg-slate-800"
               >
-                {testingWebhook ? tx(lang, 'Göndərilir...', 'Отправка...', 'Sending...') : tx(lang, 'Webhook Test Et', 'Тестировать вебхук', 'Test Webhook')}
+                {tx(lang, 'Yenilə', 'Обновить', 'Refresh')}
               </button>
-            )}
+            </div>
+            
+            <div className="overflow-x-auto max-h-[300px] rounded-lg border border-slate-800">
+              <table className="w-full border-collapse text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800 bg-slate-950/60 text-slate-400 font-bold">
+                    <th className="p-3">{tx(lang, 'Restoran (Slug)', 'Ресторан (Slug)', 'Restaurant (Slug)')}</th>
+                    <th className="p-3">{tx(lang, 'Tarix', 'Дата', 'Date')}</th>
+                    <th className="p-3">{tx(lang, 'Status', 'Статус', 'Status')}</th>
+                    <th className="p-3">{tx(lang, 'Fayl Ölçüsü', 'Размер файла', 'File Size')}</th>
+                    <th className="p-3">{tx(lang, 'Detallar', 'Детали', 'Details')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 bg-slate-900/10">
+                  {centralBackupLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-slate-500 italic">
+                        {tx(lang, 'Heç bir backup loqu tapılmadı.', 'Логов бэкапа не найдено.', 'No backup logs found.')}
+                      </td>
+                    </tr>
+                  ) : (
+                    centralBackupLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-800/20 transition">
+                        <td className="p-3 font-semibold text-slate-300">{log.tenant_slug}</td>
+                        <td className="p-3 text-slate-400">
+                          {new Date(log.created_at).toLocaleString()}
+                        </td>
+                        <td className="p-3">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-3xs font-bold uppercase ${
+                              log.status === 'success'
+                                ? 'bg-emerald-500/10 text-emerald-400'
+                                : 'bg-rose-500/10 text-rose-400'
+                            }`}
+                          >
+                            {log.status === 'success' ? 'SUCCESS' : 'FAILED'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-slate-300 font-mono">
+                          {log.backup_size_bytes ? formatBytes(log.backup_size_bytes) : '-'}
+                        </td>
+                        <td className="p-3 text-slate-400 max-w-[240px] truncate" title={log.detail || ''}>
+                          {log.detail || '-'}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-          <button
-            onClick={() => { void saveBackupSettings(); }}
-            className={saveButtonClass}
-          >
-            {tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
-          </button>
+
+          {renderPanelSuccess('backup')}
+
+          <div className="flex items-center justify-between border-t border-slate-700/70 pt-4">
+            <div>
+              {['webhook', 'both'].includes(backupSettings.backup_target) && backupSettings.backup_webhook_url && (
+                <button
+                  type="button"
+                  disabled={testingWebhook}
+                  onClick={() => { void handleTestWebhook(); }}
+                  className="rounded-xl border border-cyan-400/50 bg-cyan-500/10 px-4 py-2 font-semibold text-cyan-200 hover:bg-cyan-500/20 active:scale-98 disabled:opacity-50"
+                >
+                  {testingWebhook ? tx(lang, 'Göndərilir...', 'Отправка...', 'Sending...') : tx(lang, 'Webhook Test Et', 'Тестировать вебхук', 'Test Webhook')}
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => { void saveBackupSettings(); }}
+              className={saveButtonClass}
+            >
+              {tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <ConfirmModal
         open={Boolean(deleteUserName)}

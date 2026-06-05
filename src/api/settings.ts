@@ -1897,3 +1897,35 @@ export async function test_backup_webhook_live(): Promise<any> {
     tenantId: null,
   });
 }
+
+export async function get_central_backup_tenants_live(): Promise<any> {
+  if (!isBackendEnabled()) {
+    return [];
+  }
+  return apiRequest<any>('/api/v1/ops/database/central-backup-tenants', {
+    method: 'GET',
+    tenantId: null,
+  });
+}
+
+export async function update_central_backup_tenants_live(tenantIds: string[]): Promise<any> {
+  if (!isBackendEnabled()) {
+    return { ok: true, message: 'Central backup tenants updated (offline)' };
+  }
+  return apiRequest<any>('/api/v1/ops/database/central-backup-tenants', {
+    method: 'PUT',
+    tenantId: null,
+    body: { tenant_ids: tenantIds },
+  });
+}
+
+export async function get_central_backup_logs_live(): Promise<any> {
+  if (!isBackendEnabled()) {
+    return [];
+  }
+  return apiRequest<any>('/api/v1/ops/database/central-backup-logs', {
+    method: 'GET',
+    tenantId: null,
+  });
+}
+
