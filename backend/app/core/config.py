@@ -15,10 +15,10 @@ class Settings(BaseSettings):
     thread_pool_tokens: int = 64
 
     database_url: str
-    db_pool_size: int = 10
-    db_max_overflow: int = 20
+    db_pool_size: int = 20
+    db_max_overflow: int = 50
     db_pool_timeout: int = 10
-    db_pool_recycle_seconds: int = 240
+    db_pool_recycle_seconds: int = 120
     db_pool_pre_ping: bool = True
     db_statement_timeout_ms: int = 30000
     db_apply_statement_timeout_on_connect: bool = False
