@@ -1182,7 +1182,7 @@ export function update_role_modules(payload: { staff: string[]; manager: string[
 
 export async function get_settings_live(tenant_id?: string) {
   if (!isBackendEnabled()) return get_settings(tenant_id);
-  const data = await apiRequest<Settings>(`/api/v1/ops/settings?_t=${Date.now()}`, { tenantId: null });
+  const data = await apiRequest<Settings>('/api/v1/ops/settings', { tenantId: null });
   const requestedTenant = String(resolveTenant(tenant_id));
   const responseTenant = String(data?.tenant_id || '');
   const resolvedTenant = String(responseTenant || requestedTenant);
