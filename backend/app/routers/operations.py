@@ -1216,7 +1216,7 @@ def get_app_settings(
     response.headers["Cache-Control"] = "private, max-age=30, stale-while-revalidate=300"
     return {
         "tenant_id": tenant.id,
-        "is_super_tenant": tenant.slug == settings.platform_tenant_slug,
+        "is_super_tenant": tenant.slug == app_settings.platform_tenant_slug,
         "service_fee_percent": getv("service_fee_percent", 0),
         "table_service_settings": getv("table_service_settings", {"deposit_per_guest_azn": 0, "reservation_lock_hours": 2}),
         "beverage_service_settings": getv("beverage_service_settings", DEFAULT_BEVERAGE_SERVICE_SETTINGS),
@@ -1614,7 +1614,7 @@ def get_backup_settings(
 ):
     """Tenant-ın avtomatik backup parametrlərini oxuyur."""
     _ensure_admin(user)
-    if tenant.slug != settings.platform_tenant_slug:
+    if tenant.slug != app_settings.platform_tenant_slug:
         raise HTTPException(status_code=403, detail="Yalnız Super Admin bu bölməyə daxil ola bilər")
     values = _settings_value_map(db, tenant.id)
     
@@ -1646,7 +1646,7 @@ def update_backup_settings(
 ):
     """Tenant-ın avtomatik backup parametrlərini yeniləyir."""
     _ensure_admin(user)
-    if tenant.slug != settings.platform_tenant_slug:
+    if tenant.slug != app_settings.platform_tenant_slug:
         raise HTTPException(status_code=403, detail="Yalnız Super Admin bu bölməyə daxil ola bilər")
     url = str(payload.backup_webhook_url or "").strip()
     if url and not url.startswith(("http://", "https://")):
@@ -1681,7 +1681,7 @@ def test_backup_webhook(
 ):
     """Tenant-ın webhook URL-unə test mesajı göndərir."""
     _ensure_admin(user)
-    if tenant.slug != settings.platform_tenant_slug:
+    if tenant.slug != app_settings.platform_tenant_slug:
         raise HTTPException(status_code=403, detail="Yalnız Super Admin bu bölməyə daxil ola bilər")
     values = _settings_value_map(db, tenant.id)
     url = str(values.get("backup_webhook_url") or "").strip()
@@ -1735,7 +1735,7 @@ def get_central_backup_tenants(
 ):
     """Bütün tenant-ların siyahısını və mərkəzi backup-da aktiv olub-olmadıqlarını qaytarır."""
     _ensure_admin(user)
-    if tenant.slug != settings.platform_tenant_slug:
+    if tenant.slug != app_settings.platform_tenant_slug:
         raise HTTPException(status_code=403, detail="Yalnız Super Admin bu bölməyə daxil ola bilər")
     
     # Get central backup selection
@@ -1757,7 +1757,7 @@ def get_central_backup_tenants(
             "name": t.name,
             "slug": t.slug,
             "domain": t.domain,
-            "central_backup_enabled": t.id in enabled_ids or t.slug == settings.platform_tenant_slug
+            "central_backup_enabled": t.id in enabled_ids or t.slug == app_settings.platform_tenant_slug
         })
     return result
 
@@ -1775,7 +1775,7 @@ def update_central_backup_tenants(
 ):
     """Mərkəzi backup olunacaq tenant-ların siyahısını yeniləyir."""
     _ensure_admin(user)
-    if tenant.slug != settings.platform_tenant_slug:
+    if tenant.slug != app_settings.platform_tenant_slug:
         raise HTTPException(status_code=403, detail="Yalnız Super Admin bu bölməyə daxil ola bilər")
     
     clean_ids = [str(tid).strip() for tid in payload.tenant_ids if str(tid).strip()]
@@ -1792,7 +1792,7 @@ def get_central_backup_logs(
 ):
     """Ən son 100 mərkəzi backup loqunu qaytarır."""
     _ensure_admin(user)
-    if tenant.slug != settings.platform_tenant_slug:
+    if tenant.slug != app_settings.platform_tenant_slug:
         raise HTTPException(status_code=403, detail="Yalnız Super Admin bu bölməyə daxil ola bilər")
     
     from app.models import CentralBackupLog

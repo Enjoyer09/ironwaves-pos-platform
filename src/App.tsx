@@ -366,7 +366,13 @@ export default function App() {
         message.includes('tenant not configured') ||
         message.includes('backendə qoşulma alınmadı') ||
         message.includes('failed to fetch') ||
-        message.includes('sorğu vaxt limiti keçdi');
+        message.includes('sorğu vaxt limiti keçdi') ||
+        message.includes('http 502') ||
+        message.includes('http 503') ||
+        message.includes('http 504') ||
+        message.includes('http 500') ||
+        message.includes('daxili server xətası') ||
+        message.includes('server düzgün json');
       const isHardAuthFailure = (message: string) =>
         message.includes('invalid token') ||
         message.includes('unauthorized') ||
@@ -403,8 +409,6 @@ export default function App() {
         if (!cancelled) {
           const message = extractErrorMessage(error);
           if (isHardAuthFailure(message)) {
-            logout();
-          } else if (!isTransientSessionError(message)) {
             logout();
           }
         }

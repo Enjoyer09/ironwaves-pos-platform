@@ -1141,6 +1141,18 @@ def _run_startup_migrations():
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sales_tenant_customer_created ON sales (tenant_id, customer_card_id, created_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_revoked_tokens_tenant_hash ON revoked_tokens (tenant_id, token_hash)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_entries_tenant_source_type_created ON finance_entries (tenant_id, source, type, created_at)"))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS central_backup_logs (
+                id VARCHAR(36) PRIMARY KEY,
+                tenant_id VARCHAR(36) REFERENCES tenants(id),
+                tenant_slug VARCHAR(120) NOT NULL,
+                status VARCHAR(32) NOT NULL,
+                detail TEXT,
+                backup_size_bytes INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_central_backup_logs_tenant_id ON central_backup_logs (tenant_id)"))
         _mark_schema_version(conn)
 
 
