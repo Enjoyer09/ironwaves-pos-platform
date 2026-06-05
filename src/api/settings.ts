@@ -1857,3 +1857,43 @@ export async function update_api_key_live(
   saveSettings(settings);
   return { success: true };
 }
+
+export async function get_backup_settings_live(): Promise<any> {
+  if (!isBackendEnabled()) {
+    return {
+      backup_enabled: false,
+      backup_webhook_url: '',
+      backup_webhook_secret: '',
+      backup_hour: 3,
+      backup_target: 'webhook',
+      backup_local_path: '',
+      last_backup_status: null,
+      last_backup_at: null,
+    };
+  }
+  return apiRequest<any>('/api/v1/ops/database/backup-settings', {
+    method: 'GET',
+    tenantId: null,
+  });
+}
+
+export async function update_backup_settings_live(payload: any): Promise<any> {
+  if (!isBackendEnabled()) {
+    return { ok: true, message: 'Backup settings updated (offline)' };
+  }
+  return apiRequest<any>('/api/v1/ops/database/backup-settings', {
+    method: 'PUT',
+    tenantId: null,
+    body: payload,
+  });
+}
+
+export async function test_backup_webhook_live(): Promise<any> {
+  if (!isBackendEnabled()) {
+    return { ok: true, message: 'Test webhook sent (offline)' };
+  }
+  return apiRequest<any>('/api/v1/ops/database/backup-test-webhook', {
+    method: 'POST',
+    tenantId: null,
+  });
+}
