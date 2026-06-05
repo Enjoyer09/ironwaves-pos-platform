@@ -36,7 +36,7 @@ import {
   request_finance_reversal_async,
   transfer_funds_async,
 } from '../../api/finance';
-import { get_settings_live } from '../../api/settings';
+import { get_settings, get_settings_live } from '../../api/settings';
 import { send_email } from '../../api/email';
 import { generate_ai_insight_engine, type AiDecisionInsight } from '../../api/ai_manager';
 import { tx } from '../../i18n';
@@ -329,6 +329,7 @@ export default function FinancePanel() {
   const [aiInsights, setAiInsights] = useState<AiDecisionInsight[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const lastReloadAtRef = useRef(0);
   const reloadTimerRef = useRef<number | null>(null);
   const initialWorkspaceLoadTimerRef = useRef<number | null>(null);
@@ -453,44 +454,40 @@ export default function FinancePanel() {
 
       const shouldFetchPending = !summary?.pending_approvals_preview?.length;
       const shouldFetchAlerts = !summary?.alerts?.length;
-      const [e, settings, accounts, ledgerRows, recRows, pendingRows, alertRows, reportOverview, salesLedgerAudit] = await Promise.all([
+      const [e, settings, accounts, pendingRows, alertRows] = await Promise.all([
         fetch_finance_entries(tenant_id).catch(() => []),
-        get_settings_live(tenant_id),
+        get_settings_live(tenant_id).catch(() => null),
         fetch_finance_ledger_accounts(tenant_id).catch(() => []),
-        fetch_finance_ledger_entries(tenant_id, 500).catch(() => []),
-        fetch_finance_reconciliations(tenant_id, 100).catch(() => []),
         shouldFetchPending ? fetch_finance_pending_approvals(tenant_id).catch(() => []) : Promise.resolve([]),
         shouldFetchAlerts ? fetch_finance_alerts(tenant_id).catch(() => null) : Promise.resolve(null),
-        fetch_finance_reports_overview(tenant_id, { date_from: fromDate, date_to: toDate }).catch(() => null),
-        fetch_sales_ledger_reconciliation_report(tenant_id, { date_from: fromDate, date_to: toDate, limit: 100 }).catch(() => null),
       ]);
       setEntries(e || []);
       setLedgerAccounts(accounts);
-      setLedgerEntries(ledgerRows);
-      setReconciliations(recRows);
-      setEnterpriseReports(reportOverview);
-      setSalesLedgerReport(salesLedgerAudit);
       setPendingApprovals((summary?.pending_approvals_preview?.length ? summary.pending_approvals_preview : pendingRows) || []);
       setPendingApprovalsTotal(Number(summary?.pending_approvals_count ?? pendingRows.length ?? 0));
       setServerFinanceAlerts((summary?.alerts?.length ? summary.alerts : alertRows) || null);
+
+      const resolvedSettings = settings || get_settings(tenant_id);
       setBankCommissionConfig({
-        card_sale_percent: Number((settings.bank_commission as any)?.card_sale_percent ?? settings.bank_commission?.percent ?? 2),
-        card_transfer_percent: Number((settings.bank_commission as any)?.card_transfer_percent ?? 0.5),
+        card_sale_percent: Number((resolvedSettings.bank_commission as any)?.card_sale_percent ?? resolvedSettings.bank_commission?.percent ?? 2),
+        card_transfer_percent: Number((resolvedSettings.bank_commission as any)?.card_transfer_percent ?? 0.5),
       });
       setFinancePolicyConfig({
-        large_transfer_threshold_azn: Number(settings.finance_policy?.large_transfer_threshold_azn ?? 500),
-        investor_repayment_requires_approval: settings.finance_policy?.investor_repayment_requires_approval !== false,
-        cash_adjustment_requires_approval: settings.finance_policy?.cash_adjustment_requires_approval !== false,
-        reversal_requires_approval: settings.finance_policy?.reversal_requires_approval !== false,
-        reconciliation_adjustment_requires_approval: settings.finance_policy?.reconciliation_adjustment_requires_approval !== false,
-        reconciliation_variance_alert_azn: Number(settings.finance_policy?.reconciliation_variance_alert_azn ?? 0.01),
-        negative_balance_alert_azn: Number(settings.finance_policy?.negative_balance_alert_azn ?? 0),
-        approver_roles: Array.isArray(settings.finance_policy?.approver_roles) ? settings.finance_policy!.approver_roles : ['manager', 'admin', 'finance_admin', 'super_admin'],
+        large_transfer_threshold_azn: Number(resolvedSettings.finance_policy?.large_transfer_threshold_azn ?? 500),
+        investor_repayment_requires_approval: resolvedSettings.finance_policy?.investor_repayment_requires_approval !== false,
+        cash_adjustment_requires_approval: resolvedSettings.finance_policy?.cash_adjustment_requires_approval !== false,
+        reversal_requires_approval: resolvedSettings.finance_policy?.reversal_requires_approval !== false,
+        reconciliation_adjustment_requires_approval: resolvedSettings.finance_policy?.reconciliation_adjustment_requires_approval !== false,
+        reconciliation_variance_alert_azn: Number(resolvedSettings.finance_policy?.reconciliation_variance_alert_azn ?? 0.01),
+        negative_balance_alert_azn: Number(resolvedSettings.finance_policy?.negative_balance_alert_azn ?? 0),
+        approver_roles: Array.isArray(resolvedSettings.finance_policy?.approver_roles) ? resolvedSettings.finance_policy!.approver_roles : ['manager', 'admin', 'finance_admin', 'super_admin'],
       });
+
+      setRefreshTrigger((prev) => prev + 1);
     } catch (err: any) {
       notify('error', err?.message || tx(lang, 'Maliyyə məlumatları yüklənmədi', 'Не удалось загрузить финансы'));
     }
-  }, [tenant_id, notify, lang, fromDate, toDate]);
+  }, [tenant_id, notify, lang]);
 
   const reloadSalesLedgerReport = useCallback(async () => {
     setSalesLedgerLoading(true);
@@ -521,6 +518,52 @@ export default function FinancePanel() {
     };
   }, [tenant_id, reloadFinance]);
 
+  // Lazy load tab-specific data: Overview reports
+  useEffect(() => {
+    if (workspaceTab !== 'overview') return;
+    let alive = true;
+    Promise.all([
+      fetch_finance_reports_overview(tenant_id, { date_from: fromDate, date_to: toDate }).catch(() => null),
+      fetch_sales_ledger_reconciliation_report(tenant_id, { date_from: fromDate, date_to: toDate, limit: 100 }).catch(() => null),
+    ]).then(([reports, salesReport]) => {
+      if (alive) {
+        setEnterpriseReports(reports);
+        setSalesLedgerReport(salesReport);
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, [workspaceTab, tenant_id, fromDate, toDate, refreshTrigger]);
+
+  // Lazy load tab-specific data: Reconciliation history
+  useEffect(() => {
+    if (workspaceTab !== 'reconciliation') return;
+    let alive = true;
+    fetch_finance_reconciliations(tenant_id, 100)
+      .then((rows) => {
+        if (alive) setReconciliations(rows || []);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [workspaceTab, tenant_id, refreshTrigger]);
+
+  // Lazy load tab-specific data: Ledger entries (500 limit)
+  useEffect(() => {
+    if (workspaceTab !== 'ledger') return;
+    let alive = true;
+    fetch_finance_ledger_entries(tenant_id, 500)
+      .then((rows) => {
+        if (alive) setLedgerEntries(rows || []);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [workspaceTab, tenant_id, refreshTrigger]);
+
   useEffect(() => {
     setLedgerOffset(0);
   }, [
@@ -538,6 +581,7 @@ export default function FinancePanel() {
   ]);
 
   useEffect(() => {
+    if (workspaceTab !== 'ledger') return;
     let alive = true;
     const timer = window.setTimeout(async () => {
       try {
@@ -556,7 +600,7 @@ export default function FinancePanel() {
       alive = false;
       window.clearTimeout(timer);
     };
-  }, [ledgerServerFilters, tenant_id]);
+  }, [ledgerServerFilters, tenant_id, workspaceTab, refreshTrigger]);
 
   useEffect(() => {
     const handleHardRefresh = (event: Event) => {
