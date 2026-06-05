@@ -31,6 +31,8 @@ if (
         cursor = dbapi_connection.cursor()
         try:
             cursor.execute("SET statement_timeout = %s", (int(settings.db_statement_timeout_ms),))
+            if int(getattr(settings, "db_idle_in_transaction_session_timeout_ms", 0) or 0) > 0:
+                cursor.execute("SET idle_in_transaction_session_timeout = %s", (int(settings.db_idle_in_transaction_session_timeout_ms),))
         except Exception:
             # Timeout hardening must never block the app from starting. Some poolers
             # may restrict session-level SET commands; in that case continue safely.

@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     db_pool_pre_ping: bool = True
     db_statement_timeout_ms: int = 30000
     db_apply_statement_timeout_on_connect: bool = True
+    db_idle_in_transaction_session_timeout_ms: int = 15000
     startup_schema_guard_enabled: bool = True
     startup_create_all_enabled: bool = True
     startup_runtime_migrations_enabled: bool = False
