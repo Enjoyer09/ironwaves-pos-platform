@@ -30,6 +30,9 @@ import {
   update_staff_benefits_live,
   update_user_credentials_live,
   verify_totp_live,
+  get_backup_settings_live,
+  update_backup_settings_live,
+  test_backup_webhook_live,
 } from '../../api/settings';
 import { get_menu_items_live } from '../../api/menu';
 import { get_inventory_items_live } from '../../api/inventory';
@@ -222,6 +225,16 @@ export default function SettingsPanel() {
   const [inventoryCatalog, setInventoryCatalog] = useState<any[]>([]);
   const [yieldInventoryCandidate, setYieldInventoryCandidate] = useState('');
   const [yieldInventorySearch, setYieldInventorySearch] = useState('');
+  const [backupSettings, setBackupSettings] = useState({
+    backup_enabled: false,
+    backup_webhook_url: '',
+    backup_webhook_secret: '',
+    backup_hour: 3,
+    backup_target: 'webhook' as 'webhook' | 'disk' | 'both',
+    backup_local_path: '',
+    last_backup_status: null as string | null,
+    last_backup_at: null as string | null,
+  });
 
   const [newUserName, setNewUserName] = useState('');
   const [newUserRole, setNewUserRole] = useState<'staff' | 'kitchen' | 'manager' | 'admin'>('staff');
@@ -480,6 +493,20 @@ export default function SettingsPanel() {
       });
       void checkPrintAgentStatus();
     }
+    void get_backup_settings_live().then((res) => {
+      if (res) {
+        setBackupSettings({
+          backup_enabled: Boolean(res.backup_enabled),
+          backup_webhook_url: String(res.backup_webhook_url || ''),
+          backup_webhook_secret: String(res.backup_webhook_secret || ''),
+          backup_hour: Number(res.backup_hour ?? 3),
+          backup_target: (res.backup_target || 'webhook') as 'webhook' | 'disk' | 'both',
+          backup_local_path: String(res.backup_local_path || ''),
+          last_backup_status: res.last_backup_status || null,
+          last_backup_at: res.last_backup_at || null,
+        });
+      }
+    }).catch(() => {});
   };
 
   useEffect(() => {
@@ -1193,6 +1220,41 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Staff limit ayarları yadda saxlanıldı', 'Настройки лимита staff сохранены', 'Staff benefit settings saved'), 'staff_benefits');
   };
 
+  const [testingWebhook, setTestingWebhook] = useState(false);
+
+  const saveBackupSettings = async () => {
+    try {
+      await update_backup_settings_live({
+        backup_enabled: backupSettings.backup_enabled,
+        backup_webhook_url: backupSettings.backup_webhook_url,
+        backup_webhook_secret: backupSettings.backup_webhook_secret,
+        backup_hour: Number(backupSettings.backup_hour),
+        backup_target: backupSettings.backup_target,
+        backup_local_path: backupSettings.backup_local_path,
+      });
+      flashSuccess(tx(lang, 'Backup ayarları yadda saxlanıldı', 'Настройки бэкапа сохранены', 'Backup settings saved'), 'backup');
+      void loadData();
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Backup ayarları saxlanmadı', 'Настройки бэкапа не сохранены', 'Backup settings were not saved'));
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    setTestingWebhook(true);
+    try {
+      const res = await test_backup_webhook_live();
+      if (res && res.ok) {
+        notify('success', tx(lang, 'Test webhook uğurla göndərildi', 'Тестовый вебхук успешно отправлен', 'Test webhook sent successfully'));
+      } else {
+        notify('error', res?.message || tx(lang, 'Webhook göndərilməsi alınmadı', 'Не удалось отправить вебхук', 'Failed to send webhook'));
+      }
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Webhook test xətası', 'Ошибка теста вебхука', 'Webhook test error'));
+    } finally {
+      setTestingWebhook(false);
+    }
+  };
+
   const settingsSections = [
     { id: 'sec-profile', label: tx(lang, 'Profil', 'Профиль', 'Profile') },
     { id: 'sec-print', label: tx(lang, 'Çap', 'Печать', 'Print') },
@@ -1204,6 +1266,7 @@ export default function SettingsPanel() {
     { id: 'sec-staff', label: tx(lang, 'Staff', 'Персонал', 'Staff') },
     { id: 'sec-qr', label: tx(lang, 'QR & Feedback', 'QR & Отзывы', 'QR & Feedback') },
     { id: 'sec-roles', label: tx(lang, 'Rollar', 'Роли', 'Roles') },
+    { id: 'sec-backup', label: tx(lang, 'Backup', 'Бэкап', 'Backup') },
   ];
 
   return (
@@ -2849,6 +2912,146 @@ export default function SettingsPanel() {
         {renderPanelSuccess('role_modules')}
         <div className="flex justify-end">
           <button onClick={() => { void saveRoleModules(); }} className="neon-btn rounded-xl px-5 py-2 font-semibold transition-transform duration-100 active:translate-y-px active:scale-[0.98]">{tx(lang, 'Rol icazələrini yadda saxla', 'Сохранить права ролей', 'Save role permissions')}</button>
+        </div>
+      </div>
+
+      <div id="sec-backup" className="metal-panel p-6 space-y-4">
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Avtomatik Backup Parametrləri', 'Настройки резервного копирования', 'Automated Backup Settings')}</h2>
+        <p className="text-sm text-slate-400">
+          {tx(
+            lang,
+            'Sistem məlumatlarının avtomatik ehtiyat nüsxəsini (backup) yaratmaq üçün hədəfi və vaxtı tənzimləyin.',
+            'Настройте цель и время для автоматического резервного копирования системных данных.',
+            'Configure target and time for automatic system data backups.',
+          )}
+        </p>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {/* Backup enabled toggle */}
+          <label className="flex items-center gap-3 rounded-xl border border-slate-700/70 bg-slate-900/20 p-4 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={backupSettings.backup_enabled}
+              onChange={(e) => setBackupSettings((prev) => ({ ...prev, backup_enabled: e.target.checked }))}
+              className="h-4 w-4 rounded border-slate-600 bg-slate-700 text-yellow-500 focus:ring-yellow-500"
+            />
+            <div>
+              <div className="font-semibold text-slate-200">{tx(lang, 'Avtomatik Backup Aktivdir', 'Автоматический бэкап активен', 'Automatic Backup Enabled')}</div>
+              <div className="text-xs text-slate-400">{tx(lang, 'Hər gün müəyyən olunmuş saatda backup alınır', 'Резервная копия создается каждый день в указанное время', 'Backup is taken daily at the configured hour')}</div>
+            </div>
+          </label>
+
+          {/* Backup Hour */}
+          <div className="flex flex-col gap-1 rounded-xl border border-slate-700/70 bg-slate-900/20 p-4">
+            <label className="field-label font-semibold text-slate-200">{tx(lang, 'Backup Saatı (Baku UTC+4)', 'Час бэкапа (Баку UTC+4)', 'Backup Hour (Baku UTC+4)')}</label>
+            <select
+              value={backupSettings.backup_hour}
+              onChange={(e) => setBackupSettings((prev) => ({ ...prev, backup_hour: Number(e.target.value) }))}
+              className="neon-input mt-1"
+            >
+              {Array.from({ length: 24 }).map((_, h) => (
+                <option key={h} value={h}>
+                  {String(h).padStart(2, '0')}:00
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Backup Target */}
+          <div className="flex flex-col gap-1 rounded-xl border border-slate-700/70 bg-slate-900/20 p-4">
+            <label className="field-label font-semibold text-slate-200">{tx(lang, 'Backup Hədəfi', 'Цель резервного копирования', 'Backup Target')}</label>
+            <select
+              value={backupSettings.backup_target}
+              onChange={(e) => setBackupSettings((prev) => ({ ...prev, backup_target: e.target.value as any }))}
+              className="neon-input mt-1"
+            >
+              <option value="webhook">Webhook URL</option>
+              <option value="disk">{tx(lang, 'Lokal Server Diski', 'Локальный диск сервера', 'Local Server Disk')}</option>
+              <option value="both">{tx(lang, 'Hər İkisi (Webhook & Disk)', 'И то и другое (Webhook и Диск)', 'Both (Webhook & Disk)')}</option>
+            </select>
+          </div>
+
+          {/* Local Disk Path */}
+          {['disk', 'both'].includes(backupSettings.backup_target) && (
+            <div className="flex flex-col gap-1 rounded-xl border border-slate-700/70 bg-slate-900/20 p-4">
+              <label className="field-label font-semibold text-slate-200">{tx(lang, 'Lokal Disk Qovluğu (İstəyə bağlı)', 'Путь локального диска (Опционально)', 'Local Disk Directory (Optional)')}</label>
+              <input
+                type="text"
+                placeholder="/app/backups/custom"
+                value={backupSettings.backup_local_path}
+                onChange={(e) => setBackupSettings((prev) => ({ ...prev, backup_local_path: e.target.value }))}
+                className="neon-input mt-1"
+              />
+              <div className="text-2xs text-slate-400 mt-1">{tx(lang, 'Boş buraxılsa, default olaraq /app/backups qovluğuna yazılacaq', 'Если пусто, по умолчанию запишется в /app/backups', 'If empty, defaults to /app/backups')}</div>
+            </div>
+          )}
+
+          {/* Webhook URL & Secret */}
+          {['webhook', 'both'].includes(backupSettings.backup_target) && (
+            <div className="col-span-1 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl border border-slate-700/70 bg-slate-900/20 p-4">
+              <div className="flex flex-col gap-1">
+                <label className="field-label font-semibold text-slate-200">Webhook URL</label>
+                <input
+                  type="text"
+                  placeholder="https://your-domain.com/backup-receiver"
+                  value={backupSettings.backup_webhook_url}
+                  onChange={(e) => setBackupSettings((prev) => ({ ...prev, backup_webhook_url: e.target.value }))}
+                  className="neon-input mt-1"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="field-label font-semibold text-slate-200">{tx(lang, 'Webhook Gizli Açarı (Secret)', 'Секретный ключ вебхука (Secret)', 'Webhook Secret')}</label>
+                <input
+                  type="password"
+                  placeholder={backupSettings.backup_webhook_secret === '***' ? '••••••••' : tx(lang, 'İmzalanma üçün şifrə', 'Секрет для подписи', 'Secret for signature')}
+                  value={backupSettings.backup_webhook_secret === '***' ? '' : backupSettings.backup_webhook_secret}
+                  onChange={(e) => setBackupSettings((prev) => ({ ...prev, backup_webhook_secret: e.target.value }))}
+                  className="neon-input mt-1"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Status indicator if backup has run */}
+        {(backupSettings.last_backup_at || backupSettings.last_backup_status) && (
+          <div className="rounded-xl border border-slate-700 bg-slate-950/40 p-4 text-xs text-slate-300 space-y-1">
+            <div>
+              <span className="text-slate-400">{tx(lang, 'Son Backup Tarixi', 'Дата последнего бэкапа', 'Last Backup At')}:</span>{' '}
+              <span className="font-semibold text-slate-200">
+                {backupSettings.last_backup_at ? new Date(backupSettings.last_backup_at).toLocaleString() : '-'}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-400">{tx(lang, 'Son Backup Statusu', 'Статус последнего бэкапа', 'Last Backup Status')}:</span>{' '}
+              <span className={`font-bold ${backupSettings.last_backup_status?.includes('✅') || backupSettings.last_backup_status?.toLowerCase().includes('http 200') || backupSettings.last_backup_status?.toLowerCase().includes('yazıldı') ? 'text-emerald-400' : 'text-red-400'}`}>
+                {backupSettings.last_backup_status || '-'}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {renderPanelSuccess('backup')}
+
+        <div className="flex items-center justify-between border-t border-slate-700/70 pt-4">
+          <div>
+            {['webhook', 'both'].includes(backupSettings.backup_target) && backupSettings.backup_webhook_url && (
+              <button
+                type="button"
+                disabled={testingWebhook}
+                onClick={() => { void handleTestWebhook(); }}
+                className="rounded-xl border border-cyan-400/50 bg-cyan-500/10 px-4 py-2 font-semibold text-cyan-200 hover:bg-cyan-500/20 active:scale-98 disabled:opacity-50"
+              >
+                {testingWebhook ? tx(lang, 'Göndərilir...', 'Отправка...', 'Sending...') : tx(lang, 'Webhook Test Et', 'Тестировать вебхук', 'Test Webhook')}
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => { void saveBackupSettings(); }}
+            className={saveButtonClass}
+          >
+            {tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
+          </button>
         </div>
       </div>
 
