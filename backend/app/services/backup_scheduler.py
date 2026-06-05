@@ -20,13 +20,17 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+import base64
+from cryptography.fernet import Fernet
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.db import SessionLocal
 from app.models import (
     AgentInsight,
     AuditLog,
     BusinessProfile,
+    CentralBackupLog,
     Check,
     Customer,
     CustomerConsent,
@@ -461,85 +465,254 @@ def _get_tenant_backup_settings(db: Session, tenant_id: str) -> dict:
     return result
 
 
-def _process_single_tenant(tenant: Tenant, current_hour_baku: int):
+def _get_central_backup_tenant_ids(db: Session, super_tenant_id: str) -> list[str]:
+    """Mərkəzi backup olunacak tenant ID-lərini oxuyur."""
+    row = db.query(Setting).filter(Setting.tenant_id == super_tenant_id, Setting.key == "central_backup_tenant_ids").first()
+    if not row or not row.value:
+        return []
+    try:
+        val = json.loads(row.value)
+        if isinstance(val, list):
+            return [str(item) for item in val]
+    except Exception:
+        pass
+    return []
+
+
+def _set_setting_value(db: Session, tenant_id: str, key: str, value: str):
+    """Setting dəyərini yeniləyir və ya yaradır."""
+    s = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == key).first()
+    if not s:
+        import uuid
+        s = Setting(id=str(uuid.uuid4()), tenant_id=tenant_id, key=key)
+        db.add(s)
+    s.value = value
+    s.updated_at = datetime.utcnow()
+
+
+def _log_central_backup_result(
+    db: Session,
+    tenant_id: str,
+    tenant_slug: str,
+    status: str,
+    detail: str,
+    backup_size_bytes: int = 0
+):
+    """Mərkəzi backup loqunu central_backup_logs cədvəlinə yazır."""
+    import uuid
+    log = CentralBackupLog(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        tenant_slug=tenant_slug,
+        status=status,
+        detail=detail,
+        backup_size_bytes=backup_size_bytes,
+        created_at=datetime.utcnow()
+    )
+    db.add(log)
+    db.commit()
+
+
+def _save_central_backup_to_disk(
+    final_payload: bytes,
+    tenant_slug: str,
+    filename: str,
+    local_path: str | None = None
+) -> tuple[bool, str]:
+    """Mərkəzi backup faylını diskə yazır."""
+    try:
+        base_dir = Path(local_path) if local_path else BACKUP_DIR / tenant_slug
+        base_dir.mkdir(parents=True, exist_ok=True)
+        filepath = base_dir / filename
+        
+        with open(filepath, "wb") as f:
+            f.write(final_payload)
+            
+        file_size = filepath.stat().st_size
+        
+        # Köhnə backupları təmizlə
+        _cleanup_old_central_backups(base_dir, tenant_slug)
+        
+        return True, f"Diskə yazıldı: {filepath} ({file_size} bytes)"
+    except Exception as e:
+        return False, f"Diskə yazma xətası: {str(e)[:200]}"
+
+
+def _cleanup_old_central_backups(backup_dir: Path, tenant_slug: str):
+    """Mərkəzi backup üçün köhnə backup fayllarını təmizləyir."""
+    try:
+        files = sorted(
+            [f for f in backup_dir.glob(f"{tenant_slug}_backup_*")],
+            key=lambda f: f.stat().st_mtime,
+            reverse=True,
+        )
+        for old_file in files[MAX_LOCAL_BACKUPS:]:
+            old_file.unlink()
+            logger.info("Köhnə mərkəzi backup silindi: %s", old_file)
+    except Exception as e:
+        logger.warning("Köhnə backup təmizləmə xətası: %s", str(e)[:100])
+
+
+def _send_central_backup_webhook(
+    url: str,
+    payload_bytes: bytes,
+    tenant_slug: str,
+    filename: str,
+    original_size: int,
+    compressed_size: int,
+    secret: str | None = None,
+    is_encrypted: bool = False
+) -> tuple[bool, str]:
+    """Mərkəzi backup faylını webhook-a POST edir."""
+    headers = {
+        "Content-Type": "application/octet-stream" if is_encrypted else "application/json",
+        "X-Backup-Tenant": tenant_slug,
+        "X-Backup-Timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        "X-Backup-Size-Original": str(original_size),
+        "X-Backup-Size-Compressed": str(compressed_size),
+        "X-Backup-Encrypted": "true" if is_encrypted else "false",
+        "X-Backup-Filename": filename,
+    }
+    
+    if not is_encrypted:
+        headers["Content-Encoding"] = "gzip"
+
+    if secret:
+        sig = _sign_payload(payload_bytes, secret)
+        headers["X-Backup-Signature"] = f"sha256={sig}"
+
+    req = urllib.request.Request(
+        url,
+        data=payload_bytes,
+        headers=headers,
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            status = resp.getcode()
+            if 200 <= status < 300:
+                return True, f"HTTP {status}"
+            return False, f"HTTP {status}"
+    except urllib.error.HTTPError as e:
+        return False, f"HTTP {e.code}: {str(e.reason)[:200]}"
+    except urllib.error.URLError as e:
+        return False, f"Bağlantı xətası: {str(e.reason)[:200]}"
+    except Exception as e:
+        return False, f"Xəta: {str(e)[:200]}"
+
+
+def _process_central_backup_for_tenant(db: Session, tenant: Tenant, cfg: dict) -> bool:
     """
-    Bir tenant üçün backup yaradıb webhook-a və/və ya diskə yazır.
-    Yalnız tenant-ın seçdiyi saat gəldikdə işləyir.
+    Bir tenant üçün mərkəzi backup-ı hazırlayır, şifrələyir və hədəflərə ötürür.
+    Nəticəni cədvəldə loqlayır.
     """
     tenant_id = tenant.id
     tenant_slug = tenant.slug
 
     try:
-        with SessionLocal() as db:
-            cfg = _get_tenant_backup_settings(db, tenant_id)
-
-        if not cfg.get("backup_enabled", False):
-            return
-
-        # Saat yoxlaması — tenant-ın seçdiyi saat indi gəlib?
-        tenant_hour = cfg.get("backup_hour", DEFAULT_BACKUP_HOUR)
-        if current_hour_baku != tenant_hour:
-            return
-
-        # Backup hədəfi: "webhook", "disk", "both" (default: webhook)
         backup_target = str(cfg.get("backup_target") or "webhook").strip().lower()
         webhook_url = str(cfg.get("backup_webhook_url") or "").strip()
         webhook_secret = str(cfg.get("backup_webhook_secret") or "").strip() or None
         local_path = str(cfg.get("backup_local_path") or "").strip() or None
 
-        # Heç bir hədəf yoxdursa ötür
         has_webhook = backup_target in ("webhook", "both") and webhook_url
         has_disk = backup_target in ("disk", "both")
         if not has_webhook and not has_disk:
-            logger.info("Tenant %s: backup aktiv amma hədəf təyin olunmayıb, ötürülür", tenant_slug)
-            return
+            logger.info("Mərkəzi backup: Tenant %s üçün heç bir backup hədəfi seçilməyib.", tenant_slug)
+            return True
 
-        # Backup yaratmaq
-        logger.info("Tenant %s: backup yaradılır (hədəf: %s)...", tenant_slug, backup_target)
-        with SessionLocal() as db:
-            backup_data = _build_tenant_backup(db, tenant)
+        logger.info("Mərkəzi backup: Tenant %s üçün backup yaradılır (hədəf: %s)...", tenant_slug, backup_target)
+        backup_data = _build_tenant_backup(db, tenant)
 
-        payload_bytes = json.dumps(backup_data, ensure_ascii=False, default=str).encode("utf-8")
-        payload_size = len(payload_bytes)
+        original_bytes = json.dumps(backup_data, ensure_ascii=False, default=str).encode("utf-8")
+        compressed_bytes = gzip.compress(original_bytes, compresslevel=6)
+
+        # Şifrələmə yoxlanışı
+        encryption_key = os.environ.get("SYSTEM_BACKUP_ENCRYPTION_KEY", "").strip()
+        is_encrypted = False
+        final_payload = compressed_bytes
+
+        if encryption_key:
+            try:
+                # 32-baytlıq URL-safe base64 açar çıxarılır
+                key = base64.urlsafe_b64encode(hashlib.sha256(encryption_key.encode("utf-8")).digest())
+                fernet = Fernet(key)
+                final_payload = fernet.encrypt(compressed_bytes)
+                is_encrypted = True
+            except Exception as enc_err:
+                logger.error("Tenant %s şifrələmə xətası: %s", tenant_slug, str(enc_err))
+                _log_central_backup_result(
+                    db,
+                    tenant_id=tenant_id,
+                    tenant_slug=tenant_slug,
+                    status="failed",
+                    detail=f"Şifrələmə xətası: {str(enc_err)[:200]}"
+                )
+                return False
+
         results = []
+        timestamp = datetime.now(tz=BAKU_UTC_OFFSET).strftime("%Y%m%d_%H%M%S")
+        filename = f"{tenant_slug}_backup_{timestamp}.json.gz"
+        if is_encrypted:
+            filename += ".enc"
 
-        # ── Diskə yazma ──
+        # Diskə yazma
         if has_disk:
-            ok, msg = _save_to_disk(payload_bytes, tenant_slug, local_path)
-            results.append(f"Disk: {'✅' if ok else '❌'} {msg}")
+            disk_ok, disk_msg = _save_central_backup_to_disk(final_payload, tenant_slug, filename, local_path)
+            results.append(f"Disk: {'✅' if disk_ok else '❌'} {disk_msg}")
 
-        # ── Webhook göndərmə ──
+        # Webhook göndərmə
         if has_webhook:
-            ok, msg = _send_webhook(webhook_url, payload_bytes, tenant_slug, webhook_secret)
-            results.append(f"Webhook: {'✅' if ok else '❌'} {msg}")
+            webhook_ok, webhook_msg = _send_central_backup_webhook(
+                webhook_url, final_payload, tenant_slug, filename,
+                original_size=len(original_bytes),
+                compressed_size=len(compressed_bytes),
+                secret=webhook_secret,
+                is_encrypted=is_encrypted
+            )
+            results.append(f"Webhook: {'✅' if webhook_ok else '❌'} {webhook_msg}")
 
         detail = " | ".join(results)
         success = "❌" not in detail
 
-        # Audit log
-        with SessionLocal() as db:
-            _log_backup_result(db, tenant_id, success, detail, payload_size)
+        _log_central_backup_result(
+            db,
+            tenant_id=tenant_id,
+            tenant_slug=tenant_slug,
+            status="success" if success else "failed",
+            detail=detail,
+            backup_size_bytes=len(final_payload)
+        )
 
         if success:
-            logger.info("Tenant %s: backup tamamlandı ✅ — %s", tenant_slug, detail)
+            logger.info("Mərkəzi backup: Tenant %s tamamlandı ✅ — %s", tenant_slug, detail)
         else:
-            logger.warning("Tenant %s: backup problemi ❌ — %s", tenant_slug, detail)
+            logger.warning("Mərkəzi backup: Tenant %s xətalarla tamamlandı ❌ — %s", tenant_slug, detail)
+
+        return success
 
     except Exception as e:
-        logger.error("Tenant %s: backup zamanı xəta: %s", tenant_slug, str(e)[:300])
+        logger.error("Mərkəzi backup: Tenant %s xətası: %s", tenant_slug, str(e)[:300])
         try:
-            with SessionLocal() as db:
-                _log_backup_result(db, tenant_id, False, f"Xəta: {str(e)[:300]}")
+            _log_central_backup_result(
+                db,
+                tenant_id=tenant_id,
+                tenant_slug=tenant_slug,
+                status="failed",
+                detail=f"Xəta: {str(e)[:300]}"
+            )
         except Exception:
             pass
+        return False
 
 
 def _scheduler_loop():
     """
-    Əsas scheduler döngüsü — hər saat başı yoxlayır.
-    Hər tenant-ın öz backup saatı var, vaxtı gəlmişsə backup edir.
+    Mərkəzi backup scheduler döngüsü — hər saat başı yoxlayır.
+    Super Admin-in təyin etdiyi mərkəzi backup saatında işləyir.
     """
-    logger.info("Backup Scheduler başladı (hər saat yoxlama, default saat: %02d:00 Bakı)",
+    logger.info("Mərkəzi Backup Scheduler başladı (hər saat yoxlama, default saat: %02d:00 Bakı)",
                 DEFAULT_BACKUP_HOUR)
 
     while True:
@@ -548,29 +721,95 @@ def _scheduler_loop():
         next_check = (now_baku + timedelta(hours=1)).replace(minute=0, second=5, microsecond=0)
         wait_seconds = (next_check - now_baku).total_seconds()
         if wait_seconds > 0:
-            logger.info("Backup Scheduler: növbəti yoxlamaya %.0f dəqiqə qalıb (saat %02d:00)",
+            logger.info("Mərkəzi Backup Scheduler: növbəti yoxlamaya %.0f dəqiqə qalıb (saat %02d:00)",
                          wait_seconds / 60, next_check.hour)
             time.sleep(wait_seconds)
 
         current_hour = datetime.now(tz=BAKU_UTC_OFFSET).hour
-        logger.info("═══ Backup yoxlama başladı (Bakı saatı: %02d:00) ═══", current_hour)
+        logger.info("═══ Mərkəzi Backup yoxlama başladı (Bakı saatı: %02d:00) ═══", current_hour)
 
         try:
             with SessionLocal() as db:
-                tenants = db.query(Tenant).filter(Tenant.status == "active").all()
+                # 1. Super tenant-ı tapırıq
+                super_tenant = db.query(Tenant).filter(Tenant.slug == settings.platform_tenant_slug).first()
+                if not super_tenant:
+                    logger.warning("Super Tenant tapılmadı! Platforma settings-də 'platform_tenant_slug' yoxlayın.")
+                    continue
 
-            processed = 0
-            for tenant in tenants:
-                _process_single_tenant(tenant, current_hour)
-                processed += 1
+                # 2. Super tenant-ın backup parametrlərini oxuyuruq
+                cfg = _get_tenant_backup_settings(db, super_tenant.id)
+                if not cfg.get("backup_enabled", False):
+                    logger.info("Mərkəzi backup söndürülüb (backup_enabled = False).")
+                    continue
 
-            logger.info("═══ Backup yoxlama bitdi (%d tenant yoxlandı) ═══", processed)
+                backup_hour = cfg.get("backup_hour", DEFAULT_BACKUP_HOUR)
+                if current_hour != backup_hour:
+                    logger.info("Cari saat (%02d) mərkəzi backup saatına (%02d) uyğun deyil.", current_hour, backup_hour)
+                    continue
+
+                logger.info("Mərkəzi backup saatı gəldi (%02d:00 Bakı). Backup prosesi başlayır...", backup_hour)
+
+                # 3. Backup olunacaq tenant siyahısını oxuyuruq
+                enabled_ids = _get_central_backup_tenant_ids(db, super_tenant.id)
+                
+                # Bütün aktiv tenant-ları çəkirik
+                active_tenants = db.query(Tenant).filter(Tenant.status == "active").all()
+                
+                tenants_to_process = []
+                for tenant in active_tenants:
+                    # Super tenant həmişə daxildir, digərləri isə siyahıda varsa
+                    if tenant.slug == settings.platform_tenant_slug or tenant.id in enabled_ids:
+                        tenants_to_process.append(tenant)
+
+                if not tenants_to_process:
+                    logger.info("Backup olunacaq heç bir tenant tapılmadı.")
+                    continue
+
+                logger.info("Mərkəzi backup olunacaq tenantlar: %s", [t.slug for t in tenants_to_process])
+
+                success_count = 0
+                failed_count = 0
+                
+                for tenant in tenants_to_process:
+                    try:
+                        with SessionLocal() as tenant_db:
+                            ok = _process_central_backup_for_tenant(tenant_db, tenant, cfg)
+                            if ok:
+                                success_count += 1
+                            else:
+                                failed_count += 1
+                    except Exception as t_err:
+                        logger.error("Tenant %s central backup exception: %s", tenant.slug, str(t_err))
+                        failed_count += 1
+                        try:
+                            with SessionLocal() as log_db:
+                                _log_central_backup_result(
+                                    log_db,
+                                    tenant_id=tenant.id,
+                                    tenant_slug=tenant.slug,
+                                    status="failed",
+                                    detail=f"Kritik Xəta: {str(t_err)[:300]}"
+                                )
+                        except Exception:
+                            pass
+
+                # Super tenant settings-ə nəticəni yazırıq
+                status_str = "success" if failed_count == 0 else "failed"
+                timestamp_str = datetime.now(tz=BAKU_UTC_OFFSET).isoformat()
+                
+                _set_setting_value(db, super_tenant.id, "last_backup_status", status_str)
+                _set_setting_value(db, super_tenant.id, "last_backup_at", timestamp_str)
+                db.commit()
+                
+                logger.info("═══ Mərkəzi backup prosesi tamamlandı: Uğurlu: %d, Xətalı: %d ═══", 
+                            success_count, failed_count)
+
         except Exception as e:
-            logger.error("Backup scheduler xətası: %s", str(e)[:300])
+            logger.error("Mərkəzi backup scheduler xətası: %s", str(e)[:300])
 
 
 def start_backup_scheduler():
-    """Background thread-də backup scheduler-i başladır."""
+    """Background thread-də mərkəzi backup scheduler-i başladır."""
     t = threading.Thread(target=_scheduler_loop, daemon=True, name="backup-scheduler")
     t.start()
-    logger.info("Backup Scheduler background thread başladı.")
+    logger.info("Mərkəzi Backup Scheduler background thread başladı.")

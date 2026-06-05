@@ -1216,6 +1216,7 @@ def get_app_settings(
     response.headers["Cache-Control"] = "private, max-age=30, stale-while-revalidate=300"
     return {
         "tenant_id": tenant.id,
+        "is_super_tenant": tenant.slug == settings.platform_tenant_slug,
         "service_fee_percent": getv("service_fee_percent", 0),
         "table_service_settings": getv("table_service_settings", {"deposit_per_guest_azn": 0, "reservation_lock_hours": 2}),
         "beverage_service_settings": getv("beverage_service_settings", DEFAULT_BEVERAGE_SERVICE_SETTINGS),
@@ -1613,6 +1614,8 @@ def get_backup_settings(
 ):
     """Tenant-ın avtomatik backup parametrlərini oxuyur."""
     _ensure_admin(user)
+    if tenant.slug != settings.platform_tenant_slug:
+        raise HTTPException(status_code=403, detail="Yalnız Super Admin bu bölməyə daxil ola bilər")
     values = _settings_value_map(db, tenant.id)
     
     try:
@@ -1643,6 +1646,8 @@ def update_backup_settings(
 ):
     """Tenant-ın avtomatik backup parametrlərini yeniləyir."""
     _ensure_admin(user)
+    if tenant.slug != settings.platform_tenant_slug:
+        raise HTTPException(status_code=403, detail="Yalnız Super Admin bu bölməyə daxil ola bilər")
     url = str(payload.backup_webhook_url or "").strip()
     if url and not url.startswith(("http://", "https://")):
         raise HTTPException(status_code=400, detail="Webhook URL http:// və ya https:// ilə başlamalıdır")
@@ -1676,6 +1681,8 @@ def test_backup_webhook(
 ):
     """Tenant-ın webhook URL-unə test mesajı göndərir."""
     _ensure_admin(user)
+    if tenant.slug != settings.platform_tenant_slug:
+        raise HTTPException(status_code=403, detail="Yalnız Super Admin bu bölməyə daxil ola bilər")
     values = _settings_value_map(db, tenant.id)
     url = str(values.get("backup_webhook_url") or "").strip()
     if not url:
@@ -1718,6 +1725,91 @@ def test_backup_webhook(
         return {"ok": False, "status_code": 0, "message": f"Bağlantı xətası: {str(e.reason)[:200]}"}
     except Exception as e:
         return {"ok": False, "status_code": 0, "message": str(e)[:200]}
+
+
+@router.get("/database/central-backup-tenants")
+def get_central_backup_tenants(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Bütün tenant-ların siyahısını və mərkəzi backup-da aktiv olub-olmadıqlarını qaytarır."""
+    _ensure_admin(user)
+    if tenant.slug != settings.platform_tenant_slug:
+        raise HTTPException(status_code=403, detail="Yalnız Super Admin bu bölməyə daxil ola bilər")
+    
+    # Get central backup selection
+    values = _settings_value_map(db, tenant.id)
+    enabled_ids_str = values.get("central_backup_tenant_ids") or "[]"
+    try:
+        enabled_ids = json.loads(enabled_ids_str)
+        if not isinstance(enabled_ids, list):
+            enabled_ids = []
+    except Exception:
+        enabled_ids = []
+
+    all_tenants = db.query(Tenant).filter(Tenant.status == "active").all()
+    
+    result = []
+    for t in all_tenants:
+        result.append({
+            "id": t.id,
+            "name": t.name,
+            "slug": t.slug,
+            "domain": t.domain,
+            "central_backup_enabled": t.id in enabled_ids or t.slug == settings.platform_tenant_slug
+        })
+    return result
+
+
+class CentralBackupTenantsUpdate(BaseModel):
+    tenant_ids: list[str]
+
+
+@router.put("/database/central-backup-tenants")
+def update_central_backup_tenants(
+    payload: CentralBackupTenantsUpdate,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Mərkəzi backup olunacaq tenant-ların siyahısını yeniləyir."""
+    _ensure_admin(user)
+    if tenant.slug != settings.platform_tenant_slug:
+        raise HTTPException(status_code=403, detail="Yalnız Super Admin bu bölməyə daxil ola bilər")
+    
+    clean_ids = [str(tid).strip() for tid in payload.tenant_ids if str(tid).strip()]
+    _set_setting_value(db, tenant.id, "central_backup_tenant_ids", json.dumps(clean_ids))
+    db.commit()
+    return {"ok": True, "message": "Tenant siyahısı yeniləndi"}
+
+
+@router.get("/database/central-backup-logs")
+def get_central_backup_logs(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Ən son 100 mərkəzi backup loqunu qaytarır."""
+    _ensure_admin(user)
+    if tenant.slug != settings.platform_tenant_slug:
+        raise HTTPException(status_code=403, detail="Yalnız Super Admin bu bölməyə daxil ola bilər")
+    
+    from app.models import CentralBackupLog
+    
+    logs = db.query(CentralBackupLog).order_by(CentralBackupLog.created_at.desc()).limit(100).all()
+    return [
+        {
+            "id": l.id,
+            "tenant_id": l.tenant_id,
+            "tenant_slug": l.tenant_slug,
+            "status": l.status,
+            "detail": l.detail,
+            "backup_size_bytes": l.backup_size_bytes,
+            "created_at": l.created_at.isoformat()
+        }
+        for l in logs
+    ]
 
 
 @router.post("/database/verify-admin-password")
