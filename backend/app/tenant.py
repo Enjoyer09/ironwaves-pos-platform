@@ -10,6 +10,24 @@ from app.models import Tenant
 
 logger = logging.getLogger("ironwaves.tenant")
 
+_redis_tenant_cache = None
+
+
+def _get_redis_tenant_client():
+    global _redis_tenant_cache
+    if _redis_tenant_cache is not None:
+        return _redis_tenant_cache
+    if not settings.redis_url:
+        _redis_tenant_cache = False
+        return None
+    try:
+        from redis import Redis
+        _redis_tenant_cache = Redis.from_url(settings.redis_url, decode_responses=True)
+    except Exception:
+        _redis_tenant_cache = False
+        return None
+    return _redis_tenant_cache
+
 
 def _normalize_domain(raw: str | None) -> str:
     value = str(raw or "").strip().lower()
@@ -135,6 +153,12 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
             request.state.tenant_resolution_source = source
             request.state.tenant_resolution_domain = domain
             request.state.tenant_resolution_tenant_id = tenant.id if tenant else None
+
+            # Cache successfully resolved tenant in Redis for 5 minutes (300s)
+            if tenant and domain and source != "redis_cache":
+                r_client = _get_redis_tenant_client()
+                if r_client:
+                    r_client.setex(f"ironwaves:tenant-by-domain:{domain}", 300, tenant.id)
         except Exception:
             pass
 
@@ -180,6 +204,20 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
         x_tenant_domain=request.headers.get("x-tenant-domain"),
         x_tenant_id=explicit or None,
     )
+
+    # ── Redis Cache Lookup ──
+    redis_client = _get_redis_tenant_client()
+    if redis_client and domain:
+        try:
+            cached_id = redis_client.get(f"ironwaves:tenant-by-domain:{domain}")
+            if cached_id:
+                tenant = db.query(Tenant).filter(Tenant.id == cached_id).first()
+                if tenant:
+                    _remember("redis_cache", domain, tenant)
+                    _log("tenant_resolved", source="redis_cache", domain=domain, tenant_id=tenant.id, tenant_slug=tenant.slug)
+                    return tenant
+        except Exception as e:
+            logger.warning(f"Redis tenant cache read error: {e}")
 
     if domain:
         # 1) Use tenant_domains mapping table if present
