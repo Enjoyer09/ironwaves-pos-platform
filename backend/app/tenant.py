@@ -3,6 +3,7 @@ import logging
 from fastapi import Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import ProgrammingError
 
 from app.core.config import settings
 from app.models import Tenant
@@ -94,7 +95,7 @@ def _sync_domain_aliases(db: Session, tenant_id: str, aliases: list[str]) -> Non
                 ),
                 {"domain": safe_alias, "tenant_id": tenant_id},
             )
-        except Exception:
+        except ProgrammingError:
             try:
                 db.execute(
                     text(
@@ -107,7 +108,7 @@ def _sync_domain_aliases(db: Session, tenant_id: str, aliases: list[str]) -> Non
                     ),
                     {"domain": safe_alias, "tenant_id": tenant_id},
                 )
-            except Exception:
+            except ProgrammingError:
                 pass
 
 
@@ -210,7 +211,7 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
                     _remember("tenant_domains_active", domain, tenant)
                     _log("tenant_resolved", source="tenant_domains_active", domain=domain, tenant_id=tenant.id, tenant_slug=tenant.slug)
                     return tenant
-        except Exception:
+        except ProgrammingError:
             # Backward compatibility for schemas where tenant_domains has no is_active column.
             try:
                 row = db.execute(
@@ -239,7 +240,7 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
                         _remember("tenant_domains_legacy", domain, tenant)
                         _log("tenant_resolved", source="tenant_domains_legacy", domain=domain, tenant_id=tenant.id, tenant_slug=tenant.slug)
                         return tenant
-            except Exception:
+            except ProgrammingError:
                 # If tenant_domains does not exist or query fails, fallback to Tenant.domain
                 pass
 
