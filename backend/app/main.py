@@ -25,7 +25,7 @@ from app.core.config import settings
 from app.db import Base, engine, SessionLocal
 from app.models import AuditLog, BusinessProfile, InventoryItem, MenuItem, Recipe, Setting, Table, Tenant, User, CentralBackupLog
 from app.realtime import realtime_hub
-from app.routers import agent, ai_ops, analytics_api, auth, catalog, customer_feedback_ops, finance, operations, pos, reports, restaurant, settings as settings_router, tenants
+from app.routers import agent, ai_ops, analytics_api, auth, catalog, customer_feedback_ops, finance, integrations, operations, pos, reports, restaurant, settings as settings_router, tenants
 from app.security import decode_token, hash_password, get_client_ip
 from app.services.ai_agent_bg import start_background_agent
 from app.services.backup_scheduler import start_backup_scheduler
@@ -1307,3 +1307,4 @@ app.include_router(restaurant.router)
 app.include_router(tenants.router)
 app.include_router(settings_router.router)
 app.include_router(agent.router)
+app.include_router(integrations.router)
