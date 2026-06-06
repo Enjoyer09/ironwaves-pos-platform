@@ -1422,6 +1422,28 @@ export default function SettingsPanel() {
               onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, bolt_food_secret_key: e.target.value }))} 
               placeholder={tx(lang, 'Secret Key', 'Secret Key', 'Secret Key')} 
             />
+            {deliveryIntegrations.bolt_food_enabled && (
+              <div className="md:col-span-3 rounded-lg border border-slate-700 bg-slate-950/40 p-3 space-y-1.5">
+                <span className="text-xs font-semibold text-slate-400 block">Bolt Food Webhook URL:</span>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    className="neon-input flex-1 text-xs select-all py-1.5 opacity-80"
+                    value={`${window.location.origin}/api/v1/integrations/bolt/webhook/${tenantId}`}
+                  />
+                  <button
+                    onClick={() => {
+                      void navigator.clipboard.writeText(`${window.location.origin}/api/v1/integrations/bolt/webhook/${tenantId}`);
+                      notify('success', tx(lang, 'Webhook URL kopyalandı', 'Webhook URL скопирован', 'Webhook URL copied'));
+                    }}
+                    className="glossy-gold text-xs px-3 py-1 rounded-lg font-bold"
+                  >
+                    {tx(lang, 'Kopyala', 'Копировать', 'Copy')}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1449,6 +1471,28 @@ export default function SettingsPanel() {
               onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, wolt_client_secret: e.target.value }))} 
               placeholder={tx(lang, 'Client Secret', 'Client Secret', 'Client Secret')} 
             />
+            {deliveryIntegrations.wolt_enabled && (
+              <div className="md:col-span-3 rounded-lg border border-slate-700 bg-slate-950/40 p-3 space-y-1.5">
+                <span className="text-xs font-semibold text-slate-400 block">Wolt Webhook URL:</span>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    className="neon-input flex-1 text-xs select-all py-1.5 opacity-80"
+                    value={`${window.location.origin}/api/v1/integrations/wolt/webhook/${tenantId}`}
+                  />
+                  <button
+                    onClick={() => {
+                      void navigator.clipboard.writeText(`${window.location.origin}/api/v1/integrations/wolt/webhook/${tenantId}`);
+                      notify('success', tx(lang, 'Webhook URL kopyalandı', 'Webhook URL скопирован', 'Webhook URL copied'));
+                    }}
+                    className="glossy-gold text-xs px-3 py-1 rounded-lg font-bold"
+                  >
+                    {tx(lang, 'Kopyala', 'Копировать', 'Copy')}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
