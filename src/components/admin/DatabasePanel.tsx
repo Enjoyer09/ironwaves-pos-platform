@@ -8,6 +8,7 @@ import {
   get_central_backup_tenants_live,
   update_central_backup_tenants_live,
   get_central_backup_logs_live,
+  run_central_backup_now_live,
 } from '../../api/settings';
 import { useAppStore } from '../../store';
 import { Database, Download, Upload } from 'lucide-react';
@@ -49,6 +50,7 @@ export default function DatabasePanel() {
   const [centralBackupTenants, setCentralBackupTenants] = useState<Array<{ id: string; name: string; slug: string; domain: string; central_backup_enabled: boolean }>>([]);
   const [centralBackupLogs, setCentralBackupLogs] = useState<Array<{ id: string; tenant_id: string; tenant_slug: string; status: string; detail: string; backup_size_bytes: number; created_at: string }>>([]);
   const [testingWebhook, setTestingWebhook] = useState(false);
+  const [runningBackup, setRunningBackup] = useState(false);
 
   const TABLE_OPTIONS = [
     'users','menu_items','sales','finance','tables','kitchen_orders','z_reports','inventory','ingredients','customers','recipes','customer_coupons','admin_notes','happy_hours','refunds','settings','notifications','business_profile','logs'
@@ -319,6 +321,23 @@ export default function DatabasePanel() {
       notify('error', e?.message || tx(lang, 'Webhook test xətası', 'Ошибка теста вебхука', 'Webhook test error'));
     } finally {
       setTestingWebhook(false);
+    }
+  };
+
+  const handleRunCentralBackupNow = async () => {
+    setRunningBackup(true);
+    try {
+      const res = await run_central_backup_now_live();
+      if (res && res.ok) {
+        notify('success', res.message || tx(lang, 'Mərkəzi backup uğurla icra olundu', 'Центральный бэкап успешно выполнен', 'Central backup executed successfully'));
+      } else {
+        notify('error', res?.message || tx(lang, 'Mərkəzi backup xəta ilə başa çatdı', 'Ошибка выполнения центрального бэкапа', 'Central backup completed with errors'));
+      }
+      void loadBackupSettings();
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'Mərkəzi backup xətası', 'Ошибка центрального бэкапа', 'Central backup error'));
+    } finally {
+      setRunningBackup(false);
     }
   };
 
@@ -989,22 +1008,31 @@ export default function DatabasePanel() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between border-t border-slate-700/70 pt-4">
-            <div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-700/70 pt-4">
+            <div className="flex items-center gap-3">
               {['webhook', 'both'].includes(backupSettings.backup_target) && backupSettings.backup_webhook_url && (
                 <button
                   type="button"
-                  disabled={testingWebhook}
+                  disabled={testingWebhook || runningBackup}
                   onClick={() => { void handleTestWebhook(); }}
                   className="rounded-xl border border-cyan-400/50 bg-cyan-500/10 px-4 py-2 font-semibold text-cyan-200 hover:bg-cyan-500/20 active:scale-98 disabled:opacity-50"
                 >
                   {testingWebhook ? tx(lang, 'Göndərilir...', 'Отправка...', 'Sending...') : tx(lang, 'Webhook Test Et', 'Тестировать вебхук', 'Test Webhook')}
                 </button>
               )}
+              <button
+                type="button"
+                disabled={testingWebhook || runningBackup}
+                onClick={() => { void handleRunCentralBackupNow(); }}
+                className="rounded-xl border border-amber-400/50 bg-amber-500/10 px-4 py-2 font-semibold text-amber-200 hover:bg-amber-500/20 active:scale-98 disabled:opacity-50"
+              >
+                {runningBackup ? tx(lang, 'Yedəklənir...', 'Резервирование...', 'Backing up...') : tx(lang, 'Mərkəzi Backup-ı İndi Başlat', 'Запустить центральный бэкап сейчас', 'Run Central Backup Now')}
+              </button>
             </div>
             <button
               onClick={() => { void saveBackupSettings(); }}
-              className="glossy-gold rounded-xl px-6 py-2 font-bold transition-transform duration-100 active:translate-y-px active:scale-[0.98]"
+              disabled={runningBackup}
+              className="glossy-gold rounded-xl px-6 py-2 font-bold transition-transform duration-100 active:translate-y-px active:scale-[0.98] disabled:opacity-50"
             >
               {tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}
             </button>
