@@ -1702,6 +1702,22 @@ def test_backup_webhook(
     import urllib.request
     import urllib.error
     import gzip
+    import urllib.parse
+
+    parsed_url = urllib.parse.urlparse(url)
+    query_params = urllib.parse.parse_qs(parsed_url.query)
+    query_params['tenant'] = [tenant.slug]
+    query_params['filename'] = [f"test_backup_{tenant.slug}_{int(datetime.utcnow().timestamp())}.json.gz"]
+    query_params['test'] = ["true"]
+    new_query = urllib.parse.urlencode(query_params, doseq=True)
+    url = urllib.parse.urlunparse((
+        parsed_url.scheme,
+        parsed_url.netloc,
+        parsed_url.path,
+        parsed_url.params,
+        new_query,
+        parsed_url.fragment
+    ))
 
     compressed = gzip.compress(test_payload, compresslevel=6)
     headers = {
