@@ -1945,3 +1945,12 @@ export async function get_central_backup_logs_live(): Promise<any> {
   });
 }
 
+export async function run_central_backup_now_live(): Promise<any> {
+  if (!isBackendEnabled()) {
+    return { ok: false, message: 'Offline rejimdə mərkəzi backup başlatmaq olmaz' };
+  }
+  return apiRequest<any>('/api/v1/ops/database/run-central-backup-now', {
+    method: 'POST',
+    tenantId: null,
+  });
+}

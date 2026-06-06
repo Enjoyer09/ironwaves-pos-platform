@@ -1812,6 +1812,71 @@ def get_central_backup_logs(
     ]
 
 
+@router.post("/database/run-central-backup-now")
+def run_central_backup_now(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    """Mərkəzi backup prosesini dərhal əllə başladır."""
+    _ensure_admin(user)
+    if tenant.slug != app_settings.platform_tenant_slug:
+        raise HTTPException(status_code=403, detail="Yalnız Super Admin bu bölməni işə sala bilər")
+    
+    from app.services.backup_scheduler import (
+        _get_tenant_backup_settings,
+        _get_central_backup_tenant_ids,
+        _process_central_backup_for_tenant,
+        _set_setting_value,
+        BAKU_UTC_OFFSET
+    )
+    from app.db import SessionLocal
+    
+    cfg = _get_tenant_backup_settings(db, tenant.id)
+    enabled_ids = _get_central_backup_tenant_ids(db, tenant.id)
+    
+    active_tenants = db.query(Tenant).filter(Tenant.status == "active").all()
+    
+    tenants_to_process = []
+    for t in active_tenants:
+        if t.slug == app_settings.platform_tenant_slug or t.id in enabled_ids:
+            tenants_to_process.append(t)
+            
+    if not tenants_to_process:
+        raise HTTPException(status_code=400, detail="Yedəklənəcək heç bir restoran seçilməyib")
+        
+    success_count = 0
+    failed_count = 0
+    details = []
+    
+    for t in tenants_to_process:
+        try:
+            with SessionLocal() as tenant_db:
+                ok = _process_central_backup_for_tenant(tenant_db, t, cfg)
+                if ok:
+                    success_count += 1
+                    details.append(f"{t.slug}: OK")
+                else:
+                    failed_count += 1
+                    details.append(f"{t.slug}: XƏTA")
+        except Exception as e:
+            failed_count += 1
+            details.append(f"{t.slug}: KRİTİK XƏTA ({str(e)[:100]})")
+            
+    status_str = "success" if failed_count == 0 else "failed"
+    timestamp_str = datetime.now(tz=BAKU_UTC_OFFSET).isoformat()
+    
+    _set_setting_value(db, tenant.id, "last_backup_status", f"Əllə başladıldı ({status_str})")
+    _set_setting_value(db, tenant.id, "last_backup_at", timestamp_str)
+    db.commit()
+    
+    return {
+        "ok": failed_count == 0,
+        "message": f"Mərkəzi backup tamamlandı. Uğurlu: {success_count}, Xətalı: {failed_count}",
+        "details": details
+    }
+
+
 @router.post("/database/verify-admin-password")
 def database_verify_admin_password(
     payload: DatabaseVerifyAdminPasswordIn,
