@@ -564,6 +564,21 @@ def _send_central_backup_webhook(
     is_encrypted: bool = False
 ) -> tuple[bool, str]:
     """Mərkəzi backup faylını webhook-a POST edir."""
+    import urllib.parse
+    parsed_url = urllib.parse.urlparse(url)
+    query_params = urllib.parse.parse_qs(parsed_url.query)
+    query_params['tenant'] = [tenant_slug]
+    query_params['filename'] = [filename]
+    new_query = urllib.parse.urlencode(query_params, doseq=True)
+    url = urllib.parse.urlunparse((
+        parsed_url.scheme,
+        parsed_url.netloc,
+        parsed_url.path,
+        parsed_url.params,
+        new_query,
+        parsed_url.fragment
+    ))
+
     headers = {
         "Content-Type": "application/octet-stream",
         "X-Backup-Tenant": tenant_slug,
