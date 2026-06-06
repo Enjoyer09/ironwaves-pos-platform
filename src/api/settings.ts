@@ -666,6 +666,52 @@ export function update_email_settings(payload: {
   return { success: true };
 }
 
+export function update_delivery_integrations(payload: {
+  bolt_food_enabled?: boolean;
+  bolt_food_provider_id?: string;
+  bolt_food_secret_key?: string;
+  wolt_enabled?: boolean;
+  wolt_venue_id?: string;
+  wolt_client_secret?: string;
+}) {
+  const settings = getSettings();
+  const existing = settings.delivery_integrations || {
+    bolt_food_enabled: false,
+    bolt_food_provider_id: '',
+    bolt_food_secret_key: '',
+    wolt_enabled: false,
+    wolt_venue_id: '',
+    wolt_client_secret: '',
+  };
+  
+  let bolt_secret = String(payload.bolt_food_secret_key || '').trim();
+  if (bolt_secret === '***') {
+    bolt_secret = existing.bolt_food_secret_key;
+  }
+  
+  let wolt_secret = String(payload.wolt_client_secret || '').trim();
+  if (wolt_secret === '***') {
+    wolt_secret = existing.wolt_client_secret;
+  }
+
+  settings.delivery_integrations = {
+    bolt_food_enabled: Boolean(payload.bolt_food_enabled),
+    bolt_food_provider_id: String(payload.bolt_food_provider_id || '').trim(),
+    bolt_food_secret_key: bolt_secret,
+    wolt_enabled: Boolean(payload.wolt_enabled),
+    wolt_venue_id: String(payload.wolt_venue_id || '').trim(),
+    wolt_client_secret: wolt_secret,
+  };
+  saveSettings(settings);
+  logEvent('admin', 'DELIVERY_INTEGRATIONS_UPDATED', {
+    bolt_food_enabled: settings.delivery_integrations.bolt_food_enabled,
+    bolt_food_provider_id: settings.delivery_integrations.bolt_food_provider_id,
+    wolt_enabled: settings.delivery_integrations.wolt_enabled,
+    wolt_venue_id: settings.delivery_integrations.wolt_venue_id,
+  });
+  return { success: true };
+}
+
 export function update_bank_commission(payload: { min_amount: number; percent: number }) {
   const settings = getSettings();
   settings.bank_commission = {
@@ -847,6 +893,25 @@ export function get_settings(tenant_id?: string) {
       merchant_id: '',
       terminal_id: '',
       fiscal_device_id: ''
+    };
+  }
+  if (!s.delivery_integrations) {
+    s.delivery_integrations = {
+      bolt_food_enabled: false,
+      bolt_food_provider_id: '',
+      bolt_food_secret_key: '',
+      wolt_enabled: false,
+      wolt_venue_id: '',
+      wolt_client_secret: '',
+    };
+  } else {
+    s.delivery_integrations = {
+      bolt_food_enabled: Boolean(s.delivery_integrations.bolt_food_enabled),
+      bolt_food_provider_id: String(s.delivery_integrations.bolt_food_provider_id || ''),
+      bolt_food_secret_key: String(s.delivery_integrations.bolt_food_secret_key || ''),
+      wolt_enabled: Boolean(s.delivery_integrations.wolt_enabled),
+      wolt_venue_id: String(s.delivery_integrations.wolt_venue_id || ''),
+      wolt_client_secret: String(s.delivery_integrations.wolt_client_secret || ''),
     };
   }
   if (!s.email_settings) {
@@ -1224,6 +1289,14 @@ export async function get_settings_live(tenant_id?: string) {
       ollama_freeapi_enabled: data?.ai_config?.ollama_freeapi_enabled === true,
       updated_at: String(data?.ai_config?.updated_at || ''),
     },
+    delivery_integrations: data?.delivery_integrations ? {
+      bolt_food_enabled: Boolean(data.delivery_integrations.bolt_food_enabled),
+      bolt_food_provider_id: String(data.delivery_integrations.bolt_food_provider_id || ''),
+      bolt_food_secret_key: String(data.delivery_integrations.bolt_food_secret_key || ''),
+      wolt_enabled: Boolean(data.delivery_integrations.wolt_enabled),
+      wolt_venue_id: String(data.delivery_integrations.wolt_venue_id || ''),
+      wolt_client_secret: String(data.delivery_integrations.wolt_client_secret || ''),
+    } : undefined,
   };
   saveSettings(merged);
   return merged;
@@ -1371,6 +1444,20 @@ export async function update_email_settings_live(payload: {
   if (!isBackendEnabled()) return update_email_settings(payload);
   await apiRequest('/api/v1/ops/settings/email-settings', { method: 'PATCH', tenantId: null, body: payload });
   update_email_settings(payload);
+  return { success: true };
+}
+
+export async function update_delivery_integrations_live(payload: {
+  bolt_food_enabled?: boolean;
+  bolt_food_provider_id?: string;
+  bolt_food_secret_key?: string;
+  wolt_enabled?: boolean;
+  wolt_venue_id?: string;
+  wolt_client_secret?: string;
+}) {
+  if (!isBackendEnabled()) return update_delivery_integrations(payload);
+  await apiRequest('/api/v1/ops/settings/delivery-integrations', { method: 'PATCH', tenantId: null, body: payload });
+  update_delivery_integrations(payload);
   return { success: true };
 }
 

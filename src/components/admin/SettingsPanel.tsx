@@ -14,6 +14,7 @@ import {
   setup_totp_live,
   update_bank_commission_live,
   update_email_settings_live,
+  update_delivery_integrations_live,
   update_beverage_service_settings_live,
   update_finance_policy_live,
   update_feedback_settings_live,
@@ -101,6 +102,14 @@ export default function SettingsPanel() {
     recipient_emails: '',
     webhook_url: '',
     timeout_sec: '15',
+  });
+  const [deliveryIntegrations, setDeliveryIntegrations] = useState({
+    bolt_food_enabled: false,
+    bolt_food_provider_id: '',
+    bolt_food_secret_key: '',
+    wolt_enabled: false,
+    wolt_venue_id: '',
+    wolt_client_secret: '',
   });
   const [sessionSettings, setSessionSettings] = useState({
     idle_logout_minutes: '0',
@@ -363,6 +372,14 @@ export default function SettingsPanel() {
         recipient_emails: String((settingsRes.value.email_settings?.recipient_emails || []).join(', ')),
         webhook_url: String(settingsRes.value.email_settings?.webhook_url || ''),
         timeout_sec: String(settingsRes.value.email_settings?.timeout_sec || 15),
+      });
+      setDeliveryIntegrations({
+        bolt_food_enabled: Boolean(settingsRes.value.delivery_integrations?.bolt_food_enabled),
+        bolt_food_provider_id: String(settingsRes.value.delivery_integrations?.bolt_food_provider_id || ''),
+        bolt_food_secret_key: settingsRes.value.delivery_integrations?.bolt_food_secret_key ? '***' : '',
+        wolt_enabled: Boolean(settingsRes.value.delivery_integrations?.wolt_enabled),
+        wolt_venue_id: String(settingsRes.value.delivery_integrations?.wolt_venue_id || ''),
+        wolt_client_secret: settingsRes.value.delivery_integrations?.wolt_client_secret ? '***' : '',
       });
       setSessionSettings({
         idle_logout_minutes: String(settingsRes.value.session_settings?.idle_logout_minutes ?? 0),
@@ -879,6 +896,22 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Email ayarları yadda saxlanıldı', 'Настройки email сохранены', 'Email settings saved'), 'email');
   };
 
+  const saveDeliveryIntegrations = async () => {
+    try {
+      await update_delivery_integrations_live({
+        bolt_food_enabled: deliveryIntegrations.bolt_food_enabled,
+        bolt_food_provider_id: deliveryIntegrations.bolt_food_provider_id,
+        bolt_food_secret_key: deliveryIntegrations.bolt_food_secret_key,
+        wolt_enabled: deliveryIntegrations.wolt_enabled,
+        wolt_venue_id: deliveryIntegrations.wolt_venue_id,
+        wolt_client_secret: deliveryIntegrations.wolt_client_secret,
+      });
+      flashSuccess(tx(lang, 'Çatdırılma inteqrasiyaları yadda saxlanıldı', 'Настройки доставки сохранены', 'Delivery integrations saved'), 'delivery_integrations');
+    } catch (e: any) {
+      notify('error', e?.message || tx(lang, 'İnteqrasiyaları yadda saxlamaq mümkün olmadı', 'Не удалось сохранить интеграции', 'Failed to save integrations'));
+    }
+  };
+
   const savePrintSettings = async () => {
     try {
       await update_print_settings_live({
@@ -1351,6 +1384,77 @@ export default function SettingsPanel() {
         {renderPanelSuccess('email')}
         <div className="flex justify-end">
           <button onClick={() => { void saveEmailSettings(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
+        </div>
+      </div>
+
+      <div className="metal-panel p-6 space-y-4">
+        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Çatdırılma İnteqrasiyaları', 'Интеграции доставки', 'Delivery Integrations')}</h2>
+        <p className="text-sm text-slate-400">
+          {tx(
+            lang,
+            'Bolt Food və Wolt inteqrasiyaları üçün Provider/Venue ID və Secret Key ayarları.',
+            'Настройки Provider/Venue ID и Secret Key для интеграций Bolt Food и Wolt.',
+            'Provider/Venue ID and Secret Key settings for Bolt Food and Wolt integrations.',
+          )}
+        </p>
+        
+        <div className="border-t border-slate-700/40 pt-4 space-y-3">
+          <h3 className="text-md font-semibold text-slate-200">Bolt Food</h3>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-3">
+              <input 
+                type="checkbox" 
+                checked={deliveryIntegrations.bolt_food_enabled} 
+                onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, bolt_food_enabled: e.target.checked }))} 
+              />
+              <span>{tx(lang, 'Bolt Food aktiv et', 'Включить Bolt Food', 'Enable Bolt Food')}</span>
+            </label>
+            <input 
+              className="neon-input" 
+              value={deliveryIntegrations.bolt_food_provider_id} 
+              onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, bolt_food_provider_id: e.target.value }))} 
+              placeholder="Provider ID" 
+            />
+            <input 
+              className="neon-input md:col-span-2" 
+              type="password"
+              value={deliveryIntegrations.bolt_food_secret_key} 
+              onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, bolt_food_secret_key: e.target.value }))} 
+              placeholder={tx(lang, 'Secret Key', 'Secret Key', 'Secret Key')} 
+            />
+          </div>
+        </div>
+
+        <div className="border-t border-slate-700/40 pt-4 space-y-3">
+          <h3 className="text-md font-semibold text-slate-200">Wolt</h3>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <label className="flex items-center gap-2 text-sm text-slate-300 md:col-span-3">
+              <input 
+                type="checkbox" 
+                checked={deliveryIntegrations.wolt_enabled} 
+                onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, wolt_enabled: e.target.checked }))} 
+              />
+              <span>{tx(lang, 'Wolt aktiv et', 'Включить Wolt', 'Enable Wolt')}</span>
+            </label>
+            <input 
+              className="neon-input" 
+              value={deliveryIntegrations.wolt_venue_id} 
+              onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, wolt_venue_id: e.target.value }))} 
+              placeholder="Venue ID" 
+            />
+            <input 
+              className="neon-input md:col-span-2" 
+              type="password"
+              value={deliveryIntegrations.wolt_client_secret} 
+              onChange={(e) => setDeliveryIntegrations((prev) => ({ ...prev, wolt_client_secret: e.target.value }))} 
+              placeholder={tx(lang, 'Client Secret', 'Client Secret', 'Client Secret')} 
+            />
+          </div>
+        </div>
+
+        {renderPanelSuccess('delivery_integrations')}
+        <div className="flex justify-end border-t border-slate-700/40 pt-4">
+          <button onClick={() => { void saveDeliveryIntegrations(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
         </div>
       </div>
 

@@ -1031,6 +1031,15 @@ class EmailSettingsIn(BaseModel):
     timeout_sec: int = 15
 
 
+class DeliveryIntegrationsIn(BaseModel):
+    bolt_food_enabled: bool = False
+    bolt_food_provider_id: str = ""
+    bolt_food_secret_key: str = ""
+    wolt_enabled: bool = False
+    wolt_venue_id: str = ""
+    wolt_client_secret: str = ""
+
+
 class SendEmailIn(BaseModel):
     subject: str
     html: str
@@ -1188,6 +1197,17 @@ def get_app_settings(
         "omnitech_settings",
         {"enabled": False, "api_base_url": "", "api_key": "", "merchant_id": "", "terminal_id": "", "fiscal_device_id": ""},
     )
+    delivery_integrations = getv(
+        "delivery_integrations",
+        {
+            "bolt_food_enabled": False,
+            "bolt_food_provider_id": "",
+            "bolt_food_secret_key": "",
+            "wolt_enabled": False,
+            "wolt_venue_id": "",
+            "wolt_client_secret": "",
+        },
+    )
     if not _can_view_sensitive_settings(user):
         email_settings = {
             "enabled": bool(email_settings.get("enabled")),
@@ -1205,6 +1225,14 @@ def get_app_settings(
             "merchant_id": str(omnitech_settings.get("merchant_id") or ""),
             "terminal_id": str(omnitech_settings.get("terminal_id") or ""),
             "fiscal_device_id": str(omnitech_settings.get("fiscal_device_id") or ""),
+        }
+        delivery_integrations = {
+            "bolt_food_enabled": bool(delivery_integrations.get("bolt_food_enabled")),
+            "bolt_food_provider_id": str(delivery_integrations.get("bolt_food_provider_id") or ""),
+            "bolt_food_secret_key": "",
+            "wolt_enabled": bool(delivery_integrations.get("wolt_enabled")),
+            "wolt_venue_id": str(delivery_integrations.get("wolt_venue_id") or ""),
+            "wolt_client_secret": "",
         }
         gemini_api_key = ""
     else:
@@ -1260,6 +1288,7 @@ def get_app_settings(
         "role_modules": role_modules,
         "gemini_api_key": gemini_api_key,
         "ai_config": ai_config,
+        "delivery_integrations": delivery_integrations,
     }
 
 
@@ -3014,6 +3043,49 @@ def update_staff_benefits(
         "item_unit_cap_azn": max(0, float(payload.get("item_unit_cap_azn") or 0)),
     }
     _set_setting_value(db, tenant.id, "staff_benefits", cleaned)
+    db.commit()
+    return {"success": True}
+
+
+@router.patch("/settings/delivery-integrations")
+def update_delivery_integrations_settings(
+    payload: DeliveryIntegrationsIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    settings_map = _settings_value_map(db, tenant.id)
+    getv = lambda key, default: _setting_value_from_map(settings_map, key, default)
+    existing = getv(
+        "delivery_integrations",
+        {
+            "bolt_food_enabled": False,
+            "bolt_food_provider_id": "",
+            "bolt_food_secret_key": "",
+            "wolt_enabled": False,
+            "wolt_venue_id": "",
+            "wolt_client_secret": "",
+        },
+    )
+
+    bolt_secret = payload.bolt_food_secret_key.strip()
+    if bolt_secret == "***":
+        bolt_secret = existing.get("bolt_food_secret_key", "")
+
+    wolt_secret = payload.wolt_client_secret.strip()
+    if wolt_secret == "***":
+        wolt_secret = existing.get("wolt_client_secret", "")
+
+    cleaned = {
+        "bolt_food_enabled": bool(payload.bolt_food_enabled),
+        "bolt_food_provider_id": str(payload.bolt_food_provider_id or "").strip(),
+        "bolt_food_secret_key": bolt_secret,
+        "wolt_enabled": bool(payload.wolt_enabled),
+        "wolt_venue_id": str(payload.wolt_venue_id or "").strip(),
+        "wolt_client_secret": wolt_secret,
+    }
+    _set_setting_value(db, tenant.id, "delivery_integrations", cleaned)
     db.commit()
     return {"success": True}
 
