@@ -380,6 +380,14 @@ export interface Settings {
     ollama_freeapi_enabled?: boolean;
     updated_at?: string;
   };
+  delivery_integrations?: {
+    bolt_food_enabled: boolean;
+    bolt_food_provider_id: string;
+    bolt_food_secret_key: string;
+    wolt_enabled: boolean;
+    wolt_venue_id: string;
+    wolt_client_secret: string;
+  };
 }
 
 // --- USER (İstifadəçi) ---
