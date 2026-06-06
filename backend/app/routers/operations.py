@@ -1705,8 +1705,7 @@ def test_backup_webhook(
 
     compressed = gzip.compress(test_payload, compresslevel=6)
     headers = {
-        "Content-Type": "application/json",
-        "Content-Encoding": "gzip",
+        "Content-Type": "application/octet-stream",
         "X-Backup-Tenant": tenant.slug,
         "X-Backup-Test": "true",
     }

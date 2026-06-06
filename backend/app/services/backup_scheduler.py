@@ -565,7 +565,7 @@ def _send_central_backup_webhook(
 ) -> tuple[bool, str]:
     """Mərkəzi backup faylını webhook-a POST edir."""
     headers = {
-        "Content-Type": "application/octet-stream" if is_encrypted else "application/json",
+        "Content-Type": "application/octet-stream",
         "X-Backup-Tenant": tenant_slug,
         "X-Backup-Timestamp": datetime.now(tz=timezone.utc).isoformat(),
         "X-Backup-Size-Original": str(original_size),
@@ -573,9 +573,6 @@ def _send_central_backup_webhook(
         "X-Backup-Encrypted": "true" if is_encrypted else "false",
         "X-Backup-Filename": filename,
     }
-    
-    if not is_encrypted:
-        headers["Content-Encoding"] = "gzip"
 
     if secret:
         sig = _sign_payload(payload_bytes, secret)
