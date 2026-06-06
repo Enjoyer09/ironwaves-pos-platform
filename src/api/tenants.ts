@@ -484,3 +484,19 @@ export async function get_landing_analytics(): Promise<LandingAnalytics> {
   };
 }
 
+export async function simulate_webhook_live(payload: {
+  tenant_id: string;
+  provider: 'bolt' | 'wolt';
+  order_id: string;
+  items: Array<{ id?: string; name: string; price: string; quantity: number }>;
+}): Promise<any> {
+  if (isBackendEnabled()) {
+    return await apiRequest<any>('/api/v1/admin/tenants/simulate-webhook', {
+      method: 'POST',
+      body: payload,
+    });
+  }
+  throw new Error('Simulation is only supported in backend mode');
+}
+
+

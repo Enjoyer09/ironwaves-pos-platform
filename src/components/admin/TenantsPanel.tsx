@@ -1,8 +1,8 @@
 import React from 'react';
 import { useAppStore } from '../../store';
-import { create_tenant, delete_tenant, list_tenants, suspend_tenant, get_landing_analytics, type TenantRecord, type LandingAnalytics } from '../../api/tenants';
+import { create_tenant, delete_tenant, list_tenants, suspend_tenant, get_landing_analytics, simulate_webhook_live, type TenantRecord, type LandingAnalytics } from '../../api/tenants';
 import { tx } from '../../i18n';
-import { Eye, Users as UsersIcon, RefreshCw } from 'lucide-react';
+import { Eye, Users as UsersIcon, RefreshCw, Play, Send, Plus, Trash2, CheckCircle2, XCircle } from 'lucide-react';
 
 function slugify(value: string) {
   return String(value || '')
@@ -58,8 +58,65 @@ export default function TenantsPanel() {
     tenant_id: string;
   }>(null);
 
-  const [activeTab, setActiveTab] = React.useState<'tenants' | 'analytics'>('tenants');
+  const [activeTab, setActiveTab] = React.useState<'tenants' | 'analytics' | 'simulator'>('tenants');
   const [analytics, setAnalytics] = React.useState<LandingAnalytics | null>(null);
+
+  // Webhook Simulator State
+  const [simTenantId, setSimTenantId] = React.useState('');
+  const [simProvider, setSimProvider] = React.useState<'bolt' | 'wolt'>('bolt');
+  const [simOrderId, setSimOrderId] = React.useState('');
+  const [simItems, setSimItems] = React.useState<Array<{ id: string; name: string; price: string; quantity: number }>>([
+    { id: '', name: 'Cappuccino', price: '4.50', quantity: 2 },
+    { id: '', name: 'Espresso', price: '3.50', quantity: 1 }
+  ]);
+  const [simSending, setSimSending] = React.useState(false);
+  const [simResult, setSimResult] = React.useState<any>(null);
+  const [simError, setSimError] = React.useState<string | null>(null);
+
+  const generateRandomOrderId = () => {
+    const rnd = Math.floor(10000 + Math.random() * 90000);
+    setSimOrderId(`SIM-${rnd}`);
+  };
+
+  const executeSimulation = async () => {
+    if (!simTenantId) {
+      notify('error', 'Lütfən sınaq üçün bir Tenant seçin.');
+      return;
+    }
+    if (!simOrderId) {
+      notify('error', 'Sifariş ID daxil edilməlidir.');
+      return;
+    }
+    if (simItems.length === 0) {
+      notify('error', 'Sifarişdə ən azı 1 məhsul olmalıdır.');
+      return;
+    }
+
+    setSimSending(true);
+    setSimResult(null);
+    setSimError(null);
+
+    try {
+      const res = await simulate_webhook_live({
+        tenant_id: simTenantId,
+        provider: simProvider,
+        order_id: simOrderId,
+        items: simItems.map(item => ({
+          id: item.id || undefined,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity
+        }))
+      });
+      setSimResult(res);
+      notify('success', 'Simulyasiya uğurla tamamlandı!');
+    } catch (err: any) {
+      setSimError(err?.message || 'Simulyasiya zamanı xəta baş verdi');
+      notify('error', err?.message || 'Xəta baş verdi');
+    } finally {
+      setSimSending(false);
+    }
+  };
   const [analyticsLoading, setAnalyticsLoading] = React.useState(false);
 
   const loadAnalytics = React.useCallback(async () => {
@@ -238,10 +295,20 @@ export default function TenantsPanel() {
           >
             {tx(lang, 'Veb-sayt Analitikası', 'Веб-аналитика', 'Website Analytics')}
           </button>
+          <button
+            onClick={() => setActiveTab('simulator')}
+            className={`rounded-xl px-5 py-2 text-sm font-semibold transition-all duration-300 ${
+              activeTab === 'simulator'
+                ? 'glossy-gold text-slate-950 shadow-md'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            {tx(lang, 'Webhook Simulyatoru', 'Симулятор Webhook', 'Webhook Simulator')}
+          </button>
         </div>
       </div>
 
-      {activeTab === 'tenants' ? (
+      {activeTab === 'tenants' && (
         <div className="grid gap-6 xl:grid-cols-[1.1fr_1.4fr]">
           <div className="metal-panel rounded-3xl p-5">
             <h2 className="text-xl font-semibold">{tx(lang, 'Yeni Tenant', 'Новый тенант', 'New Tenant')}</h2>
@@ -392,7 +459,9 @@ export default function TenantsPanel() {
             </div>
           </div>
         </div>
-      ) : (
+      )}
+
+      {activeTab === 'analytics' && (
         <div className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
             {/* Metric Card 1: Total Views */}
@@ -509,6 +578,284 @@ export default function TenantsPanel() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'simulator' && (
+        <div className="grid gap-6 xl:grid-cols-[1.2fr_1.2fr]">
+          {/* Simulator Form Card */}
+          <div className="metal-panel rounded-3xl p-6 space-y-4">
+            <h2 className="text-xl font-bold flex items-center gap-2 text-amber-400">
+              <Play size={20} />
+              {tx(lang, 'Webhook Sorğu Simulyasiyası', 'Симуляция Webhook-запроса', 'Webhook Request Simulation')}
+            </h2>
+            <p className="text-xs text-slate-400">
+              {tx(
+                lang,
+                'Bu panel vasitəsilə daxili inteqrasiya məlumatlarını yoxlamaq üçün test sifarişləri göndərə bilərsiniz. Sorğular birbaşa təhlükəsizlik yoxlanışını keçərək mətbəx terminalına yönləndiriləcək.',
+                'С помощью этой панели вы можете отправлять тестовые заказы для проверки внутренней интеграции. Запросы отправляются в обход проверки подписи.',
+                'Through this panel, you can send test orders to verify the internal integration workflow. Requests bypass signature checking directly.'
+              )}
+            </p>
+
+            <div className="space-y-3 pt-2">
+              {/* Tenant selector */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                  {tx(lang, 'Hədəf Şirkət (Tenant)', 'Целевой Тенант', 'Target Tenant')}
+                </label>
+                <select
+                  className="neon-input min-h-12 w-full"
+                  value={simTenantId}
+                  onChange={(e) => setSimTenantId(e.target.value)}
+                >
+                  <option value="">-- {tx(lang, 'Şirkət Seçin', 'Выберите компанию', 'Select Company')} --</option>
+                  {rows.filter(r => r.status === 'active').map((row) => (
+                    <option key={row.tenant_id} value={row.tenant_id}>
+                      {row.company_name} ({row.slug})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Provider selector */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                  {tx(lang, 'Çatdırılma Platforması', 'Платформа доставки', 'Delivery Platform')}
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setSimProvider('bolt')}
+                    className={`py-2 px-4 rounded-xl font-bold text-sm border transition ${
+                      simProvider === 'bolt'
+                        ? 'bg-amber-400/20 text-amber-300 border-amber-400/40'
+                        : 'border-slate-800 bg-slate-900/30 text-slate-400 hover:text-slate-300'
+                    }`}
+                  >
+                    Bolt Food
+                  </button>
+                  <button
+                    onClick={() => setSimProvider('wolt')}
+                    className={`py-2 px-4 rounded-xl font-bold text-sm border transition ${
+                      simProvider === 'wolt'
+                        ? 'bg-amber-400/20 text-amber-300 border-amber-400/40'
+                        : 'border-slate-800 bg-slate-900/30 text-slate-400 hover:text-slate-300'
+                    }`}
+                  >
+                    Wolt
+                  </button>
+                </div>
+              </div>
+
+              {/* Order ID */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                  {tx(lang, 'Sifariş ID', 'ID Заказа', 'Order ID')}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    className="neon-input min-h-12 flex-1"
+                    placeholder="E.g. bolt-12345"
+                    value={simOrderId}
+                    onChange={(e) => setSimOrderId(e.target.value)}
+                  />
+                  <button
+                    onClick={generateRandomOrderId}
+                    className="neon-btn px-4 text-xs font-bold whitespace-nowrap"
+                  >
+                    {tx(lang, 'Yarat', 'Создать', 'Generate')}
+                  </button>
+                </div>
+              </div>
+
+              {/* Items List */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-slate-400">
+                    {tx(lang, 'Sifariş Məhsulları', 'Товары в заказе', 'Order Items')}
+                  </label>
+                  <button
+                    onClick={() => setSimItems(prev => [...prev, { id: '', name: '', price: '5.00', quantity: 1 }])}
+                    className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 font-bold"
+                  >
+                    <Plus size={14} />
+                    {tx(lang, 'Məhsul Əlavə Et', 'Добавить товар', 'Add Item')}
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {simItems.map((item, idx) => (
+                    <div key={idx} className="flex gap-2 items-center bg-slate-950/20 p-2 rounded-xl border border-slate-900">
+                      <input
+                        className="neon-input text-xs py-1.5 flex-1"
+                        placeholder={tx(lang, 'Məhsul adı və ya daxili ID', 'Название или ID товара', 'Item name or internal ID')}
+                        value={item.name}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSimItems(prev => prev.map((it, i) => i === idx ? { ...it, name: val, id: val.includes('-') && val.length > 20 ? val : it.id } : it));
+                        }}
+                      />
+                      <input
+                        className="neon-input text-xs py-1.5 w-16"
+                        type="number"
+                        step="0.1"
+                        placeholder="Price"
+                        value={item.price}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSimItems(prev => prev.map((it, i) => i === idx ? { ...it, price: val } : it));
+                        }}
+                      />
+                      <input
+                        className="neon-input text-xs py-1.5 w-14"
+                        type="number"
+                        min="1"
+                        placeholder="Qty"
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setSimItems(prev => prev.map((it, i) => i === idx ? { ...it, quantity: Math.max(1, val) } : it));
+                        }}
+                      />
+                      <button
+                        onClick={() => setSimItems(prev => prev.filter((_, i) => i !== idx))}
+                        className="text-rose-400 hover:text-rose-300 p-1"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                onClick={() => void executeSimulation()}
+                disabled={simSending}
+                className="glossy-gold rounded-2xl w-full py-3 font-bold flex items-center justify-center gap-2 mt-4 disabled:opacity-60 disabled:cursor-wait"
+              >
+                <Send size={18} />
+                {simSending ? tx(lang, 'Göndərilir...', 'Отправка...', 'Sending...') : tx(lang, 'Simulyasiya Sifarişini Göndər', 'Отправить тестовый заказ', 'Send Simulation Order')}
+              </button>
+            </div>
+          </div>
+
+          {/* Results and Documentation Panel */}
+          <div className="space-y-6">
+            {/* Documentation Panel */}
+            <div className="metal-panel rounded-3xl p-6 bg-gradient-to-br from-slate-950/40 to-slate-900/20 border border-slate-800/40">
+              <h3 className="text-md font-semibold text-slate-200 mb-2">
+                {tx(lang, 'Bu necə işləyir?', 'Как это работает?', 'How it works')}
+              </h3>
+              <ul className="text-xs text-slate-400 space-y-2 list-disc list-inside text-left">
+                <li>
+                  {tx(
+                    lang,
+                    'Hədəf şirkət seçildikdə, həmin tenant üçün anbarda uyğun menyu məhsulu və reseptlər (inqrediyentlər) axtarılır.',
+                    'При выборе тенанта для него ищутся соответствующие товары меню и рецепты.',
+                    'When target tenant is selected, matching menu items and recipes (ingredients) are resolved.'
+                  )}
+                </li>
+                <li>
+                  {tx(
+                    lang,
+                    'Məhsul adı və ya ID uyğun gələrsə, həmin məhsulun reseptinə əsasən anbardan avtomatik silinmə icra olunur.',
+                    'При совпадении имени или ID списывается остаток со склада по рецепту.',
+                    'If item name or ID matches, recipe ingredients are decremented from stock.'
+                  )}
+                </li>
+                <li>
+                  {tx(
+                    lang,
+                    'Satış maliyyə tranzaksiyaları qeydə alınır və kassa növbəsi (open shift) yoxlanılır.',
+                    'Финансовые транзакции проводятся, проверяется открытая смена.',
+                    'Finance transactions are recorded and open shift is validated.'
+                  )}
+                </li>
+                <li>
+                  {tx(
+                    lang,
+                    'Real-time WebSocket siqnalı göndərilir və mətbəx monitorları (KDS) avtomatik sifarişi zəng səsiylə göstərir.',
+                    'Отправляется WebSocket сигнал, KDS мониторы звонят и показывают заказ.',
+                    'WebSocket realtime event is fired, and kitchen screens show the order with sound.'
+                  )}
+                </li>
+              </ul>
+            </div>
+
+            {/* Results Panel */}
+            <div className="metal-panel rounded-3xl p-6 space-y-4">
+              <h3 className="text-md font-semibold text-slate-200">
+                {tx(lang, 'Sorğu Cavabı', 'Ответ запроса', 'Response Status')}
+              </h3>
+
+              {!simResult && !simError && !simSending && (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+                  <Play size={32} className="opacity-40 mb-2" />
+                  <span className="text-xs">
+                    {tx(lang, 'Göndərilən test sorğularının nəticələri burada göstəriləcək.', 'Результаты тестов будут здесь.', 'Results of sent test requests will appear here.')}
+                  </span>
+                </div>
+              )}
+
+              {simSending && (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400 space-y-2">
+                  <RefreshCw className="animate-spin" size={32} />
+                  <span className="text-xs">{tx(lang, 'Sifariş işlənir...', 'Обработка заказа...', 'Processing order...')}</span>
+                </div>
+              )}
+
+              {simError && (
+                <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-rose-300 font-semibold text-sm">
+                    <XCircle size={18} />
+                    {tx(lang, 'Sorğu Uğursuz Oldu', 'Ошибка запроса', 'Request Failed')}
+                  </div>
+                  <div className="text-xs font-mono text-rose-200/90 whitespace-pre-wrap break-all bg-slate-950/20 p-2.5 rounded-xl border border-rose-950/30 text-left">
+                    {simError}
+                  </div>
+                </div>
+              )}
+
+              {simResult && (
+                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-300 font-semibold text-sm">
+                    <CheckCircle2 size={18} />
+                    {tx(lang, 'Sifariş Uğurla İşləndi', 'Заказ успешно обработан', 'Order Processed Successfully')}
+                  </div>
+
+                  <div className="space-y-2 text-xs text-slate-300">
+                    <div className="flex justify-between border-b border-slate-800/60 pb-1.5">
+                      <span className="text-slate-400">Message:</span>
+                      <span className="font-semibold text-slate-200">{simResult.message}</span>
+                    </div>
+                    {simResult.sale_id && (
+                      <div className="flex flex-col gap-1.5 pt-1 text-left">
+                        <span className="text-slate-400">Sale ID:</span>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            readOnly
+                            className="neon-input text-[11px] font-mono select-all flex-1 py-1 px-2 opacity-80"
+                            value={simResult.sale_id}
+                          />
+                          <button
+                            onClick={() => {
+                              void navigator.clipboard.writeText(simResult.sale_id);
+                              notify('success', 'Sale ID kopyalandı');
+                            }}
+                            className="neon-btn text-[10px] px-2.5 py-1"
+                          >
+                            Copy
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

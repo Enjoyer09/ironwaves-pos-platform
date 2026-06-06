@@ -712,3 +712,43 @@ def get_landing_analytics(
         "recent_views": recent_views
     }
 
+
+@router.post("/simulate-webhook")
+async def simulate_webhook(
+    payload: dict,
+    db: Session = Depends(get_db),
+    _super_admin=Depends(get_super_admin),
+):
+    target_tenant_id = str(payload.get("tenant_id") or "").strip()
+    provider = str(payload.get("provider") or "").strip().lower()
+    order_id = str(payload.get("order_id") or "").strip()
+    raw_items = payload.get("items") or []
+
+    if not target_tenant_id:
+        raise HTTPException(status_code=400, detail="Missing tenant_id")
+    if provider not in {"bolt", "wolt"}:
+        raise HTTPException(status_code=400, detail="Provider must be 'bolt' or 'wolt'")
+    if not order_id:
+        raise HTTPException(status_code=400, detail="Missing order_id")
+
+    tenant = db.query(Tenant).filter(Tenant.id == target_tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    from app.routers.integrations import process_delivery_order_logic
+    
+    try:
+        result = await process_delivery_order_logic(
+            db=db,
+            tenant=tenant,
+            provider=provider,
+            order_id=order_id,
+            raw_items=raw_items,
+        )
+        return result
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
