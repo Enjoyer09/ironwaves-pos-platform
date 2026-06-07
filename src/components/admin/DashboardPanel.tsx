@@ -518,14 +518,6 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         onOpenTab={onOpenTab}
       />
 
-      {snapshot.agentInsights.length > 0 && (
-        <BackgroundAgentStrip
-          insights={snapshot.agentInsights}
-          lang={lang}
-          onRefresh={() => void loadDashboard()}
-        />
-      )}
-
       <AIManagerStrip
         insights={aiManagerInsights}
         lang={lang}
@@ -581,6 +573,14 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
           </PanelCard>
         </section>
       </main>
+
+      {snapshot.agentInsights.length > 0 && (
+        <BackgroundAgentStrip
+          insights={snapshot.agentInsights}
+          lang={lang}
+          onRefresh={() => void loadDashboard()}
+        />
+      )}
     </DashboardLayout>
   );
 }
@@ -603,6 +603,7 @@ function BackgroundAgentStrip({
   onRefresh: () => void;
 }) {
   const [marking, setMarking] = useState<string | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
 
   const handleMarkRead = async (id: string) => {
     setMarking(id);
@@ -611,47 +612,73 @@ function BackgroundAgentStrip({
     onRefresh();
   };
 
+  const unreadCount = insights.filter((ins) => !ins.is_read).length;
+
   return (
     <section className="rounded-[28px] border border-fuchsia-400/25 bg-slate-950 p-4 shadow-[0_24px_80px_rgba(8,47,73,0.18)]">
-      <div className="mb-4 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-fuchsia-400/12 text-fuchsia-200">
-          <Bot size={22} />
-        </div>
-        <div>
-          <div className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">
-            {tx(lang, 'Background AI Agent', 'Фоновый AI Агент', 'Background AI Agent')}
+      <div
+        className="flex cursor-pointer flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-fuchsia-400/12 text-fuchsia-200">
+            <Bot size={22} />
           </div>
-          <p className="mt-1 text-sm text-slate-400">
-            {tx(lang, 'Serverdə arxa planda işləyən agentdən son analizlər', 'Последние анализы от фонового агента на сервере', 'Latest analysis from background agent on the server')}
-          </p>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black uppercase tracking-[0.24em] text-fuchsia-200">
+                {tx(lang, 'Background AI Agent', 'Фоновый AI Агент', 'Background AI Agent')}
+              </span>
+              {unreadCount > 0 && (
+                <span className="rounded-full bg-fuchsia-500 px-2 py-0.5 text-[10px] font-black text-white animate-pulse">
+                  {unreadCount} {tx(lang, 'yeni', 'новые', 'new')}
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-sm text-slate-400">
+              {tx(lang, 'Serverdə arxa planda işləyən agentdən son analizlər', 'Последние анализы от фонового агента на сервере', 'Latest analysis from background agent on the server')}
+            </p>
+          </div>
         </div>
+        <button
+          className="min-h-11 rounded-2xl border border-fuchsia-400/35 bg-fuchsia-500/10 px-4 text-xs font-black text-fuchsia-200"
+        >
+          {isOpen
+            ? tx(lang, 'Gizlə', 'Скрыть', 'Collapse')
+            : tx(lang, 'Göstər', 'Показать', 'Expand')}
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-        {insights.map((insight) => (
-          <div
-            key={insight.id}
-            className={`rounded-2xl border p-4 transition ${insight.is_read ? 'border-slate-700/50 bg-slate-900/30' : 'border-fuchsia-400/30 bg-fuchsia-950/30'}`}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-200">
-                {insight.type}
+      {isOpen && (
+        <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
+          {insights.map((insight) => (
+            <div
+              key={insight.id}
+              className={`rounded-2xl border p-4 transition ${insight.is_read ? 'border-slate-700/50 bg-slate-900/30' : 'border-fuchsia-400/30 bg-fuchsia-950/30'}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-slate-200">
+                  {insight.type}
+                </div>
+                <div className="text-xs font-bold text-slate-400">{formatServerUtcTime(insight.created_at, lang)}</div>
               </div>
-              <div className="text-xs font-bold text-slate-400">{formatServerUtcTime(insight.created_at, lang)}</div>
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-300">{insight.content}</p>
+              {!insight.is_read && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleMarkRead(insight.id);
+                  }}
+                  disabled={marking === insight.id}
+                  className="mt-3 inline-flex items-center gap-2 rounded-xl bg-fuchsia-500/20 px-3 py-1.5 text-xs font-bold text-fuchsia-100 hover:bg-fuchsia-500/30 disabled:opacity-50"
+                >
+                  {marking === insight.id ? tx(lang, 'Gözləyin...', 'Подождите...', 'Wait...') : tx(lang, 'Oxundu', 'Прочитано', 'Mark as read')}
+                </button>
+              )}
             </div>
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-300">{insight.content}</p>
-            {!insight.is_read && (
-              <button
-                onClick={() => handleMarkRead(insight.id)}
-                disabled={marking === insight.id}
-                className="mt-3 inline-flex items-center gap-2 rounded-xl bg-fuchsia-500/20 px-3 py-1.5 text-xs font-bold text-fuchsia-100 hover:bg-fuchsia-500/30 disabled:opacity-50"
-              >
-                {marking === insight.id ? tx(lang, 'Gözləyin...', 'Подождите...', 'Wait...') : tx(lang, 'Oxundu', 'Прочитано', 'Mark as read')}
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
