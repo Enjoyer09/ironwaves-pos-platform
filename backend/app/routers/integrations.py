@@ -7,12 +7,15 @@ from datetime import datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.deps import get_current_user, get_tenant
 from app.models import (
     AuditLog,
+    DeliveryMenuMapping,
     InventoryItem,
     KitchenOrder,
     MenuItem,
@@ -29,6 +32,194 @@ from app.services.finance_service import post_sale_cogs, post_sale_payment
 
 router = APIRouter(prefix="/api/v1/integrations", tags=["integrations"])
 logger = logging.getLogger(__name__)
+
+
+# --- Pydantic Schemas for Delivery Menu Mappings ---
+
+class DeliveryMenuMappingCreate(BaseModel):
+    provider: str
+    external_item_id: str
+    external_item_name: str | None = None
+    menu_item_id: str
+
+
+class DeliveryMenuMappingUpdate(BaseModel):
+    external_item_id: str | None = None
+    external_item_name: str | None = None
+    menu_item_id: str | None = None
+
+
+class DeliveryMenuMappingOut(BaseModel):
+    id: str
+    tenant_id: str
+    provider: str
+    external_item_id: str
+    external_item_name: str | None = None
+    menu_item_id: str
+    menu_item_name: str | None = None
+    menu_item_price: Decimal | None = None
+
+    class Config:
+        from_attributes = True
+
+
+# --- Mappings CRUD Endpoints ---
+
+@router.get("/menu-mappings", response_model=list[DeliveryMenuMappingOut])
+def list_menu_mappings(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    current_user: User = Depends(get_current_user),
+):
+    if str(current_user.role or "").lower() not in {"admin", "super_admin", "manager"}:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    rows = (
+        db.query(DeliveryMenuMapping, MenuItem)
+        .outerjoin(MenuItem, MenuItem.id == DeliveryMenuMapping.menu_item_id)
+        .filter(DeliveryMenuMapping.tenant_id == tenant.id)
+        .all()
+    )
+
+    result = []
+    for mapping, item in rows:
+        result.append(
+            DeliveryMenuMappingOut(
+                id=mapping.id,
+                tenant_id=mapping.tenant_id,
+                provider=mapping.provider,
+                external_item_id=mapping.external_item_id,
+                external_item_name=mapping.external_item_name,
+                menu_item_id=mapping.menu_item_id,
+                menu_item_name=item.item_name if item else None,
+                menu_item_price=item.price if item else None,
+            )
+        )
+    return result
+
+
+@router.post("/menu-mappings", response_model=DeliveryMenuMappingOut)
+def create_menu_mapping(
+    payload: DeliveryMenuMappingCreate,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    current_user: User = Depends(get_current_user),
+):
+    if str(current_user.role or "").lower() not in {"admin", "super_admin", "manager"}:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    provider = payload.provider.strip().lower()
+    if provider not in {"bolt", "wolt"}:
+        raise HTTPException(status_code=400, detail="Provider must be 'bolt' or 'wolt'")
+
+    # Check if menu item exists
+    menu_item = db.query(MenuItem).filter(MenuItem.id == payload.menu_item_id, MenuItem.tenant_id == tenant.id).first()
+    if not menu_item:
+        raise HTTPException(status_code=404, detail="Internal Menu Item not found")
+
+    # Check duplicate
+    existing = db.query(DeliveryMenuMapping).filter(
+        DeliveryMenuMapping.tenant_id == tenant.id,
+        DeliveryMenuMapping.provider == provider,
+        DeliveryMenuMapping.external_item_id == payload.external_item_id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Mapping rule already exists for this external ID")
+
+    mapping = DeliveryMenuMapping(
+        tenant_id=tenant.id,
+        provider=provider,
+        external_item_id=payload.external_item_id.strip(),
+        external_item_name=payload.external_item_name.strip() if payload.external_item_name else None,
+        menu_item_id=payload.menu_item_id,
+    )
+    db.add(mapping)
+    db.commit()
+    db.refresh(mapping)
+
+    return DeliveryMenuMappingOut(
+        id=mapping.id,
+        tenant_id=mapping.tenant_id,
+        provider=mapping.provider,
+        external_item_id=mapping.external_item_id,
+        external_item_name=mapping.external_item_name,
+        menu_item_id=mapping.menu_item_id,
+        menu_item_name=menu_item.item_name,
+        menu_item_price=menu_item.price,
+    )
+
+
+@router.patch("/menu-mappings/{mapping_id}", response_model=DeliveryMenuMappingOut)
+def update_menu_mapping(
+    mapping_id: str,
+    payload: DeliveryMenuMappingUpdate,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    current_user: User = Depends(get_current_user),
+):
+    if str(current_user.role or "").lower() not in {"admin", "super_admin", "manager"}:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    mapping = db.query(DeliveryMenuMapping).filter(DeliveryMenuMapping.id == mapping_id, DeliveryMenuMapping.tenant_id == tenant.id).first()
+    if not mapping:
+        raise HTTPException(status_code=404, detail="Mapping rule not found")
+
+    if payload.menu_item_id is not None:
+        menu_item = db.query(MenuItem).filter(MenuItem.id == payload.menu_item_id, MenuItem.tenant_id == tenant.id).first()
+        if not menu_item:
+            raise HTTPException(status_code=404, detail="Internal Menu Item not found")
+        mapping.menu_item_id = payload.menu_item_id
+
+    if payload.external_item_id is not None:
+        ext_id = payload.external_item_id.strip()
+        if not ext_id:
+            raise HTTPException(status_code=400, detail="External item ID cannot be empty")
+        if ext_id != mapping.external_item_id:
+            existing = db.query(DeliveryMenuMapping).filter(
+                DeliveryMenuMapping.tenant_id == tenant.id,
+                DeliveryMenuMapping.provider == mapping.provider,
+                DeliveryMenuMapping.external_item_id == ext_id
+            ).first()
+            if existing:
+                raise HTTPException(status_code=409, detail="Mapping rule already exists for this external ID")
+        mapping.external_item_id = ext_id
+
+    if payload.external_item_name is not None:
+        mapping.external_item_name = payload.external_item_name.strip() if payload.external_item_name else None
+
+    db.commit()
+    db.refresh(mapping)
+
+    menu_item = db.query(MenuItem).filter(MenuItem.id == mapping.menu_item_id).first()
+    return DeliveryMenuMappingOut(
+        id=mapping.id,
+        tenant_id=mapping.tenant_id,
+        provider=mapping.provider,
+        external_item_id=mapping.external_item_id,
+        external_item_name=mapping.external_item_name,
+        menu_item_id=mapping.menu_item_id,
+        menu_item_name=menu_item.item_name if menu_item else None,
+        menu_item_price=menu_item.price if menu_item else None,
+    )
+
+
+@router.delete("/menu-mappings/{mapping_id}")
+def delete_menu_mapping(
+    mapping_id: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    current_user: User = Depends(get_current_user),
+):
+    if str(current_user.role or "").lower() not in {"admin", "super_admin", "manager"}:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    mapping = db.query(DeliveryMenuMapping).filter(DeliveryMenuMapping.id == mapping_id, DeliveryMenuMapping.tenant_id == tenant.id).first()
+    if not mapping:
+        raise HTTPException(status_code=404, detail="Mapping rule not found")
+
+    db.delete(mapping)
+    db.commit()
+    return {"success": True}
 
 
 def _verify_signature(body_bytes: bytes, secret_key: str, header_signature: str) -> bool:
@@ -73,9 +264,29 @@ async def process_delivery_order_logic(
         # Look up menu item
         menu_item = None
         if ext_id:
-            menu_item = db.query(MenuItem).filter(MenuItem.tenant_id == tenant_id, MenuItem.id == ext_id).first()
+            mapping = db.query(DeliveryMenuMapping).filter(
+                DeliveryMenuMapping.tenant_id == tenant_id,
+                DeliveryMenuMapping.provider == provider,
+                DeliveryMenuMapping.external_item_id == ext_id
+            ).first()
+            if mapping:
+                menu_item = db.query(MenuItem).filter(
+                    MenuItem.tenant_id == tenant_id,
+                    MenuItem.id == mapping.menu_item_id,
+                    MenuItem.is_active == True
+                ).first()
+            if not menu_item:
+                menu_item = db.query(MenuItem).filter(
+                    MenuItem.tenant_id == tenant_id,
+                    MenuItem.id == ext_id,
+                    MenuItem.is_active == True
+                ).first()
         if not menu_item and item_name:
-            menu_item = db.query(MenuItem).filter(MenuItem.tenant_id == tenant_id, func.lower(MenuItem.item_name) == item_name.lower()).first()
+            menu_item = db.query(MenuItem).filter(
+                MenuItem.tenant_id == tenant_id,
+                func.lower(MenuItem.item_name) == item_name.lower(),
+                MenuItem.is_active == True
+            ).first()
 
         if menu_item:
             mapped_name = menu_item.item_name
