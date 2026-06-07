@@ -220,6 +220,9 @@ async def bolt_webhook(
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    if tenant.status != "active":
+        raise HTTPException(status_code=403, detail="Tenant is suspended")
+
 
     # 2. Fetch delivery integrations settings
     setting_row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == "delivery_integrations").first()
@@ -267,6 +270,9 @@ async def wolt_webhook(
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    if tenant.status != "active":
+        raise HTTPException(status_code=403, detail="Tenant is suspended")
+
 
     # 2. Fetch delivery integrations settings
     setting_row = db.query(Setting).filter(Setting.tenant_id == tenant_id, Setting.key == "delivery_integrations").first()

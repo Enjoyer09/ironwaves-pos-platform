@@ -734,6 +734,9 @@ async def simulate_webhook(
     tenant = db.query(Tenant).filter(Tenant.id == target_tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
+    if tenant.status != "active":
+        raise HTTPException(status_code=403, detail="Tenant is suspended")
+
 
     from app.routers.integrations import process_delivery_order_logic
     
