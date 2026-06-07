@@ -34,6 +34,12 @@ import {
 } from '../../api/settings';
 import { get_menu_items_live } from '../../api/menu';
 import { get_inventory_items_live } from '../../api/inventory';
+import {
+  getDeliveryMenuMappings,
+  createDeliveryMenuMapping,
+  deleteDeliveryMenuMapping,
+  DeliveryMenuMapping,
+} from '../../api/integrations';
 import ConfirmModal from '../ConfirmModal';
 import { prepareImageDataUrl, prepareSmallImageDataUrl } from '../../lib/image_upload';
 import { isAgentVersionOutdated, localPrintAgentInfo, localPrintAgentPrinters, LocalPrintAgentPrinter } from '../../lib/local_print_agent';
@@ -228,6 +234,14 @@ export default function SettingsPanel() {
     item_unit_cap_azn: '6',
   });
   const [menuCatalog, setMenuCatalog] = useState<any[]>([]);
+  const [deliveryMenuMappings, setDeliveryMenuMappings] = useState<DeliveryMenuMapping[]>([]);
+  const [deliveryMenuMappingsLoading, setDeliveryMenuMappingsLoading] = useState(false);
+  const [newDeliveryMenuMapping, setNewDeliveryMenuMapping] = useState({
+    provider: 'bolt' as 'bolt' | 'wolt',
+    external_item_id: '',
+    external_item_name: '',
+    menu_item_id: '',
+  });
   const [inventoryCatalog, setInventoryCatalog] = useState<any[]>([]);
   const [yieldInventoryCandidate, setYieldInventoryCandidate] = useState('');
   const [yieldInventorySearch, setYieldInventorySearch] = useState('');
@@ -342,6 +356,11 @@ export default function SettingsPanel() {
     ]);
     void get_menu_items_live(tenantId).then(setMenuCatalog).catch(() => setMenuCatalog([]));
     void get_inventory_items_live(tenantId).then(setInventoryCatalog).catch(() => setInventoryCatalog([]));
+    setDeliveryMenuMappingsLoading(true);
+    void getDeliveryMenuMappings()
+      .then(setDeliveryMenuMappings)
+      .catch(() => setDeliveryMenuMappings([]))
+      .finally(() => setDeliveryMenuMappingsLoading(false));
 
     if (profileRes.status === 'fulfilled') {
       const nextProfile = {
@@ -1021,6 +1040,40 @@ export default function SettingsPanel() {
     flashSuccess(tx(lang, 'Z-Hesabat çek ayarları yadda saxlanıldı', 'Настройки чека Z-отчёта сохранены', 'Z-report receipt settings saved'), 'zreport_receipt');
   };
 
+  const handleAddDeliveryMenuMapping = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDeliveryMenuMapping.external_item_id.trim() || !newDeliveryMenuMapping.menu_item_id) {
+      notify('error', tx(lang, 'Xarici ID və Daxili Məhsul mütləqdir', 'Внешний ID и внутренний продукт обязательны', 'External ID and Internal Product are required'));
+      return;
+    }
+    try {
+      const created = await createDeliveryMenuMapping(newDeliveryMenuMapping);
+      setDeliveryMenuMappings((prev) => [...prev, created]);
+      setNewDeliveryMenuMapping({
+        provider: newDeliveryMenuMapping.provider,
+        external_item_id: '',
+        external_item_name: '',
+        menu_item_id: '',
+      });
+      notify('success', tx(lang, 'Xəritələnmə uğurla əlavə edildi', 'Сопоставление успешно добавлено', 'Mapping successfully added'));
+    } catch (err: any) {
+      notify('error', err.message || 'Error creating mapping');
+    }
+  };
+
+  const handleDeleteDeliveryMenuMapping = async (id: string) => {
+    if (!confirm(tx(lang, 'Bu xəritələnməni silmək istədiyinizdən əminsiniz?', 'Вы уверены, что хотите удалить это сопоставление?', 'Are you sure you want to delete this mapping?'))) {
+      return;
+    }
+    try {
+      await deleteDeliveryMenuMapping(id);
+      setDeliveryMenuMappings((prev) => prev.filter((m) => m.id !== id));
+      notify('success', tx(lang, 'Xəritələnmə silindi', 'Сопоставление удалено', 'Mapping deleted'));
+    } catch (err: any) {
+      notify('error', err.message || 'Error deleting mapping');
+    }
+  };
+
   const saveQrMenuSettings = async () => {
     await update_qr_menu_settings_live({
       enabled: qrMenuSettings.enabled,
@@ -1496,6 +1549,135 @@ export default function SettingsPanel() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Menu Mappings Sub-section */}
+        <div className="border-t border-slate-700/40 pt-6 space-y-4">
+          <div>
+            <h3 className="text-lg font-bold text-slate-100">{tx(lang, 'Menyu Xəritələnməsi', 'Сопоставление меню', 'Menu Mappings')}</h3>
+            <p className="text-xs text-slate-400">
+              {tx(
+                lang,
+                'Çatdırılma platformalarından (Bolt/Wolt) gələn xarici Məhsul ID-lərini sistemin daxili menyu elementlərinə uyğunlaşdırın.',
+                'Сопоставьте внешние ID продуктов от платформ доставки (Bolt/Wolt) с внутренними элементами меню.',
+                'Map external product IDs from delivery platforms (Bolt/Wolt) to internal menu items.',
+              )}
+            </p>
+          </div>
+
+          {/* New Mapping Form */}
+          <form onSubmit={handleAddDeliveryMenuMapping} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end bg-slate-900/40 p-4 rounded-xl border border-slate-800">
+            <div className="space-y-1">
+              <label className="text-xs text-slate-400 block">{tx(lang, 'Platforma', 'Платформа', 'Platform')}</label>
+              <select
+                className="neon-input w-full bg-slate-950 border border-slate-800"
+                value={newDeliveryMenuMapping.provider}
+                onChange={(e) => setNewDeliveryMenuMapping((prev) => ({ ...prev, provider: e.target.value as 'bolt' | 'wolt' }))}
+              >
+                <option value="bolt">Bolt Food</option>
+                <option value="wolt">Wolt</option>
+              </select>
+            </div>
+            
+            <div className="space-y-1">
+              <label className="text-xs text-slate-400 block">{tx(lang, 'Xarici Məhsul ID', 'Внешний ID продукта', 'External Product ID')}</label>
+              <input
+                className="neon-input w-full"
+                value={newDeliveryMenuMapping.external_item_id}
+                onChange={(e) => setNewDeliveryMenuMapping((prev) => ({ ...prev, external_item_id: e.target.value }))}
+                placeholder="Örnək: item-1234"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-slate-400 block">{tx(lang, 'Xarici Məhsul Adı (İxtiyari)', 'Внешнее имя (Опционально)', 'External Name (Optional)')}</label>
+              <input
+                className="neon-input w-full"
+                value={newDeliveryMenuMapping.external_item_name}
+                onChange={(e) => setNewDeliveryMenuMapping((prev) => ({ ...prev, external_item_name: e.target.value }))}
+                placeholder="Örnək: Cappuccino 250ml"
+              />
+            </div>
+
+            <div className="space-y-1 flex gap-2">
+              <div className="flex-1 space-y-1">
+                <label className="text-xs text-slate-400 block">{tx(lang, 'Daxili Menyu Məhsulu', 'Внутренний продукт меню', 'Internal Menu Item')}</label>
+                <select
+                  className="neon-input w-full bg-slate-950 border border-slate-800"
+                  value={newDeliveryMenuMapping.menu_item_id}
+                  onChange={(e) => setNewDeliveryMenuMapping((prev) => ({ ...prev, menu_item_id: e.target.value }))}
+                >
+                  <option value="">{tx(lang, 'Seçin...', 'Выберите...', 'Select...')}</option>
+                  {menuCatalog.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.item_name} ({Number(item.price).toFixed(2)} AZN)
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="submit"
+                className="glossy-gold h-[42px] px-4 rounded-xl font-bold flex items-center justify-center shrink-0"
+              >
+                {tx(lang, 'Əlavə Et', 'Добавить', 'Add')}
+              </button>
+            </div>
+          </form>
+
+          {/* Mappings Table */}
+          {deliveryMenuMappingsLoading ? (
+            <div className="text-center py-4 text-xs text-slate-400">{tx(lang, 'Yüklənir...', 'Загрузка...', 'Loading...')}</div>
+          ) : deliveryMenuMappings.length === 0 ? (
+            <div className="text-center py-4 text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl">
+              {tx(lang, 'Hələ heç bir menyu xəritələnməsi qurulmayıb.', 'Сопоставления меню еще не настроены.', 'No menu mappings have been set up yet.')}
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/20">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-800 bg-slate-900/50 text-slate-400 uppercase font-semibold">
+                    <th className="p-3">{tx(lang, 'Platforma', 'Платформа', 'Platform')}</th>
+                    <th className="p-3">{tx(lang, 'Xarici ID / Adı', 'Внешний ID / Имя', 'External ID / Name')}</th>
+                    <th className="p-3">{tx(lang, 'Daxili Menyu Məhsulu', 'Внутренний продукт', 'Internal Menu Item')}</th>
+                    <th className="p-3 text-right">{tx(lang, 'Əməliyyat', 'Действие', 'Action')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                  {deliveryMenuMappings.map((mapping) => (
+                    <tr key={mapping.id} className="hover:bg-slate-900/20 transition-colors">
+                      <td className="p-3 capitalize font-medium text-slate-200">
+                        {mapping.provider === 'bolt' ? 'Bolt Food' : 'Wolt'}
+                      </td>
+                      <td className="p-3">
+                        <span className="font-mono text-slate-400 block">{mapping.external_item_id}</span>
+                        {mapping.external_item_name && (
+                          <span className="text-[10px] text-slate-500 block mt-0.5">{mapping.external_item_name}</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        {mapping.menu_item_name ? (
+                          <div className="flex flex-col">
+                            <span className="text-slate-100 font-semibold">{mapping.menu_item_name}</span>
+                            <span className="text-[10px] text-slate-400">{Number(mapping.menu_item_price).toFixed(2)} AZN</span>
+                          </div>
+                        ) : (
+                          <span className="text-rose-400/80 italic">{tx(lang, 'Məhsul silinib', 'Продукт удален', 'Product deleted')}</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-right">
+                        <button
+                          onClick={() => handleDeleteDeliveryMenuMapping(mapping.id)}
+                          className="px-2.5 py-1.5 rounded-lg border border-rose-500/30 bg-rose-500/5 hover:bg-rose-500/10 text-rose-400 hover:text-rose-300 transition-colors font-semibold"
+                        >
+                          {tx(lang, 'Sil', 'Удалить', 'Delete')}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {renderPanelSuccess('delivery_integrations')}
