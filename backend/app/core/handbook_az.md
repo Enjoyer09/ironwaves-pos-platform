@@ -883,7 +883,31 @@ Sistem CRM axınını da dəstəkləyir:
 - kampaniyalar
 - customer app
 
-## 17. Menecer üçün gündəlik yoxlama siyahısı
+## 17. Çatdırılma İnteqrasiyaları (Bolt Food & Wolt)
+
+Sistemimiz Bolt Food və Wolt çatdırılma sifarişlərinin mətbəxə avtomatik ötürülməsini dəstəkləyir. 
+
+### 17.1. Sifarişin Qəbulu və Mətbəx Axını (Step-by-Step)
+
+Müştəri Bolt və ya Wolt tətbiqindən sifariş verdikdə proses aşağıdakı ardıcıllıqla işləyir:
+
+1. **Avtomatik Qeydiyyat**: Bolt/Wolt tərəfindən webhook sorğusu gəldikdə, sistem satışı bazada **`COMPLETED`** (Ödənilmiş) olaraq qeydə alır (çünki ödəniş çatdırılma platformasında artıq müştəridən tutulub).
+2. **Kritik Yoxlama (Növbə)**: Sifarişin uğurla qeydiyyata alınması üçün seçilmiş filialda (tenantda) **növbə (shift) açıq olmalıdır**. Əgər növbə bağlıdırsa, sifariş rədd ediləcək.
+3. **Mətbəx Ekranına (KDS) Ötürülmə**: Eyni saniyədə statusu **`NEW`** (Yeni) olan bir mətbəx sifarişi (`KitchenOrder`) yaranır və KDS monitorunda səs siqnalı ilə görünür.
+4. **Sifarişin Hazırlanması**:
+   - Barista və ya Aşpaz (`kitchen`, `manager` və ya `admin` rolu) KDS ekranında **"Qəbul Et (Hazırla)"** düyməsinə klikləyir. Sifarişin statusu **`PREPARING`** (Hazırlanır) olur.
+   - Sifariş hazır olduqda **"Hazırdır (Tamamla)"** klikləyirlər.
+5. **Kassir Bildirişi**: Sifariş KDS-də tamamlandıqda kassirin POS ekranında pop-up (toast) bildiriş çıxır ki, sifarişin kuryerə təhvil verilməyə hazır olduğunu bilsin.
+6. **Ofisiantlar üçün Limit**: Ofisiantlar (`staff` rolu) sifarişləri görə bilsələr də, KDS-də onları qəbul edə və ya bitirə bilməzlər (ekran onlar üçün read-only rejimdədir).
+
+### 17.2. İnteqrasiyanın Aktivləşdirilməsi
+
+İnteqrasiyanı aktiv etmək üçün:
+1. `Ayarlar` panelindən `Çatdırılma` bölməsinə keçin.
+2. Bolt və ya Wolt inteqrasiyasını aktiv edin və sizə verilən **Provider ID** və **Secret Key**-i daxil edib yadda saxlayın.
+3. Ekranda görünən copyable **Webhook URL**-i kopyalayaraq Bolt/Wolt dəstək komandasına göndərin.
+
+## 18. Menecer üçün gündəlik yoxlama siyahısı
 
 Hər gün bunlara baxmaq tövsiyə olunur:
 
@@ -893,7 +917,7 @@ Hər gün bunlara baxmaq tövsiyə olunur:
 4. `Analytics`
 5. `Logs > Maliyyə auditləri`
 
-## 18. Tövsiyə olunan gündəlik axın
+## 19. Tövsiyə olunan gündəlik axın
 
 1. Günü aç
 2. Kassanı yoxla
@@ -904,13 +928,13 @@ Hər gün bunlara baxmaq tövsiyə olunur:
 7. Gün sonunda `Z-Hesabat`
 8. Maliyyə və dashboard warning-lərinə bax
 
-## 19. Əsas Qayda
+## 20. Əsas Qayda
 
 Bu sistemdə üç şey bir-birindən ayrı düşünülməlidir:
 
 - `Satış gəliri`
 - `Daxili transfer`
-- `Borclu/öhdəlikli pul`
+- `Borclu/öhudəlikli pul`
 
 Yəni:
 - hər kassaya girən pul gəlir deyil
@@ -919,7 +943,7 @@ Yəni:
 
 Sistemin məqsədi bunları qarışdırmamaqdır.
 
-## 20. CI Troubleshooting (Backend Test Fail üçün)
+## 21. CI Troubleshooting (Backend Test Fail üçün)
 
 Əgər GitHub Actions-da `Backend Checks` qırılırsa, bu ardıcıllıqla yoxlayın:
 
@@ -943,7 +967,7 @@ grep -n 'asyncio_default_fixture_loop_scope = function' backend/pytest.ini
 grep -n 'if not hasattr(db, "query")' backend/app/routers/reports.py
 ```
 
-## 21. Son Dəyişikliklər (Changelog Snapshot)
+## 22. Son Dəyişikliklər (Changelog Snapshot)
 
 Son sabitləşdirmələr:
 
@@ -953,3 +977,4 @@ Son sabitləşdirmələr:
   - `python -m pytest -o asyncio_default_fixture_loop_scope=function`
 - `Recipes`: AI resept axını inventory fallback + Affogato üçün məcburi packaging qaydaları ilə sərtləşdirildi.
 - `Recipes UI`: `Yadda saxla` düyməsi disabled səbəbini tooltip ilə daha dəqiq göstərir (AI auto-save mesajı daxil).
+
