@@ -1228,6 +1228,7 @@ export default function SettingsPanel() {
 
   const settingsSections = [
     { id: 'sec-profile', label: tx(lang, 'Profil', 'Профиль', 'Profile') },
+    { id: 'sec-delivery', label: tx(lang, 'Çatdırılma', 'Доставка', 'Delivery') },
     { id: 'sec-print', label: tx(lang, 'Çap', 'Печать', 'Print') },
     { id: 'sec-interface', label: tx(lang, 'İnterfeys', 'Интерфейс', 'Interface') },
     { id: 'sec-tables', label: tx(lang, 'Masalar', 'Столы', 'Tables') },
@@ -1238,6 +1239,7 @@ export default function SettingsPanel() {
     { id: 'sec-qr', label: tx(lang, 'QR & Feedback', 'QR & Отзывы', 'QR & Feedback') },
     { id: 'sec-roles', label: tx(lang, 'Rollar', 'Роли', 'Roles') },
   ];
+
 
   return (
     <div className="flex gap-4">
@@ -1387,7 +1389,7 @@ export default function SettingsPanel() {
         </div>
       </div>
 
-      <div className="metal-panel p-6 space-y-4">
+      <div id="sec-delivery" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Çatdırılma İnteqrasiyaları', 'Интеграции доставки', 'Delivery Integrations')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
