@@ -51,7 +51,6 @@ type DashboardSnapshot = {
   kitchenOrders: any[];
   tables: any[];
   balances: any;
-  financeEntries: any[];
   lowStock: any[];
   pendingOffline: number;
   pendingOfflineTableOps: number;
@@ -131,7 +130,6 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
     kitchenOrders: [],
     tables: [],
     balances: emptyBalances,
-    financeEntries: [],
     lowStock: [],
     pendingOffline: 0,
     pendingOfflineTableOps: 0,
@@ -180,7 +178,6 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         kitchenOrders,
         tables,
         balances,
-        financeEntries,
         pendingOffline,
         pendingOfflineTableOps,
         pendingOfflineTableOpItems,
@@ -197,7 +194,6 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         get_kitchen_orders_live(tenant_id).catch(() => get_kitchen_orders(tenant_id)),
         get_tables_live(tenant_id).catch(() => get_tables(tenant_id)),
         fetch_finance_balances(tenant_id).catch(() => get_balance(tenant_id, 'all', false) as any),
-        fetch_finance_entries(tenant_id).catch(() => []),
         getPendingOfflineSalesCount(tenant_id),
         Promise.resolve(getPendingOfflineTableOpsCount(tenant_id)),
         Promise.resolve(getPendingOfflineTableOps(tenant_id, 10)),
@@ -212,7 +208,6 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         kitchenOrders,
         tables,
         balances,
-        financeEntries,
         lowStock: get_low_stock_items(tenant_id, 5),
         pendingOffline,
         pendingOfflineTableOps,
@@ -266,7 +261,7 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
   );
 
   const openChecks = useMemo(
-    () => activeTables.filter((table: any) => new Decimal(table.total || 0).greaterThan(0)),
+    () => activeTables.filter((table: any) => new Decimal(table.check_total || table.total || 0).greaterThan(0)),
     [activeTables],
   );
 
@@ -859,8 +854,12 @@ function RangeControls({
           type="date"
           value={fromDate}
           onChange={(event) => {
+            const val = event.target.value;
             setRangePreset('custom');
-            setFromDate(event.target.value);
+            setFromDate(val);
+            if (toDate && val > toDate) {
+              setToDate(val);
+            }
           }}
           className="neon-input min-h-11 bg-slate-950 text-slate-100"
         />
@@ -868,8 +867,12 @@ function RangeControls({
           type="date"
           value={toDate}
           onChange={(event) => {
+            const val = event.target.value;
             setRangePreset('custom');
-            setToDate(event.target.value);
+            setToDate(val);
+            if (fromDate && val < fromDate) {
+              setFromDate(val);
+            }
           }}
           className="neon-input min-h-11 bg-slate-950 text-slate-100"
         />
@@ -1260,7 +1263,7 @@ function OpenChecksPreview({ tables, lang }: { tables: any[]; lang: string }) {
               <div className="mt-1 text-xs text-slate-500">{Number(table.guest_count || table.guests || 0)} {tx(lang, 'nəfər', 'гостей', 'guests')}</div>
             </div>
             <div className="text-right">
-              <div className="text-lg font-black text-white">{money(table.total)}</div>
+              <div className="text-lg font-black text-white">{money(table.check_total || table.total || 0)}</div>
               <div className="text-xs text-violet-300">{tableStatusLabel(table.status, lang)}</div>
             </div>
           </div>
