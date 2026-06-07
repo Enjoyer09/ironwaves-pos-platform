@@ -348,6 +348,106 @@ def get_sales_summary(
     reconciliation_gap = totals["reconciliation_gap"]
     void_count = int(totals["void_count"])
     void_sales = totals["void_sales"]
+
+    # Fetch active, non-voided sales for hourly, payment and delivery breakdown
+    raw_sales = (
+        db.query(Sale.created_at, Sale.total, Sale.payment_method, Sale.order_type, Sale.cashier)
+        .filter(*sales_filters, sale_is_net)
+        .all()
+    )
+
+    # Initialize Hourly Sales (24 hours: "00:00" to "23:00")
+    hourly_sums = [Decimal("0.00")] * 24
+
+    # Initialize Payment Methods
+    payment_sums = {
+        "cash": Decimal("0.00"),
+        "card": Decimal("0.00"),
+        "split": Decimal("0.00"),
+        "staff": Decimal("0.00"),
+    }
+
+    # Initialize Delivery Channels
+    bolt_count = 0
+    bolt_revenue = Decimal("0.00")
+    wolt_count = 0
+    wolt_revenue = Decimal("0.00")
+    dine_in_count = 0
+    dine_in_revenue = Decimal("0.00")
+    takeaway_count = 0
+    takeaway_revenue = Decimal("0.00")
+
+    for s_created_at, s_total, s_pm, s_ot, s_cashier in raw_sales:
+        total_val = Decimal(str(s_total or 0))
+        
+        # 1. Hourly aggregation
+        if s_created_at:
+            hr = s_created_at.hour
+            if 0 <= hr < 24:
+                hourly_sums[hr] += total_val
+        
+        # 2. Payment method aggregation
+        pm_norm = _normalize_payment_method(s_pm)
+        if pm_norm in payment_sums:
+            payment_sums[pm_norm] += total_val
+        else:
+            payment_sums["card"] += total_val  # Default fallback
+            
+        # 3. Delivery Channels aggregation
+        ot_upper = str(s_ot or "").strip().upper()
+        cashier_lower = str(s_cashier or "").strip().lower()
+        
+        if ot_upper == "DELIVERY" and "bolt" in cashier_lower:
+            bolt_count += 1
+            bolt_revenue += total_val
+        elif ot_upper == "DELIVERY" and "wolt" in cashier_lower:
+            wolt_count += 1
+            wolt_revenue += total_val
+        elif ot_upper in ("DINE_IN", "DINEIN") or "dine" in ot_upper:
+            dine_in_count += 1
+            dine_in_revenue += total_val
+        elif ot_upper in ("TAKEAWAY", "TAKE_AWAY") or "take" in ot_upper:
+            takeaway_count += 1
+            takeaway_revenue += total_val
+        else:
+            if "bolt" in cashier_lower:
+                bolt_count += 1
+                bolt_revenue += total_val
+            elif "wolt" in cashier_lower:
+                wolt_count += 1
+                wolt_revenue += total_val
+            elif ot_upper == "DELIVERY":
+                takeaway_count += 1
+                takeaway_revenue += total_val
+            else:
+                dine_in_count += 1
+                dine_in_revenue += total_val
+
+    hourly_trend = []
+    for h in range(24):
+        hourly_trend.append({
+            "hour": f"{h:02d}:00",
+            "sales": float(hourly_sums[h].quantize(Decimal("0.01"))),
+        })
+
+    payment_breakdown = [
+        {"name": "cash", "value": float(payment_sums["cash"].quantize(Decimal("0.01")))},
+        {"name": "card", "value": float(payment_sums["card"].quantize(Decimal("0.01")))},
+        {"name": "split", "value": float(payment_sums["split"].quantize(Decimal("0.01")))},
+        {"name": "staff", "value": float(payment_sums["staff"].quantize(Decimal("0.01")))},
+    ]
+
+    # Fetch delivery integrations settings
+    setting_row = db.query(Setting).filter(Setting.tenant_id == tenant.id, Setting.key == "delivery_integrations").first()
+    settings_dict = {}
+    if setting_row and setting_row.value:
+        try:
+            settings_dict = json.loads(setting_row.value)
+        except Exception:
+            pass
+    bolt_enabled = bool(settings_dict.get("bolt_food_enabled", False))
+    wolt_enabled = bool(settings_dict.get("wolt_enabled", False))
+
     return {
         "total_revenue": str(total_revenue.quantize(Decimal("0.01"))),
         "cash_sales": str(cash_sales.quantize(Decimal("0.01"))),
@@ -361,6 +461,28 @@ def get_sales_summary(
         "total_cogs": str(total_cogs.quantize(Decimal("0.01"))),
         "gross_profit": str((total_revenue - total_cogs).quantize(Decimal("0.01"))),
         "void_count": void_count,
+        "hourly_trend": hourly_trend,
+        "payment_breakdown": payment_breakdown,
+        "channels": {
+            "bolt": {
+                "count": bolt_count,
+                "revenue": str(bolt_revenue.quantize(Decimal("0.01"))),
+                "enabled": bolt_enabled
+            },
+            "wolt": {
+                "count": wolt_count,
+                "revenue": str(wolt_revenue.quantize(Decimal("0.01"))),
+                "enabled": wolt_enabled
+            },
+            "dine_in": {
+                "count": dine_in_count,
+                "revenue": str(dine_in_revenue.quantize(Decimal("0.01")))
+            },
+            "takeaway": {
+                "count": takeaway_count,
+                "revenue": str(takeaway_revenue.quantize(Decimal("0.01")))
+            }
+        }
     }
 
 

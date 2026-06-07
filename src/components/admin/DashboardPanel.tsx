@@ -13,7 +13,20 @@ import {
   Wallet,
   WifiOff,
   Bot,
+  TrendingUp,
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from 'recharts';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
 import { get_sales_list, get_sales_list_live, get_sales_summary, get_sales_summary_live } from '../../api/analytics';
@@ -433,6 +446,14 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
     });
   }, [activeRange.fromIso, activeRange.toIso, snapshot.loading, tenant_id]);
 
+  const totalRevenueVal = useMemo(() => new Decimal(snapshot.summary?.total_revenue || 0), [snapshot.summary?.total_revenue]);
+  const totalCogsVal = useMemo(() => new Decimal(snapshot.summary?.total_cogs || 0), [snapshot.summary?.total_cogs]);
+  const grossMargin = useMemo(() => {
+    return totalRevenueVal.greaterThan(0)
+      ? totalRevenueVal.minus(totalCogsVal).div(totalRevenueVal).times(100).toFixed(1)
+      : '0.0';
+  }, [totalRevenueVal, totalCogsVal]);
+
   const openInsightModule = (module: AiDecisionInsight['module']) => {
     if (module === 'finance') return onOpenTab('finance');
     if (module === 'inventory') return onOpenTab('inventory');
@@ -492,6 +513,8 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         avgTicket={money(averageTicket)}
         kitchenLoad={kitchenLoad}
         cashGap={money(financeAnomalies?.shift_cash_gap || 0)}
+        cogs={money(snapshot.summary?.total_cogs)}
+        grossMargin={grossMargin}
         onOpenTab={onOpenTab}
       />
 
@@ -508,6 +531,8 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
         lang={lang}
         onOpen={(module) => openInsightModule(module)}
       />
+
+      <AnalyticsCenter lang={lang} summary={snapshot.summary} />
 
       <main className="grid grid-cols-1 gap-5 2xl:grid-cols-[1.25fr_0.85fr]">
         <section className="space-y-5">
@@ -834,6 +859,8 @@ function KPISection({
   avgTicket,
   kitchenLoad,
   cashGap,
+  cogs,
+  grossMargin,
   onOpenTab,
 }: {
   lang: string;
@@ -843,16 +870,244 @@ function KPISection({
   avgTicket: string;
   kitchenLoad: number;
   cashGap: string;
+  cogs: string;
+  grossMargin: string;
   onOpenTab: (tab: DashboardTab) => void;
 }) {
   return (
-    <section className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-6">
+    <section className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-8">
       <KpiCard title={tx(lang, 'Bu gün satış', 'Продажи сегодня', 'Today sales')} value={revenue} helper={tx(lang, 'canlı yenilənir', 'live', 'live')} icon={<Receipt size={22} />} tone="emerald" onClick={() => onOpenTab('analytics')} />
       <KpiCard title={tx(lang, 'Aktiv masalar', 'Активные столы', 'Active tables')} value={String(activeTables)} helper={tx(lang, 'zal vəziyyəti', 'зал', 'floor')} icon={<Users size={22} />} tone="sky" onClick={() => onOpenTab('tables')} />
       <KpiCard title={tx(lang, 'Açıq hesablar', 'Открытые чеки', 'Open checks')} value={String(openChecks)} helper={tx(lang, 'ödəniş gözləyir', 'ждет оплаты', 'awaiting payment')} icon={<ShoppingBag size={22} />} tone="violet" onClick={() => onOpenTab('tables')} />
       <KpiCard title={tx(lang, 'Orta çek', 'Средний чек', 'Avg ticket')} value={avgTicket} helper={tx(lang, 'çek başına', 'на чек', 'per check')} icon={<CreditCard size={22} />} tone="slate" onClick={() => onOpenTab('analytics')} />
       <KpiCard title={tx(lang, 'Mətbəx yüklənməsi', 'Загрузка кухни', 'Kitchen load')} value={`${kitchenLoad}%`} helper={kitchenLoad >= 70 ? tx(lang, 'yüklənmə yüksəkdir', 'нагрузка высокая', 'high load') : tx(lang, 'normaldır', 'норма', 'normal')} icon={<ChefHat size={22} />} tone={kitchenLoad >= 70 ? 'amber' : 'emerald'} onClick={() => onOpenTab('tables')} />
       <KpiCard title={tx(lang, 'Kassa fərqi', 'Разница кассы', 'Cash gap')} value={cashGap} helper={tx(lang, 'növbə auditi', 'shift audit', 'shift audit')} icon={<Wallet size={22} />} tone={cashGap.startsWith('0.00') ? 'emerald' : 'rose'} onClick={() => onOpenTab('finance')} />
+      <KpiCard title={tx(lang, 'Maya dəyəri (COGS)', 'Себестоимость (COGS)', 'Cost of Goods Sold (COGS)')} value={cogs} helper={tx(lang, 'cəmi mayalandırma', 'общая себестоимость', 'total cogs')} icon={<PackageSearch size={22} />} tone="slate" onClick={() => onOpenTab('inventory')} />
+      <KpiCard title={tx(lang, 'Ümumi Marja', 'Валовая маржа', 'Gross Margin')} value={`${grossMargin}%`} helper={tx(lang, 'mənfəət faizi', 'процент прибыли', 'profit percentage')} icon={<TrendingUp size={22} />} tone="emerald" onClick={() => onOpenTab('analytics')} />
+    </section>
+  );
+}
+
+function AnalyticsCenter({
+  lang,
+  summary,
+}: {
+  lang: string;
+  summary: any;
+}) {
+  const hourlyData = useMemo(() => {
+    if (!summary || !summary.hourly_trend) {
+      return Array.from({ length: 24 }, (_, i) => ({
+        hour: `${String(i).padStart(2, '0')}:00`,
+        sales: 0,
+      }));
+    }
+    return summary.hourly_trend;
+  }, [summary]);
+
+  const paymentData = useMemo(() => {
+    if (!summary || !summary.payment_breakdown) return [];
+    return summary.payment_breakdown.map((item: any) => {
+      let displayName = item.name;
+      if (item.name === 'cash') displayName = tx(lang, 'Nağd', 'Наличные', 'Cash');
+      else if (item.name === 'card') displayName = tx(lang, 'Kart', 'Карта', 'Card');
+      else if (item.name === 'split') displayName = tx(lang, 'Split', 'Раздельно', 'Split');
+      else if (item.name === 'staff') displayName = tx(lang, 'Staff', 'Staff', 'Staff');
+      return { ...item, displayName };
+    });
+  }, [summary, lang]);
+
+  const PIE_COLORS = ['#10b981', '#0ea5e9', '#8b5cf6', '#64748b'];
+
+  const channels = summary?.channels || {
+    bolt: { count: 0, revenue: '0.00', enabled: false },
+    wolt: { count: 0, revenue: '0.00', enabled: false },
+    dine_in: { count: 0, revenue: '0.00' },
+    takeaway: { count: 0, revenue: '0.00' },
+  };
+
+  const boltRev = new Decimal(channels.bolt?.revenue || 0);
+  const woltRev = new Decimal(channels.wolt?.revenue || 0);
+  const dineInRev = new Decimal(channels.dine_in?.revenue || 0);
+  const takeawayRev = new Decimal(channels.takeaway?.revenue || 0);
+  const sumRev = boltRev.plus(woltRev).plus(dineInRev).plus(takeawayRev);
+
+  const getShare = (val: Decimal) => {
+    if (sumRev.isZero()) return 0;
+    return Math.round(val.div(sumRev).times(100).toNumber());
+  };
+
+  const channelBreakdown = [
+    {
+      key: 'dine_in',
+      name: tx(lang, 'Zalda', 'В зале', 'Dine-In'),
+      count: channels.dine_in?.count || 0,
+      revenue: dineInRev,
+      share: getShare(dineInRev),
+      color: 'bg-sky-500',
+      textColor: 'text-sky-400',
+    },
+    {
+      key: 'takeaway',
+      name: tx(lang, 'Al-apar', 'На вынос', 'Takeaway'),
+      count: channels.takeaway?.count || 0,
+      revenue: takeawayRev,
+      share: getShare(takeawayRev),
+      color: 'bg-violet-500',
+      textColor: 'text-violet-400',
+    },
+    {
+      key: 'bolt',
+      name: 'Bolt Food',
+      count: channels.bolt?.count || 0,
+      revenue: boltRev,
+      share: getShare(boltRev),
+      color: 'bg-emerald-500',
+      textColor: 'text-emerald-400',
+      enabled: channels.bolt?.enabled,
+      hasWebhook: true,
+    },
+    {
+      key: 'wolt',
+      name: 'Wolt',
+      count: channels.wolt?.count || 0,
+      revenue: woltRev,
+      share: getShare(woltRev),
+      color: 'bg-blue-500',
+      textColor: 'text-blue-400',
+      enabled: channels.wolt?.enabled,
+      hasWebhook: true,
+    },
+  ];
+
+  return (
+    <section className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+      {/* Hourly Sales Chart */}
+      <div className="rounded-[28px] border border-slate-800 bg-slate-900/60 p-5 shadow-[0_18px_55px_rgba(0,0,0,0.24)] backdrop-blur-md">
+        <h3 className="text-base font-black text-white">
+          {tx(lang, 'Saatlıq Satışlar', 'Почасовые продажи', 'Hourly Sales')}
+        </h3>
+        <p className="mt-1 text-xs text-slate-500">
+          {tx(lang, 'Gün ərzində satış dinamikası', 'Динамика продаж в течение дня', 'Sales dynamic during the day')}
+        </p>
+        <div className="mt-5 h-[260px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={hourlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#fbbf24" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#fbbf24" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.3} />
+              <XAxis dataKey="hour" stroke="#94a3b8" fontSize={10} tickLine={false} />
+              <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px' }}
+                labelStyle={{ color: '#94a3b8', fontWeight: 'bold' }}
+                itemStyle={{ color: '#fff' }}
+                formatter={(value) => [`${value} ₼`, tx(lang, 'Satış', 'Продажа', 'Sales')]}
+              />
+              <Area type="monotone" dataKey="sales" stroke="#fbbf24" strokeWidth={2} fillOpacity={1} fill="url(#colorSales)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Payment Methods Chart */}
+      <div className="rounded-[28px] border border-slate-800 bg-slate-900/60 p-5 shadow-[0_18px_55px_rgba(0,0,0,0.24)] backdrop-blur-md">
+        <h3 className="text-base font-black text-white">
+          {tx(lang, 'Ödəniş Üsulları', 'Способы оплаты', 'Payment Methods')}
+        </h3>
+        <p className="mt-1 text-xs text-slate-500">
+          {tx(lang, 'Kassa mədaxilinin bölünməsi', 'Разделение прихода кассы', 'Distribution of cash receipts')}
+        </p>
+        <div className="relative mt-5 flex h-[260px] items-center justify-center">
+          {paymentData.length === 0 || paymentData.every((item: any) => item.value === 0) ? (
+            <div className="text-sm font-semibold text-slate-500">
+              {tx(lang, 'Ödəniş məlumatı tapılmadı', 'Нет данных об оплате', 'No payment data found')}
+            </div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={paymentData.filter((item: any) => item.value > 0)}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={4}
+                    dataKey="value"
+                  >
+                    {paymentData.map((entry: any, index: number) => (
+                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px' }}
+                    itemStyle={{ color: '#fff' }}
+                    formatter={(value) => [`${value} ₼`, '']}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute bottom-0 flex flex-wrap justify-center gap-3">
+                {paymentData.map((item: any, index: number) => {
+                  if (item.value === 0) return null;
+                  return (
+                    <div key={item.name} className="flex items-center gap-1.5 text-xs">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
+                      <span className="font-bold text-slate-300">{item.displayName}</span>
+                      <span className="text-slate-500">({item.value} ₼)</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Delivery Channels Widget */}
+      <div className="rounded-[28px] border border-slate-800 bg-slate-900/60 p-5 shadow-[0_18px_55px_rgba(0,0,0,0.24)] backdrop-blur-md">
+        <h3 className="text-base font-black text-white">
+          {tx(lang, 'Çatdırılma Kanalları', 'Каналы доставки', 'Delivery Channels')}
+        </h3>
+        <p className="mt-1 text-xs text-slate-500">
+          {tx(lang, 'İnteqrasiya və POS üzrə bölgü', 'Разделение по интеграциям и POS', 'Breakdown by integrations and POS')}
+        </p>
+        <div className="mt-5 space-y-4">
+          {channelBreakdown.map((ch) => (
+            <div key={ch.key} className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-bold">
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-black text-white`}>{ch.name}</span>
+                  {ch.hasWebhook && (
+                    <div className="flex items-center gap-1 rounded-full bg-slate-950 px-2 py-0.5 text-[10px]">
+                      <span className={`h-1.5 w-1.5 rounded-full ${ch.enabled ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                      <span className="text-slate-400">
+                        {ch.enabled
+                          ? tx(lang, 'Aktiv', 'Активно', 'Active')
+                          : tx(lang, 'Deaktiv', 'Отключено', 'Disabled')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="text-slate-300">
+                  <span className="font-black text-white">{ch.revenue.toFixed(2)} ₼</span>
+                  <span className="mx-1.5 text-slate-600">·</span>
+                  <span>{ch.count} {tx(lang, 'sifariş', 'зак.', 'orders')}</span>
+                  <span className="mx-1.5 text-slate-600">·</span>
+                  <span className={`font-black ${ch.textColor}`}>{ch.share}%</span>
+                </div>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-slate-950">
+                <div className={`h-full rounded-full transition-all duration-500 ${ch.color}`} style={{ width: `${ch.share}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }
