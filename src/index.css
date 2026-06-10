@@ -2591,12 +2591,12 @@ html {
   border-radius: 0.6rem !important;
 }
 .pos2-product-card .text-sm {
-  font-size: 0.72rem !important; /* ~10.5px */
-  line-height: 0.95rem !important;
+  font-size: 21px !important; /* +50% enlargement */
+  line-height: 1.45rem !important;
 }
 .pos2-product-card .text-xs {
-  font-size: 0.62rem !important; /* ~9px */
-  line-height: 0.85rem !important;
+  font-size: 18px !important; /* +50% enlargement */
+  line-height: 1.25rem !important;
 }
 .pos2-product-card .mt-3 {
   margin-top: 0.5rem !important;
@@ -2607,7 +2607,7 @@ html {
   padding-left: 0.5rem !important;
   padding-right: 0.5rem !important;
   border-radius: 0.5rem !important;
-  font-size: 0.65rem !important;
+  font-size: 14px !important;
 }
 .pos2-product-fallback {
   gap: 0.35rem !important;
@@ -2626,17 +2626,17 @@ html {
   margin-top: 0.35rem !important;
 }
 .pos3-card button > div.mt-2 > div:nth-child(1) {
-  font-size: 10px !important;
-  line-height: 1.15 !important;
+  font-size: 19.5px !important; /* +50% enlargement */
+  line-height: 1.35rem !important;
 }
 .pos3-card button > div.mt-2 > div:nth-child(2) {
-  font-size: 8px !important;
-  line-height: 1.1 !important;
+  font-size: 16.5px !important; /* +50% enlargement */
+  line-height: 1.15rem !important;
 }
 .pos3-card button > div.mt-2 > div:nth-child(3) {
-  font-size: 11px !important;
-  line-height: 1.15 !important;
-  margin-top: 0.15rem !important;
+  font-size: 22.5px !important; /* +50% enlargement */
+  line-height: 1.55rem !important;
+  margin-top: 0.25rem !important;
 }
 .pos3-card .pos3-qty-btn {
   height: 1.5rem !important;
@@ -2670,12 +2670,12 @@ html {
   padding: 0.35rem !important;
 }
 .pos-product-card:not(.pos3-card):not(.pos2-product-card) .text-xs {
-  font-size: 8.5px !important;
-  line-height: 1.15 !important;
+  font-size: 18px !important; /* +50% enlargement */
+  line-height: 1.25rem !important;
 }
 .pos-product-card:not(.pos3-card):not(.pos2-product-card) .text-sm {
-  font-size: 11px !important;
-  line-height: 1.15 !important;
+  font-size: 21px !important; /* +50% enlargement */
+  line-height: 1.45rem !important;
 }
 .pos-product-card:not(.pos3-card):not(.pos2-product-card) .h-12 {
   height: 2.25rem !important;
@@ -2693,5 +2693,65 @@ html {
 }
 .pos-product-card:not(.pos3-card):not(.pos2-product-card) .aspect-\[3\/2\] {
   aspect-ratio: 3 / 2 !important;
+}
+
+/* POS3 Checkout scroll and sizing optimizations */
+.pos3-checkout {
+  max-height: calc(100vh - 150px) !important;
+  padding: 0.65rem !important;
+  overflow-y: auto !important;
+}
+
+.pos3-checkout-head {
+  margin-bottom: 0.5rem !important;
+  padding-bottom: 0.5rem !important;
+}
+
+.pos3-order-list {
+  min-height: 100px !important;
+  margin-top: 0.5rem !important;
+  padding: 0.35rem !important;
+}
+
+.pos3-control-stack {
+  gap: 0.35rem !important;
+}
+
+.pos3-control-stack .neon-input {
+  min-height: 38px !important;
+  padding: 0.4rem 0.6rem !important;
+  font-size: 13px !important;
+}
+
+.pos3-control-stack .pay-btn {
+  height: 36px !important;
+  font-size: 12px !important;
+  min-height: 36px !important;
+  padding: 0.35rem 0.5rem !important;
+}
+
+.pos3-action-group {
+  margin-top: 0.5rem !important;
+  padding: 0.5rem !important;
+}
+
+.pos3-action-group .mt-2 {
+  margin-top: 0.35rem !important;
+}
+
+.pos3-action-group button {
+  padding: 0.35rem 0.5rem !important;
+  font-size: 12px !important;
+}
+
+.pos3-checkout .mt-3.rounded-xl {
+  margin-top: 0.5rem !important;
+  padding: 0.5rem !important;
+}
+
+.pos3-primary-btn {
+  margin-top: 0.5rem !important;
+  height: 2.85rem !important;
+  font-size: 14px !important;
 }
 
