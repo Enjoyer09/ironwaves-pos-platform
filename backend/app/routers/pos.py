@@ -497,8 +497,8 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
                 if yield_rule
                 else base_qty_required
             )
-            if Decimal(str(inventory.stock_qty)) < qty_required:
-                raise HTTPException(status_code=400, detail=f"{inventory.name} üçün anbarda kifayət qədər qalıq yoxdur")
+            # if Decimal(str(inventory.stock_qty)) < qty_required:
+            #     raise HTTPException(status_code=400, detail=f"{inventory.name} üçün anbarda kifayət qədər qalıq yoxdur")
             stock_ops.append((inventory, qty_required))
             line_cogs = (qty_required * Decimal(str(inventory.unit_cost or 0))).quantize(Decimal("0.0001"))
             cogs_total += line_cogs
