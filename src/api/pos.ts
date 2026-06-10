@@ -350,12 +350,12 @@ export const create_sale = (payload: SalePayload) => {
       });
 
       // strict stock check
-      stockOps.forEach(({ inv, qty }) => {
-        const current = new Decimal(inv.stock_qty || 0);
-        if (current.lessThan(qty)) {
-          throw new Error(`${inv.name} üçün anbarda kifayət qədər qalıq yoxdur`);
-        }
-      });
+      // stockOps.forEach(({ inv, qty }) => {
+      //   const current = new Decimal(inv.stock_qty || 0);
+      //   if (current.lessThan(qty)) {
+      //     throw new Error(`${inv.name} üçün anbarda kifayət qədər qalıq yoxdur`);
+      //   }
+      // });
 
       // apply stock updates
       stockOps.forEach(({ inv, qty }) => {
