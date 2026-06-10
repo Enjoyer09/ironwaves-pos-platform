@@ -285,6 +285,26 @@ const DEFAULT_FEEDBACK_SETTINGS: NonNullable<Settings['feedback_settings']> = {
   thank_you_text_az: 'Rəyiniz komanda tərəfindən nəzərdən keçiriləcək.',
   thank_you_text_ru: 'Ваш отзыв будет рассмотрен нашей командой.',
   thank_you_text_en: 'Your feedback will be reviewed by our team.',
+  bg_gradient: 'linear-gradient(155deg, #8ec5ff 0%, #a48bff 28%, #ef8cf9 57%, #ffb58f 100%)',
+  primary_color: '#facc15',
+  accent_color: '#22d3ee',
+  emoji_icon: '☕',
+  preset_tags: [
+    '❤️ Xidmət əla idi',
+    '☕ Dad mükəmməl idi',
+    '✨ Məkan çox təmiz idi',
+    '👤 Personal peşəkar idi',
+    '🏷️ Qiymət/dəyər çox yaxşı idi',
+    '👍 Mütləq tövsiyə edərəm',
+  ],
+  min_stars_for_google_review: 4,
+  required_comment_threshold: 3,
+  custom_heading_az: 'Rəy və məmnuniyyət sorğusu',
+  custom_heading_ru: 'Опрос о качестве обслуживания',
+  custom_heading_en: 'Customer Satisfaction Survey',
+  custom_subheading_az: 'Xidmət keyfiyyətini yaxşılaşdırmaq üçün 30 saniyə ayırın.',
+  custom_subheading_ru: 'Пожалуйста, уделите 30 секунд для улучшения качества услуг.',
+  custom_subheading_en: 'Please take 30 seconds to help us improve our service.',
 };
 
 const FEEDBACK_SETTINGS_OVERRIDES_KEY = 'iw_feedback_settings_overrides_v1';
@@ -316,6 +336,19 @@ function normalizeFeedbackSettings(source?: Settings['feedback_settings']): NonN
     thank_you_text_az: String(raw.thank_you_text_az || DEFAULT_FEEDBACK_SETTINGS.thank_you_text_az).trim(),
     thank_you_text_ru: String(raw.thank_you_text_ru || DEFAULT_FEEDBACK_SETTINGS.thank_you_text_ru).trim(),
     thank_you_text_en: String(raw.thank_you_text_en || DEFAULT_FEEDBACK_SETTINGS.thank_you_text_en).trim(),
+    bg_gradient: String(raw.bg_gradient || DEFAULT_FEEDBACK_SETTINGS.bg_gradient).trim(),
+    primary_color: String(raw.primary_color || DEFAULT_FEEDBACK_SETTINGS.primary_color).trim(),
+    accent_color: String(raw.accent_color || DEFAULT_FEEDBACK_SETTINGS.accent_color).trim(),
+    emoji_icon: String(raw.emoji_icon || DEFAULT_FEEDBACK_SETTINGS.emoji_icon).trim(),
+    preset_tags: Array.isArray(raw.preset_tags) ? raw.preset_tags.map(x => String(x || '').trim()).filter(Boolean) : DEFAULT_FEEDBACK_SETTINGS.preset_tags,
+    min_stars_for_google_review: Math.max(1, Math.min(5, Number(raw.min_stars_for_google_review ?? DEFAULT_FEEDBACK_SETTINGS.min_stars_for_google_review) || 4)),
+    required_comment_threshold: Math.max(1, Math.min(5, Number(raw.required_comment_threshold ?? DEFAULT_FEEDBACK_SETTINGS.required_comment_threshold) || 3)),
+    custom_heading_az: String(raw.custom_heading_az || DEFAULT_FEEDBACK_SETTINGS.custom_heading_az).trim(),
+    custom_heading_ru: String(raw.custom_heading_ru || DEFAULT_FEEDBACK_SETTINGS.custom_heading_ru).trim(),
+    custom_heading_en: String(raw.custom_heading_en || DEFAULT_FEEDBACK_SETTINGS.custom_heading_en).trim(),
+    custom_subheading_az: String(raw.custom_subheading_az || DEFAULT_FEEDBACK_SETTINGS.custom_subheading_az).trim(),
+    custom_subheading_ru: String(raw.custom_subheading_ru || DEFAULT_FEEDBACK_SETTINGS.custom_subheading_ru).trim(),
+    custom_subheading_en: String(raw.custom_subheading_en || DEFAULT_FEEDBACK_SETTINGS.custom_subheading_en).trim(),
   };
 }
 

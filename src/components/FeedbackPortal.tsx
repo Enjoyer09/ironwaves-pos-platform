@@ -108,17 +108,45 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
       profile?.feedback_settings?.google_review_url ||
       '',
   ).trim();
-  const primaryColor = String(settings?.customer_app_settings?.primary_color || '#facc15');
-  const accentColor = String(settings?.customer_app_settings?.accent_color || '#22d3ee');
+  const primaryColor = String(feedbackSettings.primary_color || settings?.customer_app_settings?.primary_color || '#facc15');
+  const accentColor = String(feedbackSettings.accent_color || settings?.customer_app_settings?.accent_color || '#22d3ee');
   const backgroundColor = String(settings?.customer_app_settings?.background_color || '#0b1220');
   const textColor = '#0F172A';
   const companyName = String(profile?.company_name || profile?.name || 'iRonWaves').trim();
   const logoUrl = String(profile?.logo_url || '').trim();
   const brandInitial = (companyName.match(/\p{L}|\p{N}/u)?.[0] || 'I').toUpperCase();
-  const heading = 'Rəy və məmnuniyyət sorğusu';
-  const subHeading = 'Xidmət keyfiyyətini yaxşılaşdırmaq üçün 30 saniyə ayırın.';
-  const lowScoreThreshold = 3;
-  const requireComment = score > 0 && score <= lowScoreThreshold;
+
+  const lang = (() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const l = String(params.get('lang') || 'az').toLowerCase();
+      return ['az', 'ru', 'en'].includes(l) ? l : 'az';
+    } catch {
+      return 'az';
+    }
+  })();
+
+  const heading = String(
+    lang === 'az' ? (feedbackSettings.custom_heading_az || 'Rəy və məmnuniyyət sorğusu') :
+    lang === 'ru' ? (feedbackSettings.custom_heading_ru || 'Опрос о качестве обслуживания') :
+    (feedbackSettings.custom_heading_en || 'Customer Satisfaction Survey')
+  );
+
+  const subHeading = String(
+    lang === 'az' ? (feedbackSettings.custom_subheading_az || 'Xidmət keyfiyyətini yaxşılaşdırmaq üçün 30 saniyə ayırın.') :
+    lang === 'ru' ? (feedbackSettings.custom_subheading_ru || 'Пожалуйста, уделите 30 секунд для улучшения качества услуг.') :
+    (feedbackSettings.custom_subheading_en || 'Please take 30 seconds to help us improve our service.')
+  );
+
+  const thankYouText = String(
+    lang === 'az' ? (feedbackSettings.thank_you_text_az || 'Rəyiniz komanda tərəfindən nəzərdən keçiriləcək.') :
+    lang === 'ru' ? (feedbackSettings.thank_you_text_ru || 'Ваш отзыв будет рассмотрен нашей командой.') :
+    (feedbackSettings.thank_you_text_en || 'Your feedback will be reviewed by our team.')
+  );
+
+  const minStarsForGoogleReview = Number(feedbackSettings.min_stars_for_google_review ?? 4);
+  const requiredCommentThreshold = Number(feedbackSettings.required_comment_threshold ?? 3);
+  const requireComment = score > 0 && score <= requiredCommentThreshold;
   const hasValidReceiptLink = Boolean(String(receiptId || '').trim() && String(receiptToken || '').trim());
   const canSubmit =
     hasValidReceiptLink &&
@@ -130,14 +158,16 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
       ? `/?r=${encodeURIComponent(String(receiptId || '').trim())}&t=${encodeURIComponent(String(receiptToken || '').trim())}`
       : '';
 
-  const availablePresetReasons = [
-    '❤️ Xidmət əla idi',
-    '☕ Dad mükəmməl idi',
-    '✨ Məkan çox təmiz idi',
-    '👤 Personal peşəkar idi',
-    '🏷️ Qiymət/dəyər çox yaxşı idi',
-    '👍 Mütləq tövsiyə edərəm',
-  ];
+  const availablePresetReasons = Array.isArray(feedbackSettings.preset_tags) && feedbackSettings.preset_tags.length > 0
+    ? feedbackSettings.preset_tags
+    : [
+        '❤️ Xidmət əla idi',
+        '☕ Dad mükəmməl idi',
+        '✨ Məkan çox təmiz idi',
+        '👤 Personal peşəkar idi',
+        '🏷️ Qiymət/dəyər çox yaxşı idi',
+        '👍 Mütləq tövsiyə edərəm',
+      ];
   const togglePresetReason = (label: string) => {
     setPresetReasons((prev) => (prev.includes(label) ? prev.filter((x) => x !== label) : [...prev, label]));
   };
@@ -292,8 +322,14 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
     return (
       <div className="min-h-screen bg-slate-950 p-4">
         <div className="mx-auto w-full max-w-md rounded-[28px] border border-white/20 bg-white/20 p-8 text-center text-slate-900 backdrop-blur-2xl">
-          <h1 className="text-xl font-bold">Tenant tapılmadı</h1>
-          <p className="mt-2 text-sm text-slate-600">Feedback səhifəsi üçün tenant_id lazımdır.</p>
+          <h1 className="text-xl font-bold">
+            {lang === 'az' ? 'Tenant tapılmadı' : lang === 'ru' ? 'Тенант не найден' : 'Tenant not found'}
+          </h1>
+          <p className="mt-2 text-sm text-slate-600">
+            {lang === 'az' ? 'Feedback səhifəsi üçün tenant_id lazımdır.' :
+             lang === 'ru' ? 'Для страницы отзывов необходим tenant_id.' :
+             'Feedback page requires tenant_id.'}
+          </p>
         </div>
       </div>
     );
@@ -303,9 +339,15 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
     return (
       <div className="min-h-screen bg-slate-950 p-4">
         <div className="mx-auto w-full max-w-md rounded-[28px] border border-white/20 bg-white/20 p-8 text-center text-slate-900 backdrop-blur-2xl">
-          <h1 className="text-xl font-bold">Feedback linki etibarsızdır</h1>
+          <h1 className="text-xl font-bold">
+            {lang === 'az' ? 'Feedback linki etibarsızdır' :
+             lang === 'ru' ? 'Ссылка на отзыв недействительна' :
+             'Feedback link is invalid'}
+          </h1>
           <p className="mt-2 text-sm text-slate-600">
-            Bu səhifə yalnız çek üzərindəki QR linki (r+t) ilə açılmalıdır.
+            {lang === 'az' ? 'Bu səhifə yalnız çek üzərindəki QR linki (r+t) ilə açılmalıdır.' :
+             lang === 'ru' ? 'Эта страница должна открываться только по QR-ссылке (r+t) на чеке.' :
+             'This page must only be opened via the QR link (r+t) on the receipt.'}
           </p>
         </div>
       </div>
@@ -317,6 +359,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
       className="relative min-h-dvh overflow-x-hidden overflow-y-auto px-3 pb-24 pt-4 sm:px-4 sm:pb-28 sm:pt-5"
       style={{
         background:
+          feedbackSettings.bg_gradient ||
           'linear-gradient(155deg, #8ec5ff 0%, #a48bff 28%, #ef8cf9 57%, #ffb58f 100%)',
       }}
     >
@@ -350,7 +393,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
               </div>
             </div>
             <div className="glass-bubble flex h-14 w-14 items-center justify-center rounded-full text-2xl">
-              ☕
+              {feedbackSettings.emoji_icon || '☕'}
             </div>
           </div>
           <div className="glass-pill mb-4 flex items-start gap-2 rounded-2xl px-3 py-2.5">
@@ -365,8 +408,10 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
               </div>
               <p className="mt-2 text-sm text-emerald-900/80">
                 {alreadySubmitted
-                  ? 'Bu çek üçün endirim kuponunuz artıq yaradılıb və aşağıda göstərilir.'
-                  : String(feedbackSettings?.thank_you_text_az || 'Rəyiniz komanda tərəfindən nəzərdən keçiriləcək.')}
+                  ? (lang === 'az' ? 'Bu çek üçün endirim kuponunuz artıq yaradılıb və aşağıda göstərilir.' :
+                     lang === 'ru' ? 'Купон на скидку для этого чека уже создан и показан ниже.' :
+                     'A discount coupon for this receipt is already created and shown below.')
+                  : thankYouText}
               </p>
               {coupon?.code ? (
                 <div className="mt-4 rounded-2xl border border-emerald-300/60 bg-white/55 p-3 text-left">
@@ -400,21 +445,29 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
                   Çeki gör
                 </a>
               ) : null}
-              {googleReviewUrl ? (
+              {googleReviewUrl && score >= minStarsForGoogleReview ? (
                 <a
                   href={googleReviewUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="mt-4 inline-flex items-center rounded-full bg-gradient-to-r from-orange-400 via-pink-500 to-purple-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(168,85,247,0.32)]"
+                  style={{
+                    background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})`,
+                    boxShadow: `0 12px 30px ${primaryColor}4D`,
+                  }}
                 >
-                  Google Maps-də rəy yaz
+                  {lang === 'az' ? 'Google Maps-də rəy yaz' :
+                   lang === 'ru' ? 'Написать отзыв в Google' :
+                   'Write Google Review'}
                 </a>
               ) : null}
             </div>
           ) : (
             <>
               <div className="mb-3">
-                <h3 className="mb-2 text-sm font-semibold text-slate-800">Qiymətləndirmə</h3>
+                <h3 className="mb-2 text-sm font-semibold text-slate-800">
+                  {lang === 'az' ? 'Qiymətləndirmə' : lang === 'ru' ? 'Оценка' : 'Rating'}
+                </h3>
                 <div className="star-strip relative flex items-center gap-1 rounded-2xl bg-white/35 px-2 py-2">
                   <div className="star-shimmer" />
                   {[1, 2, 3, 4, 5].map((value) => (
@@ -428,7 +481,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
                       <Star
                         size={28}
                         fill={score >= value ? 'url(#feedbackStarGradient)' : 'transparent'}
-                        color={score >= value ? '#7C3AED' : '#64748b'}
+                        color={score >= value ? primaryColor : '#64748b'}
                         strokeWidth={2}
                       />
                     </button>
@@ -436,9 +489,8 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
                   <svg width="0" height="0">
                     <defs>
                       <linearGradient id="feedbackStarGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#F97316" />
-                        <stop offset="45%" stopColor="#EC4899" />
-                        <stop offset="100%" stopColor="#6366F1" />
+                        <stop offset="0%" stopColor={primaryColor} />
+                        <stop offset="100%" stopColor={accentColor} />
                       </linearGradient>
                     </defs>
                   </svg>
@@ -446,7 +498,9 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
               </div>
 
               <div className="mb-3 rounded-2xl border border-white/40 bg-white/30 p-3 backdrop-blur-xl">
-                <div className="mb-2 text-sm font-semibold text-slate-800">Tag seçimi</div>
+                <div className="mb-2 text-sm font-semibold text-slate-800">
+                  {lang === 'az' ? 'Tag seçimi' : lang === 'ru' ? 'Выбор тегов' : 'Select tags'}
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {availablePresetReasons.map((label) => {
                     const active = presetReasons.includes(label);
@@ -460,6 +514,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
                             ? 'border-white/70 bg-white/65 text-slate-900 shadow-[0_8px_20px_rgba(99,102,241,0.22)]'
                             : 'border-white/45 bg-white/35 text-slate-700 hover:bg-white/50'
                         }`}
+                        style={active ? { boxShadow: `0 8px 20px ${primaryColor}33` } : undefined}
                       >
                         {label}
                       </button>
@@ -471,22 +526,27 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
               <div className="space-y-3">
                 <div>
                   <label className="mb-1 block text-sm font-semibold text-slate-800">
-                    Şərh {requireComment ? '(mütləqdir)' : '(opsional)'}
+                    {lang === 'az' ? 'Şərh' : lang === 'ru' ? 'Комментарий' : 'Comment'}{' '}
+                    {requireComment
+                      ? (lang === 'az' ? '(mütləqdir)' : lang === 'ru' ? '(обязательно)' : '(required)')
+                      : (lang === 'az' ? '(opsional)' : lang === 'ru' ? '(опционально)' : '(optional)')}
                   </label>
                   <textarea
                     className="glass-input min-h-[120px] w-full"
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
-                    placeholder="Nəyi yaxşılaşdıraq?"
+                    placeholder={lang === 'az' ? 'Nəyi yaxşılaşdıraq?' : lang === 'ru' ? 'Что нам улучшить?' : 'What can we improve?'}
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-semibold text-slate-800">Əlaqə (opsional)</label>
+                  <label className="mb-1 block text-sm font-semibold text-slate-800">
+                    {lang === 'az' ? 'Əlaqə (opsional)' : lang === 'ru' ? 'Контакты (опционально)' : 'Contact info (optional)'}
+                  </label>
                   <input
                     className="glass-input w-full"
                     value={contact}
                     onChange={(e) => setContact(e.target.value)}
-                    placeholder="Telefon və ya email"
+                    placeholder={lang === 'az' ? 'Telefon və ya email' : lang === 'ru' ? 'Телефон или email' : 'Phone or email'}
                   />
                 </div>
                 {error ? <div className="text-sm font-medium text-rose-700">{error}</div> : null}
@@ -499,10 +559,15 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
                 className={`cta-button relative mt-5 flex w-full items-center justify-center gap-2 rounded-full px-5 py-3.5 text-sm font-bold text-white transition ${
                   ctaPressed ? 'scale-[0.97]' : 'scale-100'
                 } ${canSubmit ? '' : 'cursor-not-allowed opacity-55'}`}
+                style={{
+                  background: primaryColor.startsWith('linear-gradient') ? primaryColor : `linear-gradient(135deg, ${primaryColor}, ${accentColor})`,
+                  boxShadow: `0 16px 36px ${primaryColor}4D`,
+                }}
               >
                 {ctaRipple ? <span className="cta-ripple" /> : null}
                 <SendHorizontal size={16} />
-                {sending ? 'Göndərilir...' : 'Rəyi göndər'}
+                {sending ? (lang === 'az' ? 'Göndərilir...' : lang === 'ru' ? 'Отправка...' : 'Sending...') :
+                 (lang === 'az' ? 'Rəyi göndər' : lang === 'ru' ? 'Отправить отзыв' : 'Send feedback')}
               </button>
 
               {viewReceiptUrl ? (
@@ -511,7 +576,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
                   className="mt-3 flex items-center justify-center gap-1 text-sm font-medium text-slate-700 underline decoration-dotted underline-offset-4 hover:text-slate-900"
                 >
                   <Eye size={15} />
-                  Çeki gör
+                  {lang === 'az' ? 'Çeki gör' : lang === 'ru' ? 'Посмотреть чек' : 'View receipt'}
                 </a>
               ) : null}
             </>
