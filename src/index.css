@@ -483,7 +483,7 @@ html {
   }
 
   .pos3-workspace {
-    @apply grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_448px];
+    @apply grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_448px];
   }
 
   .pos3-menu {
@@ -550,7 +550,7 @@ html {
   }
 
   .pos3-checkout {
-    @apply flex min-h-0 flex-col overflow-y-auto rounded-3xl border border-slate-700/60 bg-[linear-gradient(172deg,rgba(16,25,38,0.94),rgba(9,14,23,0.94))] p-3.5 shadow-[0_18px_34px_rgba(2,6,23,0.42)];
+    @apply flex min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-700/60 bg-[linear-gradient(172deg,rgba(16,25,38,0.94),rgba(9,14,23,0.94))] p-3.5 shadow-[0_18px_34px_rgba(2,6,23,0.42)];
   }
 
   .pos3-checkout-head {
@@ -2697,10 +2697,12 @@ html {
 
 /* POS3 Checkout scroll and sizing optimizations */
 .pos3-checkout {
-  height: calc(100vh - 150px) !important;
-  max-height: calc(100vh - 150px) !important;
+  height: 100% !important;
+  max-height: 100% !important;
   padding: 0.65rem !important;
-  overflow-y: auto !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
 }
 
 .pos3-checkout-head {
@@ -2709,9 +2711,11 @@ html {
 }
 
 .pos3-order-list {
-  min-height: 100px !important;
+  min-height: 50px !important;
   margin-top: 0.5rem !important;
   padding: 0.35rem !important;
+  flex: 1 1 0% !important;
+  overflow-y: auto !important;
 }
 
 .pos3-control-stack {
