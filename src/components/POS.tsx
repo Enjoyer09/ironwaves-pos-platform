@@ -2789,7 +2789,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
 
       <div className={`compact-pos-grid grid min-h-0 flex-1 grid-cols-1 gap-4 ${panelRatioClass} ${isNewUiMode ? 'pos2-workspace' : ''}`}>
         <section className={`flex min-h-0 flex-col ${isNewUiMode ? 'pos2-menu-pane rounded-3xl border border-slate-700/70 bg-slate-950/30 p-4' : ''} ${mobilePane !== 'menu' ? 'hidden xl:flex' : ''}`}>
-          {(posLayout.left_widget_order || ['menuHeader', 'search', 'categories', 'productGrid']).map((widget) => renderLeftWidget(widget))}
+          {(posLayout.left_widget_order || ['menuHeader', 'search', 'categories', 'productGrid']).map((widget: string) => renderLeftWidget(widget))}
         </section>
 
         <aside className={`compact-pos-sidebar ${isNewUiMode ? 'pos2-checkout-pane rounded-3xl' : ''} flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-slate-700/70 bg-[#101722]/80 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.35)] md:p-4 ${mobilePane !== 'cart' ? 'hidden xl:flex' : ''}`}>
@@ -2806,8 +2806,8 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
-              {floatingSidebarWidgets.map((widget) => renderSidebarWidget(widget))}
+            <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden pr-1">
+              {floatingSidebarWidgets.map((widget: string) => renderSidebarWidget(widget))}
               {ctx.customer && (
                 <div className="rounded-md border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-xs text-slate-400">
                   <div className="flex justify-between">
@@ -2823,7 +2823,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               )}
             </div>
             <div className="mt-2 space-y-2 border-t border-slate-700/60 pt-2">
-              {footerSidebarWidgets.map((widget) => renderSidebarWidget(widget))}
+              {footerSidebarWidgets.map((widget: string) => renderSidebarWidget(widget))}
             </div>
           </div>
         </aside>
