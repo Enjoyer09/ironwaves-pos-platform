@@ -1,5 +1,5 @@
 {
-  "_backup_timestamp": "2026-06-10T13:49:38.940329",
+  "_backup_timestamp": "2026-06-10T14:37:40.941635",
   "_tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
   "users": [
     {
@@ -1938,6 +1938,55 @@
           "_cogs_estimation_unresolved": false
         }
       ]
+    },
+    {
+      "id": "984144d0-1737-4485-bae9-11492735dc01",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "cashier": "Samir",
+      "customer_card_id": null,
+      "payment_method": "Kart",
+      "order_type": "Take Away",
+      "offline_request_id": "fee99856-3aee-4c82-8d7a-ea2c8d62a5c1",
+      "receipt_code": "3BEF5D4F8C",
+      "receipt_token": "dec7b0f9c4ca4e2e9e21",
+      "reward_claim_code": null,
+      "total": "8.50",
+      "discount_amount": "0.00",
+      "cogs": "3.9090",
+      "status": "COMPLETED",
+      "created_at": "2026-06-10T14:29:37.801931",
+      "items": [
+        {
+          "item_name": "Latte M",
+          "price": "5.50",
+          "qty": 1,
+          "category": "Qəhvə",
+          "is_coffee": true,
+          "cup_mode": "paper",
+          "_cogs_snapshot": "1.3090",
+          "_cogs_estimation_unresolved": true
+        },
+        {
+          "item_name": "Küncütlü Cookie",
+          "price": "0.50",
+          "qty": 2,
+          "category": "Desert",
+          "is_coffee": false,
+          "cup_mode": null,
+          "_cogs_snapshot": "0.6000",
+          "_cogs_estimation_unresolved": false
+        },
+        {
+          "item_name": "Puding",
+          "price": "2.00",
+          "qty": 1,
+          "category": "Desert",
+          "is_coffee": false,
+          "cup_mode": null,
+          "_cogs_snapshot": "2.0000",
+          "_cogs_estimation_unresolved": false
+        }
+      ]
     }
   ],
   "finance": [],
@@ -2635,16 +2684,6 @@
       "min_limit": "10.000"
     },
     {
-      "id": "68431663-44d2-4879-8b0d-dc0a809ca002",
-      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
-      "name": "Puding",
-      "unit": "ƏDƏD",
-      "category": "Şirniyyat (Hazır)",
-      "stock_qty": "1.000",
-      "unit_cost": "2.0000",
-      "min_limit": "10.000"
-    },
-    {
       "id": "0b674869-3443-45c6-8932-82b592f10784",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
       "name": "Shekerbura",
@@ -2775,16 +2814,6 @@
       "min_limit": "10.000"
     },
     {
-      "id": "143d64b3-dd08-4b97-b188-7200cfd878d0",
-      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
-      "name": "Küncütlü Kuki",
-      "unit": "ƏDƏD",
-      "category": "Şirniyyat (Hazır)",
-      "stock_qty": "69.000",
-      "unit_cost": "0.3000",
-      "min_limit": "10.000"
-    },
-    {
       "id": "b4804d41-0dce-4f7f-9f84-2942fe9390af",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
       "name": "Ekler dolgulu",
@@ -2835,6 +2864,16 @@
       "min_limit": "10.000"
     },
     {
+      "id": "143d64b3-dd08-4b97-b188-7200cfd878d0",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "name": "Küncütlü Kuki",
+      "unit": "ƏDƏD",
+      "category": "Şirniyyat (Hazır)",
+      "stock_qty": "67.000",
+      "unit_cost": "0.3000",
+      "min_limit": "10.000"
+    },
+    {
       "id": "56a511da-aec3-4349-9117-3850859f07a3",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
       "name": "Buz (Ice)",
@@ -2842,16 +2881,6 @@
       "category": "Bar Məhsulları (Su/Buz)",
       "stock_qty": "987.299",
       "unit_cost": "0.0100",
-      "min_limit": "10.000"
-    },
-    {
-      "id": "46def0b2-467e-4c37-96f1-d3147aa2457b",
-      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
-      "name": "Milla Sud 3.2%",
-      "unit": "L",
-      "category": "Süd Məhsulları",
-      "stock_qty": "5.210",
-      "unit_cost": "2.3000",
       "min_limit": "10.000"
     },
     {
@@ -2882,6 +2911,26 @@
       "category": "Stəkanlar",
       "stock_qty": "17.000",
       "unit_cost": "0.1700",
+      "min_limit": "10.000"
+    },
+    {
+      "id": "46def0b2-467e-4c37-96f1-d3147aa2457b",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "name": "Milla Sud 3.2%",
+      "unit": "L",
+      "category": "Süd Məhsulları",
+      "stock_qty": "4.960",
+      "unit_cost": "2.3000",
+      "min_limit": "10.000"
+    },
+    {
+      "id": "68431663-44d2-4879-8b0d-dc0a809ca002",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "name": "Puding",
+      "unit": "ƏDƏD",
+      "category": "Şirniyyat (Hazır)",
+      "stock_qty": "0.000",
+      "unit_cost": "2.0000",
       "min_limit": "10.000"
     },
     {
@@ -2975,16 +3024,6 @@
       "min_limit": "10.000"
     },
     {
-      "id": "926b0fb4-7142-4959-8508-0e67022577ba",
-      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
-      "name": "Stəkan Kağız (M)",
-      "unit": "ƏDƏD",
-      "category": "Qablaşdırma (Stəkan/Qapaq)",
-      "stock_qty": "36.000",
-      "unit_cost": "0.1400",
-      "min_limit": "10.000"
-    },
-    {
       "id": "9531661c-233a-4602-883b-ff6b63e821dd",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
       "name": "Holder L",
@@ -3000,8 +3039,18 @@
       "name": "Latina Blend Coffee",
       "unit": "KQ",
       "category": "Kofe",
-      "stock_qty": "0.419",
+      "stock_qty": "0.401",
       "unit_cost": "33.0000",
+      "min_limit": "10.000"
+    },
+    {
+      "id": "926b0fb4-7142-4959-8508-0e67022577ba",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "name": "Stəkan Kağız (M)",
+      "unit": "ƏDƏD",
+      "category": "Qablaşdırma (Stəkan/Qapaq)",
+      "stock_qty": "35.000",
+      "unit_cost": "0.1400",
       "min_limit": "10.000"
     }
   ],
@@ -6861,6 +6910,9 @@
   "settings": [
     {
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "staff_shift_sessions": {
+        "emalat": "2026-06-10T10:01:16.020890"
+      },
       "bank_commission": {
         "min_amount": 0.1,
         "percent": 1.5,
@@ -6899,13 +6951,6 @@
       "print_settings": {
         "use_qz": true,
         "printer_name": ""
-      },
-      "staff_shift_sessions": {
-        "emalat": "2026-06-10T10:01:16.020890",
-        "Samir": {
-          "joined_at": "2026-06-10T13:28:13.693529",
-          "auto": true
-        }
       },
       "session_settings": {
         "idle_logout_minutes": 0,
@@ -9388,6 +9433,14 @@
       "created_at": "2026-06-10T13:42:11.869432"
     },
     {
+      "id": "cfe0faab-0b2a-4b95-a042-4953d2a3337f",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "ADMIN_LOGIN",
+      "details": "{\"method\": \"PASSWORD\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"backend\": true}",
+      "created_at": "2026-06-10T13:55:28.642421"
+    },
+    {
       "id": "33607670-e319-46fc-bf88-943f988c851b",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
       "user": "System",
@@ -9404,12 +9457,316 @@
       "created_at": "2026-06-10T13:48:30.117734"
     },
     {
+      "id": "d003af39-e079-4e8a-a0c1-9d20f7cd5e5b",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"app-shell\", \"message\": \"Cannot read properties of undefined (reading 'length')\", \"stack\": \"TypeError: Cannot read properties of undefined (reading 'length')\\n    at ir (https://emalatcoffee.ironwaves.store/assets/FinancePanel-CXZaedQ6.js:1:14635)\\n    at Io (https://emalatcoffee.ironwaves.store/assets/index-Dyw307mZ.js:9:48121)\\n    at oc (https://emalatcoffee.ironwaves.store/assets/index-Dyw307mZ.js:9:70926)\\n    at Pf (https://emalatcoffee.ironwaves.store/assets/index-Dyw307mZ.js:9:81261)\\n    at zm (https://emalatcoffee.ironwaves.store/assets/index-Dyw307mZ.js:9:117041)\\n    at xh (https://emalatcoffee.ironwaves.store/assets/index-Dyw307mZ.js:9:116087)\\n    at kc (https://emalatcoffee.ironwaves.store/assets/index-Dyw307mZ.js:9:115919)\\n    at wm (https://emalatcoffee.ironwaves.store/assets/index-Dyw307mZ.js:9:112712)\\n    at Im (https://emalatcoffee.ironwaves.store/assets/index-Dyw307mZ.js:9:124633)\\n    at tl (https://emalatcoffee.ironwaves.store/assets/index-Dyw307mZ.js:9:123181)\"}",
+      "created_at": "2026-06-10T13:54:42.114821"
+    },
+    {
+      "id": "73bf676c-295b-4aff-abf9-82146a952baf",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "AUTH_LOGIN_SUCCESS",
+      "details": "{\"username\": \"emalat\", \"ip\": \"100.64.0.13\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\"}",
+      "created_at": "2026-06-10T13:55:28.504385"
+    },
+    {
+      "id": "e3b5b5c6-d4fe-42b3-acd8-685370c5258e",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"app-shell\", \"message\": \"Cannot read properties of undefined (reading 'length')\", \"stack\": \"TypeError: Cannot read properties of undefined (reading 'length')\\n    at ir (https://emalatcoffee.ironwaves.store/assets/FinancePanel-CXZaedQ6.js:1:14635)\\n    at Io (https://emalatcoffee.ironwaves.store/assets/index-Dyw307mZ.js:9:48121)\\n    at oc (https://emalatcoffee.ironwaves.store/assets/index-Dyw307mZ.js:9:70926)\\n    at Pf (https://emalatcoffee.ironwaves.store/assets/index-Dyw307mZ.js:9:81261)\\n    at zm (https://emalatcoffee.ironwaves.store/assets/index-Dyw307mZ.js:9:117041)\\n    at xh (https://emalatcoffee.ironwaves.store/assets/index-Dyw307mZ.js:9:116087)\\n    at kc (https://emalatcoffee.ironwaves.store/assets/index-Dyw307mZ.js:9:115919)\\n    at wm (https://emalatcoffee.ironwaves.store/assets/index-Dyw307mZ.js:9:112712)\\n    at Im (https://emalatcoffee.ironwaves.store/assets/index-Dyw307mZ.js:9:124633)\\n    at tl (https://emalatcoffee.ironwaves.store/assets/index-Dyw307mZ.js:9:123181)\"}",
+      "created_at": "2026-06-10T13:56:10.348244"
+    },
+    {
+      "id": "cb11bd71-7c43-4126-ba93-092343b49c46",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "LOGOUT",
+      "details": "{}",
+      "created_at": "2026-06-10T13:56:55.504219"
+    },
+    {
       "id": "38063118-7cef-455f-9487-3b7140bf927c",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
       "user": "System",
       "action": "UI_ERROR",
       "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"ui-freeze\", \"message\": \"Long task detected on main thread\", \"duration_ms\": 214, \"name\": \"self\"}",
       "created_at": "2026-06-10T13:48:19.796689"
+    },
+    {
+      "id": "28702d84-b4c0-4809-bee9-a377353aef05",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "logout",
+      "action": "AUTH_LOGOUT",
+      "details": "{\"username\": \"logout\", \"ip\": \"100.64.0.16\", \"user_agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36\", \"refresh_revoked\": true, \"refresh_token_present\": true}",
+      "created_at": "2026-06-10T13:56:55.268075"
+    },
+    {
+      "id": "7b692b64-f345-4dfd-9a80-a8ccac658f52",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "STAFF_AUTO_SHIFT_LEAVE",
+      "details": "Auto-left shift on logout",
+      "created_at": "2026-06-10T13:56:55.268081"
+    },
+    {
+      "id": "b98789a7-edd3-4d7c-8be6-416e46973f47",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "FINANCE_REVERSAL_REQUESTED",
+      "details": "{\"transaction_id\": \"b92e3045-23c0-4f34-a5e6-607562425c79\", \"reversal_transaction_id\": \"431ed972-7185-4fe8-ba8a-e5410c61cdc0\", \"requires_approval\": true}",
+      "created_at": "2026-06-10T13:58:22.689292"
+    },
+    {
+      "id": "7c722683-1f08-4208-980f-fb0233c628c3",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "SUCCESSFUL_LOGIN",
+      "details": "{\"role\": \"staff\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"method\": \"PIN\", \"backend\": true}",
+      "created_at": "2026-06-10T14:07:23.626418"
+    },
+    {
+      "id": "2eb22399-5d3b-497d-b65e-d6d5f2c4e465",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "system",
+      "action": "BACKEND_UNHANDLED_EXCEPTION",
+      "details": "{\"path\": \"/api/v1/auth/refresh\", \"method\": \"POST\", \"request_id\": \"ebdd8090-29fa-43dd-8df6-b1446874d360\", \"error_type\": \"IntegrityError\", \"error_message\": \"(psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint \\\"refresh_tokens_token_hash_key\\\"\\nDETAIL:  Key (token_hash)=(5863a14e73942b08260354b65b34462d42154e55979b97f75cdb267f5b1a0bd7) already exists.\\n\\n[SQL: INSERT INTO refresh_tokens (id, tenant_id, user_id, token_hash, expires_at, revoked, created_at) VALUES (%(id)s, %(tenant_id)s, %(user_id)s, %(token_hash)s, %(expires_at)s, %(revoked)s, %(created_at)s)]\\n[parameters: {'id': 'bbdd9914-fd52-4531-8e16-3174dec3f06d', 'tenant_id': '6e2c0d4c-6fab-4e49-8f9d-2d675457c655', 'user_id': 'ee47be25-952b-4725-8e1c-9022c6897459', 'token_hash': '5863a14e73942b08260354b65b34462d42154e55979b97f75cdb267f5b1a0bd7', 'expires_at': datetime.datetime(2026, 6, 17, 13, 56, 54, 982624), 'revoked': False, 'created_at': datetime.datetime(2026, 6, 10, 13, 56, 54, 983339)}]\\n(Background on this error at: https://sqlalche.me/e/20/gkpj)\", \"traceback\": \"Traceback (most recent call last):\\n  File \\\"/opt/venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py\\\", line 1967, in _exec_single_context\\n    self.dialect.do_execute(\\n  File \\\"/opt/venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py\\\", line 941, in do_execute\\n    cursor.execute(statement, parameters)\\npsycopg2.errors.UniqueViolation: duplicate key value violates unique constraint \\\"refresh_tokens_token_hash_key\\\"\\nDETAIL:  Key (token_hash)=(5863a14e73942b08260354b65b34462d42154e55979b97f75cdb267f5b1a0bd7) already exists.\\n\\n\\nThe above exception was the direct cause of the following exception:\\n\\nTraceback (most recent call last):\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/errors.py\\\", line 165, in __call__\\n    await self.app(scope, receive, _send)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 185, in __call__\\n    with collapse_excgroups():\\n         ^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/contextlib.py\\\", line 158, in __exit__\\n    self.gen.throw(value)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/_utils.py\\\", line 83, in collapse_excgroups\\n    raise exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 187, in __call__\\n    response = await self.dispatch_func(request, call_next)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/app/app/main.py\\\", line 373, in security_boundary_middleware\\n    response = await call_next(request)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 163, in call_next\\n    raise app_exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 149, in coro\\n    await self.app(scope, receive_or_disconnect, send_no_error)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/cors.py\\\", line 93, in __call__\\n    await self.simple_response(scope, receive, send, request_headers=headers)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/cors.py\\\", line 144, in simple_response\\n    await self.app(scope, receive, send)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 185, in __call__\\n    with collapse_excgroups():\\n         ^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/contextlib.py\\\", line 158, in __exit__\\n    self.gen.throw(value)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/_utils.py\\\", line 83, in collapse_excgroups\\n    raise exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 187, in __call__\\n    response = await self.dispatch_func(request, call_next)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/app/app/main.py\\\", line 138, in pool_metrics_middleware\\n    return await call_next(request)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 163, in call_next\\n    raise app_exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 149, in coro\\n    await self.app(scope, receive_or_disconnect, send_no_error)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 185, in __call__\\n    with collapse_excgroups():\\n         ^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/contextlib.py\\\", line 158, in __exit__\\n    self.gen.throw(value)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/_utils.py\\\", line 83, in collapse_excgroups\\n    raise exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 187, in __call__\\n    response = await self.dispatch_func(request, call_next)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/app/app/main.py\\\", line 115, in metrics_middleware\\n    response = await call_next(request)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 163, in call_next\\n    raise app_exc\\n  Fil\"}",
+      "created_at": "2026-06-10T13:56:54.999171"
+    },
+    {
+      "id": "59de9538-9599-4056-9de1-eec49825ee25",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "AUTH_PIN_SUCCESS",
+      "details": "{\"username\": \"Samir\", \"ip\": \"100.64.0.11\", \"user_agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36\", \"role\": \"staff\"}",
+      "created_at": "2026-06-10T14:07:23.379156"
+    },
+    {
+      "id": "cd7eca55-91fe-4125-8c31-6797902f3e00",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "STAFF_AUTO_SHIFT_JOIN",
+      "details": "Auto-joined shift on PIN login",
+      "created_at": "2026-06-10T14:07:23.379160"
+    },
+    {
+      "id": "40c35bc8-34b2-4620-857a-6c1885423c1e",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "admin_override",
+      "action": "FINANCE_TRANSACTION_REVERSED",
+      "details": "{\"transaction_id\": \"b92e3045-23c0-4f34-a5e6-607562425c79\", \"reversal_transaction_id\": \"431ed972-7185-4fe8-ba8a-e5410c61cdc0\", \"amount\": \"1.12\"}",
+      "created_at": "2026-06-10T14:15:34.960803"
+    },
+    {
+      "id": "138d19ea-ecc9-479e-9f89-0552f0b51046",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "admin_override",
+      "action": "FINANCE_TRANSACTION_POSTED",
+      "details": "{\"transaction_id\": \"431ed972-7185-4fe8-ba8a-e5410c61cdc0\", \"transaction_type\": \"reversal\", \"source\": \"expense\", \"destination\": \"card\", \"amount\": \"1.12\"}",
+      "created_at": "2026-06-10T14:15:34.960823"
+    },
+    {
+      "id": "058269a6-2339-4d36-b55f-23934ef79269",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "admin_override",
+      "action": "FINANCE_LEGACY_WALLET_SYNC_SKIPPED",
+      "details": "{\"transaction_id\": \"431ed972-7185-4fe8-ba8a-e5410c61cdc0\", \"transaction_type\": \"reversal\", \"reason\": \"legacy_wallet_sync_disabled\"}",
+      "created_at": "2026-06-10T14:15:34.960993"
+    },
+    {
+      "id": "51bacf18-dce2-4fcb-a1b9-798500036fdf",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "admin_override",
+      "action": "FINANCE_TRANSACTION_APPROVED",
+      "details": "{\"transaction_id\": \"431ed972-7185-4fe8-ba8a-e5410c61cdc0\", \"amount\": \"1.12\"}",
+      "created_at": "2026-06-10T14:15:34.961003"
+    },
+    {
+      "id": "82ff5efa-5cbe-4649-99fa-0a05b74242dd",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "admin_override",
+      "action": "FINANCE_TRANSACTION_REVERSED",
+      "details": "{\"transaction_id\": \"804c829c-5103-4951-83b5-2f46a52a609d\", \"reversal_transaction_id\": \"d6f898c7-58f0-4091-a059-cfdc8945f3b1\", \"amount\": \"2.00\"}",
+      "created_at": "2026-06-10T14:28:35.545890"
+    },
+    {
+      "id": "ab44be15-5ec4-4464-84ab-2d30e07cea35",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "admin_override",
+      "action": "FINANCE_LEGACY_WALLET_SYNC_SKIPPED",
+      "details": "{\"transaction_id\": \"d6f898c7-58f0-4091-a059-cfdc8945f3b1\", \"transaction_type\": \"reversal\", \"reason\": \"legacy_wallet_sync_disabled\"}",
+      "created_at": "2026-06-10T14:28:35.545932"
+    },
+    {
+      "id": "01710123-5504-4b67-b415-ca0b433d7d8c",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "admin_override",
+      "action": "FINANCE_TRANSACTION_REVERSED",
+      "details": "{\"original_id\": \"804c829c-5103-4951-83b5-2f46a52a609d\", \"reversal_id\": \"d6f898c7-58f0-4091-a059-cfdc8945f3b1\", \"amount\": \"2.00\"}",
+      "created_at": "2026-06-10T14:28:35.546423"
+    },
+    {
+      "id": "cd88e78b-4bd9-4a96-9e2d-225622b9c4a6",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"ui-freeze\", \"message\": \"Long task detected on main thread\", \"duration_ms\": 224, \"name\": \"self\"}",
+      "created_at": "2026-06-10T14:29:17.107292"
+    },
+    {
+      "id": "21a46183-df78-447e-9367-04741eea0cdf",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "INVENTORY_CONSUMED",
+      "details": "{\"item_name\": \"Latina Blend Coffee\", \"qty_removed\": \"0.0180\", \"unit\": \"KQ\", \"remaining_qty\": \"0.401\", \"sale_id\": \"984144d0-1737-4485-bae9-11492735dc01\", \"source\": \"pos_sale\"}",
+      "created_at": "2026-06-10T14:29:37.804225"
+    },
+    {
+      "id": "29102f9f-0900-46b6-a017-d1902c7010e3",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "INVENTORY_CONSUMED",
+      "details": "{\"item_name\": \"Milla Sud 3.2%\", \"qty_removed\": \"0.2500\", \"unit\": \"L\", \"remaining_qty\": \"4.960\", \"sale_id\": \"984144d0-1737-4485-bae9-11492735dc01\", \"source\": \"pos_sale\"}",
+      "created_at": "2026-06-10T14:29:37.804230"
+    },
+    {
+      "id": "82f9ab42-7bfe-4049-93a2-afbd0c5e5eb8",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "INVENTORY_CONSUMED",
+      "details": "{\"item_name\": \"Stəkan Kağız (M)\", \"qty_removed\": \"1.0000\", \"unit\": \"ƏDƏD\", \"remaining_qty\": \"35.000\", \"sale_id\": \"984144d0-1737-4485-bae9-11492735dc01\", \"source\": \"pos_sale\"}",
+      "created_at": "2026-06-10T14:29:37.804232"
+    },
+    {
+      "id": "d289131e-9d5c-4811-a6f9-a850eb1e8ec6",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "INVENTORY_CONSUMED",
+      "details": "{\"item_name\": \"Küncütlü Kuki\", \"qty_removed\": \"2.0000\", \"unit\": \"ƏDƏD\", \"remaining_qty\": \"67.000\", \"sale_id\": \"984144d0-1737-4485-bae9-11492735dc01\", \"source\": \"pos_sale\"}",
+      "created_at": "2026-06-10T14:29:37.804235"
+    },
+    {
+      "id": "16426437-a3f9-4270-9245-1baa4a3ac874",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "INVENTORY_CONSUMED",
+      "details": "{\"item_name\": \"Puding\", \"qty_removed\": \"1.0000\", \"unit\": \"ƏDƏD\", \"remaining_qty\": \"0.000\", \"sale_id\": \"984144d0-1737-4485-bae9-11492735dc01\", \"source\": \"pos_sale\"}",
+      "created_at": "2026-06-10T14:29:37.804238"
+    },
+    {
+      "id": "9da64bc4-a37e-4990-82ab-7ed2daf4f803",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "FINANCE_TRANSACTION_POSTED",
+      "details": "{\"transaction_id\": \"a97f5fe0-d24a-4dda-86a7-d5cd9e5fc8f9\", \"transaction_type\": \"income\", \"source\": \"revenue\", \"destination\": \"card\", \"amount\": \"8.50\"}",
+      "created_at": "2026-06-10T14:29:37.812995"
+    },
+    {
+      "id": "7539508a-314f-4e1f-b061-7c320a7090a0",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "FINANCE_LEGACY_WALLET_SYNC_SKIPPED",
+      "details": "{\"transaction_id\": \"a97f5fe0-d24a-4dda-86a7-d5cd9e5fc8f9\", \"transaction_type\": \"income\", \"reason\": \"legacy_wallet_sync_disabled\"}",
+      "created_at": "2026-06-10T14:29:37.813000"
+    },
+    {
+      "id": "2be6b33a-91d4-412c-9fd1-e42b54144fd1",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "FINANCE_TRANSACTION_POSTED",
+      "details": "{\"transaction_id\": \"7e2fcd2d-6d0f-4ebf-844c-799c8d9b6411\", \"transaction_type\": \"expense\", \"source\": \"card\", \"destination\": \"expense\", \"amount\": \"0.17\"}",
+      "created_at": "2026-06-10T14:29:37.820883"
+    },
+    {
+      "id": "fe7d68fc-73de-422d-82d2-f458a201f75b",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "FINANCE_LEGACY_WALLET_SYNC_SKIPPED",
+      "details": "{\"transaction_id\": \"7e2fcd2d-6d0f-4ebf-844c-799c8d9b6411\", \"transaction_type\": \"expense\", \"reason\": \"legacy_wallet_sync_disabled\"}",
+      "created_at": "2026-06-10T14:29:37.820887"
+    },
+    {
+      "id": "3e7cedce-aefe-443c-9de6-4d186fe63863",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "FINANCE_TRANSACTION_POSTED",
+      "details": "{\"transaction_id\": \"63069509-dcf4-4131-bd1d-2559c8d6996c\", \"transaction_type\": \"cogs_recognition\", \"source\": \"inventory_asset\", \"destination\": \"cogs\", \"amount\": \"3.91\"}",
+      "created_at": "2026-06-10T14:29:37.826375"
+    },
+    {
+      "id": "9cc80349-0440-4140-a783-b22dfd7c47c4",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "admin_override",
+      "action": "FINANCE_TRANSACTION_REVERSED",
+      "details": "{\"transaction_id\": \"804c829c-5103-4951-83b5-2f46a52a609d\", \"reversal_transaction_id\": \"e986cfac-c0f8-48e6-bf9d-21fa2784c38d\", \"amount\": \"2.00\"}",
+      "created_at": "2026-06-10T14:31:57.968793"
+    },
+    {
+      "id": "ef84ab9d-230f-4d31-895a-1f90b15dcd31",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "admin_override",
+      "action": "FINANCE_TRANSACTION_POSTED",
+      "details": "{\"transaction_id\": \"e986cfac-c0f8-48e6-bf9d-21fa2784c38d\", \"transaction_type\": \"reversal\", \"source\": \"inventory_asset\", \"destination\": \"payable\", \"amount\": \"2.00\"}",
+      "created_at": "2026-06-10T14:31:57.968809"
+    },
+    {
+      "id": "e25adc6c-1ff6-40b6-8c72-1378b24ac8d2",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "admin_override",
+      "action": "FINANCE_LEGACY_WALLET_SYNC_SKIPPED",
+      "details": "{\"transaction_id\": \"e986cfac-c0f8-48e6-bf9d-21fa2784c38d\", \"transaction_type\": \"reversal\", \"reason\": \"legacy_wallet_sync_disabled\"}",
+      "created_at": "2026-06-10T14:31:57.968820"
+    },
+    {
+      "id": "8269cb44-ecbc-4c1c-8084-2b045d81f1c9",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "admin_override",
+      "action": "FINANCE_TRANSACTION_REVERSED",
+      "details": "{\"original_id\": \"804c829c-5103-4951-83b5-2f46a52a609d\", \"reversal_id\": \"e986cfac-c0f8-48e6-bf9d-21fa2784c38d\", \"amount\": \"2.00\"}",
+      "created_at": "2026-06-10T14:31:57.968830"
+    },
+    {
+      "id": "5ac05418-ac3b-45e0-baf8-3dbcea3930c4",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"ui-freeze\", \"message\": \"Long task detected on main thread\", \"duration_ms\": 206, \"name\": \"self\"}",
+      "created_at": "2026-06-10T14:32:43.365433"
+    },
+    {
+      "id": "9c0c183c-b3d4-4c5c-a513-715caab7add7",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "system",
+      "action": "BACKEND_UNHANDLED_EXCEPTION",
+      "details": "{\"path\": \"/api/v1/auth/refresh\", \"method\": \"POST\", \"request_id\": \"f6b3788d-74c0-41f4-b3f6-1a7d4e844c96\", \"error_type\": \"IntegrityError\", \"error_message\": \"(psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint \\\"refresh_tokens_token_hash_key\\\"\\nDETAIL:  Key (token_hash)=(f7ab5b9b55ffc572f72ee9d7cf2aec72da5dd04251fbff526f71f87a9d13201c) already exists.\\n\\n[SQL: INSERT INTO refresh_tokens (id, tenant_id, user_id, token_hash, expires_at, revoked, created_at) VALUES (%(id)s, %(tenant_id)s, %(user_id)s, %(token_hash)s, %(expires_at)s, %(revoked)s, %(created_at)s)]\\n[parameters: {'id': '6a644a52-ca1c-419a-b0b9-79b9d2d270aa', 'tenant_id': '6e2c0d4c-6fab-4e49-8f9d-2d675457c655', 'user_id': 'ee47be25-952b-4725-8e1c-9022c6897459', 'token_hash': 'f7ab5b9b55ffc572f72ee9d7cf2aec72da5dd04251fbff526f71f87a9d13201c', 'expires_at': datetime.datetime(2026, 6, 17, 14, 37, 39, 645450), 'revoked': False, 'created_at': datetime.datetime(2026, 6, 10, 14, 37, 39, 646200)}]\\n(Background on this error at: https://sqlalche.me/e/20/gkpj)\", \"traceback\": \"Traceback (most recent call last):\\n  File \\\"/opt/venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py\\\", line 1967, in _exec_single_context\\n    self.dialect.do_execute(\\n  File \\\"/opt/venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py\\\", line 941, in do_execute\\n    cursor.execute(statement, parameters)\\npsycopg2.errors.UniqueViolation: duplicate key value violates unique constraint \\\"refresh_tokens_token_hash_key\\\"\\nDETAIL:  Key (token_hash)=(f7ab5b9b55ffc572f72ee9d7cf2aec72da5dd04251fbff526f71f87a9d13201c) already exists.\\n\\n\\nThe above exception was the direct cause of the following exception:\\n\\nTraceback (most recent call last):\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/errors.py\\\", line 165, in __call__\\n    await self.app(scope, receive, _send)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 185, in __call__\\n    with collapse_excgroups():\\n         ^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/contextlib.py\\\", line 158, in __exit__\\n    self.gen.throw(value)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/_utils.py\\\", line 83, in collapse_excgroups\\n    raise exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 187, in __call__\\n    response = await self.dispatch_func(request, call_next)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/app/app/main.py\\\", line 373, in security_boundary_middleware\\n    response = await call_next(request)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 163, in call_next\\n    raise app_exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 149, in coro\\n    await self.app(scope, receive_or_disconnect, send_no_error)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/cors.py\\\", line 93, in __call__\\n    await self.simple_response(scope, receive, send, request_headers=headers)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/cors.py\\\", line 144, in simple_response\\n    await self.app(scope, receive, send)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 185, in __call__\\n    with collapse_excgroups():\\n         ^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/contextlib.py\\\", line 158, in __exit__\\n    self.gen.throw(value)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/_utils.py\\\", line 83, in collapse_excgroups\\n    raise exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 187, in __call__\\n    response = await self.dispatch_func(request, call_next)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/app/app/main.py\\\", line 138, in pool_metrics_middleware\\n    return await call_next(request)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 163, in call_next\\n    raise app_exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 149, in coro\\n    await self.app(scope, receive_or_disconnect, send_no_error)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 185, in __call__\\n    with collapse_excgroups():\\n         ^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/contextlib.py\\\", line 158, in __exit__\\n    self.gen.throw(value)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/_utils.py\\\", line 83, in collapse_excgroups\\n    raise exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 187, in __call__\\n    response = await self.dispatch_func(request, call_next)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/app/app/main.py\\\", line 115, in metrics_middleware\\n    response = await call_next(request)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 163, in call_next\\n    raise app_exc\\n  Fil\"}",
+      "created_at": "2026-06-10T14:37:39.656089"
+    },
+    {
+      "id": "ece1b431-ff13-472a-be56-df7cbbedce47",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "logout",
+      "action": "AUTH_LOGOUT",
+      "details": "{\"username\": \"logout\", \"ip\": \"100.64.0.13\", \"user_agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36\", \"refresh_revoked\": true, \"refresh_token_present\": true}",
+      "created_at": "2026-06-10T14:37:39.913683"
+    },
+    {
+      "id": "7adccad3-01ff-43d7-85aa-29c9d25fd2e2",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "STAFF_AUTO_SHIFT_LEAVE",
+      "details": "Auto-left shift on logout",
+      "created_at": "2026-06-10T14:37:39.913688"
+    },
+    {
+      "id": "2f34dfdd-4064-45a3-a120-3e933dc88c2d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "LOGOUT",
+      "details": "{}",
+      "created_at": "2026-06-10T14:37:40.144069"
     }
   ],
   "shifts": [
@@ -10126,7 +10483,7 @@
       "id": "b92e3045-23c0-4f34-a5e6-607562425c79",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
       "transaction_type": "expense",
-      "status": "posted",
+      "status": "reversed",
       "source_account_id": "809141d0-0ccb-4381-8566-820f51cebd21",
       "destination_account_id": "2ddff903-893c-42ad-8802-e9a7531094e2",
       "amount": "1.12",
@@ -10138,11 +10495,11 @@
       "created_by": "emalat",
       "approved_by": null,
       "posted_by": "emalat",
-      "reversed_by": null,
+      "reversed_by": "admin_override",
       "created_at": "2026-06-10T13:24:07.916123",
       "approved_at": null,
       "posted_at": "2026-06-10T13:24:07.921463",
-      "reversed_at": null,
+      "reversed_at": "2026-06-10T14:15:34.171669",
       "related_shift_id": null,
       "related_table_id": null,
       "related_order_id": null,
@@ -10383,32 +10740,6 @@
       "legacy_finance_entry_id": null
     },
     {
-      "id": "804c829c-5103-4951-83b5-2f46a52a609d",
-      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
-      "transaction_type": "inventory_restock",
-      "status": "posted",
-      "source_account_id": "63bdad9c-f473-4458-a11d-5ebaca692979",
-      "destination_account_id": "44997c11-03a8-497a-a285-e77d888e65d2",
-      "amount": "2.00",
-      "currency": "AZN",
-      "category": "Xammal Mədaxili",
-      "counterparty": null,
-      "reference": "e6519011-8d7d-4a8f-985d-851f04b7f46b",
-      "note": "Çay mədaxili (0.100 ƏDƏD)",
-      "created_by": "emalat",
-      "approved_by": null,
-      "posted_by": "emalat",
-      "reversed_by": null,
-      "created_at": "2026-06-10T13:39:00.509113",
-      "approved_at": null,
-      "posted_at": "2026-06-10T13:39:00.517973",
-      "reversed_at": null,
-      "related_shift_id": null,
-      "related_table_id": null,
-      "related_order_id": null,
-      "legacy_finance_entry_id": null
-    },
-    {
       "id": "f51b57a9-ad13-41bb-91e1-d5fd694aba28",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
       "transaction_type": "income",
@@ -10458,6 +10789,32 @@
       "related_shift_id": null,
       "related_table_id": null,
       "related_order_id": "1c99dcfa-be9e-4d8d-a5e2-53e42c104d94",
+      "legacy_finance_entry_id": null
+    },
+    {
+      "id": "804c829c-5103-4951-83b5-2f46a52a609d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_type": "inventory_restock",
+      "status": "reversed",
+      "source_account_id": "63bdad9c-f473-4458-a11d-5ebaca692979",
+      "destination_account_id": "44997c11-03a8-497a-a285-e77d888e65d2",
+      "amount": "2.00",
+      "currency": "AZN",
+      "category": "Xammal Mədaxili",
+      "counterparty": null,
+      "reference": "e6519011-8d7d-4a8f-985d-851f04b7f46b",
+      "note": "Çay mədaxili (0.100 ƏDƏD)",
+      "created_by": "emalat",
+      "approved_by": null,
+      "posted_by": "emalat",
+      "reversed_by": "admin_override",
+      "created_at": "2026-06-10T13:39:00.509113",
+      "approved_at": null,
+      "posted_at": "2026-06-10T13:39:00.517973",
+      "reversed_at": "2026-06-10T14:31:57.177540",
+      "related_shift_id": null,
+      "related_table_id": null,
+      "related_order_id": null,
       "legacy_finance_entry_id": null
     },
     {
@@ -10536,6 +10893,136 @@
       "related_shift_id": null,
       "related_table_id": null,
       "related_order_id": "bb346657-af48-4406-a57b-0b2dc7f6f1ee",
+      "legacy_finance_entry_id": null
+    },
+    {
+      "id": "431ed972-7185-4fe8-ba8a-e5410c61cdc0",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_type": "reversal",
+      "status": "posted",
+      "source_account_id": "2ddff903-893c-42ad-8802-e9a7531094e2",
+      "destination_account_id": "809141d0-0ccb-4381-8566-820f51cebd21",
+      "amount": "1.12",
+      "currency": "AZN",
+      "category": "Reversal: Digər Xərc",
+      "counterparty": null,
+      "reference": "b92e3045-23c0-4f34-a5e6-607562425c79",
+      "note": "Reversal request for b92e3045-23c0-4f34-a5e6-607562425c79",
+      "created_by": "emalat",
+      "approved_by": "admin_override",
+      "posted_by": "admin_override",
+      "reversed_by": null,
+      "created_at": "2026-06-10T13:58:22.687759",
+      "approved_at": "2026-06-10T14:15:34.083819",
+      "posted_at": "2026-06-10T14:15:34.870114",
+      "reversed_at": null,
+      "related_shift_id": null,
+      "related_table_id": null,
+      "related_order_id": null,
+      "legacy_finance_entry_id": null
+    },
+    {
+      "id": "a97f5fe0-d24a-4dda-86a7-d5cd9e5fc8f9",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_type": "income",
+      "status": "posted",
+      "source_account_id": "c5704819-c876-4919-8da7-52d85d6bc744",
+      "destination_account_id": "809141d0-0ccb-4381-8566-820f51cebd21",
+      "amount": "8.50",
+      "currency": "AZN",
+      "category": "Satış (Kart)",
+      "counterparty": null,
+      "reference": null,
+      "note": "POS Sale 984144d0-1737-4485-bae9-11492735dc01",
+      "created_by": "Samir",
+      "approved_by": null,
+      "posted_by": "Samir",
+      "reversed_by": null,
+      "created_at": "2026-06-10T14:29:37.803965",
+      "approved_at": null,
+      "posted_at": "2026-06-10T14:29:37.811565",
+      "reversed_at": null,
+      "related_shift_id": null,
+      "related_table_id": null,
+      "related_order_id": "984144d0-1737-4485-bae9-11492735dc01",
+      "legacy_finance_entry_id": null
+    },
+    {
+      "id": "7e2fcd2d-6d0f-4ebf-844c-799c8d9b6411",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_type": "expense",
+      "status": "posted",
+      "source_account_id": "809141d0-0ccb-4381-8566-820f51cebd21",
+      "destination_account_id": "2ddff903-893c-42ad-8802-e9a7531094e2",
+      "amount": "0.17",
+      "currency": "AZN",
+      "category": "Bank Komissiyası",
+      "counterparty": null,
+      "reference": null,
+      "note": "POS Sale 984144d0-1737-4485-bae9-11492735dc01 kart komissiyası",
+      "created_by": "Samir",
+      "approved_by": null,
+      "posted_by": "Samir",
+      "reversed_by": null,
+      "created_at": "2026-06-10T14:29:37.812812",
+      "approved_at": null,
+      "posted_at": "2026-06-10T14:29:37.819515",
+      "reversed_at": null,
+      "related_shift_id": null,
+      "related_table_id": null,
+      "related_order_id": "984144d0-1737-4485-bae9-11492735dc01",
+      "legacy_finance_entry_id": null
+    },
+    {
+      "id": "63069509-dcf4-4131-bd1d-2559c8d6996c",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_type": "cogs_recognition",
+      "status": "posted",
+      "source_account_id": "44997c11-03a8-497a-a285-e77d888e65d2",
+      "destination_account_id": "99d95f48-0453-4188-a4bf-52575aff3684",
+      "amount": "3.91",
+      "currency": "AZN",
+      "category": "COGS",
+      "counterparty": null,
+      "reference": null,
+      "note": "POS sale COGS 984144d0-1737-4485-bae9-11492735dc01",
+      "created_by": "Samir",
+      "approved_by": null,
+      "posted_by": "Samir",
+      "reversed_by": null,
+      "created_at": "2026-06-10T14:29:37.820716",
+      "approved_at": null,
+      "posted_at": "2026-06-10T14:29:37.826244",
+      "reversed_at": null,
+      "related_shift_id": null,
+      "related_table_id": null,
+      "related_order_id": "984144d0-1737-4485-bae9-11492735dc01",
+      "legacy_finance_entry_id": null
+    },
+    {
+      "id": "e986cfac-c0f8-48e6-bf9d-21fa2784c38d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_type": "reversal",
+      "status": "posted",
+      "source_account_id": "44997c11-03a8-497a-a285-e77d888e65d2",
+      "destination_account_id": "63bdad9c-f473-4458-a11d-5ebaca692979",
+      "amount": "2.00",
+      "currency": "AZN",
+      "category": "Reversal: Xammal Mədaxili",
+      "counterparty": null,
+      "reference": "804c829c-5103-4951-83b5-2f46a52a609d",
+      "note": "Reversal auto-post via corrected admin override script for 804c829c-5103-4951-83b5-2f46a52a609d",
+      "created_by": "admin_override",
+      "approved_by": "admin_override",
+      "posted_by": "admin_override",
+      "reversed_by": null,
+      "created_at": "2026-06-10T14:31:57.004406",
+      "approved_at": "2026-06-10T14:31:57.004406",
+      "posted_at": "2026-06-10T14:31:57.882607",
+      "reversed_at": null,
+      "related_shift_id": null,
+      "related_table_id": null,
+      "related_order_id": null,
       "legacy_finance_entry_id": null
     }
   ],
@@ -11353,6 +11840,116 @@
       "currency": "AZN",
       "description": "POS sale COGS bb346657-af48-4406-a57b-0b2dc7f6f1ee",
       "created_at": "2026-06-10T13:42:11.870156"
+    },
+    {
+      "id": "0a48bc34-186b-44cb-b577-1eba8f148505",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "431ed972-7185-4fe8-ba8a-e5410c61cdc0",
+      "account_id": "809141d0-0ccb-4381-8566-820f51cebd21",
+      "entry_side": "debit",
+      "amount": "1.12",
+      "currency": "AZN",
+      "description": "Reversal request for b92e3045-23c0-4f34-a5e6-607562425c79",
+      "created_at": "2026-06-10T14:15:35.048582"
+    },
+    {
+      "id": "ed35592d-bdb8-4ffd-be36-161f1b55145f",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "431ed972-7185-4fe8-ba8a-e5410c61cdc0",
+      "account_id": "2ddff903-893c-42ad-8802-e9a7531094e2",
+      "entry_side": "credit",
+      "amount": "1.12",
+      "currency": "AZN",
+      "description": "Reversal request for b92e3045-23c0-4f34-a5e6-607562425c79",
+      "created_at": "2026-06-10T14:15:35.048603"
+    },
+    {
+      "id": "026c1a3a-3f42-4b74-bc36-e7210fdd0e84",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "a97f5fe0-d24a-4dda-86a7-d5cd9e5fc8f9",
+      "account_id": "809141d0-0ccb-4381-8566-820f51cebd21",
+      "entry_side": "debit",
+      "amount": "8.50",
+      "currency": "AZN",
+      "description": "POS Sale 984144d0-1737-4485-bae9-11492735dc01",
+      "created_at": "2026-06-10T14:29:37.813655"
+    },
+    {
+      "id": "55cb4f4f-daad-4c78-becc-11bfe8810bf1",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "a97f5fe0-d24a-4dda-86a7-d5cd9e5fc8f9",
+      "account_id": "c5704819-c876-4919-8da7-52d85d6bc744",
+      "entry_side": "credit",
+      "amount": "8.50",
+      "currency": "AZN",
+      "description": "POS Sale 984144d0-1737-4485-bae9-11492735dc01",
+      "created_at": "2026-06-10T14:29:37.813661"
+    },
+    {
+      "id": "73f138cf-4805-4f2f-b07e-dbeb7ad2a7bb",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "7e2fcd2d-6d0f-4ebf-844c-799c8d9b6411",
+      "account_id": "2ddff903-893c-42ad-8802-e9a7531094e2",
+      "entry_side": "debit",
+      "amount": "0.17",
+      "currency": "AZN",
+      "description": "POS Sale 984144d0-1737-4485-bae9-11492735dc01 kart komissiyası",
+      "created_at": "2026-06-10T14:29:37.821441"
+    },
+    {
+      "id": "15c78d65-222b-448a-b7f3-26de26cc3825",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "7e2fcd2d-6d0f-4ebf-844c-799c8d9b6411",
+      "account_id": "809141d0-0ccb-4381-8566-820f51cebd21",
+      "entry_side": "credit",
+      "amount": "0.17",
+      "currency": "AZN",
+      "description": "POS Sale 984144d0-1737-4485-bae9-11492735dc01 kart komissiyası",
+      "created_at": "2026-06-10T14:29:37.821444"
+    },
+    {
+      "id": "ddd9664e-8a9a-40f3-8b01-a22aa51463c8",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "63069509-dcf4-4131-bd1d-2559c8d6996c",
+      "account_id": "99d95f48-0453-4188-a4bf-52575aff3684",
+      "entry_side": "debit",
+      "amount": "3.91",
+      "currency": "AZN",
+      "description": "POS sale COGS 984144d0-1737-4485-bae9-11492735dc01",
+      "created_at": "2026-06-10T14:29:37.826823"
+    },
+    {
+      "id": "e4cabf0c-708c-4d6d-91aa-f429347d9273",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "63069509-dcf4-4131-bd1d-2559c8d6996c",
+      "account_id": "44997c11-03a8-497a-a285-e77d888e65d2",
+      "entry_side": "credit",
+      "amount": "3.91",
+      "currency": "AZN",
+      "description": "POS sale COGS 984144d0-1737-4485-bae9-11492735dc01",
+      "created_at": "2026-06-10T14:29:37.826827"
+    },
+    {
+      "id": "58c8aa14-b262-4d55-9ebb-ccd8659e4c45",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "e986cfac-c0f8-48e6-bf9d-21fa2784c38d",
+      "account_id": "63bdad9c-f473-4458-a11d-5ebaca692979",
+      "entry_side": "debit",
+      "amount": "2.00",
+      "currency": "AZN",
+      "description": "Reversal auto-post via corrected admin override script for 804c829c-5103-4951-83b5-2f46a52a609d",
+      "created_at": "2026-06-10T14:31:58.060165"
+    },
+    {
+      "id": "f4241c3b-a8b4-4f0e-bf90-01bfc9c43cc7",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "e986cfac-c0f8-48e6-bf9d-21fa2784c38d",
+      "account_id": "44997c11-03a8-497a-a285-e77d888e65d2",
+      "entry_side": "credit",
+      "amount": "2.00",
+      "currency": "AZN",
+      "description": "Reversal auto-post via corrected admin override script for 804c829c-5103-4951-83b5-2f46a52a609d",
+      "created_at": "2026-06-10T14:31:58.060209"
     }
   ],
   "finance_reconciliations": [],

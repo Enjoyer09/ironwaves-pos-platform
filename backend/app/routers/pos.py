@@ -658,7 +658,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
                 payment_source=source,
                 created_by=user.username,
                 category=category,
-                note=f"POS Sale {sale.id}",
+                note=f"POS Sale {sale.receipt_code or sale.id[:8]}",
                 card_fee_percent=card_sale_percent if source == "card" else Decimal("0"),
             )
 
@@ -668,7 +668,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         sale_id=sale.id,
         amount=Decimal(str(cogs_total or 0)).quantize(Decimal("0.01")),
         created_by=user.username,
-        note=f"POS sale COGS {sale.id}",
+        note=f"POS sale COGS {sale.receipt_code or sale.id[:8]}",
     )
 
     if customer is not None:
