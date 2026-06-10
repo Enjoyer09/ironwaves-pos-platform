@@ -1981,7 +1981,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                   key={cat}
                   onClick={() => setCategory(cat)}
                   disabled={isPosMenuEditMode}
-                  className={`neon-chip ${category === cat ? 'neon-chip-active' : ''} ${isPosMenuEditMode ? 'cursor-not-allowed opacity-70' : ''}`}
+                  className={`neon-chip pos-category-btn ${category === cat ? 'neon-chip-active' : ''} ${isPosMenuEditMode ? 'cursor-not-allowed opacity-70' : ''}`}
                 >
                   {cat === 'ALL' ? t.all_categories : cat}
                 </button>
@@ -2014,7 +2014,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       const size = getLeftWidgetSize(widget);
       if (isNewUiMode) {
         return (
-          <div key={widget} className="pos2-product-grid grid flex-1 auto-rows-max grid-cols-1 gap-3 overflow-y-auto pr-1 md:grid-cols-2 2xl:grid-cols-3">
+          <div key={widget} className="pos2-product-grid grid flex-1 auto-rows-max grid-cols-2 gap-2 overflow-y-auto pr-1 md:grid-cols-3 2xl:grid-cols-4">
             {groupedMenu.map((group) => {
               const preview = group.items[0];
               const qtyInCart = getGroupQty(group);
@@ -2041,7 +2041,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                     setDraggingMenuGroupKey(null);
                     setDropMenuGroupKey(null);
                   }}
-                  className={`pos2-product-card ${dropMenuGroupKey === group.group_key && draggingMenuGroupKey !== group.group_key ? 'ring-2 ring-cyan-300/70' : ''} ${draggingMenuGroupKey === group.group_key ? 'opacity-60' : ''}`}
+                  className={`pos2-product-card pos-product-card ${dropMenuGroupKey === group.group_key && draggingMenuGroupKey !== group.group_key ? 'ring-2 ring-cyan-300/70' : ''} ${draggingMenuGroupKey === group.group_key ? 'opacity-60' : ''}`}
                 >
                   <button onClick={() => { if (!isPosMenuEditMode) openProductPicker(group); }} className="w-full text-left">
                     {posLayout.widget_options?.productGrid?.show_images !== false && (
@@ -2293,7 +2293,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                     key={cat}
                     onClick={() => setCategory(cat)}
                     disabled={isPosMenuEditMode}
-                    className={`pos3-chip ${category === cat ? 'pos3-chip-active' : ''} ${isPosMenuEditMode ? 'cursor-not-allowed opacity-70' : ''}`}
+                    className={`pos3-chip pos-category-btn ${category === cat ? 'pos3-chip-active' : ''} ${isPosMenuEditMode ? 'cursor-not-allowed opacity-70' : ''}`}
                   >
                     {cat === 'ALL' ? t.all_categories : cat}
                   </button>
@@ -2345,7 +2345,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                       setDraggingMenuGroupKey(null);
                       setDropMenuGroupKey(null);
                     }}
-                    className={`pos3-card ${qtyInCart > 0 ? 'pos3-card-active' : ''} ${dropMenuGroupKey === group.group_key && draggingMenuGroupKey !== group.group_key ? 'ring-2 ring-cyan-300/70' : ''} ${draggingMenuGroupKey === group.group_key ? 'opacity-60' : ''}`}
+                    className={`pos3-card pos-product-card ${qtyInCart > 0 ? 'pos3-card-active' : ''} ${dropMenuGroupKey === group.group_key && draggingMenuGroupKey !== group.group_key ? 'ring-2 ring-cyan-300/70' : ''} ${draggingMenuGroupKey === group.group_key ? 'opacity-60' : ''}`}
                   >
                     <button className="w-full text-left" onClick={() => { if (!isPosMenuEditMode) openProductPicker(group); }}>
                       {posLayout.widget_options?.productGrid?.show_images !== false && (

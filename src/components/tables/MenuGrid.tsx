@@ -159,7 +159,7 @@ function MenuGrid({
             key={cat}
             type="button"
             onClick={() => onCategoryChange(cat)}
-            className={`whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-bold transition ${
+            className={`whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-bold transition pos-category-btn ${
               selectedCategory === cat
                 ? 'bg-yellow-400 text-slate-900 shadow-lg shadow-yellow-400/20'
                 : 'border border-slate-600/60 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60'
@@ -171,7 +171,7 @@ function MenuGrid({
       </div>
 
       {/* Product grid - grouped by variant */}
-      <div className="grid min-h-0 flex-1 auto-rows-max grid-cols-3 gap-2 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/30 p-2 md:grid-cols-4 xl:grid-cols-5">
+      <div className="grid min-h-0 flex-1 auto-rows-max grid-cols-4 gap-1.5 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/30 p-2 md:grid-cols-5 xl:grid-cols-6">
         {groupedItems.map((group) => {
           const totalQtyInDraft = group.items.reduce((sum: number, it: any) => sum + (draftQtyMap.get(it.id) || 0), 0);
           const isPickerOpen = sizePickerGroup === group.key;
@@ -187,7 +187,7 @@ function MenuGrid({
                     void onSelectItem(group.items[0]);
                   }
                 }}
-                className={`relative flex w-full flex-col overflow-hidden rounded-xl border transition active:scale-[0.97] ${
+                className={`relative flex w-full flex-col overflow-hidden rounded-xl border transition active:scale-[0.97] pos-product-card ${
                   totalQtyInDraft > 0
                     ? 'border-yellow-400/60 bg-slate-900/80 shadow-lg shadow-yellow-400/10'
                     : 'border-slate-700/50 bg-slate-900/50 hover:border-yellow-300/30 hover:bg-slate-900/70'
