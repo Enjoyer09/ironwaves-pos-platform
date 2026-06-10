@@ -380,12 +380,20 @@ export async function submit_feedback_live(payload: FeedbackSubmission) {
 
   if (isBackendEnabled()) {
     try {
-      await apiRequest('/api/v1/ops/feedback/submit', {
+      const res = await apiRequest<any>('/api/v1/ops/feedback/submit', {
         method: 'POST',
         auth: false,
         tenantId: null,
         body: safePayload,
       });
+      if (res && res.success) {
+        return {
+          success: true,
+          already_submitted: Boolean(res.already_submitted),
+          coupon_code: res.coupon_code || null,
+          coupon_percent: res.coupon_percent || null,
+        };
+      }
     } catch {
       // Endpoint may not exist yet; keep local persistence as fallback.
     }

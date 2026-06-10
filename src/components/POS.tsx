@@ -1419,6 +1419,13 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         if (!found) {
           notify('error', tx(lang, 'Kupon tapılmadı', 'Купон не найден', 'Coupon not found'));
           setFeedbackCouponPreview(null);
+          patchCtx({ rewardClaimCode: '', customerQR: '' });
+          return;
+        }
+        if (found.status !== 'PENDING') {
+          notify('error', tx(lang, 'Bu feedback kuponu artıq istifadə olunub', 'Этот feedback купон уже использован', 'This feedback coupon is already used'));
+          setFeedbackCouponPreview(null);
+          patchCtx({ rewardClaimCode: '', customerQR: '' });
           return;
         }
         setFeedbackCouponPreview({
@@ -1427,10 +1434,8 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           status: String(found.status || 'PENDING'),
         });
         notify(
-          found.status === 'PENDING' ? 'success' : 'info',
-          found.status === 'PENDING'
-            ? tx(lang, `Feedback kuponu aktivdir: -${Number(found.percent || 5)}%`, `Купон feedback активен: -${Number(found.percent || 5)}%`, `Feedback coupon active: -${Number(found.percent || 5)}%`)
-            : tx(lang, 'Bu feedback kuponu artıq istifadə olunub', 'Этот feedback купон уже использован', 'This feedback coupon is already used'),
+          'success',
+          tx(lang, `Feedback kuponu aktivdir: -${Number(found.percent || 5)}%`, `Купон feedback активен: -${Number(found.percent || 5)}%`, `Feedback coupon active: -${Number(found.percent || 5)}%`)
         );
       })();
       return;
@@ -1520,6 +1525,16 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           tx(lang, 'Kupon tapılmadı', 'Купон не найден', 'Coupon not found'),
         );
         setFeedbackCouponPreview(null);
+        patchCtx({ rewardClaimCode: '' });
+        return;
+      }
+      if (found.status !== 'PENDING') {
+        notify(
+          'error',
+          tx(lang, 'Bu feedback kuponu artıq istifadə olunub', 'Этот feedback купон уже использован', 'This feedback coupon is already used'),
+        );
+        setFeedbackCouponPreview(null);
+        patchCtx({ rewardClaimCode: '' });
         return;
       }
       setFeedbackCouponPreview({
@@ -1528,20 +1543,13 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         status: String(found.status || 'PENDING'),
       });
       notify(
-        found.status === 'PENDING' ? 'success' : 'info',
-        found.status === 'PENDING'
-          ? tx(
-              lang,
-              `Feedback kuponu aktivdir: -${Number(found.percent || 5)}%`,
-              `Купон feedback активен: -${Number(found.percent || 5)}%`,
-              `Feedback coupon active: -${Number(found.percent || 5)}%`,
-            )
-          : tx(
-              lang,
-              'Bu feedback kuponu artıq istifadə olunub',
-              'Этот feedback купон уже использован',
-              'This feedback coupon is already used',
-            ),
+        'success',
+        tx(
+          lang,
+          `Feedback kuponu aktivdir: -${Number(found.percent || 5)}%`,
+          `Купон feedback активен: -${Number(found.percent || 5)}%`,
+          `Feedback coupon active: -${Number(found.percent || 5)}%`,
+        ),
       );
     })();
   };
@@ -1558,7 +1566,18 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     void (async () => {
       const found = await find_feedback_coupon_live(tenantId, raw);
       if (cancelled || !found) {
-        if (!cancelled) setFeedbackCouponPreview(null);
+        if (!cancelled) {
+          setFeedbackCouponPreview(null);
+          patchCtx({ rewardClaimCode: '' });
+        }
+        return;
+      }
+      if (found.status !== 'PENDING') {
+        if (!cancelled) {
+          setFeedbackCouponPreview(null);
+          patchCtx({ rewardClaimCode: '' });
+          notify('error', tx(lang, 'Bu feedback kuponu artıq istifadə olunub', 'Этот feedback купон уже использован', 'This feedback coupon is already used'));
+        }
         return;
       }
       setFeedbackCouponPreview({
