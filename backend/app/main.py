@@ -718,6 +718,37 @@ def _seed_demo_tenant(db: Session):
     db.commit()
 
 
+def _repair_customer_discounts(db: Session):
+    """Repair imported customers with 0% discounts for known tiers."""
+    from app.models import Customer
+    from decimal import Decimal
+    
+    type_discount_map = {
+        "golden": Decimal("5.00"),
+        "platinum": Decimal("10.00"),
+        "tələbə": Decimal("15.00"),
+        "telebe": Decimal("15.00"),
+        "elite": Decimal("20.00"),
+        "thermos": Decimal("20.00"),
+        "ikram": Decimal("100.00"),
+        "vip": Decimal("15.00"),
+        "silver": Decimal("5.00")
+    }
+
+    # Query all customers with 0% discount
+    zero_discount_customers = db.query(Customer).filter(Customer.discount_percent == Decimal("0.00")).all()
+    repaired_count = 0
+    for customer in zero_discount_customers:
+        ctype = str(customer.type or "").strip().lower()
+        if ctype in type_discount_map:
+            customer.discount_percent = type_discount_map[ctype]
+            repaired_count += 1
+            
+    if repaired_count > 0:
+        db.commit()
+        print(f"[startup] Repaired {repaired_count} customer accounts setting default tier discounts.")
+
+
 def _ensure_schema_guard_table(conn) -> None:
     conn.execute(
         text(
@@ -1201,6 +1232,7 @@ async def on_startup():
     with SessionLocal() as db:
         _seed_initial_data(db)
         _seed_demo_tenant(db)
+        _repair_customer_discounts(db)
     
     # Start the POS Background AI Agent
     start_background_agent()

@@ -58,7 +58,13 @@ def main():
 
     # Map type to discount_percent
     type_discount_map = {
-        "golden": 10,
+        "golden": 5,
+        "platinum": 10,
+        "tələbə": 15,
+        "telebe": 15,
+        "elite": 20,
+        "thermos": 20,
+        "ikram": 100,
         "vip": 15,
         "silver": 5,
         "normal": 0,
