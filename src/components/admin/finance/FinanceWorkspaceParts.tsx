@@ -5,7 +5,7 @@ import { type FinanceAlert, type FinanceTransactionDetail } from '../../../api/f
 import { tx } from '../../../i18n';
 import { formatServerUtcDateTime } from '../../../lib/time';
 
-export type FinanceWorkspaceTab = 'overview' | 'transactions' | 'transfers' | 'reconciliation' | 'investor' | 'deposits' | 'ledger';
+export type FinanceWorkspaceTab = 'overview' | 'transactions' | 'reconciliation' | 'deposits' | 'ledger';
 export type FinanceQuickAction = 'income' | 'expense' | 'transfer' | 'investor_repayment' | 'deposit' | 'reconcile' | 'adjustment';
 export type FinanceStatusTone = 'emerald' | 'rose' | 'amber' | 'sky' | 'violet' | 'slate';
 
@@ -198,10 +198,8 @@ export function FinanceQuickActions({ lang, active, onSelect }: { lang: string; 
 export function FinanceWorkspaceTabs({ active, onChange }: { lang?: string; active: FinanceWorkspaceTab; onChange: (tab: FinanceWorkspaceTab) => void }) {
   const tabs: Array<[FinanceWorkspaceTab, string]> = [
     ['overview', 'Baxış'],
-    ['transactions', 'Əməliyyatlar'],
-    ['transfers', 'Transferlər'],
+    ['transactions', 'Əməliyyat Yaz'],
     ['reconciliation', 'Uyğunlaşdırma'],
-    ['investor', 'Investor'],
     ['deposits', 'Depozitlər'],
     ['ledger', 'Maliyyə Jurnalı'],
   ];

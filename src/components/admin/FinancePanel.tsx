@@ -47,7 +47,6 @@ import {
   FinanceDashboard,
   FinanceField,
   FinanceMiniMetric,
-  FinanceQuickActions,
   FinanceStatusBadge,
   FinanceSummaryStrip,
   FinanceWorkspaceTabs,
@@ -131,6 +130,15 @@ export default function FinancePanel() {
   const [rangePreset, setRangePreset] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'>('daily');
   const [workspaceTab, setWorkspaceTab] = useState<FinanceWorkspaceTab>('overview');
   const [quickAction, setQuickAction] = useState<FinanceQuickAction>('expense');
+  const [txSubTab, setTxSubTab] = useState<'expense' | 'income' | 'transfer' | 'investor_repayment'>('expense');
+
+  useEffect(() => {
+    if (txSubTab === 'income') {
+      setType('in');
+    } else if (txSubTab === 'expense') {
+      setType('out');
+    }
+  }, [txSubTab]);
 
   const [type, setType] = useState<'in' | 'out'>('out');
   const [source, setSource] = useState<WalletSource>('cash');
@@ -1436,7 +1444,7 @@ export default function FinancePanel() {
           body: `${tx(lang, 'Qalan borc', 'Остаток долга', 'Remaining debt')}: ${ledgerInvestorDebt.toFixed(2)} ₼`,
           tone: 'amber' as const,
           action: tx(lang, 'Investor', 'Инвестор', 'Investor'),
-          tab: 'investor' as FinanceWorkspaceTab,
+          tab: 'transactions' as FinanceWorkspaceTab,
         }]
       : []),
     ...(financeExceptions.length > 0
@@ -1451,7 +1459,7 @@ export default function FinancePanel() {
       : []),
   ];
   const financeAlerts = (serverFinanceAlerts ?? fallbackFinanceAlerts)
-    .filter((alert) => ['overview', 'transactions', 'transfers', 'reconciliation', 'investor', 'deposits', 'ledger'].includes(alert.tab))
+    .filter((alert) => ['overview', 'transactions', 'reconciliation', 'deposits', 'ledger'].includes(alert.tab))
     .map((alert) => ({
       id: alert.id,
       title: alert.title,
@@ -1494,7 +1502,8 @@ export default function FinancePanel() {
       return;
     }
     if (alert.id === 'investor-liability-open' || alert.id === 'investor-balance') {
-      setWorkspaceTab('investor');
+      setWorkspaceTab('transactions');
+      setTxSubTab('investor_repayment');
       return;
     }
     if (alert.id === 'audit-exceptions') {
@@ -1505,23 +1514,25 @@ export default function FinancePanel() {
   const selectQuickAction = (action: FinanceQuickAction) => {
     setQuickAction(action);
     if (action === 'income') {
-      setType('in');
+      setTxSubTab('income');
       setShowAdvancedTxFields(false);
       setWorkspaceTab('transactions');
       return;
     }
     if (action === 'expense') {
-      setType('out');
+      setTxSubTab('expense');
       setShowAdvancedTxFields(false);
       setWorkspaceTab('transactions');
       return;
     }
     if (action === 'transfer') {
-      setWorkspaceTab('transfers');
+      setTxSubTab('transfer');
+      setWorkspaceTab('transactions');
       return;
     }
     if (action === 'investor_repayment') {
-      setWorkspaceTab('investor');
+      setTxSubTab('investor_repayment');
+      setWorkspaceTab('transactions');
       return;
     }
     if (action === 'deposit') {
@@ -1544,7 +1555,7 @@ export default function FinancePanel() {
     if (workspaceTab === 'overview') {
       setWorkspaceTab('transactions');
       setQuickAction('expense');
-      setType('out');
+      setTxSubTab('expense');
     }
   }, [focusedMode, workspaceTab]);
 
@@ -1566,12 +1577,6 @@ export default function FinancePanel() {
           </p>
         </div>
         <div className="flex gap-2">
-	          <button onClick={() => { setQuickAction('income'); setType('in'); }} aria-pressed={type === 'in'} className={`min-h-11 rounded-2xl px-4 text-sm font-black ${type === 'in' ? 'bg-emerald-400 text-slate-950' : 'border border-slate-700 text-slate-200 hover:border-slate-500 hover:bg-slate-900'}`}>
-	            {tx(lang, 'Mədaxil', 'Приход', 'Income')}
-	          </button>
-	          <button onClick={() => { setQuickAction('expense'); setType('out'); }} aria-pressed={type === 'out'} className={`min-h-11 rounded-2xl px-4 text-sm font-black ${type === 'out' ? 'bg-rose-400 text-slate-950' : 'border border-slate-700 text-slate-200 hover:border-slate-500 hover:bg-slate-900'}`}>
-	            {tx(lang, 'Xərc', 'Расход', 'Expense')}
-	          </button>
             <button
               type="button"
               aria-pressed={showAdvancedTxFields}
@@ -1998,7 +2003,10 @@ export default function FinancePanel() {
       reconciliationGap={`${new Decimal(unreconciledVariance || 0).toFixed(2)} ₼`}
       hasVariance={new Decimal(unreconciledVariance || 0).abs().gt(0.01)}
       onOpenReconciliation={() => setWorkspaceTab('reconciliation')}
-      onOpenInvestor={() => setWorkspaceTab('investor')}
+      onOpenInvestor={() => {
+        setWorkspaceTab('transactions');
+        setTxSubTab('investor_repayment');
+      }}
     />
   );
 
@@ -2007,17 +2015,9 @@ export default function FinancePanel() {
       title: tx(lang, 'Əməliyyat yaz', 'Əməliyyat yaz', 'Əməliyyat yaz'),
       subtitle: tx(lang, 'Seçilmiş əməliyyat üçün yalnız lazım olan sahələr göstərilir.', 'Seçilmiş əməliyyat üçün yalnız lazım olan sahələr göstərilir.', 'Seçilmiş əməliyyat üçün yalnız lazım olan sahələr göstərilir.'),
     },
-    transfers: {
-      title: tx(lang, 'Daxili transfer', 'Daxili transfer', 'Daxili transfer'),
-      subtitle: tx(lang, 'Hesablar arasında hərəkəti nəzarətli şəkildə yazın.', 'Hesablar arasında hərəkəti nəzarətli şəkildə yazın.', 'Hesablar arasında hərəkəti nəzarətli şəkildə yazın.'),
-    },
     reconciliation: {
       title: tx(lang, 'Uyğunlaşdırma', 'Uyğunlaşdırma', 'Uyğunlaşdırma'),
       subtitle: tx(lang, 'Gözlənilən və sayılmış qalığı tutuşdurun.', 'Gözlənilən və sayılmış qalığı tutuşdurun.', 'Gözlənilən və sayılmış qalığı tutuşdurun.'),
-    },
-    investor: {
-      title: tx(lang, 'Investor ödənişi', 'Investor ödənişi', 'Investor ödənişi'),
-      subtitle: tx(lang, 'Investor borcu ilə bağlı nəzarətli ödəniş axını.', 'Investor borcu ilə bağlı nəzarətli ödəniş axını.', 'Investor borcu ilə bağlı nəzarətli ödəniş axını.'),
     },
     deposits: {
       title: tx(lang, 'Depozit əməliyyatları', 'Depozit əməliyyatları', 'Depozit əməliyyatları'),
@@ -2039,7 +2039,61 @@ export default function FinancePanel() {
           lang={lang}
           onClose={closeActionWorkspace}
         >
-          {workspaceTab === 'transactions' && transactionForm}
+          {workspaceTab === 'transactions' && (
+            <div className="space-y-5">
+              <div className="flex flex-wrap gap-2 rounded-2xl bg-slate-900/60 p-1.5 border border-slate-800">
+                {(
+                  [
+                    ['expense', tx(lang, 'Xərc', 'Расход', 'Expense')],
+                    ['income', tx(lang, 'Mədaxil', 'Приход', 'Income')],
+                    ['transfer', tx(lang, 'Daxili Transfer', 'Внутренний перевод', 'Internal Transfer')],
+                    ['investor_repayment', tx(lang, 'İnvestor Ödənişi', 'Выплата инвестору', 'Investor Repayment')],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setTxSubTab(key)}
+                    className={`min-h-10 rounded-xl px-4 text-xs font-black transition-all ${
+                      txSubTab === key
+                        ? 'bg-yellow-400 text-slate-950 shadow-md font-bold'
+                        : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {txSubTab === 'expense' && transactionForm}
+              {txSubTab === 'income' && transactionForm}
+              {txSubTab === 'transfer' && transferForm}
+              {txSubTab === 'investor_repayment' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <FinanceMiniMetric
+                      label={tx(lang, 'Mövcud investor borcu', 'Текущий долг инвестору', 'Current investor debt')}
+                      value={`${ledgerInvestorDebt.toFixed(2)} ₼`}
+                      tone={ledgerInvestorDebt.gt(0.01) ? 'rose' : 'emerald'}
+                    />
+                    <FinanceMiniMetric
+                      label={tx(lang, 'Ödəniş mənbəyi', 'Источник оплаты', 'Payment source')}
+                      value={repayFrom === 'cash' ? tx(lang, 'Kassa', 'Касса', 'Cash') : repayFrom === 'card' ? tx(lang, 'Kart', 'Карта', 'Card') : repayFrom === 'safe' ? tx(lang, 'Seyf', 'Сейф', 'Safe') : '-'}
+                      tone="sky"
+                    />
+                    <FinanceMiniMetric
+                      label={tx(lang, 'Qeyd', 'Комментарий', 'Note')}
+                      value={repayNote?.trim() || tx(lang, 'Qeyd yoxdur', 'Комментария нет', 'No note')}
+                      tone="amber"
+                    />
+                  </div>
+                  {investorForm}
+                </div>
+              )}
+            </div>
+          )}
+          {workspaceTab === 'transfers' && false}
+          {workspaceTab === 'investor' && false}
           {workspaceTab === 'transfers' && transferForm}
           {workspaceTab === 'investor' && (
             <div className="space-y-4">
@@ -2161,7 +2215,7 @@ export default function FinancePanel() {
                 type="button"
                 onClick={() => {
                   setQuickAction('expense');
-                  setType('out');
+                  setTxSubTab('expense');
                   setWorkspaceTab('transactions');
                 }}
                 className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900"
@@ -2172,7 +2226,7 @@ export default function FinancePanel() {
                 type="button"
                 onClick={() => {
                   setQuickAction('income');
-                  setType('in');
+                  setTxSubTab('income');
                   setWorkspaceTab('transactions');
                 }}
                 className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900"
@@ -2183,7 +2237,8 @@ export default function FinancePanel() {
                 type="button"
                 onClick={() => {
                   setQuickAction('transfer');
-                  setWorkspaceTab('transfers');
+                  setTxSubTab('transfer');
+                  setWorkspaceTab('transactions');
                 }}
                 className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900"
               >
@@ -2193,7 +2248,8 @@ export default function FinancePanel() {
                 type="button"
                 onClick={() => {
                   setQuickAction('investor_repayment');
-                  setWorkspaceTab('investor');
+                  setTxSubTab('investor_repayment');
+                  setWorkspaceTab('transactions');
                 }}
                 className="min-h-11 rounded-2xl border border-slate-700 bg-slate-950 px-4 text-sm font-black text-slate-100 hover:border-slate-500 hover:bg-slate-900"
               >
@@ -2307,13 +2363,7 @@ export default function FinancePanel() {
         />
       )}
 
-      {!focusedMode && (
-        <FinanceQuickActions
-          lang={lang}
-          active={quickAction}
-          onSelect={selectQuickAction}
-        />
-      )}
+
 
       {!focusedMode && (
         <FinanceWorkspaceTabs
