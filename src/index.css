@@ -550,7 +550,7 @@ html {
   }
 
   .pos3-checkout {
-    @apply flex min-h-0 flex-col overflow-y-auto rounded-3xl border border-slate-700/60 bg-[linear-gradient(172deg,rgba(16,25,38,0.94),rgba(9,14,23,0.94))] p-3.5 shadow-[0_18px_34px_rgba(2,6,23,0.42)];
+    @apply flex min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-700/60 bg-[linear-gradient(172deg,rgba(16,25,38,0.94),rgba(9,14,23,0.94))] p-3.5 shadow-[0_18px_34px_rgba(2,6,23,0.42)];
   }
 
   .pos3-checkout-head {
@@ -559,7 +559,7 @@ html {
 
   .pos3-order-list {
     @apply mt-2.5 min-h-0 flex-1 space-y-1.5 overflow-y-auto rounded-2xl border border-slate-700/70 bg-slate-950/35 p-2;
-    min-height: 174px;
+    min-height: 50px;
   }
 
   .pos3-primary-btn {
@@ -2700,7 +2700,7 @@ html {
   height: 100% !important;
   max-height: 100% !important;
   padding: 0.65rem !important;
-  overflow-y: auto !important;
+  overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
 }
@@ -2711,6 +2711,7 @@ html {
 }
 
 .pos3-order-list {
+  max-height: 180px !important;
   min-height: 50px !important;
   margin-top: 0.5rem !important;
   padding: 0.35rem !important;
