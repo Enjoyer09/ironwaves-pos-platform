@@ -2794,7 +2794,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       </div>
 
       <div className={`compact-pos-grid grid min-h-0 flex-1 grid-cols-1 gap-4 ${panelRatioClass} ${isNewUiMode ? 'pos2-workspace' : ''}`}>
-        <section className={`flex min-h-0 flex-col ${isNewUiMode ? 'pos2-menu-pane rounded-3xl border border-slate-700/70 bg-slate-950/30 p-4' : ''} ${mobilePane !== 'menu' ? 'hidden xl:flex' : ''}`}>
+        <section className={`flex h-full min-h-0 flex-col ${isNewUiMode ? 'pos2-menu-pane rounded-3xl border border-slate-700/70 bg-slate-950/30 p-4' : ''} ${mobilePane !== 'menu' ? 'hidden xl:flex' : ''}`}>
           {(posLayout.left_widget_order || ['menuHeader', 'search', 'categories', 'productGrid']).map((widget: string) => renderLeftWidget(widget))}
         </section>
 

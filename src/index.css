@@ -2781,3 +2781,60 @@ html {
   }
 }
 
+/* ==========================================
+   Classic POS Interface Overrides
+   ========================================== */
+
+/* 1. Eliminate bottom dead space on desktop viewports */
+@media (min-width: 1024px) {
+  html[data-ui-mode='old'] .compact-pos-shell {
+    padding-bottom: 0.75rem !important;
+  }
+}
+
+/* 2. Shrink Cart Sidebar width by 40% (to ~230px/250px) and give remaining space to Menu cards */
+@media (min-width: 1024px) {
+  html[data-ui-mode='old'] .compact-pos-grid {
+    grid-template-columns: minmax(0, 1fr) 230px !important;
+  }
+}
+@media (min-width: 1280px) {
+  html[data-ui-mode='old'] .compact-pos-grid {
+    grid-template-columns: minmax(0, 1fr) 250px !important;
+  }
+}
+
+/* 3. Enlarge classic menu card buttons (.neon-item) by 15% */
+html[data-ui-mode='old'] .neon-item.min-h-12 {
+  min-height: 3.45rem !important;
+}
+html[data-ui-mode='old'] .neon-item.p-2 {
+  padding: 0.575rem !important;
+}
+
+html[data-ui-mode='old'] .neon-item.min-h-14 {
+  min-height: 4.025rem !important;
+}
+html[data-ui-mode='old'] .neon-item.p-3 {
+  padding: 0.86rem !important;
+}
+
+html[data-ui-mode='old'] .neon-item.min-h-20 {
+  min-height: 5.75rem !important;
+}
+html[data-ui-mode='old'] .neon-item.p-4 {
+  padding: 1.15rem !important;
+}
+
+/* 4. Enlarge text inside cards by 30% */
+html[data-ui-mode='old'] .neon-item.text-xs {
+  font-size: 0.975rem !important;
+}
+html[data-ui-mode='old'] .neon-item.text-sm {
+  font-size: 1.1375rem !important;
+}
+html[data-ui-mode='old'] .neon-item.text-base {
+  font-size: 1.3rem !important;
+}
+
+
