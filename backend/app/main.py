@@ -408,8 +408,8 @@ async def security_boundary_middleware(request: Request, call_next):
         response.headers.setdefault("Content-Security-Policy", "default-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'")
         if settings.app_env.lower() == "production" or settings.app_url.startswith("https://"):
             response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
-    if request.url.path.startswith("/api/v1/auth"):
-        response.headers.setdefault("Cache-Control", "no-store")
+    if request.url.path.startswith("/api/v1"):
+        response.headers.setdefault("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
         response.headers.setdefault("Pragma", "no-cache")
         response.headers.setdefault("Expires", "0")
     return response
