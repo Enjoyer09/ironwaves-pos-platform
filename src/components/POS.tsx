@@ -1121,6 +1121,12 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
 
   const handleCheckout = async (paymentMethod: PaymentMethod) => {
     if (!user) return;
+    const isSuperTenantHost = (() => {
+      try {
+        const host = String(window.location.hostname || '').toLowerCase();
+        return host === 'super.ironwaves.store' || host === 'baha.ironwaves.store';
+      } catch { return false; }
+    })();
     // BahaY: skip shift check for staff on super lab (shift managed by manager)
     if (!isSuperTenantHost) {
       const shift = await refresh_shift_status(tenantId).catch(() => get_shift_status(tenantId));
