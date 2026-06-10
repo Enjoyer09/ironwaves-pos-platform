@@ -360,7 +360,14 @@ export default function ZReportPanel() {
       refresh_expected_cash(tenant_id),
       get_shift_handover_history_live(tenant_id, user?.username || undefined),
       get_pending_handover_for_user_live(tenant_id, user?.username || ''),
-      fetch_finance_balances(tenant_id),
+      fetch_finance_balances(tenant_id).catch(() => ({
+        cash_balance: '0',
+        card_balance: '0',
+        debt_balance: '0',
+        investor_balance: '0',
+        safe_balance: '0',
+        deposit_balance: '0',
+      })),
       fetch_finance_anomalies(tenant_id).catch(() => null),
     ]);
     setShiftStatusState(status);
@@ -397,7 +404,14 @@ export default function ZReportPanel() {
           refresh_expected_cash(tenant_id),
           get_shift_handover_history_live(tenant_id, user?.username || undefined),
           get_pending_handover_for_user_live(tenant_id, user?.username || ''),
-          fetch_finance_balances(tenant_id),
+          fetch_finance_balances(tenant_id).catch(() => ({
+            cash_balance: '0',
+            card_balance: '0',
+            debt_balance: '0',
+            investor_balance: '0',
+            safe_balance: '0',
+            deposit_balance: '0',
+          })),
           fetch_finance_anomalies(tenant_id).catch(() => null),
         ]);
         if (!mounted) return;
