@@ -504,7 +504,7 @@ html {
   }
 
   .pos3-product-grid {
-    @apply grid min-h-0 flex-1 auto-rows-max grid-cols-2 gap-1.5 overflow-y-auto overscroll-y-contain pr-1 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5;
+    @apply grid min-h-0 flex-1 auto-rows-max grid-cols-3 gap-1 overflow-y-auto overscroll-y-contain pr-1 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6;
     align-content: start;
     max-height: calc(100vh - 260px);
   }
@@ -2566,3 +2566,132 @@ html {
     transform: translateY(0);
   }
 }
+
+/* BahaY Category and Product Card resizing overrides */
+.pos-category-btn {
+  min-height: 62px !important;
+  padding-top: 0.95rem !important;
+  padding-bottom: 0.95rem !important;
+  padding-left: 1.75rem !important;
+  padding-right: 1.75rem !important;
+  font-size: 1.15rem !important; /* ~18px font size, 40% larger than 13px */
+  border-radius: 9999px !important;
+  line-height: 1.25rem !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.pos2-product-card {
+  padding: 0.5rem !important;
+  border-radius: 0.75rem !important;
+}
+.pos2-product-media {
+  height: 5.3rem !important;
+  border-radius: 0.6rem !important;
+}
+.pos2-product-card .text-sm {
+  font-size: 0.72rem !important; /* ~10.5px */
+  line-height: 0.95rem !important;
+}
+.pos2-product-card .text-xs {
+  font-size: 0.62rem !important; /* ~9px */
+  line-height: 0.85rem !important;
+}
+.pos2-product-card .mt-3 {
+  margin-top: 0.5rem !important;
+}
+.pos2-product-card button.rounded-xl {
+  padding-top: 0.25rem !important;
+  padding-bottom: 0.25rem !important;
+  padding-left: 0.5rem !important;
+  padding-right: 0.5rem !important;
+  border-radius: 0.5rem !important;
+  font-size: 0.65rem !important;
+}
+.pos2-product-fallback {
+  gap: 0.35rem !important;
+  font-size: 0.75rem !important;
+}
+.pos2-product-fallback svg {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+.pos3-card {
+  padding: 0.35rem !important;
+  border-radius: 0.75rem !important;
+}
+.pos3-card .mt-2 {
+  margin-top: 0.35rem !important;
+}
+.pos3-card button > div.mt-2 > div:nth-child(1) {
+  font-size: 10px !important;
+  line-height: 1.15 !important;
+}
+.pos3-card button > div.mt-2 > div:nth-child(2) {
+  font-size: 8px !important;
+  line-height: 1.1 !important;
+}
+.pos3-card button > div.mt-2 > div:nth-child(3) {
+  font-size: 11px !important;
+  line-height: 1.15 !important;
+  margin-top: 0.15rem !important;
+}
+.pos3-card .pos3-qty-btn {
+  height: 1.5rem !important;
+  width: 1.5rem !important;
+  border-radius: 0.5rem !important;
+}
+.pos3-card .pos3-qty-btn svg {
+  width: 10px !important;
+  height: 10px !important;
+}
+.pos3-card .pos3-qty-value {
+  min-width: 1.5rem !important;
+  padding: 0.1rem 0.25rem !important;
+  font-size: 9px !important;
+  border-radius: 0.5rem !important;
+}
+.pos3-card-fallback-mark {
+  height: 1.35rem !important;
+  min-width: 1.35rem !important;
+  font-size: 9px !important;
+  padding-left: 0.25rem !important;
+  padding-right: 0.25rem !important;
+}
+
+/* Tables Compose menu grid card overrides */
+.pos-product-card:not(.pos3-card):not(.pos2-product-card) {
+  padding: 0.35rem !important;
+  border-radius: 0.75rem !important;
+}
+.pos-product-card:not(.pos3-card):not(.pos2-product-card) .p-2 {
+  padding: 0.35rem !important;
+}
+.pos-product-card:not(.pos3-card):not(.pos2-product-card) .text-xs {
+  font-size: 8.5px !important;
+  line-height: 1.15 !important;
+}
+.pos-product-card:not(.pos3-card):not(.pos2-product-card) .text-sm {
+  font-size: 11px !important;
+  line-height: 1.15 !important;
+}
+.pos-product-card:not(.pos3-card):not(.pos2-product-card) .h-12 {
+  height: 2.25rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.pos-product-card:not(.pos3-card):not(.pos2-product-card) .text-lg {
+  font-size: 11px !important;
+}
+.pos-product-card:not(.pos3-card):not(.pos2-product-card) .absolute.right-1.top-1 {
+  height: 1.25rem !important;
+  width: 1.25rem !important;
+  font-size: 9px !important;
+}
+.pos-product-card:not(.pos3-card):not(.pos2-product-card) .aspect-\[3\/2\] {
+  aspect-ratio: 3 / 2 !important;
+}
+
