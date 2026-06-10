@@ -595,9 +595,14 @@ export default function ZReportPanel() {
   React.useEffect(() => {
     const fallback = expectedCashNow.toFixed(2);
     setXActualCash((prev) => (prev === '0' ? fallback : prev));
-    setZActualCash((prev) => (prev === '0' ? fallback : prev));
     setHandoverActualCash((prev) => (prev === '0' ? fallback : prev));
   }, [expectedCashNow]);
+
+  React.useEffect(() => {
+    const wage = new Decimal(zWage || 0);
+    const fallback = Decimal.max(0, expectedCashNow.minus(wage)).toFixed(2);
+    setZActualCash(fallback);
+  }, [expectedCashNow, zWage]);
 
   React.useEffect(() => {
     const previous = previousShiftStatusRef.current;
