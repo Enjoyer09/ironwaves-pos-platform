@@ -356,10 +356,10 @@ export default function ZReportPanel() {
     }
     lastRefreshAtRef.current = now;
     const [status, cash, nextHandovers, nextPending, balances, anomalies] = await Promise.all([
-      refresh_shift_status(tenant_id),
-      refresh_expected_cash(tenant_id),
-      get_shift_handover_history_live(tenant_id, user?.username || undefined),
-      get_pending_handover_for_user_live(tenant_id, user?.username || ''),
+      refresh_shift_status(tenant_id).catch(() => get_shift_status(tenant_id)),
+      refresh_expected_cash(tenant_id).catch(() => get_expected_cash(tenant_id)),
+      get_shift_handover_history_live(tenant_id, user?.username || undefined).catch(() => []),
+      get_pending_handover_for_user_live(tenant_id, user?.username || '').catch(() => null),
       fetch_finance_balances(tenant_id).catch(() => ({
         cash_balance: '0',
         card_balance: '0',
@@ -400,10 +400,10 @@ export default function ZReportPanel() {
     (async () => {
       try {
         const [status, cash, nextHandovers, nextPending, balances, anomalies] = await Promise.all([
-          refresh_shift_status(tenant_id),
-          refresh_expected_cash(tenant_id),
-          get_shift_handover_history_live(tenant_id, user?.username || undefined),
-          get_pending_handover_for_user_live(tenant_id, user?.username || ''),
+          refresh_shift_status(tenant_id).catch(() => get_shift_status(tenant_id)),
+          refresh_expected_cash(tenant_id).catch(() => get_expected_cash(tenant_id)),
+          get_shift_handover_history_live(tenant_id, user?.username || undefined).catch(() => []),
+          get_pending_handover_for_user_live(tenant_id, user?.username || '').catch(() => null),
           fetch_finance_balances(tenant_id).catch(() => ({
             cash_balance: '0',
             card_balance: '0',
