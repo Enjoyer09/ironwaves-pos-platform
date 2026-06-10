@@ -194,3 +194,48 @@ export function tx(lang: Lang, az: string, ru: string, en?: string): string {
   if (lang === 'en') return en || az;
   return az;
 }
+
+export function formatFriendlyFinanceNote(note: string | null | undefined, lang: any): string {
+  if (!note) return '-';
+  const clean = note.trim();
+  
+  // 1. Matches "POS sale COGS <uuid or code>"
+  const cogsRegex = /^POS sale COGS\s+([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F]{8,12})$/i;
+  const cogsMatch = clean.match(cogsRegex);
+  if (cogsMatch) {
+    const shortId = cogsMatch[1].length > 12 ? cogsMatch[1].slice(0, 8).toUpperCase() : cogsMatch[1].toUpperCase();
+    return tx(lang, `Satışın maya dəyəri (Çek: #${shortId})`, `Себестоимость продажи (Чек: #${shortId})`, `Sale COGS (Receipt: #${shortId})`);
+  }
+  
+  // 2. Matches "POS Sale <uuid or code>"
+  const saleRegex = /^POS Sale\s+([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F]{8,12})$/i;
+  const saleMatch = clean.match(saleRegex);
+  if (saleMatch) {
+    const shortId = saleMatch[1].length > 12 ? saleMatch[1].slice(0, 8).toUpperCase() : saleMatch[1].toUpperCase();
+    return tx(lang, `POS Satış (Çek: #${shortId})`, `POS Продажа (Чек: #${shortId})`, `POS Sale (Receipt: #${shortId})`);
+  }
+  
+  // 3. Matches "Reversal request for <uuid or code>"
+  const revReqRegex = /^Reversal request for\s+([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F]{8,12})$/i;
+  const revReqMatch = clean.match(revReqRegex);
+  if (revReqMatch) {
+    const shortId = revReqMatch[1].length > 12 ? revReqMatch[1].slice(0, 8).toUpperCase() : revReqMatch[1].toUpperCase();
+    return tx(lang, `Geri qaytarma sorğusu (Əməliyyat: #${shortId})`, `Запрос на возврат (Операция: #${shortId})`, `Reversal request (Tx: #${shortId})`);
+  }
+  
+  // 4. Matches "Reversal auto-post for <uuid or code>"
+  const revAutoRegex = /Reversal auto-post.*for\s+([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F]{8,12})/i;
+  const revAutoMatch = clean.match(revAutoRegex);
+  if (revAutoMatch) {
+    const shortId = revAutoMatch[1].length > 12 ? revAutoMatch[1].slice(0, 8).toUpperCase() : revAutoMatch[1].toUpperCase();
+    return tx(lang, `Geri qaytarma (Əməliyyat: #${shortId})`, `Возврат (Операция: #${shortId})`, `Reversal (Tx: #${shortId})`);
+  }
+  
+  // 5. General UUID shortener in notes if present
+  const uuidRegex = /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g;
+  if (uuidRegex.test(clean)) {
+    return clean.replace(uuidRegex, (match) => match.slice(0, 8).toUpperCase());
+  }
+  
+  return clean;
+}

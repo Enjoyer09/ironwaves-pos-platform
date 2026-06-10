@@ -6,7 +6,7 @@ import {
   type FinanceLedgerTransaction,
   type FinanceReconciliation,
 } from '../../../api/finance';
-import { tx } from '../../../i18n';
+import { tx, formatFriendlyFinanceNote } from '../../../i18n';
 import { formatServerUtcDateTime } from '../../../lib/time';
 import {
   FinanceControlCard,
@@ -403,7 +403,7 @@ export function FinanceLedgerTab({
                 </td>
                 <td className="py-3 text-slate-200">{entry.category || '-'}</td>
                 <td className="py-3 text-right font-black text-white">{new Decimal(entry.amount || 0).toFixed(2)} ₼</td>
-                <td className="max-w-[280px] truncate py-3 text-slate-400">{entry.note || entry.reference || '-'}</td>
+                <td className="max-w-[280px] truncate py-3 text-slate-400">{formatFriendlyFinanceNote(entry.note || entry.reference, lang)}</td>
               </tr>
             ))}
             {visibleLedgerTransactions.length === 0 && (

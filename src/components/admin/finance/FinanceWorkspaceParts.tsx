@@ -2,7 +2,7 @@ import React from 'react';
 import { Decimal } from 'decimal.js';
 import { AlertTriangle, ArrowRight, Banknote, BookOpen, CheckCircle2, CreditCard, GitCompareArrows, Landmark, RefreshCw, ShieldCheck, WalletCards } from 'lucide-react';
 import { type FinanceAlert, type FinanceTransactionDetail } from '../../../api/finance';
-import { tx } from '../../../i18n';
+import { tx, formatFriendlyFinanceNote } from '../../../i18n';
 import { formatServerUtcDateTime } from '../../../lib/time';
 
 export type FinanceWorkspaceTab = 'overview' | 'transactions' | 'reconciliation' | 'deposits' | 'ledger';
@@ -525,7 +525,7 @@ export function TransactionDetailDrawer({
           </div>
           {txRow.note || txRow.reference ? (
             <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950 p-3 text-sm text-slate-300">
-              {txRow.note || txRow.reference}
+              {formatFriendlyFinanceNote(txRow.note || txRow.reference, lang)}
             </div>
           ) : null}
         </section>
