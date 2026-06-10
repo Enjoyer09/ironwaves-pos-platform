@@ -530,10 +530,10 @@ export default function App() {
   const safeRoleModules = {
     staff: (() => {
       const base = Array.isArray(roleModules?.staff) ? roleModules!.staff : defaultRoleModules.staff;
-      // Staff should not see Z-report, but should see analytics (own sales only)
-      const filtered = base.filter((m: string) => m !== 'zreport');
-      if (!filtered.includes('analytics')) filtered.push('analytics');
-      return filtered;
+      // Let the tenant decide if staff can see Z-Report (configured via Settings -> Role permissions)
+      const list = [...base];
+      if (!list.includes('analytics')) list.push('analytics');
+      return list;
     })(),
     manager: Array.isArray(roleModules?.manager)
       ? Array.from(new Set([...roleModules!.manager, 'dashboard']))
