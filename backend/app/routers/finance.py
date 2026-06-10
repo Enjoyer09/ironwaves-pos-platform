@@ -1683,7 +1683,8 @@ def approve_ledger_transaction(transaction_id: str, db: Session = Depends(get_db
         raise HTTPException(status_code=400, detail=f"Transaction is not pending approval: {txn.status}")
     creator_username = str(txn.created_by or "").strip().lower()
     approver_username = str(user.username or "").strip().lower()
-    if creator_username and creator_username == approver_username:
+    user_role = str(getattr(user, "role", "") or "").lower()
+    if creator_username and creator_username == approver_username and user_role not in {"admin", "super_admin", "finance_admin"}:
         db.add(
             AuditLog(
                 tenant_id=tenant.id,
@@ -1783,7 +1784,11 @@ def request_transaction_reversal(transaction_id: str, db: Session = Depends(get_
     if not source_code or not destination_code:
         raise HTTPException(status_code=400, detail="Original transaction account mapping is incomplete")
     policy = _finance_policy(db, tenant.id)
-    requires_approval = _approval_required("reversal", Decimal(str(original.amount)), None, policy)
+    user_role = str(getattr(user, "role", "") or "").lower()
+    if user_role in {"admin", "super_admin", "finance_admin"}:
+        requires_approval = False
+    else:
+        requires_approval = _approval_required("reversal", Decimal(str(original.amount)), None, policy)
     reversal = _create_finance_transaction_record(
         db,
         tenant_id=tenant.id,
