@@ -329,28 +329,38 @@ export default function InventoryPanel() {
     const details = row?.details || {};
     const action = String(row?.action || '');
     const itemName = details.item_name || '-';
+    const formatHistQty = (val: any) => {
+      if (val === undefined || val === null) return '0';
+      const num = Number(val);
+      if (isNaN(num)) return String(val);
+      return String(Math.round(num * 10000) / 10000);
+    };
+
     if (action === 'INVENTORY_ADD') {
+      const qtyStr = formatHistQty(details.qty);
       return tx(
         lang,
-        `${itemName} əlavə olundu: ${details.qty || 0} ${details.unit || ''}`,
-        `${itemName} добавлен: ${details.qty || 0} ${details.unit || ''}`,
-        `${itemName} added: ${details.qty || 0} ${details.unit || ''}`,
+        `${itemName} əlavə olundu: ${qtyStr} ${details.unit || ''}`,
+        `${itemName} добавлен: ${qtyStr} ${details.unit || ''}`,
+        `${itemName} added: ${qtyStr} ${details.unit || ''}`,
       );
     }
     if (action === 'INVENTORY_RESTOCK') {
+      const qtyStr = formatHistQty(details.qty_added);
       return tx(
         lang,
-        `${itemName} mədaxil edildi: +${details.qty_added || 0} ${details.unit || ''}`,
-        `${itemName} пополнен: +${details.qty_added || 0} ${details.unit || ''}`,
-        `${itemName} restocked: +${details.qty_added || 0} ${details.unit || ''}`,
+        `${itemName} mədaxil edildi: +${qtyStr} ${details.unit || ''}`,
+        `${itemName} пополнен: +${qtyStr} ${details.unit || ''}`,
+        `${itemName} restocked: +${qtyStr} ${details.unit || ''}`,
       );
     }
     if (action === 'INVENTORY_LOSS') {
+      const qtyStr = formatHistQty(details.qty_removed);
       return tx(
         lang,
-        `${itemName} silindi/zay oldu: -${details.qty_removed || 0} ${details.unit || ''}`,
-        `${itemName} списан/испорчен: -${details.qty_removed || 0} ${details.unit || ''}`,
-        `${itemName} removed/wasted: -${details.qty_removed || 0} ${details.unit || ''}`,
+        `${itemName} silindi/zay oldu: -${qtyStr} ${details.unit || ''}`,
+        `${itemName} списан/испорчен: -${qtyStr} ${details.unit || ''}`,
+        `${itemName} removed/wasted: -${qtyStr} ${details.unit || ''}`,
       );
     }
     if (action === 'INVENTORY_DELETE') {
@@ -370,11 +380,12 @@ export default function InventoryPanel() {
       );
     }
     if (action === 'INVENTORY_CONSUMED') {
+      const qtyStr = formatHistQty(details.qty_removed);
       return tx(
         lang,
-        `${itemName} satış üçün istifadə olundu: -${details.qty_removed || 0} ${details.unit || ''}`,
-        `${itemName} использован в продаже: -${details.qty_removed || 0} ${details.unit || ''}`,
-        `${itemName} consumed by sale: -${details.qty_removed || 0} ${details.unit || ''}`,
+        `${itemName} satış üçün istifadə olundu: -${qtyStr} ${details.unit || ''}`,
+        `${itemName} использован в продаже: -${qtyStr} ${details.unit || ''}`,
+        `${itemName} consumed by sale: -${qtyStr} ${details.unit || ''}`,
       );
     }
     return row?.action || '-';
