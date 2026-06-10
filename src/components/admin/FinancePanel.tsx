@@ -1345,6 +1345,7 @@ export default function FinancePanel() {
       transaction,
       entries: localEntries,
       audit_logs: [],
+      reversal_history: [],
     });
     setLedgerDetailLoading(true);
     try {

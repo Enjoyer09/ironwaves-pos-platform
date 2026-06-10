@@ -411,7 +411,7 @@ export function TransactionDetailDrawer({
 
   if (!detail) return null;
   const txRow = detail.transaction;
-  const auditDetails = detail.audit_logs.map((row) => {
+  const auditDetails = (detail.audit_logs || []).map((row) => {
     try {
       return { ...row, parsed: JSON.parse(row.details || '{}') };
     } catch {
@@ -492,7 +492,7 @@ export function TransactionDetailDrawer({
                 </button>
               </>
             ) : null}
-            {txRow.status === 'posted' && txRow.transaction_type !== 'reversal' && detail.reversal_history.length === 0 ? (
+            {txRow.status === 'posted' && txRow.transaction_type !== 'reversal' && (detail.reversal_history || []).length === 0 ? (
               <button
                 disabled={Boolean(actionBusy)}
                 onClick={() => void runAction('reverse', async () => { await onReverse(txRow.id); })}
@@ -533,7 +533,7 @@ export function TransactionDetailDrawer({
         <section className="mt-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-4">
           <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Debit / Credit yazılışları', 'Debit / Credit записи', 'Debit / Credit entries')}</div>
           <div className="space-y-3">
-            {detail.entries.map((entry) => (
+            {(detail.entries || []).map((entry) => (
               <div key={entry.id} className="grid grid-cols-[1fr_auto] gap-3 rounded-2xl border border-slate-800 bg-slate-950 p-3">
                 <div>
                   <div className="font-black text-white">{entry.account_name || entry.account_code}</div>
@@ -544,7 +544,7 @@ export function TransactionDetailDrawer({
                 </div>
               </div>
             ))}
-            {detail.entries.length === 0 ? (
+            {(detail.entries || []).length === 0 ? (
               <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-500">
                 {tx(lang, 'Debit/credit entry tapılmadı.', 'Debit/credit записи не найдены.', 'No debit/credit entries found.')}
               </div>
@@ -555,7 +555,7 @@ export function TransactionDetailDrawer({
         <section className="mt-5 rounded-[24px] border border-slate-800 bg-slate-900/60 p-4">
           <div className="mb-3 text-xs font-black uppercase tracking-[0.18em] text-yellow-300">{tx(lang, 'Əks yazılış tarixçəsi', 'История reversal', 'Reversal history')}</div>
           <div className="space-y-3">
-            {detail.reversal_history.map((row) => (
+            {(detail.reversal_history || []).map((row) => (
               <div key={row.id} className="rounded-2xl border border-amber-400/25 bg-amber-950/20 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -574,7 +574,7 @@ export function TransactionDetailDrawer({
                 </div>
               </div>
             ))}
-            {detail.reversal_history.length === 0 ? (
+            {(detail.reversal_history || []).length === 0 ? (
               <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-500">
                 {tx(lang, 'Əks yazılış tarixçəsi yoxdur.', 'Истории reversal нет.', 'No reversal history.')}
               </div>
