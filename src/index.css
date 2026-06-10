@@ -492,7 +492,7 @@ html {
   }
 
   .pos3-chip {
-    @apply rounded-full border border-slate-600/80 bg-slate-800/45 px-2.5 py-1.5 text-[11px] font-semibold text-slate-300 transition;
+    @apply rounded-full border border-slate-600/80 bg-slate-800/45 px-5 py-3 text-[16.5px] font-semibold text-slate-300 transition;
   }
 
   .pos3-chip:hover {
