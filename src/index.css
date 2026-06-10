@@ -2625,15 +2625,15 @@ html {
 .pos3-card .mt-2 {
   margin-top: 0.35rem !important;
 }
-.pos3-card button > div.mt-2 > div:nth-child(1) {
+.pos3-card .mt-2 > div:nth-child(1) {
   font-size: 19.5px !important; /* +50% enlargement */
   line-height: 1.35rem !important;
 }
-.pos3-card button > div.mt-2 > div:nth-child(2) {
+.pos3-card .mt-2 > div:nth-child(2) {
   font-size: 16.5px !important; /* +50% enlargement */
   line-height: 1.15rem !important;
 }
-.pos3-card button > div.mt-2 > div:nth-child(3) {
+.pos3-card .mt-2 > div:nth-child(3) {
   font-size: 22.5px !important; /* +50% enlargement */
   line-height: 1.55rem !important;
   margin-top: 0.25rem !important;
@@ -2662,13 +2662,6 @@ html {
 }
 
 /* Tables Compose menu grid card overrides */
-.pos-product-card:not(.pos3-card):not(.pos2-product-card) {
-  padding: 0.35rem !important;
-  border-radius: 0.75rem !important;
-}
-.pos-product-card:not(.pos3-card):not(.pos2-product-card) .p-2 {
-  padding: 0.35rem !important;
-}
 .pos-product-card:not(.pos3-card):not(.pos2-product-card) .text-xs {
   font-size: 18px !important; /* +50% enlargement */
   line-height: 1.25rem !important;
@@ -2676,6 +2669,13 @@ html {
 .pos-product-card:not(.pos3-card):not(.pos2-product-card) .text-sm {
   font-size: 21px !important; /* +50% enlargement */
   line-height: 1.45rem !important;
+}
+.pos-product-card:not(.pos3-card):not(.pos2-product-card) {
+  padding: 0.35rem !important;
+  border-radius: 0.75rem !important;
+}
+.pos-product-card:not(.pos3-card):not(.pos2-product-card) .p-2 {
+  padding: 0.35rem !important;
 }
 .pos-product-card:not(.pos3-card):not(.pos2-product-card) .h-12 {
   height: 2.25rem !important;
@@ -2697,6 +2697,7 @@ html {
 
 /* POS3 Checkout scroll and sizing optimizations */
 .pos3-checkout {
+  height: calc(100vh - 150px) !important;
   max-height: calc(100vh - 150px) !important;
   padding: 0.65rem !important;
   overflow-y: auto !important;
@@ -2752,6 +2753,31 @@ html {
 .pos3-primary-btn {
   margin-top: 0.5rem !important;
   height: 2.85rem !important;
+  min-height: 2.85rem !important;
   font-size: 14px !important;
+}
+
+/* Touchscreen (coarse) overrides inside checkout pane to prevent massive button height */
+@media (pointer: coarse) {
+  .pos3-checkout .pay-btn {
+    min-height: 2.5rem !important;
+    height: 2.5rem !important;
+    padding-top: 0.4rem !important;
+    padding-bottom: 0.4rem !important;
+    font-size: 12px !important;
+  }
+  .pos3-checkout .neon-input {
+    min-height: 2.5rem !important;
+    height: 2.5rem !important;
+    padding-top: 0.4rem !important;
+    padding-bottom: 0.4rem !important;
+    font-size: 13px !important;
+  }
+  .pos3-checkout .pos3-primary-btn {
+    min-height: 2.85rem !important;
+    height: 2.85rem !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+  }
 }
 
