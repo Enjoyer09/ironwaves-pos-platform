@@ -282,6 +282,19 @@ export interface Settings {
     thank_you_text_az?: string;
     thank_you_text_ru?: string;
     thank_you_text_en?: string;
+    bg_gradient?: string;
+    primary_color?: string;
+    accent_color?: string;
+    emoji_icon?: string;
+    preset_tags?: string[];
+    min_stars_for_google_review?: number;
+    required_comment_threshold?: number;
+    custom_heading_az?: string;
+    custom_heading_ru?: string;
+    custom_heading_en?: string;
+    custom_subheading_az?: string;
+    custom_subheading_ru?: string;
+    custom_subheading_en?: string;
   };
   customer_app_settings?: {
     enabled: boolean;

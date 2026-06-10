@@ -190,6 +190,26 @@ export default function SettingsPanel() {
     thank_you_text_az: 'Rəyiniz komanda tərəfindən nəzərdən keçiriləcək.',
     thank_you_text_ru: 'Ваш отзыв будет рассмотрен нашей командой.',
     thank_you_text_en: 'Your feedback will be reviewed by our team.',
+    bg_gradient: 'linear-gradient(155deg, #8ec5ff 0%, #a48bff 28%, #ef8cf9 57%, #ffb58f 100%)',
+    primary_color: '#facc15',
+    accent_color: '#22d3ee',
+    emoji_icon: '☕',
+    preset_tags: [
+      '❤️ Xidmət əla idi',
+      '☕ Dad mükəmməl idi',
+      '✨ Məkan çox təmiz idi',
+      '👤 Personal peşəkar idi',
+      '🏷️ Qiymət/dəyər çox yaxşı idi',
+      '👍 Mütləq tövsiyə edərəm',
+    ] as string[],
+    min_stars_for_google_review: 4,
+    required_comment_threshold: 3,
+    custom_heading_az: 'Rəy və məmnuniyyət sorğusu',
+    custom_heading_ru: 'Опрос о качестве обслуживания',
+    custom_heading_en: 'Customer Satisfaction Survey',
+    custom_subheading_az: 'Xidmət keyfiyyətini yaxşılaşdırmaq üçün 30 saniyə ayırın.',
+    custom_subheading_ru: 'Пожалуйста, уделите 30 секунд для улучшения качества услуг.',
+    custom_subheading_en: 'Please take 30 seconds to help us improve our service.',
   });
   const autoFeedbackPortalUrl = React.useMemo(() => {
     const base = String(profile?.qr_base_url || profile?.website || '').trim() || window.location.origin;
@@ -263,6 +283,7 @@ export default function SettingsPanel() {
   const [totpSetupUrl, setTotpSetupUrl] = useState('');
   const [totpSecret, setTotpSecret] = useState('');
   const [totpQrDataUrl, setTotpQrDataUrl] = useState('');
+  const [newFeedbackTag, setNewFeedbackTag] = useState('');
   const [totpCode, setTotpCode] = useState('');
   const [totpDisablePassword, setTotpDisablePassword] = useState('');
   const [totpDisableCode, setTotpDisableCode] = useState('');
@@ -467,6 +488,26 @@ export default function SettingsPanel() {
         thank_you_text_az: String(settingsRes.value.feedback_settings?.thank_you_text_az || 'Rəyiniz komanda tərəfindən nəzərdən keçiriləcək.'),
         thank_you_text_ru: String(settingsRes.value.feedback_settings?.thank_you_text_ru || 'Ваш отзыв будет рассмотрен нашей командой.'),
         thank_you_text_en: String(settingsRes.value.feedback_settings?.thank_you_text_en || 'Your feedback will be reviewed by our team.'),
+        bg_gradient: String(settingsRes.value.feedback_settings?.bg_gradient || 'linear-gradient(155deg, #8ec5ff 0%, #a48bff 28%, #ef8cf9 57%, #ffb58f 100%)'),
+        primary_color: String(settingsRes.value.feedback_settings?.primary_color || '#facc15'),
+        accent_color: String(settingsRes.value.feedback_settings?.accent_color || '#22d3ee'),
+        emoji_icon: String(settingsRes.value.feedback_settings?.emoji_icon || '☕'),
+        preset_tags: Array.isArray(settingsRes.value.feedback_settings?.preset_tags) ? settingsRes.value.feedback_settings!.preset_tags!.map((x: any) => String(x || '')) : [
+          '❤️ Xidmət əla idi',
+          '☕ Dad mükəmməl idi',
+          '✨ Məkan çox təmiz idi',
+          '👤 Personal peşəkar idi',
+          '🏷️ Qiymət/dəyər çox yaxşı idi',
+          '👍 Mütləq tövsiyə edərəm',
+        ],
+        min_stars_for_google_review: Number(settingsRes.value.feedback_settings?.min_stars_for_google_review ?? 4),
+        required_comment_threshold: Number(settingsRes.value.feedback_settings?.required_comment_threshold ?? 3),
+        custom_heading_az: String(settingsRes.value.feedback_settings?.custom_heading_az || 'Rəy və məmnuniyyət sorğusu'),
+        custom_heading_ru: String(settingsRes.value.feedback_settings?.custom_heading_ru || 'Опрос о качестве обслуживания'),
+        custom_heading_en: String(settingsRes.value.feedback_settings?.custom_heading_en || 'Customer Satisfaction Survey'),
+        custom_subheading_az: String(settingsRes.value.feedback_settings?.custom_subheading_az || 'Xidmət keyfiyyətini yaxşılaşdırmaq üçün 30 saniyə ayırın.'),
+        custom_subheading_ru: String(settingsRes.value.feedback_settings?.custom_subheading_ru || 'Пожалуйста, уделите 30 секунд для улучшения качества услуг.'),
+        custom_subheading_en: String(settingsRes.value.feedback_settings?.custom_subheading_en || 'Please take 30 seconds to help us improve our service.'),
       });
       setBankCommission({
         card_sale_percent: String((settingsRes.value.bank_commission as any)?.card_sale_percent ?? settingsRes.value.bank_commission?.percent ?? 2),
@@ -1116,6 +1157,19 @@ export default function SettingsPanel() {
       thank_you_text_az: String(feedbackSettings.thank_you_text_az || '').trim() || 'Rəyiniz komanda tərəfindən nəzərdən keçiriləcək.',
       thank_you_text_ru: String(feedbackSettings.thank_you_text_ru || '').trim() || 'Ваш отзыв будет рассмотрен нашей командой.',
       thank_you_text_en: String(feedbackSettings.thank_you_text_en || '').trim() || 'Your feedback will be reviewed by our team.',
+      bg_gradient: String(feedbackSettings.bg_gradient || '').trim() || 'linear-gradient(155deg, #8ec5ff 0%, #a48bff 28%, #ef8cf9 57%, #ffb58f 100%)',
+      primary_color: String(feedbackSettings.primary_color || '').trim() || '#facc15',
+      accent_color: String(feedbackSettings.accent_color || '').trim() || '#22d3ee',
+      emoji_icon: String(feedbackSettings.emoji_icon || '').trim() || '☕',
+      preset_tags: feedbackSettings.preset_tags,
+      min_stars_for_google_review: Number(feedbackSettings.min_stars_for_google_review ?? 4),
+      required_comment_threshold: Number(feedbackSettings.required_comment_threshold ?? 3),
+      custom_heading_az: String(feedbackSettings.custom_heading_az || '').trim(),
+      custom_heading_ru: String(feedbackSettings.custom_heading_ru || '').trim(),
+      custom_heading_en: String(feedbackSettings.custom_heading_en || '').trim(),
+      custom_subheading_az: String(feedbackSettings.custom_subheading_az || '').trim(),
+      custom_subheading_ru: String(feedbackSettings.custom_subheading_ru || '').trim(),
+      custom_subheading_en: String(feedbackSettings.custom_subheading_en || '').trim(),
     });
     setFeedbackSettings((prev) => ({ ...prev, portal_url: resolvedPortalUrl }));
     window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
@@ -2180,6 +2234,259 @@ export default function SettingsPanel() {
               value={feedbackSettings.receipt_qr_prompt_az}
               onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, receipt_qr_prompt_az: e.target.value }))}
             />
+          </div>
+
+          {/* Vizual Brendinq və Mövzu */}
+          <div className="border-t border-slate-700/60 pt-4 md:col-span-2">
+            <h3 className="text-md font-bold text-slate-200 mb-2">{tx(lang, 'Portalın Görünüşü və Brendinq', 'Внешний вид портала и брендинг', 'Portal Appearance & Branding')}</h3>
+          </div>
+
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Əsas Rəng (Primary)', 'Основной цвет (Primary)', 'Primary Color')}</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                className="h-10 w-12 rounded border border-slate-600 bg-transparent cursor-pointer"
+                value={feedbackSettings.primary_color}
+                onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, primary_color: e.target.value }))}
+              />
+              <input
+                type="text"
+                className="neon-input flex-1"
+                value={feedbackSettings.primary_color}
+                onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, primary_color: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Accent Rəng', 'Акцентный цвет', 'Accent Color')}</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                className="h-10 w-12 rounded border border-slate-600 bg-transparent cursor-pointer"
+                value={feedbackSettings.accent_color}
+                onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, accent_color: e.target.value }))}
+              />
+              <input
+                type="text"
+                className="neon-input flex-1"
+                value={feedbackSettings.accent_color}
+                onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, accent_color: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Başlıq Emojisi', 'Эмодзи заголовка', 'Header Emoji Icon')}</label>
+            <input
+              className="neon-input"
+              value={feedbackSettings.emoji_icon}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, emoji_icon: e.target.value }))}
+              placeholder="☕"
+            />
+          </div>
+
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Fon Qradiyenti (CSS)', 'Градиент фона (CSS)', 'Background Gradient (CSS)')}</label>
+            <select
+              className="neon-input"
+              value={
+                ['linear-gradient(155deg, #8ec5ff 0%, #a48bff 28%, #ef8cf9 57%, #ffb58f 100%)',
+                 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                 'linear-gradient(135deg, #1e1b4b 0%, #311042 100%)',
+                 'linear-gradient(135deg, #064e3b 0%, #022c22 100%)',
+                 'linear-gradient(135deg, #7c2d12 0%, #451a03 100%)'].includes(feedbackSettings.bg_gradient || '')
+                  ? feedbackSettings.bg_gradient
+                  : 'custom'
+              }
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val !== 'custom') {
+                  setFeedbackSettings((prev) => ({ ...prev, bg_gradient: val }));
+                }
+              }}
+            >
+              <option value="linear-gradient(155deg, #8ec5ff 0%, #a48bff 28%, #ef8cf9 57%, #ffb58f 100%)">Vibrant Wave (Default)</option>
+              <option value="linear-gradient(135deg, #0f172a 0%, #1e293b 100%)">Dark Slate</option>
+              <option value="linear-gradient(135deg, #1e1b4b 0%, #311042 100%)">Deep Purple</option>
+              <option value="linear-gradient(135deg, #064e3b 0%, #022c22 100%)">Forest Emerald</option>
+              <option value="linear-gradient(135deg, #7c2d12 0%, #451a03 100%)">Warm Rust</option>
+              <option value="custom">Custom CSS Gradient...</option>
+            </select>
+          </div>
+
+          <div className="field-stack form-card md:col-span-2">
+            <label className="field-label">{tx(lang, 'Fərdi Fon Qradiyenti (CSS Kodu)', 'Свой градиент фона (CSS Код)', 'Custom Background Gradient (CSS Code)')}</label>
+            <input
+              className="neon-input"
+              value={feedbackSettings.bg_gradient}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, bg_gradient: e.target.value }))}
+              placeholder="linear-gradient(135deg, #1e293b, #0f172a)"
+            />
+          </div>
+
+          {/* Qiymətləndirmə Hədləri */}
+          <div className="border-t border-slate-700/60 pt-4 md:col-span-2">
+            <h3 className="text-md font-bold text-slate-200 mb-2">{tx(lang, 'Qiymətləndirmə Qaydaları', 'Правила оценки', 'Rating Thresholds & Rules')}</h3>
+          </div>
+
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Google Review üçün minimum ulduz', 'Минимум звезд для Google Review', 'Min stars for Google Review button')}</label>
+            <select
+              className="neon-input"
+              value={feedbackSettings.min_stars_for_google_review}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, min_stars_for_google_review: Number(e.target.value) }))}
+            >
+              <option value={1}>1 ulduz və yuxarı</option>
+              <option value={2}>2 ulduz və yuxarı</option>
+              <option value={3}>3 ulduz və yuxarı</option>
+              <option value={4}>4 ulduz və yuxarı</option>
+              <option value={5}>Yalnız 5 ulduz</option>
+            </select>
+          </div>
+
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Şərh daxil edilməsi məcburi olan hədd (ulduz)', 'Обязательный комментарий при оценке ниже', 'Mandatory comment rating threshold')}</label>
+            <select
+              className="neon-input"
+              value={feedbackSettings.required_comment_threshold}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, required_comment_threshold: Number(e.target.value) }))}
+            >
+              <option value={0}>Heç vaxt məcburi olmasın (Opsional)</option>
+              <option value={1}>1 ulduz və aşağı</option>
+              <option value={2}>2 ulduz və aşağı</option>
+              <option value={3}>3 ulduz və aşağı</option>
+              <option value={4}>4 ulduz və aşağı</option>
+              <option value={5}>Həmişə məcburi olsun</option>
+            </select>
+          </div>
+
+          {/* Səhifə Başlıqları */}
+          <div className="border-t border-slate-700/60 pt-4 md:col-span-2">
+            <h3 className="text-md font-bold text-slate-200 mb-2">{tx(lang, 'Fərdi Başlıq və Mətnlər', 'Свои заголовки и тексты', 'Custom Titles & Headings')}</h3>
+          </div>
+
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Portal Başlığı (AZ)', 'Заголовок портала (AZ)', 'Portal Heading (AZ)')}</label>
+            <input
+              className="neon-input"
+              value={feedbackSettings.custom_heading_az}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, custom_heading_az: e.target.value }))}
+            />
+          </div>
+
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Portal Alt Başlığı (AZ)', 'Подзаголовок портала (AZ)', 'Portal Subheading (AZ)')}</label>
+            <input
+              className="neon-input"
+              value={feedbackSettings.custom_subheading_az}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, custom_subheading_az: e.target.value }))}
+            />
+          </div>
+
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Portal Başlığı (RU)', 'Заголовок портала (RU)', 'Portal Heading (RU)')}</label>
+            <input
+              className="neon-input"
+              value={feedbackSettings.custom_heading_ru}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, custom_heading_ru: e.target.value }))}
+            />
+          </div>
+
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Portal Alt Başlığı (RU)', 'Подзаголовок портала (RU)', 'Portal Subheading (RU)')}</label>
+            <input
+              className="neon-input"
+              value={feedbackSettings.custom_subheading_ru}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, custom_subheading_ru: e.target.value }))}
+            />
+          </div>
+
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Portal Başlığı (EN)', 'Заголовок портала (EN)', 'Portal Heading (EN)')}</label>
+            <input
+              className="neon-input"
+              value={feedbackSettings.custom_heading_en}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, custom_heading_en: e.target.value }))}
+            />
+          </div>
+
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Portal Alt Başlığı (EN)', 'Подзаголовок портала (EN)', 'Portal Subheading (EN)')}</label>
+            <input
+              className="neon-input"
+              value={feedbackSettings.custom_subheading_en}
+              onChange={(e) => setFeedbackSettings((prev) => ({ ...prev, custom_subheading_en: e.target.value }))}
+            />
+          </div>
+
+          {/* Hazır Tag Redaktoru */}
+          <div className="border-t border-slate-700/60 pt-4 md:col-span-2">
+            <h3 className="text-md font-bold text-slate-200 mb-2">{tx(lang, 'Hazır Rəy Tag-ləri', 'Быстрые теги отзывов', 'Preset Feedback Tags')}</h3>
+          </div>
+
+          <div className="field-stack form-card md:col-span-2">
+            <label className="field-label">{tx(lang, 'Yeni Tag Əlavə Et', 'Добавить новый тег', 'Add New Tag')}</label>
+            <div className="flex gap-2">
+              <input
+                className="neon-input"
+                value={newFeedbackTag}
+                onChange={(e) => setNewFeedbackTag(e.target.value)}
+                placeholder="Məs: ☕ Süper qəhvə"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const tag = newFeedbackTag.trim();
+                    if (tag && !feedbackSettings.preset_tags.includes(tag)) {
+                      setFeedbackSettings((prev) => ({
+                        ...prev,
+                        preset_tags: [...prev.preset_tags, tag],
+                      }));
+                      setNewFeedbackTag('');
+                    }
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="neon-btn rounded-xl px-4 py-2 font-bold"
+                onClick={() => {
+                  const tag = newFeedbackTag.trim();
+                  if (tag && !feedbackSettings.preset_tags.includes(tag)) {
+                    setFeedbackSettings((prev) => ({
+                      ...prev,
+                      preset_tags: [...prev.preset_tags, tag],
+                    }));
+                    setNewFeedbackTag('');
+                  }
+                }}
+              >
+                {tx(lang, 'Əlavə et', 'Добавить', 'Add')}
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2 rounded-xl border border-slate-700/70 bg-slate-950/20 p-3">
+              {feedbackSettings.preset_tags.length === 0 && (
+                <span className="text-xs text-slate-500">{tx(lang, 'Hələ heç bir tag yoxdur.', 'Нет добавленных тегов.', 'No tags added yet.')}</span>
+              )}
+              {feedbackSettings.preset_tags.map((tag) => (
+                <div key={tag} className="flex items-center gap-1.5 rounded-full border border-slate-600 bg-slate-800/40 px-3 py-1 text-xs text-slate-200">
+                  <span>{tag}</span>
+                  <button
+                    type="button"
+                    className="text-slate-400 hover:text-slate-100 font-bold"
+                    onClick={() => {
+                      setFeedbackSettings((prev) => ({
+                        ...prev,
+                        preset_tags: prev.preset_tags.filter((t) => t !== tag),
+                      }));
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
         {renderPanelSuccess('feedback')}

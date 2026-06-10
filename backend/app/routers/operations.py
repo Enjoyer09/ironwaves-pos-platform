@@ -198,6 +198,26 @@ DEFAULT_FEEDBACK_SETTINGS = {
     "thank_you_text_az": "Rəyiniz komanda tərəfindən nəzərdən keçiriləcək.",
     "thank_you_text_ru": "Ваш отзыв будет рассмотрен нашей командой.",
     "thank_you_text_en": "Your feedback will be reviewed by our team.",
+    "bg_gradient": "linear-gradient(155deg, #8ec5ff 0%, #a48bff 28%, #ef8cf9 57%, #ffb58f 100%)",
+    "primary_color": "#facc15",
+    "accent_color": "#22d3ee",
+    "emoji_icon": "☕",
+    "preset_tags": [
+        "❤️ Xidmət əla idi",
+        "☕ Dad mükəmməl idi",
+        "✨ Məkan çox təmiz idi",
+        "👤 Personal peşəkar idi",
+        "🏷️ Qiymət/dəyər çox yaxşı idi",
+        "👍 Mütləq tövsiyə edərəm"
+    ],
+    "min_stars_for_google_review": 4,
+    "required_comment_threshold": 3,
+    "custom_heading_az": "Rəy və məmnuniyyət sorğusu",
+    "custom_heading_ru": "Опрос о качестве обслуживания",
+    "custom_heading_en": "Customer Satisfaction Survey",
+    "custom_subheading_az": "Xidmət keyfiyyətini yaxşılaşdırmaq üçün 30 saniyə ayırın.",
+    "custom_subheading_ru": "Пожалуйста, уделите 30 секунд для улучшения качества услуг.",
+    "custom_subheading_en": "Please take 30 seconds to help us improve our service."
 }
 
 DEFAULT_LANDING_SETTINGS = {
@@ -2657,6 +2677,19 @@ def update_feedback_settings(
         "thank_you_text_az": str(merged.get("thank_you_text_az") or DEFAULT_FEEDBACK_SETTINGS["thank_you_text_az"]).strip() or DEFAULT_FEEDBACK_SETTINGS["thank_you_text_az"],
         "thank_you_text_ru": str(merged.get("thank_you_text_ru") or DEFAULT_FEEDBACK_SETTINGS["thank_you_text_ru"]).strip() or DEFAULT_FEEDBACK_SETTINGS["thank_you_text_ru"],
         "thank_you_text_en": str(merged.get("thank_you_text_en") or DEFAULT_FEEDBACK_SETTINGS["thank_you_text_en"]).strip() or DEFAULT_FEEDBACK_SETTINGS["thank_you_text_en"],
+        "bg_gradient": str(merged.get("bg_gradient") or DEFAULT_FEEDBACK_SETTINGS["bg_gradient"]).strip(),
+        "primary_color": str(merged.get("primary_color") or DEFAULT_FEEDBACK_SETTINGS["primary_color"]).strip(),
+        "accent_color": str(merged.get("accent_color") or DEFAULT_FEEDBACK_SETTINGS["accent_color"]).strip(),
+        "emoji_icon": str(merged.get("emoji_icon") or DEFAULT_FEEDBACK_SETTINGS["emoji_icon"]).strip(),
+        "preset_tags": [str(x).strip() for x in (merged.get("preset_tags") or DEFAULT_FEEDBACK_SETTINGS["preset_tags"]) if str(x).strip()],
+        "min_stars_for_google_review": max(1, min(5, int(merged.get("min_stars_for_google_review", 4)))),
+        "required_comment_threshold": max(1, min(5, int(merged.get("required_comment_threshold", 3)))),
+        "custom_heading_az": str(merged.get("custom_heading_az") or DEFAULT_FEEDBACK_SETTINGS["custom_heading_az"]).strip(),
+        "custom_heading_ru": str(merged.get("custom_heading_ru") or DEFAULT_FEEDBACK_SETTINGS["custom_heading_ru"]).strip(),
+        "custom_heading_en": str(merged.get("custom_heading_en") or DEFAULT_FEEDBACK_SETTINGS["custom_heading_en"]).strip(),
+        "custom_subheading_az": str(merged.get("custom_subheading_az") or DEFAULT_FEEDBACK_SETTINGS["custom_subheading_az"]).strip(),
+        "custom_subheading_ru": str(merged.get("custom_subheading_ru") or DEFAULT_FEEDBACK_SETTINGS["custom_subheading_ru"]).strip(),
+        "custom_subheading_en": str(merged.get("custom_subheading_en") or DEFAULT_FEEDBACK_SETTINGS["custom_subheading_en"]).strip(),
     }
     _set_setting_value(db, tenant.id, "feedback_settings", cleaned)
     db.commit()
