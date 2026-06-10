@@ -550,7 +550,7 @@ html {
   }
 
   .pos3-checkout {
-    @apply flex min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-700/60 bg-[linear-gradient(172deg,rgba(16,25,38,0.94),rgba(9,14,23,0.94))] p-3.5 shadow-[0_18px_34px_rgba(2,6,23,0.42)];
+    @apply flex min-h-0 flex-col overflow-y-auto rounded-3xl border border-slate-700/60 bg-[linear-gradient(172deg,rgba(16,25,38,0.94),rgba(9,14,23,0.94))] p-3.5 shadow-[0_18px_34px_rgba(2,6,23,0.42)];
   }
 
   .pos3-checkout-head {
@@ -2700,7 +2700,7 @@ html {
   height: 100% !important;
   max-height: 100% !important;
   padding: 0.65rem !important;
-  overflow: hidden !important;
+  overflow-y: auto !important;
   display: flex !important;
   flex-direction: column !important;
 }
