@@ -134,7 +134,7 @@ export const calculate_staff_payable = (
   cart_items: { price: Decimal; qty: number; is_coffee: boolean; category?: string; item_name?: string }[],
   tenant_id: string,
   cashier: string,
-  _staffBenefitsOverride?: { daily_limit_azn?: number; allowed_scope?: string; included_categories?: string[]; included_items?: string[]; item_unit_cap_azn?: number },
+  _staffBenefitsOverride?: { daily_limit_azn?: number; allowed_scope?: string; included_categories?: string[]; included_items?: string[]; item_unit_cap_azn?: number; coffee_unit_cap_azn?: number; other_unit_cap_azn?: number },
 ) => {
   const cfg = _staffBenefitsOverride || get_settings(tenant_id).staff_benefits || {
     daily_limit_azn: 6,
@@ -142,9 +142,12 @@ export const calculate_staff_payable = (
     included_categories: [],
     included_items: [],
     item_unit_cap_azn: 6,
+    coffee_unit_cap_azn: 6,
+    other_unit_cap_azn: 2,
   };
   const DAILY_LIMIT = new Decimal(cfg.daily_limit_azn || 0);
-  const ITEM_UNIT_BENEFIT_CAP = new Decimal(cfg.item_unit_cap_azn || 0);
+  const COFFEE_UNIT_CAP = new Decimal(typeof cfg.coffee_unit_cap_azn === 'number' ? cfg.coffee_unit_cap_azn : (cfg.item_unit_cap_azn ?? 6));
+  const OTHER_UNIT_CAP = new Decimal(typeof cfg.other_unit_cap_azn === 'number' ? cfg.other_unit_cap_azn : 2);
   const allowedCategories = new Set((cfg.included_categories || []).map((v) => String(v || '').trim().toLowerCase()).filter(Boolean));
   const allowedItems = new Set((cfg.included_items || []).map((v) => String(v || '').trim().toLowerCase()).filter(Boolean));
 
@@ -176,14 +179,16 @@ export const calculate_staff_payable = (
       cfg.allowed_scope === 'all' ||
       (cfg.allowed_scope === 'categories' && allowedCategories.has(categoryName)) ||
       (cfg.allowed_scope === 'items' && allowedItems.has(itemName));
+    const isCoffee = isCoffeeLike(item);
+    const itemCap = isCoffee ? COFFEE_UNIT_CAP : OTHER_UNIT_CAP;
     for (let i = 0; i < item.qty; i += 1) {
       if (!eligible) {
         nonCoffeeExcess = nonCoffeeExcess.plus(unitPrice);
       } else {
-        const coveredForUnit = Decimal.min(unitPrice, ITEM_UNIT_BENEFIT_CAP);
+        const coveredForUnit = Decimal.min(unitPrice, itemCap);
         benefitUsedThisSale = benefitUsedThisSale.plus(coveredForUnit);
-        if (unitPrice.greaterThan(ITEM_UNIT_BENEFIT_CAP)) {
-          nonCoffeeExcess = nonCoffeeExcess.plus(unitPrice.minus(ITEM_UNIT_BENEFIT_CAP));
+        if (unitPrice.greaterThan(itemCap)) {
+          nonCoffeeExcess = nonCoffeeExcess.plus(unitPrice.minus(itemCap));
         }
       }
     }

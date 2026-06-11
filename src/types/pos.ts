@@ -238,6 +238,8 @@ export interface Settings {
     included_categories: string[];
     included_items: string[];
     item_unit_cap_azn: number;
+    coffee_unit_cap_azn?: number;
+    other_unit_cap_azn?: number;
   };
   print_settings?: {
     use_qz: boolean;

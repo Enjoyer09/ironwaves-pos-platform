@@ -252,6 +252,8 @@ export default function SettingsPanel() {
     included_categories: [] as string[],
     included_items: [] as string[],
     item_unit_cap_azn: '6',
+    coffee_unit_cap_azn: '6',
+    other_unit_cap_azn: '2',
   });
   const [menuCatalog, setMenuCatalog] = useState<any[]>([]);
   const [deliveryMenuMappings, setDeliveryMenuMappings] = useState<DeliveryMenuMapping[]>([]);
@@ -554,6 +556,8 @@ export default function SettingsPanel() {
         included_categories: Array.isArray(settingsRes.value.staff_benefits?.included_categories) ? settingsRes.value.staff_benefits!.included_categories : [],
         included_items: Array.isArray(settingsRes.value.staff_benefits?.included_items) ? settingsRes.value.staff_benefits!.included_items : [],
         item_unit_cap_azn: String(settingsRes.value.staff_benefits?.item_unit_cap_azn ?? 6),
+        coffee_unit_cap_azn: String(settingsRes.value.staff_benefits?.coffee_unit_cap_azn ?? settingsRes.value.staff_benefits?.item_unit_cap_azn ?? 6),
+        other_unit_cap_azn: String(settingsRes.value.staff_benefits?.other_unit_cap_azn ?? 2),
       });
       void checkPrintAgentStatus();
     }
@@ -1328,7 +1332,9 @@ export default function SettingsPanel() {
       allowed_scope: staffBenefits.allowed_scope,
       included_categories: staffBenefits.included_categories,
       included_items: staffBenefits.included_items,
-      item_unit_cap_azn: Number(staffBenefits.item_unit_cap_azn || 0),
+      item_unit_cap_azn: Number(staffBenefits.coffee_unit_cap_azn || 0),
+      coffee_unit_cap_azn: Number(staffBenefits.coffee_unit_cap_azn || 0),
+      other_unit_cap_azn: Number(staffBenefits.other_unit_cap_azn || 0),
     });
     flashSuccess(tx(lang, 'Staff limit ayarları yadda saxlanıldı', 'Настройки лимита staff сохранены', 'Staff benefit settings saved'), 'staff_benefits');
   };
@@ -3169,7 +3175,7 @@ export default function SettingsPanel() {
         </p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <input
-            className="neon-input"
+            className="neon-input md:col-span-2"
             type="number"
             min={0}
             value={staffBenefits.daily_limit_azn}
@@ -3180,9 +3186,17 @@ export default function SettingsPanel() {
             className="neon-input"
             type="number"
             min={0}
-            value={staffBenefits.item_unit_cap_azn}
-            onChange={(e) => setStaffBenefits((prev) => ({ ...prev, item_unit_cap_azn: e.target.value }))}
-            placeholder={tx(lang, 'Bir məhsul üçün maksimum benefit', 'Максимальная льгота на единицу товара', 'Maximum benefit per item')}
+            value={staffBenefits.coffee_unit_cap_azn}
+            onChange={(e) => setStaffBenefits((prev) => ({ ...prev, coffee_unit_cap_azn: e.target.value }))}
+            placeholder={tx(lang, 'Kofe məhsulları üçün maks. güzəşt', 'Макс. скидка на кофе', 'Max Coffee benefit')}
+          />
+          <input
+            className="neon-input"
+            type="number"
+            min={0}
+            value={staffBenefits.other_unit_cap_azn}
+            onChange={(e) => setStaffBenefits((prev) => ({ ...prev, other_unit_cap_azn: e.target.value }))}
+            placeholder={tx(lang, 'Digər məhsullar üçün maks. güzəşt', 'Макс. скидка на др. товары', 'Max other products benefit')}
           />
           <select
             className="neon-input md:col-span-2"

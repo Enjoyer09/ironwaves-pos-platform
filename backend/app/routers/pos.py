@@ -213,7 +213,8 @@ def _bank_commission_config(db: Session, tenant_id: str) -> tuple[Decimal, Decim
 
 def _calculate_staff_due(items: list, used_today: Decimal, config: dict) -> tuple[Decimal, Decimal, Decimal]:
     daily_limit = Decimal(str(config.get("daily_limit_azn", 6)))
-    item_cap = Decimal(str(config.get("item_unit_cap_azn", 6)))
+    coffee_cap = Decimal(str(config.get("coffee_unit_cap_azn", config.get("item_unit_cap_azn", 6))))
+    other_cap = Decimal(str(config.get("other_unit_cap_azn", 2)))
     allowed_scope = str(config.get("allowed_scope", "all") or "all").lower()
     allowed_categories = {str(v or "").strip().lower() for v in (config.get("included_categories") or []) if str(v or "").strip()}
     allowed_items = {str(v or "").strip().lower() for v in (config.get("included_items") or []) if str(v or "").strip()}
@@ -229,6 +230,8 @@ def _calculate_staff_due(items: list, used_today: Decimal, config: dict) -> tupl
             or (allowed_scope == "categories" and category_name in allowed_categories)
             or (allowed_scope == "items" and item_name in allowed_items)
         )
+        is_coffee = _is_coffee_like(item.item_name, item.category, getattr(item, 'is_coffee', False))
+        item_cap = coffee_cap if is_coffee else other_cap
         for _ in range(int(item.qty or 0)):
             if not eligible:
                 excess_due += unit_price
@@ -529,7 +532,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
             db,
             tenant.id,
             "staff_benefits",
-            {"daily_limit_azn": 6, "allowed_scope": "all", "included_categories": [], "included_items": [], "item_unit_cap_azn": 6},
+            {"daily_limit_azn": 6, "allowed_scope": "all", "included_categories": [], "included_items": [], "item_unit_cap_azn": 6, "coffee_unit_cap_azn": 6, "other_unit_cap_azn": 2},
         )
         day_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         day_end = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
