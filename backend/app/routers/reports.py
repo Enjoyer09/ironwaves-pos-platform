@@ -1000,9 +1000,16 @@ def open_shift(payload: OpenShiftIn, db: Session = Depends(get_db), tenant: Tena
                 source_balance = _wallet_balance(db, tenant.id, funding_source)
                 commission = Decimal("0")
                 if funding_source == "card":
-                    commission_cfg = _setting_value(db, tenant.id, "bank_commission", {"card_transfer_percent": 0.5})
-                    card_transfer_percent = Decimal(str(commission_cfg.get("card_transfer_percent", 0.5) or 0.5))
-                    commission = (topup_amount * (card_transfer_percent / Decimal("100"))).quantize(Decimal("0.01"))
+                    if tenant.id == "6e2c0d4c-6fab-4e49-8f9d-2d675457c655":
+                        # Apply custom bank tiered transfer commission rule for Emalat Coffee
+                        if topup_amount <= Decimal("100"):
+                            commission = Decimal("0.60")
+                        else:
+                            commission = (topup_amount * Decimal("0.005")).quantize(Decimal("0.01"))
+                    else:
+                        commission_cfg = _setting_value(db, tenant.id, "bank_commission", {"card_transfer_percent": 0.5})
+                        card_transfer_percent = Decimal(str(commission_cfg.get("card_transfer_percent", 0.5) or 0.5))
+                        commission = (topup_amount * (card_transfer_percent / Decimal("100"))).quantize(Decimal("0.01"))
                 if source_balance < topup_amount + commission:
                     raise HTTPException(status_code=400, detail="Insufficient balance")
                 _post_finance_transaction(

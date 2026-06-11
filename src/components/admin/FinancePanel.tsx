@@ -368,8 +368,14 @@ export default function FinancePanel() {
       return new Decimal(transferCommission || '0');
     }
     if (amount.lte(0)) return new Decimal(0);
+    if (tenant_id === '6e2c0d4c-6fab-4e49-8f9d-2d675457c655') {
+      if (amount.lte(100)) {
+        return new Decimal('0.60');
+      }
+      return amount.times(0.005).toDecimalPlaces(2);
+    }
     return amount.times(new Decimal(bankCommissionConfig.card_transfer_percent || 0).div(100)).toDecimalPlaces(2);
-  }, [transferAmount, transferCommission, transferDirection, bankCommissionConfig.card_transfer_percent]);
+  }, [transferAmount, transferCommission, transferDirection, bankCommissionConfig.card_transfer_percent, tenant_id]);
   const largeTransferThreshold = useMemo(
     () => new Decimal(financePolicyConfig.large_transfer_threshold_azn || 0),
     [financePolicyConfig.large_transfer_threshold_azn],
