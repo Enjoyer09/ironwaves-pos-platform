@@ -123,6 +123,7 @@ export default function VirtualKeyboard({ lang, enabled = true }: { lang: Keyboa
   const [targetMeta, setTargetMeta] = useState<TargetMeta>({ label: '', type: 'text', sensitive: false });
   const targetRef = useRef<KeyboardTarget | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const typedValueRef = useRef('');
 
   useEffect(() => {
     setLayout(lang);
@@ -175,6 +176,7 @@ export default function VirtualKeyboard({ lang, enabled = true }: { lang: Keyboa
     const handleFocusIn = (event: FocusEvent) => {
       if (!isKeyboardTarget(event.target)) return;
       targetRef.current = event.target;
+      typedValueRef.current = event.target.value || '';
       setMode(detectKeyboardMode(event.target));
       setTargetMeta({
         label: event.target.getAttribute('data-original-placeholder') || event.target.getAttribute('placeholder') || '',
@@ -190,6 +192,7 @@ export default function VirtualKeyboard({ lang, enabled = true }: { lang: Keyboa
       if (isKeyboardTarget(nextTarget)) return;
       if ((nextTarget as HTMLElement | null)?.closest?.('.virtual-keyboard-host')) return;
       targetRef.current = null;
+      typedValueRef.current = '';
       setVisible(false);
     };
 
@@ -225,11 +228,31 @@ export default function VirtualKeyboard({ lang, enabled = true }: { lang: Keyboa
     ];
   }, [mode, targetMeta.type]);
 
+  const syncTypedValue = (target: KeyboardTarget) => {
+    const currentVal = target.value || '';
+    const trackedVal = typedValueRef.current;
+    
+    const isSameNumeric = (() => {
+      if (currentVal === trackedVal) return true;
+      if (!currentVal || !trackedVal) return false;
+      if (trackedVal.endsWith('.') && trackedVal.slice(0, -1) === currentVal) return true;
+      if (trackedVal.endsWith('.0') && trackedVal.slice(0, -2) === currentVal) return true;
+      return false;
+    })();
+    
+    if (!isSameNumeric) {
+      typedValueRef.current = currentVal;
+    }
+  };
+
   const pressKey = (value: string) => {
     const target = targetRef.current;
     if (!target) return;
     if (mode === 'numeric' || mode === 'pin') {
-      appendValue(target, value);
+      syncTypedValue(target);
+      typedValueRef.current = `${typedValueRef.current}${value}`;
+      setNativeValue(target, typedValueRef.current);
+      window.requestAnimationFrame(() => target.focus());
     } else {
       insertAtCursor(target, value);
     }
@@ -377,7 +400,12 @@ export default function VirtualKeyboard({ lang, enabled = true }: { lang: Keyboa
                 onClick={() => {
                   const target = targetRef.current;
                   if (!target) return;
-                  backspaceAtCursor(target);
+                  syncTypedValue(target);
+                  if (typedValueRef.current.length > 0) {
+                    typedValueRef.current = typedValueRef.current.slice(0, -1);
+                    setNativeValue(target, typedValueRef.current);
+                  }
+                  window.requestAnimationFrame(() => target.focus());
                 }}
                 className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-rose-400/35 bg-rose-950/40 px-3 text-base font-black text-rose-100"
               >
