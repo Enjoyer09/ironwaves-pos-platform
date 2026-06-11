@@ -167,6 +167,10 @@ export default function RecipesPanel() {
       'kq->qram': new Decimal('1000'),
       'ml->litr': new Decimal('0.001'),
       'litr->ml': new Decimal('1000'),
+      'pomp->litr': new Decimal('0.01'),
+      'litr->pomp': new Decimal('100'),
+      'pomp->ml': new Decimal('10'),
+      'ml->pomp': new Decimal('0.1'),
       'sm->metr': new Decimal('0.01'),
       'metr->sm': new Decimal('100'),
     };
