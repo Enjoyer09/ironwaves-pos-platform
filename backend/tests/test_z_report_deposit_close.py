@@ -19,6 +19,7 @@ def _bootstrap_env() -> None:
 class _FakeDB:
     def __init__(self):
         self.commit_count = 0
+        self.flush_count = 0
 
     class _FakeQuery:
         def filter(self, *_args, **_kwargs):
@@ -27,8 +28,41 @@ class _FakeDB:
         def first(self):
             return None
 
+        def scalar(self):
+            return 0
+
+        def one(self):
+            return (0, 0, 0, 0, 0)
+
+        def all(self):
+            return []
+
+        def group_by(self, *_args, **_kwargs):
+            return self
+
+        def with_entities(self, *_args, **_kwargs):
+            return self
+
+        def select_from(self, *_args, **_kwargs):
+            return self
+
+        def join(self, *_args, **_kwargs):
+            return self
+
+        def outerjoin(self, *_args, **_kwargs):
+            return self
+
+        def order_by(self, *_args, **_kwargs):
+            return self
+
+        def limit(self, *_args, **_kwargs):
+            return self
+
     def commit(self):
         self.commit_count += 1
+
+    def flush(self):
+        self.flush_count += 1
 
     def query(self, *_args, **_kwargs):
         return self._FakeQuery()
@@ -41,6 +75,7 @@ def _fake_active_shift():
         status="open",
         closed_by=None,
         closed_at=None,
+        opening_cash=Decimal("50.00"),
         actual_cash=Decimal("0.00"),
         declared_cash=Decimal("0.00"),
         cash_variance=Decimal("0.00"),

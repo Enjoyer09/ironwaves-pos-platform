@@ -1164,6 +1164,7 @@ def z_report(payload: ZReportIn, db: Session = Depends(get_db), tenant: Tenant =
             note="Shift close wage",
             related_shift_id=active.id,
         )
+        db.flush()
 
     breakdown = _shift_cash_breakdown(db, tenant.id, active, lock_for_update=True)
     expected = breakdown["expected_cash"]
