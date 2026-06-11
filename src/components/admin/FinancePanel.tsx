@@ -256,6 +256,11 @@ export default function FinancePanel() {
           label: tx(lang, 'Seyf', 'Сейф', 'Safe'),
           helper: tx(lang, 'Xərc seyfdən ödənilir.', 'Расход оплачивается из сейфа.', 'Expense is paid from safe.'),
         },
+        {
+          value: 'investor',
+          label: tx(lang, 'İnvestor', 'Инвестор', 'Investor'),
+          helper: tx(lang, 'Xərc investor tərəfindən şəxsi vəsaitlərlə ödənilir.', 'Расход оплачивается инвестором из личных средств.', 'Expense is paid by investor out of personal funds.'),
+        },
       ];
 
   const selectedCategory = categoryOptions.find((c) => c.value === category) || categoryOptions[0];
