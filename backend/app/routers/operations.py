@@ -1107,7 +1107,7 @@ def get_app_settings(
     inventory_settings = getv("inventory_settings", {"default_critical_threshold": 5, "unit_options": ["kq", "qram", "litr", "ml", "ədəd", "metr"]})
     staff_benefits = getv(
         "staff_benefits",
-        {"daily_limit_azn": 6, "allowed_scope": "all", "included_categories": [], "included_items": [], "item_unit_cap_azn": 6},
+        {"daily_limit_azn": 6, "allowed_scope": "all", "included_categories": [], "included_items": [], "item_unit_cap_azn": 6, "coffee_unit_cap_azn": 6, "other_unit_cap_azn": 2},
     )
     role_modules = getv(
         "role_modules",
@@ -3074,6 +3074,8 @@ def update_staff_benefits(
         "included_categories": [str(v or "").strip() for v in (payload.get("included_categories") or []) if str(v or "").strip()],
         "included_items": [str(v or "").strip() for v in (payload.get("included_items") or []) if str(v or "").strip()],
         "item_unit_cap_azn": max(0, float(payload.get("item_unit_cap_azn") or 0)),
+        "coffee_unit_cap_azn": max(0, float(payload.get("coffee_unit_cap_azn") or 0)),
+        "other_unit_cap_azn": max(0, float(payload.get("other_unit_cap_azn") or 0)),
     }
     _set_setting_value(db, tenant.id, "staff_benefits", cleaned)
     db.commit()

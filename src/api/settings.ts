@@ -432,6 +432,8 @@ function getSettings(tenant_id?: string): Settings {
       included_categories: [],
       included_items: [],
       item_unit_cap_azn: 6,
+      coffee_unit_cap_azn: 6,
+      other_unit_cap_azn: 2,
     },
     print_settings: { use_qz: false, printer_name: '' },
     qr_settings: { base_url: '' },
@@ -981,15 +983,27 @@ export function get_settings(tenant_id?: string) {
       included_categories: [],
       included_items: [],
       item_unit_cap_azn: 6,
+      coffee_unit_cap_azn: 6,
+      other_unit_cap_azn: 2,
     };
-  } else if (!(s.staff_benefits as any).allowed_scope) {
-    s.staff_benefits = {
-      daily_limit_azn: Number((s.staff_benefits as any).daily_limit_azn ?? 6),
-      allowed_scope: 'all',
-      included_categories: [],
-      included_items: [],
-      item_unit_cap_azn: Number((s.staff_benefits as any).non_coffee_unit_cap_azn ?? 6),
-    };
+  } else {
+    if (!(s.staff_benefits as any).allowed_scope) {
+      s.staff_benefits = {
+        daily_limit_azn: Number((s.staff_benefits as any).daily_limit_azn ?? 6),
+        allowed_scope: 'all',
+        included_categories: [],
+        included_items: [],
+        item_unit_cap_azn: Number((s.staff_benefits as any).non_coffee_unit_cap_azn ?? 6),
+        coffee_unit_cap_azn: 6,
+        other_unit_cap_azn: 2,
+      };
+    }
+    if (typeof s.staff_benefits.coffee_unit_cap_azn === 'undefined') {
+      s.staff_benefits.coffee_unit_cap_azn = s.staff_benefits.item_unit_cap_azn ?? 6;
+    }
+    if (typeof s.staff_benefits.other_unit_cap_azn === 'undefined') {
+      s.staff_benefits.other_unit_cap_azn = 2;
+    }
   }
   if (!s.landing_settings) {
     s.landing_settings = normalizeLandingSettings(DEFAULT_LANDING_SETTINGS);
@@ -1077,6 +1091,8 @@ export function update_staff_benefits(payload: {
   included_categories: string[];
   included_items: string[];
   item_unit_cap_azn: number;
+  coffee_unit_cap_azn?: number;
+  other_unit_cap_azn?: number;
 }) {
   const settings = getSettings();
   settings.staff_benefits = {
@@ -1087,6 +1103,12 @@ export function update_staff_benefits(payload: {
     item_unit_cap_azn: Number.isFinite(payload.item_unit_cap_azn)
       ? Math.max(0, Number(payload.item_unit_cap_azn))
       : 6,
+    coffee_unit_cap_azn: typeof payload.coffee_unit_cap_azn === 'number' && Number.isFinite(payload.coffee_unit_cap_azn)
+      ? Math.max(0, payload.coffee_unit_cap_azn)
+      : 6,
+    other_unit_cap_azn: typeof payload.other_unit_cap_azn === 'number' && Number.isFinite(payload.other_unit_cap_azn)
+      ? Math.max(0, payload.other_unit_cap_azn)
+      : 2,
   };
   saveSettings(settings);
   logEvent('admin', 'STAFF_BENEFITS_UPDATED', settings.staff_benefits);
@@ -1548,6 +1570,8 @@ export async function update_staff_benefits_live(payload: {
   included_categories: string[];
   included_items: string[];
   item_unit_cap_azn: number;
+  coffee_unit_cap_azn?: number;
+  other_unit_cap_azn?: number;
 }) {
   if (!isBackendEnabled()) return update_staff_benefits(payload);
   await apiRequest('/api/v1/ops/settings/staff-benefits', { method: 'PATCH', tenantId: null, body: payload });
