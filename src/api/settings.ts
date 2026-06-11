@@ -424,7 +424,7 @@ function getSettings(tenant_id?: string): Settings {
     finance_policy: DEFAULT_FINANCE_POLICY,
     inventory_settings: {
       default_critical_threshold: 5,
-      unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'],
+      unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'paket', 'qutu', 'metr'],
     },
     staff_benefits: {
       daily_limit_azn: 6,
@@ -973,7 +973,7 @@ export function get_settings(tenant_id?: string) {
   if (!s.inventory_settings) {
     s.inventory_settings = {
       default_critical_threshold: 5,
-      unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'],
+      unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'paket', 'qutu', 'metr'],
     };
   }
   if (!s.staff_benefits) {
@@ -1078,7 +1078,7 @@ export function update_inventory_settings(payload: { default_critical_threshold:
     default_critical_threshold: Number.isFinite(payload.default_critical_threshold)
       ? Math.max(0, Number(payload.default_critical_threshold))
       : 5,
-    unit_options: cleanUnits.length ? cleanUnits : ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'],
+    unit_options: cleanUnits.length ? cleanUnits : ['kq', 'qram', 'litr', 'ml', 'ədəd', 'paket', 'qutu', 'metr'],
   };
   saveSettings(settings);
   logEvent('admin', 'INVENTORY_SETTINGS_UPDATED', settings.inventory_settings);

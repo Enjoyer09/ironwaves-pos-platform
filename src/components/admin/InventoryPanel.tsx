@@ -22,7 +22,7 @@ export default function InventoryPanel() {
   const [historyPage, setHistoryPage] = useState(1);
   const [inventoryConfig, setInventoryConfig] = useState<{ default_critical_threshold: number; unit_options: string[] }>({
     default_critical_threshold: 5,
-    unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'],
+    unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'paket', 'qutu', 'metr'],
   });
   const mountedRef = useRef(true);
   const loadingRef = useRef(false);
@@ -72,7 +72,7 @@ export default function InventoryPanel() {
       setItems(Array.isArray(data) ? data : []);
       const invSettings = settings.inventory_settings || {
         default_critical_threshold: 5,
-        unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'],
+        unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'paket', 'qutu', 'metr'],
       };
       setInventoryConfig(invSettings);
       if (!newMinLimit) {

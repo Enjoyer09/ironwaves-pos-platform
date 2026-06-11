@@ -107,6 +107,8 @@ def _normalize_unit(raw: str) -> str:
         "piece": "ədəd",
         "pomp": "pomp",
         "pump": "pomp",
+        "paket": "paket",
+        "qutu": "qutu",
     }
     return aliases.get(value, value)
 

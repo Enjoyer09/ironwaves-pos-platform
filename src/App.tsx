@@ -486,7 +486,7 @@ export default function App() {
   }, []);
 
   const defaultUiVisibility = { staff_show_tables: true, manager_show_tables: true, staff_show_kitchen: true };
-  const defaultInventorySettings = { default_critical_threshold: 5, unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'metr'] };
+  const defaultInventorySettings = { default_critical_threshold: 5, unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'paket', 'qutu', 'metr'] };
   const defaultRoleModules = {
     staff: isBahaYLab ? ['pos', 'tables', 'kds'] : ['pos', 'tables', 'kds', 'zreport'],
     manager: ['pos', 'tables', 'kds', 'zreport', 'dashboard', 'finance', 'inventory', 'combos', 'analytics', 'logs', 'crm', 'customerapp', 'ai', 'menu', 'recipes'],
