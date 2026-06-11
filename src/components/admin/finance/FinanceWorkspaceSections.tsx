@@ -213,6 +213,8 @@ export function FinanceLedgerTab({
   ledgerAccounts,
   fromDate,
   toDate,
+  onFromDateChange,
+  onToDateChange,
   visibleLedgerTransactions,
   onOpenLedgerDetail,
   transactionTypeLabel,
@@ -253,6 +255,8 @@ export function FinanceLedgerTab({
   ledgerAccounts: FinanceLedgerAccount[];
   fromDate: string;
   toDate: string;
+  onFromDateChange?: (value: string) => void;
+  onToDateChange?: (value: string) => void;
   visibleLedgerTransactions: FinanceLedgerTransaction[];
   onOpenLedgerDetail: (entry: FinanceLedgerTransaction) => void | Promise<void>;
   transactionTypeLabel: (value?: string | null) => string;
@@ -341,13 +345,24 @@ export function FinanceLedgerTab({
             <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Max məbləğ', 'Макс сумма', 'Max amount')}</span>
             <input className="neon-input min-h-12" type="number" min={0} step="0.01" value={ledgerMaxAmount} onChange={(e) => onLedgerMaxAmountChange(e.target.value)} />
           </label>
-          <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Tarix aralığı', 'Диапазон дат', 'Date range')}</div>
-            <div className="mt-2 text-sm font-black text-white">{fromDate} → {toDate}</div>
-            <div className="mt-1 text-xs font-bold text-slate-400">
-              {tx(lang, 'Yuxarıdakı period filteri maliyyə jurnalına da tətbiq olunur.', 'Верхний фильтр периода также применяется к ledger.', 'The top period filter also applies to ledger.')}
-            </div>
-          </div>
+          <label className="space-y-2">
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Başlanğıc tarix', 'Дата начала', 'Start date')}</span>
+            <input
+              className="neon-input min-h-12"
+              type="date"
+              value={fromDate}
+              onChange={(e) => onFromDateChange?.(e.target.value)}
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{tx(lang, 'Bitiş tarixi', 'Дата окончания', 'End date')}</span>
+            <input
+              className="neon-input min-h-12"
+              type="date"
+              value={toDate}
+              onChange={(e) => onToDateChange?.(e.target.value)}
+            />
+          </label>
         </div>
       </div>
       <div className="mb-4 md:mb-5 grid grid-cols-1 gap-2.5 md:gap-3 md:grid-cols-3 xl:grid-cols-6">

@@ -1823,6 +1823,14 @@ export default function FinancePanel() {
       ledgerAccounts={ledgerAccounts}
       fromDate={fromDate}
       toDate={toDate}
+      onFromDateChange={(val) => {
+        setRangePreset('custom');
+        setFromDate(val);
+      }}
+      onToDateChange={(val) => {
+        setRangePreset('custom');
+        setToDate(val);
+      }}
       visibleLedgerTransactions={visibleLedgerTransactions}
       onOpenLedgerDetail={(entry) => void openLedgerDetail(entry)}
       transactionTypeLabel={transactionTypeLabel}
