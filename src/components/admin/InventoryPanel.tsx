@@ -218,6 +218,14 @@ export default function InventoryPanel() {
     return qty.toDecimalPlaces(3).toString();
   };
 
+  const formatUnitCost = (value: unknown) => {
+    const cost = new Decimal(value || 0);
+    if (cost.gt(0) && cost.lt(0.01)) {
+      return cost.toDecimalPlaces(4).toString();
+    }
+    return cost.toDecimalPlaces(2).toString();
+  };
+
   const normalizeDecimalInput = (value: string) => String(value || '').trim().replace(',', '.');
   const parseDecimalInput = (value: string, fallback = '0') => new Decimal(normalizeDecimalInput(value) || fallback);
   const isPositiveDecimalInput = (value: string) => {
@@ -833,7 +841,7 @@ export default function InventoryPanel() {
                   <td className="py-3 font-medium">{item.name}</td>
                   <td className="py-3">{item.type}</td>
                   <td className="py-3">{formatQty(item.stock_qty, item.unit)} {item.unit}</td>
-                  <td className="py-3">{new Decimal(item.unit_cost || 0).toFixed(4)} ₼ / {item.unit}</td>
+                  <td className="py-3">{formatUnitCost(item.unit_cost)} ₼ / {item.unit}</td>
                   <td className="py-3">{new Decimal(item.stock_qty || 0).mul(new Decimal(item.unit_cost || 0)).toFixed(2)} ₼</td>
                   <td className="py-3">
                     {Number(item.stock_qty || 0) <= Number(item.min_limit ?? inventoryConfig.default_critical_threshold) ? (
