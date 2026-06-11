@@ -547,6 +547,22 @@ def get_sales_list(
             if row[0]
         }
         ledger_void_sale_ids = payment_ledger_sale_ids - posted_payment_sale_ids
+
+    bank_fees_dict: dict[str, Decimal] = {}
+    if sale_ids:
+        fee_rows = (
+            db.query(FinanceTransaction.related_order_id, func.sum(FinanceTransaction.amount))
+            .filter(
+                FinanceTransaction.tenant_id == tenant.id,
+                FinanceTransaction.related_order_id.in_(sale_ids),
+                FinanceTransaction.status == "posted",
+                FinanceTransaction.category == "Bank Komissiyası",
+            )
+            .group_by(FinanceTransaction.related_order_id)
+            .all()
+        )
+        bank_fees_dict = {str(order_id): Decimal(str(amount or 0)) for order_id, amount in fee_rows if order_id}
+
     result = []
     for row in rows:
         items = safe_json_list(row.items_json)
@@ -566,6 +582,7 @@ def get_sales_list(
                 "total": str(Decimal(str(row.total)).quantize(Decimal("0.01"))),
                 "cogs": str(Decimal(str(row.cogs or 0)).quantize(Decimal("0.01"))),
                 "payment_method": row.payment_method,
+                "bank_fee": str(bank_fees_dict.get(str(row.id), Decimal("0.00")).quantize(Decimal("0.01"))),
                 "split_cash": str(split_cash) if split_cash > 0 else None,
                 "split_card": str(split_card) if split_card > 0 else None,
                 "order_type": row.order_type,
