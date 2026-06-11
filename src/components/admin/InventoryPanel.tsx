@@ -7,6 +7,9 @@ import { generate_ai_insight_engine, type AiDecisionInsight } from '../../api/ai
 import { useAppStore } from '../../store';
 import { Package, AlertTriangle, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { tx } from '../../i18n';
+import { apiRequest, getApiBaseUrl } from '../../api/client';
+import { verifyLocalCredential } from '../../lib/local_auth';
+import { getDB } from '../../lib/db_sim';
 
 export default function InventoryPanel() {
   const { user, lang, notify } = useAppStore();
@@ -133,6 +136,78 @@ export default function InventoryPanel() {
   const [aiInsights, setAiInsights] = useState<AiDecisionInsight[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [clearConfirmPassword, setClearConfirmPassword] = useState('');
+  const [isClearing, setIsClearing] = useState(false);
+
+  const verifyAdminPassword = async () => {
+    const normalized = String(clearConfirmPassword || '').trim();
+    if (!normalized) return false;
+
+    if (getApiBaseUrl()) {
+      try {
+        const result = await apiRequest<{ success: boolean }>('/api/v1/ops/database/verify-admin-password', {
+          method: 'POST',
+          tenantId: tenant_id,
+          timeoutMs: 30000,
+          suspendOnNetworkError: false,
+          body: { password: normalized },
+        });
+        if (result?.success) return true;
+        return false;
+      } catch (error) {
+        throw new Error(tx(lang, 'Admin şifrəsi yoxlanmadı', 'Пароль администратора не проверен'));
+      }
+    }
+
+    const users = getDB<any>('users') || [];
+    const tenantAdmins = users.filter(
+      (u: any) =>
+        String(u.tenant_id || tenant_id) === String(tenant_id) &&
+        Boolean(u.is_active ?? true) &&
+        ['admin', 'super_admin'].includes(String(u.role || '').toLowerCase()),
+    );
+
+    const currentAdminFirst = tenantAdmins.sort((a: any, b: any) => {
+      const aCurrent = String(a.username || '').toLowerCase() === String(user?.username || '').toLowerCase() ? 1 : 0;
+      const bCurrent = String(b.username || '').toLowerCase() === String(user?.username || '').toLowerCase() ? 1 : 0;
+      return bCurrent - aCurrent;
+    });
+
+    for (const candidate of currentAdminFirst) {
+      const isMatch = await verifyLocalCredential(normalized, candidate.password_hash || candidate.password);
+      if (isMatch) return true;
+    }
+    return false;
+  };
+
+  const handleClearInventory = async () => {
+    try {
+      if (!(await verifyAdminPassword())) {
+        notify('error', tx(lang, 'Şifrə yanlışdır', 'Неверный пароль'));
+        return;
+      }
+      setIsClearing(true);
+      const { clear_inventory_live } = await import('../../api/inventory');
+      await clear_inventory_live(tenant_id, user?.username || 'admin');
+      notify(
+        'success',
+        tx(
+          lang,
+          'Bütün anbar məhsulları uğurla təmizləndi.',
+          'Все товары склада успешно очищены.',
+          'All inventory items successfully cleared.'
+        )
+      );
+      setClearConfirmOpen(false);
+      setClearConfirmPassword('');
+      window.setTimeout(() => window.location.reload(), 800);
+    } catch (error: any) {
+      notify('error', error?.message || tx(lang, 'Xəta baş verdi', 'Произошла ошибка'));
+    } finally {
+      setIsClearing(false);
+    }
+  };
 
   const formatQty = (value: unknown, unit: string) => {
     const qty = new Decimal(value || 0);
@@ -854,6 +929,97 @@ export default function InventoryPanel() {
           </div>
         ) : null}
       </div>
+
+      {/* Dangerous Operations Section for Admin/Manager */}
+      {['admin', 'super_admin', 'finance_admin'].includes(String(user?.role || '').toLowerCase()) && (
+        <div className="metal-panel p-6 border-rose-500/30 bg-rose-950/5">
+          <h2 className="text-xl font-bold flex items-center gap-3 text-rose-300">
+            <span className="text-rose-500">⚠️</span>
+            {tx(lang, 'Təhlükəli Əməliyyatlar', 'Опасные операции', 'Dangerous Actions')}
+          </h2>
+          <p className="mt-2 text-sm text-slate-300">
+            {tx(
+              lang,
+              'Bu əməliyyat geri qaytarıla bilməz. Zəhmət olmasa diqqətli olun.',
+              'Эта операция необратима. Пожалуйста, будьте осторожны.',
+              'This operation is irreversible. Please be careful.'
+            )}
+          </p>
+
+          <div className="mt-4">
+            <button
+              onClick={() => setClearConfirmOpen(true)}
+              className="rounded-xl border border-rose-500/50 bg-rose-500/10 px-5 py-3 font-bold text-rose-200 hover:bg-rose-500/25 active:scale-98"
+            >
+              {tx(lang, 'Bütün Anbarı Sil', 'Очистить весь Склад', 'Clear All Inventory')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Red Warning/Confirmation Modal */}
+      {clearConfirmOpen && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="metal-panel w-full max-w-md border-rose-500 p-6 shadow-2xl shadow-rose-950/50">
+            <div className="mb-4 flex items-center gap-3 text-rose-400">
+              <span className="text-3xl">⚠️</span>
+              <h3 className="text-lg font-black uppercase tracking-wider">
+                {tx(lang, 'Kritik Təsdiq', 'Критическое подтверждение', 'Critical Confirmation')}
+              </h3>
+            </div>
+            
+            <p className="text-sm text-slate-200 font-semibold leading-relaxed">
+              {tx(
+                lang,
+                'Diqqət! Bu əməliyyat cari restorana (tenant-a) aid BÜTÜN anbar məhsullarını və qalıqlarını birdəfəlik siləcək. Bu əməliyyat geri qaytarıla bilməz!',
+                'Внимание! Эта операция навсегда удалит ВСЕ товары склада и остатки для текущего ресторана. Это действие необратимо!',
+                'Warning! This operation will permanently delete ALL inventory items and balances for the current restaurant. This action is irreversible!'
+              )}
+            </p>
+
+            <div className="mt-4 flex flex-col gap-2">
+              <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">
+                {tx(lang, 'Təsdiqləmək üçün admin şifrəsini yazın:', 'Введите пароль админа для подтверждения:', 'Enter admin password to confirm:')}
+              </label>
+              <input
+                type="password"
+                className="neon-input border-rose-900/50 focus:border-rose-500"
+                value={clearConfirmPassword}
+                onChange={(e) => setClearConfirmPassword(e.target.value)}
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter') {
+                    await handleClearInventory();
+                  }
+                }}
+                placeholder={tx(lang, 'Admin şifrəsi', 'Пароль администратора', 'Admin password')}
+                disabled={isClearing}
+              />
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                className="neon-btn rounded-xl px-4 py-2.5 text-sm font-bold"
+                onClick={() => {
+                  setClearConfirmOpen(false);
+                  setClearConfirmPassword('');
+                }}
+                disabled={isClearing}
+              >
+                {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
+              </button>
+              <button
+                className="rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-black text-white hover:bg-rose-500 active:scale-98 disabled:opacity-50"
+                onClick={handleClearInventory}
+                disabled={isClearing || !clearConfirmPassword}
+              >
+                {isClearing 
+                  ? tx(lang, 'Silinir...', 'Удаление...', 'Clearing...') 
+                  : tx(lang, 'HƏ, ANBARI SİL', 'ДА, УДАЛИТЬ СКЛАД', 'YES, DELETE INVENTORY')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
