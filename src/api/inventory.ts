@@ -387,3 +387,64 @@ export async function delete_inventory_item_live(item_id: string, user: string =
     throw new Error(`Inventory backend delete failed: ${message}`);
   }
 }
+
+export function clear_inventory(tenant_id: string = 'tenant_default', user: string = 'system') {
+  saveInventory(tenant_id, []);
+  logEvent(user, 'CATALOG_CLEAR_INVENTORY', { mode: 'local' });
+  emitInventoryUpdated(tenant_id, { action: 'clear_inventory' });
+  return true;
+}
+
+export async function clear_inventory_live(tenant_id: string = 'tenant_default', user: string = 'system') {
+  if (!isBackendEnabled()) {
+    return clear_inventory(tenant_id, user);
+  }
+  try {
+    const result = await apiRequest<{ success: boolean; message: string; inventory_deleted: number }>(
+      '/api/v1/catalog/clear-inventory',
+      {
+        method: 'POST',
+        tenantId: null,
+      }
+    );
+    saveInventory(tenant_id, []);
+    emitInventoryUpdated(tenant_id, { action: 'clear_inventory' });
+    return result;
+  } catch (error: any) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Inventory backend clear failed: ${message}`);
+  }
+}
+
+export function clear_recipes(tenant_id: string = 'tenant_default', user: string = 'system') {
+  const allRecipes = getDB<any>('recipes') || [];
+  const filteredRecipes = allRecipes.filter((r: any) => r.tenant_id !== tenant_id);
+  setDB('recipes', filteredRecipes);
+  logEvent(user, 'CATALOG_CLEAR_RECIPES', { mode: 'local' });
+  emitInventoryUpdated(tenant_id, { action: 'clear_recipes' });
+  return true;
+}
+
+export async function clear_recipes_live(tenant_id: string = 'tenant_default', user: string = 'system') {
+  if (!isBackendEnabled()) {
+    return clear_recipes(tenant_id, user);
+  }
+  try {
+    const result = await apiRequest<{ success: boolean; message: string; recipes_deleted: number }>(
+      '/api/v1/catalog/clear-recipes',
+      {
+        method: 'POST',
+        tenantId: null,
+      }
+    );
+    const allRecipes = getDB<any>('recipes') || [];
+    const filteredRecipes = allRecipes.filter((r: any) => r.tenant_id !== tenant_id);
+    setDB('recipes', filteredRecipes);
+    emitInventoryUpdated(tenant_id, { action: 'clear_recipes' });
+    return result;
+  } catch (error: any) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Recipes backend clear failed: ${message}`);
+  }
+}
+
