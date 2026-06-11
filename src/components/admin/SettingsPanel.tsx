@@ -31,6 +31,7 @@ import {
   update_staff_benefits_live,
   update_user_credentials_live,
   verify_totp_live,
+  manual_restore_balances_live,
 } from '../../api/settings';
 import { get_menu_items_live } from '../../api/menu';
 import { get_inventory_items_live } from '../../api/inventory';
@@ -292,6 +293,12 @@ export default function SettingsPanel() {
   const [resetModalOpen, setResetModalOpen] = useState(false);
   const [resetPassword, setResetPassword] = useState('');
   const [resetTotpCode, setResetTotpCode] = useState('');
+
+  const [manualRestoreCash, setManualRestoreCash] = useState('56.60');
+  const [manualRestoreCard, setManualRestoreCard] = useState('91.11');
+  const [manualRestoreLoading, setManualRestoreLoading] = useState(false);
+  const [manualRestoreMessage, setManualRestoreMessage] = useState('');
+  const [manualRestoreSuccess, setManualRestoreSuccess] = useState(false);
 
   const suggestedYieldItems = inventoryCatalog.filter((item: any) => {
     const hay = `${String(item?.name || '')} ${String(item?.category || '')}`.toLowerCase();
@@ -1208,6 +1215,28 @@ export default function SettingsPanel() {
       approver_roles: financePolicy.approver_roles.split(',').map((role) => role.trim().toLowerCase()).filter(Boolean),
     });
     flashSuccess(tx(lang, 'Maliyyə policy ayarları yadda saxlanıldı', 'Настройки финансовой policy сохранены', 'Finance policy settings saved'), 'finance_policy');
+  };
+
+  const handleManualRestore = async () => {
+    setManualRestoreLoading(true);
+    setManualRestoreMessage('');
+    setManualRestoreSuccess(false);
+    try {
+      const res = await manual_restore_balances_live({
+        cash_target: Number(manualRestoreCash || 0),
+        card_target: Number(manualRestoreCard || 0),
+      });
+      if (res?.success) {
+        setManualRestoreSuccess(true);
+        setManualRestoreMessage(res.message || 'Balanslar uğurla yeniləndi');
+      } else {
+        setManualRestoreMessage(res?.message || 'Xəta baş verdi');
+      }
+    } catch (err: any) {
+      setManualRestoreMessage(err?.message || 'Şəbəkə xətası və ya yetki çatışmazlığı');
+    } finally {
+      setManualRestoreLoading(false);
+    }
   };
 
   const saveTableServiceSettings = async () => {
@@ -2776,6 +2805,59 @@ export default function SettingsPanel() {
         <div className="flex justify-end">
           <button onClick={() => { void saveFinancePolicy(); }} className={saveButtonClass}>{tx(lang, 'Maliyyə policy saxla', 'Сохранить finance policy', 'Save finance policy')}</button>
         </div>
+
+        {(tenantId === '6e2c0d4c-6fab-4e49-8f9d-2d675457c655' || window.location.hostname.includes('emalatcoffee')) && (
+          <div className="mt-6 border-t border-slate-700/60 pt-6 space-y-4">
+            <h3 className="text-md font-bold text-slate-200">
+              {tx(lang, 'Kassa Balansının Manual Bərpası', 'Ручное восстановление баланса кассы', 'Manual Cash Balance Recovery')}
+            </h3>
+            <p className="text-xs text-slate-400">
+              {tx(
+                lang,
+                'Bu panel sistem kassasındakı balansı fiziki kassadakı məbləğə uyğunlaşdırmaq üçün birbaşa düzəliş əməliyyatı yaradır.',
+                'Эта панель создает прямую корректировку баланса кассы для соответствия фактической сумме.',
+                'This panel posts direct adjustments to align system cash/card balances with physical actuals.',
+              )}
+            </p>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="field-stack form-card">
+                <label className="field-label">{tx(lang, 'Hədəf Nağd Kassa (AZN)', 'Целевая наличная касса (AZN)', 'Target Cash Balance (AZN)')}</label>
+                <input
+                  className="neon-input"
+                  type="number"
+                  step="0.01"
+                  value={manualRestoreCash}
+                  onChange={(e) => setManualRestoreCash(e.target.value)}
+                />
+              </div>
+              <div className="field-stack form-card">
+                <label className="field-label">{tx(lang, 'Hədəf Kart/Bank (AZN)', 'Целевой банк/карта (AZN)', 'Target Bank/Card Balance (AZN)')}</label>
+                <input
+                  className="neon-input"
+                  type="number"
+                  step="0.01"
+                  value={manualRestoreCard}
+                  onChange={(e) => setManualRestoreCard(e.target.value)}
+                />
+              </div>
+            </div>
+            {manualRestoreMessage && (
+              <div className={`p-3 rounded-xl text-xs font-semibold ${manualRestoreSuccess ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300' : 'bg-red-500/10 border border-red-500/20 text-red-300'}`}>
+                {manualRestoreMessage}
+              </div>
+            )}
+            <div className="flex justify-end">
+              <button
+                type="button"
+                disabled={manualRestoreLoading}
+                onClick={() => { void handleManualRestore(); }}
+                className="neon-btn rounded-xl px-4 py-2 font-bold bg-amber-500/10 border border-amber-500/30 text-amber-200 hover:bg-amber-500/20 disabled:opacity-55"
+              >
+                {manualRestoreLoading ? tx(lang, 'Bərpa edilir...', 'Восстановление...', 'Restoring...') : tx(lang, 'Balansları Bərpa Et', 'Восстановить балансы', 'Restore Balances')}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="metal-panel p-6 space-y-4">
