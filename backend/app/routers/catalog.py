@@ -105,6 +105,8 @@ def _normalize_unit(raw: str) -> str:
         "ədəd": "ədəd",
         "adet": "ədəd",
         "piece": "ədəd",
+        "pomp": "pomp",
+        "pump": "pomp",
     }
     return aliases.get(value, value)
 
@@ -120,6 +122,10 @@ def _convert_recipe_qty_to_inventory_unit(quantity: Decimal, from_unit: str, inv
         ("kq", "qram"): Decimal("1000"),
         ("ml", "litr"): Decimal("0.001"),
         ("litr", "ml"): Decimal("1000"),
+        ("pomp", "litr"): Decimal("0.01"),
+        ("litr", "pomp"): Decimal("100"),
+        ("pomp", "ml"): Decimal("10"),
+        ("ml", "pomp"): Decimal("0.1"),
         ("sm", "metr"): Decimal("0.01"),
         ("metr", "sm"): Decimal("100"),
     }

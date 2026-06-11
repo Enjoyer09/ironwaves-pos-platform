@@ -245,6 +245,12 @@ const convertQtyToInventoryUnit = (qty: Decimal, qtyUnit: string, inventoryUnit:
     'ml->l': new Decimal('0.001'),
     'litr->ml': new Decimal('1000'),
     'l->ml': new Decimal('1000'),
+    'pomp->litr': new Decimal('0.01'),
+    'pomp->l': new Decimal('0.01'),
+    'pomp->ml': new Decimal('10'),
+    'ml->pomp': new Decimal('0.1'),
+    'litr->pomp': new Decimal('100'),
+    'l->pomp': new Decimal('100'),
     'sm->metr': new Decimal('0.01'),
     'cm->metr': new Decimal('0.01'),
     'metr->sm': new Decimal('100'),
@@ -259,7 +265,7 @@ const convertQtyToInventoryUnit = (qty: Decimal, qtyUnit: string, inventoryUnit:
 export function getRecipeEntryUnitOptions(baseUnit: string): string[] {
   const unit = String(baseUnit || '').trim().toLowerCase();
   if (unit === 'kq' || unit === 'kg') return ['qram', 'kq'];
-  if (unit === 'litr' || unit === 'l' || unit === 'liter') return ['ml', 'litr'];
+  if (unit === 'litr' || unit === 'l' || unit === 'liter' || unit === 'ml') return ['ml', 'pomp', 'litr'];
   if (unit === 'metr' || unit === 'm') return ['sm', 'metr'];
   return [String(baseUnit || '').trim() || 'ədəd'];
 }
