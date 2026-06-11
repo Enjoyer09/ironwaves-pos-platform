@@ -931,7 +931,7 @@ export default function InventoryPanel() {
       </div>
 
       {/* Dangerous Operations Section for Admin/Manager */}
-      {['admin', 'super_admin', 'finance_admin'].includes(String(user?.role || '').toLowerCase()) && (
+      {['admin', 'super_admin', 'finance_admin', 'manager'].includes(String(user?.role || '').toLowerCase()) && (
         <div className="metal-panel p-6 border-rose-500/30 bg-rose-950/5">
           <h2 className="text-xl font-bold flex items-center gap-3 text-rose-300">
             <span className="text-rose-500">⚠️</span>
@@ -949,7 +949,9 @@ export default function InventoryPanel() {
           <div className="mt-4">
             <button
               onClick={() => setClearConfirmOpen(true)}
-              className="rounded-xl border border-rose-500/50 bg-rose-500/10 px-5 py-3 font-bold text-rose-200 hover:bg-rose-500/25 active:scale-98"
+              disabled={String(user?.role || '').toLowerCase() === 'manager'}
+              className="rounded-xl border border-rose-500/50 bg-rose-500/10 px-5 py-3 font-bold text-rose-200 hover:bg-rose-500/25 active:scale-98 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-rose-500/10 disabled:active:scale-100"
+              title={String(user?.role || '').toLowerCase() === 'manager' ? tx(lang, 'Yalnız adminlər üçün icazəlidir', 'Доступно только админам', 'Only available for admins') : ''}
             >
               {tx(lang, 'Bütün Anbarı Sil', 'Очистить весь Склад', 'Clear All Inventory')}
             </button>
