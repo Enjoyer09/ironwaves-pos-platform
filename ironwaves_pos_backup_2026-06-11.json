@@ -1,5 +1,5 @@
 {
-  "_backup_timestamp": "2026-06-10T14:37:40.941635",
+  "_backup_timestamp": "2026-06-11T06:58:58.903610",
   "_tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
   "users": [
     {
@@ -1987,6 +1987,103 @@
           "_cogs_estimation_unresolved": false
         }
       ]
+    },
+    {
+      "id": "359dabca-8d3d-43ed-9b86-77001b3af782",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "cashier": "Samir",
+      "customer_card_id": null,
+      "payment_method": "Nəğd",
+      "order_type": "Take Away",
+      "offline_request_id": "83af65b8-7a80-48a8-9c66-aa8de5d22256",
+      "receipt_code": "E1AE43C491",
+      "receipt_token": "d23f3a4eafeffef21ca2",
+      "reward_claim_code": null,
+      "total": "6.90",
+      "discount_amount": "0.00",
+      "cogs": "1.1120",
+      "status": "COMPLETED",
+      "created_at": "2026-06-10T16:27:09.170660",
+      "items": [
+        {
+          "item_name": "Dirty Chai Latte S",
+          "price": "4.90",
+          "qty": 1,
+          "category": "Qəhvə",
+          "is_coffee": true,
+          "cup_mode": null,
+          "_cogs_snapshot": "1.1120",
+          "_cogs_estimation_unresolved": true
+        },
+        {
+          "item_name": "Extra Sirob",
+          "price": "0.50",
+          "qty": 4,
+          "category": "Ekstra",
+          "is_coffee": false,
+          "cup_mode": null,
+          "_cogs_snapshot": "0.0000",
+          "_cogs_estimation_unresolved": true
+        }
+      ]
+    },
+    {
+      "id": "cd148c82-32e6-4382-9590-9a5db71f4c23",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "cashier": "Samir",
+      "customer_card_id": null,
+      "payment_method": "Nəğd",
+      "order_type": "Take Away",
+      "offline_request_id": "4d2b456c-3afd-43e8-a730-96b08d7eec38",
+      "receipt_code": "78CFE2093F",
+      "receipt_token": "f911bb613095f215df66",
+      "reward_claim_code": null,
+      "total": "6.00",
+      "discount_amount": "0.00",
+      "cogs": "0.0000",
+      "status": "COMPLETED",
+      "created_at": "2026-06-10T17:28:04.688658",
+      "items": [
+        {
+          "item_name": "Dondurma S",
+          "price": "3.00",
+          "qty": 2,
+          "category": "Desert",
+          "is_coffee": false,
+          "cup_mode": null,
+          "_cogs_snapshot": "0.0000",
+          "_cogs_estimation_unresolved": true
+        }
+      ]
+    },
+    {
+      "id": "b585032e-201e-43ef-b72f-5ffbeccc4afa",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "cashier": "Samir",
+      "customer_card_id": null,
+      "payment_method": "Staff",
+      "order_type": "Take Away",
+      "offline_request_id": "519f16ad-5ebe-494b-9471-b435f79bca25",
+      "receipt_code": "C21F336D2D",
+      "receipt_token": "4bba8a238b504bd13685",
+      "reward_claim_code": null,
+      "total": "5.50",
+      "discount_amount": "0.00",
+      "cogs": "0.7156",
+      "status": "COMPLETED",
+      "created_at": "2026-06-10T19:18:37.941421",
+      "items": [
+        {
+          "item_name": "Ice Americano M",
+          "price": "5.50",
+          "qty": 1,
+          "category": "iced kofe",
+          "is_coffee": true,
+          "cup_mode": "paper",
+          "_cogs_snapshot": "0.7156",
+          "_cogs_estimation_unresolved": false
+        }
+      ]
     }
   ],
   "finance": [],
@@ -2644,16 +2741,6 @@
       "min_limit": "10.000"
     },
     {
-      "id": "5babcf10-6e73-4a32-9f56-3b1d9181cad9",
-      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
-      "name": "chai tea",
-      "unit": "KQ",
-      "category": "Bar Məhsulları (Su/Buz)",
-      "stock_qty": "-0.950",
-      "unit_cost": "30.0000",
-      "min_limit": "10.000"
-    },
-    {
       "id": "80484b20-c542-4db5-8a01-220b96ea3556",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
       "name": "kakao",
@@ -2844,26 +2931,6 @@
       "min_limit": "10.000"
     },
     {
-      "id": "19209ae5-9bcb-42ab-ac15-85efa1062dcb",
-      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
-      "name": "Stəkan Şəffaf (M)",
-      "unit": "ƏDƏD",
-      "category": "Stəkanlar",
-      "stock_qty": "0.000",
-      "unit_cost": "0.0900",
-      "min_limit": "10.000"
-    },
-    {
-      "id": "4c798eda-1084-4f09-8701-19bccc8054ec",
-      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
-      "name": "Qapaq Şəffaf (Stəkan üçün)",
-      "unit": "ƏDƏD",
-      "category": "Qapaqlar",
-      "stock_qty": "434.000",
-      "unit_cost": "0.0300",
-      "min_limit": "10.000"
-    },
-    {
       "id": "143d64b3-dd08-4b97-b188-7200cfd878d0",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
       "name": "Küncütlü Kuki",
@@ -2874,13 +2941,13 @@
       "min_limit": "10.000"
     },
     {
-      "id": "56a511da-aec3-4349-9117-3850859f07a3",
+      "id": "46def0b2-467e-4c37-96f1-d3147aa2457b",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
-      "name": "Buz (Ice)",
-      "unit": "KQ",
-      "category": "Bar Məhsulları (Su/Buz)",
-      "stock_qty": "987.299",
-      "unit_cost": "0.0100",
+      "name": "Milla Sud 3.2%",
+      "unit": "L",
+      "category": "Süd Məhsulları",
+      "stock_qty": "4.810",
+      "unit_cost": "2.3000",
       "min_limit": "10.000"
     },
     {
@@ -2904,23 +2971,23 @@
       "min_limit": "10.000"
     },
     {
-      "id": "bd2ba0e9-0a09-4785-a6b1-d08507058b4f",
+      "id": "19209ae5-9bcb-42ab-ac15-85efa1062dcb",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
-      "name": "Stəkan Kağız (S)",
+      "name": "Stəkan Şəffaf (M)",
       "unit": "ƏDƏD",
       "category": "Stəkanlar",
-      "stock_qty": "17.000",
-      "unit_cost": "0.1700",
+      "stock_qty": "-1.000",
+      "unit_cost": "0.0900",
       "min_limit": "10.000"
     },
     {
-      "id": "46def0b2-467e-4c37-96f1-d3147aa2457b",
+      "id": "4c798eda-1084-4f09-8701-19bccc8054ec",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
-      "name": "Milla Sud 3.2%",
-      "unit": "L",
-      "category": "Süd Məhsulları",
-      "stock_qty": "4.960",
-      "unit_cost": "2.3000",
+      "name": "Qapaq Şəffaf (Stəkan üçün)",
+      "unit": "ƏDƏD",
+      "category": "Qapaqlar",
+      "stock_qty": "433.000",
+      "unit_cost": "0.0300",
       "min_limit": "10.000"
     },
     {
@@ -2931,6 +2998,36 @@
       "category": "Şirniyyat (Hazır)",
       "stock_qty": "0.000",
       "unit_cost": "2.0000",
+      "min_limit": "10.000"
+    },
+    {
+      "id": "5babcf10-6e73-4a32-9f56-3b1d9181cad9",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "name": "chai tea",
+      "unit": "KQ",
+      "category": "Bar Məhsulları (Su/Buz)",
+      "stock_qty": "-0.960",
+      "unit_cost": "30.0000",
+      "min_limit": "10.000"
+    },
+    {
+      "id": "bd2ba0e9-0a09-4785-a6b1-d08507058b4f",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "name": "Stəkan Kağız (S)",
+      "unit": "ƏDƏD",
+      "category": "Stəkanlar",
+      "stock_qty": "16.000",
+      "unit_cost": "0.1700",
+      "min_limit": "10.000"
+    },
+    {
+      "id": "56a511da-aec3-4349-9117-3850859f07a3",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "name": "Buz (Ice)",
+      "unit": "KQ",
+      "category": "Bar Məhsulları (Su/Buz)",
+      "stock_qty": "987.149",
+      "unit_cost": "0.0100",
       "min_limit": "10.000"
     },
     {
@@ -3014,16 +3111,6 @@
       "min_limit": "10.000"
     },
     {
-      "id": "5818aacf-641c-4a3c-b734-4968a4bb6c71",
-      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
-      "name": "Damacana Su",
-      "unit": "L",
-      "category": "Bar Məhsulları (Su/Buz)",
-      "stock_qty": "18837.050",
-      "unit_cost": "0.0005",
-      "min_limit": "10.000"
-    },
-    {
       "id": "9531661c-233a-4602-883b-ff6b63e821dd",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
       "name": "Holder L",
@@ -3034,16 +3121,6 @@
       "min_limit": "10.000"
     },
     {
-      "id": "76735149-2f2c-4ab3-baa8-c424c6a08cf7",
-      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
-      "name": "Latina Blend Coffee",
-      "unit": "KQ",
-      "category": "Kofe",
-      "stock_qty": "0.401",
-      "unit_cost": "33.0000",
-      "min_limit": "10.000"
-    },
-    {
       "id": "926b0fb4-7142-4959-8508-0e67022577ba",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
       "name": "Stəkan Kağız (M)",
@@ -3051,6 +3128,26 @@
       "category": "Qablaşdırma (Stəkan/Qapaq)",
       "stock_qty": "35.000",
       "unit_cost": "0.1400",
+      "min_limit": "10.000"
+    },
+    {
+      "id": "5818aacf-641c-4a3c-b734-4968a4bb6c71",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "name": "Damacana Su",
+      "unit": "L",
+      "category": "Bar Məhsulları (Su/Buz)",
+      "stock_qty": "18836.850",
+      "unit_cost": "0.0005",
+      "min_limit": "10.000"
+    },
+    {
+      "id": "76735149-2f2c-4ab3-baa8-c424c6a08cf7",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "name": "Latina Blend Coffee",
+      "unit": "KQ",
+      "category": "Kofe",
+      "stock_qty": "0.374",
+      "unit_cost": "33.0000",
       "min_limit": "10.000"
     }
   ],
@@ -6910,23 +7007,25 @@
   "settings": [
     {
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
-      "staff_shift_sessions": {
-        "emalat": "2026-06-10T10:01:16.020890"
+      "staff_shift_sessions": {},
+      "staff_benefits": {
+        "daily_limit_azn": 6,
+        "allowed_scope": "categories",
+        "included_categories": [
+          "Qəhvə",
+          "Desert",
+          "iced kofe"
+        ],
+        "included_items": [],
+        "item_unit_cap_azn": 6,
+        "coffee_unit_cap_azn": 6,
+        "other_unit_cap_azn": 2
       },
       "bank_commission": {
         "min_amount": 0.1,
         "percent": 1.5,
         "card_sale_percent": 2,
         "card_transfer_percent": 0.5
-      },
-      "staff_benefits": {
-        "daily_limit_azn": 6,
-        "allowed_scope": "categories",
-        "included_categories": [
-          "Qəhvə"
-        ],
-        "included_items": [],
-        "item_unit_cap_azn": 6
       },
       "role_modules": {
         "staff": [
@@ -6983,6 +7082,22 @@
       "action": "LOGOUT",
       "details": "{}",
       "created_at": "2026-06-10T12:42:33.364604"
+    },
+    {
+      "id": "2c143eba-74c6-4126-93f2-e27f210d407f",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Sabina",
+      "action": "LOGOUT",
+      "details": "{}",
+      "created_at": "2026-06-10T19:08:52.430533"
+    },
+    {
+      "id": "141cc2ff-9a1e-4522-b3e4-5d5ff6ca4c76",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "LOGOUT",
+      "details": "{}",
+      "created_at": "2026-06-11T06:34:30.658511"
     },
     {
       "id": "6b089ba8-ad66-467d-b99d-d63e0fb136a1",
@@ -7047,6 +7162,22 @@
       "action": "LOGOUT",
       "details": "{}",
       "created_at": "2026-06-10T12:04:56.672243"
+    },
+    {
+      "id": "54d22467-59da-4a71-b82c-9de8a2dfa1af",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "LOGOUT",
+      "details": "{}",
+      "created_at": "2026-06-10T16:10:26.447625"
+    },
+    {
+      "id": "dc322037-7b17-4f1f-a05e-536a4a66c8d2",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "LOGOUT",
+      "details": "{}",
+      "created_at": "2026-06-10T16:19:35.863056"
     },
     {
       "id": "796c4afe-ae52-4043-ae39-f28a0eb411d1",
@@ -9767,28 +9898,2004 @@
       "action": "LOGOUT",
       "details": "{}",
       "created_at": "2026-06-10T14:37:40.144069"
+    },
+    {
+      "id": "8b66f7aa-c40c-44b7-a34b-2bb990a47171",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"ui-freeze\", \"message\": \"Long task detected on main thread\", \"duration_ms\": 183, \"name\": \"self\"}",
+      "created_at": "2026-06-10T14:42:36.411867"
+    },
+    {
+      "id": "b49991d8-b33a-4b8f-97da-ed5174d15797",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"ui-freeze\", \"message\": \"Long task detected on main thread\", \"duration_ms\": 257, \"name\": \"self\"}",
+      "created_at": "2026-06-10T14:43:27.557824"
+    },
+    {
+      "id": "35c56fb9-096b-492f-9b1f-3361f26830f9",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "SUCCESSFUL_LOGIN",
+      "details": "{\"role\": \"staff\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"method\": \"PIN\", \"backend\": true}",
+      "created_at": "2026-06-10T14:58:29.393786"
+    },
+    {
+      "id": "e2e230e7-fec9-48d5-a2ee-232074eede76",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "logout",
+      "action": "AUTH_LOGOUT",
+      "details": "{\"username\": \"logout\", \"ip\": \"100.64.0.6\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\", \"refresh_revoked\": true, \"refresh_token_present\": true}",
+      "created_at": "2026-06-10T14:59:54.385267"
+    },
+    {
+      "id": "2681143e-1f93-4e37-a988-e283a11f080d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Sabina",
+      "action": "ADMIN_LOGIN",
+      "details": "{\"method\": \"PASSWORD\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"backend\": true}",
+      "created_at": "2026-06-10T15:04:05.036893"
+    },
+    {
+      "id": "c653c0b2-7acc-4909-b82e-564867270201",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "SUCCESSFUL_LOGIN",
+      "details": "{\"role\": \"staff\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"method\": \"PIN\", \"backend\": true}",
+      "created_at": "2026-06-10T15:08:55.091348"
+    },
+    {
+      "id": "5144f7b9-a33b-4965-914d-fd01f53c0cf5",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"ui-freeze\", \"message\": \"Long task detected on main thread\", \"duration_ms\": 228, \"name\": \"self\"}",
+      "created_at": "2026-06-10T14:58:14.953810"
+    },
+    {
+      "id": "242f5b0f-6e47-4ec6-ab0a-90a17da7770f",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "LOGOUT",
+      "details": "{}",
+      "created_at": "2026-06-10T14:58:26.876999"
+    },
+    {
+      "id": "fd8132bb-c164-4125-acf6-3dbe6726afc2",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "AUTH_PIN_SUCCESS",
+      "details": "{\"username\": \"Samir\", \"ip\": \"100.64.0.6\", \"user_agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36\", \"role\": \"staff\"}",
+      "created_at": "2026-06-10T14:58:57.253411"
+    },
+    {
+      "id": "9ed08f25-52d5-4bc0-84b9-a1e3ca422a5e",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "STAFF_AUTO_SHIFT_JOIN",
+      "details": "Auto-joined shift on PIN login",
+      "created_at": "2026-06-10T14:58:57.253418"
+    },
+    {
+      "id": "20dfd314-b527-45cd-b25f-ed9e606301e8",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "LOGOUT",
+      "details": "{}",
+      "created_at": "2026-06-10T14:59:39.092727"
+    },
+    {
+      "id": "45e81dd6-09e2-4748-aa2f-95613807e0a1",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "logout",
+      "action": "AUTH_LOGOUT",
+      "details": "{\"username\": \"logout\", \"ip\": \"100.64.0.6\", \"user_agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36\", \"refresh_revoked\": true, \"refresh_token_present\": true}",
+      "created_at": "2026-06-10T15:04:14.626696"
+    },
+    {
+      "id": "fde7f6f9-de2e-483e-8d74-22130a42ff85",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "AUTH_PIN_SUCCESS",
+      "details": "{\"username\": \"Samir\", \"ip\": \"100.64.0.4\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\", \"role\": \"staff\"}",
+      "created_at": "2026-06-10T14:58:29.211175"
+    },
+    {
+      "id": "02bca163-286b-4c7a-b8a8-aa444efaf3ca",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "AUTH_PIN_SUCCESS",
+      "details": "{\"username\": \"Samir\", \"ip\": \"100.64.0.4\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\", \"role\": \"staff\"}",
+      "created_at": "2026-06-10T14:59:59.510400"
+    },
+    {
+      "id": "81f3ef26-9ebf-4aba-84fa-50fcd1ec0b77",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "STAFF_AUTO_SHIFT_JOIN",
+      "details": "Auto-joined shift on PIN login",
+      "created_at": "2026-06-10T14:59:59.510406"
+    },
+    {
+      "id": "d329d5c9-c1ed-4658-842c-36d8b477cccc",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "LOGOUT",
+      "details": "{}",
+      "created_at": "2026-06-10T15:04:02.059796"
+    },
+    {
+      "id": "f2a2a81b-0f2c-4d29-afb2-e52b24795543",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "AUTH_PIN_SUCCESS",
+      "details": "{\"username\": \"Samir\", \"ip\": \"100.64.0.9\", \"user_agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36\", \"role\": \"staff\"}",
+      "created_at": "2026-06-10T15:04:20.089433"
+    },
+    {
+      "id": "3f129d38-61bc-476e-9748-8ba1912ff940",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "STAFF_AUTO_SHIFT_JOIN",
+      "details": "Auto-joined shift on PIN login",
+      "created_at": "2026-06-10T15:04:20.089441"
+    },
+    {
+      "id": "dd571ba7-247a-4a08-965b-79aabbc246d0",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "AUTH_PIN_SUCCESS",
+      "details": "{\"username\": \"Samir\", \"ip\": \"100.64.0.4\", \"user_agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36\", \"role\": \"staff\"}",
+      "created_at": "2026-06-10T14:55:57.110011"
+    },
+    {
+      "id": "81fdc2b8-8cc2-437d-88d2-6119e1b110fa",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "STAFF_AUTO_SHIFT_JOIN",
+      "details": "Auto-joined shift on PIN login",
+      "created_at": "2026-06-10T14:55:57.110016"
+    },
+    {
+      "id": "663ab545-5034-4f61-9c29-517931e556dc",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "SUCCESSFUL_LOGIN",
+      "details": "{\"role\": \"staff\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"method\": \"PIN\", \"backend\": true}",
+      "created_at": "2026-06-10T14:55:57.367004"
+    },
+    {
+      "id": "347cbd90-e21e-420b-afd9-be5b8e5049da",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "logout",
+      "action": "AUTH_LOGOUT",
+      "details": "{\"username\": \"logout\", \"ip\": \"100.64.0.4\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\", \"refresh_revoked\": true, \"refresh_token_present\": true}",
+      "created_at": "2026-06-10T14:58:26.737688"
+    },
+    {
+      "id": "6be457c4-72b9-409a-b807-c16d77c136bb",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "LOGOUT",
+      "details": "{}",
+      "created_at": "2026-06-10T14:58:47.335394"
+    },
+    {
+      "id": "08fd668b-8710-413e-aeda-2504bcf22ac6",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "AUTH_LOGIN_SUCCESS",
+      "details": "{\"username\": \"emalat\", \"ip\": \"100.64.0.6\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\"}",
+      "created_at": "2026-06-10T14:59:46.935729"
+    },
+    {
+      "id": "1d4107da-db06-4ee6-a00d-af6a9eedca94",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"unhandled-rejection\", \"message\": \"Error: Finance view access required (request_id: 6b9998e0-f091-4318-a8d2-2595adf4a695)\"}",
+      "created_at": "2026-06-10T15:02:08.278497"
+    },
+    {
+      "id": "eead0510-b9d7-4f1b-a2d5-ee7ac35e29a1",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "logout",
+      "action": "AUTH_LOGOUT",
+      "details": "{\"username\": \"logout\", \"ip\": \"100.64.0.6\", \"user_agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36\", \"refresh_revoked\": true, \"refresh_token_present\": true}",
+      "created_at": "2026-06-10T15:04:01.909107"
+    },
+    {
+      "id": "86b22704-dead-420d-a0e2-a6fffcf6ffbd",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "STAFF_AUTO_SHIFT_LEAVE",
+      "details": "Auto-left shift on logout",
+      "created_at": "2026-06-10T15:04:01.909129"
+    },
+    {
+      "id": "715a7165-c0fa-48ba-9eb1-f3ceec7a21ce",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Sabina",
+      "action": "AUTH_LOGIN_SUCCESS",
+      "details": "{\"username\": \"Sabina\", \"ip\": \"100.64.0.4\", \"user_agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36\"}",
+      "created_at": "2026-06-10T15:04:04.891980"
+    },
+    {
+      "id": "b41ff379-66c5-4ec4-8d8a-b049714416e6",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Sabina",
+      "action": "LOGOUT",
+      "details": "{}",
+      "created_at": "2026-06-10T15:04:14.773159"
+    },
+    {
+      "id": "083fbcbe-ba3d-4738-aaca-e8832781f184",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"unhandled-rejection\", \"message\": \"Error: Finance view access required (request_id: 625f87ac-7140-452c-83c3-5db5cf6c2fad)\"}",
+      "created_at": "2026-06-10T15:09:54.112643"
+    },
+    {
+      "id": "0a1645e7-c251-4368-8cbf-59002bdb25b9",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"unhandled-rejection\", \"message\": \"Error: Finance view access required (request_id: 134d0722-4ddd-4660-bb92-3b6d23b27b0f)\"}",
+      "created_at": "2026-06-10T15:10:54.994299"
+    },
+    {
+      "id": "b6d4bb2e-edb0-425f-a24a-2ffc1bdcef84",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "LOGOUT",
+      "details": "{}",
+      "created_at": "2026-06-10T15:11:41.053922"
+    },
+    {
+      "id": "2f742229-4cfc-40d5-aec9-c75216f2e62a",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "AUTH_LOGIN_SUCCESS",
+      "details": "{\"username\": \"emalat\", \"ip\": \"100.64.0.6\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\"}",
+      "created_at": "2026-06-10T15:11:47.492586"
+    },
+    {
+      "id": "24186888-344b-4070-94b6-f96f06659bcd",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "logout",
+      "action": "AUTH_LOGOUT",
+      "details": "{\"username\": \"logout\", \"ip\": \"100.64.0.4\", \"user_agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36\", \"refresh_revoked\": true, \"refresh_token_present\": true}",
+      "created_at": "2026-06-10T14:58:47.187925"
+    },
+    {
+      "id": "f96e1246-b86a-40f2-920b-7e07ea2bd378",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "STAFF_AUTO_SHIFT_LEAVE",
+      "details": "Auto-left shift on logout",
+      "created_at": "2026-06-10T14:58:47.187932"
+    },
+    {
+      "id": "b36bc7e2-ffa6-4be6-b4ab-7771c015443f",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "logout",
+      "action": "AUTH_LOGOUT",
+      "details": "{\"username\": \"logout\", \"ip\": \"100.64.0.6\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\", \"refresh_revoked\": true, \"refresh_token_present\": true}",
+      "created_at": "2026-06-10T14:59:38.957507"
+    },
+    {
+      "id": "22808a03-a196-41f7-a877-54075d1fd4a7",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "STAFF_AUTO_SHIFT_LEAVE",
+      "details": "Auto-left shift on logout",
+      "created_at": "2026-06-10T14:59:38.957516"
+    },
+    {
+      "id": "d8484559-3f22-47f2-b7d3-8f6598248c01",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "LOGOUT",
+      "details": "{}",
+      "created_at": "2026-06-10T14:59:54.569099"
+    },
+    {
+      "id": "de734438-0da2-4cf3-ab9a-0a573a874915",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "SUCCESSFUL_LOGIN",
+      "details": "{\"role\": \"staff\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"method\": \"PIN\", \"backend\": true}",
+      "created_at": "2026-06-10T14:58:57.408385"
+    },
+    {
+      "id": "31b7fe9e-cce6-405a-8967-66a5d3bb2954",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "ADMIN_LOGIN",
+      "details": "{\"method\": \"PASSWORD\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"backend\": true}",
+      "created_at": "2026-06-10T14:59:47.074275"
+    },
+    {
+      "id": "62eabe1d-3b14-461c-8251-b9552185837e",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "SUCCESSFUL_LOGIN",
+      "details": "{\"role\": \"staff\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"method\": \"PIN\", \"backend\": true}",
+      "created_at": "2026-06-10T14:59:59.657490"
+    },
+    {
+      "id": "fd2c64b2-434c-4d20-bc96-5b94af421e6c",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"unhandled-rejection\", \"message\": \"Error: Finance view access required (request_id: 6497205c-94a1-4f78-8faf-8fe4ad4baf97)\"}",
+      "created_at": "2026-06-10T15:02:44.949396"
+    },
+    {
+      "id": "e8d7e030-27f8-4acb-8181-a23cf0bfe6f2",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "SUCCESSFUL_LOGIN",
+      "details": "{\"role\": \"staff\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"method\": \"PIN\", \"backend\": true}",
+      "created_at": "2026-06-10T15:04:20.256656"
+    },
+    {
+      "id": "8e96b619-59e6-460f-a251-5abedea94a84",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "AUTH_PIN_SUCCESS",
+      "details": "{\"username\": \"Samir\", \"ip\": \"100.64.0.12\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\", \"role\": \"staff\"}",
+      "created_at": "2026-06-10T15:08:54.883971"
+    },
+    {
+      "id": "2dfea219-879a-4df8-ae8c-6d2259a64d67",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"unhandled-rejection\", \"message\": \"Error: Finance view access required (request_id: 5254e23b-74dc-462d-8b69-1e6841bf683c)\"}",
+      "created_at": "2026-06-10T15:10:32.343099"
+    },
+    {
+      "id": "6d5db3eb-02e8-4980-8af8-98f2d264a1fe",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "logout",
+      "action": "AUTH_LOGOUT",
+      "details": "{\"username\": \"logout\", \"ip\": \"100.64.0.23\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\", \"refresh_revoked\": true, \"refresh_token_present\": true}",
+      "created_at": "2026-06-10T15:11:40.918891"
+    },
+    {
+      "id": "caf747e2-5787-437e-a5fe-2ad9aab4a307",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "STAFF_AUTO_SHIFT_LEAVE",
+      "details": "Auto-left shift on logout",
+      "created_at": "2026-06-10T15:11:40.918901"
+    },
+    {
+      "id": "c64f7837-dd8d-44fc-b477-6ad40a5e2aa2",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "ADMIN_LOGIN",
+      "details": "{\"method\": \"PASSWORD\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"backend\": true}",
+      "created_at": "2026-06-10T15:11:47.626443"
+    },
+    {
+      "id": "ee20c7fd-a451-4b0b-9ca1-c59b8bc36a1e",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "LOGOUT",
+      "details": "{}",
+      "created_at": "2026-06-10T15:24:50.041460"
+    },
+    {
+      "id": "f2fb52f9-ea29-4883-8ee8-efdf724fa1e9",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "logout",
+      "action": "AUTH_LOGOUT",
+      "details": "{\"username\": \"logout\", \"ip\": \"100.64.0.11\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\", \"refresh_revoked\": true, \"refresh_token_present\": true}",
+      "created_at": "2026-06-10T15:24:49.780467"
+    },
+    {
+      "id": "70be5c27-ceac-41ed-96c5-0b96c39bd5ad",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "AUTH_PIN_SUCCESS",
+      "details": "{\"username\": \"Samir\", \"ip\": \"100.64.0.11\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\", \"role\": \"staff\"}",
+      "created_at": "2026-06-10T15:24:52.306024"
+    },
+    {
+      "id": "6a1662da-0b9e-49a8-a551-cbc0cb68be80",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "STAFF_AUTO_SHIFT_JOIN",
+      "details": "Auto-joined shift on PIN login",
+      "created_at": "2026-06-10T15:24:52.306031"
+    },
+    {
+      "id": "4c0a35a1-5fa3-46c4-926c-8b7b0a256e22",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "SUCCESSFUL_LOGIN",
+      "details": "{\"role\": \"staff\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"method\": \"PIN\", \"backend\": true}",
+      "created_at": "2026-06-10T15:24:52.466386"
+    },
+    {
+      "id": "e6d16392-a3ff-421a-83fa-0d0ef0565675",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "LOGOUT",
+      "details": "{}",
+      "created_at": "2026-06-10T15:36:06.994802"
+    },
+    {
+      "id": "d412c120-5930-4360-8b64-ee4057535fe3",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "logout",
+      "action": "AUTH_LOGOUT",
+      "details": "{\"username\": \"logout\", \"ip\": \"100.64.0.4\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\", \"refresh_revoked\": true, \"refresh_token_present\": true}",
+      "created_at": "2026-06-10T15:36:06.738429"
+    },
+    {
+      "id": "ab3b09ba-1d8a-4726-9bc0-e6d681a910da",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "STAFF_AUTO_SHIFT_LEAVE",
+      "details": "Auto-left shift on logout",
+      "created_at": "2026-06-10T15:36:06.738437"
+    },
+    {
+      "id": "4a8e7ce9-f1dd-4ec7-8e7b-51b15a51f5d5",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "AUTH_LOGIN_SUCCESS",
+      "details": "{\"username\": \"emalat\", \"ip\": \"100.64.0.23\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\"}",
+      "created_at": "2026-06-10T15:36:13.458003"
+    },
+    {
+      "id": "a8024897-903c-49b0-8184-58b23f7e78ef",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "ADMIN_LOGIN",
+      "details": "{\"method\": \"PASSWORD\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"backend\": true}",
+      "created_at": "2026-06-10T15:36:13.605948"
+    },
+    {
+      "id": "0b5ed14a-d03d-453e-87d2-a1663fd35ec0",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"app-shell\", \"message\": \"Backendə qoşulma alınmadı (GET /api/v1/ops/staff-notifications/unread, request_id: d8ea6f12-f734-4423-8eb6-98270e5c7649): sorğu vaxt limiti keçdi (20 saniyə)\"}",
+      "created_at": "2026-06-10T15:42:11.619071"
+    },
+    {
+      "id": "772c01ca-aa67-4154-8e3a-f3dd93ce4af8",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/staff-notifications/unread\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"d8ea6f12-f734-4423-8eb6-98270e5c7649\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:39:33.335Z\"}",
+      "created_at": "2026-06-10T15:42:11.619512"
+    },
+    {
+      "id": "d8cd2faa-c9ce-44e2-bd09-f75c9253eb9e",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/business-profile\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"988d67b5-3770-4d35-9563-de470c9d9f02\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:39:41.735Z\"}",
+      "created_at": "2026-06-10T15:42:11.620570"
+    },
+    {
+      "id": "bccd7f54-ba2e-4ed5-b997-7177f02a0495",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"POST\", \"path\": \"/api/v1/auth/refresh\", \"message\": \"sorğu vaxt limiti keçdi (7 saniyə)\", \"timeout_ms\": 7000, \"timed_out\": true, \"online\": true, \"request_id\": \"4d863266-b1fc-43ca-807b-c300d21b094f\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:39:21.513Z\"}",
+      "created_at": "2026-06-10T15:42:11.620967"
+    },
+    {
+      "id": "39412d79-d2e9-4027-bf39-3a83c175ef6f",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/settings\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"bf05a012-6c05-4921-bd32-8f7ac4759679\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:39:41.737Z\"}",
+      "created_at": "2026-06-10T15:42:11.646775"
+    },
+    {
+      "id": "9efe9946-b4ae-44b5-851f-af675f781148",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/status\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"24c8420a-e72c-4d36-8a2f-413d33c9a885\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:39:51.223Z\"}",
+      "created_at": "2026-06-10T15:42:11.704366"
+    },
+    {
+      "id": "42c9f652-c039-4e2f-a4d4-6c895b22145a",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/finance/anomalies\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"3ee262e7-87f5-4d83-a94f-8ef33c88d9df\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:39:51.229Z\"}",
+      "created_at": "2026-06-10T15:42:11.706479"
+    },
+    {
+      "id": "9abe4cf0-7c92-4557-a8ff-16f94bdfc4e9",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/handovers\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"ef60206c-ab12-406c-adbe-f0c34ddd7b23\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:39:51.226Z\"}",
+      "created_at": "2026-06-10T15:42:11.707594"
+    },
+    {
+      "id": "cc32e106-7daa-4a26-86a5-4305fb816c87",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/analytics/summary?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&cashier=Samir\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"1a468f7c-5b81-44f6-b862-cc2f300f4183\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:39:51.231Z\"}",
+      "created_at": "2026-06-10T15:42:11.708673"
+    },
+    {
+      "id": "170342d5-dd42-49cd-aa93-27c2cfb632f1",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/finance/balances\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"6a1b5312-79c8-46de-b0df-f8ad1e81b601\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:39:51.228Z\"}",
+      "created_at": "2026-06-10T15:42:11.709113"
+    },
+    {
+      "id": "24ed1c45-dcc1-4221-a7cf-d83642597eea",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"app-shell\", \"message\": \"Backendə qoşulma alınmadı (GET /api/v1/ops/staff-notifications/unread, request_id: 5357fddc-1184-4dfe-9b58-9af09dba5213): sorğu vaxt limiti keçdi (20 saniyə)\"}",
+      "created_at": "2026-06-10T15:42:11.714821"
+    },
+    {
+      "id": "d299b885-0c5c-4095-802c-00d6a292fed9",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/staff-notifications/unread\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"5357fddc-1184-4dfe-9b58-9af09dba5213\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:39:22.071Z\"}",
+      "created_at": "2026-06-10T15:42:11.724445"
+    },
+    {
+      "id": "70e8fb87-b724-4193-b78b-c3254115db2f",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/expected-cash\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"6f797f8e-822e-4f74-86cc-312742130c5c\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:39:51.225Z\"}",
+      "created_at": "2026-06-10T15:42:11.732723"
+    },
+    {
+      "id": "b1e98408-6428-489b-9d2f-b1b1718b890d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/z-receipts?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&limit=30\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"5cf826ae-15bb-4432-8178-c28d6a0b940b\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:39:51.235Z\"}",
+      "created_at": "2026-06-10T15:42:11.733800"
+    },
+    {
+      "id": "e96e4b31-63bf-44e8-a44d-13d84cad53f5",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/analytics/sales?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&cashier=Samir\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"e1159850-eff0-459a-b8ba-2df6a2ff7902\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:39:51.233Z\"}",
+      "created_at": "2026-06-10T15:42:11.734295"
+    },
+    {
+      "id": "655cd4a8-e6c1-49d9-a298-274f6029fed1",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/expected-cash\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"4904f24d-fb1b-4ed5-b896-0429484a72d3\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:40:11.260Z\"}",
+      "created_at": "2026-06-10T15:42:11.850447"
+    },
+    {
+      "id": "a74f2b04-fd91-42b8-a552-020664704307",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/analytics/summary?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&cashier=Samir\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"4d0df0b8-5409-4ead-a37d-d1e589f63e6b\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:40:21.223Z\"}",
+      "created_at": "2026-06-10T15:42:11.851264"
+    },
+    {
+      "id": "1cbd351e-8eb4-41ec-a630-7e7c2b957945",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/handovers\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"f195eadf-70d4-44b8-a7c0-be7881489827\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:40:11.262Z\"}",
+      "created_at": "2026-06-10T15:42:11.851832"
+    },
+    {
+      "id": "714fc198-f691-4e95-b40d-c5699c4c30d4",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"app-shell\", \"message\": \"Backendə qoşulma alınmadı (GET /api/v1/ops/staff-notifications/unread, request_id: 4c867894-4536-4d86-a2b0-f3a338e63d20): sorğu vaxt limiti keçdi (20 saniyə)\"}",
+      "created_at": "2026-06-10T15:42:11.960181"
+    },
+    {
+      "id": "38b9c5cb-434c-4f6b-9170-da56fa60a913",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/analytics/sales?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&cashier=Samir\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"3ed070ac-06e3-4575-9733-1257bb9b3aed\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:40:21.225Z\"}",
+      "created_at": "2026-06-10T15:42:11.856716"
+    },
+    {
+      "id": "8983d54d-ff76-47ff-9276-00c2635a060b",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/z-receipts?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&limit=30\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"39d4fabc-4605-477c-8437-1afdcb42f7e8\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:41:51.232Z\"}",
+      "created_at": "2026-06-10T15:42:11.976074"
+    },
+    {
+      "id": "96391751-2f52-4fbc-949e-a1f135d88473",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/staff-notifications/unread\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"5c59dd9b-4470-48d9-9d9e-e7ffb8062088\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:40:07.063Z\"}",
+      "created_at": "2026-06-10T15:42:11.862427"
+    },
+    {
+      "id": "5a6981d4-d292-4d95-ab9b-f4daa346eb62",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/expected-cash\", \"status\": 200, \"duration_ms\": 11014, \"request_id\": \"d31223f9-ab74-4f60-b6db-0dc187b0ba86\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:42:12.222Z\"}",
+      "created_at": "2026-06-10T15:42:12.199863"
+    },
+    {
+      "id": "396097bf-0910-4feb-83e1-a85ebf5cb939",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/z-receipts?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&limit=30\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"51d98df2-c478-4038-a9be-06d92eb354f9\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:40:21.227Z\"}",
+      "created_at": "2026-06-10T15:42:11.866029"
+    },
+    {
+      "id": "c621a70f-92f2-4dd6-94d2-7e10ba4db6f3",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/staff-notifications/unread\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"4c867894-4536-4d86-a2b0-f3a338e63d20\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:41:37.083Z\"}",
+      "created_at": "2026-06-10T15:42:11.983133"
+    },
+    {
+      "id": "7d4e9929-2b14-4faf-bab3-4989c6745e8e",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/staff-notifications/unread\", \"status\": 200, \"duration_ms\": 10133, \"request_id\": \"8d543e7c-ecac-4b2f-8fd8-2786de58da70\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:42:12.220Z\"}",
+      "created_at": "2026-06-10T15:42:12.199174"
+    },
+    {
+      "id": "2dc5d029-3bab-454f-b6e5-93fd600de001",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "SUCCESSFUL_LOGIN",
+      "details": "{\"role\": \"staff\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"method\": \"PIN\", \"backend\": true}",
+      "created_at": "2026-06-10T15:48:25.374975"
+    },
+    {
+      "id": "c26888ee-f2b6-4e47-b57c-1a9f3188a669",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/finance/balances\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"a29d0bca-6da8-445d-80ec-03a6941e854e\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:40:11.264Z\"}",
+      "created_at": "2026-06-10T15:42:11.866404"
+    },
+    {
+      "id": "347c9dbb-1459-4b37-84c8-7905425fbc6e",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/analytics/summary?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&cashier=Samir\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"06f60305-050e-49d6-a853-99cb849389d1\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:41:51.227Z\"}",
+      "created_at": "2026-06-10T15:42:11.994625"
+    },
+    {
+      "id": "5206a96a-ef2e-4b0b-8722-20058f801bc0",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/z-receipts?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&limit=30\", \"status\": 200, \"duration_ms\": 11007, \"request_id\": \"0bc6db32-3b0a-4ab0-81e7-f781bca25292\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:42:12.221Z\"}",
+      "created_at": "2026-06-10T15:42:12.202711"
+    },
+    {
+      "id": "264eefa4-ba12-47b0-97fd-13b7c56f1d27",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "logout",
+      "action": "AUTH_LOGOUT",
+      "details": "{\"username\": \"logout\", \"ip\": \"100.64.0.17\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\", \"refresh_revoked\": true, \"refresh_token_present\": true}",
+      "created_at": "2026-06-10T15:48:19.812955"
+    },
+    {
+      "id": "5cb68eb6-f2bd-4f06-9fa2-7e78752473d3",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"app-shell\", \"message\": \"Backendə qoşulma alınmadı (GET /api/v1/ops/staff-notifications/unread, request_id: 5c59dd9b-4470-48d9-9d9e-e7ffb8062088): sorğu vaxt limiti keçdi (20 saniyə)\"}",
+      "created_at": "2026-06-10T15:42:11.867358"
+    },
+    {
+      "id": "63a60b32-25a7-407c-90d3-a17777264852",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"app-shell\", \"message\": \"Backendə qoşulma alınmadı (GET /api/v1/ops/staff-notifications/unread, request_id: 95f5c0ac-8bdf-4aaf-bb5a-1da641dc9077): sorğu vaxt limiti keçdi (20 saniyə)\"}",
+      "created_at": "2026-06-10T15:42:11.982970"
+    },
+    {
+      "id": "14ee7728-b885-474b-b2ef-be1ca3304140",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/status\", \"status\": 200, \"duration_ms\": 10993, \"request_id\": \"967a9202-0748-411d-af25-e191f1b8d024\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:42:12.200Z\"}",
+      "created_at": "2026-06-10T15:42:12.171376"
+    },
+    {
+      "id": "1d4e8f09-0bd8-4c3d-b4bb-e4081ee6ee1a",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"pos\", \"message\": \"Satış üçün əvvəlcə öz növbənizi açın (Z-Hesabat > Günü Aç) (request_id: ef596933-e2d1-4d5f-b9c1-b3c21c0eb2dd)\", \"phase\": \"checkout_create_sale\"}",
+      "created_at": "2026-06-10T15:45:24.063925"
+    },
+    {
+      "id": "b0957720-bffc-4990-8580-1729856c526a",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/finance/anomalies\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"45005711-43b7-4a1b-b240-371c773d0fb6\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:40:11.266Z\"}",
+      "created_at": "2026-06-10T15:42:11.867936"
+    },
+    {
+      "id": "5c47b2fc-4065-4c2f-89dd-b681879c8821",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/handovers\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"c97009c6-235d-47b4-a5ce-0299e77deb03\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:41:21.225Z\"}",
+      "created_at": "2026-06-10T15:42:11.974323"
+    },
+    {
+      "id": "4fcea711-d8ac-4ad4-bc17-cc0d1af156f1",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/status\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"cf3646fb-2495-47df-b774-b3096cc4d03a\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:40:11.259Z\"}",
+      "created_at": "2026-06-10T15:42:11.868982"
+    },
+    {
+      "id": "32003d12-4f91-4fc9-96f3-4608e2454928",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/expected-cash\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"6e5750dd-0fac-4d30-9c77-cfa79fcc83e8\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:40:51.225Z\"}",
+      "created_at": "2026-06-10T15:42:11.898980"
+    },
+    {
+      "id": "da759dbf-7683-411e-bb72-a6d16b66d2ac",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/expected-cash\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"4bf216c5-4871-4f9e-ab32-0edfead17f2d\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:41:21.224Z\"}",
+      "created_at": "2026-06-10T15:42:11.899685"
+    },
+    {
+      "id": "fc5fb0d2-d157-4422-9d39-785ffcc57089",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/analytics/sales?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&cashier=Samir\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"dc688580-cbce-41f8-a47c-2f35a4c56cb0\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:40:51.234Z\"}",
+      "created_at": "2026-06-10T15:42:11.900087"
+    },
+    {
+      "id": "05d82779-e041-42d3-b674-7cac51fe8fb9",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/finance/anomalies\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"7b0e8c6d-c5e8-48f4-b63a-332b329d0bf9\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:40:51.230Z\"}",
+      "created_at": "2026-06-10T15:42:11.900496"
+    },
+    {
+      "id": "1783ac58-171b-4f3d-8d6a-5d4faf7a106b",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/z-receipts?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&limit=30\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"a7dc059d-fc90-4781-b6d0-9004033a566b\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:40:51.236Z\"}",
+      "created_at": "2026-06-10T15:42:11.902961"
+    },
+    {
+      "id": "ec94c400-05b1-4425-a1d1-a75689f94157",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/finance/balances\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"e9627cb3-2907-4609-81b2-966a6ddb15ea\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:40:51.228Z\"}",
+      "created_at": "2026-06-10T15:42:11.903475"
+    },
+    {
+      "id": "48ba6525-4612-4eaf-a94f-60a1d70fec04",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/staff-notifications/unread\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"95f5c0ac-8bdf-4aaf-bb5a-1da641dc9077\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:40:52.084Z\"}",
+      "created_at": "2026-06-10T15:42:11.909317"
+    },
+    {
+      "id": "e61a935c-1adb-4aba-89c0-9b215ac72b14",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/status\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"30e50cfc-e005-4c03-a126-1d71d4f3e5c7\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:40:51.223Z\"}",
+      "created_at": "2026-06-10T15:42:11.911347"
+    },
+    {
+      "id": "832cbfa9-a09c-4670-adde-e5cb75f0eadd",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/analytics/summary?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&cashier=Samir\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"326c3f46-78dc-46e9-ad67-cd7ab9937a37\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:40:51.232Z\"}",
+      "created_at": "2026-06-10T15:42:11.912093"
+    },
+    {
+      "id": "ae23d8c2-ff2b-4eb2-a3bb-0ad852020c37",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/z-receipts?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&limit=30\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"c6fdefa0-c85f-44e8-9634-c76a3fc5559c\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:41:21.235Z\"}",
+      "created_at": "2026-06-10T15:42:11.912512"
+    },
+    {
+      "id": "30f7a45d-620f-451e-b149-ef2ea144b909",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/handovers\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"3ded8b90-7981-4372-ae1d-4c72761edc92\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:40:51.226Z\"}",
+      "created_at": "2026-06-10T15:42:11.914279"
+    },
+    {
+      "id": "c068c25c-4351-46a9-8935-346058510e0b",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/analytics/sales?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&cashier=Samir\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"cb1efe57-5527-4d11-a52a-cbec46caf374\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:41:21.233Z\"}",
+      "created_at": "2026-06-10T15:42:11.916394"
+    },
+    {
+      "id": "3017aba1-7d48-4298-85cd-a26cad607cb2",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/status\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"6034685e-377c-4cd4-9931-ed60e2601b4d\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:41:21.222Z\"}",
+      "created_at": "2026-06-10T15:42:11.918301"
+    },
+    {
+      "id": "b3a40810-9cd9-4b30-b5e6-f27797bb1c8b",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/finance/balances\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"31990ec3-5d79-4c4b-88e8-69968c8ed8f7\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:41:21.227Z\"}",
+      "created_at": "2026-06-10T15:42:11.918383"
+    },
+    {
+      "id": "b9831c3a-1ec9-4ee4-969e-c82b9dbfd618",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/finance/anomalies\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"eec0311c-1797-4519-b694-b12c3bb63848\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:41:21.229Z\"}",
+      "created_at": "2026-06-10T15:42:11.931497"
+    },
+    {
+      "id": "654617a0-9bc7-4800-9cec-651285735a38",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/handovers\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"41ee25ab-b9f4-4800-8fb0-54633d152077\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:41:51.222Z\"}",
+      "created_at": "2026-06-10T15:42:11.978271"
+    },
+    {
+      "id": "6f2d4dac-c1fc-4626-a115-5d6a6c440b21",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/analytics/sales?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&cashier=Samir\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"9c6f66b6-f35d-4fcb-9834-ac3218f62da1\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:41:51.230Z\"}",
+      "created_at": "2026-06-10T15:42:11.982129"
+    },
+    {
+      "id": "d87a7be2-4dd4-45eb-a923-8eeb84f22e5f",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/finance/anomalies\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"57451952-a64b-4e53-b330-0b7d8b86e4e1\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:41:51.225Z\"}",
+      "created_at": "2026-06-10T15:42:12.017953"
+    },
+    {
+      "id": "19178951-15e7-4ec4-8e6b-5d903692a2af",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/status\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"a24fc972-22cd-4faf-b227-eb9ed0d17ee5\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:41:51.219Z\"}",
+      "created_at": "2026-06-10T15:42:12.020445"
+    },
+    {
+      "id": "0e0a60cb-d603-4f5f-926c-07e2369658ce",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/expected-cash\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"ea85e488-f2a3-4e0e-92ff-beb6ed3df94a\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:41:51.220Z\"}",
+      "created_at": "2026-06-10T15:42:12.028168"
+    },
+    {
+      "id": "3d3cfc7b-69b3-45e4-9d40-b62992bf6a06",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/finance/balances\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"725da64e-9a3b-4062-97d3-5d99955c1f84\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:41:51.224Z\"}",
+      "created_at": "2026-06-10T15:42:12.029455"
+    },
+    {
+      "id": "419e690c-4748-4898-817e-5950e23f6415",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/handovers\", \"status\": 200, \"duration_ms\": 11002, \"request_id\": \"8ab47faf-21cd-4e29-9230-fa7340637059\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:42:12.210Z\"}",
+      "created_at": "2026-06-10T15:42:12.196979"
+    },
+    {
+      "id": "288cdad0-4805-43b4-b2ef-fd0c99d11195",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/analytics/sales?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&cashier=Samir\", \"status\": 200, \"duration_ms\": 11020, \"request_id\": \"a244a683-cac3-4fb3-af49-17e1a5f607bf\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:42:12.233Z\"}",
+      "created_at": "2026-06-10T15:42:12.215605"
+    },
+    {
+      "id": "b579ba9e-6faf-465f-a2a3-9337e023240c",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"pos\", \"message\": \"Satış üçün əvvəlcə öz növbənizi açın (Z-Hesabat > Günü Aç) (request_id: 4f1370af-6171-4f66-bf15-d65decdf626b)\", \"phase\": \"checkout_create_sale\"}",
+      "created_at": "2026-06-10T15:45:41.607858"
+    },
+    {
+      "id": "9d889da7-0d62-4e63-948b-652c0755c13b",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "LOGOUT",
+      "details": "{}",
+      "created_at": "2026-06-10T15:48:20.155212"
+    },
+    {
+      "id": "0e932136-b2ce-447c-a1cc-bec968d1d8b2",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"ui-freeze\", \"message\": \"Long task detected on main thread\", \"duration_ms\": 191, \"name\": \"self\"}",
+      "created_at": "2026-06-10T15:48:22.496369"
+    },
+    {
+      "id": "c4c6b403-29a3-4be6-9dd2-0025df049b9a",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "AUTH_PIN_SUCCESS",
+      "details": "{\"username\": \"Samir\", \"ip\": \"100.64.0.17\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\", \"role\": \"staff\"}",
+      "created_at": "2026-06-10T15:48:24.988241"
+    },
+    {
+      "id": "1b60b9d0-e899-4293-a68e-4008507f96cf",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "STAFF_AUTO_SHIFT_JOIN",
+      "details": "Auto-joined shift on PIN login",
+      "created_at": "2026-06-10T15:48:24.988248"
+    },
+    {
+      "id": "5030f313-1011-4eba-83a1-d73e2cb3ae3c",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/analytics/summary?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&cashier=Samir\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"09b329fc-9716-4329-acd0-003ab749aa09\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:41:21.231Z\"}",
+      "created_at": "2026-06-10T15:42:12.031092"
+    },
+    {
+      "id": "469b5a66-5245-4483-9638-9d0835036615",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/analytics/summary?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&cashier=Samir\", \"status\": 200, \"duration_ms\": 11019, \"request_id\": \"5d3932e8-715b-459e-825a-c31865a152bb\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T15:42:12.230Z\"}",
+      "created_at": "2026-06-10T15:42:12.213740"
+    },
+    {
+      "id": "e46ee309-d3fc-4940-b24f-8989fda65c23",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"pos\", \"message\": \"Satış üçün əvvəlcə öz növbənizi açın (Z-Hesabat > Günü Aç) (request_id: 407a03cf-d32d-42bc-8cee-6e7a1d417c73)\", \"phase\": \"checkout_create_sale\"}",
+      "created_at": "2026-06-10T15:45:07.952896"
+    },
+    {
+      "id": "eaefc9f6-508f-4c1e-89d5-53a852bc6be7",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"pos\", \"message\": \"Satış üçün əvvəlcə öz növbənizi açın (Z-Hesabat > Günü Aç) (request_id: 9831d2bb-6967-498b-8403-b83b6964119e)\", \"phase\": \"checkout_create_sale\"}",
+      "created_at": "2026-06-10T15:46:06.285303"
+    },
+    {
+      "id": "fb9cef3b-26b2-4196-af19-885e17cfd5bc",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"pos\", \"message\": \"chai tea üçün anbarda kifayət qədər qalıq yoxdur (request_id: 809ada9e-1f58-49b4-a24c-454a3a8d9d23)\", \"phase\": \"checkout_create_sale\"}",
+      "created_at": "2026-06-10T15:57:55.533798"
+    },
+    {
+      "id": "be264d0f-0b85-4d64-88c7-29ca8f842162",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "AUTH_PIN_SUCCESS",
+      "details": "{\"username\": \"Samir\", \"ip\": \"100.64.0.6\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\", \"role\": \"staff\"}",
+      "created_at": "2026-06-10T16:09:37.833949"
+    },
+    {
+      "id": "217c6488-7965-4061-b9d7-2cf796793278",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "SUCCESSFUL_LOGIN",
+      "details": "{\"role\": \"staff\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"method\": \"PIN\", \"backend\": true}",
+      "created_at": "2026-06-10T16:09:37.990365"
+    },
+    {
+      "id": "584dfe43-e4da-491a-b332-3a2eaa3c15b3",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "logout",
+      "action": "AUTH_LOGOUT",
+      "details": "{\"username\": \"logout\", \"ip\": \"100.64.0.6\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\", \"refresh_revoked\": true, \"refresh_token_present\": true}",
+      "created_at": "2026-06-10T16:10:26.265527"
+    },
+    {
+      "id": "5ec48ec1-423a-4c1f-9c7e-ac2c6fd97dc1",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "STAFF_AUTO_SHIFT_LEAVE",
+      "details": "Auto-left shift on logout",
+      "created_at": "2026-06-10T16:10:26.265539"
+    },
+    {
+      "id": "2be60185-afe3-4b77-a040-b9bc6a4f3c8b",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "AUTH_LOGIN_SUCCESS",
+      "details": "{\"username\": \"emalat\", \"ip\": \"100.64.0.15\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\"}",
+      "created_at": "2026-06-10T16:10:34.914286"
+    },
+    {
+      "id": "295dff52-52a2-4e51-a913-108937c4aded",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "ADMIN_LOGIN",
+      "details": "{\"method\": \"PASSWORD\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"backend\": true}",
+      "created_at": "2026-06-10T16:10:35.138522"
+    },
+    {
+      "id": "b172630e-86be-418b-8ac6-b965188a7f8d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"pos\", \"message\": \"Satış üçün əvvəlcə öz növbənizi açın (Z-Hesabat > Günü Aç) (request_id: 6ae07b5e-f83e-47ac-a78f-a8b1b30fc968)\", \"phase\": \"checkout_create_sale\"}",
+      "created_at": "2026-06-10T16:18:16.946659"
+    },
+    {
+      "id": "905745ad-2625-4cab-92b2-7597173cef35",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "SUCCESSFUL_LOGIN",
+      "details": "{\"role\": \"staff\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"method\": \"PIN\", \"backend\": true}",
+      "created_at": "2026-06-10T16:19:38.415392"
+    },
+    {
+      "id": "4de32f66-18bf-4b54-8112-03ebcdd88814",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"pos\", \"message\": \"chai tea üçün anbarda kifayət qədər qalıq yoxdur (request_id: 0312d4d9-bf15-47f1-88af-c13411871cdf)\", \"phase\": \"checkout_create_sale\"}",
+      "created_at": "2026-06-10T16:20:52.442235"
+    },
+    {
+      "id": "c1a2b72b-16ff-4ea4-88bd-34bdba863e26",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"pos\", \"message\": \"Satış üçün əvvəlcə öz növbənizi açın (Z-Hesabat > Günü Aç) (request_id: 8066a0f5-e5e1-42e8-a0fc-a5c8c687e03f)\", \"phase\": \"checkout_create_sale\"}",
+      "created_at": "2026-06-10T16:18:28.289003"
+    },
+    {
+      "id": "595c3807-69d0-49e2-af88-04c8f65ee5b1",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "logout",
+      "action": "AUTH_LOGOUT",
+      "details": "{\"username\": \"logout\", \"ip\": \"100.64.0.12\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\", \"refresh_revoked\": true, \"refresh_token_present\": true}",
+      "created_at": "2026-06-10T16:19:35.730916"
+    },
+    {
+      "id": "ba4c13c4-e980-476f-ad98-7a893dbfc86d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "AUTH_PIN_SUCCESS",
+      "details": "{\"username\": \"Samir\", \"ip\": \"100.64.0.16\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\", \"role\": \"staff\"}",
+      "created_at": "2026-06-10T16:19:38.249650"
+    },
+    {
+      "id": "0721ad3a-2cc4-493e-805a-9ce0b3c7e962",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "STAFF_AUTO_SHIFT_JOIN",
+      "details": "Auto-joined shift on PIN login",
+      "created_at": "2026-06-10T16:19:38.249670"
+    },
+    {
+      "id": "6b6d20a5-9455-4387-a990-6b4b6689c5f0",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/finance/balances\", \"message\": \"Failed to fetch\", \"timeout_ms\": 20000, \"timed_out\": false, \"online\": false, \"request_id\": \"cbc9c144-012d-4f56-81ca-62e177ac8a08\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T16:26:13.615Z\"}",
+      "created_at": "2026-06-10T16:26:16.703418"
+    },
+    {
+      "id": "ecbdcdf6-64e8-4c69-9d78-4dd2c8f7280e",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/handovers\", \"status\": 200, \"duration_ms\": 6237, \"request_id\": \"dc443403-aa98-4f2a-b34a-cf0dd2bddf45\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T16:26:16.781Z\"}",
+      "created_at": "2026-06-10T16:26:17.089068"
+    },
+    {
+      "id": "72171af3-c910-4410-811e-66dd9243df4f",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/analytics/summary?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&cashier=Samir\", \"status\": 200, \"duration_ms\": 6225, \"request_id\": \"414d8ae7-c385-4007-8ad0-6f9459f18b69\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T16:26:16.774Z\"}",
+      "created_at": "2026-06-10T16:26:17.088813"
+    },
+    {
+      "id": "b96d6169-a1ea-44af-a017-345cdaf08560",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/status\", \"status\": 200, \"duration_ms\": 6272, \"request_id\": \"37b1aab3-1451-4173-804f-f7d7d170dd98\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T16:26:16.795Z\"}",
+      "created_at": "2026-06-10T16:26:17.096965"
+    },
+    {
+      "id": "627d014a-2e0d-40a8-8922-8fe0340aa09a",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/analytics/sales?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&cashier=Samir\", \"status\": 200, \"duration_ms\": 6242, \"request_id\": \"b069836a-4f5d-45d3-ba16-0d15d92e8f7b\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T16:26:16.790Z\"}",
+      "created_at": "2026-06-10T16:26:17.102630"
+    },
+    {
+      "id": "d8b8a891-d3d0-4844-ba97-d9819b745f48",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/z-receipts?date_from=2026-06-10T00%3A00%3A00&date_to=2026-06-11T00%3A00%3A00&limit=30\", \"status\": 200, \"duration_ms\": 6236, \"request_id\": \"79911299-cc08-4326-b2ce-472a7d2bcb98\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T16:26:16.786Z\"}",
+      "created_at": "2026-06-10T16:26:17.103204"
+    },
+    {
+      "id": "2e8d2e41-2094-47f6-a4f9-f1bfe28d0f36",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/expected-cash\", \"status\": 200, \"duration_ms\": 6250, \"request_id\": \"567561ab-238d-4eca-90b8-35e4fe98e5db\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T16:26:16.794Z\"}",
+      "created_at": "2026-06-10T16:26:17.103520"
+    },
+    {
+      "id": "bd95b39a-f067-4c44-8989-be725c2561a6",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"ui-freeze\", \"message\": \"Long task detected on main thread\", \"duration_ms\": 4604, \"name\": \"self\"}",
+      "created_at": "2026-06-10T16:26:22.532637"
+    },
+    {
+      "id": "e8609b2d-e915-47ef-b385-7d3e73e25a82",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "INVENTORY_CONSUMED",
+      "details": "{\"item_name\": \"Latina Blend Coffee\", \"qty_removed\": \"0.0090\", \"unit\": \"KQ\", \"remaining_qty\": \"0.392\", \"sale_id\": \"359dabca-8d3d-43ed-9b86-77001b3af782\", \"source\": \"pos_sale\"}",
+      "created_at": "2026-06-10T16:27:09.173948"
+    },
+    {
+      "id": "b57e05a0-9493-4f8c-a9de-664d95017cf4",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "INVENTORY_CONSUMED",
+      "details": "{\"item_name\": \"Stəkan Kağız (S)\", \"qty_removed\": \"1.0000\", \"unit\": \"ƏDƏD\", \"remaining_qty\": \"16.000\", \"sale_id\": \"359dabca-8d3d-43ed-9b86-77001b3af782\", \"source\": \"pos_sale\"}",
+      "created_at": "2026-06-10T16:27:09.173952"
+    },
+    {
+      "id": "808c3dd7-b4e4-4629-80ec-35569456926d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "INVENTORY_CONSUMED",
+      "details": "{\"item_name\": \"Milla Sud 3.2%\", \"qty_removed\": \"0.1500\", \"unit\": \"L\", \"remaining_qty\": \"4.810\", \"sale_id\": \"359dabca-8d3d-43ed-9b86-77001b3af782\", \"source\": \"pos_sale\"}",
+      "created_at": "2026-06-10T16:27:09.173955"
+    },
+    {
+      "id": "f3548ea3-3bba-4bc4-b910-cf084720c9f5",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "INVENTORY_CONSUMED",
+      "details": "{\"item_name\": \"chai tea\", \"qty_removed\": \"0.0100\", \"unit\": \"KQ\", \"remaining_qty\": \"-0.960\", \"sale_id\": \"359dabca-8d3d-43ed-9b86-77001b3af782\", \"source\": \"pos_sale\"}",
+      "created_at": "2026-06-10T16:27:09.173958"
+    },
+    {
+      "id": "5f39c3b6-8c1d-4494-8211-d2130a3ad2c2",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "FINANCE_TRANSACTION_POSTED",
+      "details": "{\"transaction_id\": \"b08d6625-d03e-4671-9456-a5640575fb01\", \"transaction_type\": \"income\", \"source\": \"revenue\", \"destination\": \"cash\", \"amount\": \"6.90\"}",
+      "created_at": "2026-06-10T16:27:09.189330"
+    },
+    {
+      "id": "29c7c932-bd5c-4638-a8d9-2719ebf24527",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "FINANCE_LEGACY_WALLET_SYNC_SKIPPED",
+      "details": "{\"transaction_id\": \"b08d6625-d03e-4671-9456-a5640575fb01\", \"transaction_type\": \"income\", \"reason\": \"legacy_wallet_sync_disabled\"}",
+      "created_at": "2026-06-10T16:27:09.189335"
+    },
+    {
+      "id": "9496786c-0c93-4ddf-a161-ec54757d5ec0",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "FINANCE_TRANSACTION_POSTED",
+      "details": "{\"transaction_id\": \"606685f7-e072-4999-af0e-69cbd498fc36\", \"transaction_type\": \"cogs_recognition\", \"source\": \"inventory_asset\", \"destination\": \"cogs\", \"amount\": \"1.11\"}",
+      "created_at": "2026-06-10T16:27:09.198542"
+    },
+    {
+      "id": "6ac14987-a5ec-40a2-a57b-6d3626adfd56",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"pos\", \"message\": \"Backendə qoşulma alınmadı (GET /api/v1/pos/menu, request_id: da884a9a-1224-49aa-bdab-35bf92fd83f6): sorğu vaxt limiti keçdi (5 saniyə)\", \"phase\": \"refreshData\"}",
+      "created_at": "2026-06-10T17:27:47.231808"
+    },
+    {
+      "id": "68f91c87-b860-4ebe-8294-dda01fa33bc2",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"app-shell\", \"message\": \"Backendə qoşulma alınmadı (GET /api/v1/ops/staff-notifications/unread, request_id: 069145ab-d87d-4074-b57e-b1176b86bb1d): sorğu vaxt limiti keçdi (20 saniyə)\"}",
+      "created_at": "2026-06-10T17:27:47.233466"
+    },
+    {
+      "id": "deb44357-5e6c-4e57-917f-45a5ec5ebbc4",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"POST\", \"path\": \"/api/v1/auth/refresh\", \"message\": \"sorğu vaxt limiti keçdi (7 saniyə)\", \"timeout_ms\": 7000, \"timed_out\": true, \"online\": true, \"request_id\": \"72b46fe9-9dd6-4929-966b-ae424f89dffa\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T17:26:37.757Z\"}",
+      "created_at": "2026-06-10T17:27:47.234686"
+    },
+    {
+      "id": "6dbfa71d-92f7-4bc1-8319-bd67f33b86a5",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/staff-notifications/unread\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"069145ab-d87d-4074-b57e-b1176b86bb1d\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T17:26:35.823Z\"}",
+      "created_at": "2026-06-10T17:27:47.235209"
+    },
+    {
+      "id": "425b1d20-bc31-44f3-bab3-27a24f9d1a2a",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/staff-notifications/unread\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"647a548b-f173-4bcc-aab9-f5c042e9ff85\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T17:27:20.813Z\"}",
+      "created_at": "2026-06-10T17:27:47.239033"
+    },
+    {
+      "id": "a1093170-f8d4-41b3-95b2-4393ba9281da",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/settings\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"d58ca75d-9095-414e-8da8-93e367a6f220\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T17:26:57.775Z\"}",
+      "created_at": "2026-06-10T17:27:47.239245"
+    },
+    {
+      "id": "a2ea3634-1493-44e4-a5f8-ccc865525705",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/business-profile\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"849063b0-2333-4e72-8e78-29d75f4d7e6b\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T17:26:57.774Z\"}",
+      "created_at": "2026-06-10T17:27:47.239882"
+    },
+    {
+      "id": "7097324f-4870-46f6-a7e1-aefd889f0d12",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/pos/menu\", \"message\": \"sorğu vaxt limiti keçdi (5 saniyə)\", \"timeout_ms\": 5000, \"timed_out\": true, \"online\": true, \"request_id\": \"da884a9a-1224-49aa-bdab-35bf92fd83f6\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-10T17:27:02.796Z\"}",
+      "created_at": "2026-06-10T17:27:47.241215"
+    },
+    {
+      "id": "b3fb45e7-5089-4d2b-8199-2036e5137c5d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"app-shell\", \"message\": \"Backendə qoşulma alınmadı (GET /api/v1/ops/staff-notifications/unread, request_id: 647a548b-f173-4bcc-aab9-f5c042e9ff85): sorğu vaxt limiti keçdi (20 saniyə)\"}",
+      "created_at": "2026-06-10T17:27:47.241584"
+    },
+    {
+      "id": "cf8bdf09-7096-4c9b-aae4-b21b864a305c",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "LOGOUT",
+      "details": "{}",
+      "created_at": "2026-06-10T17:43:08.598332"
+    },
+    {
+      "id": "64eab6ae-b201-48c4-8d50-75d88379ac4d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "FINANCE_TRANSACTION_POSTED",
+      "details": "{\"transaction_id\": \"adb3a598-0177-44fd-b4cb-7107cf93aea0\", \"transaction_type\": \"income\", \"source\": \"revenue\", \"destination\": \"cash\", \"amount\": \"6.00\"}",
+      "created_at": "2026-06-10T17:28:04.696656"
+    },
+    {
+      "id": "b623dbc2-6cb4-4547-b478-9f1c93e2877f",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "FINANCE_LEGACY_WALLET_SYNC_SKIPPED",
+      "details": "{\"transaction_id\": \"adb3a598-0177-44fd-b4cb-7107cf93aea0\", \"transaction_type\": \"income\", \"reason\": \"legacy_wallet_sync_disabled\"}",
+      "created_at": "2026-06-10T17:28:04.696661"
+    },
+    {
+      "id": "7122147c-2cf1-4e80-aad4-bc4414346c7f",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "system",
+      "action": "BACKEND_UNHANDLED_EXCEPTION",
+      "details": "{\"path\": \"/api/v1/auth/refresh\", \"method\": \"POST\", \"request_id\": \"05ae3772-d951-45dc-a2e3-f36476749c69\", \"error_type\": \"IntegrityError\", \"error_message\": \"(psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint \\\"refresh_tokens_token_hash_key\\\"\\nDETAIL:  Key (token_hash)=(19154e3f580550cb54517eb5f1e997520ff89bf42dac6540839d9272e7f7b554) already exists.\\n\\n[SQL: INSERT INTO refresh_tokens (id, tenant_id, user_id, token_hash, expires_at, revoked, created_at) VALUES (%(id)s, %(tenant_id)s, %(user_id)s, %(token_hash)s, %(expires_at)s, %(revoked)s, %(created_at)s)]\\n[parameters: {'id': '7ebef837-3731-464f-9081-3f1b625bc6e0', 'tenant_id': '6e2c0d4c-6fab-4e49-8f9d-2d675457c655', 'user_id': 'ee47be25-952b-4725-8e1c-9022c6897459', 'token_hash': '19154e3f580550cb54517eb5f1e997520ff89bf42dac6540839d9272e7f7b554', 'expires_at': datetime.datetime(2026, 6, 17, 17, 43, 7, 780240), 'revoked': False, 'created_at': datetime.datetime(2026, 6, 10, 17, 43, 7, 780950)}]\\n(Background on this error at: https://sqlalche.me/e/20/gkpj)\", \"traceback\": \"Traceback (most recent call last):\\n  File \\\"/opt/venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py\\\", line 1967, in _exec_single_context\\n    self.dialect.do_execute(\\n  File \\\"/opt/venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py\\\", line 941, in do_execute\\n    cursor.execute(statement, parameters)\\npsycopg2.errors.UniqueViolation: duplicate key value violates unique constraint \\\"refresh_tokens_token_hash_key\\\"\\nDETAIL:  Key (token_hash)=(19154e3f580550cb54517eb5f1e997520ff89bf42dac6540839d9272e7f7b554) already exists.\\n\\n\\nThe above exception was the direct cause of the following exception:\\n\\nTraceback (most recent call last):\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/errors.py\\\", line 165, in __call__\\n    await self.app(scope, receive, _send)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 185, in __call__\\n    with collapse_excgroups():\\n         ^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/contextlib.py\\\", line 158, in __exit__\\n    self.gen.throw(value)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/_utils.py\\\", line 83, in collapse_excgroups\\n    raise exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 187, in __call__\\n    response = await self.dispatch_func(request, call_next)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/app/app/main.py\\\", line 373, in security_boundary_middleware\\n    response = await call_next(request)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 163, in call_next\\n    raise app_exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 149, in coro\\n    await self.app(scope, receive_or_disconnect, send_no_error)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/cors.py\\\", line 93, in __call__\\n    await self.simple_response(scope, receive, send, request_headers=headers)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/cors.py\\\", line 144, in simple_response\\n    await self.app(scope, receive, send)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 185, in __call__\\n    with collapse_excgroups():\\n         ^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/contextlib.py\\\", line 158, in __exit__\\n    self.gen.throw(value)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/_utils.py\\\", line 83, in collapse_excgroups\\n    raise exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 187, in __call__\\n    response = await self.dispatch_func(request, call_next)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/app/app/main.py\\\", line 138, in pool_metrics_middleware\\n    return await call_next(request)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 163, in call_next\\n    raise app_exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 149, in coro\\n    await self.app(scope, receive_or_disconnect, send_no_error)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 185, in __call__\\n    with collapse_excgroups():\\n         ^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/contextlib.py\\\", line 158, in __exit__\\n    self.gen.throw(value)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/_utils.py\\\", line 83, in collapse_excgroups\\n    raise exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 187, in __call__\\n    response = await self.dispatch_func(request, call_next)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/app/app/main.py\\\", line 115, in metrics_middleware\\n    response = await call_next(request)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 163, in call_next\\n    raise app_exc\\n  Fil\"}",
+      "created_at": "2026-06-10T17:43:07.786771"
+    },
+    {
+      "id": "d48b53a8-5d3b-4178-9946-f7f93d6dcec9",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "logout",
+      "action": "AUTH_LOGOUT",
+      "details": "{\"username\": \"logout\", \"ip\": \"100.64.0.20\", \"user_agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36\", \"refresh_revoked\": true, \"refresh_token_present\": true}",
+      "created_at": "2026-06-10T17:43:08.357408"
+    },
+    {
+      "id": "1d2cf28a-7cb0-46ae-a720-a5c73ddcd22c",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "STAFF_AUTO_SHIFT_LEAVE",
+      "details": "Auto-left shift on logout",
+      "created_at": "2026-06-10T17:43:08.357413"
+    },
+    {
+      "id": "cd2b16a9-a866-45a2-99ec-8c54d7b1880e",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "anonymous",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"POST\", \"path\": \"/api/v1/auth/refresh\", \"message\": \"sorğu vaxt limiti keçdi (7 saniyə)\", \"timeout_ms\": 7000, \"timed_out\": true, \"online\": true, \"request_id\": \"d7bde5d6-d1a9-4708-b7e3-0ad2d970f2c9\", \"tenant_id\": \"tenant_default\", \"ts\": \"2026-06-10T18:28:47.403Z\"}",
+      "created_at": "2026-06-10T18:30:40.715000"
+    },
+    {
+      "id": "427917e8-5f6e-4151-974d-dc5d98942095",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "anonymous",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"POST\", \"path\": \"/api/v1/auth/refresh\", \"message\": \"sorğu vaxt limiti keçdi (7 saniyə)\", \"timeout_ms\": 7000, \"timed_out\": true, \"online\": true, \"request_id\": \"1b9de535-0960-441d-95b9-6b15827d7218\", \"tenant_id\": \"tenant_default\", \"ts\": \"2026-06-10T18:30:14.430Z\"}",
+      "created_at": "2026-06-10T18:30:40.875918"
+    },
+    {
+      "id": "e3725eab-61f2-4308-975f-c349e90f9d00",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "anonymous",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/settings\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"57d2feae-c8fa-4297-8815-703f1290d801\", \"tenant_id\": \"tenant_default\", \"ts\": \"2026-06-10T18:29:07.407Z\"}",
+      "created_at": "2026-06-10T18:30:40.883282"
+    },
+    {
+      "id": "b549798a-038e-46f0-a6de-4b2e3c79d535",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "anonymous",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/business-profile\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"e4eb992a-d53e-4fcb-bd2f-55d14caac59b\", \"tenant_id\": \"tenant_default\", \"ts\": \"2026-06-10T18:30:34.445Z\"}",
+      "created_at": "2026-06-10T18:30:40.883629"
+    },
+    {
+      "id": "317d2411-88f9-469d-8b8e-0aa1100a4940",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "anonymous",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/business-profile\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"2243ff34-a1bb-4bdf-8666-accabc104b73\", \"tenant_id\": \"tenant_default\", \"ts\": \"2026-06-10T18:29:07.406Z\"}",
+      "created_at": "2026-06-10T18:30:40.884395"
+    },
+    {
+      "id": "caeac366-0fcc-43f2-aab4-86a1f02e7ec1",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "anonymous",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/settings\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"aba15f78-5c31-487c-b9ba-62a2aa812b7e\", \"tenant_id\": \"tenant_default\", \"ts\": \"2026-06-10T18:30:34.446Z\"}",
+      "created_at": "2026-06-10T18:30:40.885957"
+    },
+    {
+      "id": "ed74fcf5-713e-4c31-a70a-8cefab85254a",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "pin_login",
+      "action": "AUTH_PIN_FAILED",
+      "details": "{\"username\": \"pin_login\", \"ip\": \"100.64.0.16\", \"user_agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36\", \"reason\": \"invalid_pin\"}",
+      "created_at": "2026-06-10T18:38:31.570291"
+    },
+    {
+      "id": "854f951b-e0a4-42db-9fee-da34e27cf53a",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Sabina",
+      "action": "AUTH_LOGIN_SUCCESS",
+      "details": "{\"username\": \"Sabina\", \"ip\": \"100.64.0.23\", \"user_agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36\"}",
+      "created_at": "2026-06-10T18:38:36.736770"
+    },
+    {
+      "id": "192a5b3d-07bf-4700-ad1b-0ea2a2c2ef6e",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Sabina",
+      "action": "ADMIN_LOGIN",
+      "details": "{\"method\": \"PASSWORD\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"backend\": true}",
+      "created_at": "2026-06-10T18:38:36.867062"
+    },
+    {
+      "id": "a0b1be6d-47f0-4fa1-b594-c823a0a87dd2",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"ui-freeze\", \"message\": \"Long task detected on main thread\", \"duration_ms\": 202, \"name\": \"self\"}",
+      "created_at": "2026-06-10T18:38:37.111496"
+    },
+    {
+      "id": "160ac824-d5a8-47d8-98f2-42dc81d7479e",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "system",
+      "action": "BACKEND_UNHANDLED_EXCEPTION",
+      "details": "{\"path\": \"/api/v1/auth/refresh\", \"method\": \"POST\", \"request_id\": \"4ea2cd07-4953-459c-843d-964eab201768\", \"error_type\": \"IntegrityError\", \"error_message\": \"(psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint \\\"refresh_tokens_token_hash_key\\\"\\nDETAIL:  Key (token_hash)=(173d076993f98bb58758ef709818b22e7cdf1efad1075bc5338bad906a2f335c) already exists.\\n\\n[SQL: INSERT INTO refresh_tokens (id, tenant_id, user_id, token_hash, expires_at, revoked, created_at) VALUES (%(id)s, %(tenant_id)s, %(user_id)s, %(token_hash)s, %(expires_at)s, %(revoked)s, %(created_at)s)]\\n[parameters: {'id': '1c4675e9-35dd-4c99-93df-dd9dca78931f', 'tenant_id': '6e2c0d4c-6fab-4e49-8f9d-2d675457c655', 'user_id': 'd1ed85d7-c154-4480-932d-088402573a65', 'token_hash': '173d076993f98bb58758ef709818b22e7cdf1efad1075bc5338bad906a2f335c', 'expires_at': datetime.datetime(2026, 6, 17, 19, 8, 51, 780397), 'revoked': False, 'created_at': datetime.datetime(2026, 6, 10, 19, 8, 51, 781162)}]\\n(Background on this error at: https://sqlalche.me/e/20/gkpj)\", \"traceback\": \"Traceback (most recent call last):\\n  File \\\"/opt/venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py\\\", line 1967, in _exec_single_context\\n    self.dialect.do_execute(\\n  File \\\"/opt/venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py\\\", line 941, in do_execute\\n    cursor.execute(statement, parameters)\\npsycopg2.errors.UniqueViolation: duplicate key value violates unique constraint \\\"refresh_tokens_token_hash_key\\\"\\nDETAIL:  Key (token_hash)=(173d076993f98bb58758ef709818b22e7cdf1efad1075bc5338bad906a2f335c) already exists.\\n\\n\\nThe above exception was the direct cause of the following exception:\\n\\nTraceback (most recent call last):\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/errors.py\\\", line 165, in __call__\\n    await self.app(scope, receive, _send)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 185, in __call__\\n    with collapse_excgroups():\\n         ^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/contextlib.py\\\", line 158, in __exit__\\n    self.gen.throw(value)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/_utils.py\\\", line 83, in collapse_excgroups\\n    raise exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 187, in __call__\\n    response = await self.dispatch_func(request, call_next)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/app/app/main.py\\\", line 373, in security_boundary_middleware\\n    response = await call_next(request)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 163, in call_next\\n    raise app_exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 149, in coro\\n    await self.app(scope, receive_or_disconnect, send_no_error)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/cors.py\\\", line 93, in __call__\\n    await self.simple_response(scope, receive, send, request_headers=headers)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/cors.py\\\", line 144, in simple_response\\n    await self.app(scope, receive, send)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 185, in __call__\\n    with collapse_excgroups():\\n         ^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/contextlib.py\\\", line 158, in __exit__\\n    self.gen.throw(value)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/_utils.py\\\", line 83, in collapse_excgroups\\n    raise exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 187, in __call__\\n    response = await self.dispatch_func(request, call_next)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/app/app/main.py\\\", line 138, in pool_metrics_middleware\\n    return await call_next(request)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 163, in call_next\\n    raise app_exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 149, in coro\\n    await self.app(scope, receive_or_disconnect, send_no_error)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 185, in __call__\\n    with collapse_excgroups():\\n         ^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/contextlib.py\\\", line 158, in __exit__\\n    self.gen.throw(value)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/_utils.py\\\", line 83, in collapse_excgroups\\n    raise exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 187, in __call__\\n    response = await self.dispatch_func(request, call_next)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/app/app/main.py\\\", line 115, in metrics_middleware\\n    response = await call_next(request)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 163, in call_next\\n    raise app_exc\\n  Fil\"}",
+      "created_at": "2026-06-10T19:08:51.786017"
+    },
+    {
+      "id": "9cbb1038-a512-4471-8122-1d9ab124e4ae",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "logout",
+      "action": "AUTH_LOGOUT",
+      "details": "{\"username\": \"logout\", \"ip\": \"100.64.0.17\", \"user_agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36\", \"refresh_revoked\": true, \"refresh_token_present\": true}",
+      "created_at": "2026-06-10T19:08:52.207658"
+    },
+    {
+      "id": "c273e367-59d7-4636-b324-946dbeecd78d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "SUCCESSFUL_LOGIN",
+      "details": "{\"role\": \"staff\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"method\": \"PIN\", \"backend\": true}",
+      "created_at": "2026-06-10T19:18:14.398273"
+    },
+    {
+      "id": "afc95a24-695c-43df-8517-6d731fddf394",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "FINANCE_TRANSACTION_POSTED",
+      "details": "{\"transaction_id\": \"a9852682-f12e-4124-845b-5e97d4568a69\", \"transaction_type\": \"expense\", \"source\": \"cash\", \"destination\": \"expense\", \"amount\": \"45.00\"}",
+      "created_at": "2026-06-10T19:20:44.412926"
+    },
+    {
+      "id": "8cbfb875-4827-4cb4-be00-e6871c3a8901",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "FINANCE_LEGACY_WALLET_SYNC_SKIPPED",
+      "details": "{\"transaction_id\": \"a9852682-f12e-4124-845b-5e97d4568a69\", \"transaction_type\": \"expense\", \"reason\": \"legacy_wallet_sync_disabled\"}",
+      "created_at": "2026-06-10T19:20:44.412931"
+    },
+    {
+      "id": "c8c744e1-46b5-4e97-9085-aa98f63d551e",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "FINANCE_TRANSACTION_POSTED",
+      "details": "{\"transaction_id\": \"2df155c0-1569-4090-ae48-c167c43e9c8e\", \"transaction_type\": \"cash_adjustment\", \"source\": \"cash\", \"destination\": \"adjustment\", \"amount\": \"45.00\"}",
+      "created_at": "2026-06-10T19:20:44.448975"
+    },
+    {
+      "id": "511c0aae-3383-4eea-9f10-9565161e8b0d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "FINANCE_LEGACY_WALLET_SYNC_SKIPPED",
+      "details": "{\"transaction_id\": \"2df155c0-1569-4090-ae48-c167c43e9c8e\", \"transaction_type\": \"cash_adjustment\", \"reason\": \"legacy_wallet_sync_disabled\"}",
+      "created_at": "2026-06-10T19:20:44.448982"
+    },
+    {
+      "id": "ae08ae0a-7a0d-4661-8002-2601e7c81796",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "Z_REPORT_RECEIPT_SNAPSHOT_SAVED",
+      "details": "{\"shift_id\": \"8ddb70fe-35bb-46ca-bfd0-8776ab8ab789\"}",
+      "created_at": "2026-06-10T19:20:44.689369"
+    },
+    {
+      "id": "b363eadb-299a-4d8d-bf48-5ad81ea16248",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "AUTH_LOGIN_SUCCESS",
+      "details": "{\"username\": \"emalat\", \"ip\": \"100.64.0.4\", \"user_agent\": \"Mozilla/5.0 (iPhone; CPU iPhone OS 26_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/149.0.7827.45 Mobile/15E148 Safari/604.1\"}",
+      "created_at": "2026-06-10T19:21:01.206459"
+    },
+    {
+      "id": "d244c2fa-d440-400c-b799-c1f5c8078673",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "ADMIN_LOGIN",
+      "details": "{\"method\": \"PASSWORD\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"backend\": true}",
+      "created_at": "2026-06-10T19:21:01.413643"
+    },
+    {
+      "id": "9aeb30f7-564e-49b0-bed3-3f75cb58d565",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "AUTH_PIN_SUCCESS",
+      "details": "{\"username\": \"Samir\", \"ip\": \"100.64.0.10\", \"user_agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36\", \"role\": \"staff\"}",
+      "created_at": "2026-06-10T19:18:14.265009"
+    },
+    {
+      "id": "44a9121d-296f-4060-8990-98af0fa0c98f",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "STAFF_AUTO_SHIFT_JOIN",
+      "details": "Auto-joined shift on PIN login",
+      "created_at": "2026-06-10T19:18:14.265013"
+    },
+    {
+      "id": "2ecc6106-42b7-4a9c-9e05-fa7510b4db35",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "LOGOUT",
+      "details": "{}",
+      "created_at": "2026-06-10T19:21:20.763958"
+    },
+    {
+      "id": "b38d29c0-2130-4a49-a97c-c594a3233baa",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "INVENTORY_CONSUMED",
+      "details": "{\"item_name\": \"Latina Blend Coffee\", \"qty_removed\": \"0.0180\", \"unit\": \"KQ\", \"remaining_qty\": \"0.374\", \"sale_id\": \"b585032e-201e-43ef-b72f-5ffbeccc4afa\", \"source\": \"pos_sale\"}",
+      "created_at": "2026-06-10T19:18:37.943951"
+    },
+    {
+      "id": "d4d35202-7e2b-45fd-bcd3-0dd1d2330f82",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "INVENTORY_CONSUMED",
+      "details": "{\"item_name\": \"Damacana Su\", \"qty_removed\": \"0.2000\", \"unit\": \"L\", \"remaining_qty\": \"18836.850\", \"sale_id\": \"b585032e-201e-43ef-b72f-5ffbeccc4afa\", \"source\": \"pos_sale\"}",
+      "created_at": "2026-06-10T19:18:37.943955"
+    },
+    {
+      "id": "e485fc26-09c1-47ae-8189-f19a80e4d64a",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "INVENTORY_CONSUMED",
+      "details": "{\"item_name\": \"Buz (Ice)\", \"qty_removed\": \"0.1500\", \"unit\": \"KQ\", \"remaining_qty\": \"987.149\", \"sale_id\": \"b585032e-201e-43ef-b72f-5ffbeccc4afa\", \"source\": \"pos_sale\"}",
+      "created_at": "2026-06-10T19:18:37.943958"
+    },
+    {
+      "id": "10545ff7-c441-40e4-af82-467aa1e6e1e1",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "INVENTORY_CONSUMED",
+      "details": "{\"item_name\": \"Stəkan Şəffaf (M)\", \"qty_removed\": \"1.0000\", \"unit\": \"ƏDƏD\", \"remaining_qty\": \"-1.000\", \"sale_id\": \"b585032e-201e-43ef-b72f-5ffbeccc4afa\", \"source\": \"pos_sale\"}",
+      "created_at": "2026-06-10T19:18:37.943962"
+    },
+    {
+      "id": "8dfc815d-e331-456b-ba07-6794b1cc3cea",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "INVENTORY_CONSUMED",
+      "details": "{\"item_name\": \"Qapaq Şəffaf (Stəkan üçün)\", \"qty_removed\": \"1.0000\", \"unit\": \"ƏDƏD\", \"remaining_qty\": \"433.000\", \"sale_id\": \"b585032e-201e-43ef-b72f-5ffbeccc4afa\", \"source\": \"pos_sale\"}",
+      "created_at": "2026-06-10T19:18:37.943965"
+    },
+    {
+      "id": "26c6016c-b775-4250-831e-f4bf5d4c3548",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "FINANCE_TRANSACTION_POSTED",
+      "details": "{\"transaction_id\": \"d36c6a26-676d-4cb0-bd5b-34463972dde7\", \"transaction_type\": \"income\", \"source\": \"revenue\", \"destination\": \"cash\", \"amount\": \"5.50\"}",
+      "created_at": "2026-06-10T19:18:37.952189"
+    },
+    {
+      "id": "6701639d-7496-4a0e-b1c5-643c300dadcc",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "FINANCE_LEGACY_WALLET_SYNC_SKIPPED",
+      "details": "{\"transaction_id\": \"d36c6a26-676d-4cb0-bd5b-34463972dde7\", \"transaction_type\": \"income\", \"reason\": \"legacy_wallet_sync_disabled\"}",
+      "created_at": "2026-06-10T19:18:37.952194"
+    },
+    {
+      "id": "36e2ffc0-15a9-4696-b5da-ad9af647637c",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Samir",
+      "action": "FINANCE_TRANSACTION_POSTED",
+      "details": "{\"transaction_id\": \"1ab1d6ed-84e6-4c20-a993-da20063ff35e\", \"transaction_type\": \"cogs_recognition\", \"source\": \"inventory_asset\", \"destination\": \"cogs\", \"amount\": \"0.72\"}",
+      "created_at": "2026-06-10T19:18:37.958035"
+    },
+    {
+      "id": "190fafab-2632-4226-b9c2-2aeb57698db2",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "logout",
+      "action": "AUTH_LOGOUT",
+      "details": "{\"username\": \"logout\", \"ip\": \"100.64.0.19\", \"user_agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36\", \"refresh_revoked\": true, \"refresh_token_present\": true}",
+      "created_at": "2026-06-10T19:21:20.531263"
+    },
+    {
+      "id": "15adb856-8f46-4479-bb1d-08a4f6b13662",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"ui-freeze\", \"message\": \"Long task detected on main thread\", \"duration_ms\": 216, \"name\": \"self\"}",
+      "created_at": "2026-06-10T22:20:47.353824"
+    },
+    {
+      "id": "9e54e0dc-054a-4e90-b445-a55091009d57",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"ui-freeze\", \"message\": \"Long task detected on main thread\", \"duration_ms\": 181, \"name\": \"self\"}",
+      "created_at": "2026-06-11T03:48:55.340194"
+    },
+    {
+      "id": "b1391a7d-5a87-4e77-8719-0587ac6a3b14",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Sabina",
+      "action": "AUTH_LOGIN_SUCCESS",
+      "details": "{\"username\": \"Sabina\", \"ip\": \"100.64.0.3\", \"user_agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36\"}",
+      "created_at": "2026-06-11T05:26:07.818824"
+    },
+    {
+      "id": "6c518498-2334-4ae5-84ab-f09a6f1edba4",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "Sabina",
+      "action": "ADMIN_LOGIN",
+      "details": "{\"method\": \"PASSWORD\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"backend\": true}",
+      "created_at": "2026-06-11T05:26:08.080333"
+    },
+    {
+      "id": "b91d7ff9-3881-48e6-9d9c-cb4fb460b389",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"app-shell\", \"message\": \"Backendə qoşulma alınmadı (GET /api/v1/ops/staff-notifications/unread, request_id: c8311699-5f0f-4533-bbd8-cce65582ed36): sorğu vaxt limiti keçdi (20 saniyə)\"}",
+      "created_at": "2026-06-11T05:46:18.664536"
+    },
+    {
+      "id": "5424f248-c5a8-4e5e-9b6a-3ccefd336ed0",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/staff-notifications/unread\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"c8311699-5f0f-4533-bbd8-cce65582ed36\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T05:45:11.395Z\"}",
+      "created_at": "2026-06-11T05:46:18.665319"
+    },
+    {
+      "id": "7d99ca4a-60cf-4658-a353-6f278f06efec",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"POST\", \"path\": \"/api/v1/auth/refresh\", \"message\": \"sorğu vaxt limiti keçdi (7 saniyə)\", \"timeout_ms\": 7000, \"timed_out\": true, \"online\": true, \"request_id\": \"d7bc9e5e-cb82-4a61-b5db-ddb88437a05a\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T05:45:23.265Z\"}",
+      "created_at": "2026-06-11T05:46:18.755043"
+    },
+    {
+      "id": "f8e04633-d995-43d1-9c65-14dbb2ea7f96",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/business-profile\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"0a662d94-0001-4664-a2ec-e9303188d333\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T05:45:43.280Z\"}",
+      "created_at": "2026-06-11T05:46:18.755475"
+    },
+    {
+      "id": "9472cf81-1c0c-4d4d-ba2e-05080a6b3e98",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/pos/menu\", \"message\": \"sorğu vaxt limiti keçdi (5 saniyə)\", \"timeout_ms\": 5000, \"timed_out\": true, \"online\": true, \"request_id\": \"f4699780-6490-44d7-93e9-6aa837a98b65\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T05:45:48.302Z\"}",
+      "created_at": "2026-06-11T05:46:18.756151"
+    },
+    {
+      "id": "e922f9a9-63c3-4c4e-b9b8-b42d59889f6d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/staff-notifications/unread\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"07ac5678-7bef-4582-95ff-cb9290a59546\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T05:45:56.400Z\"}",
+      "created_at": "2026-06-11T05:46:18.757172"
+    },
+    {
+      "id": "5098bb4f-434f-4b5b-939e-c0302aef0b7b",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"pos\", \"message\": \"Backendə qoşulma alınmadı (GET /api/v1/pos/menu, request_id: f4699780-6490-44d7-93e9-6aa837a98b65): sorğu vaxt limiti keçdi (5 saniyə)\", \"phase\": \"refreshData\"}",
+      "created_at": "2026-06-11T05:46:18.757480"
+    },
+    {
+      "id": "2683a606-ae58-466b-ab26-1735350b5761",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"app-shell\", \"message\": \"Backendə qoşulma alınmadı (GET /api/v1/ops/staff-notifications/unread, request_id: 07ac5678-7bef-4582-95ff-cb9290a59546): sorğu vaxt limiti keçdi (20 saniyə)\"}",
+      "created_at": "2026-06-11T05:46:18.758330"
+    },
+    {
+      "id": "a0629e2b-c176-4708-9407-54d47c324077",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/settings\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"e24a4397-d032-4cf6-a55b-c990866b551b\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T05:45:43.282Z\"}",
+      "created_at": "2026-06-11T05:46:18.759698"
+    },
+    {
+      "id": "01885231-bac2-4f8d-8078-8b1dd402703f",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"ui-freeze\", \"message\": \"Long task detected on main thread\", \"duration_ms\": 337, \"name\": \"self\"}",
+      "created_at": "2026-06-11T06:26:10.716534"
+    },
+    {
+      "id": "7e5467f4-9a4e-42bc-a117-827cd8744151",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "logout",
+      "action": "AUTH_LOGOUT",
+      "details": "{\"username\": \"logout\", \"ip\": \"100.64.0.9\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\", \"refresh_revoked\": true, \"refresh_token_present\": true}",
+      "created_at": "2026-06-11T06:34:30.517881"
+    },
+    {
+      "id": "8ffad083-0f9d-4b58-b7a3-6d046da6fb5d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "AUTH_LOGIN_SUCCESS",
+      "details": "{\"username\": \"emalat\", \"ip\": \"100.64.0.13\", \"user_agent\": \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36\"}",
+      "created_at": "2026-06-11T06:34:38.646458"
+    },
+    {
+      "id": "ca571c72-5943-4c48-ae12-7dec25476f58",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "emalat",
+      "action": "ADMIN_LOGIN",
+      "details": "{\"method\": \"PASSWORD\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"backend\": true}",
+      "created_at": "2026-06-11T06:34:39.970354"
+    },
+    {
+      "id": "11fbb5c3-505e-40d4-b82d-a25fcb12e7b1",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"ui-freeze\", \"message\": \"Long task detected on main thread\", \"duration_ms\": 317, \"name\": \"self\"}",
+      "created_at": "2026-06-11T06:40:23.216136"
+    },
+    {
+      "id": "e8bd2f98-8596-433c-9ddc-ba3043394698",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"ui-freeze\", \"message\": \"Long task detected on main thread\", \"duration_ms\": 180, \"name\": \"self\"}",
+      "created_at": "2026-06-11T06:40:28.080434"
+    },
+    {
+      "id": "a4f0e853-ce74-476d-a53f-e5c20019b2f2",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"POST\", \"path\": \"/api/v1/auth/refresh\", \"message\": \"sorğu vaxt limiti keçdi (7 saniyə)\", \"timeout_ms\": 7000, \"timed_out\": true, \"online\": true, \"request_id\": \"b3437f50-4097-4007-a198-c6e9d27a0a1b\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:47:38.311Z\"}",
+      "created_at": "2026-06-11T06:47:43.881457"
+    },
+    {
+      "id": "5a82071c-7c5e-4029-bf64-e03beb969bff",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/business-profile\", \"status\": 200, \"duration_ms\": 5652, \"request_id\": \"727e1e5b-ead4-4d91-9166-124a538a519a\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:47:43.966Z\"}",
+      "created_at": "2026-06-11T06:47:44.180381"
+    },
+    {
+      "id": "19fada97-e95c-49a2-95d4-7b61fefc48f5",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/settings\", \"status\": 200, \"duration_ms\": 5654, \"request_id\": \"8a7687ea-2926-4079-a759-a5c9e85cd329\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:47:43.968Z\"}",
+      "created_at": "2026-06-11T06:47:44.180758"
+    },
+    {
+      "id": "ba281645-8bde-44ad-829e-1ca36a9ea456",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/status\", \"status\": 200, \"duration_ms\": 5814, \"request_id\": \"c53eb79e-0fa7-41ac-8a49-1e8997a361c5\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:47:42.423Z\"}",
+      "created_at": "2026-06-11T06:47:44.234651"
+    },
+    {
+      "id": "6a854bd4-d9f2-44c2-8054-593db817d82f",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/handovers\", \"status\": 200, \"duration_ms\": 5818, \"request_id\": \"d97d659f-06a5-47de-8c5c-249bd04cf320\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:47:42.430Z\"}",
+      "created_at": "2026-06-11T06:47:44.239465"
+    },
+    {
+      "id": "061ff429-9323-4319-92f7-db095a32f2a7",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/analytics/sales?date_from=2026-06-11T00%3A00%3A00&date_to=2026-06-12T00%3A00%3A00\", \"status\": 200, \"duration_ms\": 5828, \"request_id\": \"7ae866ad-4dd9-440b-b669-583c010f28ca\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:47:42.445Z\"}",
+      "created_at": "2026-06-11T06:47:44.256563"
+    },
+    {
+      "id": "be44172a-5ec9-46fd-adc3-878cdd4d3fd5",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/finance/balances\", \"status\": 200, \"duration_ms\": 5837, \"request_id\": \"06bd1c45-0eca-4669-85a5-6e156192718b\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:47:42.450Z\"}",
+      "created_at": "2026-06-11T06:47:44.258583"
+    },
+    {
+      "id": "032ff899-2027-4106-ba50-ab9b91b2e9ac",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/z-receipts?date_from=2026-06-11T00%3A00%3A00&date_to=2026-06-12T00%3A00%3A00&limit=30\", \"status\": 200, \"duration_ms\": 5835, \"request_id\": \"b6e8b199-7ade-412d-8dad-693be2191ef9\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:47:42.453Z\"}",
+      "created_at": "2026-06-11T06:47:44.264474"
+    },
+    {
+      "id": "1c2bcdfe-7091-4986-8a9c-b6c3c6201215",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/expected-cash\", \"status\": 200, \"duration_ms\": 5854, \"request_id\": \"b4b93676-7235-41dc-a929-30951241b2b2\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:47:42.465Z\"}",
+      "created_at": "2026-06-11T06:47:44.271332"
+    },
+    {
+      "id": "fa6da5c6-8071-4d4d-9935-ec851a1e5310",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/analytics/summary?date_from=2026-06-11T00%3A00%3A00&date_to=2026-06-12T00%3A00%3A00\", \"status\": 200, \"duration_ms\": 5853, \"request_id\": \"7b816e9a-51de-4299-845b-575c1e13449d\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:47:42.469Z\"}",
+      "created_at": "2026-06-11T06:47:44.280563"
+    },
+    {
+      "id": "e5d4442f-f1f3-4926-9189-8a872776959d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/finance/anomalies\", \"status\": 200, \"duration_ms\": 5853, \"request_id\": \"7f17c14a-2f91-438e-aa43-b7f6121b256b\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:47:42.467Z\"}",
+      "created_at": "2026-06-11T06:47:44.280169"
+    },
+    {
+      "id": "85dc6352-6fff-46ed-aaa9-0e75af1ce2f3",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "system",
+      "action": "BACKEND_UNHANDLED_EXCEPTION",
+      "details": "{\"path\": \"/api/v1/auth/refresh\", \"method\": \"POST\", \"request_id\": \"7bb64b8f-abae-4c4f-af4e-ca35e69cf2d5\", \"error_type\": \"IntegrityError\", \"error_message\": \"(psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint \\\"refresh_tokens_token_hash_key\\\"\\nDETAIL:  Key (token_hash)=(c8ac8a2b6112bcf0a0f400c4f68a45b7293ab15c15132667f44c523f286ac163) already exists.\\n\\n[SQL: INSERT INTO refresh_tokens (id, tenant_id, user_id, token_hash, expires_at, revoked, created_at) VALUES (%(id)s, %(tenant_id)s, %(user_id)s, %(token_hash)s, %(expires_at)s, %(revoked)s, %(created_at)s)]\\n[parameters: {'id': 'b2aa25a4-9add-4444-aed0-5299051967c4', 'tenant_id': '6e2c0d4c-6fab-4e49-8f9d-2d675457c655', 'user_id': 'd1ed85d7-c154-4480-932d-088402573a65', 'token_hash': 'c8ac8a2b6112bcf0a0f400c4f68a45b7293ab15c15132667f44c523f286ac163', 'expires_at': datetime.datetime(2026, 6, 18, 6, 57, 20, 785255), 'revoked': False, 'created_at': datetime.datetime(2026, 6, 11, 6, 57, 20, 786099)}]\\n(Background on this error at: https://sqlalche.me/e/20/gkpj)\", \"traceback\": \"Traceback (most recent call last):\\n  File \\\"/opt/venv/lib/python3.12/site-packages/sqlalchemy/engine/base.py\\\", line 1967, in _exec_single_context\\n    self.dialect.do_execute(\\n  File \\\"/opt/venv/lib/python3.12/site-packages/sqlalchemy/engine/default.py\\\", line 941, in do_execute\\n    cursor.execute(statement, parameters)\\npsycopg2.errors.UniqueViolation: duplicate key value violates unique constraint \\\"refresh_tokens_token_hash_key\\\"\\nDETAIL:  Key (token_hash)=(c8ac8a2b6112bcf0a0f400c4f68a45b7293ab15c15132667f44c523f286ac163) already exists.\\n\\n\\nThe above exception was the direct cause of the following exception:\\n\\nTraceback (most recent call last):\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/errors.py\\\", line 165, in __call__\\n    await self.app(scope, receive, _send)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 185, in __call__\\n    with collapse_excgroups():\\n         ^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/contextlib.py\\\", line 158, in __exit__\\n    self.gen.throw(value)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/_utils.py\\\", line 83, in collapse_excgroups\\n    raise exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 187, in __call__\\n    response = await self.dispatch_func(request, call_next)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/app/app/main.py\\\", line 373, in security_boundary_middleware\\n    response = await call_next(request)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 163, in call_next\\n    raise app_exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 149, in coro\\n    await self.app(scope, receive_or_disconnect, send_no_error)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/cors.py\\\", line 93, in __call__\\n    await self.simple_response(scope, receive, send, request_headers=headers)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/cors.py\\\", line 144, in simple_response\\n    await self.app(scope, receive, send)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 185, in __call__\\n    with collapse_excgroups():\\n         ^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/contextlib.py\\\", line 158, in __exit__\\n    self.gen.throw(value)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/_utils.py\\\", line 83, in collapse_excgroups\\n    raise exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 187, in __call__\\n    response = await self.dispatch_func(request, call_next)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/app/app/main.py\\\", line 138, in pool_metrics_middleware\\n    return await call_next(request)\\n           ^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 163, in call_next\\n    raise app_exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 149, in coro\\n    await self.app(scope, receive_or_disconnect, send_no_error)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 185, in __call__\\n    with collapse_excgroups():\\n         ^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/usr/local/lib/python3.12/contextlib.py\\\", line 158, in __exit__\\n    self.gen.throw(value)\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/_utils.py\\\", line 83, in collapse_excgroups\\n    raise exc\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 187, in __call__\\n    response = await self.dispatch_func(request, call_next)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/app/app/main.py\\\", line 115, in metrics_middleware\\n    response = await call_next(request)\\n               ^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \\\"/opt/venv/lib/python3.12/site-packages/starlette/middleware/base.py\\\", line 163, in call_next\\n    raise app_exc\\n  Fil\"}",
+      "created_at": "2026-06-11T06:57:20.794686"
+    },
+    {
+      "id": "88f4768e-e0fd-422d-9734-f67750dbf7a7",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"PATCH\", \"path\": \"/api/v1/ops/settings/staff-benefits\", \"status\": 200, \"duration_ms\": 5676, \"request_id\": \"d7f247ec-5c3d-4c26-8e55-6b99b5e0785f\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:58:08.139Z\"}",
+      "created_at": "2026-06-11T06:58:08.501214"
+    },
+    {
+      "id": "513a9c6e-608c-426b-949b-bc931a202fd0",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "admin",
+      "action": "STAFF_BENEFITS_UPDATED",
+      "details": "{\"daily_limit_azn\": 6, \"allowed_scope\": \"categories\", \"included_categories\": [\"Qəhvə\", \"Desert\", \"iced kofe\"], \"included_items\": [], \"item_unit_cap_azn\": 6, \"coffee_unit_cap_azn\": 6, \"other_unit_cap_azn\": 2}",
+      "created_at": "2026-06-11T06:58:08.503067"
+    },
+    {
+      "id": "3f64786c-d3ea-4d87-8f8d-8467ecf67a5c",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_NETWORK_ERROR",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/ops/staff-notifications/unread\", \"message\": \"sorğu vaxt limiti keçdi (20 saniyə)\", \"timeout_ms\": 20000, \"timed_out\": true, \"online\": true, \"request_id\": \"276576d2-9398-4064-9db3-aec1bbc74579\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:57:57.172Z\"}",
+      "created_at": "2026-06-11T06:58:10.204675"
+    },
+    {
+      "id": "b9bcf983-0818-4b4e-a6e6-866806988a5d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "System",
+      "action": "UI_ERROR",
+      "details": "{\"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"module\": \"app-shell\", \"message\": \"Backendə qoşulma alınmadı (GET /api/v1/ops/staff-notifications/unread, request_id: 276576d2-9398-4064-9db3-aec1bbc74579): sorğu vaxt limiti keçdi (20 saniyə)\"}",
+      "created_at": "2026-06-11T06:58:10.253774"
+    },
+    {
+      "id": "a7b538fc-ccc4-454c-9694-e7361e38c343",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/status\", \"status\": 200, \"duration_ms\": 19308, \"request_id\": \"f30d4621-2231-453b-8a1c-966289ca590e\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:58:08.846Z\"}",
+      "created_at": "2026-06-11T06:58:10.526846"
+    },
+    {
+      "id": "419146bc-7981-4c83-8c1f-477ed33dead9",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/handovers\", \"status\": 200, \"duration_ms\": 19302, \"request_id\": \"ddfb07ec-da75-4084-be2f-719f9a1b9b75\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:58:08.841Z\"}",
+      "created_at": "2026-06-11T06:58:10.527808"
+    },
+    {
+      "id": "aba8ee37-d70d-4636-b466-aa239e11bf9d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/analytics/sales?date_from=2026-06-11T00%3A00%3A00&date_to=2026-06-12T00%3A00%3A00\", \"status\": 200, \"duration_ms\": 19349, \"request_id\": \"9bcbf8b9-0b07-48de-ae99-e67b861766b5\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:58:08.892Z\"}",
+      "created_at": "2026-06-11T06:58:10.574380"
+    },
+    {
+      "id": "9d5b7bea-dff8-403b-8908-3d7bef86ebd3",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/z-receipts?date_from=2026-06-11T00%3A00%3A00&date_to=2026-06-12T00%3A00%3A00&limit=30\", \"status\": 200, \"duration_ms\": 19304, \"request_id\": \"5606f64d-123b-4ba6-b00e-bb26b866608c\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:58:08.849Z\"}",
+      "created_at": "2026-06-11T06:58:10.532386"
+    },
+    {
+      "id": "ebc471f1-99b8-4a3f-894c-a5da2e94ed65",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/finance/anomalies\", \"status\": 200, \"duration_ms\": 19353, \"request_id\": \"1e2ce48b-40af-445e-aaa1-fa66aa90cc0c\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:58:08.894Z\"}",
+      "created_at": "2026-06-11T06:58:10.574863"
+    },
+    {
+      "id": "187ec276-2d16-4f90-95d5-d00405ec71df",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/reports/expected-cash\", \"status\": 200, \"duration_ms\": 19309, \"request_id\": \"0ec0353f-fc47-4bf1-a1ea-6b7233caca01\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:58:08.847Z\"}",
+      "created_at": "2026-06-11T06:58:10.533090"
+    },
+    {
+      "id": "cc226b1a-ce7c-4a24-88de-3db81a3bcbb1",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/finance/balances\", \"status\": 200, \"duration_ms\": 19348, \"request_id\": \"b7c5715c-715e-4e1f-a74e-0c75f72bb750\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:58:08.888Z\"}",
+      "created_at": "2026-06-11T06:58:10.569153"
+    },
+    {
+      "id": "f82e6733-b732-4f37-b121-a1d559afd07d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "user": "client",
+      "action": "API_SLOW_REQUEST",
+      "details": "{\"method\": \"GET\", \"path\": \"/api/v1/analytics/summary?date_from=2026-06-11T00%3A00%3A00&date_to=2026-06-12T00%3A00%3A00\", \"status\": 200, \"duration_ms\": 19351, \"request_id\": \"c9cbe736-1682-4f3b-b054-75fbabaa2a07\", \"tenant_id\": \"6e2c0d4c-6fab-4e49-8f9d-2d675457c655\", \"ts\": \"2026-06-11T06:58:08.893Z\"}",
+      "created_at": "2026-06-11T06:58:10.573914"
     }
   ],
   "shifts": [
     {
       "id": "8ddb70fe-35bb-46ca-bfd0-8776ab8ab789",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
-      "status": "open",
+      "status": "closed",
       "opened_by": "emalat",
       "opened_at": "2026-06-10T10:01:16.020890",
       "opening_cash": "66.00",
       "opening_source": "cash",
       "opening_target_cash": "66.00",
       "opening_topup_amount": "0.00",
-      "closing_cash": null,
-      "actual_cash": null,
-      "declared_cash": null,
-      "cash_variance": null,
-      "closing_deposit_liability": null,
-      "deposit_settled_amount": null,
-      "closed_by": null,
-      "closed_at": null,
-      "z_report_html_length": 0
+      "closing_cash": "62.90",
+      "actual_cash": "62.90",
+      "declared_cash": "62.90",
+      "cash_variance": "-45.00",
+      "closing_deposit_liability": "0.00",
+      "deposit_settled_amount": "0.00",
+      "closed_by": "Samir",
+      "closed_at": "2026-06-10T19:20:44.447994",
+      "z_report_html_length": 5600
     }
   ],
   "floor_plans": [
@@ -10506,6 +12613,32 @@
       "legacy_finance_entry_id": null
     },
     {
+      "id": "b08d6625-d03e-4671-9456-a5640575fb01",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_type": "income",
+      "status": "posted",
+      "source_account_id": "c5704819-c876-4919-8da7-52d85d6bc744",
+      "destination_account_id": "08976a6f-b9e8-4787-9b63-f8c7643ff6be",
+      "amount": "6.90",
+      "currency": "AZN",
+      "category": "Satış (Nağd)",
+      "counterparty": null,
+      "reference": null,
+      "note": "POS Sale E1AE43C491",
+      "created_by": "Samir",
+      "approved_by": null,
+      "posted_by": "Samir",
+      "reversed_by": null,
+      "created_at": "2026-06-10T16:27:09.173523",
+      "approved_at": null,
+      "posted_at": "2026-06-10T16:27:09.187112",
+      "reversed_at": null,
+      "related_shift_id": null,
+      "related_table_id": null,
+      "related_order_id": "359dabca-8d3d-43ed-9b86-77001b3af782",
+      "legacy_finance_entry_id": null
+    },
+    {
       "id": "2716027e-c6ad-4050-baec-10f5fe0ad3d1",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
       "transaction_type": "expense",
@@ -11021,6 +13154,162 @@
       "posted_at": "2026-06-10T14:31:57.882607",
       "reversed_at": null,
       "related_shift_id": null,
+      "related_table_id": null,
+      "related_order_id": null,
+      "legacy_finance_entry_id": null
+    },
+    {
+      "id": "606685f7-e072-4999-af0e-69cbd498fc36",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_type": "cogs_recognition",
+      "status": "posted",
+      "source_account_id": "44997c11-03a8-497a-a285-e77d888e65d2",
+      "destination_account_id": "99d95f48-0453-4188-a4bf-52575aff3684",
+      "amount": "1.11",
+      "currency": "AZN",
+      "category": "COGS",
+      "counterparty": null,
+      "reference": null,
+      "note": "POS sale COGS E1AE43C491",
+      "created_by": "Samir",
+      "approved_by": null,
+      "posted_by": "Samir",
+      "reversed_by": null,
+      "created_at": "2026-06-10T16:27:09.189100",
+      "approved_at": null,
+      "posted_at": "2026-06-10T16:27:09.198357",
+      "reversed_at": null,
+      "related_shift_id": null,
+      "related_table_id": null,
+      "related_order_id": "359dabca-8d3d-43ed-9b86-77001b3af782",
+      "legacy_finance_entry_id": null
+    },
+    {
+      "id": "adb3a598-0177-44fd-b4cb-7107cf93aea0",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_type": "income",
+      "status": "posted",
+      "source_account_id": "c5704819-c876-4919-8da7-52d85d6bc744",
+      "destination_account_id": "08976a6f-b9e8-4787-9b63-f8c7643ff6be",
+      "amount": "6.00",
+      "currency": "AZN",
+      "category": "Satış (Nağd)",
+      "counterparty": null,
+      "reference": null,
+      "note": "POS Sale 78CFE2093F",
+      "created_by": "Samir",
+      "approved_by": null,
+      "posted_by": "Samir",
+      "reversed_by": null,
+      "created_at": "2026-06-10T17:28:04.690924",
+      "approved_at": null,
+      "posted_at": "2026-06-10T17:28:04.695978",
+      "reversed_at": null,
+      "related_shift_id": null,
+      "related_table_id": null,
+      "related_order_id": "cd148c82-32e6-4382-9590-9a5db71f4c23",
+      "legacy_finance_entry_id": null
+    },
+    {
+      "id": "d36c6a26-676d-4cb0-bd5b-34463972dde7",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_type": "income",
+      "status": "posted",
+      "source_account_id": "c5704819-c876-4919-8da7-52d85d6bc744",
+      "destination_account_id": "08976a6f-b9e8-4787-9b63-f8c7643ff6be",
+      "amount": "5.50",
+      "currency": "AZN",
+      "category": "Staff Ödənişi",
+      "counterparty": null,
+      "reference": null,
+      "note": "Staff payment b585032e-201e-43ef-b72f-5ffbeccc4afa",
+      "created_by": "Samir",
+      "approved_by": null,
+      "posted_by": "Samir",
+      "reversed_by": null,
+      "created_at": "2026-06-10T19:18:37.943676",
+      "approved_at": null,
+      "posted_at": "2026-06-10T19:18:37.950722",
+      "reversed_at": null,
+      "related_shift_id": null,
+      "related_table_id": null,
+      "related_order_id": "b585032e-201e-43ef-b72f-5ffbeccc4afa",
+      "legacy_finance_entry_id": null
+    },
+    {
+      "id": "1ab1d6ed-84e6-4c20-a993-da20063ff35e",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_type": "cogs_recognition",
+      "status": "posted",
+      "source_account_id": "44997c11-03a8-497a-a285-e77d888e65d2",
+      "destination_account_id": "99d95f48-0453-4188-a4bf-52575aff3684",
+      "amount": "0.72",
+      "currency": "AZN",
+      "category": "COGS",
+      "counterparty": null,
+      "reference": null,
+      "note": "POS sale COGS C21F336D2D",
+      "created_by": "Samir",
+      "approved_by": null,
+      "posted_by": "Samir",
+      "reversed_by": null,
+      "created_at": "2026-06-10T19:18:37.951989",
+      "approved_at": null,
+      "posted_at": "2026-06-10T19:18:37.957887",
+      "reversed_at": null,
+      "related_shift_id": null,
+      "related_table_id": null,
+      "related_order_id": "b585032e-201e-43ef-b72f-5ffbeccc4afa",
+      "legacy_finance_entry_id": null
+    },
+    {
+      "id": "a9852682-f12e-4124-845b-5e97d4568a69",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_type": "expense",
+      "status": "posted",
+      "source_account_id": "08976a6f-b9e8-4787-9b63-f8c7643ff6be",
+      "destination_account_id": "2ddff903-893c-42ad-8802-e9a7531094e2",
+      "amount": "45.00",
+      "currency": "AZN",
+      "category": "Maaş",
+      "counterparty": null,
+      "reference": null,
+      "note": "Shift close wage",
+      "created_by": "Samir",
+      "approved_by": null,
+      "posted_by": "Samir",
+      "reversed_by": null,
+      "created_at": "2026-06-10T19:20:44.401664",
+      "approved_at": null,
+      "posted_at": "2026-06-10T19:20:44.406375",
+      "reversed_at": null,
+      "related_shift_id": "8ddb70fe-35bb-46ca-bfd0-8776ab8ab789",
+      "related_table_id": null,
+      "related_order_id": null,
+      "legacy_finance_entry_id": null
+    },
+    {
+      "id": "2df155c0-1569-4090-ae48-c167c43e9c8e",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_type": "cash_adjustment",
+      "status": "posted",
+      "source_account_id": "08976a6f-b9e8-4787-9b63-f8c7643ff6be",
+      "destination_account_id": "d5bb5977-c68f-467a-b9d7-750a14e9408c",
+      "amount": "45.00",
+      "currency": "AZN",
+      "category": "Kassa Kəsiri",
+      "counterparty": null,
+      "reference": null,
+      "note": "Z-report difference",
+      "created_by": "Samir",
+      "approved_by": null,
+      "posted_by": "Samir",
+      "reversed_by": null,
+      "created_at": "2026-06-10T19:20:44.412663",
+      "approved_at": null,
+      "posted_at": "2026-06-10T19:20:44.418861",
+      "reversed_at": null,
+      "related_shift_id": "8ddb70fe-35bb-46ca-bfd0-8776ab8ab789",
       "related_table_id": null,
       "related_order_id": null,
       "legacy_finance_entry_id": null
@@ -11950,6 +14239,160 @@
       "currency": "AZN",
       "description": "Reversal auto-post via corrected admin override script for 804c829c-5103-4951-83b5-2f46a52a609d",
       "created_at": "2026-06-10T14:31:58.060209"
+    },
+    {
+      "id": "2c0af189-3d2c-483c-93fa-244f304b9b05",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "b08d6625-d03e-4671-9456-a5640575fb01",
+      "account_id": "08976a6f-b9e8-4787-9b63-f8c7643ff6be",
+      "entry_side": "debit",
+      "amount": "6.90",
+      "currency": "AZN",
+      "description": "POS Sale E1AE43C491",
+      "created_at": "2026-06-10T16:27:09.190205"
+    },
+    {
+      "id": "d442168c-586c-4c63-b98e-eb21d3df1d7e",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "b08d6625-d03e-4671-9456-a5640575fb01",
+      "account_id": "c5704819-c876-4919-8da7-52d85d6bc744",
+      "entry_side": "credit",
+      "amount": "6.90",
+      "currency": "AZN",
+      "description": "POS Sale E1AE43C491",
+      "created_at": "2026-06-10T16:27:09.190210"
+    },
+    {
+      "id": "7dff444a-ccf3-45c7-bd50-d3659a2af3a3",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "606685f7-e072-4999-af0e-69cbd498fc36",
+      "account_id": "99d95f48-0453-4188-a4bf-52575aff3684",
+      "entry_side": "debit",
+      "amount": "1.11",
+      "currency": "AZN",
+      "description": "POS sale COGS E1AE43C491",
+      "created_at": "2026-06-10T16:27:09.199054"
+    },
+    {
+      "id": "5c65f392-5dca-48ea-b559-51241f222ae9",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "606685f7-e072-4999-af0e-69cbd498fc36",
+      "account_id": "44997c11-03a8-497a-a285-e77d888e65d2",
+      "entry_side": "credit",
+      "amount": "1.11",
+      "currency": "AZN",
+      "description": "POS sale COGS E1AE43C491",
+      "created_at": "2026-06-10T16:27:09.199058"
+    },
+    {
+      "id": "efc82bb3-5b29-4c82-8b9f-6ef2051fe226",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "adb3a598-0177-44fd-b4cb-7107cf93aea0",
+      "account_id": "08976a6f-b9e8-4787-9b63-f8c7643ff6be",
+      "entry_side": "debit",
+      "amount": "6.00",
+      "currency": "AZN",
+      "description": "POS Sale 78CFE2093F",
+      "created_at": "2026-06-10T17:28:04.697312"
+    },
+    {
+      "id": "47884e06-272b-482d-9b50-1e8c63f822a0",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "adb3a598-0177-44fd-b4cb-7107cf93aea0",
+      "account_id": "c5704819-c876-4919-8da7-52d85d6bc744",
+      "entry_side": "credit",
+      "amount": "6.00",
+      "currency": "AZN",
+      "description": "POS Sale 78CFE2093F",
+      "created_at": "2026-06-10T17:28:04.697316"
+    },
+    {
+      "id": "8f8289c8-0044-4326-93a1-d61ad724872d",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "d36c6a26-676d-4cb0-bd5b-34463972dde7",
+      "account_id": "08976a6f-b9e8-4787-9b63-f8c7643ff6be",
+      "entry_side": "debit",
+      "amount": "5.50",
+      "currency": "AZN",
+      "description": "Staff payment b585032e-201e-43ef-b72f-5ffbeccc4afa",
+      "created_at": "2026-06-10T19:18:37.952743"
+    },
+    {
+      "id": "c84b2ba5-a9f5-4f51-af92-a3ef67b649ca",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "d36c6a26-676d-4cb0-bd5b-34463972dde7",
+      "account_id": "c5704819-c876-4919-8da7-52d85d6bc744",
+      "entry_side": "credit",
+      "amount": "5.50",
+      "currency": "AZN",
+      "description": "Staff payment b585032e-201e-43ef-b72f-5ffbeccc4afa",
+      "created_at": "2026-06-10T19:18:37.952747"
+    },
+    {
+      "id": "8bab2ac5-6774-4aed-bd34-3984a3dcac63",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "1ab1d6ed-84e6-4c20-a993-da20063ff35e",
+      "account_id": "99d95f48-0453-4188-a4bf-52575aff3684",
+      "entry_side": "debit",
+      "amount": "0.72",
+      "currency": "AZN",
+      "description": "POS sale COGS C21F336D2D",
+      "created_at": "2026-06-10T19:18:37.958471"
+    },
+    {
+      "id": "cfd1890f-a7b2-4d2d-8ea8-ad732c62af39",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "1ab1d6ed-84e6-4c20-a993-da20063ff35e",
+      "account_id": "44997c11-03a8-497a-a285-e77d888e65d2",
+      "entry_side": "credit",
+      "amount": "0.72",
+      "currency": "AZN",
+      "description": "POS sale COGS C21F336D2D",
+      "created_at": "2026-06-10T19:18:37.958475"
+    },
+    {
+      "id": "6d854672-ff4e-4bf0-a0ef-c3bb46289a74",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "a9852682-f12e-4124-845b-5e97d4568a69",
+      "account_id": "2ddff903-893c-42ad-8802-e9a7531094e2",
+      "entry_side": "debit",
+      "amount": "45.00",
+      "currency": "AZN",
+      "description": "Shift close wage",
+      "created_at": "2026-06-10T19:20:44.413587"
+    },
+    {
+      "id": "cfe40477-bded-426f-af75-e6dacba8eccb",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "a9852682-f12e-4124-845b-5e97d4568a69",
+      "account_id": "08976a6f-b9e8-4787-9b63-f8c7643ff6be",
+      "entry_side": "credit",
+      "amount": "45.00",
+      "currency": "AZN",
+      "description": "Shift close wage",
+      "created_at": "2026-06-10T19:20:44.413592"
+    },
+    {
+      "id": "ca4432f7-c759-4c5d-9e7c-3c6add1d6fa0",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "2df155c0-1569-4090-ae48-c167c43e9c8e",
+      "account_id": "d5bb5977-c68f-467a-b9d7-750a14e9408c",
+      "entry_side": "debit",
+      "amount": "45.00",
+      "currency": "AZN",
+      "description": "Z-report difference",
+      "created_at": "2026-06-10T19:20:44.449771"
+    },
+    {
+      "id": "494530a9-576d-4a14-8bc7-82e854c5c532",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "transaction_id": "2df155c0-1569-4090-ae48-c167c43e9c8e",
+      "account_id": "08976a6f-b9e8-4787-9b63-f8c7643ff6be",
+      "entry_side": "credit",
+      "amount": "45.00",
+      "currency": "AZN",
+      "description": "Z-report difference",
+      "created_at": "2026-06-10T19:20:44.449777"
     }
   ],
   "finance_reconciliations": [],
@@ -15520,6 +17963,14 @@
       "created_at": "2026-06-09T16:47:35.001051"
     },
     {
+      "id": "f3cf61d6-0b10-4be3-b974-c6c9c5fa4995",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "insight_type": "Gündəlik Təhlil",
+      "content": "# 🚨 ACRƏTƏLƏB EDƏN ANBAR XƏBƏRDARLIĞI\n\n## ⚠️ KİMİ MƏHSULLAR SIFIRDA (SİFARİŞ GƏRƏK)\n\n| Məhsul | Status |\n|---|---|\n| Kişmişli Bulka | **0 ədəd** |\n| Urek bulka | **0 ədəd** |\n| Ekler | **0 ədəd** |\n| Şəkərbura | **0 ədəd** |\n| Ağ Kuki | **0 ədəd** |\n| Muffin | **0 ədəd** |\n| Stəkan Şəffaf (M) | **0 ədəd** |\n| Puding | **0 ədəd** |\n| Yulaflı Kuki | **0 ədəd** |\n| Donut | **0 ədəd** |\n| Cinnabon karamel | **0 ədəd** |\n| Mini kuki | **0 ədəd** |\n| Yumurta | **0.03 ədəd** — praktik bitib |\n| Tac Şəkər Tozu | **0.98 kq** — 1 kq-dan az |\n| Milla Qaymaq 26% | **0.09 L** — demək olar ki, bitib |\n| Latina Blend Coffee | **0.392 kq** — çox az |\n| Topping Chocolate PS | **0.5 L** — minimum |\n| Badam sudu | **0.9 L** — az |\n| Dondurma (Vanil) | **0.7 L** — az |\n| Dondurma (Kofe) | **1.25 L** — az |\n\n---\n\n## 🔴 MİNUS BALANS — SİSTEM XƏTASI VƏ YA OĞURLUQ\n\n| Məhsul | Minus |\n|---|---|\n| Qapaq İsti (Böyük) | **-247 ədəd** ⚠️ |\n| Portagal Turkiye | **-12 ədəd** |\n| Jasmin çay | **-8 ədəd** |\n| Sirop Barinoff (Vanil) | **-2.41 L** |\n| Kurasan | **-2 ədəd** |\n| Cinnabon Ağ | **-2 ədəd** |\n| Çay | **-0.77 ədəd** |\n| Chai tea | **-0.96 kq** |\n\n> **Bu minus dəyərlər ya sistemin hesablama xətasıdır, ya da anbar qeydiyyatında qeyri-ixtiyarı çıxışlar olub. Dərhal yoxlanılmalıdır.**\n\n---\n\n## 📊 SATIŞ GƏLİRİ ANALIZI\n\n- **17 satış → 102.20 AZN gəlir**\n- **Ortalama cəmi: ~6.01 AZN/satış**\n\n> Bu rəqam **çox aşağıdır**. Gündə 17 satış obyekt üçün kritik səviyyədir.\n\n---\n\n## 💡 TƏKLİFLƏR\n\n1. **Dərhal sifariş:** Sıfır olan 12+ məhsul üçün təcili təchizat sifarişi verin — xüsusilə **bulka, ekler, kuki, donut** kimi əsas məhsullar.\n2. **Minus balansları araşdırın:** Qapaq İsti -247 ədəd kimi dəyərlər maliyyə itkisinə səbəb ola bilər. Anbar hesabatı ilə müqayisə edin.\n3. **Satış həcmini artırın:** Gündə 17 satış obyekt üçün qəbuledilməzdir. Menyu optimizasiyası, promosiyalar və ya xidmət sürəti yoxlanılmalıdır.\n4. **Sirop Barinoff çeşidlərinin hamısı azdır** — 1-2 litr qalanlar var. Təchizat planlaşdırılmalıdır.\n5. **Kakao (0.98 kq) və Sokolad Yağı (2.25 kq)** — şokoladlı məhsullar üçün xammal azdır, ehtiyat yaradın.",
+      "is_read": false,
+      "created_at": "2026-06-10T18:31:46.712823"
+    },
+    {
       "id": "62f1f305-7000-442e-b7c2-0d8fcd8d7a83",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
       "insight_type": "Gündəlik Təhlil",
@@ -15648,6 +18099,14 @@
       "created_at": "2026-06-04T14:27:52.651569"
     },
     {
+      "id": "dfedd2ef-488a-4764-96f9-aa16a70d576b",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "insight_type": "Gündəlik Təhlil",
+      "content": "# 🚨 ANBAR XƏBƏRDARLIĞI — TƏCİLİ ANALİZ\n\n## 1. KRİTİK QIYMƏTİNDƏ MƏHSULLAR (Sıfıra Yaxın və ya Bitmiş)\n\n| Məhsul | Qalıq | Status |\n|---|---|---|\n| Kişmişli Bulka | 0 ədəd | ❌ Bitib |\n| Urek bulka | 0 ədəd | ❌ Bitib |\n| Ekler | 0 ədəd | ❌ Bitib |\n| Shekerbura | 0 ədəd | ❌ Bitib |\n| Ağ Kuki | 0 ədəd | ❌ Bitib |\n| Mini kuki | 0 ədəd | ❌ Bitib |\n| Muffin | 0 ədəd | ❌ Bitib |\n| Puding | 0 ədəd | ❌ Bitib |\n| Yulaflı Kuki | 0 ədəd | ❌ Bitib |\n| Donut | 0 ədəd | ❌ Bitib |\n| Cinnabon karamel | 0 ədəd | ❌ Bitib |\n| Yumurta | 0.03 ədəd | ⚠️ Təxminən bitib |\n| Milla Qaymaq 26% | 0.090 L | ⚠️ Kritik aşağı |\n| Latina Blend Coffee | 0.374 kq | ⚠️ Kritik aşağı |\n| Topping Chocolate PS | 0.500 L | ⚠️ Kritik aşağı |\n| Dondurma (Vanil) | 0.700 L | ⚠️ Kritik aşağı |\n| Badam sudu | 0.900 L | ⚠️ Kritik aşağı |\n| Tac Şəkər Tozu | 0.980 kq | ⚠️ Kritik aşağı |\n| Kakao | 0.980 kq | ⚠️ Kritik aşağı |\n| Çay | -0.770 ədəd | ⚠️ Mənfi qalıq (səhv) |\n\n---\n\n## 2. MƏNFİ QALIQ — SİSTEM XƏTASI (Məcburi düzəliş!)\n\nAşağıdakı məhsullarda **mənfi qalıq** var. Bu inventar uyuşmazlığı göstərir — **təcili sayım tələb olunur:**\n\n| Məhsul | Mənfi Qalıq |\n|---|---|\n| Qapaq İsti (Böyük) | **-247.000** ədəd 🔴 |\n| Portagal Turkiye | -12.000 ədəd 🔴 |\n| Jasmin çay | -8.000 ədəd 🔴 |\n| Kurasan | -2.000 ədəd 🔴 |\n| Cinnabon Ag | -2.000 ədəd 🔴 |\n| Sirop Barinoff (Vanil) | -2.410 L 🔴 |\n| Stəkan Şəffaf (M) | -1.000 ədəd 🔴 |\n| chai tea | -0.960 kq 🔴 |\n\n> **⚡ TƏCİLİ:** Qapaq İsti -247.000 ədəd mənfi qalıq daxili sistem xətasıdır. POS sayğacı və ya təchizat fakturası uyğunsuzluğu ola bilər. **Bu məsələ 24 saat ərzində həll edilməlidir.**\n\n---\n\n## 3. TƏCİLİ SİFARİŞ TƏKLİFLƏRİ\n\n### 🔴 ANAĞLIQ — Dərhal sifariş verilməli:\n- **Kişmişli Bulka** — 0 ədəd (çox satılan)\n- **Urek bulka** — 0 ədəd\n- **Ekler** — 0 ədəd\n- **Shekerbura** — 0 ədəd\n- **Muffin** — 0 ədəd\n- **Donut** — 0 ədəd\n- **Puding** — 0 ədəd\n- **Yumurta** — 0.03 qalıb (təxminən bitib)\n- **Milla Qaymaq 26%** — 0.090 L\n- **Latina Blend Coffee** — 0.374 kq\n- **Badam sudu** — 0.900 L\n- **Kakao** — 0.980 kq\n- **Tac Şəkər Tozu** — 0.980 kq\n\n### 🟡 ORTA — 1-3 gün ərzində sifariş:\n- **Sirop Barinoff (Fındıq)** — 1.000 L\n- **Sirop Barinoff (Kuki)** — 1.000 L\n- **Sirop Barinoff (Şəkər)** — 1.000 L\n- **Sirop Barinoff (Marakuya)** — 1.000 L\n- **Thermos Emalatkhana** — 3.000 ədəd\n- **Dondurma (Kofe)** — 1.250 L\n- **Dom qaymaq 10%** — 1.660 L\n- **Laktossuz sud** — 1.700 L\n- **Dondurma (Çiyələk)** — 3.000 L\n- **Topping Chocolate PS** — 0.500 L\n- **Cinnabon sokalad** — 2.000 ədəd\n- **Sade bulka** — 1.000 ədəd\n- **Tip Box** — 1.000 ədəd\n- **Paxlava** — 1.000 ədəd\n- **Sekerbura** — 1.000 ədəd\n- **Oreo** — 1.000 ədəd\n- **Simit** — 1.000 ədəd\n- **Ekler dolgulu** — 1.000 ədəd\n- **Reklam Lövhəsi** — 1.000 ədəd\n- **Elcek** — 1.000 ədəd\n- **Pitcher** — 1.000 ədəd\n\n---\n\n## 4. ƏMƏLİYYAT MƏSLƏHƏTLƏRİ\n\n1. **Mənfi qalıqları araşdırın** — Xüsusilə Qapaq İsti (-247.000) və Portagal Turkiye (-12.000) kritikdir. Mümkün qədər tez sayım aparın.\n\n2. **Sirop Barinoff seriyasına diqqət** — 9 çeşidindən 6-sının qalığı 1.000-2.000 L arasındadır. Toplu sifariş planı qurun.\n\n3. **Unlu məhsullar (bulka, kuki, muffin, donut, ekler)** hamısı bitmək üzrədir — bu kateqoriya üçün **təchizatçı ilə əlaqə saxlayın**.\n\n4. **Şirəbər (Sirab) qrupu** — 4 çeşidə 17.800 ədəd+ qalıqdır, ehtiyacı yüksəkdir.\n\n5. **Çay/qrupu** — Jasmin çay mənfi qalıqdır, Çay da -0.770 ədəd. Çay təchizatını gözdən keçirin.\n\n6. **Karton/Qrup ehtiyacı** — Tutacaq Karton 9.000 ədəd qalıqdır, amma Qapaq İsti mənfi qalıqdır. Ambal ehtiyacını qiymətləndirin.\n\n---\n\n**Ümumi xülasə:** 11 məhsul tam bitib, 8 məhsul mənfi qalıqdır (sistem xətası), 19 məhsul 1-3 gün ərzində bitəcək. **Dərhal təchizat sifarişi tövsiyə olunur.**",
+      "is_read": false,
+      "created_at": "2026-06-11T05:46:18.537442"
+    },
+    {
       "id": "a90682ee-e04e-4833-a93e-cb3b63ca173f",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
       "insight_type": "Gündəlik Təhlil",
@@ -15656,12 +18115,28 @@
       "created_at": "2026-06-09T21:08:14.063313"
     },
     {
+      "id": "f2bb1c3d-f024-49c0-9647-17324007c57c",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "insight_type": "Gündəlik Təhlil",
+      "content": "# 🚨 ANBAR VƏZİYYƏTİ - TƏCİLİ ANALİZ\n\n---\n\n## 1. NEGATİV QALIQ (KİMİAƏLƏRİN ÇATMAZLIGI)\n\nBu məhsullar **anbarın fiziki qalığından çoxdur** — bu ya **səhv qeydiyyat** ya da **çatmayan məhsuldur**. Tələb olunan tədbiq:\n\n| Məhsul | Negativ Qalıq | Təklif |\n|---|---|---|\n| Qapaq İsti (Böyük) | **-247.000 ƏDƏD** | 🔴 **Ən kritik!** Mütləq yoxlanış |\n| Portagal Turkiye | -12.000 ƏDƏD | 🔴 Təcili yoxlanış |\n| Jasmin çay | -8.000 ƏDƏD | 🔴 Təcili yoxlanış |\n| Kurasan | -2.000 ƏDƏD | 🟡 Yoxla |\n| Cinnabon Ağ | -2.000 ƏDƏD | 🟡 Yoxla |\n| Sirop Barinoff (Vanil) | -2.410 L | 🟡 Yoxla |\n| Stəkan Şəffaf (M) | -1.000 ƏDƏD | 🟡 Yoxla |\n| Çay | -0.770 ƏDƏD | 🟡 Yoxla |\n| Chai tea | -0.960 KQ | 🟡 Yoxla |\n\n> **⚡ TƏCİLİ:** Qapaq İsti -247.000 ədəd negativ qalıq **sistemin ən böyük xətasıdır**. Bu hər ehtimala görə **POS-da səhv çıxış qeydiyyatıdır**. Dərhal yoxlanmalıdır.\n\n---\n\n## 2. SIFIR QALIQ (TÜKƏNMİŞ) — TƏCİLİ YENİLƏMƏ LAZIMDIR\n\n| Məhsul | Qalıq | Təklif |\n|---|---|---|\n| Kişmişli Bulka | 0 | 🔴 Sifariş ver |\n| Urek bulka | 0 | 🔴 Sifariş ver |\n| Ekler | 0 | 🔴 Sifariş ver |\n| Shekerbura | 0 | 🔴 Sifariş ver |\n| Muffin | 0 | 🔴 Sifariş ver |\n| Puding | 0 | 🔴 Sifariş ver |\n| Yulaflı Kuki | 0 | 🔴 Sifariş ver |\n| Donut | 0 | 🔴 Sifariş ver |\n| Ağ Kuki | 0 | 🔴 Sifariş ver |\n| Mini kuki | 0 | 🔴 Sifariş ver |\n| Cinnabon karamel | 0 | 🔴 Sifariş ver |\n| Yumurta | 0.030 ƏDƏD | 🔴 Təxminən sıfır — sifariş ver |\n\n> **⚡ 11 məhsul tam tükənib.** Xüsusilə **bulka, ekler, kuki, donut, puding** kateqoriyaları müştəri tələbatı olan məhsullardır — **gün ərzində sifariş verilməlidir.**\n\n---\n\n## 3. AŞAĞI QALIQ — 24-48 SAAT ƏRZİNDƏ TÜKƏNƏCƏK\n\n| Məhsul | Qalıq | Təklif |\n|---|---|---|\n| Milla Qaymaq 26% | 0.090 L | 🔴 Dərhal sifariş |\n| Tac Şəkər Tozu | 0.980 KQ | 🔴 Sifariş ver |\n| Topping Chocolate PS | 0.500 L | 🔴 Sifariş ver |\n| Kakao | 0.980 KQ | 🔴 Sifariş ver |\n| Dondurma (Vanil) | 0.700 L | 🔴 Sifariş ver |\n| Badam sudu | 0.900 L | 🔴 Sifariş ver |\n| Latina Blend Coffee | 0.374 KQ | 🔴 Sifariş ver |\n| Sirop Barinoff (Fındıq) | 1.000 L | 🟡 Sifariş planla |\n| Sirop Barinoff (Kuki) | 1.000 L | 🟡 Sifariş planla |\n| Sirop Barinoff (Şəkər) | 1.000 L | 🟡 Sifariş planla |\n| Sirop Barinoff (Marakuya) | 1.000 L | 🟡 Sifariş planla |\n| Dom qaymaq 10% | 1.660 L | 🟡 Sifariş planla |\n| Laktossuz sud | 1.700 L | 🟡 Sifariş planla |\n| Dondurma (Kofe) | 1.250 L | 🟡 Sifariş planla |\n| Chocolate Powder | 1.200 KQ | 🟡 Sifariş planla |\n\n---\n\n## 4. BİTMƏK ÜZRƏ OLAN MƏHSULLAR (AŞAĞI QALIQ)\n\n| Məhsul | Qalıq | Risk |\n|---|---|---|\n| Sirop Barinoff (Fındıq) | 1.000 L | 🟠 Bitmək üzrə |\n| Sirop Barinoff (Kuki) | 1.000 L | 🟠 Bitmək üzrə |\n| Sirop Barinoff (Şəkər) | 1.000 L | 🟠 Bitmək üzrə |\n| Sirop Barinoff (Marakuya) | 1.000 L | 🟠 Bitmək üzrə |\n| Sirop Barinoff (Kakos) | 2.000 L | 🟠 Nəzərə alınmalı |\n| Sirop Barinoff (Şokolad) | 2.000 L | 🟠 Nəzərə alınmalı |\n| Sirop Barinoff (Mango) | 2.000 L | 🟠 Nəzərə alınmalı |\n| Sirop Barinoff (Vişnə) | 2.000 L | 🟠 Nəzərə alınmalı |\n| Sirop Barinoff (Karamel) | 3.000 L | 🟡 Yaxşı |\n| Thermos Emalatkhana | 3.000 ƏDƏD | 🟡 Yaxşı |\n| Tutacaq Karton (1-li) | 9.000 ƏDƏD | 🟢 Təminatlı |\n| Fuse Tea Shaftali | 2.000 ƏDƏD | 🟡 Nəzərə alınmalı |\n| Limon | 2.000 ƏDƏD | 🟡 Nəzərə alınmalı |\n| Alma Storinared | 10.000 ƏDƏD | 🟢 Təminatlı |\n| Kətə | 2.000 ƏDƏD | 🟡 Nəzərə alınmalı |\n| Reklam Lövhəsi | 1.000 ƏDƏD | 🟠 Az |\n| Sirab qazsız 330 şüşə | 8.000 ƏDƏD | 🟢 Təminatlı |\n| Sokolad Yagi | 2.250 KQ | 🟡 Nəzərə alınmalı |\n| Elcek | 1.000 ƏDƏD | 🟠 Az |\n| çiyelek dondurma | 2.000 KQ | 🟡 Nəzərə alınmalı |\n| RedBull | 8.000 ƏDƏD | 🟢 Təminatlı |\n| Dondurma (Çiyələk) | 3.000 L | 🟡 Yaxşı |\n| Un | 2.000 KQ | 🟡 Nəzərə alınmalı |\n| Pitcher | 1.000 ƏDƏD | 🟠 Az |\n| Schweppes | 9.000 ƏDƏD | 🟢 Təminatlı |\n| Stakan Şüşə | 6.000 ƏDƏD | 🟢 Təminatlı |\n| Fuse Tea Limon | 4.000 ƏDƏD | 🟢 Təminatlı |\n| Coca Cola | 9.000 ƏDƏD | 🟢 Təminatlı |\n| banan | 2.000 ƏDƏD | 🟡 Nəzərə alınmalı |\n| Sprite | 5.000 ƏDƏD | 🟢 Təminatlı |\n| Sade kuki | 8.020 ƏDƏD | 🟢 Təminatlı |\n| Şokoladlı Kuki | 2.000 ƏDƏD | 🟡 Nəzərə alınmalı |\n| Krem Şanti (President) | 2.840 ƏDƏD | 🟡 Yaxşı |\n| Fanta | 4.000 ƏDƏD | 🟢 Təminatlı |\n| fuse tea plastik | 3.000 ƏDƏD | 🟡 Yaxşı |\n| Paxlava | 1.000 ƏDƏD | 🟠 Az |\n| Sekerbura | 1.000 ƏDƏD | 🟠 Az |\n| Sade bulka | 1.000 ƏDƏD | 🟠 Az |\n| Tip Box | 1.000 ƏDƏD | 🟠 Az |\n| tonic | 3.000 ƏDƏD | 🟡 Yaxşı |\n| sokalad tozu | 1.000 KQ | 🟠 Az |\n| FuseTea | 3.000 ƏDƏD | 🟡 Yaxşı |\n| Oreo | 1.000 ƏDƏD | 🟠 Az |\n| simit | 1.000 ƏDƏD | 🟠 Az |\n| Ekler dolgulu | 1.000 ƏDƏD | 🟠 Az |\n| cappy | 10.000 ƏDƏD | 🟢 Təminatlı |\n| Milla Sud 3.2% | 4.810 L | 🟢 Təminatlı |\n| sirab qazli plastik | 9.800 ƏDƏD | 🟢 Təminatlı |\n| sirab 330 | 8.000 ƏDƏD | 🟢 Təminatlı |\n| Sirab qazlı 330 şüşə | 6.000 ƏDƏD | 🟢 Təminatlı |\n| Cinnabon sokalad | 2.000 ƏDƏD | 🟡 Nəzərə alınmalı |\n| Sirab plastik | 9.000 ƏDƏD | 🟢 Təminatlı |\n\n---\n\n## 5. ÜMUMİ TƏKLİFLƏR\n\n### 🔴 TƏCİLİ (Bu gün):\n1. **Qapaq İsti -247.000** negativ qalığı dərhal düzəlt — POS xətası yoxla\n2. **11 sıfır qalıqlı məhsul** üçün sifariş ver (xüsusilə un məhsulları, puding, donut)\n3. **Milla Qaymaq 26% (0.090 L)** — dərhal sifariş\n\n### 🟡 48 SAAT ƏRZİNDƏ:\n4. **Barinoff sirop** çeşidlərində 4-ədəd 1.000 L qalıqlı var — sifariş planla\n5. **Dondurma növləri** (Vanil 0.700 L, Kofe 1.250 L) — sifariş ver\n6. **Badam sudu, Kakao, Şəkər tozu** — sifariş ver\n\n### 🟢 ÜMUMİ DİQQƏT:\n7. **Karton/qab-qacaq** (Tutacaq Karton 9.000, Tip Box 1.000) — Tip Box azdır, planla\n8. **İçkilər ümumilə yaxşı təminatlıdır** (Coca Cola, Sprite, Fanta, Schweppes, Sirab)\n9. **Krem Şanti 2.840 ədəd** — nəzərə alınmalı, az qalma ehtimalı var\n\n---\n\n> **📊 XÜLASƏ:** 63 məhsuldan **11-i sıfır**, **8-i negativ qalıqlı**, **təxminən 15-i 24-48 saat ərzində tükənəcək.** Ən kritik problem **Qapaq İsti -247.000 negativ qalığıdır** — bu POS sisteminin ciddi xətasıdır.",
+      "is_read": false,
+      "created_at": "2026-06-11T05:47:27.673063"
+    },
+    {
       "id": "d15ad26a-7b61-42c5-9093-48e6eedaa794",
       "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
       "insight_type": "Gündəlik Təhlil",
       "content": "# 🚨 İRONWAVES POS — ANBAR XƏBƏRDARLIQ HESABATI\n\n## ⚠️ KRİTİK: SIFIR VƏ MƏNFİ QALIQ (Dərhal hərəkət tələb edir)\n\n| Məhsul | Qeyri-adekvat qaliq | Status |\n|---|---|---|\n| **Qapaq İsti (Böyük)** | **-212.000 ƏDƏD** | 🔴 AĞIR UÇOT SİSTEM XƏTASI və ya çatışmazlıq |\n| **Holder L** | **-116.000 ƏDƏD** | 🔴 AĞIR UÇOT SİSTEM XƏTASI və ya çatışmazlıq |\n| **Portagal Turkiye** | **-12.000 ƏDƏD** | 🔴 Uçot xətası və ya oğurluq/inventar itkisi |\n| **Jasmin çay** | **-8.000 ƏDƏD** | 🔴 Uçot xətası |\n| **Cinnabon Ag** | **-2.000 ƏDƏD** | 🔴 Uçot xətası |\n| **Kurasan** | **-2.000 ƏDƏD** | 🔴 Uçot xətası |\n| **Sirop Barinoff (Vanil)** | **-1.810 L** | 🔴 Uçot xətası |\n| **cay** | **-0.850 ƏDƏD** | 🔴 Uçot xətası |\n| **chai tea** | **-0.620 KQ** | 🔴 Uçot xətası |\n| **Holder S** | **0.000 ƏDƏD** | ⚠️ Sıfır — sifariş verilməlidir |\n| **Ekler** | **0.000 ƏDƏD** | ⚠️ Sıfır |\n| **Muffin** | **0.000 ƏDƏD** | ⚠️ Sıfır |\n| **Puding** | **0.000 ƏDƏD** | ⚠️ Sıfır |\n| **Oreo** | **0.000 ƏDƏD** | ⚠️ Sıfır |\n| **Mini kuki** | **0.000 ƏDƏD** | ⚠️ Sıfır |\n| **Yulaflı Kuki** | **0.000 ƏDƏD** | ⚠️ Sıfır |\n| **Donut** | **0.000 ƏDƏD** | ⚠️ Sıfır |\n| **Ağ Kuki** | **0.000 ƏDƏD** | ⚠️ Sıfır |\n| **banan** | **0.000 ƏDƏD** | ⚠️ Sıfır |\n| **Shekerbura** | **0.000 ƏDƏD** | ⚠️ Sıfır |\n| **Urek bulka** | **0.000 ƏDƏD** | ⚠️ Sıfır |\n| **Kişmişli Bulka** | **0.000 ƏDƏD** | ⚠️ Sıfır |\n| **Yumurta** | **0.030 ƏDƏD** | 🔴 Təxminən bitib |\n| **Dondurma (Vanil)** | **0.100 L** | 🔴 Təxminən bitib |\n| **Milla Qaymaq 26%** | **0.090 L** | 🔴 Təxminən bitib |\n| **Tac Şəkər Tozu** | **0.980 KQ** | 🔴 Təxminən bitib |\n| **Badam sudu** | **0.900 L** | 🔴 Təxminən bitib |\n| **Latina Blend Coffee** | **0.630 KQ** | 🔴 Təxminən bitib |\n| **Topping Chocolate PS** | **0.500 L** | 🔴 Təxminən bitib |\n| **kakao** | **0.980 KQ** | 🔴 Təxminən bitib |\n| **Chocolate Powder** | **1.410 KQ** | 🔴 Çox az |\n| **Milla Sud 3.2%** | **1.510 L** | 🔴 Çox az |\n| **Laktossuz sud** | **1.700 L** | 🔴 Az |\n\n---\n\n## 📊 BİZNES VƏ ƏMƏLİYYAT MƏSLƏHƏTLƏRİ\n\n### 1. DƏRHAL İCABAT TƏLƏB EDƏN (Bu gün-bu həftə):\n- **Qapaq İsti (Böyük)** və **Holder L** məfi qalıqlar sistemdə kritik uçot uyğunsuzluğunu göstərir. **Dərhal fiziki sayım (inventarizasiya) aparılmalıdır.** Bu məbləğlər obyektin gündəlik satış həcmini nəzərə aldıqda sistemin xətası və ya ciddi inventar itkisi ola bilər.\n- **Yumurta (0.030), Dondurma Vanil (0.100 L), Milla Qaymaq (0.090 L)** — bu məhsullar artıq praktik olaraq bitib, menyunun işləməsinə mane olur.\n\n### 2. SİROP BARİNOFF XƏTTINA DİQQƏT:\n- 9 çeşidin hamısında az qalıq var, **Vanil isə məfi qalıqdadır**. Bu, ya təchizat zəncirində problem, ya da satış proqramında (POS) məhsulun düzgün çıxışının qeyd edilməməsini göstərir. **Təchizatçı ilə əlaqə saxlayın və ehtiyat minimumlarını yenidən təyin edin.**\n\n### 3. MƏHSUL ÇEŞİDLƏNDİRMƏ STRATEJİYASI:\n- **Cinnabon** məhsullarında (Ag: -2.000, sokalad: 2.000, karamel: 1.000) qarışıq tablo var. Cinnabon Ag məfi qalıqdır — bu, satışın qeyd edilməməsi və ya geri qaytarma əməliyyatı ola bilər. **Cinnabon çeşidləri üçün ayrıca inventarizasiya aparın.**\n- **Kurasan (-2.000)** məfi qalıqdır — eyni analiz tətbiq olunmalıdır.\n\n### 4. SİSTEM/UÇOT AUDİTİ:\n- **7 məhsul məfi qalıqdadır.** Bu, POS sistemində uçot qaydalarının yoxlanması lazım olduğunu göstərir. OWL agent olaraq **bütün məfi qalıqlı məhsullar üçün tranzaksiya tarixçəsini yoxlamağı** və **inventarizasiya aktı** təqdim etməyi tövsiyə edir.\n\n### 5. SİFARİŞ PLANLAMASI (Yüksət prioritet):\n**Dərhal sifariş verilməli:** Holder S, Ekler, Muffin, Puding, Oreo, Donut, Ağ Kuki, Yulaflı Kuki, Mini kuki, banan, Shekerbura, Urek bulka, Kişmişli Bulka — **hamısı 0 qalıqlıdır.**\n**Növbəti 24 saat:** Sirop Barinoff (Fındıq, Kuki, Şəkər, Marakuya — hamısı 1.000 vahid və ya az), Dondurma Vanil, Yumurta, Badam sudu, Latina Coffee, kakao, Chocolate Powder.\n\n### 6. MALİYYƏ TƏHLİLİ:\n- Məfi qalıqlar balansı pozur. **Qapaq İsti (-212.000) və Holder L (-116.000)** real olaraq maliyyə hesablarında ciddi səhvə səbəb olur. Düzəldilməzsə, aylıq gəlir-xərc hesabları əhəmiyyətli dərəcədə şişəcək.\n\n---\n\n**XÜLASə:** Obyektin anbar idarəetməsində sistemli problemlər var. Əvvəlcə inventarizasiya, sonra təchizat sifarişi, daha sonra POS uçot parametrlərinin yoxlanılması tövsiyə olunur.",
       "is_read": false,
       "created_at": "2026-06-06T11:28:23.404549"
+    },
+    {
+      "id": "9a85b26c-b55b-4978-a0ef-d3932e445931",
+      "tenant_id": "6e2c0d4c-6fab-4e49-8f9d-2d675457c655",
+      "insight_type": "Gündəlik Təhlil",
+      "content": "# 🚨 ANBAR ANALİZİ — TƏCİLİ MƏSLƏHƏTLƏR\n\n---\n\n## 1. NEGATİV QALIQ (Kritik — Dərhal müdaxilə)\n\n| Məhsul | Qaliq | Problem |\n|---|---|---|\n| **Qapaq İsti (Böyük)** | **-247.000 ƏDƏD** | ⚠️ Ağır qırmızı xəbərdarlıq — inventar səhvi və ya oğurluq şübhəsi |\n| **Portagal Turkiye** | -12.000 ƏDƏD | Negativ qaliq — sistem uyğunsuzluğu |\n| **Jasmin çay** | -8.000 ƏDƏD | Eyni problem |\n| **Sirop Barinoff (Vanil)** | -2.410 L | Eyni problem |\n| **Kurasan** | -2.000 ƏDƏD | Eyni problem |\n| **Cinnabon Ağ** | -2.000 ƏDƏD | Eyni problem |\n| **Stəkan Şəffaf (M)** | -1.000 ƏDƏD | Kiçik miqyas |\n\n**Təklif:** Dərhal **inventar sayımı** aparın. -247.000 ədəd qapaq istinin negativ göstərilməsi ehtimal ki, ya **səhv sifariş/çıxış qeydi**, ya da **sistemdə kod səhvi** var. Bu məsələ həll olunmadan digər hesablanmalar etibarsızdır.\n\n---\n\n## 2. SIFIR QALIQ (Tükənmə — Sifariş verilməli)\n\n| Məhsul | Növ |\n|---|---|\n| Kişmişli Bulka | Xammal |\n| Urek bulka | Xammal |\n| Ekler | Hazır məhsul |\n| Yumurta (0.030 ƏDƏD) | Xammal — təxminən 0 |\n| Shekerbura | Hazır məhsul |\n| Muffin | Hazır məhsul |\n| Puding | Hazır məhsul |\n| Yulaflı Kuki | Hazır məhsul |\n| Donut | Hazır məhsul |\n| Ağ Kuki | Hazır məhsul |\n| Mini kuki | Hazır məhsul |\n| Cinnabon karamel | Hazır məhsul |\n\n**Təklif:** **Bulka, ekler, kuki, donut, puding** kateqoriyaları tam tükənib — bu satış gəlirinə birbaşa təsir edir. **24 saat ərzində təcili sifariş** verin. Yumurta da praktik olaraq sıfırdır — daxil edin.\n\n---\n\n## 3. AŞAĞI QALIQ (Risk zonası — 1-3 gün ərzində tükənə bilər)\n\n| Məhsul | Qaliq | Qeyd |\n|---|---|---|\n| **Milla Qaymaq 26%** | 0.090 L | Dərhal sifariş |\n| **Tac Şəkər Tozu** | 0.980 KQ | 1 kq altında |\n| **Kakao** | 0.980 KQ | 1 kq altında |\n| **Topping Chocolate PS** | 0.500 L | Yarı litr |\n| **Badam sudu** | 0.900 L | 1 litr altında |\n| **Latina Blend Coffee** | 0.374 KQ | Çox aşağı |\n| **Dondurma (Vanil)** | 0.700 L | Aşağı qaliq |\n| **Çay** | -0.770 ƏDƏD | Negativ — səhv qeyd |\n| **Chai tea** | -0.960 KQ | Negativ — səhv qeyd |\n\n**Təklif:** Qaymaq, kakao, şəkər tozu, badam sudu, coffee — hamısı **təcili sifariş** siyahısına qoyulmalıdır. Çay və chai tea negativ qalıqları sistem səhvlidir, düzəldin.\n\n---\n\n## 4. BARİNOFF SIROP ÇEŞİDLƏRİ XÜLASƏ\n\n| Çeşid | Qalıq (L) | Status |\n|---|---|---|\n| Kakos | 2.000 | ✅ Orta |\n| Karamel | 3.000 | ✅ Yaxşı |\n| Şokolad | 2.000 | ✅ Orta |\n| Fındıq | 1.000 | ⚠️ Aşağı |\n| Kuki | 1.000 | ⚠️ Aşağı |\n| Şəkər | 1.000 | ⚠️ Aşağı |\n| Mango | 2.000 | ✅ Orta |\n| Marakuya | 1.000 | ⚠️ Aşağı |\n| Vişnə | 2.000 | ✅ Orta |\n| **Vanil** | **-2.410** | 🚨 **Negativ** |\n\n**Təklif:** Fındıq, Kuki, Şəkər, Marakuya — 1000 L ilə maksimum səviyyədədir. **Vanil** negativdir — bu, ən çox satılan çeşid ola bilər, dərhal yeniləmə lazımdır. **Fındıq və Karamel** üçün növbəti partiya sifarişini planlaşdırın.\n\n---\n\n## 5. İÇMƏLİ QALIQ XÜLASƏ (İsti içkilər)\n\n| Marka | Qalıq | Status |\n|---|---|---|\n| Coca Cola | 9.000 ƏDƏD | ✅ Yaxşı |\n| Fanta | 4.000 ƏDƏD | ✅ Orta |\n| Sprite | 5.000 ƏDƏD | ✅ Yaxşı |\n| Schweppes | 9.000 ƏDƏD | ✅ Yaxşı |\n| RedBull | 8.000 ƏDƏD | ✅ Yaxşı |\n| Cappy | 10.000 ƏDƏD | ✅ Yaxşı |\n| Tonic | 3.000 ƏDƏD | ⚠️ Orta-aşağı |\n| Sirab qazsız 330 | 8.000 ƏDƏD | ✅ Yaxşı |\n| Sirab qazlı 330 | 6.000 ƏDƏD | ✅ Yaxşı |\n| Sirab qazlı plastik | 9.800 ƏDƏD | ✅ Yaxşı |\n| Sirab plastik | 9.000 ƏDƏD | ✅ Yaxşı |\n| Fuse Tea Şaftali | 2.000 ƏDƏD | ⚠️ Aşağı |\n| Fuse Tea Limon | 4.000 ƏDƏD | ✅ Orta |\n| Fuse Tea (digər) | 3.000 ƏDƏD | ⚠️ Orta-aşağı |\n| Milla Sud 3.2% | 4.810 L | ✅ Orta |\n| Laktossuz sud | 1.700 L | ⚠️ Aşağı |\n\n**Təklif:** Əksər içkilər yaxşı səviyyədədir. **Fuse Tea Şaftali (2.000)** və **Laktossuz sud (1.700 L)** növbəti sifarişə əlavə edin.\n\n---\n\n## 6. QAB-QAPAQ MATERİALLARI\n\n| Məhsul | Qalıq | Status |\n|---|---|---|\n| Tutacaq Karton (1-li) | 9.000 ƏDƏD | ✅ Yaxşı |\n| Stakan Şüşə | 6.000 ƏDƏD | ✅ Yaxşı |\n| Pitcher | 1.000 ƏDƏD | ⚠️ Aşağı |\n| Tip Box | 1.000 ƏDƏD | ⚠️ Aşağı |\n| Reklam Lövhəsi | 1.000 ƏDƏD | ⚠️ Aşağı |\n| Elcek | 1.000 ƏDƏD | ⚠️ Aşağı |\n| **Qapaq İsti (Böyük)** | **-247.000** | 🚨 Kritik |\n| Thermos Emalatkhana | 3.000 ƏDƏD | ✅ Orta |\n\n**Təklif:** Qab-qapaq üçün xüsusi tələbat yoxdur, amma **Qapaq İsti** problemi həll olunmalıdır.\n\n---\n\n## 7. DONDURMA XÜLASƏ\n\n| Növ | Qalıq | Status |\n|---|---|---|\n| Çiyələk dondurma | 2.000 KQ | ✅ Orta |\n| Dondurma (Çiyələk) | 3.000 L | ✅ Yaxşı |\n| Dondurma (Kofe) | 1.250 L | ⚠️ Aşağı |\n| Dondurma (Vanil) | 0.700 L | 🚨 Çox aşağı |\n\n**Təklif:** **Vanil dondurma (0.700 L)** dərhal sifariş lazımdır. Kofe dondurma da aşağıdır — planlaşdırma edin.\n\n---\n\n## 📋 ÜMUMİ TƏCİLİ HƏRƏKƏTLƏR SİYAHISI\n\n| Prioritet | Hərəkət | Mövcud |\n|---|---|---|\n| 🚨 **1** | Qapaq İsti (-247K) səhvinin araşdırılması | Dərhal |\n| 🚨 **2** | Negativ qalıqların hamısının düzəldilməsi | Dərhal |\n| 🚨 **3** | Sıfır qalıqlı məhsulların sifarişi | 24 saat |\n| ⚠️ **4** | Vanil sirop, Vanil dondurma, Qaymaq, Kakao sifarişi | 48 saat |\n| ⚠️ **5** | Barinoff sirop (Fındıq/Kuki/Şəkər/Marakuya) sifarişi | 1 həftə |\n| ✅ **6** | Məhsul çeşidlərini satış sürətinə görə yenidən qruplaşdırmaq | 1 həftə |\n\n---\n\n**Qeyd:** Bu anbarda cəmi **10 məhsulda negativ qalıq** var — bu, POS sisteminin inventar modulunda sistemli problem olduğunu göstərir. **Mühasibat və IT şöbəsi ilə əlaqə saxlayaraq** inventar uyğunsuzluqlarını həll etməyiniz tövsiyə olunur.",
+      "is_read": false,
+      "created_at": "2026-06-11T06:50:15.842285"
     },
     {
       "id": "4f06ca95-0cb8-4dbe-b738-f2d2a8a3015d",
