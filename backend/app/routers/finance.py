@@ -2054,10 +2054,17 @@ def transfer(payload: TransferIn, db: Session = Depends(get_db), tenant: Tenant 
     source, target = direction_map[payload.direction]
     _lock_finance_accounts(db, tenant.id, source, target)
     commission = Decimal("0")
-    commission_cfg = _setting_value(db, tenant.id, "bank_commission", {"card_transfer_percent": 0.5})
-    card_transfer_percent = Decimal(str(commission_cfg.get("card_transfer_percent", 0.5) or 0.5))
     if payload.direction in {"card_to_cash", "card_to_debt"}:
-        commission = (amount * (card_transfer_percent / Decimal("100"))).quantize(Decimal("0.01"))
+        if tenant.id == "6e2c0d4c-6fab-4e49-8f9d-2d675457c655":
+            # Apply custom bank tiered transfer commission rule for Emalat Coffee
+            if amount <= Decimal("100"):
+                commission = Decimal("0.60")
+            else:
+                commission = (amount * Decimal("0.005")).quantize(Decimal("0.01"))
+        else:
+            commission_cfg = _setting_value(db, tenant.id, "bank_commission", {"card_transfer_percent": 0.5})
+            card_transfer_percent = Decimal(str(commission_cfg.get("card_transfer_percent", 0.5) or 0.5))
+            commission = (amount * (card_transfer_percent / Decimal("100"))).quantize(Decimal("0.01"))
 
     bal = _wallet_balance(db, tenant.id, source)
     if bal < amount + commission:
