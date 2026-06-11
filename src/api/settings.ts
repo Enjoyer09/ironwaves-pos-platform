@@ -2099,16 +2099,4 @@ export async function run_central_backup_now_live(): Promise<any> {
   });
 }
 
-export async function manual_restore_balances_live(payload: {
-  cash_target: number;
-  card_target: number;
-}) {
-  if (!isBackendEnabled()) {
-    return { success: false, message: 'Backend aktiv deyil' };
-  }
-  return apiRequest<{ success: boolean; message: string }>('/api/v1/finance/manual-restore', {
-    method: 'POST',
-    tenantId: null,
-    body: payload,
-  });
-}
+
