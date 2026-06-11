@@ -970,3 +970,70 @@ def replace_recipe(
 
     db.commit()
     return {"success": True, "count": len(payload.ingredients)}
+
+
+@router.post("/clear-inventory")
+def clear_inventory(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_catalog_write_access(user)
+    if user.role not in {"admin", "super_admin", "finance_admin"}:
+        raise HTTPException(status_code=403, detail="Yalnız adminlər üçün icazəlidir")
+
+    inventory_deleted = db.query(InventoryItem).filter(InventoryItem.tenant_id == tenant.id).delete()
+
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="CATALOG_CLEAR_INVENTORY",
+            details=json.dumps(
+                {
+                    "inventory_deleted": inventory_deleted,
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    db.commit()
+    return {
+        "success": True,
+        "message": f"Uğurla silindi: {inventory_deleted} anbar məhsulu.",
+        "inventory_deleted": inventory_deleted,
+    }
+
+
+@router.post("/clear-recipes")
+def clear_recipes(
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_catalog_write_access(user)
+    if user.role not in {"admin", "super_admin", "finance_admin"}:
+        raise HTTPException(status_code=403, detail="Yalnız adminlər üçün icazəlidir")
+
+    recipes_deleted = db.query(Recipe).filter(Recipe.tenant_id == tenant.id).delete()
+
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user=user.username,
+            action="CATALOG_CLEAR_RECIPES",
+            details=json.dumps(
+                {
+                    "recipes_deleted": recipes_deleted,
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    db.commit()
+    return {
+        "success": True,
+        "message": f"Uğurla silindi: {recipes_deleted} resept.",
+        "recipes_deleted": recipes_deleted,
+    }
+

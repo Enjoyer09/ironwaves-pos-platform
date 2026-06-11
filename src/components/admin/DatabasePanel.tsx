@@ -35,6 +35,52 @@ export default function DatabasePanel() {
   const [busyMessage, setBusyMessage] = useState('');
   const [liveRestoreStatus, setLiveRestoreStatus] = useState<RestoreLiveStatus | null>(null);
   const [forceLocalMode, setForceLocalModeState] = useState(() => isForceLocalMode());
+  const [clearActionType, setClearActionType] = useState<'inventory' | 'recipes' | null>(null);
+  const [isClearing, setIsClearing] = useState(false);
+
+  const handleClearAction = async () => {
+    if (!clearActionType) return;
+    try {
+      if (!(await verifyAdminPassword())) {
+        notify('error', tx(lang, 'Şifrə yanlışdır', 'Неверный пароль'));
+        return;
+      }
+      setIsClearing(true);
+      const { clear_inventory_live, clear_recipes_live } = await import('../../api/inventory');
+      
+      if (clearActionType === 'inventory') {
+        await clear_inventory_live(tenant_id, user?.username || 'admin');
+        notify(
+          'success',
+          tx(
+            lang,
+            'Bütün anbar məhsulları uğurla təmizləndi.',
+            'Все товары склада успешно очищены.',
+            'All inventory items successfully cleared.'
+          )
+        );
+      } else {
+        await clear_recipes_live(tenant_id, user?.username || 'admin');
+        notify(
+          'success',
+          tx(
+            lang,
+            'Bütün reseptlər uğurla təmizləndi.',
+            'Все рецепты успешно очищены.',
+            'All recipes successfully cleared.'
+          )
+        );
+      }
+      
+      setClearActionType(null);
+      setAdminPassword('');
+      window.setTimeout(() => window.location.reload(), 800);
+    } catch (error: any) {
+      notify('error', error?.message || tx(lang, 'Xəta baş verdi', 'Произошла ошибка'));
+    } finally {
+      setIsClearing(false);
+    }
+  };
 
   const [isSuperTenant, setIsSuperTenant] = useState(false);
   const [backupSettings, setBackupSettings] = useState({
@@ -789,6 +835,114 @@ export default function DatabasePanel() {
           </div>
         )}
       </div>
+
+      {/* Dangerous/Maintenance Actions Section */}
+      <div className="metal-panel p-6 border-rose-500/30 bg-rose-950/5">
+        <h2 className="text-xl font-bold flex items-center gap-3 text-rose-300">
+          <span className="text-rose-500">⚠️</span>
+          {tx(lang, 'Təhlükəli Əməliyyatlar (Təmizləmə)', 'Опасные операции (Очистка)', 'Dangerous Actions (Cleanup)')}
+        </h2>
+        <p className="mt-2 text-sm text-slate-300">
+          {tx(
+            lang,
+            'Bu bölmədəki əməliyyatlar geri qaytarıla bilməz. Zəhmət olmasa diqqətli olun.',
+            'Операции в этом разделе необратимы. Пожалуйста, будьте осторожны.',
+            'Operations in this section are irreversible. Please be careful.'
+          )}
+        </p>
+
+        <div className="mt-5 flex flex-wrap gap-3">
+          <button
+            onClick={() => setClearActionType('inventory')}
+            className="rounded-xl border border-rose-500/50 bg-rose-500/10 px-5 py-3 font-bold text-rose-200 hover:bg-rose-500/25 active:scale-98"
+          >
+            {tx(lang, 'Bütün Anbarı Sil', 'Очистить весь Склад', 'Clear All Inventory')}
+          </button>
+          <button
+            onClick={() => setClearActionType('recipes')}
+            className="rounded-xl border border-rose-500/50 bg-rose-500/10 px-5 py-3 font-bold text-rose-200 hover:bg-rose-500/25 active:scale-98"
+          >
+            {tx(lang, 'Bütün Reseptləri Sil', 'Очистить все Рецепты', 'Clear All Recipes')}
+          </button>
+        </div>
+      </div>
+
+      {/* Red Warning/Confirmation Modal */}
+      {clearActionType && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="metal-panel w-full max-w-md border-rose-500 p-6 shadow-2xl shadow-rose-950/50">
+            <div className="mb-4 flex items-center gap-3 text-rose-400">
+              <span className="text-3xl">⚠️</span>
+              <h3 className="text-lg font-black uppercase tracking-wider">
+                {tx(lang, 'Kritik Təsdiq', 'Критическое подтверждение', 'Critical Confirmation')}
+              </h3>
+            </div>
+            
+            <p className="text-sm text-slate-200 font-semibold leading-relaxed">
+              {clearActionType === 'inventory' ? (
+                tx(
+                  lang,
+                  'Diqqət! Bu əməliyyat cari restorana (tenant-a) aid BÜTÜN anbar məhsullarını və qalıqlarını birdəfəlik siləcək. Bu əməliyyat geri qaytarıla bilməz!',
+                  'Внимание! Эта операция навсегда удалит ВСЕ товары склада и остатки для текущего ресторана. Это действие необратимо!',
+                  'Warning! This operation will permanently delete ALL inventory items and balances for the current restaurant. This action is irreversible!'
+                )
+              ) : (
+                tx(
+                  lang,
+                  'Diqqət! Bu əməliyyat cari restorana (tenant-a) aid BÜTÜN reseptləri birdəfəlik siləcək. Bu əməliyyat geri qaytarıla bilməz!',
+                  'Внимание! Эта операция навсегда удалит ВСЕ рецепты для текущего ресторана. Это действие необратимо!',
+                  'Warning! This operation will permanently delete ALL recipes for the current restaurant. This action is irreversible!'
+                )
+              )}
+            </p>
+
+            <div className="mt-4 flex flex-col gap-2">
+              <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">
+                {tx(lang, 'Təsdiqləmək üçün admin şifrəsini yazın:', 'Введите пароль админа для подтверждения:', 'Enter admin password to confirm:')}
+              </label>
+              <input
+                type="password"
+                className="neon-input border-rose-900/50 focus:border-rose-500"
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter') {
+                    await handleClearAction();
+                  }
+                }}
+                placeholder={tx(lang, 'Admin şifrəsi', 'Пароль администратора', 'Admin password')}
+                disabled={isClearing}
+              />
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                className="neon-btn rounded-xl px-4 py-2.5 text-sm font-bold"
+                onClick={() => {
+                  setClearActionType(null);
+                  setAdminPassword('');
+                }}
+                disabled={isClearing}
+              >
+                {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
+              </button>
+              <button
+                className="rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-black text-white hover:bg-rose-500 active:scale-98 disabled:opacity-50"
+                onClick={handleClearAction}
+                disabled={isClearing || !adminPassword}
+              >
+                {isClearing 
+                  ? tx(lang, 'Silinir...', 'Удаление...', 'Clearing...') 
+                  : (
+                    clearActionType === 'inventory'
+                      ? tx(lang, 'HƏ, ANBARI SİL', 'ДА, УДАЛИТЬ СКЛАД', 'YES, DELETE INVENTORY')
+                      : tx(lang, 'HƏ, RESEPTLƏRİ SİL', 'ДА, УДАЛИТЬ РЕЦЕПТЫ', 'YES, DELETE RECIPES')
+                  )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isSuperTenant && (
         <div className="metal-panel p-6 space-y-6">
