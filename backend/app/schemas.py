@@ -211,6 +211,7 @@ class FinanceEntryIn(BaseModel):
     source: str
     amount: Decimal = Field(gt=0)
     description: str | None = None
+    include_bank_commission: bool = False
 
 
 class TransferIn(BaseModel):

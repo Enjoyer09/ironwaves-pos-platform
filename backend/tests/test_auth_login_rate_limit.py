@@ -7,7 +7,7 @@ from app.routers import auth
 
 
 def _fake_request(host: str = "127.0.0.1"):
-    return SimpleNamespace(client=SimpleNamespace(host=host))
+    return SimpleNamespace(client=SimpleNamespace(host=host), headers={})
 
 
 def test_login_attempts_lock_after_threshold(monkeypatch):
