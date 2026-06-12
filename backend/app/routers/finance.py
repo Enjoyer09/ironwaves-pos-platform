@@ -1962,9 +1962,21 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
         raise HTTPException(status_code=400, detail="Investor wallet can only be changed via dedicated investor flows")
 
     _lock_finance_accounts(db, tenant.id, payload.source)
+    commission = Decimal("0")
+    if payload.type == "out" and payload.source == "card" and getattr(payload, "include_bank_commission", False):
+        if tenant.id == "6e2c0d4c-6fab-4e49-8f9d-2d675457c655":
+            if amount <= Decimal("100"):
+                commission = Decimal("0.60")
+            else:
+                commission = (amount * Decimal("0.005")).quantize(Decimal("0.01"))
+        else:
+            commission_cfg = _setting_value(db, tenant.id, "bank_commission", {"card_transfer_percent": 0.5})
+            card_transfer_percent = Decimal(str(commission_cfg.get("card_transfer_percent", 0.5) or 0.5))
+            commission = (amount * (card_transfer_percent / Decimal("100"))).quantize(Decimal("0.01"))
+
     if payload.type == "out":
         bal = _wallet_balance(db, tenant.id, payload.source)
-        if bal < amount:
+        if bal < amount + commission:
             raise HTTPException(status_code=400, detail="Insufficient balance")
 
     category_label = _finance_category_label(payload.category, payload.category_code)
@@ -1998,6 +2010,19 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
         if posted_txn:
             mirror_rows = _mirror_posted_transaction_to_legacy_wallet(db, posted_txn, user.username)
 
+    if commission > 0:
+        _post_finance_transaction_with_legacy_mirror(
+            db,
+            tenant_id=tenant.id,
+            transaction_type="expense",
+            amount=commission,
+            source_code=payload.source,
+            destination_code="expense",
+            created_by=user.username,
+            category="Bank Komissiyası",
+            note=f"Komissiya: Xərc ödənişi ({amount} AZN)",
+        )
+
     entry_id = mirror_rows[0].id if mirror_rows else (posted_txn.id if posted_txn else None)
 
     db.add(
@@ -2009,8 +2034,9 @@ def create_entry(payload: FinanceEntryIn, db: Session = Depends(get_db), tenant:
                 {
                     "entry_id": entry_id,
                     "entry_type": virtual_row.type,
-                        "category": virtual_row.category,
-                        "category_code": _finance_category_code(virtual_row.category, payload.category_code),
+                    "category": virtual_row.category,
+                    "commission": str(commission),
+                    "category_code": _finance_category_code(virtual_row.category, payload.category_code),
                     "source": virtual_row.source,
                     "amount": str(amount.quantize(Decimal("0.01"))),
                     "ledger_transaction_id": posted_txn.id if posted_txn else None,

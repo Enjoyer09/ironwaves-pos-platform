@@ -282,7 +282,8 @@ export const create_finance_entry = (
   amount: string,
   source: 'cash' | 'card' | 'debt' | 'investor' | 'safe',
   description: string,
-  created_by: string
+  created_by: string,
+  include_bank_commission?: boolean
 ) => {
   const finances = getFinanceLocal(tenant_id);
   const amountDec = new Decimal(amount);
@@ -290,6 +291,19 @@ export const create_finance_entry = (
   const categoryLabel = financeCategoryLabelFromValue(category);
 
   validateFinanceEntryMatrix(type, categoryLabel, source);
+
+  let commission = new Decimal(0);
+  if (type === 'out' && source === 'card' && include_bank_commission) {
+    if (tenant_id === '6e2c0d4c-6fab-4e49-8f9d-2d675457c655') {
+      if (amountDec.lessThanOrEqualTo(100)) {
+        commission = new Decimal('0.60');
+      } else {
+        commission = amountDec.mul('0.005').toDecimalPlaces(2);
+      }
+    } else {
+      commission = amountDec.mul('0.005').toDecimalPlaces(2);
+    }
+  }
 
   if (type === 'out') {
     const balance = get_balance(tenant_id, 'all', false) as any;
@@ -301,7 +315,7 @@ export const create_finance_entry = (
       safe: new Decimal(balance.safe_balance || 0),
     };
     const available = sourceBalanceMap[source] || new Decimal(0);
-    if (available.lessThan(amountDec)) {
+    if (available.lessThan(amountDec.plus(commission))) {
       throw new Error('Balans kifayət etmir. Mənfi saldo əməliyyatı qadağandır.');
     }
   }
@@ -319,6 +333,20 @@ export const create_finance_entry = (
   };
 
   finances.push(entry);
+
+  if (commission.gt(0)) {
+    finances.push({
+      id: uuidv4(),
+      tenant_id,
+      type: 'out',
+      category: 'Bank Komissiyası',
+      amount: commission.toString(),
+      source: 'card',
+      description: `Komissiya: Xərc ödənişi (${amount} AZN)`,
+      created_at: now,
+      is_deleted: false,
+    });
+  }
 
   // Borrowed money coming IN from debt should be reflected in cash wallet too,
   // so operators can spend it from cash without losing traceability.
@@ -1453,11 +1481,12 @@ export const create_finance_entry_async = async (
   source: 'cash' | 'card' | 'debt' | 'investor' | 'safe',
   description: string,
   created_by: string,
+  include_bank_commission?: boolean,
 ) => {
   const categoryLabel = financeCategoryLabelFromValue(category);
   const categoryCode = financeCategoryCodeFromValue(category);
   if (!isBackendEnabled()) {
-    return create_finance_entry(tenant_id, type, categoryLabel, amount, source, description, created_by);
+    return create_finance_entry(tenant_id, type, categoryLabel, amount, source, description, created_by, include_bank_commission);
   }
 
   const data = await apiRequest<any>('/api/v1/finance/entry', {
@@ -1470,6 +1499,7 @@ export const create_finance_entry_async = async (
       source,
       amount,
       description,
+      include_bank_commission,
     },
   });
 

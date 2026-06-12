@@ -142,6 +142,7 @@ export default function FinancePanel() {
 
   const [type, setType] = useState<'in' | 'out'>('out');
   const [source, setSource] = useState<WalletSource>('cash');
+  const [includeBankCommission, setIncludeBankCommission] = useState(false);
   const [subject, setSubject] = useState('');
   const [subjectPresets, setSubjectPresets] = useState<string[]>(defaultSubjectPresets);
   const [newSubjectPreset, setNewSubjectPreset] = useState('');
@@ -1171,10 +1172,12 @@ export default function FinancePanel() {
         source,
         `${description}${subject ? ` | Subyekt: ${subject}` : ''}`,
         user?.username || 'admin',
+        includeBankCommission,
       );
       setAmount('');
       setDescription('');
       setSubject('');
+      setIncludeBankCommission(false);
       await reloadFinance();
       notify('success', tx(lang, 'Əməliyyat yazıldı', 'Операция сохранена', 'Entry saved'));
     } catch (e: any) {
@@ -1641,6 +1644,37 @@ export default function FinancePanel() {
           <FinanceField htmlForId="finance-entry-note" label={tx(lang, 'Qeyd', 'Комментарий', 'Note')} helper={isIncomeAction ? tx(lang, 'Pulun mənşəyini qısa izah edin.', 'Кратко поясните источник денег.', 'Briefly explain the source of funds.') : tx(lang, 'Xərcin qısa səbəbini yazın.', 'Кратко укажите причину расхода.', 'Briefly describe the expense.')}>
             <input id="finance-entry-note" className="neon-input min-h-13" value={description} onChange={(e) => setDescription(e.target.value)} />
           </FinanceField>
+        )}
+        {!isIncomeAction && source === 'card' && (
+          <div className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+            <input
+              id="include-bank-commission"
+              type="checkbox"
+              className="h-5 w-5 rounded border-slate-800 bg-slate-950 text-amber-500 focus:ring-0 focus:ring-offset-0"
+              checked={includeBankCommission}
+              onChange={(e) => setIncludeBankCommission(e.target.checked)}
+            />
+            <label htmlFor="include-bank-commission" className="flex flex-col cursor-pointer select-none">
+              <span className="text-sm font-black text-white">
+                {tx(lang, 'Bank komissiyası tutulsun', 'Удержать банковскую комиссию', 'Deduct bank commission')}
+              </span>
+              <span className="text-xs text-slate-400">
+                {tenant_id === '6e2c0d4c-6fab-4e49-8f9d-2d675457c655'
+                  ? tx(
+                      lang,
+                      '100 AZN-ə qədər 0.60 AZN sabit, yuxarı məbləğə isə 0.5% komissiya əlavə xərc kimi yazılacaq.',
+                      'До 100 AZN фиксированная комиссия 0.60 AZN, выше — 0.5% будет записана как дополнительный расход.',
+                      'Up to 100 AZN flat fee of 0.60 AZN, above — 0.5% commission will be posted as additional expense.'
+                    )
+                  : tx(
+                      lang,
+                      `Əlavə xərc kimi ${bankCommissionConfig.card_transfer_percent || 0.5}% komissiya yazılacaq`,
+                      `Комиссия ${bankCommissionConfig.card_transfer_percent || 0.5}% будет записана как дополнительный расход`,
+                      `A commission of ${bankCommissionConfig.card_transfer_percent || 0.5}% will be posted as an additional expense`
+                    )}
+              </span>
+            </label>
+          </div>
         )}
         {!isIncomeAction && (
           <FinanceField label={tx(lang, 'Yeni subyekt əlavə et', 'Новый preset контрагента', 'New counterparty preset')} helper={tx(lang, 'Təchizatçı və digər subyektləri tez seçmək üçün.', 'Чтобы быстро выбирать поставщиков и субъекты.', 'For quick supplier/counterparty selection.')}>

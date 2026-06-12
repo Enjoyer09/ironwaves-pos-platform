@@ -6,24 +6,55 @@ from app.routers import finance
 
 
 class _FakeQuery:
-    def __init__(self, rows):
-        self._rows = rows
+    def __init__(self, db_instance, entities, rows):
+        self.db_instance = db_instance
+        self.entities = entities
+        self.rows = rows
 
     def filter(self, *args, **kwargs):
         return self
 
+    def one(self):
+        sales = self.db_instance.sales_rows
+        sales_count_raw = len(sales)
+        revenue_raw = sum(r.total for r in sales)
+        cogs_recorded_raw = sum(r.cogs for r in sales if r.cogs is not None)
+        cogs_uncomputed_count_raw = sum(1 for r in sales if r.cogs is None)
+        cogs_uncomputed_revenue_raw = sum(r.total for r in sales if r.cogs is None)
+        return (
+            sales_count_raw,
+            revenue_raw,
+            cogs_recorded_raw,
+            cogs_uncomputed_count_raw,
+            cogs_uncomputed_revenue_raw,
+        )
+
     def all(self):
-        return self._rows
+        if any("items_json" in str(ent) for ent in self.entities):
+            return [SimpleNamespace(items_json=r.items_json) for r in self.db_instance.sales_rows if r.cogs is None]
+        return self.rows
+
+    def scalar(self):
+        return sum(Decimal(str(r.amount)) for r in self.db_instance.posted_txns if getattr(r, "transaction_type", "") == "expense")
 
 
 class _FakeDB:
     def __init__(self, query_rows):
-        self._query_rows = list(query_rows)
+        self.sales_rows = query_rows[0]
+        self.recipe_rows = query_rows[1]
+        self.inventory_rows = query_rows[2]
+        self.posted_txns = query_rows[3]
 
     def query(self, *args, **kwargs):
-        if not self._query_rows:
-            raise AssertionError("Unexpected extra query call")
-        return _FakeQuery(self._query_rows.pop(0))
+        arg_str = str(args[0]).lower()
+        if "recipe" in arg_str:
+            return _FakeQuery(self, args, self.recipe_rows)
+        elif "inventoryitem" in arg_str:
+            return _FakeQuery(self, args, self.inventory_rows)
+        elif "financetransaction" in arg_str:
+            return _FakeQuery(self, args, self.posted_txns)
+        else:
+            return _FakeQuery(self, args, self.sales_rows)
 
 
 def test_profit_loss_report_estimates_missing_cogs_from_recipe_inventory(monkeypatch):
