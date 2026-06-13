@@ -576,6 +576,8 @@ def get_sales_list(
                 "created_at": row.created_at.isoformat() if row.created_at else None,
                 "cashier": row.cashier,
                 "customer_card_id": row.customer_card_id,
+                "customer_stars_after": getattr(row, "customer_stars_after", 0) or 0,
+                "free_coffees_applied": getattr(row, "free_coffees_applied", 0) or 0,
                 "customer_type": None,
                 "original_total": str(original_total.quantize(Decimal("0.01"))),
                 "discount_amount": str(Decimal(str(row.discount_amount or 0)).quantize(Decimal("0.01"))),

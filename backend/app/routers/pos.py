@@ -565,6 +565,8 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         reward_claim_code=str(payload.reward_claim_code or "").strip().upper() or None,
         cogs=cogs_total.quantize(Decimal("0.0001")),
         items_json=json.dumps(sale_items_payload, ensure_ascii=False),
+        customer_stars_after=customer_stars_after if customer else 0,
+        free_coffees_applied=free_coffees if customer else 0,
         status="COMPLETED",
         created_at=datetime.utcnow(),
     )
@@ -709,6 +711,8 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
                         description=f"Cashback earn {cashback_percent}%",
                     )
                 )
+        if program_mode != "cashback":
+            sale.customer_stars_after = customer.stars
 
     db.commit()
 
@@ -718,6 +722,8 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         "receipt_token": receipt_token,
         "total": total,
         "created_at": sale.created_at,
+        "customer_stars_after": sale.customer_stars_after,
+        "free_coffees_applied": sale.free_coffees_applied,
     }
 
 
