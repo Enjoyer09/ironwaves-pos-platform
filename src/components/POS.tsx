@@ -7,7 +7,7 @@ import { useAppStore } from '../store';
 import { get_menu_for_pos, create_sale, calculate_total, calculate_staff_payable, save_sale_receipt_html_live } from '../api/pos';
 import { get_tables_live, send_to_kitchen_live, pay_table_live } from '../api/tables';
 import { get_shift_status, refresh_shift_status } from '../api/reports';
-import { getDB } from '../lib/db_sim';
+import { getDB, setDB } from '../lib/db_sim';
 import { i18n, tx } from '../i18n';
 import { get_business_profile, get_settings, get_settings_live } from '../api/settings';
 import { find_feedback_coupon_live, isFeedbackCouponCode, redeem_feedback_coupon_live } from '../api/feedback';
@@ -1217,6 +1217,19 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             tenantId: null,
             body: backendPayload,
           });
+          if (sale && ctx.customer) {
+            const customerStarsAfter = sale.customer_stars_after;
+            if (customerStarsAfter !== undefined && customerStarsAfter !== null) {
+              const localCustomers = getDB<any>(`${tenantId}_customers`) || [];
+              const updatedCustomers = localCustomers.map((c: any) => {
+                if (String(c.card_id || '') === String(ctx.customer?.card_id || '')) {
+                  return { ...c, stars: customerStarsAfter };
+                }
+                return c;
+              });
+              setDB(`${tenantId}_customers`, updatedCustomers);
+            }
+          }
         } catch (error: any) {
           if (!isRecoverableNetworkFailure(error)) {
             throw error;

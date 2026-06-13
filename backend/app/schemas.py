@@ -168,6 +168,8 @@ class SaleCreateOut(BaseModel):
     receipt_token: str | None = None
     total: Decimal
     created_at: datetime
+    customer_stars_after: int | None = None
+    free_coffees_applied: int | None = None
 
 
 class SaleReceiptHtmlIn(BaseModel):

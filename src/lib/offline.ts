@@ -1,5 +1,6 @@
 import { apiRequest, isBackendEnabled } from '../api/client';
 import { logEvent } from './logger';
+import { getDB, setDB } from './db_sim';
 
 const getDbName = () => {
   const host = typeof window !== 'undefined' ? window.location.host.toLowerCase().replace(/[^a-z0-9.-]/g, '_') : 'global';
@@ -341,11 +342,29 @@ export const syncPendingOfflineSales = async (tenantId: string) => {
 
     for (const row of pending) {
       try {
-        await apiRequest('/api/v1/pos/sale', {
+        const res = await apiRequest<any>('/api/v1/pos/sale', {
           method: 'POST',
           tenantId: null,
           body: row.payload,
         });
+
+        if (res && res.customer_stars_after !== undefined && res.customer_stars_after !== null) {
+          const cardId = (row.payload as any)?.customer_card_id;
+          if (cardId) {
+            try {
+              const localCustomers = getDB<any>(`${tenantId}_customers`) || [];
+              const updatedCustomers = localCustomers.map((c: any) => {
+                if (String(c.card_id || '') === String(cardId || '')) {
+                  return { ...c, stars: res.customer_stars_after };
+                }
+                return c;
+              });
+              setDB(`${tenantId}_customers`, updatedCustomers);
+            } catch {
+              // no-op
+            }
+          }
+        }
 
         await new Promise<void>((resolve, reject) => {
           const tx = db.transaction(SALES_STORE, 'readwrite');
