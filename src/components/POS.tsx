@@ -60,6 +60,7 @@ type CartContext = {
   customerQR: string;
   customer: any | null;
   discount: string;
+  discountReason: string;
   selectedTable: string;
   orderType: OrderType;
   cupMode: 'paper' | 'glass';
@@ -136,6 +137,7 @@ const defaultCtx: CartContext = {
   customerQR: '',
   customer: null,
   discount: '0',
+  discountReason: '',
   selectedTable: '',
   orderType: 'Take Away',
   cupMode: 'paper',
@@ -1149,6 +1151,19 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
 
     if (cart.length === 0) return;
 
+    if (parseFloat(ctx.discount || '0') > 0 && !ctx.discountReason?.trim()) {
+      notify(
+        'error',
+        tx(
+          safeLang,
+          'Maliyyə hesabatlığı üçün endirim səbəbini qeyd edin!',
+          'Укажите причину скидки для финансовой отчетности!',
+          'Please specify a discount reason for financial reporting!'
+        )
+      );
+      return;
+    }
+
       const splitCash = paymentMethod === 'Split' ? toDecimalSafe(splitCashInput || 0) : null;
     const splitCard = paymentMethod === 'Split' ? payableTotal.minus(splitCash || 0) : null;
     if (paymentMethod === 'Split') {
@@ -1177,6 +1192,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         }),
         payment_method: paymentMethod,
         discount_percent: effectiveDiscountPercent,
+        discount_reason: ctx.discountReason || null,
         order_type: ctx.orderType,
         customer_card_id: ctx.customer?.card_id || null,
         reward_claim_code: rewardClaimCodeForSale,
@@ -1203,6 +1219,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         customer_card_id: ctx.customer?.card_id || null,
         reward_claim_code: rewardClaimCodeForSale,
         discount_percent: effectiveDiscountPercent,
+        discount_reason: ctx.discountReason || null,
         is_eco_cup: false,
         is_test: false,
         split_cash: splitCash,
@@ -1786,6 +1803,34 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             disabled={hasClaimCode}
             className={`neon-input ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'} ${hasClaimCode ? 'opacity-60 cursor-not-allowed' : ''}`}
           />
+          {!hasClaimCode && (
+            <div className="grid grid-cols-4 gap-1.5 mt-1.5">
+              {['5', '10', '15', '20'].map((val) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => patchCtx({ discount: ctx.discount === val ? '0' : val })}
+                  className={`rounded-lg border py-1.5 text-[11px] font-semibold transition ${
+                    ctx.discount === val ? 'border-amber-300 bg-amber-500/20 text-amber-100 font-bold' : 'border-slate-700 bg-slate-800/40 text-slate-300 hover:bg-slate-700/50'
+                  }`}
+                >
+                  {val}%
+                </button>
+              ))}
+            </div>
+          )}
+          {parseFloat(ctx.discount || '0') > 0 && (
+            <div className="mt-2 space-y-1">
+              <input
+                type="text"
+                value={ctx.discountReason}
+                onChange={(e) => patchCtx({ discountReason: e.target.value })}
+                placeholder={tx(lang, 'Endirim səbəbi (məs. Müştəri məmnuniyyəti)', 'Причина скидки', 'Discount reason')}
+                className={`neon-input ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}
+                required
+              />
+            </div>
+          )}
           {hasClaimCode ? (
             <div className="text-[11px] text-amber-300">
               {tx(
@@ -2505,6 +2550,34 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                 className={`neon-input h-10 ${hasClaimCode ? 'cursor-not-allowed opacity-60' : ''}`}
                 placeholder={tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}
               />
+              {!hasClaimCode && (
+                <div className="grid grid-cols-4 gap-1.5 mt-1.5">
+                  {['5', '10', '15', '20'].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => patchCtx({ discount: ctx.discount === val ? '0' : val })}
+                      className={`rounded-lg border py-1.5 text-xs font-semibold transition ${
+                        ctx.discount === val ? 'border-amber-200/80 bg-amber-300 text-slate-900 font-bold' : 'border-slate-700 bg-slate-800/40 text-slate-300 hover:bg-slate-700/55'
+                      }`}
+                    >
+                      {val}%
+                    </button>
+                  ))}
+                </div>
+              )}
+              {parseFloat(ctx.discount || '0') > 0 && (
+                <div className="mt-2">
+                  <input
+                    type="text"
+                    value={ctx.discountReason}
+                    onChange={(e) => patchCtx({ discountReason: e.target.value })}
+                    placeholder={tx(lang, 'Endirim səbəbi (məs. Müştəri məmnuniyyəti)', 'Причина скидки', 'Discount reason')}
+                    className="neon-input h-10"
+                    required
+                  />
+                </div>
+              )}
             </div>
 
             {tables.length > 0 && (

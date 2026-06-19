@@ -155,6 +155,7 @@ class SaleCreateIn(BaseModel):
     cart_items: list[SaleItemIn]
     payment_method: str
     discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
+    discount_reason: str | None = None
     order_type: str | None = "Take Away"
     customer_card_id: str | None = None
     reward_claim_code: str | None = None

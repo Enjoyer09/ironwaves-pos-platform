@@ -464,6 +464,11 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
             customer_discount = Decimal(str(customer.discount_percent or 0))
 
     manual_discount = Decimal(str(payload.discount_percent or 0))
+    if manual_discount > 0 and not (payload.discount_reason or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Maliyyə hesabatlığı üçün endirim səbəbini qeyd edin! (Discount reason is required for manual discount)"
+        )
     effective_discount = max(manual_discount, customer_discount)
     customer_program = _setting_value(
         db,
@@ -664,6 +669,7 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         receipt_token=receipt_token,
         total=total,
         discount_amount=discount,
+        discount_reason=payload.discount_reason,
         reward_claim_code=str(payload.reward_claim_code or "").strip().upper() or None,
         cogs=cogs_total.quantize(Decimal("0.0001")),
         items_json=json.dumps(sale_items_payload, ensure_ascii=False),
