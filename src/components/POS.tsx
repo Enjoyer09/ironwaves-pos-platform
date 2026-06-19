@@ -1085,6 +1085,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       qty: item.qty,
       is_coffee: item.is_coffee,
       category: item.category,
+      item_name: item.item_name,
     }));
 
     return calculate_total(

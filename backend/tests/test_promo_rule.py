@@ -17,6 +17,13 @@ def test_is_promo_eligible_category():
     assert _is_promo_eligible_category("Smoothies") is True
     assert _is_promo_eligible_category("Desert") is False
     assert _is_promo_eligible_category("Qəhvə") is False
+    # Unicode casing tests (capital dotted I)
+    assert _is_promo_eligible_category("Soyuq İçkilər") is True
+    assert _is_promo_eligible_category("İced Qəhvə") is True
+    # Substring matches
+    assert _is_promo_eligible_category("Soyuq İçkilər (Xüsusi)") is True
+    assert _is_promo_eligible_category("Iced Coffee Blend") is True
+
 
 
 def test_scenario_a_different_prices_enabled():

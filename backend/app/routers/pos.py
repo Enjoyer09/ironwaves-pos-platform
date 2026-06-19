@@ -56,13 +56,27 @@ DEFAULT_BEVERAGE_SERVICE_SETTINGS = {
 
 
 def _is_promo_eligible_category(category: str | None) -> bool:
-    cat = str(category or "").strip().lower()
-    return cat in {
-        "cold drinks", "cold drink", "soyuq içkilər", "soyuq ickiler", "soyuq icmeler",
+    cat = str(category or "").strip().lower().replace("\u0307", "")
+    direct_matches = {
+        "cold drinks", "cold drink", "soyuq içkilər", "soyuq ickiler", "soyuq icmeler", "soyuq içki", "soyuq icki",
         "iced coffees", "iced coffee", "iced kofe", "iced qəhvə", "iced qehve",
         "frappes", "frappe", "frappelər", "frappeler",
         "smoothies", "smoothie", "smuzi", "smusi"
     }
+    if cat in direct_matches:
+        return True
+        
+    # Substring fallback checks for custom categories
+    if "cold drink" in cat or "soyuq ic" in cat or "soyuq iç" in cat:
+        return True
+    if "iced coffee" in cat or "iced kofe" in cat or "iced qəh" in cat or "iced qeh" in cat:
+        return True
+    if "frappe" in cat:
+        return True
+    if "smoothie" in cat or "smuzi" in cat or "smusi" in cat:
+        return True
+        
+    return False
 
 
 def _calculate_discounted_items_total(items, discount_percent, beverage_settings):
