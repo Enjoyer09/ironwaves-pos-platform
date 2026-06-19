@@ -331,7 +331,7 @@ export function StaffCartPanel(props: StaffPosModeProps) {
             onChange={(e) => patchCtx({ selectedTable: e.target.value, orderType: e.target.value ? 'Dine In' : 'Take Away' })}
             className="staff-search-input"
           >
-            <option value="">{tx(lang, 'Tez Satış (Masa yoxdur)', 'Быстрая продажа (Без стола)', 'Quick Sale (No table)')}</option>
+            <option value="">{tx(lang, 'Masa seçin', 'Выберите стол', 'Select table')}</option>
             {tables.map((table) => <option key={table.id} value={table.id}>{table.label}</option>)}
           </select>
         </div>
