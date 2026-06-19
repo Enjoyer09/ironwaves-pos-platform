@@ -61,7 +61,8 @@ def _is_promo_eligible_category(category: str | None) -> bool:
         "cold drinks", "cold drink", "soyuq içkilər", "soyuq ickiler", "soyuq icmeler", "soyuq içki", "soyuq icki",
         "iced coffees", "iced coffee", "iced kofe", "iced qəhvə", "iced qehve",
         "frappes", "frappe", "frappelər", "frappeler",
-        "smoothies", "smoothie", "smuzi", "smusi"
+        "smoothies", "smoothie", "smuzi", "smusi",
+        "qəhvə", "qehve", "coffee", "coffees", "qəhvələr", "qehveler", "kofe"
     }
     if cat in direct_matches:
         return True
@@ -74,6 +75,8 @@ def _is_promo_eligible_category(category: str | None) -> bool:
     if "frappe" in cat:
         return True
     if "smoothie" in cat or "smuzi" in cat or "smusi" in cat:
+        return True
+    if "qəh" in cat or "qeh" in cat or "coffee" in cat or "kofe" in cat:
         return True
         
     return False

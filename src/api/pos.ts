@@ -53,7 +53,8 @@ export const isPromoEligibleCategory = (categoryName: string) => {
     'cold drinks', 'cold drink', 'soyuq içkilər', 'soyuq ickiler', 'soyuq icmeler', 'soyuq içki', 'soyuq icki',
     'iced coffees', 'iced coffee', 'iced kofe', 'iced qəhvə', 'iced qehve',
     'frappes', 'frappe', 'frappelər', 'frappeler',
-    'smoothies', 'smoothie', 'smuzi', 'smusi'
+    'smoothies', 'smoothie', 'smuzi', 'smusi',
+    'qəhvə', 'qehve', 'coffee', 'coffees', 'qəhvələr', 'qehveler', 'kofe'
   ];
   if (directMatches.includes(cat)) return true;
 
@@ -62,6 +63,7 @@ export const isPromoEligibleCategory = (categoryName: string) => {
   if (cat.includes('iced coffee') || cat.includes('iced kofe') || cat.includes('iced qəh') || cat.includes('iced qeh')) return true;
   if (cat.includes('frappe')) return true;
   if (cat.includes('smoothie') || cat.includes('smuzi') || cat.includes('smusi')) return true;
+  if (cat.includes('qəh') || cat.includes('qeh') || cat.includes('coffee') || cat.includes('kofe')) return true;
 
   return false;
 };
