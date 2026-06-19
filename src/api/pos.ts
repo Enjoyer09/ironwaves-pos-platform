@@ -66,6 +66,21 @@ export const isPromoEligibleCategory = (categoryName: string) => {
   return false;
 };
 
+export const isPromoEligibleItem = (item: { category: string; item_name?: string }) => {
+  if (isPromoEligibleCategory(item.category)) return true;
+  const name = String(item.item_name || '').trim().toLowerCase();
+  return (
+    name.includes('iced') ||
+    name.includes('soyuq') ||
+    name.includes('cold') ||
+    name.includes('frappe') ||
+    name.includes('smoothie') ||
+    name.includes('smuzi') ||
+    name.startsWith('ice ') ||
+    name.includes(' ice ')
+  );
+};
+
 // FUNKSIYA: calculate_total
 export const calculate_total = (
   cart_items: { price: Decimal; qty: number; is_coffee: boolean; category: string; item_name?: string }[],
@@ -119,7 +134,7 @@ export const calculate_total = (
 
   if (summerPromoEnabled) {
     cart_items.forEach((item, itemIdx) => {
-      if (isPromoEligibleCategory(item.category)) {
+      if (isPromoEligibleItem(item)) {
         for (let q = 0; q < item.qty; q++) {
           eligibleUnits.push({
             price: new Decimal(item.price),

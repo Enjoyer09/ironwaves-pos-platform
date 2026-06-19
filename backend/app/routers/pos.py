@@ -79,6 +79,22 @@ def _is_promo_eligible_category(category: str | None) -> bool:
     return False
 
 
+def _is_promo_eligible_item(category: str | None, item_name: str | None) -> bool:
+    if _is_promo_eligible_category(category):
+        return True
+    name = str(item_name or "").strip().lower()
+    return (
+        "iced" in name or
+        "soyuq" in name or
+        "cold" in name or
+        "frappe" in name or
+        "smoothie" in name or
+        "smuzi" in name or
+        name.startswith("ice ") or
+        " ice " in name
+    )
+
+
 def _calculate_discounted_items_total(items, discount_percent, beverage_settings):
     summer_promo_enabled = bool((beverage_settings or {}).get("summer_promo_enabled", False))
     discount_scope = str((beverage_settings or {}).get("discount_scope") or "all_items").strip().lower()
@@ -95,7 +111,8 @@ def _calculate_discounted_items_total(items, discount_percent, beverage_settings
     eligible_units = []
     if summer_promo_enabled:
         for item_idx, item in enumerate(items):
-            if _is_promo_eligible_category(get_val(item, "category")):
+            item_name = get_val(item, "item_name") or get_val(item, "name")
+            if _is_promo_eligible_item(get_val(item, "category"), item_name):
                 qty = int(get_val(item, "qty") or get_val(item, "quantity") or 0)
                 price = Decimal(str(get_val(item, "price") or 0))
                 for q in range(qty):
