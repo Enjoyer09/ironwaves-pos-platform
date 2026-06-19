@@ -79,6 +79,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const [showSentSlideUp, setShowSentSlideUp] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'Nəğd' | 'Kart' | 'Split'>('Nəğd');
   const [tableDiscountPercent, setTableDiscountPercent] = useState('0');
+  const [tableDiscountReason, setTableDiscountReason] = useState('');
   const [splitCash, setSplitCash] = useState('0');
   const [splitCount, setSplitCount] = useState('2');
   const [splitParts, setSplitParts] = useState<Array<{ amount: string; method: 'Nəğd' | 'Kart' }>>([]);
@@ -1452,6 +1453,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const updateTableDiscountPercent = (value: unknown) => {
     const nextPercent = normalizeTableDiscountPercent(value);
     setTableDiscountPercent(String(nextPercent));
+    if (nextPercent === 0) {
+      setTableDiscountReason('');
+    }
     if (paymentMethod !== 'Split' || !payTableId) return;
     const table = tables.find((row) => row.id === payTableId);
     if (!table) return;
@@ -1835,6 +1839,18 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                   </button>
                 ))}
               </div>
+              {Number(tableDiscountPercent) > 0 && (
+                <div className="mt-3">
+                  <input
+                    type="text"
+                    value={tableDiscountReason}
+                    onChange={(e) => setTableDiscountReason(e.target.value)}
+                    placeholder={tx(lang, 'Endirim səbəbi (məs. Müştəri məmnuniyyəti)', 'Причина скидки', 'Discount reason')}
+                    className="neon-input h-10 w-full text-xs"
+                    required
+                  />
+                </div>
+              )}
               <button
                 type="button"
                 className="mt-2 text-xs font-semibold text-slate-300 hover:text-white"
@@ -1968,6 +1984,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 setSplitParts([]);
                 setSplitCash('0');
                 setTableDiscountPercent('0');
+                setTableDiscountReason('');
               }}>{tx(lang, 'Ləğv et', 'Отмена')}</button>
               <button
                 className="glossy-gold rounded-lg px-4 py-2 font-semibold"
@@ -2005,6 +2022,18 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         ? normalized.filter((row) => row.method === 'Kart').reduce((acc, row) => acc.plus(new Decimal(row.amount || 0)), new Decimal(0)).toDecimalPlaces(2)
                         : new Decimal(0);
                     }
+                    if (discountPercent.greaterThan(0) && !tableDiscountReason.trim()) {
+                      notify(
+                        'error',
+                        tx(
+                          lang,
+                          'Maliyyə hesabatlığı üçün endirim səbəbini qeyd edin!',
+                          'Укажите причину скидки для финансовой отчетности!',
+                          'Please specify a discount reason for financial reporting!'
+                        )
+                      );
+                      return;
+                    }
                     const result = await settle_table_check_live(table.id, {
                       payment_method: paymentMethod,
                       split_cash: cash,
@@ -2017,6 +2046,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           )
                         : undefined,
                       discount_percent: discountPercent.toFixed(2),
+                      discount_reason: tableDiscountReason || null,
                     });
                     window.dispatchEvent(new CustomEvent('table-paid', { detail: { tenant_id, table_id: table.id } }));
                     const sales = getDB<any>('sales');
@@ -2156,7 +2186,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { tenant_id, sale_id: result.sale_id, source: 'table' } }));
                     window.dispatchEvent(new CustomEvent('logs-updated', { detail: { tenant_id, sale_id: result.sale_id, source: 'table' } }));
                     clearServedStateForTable(table.id);
-                    setPayTableId(null);
+                     setPayTableId(null);
                     setViewTableId(null);
                     setTableDetailRecord(null);
                     setPaymentMethod('Nəğd');
@@ -2164,6 +2194,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     setSplitParts([]);
                     setSplitCash('0');
                     setTableDiscountPercent('0');
+                    setTableDiscountReason('');
                     await Promise.all([
                       loadData(),
                       activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(),
