@@ -2998,6 +2998,7 @@ def update_beverage_service_settings(
         "coffee_selection_mode": "size_only" if str(payload.get("coffee_selection_mode") or "").strip().lower() == "size_only" else "size_and_service",
         "remove_paper_packaging_for_table": bool(payload.get("remove_paper_packaging_for_table", True)),
         "discount_scope": "coffee_only" if str(payload.get("discount_scope") or "").strip().lower() == "coffee_only" else "all_items",
+        "summer_promo_enabled": bool(payload.get("summer_promo_enabled", False)),
     }
     _set_setting_value(db, tenant.id, "beverage_service_settings", cleaned)
     db.commit()

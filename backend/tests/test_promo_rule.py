@@ -101,3 +101,29 @@ def test_scenario_c_odd_number_disabled():
     assert item_promo[0] == Decimal("0.00")
     assert item_promo[1] == Decimal("0.00")
     assert item_promo[2] == Decimal("0.00")
+
+
+def test_update_beverage_service_settings_preserves_promo_enabled():
+    from app.routers.operations import update_beverage_service_settings
+    from unittest.mock import MagicMock
+    
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = None
+    
+    tenant = MagicMock()
+    tenant.id = "tenant-1"
+    
+    user = MagicMock()
+    user.role = "admin"
+    
+    payload = {
+        "coffee_selection_mode": "size_only",
+        "remove_paper_packaging_for_table": False,
+        "discount_scope": "coffee_only",
+        "summer_promo_enabled": True
+    }
+    
+    res = update_beverage_service_settings(payload, db, tenant, user)
+    assert res["success"] is True
+    assert res["beverage_service_settings"]["summer_promo_enabled"] is True
+

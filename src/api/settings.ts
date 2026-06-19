@@ -610,6 +610,7 @@ export function update_beverage_service_settings(payload: NonNullable<Settings['
     coffee_selection_mode: payload?.coffee_selection_mode === 'size_only' ? 'size_only' : 'size_and_service',
     remove_paper_packaging_for_table: payload?.remove_paper_packaging_for_table !== false,
     discount_scope: payload?.discount_scope === 'coffee_only' ? 'coffee_only' : 'all_items',
+    summer_promo_enabled: Boolean(payload?.summer_promo_enabled),
   };
   saveSettings(settings);
   logEvent('admin', 'BEVERAGE_SERVICE_SETTINGS_UPDATE', settings.beverage_service_settings);
