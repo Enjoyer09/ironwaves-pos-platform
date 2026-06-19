@@ -143,9 +143,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const businessProfile = get_business_profile(tenant_id);
   const printSettings = tenantSettings.print_settings || { use_qz: false, printer_name: '' };
   const tablesUiMode = (() => {
+    try {
+      const local = localStorage.getItem('iw_tables_ui_mode');
+      if (local === 'modern' || local === 'classic') return local;
+    } catch {}
     const fromSettings = String(tenantSettings.session_settings?.tables_ui_mode || tenantSettings.tables_ui_mode || '').toLowerCase();
     if (fromSettings === 'modern' || fromSettings === 'classic') return fromSettings;
-    try { return localStorage.getItem('iw_tables_ui_mode') || 'classic'; } catch { return 'classic'; }
+    return 'classic';
   })();
   const isBahaYLab = isBahaYLabHost || tablesUiMode === 'modern';
   const depositPerGuest = new Decimal((tenantSettings as any).table_service_settings?.deposit_per_guest_azn || 0);
@@ -159,18 +163,15 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       if (mounted) {
         setTenantSettings(localSettings || {});
       }
-      if (!localSettings || Object.keys(localSettings).length === 0) {
-        (async () => {
-          try {
-            const settings = await get_settings_live(tenant_id);
-            if (!mounted) return;
-            setTenantSettings(settings || {});
-          } catch {
-            if (!mounted) return;
-            setTenantSettings({});
-          }
-        })();
-      }
+      (async () => {
+        try {
+          const settings = await get_settings_live(tenant_id);
+          if (!mounted) return;
+          setTenantSettings(settings || {});
+        } catch {
+          // ignore
+        }
+      })();
     } catch {
       if (mounted) {
         setTenantSettings({});
