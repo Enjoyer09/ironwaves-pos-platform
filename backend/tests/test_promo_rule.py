@@ -16,7 +16,7 @@ def test_is_promo_eligible_category():
     assert _is_promo_eligible_category("Frappes") is True
     assert _is_promo_eligible_category("Smoothies") is True
     assert _is_promo_eligible_category("Desert") is False
-    assert _is_promo_eligible_category("Qəhvə") is False
+    assert _is_promo_eligible_category("Qəhvə") is True
     # Unicode casing tests (capital dotted I)
     assert _is_promo_eligible_category("Soyuq İçkilər") is True
     assert _is_promo_eligible_category("İced Qəhvə") is True
