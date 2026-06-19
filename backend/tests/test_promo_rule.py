@@ -134,3 +134,21 @@ def test_update_beverage_service_settings_preserves_promo_enabled():
     assert res["success"] is True
     assert res["beverage_service_settings"]["summer_promo_enabled"] is True
 
+
+def test_item_name_fallback_for_general_category():
+    # Customer buys: 1x Iced Latte (6.00 AZN) and 1x Iced Espresso (4.00 AZN)
+    # both under the category "Qəhvə" (not in eligible categories list)
+    items = [
+        MockItem("Iced Latte", "Qəhvə", 6.00, 1),
+        MockItem("Iced Espresso", "Qəhvə", 4.00, 1)
+    ]
+    beverage_settings = {"summer_promo_enabled": True}
+    total, item_promo, coffee_prices = _calculate_discounted_items_total(items, 0, beverage_settings)
+    
+    # Both should be eligible because their name contains "Iced"
+    # Sorted: 6.00, 4.00 -> 4.00 gets 50% discount (2.00 AZN)
+    assert total == Decimal("8.00")
+    assert item_promo[0] == Decimal("0.00")
+    assert item_promo[1] == Decimal("2.00")
+
+
