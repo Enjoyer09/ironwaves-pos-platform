@@ -324,25 +324,14 @@ export function StaffCartPanel(props: StaffPosModeProps) {
         />
       </div>
 
-      <div className="staff-mode-group">
-        <div className="staff-group-label">{tx(lang, 'Sifariş rejimi', 'Режим заказа', 'Order mode')}</div>
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          {(['Take Away', 'Dine In', 'Order Online'] as OrderType[]).map((mode) => (
-            <button
-              key={mode}
-              onClick={() => patchCtx({ orderType: mode })}
-              className={`staff-head-btn ${ctx.orderType === mode ? 'staff-payment-btn-active' : ''}`}
-            >
-              {mode === 'Dine In' ? tx(lang, 'Masada', 'В зале', 'Dine In') : mode === 'Take Away' ? tx(lang, 'Al-apar', 'С собой', 'Take Away') : tx(lang, 'Onlayn', 'Онлайн', 'Online')}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {ctx.orderType === 'Dine In' && (
+      {tables.length > 0 && (
         <div className="staff-mode-group">
-          <select value={ctx.selectedTable} onChange={(e) => patchCtx({ selectedTable: e.target.value })} className="staff-search-input">
-            <option value="">{tx(lang, 'Masa seçin', 'Выберите стол', 'Select table')}</option>
+          <select
+            value={ctx.selectedTable}
+            onChange={(e) => patchCtx({ selectedTable: e.target.value, orderType: e.target.value ? 'Dine In' : 'Take Away' })}
+            className="staff-search-input"
+          >
+            <option value="">{tx(lang, 'Tez Satış (Masa yoxdur)', 'Быстрая продажа (Без стола)', 'Quick Sale (No table)')}</option>
             {tables.map((table) => <option key={table.id} value={table.id}>{table.label}</option>)}
           </select>
         </div>

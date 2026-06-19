@@ -1816,7 +1816,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       const size = getWidgetSize(widget);
       return (
         <React.Fragment key={widget}>
-          {ctx.orderType === 'Dine In' && (
+          {tables.length > 0 && (
             <div className={`space-y-2 ${size === 'expanded' ? 'text-sm' : 'text-xs'}`}>
               {tableRoutingBanner && ctx.selectedTable === tableRoutingBanner.tableId && (
                 <div className="rounded-lg border border-cyan-300/40 bg-cyan-400/10 px-3 py-2 text-xs text-cyan-100">
@@ -1824,22 +1824,28 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                 </div>
               )}
               <div className="relative">
-                <select value={ctx.selectedTable} onChange={(e) => patchCtx({ selectedTable: e.target.value })} className={`neon-input appearance-none ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}>
-                  <option value="">{tx(lang, 'Masa seçin', 'Выберите стол', 'Select table')}</option>
+                <select
+                  value={ctx.selectedTable}
+                  onChange={(e) => patchCtx({ selectedTable: e.target.value, orderType: e.target.value ? 'Dine In' : 'Take Away' })}
+                  className={`neon-input appearance-none ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}
+                >
+                  <option value="">{tx(lang, 'Tez Satış (Masa yoxdur)', 'Быстрая продажа (Без стола)', 'Quick Sale (No table)')}</option>
                   {tables.map((table) => (
                     <option key={table.id} value={table.id}>{table.label}</option>
                   ))}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
               </div>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <button onClick={() => patchCtx({ cupMode: 'paper' })} className={`rounded-md border px-2 py-2 text-xs font-semibold ${ctx.cupMode === 'paper' ? 'text-slate-900' : 'border-slate-600 bg-slate-800/40 text-slate-200'}`} style={ctx.cupMode === 'paper' ? { borderColor: posLayout.accent_color, backgroundColor: posLayout.accent_color } : undefined}>
-                  {tx(lang, 'Kağız stəkan', 'Бумажный стакан', 'Paper cup')}
-                </button>
-                <button onClick={() => patchCtx({ cupMode: 'glass' })} className={`rounded-md border px-2 py-2 text-xs font-semibold ${ctx.cupMode === 'glass' ? 'text-slate-900' : 'border-slate-600 bg-slate-800/40 text-slate-200'}`} style={ctx.cupMode === 'glass' ? { borderColor: posLayout.accent_color, backgroundColor: posLayout.accent_color } : undefined}>
-                  {tx(lang, 'Şüşə stəkan', 'Стеклянный стакан', 'Glass cup')}
-                </button>
-              </div>
+              {ctx.selectedTable && (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <button onClick={() => patchCtx({ cupMode: 'paper' })} className={`rounded-md border px-2 py-2 text-xs font-semibold ${ctx.cupMode === 'paper' ? 'text-slate-900' : 'border-slate-600 bg-slate-800/40 text-slate-200'}`} style={ctx.cupMode === 'paper' ? { borderColor: posLayout.accent_color, backgroundColor: posLayout.accent_color } : undefined}>
+                    {tx(lang, 'Kağız stəkan', 'Бумажный стакан', 'Paper cup')}
+                  </button>
+                  <button onClick={() => patchCtx({ cupMode: 'glass' })} className={`rounded-md border px-2 py-2 text-xs font-semibold ${ctx.cupMode === 'glass' ? 'text-slate-900' : 'border-slate-600 bg-slate-800/40 text-slate-200'}`} style={ctx.cupMode === 'glass' ? { borderColor: posLayout.accent_color, backgroundColor: posLayout.accent_color } : undefined}>
+                    {tx(lang, 'Şüşə stəkan', 'Стеклянный стакан', 'Glass cup')}
+                  </button>
+                </div>
+              )}
               {occupiedTables.length > 0 && (
                 <div className="rounded-lg border border-slate-700/70 bg-[#0e1520] p-3 text-xs text-slate-300">
                   <div className="mb-2 font-semibold text-slate-200">{tx(lang, 'Açıq masa hesabları', 'Открытые счета столов')}</div>
@@ -2501,37 +2507,26 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               />
             </div>
 
-            <div className="pos3-action-group">
-              <div className="pos3-action-label">{tx(lang, 'Sifariş rejimi', 'Режим заказа', 'Order mode')}</div>
-              <div className="mt-2 grid grid-cols-3 gap-2">
-              {(['Take Away', 'Dine In', 'Order Online'] as OrderType[]).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => patchCtx({ orderType: mode })}
-                  className={`rounded-lg border px-2 py-2 text-xs font-semibold ${
-                    ctx.orderType === mode ? 'border-amber-200/80 bg-amber-300 text-slate-900' : 'border-slate-600 bg-slate-800/50 text-slate-200'
-                  }`}
-                >
-                  {mode === 'Dine In' ? tx(lang, 'Masada', 'В зале', 'Dine In') : mode === 'Take Away' ? tx(lang, 'Al-apar', 'С собой', 'Take Away') : tx(lang, 'Onlayn', 'Онлайн', 'Online')}
-                </button>
-              ))}
-              </div>
-            </div>
-
-            {ctx.orderType === 'Dine In' && (
+            {tables.length > 0 && (
               <div className="mt-3 space-y-2">
-                <select value={ctx.selectedTable} onChange={(e) => patchCtx({ selectedTable: e.target.value })} className="neon-input h-11">
-                  <option value="">{tx(lang, 'Masa seçin', 'Выберите стол', 'Select table')}</option>
+                <select
+                  value={ctx.selectedTable}
+                  onChange={(e) => patchCtx({ selectedTable: e.target.value, orderType: e.target.value ? 'Dine In' : 'Take Away' })}
+                  className="neon-input h-11"
+                >
+                  <option value="">{tx(lang, 'Tez Satış (Masa yoxdur)', 'Быстрая продажа (Без стола)', 'Quick Sale (No table)')}</option>
                   {tables.map((table) => <option key={table.id} value={table.id}>{table.label}</option>)}
                 </select>
-                <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => patchCtx({ cupMode: 'paper' })} className={`rounded-lg border px-2 py-2 text-xs font-semibold ${ctx.cupMode === 'paper' ? 'border-amber-200/80 bg-amber-300 text-slate-900' : 'border-slate-600 bg-slate-800/50 text-slate-200'}`}>
-                    {tx(lang, 'Kağız stəkan', 'Бумажный стакан', 'Paper cup')}
-                  </button>
-                  <button onClick={() => patchCtx({ cupMode: 'glass' })} className={`rounded-lg border px-2 py-2 text-xs font-semibold ${ctx.cupMode === 'glass' ? 'border-amber-200/80 bg-amber-300 text-slate-900' : 'border-slate-600 bg-slate-800/50 text-slate-200'}`}>
-                    {tx(lang, 'Şüşə stəkan', 'Стеклянный стакан', 'Glass cup')}
-                  </button>
-                </div>
+                {ctx.selectedTable && (
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <button onClick={() => patchCtx({ cupMode: 'paper' })} className={`rounded-lg border px-2 py-2 text-xs font-semibold ${ctx.cupMode === 'paper' ? 'border-amber-200/80 bg-amber-300 text-slate-900' : 'border-slate-600 bg-slate-800/50 text-slate-200'}`}>
+                      {tx(lang, 'Kağız stəkan', 'Бумажный стакан', 'Paper cup')}
+                    </button>
+                    <button onClick={() => patchCtx({ cupMode: 'glass' })} className={`rounded-lg border px-2 py-2 text-xs font-semibold ${ctx.cupMode === 'glass' ? 'border-amber-200/80 bg-amber-300 text-slate-900' : 'border-slate-600 bg-slate-800/50 text-slate-200'}`}>
+                      {tx(lang, 'Şüşə stəkan', 'Стеклянный стакан', 'Glass cup')}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
