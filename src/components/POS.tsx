@@ -1829,7 +1829,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                   onChange={(e) => patchCtx({ selectedTable: e.target.value, orderType: e.target.value ? 'Dine In' : 'Take Away' })}
                   className={`neon-input appearance-none ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'}`}
                 >
-                  <option value="">{tx(lang, 'Tez Satış (Masa yoxdur)', 'Быстрая продажа (Без стола)', 'Quick Sale (No table)')}</option>
+                  <option value="">{tx(lang, 'Masa seçin', 'Выберите стол', 'Select table')}</option>
                   {tables.map((table) => (
                     <option key={table.id} value={table.id}>{table.label}</option>
                   ))}
@@ -2514,7 +2514,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                   onChange={(e) => patchCtx({ selectedTable: e.target.value, orderType: e.target.value ? 'Dine In' : 'Take Away' })}
                   className="neon-input h-11"
                 >
-                  <option value="">{tx(lang, 'Tez Satış (Masa yoxdur)', 'Быстрая продажа (Без стола)', 'Quick Sale (No table)')}</option>
+                  <option value="">{tx(lang, 'Masa seçin', 'Выберите стол', 'Select table')}</option>
                   {tables.map((table) => <option key={table.id} value={table.id}>{table.label}</option>)}
                 </select>
                 {ctx.selectedTable && (
