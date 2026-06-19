@@ -324,14 +324,14 @@ export function StaffCartPanel(props: StaffPosModeProps) {
           )}
         </div>
         {!hasClaimCode && (
-          <div className="grid grid-cols-4 gap-1.5 mt-1.5">
-            {['5', '10', '15', '20'].map((val) => (
+          <div className="grid grid-cols-5 gap-1 mt-1.5">
+            {['0', '5', '10', '15', '20'].map((val) => (
               <button
                 key={val}
                 type="button"
-                onClick={() => patchCtx({ discount: ctx.discount === val ? '0' : val })}
+                onClick={() => patchCtx({ discount: val })}
                 className={`rounded-lg border py-1.5 text-xs font-semibold transition ${
-                  ctx.discount === val ? 'staff-payment-btn-active' : 'border-slate-700 bg-slate-800/40 text-slate-300'
+                  (ctx.discount || '0') === val ? 'staff-payment-btn-active' : 'border-slate-700 bg-slate-800/40 text-slate-300'
                 }`}
               >
                 {val}%

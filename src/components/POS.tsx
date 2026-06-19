@@ -1802,14 +1802,14 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             )}
           </div>
           {!hasClaimCode && (
-            <div className="grid grid-cols-4 gap-1.5 mt-1.5">
-              {['5', '10', '15', '20'].map((val) => (
+            <div className="grid grid-cols-5 gap-1 mt-1.5">
+              {['0', '5', '10', '15', '20'].map((val) => (
                 <button
                   key={val}
                   type="button"
-                  onClick={() => patchCtx({ discount: ctx.discount === val ? '0' : val })}
+                  onClick={() => patchCtx({ discount: val })}
                   className={`rounded-lg border py-1.5 text-[11px] font-semibold transition ${
-                    ctx.discount === val ? 'border-amber-300 bg-amber-500/20 text-amber-100 font-bold' : 'border-slate-700 bg-slate-800/40 text-slate-300 hover:bg-slate-700/50'
+                    (ctx.discount || '0') === val ? 'border-amber-300 bg-amber-500/20 text-amber-100 font-bold' : 'border-slate-700 bg-slate-800/40 text-slate-300 hover:bg-slate-700/50'
                   }`}
                 >
                   {val}%
@@ -2532,14 +2532,14 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                 )}
               </div>
               {!hasClaimCode && (
-                <div className="grid grid-cols-4 gap-1.5 mt-1.5">
-                  {['5', '10', '15', '20'].map((val) => (
+                <div className="grid grid-cols-5 gap-1 mt-1.5">
+                  {['0', '5', '10', '15', '20'].map((val) => (
                     <button
                       key={val}
                       type="button"
-                      onClick={() => patchCtx({ discount: ctx.discount === val ? '0' : val })}
+                      onClick={() => patchCtx({ discount: val })}
                       className={`rounded-lg border py-1.5 text-xs font-semibold transition ${
-                        ctx.discount === val ? 'border-amber-200/80 bg-amber-300 text-slate-900 font-bold' : 'border-slate-700 bg-slate-800/40 text-slate-300 hover:bg-slate-700/55'
+                        (ctx.discount || '0') === val ? 'border-amber-200/80 bg-amber-300 text-slate-900 font-bold' : 'border-slate-700 bg-slate-800/40 text-slate-300 hover:bg-slate-700/55'
                       }`}
                     >
                       {val}%
