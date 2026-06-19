@@ -315,17 +315,14 @@ export function StaffCartPanel(props: StaffPosModeProps) {
       </div>
 
       <div className="staff-mode-group">
-        <div className="staff-group-label">{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</div>
-        <input
-          type="number"
-          min={0}
-          max={100}
-          value={ctx.discount}
-          onChange={(e) => patchCtx({ discount: e.target.value })}
-          disabled={hasClaimCode}
-          className={`staff-search-input ${hasClaimCode ? 'cursor-not-allowed opacity-60' : ''}`}
-          placeholder={tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}
-        />
+        <div className="flex justify-between items-center mb-1">
+          <div className="staff-group-label" style={{ margin: 0 }}>{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</div>
+          {ctx.discount && parseFloat(ctx.discount) > 0 && (
+            <span className="text-xs text-amber-300 font-bold bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded">
+              {ctx.discount}%
+            </span>
+          )}
+        </div>
         {!hasClaimCode && (
           <div className="grid grid-cols-4 gap-1.5 mt-1.5">
             {['5', '10', '15', '20'].map((val) => (

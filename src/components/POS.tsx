@@ -1793,16 +1793,14 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                 : tx(lang, 'Bu feedback kuponu artıq istifadə olunub', 'Этот feedback купон уже использован', 'This feedback coupon is already used')}
             </div>
           ) : null}
-          <label className="block text-xs text-slate-400">{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</label>
-          <input
-            type="number"
-            min={0}
-            max={100}
-            value={ctx.discount}
-            onChange={(e) => patchCtx({ discount: e.target.value })}
-            disabled={hasClaimCode}
-            className={`neon-input ${size === 'compact' ? 'h-10' : size === 'expanded' ? 'h-14' : 'h-12'} ${hasClaimCode ? 'opacity-60 cursor-not-allowed' : ''}`}
-          />
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-xs text-slate-400">{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</span>
+            {ctx.discount && parseFloat(ctx.discount) > 0 && (
+              <span className="text-[11px] text-amber-300 font-bold bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                {ctx.discount}%
+              </span>
+            )}
+          </div>
           {!hasClaimCode && (
             <div className="grid grid-cols-4 gap-1.5 mt-1.5">
               {['5', '10', '15', '20'].map((val) => (
@@ -2525,16 +2523,14 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                     : tx(lang, 'Bu feedback kuponu artıq istifadə olunub', 'Этот feedback купон уже использован', 'This feedback coupon is already used')}
                 </div>
               ) : null}
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={ctx.discount}
-                onChange={(e) => patchCtx({ discount: e.target.value })}
-                disabled={hasClaimCode}
-                className={`neon-input h-10 ${hasClaimCode ? 'cursor-not-allowed opacity-60' : ''}`}
-                placeholder={tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}
-              />
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-xs text-slate-400">{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</span>
+                {ctx.discount && parseFloat(ctx.discount) > 0 && (
+                  <span className="text-[11px] text-amber-300 font-bold bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                    {ctx.discount}%
+                  </span>
+                )}
+              </div>
               {!hasClaimCode && (
                 <div className="grid grid-cols-4 gap-1.5 mt-1.5">
                   {['5', '10', '15', '20'].map((val) => (
