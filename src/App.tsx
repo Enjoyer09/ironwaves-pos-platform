@@ -442,6 +442,22 @@ export default function App() {
   const [demoGuideBubble, setDemoGuideBubble] = useState<DemoGuideBubble | null>(null);
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const baselineWidth = 1400;
+      const baselineHeight = 850;
+      const wScale = window.innerWidth < baselineWidth ? window.innerWidth / baselineWidth : 1;
+      const hScale = window.innerHeight < baselineHeight ? window.innerHeight / baselineHeight : 1;
+      const s = Math.max(0.70, Math.min(wScale, hScale));
+      setScale(s);
+    };
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const demoGuideShownModulesRef = useRef<Set<ModuleKey>>(new Set());
   const offlineCountRef = useRef(0);
   const pendingOfflineInFlightRef = useRef(false);
@@ -1476,7 +1492,7 @@ export default function App() {
   }
 
   return (
-    <div className="metal-app flex h-[100dvh] min-h-[100dvh] overflow-hidden font-sans text-slate-100 selection:bg-yellow-300/30">
+    <div className="metal-app flex h-[100dvh] min-h-[100dvh] overflow-hidden font-sans text-slate-100 selection:bg-yellow-300/30 relative">
       <ToastOverlay />
       {lowStockModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4">
@@ -1670,7 +1686,24 @@ export default function App() {
       )}
       <div
         className="flex-1 flex flex-col relative overflow-hidden"
-        style={{ paddingBottom: keyboardInset > 0 ? `${keyboardInset}px` : undefined }}
+        style={
+          scale < 1
+            ? {
+                transform: `scale(${scale})`,
+                transformOrigin: 'top left',
+                width: `${100 / scale}%`,
+                height: `${100 / scale}%`,
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                paddingBottom: keyboardInset > 0 ? `${keyboardInset}px` : undefined,
+              }
+            : {
+                width: '100%',
+                height: '100%',
+                paddingBottom: keyboardInset > 0 ? `${keyboardInset}px` : undefined,
+              }
+        }
       >
         <div className="border-b border-slate-700/40 px-4 py-4 md:px-6 shrink-0 z-20 space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
