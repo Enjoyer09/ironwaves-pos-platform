@@ -362,6 +362,7 @@ class Sale(Base):
     free_coffees_applied: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     discount_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
+    discount_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     cogs: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True, default=Decimal("0.0000"))
     items_json: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="COMPLETED")

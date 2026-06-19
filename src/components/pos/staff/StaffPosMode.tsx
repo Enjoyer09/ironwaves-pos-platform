@@ -312,6 +312,10 @@ export function StaffCartPanel(props: StaffPosModeProps) {
               : tx(lang, 'Bu feedback kuponu artıq istifadə olunub', 'Этот feedback купон уже использован', 'This feedback coupon is already used')}
           </div>
         ) : null}
+      </div>
+
+      <div className="staff-mode-group">
+        <div className="staff-group-label">{tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}</div>
         <input
           type="number"
           min={0}
@@ -322,6 +326,34 @@ export function StaffCartPanel(props: StaffPosModeProps) {
           className={`staff-search-input ${hasClaimCode ? 'cursor-not-allowed opacity-60' : ''}`}
           placeholder={tx(lang, 'Endirim %', 'Скидка %', 'Discount %')}
         />
+        {!hasClaimCode && (
+          <div className="grid grid-cols-4 gap-1.5 mt-1.5">
+            {['5', '10', '15', '20'].map((val) => (
+              <button
+                key={val}
+                type="button"
+                onClick={() => patchCtx({ discount: ctx.discount === val ? '0' : val })}
+                className={`rounded-lg border py-1.5 text-xs font-semibold transition ${
+                  ctx.discount === val ? 'staff-payment-btn-active' : 'border-slate-700 bg-slate-800/40 text-slate-300'
+                }`}
+              >
+                {val}%
+              </button>
+            ))}
+          </div>
+        )}
+        {parseFloat(ctx.discount || '0') > 0 && (
+          <div className="mt-2">
+            <input
+              type="text"
+              value={ctx.discountReason}
+              onChange={(e) => patchCtx({ discountReason: e.target.value })}
+              placeholder={tx(lang, 'Endirim səbəbi (məs. Müştəri məmnuniyyəti)', 'Причина скидки', 'Discount reason')}
+              className="staff-search-input"
+              required
+            />
+          </div>
+        )}
       </div>
 
       {tables.length > 0 && (

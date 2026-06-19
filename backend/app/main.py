@@ -864,6 +864,7 @@ def _run_startup_migrations():
         conn.execute(text("ALTER TABLE shifts ADD COLUMN IF NOT EXISTS opening_source VARCHAR(24)"))
         conn.execute(text("ALTER TABLE shifts ADD COLUMN IF NOT EXISTS opening_target_cash NUMERIC(12,2) DEFAULT 0"))
         conn.execute(text("ALTER TABLE shifts ADD COLUMN IF NOT EXISTS opening_topup_amount NUMERIC(12,2) DEFAULT 0"))
+        conn.execute(text("ALTER TABLE sales ADD COLUMN IF NOT EXISTS discount_reason VARCHAR(255)"))
         conn.execute(text("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS status_reason TEXT"))
         conn.execute(text("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS action_by VARCHAR(80)"))
         conn.execute(text("ALTER TABLE order_items ADD COLUMN IF NOT EXISTS manager_approved_by VARCHAR(80)"))
