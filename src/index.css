@@ -2797,15 +2797,15 @@ html {
   }
 }
 
-/* 2. Shrink Cart Sidebar width by 40% (to ~230px/250px) and give remaining space to Menu cards */
+/* 2. Make Cart Sidebar width 30% wider (from 230px/250px to 300px/325px) */
 @media (min-width: 1024px) {
   html[data-ui-mode='old'] .compact-pos-grid {
-    grid-template-columns: minmax(0, 1fr) 230px !important;
+    grid-template-columns: minmax(0, 1fr) 300px !important;
   }
 }
 @media (min-width: 1280px) {
   html[data-ui-mode='old'] .compact-pos-grid {
-    grid-template-columns: minmax(0, 1fr) 250px !important;
+    grid-template-columns: minmax(0, 1fr) 325px !important;
   }
 }
 
