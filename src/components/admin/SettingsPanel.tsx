@@ -128,6 +128,7 @@ export default function SettingsPanel() {
     coffee_selection_mode: 'size_and_service' as 'size_only' | 'size_and_service',
     remove_paper_packaging_for_table: true,
     discount_scope: 'all_items' as 'all_items' | 'coffee_only',
+    summer_promo_enabled: false,
   });
   const [printSettings, setPrintSettings] = useState({
     use_qz: false,
@@ -435,6 +436,7 @@ export default function SettingsPanel() {
         coffee_selection_mode: settingsRes.value.beverage_service_settings?.coffee_selection_mode === 'size_only' ? 'size_only' : 'size_and_service',
         remove_paper_packaging_for_table: settingsRes.value.beverage_service_settings?.remove_paper_packaging_for_table !== false,
         discount_scope: settingsRes.value.beverage_service_settings?.discount_scope === 'coffee_only' ? 'coffee_only' : 'all_items',
+        summer_promo_enabled: Boolean(settingsRes.value.beverage_service_settings?.summer_promo_enabled),
       });
       setPrintSettings({
         use_qz: Boolean(settingsRes.value.print_settings?.use_qz),
@@ -1229,6 +1231,7 @@ export default function SettingsPanel() {
       coffee_selection_mode: beverageServiceSettings.coffee_selection_mode,
       remove_paper_packaging_for_table: beverageServiceSettings.remove_paper_packaging_for_table,
       discount_scope: beverageServiceSettings.discount_scope,
+      summer_promo_enabled: beverageServiceSettings.summer_promo_enabled,
     });
     flashSuccess(tx(lang, 'İçki servis ayarları yadda saxlanıldı', 'Настройки подачи напитков сохранены', 'Beverage service settings saved'), 'beverage');
   };
@@ -2644,6 +2647,30 @@ export default function SettingsPanel() {
                 setBeverageServiceSettings((prev) => ({
                   ...prev,
                   remove_paper_packaging_for_table: e.target.checked,
+                }))
+              }
+            />
+          </label>
+          <label className="form-card flex items-center justify-between gap-4">
+            <div>
+              <div className="field-label">{tx(lang, 'Yaz kampaniyası (2-ci məhsul 50% endirimlə)', 'Летняя кампания (2-й товар 50% скидка)', 'Summer Campaign (2nd item 50% off)')}</div>
+              <div className="field-hint">
+                {tx(
+                  lang,
+                  'Soyuq içkilər, iced kofe, frappe və smuzilərə 1 alana 2-ci 50% endirim tətbiq edir.',
+                  'Применяет акцию 1+1 (2-й товар со скидкой 50%) для холодных напитков, айс кофе, фраппе и смузи.',
+                  'Applies the buy 1 get 2nd at 50% off promo for cold drinks, iced coffee, frappe, and smoothies.',
+                )}
+              </div>
+            </div>
+            <input
+              type="checkbox"
+              className="h-5 w-5"
+              checked={beverageServiceSettings.summer_promo_enabled}
+              onChange={(e) =>
+                setBeverageServiceSettings((prev) => ({
+                  ...prev,
+                  summer_promo_enabled: e.target.checked,
                 }))
               }
             />

@@ -2701,7 +2701,16 @@ def settle_check(
     pre_discount_service_fee_amount = (items_total * service_fee_percent / Decimal("100")).quantize(Decimal("0.01"))
     pre_discount_final_total = max(items_total + pre_discount_service_fee_amount, deposit_amount).quantize(Decimal("0.01"))
     raw_discount_amount = (items_total * discount_percent / Decimal("100")).quantize(Decimal("0.01"))
-    discounted_items_total = max(items_total - raw_discount_amount, Decimal("0.00")).quantize(Decimal("0.01"))
+
+    # Calculate promo and standard discounts per unit
+    from app.routers.pos import _calculate_discounted_items_total, DEFAULT_BEVERAGE_SERVICE_SETTINGS
+    beverage_settings = _setting_value(db, tenant.id, "beverage_service_settings", DEFAULT_BEVERAGE_SERVICE_SETTINGS)
+    discounted_items_total, item_promo_discounts = _calculate_discounted_items_total(
+        items,
+        discount_percent,
+        beverage_settings
+    )[:2]
+
     service_fee_amount = (discounted_items_total * service_fee_percent / Decimal("100")).quantize(Decimal("0.01"))
     final_total = max(discounted_items_total + service_fee_amount, deposit_amount).quantize(Decimal("0.01"))
     discount_amount = max(pre_discount_final_total - final_total, Decimal("0.00")).quantize(Decimal("0.01"))
@@ -2752,7 +2761,11 @@ def settle_check(
         total=final_total,
         discount_amount=discount_amount,
         cogs=cogs_total,
-        items_json=json.dumps(items, ensure_ascii=False),
+        items_json=json.dumps([
+            {**dict(item), "promo_discount": str(item_promo_discounts[idx].quantize(Decimal("0.01")))}
+            if item_promo_discounts[idx] > 0 else dict(item)
+            for idx, item in enumerate(items)
+        ], ensure_ascii=False),
         status="COMPLETED",
         created_at=datetime.utcnow(),
     )

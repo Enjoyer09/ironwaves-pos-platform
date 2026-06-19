@@ -148,6 +148,7 @@ class SaleItemIn(BaseModel):
     category: str | None = None
     is_coffee: bool = False
     cup_mode: str | None = None
+    promo_discount: Decimal | None = None
 
 
 class SaleCreateIn(BaseModel):

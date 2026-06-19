@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Decimal } from 'decimal.js';
 import { logEvent } from '../lib/logger';
 import { CartItem, PaymentMethod } from '../types/pos';
-import { create_sale } from './pos';
+import { create_sale, calculate_total } from './pos';
 import { apiRequest, isBackendEnabled } from './client';
 import { verifyLocalCredential } from '../lib/local_auth';
 
@@ -478,8 +478,25 @@ export const pay_table = (
     ? ((table.deposit_seat_labels || []).includes(seatLabel) ? depositPerGuest : new Decimal(0))
     : new Decimal(table.deposit_amount || 0);
   const preDiscountPayableTotal = Decimal.max(itemsTotal.plus(preDiscountServiceFeeAmount), depositAmount).toDecimalPlaces(2);
-  const rawDiscountAmount = itemsTotal.times(discountPercent).div(100).toDecimalPlaces(2);
-  const discountedItemsTotal = Decimal.max(new Decimal(0), itemsTotal.minus(rawDiscountAmount)).toDecimalPlaces(2);
+  
+  // Use calculate_total to properly account for standard and summer promotion discounts
+  const calc = calculate_total(
+    itemsForSale.map((item) => ({
+      price: new Decimal(item.price || 0),
+      qty: item.qty || 0,
+      is_coffee: item.is_coffee || false,
+      category: item.category || '',
+      item_name: item.item_name || '',
+    })),
+    table.tenant_id,
+    'Normal',
+    Number(discountPercent.toString()),
+    false,
+    null,
+    null,
+    settings.beverage_service_settings
+  );
+  const discountedItemsTotal = calc.final_total;
   const serviceFeeAmount = discountedItemsTotal.times(serviceFeePercent).div(100).toDecimalPlaces(2);
   const payableTotal = Decimal.max(discountedItemsTotal.plus(serviceFeeAmount), depositAmount).toDecimalPlaces(2);
   const discountAmount = Decimal.max(new Decimal(0), preDiscountPayableTotal.minus(payableTotal)).toDecimalPlaces(2);
