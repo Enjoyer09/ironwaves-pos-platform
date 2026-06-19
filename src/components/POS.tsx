@@ -429,18 +429,15 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       if (mounted) {
         setTenantSettings(localSettings || {});
       }
-      if (!localSettings || Object.keys(localSettings).length === 0) {
-        (async () => {
-          try {
-            const settings = await get_settings_live(tenantId);
-            if (!mounted) return;
-            setTenantSettings(settings || {});
-          } catch {
-            if (!mounted) return;
-            setTenantSettings({});
-          }
-        })();
-      }
+      (async () => {
+        try {
+          const settings = await get_settings_live(tenantId);
+          if (!mounted) return;
+          setTenantSettings(settings || {});
+        } catch {
+          // ignore
+        }
+      })();
     } catch {
       if (mounted) {
         setTenantSettings({});
@@ -1695,13 +1692,19 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         : posLayout.preset === 'tables'
           ? 'bg-[radial-gradient(circle_at_top,#2e3247,#151b26_58%)]'
           : 'bg-[radial-gradient(circle_at_top,#2a3342,#141b24_55%)]';
-  // BahaY: Aelia-style new POS UI — controlled by tenant setting
+  // BahaY: Aelia-style new POS UI — controlled by tenant setting with local override fallback
   const isNewUiMode = (() => {
+    try {
+      const local = localStorage.getItem('iw_pos_ui_mode');
+      if (local === 'modern') return true;
+      if (local === 'classic') return false;
+    } catch {}
     try {
       const host = String(window.location.hostname || '').toLowerCase();
       if (host === 'super.ironwaves.store') return true;
-      return localStorage.getItem('iw_pos_ui_mode') === 'modern';
-    } catch { return false; }
+    } catch {}
+    const fromSettings = String(tenantSettings.session_settings?.tables_ui_mode || tenantSettings.tables_ui_mode || '').toLowerCase();
+    return fromSettings === 'modern';
   })();
   const orderTypeBlockVisible = isWidgetVisible('orderType');
   const tableBlockVisible = isWidgetVisible('table');

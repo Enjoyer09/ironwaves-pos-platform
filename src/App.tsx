@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useState, useEffect, useMemo, useRef } from 'rea
 import { useAppStore } from './store';
 import { i18n, tx } from './i18n';
 import PinLogin from './components/PinLogin';
-import { LogOut, Wifi, WifiOff, Languages, RotateCcw, Maximize2, Minimize2, MessageCircleQuestion, UserRoundCog } from 'lucide-react';
+import { LogOut, Wifi, WifiOff, Languages, RotateCcw, Maximize2, Minimize2, MessageCircleQuestion, UserRoundCog, LayoutGrid } from 'lucide-react';
 import VirtualKeyboard from './components/VirtualKeyboard';
 import { seedDatabase } from './lib/seeder';
 import ToastOverlay from './components/ToastOverlay';
@@ -1246,6 +1246,28 @@ export default function App() {
     }
   };
 
+  const currentUiMode = useMemo(() => {
+    try {
+      const local = localStorage.getItem('iw_pos_ui_mode');
+      if (local === 'modern' || local === 'classic') return local as 'modern' | 'classic';
+    } catch {}
+    const fromSettings = String(settings.session_settings?.tables_ui_mode || settings.tables_ui_mode || '').toLowerCase();
+    if (fromSettings === 'modern' || fromSettings === 'classic') return fromSettings as 'modern' | 'classic';
+    return 'classic';
+  }, [settings, settingsVersion]);
+
+  const toggleUiMode = () => {
+    const nextMode = currentUiMode === 'modern' ? 'classic' : 'modern';
+    try {
+      localStorage.setItem('iw_pos_ui_mode', nextMode);
+      localStorage.setItem('iw_tables_ui_mode', nextMode);
+    } catch {}
+    // Trigger settings-updated event so active page re-renders instantly
+    window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: user?.tenant_id } }));
+    // Force App.tsx to re-render
+    setSettingsVersion((prev) => prev + 1);
+  };
+
   useEffect(() => {
     if (!hasValidUser) return;
     let timerId: number | null = null;
@@ -1715,6 +1737,18 @@ export default function App() {
                 <RotateCcw size={16} />
                 <span className="hidden sm:inline">
                   {manualRefreshing ? tx(safeLang, 'Yenilənir...', 'Обновляется...', 'Refreshing...') : t.refresh}
+                </span>
+              </button>
+              <button
+                onClick={toggleUiMode}
+                className="neon-btn px-3 py-2"
+                title={tx(safeLang, 'İnterfeysi dəyiş', 'Сменить интерфейс', 'Toggle layout')}
+              >
+                <LayoutGrid size={16} />
+                <span className="hidden sm:inline">
+                  {currentUiMode === 'modern'
+                    ? tx(safeLang, 'Modern (BahaY)', 'Модерн (BahaY)', 'Modern (BahaY)')
+                    : tx(safeLang, 'Classic', 'Классика', 'Classic')}
                 </span>
               </button>
               <button
