@@ -82,17 +82,10 @@ def _is_promo_eligible_category(category: str | None) -> bool:
 def _is_promo_eligible_item(category: str | None, item_name: str | None) -> bool:
     if _is_promo_eligible_category(category):
         return True
-    name = str(item_name or "").strip().lower()
-    return (
-        "iced" in name or
-        "soyuq" in name or
-        "cold" in name or
-        "frappe" in name or
-        "smoothie" in name or
-        "smuzi" in name or
-        name.startswith("ice ") or
-        " ice " in name
-    )
+    import re
+    name = str(item_name or "").strip()
+    pattern = re.compile(r"\b(iced|ice|soyuq|cold|frappe|smoothie|smuzi)\b", re.IGNORECASE)
+    return bool(pattern.search(name))
 
 
 def _calculate_discounted_items_total(items, discount_percent, beverage_settings):
