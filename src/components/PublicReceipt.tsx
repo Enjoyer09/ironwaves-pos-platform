@@ -207,14 +207,22 @@ export default function PublicReceipt({ receiptId, token }: Props) {
           ) : null}
         </div>
 
-        <div className="mb-4 rounded-lg border border-slate-700 bg-[#0d141e] p-3">
+        <div className="mb-4 rounded-lg border border-slate-700 bg-[#0d141e] p-3 space-y-2">
           {(receipt.items || []).map((item: any, idx: number) => (
-            <div key={`${item.item_name}_${idx}`} className="mb-1 flex items-center justify-between text-sm">
-              <span>
-                {item.qty}x {item.item_name}
-              </span>
-              <span>{(Number(item.price || 0) * Number(item.qty || 0)).toFixed(2)} ₼</span>
-            </div>
+            <React.Fragment key={`${item.item_name}_${idx}`}>
+              <div className="flex items-center justify-between text-sm">
+                <span>
+                  {item.qty}x {item.item_name}
+                </span>
+                <span>{(Number(item.price || 0) * Number(item.qty || 0)).toFixed(2)} ₼</span>
+              </div>
+              {item.promo_discount && Number(item.promo_discount) > 0 ? (
+                <div className="flex items-center justify-between text-xs text-yellow-300/90 italic pl-4">
+                  <span>[Promo] 2nd Item 50% Off</span>
+                  <span>-{Number(item.promo_discount).toFixed(2)} ₼</span>
+                </div>
+              ) : null}
+            </React.Fragment>
           ))}
         </div>
 

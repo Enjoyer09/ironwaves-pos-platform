@@ -43,18 +43,44 @@ const getBeverageServiceSettings = (tenant_id: string) => {
 };
 
 // FUNKSIYA: calculate_total
+export const isPromoEligibleCategory = (categoryName: string) => {
+  const cat = String(categoryName || '').trim().toLowerCase();
+  return (
+    cat === 'cold drinks' ||
+    cat === 'cold drink' ||
+    cat === 'soyuq içkilər' ||
+    cat === 'soyuq ickiler' ||
+    cat === 'soyuq icmeler' ||
+    cat === 'iced coffees' ||
+    cat === 'iced coffee' ||
+    cat === 'iced kofe' ||
+    cat === 'iced qəhvə' ||
+    cat === 'iced qehve' ||
+    cat === 'frappes' ||
+    cat === 'frappe' ||
+    cat === 'frappelər' ||
+    cat === 'frappeler' ||
+    cat === 'smoothies' ||
+    cat === 'smoothie' ||
+    cat === 'smuzi' ||
+    cat === 'smusi'
+  );
+};
+
+// FUNKSIYA: calculate_total
 export const calculate_total = (
-  cart_items: { price: Decimal; qty: number; is_coffee: boolean; category: string }[],
+  cart_items: { price: Decimal; qty: number; is_coffee: boolean; category: string; item_name?: string }[],
   tenant_id: string,
   customer_type: string = 'Normal',
   manual_discount_percent: number = 0,
   is_eco_cup: boolean = false,
   happy_hour: any = null,
   customer_stars: number | null = null,
-  _beverageSettingsOverride?: { discount_scope?: string; coffee_selection_mode?: string },
+  _beverageSettingsOverride?: { discount_scope?: string; coffee_selection_mode?: string; summer_promo_enabled?: boolean },
 ) => {
   const beverageSettings = _beverageSettingsOverride || getBeverageServiceSettings(tenant_id);
   const discountScope = beverageSettings.discount_scope === 'coffee_only' ? 'coffee_only' : 'all_items';
+  const summerPromoEnabled = beverageSettings.summer_promo_enabled ?? false;
   const normalizedType = (customer_type || 'Normal').toLowerCase();
   let raw_total = new Decimal(0);
   let cogs_total = new Decimal(0);
@@ -85,20 +111,64 @@ export const calculate_total = (
   const safeStars = loyaltyEnabled ? Math.max(0, Number(customer_stars) || 0) : 0;
   const free_coffees = loyaltyEnabled ? Math.floor((safeStars + coffee_qty) / 10) : 0;
 
+  // Buy-1-Get-2nd-50%-Off Promo
+  const eligibleUnits: {
+    price: Decimal;
+    cartItemIndex: number;
+    unitIndex: number;
+  }[] = [];
+
+  if (summerPromoEnabled) {
+    cart_items.forEach((item, itemIdx) => {
+      if (isPromoEligibleCategory(item.category)) {
+        for (let q = 0; q < item.qty; q++) {
+          eligibleUnits.push({
+            price: new Decimal(item.price),
+            cartItemIndex: itemIdx,
+            unitIndex: q
+          });
+        }
+      }
+    });
+  }
+
+  const promoDiscountsByUnit = new Map<string, Decimal>();
+  if (summerPromoEnabled && eligibleUnits.length >= 2) {
+    eligibleUnits.sort((a, b) => b.price.comparedTo(a.price));
+    for (let i = 0; i + 1 < eligibleUnits.length; i += 2) {
+      const item2 = eligibleUnits[i + 1];
+      const discount = item2.price.times(0.5).toDecimalPlaces(2);
+      const key = `${item2.cartItemIndex}_${item2.unitIndex}`;
+      promoDiscountsByUnit.set(key, discount);
+    }
+  }
+
   const discounted_coffee_units: Decimal[] = [];
   let discounted_subtotal = new Decimal(0);
+  const itemPromoDiscounts = cart_items.map(() => new Decimal(0));
 
-  cart_items.forEach((item) => {
+  cart_items.forEach((item, itemIdx) => {
     const isCoffee = isCoffeeLike(item as any);
     const coffeeRate = Decimal.min(new Decimal(1), manual_discount_rate.plus(tier_discount_rate).plus(eco_rate));
     const nonCoffeeManual = discountScope === 'coffee_only' ? new Decimal(0) : manual_discount_rate;
     const nonCoffeeRate = Decimal.min(new Decimal(1), nonCoffeeManual.plus(eco_rate));
     const appliedRate = isCoffee ? coffeeRate : nonCoffeeRate;
-    const discounted_unit_price = item.price.times(new Decimal(1).minus(appliedRate)).toDecimalPlaces(2);
-    discounted_subtotal = discounted_subtotal.plus(discounted_unit_price.times(item.qty));
+
+    for (let q = 0; q < item.qty; q++) {
+      const std_discounted_price = item.price.times(new Decimal(1).minus(appliedRate)).toDecimalPlaces(2);
+      const promoDiscount = promoDiscountsByUnit.get(`${itemIdx}_${q}`) || new Decimal(0);
+      const promo_discounted_price = item.price.minus(promoDiscount);
+
+      let final_unit_price = std_discounted_price;
+      if (promo_discounted_price.lessThan(std_discounted_price)) {
+        final_unit_price = promo_discounted_price;
+        itemPromoDiscounts[itemIdx] = itemPromoDiscounts[itemIdx].plus(promoDiscount);
+      }
+
+      discounted_subtotal = discounted_subtotal.plus(final_unit_price);
+
       if (isCoffee) {
-      for (let i = 0; i < item.qty; i += 1) {
-        discounted_coffee_units.push(discounted_unit_price);
+        discounted_coffee_units.push(final_unit_price);
       }
     }
   });
@@ -121,7 +191,8 @@ export const calculate_total = (
     cogs_total,
     free_coffees,
     customer_stars_after,
-    is_ikram: normalizedType === 'ikram'
+    is_ikram: normalizedType === 'ikram',
+    item_promo_discounts: itemPromoDiscounts
   };
 };
 
@@ -234,7 +305,7 @@ export const create_sale = (payload: SalePayload) => {
 
     }
 
-    let { raw_total, final_total, discount_amount, cogs_total, free_coffees, customer_stars_after } = calculate_total(
+    let { raw_total, final_total, discount_amount, cogs_total, free_coffees, customer_stars_after, item_promo_discounts } = calculate_total(
       payload.cart_items,
       payload.tenant_id,
       apply_customer_type,
@@ -243,6 +314,14 @@ export const create_sale = (payload: SalePayload) => {
       null,
       current_stars
     );
+
+    const enriched_cart_items = payload.cart_items.map((item, idx) => {
+      const promoD = item_promo_discounts ? item_promo_discounts[idx] : new Decimal(0);
+      return {
+        ...item,
+        promo_discount: promoD.gt(0) ? promoD.toString() : undefined
+      };
+    });
 
     let staffMeta: any = undefined;
     if (payload.payment_method === 'Staff') {
@@ -388,7 +467,7 @@ export const create_sale = (payload: SalePayload) => {
       payment_method: payload.payment_method,
       order_type: payload.order_type || 'Dine In',
       cup_mode: payload.cup_mode || 'paper',
-      items: payload.cart_items,
+      items: enriched_cart_items as any,
       customer_stars_after: customer?.stars,
       free_coffees_applied: free_coffees,
       status: 'COMPLETED',

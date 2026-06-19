@@ -51,7 +51,89 @@ DEFAULT_BEVERAGE_SERVICE_SETTINGS = {
     "coffee_selection_mode": "size_and_service",
     "remove_paper_packaging_for_table": True,
     "discount_scope": "all_items",
+    "summer_promo_enabled": False,
 }
+
+
+def _is_promo_eligible_category(category: str | None) -> bool:
+    cat = str(category or "").strip().lower()
+    return cat in {
+        "cold drinks", "cold drink", "soyuq içkilər", "soyuq ickiler", "soyuq icmeler",
+        "iced coffees", "iced coffee", "iced kofe", "iced qəhvə", "iced qehve",
+        "frappes", "frappe", "frappelər", "frappeler",
+        "smoothies", "smoothie", "smuzi", "smusi"
+    }
+
+
+def _calculate_discounted_items_total(items, discount_percent, beverage_settings):
+    summer_promo_enabled = bool((beverage_settings or {}).get("summer_promo_enabled", False))
+    discount_scope = str((beverage_settings or {}).get("discount_scope") or "all_items").strip().lower()
+    discount_rate = Decimal(str(discount_percent or 0)) / Decimal("100")
+
+    def get_val(item, key, default=None):
+        if hasattr(item, key):
+            return getattr(item, key)
+        if isinstance(item, dict):
+            return item.get(key, default)
+        return default
+
+    # First, calculate promo pairing
+    eligible_units = []
+    if summer_promo_enabled:
+        for item_idx, item in enumerate(items):
+            if _is_promo_eligible_category(get_val(item, "category")):
+                qty = int(get_val(item, "qty") or get_val(item, "quantity") or 0)
+                price = Decimal(str(get_val(item, "price") or 0))
+                for q in range(qty):
+                    eligible_units.append({
+                        "price": price,
+                        "item_idx": item_idx,
+                        "unit_idx": q
+                    })
+
+    promo_discounts = {}  # (item_idx, unit_idx) -> Decimal
+    if summer_promo_enabled and len(eligible_units) >= 2:
+        eligible_units.sort(key=lambda x: x["price"], reverse=True)
+        for i in range(0, len(eligible_units) - 1, 2):
+            item2 = eligible_units[i + 1]
+            discount_val = (item2["price"] * Decimal("0.5")).quantize(Decimal("0.01"))
+            promo_discounts[(item2["item_idx"], item2["unit_idx"])] = discount_val
+
+    # Now calculate total discounted sum
+    total_discounted = Decimal("0.00")
+    item_promo_discounts = [Decimal("0.00") for _ in range(len(items))]
+    coffee_unit_prices = []
+
+    for item_idx, item in enumerate(items):
+        price = Decimal(str(get_val(item, "price") or 0))
+        qty = int(get_val(item, "qty") or get_val(item, "quantity") or 0)
+        category = get_val(item, "category")
+        item_name = get_val(item, "item_name") or get_val(item, "name")
+        is_coffee = get_val(item, "is_coffee")
+
+        is_coffee_item = (
+            is_coffee or
+            (isinstance(is_coffee, str) and is_coffee.lower() == "true") or
+            _is_coffee_like(item_name, category, is_coffee)
+        )
+        apply_manual = discount_scope == "all_items" or is_coffee_item
+        unit_discount_rate = discount_rate if apply_manual else Decimal("0")
+
+        for q in range(qty):
+            std_price = (price * (Decimal("1") - unit_discount_rate)).quantize(Decimal("0.01"))
+            promo_discount_val = promo_discounts.get((item_idx, q), Decimal("0.00"))
+            promo_price = price - promo_discount_val
+
+            final_price = std_price
+            if promo_price < std_price:
+                final_price = promo_price
+                item_promo_discounts[item_idx] += promo_discount_val
+
+            total_discounted += final_price
+            if is_coffee_item:
+                coffee_unit_prices.append(final_price)
+
+    return total_discounted, item_promo_discounts, coffee_unit_prices
 
 
 def _is_void_sale_status(value: str | None) -> bool:
@@ -365,35 +447,25 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
     program_mode = str(customer_program.get("program_mode") or "points").strip().lower()
     cashback_percent = Decimal(str(customer_program.get("cashback_percent") or 0))
     beverage_settings = _setting_value(db, tenant.id, "beverage_service_settings", DEFAULT_BEVERAGE_SERVICE_SETTINGS)
-    discount_scope = (
-        "coffee_only"
-        if str((beverage_settings or {}).get("discount_scope") or "").strip().lower() == "coffee_only"
-        else "all_items"
-    )
-    discount_rate = effective_discount / Decimal("100")
     subtotal = sum((Decimal(str(i.price)) * i.qty for i in payload.cart_items), Decimal("0"))
-    discount = Decimal("0.00")
-    for item in payload.cart_items:
-        line_total = (Decimal(str(item.price)) * Decimal(str(item.qty or 0))).quantize(Decimal("0.01"))
-        apply_manual = discount_scope == "all_items" or _is_coffee_like(item.item_name, item.category, item.is_coffee)
-        if apply_manual and discount_rate > 0:
-            discount += (line_total * discount_rate).quantize(Decimal("0.01"))
-    discount = discount.quantize(Decimal("0.01"))
-    total = (subtotal - discount).quantize(Decimal("0.01"))
+
+    # Calculate promo and standard discounts per unit
+    discounted_items_total, item_promo_discounts, coffee_unit_prices = _calculate_discounted_items_total(
+        payload.cart_items,
+        effective_discount,
+        beverage_settings
+    )
+    discount = (subtotal - discounted_items_total).quantize(Decimal("0.01"))
+    total = discounted_items_total.quantize(Decimal("0.01"))
     reward_claim = None
     reward_discount = Decimal("0.00")
 
-    coffee_unit_prices: list[Decimal] = []
     coffee_qty = 0
     for item in payload.cart_items:
         is_coffee_item = _is_coffee_like(item.item_name, item.category, item.is_coffee)
-        apply_manual = discount_scope == "all_items" or is_coffee_item
-        unit_discount_rate = discount_rate if apply_manual else Decimal("0")
         if is_coffee_item:
             coffee_qty += int(item.qty or 0)
-            discounted_unit = (Decimal(str(item.price)) * (Decimal("1") - unit_discount_rate)).quantize(Decimal("0.01"))
-            for _ in range(int(item.qty or 0)):
-                coffee_unit_prices.append(discounted_unit)
+
     free_coffees = 0
     customer_stars_after = 0
     if current_stars is not None:
@@ -520,6 +592,9 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         row = item.model_dump(mode="json")
         row["_cogs_snapshot"] = str(line_cogs_totals.get(index, Decimal("0.0000")).quantize(Decimal("0.0001")))
         row["_cogs_estimation_unresolved"] = bool(line_cogs_unresolved.get(index, False))
+        promo_d = item_promo_discounts[index]
+        if promo_d > 0:
+            row["promo_discount"] = str(promo_d.quantize(Decimal("0.01")))
         sale_items_payload.append(row)
 
     receipt_code = secrets.token_hex(5).upper()

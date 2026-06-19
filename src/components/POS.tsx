@@ -1164,15 +1164,19 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     try {
       const backendPayload = {
         offline_request_id: generateOfflineRequestId(),
-        cart_items: cart.map((item) => ({
-          item_name: item.item_name,
-          price: toDecimalSafe(item.price).toFixed(2),
-          qty: item.qty,
-          is_coffee: item.is_coffee,
-          category: item.category,
-          seat_label: item.seat_label || null,
-          cup_mode: item.cup_mode || null,
-        })),
+        cart_items: cart.map((item, idx) => {
+          const promoD = totals.item_promo_discounts ? totals.item_promo_discounts[idx] : undefined;
+          return {
+            item_name: item.item_name,
+            price: toDecimalSafe(item.price).toFixed(2),
+            qty: item.qty,
+            is_coffee: item.is_coffee,
+            category: item.category,
+            seat_label: item.seat_label || null,
+            cup_mode: item.cup_mode || null,
+            promo_discount: promoD && promoD.gt(0) ? promoD.toFixed(2) : undefined,
+          };
+        }),
         payment_method: paymentMethod,
         discount_percent: effectiveDiscountPercent,
         order_type: ctx.orderType,
@@ -1183,15 +1187,19 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       };
       const localPayload = {
         tenant_id: tenantId,
-        cart_items: cart.map((item) => ({
-          item_name: item.item_name,
-          price: toDecimalSafe(item.price),
-          qty: item.qty,
-          is_coffee: item.is_coffee,
-          category: item.category,
-          seat_label: item.seat_label,
-          cup_mode: item.cup_mode,
-        })),
+        cart_items: cart.map((item, idx) => {
+          const promoD = totals.item_promo_discounts ? totals.item_promo_discounts[idx] : undefined;
+          return {
+            item_name: item.item_name,
+            price: toDecimalSafe(item.price),
+            qty: item.qty,
+            is_coffee: item.is_coffee,
+            category: item.category,
+            seat_label: item.seat_label,
+            cup_mode: item.cup_mode,
+            promo_discount: promoD && promoD.gt(0) ? promoD.toString() : undefined,
+          };
+        }),
         payment_method: paymentMethod,
         cashier: user.username,
         customer_card_id: ctx.customer?.card_id || null,
@@ -1869,28 +1877,36 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           style={{ resize: 'vertical', minHeight: size === 'compact' ? '120px' : size === 'expanded' ? '220px' : posLayout.density === 'large' ? '180px' : '150px' }}
         >
           {cart.length === 0 && <div className="pt-8 text-center text-sm text-slate-500">{t.cart_empty}</div>}
-          {cart.map((item) => (
-            <div key={item.line_id} className="rounded-md border border-slate-700 bg-slate-900/40 p-2">
-              <div className="mb-1 flex items-center justify-between text-sm">
-                <div>
-                  <div className="font-semibold text-slate-100">{item.item_name}</div>
-                  {item.cup_mode && (
-                    <div className="text-[11px] text-slate-400">
-                      {item.cup_mode === 'glass'
-                        ? tx(lang, 'Stəkan (masa)', 'Стакан (table)', 'Glass (table)')
-                        : tx(lang, 'Kağız stəkan (to go)', 'Бумажный стакан (to go)', 'Paper cup (to go)')}
-                    </div>
-                  )}
+          {cart.map((item, idx) => {
+            const promoD = totals.item_promo_discounts ? totals.item_promo_discounts[idx] : undefined;
+            return (
+              <div key={item.line_id} className="rounded-md border border-slate-700 bg-slate-900/40 p-2">
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <div>
+                    <div className="font-semibold text-slate-100">{item.item_name}</div>
+                    {item.cup_mode && (
+                      <div className="text-[11px] text-slate-400">
+                        {item.cup_mode === 'glass'
+                          ? tx(lang, 'Stəkan (masa)', 'Стакан (table)', 'Glass (table)')
+                          : tx(lang, 'Kağız stəkan (to go)', 'Бумажный стакан (to go)', 'Paper cup (to go)')}
+                      </div>
+                    )}
+                  </div>
+                  <span className="font-semibold text-yellow-300">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
                 </div>
-                <span className="font-semibold text-yellow-300">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
+                {promoD && promoD.gt(0) && (
+                  <div className="mb-2 text-xs text-yellow-400/90 italic pl-1">
+                    [Promo] 2nd Item 50% Off: -{promoD.toFixed(2)} ₼
+                  </div>
+                )}
+                <div className="flex items-center justify-end gap-1">
+                  <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty - 1)}><Minus size={13} /></button>
+                  <span className="w-6 text-center text-sm">{item.qty}</span>
+                  <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty + 1)}><Plus size={13} /></button>
+                </div>
               </div>
-              <div className="flex items-center justify-end gap-1">
-                <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty - 1)}><Minus size={13} /></button>
-                <span className="w-6 text-center text-sm">{item.qty}</span>
-                <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty + 1)}><Plus size={13} /></button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       );
     }
@@ -2517,19 +2533,27 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
 
             <div className="pos3-order-list">
               {cart.length === 0 && <div className="pt-8 text-center text-sm text-slate-500">{t.cart_empty}</div>}
-              {cart.map((item) => (
-                <div key={item.line_id} className="rounded-xl border border-slate-700/70 bg-slate-900/40 p-2.5">
-                  <div className="mb-1 flex items-center justify-between">
-                    <span className="line-clamp-1 text-sm font-semibold text-slate-100">{item.item_name}</span>
-                    <span className="text-sm font-semibold text-amber-300">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
+              {cart.map((item, idx) => {
+                const promoD = totals.item_promo_discounts ? totals.item_promo_discounts[idx] : undefined;
+                return (
+                  <div key={item.line_id} className="rounded-xl border border-slate-700/70 bg-slate-900/40 p-2.5">
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="line-clamp-1 text-sm font-semibold text-slate-100">{item.item_name}</span>
+                      <span className="text-sm font-semibold text-amber-300">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
+                    </div>
+                    {promoD && promoD.gt(0) && (
+                      <div className="mb-2 text-[11px] text-yellow-400/90 italic pl-1">
+                        [Promo] 2nd Item 50% Off: -{promoD.toFixed(2)} ₼
+                      </div>
+                    )}
+                    <div className="flex items-center justify-end gap-2">
+                      <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty - 1)}><Minus size={13} /></button>
+                      <span className="w-5 text-center text-sm text-slate-200">{item.qty}</span>
+                      <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty + 1)}><Plus size={13} /></button>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-end gap-2">
-                    <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty - 1)}><Minus size={13} /></button>
-                    <span className="w-5 text-center text-sm text-slate-200">{item.qty}</span>
-                    <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty + 1)}><Plus size={13} /></button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="mt-3 rounded-xl border border-slate-700/70 bg-slate-950/50 p-3 text-sm">
@@ -2902,26 +2926,34 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                 <div className="mb-2 text-sm font-semibold text-slate-200">{tx(lang, 'Səbət', 'Корзина', 'Cart')}</div>
                 <div className="space-y-2">
                   {cart.length === 0 && <div className="text-sm text-slate-500">{t.cart_empty}</div>}
-                  {cart.map((item) => (
-                    <div key={`mobile_${item.line_id}`} className="rounded-lg border border-slate-700 bg-slate-900/40 p-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-semibold text-slate-100">
-                          {item.item_name}
-                          {item.cup_mode ? ` · ${item.cup_mode === 'glass' ? tx(lang, 'Stəkan', 'Стакан', 'Glass') : tx(lang, 'To go', 'To go', 'To go')}` : ''}
-                        </span>
-                        <span className="font-semibold text-yellow-300">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
+                  {cart.map((item, idx) => {
+                    const promoD = totals.item_promo_discounts ? totals.item_promo_discounts[idx] : undefined;
+                    return (
+                      <div key={`mobile_${item.line_id}`} className="rounded-lg border border-slate-700 bg-slate-900/40 p-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-semibold text-slate-100">
+                            {item.item_name}
+                            {item.cup_mode ? ` · ${item.cup_mode === 'glass' ? tx(lang, 'Stəkan', 'Стакан', 'Glass') : tx(lang, 'To go', 'To go', 'To go')}` : ''}
+                          </span>
+                          <span className="font-semibold text-yellow-300">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
+                        </div>
+                        {promoD && promoD.gt(0) && (
+                          <div className="mt-1 text-xs text-yellow-400/90 italic pl-1">
+                            [Promo] 2nd Item 50% Off: -{promoD.toFixed(2)} ₼
+                          </div>
+                        )}
+                        <div className="mt-2 flex items-center justify-end gap-2">
+                          <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty - 1)}>
+                            <Minus size={14} />
+                          </button>
+                          <span className="w-6 text-center">{item.qty}</span>
+                          <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty + 1)}>
+                            <Plus size={14} />
+                          </button>
+                        </div>
                       </div>
-                      <div className="mt-2 flex items-center justify-end gap-2">
-                        <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty - 1)}>
-                          <Minus size={14} />
-                        </button>
-                        <span className="w-6 text-center">{item.qty}</span>
-                        <button className="neon-mini-btn" onClick={() => updateCartItem(item.line_id, item.qty + 1)}>
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 

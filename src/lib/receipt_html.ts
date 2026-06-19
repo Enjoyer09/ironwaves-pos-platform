@@ -107,12 +107,22 @@ export async function buildSaleReceiptHtml({
     const qty = Number(item?.qty || item?.quantity || 1);
     const name = esc(item?.item_name || item?.name || '-');
     const price = Number(item?.line_total ?? item?.total ?? 0) || (Number(item?.price || 0) * qty);
-    return `
+    const promoD = Number(item?.promo_discount || 0);
+    let lineHtml = `
       <tr>
         <td>${qty}x ${name}</td>
         <td>${money(price)} ₼</td>
       </tr>
     `;
+    if (promoD > 0) {
+      lineHtml += `
+        <tr>
+          <td style="padding-left: 12px; font-style: italic; font-size: 11px; color: #4b5563;">[Promo] 2nd Item 50% Off</td>
+          <td style="font-style: italic; font-size: 11px; color: #4b5563;">-${money(promoD)} ₼</td>
+        </tr>
+      `;
+    }
+    return lineHtml;
   }).join('');
   const subtotal = Number(sale?.original_total ?? 0) || (Number(sale?.total || 0) + Number(sale?.discount_amount || 0));
   const total = Number(sale?.total || 0);

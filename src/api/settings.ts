@@ -252,6 +252,7 @@ const DEFAULT_BEVERAGE_SERVICE_SETTINGS: NonNullable<Settings['beverage_service_
   coffee_selection_mode: 'size_and_service',
   remove_paper_packaging_for_table: true,
   discount_scope: 'all_items',
+  summer_promo_enabled: false,
 };
 
 const DEFAULT_Z_REPORT_RECEIPT_SETTINGS: NonNullable<Settings['z_report_receipt_settings']> = {

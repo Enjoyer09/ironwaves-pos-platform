@@ -165,6 +165,7 @@ DEFAULT_BEVERAGE_SERVICE_SETTINGS = {
     "coffee_selection_mode": "size_and_service",
     "remove_paper_packaging_for_table": True,
     "discount_scope": "all_items",
+    "summer_promo_enabled": False,
 }
 
 DEFAULT_Z_REPORT_RECEIPT_SETTINGS = {
@@ -4711,12 +4712,20 @@ def pay_table(
     if not items and seat_deposit_amount <= 0:
         raise HTTPException(status_code=400, detail="Table is empty")
 
+    from app.routers.pos import _calculate_discounted_items_total
+
     discount_percent = Decimal(str(payload.discount_percent or 0)).quantize(Decimal("0.01"))
     discount_percent = max(Decimal("0.00"), min(discount_percent, Decimal("50.00")))
     pre_discount_service_fee_amount = (items_total * service_fee_percent / Decimal("100")).quantize(Decimal("0.01"))
     pre_discount_total = max(items_total + pre_discount_service_fee_amount, seat_deposit_amount).quantize(Decimal("0.01"))
-    raw_discount_amount = (items_total * discount_percent / Decimal("100")).quantize(Decimal("0.01"))
-    discounted_items_total = max(items_total - raw_discount_amount, Decimal("0.00")).quantize(Decimal("0.01"))
+
+    beverage_settings = _setting_value(db, tenant.id, "beverage_service_settings", DEFAULT_BEVERAGE_SERVICE_SETTINGS)
+    discounted_items_total, item_promo_discounts = _calculate_discounted_items_total(
+        items,
+        discount_percent,
+        beverage_settings
+    )[:2]
+
     service_fee_amount = (discounted_items_total * service_fee_percent / Decimal("100")).quantize(Decimal("0.01"))
     total = max(discounted_items_total + service_fee_amount, seat_deposit_amount).quantize(Decimal("0.01"))
     discount_amount = max(pre_discount_total - total, Decimal("0.00")).quantize(Decimal("0.01"))
@@ -4735,7 +4744,11 @@ def pay_table(
         total=total,
         discount_amount=discount_amount,
         cogs=cogs_total,
-        items_json=json.dumps(items, ensure_ascii=False),
+        items_json=json.dumps([
+            {**dict(item), "promo_discount": str(item_promo_discounts[idx].quantize(Decimal("0.01")))}
+            if item_promo_discounts[idx] > 0 else dict(item)
+            for idx, item in enumerate(items)
+        ], ensure_ascii=False),
         status="COMPLETED",
         created_at=datetime.utcnow(),
     )
