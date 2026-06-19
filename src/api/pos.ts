@@ -68,17 +68,9 @@ export const isPromoEligibleCategory = (categoryName: string) => {
 
 export const isPromoEligibleItem = (item: { category: string; item_name?: string }) => {
   if (isPromoEligibleCategory(item.category)) return true;
-  const name = String(item.item_name || '').trim().toLowerCase();
-  return (
-    name.includes('iced') ||
-    name.includes('soyuq') ||
-    name.includes('cold') ||
-    name.includes('frappe') ||
-    name.includes('smoothie') ||
-    name.includes('smuzi') ||
-    name.startsWith('ice ') ||
-    name.includes(' ice ')
-  );
+  const name = String(item.item_name || '').trim();
+  const regex = /\b(iced|ice|soyuq|cold|frappe|smoothie|smuzi)\b/i;
+  return regex.test(name);
 };
 
 // FUNKSIYA: calculate_total
