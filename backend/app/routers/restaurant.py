@@ -2698,6 +2698,11 @@ def settle_check(
     service_fee_percent = Decimal(str(_setting_value(db, tenant.id, "service_fee_percent", 0) or 0))
     discount_percent = Decimal(str(payload.discount_percent or 0)).quantize(Decimal("0.01"))
     discount_percent = max(Decimal("0.00"), min(discount_percent, Decimal("50.00")))
+    if discount_percent > 0 and not (payload.discount_reason or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Maliyyə hesabatlığı üçün endirim səbəbini qeyd edin! (Discount reason is required for manual discount)"
+        )
     pre_discount_service_fee_amount = (items_total * service_fee_percent / Decimal("100")).quantize(Decimal("0.01"))
     pre_discount_final_total = max(items_total + pre_discount_service_fee_amount, deposit_amount).quantize(Decimal("0.01"))
     raw_discount_amount = (items_total * discount_percent / Decimal("100")).quantize(Decimal("0.01"))
@@ -2760,6 +2765,7 @@ def settle_check(
         receipt_token=receipt_token,
         total=final_total,
         discount_amount=discount_amount,
+        discount_reason=payload.discount_reason,
         cogs=cogs_total,
         items_json=json.dumps([
             {**dict(item), "promo_discount": str(item_promo_discounts[idx].quantize(Decimal("0.01")))}

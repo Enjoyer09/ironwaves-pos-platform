@@ -608,6 +608,7 @@ export async function settle_table_check_live(
     split_cash?: Decimal | null;
     split_card?: Decimal | null;
     discount_percent?: number | string | Decimal | null;
+    discount_reason?: string | null;
     parts?: Array<{ method: 'Nəğd' | 'Kart'; amount: string }>;
   },
 ) {
@@ -631,6 +632,7 @@ export async function settle_table_check_live(
       discount_percent: payload.discount_percent !== null && payload.discount_percent !== undefined
         ? new Decimal(payload.discount_percent || 0).toDecimalPlaces(2).toFixed(2)
         : '0.00',
+      discount_reason: payload.discount_reason || null,
       parts: (payload.parts || []).map((row) => ({
         method: row.method,
         amount: row.amount,
