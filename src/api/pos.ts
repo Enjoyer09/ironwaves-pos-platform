@@ -44,27 +44,26 @@ const getBeverageServiceSettings = (tenant_id: string) => {
 
 // FUNKSIYA: calculate_total
 export const isPromoEligibleCategory = (categoryName: string) => {
-  const cat = String(categoryName || '').trim().toLowerCase();
-  return (
-    cat === 'cold drinks' ||
-    cat === 'cold drink' ||
-    cat === 'soyuq içkilər' ||
-    cat === 'soyuq ickiler' ||
-    cat === 'soyuq icmeler' ||
-    cat === 'iced coffees' ||
-    cat === 'iced coffee' ||
-    cat === 'iced kofe' ||
-    cat === 'iced qəhvə' ||
-    cat === 'iced qehve' ||
-    cat === 'frappes' ||
-    cat === 'frappe' ||
-    cat === 'frappelər' ||
-    cat === 'frappeler' ||
-    cat === 'smoothies' ||
-    cat === 'smoothie' ||
-    cat === 'smuzi' ||
-    cat === 'smusi'
-  );
+  const cat = String(categoryName || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\u0307/g, ''); // Remove Unicode combining dot above (dotted capital I conversion)
+  
+  const directMatches = [
+    'cold drinks', 'cold drink', 'soyuq içkilər', 'soyuq ickiler', 'soyuq icmeler', 'soyuq içki', 'soyuq icki',
+    'iced coffees', 'iced coffee', 'iced kofe', 'iced qəhvə', 'iced qehve',
+    'frappes', 'frappe', 'frappelər', 'frappeler',
+    'smoothies', 'smoothie', 'smuzi', 'smusi'
+  ];
+  if (directMatches.includes(cat)) return true;
+
+  // Substring fallback checks for custom categories
+  if (cat.includes('cold drink') || cat.includes('soyuq ic') || cat.includes('soyuq iç')) return true;
+  if (cat.includes('iced coffee') || cat.includes('iced kofe') || cat.includes('iced qəh') || cat.includes('iced qeh')) return true;
+  if (cat.includes('frappe')) return true;
+  if (cat.includes('smoothie') || cat.includes('smuzi') || cat.includes('smusi')) return true;
+
+  return false;
 };
 
 // FUNKSIYA: calculate_total
