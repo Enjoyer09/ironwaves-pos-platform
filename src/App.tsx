@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useState, useEffect, useMemo, useRef } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { useAppStore } from './store';
 import { i18n, tx } from './i18n';
 import PinLogin from './components/PinLogin';
@@ -481,12 +482,26 @@ export default function App() {
   }, []);
 
   const customerAppParams = useMemo(() => {
-    if (typeof window === 'undefined') return { cardId: '', token: '' };
+    if (typeof window === 'undefined') return { cardId: '', token: '', join: false, isMobile: false };
+    
+    const isMobile = Capacitor.isNativePlatform();
+    if (isMobile) {
+      const savedCardId = localStorage.getItem('customer_card_id') || '';
+      const savedToken = localStorage.getItem('customer_token') || '';
+      return {
+        cardId: savedCardId,
+        token: savedToken,
+        join: !savedCardId || !savedToken,
+        isMobile: true,
+      };
+    }
+
     const params = new URLSearchParams(window.location.search);
     return {
       cardId: params.get('id') || '',
       token: params.get('t') || params.get('token') || '',
       join: params.get('join') === '1',
+      isMobile: false,
     };
   }, []);
 
@@ -1419,7 +1434,7 @@ export default function App() {
     return <Suspense fallback={lazyModuleFallback}><PublicReceipt receiptId={publicReceiptParams.receiptId} token={publicReceiptParams.token} /></Suspense>;
   }
 
-  if (customerAppParams.join || (customerAppParams.cardId && customerAppParams.token)) {
+  if (customerAppParams.isMobile || customerAppParams.join || (customerAppParams.cardId && customerAppParams.token)) {
     return <Suspense fallback={lazyModuleFallback}><CustomerApp cardId={customerAppParams.cardId} token={customerAppParams.token} joinMode={customerAppParams.join} /></Suspense>;
   }
 

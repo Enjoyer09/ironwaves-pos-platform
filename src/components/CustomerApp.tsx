@@ -148,6 +148,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       const next = { cardId: created.card_id, token: created.token };
       setSessionCreds(next);
       if (typeof window !== 'undefined') {
+        localStorage.setItem('customer_card_id', created.card_id);
+        localStorage.setItem('customer_token', created.token);
         const nextUrl = new URL(window.location.href);
         nextUrl.searchParams.set('id', created.card_id);
         nextUrl.searchParams.set('t', created.token);
