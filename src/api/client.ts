@@ -1,4 +1,6 @@
 import { emitPerfEvent } from '../lib/perf';
+import { Capacitor } from '@capacitor/core';
+
 
 const ENV = ((import.meta as any)?.env || {}) as Record<string, string | undefined>;
 const BACKEND_FLAG = String(ENV.VITE_USE_BACKEND || '').toLowerCase();
@@ -8,6 +10,9 @@ const PRODUCTION_API_BASE_URL = 'https://ironwaves-pos-platform-production.up.ra
 function normalizeConfiguredApiBaseUrl() {
   const configured = String(ENV.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
   if (!configured) {
+    if (Capacitor.isNativePlatform()) {
+      return PRODUCTION_API_BASE_URL;
+    }
     try {
       const host = String(window.location.hostname || '').toLowerCase();
       if (host.endsWith('.ironwaves.store') || host === 'ironwaves.store' || host.endsWith('.up.railway.app')) {
@@ -305,7 +310,12 @@ async function apiRequestNetwork<T = any>(path: string, options: ApiRequestOptio
 
   // Always send the original frontend host so backend can resolve tenant correctly
   // even when API base URL points to a different host (e.g. Railway backend domain).
-  headers['x-tenant-domain'] = window.location.host;
+  let domain = window.location.host;
+  if (Capacitor.isNativePlatform()) {
+    const savedDomain = localStorage.getItem('mobile_tenant_domain');
+    domain = savedDomain || 'super.ironwaves.store';
+  }
+  headers['x-tenant-domain'] = domain;
   headers['x-request-id'] = requestId;
   if (tenantId) headers['x-tenant-id'] = tenantId;
   if (options.auth !== false && requestAccessToken) {
