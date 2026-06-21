@@ -2,6 +2,9 @@ import json
 import csv
 import io
 import random
+import pyotp
+import base64
+import hashlib
 import re
 import secrets
 import threading
@@ -99,7 +102,9 @@ from app.services.legacy_import_service import (
 )
 from app.core.config import settings as app_settings
 from app.security import hash_password, hash_token, verify_password
+import logging
 
+logger = logging.getLogger("app.routers.operations")
 
 router = APIRouter(prefix="/api/v1/ops", tags=["operations"])
 
@@ -3511,6 +3516,7 @@ def get_customer_app_bootstrap(
     return {
         "tenant_id": tenant.id,
         "enabled": bool(app_settings.get("enabled", True)),
+        "onesignal_app_id": app_settings.onesignal_app_id,
         "branding": {
             "company_name": branding.company_name if branding else tenant.name,
             "website": (branding.website if branding else f"https://{tenant.domain}") or f"https://{tenant.domain}",
@@ -3673,6 +3679,117 @@ def save_push_token(
     return {"success": True}
 
 
+def _get_totp_for_phone(phone: str) -> pyotp.TOTP:
+    normalized = "".join(filter(str.isdigit, phone))
+    key_material = f"{normalized}:{app_settings.jwt_secret}"
+    hasher = hashlib.sha256(key_material.encode())
+    b32_secret = base64.b32encode(hasher.digest())[:32].decode().upper()
+    return pyotp.TOTP(b32_secret, digits=4, interval=300)
+
+
+class SendOtpIn(BaseModel):
+    phone: str
+
+
+class VerifyOtpIn(BaseModel):
+    phone: str
+    code: str
+    join_customer_type: str | None = "golden"
+    join_discount_percent: float | None = 0.0
+
+
+@router.post("/customer-app/otp/send")
+def send_customer_otp(
+    payload: SendOtpIn,
+    db: Session = Depends(get_db),
+    tenant = Depends(get_tenant),
+):
+    phone = payload.phone.strip()
+    if not phone or len(phone) < 7:
+        raise HTTPException(status_code=400, detail="Telefon nömrəsi düzgün deyil")
+    
+    totp = _get_totp_for_phone(phone)
+    code = totp.now()
+    
+    print(f"\n[OTP SMS GATEWAY] Sending code {code} to {phone}\n")
+    logger.info(f"[OTP SMS GATEWAY] Sending code {code} to {phone}")
+    
+    return {"success": True, "message": "Təsdiq kodu göndərildi"}
+
+
+@router.post("/customer-app/otp/verify")
+def verify_customer_otp(
+    payload: VerifyOtpIn,
+    db: Session = Depends(get_db),
+    tenant = Depends(get_tenant),
+):
+    phone = payload.phone.strip()
+    code = payload.code.strip()
+    
+    totp = _get_totp_for_phone(phone)
+    if not totp.verify(code):
+        raise HTTPException(status_code=400, detail="Təsdiq kodu yanlışdır və ya vaxtı keçib")
+    
+    normalized_phone = "".join(filter(str.isdigit, phone))
+    
+    customer = (
+        db.query(Customer)
+        .filter(Customer.tenant_id == tenant.id)
+        .filter(
+            (Customer.phone == phone) | 
+            (Customer.phone == normalized_phone) |
+            (Customer.phone.endswith(normalized_phone[-9:] if len(normalized_phone) >= 9 else normalized_phone))
+        )
+        .first()
+    )
+    
+    if customer:
+        if not customer.phone:
+            customer.phone = phone
+            db.commit()
+        return {
+            "success": True,
+            "is_new": False,
+            "card_id": customer.card_id,
+            "token": customer.secret_token
+        }
+    else:
+        card_id = f"QR-{secrets.token_hex(4).upper()}"
+        while db.query(Customer).filter(Customer.tenant_id == tenant.id, Customer.card_id == card_id).first():
+            card_id = f"QR-{secrets.token_hex(4).upper()}"
+        secret_token = secrets.token_urlsafe(18)
+        
+        tenant_app_settings = _setting_value(db, tenant.id, "customer_app_settings", {"enabled": True})
+        join_type = _clean_customer_type(payload.join_customer_type or tenant_app_settings.get("join_customer_type") or "golden")
+        discount = Decimal(str(payload.join_discount_percent or tenant_app_settings.get("join_discount_percent") or 0))
+        
+        new_cust = Customer(
+            tenant_id=tenant.id,
+            card_id=card_id,
+            type=join_type,
+            stars=0,
+            discount_percent=discount,
+            secret_token=secret_token,
+            phone=phone
+        )
+        db.add(new_cust)
+        db.add(
+            Notification(
+                tenant_id=tenant.id,
+                card_id=card_id,
+                message="Loyalty club hesabınız telefon nömrəsi ilə yaradıldı.",
+                is_read=False,
+            )
+        )
+        db.commit()
+        return {
+            "success": True,
+            "is_new": True,
+            "card_id": card_id,
+            "token": secret_token
+        }
+
+
 @router.get("/customer-app/session")
 def get_customer_app_session(
     id: str = Query(...),
@@ -3769,6 +3886,7 @@ def get_customer_app_session(
 
     return {
         "tenant_id": tenant.id,
+        "onesignal_app_id": app_settings.onesignal_app_id,
         "branding": {
             "company_name": branding.company_name if branding else tenant.name,
             "website": (branding.website if branding else f"https://{tenant.domain}") or f"https://{tenant.domain}",
@@ -3941,6 +4059,351 @@ def mark_customer_notification_read(
     row.is_read = True
     db.commit()
     return {"success": True}
+
+
+class FortuneAnalyzeIn(BaseModel):
+    image_base64: str
+    lang: str | None = "az"
+
+
+class BaristaChatIn(BaseModel):
+    messages: list[dict]
+    lang: str | None = "az"
+
+
+@router.post("/customer-app/fortune/analyze")
+def analyze_customer_fortune(
+    payload: FortuneAnalyzeIn,
+    id: str = Query(...),
+    t: str = Query(...),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    customer = _resolve_customer_session(db, tenant.id, id, t)
+    
+    image_base64 = payload.image_base64.strip()
+    lang = (payload.lang or "az").strip().lower()
+    
+    from app.services.opencode_service import generate_chat
+    
+    try:
+        if not app_settings.openrouter_api_key:
+            raise RuntimeError("OpenRouter API key is not configured")
+            
+        system_prompt = (
+            "Sən iRonWaves kafesinin AI Falçı-sısan. Müştəri sənə bir şəkil göndərir. "
+            "Sən şəkildəki ab-havanı (rəng tonları, işıq, mövzu) analiz etməli və Azərbaycan dilində əyləncəli, mistik, lakin pozitiv bir qəhvə falı yazmalısan. "
+            "Falın sonunda mütləq müştəriyə müsbət enerji ver və ona uyğun bir qəhvə növü təklif et. Cavabı qısa və oxunaqlı saxla (maksimum 3-4 cümlə)."
+            if lang == "az" else
+            "You are the AI Fortune Teller of iRonWaves cafe. The customer sends you an image. "
+            "Analyze the vibe (colors, lighting, theme) and write a playful, mystic, but positive coffee fortune in English. "
+            "At the end, give positive energy and suggest a coffee type. Keep it short (max 3-4 sentences)."
+        )
+        
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Mənim falıma bax və gələcəyimlə bağlı proqnoz ver." if lang == "az" else "Read my fortune and give a prediction."
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": image_base64
+                        }
+                    }
+                ]
+            }
+        ]
+        
+        model = "google/gemini-2.0-flash-exp:free"
+        response_text = generate_chat(
+            model=model,
+            messages=messages,
+            system=system_prompt,
+            temperature=0.7,
+            max_tokens=800
+        )
+        return {"success": True, "fortune": response_text}
+        
+    except Exception as exc:
+        logger.warning(f"AI Fortune generation failed, falling back to local analyzer: {exc}")
+        import hashlib
+        h = hashlib.md5(image_base64.encode('utf-8')).hexdigest()
+        val = int(h, 16) % 3
+        
+        if val == 0:
+            fortune_text = (
+                "Fal deyir ki, bu şəkil işıqlı enerji daşıyır. Qarşıdakı günlərdə sənin üçün açıq qapılar və xoş kampaniyalar görünür."
+                if lang == "az" else
+                "The fortune says this image carries bright energy. Open doors and pleasant offers are ahead for you in the coming days."
+            )
+        elif val == 1:
+            fortune_text = (
+                "Fal isti tonlar görür. Bu, yaxın zamanda daha rahatlıq, dadlı seçimlər və özünü mükafatlandırmaq vaxtı deməkdir."
+                if lang == "az" else
+                "Your fortune sees warm tones. That means comfort, tasty choices, and a good time to reward yourself."
+            )
+        else:
+            fortune_text = (
+                "Fal daha dərin və sakit aura görür. Yaxın günlərdə səni sürpriz bonus və gözlənilməz bir reward sevindirə bilər."
+                if lang == "az" else
+                "Your fortune sees a deeper, calmer aura. An unexpected bonus or reward may cheer you up soon."
+            )
+            
+        return {"success": True, "fortune": fortune_text, "fallback": True}
+
+
+@router.post("/customer-app/barista/chat")
+def chat_customer_barista(
+    payload: BaristaChatIn,
+    id: str = Query(...),
+    t: str = Query(...),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    customer = _resolve_customer_session(db, tenant.id, id, t)
+    lang = (payload.lang or "az").strip().lower()
+    
+    # Fetch menu items
+    menu_items = (
+        db.query(MenuItem)
+        .filter(MenuItem.tenant_id == tenant.id, MenuItem.is_active == True)
+        .all()
+    )
+    
+    menu_lines = []
+    for item in menu_items:
+        desc = f" ({item.description})" if item.description else ""
+        menu_lines.append(f"- {item.item_name} ({item.category}): {item.price} AZN{desc}")
+    menu_items_str = "\n".join(menu_lines)
+    
+    system_prompt = (
+        f"Sən iRonWaves kafesinin mehriban və peşəkar AI Baristasısan. Müştəri ilə söhbət edirsən.\n"
+        f"Müştəri məlumatları:\n"
+        f"- Ulduz sayı: {customer.stars}\n"
+        f"- Kart ID: {customer.card_id}\n"
+        f"- Müştəri növü: {customer.type}\n\n"
+        f"Aktiv Menyumuz:\n"
+        f"{menu_items_str}\n\n"
+        f"Müştərinin suallarına Azərbaycan dilində mehriban cavab ver. "
+        f"Onun zövqünə, ulduz sayına uyğun olaraq menyudan real içkiləri/təamları tövsiyə et. "
+        f"Menyudan kənar olmayan real adları istifadə et. Qısa və səmimi ol (maksimum 2-3 cümlə)."
+        if lang == "az" else
+        f"You are the friendly AI Barista of iRonWaves cafe. You are talking to a customer.\n"
+        f"Customer Details:\n"
+        f"- Star balance: {customer.stars}\n"
+        f"- Card ID: {customer.card_id}\n"
+        f"- Customer Type: {customer.type}\n\n"
+        f"Active Menu:\n"
+        f"{menu_items_str}\n\n"
+        f"Answer the customer's questions in English. Suggest real drinks/dishes from our menu according to their taste and stars. "
+        f"Do not invent items outside the menu. Keep it short and friendly (max 2-3 sentences)."
+    )
+    
+    from app.services.opencode_service import generate_chat
+    
+    try:
+        if not app_settings.openrouter_api_key:
+            raise RuntimeError("OpenRouter API key is not configured")
+            
+        model = "google/gemini-2.0-flash-exp:free"
+        response_text = generate_chat(
+            model=model,
+            messages=payload.messages,
+            system=system_prompt,
+            temperature=0.6,
+            max_tokens=1500
+        )
+        return {"success": True, "message": response_text}
+        
+    except Exception as exc:
+        logger.warning(f"AI Barista generation failed, using local rule-based recommendations: {exc}")
+        
+        # Local keyword recommendation matching
+        last_user_message = ""
+        for msg in reversed(payload.messages):
+            if msg.get("role") == "user":
+                last_user_message = str(msg.get("content") or "").lower()
+                break
+        
+        recommended_items = []
+        if "soyuq" in last_user_message or "cold" in last_user_message or "ice" in last_user_message or "buz" in last_user_message:
+            recommended_items = [
+                item.item_name for item in menu_items 
+                if "soyuq" in item.category.lower() or "iced" in item.item_name.lower() or "cold" in item.item_name.lower() or "buz" in item.item_name.lower()
+            ]
+        elif "isti" in last_user_message or "hot" in last_user_message or "qəhvə" in last_user_message or "coffee" in last_user_message or "espresso" in last_user_message:
+            recommended_items = [
+                item.item_name for item in menu_items 
+                if item.is_coffee or "isti" in item.category.lower() or "espresso" in item.item_name.lower()
+            ]
+        elif "desert" in last_user_message or "dessert" in last_user_message or "şirniyyat" in last_user_message or "sweet" in last_user_message:
+            recommended_items = [
+                item.item_name for item in menu_items 
+                if "desert" in item.category.lower() or "dessert" in item.category.lower() or "şirniyyat" in item.category.lower()
+            ]
+            
+        if not recommended_items:
+            recommended_items = [item.item_name for item in menu_items if item.is_coffee]
+        if not recommended_items:
+            recommended_items = [item.item_name for item in menu_items]
+            
+        import random
+        selected = random.sample(recommended_items, min(2, len(recommended_items))) if recommended_items else ["Espresso", "Cappuccino"]
+        
+        if lang == "az":
+            msg_text = (
+                f"Hal-hazırda ulduz balansınız: {customer.stars}. Menyumuzdan sizə xüsusilə {', '.join(selected)} təklif edirəm. "
+                "İstədiyiniz zaman kafemizə gəlib daddıra bilərsiniz!"
+            )
+        else:
+            msg_text = (
+                f"Your current star balance is {customer.stars}. I highly recommend trying {', '.join(selected)} from our menu. "
+                "Visit us anytime to enjoy!"
+            )
+            
+        return {"success": True, "message": msg_text, "fallback": True}
+
+
+def hex_to_rgb_str(hex_color: str, default: str) -> str:
+    hex_color = str(hex_color or "").strip().lstrip("#")
+    if not hex_color or len(hex_color) not in (3, 6):
+        return default
+    if len(hex_color) == 3:
+        hex_color = "".join(c * 2 for c in hex_color)
+    try:
+        r = int(hex_color[0:2], 16)
+        g = int(hex_color[2:4], 16)
+        b = int(hex_color[4:6], 16)
+        return f"rgb({r}, {g}, {b})"
+    except ValueError:
+        return default
+
+
+@router.get("/customer-app/wallet-pass")
+def get_customer_wallet_pass(
+    id: str = Query(...),
+    t: str = Query(...),
+    lang: str | None = "az",
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    customer = _resolve_customer_session(db, tenant.id, id, t)
+    branding = db.query(BusinessProfile).filter(BusinessProfile.tenant_id == tenant.id).first()
+    app_settings_val = _setting_value(
+        db,
+        tenant.id,
+        "customer_app_settings",
+        {
+            "background_color": "#0b1220",
+            "primary_color": "#facc15",
+            "reward_description": "10 ulduza 1 pulsuz içki",
+        },
+    )
+    
+    pass_data = {
+        "formatVersion": 1,
+        "passTypeIdentifier": "pass.com.ironwaves.store",
+        "serialNumber": customer.card_id,
+        "teamIdentifier": "TEAMID123",
+        "barcode": {
+            "message": customer.card_id,
+            "format": "PKBarcodeFormatQR",
+            "messageEncoding": "iso-8859-1"
+        },
+        "organizationName": branding.company_name if branding else "iRonWaves",
+        "description": "iRonWaves Loyalty Card",
+        "logoText": branding.company_name if branding else "iRonWaves",
+        "foregroundColor": "rgb(255, 255, 255)",
+        "backgroundColor": hex_to_rgb_str(app_settings_val.get("background_color"), "rgb(11, 18, 32)"),
+        "labelColor": hex_to_rgb_str(app_settings_val.get("primary_color"), "rgb(250, 204, 21)"),
+        "storeCard": {
+            "primaryFields": [
+                {
+                    "key": "balance",
+                    "label": "Balans" if lang == "az" else "Balance",
+                    "value": str(customer.stars) + (" ulduz" if lang == "az" else " stars")
+                }
+            ],
+            "secondaryFields": [
+                {
+                    "key": "card_id",
+                    "label": "Kart ID" if lang == "az" else "Card ID",
+                    "value": customer.card_id
+                }
+            ],
+            "backFields": [
+                {
+                    "key": "info",
+                    "label": "Məlumat" if lang == "az" else "Info",
+                    "value": app_settings_val.get("reward_description") or "10 ulduza 1 pulsuz içki"
+                }
+            ]
+        }
+    }
+    
+    import zipfile
+    import io
+    import hashlib
+    
+    transparent_png_bytes = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=")
+    pass_json_bytes = json.dumps(pass_data, indent=2).encode("utf-8")
+    
+    files = {
+        "pass.json": pass_json_bytes,
+        "icon.png": transparent_png_bytes,
+        "icon@2x.png": transparent_png_bytes,
+        "logo.png": transparent_png_bytes,
+        "logo@2x.png": transparent_png_bytes,
+    }
+    
+    manifest = {}
+    for name, data in files.items():
+        manifest[name] = hashlib.sha1(data).hexdigest()
+    manifest_json_bytes = json.dumps(manifest, indent=2).encode("utf-8")
+    
+    signature_bytes = b"unsigned-dev-pass"
+    
+    try:
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.serialization import load_pem_private_key
+        from cryptography.x509 import load_pem_x509_certificate
+        from cryptography.hazmat.primitives.serialization.pkcs7 import PKCS7SignatureBuilder
+        import os
+        
+        cert_path = app_settings.apple_wallet_cert_path or "keys/passcert.pem"
+        key_path = app_settings.apple_wallet_key_path or "keys/passkey.pem"
+        
+        if os.path.exists(cert_path) and os.path.exists(key_path):
+            with open(cert_path, "rb") as f:
+                cert = load_pem_x509_certificate(f.read())
+            with open(key_path, "rb") as f:
+                private_key = load_pem_private_key(f.read(), password=None)
+                
+            builder = PKCS7SignatureBuilder()
+            builder.set_data(manifest_json_bytes)
+            signature_bytes = builder.sign(
+                cert, private_key, hashes.SHA1(), options=[]
+            ).serialize()
+    except Exception as e:
+        logger.warning(f"Failed to sign PKPASS, using mock signature: {e}")
+        
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for name, data in files.items():
+            zip_file.writestr(name, data)
+        zip_file.writestr("manifest.json", manifest_json_bytes)
+        zip_file.writestr("signature", signature_bytes)
+        
+    zip_buffer.seek(0)
+    return Response(
+        content=zip_buffer.getvalue(),
+        media_type="application/vnd.apple.pkpass",
+        headers={"Content-Disposition": f"attachment; filename={customer.card_id}.pkpass"}
+    )
 
 
 @router.put("/business-profile")

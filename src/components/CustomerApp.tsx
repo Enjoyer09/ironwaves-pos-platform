@@ -6,7 +6,7 @@ import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { tx } from '../i18n';
 import { useAppStore } from '../store';
-import { claim_customer_reward_live, enroll_customer_app_live, get_customer_app_bootstrap_live, get_customer_app_session_live, mark_customer_notification_read_live, save_push_token_live } from '../api/crm';
+import { claim_customer_reward_live, enroll_customer_app_live, get_customer_app_bootstrap_live, get_customer_app_session_live, mark_customer_notification_read_live, save_push_token_live, send_customer_otp_live, verify_customer_otp_live, analyze_customer_fortune_live, chat_customer_barista_live, get_customer_wallet_pass_url } from '../api/crm';
 
 type Props = {
   cardId?: string;
@@ -33,12 +33,53 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [sessionCreds, setSessionCreds] = React.useState({ cardId, token });
   const [acceptingConsent, setAcceptingConsent] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<CustomerTab>('home');
+  const [phone, setPhone] = React.useState('');
+  const [otpCode, setOtpCode] = React.useState('');
+  const [otpSent, setOtpSent] = React.useState(false);
+  const [otpSending, setOtpSending] = React.useState(false);
+  const [otpVerifying, setOtpVerifying] = React.useState(false);
+  const [otpError, setOtpError] = React.useState('');
   const [baristaMessages, setBaristaMessages] = React.useState<Array<{ role: 'assistant' | 'user'; text: string }>>([]);
   const [baristaInput, setBaristaInput] = React.useState('');
   const [fortuneText, setFortuneText] = React.useState('');
   const [fortuneImage, setFortuneImage] = React.useState('');
+  const [fortuneLoading, setFortuneLoading] = React.useState(false);
+  const [geofenceAlert, setGeofenceAlert] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement | null>(null);
   const safeLang = lang === 'ru' || lang === 'en' ? lang : 'az';
+
+  const initOneSignalSDK = React.useCallback((appId: string, cardId: string, token: string) => {
+    if (!appId) return;
+    try {
+      window.OneSignal = window.OneSignal || [];
+      window.OneSignal.push(async () => {
+        await window.OneSignal.init({
+          appId: appId,
+          allowLocalhostAsSecureOrigin: true,
+        });
+        const userId = await window.OneSignal.User.PushSubscription.id;
+        if (userId) {
+          localStorage.setItem('push_token', userId);
+          try {
+            await save_push_token_live(cardId, userId, token);
+            console.log('OneSignal Push token synced with backend:', userId);
+          } catch (pErr) {
+            console.warn('Failed to sync OneSignal push token:', pErr);
+          }
+        }
+      });
+
+      if (!document.getElementById('onesignal-sdk')) {
+        const script = document.createElement('script');
+        script.id = 'onesignal-sdk';
+        script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
+        script.defer = true;
+        document.head.appendChild(script);
+      }
+    } catch (e) {
+      console.warn('Failed to load OneSignal SDK:', e);
+    }
+  }, []);
 
   const load = React.useCallback(async () => {
     if (!sessionCreds.cardId || !sessionCreds.token) {
@@ -50,6 +91,10 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       setError('');
       const session = await get_customer_app_session_live(sessionCreds.cardId, sessionCreds.token);
       setData(session);
+      
+      if (session.onesignal_app_id) {
+        initOneSignalSDK(session.onesignal_app_id, sessionCreds.cardId, sessionCreds.token);
+      }
 
       if (Capacitor.isNativePlatform()) {
         const cachedPushToken = localStorage.getItem('push_token');
@@ -66,7 +111,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     } finally {
       setLoading(false);
     }
-  }, [sessionCreds.cardId, sessionCreds.token]);
+  }, [sessionCreds.cardId, sessionCreds.token, initOneSignalSDK]);
 
   React.useEffect(() => {
     if (sessionCreds.cardId && sessionCreds.token) {
@@ -195,51 +240,118 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     }
   };
 
-  const sendBaristaMessage = () => {
-    const prompt = baristaInput.trim();
-    if (!prompt) return;
-    const lower = prompt.toLowerCase();
-    const answer = lower.includes('soyuq') || lower.includes('cold')
-      ? tx(lang, 'Sənə buzlu latte və ya meyvəli soyuq içki tövsiyə edirəm. Bonusun varsa bunu desertlə birləşdirmək yaxşı olar.', 'Тебе подойдут айс-латте или фруктовый холодный напиток. Если есть бонус, лучше взять с десертом.', 'I would recommend an iced latte or a fruity cold drink. If you have a bonus, pairing it with dessert would be smart.')
-      : lower.includes('güclü') || lower.includes('strong') || lower.includes('oyaq')
-      ? tx(lang, 'Bugünkü ritmin üçün double espresso və ya daha güclü qəhvə bazalı içki yaxşı seçimdir.', 'Для сегодняшнего темпа тебе подойдёт double espresso или более крепкий кофейный напиток.', 'For your pace today, a double espresso or another stronger coffee is a great pick.')
-      : tx(lang, 'Mood-un üçün balanslı latte, yumşaq desert və mövcud reward-unla rahat combo ən uyğun seçimdir.', 'Для твоего настроения лучше всего подойдут сбалансированный латте, мягкий десерт и спокойное комбо с наградой.', 'For your mood, a balanced latte, a soft dessert, and a calm reward combo would fit best.');
-
-    setBaristaMessages((prev) => [...prev, { role: 'user', text: prompt }, { role: 'assistant', text: answer }]);
-    setBaristaInput('');
+  const handleSendOtp = async () => {
+    const trimmedPhone = phone.trim();
+    if (!trimmedPhone || trimmedPhone.length < 7) {
+      setOtpError(tx(safeLang, 'Düzgün telefon nömrəsi daxil edin', 'Введите корректный номер телефона', 'Please enter a valid phone number'));
+      return;
+    }
+    try {
+      setOtpSending(true);
+      setOtpError('');
+      await send_customer_otp_live(trimmedPhone);
+      setOtpSent(true);
+    } catch (e: any) {
+      setOtpError(String(e?.message || 'OTP send failed'));
+    } finally {
+      setOtpSending(false);
+    }
   };
 
-  const analyzeImageUrl = (src: string) => {
-    setFortuneImage(src);
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const size = 40;
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctx.drawImage(img, 0, 0, size, size);
-      const pixels = ctx.getImageData(0, 0, size, size).data;
-      let total = 0;
-      let warm = 0;
-      for (let i = 0; i < pixels.length; i += 4) {
-        const r = pixels[i];
-        const g = pixels[i + 1];
-        const b = pixels[i + 2];
-        total += (r + g + b) / 3;
-        if (r > b) warm += 1;
+  const handleVerifyOtp = async () => {
+    const trimmedCode = otpCode.trim();
+    if (trimmedCode.length < 4) {
+      setOtpError(tx(safeLang, 'Təsdiq kodu 4 rəqəmli olmalıdır', 'Код должен быть 4-значным', 'OTP must be 4 digits'));
+      return;
+    }
+    try {
+      setOtpVerifying(true);
+      setOtpError('');
+      const currentUrl = typeof window !== 'undefined' ? new URL(window.location.href) : null;
+      const joinCustomerType = currentUrl?.searchParams.get('club') || bootstrapData?.join_customer_type || 'golden';
+      const joinDiscount = Number(currentUrl?.searchParams.get('discount') || bootstrapData?.join_discount_percent || 0);
+      
+      const res = await verify_customer_otp_live(phone, trimmedCode, joinCustomerType, joinDiscount);
+      const next = { cardId: res.card_id, token: res.token };
+      setSessionCreds(next);
+      
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('customer_card_id', res.card_id);
+        localStorage.setItem('customer_token', res.token);
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.set('id', res.card_id);
+        nextUrl.searchParams.set('t', res.token);
+        nextUrl.searchParams.delete('join');
+        window.history.replaceState({}, '', nextUrl.toString());
+
+        if (Capacitor.isNativePlatform()) {
+          const cachedPushToken = localStorage.getItem('push_token');
+          if (cachedPushToken) {
+            try {
+              await save_push_token_live(res.card_id, cachedPushToken, res.token);
+            } catch (pErr) {
+              console.warn('Failed to sync push token in enroll', pErr);
+            }
+          }
+        }
       }
-      const avg = total / (pixels.length / 4);
-      const warmRatio = warm / (pixels.length / 4);
-      const result = avg > 160
-        ? tx(lang, 'Fal deyir ki, bu şəkil işıqlı enerji daşıyır. Qarşıdakı günlərdə sənin üçün açıq qapılar və xoş kampaniyalar görünür.', 'Изображение несет светлую энергию. Впереди для тебя открытые возможности и приятные акции.', 'This image carries bright energy. Open doors and pleasant offers are ahead for you.')
-        : warmRatio > 0.55
-        ? tx(lang, 'Fal isti tonlar görür. Bu, yaxın zamanda daha rahatlıq, dadlı seçimlər və özünü mükafatlandırmaq vaxtı deməkdir.', 'Предсказание видит тёплые тона. Это знак уюта, вкусных выборов и времени порадовать себя.', 'Your fortune sees warm tones. That means comfort, tasty choices, and a good time to reward yourself.')
-        : tx(lang, 'Fal daha dərin və sakit aura görür. Yaxın günlərdə səni sürpriz bonus və gözlənilməz bir reward sevindirə bilər.', 'Предсказание видит более глубокую и спокойную ауру. В ближайшие дни тебя может порадовать неожиданный бонус.', 'Your fortune sees a deeper, calmer aura. An unexpected bonus or reward may cheer you up soon.');
-      setFortuneText(result);
-    };
-    img.src = src;
+    } catch (e: any) {
+      setOtpError(String(e?.message || 'OTP verification failed'));
+    } finally {
+      setOtpVerifying(false);
+    }
+  };
+
+  const sendBaristaMessage = async () => {
+    const prompt = baristaInput.trim();
+    if (!prompt) return;
+
+    setBaristaMessages((prev) => [...prev, { role: 'user', text: prompt }]);
+    setBaristaInput('');
+
+    setBaristaMessages((prev) => [...prev, { role: 'assistant', text: '...' }]);
+
+    try {
+      const history = baristaMessages
+        .filter(m => m.text !== '...')
+        .map(m => ({ role: m.role, content: m.text }));
+      const apiMessages = [...history, { role: 'user', content: prompt }];
+
+      const res = await chat_customer_barista_live(apiMessages, sessionCreds.cardId, sessionCreds.token, lang);
+      
+      setBaristaMessages((prev) => {
+        const next = [...prev];
+        if (next.length > 0 && next[next.length - 1].text === '...') {
+          next[next.length - 1] = { role: 'assistant', text: res.message || 'Error occurred' };
+        } else {
+          next.push({ role: 'assistant', text: res.message || 'Error occurred' });
+        }
+        return next;
+      });
+    } catch (e: any) {
+      setBaristaMessages((prev) => {
+        const next = [...prev];
+        if (next.length > 0 && next[next.length - 1].text === '...') {
+          next[next.length - 1] = { role: 'assistant', text: tx(lang, 'Bağlantı xətası baş verdi.', 'Ошибка подключения.', 'Connection error occurred.') };
+        }
+        return next;
+      });
+    }
+  };
+
+  const analyzeImageUrl = async (src: string) => {
+    setFortuneImage(src);
+    setFortuneText('');
+    setFortuneLoading(true);
+    
+    try {
+      const res = await analyze_customer_fortune_live(src, sessionCreds.cardId, sessionCreds.token, lang);
+      setFortuneText(res.fortune || '');
+    } catch (e: any) {
+      setFortuneText(tx(lang, 'Şəkil analiz edilə bilmədi.', 'Не удалось проанализировать изображение.', 'Failed to analyze the image.'));
+    } finally {
+      setFortuneLoading(false);
+    }
   };
 
   const analyzeImageFortune = (file: File) => {
@@ -273,6 +385,77 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       console.warn('Camera photo failed or cancelled', e);
     }
   };
+
+  React.useEffect(() => {
+    if (!('geolocation' in navigator)) return;
+
+    const CAFE_LAT = 40.37767;
+    const CAFE_LNG = 49.84583;
+    const GEOFENCE_RADIUS_METERS = 100;
+
+    const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+      const R = 6371e3;
+      const phi1 = (lat1 * Math.PI) / 180;
+      const phi2 = (lat2 * Math.PI) / 180;
+      const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+      const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+
+      const a =
+        Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+        Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+      return R * c;
+    };
+
+    let lastNotifiedAt = 0;
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const dist = getDistance(
+          position.coords.latitude,
+          position.coords.longitude,
+          CAFE_LAT,
+          CAFE_LNG
+        );
+
+        if (dist <= GEOFENCE_RADIUS_METERS) {
+          const now = Date.now();
+          if (now - lastNotifiedAt > 3600000) {
+            lastNotifiedAt = now;
+            
+            if ('Notification' in window) {
+              if (Notification.permission === 'granted') {
+                new Notification('iRonWaves-ə yaxınsan! ☕', {
+                  body: 'İçəri keç, ulduzlarını qəhvəyə çevir! 🌟',
+                  icon: branding.logo_url || '',
+                });
+              } else if (Notification.permission !== 'denied') {
+                Notification.requestPermission().then((permission) => {
+                  if (permission === 'granted') {
+                    new Notification('iRonWaves-ə yaxınsan! ☕', {
+                      body: 'İçəri keç, ulduzlarını qəhvəyə çevir! 🌟',
+                      icon: branding.logo_url || '',
+                    });
+                  }
+                });
+              }
+            }
+
+            setGeofenceAlert(true);
+          }
+        }
+      },
+      (err) => {
+        console.warn('Geolocation watching failed', err);
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [branding.logo_url]);
 
   if (loading) {
     return (
@@ -319,19 +502,69 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             </div>
           </section>
           <section className="rounded-[30px] border border-white/10 bg-white p-5 text-slate-900 shadow-[0_12px_32px_rgba(0,0,0,0.16)]">
-            <div className="text-lg font-black">{tx(safeLang, 'Müştəri razılaşması', 'Согласие клиента', 'Customer consent')}</div>
-            <div className="mt-3 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700">
-              {bootstrapData?.consent_text || tx(safeLang, 'Razılaşma mətni əlavə edilməyib.', 'Текст согласия не задан.', 'Consent text has not been set.')}
+            <div className="text-lg font-black">{tx(safeLang, 'Giriş və Qeydiyyat', 'Вход и Регистрация', 'Sign in & Sign up')}</div>
+            
+            <div className="mt-3 rounded-2xl bg-slate-50 p-4 text-xs leading-5 text-slate-600 border border-slate-100">
+              <span className="font-bold text-slate-700 block mb-1">{tx(safeLang, 'Müştəri razılaşması:', 'Согласие клиента:', 'Customer consent:')}</span>
+              {bootstrapData?.consent_text || tx(safeLang, 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.', 'Я согласен на участие в программе лояльности.', 'I agree to join the loyalty program.')}
             </div>
-            <button
-              type="button"
-              disabled={acceptingConsent}
-              onClick={() => { void acceptConsentAndCreateCard(); }}
-              className="mt-4 w-full rounded-2xl px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-60"
-              style={{ backgroundColor: joinPrimary }}
-            >
-              {acceptingConsent ? tx(safeLang, 'Kart yaradılır...', 'Карта создается...', 'Creating your card...') : tx(safeLang, 'Qəbul edirəm və kartımı yarat', 'Принимаю и создать карту', 'Accept and create my card')}
-            </button>
+
+            {!otpSent ? (
+              <div className="mt-4 space-y-3">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">{tx(safeLang, 'Telefon nömrəniz', 'Номер телефона', 'Phone number')}</label>
+                <input
+                  type="tel"
+                  placeholder="+994 50 123 45 67"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                />
+                <button
+                  type="button"
+                  disabled={otpSending}
+                  onClick={handleSendOtp}
+                  className="w-full rounded-2xl px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-60 transition active:scale-98"
+                  style={{ backgroundColor: joinPrimary }}
+                >
+                  {otpSending ? '...' : tx(safeLang, 'Razıyam və kod göndər', 'Согласен и отправить код', 'Accept and send code')}
+                </button>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">{tx(safeLang, 'Təsdiq kodu', 'Код подтверждения', 'Verification code')}</label>
+                <input
+                  type="number"
+                  pattern="[0-9]*"
+                  inputMode="numeric"
+                  placeholder="1234"
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-lg font-bold text-slate-900 tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-slate-300"
+                />
+                <button
+                  type="button"
+                  disabled={otpVerifying}
+                  onClick={handleVerifyOtp}
+                  className="w-full rounded-2xl px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-60 transition active:scale-98"
+                  style={{ backgroundColor: joinPrimary }}
+                >
+                  {otpVerifying ? '...' : tx(safeLang, 'Daxil ol / Təsdiq et', 'Войти / Подтвердить', 'Sign in / Verify')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOtpSent(false)}
+                  className="w-full text-center text-xs font-semibold text-slate-500 hover:text-slate-700 underline mt-2"
+                >
+                  {tx(safeLang, 'Nömrəni dəyiş', 'Изменить номер', 'Change number')}
+                </button>
+              </div>
+            )}
+
+            {otpError && (
+              <p className="mt-3 text-center text-xs font-medium text-red-600 bg-red-50 rounded-xl py-2 px-3 border border-red-100">
+                {otpError}
+              </p>
+            )}
           </section>
         </div>
       </div>
@@ -396,6 +629,36 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   const renderHome = () => (
     <div className="space-y-4">
+      {/* Geofence Alert Banner */}
+      {geofenceAlert && (
+        <div
+          className="flex items-center justify-between gap-3 rounded-2xl p-4 animate-pulse"
+          style={{
+            background: 'linear-gradient(135deg, rgba(250,204,21,0.15) 0%, rgba(34,211,238,0.15) 100%)',
+            border: '1px solid rgba(250,204,21,0.3)',
+            backdropFilter: 'blur(12px)'
+          }}
+        >
+          <div className="flex gap-3">
+            <span className="text-2xl">☕</span>
+            <div>
+              <h4 className="text-[13px] font-black text-yellow-400">
+                {tx(safeLang, 'iRonWaves-ə yaxınsan!', 'Рядом с iRonWaves!', 'Near iRonWaves!')}
+              </h4>
+              <p className="mt-0.5 text-[11px] text-slate-200">
+                {tx(safeLang, 'İçəri keç, ulduzlarını qəhvəyə çevir! 🌟', 'Заходи, преврати свои звезды в кофе! 🌟', 'Come in and turn your stars into coffee! 🌟')}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setGeofenceAlert(false)}
+            className="text-[14px] font-bold text-white/60 hover:text-white px-2 py-1"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Hero card */}
       <section
         className="relative overflow-hidden border p-5"
@@ -441,6 +704,32 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             <div className="mt-2 flex items-center justify-between text-[11px] text-white/60">
               <span>{tx(safeLang, 'Növbəti reward', 'Следующая награда', 'Next reward')}</span>
               <span className="font-semibold text-white/80">{wallet.reward_name || 'Reward'}</span>
+            </div>
+
+            {/* Apple & Google Wallet buttons */}
+            <div className="mt-4 pt-3 border-t border-white/10 flex flex-col xs:flex-row gap-2 justify-center items-center">
+              <a
+                href={get_customer_wallet_pass_url(sessionCreds.cardId, sessionCreds.token, safeLang)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 rounded-xl bg-black/80 px-4 py-2 border border-white/10 hover:border-white/30 transition-all text-[11px] font-semibold text-white active:scale-95 w-full xs:w-auto"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.75.8-.01 1.99-.79 3.61-.63 1.68.07 2.92.74 3.69 1.95-3.41 2.03-2.87 6.99.78 8.44-.8 2.05-1.74 4.02-3.16 5.46zM15.42 4.38c.75-.92 1.25-2.2 1.11-3.49-1.11.05-2.46.75-3.26 1.69-.69.8-1.3 2.1-1.13 3.37 1.23.1 2.5-.62 3.28-1.57z" />
+                </svg>
+                {tx(safeLang, 'Apple Wallet', 'Apple Wallet', 'Apple Wallet')}
+              </a>
+              <a
+                href={get_customer_wallet_pass_url(sessionCreds.cardId, sessionCreds.token, safeLang)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 rounded-xl bg-black/80 px-4 py-2 border border-white/10 hover:border-white/30 transition-all text-[11px] font-semibold text-white active:scale-95 w-full xs:w-auto"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M21.35 11.1h-9.17v2.73h6.51c-.33 1.56-1.56 2.95-3.24 3.51v2.9h5.24c3.07-2.83 4.83-7 4.83-11.64c0-.52-.05-1.04-.17-1.5zM12.18 21c2.43 0 4.47-.8 5.96-2.18l-5.24-2.9c-1.46.99-3.29 1.56-5.96 1.56c-4.59 0-8.48-3.11-9.86-7.3H1.66v3.01C4.46 18.77 8.08 21 12.18 21z" />
+                </svg>
+                {tx(safeLang, 'Google Wallet', 'Google Wallet', 'Google Wallet')}
+              </a>
             </div>
           </div>
         )}
@@ -627,7 +916,14 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       </div>
       {fortuneImage ? <img src={fortuneImage} alt="fortune preview" className="mt-4 h-44 w-full rounded-[24px] object-cover" /> : null}
       <div className="mt-4 rounded-[24px] bg-amber-400/10 p-4 text-sm text-slate-100">
-        {fortuneText || tx(safeLang, 'Şəkli yükləyəndən sonra fal burada görünəcək.', 'После загрузки фото предсказание появится здесь.', 'Your fortune will appear here after you upload an image.')}
+        {fortuneLoading ? (
+          <div className="flex items-center gap-2 text-slate-400">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-yellow-400" />
+            <span>{tx(safeLang, 'Falınız oxunur...', 'Гадание считывается...', 'Reading your fortune...')}</span>
+          </div>
+        ) : (
+          fortuneText || tx(safeLang, 'Şəkli yükləyəndən sonra fal burada görünəcək.', 'После загрузки фото предсказание появится здесь.', 'Your fortune will appear here after you upload an image.')
+        )}
       </div>
     </section>
   );

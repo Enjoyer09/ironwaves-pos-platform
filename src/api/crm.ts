@@ -3,7 +3,7 @@ import { getDB, setDB } from '../lib/db_sim';
 import { logEvent } from '../lib/logger';
 import { Customer, CustomerType, Notification } from '../types/pos';
 import { filterTenantRecords, getActiveTenantId } from '../lib/tenant';
-import { apiRequest, isBackendEnabled } from './client';
+import { apiRequest, isBackendEnabled, getApiBaseUrl } from './client';
 
 const defaultTenant = () => getActiveTenantId();
 
@@ -527,4 +527,96 @@ export async function save_push_token_live(card_id: string, push_token: string, 
     }
   });
 }
+
+export async function send_customer_otp_live(phone: string) {
+  if (!isBackendEnabled()) {
+    console.log('[OTP SIMULATED] Sent OTP to', phone);
+    return { success: true, message: 'Təsdiq kodu göndərildi (Simulyasiya)' };
+  }
+  return apiRequest<{ success: boolean; message: string }>('/api/v1/ops/customer-app/otp/send', {
+    method: 'POST',
+    tenantId: null,
+    auth: false,
+    body: { phone },
+  });
+}
+
+export async function verify_customer_otp_live(
+  phone: string,
+  code: string,
+  joinCustomerType: string = 'golden',
+  joinDiscountPercent: number = 0,
+) {
+  if (!isBackendEnabled()) {
+    if (code !== '1234') {
+      throw new Error('Təsdiq kodu yanlışdır');
+    }
+    const card_id = `QR-SIM${phone.replace(/[^\d]/g, '').slice(-6)}`;
+    const token = 'simulatedtoken';
+    return { success: true, is_new: true, card_id, token };
+  }
+  return apiRequest<{ success: boolean; is_new: boolean; card_id: string; token: string }>('/api/v1/ops/customer-app/otp/verify', {
+    method: 'POST',
+    tenantId: null,
+    auth: false,
+    body: {
+      phone,
+      code,
+      join_customer_type: joinCustomerType,
+      join_discount_percent: joinDiscountPercent,
+    },
+  });
+}
+
+export async function analyze_customer_fortune_live(image_base64: string, card_id: string, token: string, lang: string = 'az') {
+  if (!isBackendEnabled()) {
+    const result = 'Fal isti tonlar görür. Bu, yaxın zamanda daha rahatlıq, dadlı seçimlər və özünü mükafatlandırmaq vaxtı deməkdir.';
+    return Promise.resolve({ success: true, fortune: result, fallback: true });
+  }
+
+  return apiRequest<{ success: boolean; fortune: string; fallback?: boolean }>(
+    `/api/v1/ops/customer-app/fortune/analyze?id=${encodeURIComponent(card_id)}&t=${encodeURIComponent(token)}`,
+    {
+      method: 'POST',
+      tenantId: null,
+      auth: false,
+      body: {
+        image_base64,
+        lang,
+      },
+    }
+  );
+}
+
+export async function chat_customer_barista_live(messages: Array<{ role: string; content: string }>, card_id: string, token: string, lang: string = 'az') {
+  if (!isBackendEnabled()) {
+    const lastUserMsg = messages[messages.length - 1]?.content || '';
+    const lower = lastUserMsg.toLowerCase();
+    const answer = lower.includes('soyuq') || lower.includes('cold')
+      ? 'Sənə buzlu latte və ya meyvəli soyuq içki tövsiyə edirəm. Bonusun varsa bunu desertlə birləşdirmək yaxşı olar.'
+      : lower.includes('güclü') || lower.includes('strong') || lower.includes('oyaq')
+      ? 'Bugünkü ritmin üçün double espresso və ya daha güclü qəhvə bazalı içki yaxşı seçimdir.'
+      : 'Mood-un üçün balanslı latte, yumşaq desert və mövcud reward-unla rahat combo ən uyğun seçimdir.';
+    return Promise.resolve({ success: true, message: answer, fallback: true });
+  }
+
+  return apiRequest<{ success: boolean; message: string; fallback?: boolean }>(
+    `/api/v1/ops/customer-app/barista/chat?id=${encodeURIComponent(card_id)}&t=${encodeURIComponent(token)}`,
+    {
+      method: 'POST',
+      tenantId: null,
+      auth: false,
+      body: {
+        messages,
+        lang,
+      },
+    }
+  );
+}
+
+export function get_customer_wallet_pass_url(card_id: string, token: string, lang: string = 'az') {
+  const base = getApiBaseUrl() || (typeof window !== 'undefined' ? window.location.origin : '');
+  return `${base}/api/v1/ops/customer-app/wallet-pass?id=${encodeURIComponent(card_id)}&t=${encodeURIComponent(token)}&lang=${encodeURIComponent(lang)}`;
+}
+
 

@@ -102,6 +102,11 @@ class Settings(BaseSettings):
     include_tenant_debug_header: bool = False
     enable_public_tenant_debug: bool = False
 
+    onesignal_app_id: str | None = None
+    onesignal_rest_api_key: str | None = None
+    apple_wallet_cert_path: str | None = None
+    apple_wallet_key_path: str | None = None
+
     cors_origins: str = "http://localhost:5173"
 
 

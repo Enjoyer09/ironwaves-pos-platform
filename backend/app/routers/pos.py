@@ -50,6 +50,44 @@ def send_push_notification(push_token: str, title: str, body: str):
     except Exception as e:
         logger.warning(f"[PUSH NOTIFICATION FAIL] Could not send via Firebase SDK: {e}")
 
+    # OneSignal push notification fallback
+    try:
+        from app.core.config import settings as app_settings
+        app_id = app_settings.onesignal_app_id
+        api_key = app_settings.onesignal_rest_api_key
+        
+        if app_id and api_key:
+            logger.info(f"[ONESIGNAL] Attempting push to token: {push_token}")
+            import urllib.request
+            import json
+            
+            payload = {
+                "app_id": app_id,
+                "contents": {"en": body, "az": body},
+                "headings": {"en": title, "az": title},
+                "include_subscription_ids": [push_token]
+            }
+            
+            headers = {
+                "Authorization": f"Basic {api_key}",
+                "Content-Type": "application/json; charset=utf-8"
+            }
+            
+            url = "https://onesignal.com/api/v1/notifications"
+            req = urllib.request.Request(
+                url, 
+                data=json.dumps(payload).encode("utf-8"), 
+                headers=headers, 
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=10) as response:
+                res_body = response.read().decode("utf-8")
+                logger.info(f"[ONESIGNAL SUCCESS] Sent message: {res_body}")
+        else:
+            logger.info("[ONESIGNAL] App ID or REST API Key not configured. Skipping OneSignal push.")
+    except Exception as e:
+        logger.warning(f"[ONESIGNAL FAIL] Could not send via OneSignal API: {e}")
+
 
 STAFF_SHIFT_SESSIONS_KEY = "staff_shift_sessions"
 VOID_SALE_STATUSES = {
