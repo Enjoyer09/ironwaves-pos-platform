@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">iRonWaves Loyalty</string>
+    <string name="title_activity_main">iRonWaves Loyalty</string>
+    <string name="package_name">com.ironwaves.loyalty</string>
+    <string name="custom_url_scheme">com.ironwaves.loyalty</string>
+</resources>
