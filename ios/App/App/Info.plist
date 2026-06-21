@@ -47,5 +47,11 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>iRonWaves Loyalty kameradan AI Falçı üçün şəkil çəkmək məqsədilə istifadə edir.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>iRonWaves Loyalty qalereyadan AI Falçı üçün şəkil seçmək məqsədilə istifadə edir.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>iRonWaves Loyalty şəkilləri qalereyaya yazmaq məqsədilə istifadə edir.</string>
 </dict>
 </plist>

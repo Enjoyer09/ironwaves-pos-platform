@@ -19,6 +19,38 @@ from app.services.finance_service import mirror_posted_transaction_to_legacy_wal
 
 router = APIRouter(prefix="/api/v1/pos", tags=["pos"])
 logger = logging.getLogger(__name__)
+
+
+def send_push_notification(push_token: str, title: str, body: str):
+    logger.info(f"[PUSH NOTIFICATION] Token: {push_token} | Title: {title} | Body: {body}")
+    try:
+        import firebase_admin
+        from firebase_admin import credentials, messaging
+        
+        try:
+            firebase_admin.get_app()
+        except ValueError:
+            import os
+            cred_path = os.getenv("FIREBASE_CREDENTIALS_PATH")
+            if cred_path and os.path.exists(cred_path):
+                cred = credentials.Certificate(cred_path)
+                firebase_admin.initialize_app(cred)
+            else:
+                firebase_admin.initialize_app()
+        
+        message = messaging.Message(
+            notification=messaging.Notification(
+                title=title,
+                body=body,
+            ),
+            token=push_token,
+        )
+        response = messaging.send(message)
+        logger.info(f"[PUSH NOTIFICATION SUCCESS] Sent message: {response}")
+    except Exception as e:
+        logger.warning(f"[PUSH NOTIFICATION FAIL] Could not send via Firebase SDK: {e}")
+
+
 STAFF_SHIFT_SESSIONS_KEY = "staff_shift_sessions"
 VOID_SALE_STATUSES = {
     "VOIDED",
@@ -821,6 +853,27 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
                 )
         if program_mode != "cashback":
             sale.customer_stars_after = customer.stars
+
+        # Trigger push notification if token exists
+        if customer.push_token:
+            title = "Yeni bildiriş!"
+            body = "Loyallıq balansınız yeniləndi."
+            if program_mode == "cashback":
+                cashback_amount = (total * (cashback_percent / Decimal("100"))).quantize(Decimal("0.01"))
+                if cashback_amount > 0:
+                    title = "Cashback qazandınız! 💰"
+                    body = f"Hesabınıza {cashback_amount} ₼ cashback əlavə edildi."
+            else:
+                if coffee_qty > 0:
+                    title = "Ulduzlarınız yeniləndi! 🌟"
+                    body = f"Siz bu alış-verişdən {coffee_qty} ulduz qazandınız. Yeni balansınız: {customer.stars} ulduz."
+                elif reward_claim:
+                    title = "Hədiyyə qəbul edildi! 🎁"
+                    body = f"Reward kodunuz istifadə olundu. Yeni balansınız: {customer.stars} ulduz."
+            try:
+                send_push_notification(customer.push_token, title, body)
+            except Exception as pe:
+                logger.warning(f"Could not send push notification at checkout: {pe}")
 
     db.commit()
 
