@@ -221,7 +221,10 @@ def generate_chat(
                 
             for msg in messages:
                 if isinstance(msg, dict) and "role" in msg and "content" in msg:
-                    formatted_messages.append({"role": str(msg["role"]), "content": str(msg["content"])})
+                    content_val = msg["content"]
+                    if not isinstance(content_val, (str, list, dict)):
+                        content_val = str(content_val)
+                    formatted_messages.append({"role": str(msg["role"]), "content": content_val})
 
             payload = {
                 "model": model_id,
