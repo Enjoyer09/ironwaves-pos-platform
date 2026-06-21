@@ -199,6 +199,8 @@ def _default_managed_cors_origins() -> list[str]:
         "https://ironwaves.store",
         "https://www.ironwaves.store",
         "https://*.ironwaves.store",
+        "capacitor://localhost",
+        "http://localhost",
     ]
 
 
