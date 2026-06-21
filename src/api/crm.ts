@@ -496,3 +496,35 @@ export async function claim_customer_reward_live(card_id: string, token: string,
     },
   );
 }
+
+export async function save_push_token_live(card_id: string, push_token: string, token: string, tenant_id?: string) {
+  const tenantId = tenant_id || defaultTenant();
+  const safeCard = String(card_id || '').trim();
+  const safePushToken = String(push_token || '').trim();
+  const safeToken = String(token || '').trim();
+  if (!safeCard || !safePushToken || !safeToken) {
+    return { success: false, message: 'Invalid payload' };
+  }
+
+  if (!isBackendEnabled()) {
+    const customers = getCustomersLocal(tenantId);
+    const customer = customers.find((c) => c.card_id.toLowerCase() === safeCard.toLowerCase());
+    if (customer) {
+      (customer as any).push_token = safePushToken;
+      saveCustomersLocal(tenantId, customers);
+    }
+    return { success: true };
+  }
+
+  return apiRequest<{ success: boolean }>('/api/v1/ops/crm/push-token', {
+    method: 'POST',
+    tenantId: null,
+    auth: false,
+    body: {
+      card_id: safeCard,
+      push_token: safePushToken,
+      token: safeToken
+    }
+  });
+}
+

@@ -1,9 +1,12 @@
 import React from 'react';
-import { Bell, Gift, Home, Languages, MessageCircleHeart, QrCode, Sparkles, UserRound } from 'lucide-react';
+import { Bell, Gift, Home, Languages, MessageCircleHeart, QrCode, Sparkles, UserRound, Camera as CameraIcon } from 'lucide-react';
 import QRCode from 'qrcode';
+import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Capacitor } from '@capacitor/core';
 import { tx } from '../i18n';
 import { useAppStore } from '../store';
-import { claim_customer_reward_live, enroll_customer_app_live, get_customer_app_bootstrap_live, get_customer_app_session_live, mark_customer_notification_read_live } from '../api/crm';
+import { claim_customer_reward_live, enroll_customer_app_live, get_customer_app_bootstrap_live, get_customer_app_session_live, mark_customer_notification_read_live, save_push_token_live } from '../api/crm';
 
 type Props = {
   cardId?: string;
@@ -47,6 +50,17 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       setError('');
       const session = await get_customer_app_session_live(sessionCreds.cardId, sessionCreds.token);
       setData(session);
+
+      if (Capacitor.isNativePlatform()) {
+        const cachedPushToken = localStorage.getItem('push_token');
+        if (cachedPushToken) {
+          try {
+            await save_push_token_live(sessionCreds.cardId, cachedPushToken, sessionCreds.token);
+          } catch (pErr) {
+            console.warn('Failed to sync push token in load', pErr);
+          }
+        }
+      }
     } catch (e: any) {
       setError(String(e?.message || 'Customer app failed to load'));
     } finally {
@@ -131,6 +145,13 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       setClaiming(true);
       await claim_customer_reward_live(sessionCreds.cardId, sessionCreds.token);
       await load();
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await Haptics.notification({ type: NotificationType.Success });
+        } catch (hErr) {
+          console.warn('Haptics failed', hErr);
+        }
+      }
     } catch (e: any) {
       setError(String(e?.message || 'Reward claim failed'));
     } finally {
@@ -155,6 +176,17 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         nextUrl.searchParams.set('t', created.token);
         nextUrl.searchParams.delete('join');
         window.history.replaceState({}, '', nextUrl.toString());
+
+        if (Capacitor.isNativePlatform()) {
+          const cachedPushToken = localStorage.getItem('push_token');
+          if (cachedPushToken) {
+            try {
+              await save_push_token_live(created.card_id, cachedPushToken, created.token);
+            } catch (pErr) {
+              console.warn('Failed to sync push token in enroll', pErr);
+            }
+          }
+        }
       }
     } catch (e: any) {
       setError(String(e?.message || 'Customer enrollment failed'));
@@ -177,42 +209,69 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     setBaristaInput('');
   };
 
+  const analyzeImageUrl = (src: string) => {
+    setFortuneImage(src);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const size = 40;
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0, size, size);
+      const pixels = ctx.getImageData(0, 0, size, size).data;
+      let total = 0;
+      let warm = 0;
+      for (let i = 0; i < pixels.length; i += 4) {
+        const r = pixels[i];
+        const g = pixels[i + 1];
+        const b = pixels[i + 2];
+        total += (r + g + b) / 3;
+        if (r > b) warm += 1;
+      }
+      const avg = total / (pixels.length / 4);
+      const warmRatio = warm / (pixels.length / 4);
+      const result = avg > 160
+        ? tx(lang, 'Fal deyir ki, bu şəkil işıqlı enerji daşıyır. Qarşıdakı günlərdə sənin üçün açıq qapılar və xoş kampaniyalar görünür.', 'Изображение несет светлую энергию. Впереди для тебя открытые возможности и приятные акции.', 'This image carries bright energy. Open doors and pleasant offers are ahead for you.')
+        : warmRatio > 0.55
+        ? tx(lang, 'Fal isti tonlar görür. Bu, yaxın zamanda daha rahatlıq, dadlı seçimlər və özünü mükafatlandırmaq vaxtı deməkdir.', 'Предсказание видит тёплые тона. Это знак уюта, вкусных выборов и времени порадовать себя.', 'Your fortune sees warm tones. That means comfort, tasty choices, and a good time to reward yourself.')
+        : tx(lang, 'Fal daha dərin və sakit aura görür. Yaxın günlərdə səni sürpriz bonus və gözlənilməz bir reward sevindirə bilər.', 'Предсказание видит более глубокую и спокойную ауру. В ближайшие дни тебя может порадовать неожиданный бонус.', 'Your fortune sees a deeper, calmer aura. An unexpected bonus or reward may cheer you up soon.');
+      setFortuneText(result);
+    };
+    img.src = src;
+  };
+
   const analyzeImageFortune = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
       const src = String(reader.result || '');
-      setFortuneImage(src);
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const size = 40;
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        ctx.drawImage(img, 0, 0, size, size);
-        const pixels = ctx.getImageData(0, 0, size, size).data;
-        let total = 0;
-        let warm = 0;
-        for (let i = 0; i < pixels.length; i += 4) {
-          const r = pixels[i];
-          const g = pixels[i + 1];
-          const b = pixels[i + 2];
-          total += (r + g + b) / 3;
-          if (r > b) warm += 1;
-        }
-        const avg = total / (pixels.length / 4);
-        const warmRatio = warm / (pixels.length / 4);
-        const result = avg > 160
-          ? tx(lang, 'Fal deyir ki, bu şəkil işıqlı enerji daşıyır. Qarşıdakı günlərdə sənin üçün açıq qapılar və xoş kampaniyalar görünür.', 'Изображение несет светлую энергию. Впереди для тебя открытые возможности и приятные акции.', 'This image carries bright energy. Open doors and pleasant offers are ahead for you.')
-          : warmRatio > 0.55
-          ? tx(lang, 'Fal isti tonlar görür. Bu, yaxın zamanda daha rahatlıq, dadlı seçimlər və özünü mükafatlandırmaq vaxtı deməkdir.', 'Предсказание видит тёплые тона. Это знак уюта, вкусных выборов и времени порадовать себя.', 'Your fortune sees warm tones. That means comfort, tasty choices, and a good time to reward yourself.')
-          : tx(lang, 'Fal daha dərin və sakit aura görür. Yaxın günlərdə səni sürpriz bonus və gözlənilməz bir reward sevindirə bilər.', 'Предсказание видит более глубокую и спокойную ауру. В ближайшие дни тебя может порадовать неожиданный бонус.', 'Your fortune sees a deeper, calmer aura. An unexpected bonus or reward may cheer you up soon.');
-        setFortuneText(result);
-      };
-      img.src = src;
+      analyzeImageUrl(src);
     };
     reader.readAsDataURL(file);
+  };
+
+  const takePhotoWithCamera = async () => {
+    try {
+      const photo = await Camera.getPhoto({
+        resultType: CameraResultType.Base64,
+        source: CameraSource.Camera,
+        quality: 90,
+      });
+      if (photo.base64String) {
+        const src = `data:image/jpeg;base64,${photo.base64String}`;
+        analyzeImageUrl(src);
+        if (Capacitor.isNativePlatform()) {
+          try {
+            await Haptics.notification({ type: NotificationType.Success });
+          } catch (hErr) {
+            console.warn('Haptics failed', hErr);
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn('Camera photo failed or cancelled', e);
+    }
   };
 
   if (loading) {
@@ -411,7 +470,16 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         </section>
 
         <section
-          className="rounded-2xl p-4"
+          onClick={async () => {
+            if (Capacitor.isNativePlatform()) {
+              try {
+                await Haptics.impact({ style: ImpactStyle.Medium });
+              } catch (hErr) {
+                console.warn('Haptics failed', hErr);
+              }
+            }
+          }}
+          className="rounded-2xl p-4 cursor-pointer active:scale-95 transition-transform"
           style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}
         >
           <div className="flex items-center gap-2 text-[12px] font-semibold text-white/70"><QrCode size={14} /> {tx(safeLang, 'QR Kart', 'QR карта', 'QR Card')}</div>
@@ -546,6 +614,12 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         <button type="button" onClick={() => fileRef.current?.click()} className="rounded-2xl px-4 py-3 font-semibold text-slate-950" style={{ backgroundColor: primaryColor }}>
           {tx(safeLang, 'Şəkil yüklə', 'Загрузить фото', 'Upload image')}
         </button>
+        {Capacitor.isNativePlatform() && (
+          <button type="button" onClick={takePhotoWithCamera} className="flex items-center gap-2 rounded-2xl px-4 py-3 font-semibold text-slate-950 animate-pulse" style={{ backgroundColor: accentColor }}>
+            <CameraIcon size={18} />
+            {tx(safeLang, 'Kamera ilə çək', 'Снять на камеру', 'Take Photo')}
+          </button>
+        )}
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) analyzeImageFortune(file);
@@ -682,7 +756,16 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                 <button
                   key={tab.key}
                   type="button"
-                  onClick={() => setActiveTab(tab.key)}
+                  onClick={async () => {
+                    setActiveTab(tab.key);
+                    if (Capacitor.isNativePlatform()) {
+                      try {
+                        await Haptics.impact({ style: ImpactStyle.Light });
+                      } catch (hErr) {
+                        console.warn('Haptics failed', hErr);
+                      }
+                    }
+                  }}
                   className="relative flex flex-col items-center gap-0.5 px-3 py-1.5 transition-colors"
                   style={{ color: active ? primaryColor : 'rgba(255,255,255,0.45)' }}
                 >

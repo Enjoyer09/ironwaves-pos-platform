@@ -517,6 +517,7 @@ class Customer(Base):
     stars: Mapped[int] = mapped_column(Integer, default=0)
     secret_token: Mapped[str] = mapped_column(String(64), nullable=False, default=lambda: secrets.token_hex(16))
     discount_percent: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal("0.00"))
+    push_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

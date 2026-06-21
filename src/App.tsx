@@ -1,5 +1,7 @@
 import React, { Suspense, lazy, useState, useEffect, useMemo, useRef } from 'react';
 import { Capacitor } from '@capacitor/core';
+import { PushNotifications } from '@capacitor/push-notifications';
+import { save_push_token_live } from './api/crm';
 import { useAppStore } from './store';
 import { i18n, tx } from './i18n';
 import PinLogin from './components/PinLogin';
@@ -172,6 +174,68 @@ export default function App() {
     } catch {
       // ignore
     }
+  }, []);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const setupPushNotifications = async () => {
+      try {
+        let permStatus = await PushNotifications.checkPermissions();
+
+        if (permStatus.receive === 'prompt') {
+          permStatus = await PushNotifications.requestPermissions();
+        }
+
+        if (permStatus.receive === 'granted') {
+          await PushNotifications.register();
+        } else {
+          console.warn('Push permission not granted');
+        }
+
+        await PushNotifications.addListener('registration', async (token) => {
+          const pushToken = token.value;
+          localStorage.setItem('push_token', pushToken);
+          console.log('FCM Registration token:', pushToken);
+
+          const savedCardId = localStorage.getItem('customer_card_id') || '';
+          const savedToken = localStorage.getItem('customer_token') || '';
+          if (savedCardId && savedToken) {
+            try {
+              await save_push_token_live(savedCardId, pushToken, savedToken);
+              console.log('FCM Push token saved successfully to backend');
+            } catch (err) {
+              console.error('Failed to sync push token to backend:', err);
+            }
+          }
+        });
+
+        await PushNotifications.addListener('registrationError', (error) => {
+          console.error('Push notification registration error:', error);
+        });
+
+        await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+          console.log('Push notification received:', notification);
+        });
+
+        await PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+          console.log('Push notification action performed:', notification);
+        });
+
+      } catch (e) {
+        console.warn('Failed to setup native push notifications:', e);
+      }
+    };
+
+    void setupPushNotifications();
+
+    return () => {
+      try {
+        void PushNotifications.removeAllListeners();
+      } catch (err) {
+        console.warn('Failed to remove push listeners:', err);
+      }
+    };
   }, []);
   const t = i18n[safeLang];
   const lazyModuleFallback = <LazyModuleFallback lang={safeLang} />;

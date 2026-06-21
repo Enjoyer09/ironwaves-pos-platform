@@ -3655,6 +3655,24 @@ def enroll_customer_app(
     return {"success": True, "card_id": card_id, "token": secret_token}
 
 
+class SavePushTokenIn(BaseModel):
+    card_id: str
+    push_token: str
+    token: str
+
+
+@router.post("/crm/push-token")
+def save_push_token(
+    payload: SavePushTokenIn,
+    db: Session = Depends(get_db),
+    tenant = Depends(get_tenant),
+):
+    customer = _resolve_customer_session(db, tenant.id, payload.card_id, payload.token)
+    customer.push_token = payload.push_token
+    db.commit()
+    return {"success": True}
+
+
 @router.get("/customer-app/session")
 def get_customer_app_session(
     id: str = Query(...),
