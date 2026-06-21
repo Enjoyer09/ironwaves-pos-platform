@@ -402,8 +402,20 @@ def _build_finance_anomalies(db: Session, tenant_id: str) -> dict:
 
 @router.get("/balances")
 def get_balances(db: Session = Depends(get_db), tenant: Tenant = Depends(get_tenant), user=Depends(get_current_user)):
-    _ensure_finance_read_access(user)
+    role = str(getattr(user, "role", "") or "").lower()
+    if role != "staff":
+        _ensure_finance_read_access(user)
+    
     balances = _ledger_balances_snapshot(db, tenant.id, ensure_accounts=False)
+    if role == "staff":
+        return {
+            "cash": str(balances.get("cash", Decimal("0.00"))),
+            "card": "0.00",
+            "safe": "0.00",
+            "investor": "0.00",
+            "debt": "0.00",
+            "deposit": str(balances.get("deposit", Decimal("0.00"))),
+        }
     return {
         "cash": str(balances.get("cash", Decimal("0.00"))),
         "card": str(balances.get("card", Decimal("0.00"))),
