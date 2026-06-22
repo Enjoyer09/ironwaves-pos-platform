@@ -27,6 +27,18 @@ function normalizeConfiguredApiBaseUrl() {
   return `https://${configured}`;
 }
 
+export function getApiBaseUrl() {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const customUrl = localStorage.getItem('ironwaves_custom_api_base_url');
+      if (customUrl) return customUrl.trim().replace(/\/$/, '');
+    }
+  } catch {
+    // no-op
+  }
+  return normalizeConfiguredApiBaseUrl();
+}
+
 export function isBackendEnabled() {
   try {
     if (typeof localStorage !== 'undefined' && localStorage.getItem(FORCE_LOCAL_KEY) === '1') return false;
@@ -34,7 +46,7 @@ export function isBackendEnabled() {
     // no-op
   }
   const forceEnabled = BACKEND_FLAG === '1' || BACKEND_FLAG === 'true' || BACKEND_FLAG === 'yes';
-  return forceEnabled || Boolean(normalizeConfiguredApiBaseUrl());
+  return forceEnabled || Boolean(getApiBaseUrl());
 }
 
 export function isForceLocalMode() {
@@ -53,10 +65,6 @@ export function setForceLocalMode(enabled: boolean) {
   } catch {
     // no-op
   }
-}
-
-export function getApiBaseUrl() {
-  return normalizeConfiguredApiBaseUrl();
 }
 
 type SessionAuthSnapshot = {

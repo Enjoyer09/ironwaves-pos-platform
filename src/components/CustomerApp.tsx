@@ -22,6 +22,222 @@ const BARISTA_QUICK_PROMPTS = [
   'Dessert ilə nə uyğun gedər?',
 ];
 
+type SimpleAreaChartProps = {
+  data: Array<{ date: string; amount: number }>;
+  primaryColor: string;
+  safeLang: string;
+};
+
+function SimpleAreaChart({ data, primaryColor, safeLang }: SimpleAreaChartProps) {
+  const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null);
+  const [tooltipPos, setTooltipPos] = React.useState<{ x: number; y: number } | null>(null);
+  const svgRef = React.useRef<SVGSVGElement | null>(null);
+
+  if (!data || data.length === 0) return null;
+
+  const width = 500;
+  const height = 180;
+  const paddingLeft = 35;
+  const paddingRight = 15;
+  const paddingTop = 20;
+  const paddingBottom = 25;
+
+  const chartWidth = width - paddingLeft - paddingRight;
+  const chartHeight = height - paddingTop - paddingBottom;
+
+  const amounts = data.map((d) => d.amount);
+  const maxAmount = Math.max(...amounts, 1);
+  const minAmount = 0;
+
+  const points = data.map((d, index) => {
+    const x = paddingLeft + (index / (data.length - 1 || 1)) * chartWidth;
+    const y = paddingTop + chartHeight - ((d.amount - minAmount) / (maxAmount - minAmount)) * chartHeight;
+    return { x, y, date: d.date, amount: d.amount };
+  });
+
+  let linePath = '';
+  let areaPath = '';
+
+  if (points.length > 0) {
+    linePath = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+      linePath += ` L ${points[i].x} ${points[i].y}`;
+    }
+    areaPath = `${linePath} L ${points[points.length - 1].x} ${paddingTop + chartHeight} L ${points[0].x} ${paddingTop + chartHeight} Z`;
+  }
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement, MouseEvent>) => {
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const svgX = (mouseX / rect.width) * width;
+
+    let closestIndex = 0;
+    let minDiff = Infinity;
+    points.forEach((p, idx) => {
+      const diff = Math.abs(p.x - svgX);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIndex = idx;
+      }
+    });
+
+    setHoveredIndex(closestIndex);
+    const activePoint = points[closestIndex];
+    setTooltipPos({
+      x: activePoint.x,
+      y: activePoint.y - 10,
+    });
+  };
+
+  const handleMouseLeave = () => {
+    setHoveredIndex(null);
+    setTooltipPos(null);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<SVGSVGElement>) => {
+    if (!svgRef.current || e.touches.length === 0) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const touchX = e.touches[0].clientX - rect.left;
+    const svgX = (touchX / rect.width) * width;
+
+    let closestIndex = 0;
+    let minDiff = Infinity;
+    points.forEach((p, idx) => {
+      const diff = Math.abs(p.x - svgX);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIndex = idx;
+      }
+    });
+
+    setHoveredIndex(closestIndex);
+    const activePoint = points[closestIndex];
+    setTooltipPos({
+      x: activePoint.x,
+      y: activePoint.y - 10,
+    });
+  };
+
+  const yTicks = [0, maxAmount / 2, maxAmount];
+
+  return (
+    <div className="relative w-full select-none">
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${width} ${height}`}
+        className="w-full h-auto overflow-visible"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleMouseLeave}
+      >
+        <defs>
+          <linearGradient id="customColorAmount" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={primaryColor} stopOpacity={0.4} />
+            <stop offset="100%" stopColor={primaryColor} stopOpacity={0.0} />
+          </linearGradient>
+        </defs>
+
+        {yTicks.map((tick, idx) => {
+          const y = paddingTop + chartHeight - ((tick - minAmount) / (maxAmount - minAmount)) * chartHeight;
+          return (
+            <line
+              key={idx}
+              x1={paddingLeft}
+              y1={y}
+              x2={width - paddingRight}
+              y2={y}
+              stroke="rgba(255,255,255,0.06)"
+              strokeDasharray="4 4"
+            />
+          );
+        })}
+
+        {yTicks.map((tick, idx) => {
+          const y = paddingTop + chartHeight - ((tick - minAmount) / (maxAmount - minAmount)) * chartHeight;
+          return (
+            <text
+              key={idx}
+              x={paddingLeft - 8}
+              y={y + 3}
+              fill="rgba(255,255,255,0.35)"
+              fontSize={10}
+              textAnchor="end"
+            >
+              {tick.toFixed(0)}₼
+            </text>
+          );
+        })}
+
+        {points.map((p, idx) => {
+          const isTick = idx === 0 || idx === points.length - 1 || (points.length > 2 && idx === Math.floor(points.length / 2));
+          if (!isTick) return null;
+          return (
+            <g key={idx}>
+              <text
+                x={p.x}
+                y={height - 5}
+                fill="rgba(255,255,255,0.35)"
+                fontSize={10}
+                textAnchor="middle"
+              >
+                {p.date}
+              </text>
+            </g>
+          );
+        })}
+
+        <path d={areaPath} fill="url(#customColorAmount)" />
+
+        <path d={linePath} fill="none" stroke={primaryColor} strokeWidth={2.5} strokeLinecap="round" />
+
+        {points.map((p, idx) => (
+          <circle
+            key={idx}
+            cx={p.x}
+            cy={p.y}
+            r={hoveredIndex === idx ? 5 : 3}
+            fill="#0f172a"
+            stroke={primaryColor}
+            strokeWidth={hoveredIndex === idx ? 2.5 : 1.5}
+            className="transition-all duration-150"
+          />
+        ))}
+
+        {hoveredIndex !== null && tooltipPos && (
+          <line
+            x1={tooltipPos.x}
+            y1={paddingTop}
+            x2={tooltipPos.x}
+            y2={paddingTop + chartHeight}
+            stroke="rgba(255,255,255,0.15)"
+            strokeDasharray="2 2"
+            pointerEvents="none"
+          />
+        )}
+      </svg>
+
+      {hoveredIndex !== null && tooltipPos && (
+        <div
+          className="absolute z-10 rounded-xl border border-white/10 bg-slate-950/95 p-2 text-xs text-white shadow-xl pointer-events-none transition-all duration-100"
+          style={{
+            left: `${(tooltipPos.x / width) * 100}%`,
+            top: `${(tooltipPos.y / height) * 100}%`,
+            transform: 'translate(-50%, -115%)',
+          }}
+        >
+          <div className="font-bold text-slate-400">{points[hoveredIndex].date}</div>
+          <div className="mt-0.5 flex items-center gap-1 font-semibold text-white">
+            <span style={{ color: primaryColor }}>●</span>
+            {points[hoveredIndex].amount.toFixed(2)} ₼
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CustomerApp({ cardId = '', token = '', joinMode = false }: Props) {
   const { lang, setLang } = useAppStore();
   const [loading, setLoading] = React.useState(true);
@@ -45,8 +261,52 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [fortuneImage, setFortuneImage] = React.useState('');
   const [fortuneLoading, setFortuneLoading] = React.useState(false);
   const [geofenceAlert, setGeofenceAlert] = React.useState(false);
+  const [showDevSettings, setShowDevSettings] = React.useState(false);
+  const [customApiUrl, setCustomApiUrl] = React.useState(() => {
+    return localStorage.getItem('ironwaves_custom_api_base_url') || '';
+  });
+  const [customTenantDomain, setCustomTenantDomain] = React.useState(() => {
+    return localStorage.getItem('mobile_tenant_domain') || 'super.ironwaves.store';
+  });
   const fileRef = React.useRef<HTMLInputElement | null>(null);
   const safeLang = lang === 'ru' || lang === 'en' ? lang : 'az';
+
+  const chartData = React.useMemo(() => {
+    const historyList = Array.isArray(data?.history) ? data.history : [];
+    if (historyList.length === 0) return [];
+    const groups: Record<string, number> = {};
+    const locale = safeLang === 'az' ? 'az-AZ' : safeLang === 'ru' ? 'ru-RU' : 'en-US';
+    const sorted = [...historyList].sort((a: any, b: any) => String(a.created_at).localeCompare(String(b.created_at)));
+    for (const item of sorted) {
+      if (!item.created_at) continue;
+      const dateStr = new Date(item.created_at).toLocaleDateString(locale, { month: 'short', day: 'numeric' });
+      groups[dateStr] = (groups[dateStr] || 0) + Number(item.total || 0);
+    }
+    return Object.keys(groups).map((date) => ({
+      date,
+      amount: parseFloat(groups[date].toFixed(2)),
+    }));
+  }, [data?.history, safeLang]);
+
+  const branding = data?.branding || {};
+  const wallet = data?.wallet || {};
+  const notifications = Array.isArray(data?.notifications) ? data.notifications : [];
+  const campaigns = Array.isArray(data?.campaigns) ? data.campaigns : [];
+  const history = Array.isArray(data?.history) ? data.history : [];
+  const customer = data?.customer || {};
+  const rewards = Array.isArray(wallet?.rewards) ? wallet.rewards : [];
+  const pendingClaims = Array.isArray(data?.pending_claims) ? data.pending_claims : [];
+  const progressPercent = wallet?.next_reward_at ? Math.min(100, Math.round((Number(wallet.progress_current || 0) / Number(wallet.next_reward_at || 1)) * 100)) : 0;
+  const primaryColor = String(branding?.primary_color || '#14b8a6');
+  const accentColor = String(branding?.accent_color || '#7c3aed');
+  const programMode = String(wallet?.program_mode || 'points').toLowerCase();
+  const showQrCard = branding?.show_qr_card !== false;
+  const showWallet = branding?.show_wallet !== false;
+  const balanceSuffix = programMode === 'cashback' ? ' ₼' : '';
+  const heroImage = String(branding?.hero_image_url || '');
+  const backgroundImage = String(branding?.background_image_url || '');
+  const backgroundColor = String(branding?.background_color || data?.customer_app_settings?.background_color || '#0b1220');
+  const aiBaristaEnabled = branding?.ai_barista_enabled === true;
 
   const initOneSignalSDK = React.useCallback((appId: string, cardId: string, token: string) => {
     if (!appId) return;
@@ -580,30 +840,96 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           </div>
           <h1 className="text-lg font-bold text-white">{tx(safeLang, 'Tətbiq açıla bilmədi', 'Приложение не открылось', 'App could not be opened')}</h1>
           <p className="mt-2 text-[13px] text-red-200/70">{error || 'Invalid customer link'}</p>
+
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.removeItem('customer_card_id');
+              localStorage.removeItem('customer_token');
+              setSessionCreds({ cardId: '', token: '' });
+              setError('');
+            }}
+            className="mt-6 w-full rounded-2xl bg-white/10 py-3 text-sm font-semibold text-white transition hover:bg-white/15 active:scale-[0.98]"
+          >
+            {tx(safeLang, 'Sessiyanı Sıfırla & Geri Dön', 'Сбросить сессию и вернуться', 'Reset Session & Go Back')}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowDevSettings(!showDevSettings)}
+            className="mt-4 block w-full text-center text-xs text-white/40 underline hover:text-white/60"
+          >
+            {showDevSettings 
+              ? tx(safeLang, 'Ayarları gizlə', 'Скрыть настройки', 'Hide settings')
+              : tx(safeLang, 'İnkişaf etdirici ayarları', 'Настройки разработчика', 'Developer settings')}
+          </button>
+
+          {showDevSettings && (
+            <div className="mt-4 text-left border-t border-white/10 pt-4 space-y-3">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-white/50 mb-1">
+                  API Base URL
+                </label>
+                <input
+                  type="text"
+                  placeholder="https://api.example.com"
+                  value={customApiUrl}
+                  onChange={(e) => setCustomApiUrl(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white/30"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-white/50 mb-1">
+                  Tenant Domain
+                </label>
+                <input
+                  type="text"
+                  placeholder="super.ironwaves.store"
+                  value={customTenantDomain}
+                  onChange={(e) => setCustomTenantDomain(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-white/30"
+                />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (customApiUrl.trim()) {
+                      localStorage.setItem('ironwaves_custom_api_base_url', customApiUrl.trim());
+                    } else {
+                      localStorage.removeItem('ironwaves_custom_api_base_url');
+                    }
+                    if (customTenantDomain.trim()) {
+                      localStorage.setItem('mobile_tenant_domain', customTenantDomain.trim());
+                    } else {
+                      localStorage.removeItem('mobile_tenant_domain');
+                    }
+                    window.location.reload();
+                  }}
+                  className="flex-1 rounded-xl bg-white/20 py-2 text-xs font-bold text-white hover:bg-white/25 transition active:scale-[0.95]"
+                >
+                  {tx(safeLang, 'Yadda saxla', 'Сохранить', 'Save')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.removeItem('ironwaves_custom_api_base_url');
+                    localStorage.removeItem('mobile_tenant_domain');
+                    window.location.reload();
+                  }}
+                  className="rounded-xl bg-red-500/20 px-3 py-2 text-xs font-bold text-red-300 hover:bg-red-500/25 transition active:scale-[0.95]"
+                >
+                  {tx(safeLang, 'Sıfırla', 'Сбросить', 'Reset')}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
-  const branding = data.branding || {};
-  const wallet = data.wallet || {};
-  const notifications = Array.isArray(data.notifications) ? data.notifications : [];
-  const campaigns = Array.isArray(data.campaigns) ? data.campaigns : [];
-  const history = Array.isArray(data.history) ? data.history : [];
-  const customer = data.customer || {};
-  const rewards = Array.isArray(wallet.rewards) ? wallet.rewards : [];
-  const pendingClaims = Array.isArray(data.pending_claims) ? data.pending_claims : [];
-  const progressPercent = wallet.next_reward_at ? Math.min(100, Math.round((Number(wallet.progress_current || 0) / Number(wallet.next_reward_at || 1)) * 100)) : 0;
-  const primaryColor = String(branding.primary_color || '#14b8a6');
-  const accentColor = String(branding.accent_color || '#7c3aed');
-  const programMode = String(wallet.program_mode || 'points').toLowerCase();
-  const showQrCard = branding.show_qr_card !== false;
-  const showWallet = branding.show_wallet !== false;
-  const balanceSuffix = programMode === 'cashback' ? ' ₼' : '';
-  const heroImage = String(branding.hero_image_url || '');
-  const backgroundImage = String(branding.background_image_url || '');
-  const backgroundColor = String(branding.background_color || data.customer_app_settings?.background_color || '#0b1220');
-  const aiBaristaEnabled = branding.ai_barista_enabled === true;
+
   const aiFalciEnabled = branding.ai_falci_enabled === true;
   const layoutPreset = String(data.customer_app_settings?.layout_preset || 'rewards').toLowerCase();
   const rewardCardStyle = String(branding.reward_card_style || data.customer_app_settings?.reward_card_style || 'rounded').toLowerCase();
@@ -966,6 +1292,18 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           ))}
         </div>
       </section>
+
+      {chartData.length > 1 && (
+        <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
+          <div className="mb-3 text-[15px] font-bold text-white flex items-center gap-2">
+            <span className="text-yellow-400">📊</span>
+            {tx(safeLang, 'Alış dinamikası', 'Динамика покупок', 'Purchase dynamics')}
+          </div>
+          <div className="mt-2 pr-2">
+            <SimpleAreaChart data={chartData} primaryColor={primaryColor} safeLang={safeLang} />
+          </div>
+        </section>
+      )}
 
       <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
         <div className="mb-4 flex items-center gap-2 text-lg font-bold text-white"><Gift size={18} /> {tx(safeLang, 'Son tarixçə', 'Последняя история', 'Recent history')}</div>

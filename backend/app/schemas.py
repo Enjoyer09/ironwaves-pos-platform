@@ -126,6 +126,7 @@ class InventoryRestockIn(BaseModel):
     total_price: Decimal
     payment_source: str | None = "payable"
     supplier: str | None = None
+    supplier_id: str | None = None
     invoice_no: str | None = None
 
 
@@ -411,3 +412,32 @@ class SettleCheckIn(BaseModel):
     discount_percent: Decimal = Field(default=Decimal("0"), ge=0, le=50)
     discount_reason: str | None = None
     parts: list[RestaurantPaymentPartIn] | None = None
+
+
+class SupplierBase(BaseModel):
+    name: str
+    contact_person: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    address: str | None = None
+    notes: str | None = None
+
+
+class SupplierCreate(SupplierBase):
+    pass
+
+
+class SupplierUpdate(BaseModel):
+    name: str | None = None
+    contact_person: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    address: str | None = None
+    notes: str | None = None
+
+
+class SupplierOut(SupplierBase):
+    id: str
+    tenant_id: str
+    balance: Decimal
+    created_at: datetime
