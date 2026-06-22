@@ -437,6 +437,7 @@ class FinanceTransaction(Base):
     related_table_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     related_order_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     legacy_finance_entry_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    supplier_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
 
 
 class FinanceLedgerEntry(Base):
@@ -734,5 +735,20 @@ class DeliveryMenuMapping(Base):
     external_item_id: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     external_item_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     menu_item_id: Mapped[str] = mapped_column(String(36), ForeignKey("menu_items.id", ondelete="CASCADE"), nullable=False)
+
+
+class Supplier(Base):
+    __tablename__ = "suppliers"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    contact_person: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

@@ -18,6 +18,7 @@ import { get_settings_live, get_business_profile_live } from '../api/settings';
 
 const FinancePanel = lazy(() => import('./admin/FinancePanel'));
 const InventoryPanel = lazy(() => import('./admin/InventoryPanel'));
+const SuppliersPanel = lazy(() => import('./admin/SuppliersPanel'));
 const DashboardPanel = lazy(() => import('./admin/DashboardPanel'));
 const CRMPanel = lazy(() => import('./admin/CRMPanel'));
 const CustomerAppPanel = lazy(() => import('./admin/CustomerAppPanel'));
@@ -34,7 +35,7 @@ const DatabasePanel = lazy(() => import('./admin/DatabasePanel'));
 const TenantsPanel = lazy(() => import('./admin/TenantsPanel'));
 const FeedbackInboxPanel = lazy(() => import('./admin/FeedbackInboxPanel'));
 
-type AdminTab = 'dashboard' | 'analytics' | 'menu' | 'tables' | 'finance' | 'inventory' | 'crm' | 'customerapp' | 'posbuilder' | 'landing' | 'recipes' | 'ai' | 'settings' | 'notes' | 'logs' | 'database' | 'zreport' | 'combos' | 'tenants';
+type AdminTab = 'dashboard' | 'analytics' | 'menu' | 'tables' | 'finance' | 'inventory' | 'suppliers' | 'crm' | 'customerapp' | 'posbuilder' | 'landing' | 'recipes' | 'ai' | 'settings' | 'notes' | 'logs' | 'database' | 'zreport' | 'combos' | 'tenants';
 
 interface AdminPanelProps {
   externalTab?: AdminTab;
@@ -150,6 +151,7 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
     { key: 'analytics', label: tx(lang, 'Analitika', 'Аналитика', 'Analytics') },
     { key: 'zreport', label: tx(lang, 'Z-Hesabat', 'Z-Отчет', 'Z-Report') },
     { key: 'inventory', label: tx(lang, 'Anbar', 'Склад', 'Inventory') },
+    { key: 'suppliers', label: tx(lang, 'Təchizatçılar', 'Поставщики', 'Suppliers') },
     { key: 'menu', label: tx(lang, 'Menyu', 'Меню', 'Menu') },
     { key: 'recipes', label: tx(lang, 'Resept', 'Рецепт', 'Recipes') },
     { key: 'logs', label: tx(lang, 'Loqlar', 'Логи', 'Logs') },
@@ -1472,6 +1474,7 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
 
         {activeTab === 'finance' && <FinancePanel />}
         {activeTab === 'inventory' && <InventoryPanel />}
+        {activeTab === 'suppliers' && <SuppliersPanel />}
         {activeTab === 'crm' && <CRMPanel />}
         {activeTab === 'customerapp' && <CustomerAppPanel />}
         {activeTab === 'posbuilder' && <PosBuilderPanel />}

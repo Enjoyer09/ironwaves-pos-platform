@@ -470,6 +470,7 @@ def create_finance_transaction_record(
     related_table_id: str | None = None,
     related_order_id: str | None = None,
     legacy_finance_entry_id: str | None = None,
+    supplier_id: str | None = None,
 ) -> FinanceTransaction:
     source = finance_account(db, tenant_id, source_code)
     destination = finance_account(db, tenant_id, destination_code)
@@ -491,6 +492,7 @@ def create_finance_transaction_record(
         related_table_id=related_table_id,
         related_order_id=related_order_id,
         legacy_finance_entry_id=legacy_finance_entry_id,
+        supplier_id=supplier_id,
     )
     db.add(txn)
     db.flush()
@@ -731,6 +733,7 @@ def post_finance_transaction(
     related_table_id: str | None = None,
     related_order_id: str | None = None,
     legacy_finance_entry_id: str | None = None,
+    supplier_id: str | None = None,
 ) -> FinanceTransaction:
     amount = Decimal(str(amount)).quantize(Decimal("0.01"))
     if amount <= 0:
@@ -755,6 +758,7 @@ def post_finance_transaction(
         related_table_id=related_table_id,
         related_order_id=related_order_id,
         legacy_finance_entry_id=legacy_finance_entry_id,
+        supplier_id=supplier_id,
     )
     return post_existing_transaction(db, txn, created_by)
 
@@ -848,6 +852,7 @@ def post_inventory_restock(
     category: str | None = None,
     note: str | None = None,
     reference: str | None = None,
+    supplier_id: str | None = None,
 ) -> FinanceTransaction | None:
     amount = Decimal(str(amount)).quantize(Decimal("0.01"))
     if amount <= 0:
@@ -866,6 +871,7 @@ def post_inventory_restock(
         category=category or "Anbar Mədaxili",
         note=note,
         reference=reference,
+        supplier_id=supplier_id,
     )
     # Inventory asset flows are ledger-only. Legacy wallet mirror should stay operational-cash focused.
     return txn

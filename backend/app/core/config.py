@@ -107,6 +107,10 @@ class Settings(BaseSettings):
     apple_wallet_cert_path: str | None = None
     apple_wallet_key_path: str | None = None
 
+    twilio_account_sid: str | None = None
+    twilio_auth_token: str | None = None
+    twilio_from_number: str | None = None
+
     cors_origins: str = "http://localhost:5173"
 
 

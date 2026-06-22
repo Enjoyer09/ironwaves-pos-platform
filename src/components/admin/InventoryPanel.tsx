@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Decimal } from 'decimal.js';
 import { get_inventory_items_live, add_inventory_item_live, update_inventory_item_live, record_loss_live, restock_item_live, delete_inventory_item_live } from '../../api/inventory';
+import { get_suppliers_live, adjust_local_supplier_balance_on_restock } from '../../api/suppliers';
 import { get_logs_live } from '../../api/logs';
 import { get_settings_live } from '../../api/settings';
 import { generate_ai_insight_engine, type AiDecisionInsight } from '../../api/ai_manager';
@@ -64,12 +65,14 @@ export default function InventoryPanel() {
     if (loadingRef.current) return;
     loadingRef.current = true;
     try {
-      const [data, settings] = await Promise.all([
+      const [data, settings, loadedSuppliers] = await Promise.all([
         get_inventory_items_live(tenant_id),
         get_settings_live(tenant_id),
+        get_suppliers_live(tenant_id),
       ]);
       if (!mountedRef.current) return;
       setItems(Array.isArray(data) ? data : []);
+      setSuppliers(loadedSuppliers || []);
       const invSettings = settings.inventory_settings || {
         default_critical_threshold: 5,
         unit_options: ['kq', 'qram', 'litr', 'ml', 'ədəd', 'paket', 'qutu', 'metr'],
@@ -128,6 +131,8 @@ export default function InventoryPanel() {
   const [restockTotalPrice, setRestockTotalPrice] = useState('');
   const [restockPaymentSource, setRestockPaymentSource] = useState<'payable' | 'cash' | 'card' | 'safe'>('payable');
   const [restockSupplier, setRestockSupplier] = useState('');
+  const [restockSupplierId, setRestockSupplierId] = useState('');
+  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [restockInvoiceNo, setRestockInvoiceNo] = useState('');
   const [editModal, setEditModal] = useState<{ id: string; name: string; type: string; unit: string; min_limit: string } | null>(null);
   const [editCustomType, setEditCustomType] = useState('');
@@ -308,18 +313,31 @@ export default function InventoryPanel() {
     const qty = parseDecimalInput(restockQty);
     const totalPrice = parseDecimalInput(restockTotalPrice);
     if (qty.lte(0) || totalPrice.lt(0)) return;
+
+    if (restockPaymentSource === 'payable' && !restockSupplierId) {
+      notify('error', tx(lang, 'Öhdəlik (AP) üçün təchizatçı seçilməlidir', 'Для кредиторки (AP) необходимо выбрать поставщика', 'Supplier must be selected for payable (AP)'));
+      return;
+    }
+
     try {
       await restock_item_live(tenant_id, id, qty, totalPrice, user?.username || 'Admin', {
         payment_source: restockPaymentSource,
         supplier: restockSupplier.trim() || undefined,
+        supplier_id: restockSupplierId || undefined,
         invoice_no: restockInvoiceNo.trim() || undefined,
       });
+
+      if (restockSupplierId) {
+        adjust_local_supplier_balance_on_restock(tenant_id, restockSupplierId, totalPrice.toNumber());
+      }
+
       notify('success', tx(lang, 'Mədaxil yazıldı', 'Пополнение сохранено'));
       setRestockModal(null);
       setRestockQty('');
       setRestockTotalPrice('');
       setRestockPaymentSource('payable');
       setRestockSupplier('');
+      setRestockSupplierId('');
       setRestockInvoiceNo('');
       await loadData();
     } catch (e: any) {
@@ -555,14 +573,28 @@ export default function InventoryPanel() {
                 <option value="card">{tx(lang, 'Kart', 'Карта', 'Card')}</option>
                 <option value="safe">{tx(lang, 'Seyf', 'Сейф', 'Safe')}</option>
               </select>
-              <input className="neon-input" placeholder={tx(lang, 'Təchizatçı (opsional)', 'Поставщик (опц.)', 'Supplier (optional)')} value={restockSupplier} onChange={(e) => setRestockSupplier(e.target.value)} />
-              <input className="neon-input col-span-2" placeholder={tx(lang, 'Invoice № (opsional)', 'Invoice № (опц.)', 'Invoice № (optional)')} value={restockInvoiceNo} onChange={(e) => setRestockInvoiceNo(e.target.value)} />
+              <select
+                className="neon-input"
+                value={restockSupplierId}
+                onChange={(e) => {
+                  const selectedId = e.target.value;
+                  setRestockSupplierId(selectedId);
+                  const s = suppliers.find((x) => x.id === selectedId);
+                  setRestockSupplier(s ? s.name : '');
+                }}
+              >
+                <option value="">{tx(lang, '-- Təchizatçı seç --', '-- Выбрать поставщика --', '-- Select Supplier --')}</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              <input className="neon-input col-span-2 animate-fade-in" placeholder={tx(lang, 'Invoice № (opsional)', 'Invoice № (опц.)', 'Invoice № (optional)')} value={restockInvoiceNo} onChange={(e) => setRestockInvoiceNo(e.target.value)} />
             </div>
             <div className="mt-4 flex gap-2">
               <button className="glossy-gold rounded-lg px-4 py-2 font-semibold" onClick={() => { void handleRestock(restockModal.id); }}>
                 {tx(lang, 'Təsdiqlə', 'Подтвердить')}
               </button>
-              <button className="neon-btn rounded-lg px-4 py-2" onClick={() => { setRestockModal(null); setRestockQty(''); setRestockTotalPrice(''); setRestockPaymentSource('payable'); setRestockSupplier(''); setRestockInvoiceNo(''); }}>
+              <button className="neon-btn rounded-lg px-4 py-2" onClick={() => { setRestockModal(null); setRestockQty(''); setRestockTotalPrice(''); setRestockPaymentSource('payable'); setRestockSupplier(''); setRestockSupplierId(''); setRestockInvoiceNo(''); }}>
                 {tx(lang, 'Ləğv et', 'Отмена')}
               </button>
             </div>

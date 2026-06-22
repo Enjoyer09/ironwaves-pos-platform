@@ -69,6 +69,7 @@ type ModuleKey =
   | 'zreport'
   | 'finance'
   | 'inventory'
+  | 'suppliers'
   | 'combos'
   | 'dashboard'
   | 'analytics'
@@ -98,6 +99,7 @@ const DEMO_MODULE_GUIDE_AZ: Record<ModuleKey, string> = {
   zreport: 'Gün sonu yekun hesabatı və kassa nəticələri bu bölmədə çıxarılır.',
   finance: 'Pul axını, transferlər, investor borcu və jurnal nəzarəti bu bölmədədir.',
   inventory: 'Anbar qalıqları, xammal hərəkətləri və kritik limitlər burada izlənir.',
+  suppliers: 'Təchizatçıların idarə edilməsi, əlaqə məlumatları və borc (AP) qalıqları burada idarə olunur.',
   combos: 'Kampaniya və kombo məhsullar burada yaradılır və idarə olunur.',
   dashboard: 'Bütün əsas göstəricilər və kritik xəbərdarlıqlar bir baxışda göstərilir.',
   analytics: 'Satış trendi, performans və qərar üçün analitik göstəricilər burada toplanır.',
@@ -1035,6 +1037,7 @@ export default function App() {
     { key: 'analytics', label: t.modules.analytics, manager: true },
     { key: 'zreport', label: t.modules.zreport },
     { key: 'inventory', label: t.modules.inventory, manager: true },
+    { key: 'suppliers', label: t.modules.suppliers || 'Təchizatçılar', manager: true },
     { key: 'menu', label: t.modules.menu, manager: true },
     { key: 'recipes', label: t.modules.recipes, manager: true },
     { key: 'logs', label: t.modules.logs, manager: true },

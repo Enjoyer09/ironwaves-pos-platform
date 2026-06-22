@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
-from app.models import AuditLog, InventoryItem, MenuItem, Recipe, Tenant, User
+from app.models import AuditLog, InventoryItem, MenuItem, Recipe, Tenant, User, Supplier
 from app.schemas import InventoryItemCreateIn, InventoryItemUpdateIn, InventoryRestockIn, InventoryLossIn, MenuItemCreateIn, MenuItemUpdateIn, RecipeIngredientCreateIn
 from app.services.finance_service import post_inventory_loss, post_inventory_restock
 
@@ -709,6 +709,16 @@ def restock_inventory_item(
     if total_price < 0:
         raise HTTPException(status_code=400, detail="Total price cannot be negative")
 
+    supplier = None
+    if payload.supplier_id:
+        supplier = db.query(Supplier).filter(Supplier.id == payload.supplier_id, Supplier.tenant_id == tenant.id).first()
+        if not supplier:
+            raise HTTPException(status_code=404, detail="Supplier not found")
+        
+        # Adjust balance if payment source is payable (Accounts Payable)
+        if str(payload.payment_source or "payable").strip().lower() == "payable":
+            supplier.balance += total_price
+
     old_total_value = Decimal(str(row.stock_qty)) * Decimal(str(row.unit_cost))
     new_total_qty = Decimal(str(row.stock_qty)) + qty_added
     new_unit_cost = Decimal("0") if new_total_qty <= 0 else (old_total_value + total_price) / new_total_qty
@@ -726,6 +736,8 @@ def restock_inventory_item(
             "unit": row.unit,
             "total_price": str(total_price.quantize(Decimal("0.01"))),
             "new_unit_cost": str(row.unit_cost),
+            "supplier_id": supplier.id if supplier else None,
+            "supplier_name": supplier.name if supplier else payload.supplier,
         },
     )
     post_inventory_restock(
@@ -736,7 +748,8 @@ def restock_inventory_item(
         payment_source=str(payload.payment_source or "payable"),
         category="Xammal Mədaxili",
         note=f"{row.name} mədaxili ({qty_added.quantize(Decimal('0.001'))} {row.unit})",
-        reference=str(payload.invoice_no or payload.supplier or row.id),
+        reference=str(payload.invoice_no or (supplier.name if supplier else payload.supplier) or row.id),
+        supplier_id=supplier.id if supplier else None,
     )
     db.commit()
     db.refresh(row)

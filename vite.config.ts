@@ -72,19 +72,7 @@ export default defineConfig(({ command }) => {
       sourcemap: false,
       cssCodeSplit: true,
       assetsInlineLimit: 4096,
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            react: ["react", "react-dom", "react-router-dom"],
-            charts: ["recharts"],
-            i18n: ["i18next", "react-i18next"],
-            qr: ["qrcode", "jsbarcode"],
-            zip: ["jszip"],
-            decimal: ["decimal.js"],
-            icons: ["lucide-react"],
-          },
-        },
-      },
+
     },
   };
 });

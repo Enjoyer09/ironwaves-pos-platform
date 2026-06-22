@@ -130,4 +130,37 @@ export const seedDatabase = () => {
       receipt_footer: 'Bizi secdiyiniz ucun tesekkur edirik!'
     }]);
   }
+
+  // Seed Suppliers
+  const suppliers = getDB<any>('suppliers');
+  const tenantSuppliers = suppliers.filter((s: any) => s.tenant_id === tenant_id);
+  if (tenantSuppliers.length === 0) {
+    const defaultSuppliers = [
+      {
+        id: "mock-supplier-1",
+        tenant_id,
+        name: 'Lavazza Azərbaycan',
+        contact_person: 'Elnur Məmmədov',
+        phone: '+994 50 111 22 33',
+        email: 'info@lavazza.az',
+        address: 'Bakı şəhəri, Səməd Vurğun küç. 45',
+        notes: 'Qəhvə dənələri və aksesuarları tədarükçüsü.',
+        balance: '0.00',
+        created_at: new Date().toISOString(),
+      },
+      {
+        id: "mock-supplier-2",
+        tenant_id,
+        name: 'Bakı Süd Zavodu',
+        contact_person: 'Leyla Əliyeva',
+        phone: '+994 55 222 33 44',
+        email: 'sales@bakisud.az',
+        address: 'Bakı şəhəri, Keşlə qəsəbəsi',
+        notes: 'Süd, qaymaq və digər süd məhsulları.',
+        balance: '150.00',
+        created_at: new Date().toISOString(),
+      }
+    ];
+    setDB('suppliers', [...suppliers, ...defaultSuppliers]);
+  }
 };
