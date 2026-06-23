@@ -2998,7 +2998,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     </div>
                   </div>
                   )}
-		                  <div className={`order-2 mt-3 flex-none ${tableWorkspaceTab === 'compose' ? '' : 'hidden'} ${isBahaYLab && sentDisplayItems.length === 0 ? 'hidden' : ''}`}>
+		                  <div className={`order-2 mt-3 flex-none ${tableWorkspaceTab === 'compose' ? '' : 'hidden'} ${isBahaYLab ? 'hidden' : ''}`}>
 	                    {/* Trigger bar */}
 	                    <button
 	                      type="button"
@@ -3552,7 +3552,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         </div>
       )}
 
-      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className={`mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between ${isBahaYLab && viewTableId ? 'hidden' : ''}`}>
         <h2 className="text-2xl font-bold flex items-center gap-2"><LayoutGrid size={28} className="text-yellow-300"/> {tx(lang, 'Masaların İdarəsi', 'Управление столами', 'Table Management')}</h2>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -3590,7 +3590,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         </div>
       </div>
       {workspaceView === 'floor' && (
-        <div className="mb-6 rounded-[28px] border border-white/10 bg-slate-900/35 p-4">
+        <div className={`mb-6 rounded-[28px] border border-white/10 bg-slate-900/35 p-4 ${isBahaYLab && viewTableId ? 'hidden' : ''}`}>
           {isFloorPlansLoading && !activeFloorId && floorTables.length === 0 ? (
             <div className="rounded-2xl border border-sky-300/30 bg-sky-500/10 p-4">
               <div className="text-sm font-semibold text-sky-100">
@@ -4092,7 +4092,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         </div>
       )}
       {workspaceView === 'reservations' && (
-        <div className="mb-6 rounded-[28px] border border-white/10 bg-slate-900/35 p-4">
+        <div className={`mb-6 rounded-[28px] border border-white/10 bg-slate-900/35 p-4 ${isBahaYLab && viewTableId ? 'hidden' : ''}`}>
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="text-lg font-bold text-slate-100">{tx(lang, 'Günlük rezervasiyalar', 'Брони на день', 'Daily reservations')}</div>
