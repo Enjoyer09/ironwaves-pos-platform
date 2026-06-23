@@ -114,6 +114,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const [reservationDate, setReservationDate] = useState(() => localDateInputValue());
   const [reservations, setReservations] = useState<ReservationRecord[]>([]);
   const [showReservationCreate, setShowReservationCreate] = useState(false);
+  const [showCreateFloorPlan, setShowCreateFloorPlan] = useState(false);
+  const [newFloorPlanName, setNewFloorPlanName] = useState('');
+  const [newFloorPlanWidth, setNewFloorPlanWidth] = useState(12);
+  const [newFloorPlanHeight, setNewFloorPlanHeight] = useState(8);
   const [reservationGuestName, setReservationGuestName] = useState('');
   const [reservationPhone, setReservationPhone] = useState('');
   const [reservationTime, setReservationTime] = useState('19:00');
@@ -1099,12 +1103,22 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     } catch(e:any) { notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message); }
   };
 
-  const handleCreateFloorPlan = async (name: string) => {
+  const handleAddFloorPlan = async () => {
+    const name = newFloorPlanName.trim();
+    if (!name) return;
     try {
-      const created = await create_floor_plan_live({ name });
+      const created = await create_floor_plan_live({
+        name,
+        width_units: Math.max(6, newFloorPlanWidth),
+        height_units: Math.max(4, newFloorPlanHeight),
+      });
       notify('success', tx(lang, 'Yeni zal yaradıldı', 'Новый зал создан', 'New floor plan created'));
       await forceTablesBootstrapRefresh();
       setActiveFloorId(created.id);
+      setShowCreateFloorPlan(false);
+      setNewFloorPlanName('');
+      setNewFloorPlanWidth(12);
+      setNewFloorPlanHeight(8);
     } catch (err: any) {
       notify('error', err.message || 'Error creating floor plan');
     }
@@ -1736,6 +1750,97 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
             <div className="mt-4 flex justify-end gap-2">
               <button className="neon-btn rounded-lg px-4 py-2" onClick={() => setShowCreate(false)}>{tx(lang, 'Ləğv et', 'Отмена')}</button>
               <button className="glossy-gold rounded-lg px-4 py-2 font-semibold" onClick={() => { void handleAddTable(); }}>{tx(lang, 'Yarat', 'Создать')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCreateFloorPlan && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm">
+          <div className="metal-panel w-full max-w-lg p-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
+            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+              <span className="text-yellow-400">✨</span>
+              {tx(lang, 'Yeni Zal / Zona Yarat', 'Создать новый зал / зону', 'Create New Zone')}
+            </h3>
+            
+            <div className="mt-3 rounded-2xl bg-white/5 p-4 text-xs leading-5 text-slate-300 border border-white/5">
+              <p className="font-bold text-white mb-1">
+                💡 {tx(lang, 'Zonalar nədir?', 'Что такое зоны?', 'What are zones?')}
+              </p>
+              {tx(
+                lang,
+                'Zonalar restoran və ya kafenizin müxtəlif fiziki sahələrini (məsələn: Daxili zal, Teras, VIP) təmsil edir. Hər bir zona üçün masaları yerləşdirə biləcəyiniz xüsusi ızqara (grid) ölçüləri təyin edə bilərsiniz.',
+                'Зоны представляют собой различные физические зоны вашего ресторана или кафе (например: внутренний зал, терраса, VIP). Для каждой зоны вы можете задать сетку для размещения столов.',
+                'Zones represent different physical areas of your restaurant or cafe (e.g. Indoor, Terrace, VIP). For each zone, you can define grid dimensions where tables will be positioned.'
+              )}
+            </div>
+
+            <div className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                  {tx(lang, 'Zalın Adı', 'Название зала', 'Zone Name')}
+                </label>
+                <input
+                  className="neon-input"
+                  placeholder={tx(lang, 'Məsələn: Teras, VIP Otaq', 'Например: Терраса, VIP комната', 'E.g. Terrace, VIP Room')}
+                  value={newFloorPlanName}
+                  onChange={(e) => setNewFloorPlanName(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                    {tx(lang, 'En (Izqara vahidi)', 'Ширина (сетка)', 'Grid Width')}
+                  </label>
+                  <input
+                    type="number"
+                    min={6}
+                    max={24}
+                    className="neon-input"
+                    value={newFloorPlanWidth}
+                    onChange={(e) => setNewFloorPlanWidth(Number(e.target.value))}
+                  />
+                  <span className="text-[10px] text-slate-500 mt-1 block">
+                    {tx(lang, 'Minimum 6, Default 12', 'Минимум 6, по умолчанию 12', 'Min 6, Default 12')}
+                  </span>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                    {tx(lang, 'Hündürlük (Izqara vahidi)', 'Высота (сетка)', 'Grid Height')}
+                  </label>
+                  <input
+                    type="number"
+                    min={4}
+                    max={20}
+                    className="neon-input"
+                    value={newFloorPlanHeight}
+                    onChange={(e) => setNewFloorPlanHeight(Number(e.target.value))}
+                  />
+                  <span className="text-[10px] text-slate-500 mt-1 block">
+                    {tx(lang, 'Minimum 4, Default 8', 'Минимум 4, по умолчанию 8', 'Min 4, Default 8')}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2 border-t border-white/5 pt-4">
+              <button
+                className="neon-btn rounded-xl px-5 py-2.5 text-sm font-semibold"
+                onClick={() => {
+                  setShowCreateFloorPlan(false);
+                  setNewFloorPlanName('');
+                }}
+              >
+                {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
+              </button>
+              <button
+                className="glossy-gold rounded-xl px-5 py-2.5 text-sm font-bold disabled:opacity-50"
+                onClick={() => { void handleAddFloorPlan(); }}
+                disabled={!newFloorPlanName.trim()}
+              >
+                {tx(lang, 'Yarat', 'Создать', 'Create')}
+              </button>
             </div>
           </div>
         </div>
@@ -3531,12 +3636,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
                 <button
                   type="button"
-                  onClick={() => {
-                    const name = prompt(tx(lang, 'Yeni zal/zona adı:', 'Название нового зала:', 'New floor plan/zone name:'));
-                    if (name && name.trim()) {
-                      void handleCreateFloorPlan(name.trim());
-                    }
-                  }}
+                  onClick={() => setShowCreateFloorPlan(true)}
                   className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-700/60 bg-slate-800/20 text-slate-300 hover:bg-slate-800/40 hover:text-white transition-all active:scale-95"
                   title={tx(lang, 'Yeni zal/zona əlavə et', 'Добавить новый зал', 'Add new floor plan')}
                 >
