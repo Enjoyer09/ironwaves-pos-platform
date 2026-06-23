@@ -175,6 +175,8 @@ export default function SettingsPanel() {
     logo_shape: 'rounded' as 'rounded' | 'circle' | 'square',
     font_family: '',
     custom_font_url: '',
+    theme_preset: 'dark' as 'dark' | 'light' | 'emerald' | 'custom',
+    layout_preset: 'classic' as 'classic' | 'bolt',
   });
   const [feedbackSettings, setFeedbackSettings] = useState({
     enabled: false,
@@ -477,6 +479,8 @@ export default function SettingsPanel() {
         logo_shape: (String(settingsRes.value.qr_menu_settings?.logo_shape || 'rounded') as any),
         font_family: String(settingsRes.value.qr_menu_settings?.font_family || ''),
         custom_font_url: String(settingsRes.value.qr_menu_settings?.custom_font_url || ''),
+        theme_preset: (String(settingsRes.value.qr_menu_settings?.theme_preset || 'dark') as any),
+        layout_preset: (String(settingsRes.value.qr_menu_settings?.layout_preset || 'classic') as any),
       });
       setFeedbackSettings({
         enabled: settingsRes.value.feedback_settings?.enabled === true,
@@ -1122,6 +1126,32 @@ export default function SettingsPanel() {
     }
   };
 
+  const handleThemePresetChange = (theme: 'dark' | 'light' | 'emerald' | 'custom') => {
+    setQrMenuSettings((prev) => {
+      const updated = { ...prev, theme_preset: theme };
+      if (theme === 'dark') {
+        updated.background_color = '#090d16';
+        updated.surface_color = '#151c2c';
+        updated.text_color = '#f8fafc';
+        updated.primary_color = '#06b6d4';
+        updated.accent_color = '#06b6d4';
+      } else if (theme === 'light') {
+        updated.background_color = '#f8fafc';
+        updated.surface_color = '#ffffff';
+        updated.text_color = '#0f172a';
+        updated.primary_color = '#10b981';
+        updated.accent_color = '#10b981';
+      } else if (theme === 'emerald') {
+        updated.background_color = '#022c22';
+        updated.surface_color = '#064e3b';
+        updated.text_color = '#f0fdf4';
+        updated.primary_color = '#fbbf24';
+        updated.accent_color = '#fbbf24';
+      }
+      return updated;
+    });
+  };
+
   const saveQrMenuSettings = async () => {
     await update_qr_menu_settings_live({
       enabled: qrMenuSettings.enabled,
@@ -1143,6 +1173,8 @@ export default function SettingsPanel() {
       logo_shape: qrMenuSettings.logo_shape,
       font_family: qrMenuSettings.font_family,
       custom_font_url: qrMenuSettings.custom_font_url,
+      theme_preset: qrMenuSettings.theme_preset,
+      layout_preset: qrMenuSettings.layout_preset,
     });
     flashSuccess(tx(lang, 'QR Menu ayarları yadda saxlanıldı', 'Настройки QR Menu сохранены', 'QR Menu settings saved'), 'qr_menu');
   };
@@ -2065,6 +2097,22 @@ export default function SettingsPanel() {
                 {tx(lang, 'Poster şəklini sil', 'Удалить изображение постера', 'Remove poster image')}
               </button>
             ) : null}
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Dizayn şablonu', 'Шаблон дизайна', 'Layout preset')}</label>
+            <select className="neon-input" value={qrMenuSettings.layout_preset} onChange={(e) => setQrMenuSettings((prev) => ({ ...prev, layout_preset: e.target.value as any }))}>
+              <option value="classic">{tx(lang, 'Klassik (Çox addımlı)', 'Классический (Многошаговый)', 'Classic (Multi-step)')}</option>
+              <option value="bolt">{tx(lang, 'Bolt Food stili (Tək səhifə)', 'Bolt Food стиль (Одностраничный)', 'Bolt Food style (Single page)')}</option>
+            </select>
+          </div>
+          <div className="field-stack form-card">
+            <label className="field-label">{tx(lang, 'Mövzu seçimi', 'Выбор темы', 'Theme preset')}</label>
+            <select className="neon-input" value={qrMenuSettings.theme_preset} onChange={(e) => handleThemePresetChange(e.target.value as any)}>
+              <option value="dark">{tx(lang, 'Qaranlıq (Dark)', 'Темная (Dark)', 'Dark')}</option>
+              <option value="light">{tx(lang, 'İşıqlı (Light)', 'Светлая (Light)', 'Light')}</option>
+              <option value="emerald">{tx(lang, 'Zümrüd (Emerald)', 'Изумрудная (Emerald)', 'Emerald')}</option>
+              <option value="custom">{tx(lang, 'Xüsusi (Fərdi rənglər)', 'Кастомная (Свои цвета)', 'Custom (Personal colors)')}</option>
+            </select>
           </div>
           <div className="field-stack form-card">
             <label className="field-label">{tx(lang, 'Logo forması', 'Форма логотипа', 'Logo shape')}</label>
