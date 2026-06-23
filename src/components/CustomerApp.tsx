@@ -562,6 +562,52 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     }
   };
 
+  const handleBypassLogin = async () => {
+    const testPhone = '+994501234567';
+    const testCode = '1234';
+    try {
+      setOtpVerifying(true);
+      setOtpError('');
+      setPhone(testPhone);
+      setOtpCode(testCode);
+      
+      await send_customer_otp_live(testPhone);
+      
+      const currentUrl = typeof window !== 'undefined' ? new URL(window.location.href) : null;
+      const joinCustomerType = currentUrl?.searchParams.get('club') || bootstrapData?.join_customer_type || 'golden';
+      const joinDiscount = Number(currentUrl?.searchParams.get('discount') || bootstrapData?.join_discount_percent || 0);
+      
+      const res = await verify_customer_otp_live(testPhone, testCode, joinCustomerType, joinDiscount);
+      const next = { cardId: res.card_id, token: res.token };
+      setSessionCreds(next);
+      
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('customer_card_id', res.card_id);
+        localStorage.setItem('customer_token', res.token);
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.set('id', res.card_id);
+        nextUrl.searchParams.set('t', res.token);
+        nextUrl.searchParams.delete('join');
+        window.history.replaceState({}, '', nextUrl.toString());
+
+        if (Capacitor.isNativePlatform()) {
+          const cachedPushToken = localStorage.getItem('push_token');
+          if (cachedPushToken) {
+            try {
+              await save_push_token_live(res.card_id, cachedPushToken, res.token);
+            } catch (pErr) {
+              console.warn('Failed to sync push token in enroll', pErr);
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      setOtpError(String(e?.message || 'Bypass login failed'));
+    } finally {
+      setOtpVerifying(false);
+    }
+  };
+
   const sendBaristaMessage = async () => {
     const prompt = baristaInput.trim();
     if (!prompt) return;
@@ -761,37 +807,46 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               </div>
             </div>
           </section>
-          <section className="rounded-[30px] border border-white/10 bg-white p-5 text-slate-900 shadow-[0_12px_32px_rgba(0,0,0,0.16)]">
-            <div className="text-lg font-black">{tx(safeLang, 'Giriş və Qeydiyyat', 'Вход и Регистрация', 'Sign in & Sign up')}</div>
+          <section className="rounded-[30px] border border-white/10 bg-slate-900/60 backdrop-blur-xl p-5 text-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+            <div className="text-lg font-black text-white">{tx(safeLang, 'Giriş və Qeydiyyat', 'Вход и Регистрация', 'Sign in & Sign up')}</div>
             
-            <div className="mt-3 rounded-2xl bg-slate-50 p-4 text-xs leading-5 text-slate-600 border border-slate-100">
-              <span className="font-bold text-slate-700 block mb-1">{tx(safeLang, 'Müştəri razılaşması:', 'Согласие клиента:', 'Customer consent:')}</span>
+            <div className="mt-3 rounded-2xl bg-white/5 p-4 text-xs leading-5 text-slate-300 border border-white/5">
+              <span className="font-bold text-white block mb-1">{tx(safeLang, 'Müştəri razılaşması:', 'Согласие клиента:', 'Customer consent:')}</span>
               {bootstrapData?.consent_text || tx(safeLang, 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.', 'Я согласен на участие в программе лояльности.', 'I agree to join the loyalty program.')}
             </div>
 
             {!otpSent ? (
               <div className="mt-4 space-y-3">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">{tx(safeLang, 'Telefon nömrəniz', 'Номер телефона', 'Phone number')}</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">{tx(safeLang, 'Telefon nömrəniz', 'Номер телефона', 'Phone number')}</label>
                 <input
                   type="tel"
                   placeholder="+994 50 123 45 67"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
                 />
                 <button
                   type="button"
-                  disabled={otpSending}
+                  disabled={otpSending || otpVerifying}
                   onClick={handleSendOtp}
-                  className="w-full rounded-2xl px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-60 transition active:scale-98"
+                  className="w-full rounded-2xl px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-60 transition active:scale-98 hover:brightness-110"
                   style={{ backgroundColor: joinPrimary }}
                 >
                   {otpSending ? '...' : tx(safeLang, 'Razıyam və kod göndər', 'Согласен и отправить код', 'Accept and send code')}
                 </button>
+
+                <button
+                  type="button"
+                  disabled={otpSending || otpVerifying}
+                  onClick={handleBypassLogin}
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-3 text-sm font-bold text-white transition active:scale-98 flex items-center justify-center gap-2"
+                >
+                  ⚡ {tx(safeLang, 'Test Girişi (Bypass OTP)', 'Тестовый вход (Bypass OTP)', 'Test Login (Bypass OTP)')}
+                </button>
               </div>
             ) : (
               <div className="mt-4 space-y-3">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">{tx(safeLang, 'Təsdiq kodu', 'Код подтверждения', 'Verification code')}</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">{tx(safeLang, 'Təsdiq kodu', 'Код подтверждения', 'Verification code')}</label>
                 <input
                   type="number"
                   pattern="[0-9]*"
@@ -799,13 +854,13 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                   placeholder="1234"
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-lg font-bold text-slate-900 tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center text-lg font-bold text-white placeholder-white/20 tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-white/20"
                 />
                 <button
                   type="button"
                   disabled={otpVerifying}
                   onClick={handleVerifyOtp}
-                  className="w-full rounded-2xl px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-60 transition active:scale-98"
+                  className="w-full rounded-2xl px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-60 transition active:scale-98 hover:brightness-110"
                   style={{ backgroundColor: joinPrimary }}
                 >
                   {otpVerifying ? '...' : tx(safeLang, 'Daxil ol / Təsdiq et', 'Войти / Подтвердить', 'Sign in / Verify')}
@@ -813,7 +868,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                 <button
                   type="button"
                   onClick={() => setOtpSent(false)}
-                  className="w-full text-center text-xs font-semibold text-slate-500 hover:text-slate-700 underline mt-2"
+                  className="w-full text-center text-xs font-semibold text-slate-400 hover:text-slate-200 underline mt-2"
                 >
                   {tx(safeLang, 'Nömrəni dəyiş', 'Изменить номер', 'Change number')}
                 </button>
@@ -821,7 +876,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             )}
 
             {otpError && (
-              <p className="mt-3 text-center text-xs font-medium text-red-600 bg-red-50 rounded-xl py-2 px-3 border border-red-100">
+              <p className="mt-3 text-center text-xs font-medium text-red-200 bg-red-500/10 rounded-xl py-2 px-3 border border-red-500/20">
                 {otpError}
               </p>
             )}

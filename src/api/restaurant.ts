@@ -791,3 +791,88 @@ export async function reject_void_request_live(itemId: string) {
     { method: 'POST', tenantId: null },
   );
 }
+
+export async function create_floor_plan_live(payload: { name: string; width_units?: number; height_units?: number; is_active?: boolean }) {
+  if (!isBackendEnabled()) {
+    const tenant_id = localStorage.getItem('tenant_id') || 'default';
+    const floors = getLocalFloorPlans(tenant_id);
+    if (payload.is_active) {
+      floors.forEach((f) => { f.is_active = false; });
+    }
+    const newFloor: FloorPlanRecord = {
+      id: `floor_${Math.random().toString(36).substring(2, 9)}`,
+      name: payload.name.trim(),
+      width_units: payload.width_units ?? 12,
+      height_units: payload.height_units ?? 8,
+      is_active: payload.is_active ?? true,
+    };
+    const all = getDB<any>(localFloorKey).map((f: any) => f.tenant_id === tenant_id ? (payload.is_active ? { ...f, is_active: false } : f) : f);
+    setDB(localFloorKey, [...all, { ...newFloor, tenant_id }]);
+    return newFloor;
+  }
+  return apiRequest<FloorPlanRecord>('/api/v1/restaurant/floor-plans', {
+    method: 'POST',
+    body: payload,
+    tenantId: null,
+  });
+}
+
+export async function update_floor_plan_live(floorId: string, payload: { name?: string; width_units?: number; height_units?: number; is_active?: boolean }) {
+  if (!isBackendEnabled()) {
+    const tenant_id = localStorage.getItem('tenant_id') || 'default';
+    const all = getDB<any>(localFloorKey);
+    const updated = all.map((f: any) => {
+      if (f.id === floorId) {
+        return {
+          ...f,
+          name: payload.name !== undefined ? payload.name.trim() : f.name,
+          width_units: payload.width_units !== undefined ? payload.width_units : f.width_units,
+          height_units: payload.height_units !== undefined ? payload.height_units : f.height_units,
+          is_active: payload.is_active !== undefined ? payload.is_active : f.is_active,
+        };
+      }
+      if (payload.is_active && f.tenant_id === tenant_id) {
+        return { ...f, is_active: false };
+      }
+      return f;
+    });
+    setDB(localFloorKey, updated);
+    return { ok: true };
+  }
+  return apiRequest<{ ok: boolean }>(`/api/v1/restaurant/floor-plans/${encodeURIComponent(floorId)}`, {
+    method: 'PATCH',
+    body: payload,
+    tenantId: null,
+  });
+}
+
+export async function delete_floor_plan_live(floorId: string) {
+  if (!isBackendEnabled()) {
+    const tenant_id = localStorage.getItem('tenant_id') || 'default';
+    const all = getDB<any>(localFloorKey);
+    const tenantFloors = all.filter((f: any) => f.tenant_id === tenant_id);
+    if (tenantFloors.length <= 1) {
+      throw new Error('Cannot delete the last remaining floor plan');
+    }
+    const fallback = tenantFloors.find((f: any) => f.id !== floorId && f.is_active) || tenantFloors.find((f: any) => f.id !== floorId);
+    
+    // Reassign local tables pointing to deleted floor plan to the fallback floor plan
+    const tables = getDB<any>('tables');
+    const updatedTables = tables.map((t: any) => {
+      if (t.tenant_id === tenant_id && t.floor_plan_id === floorId) {
+        return { ...t, floor_plan_id: fallback.id };
+      }
+      return t;
+    });
+    setDB('tables', updatedTables);
+    
+    // Remove the floor plan
+    const filteredFloors = all.filter((f: any) => f.id !== floorId);
+    setDB(localFloorKey, filteredFloors);
+    return { ok: true };
+  }
+  return apiRequest<{ ok: boolean }>(`/api/v1/restaurant/floor-plans/${encodeURIComponent(floorId)}`, {
+    method: 'DELETE',
+    tenantId: null,
+  });
+}
