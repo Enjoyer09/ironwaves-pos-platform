@@ -1584,6 +1584,43 @@ def update_floor_plan(
     return {"ok": True}
 
 
+@router.delete("/floor-plans/{floor_id}")
+def delete_floor_plan(
+    floor_id: str,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user: User = Depends(get_current_user),
+):
+    _ensure_floor_admin(user)
+    
+    floors = db.query(FloorPlan).filter(FloorPlan.tenant_id == tenant.id).all()
+    if len(floors) <= 1:
+        raise HTTPException(status_code=400, detail="Cannot delete the last remaining floor plan")
+        
+    row = db.query(FloorPlan).filter(FloorPlan.id == floor_id, FloorPlan.tenant_id == tenant.id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Floor plan not found")
+        
+    fallback_floor = next((f for f in floors if f.id != floor_id and f.is_active), None)
+    if not fallback_floor:
+        fallback_floor = next((f for f in floors if f.id != floor_id), None)
+        
+    if not fallback_floor:
+        raise HTTPException(status_code=400, detail="No fallback floor plan found")
+        
+    # Reassign tables to fallback floor
+    db.query(Table).filter(Table.tenant_id == tenant.id, Table.floor_plan_id == floor_id).update(
+        {"floor_plan_id": fallback_floor.id}, synchronize_session=False
+    )
+    
+    db.delete(row)
+    db.add(AuditLog(tenant_id=tenant.id, user=user.username, action="FLOOR_PLAN_DELETED", details=row.name))
+    db.commit()
+    
+    _emit_realtime(tenant.id, "floor.updated", {"floor_id": row.id, "action": "deleted"})
+    return {"ok": True}
+
+
 @router.get("/floor-plans/{floor_id}/state")
 def get_floor_state(
     floor_id: str,

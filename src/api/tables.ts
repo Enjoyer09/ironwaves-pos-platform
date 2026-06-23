@@ -230,18 +230,27 @@ export const get_tables = (tenant_id: string) => {
 };
 
 // FUNKSIYA: create_table
-export const create_table = (tenant_id: string, label: string, created_by: string) => {
+export const create_table = (tenant_id: string, label: string, created_by: string, floor_plan_id?: string | null) => {
   const tables = getDB<Table>('tables');
   
   if (tables.find(t => t.label === label && t.tenant_id === tenant_id)) {
     throw new Error('Eyni adlı masa artıq mövcuddur');
   }
 
+  let active_floor_id = floor_plan_id;
+  if (!active_floor_id) {
+    const floors = getDB<any>('restaurant_floor_plans').filter((row) => row.tenant_id === tenant_id);
+    const activeFloor = floors.find((row) => row.is_active) || floors[0];
+    if (activeFloor) {
+      active_floor_id = activeFloor.id;
+    }
+  }
+
   const new_table: Table = {
     id: uuidv4(),
     tenant_id,
     label,
-    floor_plan_id: null,
+    floor_plan_id: active_floor_id || null,
     pos_x: 0,
     pos_y: 0,
     is_occupied: false,
@@ -865,10 +874,10 @@ export const get_tables_live = async (tenant_id: string) => {
   }
 };
 
-export const create_table_live = async (tenant_id: string, label: string, created_by: string) => {
-  if (!isBackendEnabled()) return create_table(tenant_id, label, created_by);
+export const create_table_live = async (tenant_id: string, label: string, created_by: string, floor_plan_id?: string | null) => {
+  if (!isBackendEnabled()) return create_table(tenant_id, label, created_by, floor_plan_id);
   try {
-    return await apiRequest<any>('/api/v1/ops/tables', { method: 'POST', tenantId: null, body: { label } });
+    return await apiRequest<any>('/api/v1/ops/tables', { method: 'POST', tenantId: null, body: { label, floor_plan_id } });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Tables backend create failed: ${message}`);

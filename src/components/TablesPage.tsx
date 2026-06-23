@@ -4,7 +4,7 @@ import { get_tables_live, create_table_live, delete_table_live, open_table_live,
 import { get_kitchen_orders_live } from '../api/kds';
 import { get_menu_items_live } from '../api/menu';
 import { subscribeTenantRealtime } from '../api/realtime';
-import { act_on_order_item_live, add_check_draft_item_live, cancel_table_check_live, combine_tables_live, create_reservation_live, delete_draft_item_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_order_item_status_logs_live, get_reservations_live, get_table_detail_live, get_tables_bootstrap_live, seat_reservation_live, send_check_drafts_live, send_table_round_live, settle_table_check_live, split_table_group_live, transfer_table_lock_live, unlock_table_live, update_draft_item_live, update_reservation_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord, type TablesBootstrapRecord } from '../api/restaurant';
+import { act_on_order_item_live, create_floor_plan_live, update_floor_plan_live, delete_floor_plan_live, add_check_draft_item_live, cancel_table_check_live, combine_tables_live, create_reservation_live, delete_draft_item_live, delete_reservation_live, get_floor_plans_live, get_floor_state_live, get_order_item_status_logs_live, get_reservations_live, get_table_detail_live, get_tables_bootstrap_live, seat_reservation_live, send_check_drafts_live, send_table_round_live, settle_table_check_live, split_table_group_live, transfer_table_lock_live, unlock_table_live, update_draft_item_live, update_reservation_live, update_table_layout_live, type FloorPlanRecord, type FloorTableState, type ReservationRecord, type TableDetailRecord, type TablesBootstrapRecord } from '../api/restaurant';
 import { LayoutGrid, Plus, CalendarClock, Users, MapPinned } from 'lucide-react';
 import { useAppStore } from '../store';
 import { tx } from '../i18n';
@@ -1087,7 +1087,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     const label = newTableName.trim();
     if (!label) return;
     try {
-      await create_table_live(tenant_id, label, user?.username || 'Staff');
+      await create_table_live(tenant_id, label, user?.username || 'Staff', activeFloorId || null);
       notify('success', tx(lang, 'Masa yaradıldı', 'Стол создан', 'Table created'));
       await Promise.all([
         loadData(),
@@ -1097,6 +1097,42 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       setShowCreate(false);
       setNewTableName('');
     } catch(e:any) { notify('error', tx(lang, 'Xəta: ', 'Ошибка: ', 'Error: ') + e.message); }
+  };
+
+  const handleCreateFloorPlan = async (name: string) => {
+    try {
+      const created = await create_floor_plan_live({ name });
+      notify('success', tx(lang, 'Yeni zal yaradıldı', 'Новый зал создан', 'New floor plan created'));
+      await forceTablesBootstrapRefresh();
+      setActiveFloorId(created.id);
+    } catch (err: any) {
+      notify('error', err.message || 'Error creating floor plan');
+    }
+  };
+
+  const handleRenameFloorPlan = async (floorId: string, newName: string) => {
+    try {
+      await update_floor_plan_live(floorId, { name: newName });
+      notify('success', tx(lang, 'Zal adı yeniləndi', 'Название зала обновлено', 'Floor plan name updated'));
+      const floors = await get_floor_plans_live(tenant_id);
+      setFloorPlans(floors);
+    } catch (err: any) {
+      notify('error', err.message || 'Error updating floor plan name');
+    }
+  };
+
+  const handleDeleteFloorPlan = async (floorId: string) => {
+    try {
+      await delete_floor_plan_live(floorId);
+      notify('success', tx(lang, 'Zal silindi', 'Зал удален', 'Floor plan deleted'));
+      const floors = await get_floor_plans_live(tenant_id);
+      setFloorPlans(floors);
+      const fallback = floors.find((f) => f.is_active)?.id || floors[0]?.id || '';
+      setActiveFloorId(fallback);
+      void forceTablesBootstrapRefresh();
+    } catch (err: any) {
+      notify('error', err.message || 'Error deleting floor plan');
+    }
   };
 
   const handleOpenTable = async () => {
@@ -3472,21 +3508,53 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
             </div>
           ) : (
             <>
-          <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="text-lg font-bold text-slate-100">
-                {floorPlans.find((row) => row.id === activeFloorId)?.name || tx(lang, 'Main Floor', 'Main Floor', 'Main Floor')}
-              </div>
-              <div className="mt-1 text-sm text-slate-400">
-                {tx(lang, 'Floor plan görünüşü. Masaya toxunaraq seating və açıq check axınına keçin.', 'План зала. Нажмите на стол, чтобы перейти к seating и открытому чеку.', 'Floor plan view. Tap a table to continue into seating and open check flow.')}
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {floorPlans.length > 1 && (
-                <select className="neon-input min-w-[220px]" value={activeFloorId} onChange={(e) => setActiveFloorId(e.target.value)}>
-                  {floorPlans.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-                </select>
+            {/* Zonalar Tab Menyusu */}
+            <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-white/5 pb-4">
+              {floorPlans.map((row) => {
+                const active = row.id === activeFloorId;
+                return (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => setActiveFloorId(row.id)}
+                    className={`rounded-2xl px-5 py-2.5 text-sm font-bold transition-all duration-200 ${
+                      active
+                        ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 shadow-[0_4px_20px_rgba(245,158,11,0.3)] scale-[1.02]'
+                        : 'border border-slate-700/60 bg-slate-800/20 text-slate-300 hover:bg-slate-800/40 hover:text-white'
+                    }`}
+                  >
+                    {row.name}
+                  </button>
+                );
+              })}
+              
+              {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const name = prompt(tx(lang, 'Yeni zal/zona adı:', 'Название нового зала:', 'New floor plan/zone name:'));
+                    if (name && name.trim()) {
+                      void handleCreateFloorPlan(name.trim());
+                    }
+                  }}
+                  className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-700/60 bg-slate-800/20 text-slate-300 hover:bg-slate-800/40 hover:text-white transition-all active:scale-95"
+                  title={tx(lang, 'Yeni zal/zona əlavə et', 'Добавить новый зал', 'Add new floor plan')}
+                >
+                  <Plus size={18} />
+                </button>
               )}
+            </div>
+
+            <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="text-lg font-bold text-slate-100">
+                  {floorPlans.find((row) => row.id === activeFloorId)?.name || tx(lang, 'Main Floor', 'Main Floor', 'Main Floor')}
+                </div>
+                <div className="mt-1 text-sm text-slate-400">
+                  {tx(lang, 'Floor plan görünüşü. Masaya toxunaraq seating və açıq check axınına keçin.', 'План зала. Нажмите на стол, чтобы перейти к seating и открытому чеку.', 'Floor plan view. Tap a table to continue into seating and open check flow.')}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
               {!floorEditMode && (
                 <label className="flex min-w-[210px] items-center gap-3 rounded-full border border-slate-700/70 bg-slate-900/40 px-4 py-2 text-xs font-semibold text-slate-200">
                   <span>{tx(lang, 'Zoom', 'Зум', 'Zoom')}</span>
@@ -3732,6 +3800,32 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               >
                 {tx(lang, 'Layout sıfırla', 'Сбросить макет', 'Reset layout')}
               </button>
+              <button
+                type="button"
+                className="rounded-full border border-slate-600 bg-slate-800/50 text-slate-200 px-4 py-2 text-sm font-semibold hover:bg-slate-700/60"
+                onClick={() => {
+                  const currentFloor = floorPlans.find(f => f.id === activeFloorId);
+                  const newName = prompt(tx(lang, 'Yeni zal adı:', 'Новое название зала:', 'New floor plan name:'), currentFloor?.name);
+                  if (newName && newName.trim()) {
+                    void handleRenameFloorPlan(activeFloorId, newName.trim());
+                  }
+                }}
+              >
+                {tx(lang, 'Zalın adını dəyiş', 'Переименовать зал', 'Rename floor')}
+              </button>
+              {floorPlans.length > 1 && (
+                <button
+                  type="button"
+                  className="rounded-full border border-rose-300/30 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-100 hover:bg-rose-500/20"
+                  onClick={() => {
+                    if (confirm(tx(lang, 'Bu zalı silmək istədiyinizdən əminsiniz? Bütün masalar digər zala keçiriləcək.', 'Вы уверены, что хотите удалить этот зал? Все столы будут перенесены в другой зал.', 'Are you sure you want to delete this floor plan? All tables will be moved to another floor.'))) {
+                      void handleDeleteFloorPlan(activeFloorId);
+                    }
+                  }}
+                >
+                  {tx(lang, 'Zalı sil', 'Удалить зал', 'Delete floor')}
+                </button>
+              )}
               {selectedFloorTable && !tablesById[selectedFloorTable.id]?.is_occupied && (
                 <button
                   type="button"

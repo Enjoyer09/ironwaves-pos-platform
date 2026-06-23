@@ -971,6 +971,7 @@ class DonerBatchCloseIn(BaseModel):
 
 class TableCreateIn(BaseModel):
     label: str
+    floor_plan_id: str | None = None
 
 
 class TableOpenIn(BaseModel):
@@ -4519,22 +4520,28 @@ def create_table(
     exists = db.query(Table).filter(Table.tenant_id == tenant.id, func.lower(Table.label) == label.lower()).first()
     if exists:
         raise HTTPException(status_code=409, detail="Table already exists")
-    floor = (
-        db.query(FloorPlan)
-        .filter(FloorPlan.tenant_id == tenant.id)
-        .order_by(FloorPlan.is_active.desc(), FloorPlan.created_at.asc())
-        .first()
-    )
-    if not floor:
-        floor = FloorPlan(
-            tenant_id=tenant.id,
-            name="Main Floor",
-            width_units=12,
-            height_units=8,
-            is_active=True,
+    floor_plan_id = payload.floor_plan_id
+    if floor_plan_id:
+        floor = db.query(FloorPlan).filter(FloorPlan.id == floor_plan_id, FloorPlan.tenant_id == tenant.id).first()
+        if not floor:
+            raise HTTPException(status_code=404, detail="Floor plan not found")
+    else:
+        floor = (
+            db.query(FloorPlan)
+            .filter(FloorPlan.tenant_id == tenant.id)
+            .order_by(FloorPlan.is_active.desc(), FloorPlan.created_at.asc())
+            .first()
         )
-        db.add(floor)
-        db.flush()
+        if not floor:
+            floor = FloorPlan(
+                tenant_id=tenant.id,
+                name="Main Floor",
+                width_units=12,
+                height_units=8,
+                is_active=True,
+            )
+            db.add(floor)
+            db.flush()
 
     max_cols = max(6, int(floor.width_units or 12))
     slot_width = 3
