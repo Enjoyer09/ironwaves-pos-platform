@@ -2628,6 +2628,8 @@ def update_qr_menu_settings(
             "logo_shape": "rounded",
             "font_family": "",
             "custom_font_url": "",
+            "theme_preset": "dark",
+            "layout_preset": "classic",
         },
     )
     cleaned = {
@@ -2650,6 +2652,8 @@ def update_qr_menu_settings(
         "logo_shape": str(payload.get("logo_shape") or current.get("logo_shape") or "rounded").strip() or "rounded",
         "font_family": str(payload.get("font_family") if "font_family" in payload else current.get("font_family") or "").strip(),
         "custom_font_url": str(payload.get("custom_font_url") if "custom_font_url" in payload else current.get("custom_font_url") or "").strip(),
+        "theme_preset": str(payload.get("theme_preset") or current.get("theme_preset") or "dark").strip() or "dark",
+        "layout_preset": str(payload.get("layout_preset") or current.get("layout_preset") or "classic").strip() or "classic",
     }
     _set_setting_value(db, tenant.id, "qr_menu_settings", cleaned)
     db.commit()
@@ -3567,6 +3571,8 @@ def get_public_menu_bootstrap(
             "logo_shape": "rounded",
             "font_family": "",
             "custom_font_url": "",
+            "theme_preset": "dark",
+            "layout_preset": "classic",
         },
     )
     app_settings = _setting_value(
@@ -3603,6 +3609,10 @@ def get_public_menu_bootstrap(
             "accent_color": resolved_accent,
             "font_family": str(qr_menu_settings.get("font_family") or ""),
             "custom_font_url": str(qr_menu_settings.get("custom_font_url") or ""),
+            "theme_preset": str(qr_menu_settings.get("theme_preset") or "dark"),
+            "layout_preset": str(qr_menu_settings.get("layout_preset") or "classic"),
+            "phone": str(branding.phone or "") if branding else "",
+            "address": str(branding.address or "") if branding else "",
         },
         "show_prices": bool(qr_menu_settings.get("show_prices", True)),
         "show_images": bool(qr_menu_settings.get("show_images", True)),
