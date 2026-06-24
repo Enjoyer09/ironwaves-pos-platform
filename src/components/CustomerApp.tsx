@@ -260,6 +260,12 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [fortuneText, setFortuneText] = React.useState('');
   const [fortuneImage, setFortuneImage] = React.useState('');
   const [fortuneLoading, setFortuneLoading] = React.useState(false);
+  const [fortuneProgress, setFortuneProgress] = React.useState(0);
+  const [fortuneStepText, setFortuneStepText] = React.useState('');
+  const [showFullQr, setShowFullQr] = React.useState(false);
+  const [activatedCampaigns, setActivatedCampaigns] = React.useState<Record<string, number>>({});
+  const [campaignQrs, setCampaignQrs] = React.useState<Record<string, string>>({});
+  const [tick, setTick] = React.useState(0);
   const [geofenceAlert, setGeofenceAlert] = React.useState(false);
   const [showDevSettings, setShowDevSettings] = React.useState(false);
   const [customApiUrl, setCustomApiUrl] = React.useState(() => {
@@ -298,12 +304,67 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     }));
   }, [data?.history, safeLang]);
 
+  const favoriteItems = React.useMemo(() => {
+    const counts: Record<string, { name: string; count: number; category: string }> = {};
+    const historyList = Array.isArray(data?.history) ? data.history : [];
+    
+    for (const sale of historyList) {
+      const itemsList = Array.isArray(sale.items) ? sale.items : [];
+      for (const item of itemsList) {
+        if (!item.item_name) continue;
+        const name = String(item.item_name).trim();
+        const qty = Number(item.qty || 1);
+        
+        let category = 'coffee';
+        const lowerName = name.toLowerCase();
+        if (lowerName.includes('çay') || lowerName.includes('tea') || lowerName.includes('matcha')) {
+          category = 'tea';
+        } else if (lowerName.includes('keks') || lowerName.includes('tart') || lowerName.includes('tort') || lowerName.includes('cake') || lowerName.includes('kurabiye') || lowerName.includes('cookie') || lowerName.includes('biscuit') || lowerName.includes('şirniyyat') || lowerName.includes('desert') || lowerName.includes('dessert')) {
+          category = 'sweet';
+        } else if (lowerName.includes('sendviç') || lowerName.includes('sandviç') || lowerName.includes('sandwich') || lowerName.includes('tost') || lowerName.includes('toast') || lowerName.includes('burger')) {
+          category = 'food';
+        } else if (lowerName.includes('limonad') || lowerName.includes('lemonade') || lowerName.includes('su') || lowerName.includes('water') || lowerName.includes('sok') || lowerName.includes('juice') || lowerName.includes('cola') || lowerName.includes('fanta') || lowerName.includes('sprite')) {
+          category = 'cold';
+        }
+
+        if (counts[name]) {
+          counts[name].count += qty;
+        } else {
+          counts[name] = { name, count: qty, category };
+        }
+      }
+    }
+
+    return Object.values(counts)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 4);
+  }, [data?.history]);
+
   const branding = data?.branding || {};
   const wallet = data?.wallet || {};
   const notifications = Array.isArray(data?.notifications) ? data.notifications : [];
   const campaigns = Array.isArray(data?.campaigns) ? data.campaigns : [];
   const history = Array.isArray(data?.history) ? data.history : [];
   const customer = data?.customer || {};
+  
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) {
+      return tx(safeLang, 'Sabahınız xeyir', 'Доброе утро', 'Good morning');
+    } else if (hour >= 12 && hour < 18) {
+      return tx(safeLang, 'Günortanız xeyir', 'Добрый день', 'Good afternoon');
+    } else if (hour >= 18 && hour < 24) {
+      return tx(safeLang, 'Axşamınız xeyir', 'Добрый вечер', 'Good evening');
+    } else {
+      return tx(safeLang, 'Gecəniz xeyir', 'Доброй ночи', 'Good night');
+    }
+  };
+
+  const getFirstName = () => {
+    if (!customer?.name) return '';
+    const namePart = String(customer.name).trim().split(' ')[0];
+    return namePart ? `, ${namePart}` : '';
+  };
   const rewards = Array.isArray(wallet?.rewards) ? wallet.rewards : [];
   const pendingClaims = Array.isArray(data?.pending_claims) ? data.pending_claims : [];
   const progressPercent = wallet?.next_reward_at ? Math.min(100, Math.round((Number(wallet.progress_current || 0) / Number(wallet.next_reward_at || 1)) * 100)) : 0;
@@ -444,6 +505,13 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       },
     ]);
   }, [lang]);
+
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setTick(t => t + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const markRead = async (notificationId: string) => {
     try {
@@ -661,15 +729,63 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     setFortuneImage(src);
     setFortuneText('');
     setFortuneLoading(true);
-    
-    try {
-      const res = await analyze_customer_fortune_live(src, sessionCreds.cardId, sessionCreds.token, lang);
-      setFortuneText(res.fortune || '');
-    } catch (e: any) {
-      setFortuneText(tx(lang, 'Şəkil analiz edilə bilmədi.', 'Не удалось проанализировать изображение.', 'Failed to analyze the image.'));
-    } finally {
-      setFortuneLoading(false);
-    }
+    setFortuneProgress(0);
+    setFortuneStepText(tx(safeLang, 'Qəhvə köpükləri təhlil edilir...', 'Анализ кофейной пенки...', 'Analyzing coffee bubbles...'));
+
+    let apiResult: string | null = null;
+    let apiError: string | null = null;
+
+    // Start API request in background
+    const apiPromise = analyze_customer_fortune_live(src, sessionCreds.cardId, sessionCreds.token, lang)
+      .then(res => {
+        apiResult = res.fortune || '';
+      })
+      .catch(e => {
+        apiError = tx(safeLang, 'Şəkil analiz edilə bilmədi.', 'Не удалось проанализировать изображение.', 'Failed to analyze the image.');
+      });
+
+    let currentProgress = 0;
+    const interval = setInterval(async () => {
+      currentProgress += Math.floor(Math.random() * 5) + 3; // increment by 3-7%
+      if (currentProgress >= 100) {
+        currentProgress = 100;
+        clearInterval(interval);
+        
+        // Wait for API to resolve
+        await apiPromise;
+
+        setFortuneProgress(100);
+        setFortuneText(apiResult || apiError || 'Fortune not available');
+        setFortuneLoading(false);
+
+        // Haptic feedback when loading finishes
+        if (Capacitor.isNativePlatform()) {
+          try {
+            await Haptics.notification({ type: NotificationType.Success });
+          } catch {}
+        }
+      } else {
+        setFortuneProgress(currentProgress);
+        
+        // Update step text based on progress
+        if (currentProgress < 30) {
+          setFortuneStepText(tx(safeLang, 'Qəhvə köpükləri təhlil edilir...', 'Анализ кофейной пенки...', 'Analyzing coffee bubbles...'));
+        } else if (currentProgress < 65) {
+          setFortuneStepText(tx(safeLang, 'Ulduz xəritəniz oxunur...', 'Чтение звездной карты...', 'Reading star map...'));
+        } else if (currentProgress < 90) {
+          setFortuneStepText(tx(safeLang, 'AI Falçı qeydlər yazır...', 'AI предсказатель делает записи...', 'AI fortune teller writing notes...'));
+        } else {
+          setFortuneStepText(tx(safeLang, 'Nəticə hazırlanır...', 'Подготовка результата...', 'Preparing results...'));
+        }
+
+        // Haptic tick for progress animation
+        if (currentProgress % 15 === 0 && Capacitor.isNativePlatform()) {
+          try {
+            await Haptics.impact({ style: ImpactStyle.Light });
+          } catch {}
+        }
+      }
+    }, 150);
   };
 
   const analyzeImageFortune = (file: File) => {
@@ -1004,24 +1120,43 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const cardRadiusClass = rewardCardStyle === 'glass' ? 'rounded-[30px]' : rewardCardStyle === 'soft-square' ? 'rounded-[18px]' : 'rounded-[28px]';
   const cardClass = layoutPreset === 'playful'
     ? `${cardRadiusClass} border border-white/10 bg-white/95 p-4 text-slate-900 shadow-[0_10px_28px_rgba(236,72,153,0.16)]`
-    : layoutPreset === 'cashback'
-    ? `${cardRadiusClass} border border-white/10 bg-white p-4 text-slate-900 shadow-[0_8px_24px_rgba(20,184,166,0.14)]`
-    : `${cardRadiusClass} border border-white/10 bg-white p-4 text-slate-900 shadow-[0_8px_24px_rgba(0,0,0,0.12)]`;
-
-  const bottomTabs: Array<{ key: CustomerTab; label: string; icon: React.ReactNode }> = [
-    { key: 'home', label: tx(safeLang, 'Rewards', 'Награды', 'Rewards'), icon: <Home size={18} /> },
-    { key: 'offers', label: tx(safeLang, 'Təkliflər', 'Предложения', 'Offers'), icon: <Gift size={18} /> },
-    ...(aiBaristaEnabled ? [{ key: 'barista' as CustomerTab, label: tx(safeLang, 'Barista', 'Barиста', 'Barista'), icon: <MessageCircleHeart size={18} /> }] : []),
-    ...(aiFalciEnabled ? [{ key: 'falci' as CustomerTab, label: tx(safeLang, 'Falçı', 'Фалчы', 'Fortune'), icon: <Sparkles size={18} /> }] : []),
-    { key: 'profile', label: tx(safeLang, 'Profil', 'Профиль', 'Profile'), icon: <UserRound size={18} /> },
-  ];
-  const resolvedActiveTab: CustomerTab =
-    (activeTab === 'barista' && !aiBaristaEnabled) || (activeTab === 'falci' && !aiFalciEnabled)
-      ? 'home'
-      : activeTab;
-
+    : `${cardRadiusClass} border border-white/10 p-6 text-white shadow-xl`;
   const renderHome = () => (
     <div className="space-y-4">
+      {/* Custom Styles for Animations */}
+      <style>{`
+        @keyframes modalFadeIn {
+          from { opacity: 0; backdrop-filter: blur(0px); -webkit-backdrop-filter: blur(0px); }
+          to { opacity: 1; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+        }
+        @keyframes scaleIn {
+          from { opacity: 0; transform: scale(0.9) translateY(20px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .animate-modalFadeIn {
+          animation: modalFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .animate-scaleIn {
+          animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+      `}</style>
+
+      {/* Dynamic Welcoming Greeting Banner */}
+      <div className="flex items-center justify-between px-1">
+        <div>
+          <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-1.5">
+            <span>{getGreeting()}</span>
+            <span className="text-amber-400 font-normal">
+              {new Date().getHours() >= 5 && new Date().getHours() < 12 ? '🌅' : new Date().getHours() >= 12 && new Date().getHours() < 18 ? '☀️' : '🌙'}
+            </span>
+          </h2>
+          <p className="text-[11px] text-white/50 font-bold mt-0.5 uppercase tracking-wider">
+            {tx(safeLang, 'iRonWaves Loyalty proqramına xoş gəldiniz', 'Добро пожаловать в iRonWaves Loyalty', 'Welcome to iRonWaves Loyalty')}
+            {getFirstName()}
+          </p>
+        </div>
+      </div>
+
       {/* Geofence Alert Banner */}
       {geofenceAlert && (
         <div
@@ -1054,7 +1189,17 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
       {/* Premium Digital Membership Card */}
       <section
-        className="relative overflow-hidden border p-6 transition-all duration-300 active:scale-[0.99] group"
+        onClick={async () => {
+          setShowFullQr(true);
+          if (Capacitor.isNativePlatform()) {
+            try {
+              await Haptics.impact({ style: ImpactStyle.Medium });
+            } catch (hErr) {
+              console.warn('Haptics failed', hErr);
+            }
+          }
+        }}
+        className="relative overflow-hidden border p-6 transition-all duration-300 active:scale-[0.99] hover:border-white/20 group cursor-pointer"
         style={{
           borderRadius: '28px',
           borderColor: 'rgba(255, 255, 255, 0.12)',
@@ -1101,6 +1246,12 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             <div className="flex justify-between h-px bg-slate-950/20" />
             <div className="flex justify-between h-px bg-slate-950/20 mb-1" />
             <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-950/20" />
+          </div>
+
+          {/* Tap to Scan Guide */}
+          <div className="text-[9px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1 bg-black/20 rounded-full px-2.5 py-1 border border-white/5 backdrop-blur-sm animate-pulse">
+            <span>✨</span>
+            <span>{tx(safeLang, 'Skan Etmək Üçün Toxun', 'Коснитесь для скана', 'Tap to Scan')}</span>
           </div>
 
           {/* Contactless waves */}
@@ -1190,6 +1341,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                 href={get_customer_wallet_pass_url(sessionCreds.cardId, sessionCreds.token, safeLang)}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
                 className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-black/80 hover:bg-black/90 py-2 border border-white/10 hover:border-white/20 transition text-[10px] font-semibold text-white active:scale-95"
               >
                 <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
@@ -1201,6 +1353,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                 href={get_customer_wallet_pass_url(sessionCreds.cardId, sessionCreds.token, safeLang)}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
                 className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-black/80 hover:bg-black/90 py-2 border border-white/10 hover:border-white/20 transition text-[10px] font-semibold text-white active:scale-95"
               >
                 <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
@@ -1222,7 +1375,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       {/* Rewards + QR grid */}
       <div className="grid grid-cols-2 gap-3.5">
         <section
-          className="rounded-[24px] p-5 flex flex-col justify-between border border-white/[0.06] backdrop-blur-md shadow-lg transition hover:border-white/10 active:scale-[0.98]"
+          className="rounded-[24px] p-5 flex flex-col justify-between border border-white/[0.06] backdrop-blur-md shadow-lg transition hover:border-white/10"
           style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
         >
           <div>
@@ -1241,7 +1394,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             <button
               type="button"
               disabled={claiming}
-              onClick={() => { void claimReward(); }}
+              onClick={(e) => { e.stopPropagation(); void claimReward(); }}
               className="relative mt-4 w-full overflow-hidden rounded-xl py-2.5 text-[12px] font-black text-slate-950 transition-all hover:scale-[1.02] active:scale-[0.97] disabled:opacity-50"
               style={{
                 background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`,
@@ -1256,6 +1409,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
         <section
           onClick={async () => {
+            setShowFullQr(true);
             if (Capacitor.isNativePlatform()) {
               try {
                 await Haptics.impact({ style: ImpactStyle.Medium });
@@ -1264,7 +1418,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               }
             }
           }}
-          className="rounded-[24px] p-5 flex flex-col justify-between border border-white/[0.06] backdrop-blur-md shadow-lg transition hover:border-white/10 active:scale-[0.98]"
+          className="rounded-[24px] p-5 flex flex-col justify-between border border-white/[0.06] backdrop-blur-md shadow-lg transition hover:border-white/10 active:scale-[0.98] cursor-pointer"
           style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
         >
           <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-white/50">
@@ -1283,6 +1437,46 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           )}
         </section>
       </div>
+
+      {/* Sizin Sevimliləriniz Section */}
+      {favoriteItems.length > 0 && (
+        <section
+          className="rounded-[28px] p-5 border border-white/[0.06] backdrop-blur-md shadow-lg"
+          style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles size={14} className="text-amber-400" />
+            <p className="text-xs font-bold uppercase tracking-wider text-white/70">
+              {tx(safeLang, 'Sizin Sevimliləriniz', 'Ваше любимое', 'Your Favorites')}
+            </p>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+            {favoriteItems.map((item) => (
+              <div
+                key={item.name}
+                onClick={async () => {
+                  setShowFullQr(true);
+                  if (Capacitor.isNativePlatform()) {
+                    try {
+                      await Haptics.impact({ style: ImpactStyle.Light });
+                    } catch {}
+                  }
+                }}
+                className="flex items-center gap-3 shrink-0 rounded-2xl p-3 border border-white/5 bg-slate-950/20 active:scale-95 transition-transform cursor-pointer hover:border-white/10"
+                style={{ minWidth: '160px' }}
+              >
+                <div className="h-10 w-10 rounded-xl bg-white/5 flex items-center justify-center text-lg border border-white/5">
+                  {item.category === 'coffee' ? '☕' : item.category === 'tea' ? '🍵' : item.category === 'sweet' ? '🍰' : item.category === 'food' ? '🥪' : '🥤'}
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-[12px] font-bold text-white truncate w-24">{item.name}</p>
+                  <p className="text-[9px] text-white/40 mt-0.5 font-semibold">{item.count} {tx(safeLang, 'dəfə', 'раз', 'times')}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Pending claim codes */}
       <section
@@ -1341,86 +1535,250 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     </div>
   );
 
-  const renderOffers = () => (
-    <div className="space-y-4">
-      <section className="rounded-2xl p-4" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}>
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-[15px] font-bold text-white">{tx(safeLang, 'Aktiv kampaniyalar', 'Активные кампании', 'Active offers')}</p>
-          <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold text-black" style={{ backgroundColor: primaryColor }}>{campaigns.length}</span>
-        </div>
-        <div className="mt-4 space-y-3">
-          {campaigns.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-8 text-center">
-              <Gift size={28} style={{ color: 'rgba(255,255,255,0.2)' }} />
-              <p className="text-[13px] text-white/40">{tx(safeLang, 'Hazırda aktiv kampaniya yoxdur', 'Сейчас нет активных кампаний', 'No active campaigns right now')}</p>
-            </div>
-          ) : campaigns.map((row: any) => (
-            <div key={row.id} className="rounded-xl p-4" style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <p className="text-[15px] font-bold text-white">{row.name}</p>
-              <p className="mt-1 text-[13px] font-semibold" style={{ color: primaryColor }}>{row.discount_percent}% {tx(safeLang, 'endirim', 'скидка', 'discount')}</p>
-              <p className="mt-2 text-[11px] text-white/40">{row.start_time} - {row.end_time} • {row.categories || 'ALL'}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+  const renderOffers = () => {
+    const activateCampaign = async (campaignId: string) => {
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await Haptics.impact({ style: ImpactStyle.Medium });
+        } catch {}
+      }
+      const expTime = Date.now() + 15 * 60 * 1000;
+      setActivatedCampaigns(prev => ({ ...prev, [campaignId]: expTime }));
+      try {
+        const qrUrl = await QRCode.toDataURL(`IWPOS:CAMPAIGN:${campaignId}:${customer.card_id}`, {
+          width: 180,
+          margin: 1,
+          color: { dark: '#0f172a', light: '#ffffff' }
+        });
+        setCampaignQrs(prev => ({ ...prev, [campaignId]: qrUrl }));
+      } catch (err) {
+        console.error('Failed to generate campaign QR', err);
+      }
+    };
 
-      {/* Claim codes */}
-      <section className="rounded-2xl p-4" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}>
-        <p className="text-[15px] font-bold text-white">{tx(safeLang, 'Claim kodları', 'Коды наград', 'Claim codes')}</p>
-        <div className="mt-3 space-y-2.5">
-          {pendingClaims.length === 0 ? (
-            <div className="py-6 text-center text-[12px] text-white/40">{tx(safeLang, 'Aktiv claim kodu yoxdur', 'Активных кодов нет', 'No active claim codes')}</div>
-          ) : pendingClaims.map((row: any) => (
-            <div key={row.id} className="rounded-xl p-3.5" style={{ backgroundColor: `${primaryColor}10`, border: `1px solid ${primaryColor}20` }}>
-              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/50">{tx(safeLang, 'Kassada göstərin', 'Покажите на кассе', 'Show at POS')}</p>
-              <p className="mt-1 text-2xl font-black text-white">{row.claim_code}</p>
-              <p className="mt-1 text-[11px] text-white/50">{row.reward_name}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
+    return (
+      <div className="space-y-4">
+        {/* Campaigns List */}
+        <section className="rounded-[28px] p-5 border border-white/[0.06] backdrop-blur-md shadow-lg" style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[15px] font-bold text-white flex items-center gap-2">
+              <Gift size={16} className="text-amber-400" />
+              {tx(safeLang, 'Aktiv kampaniyalar', 'Активные кампании', 'Active offers')}
+            </p>
+            <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold text-black" style={{ backgroundColor: primaryColor }}>{campaigns.length}</span>
+          </div>
+
+          <div className="mt-4 space-y-4">
+            {campaigns.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 py-8 text-center border border-dashed border-white/10 rounded-2xl bg-white/[0.01]">
+                <Gift size={28} style={{ color: 'rgba(255,255,255,0.2)' }} />
+                <p className="text-[13px] text-white/40">{tx(safeLang, 'Hazırda aktiv kampaniya yoxdur', 'Сейчас нет активных кампаний', 'No active campaigns right now')}</p>
+              </div>
+            ) : campaigns.map((row: any) => {
+              const expTime = activatedCampaigns[row.id];
+              const isActive = expTime && expTime > Date.now();
+              const timeLeftMs = isActive ? expTime - Date.now() : 0;
+              const secondsLeft = Math.max(0, Math.floor(timeLeftMs / 1000));
+              const minutes = Math.floor(secondsLeft / 60);
+              const seconds = secondsLeft % 60;
+              const progressPercent = isActive ? Math.max(0, Math.min(100, (secondsLeft / 900) * 100)) : 0;
+
+              return (
+                <div
+                  key={row.id}
+                  className="relative overflow-hidden rounded-[24px] border border-white/10 p-5 shadow-lg transition-all duration-300"
+                  style={{
+                    background: isActive 
+                      ? 'linear-gradient(135deg, rgba(34,197,94,0.06) 0%, rgba(20,184,166,0.06) 100%)' 
+                      : 'linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.04) 100%)',
+                    borderColor: isActive ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)'
+                  }}
+                >
+                  {/* Coupon ticket side notches */}
+                  <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-[#080c16] border-r border-white/10" style={{ borderColor: isActive ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)' }} />
+                  <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-[#080c16] border-l border-white/10" style={{ borderColor: isActive ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)' }} />
+
+                  <div className="flex justify-between items-start gap-4">
+                    <div>
+                      <h4 className="text-[15px] font-black text-white leading-tight">{row.name}</h4>
+                      <p className="mt-1.5 text-[13px] font-extrabold" style={{ color: primaryColor }}>
+                        {row.discount_percent}% {tx(safeLang, 'endirim', 'скидка', 'discount')}
+                      </p>
+                      <p className="mt-2 text-[10px] font-medium text-white/40">
+                        {row.start_time} - {row.end_time} • {row.categories || 'ALL'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {isActive ? (
+                    <div className="mt-5 pt-4 border-t border-dashed border-white/10 space-y-4">
+                      {/* Countdown Timer UI */}
+                      <div className="flex items-center justify-between text-xs font-bold text-emerald-400">
+                        <span>{tx(safeLang, 'Kod aktivdir', 'Код активен', 'Code is active')}</span>
+                        <span className="font-mono bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                          {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
+                        </span>
+                      </div>
+
+                      {/* Ticking Progress Bar */}
+                      <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-1000 rounded-full"
+                          style={{ width: `${progressPercent}%` }}
+                        />
+                      </div>
+
+                      {/* Revealed QR Code Container */}
+                      <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl shadow-xl">
+                        {campaignQrs[row.id] ? (
+                          <img src={campaignQrs[row.id]} alt="campaign qr" className="h-36 w-36 object-contain" />
+                        ) : (
+                          <div className="h-36 w-36 flex items-center justify-center text-slate-800 text-xs font-mono">
+                            {row.id}
+                          </div>
+                        )}
+                        <p className="mt-2 text-[10px] font-mono font-bold text-slate-900 tracking-widest uppercase">
+                          {tx(safeLang, 'KASSAYA TƏQDİM EDİN', 'ПРЕДЪЯВИТЕ НА КАССЕ', 'PRESENT TO CASHIER')}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-4 pt-3 border-t border-white/5 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => activateCampaign(row.id)}
+                        className="relative overflow-hidden rounded-xl px-4 py-2 text-[11px] font-black text-slate-950 transition-all hover:scale-[1.02] active:scale-[0.97]"
+                        style={{
+                          background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`,
+                          boxShadow: `0 4px 12px ${primaryColor}22`
+                        }}
+                      >
+                        {tx(safeLang, 'Aktivləşdir', 'Активировать', 'Activate')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Claim codes */}
+        <section className="rounded-[28px] p-5 border border-white/[0.06] backdrop-blur-md shadow-lg" style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}>
+          <p className="text-[15px] font-bold text-white flex items-center gap-2">
+            <Sparkles size={16} className="text-amber-400" />
+            {tx(safeLang, 'Claim kodları', 'Коды наград', 'Claim codes')}
+          </p>
+          <div className="mt-4 space-y-3">
+            {pendingClaims.length === 0 ? (
+              <div className="py-8 text-center text-[12px] text-white/30 border border-dashed border-white/10 rounded-2xl bg-white/[0.01]">
+                {tx(safeLang, 'Aktiv claim kodu yoxdur', 'Активных кодов нет', 'No active claim codes')}
+              </div>
+            ) : pendingClaims.map((row: any) => (
+              <div key={row.id} className="relative overflow-hidden rounded-2xl p-4 border border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-yellow-500/5 shadow-inner">
+                {/* Side notches for ticket feeling */}
+                <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#080c16] border-r border-amber-500/20" />
+                <div className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#080c16] border-l border-amber-500/20" />
+
+                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/50">{tx(safeLang, 'Kassada göstərin', 'Покажите на кассе', 'Show at POS')}</p>
+                <p className="mt-1 text-2xl font-black text-white font-mono">{row.claim_code}</p>
+                <p className="mt-1 text-[11px] text-white/50">{row.reward_name}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    );
+  };
 
   const renderBarista = () => (
-    <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
-      <div className="text-lg font-bold text-white">AI Barista</div>
-      <div className="mt-2 text-sm text-slate-300">{tx(safeLang, 'Söhbət et, içki və reward tövsiyəsi al.', 'Поговори и получи совет по напиткам и наградам.', 'Chat and get drink and reward suggestions.')}</div>
-      <div className="mt-4 max-h-72 space-y-3 overflow-y-auto rounded-[24px] bg-slate-950/35 p-3">
+    <section className="rounded-[28px] border border-white/10 bg-white/6 p-5 backdrop-blur-xl space-y-4">
+      {/* Custom styles for bouncing dots */}
+      <style>{`
+        @keyframes dotBounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-6px); }
+        }
+        .animate-dotBounce {
+          animation: dotBounce 1.2s infinite ease-in-out;
+        }
+      `}</style>
+
+      <div className="flex items-center gap-2">
+        <span className="text-xl">🤖</span>
+        <div>
+          <div className="text-md font-black text-white tracking-tight">AI Barista</div>
+          <div className="text-[11px] text-white/50 font-semibold">{tx(safeLang, 'Söhbət et, içki və reward tövsiyəsi al.', 'Поговори и получи совет по напиткам и наградам.', 'Chat and get drink and reward suggestions.')}</div>
+        </div>
+      </div>
+
+      <div className="max-h-72 space-y-3.5 overflow-y-auto rounded-[24px] bg-slate-950/35 p-4 border border-white/5">
         {baristaMessages.map((msg, idx) => (
           <div key={`${msg.role}_${idx}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div
-              className={`max-w-[80%] rounded-[20px] px-4 py-3 text-sm ${
-                msg.role === 'user' ? 'text-slate-950' : 'bg-white/10 text-slate-100'
-              }`}
-              style={msg.role === 'user' ? { backgroundColor: primaryColor } : undefined}
-            >
-              {msg.text}
-            </div>
+            {msg.text === '...' ? (
+              <div className="max-w-[80%] rounded-2xl rounded-tl-none px-4 py-3 bg-white/10 border border-white/10 text-slate-100 shadow-md backdrop-blur-md">
+                <div className="flex items-center gap-1.5 py-1 px-1">
+                  <span className="h-2.5 w-2.5 rounded-full bg-slate-300 animate-dotBounce" style={{ animationDelay: '0ms' }} />
+                  <span className="h-2.5 w-2.5 rounded-full bg-slate-300 animate-dotBounce" style={{ animationDelay: '150ms' }} />
+                  <span className="h-2.5 w-2.5 rounded-full bg-slate-300 animate-dotBounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            ) : (
+              <div
+                className={`max-w-[80%] rounded-2xl px-4 py-3 text-[13px] font-medium leading-relaxed shadow-md transition-all active:scale-[0.98] ${
+                  msg.role === 'user' 
+                    ? 'rounded-tr-none text-slate-950' 
+                    : 'rounded-tl-none bg-white/[0.08] border border-white/10 text-slate-100 backdrop-blur-md'
+                }`}
+                style={msg.role === 'user' ? { background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)` } : undefined}
+              >
+                {msg.text}
+              </div>
+            )}
           </div>
         ))}
       </div>
-      <div className="mt-3 flex flex-wrap gap-2">
+
+      <div className="flex flex-wrap gap-2 pt-1">
         {BARISTA_QUICK_PROMPTS.map((prompt) => (
           <button
             key={prompt}
             type="button"
             onClick={() => setBaristaInput(prompt)}
-            className="rounded-full border border-white/10 bg-white/6 px-3 py-2 text-xs text-slate-200"
+            className="rounded-full border border-white/10 bg-white/5 hover:bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-slate-200 transition-all duration-200 hover:scale-[1.03] active:scale-95 shadow-sm"
           >
             {prompt}
           </button>
         ))}
       </div>
-      <div className="mt-3 flex gap-2">
+
+      <div className="flex gap-2">
         <input
           className="neon-input"
           value={baristaInput}
           onChange={(e) => setBaristaInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') sendBaristaMessage(); }}
           placeholder={tx(safeLang, 'Mənə nə tövsiyə edərsən?', 'Что ты посоветуешь мне?', 'What would you recommend for me?')}
+          style={{
+            borderRadius: '16px',
+            backgroundColor: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            padding: '12px 16px',
+            fontSize: '13px',
+            color: 'white',
+            outline: 'none',
+            flex: 1
+          }}
         />
-        <button type="button" onClick={sendBaristaMessage} className="rounded-2xl px-4 py-3 font-semibold text-slate-950" style={{ backgroundColor: accentColor }}>
+        <button
+          type="button"
+          onClick={sendBaristaMessage}
+          className="rounded-2xl px-5 py-3 font-black text-[12px] text-slate-950 active:scale-95 transition-transform"
+          style={{
+            background: `linear-gradient(135deg, ${accentColor} 0%, ${primaryColor} 100%)`,
+            boxShadow: `0 4px 12px ${accentColor}33`
+          }}
+        >
           {tx(safeLang, 'Göndər', 'Отправить', 'Send')}
         </button>
       </div>
@@ -1428,16 +1786,49 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   );
 
   const renderFalci = () => (
-    <section className="rounded-[28px] border border-white/10 bg-white/6 p-4 backdrop-blur-xl">
-      <div className="text-lg font-bold text-white">AI Falçı</div>
-      <p className="mt-2 text-sm text-slate-300">{tx(safeLang, 'Bir şəkil yüklə, AI Falçı onun tonuna və ab-havasına baxıb əyləncəli mesaj versin.', 'Загрузи фото, и AI Falçı даст тебе игровое предсказание по атмосфере изображения.', 'Upload an image and AI Fortune Teller will give you a playful reading based on its vibe.')}</p>
-      <div className="mt-4 flex flex-wrap gap-3">
-        <button type="button" onClick={() => fileRef.current?.click()} className="rounded-2xl px-4 py-3 font-semibold text-slate-950" style={{ backgroundColor: primaryColor }}>
+    <section className="rounded-[28px] border border-white/10 bg-white/6 p-5 backdrop-blur-xl space-y-4">
+      {/* Custom float keyframe animation */}
+      <style>{`
+        @keyframes floatBall {
+          0%, 100% { transform: translateY(0px) scale(1); }
+          50% { transform: translateY(-8px) scale(1.02); }
+        }
+        .animate-floatBall {
+          animation: floatBall 3s ease-in-out infinite;
+        }
+      `}</style>
+
+      <div className="flex items-center gap-2">
+        <span className="text-xl">🔮</span>
+        <div>
+          <div className="text-md font-black text-white tracking-tight">AI Falçı</div>
+          <div className="text-[11px] text-white/50 font-semibold">{tx(safeLang, 'Bir şəkil yüklə, AI Falçı onun tonuna və ab-havasına baxıb əyləncəli mesaj versin.', 'Загрузи фото, и AI Falçı даст тебе игровое предсказание по атмосфере изображения.', 'Upload an image and AI Fortune Teller will give you a playful reading based on its vibe.')}</div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className="rounded-2xl px-5 py-3 font-black text-[12px] text-slate-950 active:scale-95 transition-transform"
+          style={{
+            background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`,
+            boxShadow: `0 4px 12px ${primaryColor}33`
+          }}
+        >
           {tx(safeLang, 'Şəkil yüklə', 'Загрузить фото', 'Upload image')}
         </button>
         {Capacitor.isNativePlatform() && (
-          <button type="button" onClick={takePhotoWithCamera} className="flex items-center gap-2 rounded-2xl px-4 py-3 font-semibold text-slate-950 animate-pulse" style={{ backgroundColor: accentColor }}>
-            <CameraIcon size={18} />
+          <button
+            type="button"
+            onClick={takePhotoWithCamera}
+            className="flex items-center gap-2 rounded-2xl px-5 py-3 font-black text-[12px] text-slate-950 active:scale-95 transition-transform animate-pulse"
+            style={{
+              background: `linear-gradient(135deg, ${accentColor} 0%, ${primaryColor} 100%)`,
+              boxShadow: `0 4px 12px ${accentColor}33`
+            }}
+          >
+            <CameraIcon size={16} />
             {tx(safeLang, 'Kamera ilə çək', 'Снять на камеру', 'Take Photo')}
           </button>
         )}
@@ -1446,17 +1837,57 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           if (file) analyzeImageFortune(file);
         }} />
       </div>
-      {fortuneImage ? <img src={fortuneImage} alt="fortune preview" className="mt-4 h-44 w-full rounded-[24px] object-cover" /> : null}
-      <div className="mt-4 rounded-[24px] bg-amber-400/10 p-4 text-sm text-slate-100">
-        {fortuneLoading ? (
-          <div className="flex items-center gap-2 text-slate-400">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-yellow-400" />
-            <span>{tx(safeLang, 'Falınız oxunur...', 'Гадание считывается...', 'Reading your fortune...')}</span>
+
+      {fortuneImage && (
+        <div className="relative rounded-[24px] overflow-hidden border border-white/10 shadow-2xl">
+          <img src={fortuneImage} alt="fortune preview" className="h-48 w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
+        </div>
+      )}
+
+      {fortuneLoading ? (
+        <div className="flex flex-col items-center justify-center py-6 space-y-5 rounded-[24px] bg-slate-950/30 border border-white/5 p-5 animate-modalFadeIn">
+          {/* Mystical Crystal Ball */}
+          <div className="relative h-32 w-32 flex items-center justify-center animate-floatBall">
+            <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-purple-600/35 via-amber-500/25 to-cyan-500/35 animate-pulse blur-xl" />
+            <div className="relative h-28 w-28 rounded-full border border-white/20 bg-white/5 backdrop-blur-md shadow-[0_0_40px_rgba(168,85,247,0.35),_inset_0_4px_16px_rgba(255,255,255,0.2)] flex flex-col items-center justify-center overflow-hidden">
+              <div className="absolute inset-2 rounded-full border border-dashed border-white/10 animate-ping opacity-20" />
+              <span className="text-2xl font-black text-white">{fortuneProgress}%</span>
+              <span className="text-[8px] font-black tracking-widest text-amber-400 uppercase mt-1">
+                {tx(safeLang, 'TƏHLİL', 'АНАЛИЗ', 'ANALYSIS')}
+              </span>
+            </div>
           </div>
-        ) : (
-          fortuneText || tx(safeLang, 'Şəkli yükləyəndən sonra fal burada görünəcək.', 'После загрузки фото предсказание появится здесь.', 'Your fortune will appear here after you upload an image.')
-        )}
-      </div>
+
+          <div className="text-center space-y-2.5 max-w-xs">
+            <p className="text-[12px] font-bold text-white tracking-wide animate-pulse">
+              {fortuneStepText}
+            </p>
+            <div className="w-48 h-1 bg-white/10 rounded-full mx-auto overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-purple-500 via-amber-400 to-cyan-400 transition-all duration-300 rounded-full"
+                style={{ width: `${fortuneProgress}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-[24px] border border-white/5 bg-slate-950/20 p-5 text-[13px] font-medium leading-relaxed text-slate-200">
+          {fortuneText ? (
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                <span>🔮</span>
+                {tx(safeLang, 'Gələcəyin Səsi', 'Голос Будущего', 'Voice of Future')}
+              </p>
+              <p className="italic text-slate-100">{fortuneText}</p>
+            </div>
+          ) : (
+            <p className="text-center text-white/40 py-3">
+              {tx(safeLang, 'Şəkli yükləyəndən sonra fal burada görünəcək.', 'После загрузки фото предсказание появится здесь.', 'Your fortune will appear here after you upload an image.')}
+            </p>
+          )}
+        </div>
+      )}
     </section>
   );
 
@@ -1623,6 +2054,91 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           </div>
         </div>
       </nav>
+
+      {/* Full-screen QR code modal */}
+      {showFullQr && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/80 p-4 animate-modalFadeIn"
+          onClick={async () => {
+            setShowFullQr(false);
+            if (Capacitor.isNativePlatform()) {
+              try {
+                await Haptics.impact({ style: ImpactStyle.Light });
+              } catch {}
+            }
+          }}
+        >
+          {/* Card container */}
+          <div
+            className="w-full max-w-md rounded-t-[32px] bg-slate-900 border-t border-white/10 p-6 space-y-6 shadow-2xl animate-scaleIn"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxHeight: '85vh',
+              background: `linear-gradient(180deg, #1e293b 0%, #0f172a 100%)`,
+            }}
+          >
+            {/* Modal Header/Handle */}
+            <div className="flex flex-col items-center gap-2">
+              <div className="h-1.5 w-12 rounded-full bg-white/20" />
+              <h3 className="text-md font-bold text-white mt-2">
+                {tx(safeLang, 'Skan Et və Qazan', 'Сканируй и Получай', 'Scan & Earn')}
+              </h3>
+            </div>
+
+            {/* QR Scanner Container */}
+            <div className="flex flex-col items-center justify-center p-6 rounded-2xl bg-white shadow-[0_12px_40px_rgba(255,255,255,0.08)]">
+              {cardQr ? (
+                <div className="p-3 bg-white rounded-xl">
+                  <img src={cardQr} alt="qr" className="h-56 w-56 object-contain" />
+                </div>
+              ) : (
+                <div className="h-56 w-56 flex items-center justify-center text-slate-800 font-mono text-sm">
+                  {customer.card_id}
+                </div>
+              )}
+              <div className="mt-4 text-center">
+                <p className="text-slate-900 font-mono text-sm tracking-wider font-bold">
+                  {formatCardId(customer.card_id)}
+                </p>
+                <p className="text-slate-500 text-[10px] mt-1 font-semibold uppercase tracking-wider">
+                  {tx(safeLang, 'KASSAYA TƏQDİM EDİN', 'ПРЕДЪЯВИТЕ НА КАССЕ', 'PRESENT TO CASHIER')}
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Tips */}
+            <div className="rounded-2xl bg-white/5 border border-white/5 p-4 flex gap-3 items-center">
+              <span className="text-lg">💡</span>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                {tx(
+                  safeLang,
+                  'Skaner oxuya bilsin deyə ekran parlaqlığını artırmağınız tövsiyə olunur.',
+                  'Рекомендуется увеличить яркость экрана для облегчения сканирования.',
+                  'We recommend increasing screen brightness to make scanning easier.'
+                )}
+              </p>
+            </div>
+
+            {/* Close Button */}
+            <button
+              onClick={async () => {
+                setShowFullQr(false);
+                if (Capacitor.isNativePlatform()) {
+                  try {
+                    await Haptics.impact({ style: ImpactStyle.Light });
+                  } catch {}
+                }
+              }}
+              className="w-full py-3.5 rounded-2xl bg-white text-slate-950 font-black text-[13px] active:scale-95 transition-transform"
+              style={{
+                boxShadow: '0 8px 24px rgba(255,255,255,0.15)',
+              }}
+            >
+              {tx(safeLang, 'Bağla', 'Закрыть', 'Close')}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
