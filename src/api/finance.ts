@@ -945,6 +945,9 @@ export type FinanceLedgerTransaction = {
   posted_at?: string | null;
   reversed_at?: string | null;
   legacy_finance_entry_id?: string | null;
+  related_order_id?: string | null;
+  discount_amount?: string | null;
+  discount_reason?: string | null;
 };
 
 export type FinanceLedgerEntry = {
@@ -1036,6 +1039,9 @@ const localLedgerTransactions = (tenant_id: string, limit = 200): FinanceLedgerT
       posted_at: entry.created_at,
       reversed_at: null,
       legacy_finance_entry_id: entry.id,
+      related_order_id: null,
+      discount_amount: null,
+      discount_reason: null,
     }));
 
 export const fetch_finance_ledger_accounts = async (tenant_id: string): Promise<FinanceLedgerAccount[]> => {
@@ -1100,6 +1106,9 @@ const mapFinanceLedgerTransaction = (row: any): FinanceLedgerTransaction => ({
   posted_at: row.posted_at ?? null,
   reversed_at: row.reversed_at ?? null,
   legacy_finance_entry_id: row.legacy_finance_entry_id ?? null,
+  related_order_id: row.related_order_id ?? null,
+  discount_amount: row.discount_amount ?? null,
+  discount_reason: row.discount_reason ?? null,
 });
 
 export const fetch_finance_ledger_transactions_page = async (

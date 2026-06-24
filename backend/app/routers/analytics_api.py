@@ -581,6 +581,7 @@ def get_sales_list(
                 "customer_type": None,
                 "original_total": str(original_total.quantize(Decimal("0.01"))),
                 "discount_amount": str(Decimal(str(row.discount_amount or 0)).quantize(Decimal("0.01"))),
+                "discount_reason": row.discount_reason,
                 "total": str(Decimal(str(row.total)).quantize(Decimal("0.01"))),
                 "cogs": str(Decimal(str(row.cogs or 0)).quantize(Decimal("0.01"))),
                 "payment_method": row.payment_method,
