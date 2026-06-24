@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, Gift, Home, Languages, MessageCircleHeart, QrCode, Sparkles, UserRound, Camera as CameraIcon } from 'lucide-react';
+import { Bell, Gift, Home, Languages, MessageCircleHeart, MessageSquare, QrCode, Sparkles, UserRound, Camera as CameraIcon } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
@@ -1114,6 +1114,19 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
 
   const aiFalciEnabled = branding.ai_falci_enabled === true;
+
+  const bottomTabs = [
+    { key: 'home' as CustomerTab, label: tx(safeLang, 'Ana Səhifə', 'Главная', 'Home'), icon: <Home size={18} /> },
+    { key: 'offers' as CustomerTab, label: tx(safeLang, 'Kampaniyalar', 'Кампании', 'Offers'), icon: <Gift size={18} /> },
+    ...(aiBaristaEnabled ? [{ key: 'barista' as CustomerTab, label: tx(safeLang, 'Barista', 'Бариста', 'Barista'), icon: <MessageSquare size={18} /> }] : []),
+    ...(aiFalciEnabled ? [{ key: 'falci' as CustomerTab, label: tx(safeLang, 'Falçı', 'Фалчы', 'Fortune'), icon: <Sparkles size={18} /> }] : []),
+    { key: 'profile', label: tx(safeLang, 'Profil', 'Профиль', 'Profile'), icon: <UserRound size={18} /> },
+  ];
+
+  const resolvedActiveTab: CustomerTab =
+    (activeTab === 'barista' && !aiBaristaEnabled) || (activeTab === 'falci' && !aiFalciEnabled)
+      ? 'home'
+      : activeTab;
   const layoutPreset = String(data.customer_app_settings?.layout_preset || 'rewards').toLowerCase();
   const rewardCardStyle = String(branding.reward_card_style || data.customer_app_settings?.reward_card_style || 'rounded').toLowerCase();
   const heroRadius = layoutPreset === 'playful' ? '36px' : '32px';
