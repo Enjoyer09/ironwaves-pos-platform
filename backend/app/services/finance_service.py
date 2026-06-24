@@ -801,6 +801,15 @@ def post_sale_payment(
     source = _normalize_sale_payment_source(payment_source)
     payment_category = category or ("Satış (Nağd)" if source == "cash" else "Satış (Kart)")
     payment_note = note or f"POS Sale {sale_id}"
+
+    from app.models import Sale
+    sale = db.query(Sale).filter(Sale.tenant_id == tenant_id, Sale.id == sale_id).first()
+    if sale and sale.discount_amount and Decimal(str(sale.discount_amount)) > 0:
+        reason_str = f", Səbəb: {sale.discount_reason}" if sale.discount_reason else ""
+        note_suffix = f" (Endirim: {sale.discount_amount} ₼{reason_str})"
+        if note_suffix not in payment_note:
+            payment_note += note_suffix
+
     transactions: list[FinanceTransaction] = []
 
     sale_txn = post_finance_transaction(

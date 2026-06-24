@@ -418,7 +418,18 @@ export function FinanceLedgerTab({
                 </td>
                 <td className="py-3 text-slate-200">{entry.category || '-'}</td>
                 <td className="py-3 text-right font-black text-white">{new Decimal(entry.amount || 0).toFixed(2)} ₼</td>
-                <td className="max-w-[280px] truncate py-3 text-slate-400">{formatFriendlyFinanceNote(entry.note || entry.reference, lang)}</td>
+                <td className="max-w-[280px] py-3 text-slate-400">
+                  <div className="truncate">{formatFriendlyFinanceNote(entry.note || entry.reference, lang)}</div>
+                  {parseFloat(entry.discount_amount || '0') > 0 && (
+                    <div className="text-[11px] text-red-300 mt-1 italic font-medium flex items-center gap-1">
+                      <span>%</span>
+                      <span>
+                        {tx(lang, 'Endirim', 'Скидка', 'Discount')}: {parseFloat(entry.discount_amount || '0').toFixed(2)} ₼
+                        {entry.discount_reason ? ` (${entry.discount_reason})` : ''}
+                      </span>
+                    </div>
+                  )}
+                </td>
               </tr>
             ))}
             {visibleLedgerTransactions.length === 0 && (

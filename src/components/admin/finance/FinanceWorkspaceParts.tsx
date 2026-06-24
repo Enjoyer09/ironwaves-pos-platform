@@ -523,9 +523,17 @@ export function TransactionDetailDrawer({
               <FinanceTimelineItem key={event.label} lang={lang} label={event.label} by={event.by} at={event.at} tone={event.tone} active={event.active} />
             ))}
           </div>
-          {txRow.note || txRow.reference ? (
-            <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950 p-3 text-sm text-slate-300">
-              {formatFriendlyFinanceNote(txRow.note || txRow.reference, lang)}
+          {(txRow.note || txRow.reference || parseFloat((txRow as any).discount_amount || '0') > 0) ? (
+            <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-950 p-3 text-sm text-slate-300 space-y-2">
+              {txRow.note || txRow.reference ? (
+                <div>{formatFriendlyFinanceNote(txRow.note || txRow.reference, lang)}</div>
+              ) : null}
+              {parseFloat((txRow as any).discount_amount || '0') > 0 && (
+                <div className="text-xs text-red-300 italic border-t border-slate-800/80 pt-2 font-medium">
+                  {tx(lang, 'Tətbiq edilmiş endirim', 'Примененная скидка', 'Applied discount')}: {parseFloat((txRow as any).discount_amount || '0').toFixed(2)} ₼
+                  {(txRow as any).discount_reason ? ` (Səbəb: ${(txRow as any).discount_reason})` : ''}
+                </div>
+              )}
             </div>
           ) : null}
         </section>

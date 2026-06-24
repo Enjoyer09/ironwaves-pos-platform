@@ -845,10 +845,21 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
                           <td className="px-6 py-4 text-sm font-medium text-slate-100">{s.cashier}</td>
                           <td className="px-6 py-4 text-sm text-blue-500 font-mono">{s.customer_card_id || '-'}</td>
                           <td className="px-6 py-4 text-sm text-slate-300 max-w-xs truncate">{s.items_display || '-'}</td>
-                          <td className="px-6 py-4 text-sm font-semibold text-amber-500">{s.current_stars || 0} ⭐</td>
+                           <td className="px-6 py-4 text-sm font-semibold text-amber-500">
+                            {s.customer_card_id ? `${s.customer_stars_after ?? s.current_stars ?? 0} ⭐` : '-'}
+                          </td>
                           <td className="px-6 py-4 text-sm text-slate-300">
                             {parseFloat(s.original_total).toFixed(2)} ₼ 
-                            {parseFloat(s.discount_amount) > 0 && <span className="text-red-300 ml-2">(-{parseFloat(s.discount_amount).toFixed(2)} ₼)</span>}
+                            {parseFloat(s.discount_amount) > 0 && (
+                              <>
+                                <span className="text-red-300 ml-2">(-{parseFloat(s.discount_amount).toFixed(2)} ₼)</span>
+                                {s.discount_reason && (
+                                  <div className="text-[11px] text-slate-400 mt-1 italic font-medium">
+                                    {tx(lang, 'Səbəb', 'Причина', 'Reason')}: {s.discount_reason}
+                                  </div>
+                                )}
+                              </>
+                            )}
                           </td>
                            <td className="px-6 py-4 text-sm font-bold text-slate-100">{parseFloat(s.total).toFixed(2)} ₼</td>
                            <td className="px-6 py-4 text-sm text-slate-300">{parseFloat((s.bank_fee || '0')).toFixed(2)} ₼</td>

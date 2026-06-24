@@ -451,6 +451,13 @@ def get_finance_summary(db: Session = Depends(get_db), tenant: Tenant = Depends(
         .order_by(FinanceReconciliation.created_at.desc())
         .first()
     )
+    from app.models import Sale
+    pending_sale_ids = [row.related_order_id for row in pending_rows if row.related_order_id]
+    pending_sales_dict = {}
+    if pending_sale_ids:
+        sales = db.query(Sale).filter(Sale.tenant_id == tenant.id, Sale.id.in_(pending_sale_ids)).all()
+        pending_sales_dict = {str(s.id): s for s in sales}
+
     return {
         "balances": {
             "cash": str(balances.get("cash", Decimal("0.00"))),
@@ -462,7 +469,7 @@ def get_finance_summary(db: Session = Depends(get_db), tenant: Tenant = Depends(
         },
         "alerts": alerts,
         "pending_approvals_count": pending_count,
-        "pending_approvals_preview": [_transaction_out(row, account_by_id) for row in pending_rows],
+        "pending_approvals_preview": [_transaction_out(row, account_by_id, sales_dict=pending_sales_dict) for row in pending_rows],
         "latest_reconciliation": {
             "id": latest_reconciliation.id,
             "account_code": account_by_id.get(latest_reconciliation.account_id).code if latest_reconciliation.account_id in account_by_id else None,
@@ -1133,7 +1140,11 @@ def _account_out(account: FinanceAccount, totals: dict[str, Decimal]) -> dict:
     }
 
 
-def _transaction_out(row: FinanceTransaction, account_by_id: dict[str, FinanceAccount]) -> dict:
+def _transaction_out(row: FinanceTransaction, account_by_id: dict[str, FinanceAccount], sales_dict: dict = None) -> dict:
+    sale = None
+    if sales_dict and row.related_order_id in sales_dict:
+        sale = sales_dict[row.related_order_id]
+
     return {
         "id": row.id,
         "transaction_type": row.transaction_type,
@@ -1155,6 +1166,9 @@ def _transaction_out(row: FinanceTransaction, account_by_id: dict[str, FinanceAc
         "posted_at": row.posted_at.isoformat() if row.posted_at else None,
         "reversed_at": row.reversed_at.isoformat() if row.reversed_at else None,
         "legacy_finance_entry_id": row.legacy_finance_entry_id,
+        "related_order_id": row.related_order_id,
+        "discount_amount": str(Decimal(str(sale.discount_amount or 0)).quantize(Decimal("0.01"))) if sale else "0.00",
+        "discount_reason": sale.discount_reason if sale else None,
     }
 
 
@@ -1392,7 +1406,15 @@ def list_ledger_transactions(
     total = query.count() if include_total else None
     rows = query.order_by(FinanceTransaction.created_at.desc()).offset(offset).limit(limit).all()
     account_by_id = {row.id: row for row in db.query(FinanceAccount).filter(FinanceAccount.tenant_id == tenant.id).all()}
-    rows_out = [_transaction_out(row, account_by_id) for row in rows]
+    
+    from app.models import Sale
+    sale_ids = [row.related_order_id for row in rows if row.related_order_id]
+    sales_dict = {}
+    if sale_ids:
+        sales = db.query(Sale).filter(Sale.tenant_id == tenant.id, Sale.id.in_(sale_ids)).all()
+        sales_dict = {str(s.id): s for s in sales}
+        
+    rows_out = [_transaction_out(row, account_by_id, sales_dict=sales_dict) for row in rows]
     if include_total:
         return {
             "rows": rows_out,
@@ -1442,6 +1464,11 @@ def get_ledger_transaction_detail(transaction_id: str, db: Session = Depends(get
         )
         if original:
             reversal_rows = [original] + reversal_rows
+    sale = None
+    if row.related_order_id:
+        from app.models import Sale
+        sale = db.query(Sale).filter(Sale.tenant_id == tenant.id, Sale.id == row.related_order_id).first()
+
     return {
         "transaction": {
             "id": row.id,
@@ -1464,6 +1491,9 @@ def get_ledger_transaction_detail(transaction_id: str, db: Session = Depends(get
             "posted_at": row.posted_at.isoformat() if row.posted_at else None,
             "reversed_at": row.reversed_at.isoformat() if row.reversed_at else None,
             "legacy_finance_entry_id": row.legacy_finance_entry_id,
+            "related_order_id": row.related_order_id,
+            "discount_amount": str(Decimal(str(sale.discount_amount or 0)).quantize(Decimal("0.01"))) if sale else "0.00",
+            "discount_reason": sale.discount_reason if sale else None,
         },
         "entries": [
             {
