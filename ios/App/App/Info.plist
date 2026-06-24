@@ -53,5 +53,10 @@
 	<string>iRonWaves Loyalty qalereyadan AI Falçı üçün şəkil seçmək məqsədilə istifadə edir.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>iRonWaves Loyalty şəkilləri qalereyaya yazmaq məqsədilə istifadə edir.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 </dict>
 </plist>
