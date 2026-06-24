@@ -377,6 +377,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         }
       }
     } catch (e: any) {
+      console.error('CustomerApp: session load failed:', e?.message || e, e?.stack);
       setError(String(e?.message || 'Customer app failed to load'));
     } finally {
       setLoading(false);
@@ -399,6 +400,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         const bootstrap = await get_customer_app_bootstrap_live();
         setBootstrapData(bootstrap);
       } catch (e: any) {
+        console.error('CustomerApp: bootstrap failed:', e?.message || e, e?.stack);
         setError(String(e?.message || 'Customer app onboarding failed to load'));
       } finally {
         setLoading(false);
