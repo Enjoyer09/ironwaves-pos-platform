@@ -404,7 +404,7 @@ async function apiRequestNetwork<T = any>(path: string, options: ApiRequestOptio
           online: typeof navigator !== 'undefined' ? navigator.onLine : true,
           request_id: requestId,
         });
-        throw new Error(`Backendə qoşulma alınmadı (${method} ${path}, request_id: ${requestId}): ${message}`);
+        throw new Error(`Backendə qoşulma alınmadı (${method} ${base}${path}, request_id: ${requestId}): ${message}`);
       }
       await sleep(retryDelayMs * (attempt + 1));
     } finally {
@@ -415,7 +415,7 @@ async function apiRequestNetwork<T = any>(path: string, options: ApiRequestOptio
 
   if (lastError || !res) {
     const message = lastError instanceof Error ? lastError.message : String(lastError || 'Unknown request failure');
-    throw new Error(`Backend sorğusu uğursuz oldu (${method} ${path}, request_id: ${requestId}): ${message}`);
+    throw new Error(`Backend sorğusu uğursuz oldu (${method} ${base}${path}, request_id: ${requestId}): ${message}`);
   }
 
   const text = await res.text();

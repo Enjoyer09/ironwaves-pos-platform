@@ -271,6 +271,16 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const fileRef = React.useRef<HTMLInputElement | null>(null);
   const safeLang = lang === 'ru' || lang === 'en' ? lang : 'az';
 
+  const formatCardId = (id: string) => {
+    const clean = String(id || '').replace(/[^a-zA-Z0-9]/g, '');
+    if (!clean) return '•••• •••• •••• ••••';
+    const chunks = [];
+    for (let i = 0; i < clean.length; i += 4) {
+      chunks.push(clean.slice(i, i + 4));
+    }
+    return chunks.join(' ');
+  };
+
   const chartData = React.useMemo(() => {
     const historyList = Array.isArray(data?.history) ? data.history : [];
     if (historyList.length === 0) return [];
@@ -1040,62 +1050,147 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         </div>
       )}
 
-      {/* Hero card */}
+      {/* Premium Digital Membership Card */}
       <section
-        className="relative overflow-hidden border p-5"
+        className="relative overflow-hidden border p-6 transition-all duration-300 active:scale-[0.99] group"
         style={{
-          borderRadius: '24px',
-          borderColor: 'rgba(255,255,255,0.08)',
+          borderRadius: '28px',
+          borderColor: 'rgba(255, 255, 255, 0.12)',
           background: heroImage
-            ? `linear-gradient(180deg, rgba(15,23,42,0.18), rgba(15,23,42,0.72)), url(${heroImage}) center/cover`
-            : `linear-gradient(135deg, ${accentColor}, ${primaryColor})`,
-          boxShadow: `0 12px 40px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)`,
+            ? `linear-gradient(180deg, rgba(15, 23, 42, 0.2), rgba(15, 23, 42, 0.8)), url(${heroImage}) center/cover`
+            : `linear-gradient(135deg, ${accentColor} 0%, ${primaryColor} 100%)`,
+          boxShadow: `0 20px 45px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.2)`,
         }}
       >
+        {/* Glossy Card Reflection Sweep */}
+        <div className="absolute inset-0 w-[200%] h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-[1500ms] ease-out pointer-events-none" />
+
+        {/* Card Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/60">{branding.app_name || 'Loyalty Club'}</p>
-            <h1 className="mt-2 text-2xl font-extrabold text-white">{branding.hero_title || tx(safeLang, 'Xoş gəldiniz', 'Добро пожаловать', 'Welcome')}</h1>
-            <p className="mt-1.5 max-w-[14rem] text-[13px] text-white/70">{branding.hero_subtitle || customer.card_id}</p>
+            <div className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/70">
+                {branding.app_name || 'Loyalty Club'}
+              </p>
+            </div>
+            <h1 className="mt-2 text-2xl font-black text-white tracking-tight">
+              {branding.hero_title || tx(safeLang, 'Xoş gəldiniz', 'Добro пожаловать', 'Welcome')}
+            </h1>
           </div>
-          {branding.logo_url ? <img src={branding.logo_url} alt="brand" className="h-11 w-11 rounded-xl object-cover shadow-lg" style={{ border: `2px solid rgba(255,255,255,0.2)` }} /> : null}
+          {branding.logo_url ? (
+            <img
+              src={branding.logo_url}
+              alt="brand"
+              className="h-12 w-12 rounded-2xl object-cover shadow-2xl border-2 border-white/20"
+            />
+          ) : (
+            <div className="h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 text-xl">
+              👑
+            </div>
+          )}
         </div>
 
-        {/* Wallet */}
+        {/* Card Chip & Contactless Indicator */}
+        <div className="mt-6 flex items-center justify-between">
+          {/* SIM Chip Icon */}
+          <div className="relative w-10 h-7 rounded-md bg-gradient-to-br from-amber-200 via-yellow-400 to-amber-300 border border-amber-500/20 shadow-inner overflow-hidden flex flex-col justify-between p-1 opacity-85">
+            <div className="flex justify-between h-px bg-slate-950/20 mt-1" />
+            <div className="flex justify-between h-px bg-slate-950/20" />
+            <div className="flex justify-between h-px bg-slate-950/20 mb-1" />
+            <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-950/20" />
+          </div>
+
+          {/* Contactless waves */}
+          <div className="text-white/50">
+            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M4 12c0-2.21 1.79-4 4-4s4 1.79 4 4-1.79 4-4 4-4-1.79-4-4zm11-6.5c0-.83.67-1.5 1.5-1.5C20.09 4 24 7.91 24 12.5S20.09 21 16.5 21c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5c2.48 0 4.5-2.02 4.5-4.5S18.98 9 16.5 9c-.83 0-1.5-.67-1.5-1.5zm-5-3C10.5 2.17 11.17 1.5 12 1.5C17.79 1.5 22.5 6.21 22.5 12S17.79 22.5 12 22.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5c4.14 0 7.5-3.36 7.5-7.5s-3.36-7.5-7.5-7.5c-.83 0-1.5-.67-1.5-1.5z" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Card Details Container */}
         {showWallet && (
           <div
-            className="mt-5 rounded-2xl p-4"
-            style={{ backgroundColor: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
+            className="mt-6 rounded-2xl p-4 bg-white/[0.07] border border-white/10 backdrop-blur-md shadow-2xl space-y-4"
           >
             <div className="flex items-end justify-between">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/60">{wallet.points_label || 'Ulduz'}</p>
-                <p className="mt-1 text-4xl font-black text-white">{Number(wallet.stars_balance ?? 0).toFixed(programMode === 'cashback' ? 2 : 0)}{balanceSuffix}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-[11px] font-medium text-white/60">
-                  {programMode === 'cashback' ? `${Number(wallet.cashback_percent || 0).toFixed(0)}% cashback` : (customer.type || 'Member')}
+                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/50">
+                  {wallet.points_label || 'Ulduz'}
+                </p>
+                <p className="mt-1 text-3xl font-black text-white tracking-tight">
+                  {Number(wallet.stars_balance ?? 0).toFixed(programMode === 'cashback' ? 2 : 0)}
+                  {balanceSuffix}
                 </p>
               </div>
-            </div>
-            {/* Progress bar */}
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-black/20">
-              <div className="h-full rounded-full bg-white transition-all duration-500" style={{ width: `${progressPercent}%` }} />
-            </div>
-            <div className="mt-2 flex items-center justify-between text-[11px] text-white/60">
-              <span>{tx(safeLang, 'Növbəti reward', 'Следующая награда', 'Next reward')}</span>
-              <span className="font-semibold text-white/80">{wallet.reward_name || 'Reward'}</span>
+              <div className="text-right">
+                <span className="inline-block rounded-full bg-white/10 border border-white/10 px-2.5 py-1 text-[10px] font-bold tracking-wider text-white uppercase backdrop-blur-sm">
+                  {programMode === 'cashback' ? `${Number(wallet.cashback_percent || 0).toFixed(0)}% cashback` : (customer.type || 'Member')}
+                </span>
+              </div>
             </div>
 
-            {/* Apple & Google Wallet buttons */}
-            <div className="mt-4 pt-3 border-t border-white/10 flex flex-col xs:flex-row gap-2 justify-center items-center">
+            {/* Visual Stars Grid */}
+            {programMode === 'points' ? (
+              <div className="border-t border-white/5 pt-3">
+                <div className="flex flex-wrap gap-2 justify-center items-center py-2 px-3 rounded-xl bg-black/20 border border-white/5">
+                  {Array.from({ length: Number(wallet.next_reward_at || 10) }).map((_, idx) => {
+                    const isActive = idx < Number(wallet.stars_balance ?? 0);
+                    return (
+                      <div
+                        key={idx}
+                        className={`relative flex items-center justify-center h-8 w-8 rounded-full transition-all duration-500 ${
+                          isActive
+                            ? 'bg-gradient-to-br from-yellow-300 to-amber-500 text-slate-950 shadow-[0_0_12px_rgba(245,158,11,0.6)] scale-105 rotate-[360deg]'
+                            : 'bg-white/5 text-white/20 border border-white/5'
+                        }`}
+                      >
+                        <Sparkles
+                          size={14}
+                          className={isActive ? 'text-slate-950 animate-pulse' : 'text-white/20'}
+                        />
+                        <span className="absolute -bottom-1 -right-1 text-[7px] font-bold opacity-75 bg-slate-950/80 px-1 rounded-full text-white">
+                          {idx + 1}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-2 text-center text-[11px] font-medium text-white/60">
+                  {tx(
+                    safeLang,
+                    `${Number(wallet.stars_balance ?? 0)} / ${Number(wallet.next_reward_at || 10)} ulduz topladınız`,
+                    `Вы собрали ${Number(wallet.stars_balance ?? 0)} / ${Number(wallet.next_reward_at || 10)} звезд`,
+                    `Collected ${Number(wallet.stars_balance ?? 0)} / ${Number(wallet.next_reward_at || 10)} stars`
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Cashback progress bar */
+              <div className="border-t border-white/5 pt-3">
+                <div className="h-1.5 overflow-hidden rounded-full bg-black/35">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-300 transition-all duration-500"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+                <div className="mt-2 flex items-center justify-between text-[11px] text-white/50">
+                  <span>{tx(safeLang, 'Növbəti reward', 'Следующая награда', 'Next reward')}</span>
+                  <span className="font-bold text-white/80">{wallet.reward_name || 'Reward'} ({progressPercent}%)</span>
+                </div>
+              </div>
+            )}
+
+            {/* Apple & Google Wallet Integration */}
+            <div className="pt-3 border-t border-white/5 flex flex-row gap-2 justify-center items-center">
               <a
                 href={get_customer_wallet_pass_url(sessionCreds.cardId, sessionCreds.token, safeLang)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 rounded-xl bg-black/80 px-4 py-2 border border-white/10 hover:border-white/30 transition-all text-[11px] font-semibold text-white active:scale-95 w-full xs:w-auto"
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-black/80 hover:bg-black/90 py-2 border border-white/10 hover:border-white/20 transition text-[10px] font-semibold text-white active:scale-95"
               >
-                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.75.8-.01 1.99-.79 3.61-.63 1.68.07 2.92.74 3.69 1.95-3.41 2.03-2.87 6.99.78 8.44-.8 2.05-1.74 4.02-3.16 5.46zM15.42 4.38c.75-.92 1.25-2.2 1.11-3.49-1.11.05-2.46.75-3.26 1.69-.69.8-1.3 2.1-1.13 3.37 1.23.1 2.5-.62 3.28-1.57z" />
                 </svg>
                 {tx(safeLang, 'Apple Wallet', 'Apple Wallet', 'Apple Wallet')}
@@ -1104,9 +1199,9 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                 href={get_customer_wallet_pass_url(sessionCreds.cardId, sessionCreds.token, safeLang)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 rounded-xl bg-black/80 px-4 py-2 border border-white/10 hover:border-white/30 transition-all text-[11px] font-semibold text-white active:scale-95 w-full xs:w-auto"
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-black/80 hover:bg-black/90 py-2 border border-white/10 hover:border-white/20 transition text-[10px] font-semibold text-white active:scale-95"
               >
-                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M21.35 11.1h-9.17v2.73h6.51c-.33 1.56-1.56 2.95-3.24 3.51v2.9h5.24c3.07-2.83 4.83-7 4.83-11.64c0-.52-.05-1.04-.17-1.5zM12.18 21c2.43 0 4.47-.8 5.96-2.18l-5.24-2.9c-1.46.99-3.29 1.56-5.96 1.56c-4.59 0-8.48-3.11-9.86-7.3H1.66v3.01C4.46 18.77 8.08 21 12.18 21z" />
                 </svg>
                 {tx(safeLang, 'Google Wallet', 'Google Wallet', 'Google Wallet')}
@@ -1114,27 +1209,45 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             </div>
           </div>
         )}
+
+        {/* Card Number printed at the bottom like credit card */}
+        <div className="mt-5 flex items-center justify-between text-white/50 text-[11px] font-mono tracking-[0.2em]">
+          <span>{formatCardId(customer.card_id)}</span>
+          <span className="text-[10px] opacity-75">{tx(safeLang, 'LOYALLIQ', 'ЛОЯЛЬНОСТЬ', 'LOYALTY')}</span>
+        </div>
       </section>
 
       {/* Rewards + QR grid */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3.5">
         <section
-          className="rounded-2xl p-4"
-          style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}
+          className="rounded-[24px] p-5 flex flex-col justify-between border border-white/[0.06] backdrop-blur-md shadow-lg transition hover:border-white/10 active:scale-[0.98]"
+          style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
         >
-          <div className="flex items-center gap-2 text-[12px] font-semibold text-white/70"><Gift size={14} /> {tx(safeLang, 'Rewards', 'Награды', 'Rewards')}</div>
-          <div className="mt-2 text-3xl font-black text-white">{wallet.available_rewards ?? 0}</div>
-          <div className="mt-1 text-[11px] text-white/50">{wallet.reward_label || 'Reward'}</div>
+          <div>
+            <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-white/50">
+              <Gift size={14} className="text-amber-400 animate-bounce" />
+              {tx(safeLang, 'Rewards', 'Награды', 'Rewards')}
+            </div>
+            <div className="mt-3 text-4xl font-black text-white tracking-tight">
+              {wallet.available_rewards ?? 0}
+            </div>
+            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+              {wallet.reward_label || 'Reward'}
+            </p>
+          </div>
           {rewards[0] && Number(wallet.available_rewards || 0) > 0 ? (
             <button
               type="button"
               disabled={claiming}
               onClick={() => { void claimReward(); }}
-              className="relative mt-3 w-full overflow-hidden rounded-xl px-3 py-2.5 text-[12px] font-bold text-black disabled:opacity-50"
-              style={{ backgroundColor: primaryColor, boxShadow: `0 4px 16px ${primaryColor}44` }}
+              className="relative mt-4 w-full overflow-hidden rounded-xl py-2.5 text-[12px] font-black text-slate-950 transition-all hover:scale-[1.02] active:scale-[0.97] disabled:opacity-50"
+              style={{
+                background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`,
+                boxShadow: `0 8px 20px ${primaryColor}33`,
+              }}
             >
-              <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.25) 0%, transparent 100%)' }} />
-              {claiming ? '...' : tx(safeLang, 'Claim', 'Забрать', 'Claim')}
+              <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full hover:translate-x-full transition-transform duration-1000 ease-out" />
+              {claiming ? '...' : tx(safeLang, 'Tətbiq Et', 'Забрать', 'Claim')}
             </button>
           ) : null}
         </section>
@@ -1149,42 +1262,78 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               }
             }
           }}
-          className="rounded-2xl p-4 cursor-pointer active:scale-95 transition-transform"
-          style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}
+          className="rounded-[24px] p-5 flex flex-col justify-between border border-white/[0.06] backdrop-blur-md shadow-lg transition hover:border-white/10 active:scale-[0.98]"
+          style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
         >
-          <div className="flex items-center gap-2 text-[12px] font-semibold text-white/70"><QrCode size={14} /> {tx(safeLang, 'QR Kart', 'QR карта', 'QR Card')}</div>
+          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-white/50">
+            <QrCode size={14} className="text-teal-400" />
+            {tx(safeLang, 'QR Kart', 'QR карта', 'QR Card')}
+          </div>
           {showQrCard && cardQr ? (
-            <div className="mt-2 flex flex-col items-center">
-              <img src={cardQr} alt="qr" className="h-24 w-24 rounded-xl" />
-              <p className="mt-1.5 text-[10px] font-semibold text-white/60">{customer.card_id}</p>
+            <div className="mt-3 flex flex-col items-center">
+              <div className="p-2.5 bg-white rounded-2xl shadow-2xl border border-white/20">
+                <img src={cardQr} alt="qr" className="h-24 w-24 object-contain" />
+              </div>
+              <p className="mt-2 text-[9px] font-mono tracking-widest text-white/40">{customer.card_id}</p>
             </div>
           ) : (
-            <p className="mt-3 text-[11px] font-semibold text-white/60">{customer.card_id}</p>
+            <p className="mt-4 text-xs font-mono tracking-widest text-white/60">{customer.card_id}</p>
           )}
         </section>
       </div>
 
       {/* Pending claim codes */}
       <section
-        className="rounded-2xl p-4"
-        style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}
+        className="rounded-[28px] p-5 border border-white/[0.06] backdrop-blur-md shadow-lg"
+        style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
       >
         <div className="flex items-center justify-between">
-          <p className="text-[13px] font-semibold text-white">{tx(safeLang, 'Claim kodları', 'Коды наград', 'Claim codes')}</p>
-          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ backgroundColor: `${accentColor}33`, color: accentColor }}>{pendingClaims.length}</span>
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+            <p className="text-xs font-bold uppercase tracking-wider text-white/70">
+              {tx(safeLang, 'Aktiv Kodlar', 'Коды наград', 'Active Codes')}
+            </p>
+          </div>
+          <span
+            className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+            style={{ backgroundColor: `${accentColor}25`, color: accentColor }}
+          >
+            {pendingClaims.length}
+          </span>
         </div>
-        <div className="mt-3 flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide">
+        
+        <div className="mt-4 flex gap-3.5 overflow-x-auto pb-1.5 scrollbar-hide">
           {pendingClaims.length === 0 ? (
-            <div className="w-full rounded-xl py-4 text-center text-[12px] text-white/40">
-              {tx(safeLang, 'Hələ aktiv kod yoxdur', 'Нет активных кодов', 'No active codes yet')}
+            <div className="w-full rounded-2xl py-6 text-center text-xs text-white/30 border border-dashed border-white/10 bg-white/[0.01]">
+              {tx(safeLang, 'Hələ aktiv kodunuz yoxdur', 'Нет активных кодов', 'No active codes yet')}
             </div>
-          ) : pendingClaims.map((row: any) => (
-            <div key={row.id} className="min-w-[160px] shrink-0 rounded-xl p-3" style={{ backgroundColor: `${primaryColor}12`, border: `1px solid ${primaryColor}25` }}>
-              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/50">{tx(safeLang, 'Kassada göstər', 'На кассе', 'At POS')}</p>
-              <p className="mt-1 text-xl font-black text-white">{row.claim_code}</p>
-              <p className="mt-1 text-[11px] text-white/50">{row.reward_name}</p>
-            </div>
-          ))}
+          ) : (
+            pendingClaims.map((row: any) => (
+              <div
+                key={row.id}
+                className="relative min-w-[170px] shrink-0 rounded-2xl p-4 overflow-hidden border border-amber-500/20 shadow-inner flex flex-col justify-between"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(251,191,36,0.06) 0%, rgba(217,119,6,0.06) 100%)',
+                }}
+              >
+                {/* Coupon ticket side notches */}
+                <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-slate-950 border-r border-amber-500/20" />
+                <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-slate-950 border-l border-amber-500/20" />
+
+                <div>
+                  <p className="text-[8px] font-black uppercase tracking-[0.25em] text-amber-400">
+                    {tx(safeLang, 'Kassaya Təqdim Et', 'На кассе', 'Present at POS')}
+                  </p>
+                  <p className="mt-1.5 text-2xl font-black text-white tracking-tight font-mono">
+                    {row.claim_code}
+                  </p>
+                </div>
+                <div className="mt-3 pt-2 border-t border-white/5 text-[10px] text-white/50 truncate font-semibold">
+                  {row.reward_name}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </section>
     </div>
