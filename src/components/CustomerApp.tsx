@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, Gift, Home, Languages, MessageCircleHeart, MessageSquare, QrCode, Sparkles, UserRound, Camera as CameraIcon } from 'lucide-react';
+import { Bell, Gift, Home, Languages, MessageCircleHeart, MessageSquare, QrCode, Sparkles, UserRound, Camera as CameraIcon, Mic, Volume2, VolumeX } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
@@ -266,6 +266,10 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [activatedCampaigns, setActivatedCampaigns] = React.useState<Record<string, number>>({});
   const [campaignQrs, setCampaignQrs] = React.useState<Record<string, string>>({});
   const [tick, setTick] = React.useState(0);
+  const [isListening, setIsListening] = React.useState(false);
+  const [voiceEnabled, setVoiceEnabled] = React.useState(false);
+  const recognitionRef = React.useRef<any>(null);
+  const [particles, setParticles] = React.useState<Array<{ id: number; x: number; y: number; size: number; angle: number; speed: number }>>([]);
   const [geofenceAlert, setGeofenceAlert] = React.useState(false);
   const [showDevSettings, setShowDevSettings] = React.useState(false);
   const [customApiUrl, setCustomApiUrl] = React.useState(() => {
@@ -276,6 +280,14 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   });
   const fileRef = React.useRef<HTMLInputElement | null>(null);
   const safeLang = lang === 'ru' || lang === 'en' ? lang : 'az';
+  const [simulatedTemp, setSimulatedTemp] = React.useState<number>(() => {
+    const hr = new Date().getHours();
+    return hr >= 10 && hr <= 17 ? 26 : 14;
+  });
+  const [simulatedCondition, setSimulatedCondition] = React.useState<'sunny' | 'rainy'>(() => {
+    const hr = new Date().getHours();
+    return hr >= 10 && hr <= 17 ? 'sunny' : 'rainy';
+  });
 
   const formatCardId = (id: string) => {
     const clean = String(id || '').replace(/[^a-zA-Z0-9]/g, '');
@@ -364,6 +376,126 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     if (!customer?.name) return '';
     const namePart = String(customer.name).trim().split(' ')[0];
     return namePart ? `, ${namePart}` : '';
+  };
+
+  const spawnParticles = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (Capacitor.isNativePlatform()) {
+      Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {});
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const newParticles = Array.from({ length: 8 }).map((_, i) => ({
+      id: Math.random(),
+      x,
+      y,
+      size: Math.random() * 8 + 6,
+      angle: (i * 45 * Math.PI) / 180,
+      speed: Math.random() * 3 + 2,
+    }));
+
+    setParticles((prev) => [...prev, ...newParticles]);
+
+    setTimeout(() => {
+      setParticles((prev) => prev.filter((p) => !newParticles.find((np) => np.id === p.id)));
+    }, 800);
+  };
+
+  const playTickSound = () => {
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.05);
+      gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.05);
+    } catch (err) {
+      console.warn('Web Audio tick failed', err);
+    }
+  };
+
+  const playShimmerSound = () => {
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const now = audioCtx.currentTime;
+      const playNote = (freq: number, delay: number, duration: number) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + delay);
+        gain.gain.setValueAtTime(0.05, now + delay);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + delay + duration);
+        osc.start(now + delay);
+        osc.stop(now + delay + duration);
+      };
+      playNote(523.25, 0, 0.15); // C5
+      playNote(659.25, 0.08, 0.15); // E5
+      playNote(783.99, 0.16, 0.25); // G5
+    } catch (err) {
+      console.warn('Web Audio shimmer failed', err);
+    }
+  };
+
+  const getWeatherInfo = () => {
+    const isHot = simulatedTemp > 20;
+    const hour = new Date().getHours();
+    const isMorning = hour >= 5 && hour < 12;
+    const isAfternoon = hour >= 12 && hour < 18;
+
+    let weatherTitle = '';
+    let weatherDesc = '';
+    let recommendedDrinks: Array<{ name: string; icon: string; tag: string }> = [];
+    let comboTitle = '';
+    let comboItems: Array<{ name: string; desc: string; icon: string }> = [];
+
+    if (isHot) {
+      weatherTitle = tx(safeLang, 'İsti hava təklifləri ☀️', 'Предложения для теплой погоды ☀️', 'Warm Weather Picks ☀️');
+      weatherDesc = tx(safeLang, 'Hava istidir! Sərinləmək üçün ideal seçimlər:', 'На улице тепло! Отличные освежающие напитки:', 'It\'s warm outside! Refreshing options to cool down:');
+      recommendedDrinks = [
+        { name: tx(safeLang, 'Iced Latte', 'Айс Латте', 'Iced Latte'), icon: '🥤', tag: 'Popular' },
+        { name: tx(safeLang, 'Soyuq Dəmləmə', 'Колд Брю', 'Cold Brew'), icon: '🥃', tag: 'Smooth' },
+        { name: tx(safeLang, 'Şaftalı Iced Tea', 'Персиковый Айс Ти', 'Peach Iced Tea'), icon: '🍹', tag: 'Fruity' },
+        { name: tx(safeLang, 'Espresso Tonic', 'Эспрессо Тоник', 'Espresso Tonic'), icon: '🥂', tag: 'Zesty' }
+      ];
+    } else {
+      weatherTitle = tx(safeLang, 'Sərin hava təklifləri 🍂', 'Предложения для прохладной погоды 🍂', 'Cozy Weather Picks 🍂');
+      weatherDesc = tx(safeLang, 'Sərin və ya yağışlı hava üçün içimizi isidəcək dadlar:', 'Для прохладной погоды согревающие напитки:', 'Warm up with these cozy choices:');
+      recommendedDrinks = [
+        { name: tx(safeLang, 'İsti Şokolad', 'Горячий Шоколад', 'Hot Chocolate'), icon: '☕', tag: 'Rich' },
+        { name: tx(safeLang, 'Cappuccino', 'Капучисимо', 'Cappuccino'), icon: '🥛', tag: 'Classic' },
+        { name: tx(safeLang, 'Matcha Latte', 'Матча Латте', 'Matcha Latte'), icon: '🍵', tag: 'Healthy' },
+        { name: tx(safeLang, 'Raf Qəhvə', 'Раф Кофе', 'Raf Coffee'), icon: '🍮', tag: 'Sweet' }
+      ];
+    }
+
+    if (isMorning) {
+      comboTitle = tx(safeLang, 'Səhər Kombosu 🌅', 'Утреннее Комбо 🌅', 'Morning Combo 🌅');
+      comboItems = [
+        { name: tx(safeLang, 'Kruassan + Double Espresso', 'Круассан + Дабл Эспрессо', 'Croissant + Double Espresso'), desc: tx(safeLang, 'Gününüzü enerjili başlayın', 'Начните день энергично', 'Kickstart your day with energy'), icon: '🥐☕' }
+      ];
+    } else if (isAfternoon) {
+      comboTitle = tx(safeLang, 'Günorta Şirniyyat Kombosu ☀️', 'Дневное Комбо ☀️', 'Afternoon Combo ☀️');
+      comboItems = [
+        { name: tx(safeLang, 'Kruassan / Kukis + Flat White', 'Круассан / Печенье + Флэт Уайт', 'Croissant / Cookie + Flat White'), desc: tx(safeLang, 'Günün qalan hissəsi üçün xoş fasilə', 'Приятный перерыв на остаток дня', 'A sweet pause for the rest of the day'), icon: '🍪☕' }
+      ];
+    } else {
+      comboTitle = tx(safeLang, 'Axşam Rahatlığı Kombosu 🌙', 'Вечернее Комбо 🌙', 'Evening Cozy Combo 🌙');
+      comboItems = [
+        { name: tx(safeLang, 'Çizkeyk + Bitki Çayı', 'Чизкейк + Травяной Чай', 'Cheesecake + Herbal Tea'), desc: tx(safeLang, 'Günün yorğunluğunu çıxarın', 'Снимите усталость прошедшего дня', 'Wind down and relax'), icon: '🍰🍵' }
+      ];
+    }
+
+    return { weatherTitle, weatherDesc, recommendedDrinks, comboTitle, comboItems };
   };
   const rewards = Array.isArray(wallet?.rewards) ? wallet.rewards : [];
   const pendingClaims = Array.isArray(data?.pending_claims) ? data.pending_claims : [];
@@ -512,6 +644,35 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  React.useEffect(() => {
+    const SpeechLib = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechLib) {
+      const rec = new SpeechLib();
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.lang = safeLang === 'az' ? 'az-AZ' : safeLang === 'ru' ? 'ru-RU' : 'en-US';
+      rec.onstart = () => setIsListening(true);
+      rec.onend = () => setIsListening(false);
+      rec.onresult = (event: any) => {
+        const text = event.results[0][0].transcript;
+        setBaristaInput(text);
+      };
+      recognitionRef.current = rec;
+    }
+  }, [safeLang]);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) return;
+    if (isListening) {
+      recognitionRef.current.stop();
+    } else {
+      if (Capacitor.isNativePlatform()) {
+        Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
+      }
+      recognitionRef.current.start();
+    }
+  };
 
   const markRead = async (notificationId: string) => {
     try {
@@ -705,6 +866,13 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
       const res = await chat_customer_barista_live(apiMessages, sessionCreds.cardId, sessionCreds.token, lang);
       
+      if (voiceEnabled && window.speechSynthesis && res.message) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(res.message);
+        utterance.lang = safeLang === 'az' ? 'az-AZ' : safeLang === 'ru' ? 'ru-RU' : 'en-US';
+        window.speechSynthesis.speak(utterance);
+      }
+
       setBaristaMessages((prev) => {
         const next = [...prev];
         if (next.length > 0 && next[next.length - 1].text === '...') {
@@ -757,6 +925,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         setFortuneProgress(100);
         setFortuneText(apiResult || apiError || 'Fortune not available');
         setFortuneLoading(false);
+        playShimmerSound();
 
         // Haptic feedback when loading finishes
         if (Capacitor.isNativePlatform()) {
@@ -1146,11 +1315,18 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           from { opacity: 0; transform: scale(0.9) translateY(20px); }
           to { opacity: 1; transform: scale(1) translateY(0); }
         }
+        @keyframes sparkle {
+          0% { transform: translate(0, 0) scale(1) rotate(0deg); opacity: 1; }
+          100% { transform: translate(var(--dx), var(--dy)) scale(0) rotate(180deg); opacity: 0; }
+        }
         .animate-modalFadeIn {
           animation: modalFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
         .animate-scaleIn {
           animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+        .animate-sparkle {
+          animation: sparkle 0.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
         }
       `}</style>
 
@@ -1202,8 +1378,10 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
       {/* Premium Digital Membership Card */}
       <section
-        onClick={async () => {
+        onClick={async (e) => {
+          spawnParticles(e);
           setShowFullQr(true);
+          playTickSound();
           if (Capacitor.isNativePlatform()) {
             try {
               await Haptics.impact({ style: ImpactStyle.Medium });
@@ -1222,6 +1400,23 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           boxShadow: `0 20px 45px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.2)`,
         }}
       >
+        {/* Render interactive particles */}
+        {particles.map((p) => (
+          <div
+            key={p.id}
+            className="absolute pointer-events-none text-amber-400 select-none animate-sparkle z-50"
+            style={{
+              left: p.x,
+              top: p.y,
+              fontSize: `${p.size}px`,
+              '--dx': `${Math.cos(p.angle) * p.speed * 20}px`,
+              '--dy': `${Math.sin(p.angle) * p.speed * 20}px`,
+            } as React.CSSProperties}
+          >
+            ✨
+          </div>
+        ))}
+
         {/* Glossy Card Reflection Sweep */}
         <div className="absolute inset-0 w-[200%] h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-[1500ms] ease-out pointer-events-none" />
 
@@ -1297,33 +1492,58 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               </div>
             </div>
 
-            {/* Visual Stars Grid */}
+            {/* Visual Stars Grid / Milestone Tracker */}
             {programMode === 'points' ? (
-              <div className="border-t border-white/5 pt-3">
-                <div className="flex flex-wrap gap-2 justify-center items-center py-2 px-3 rounded-xl bg-black/20 border border-white/5">
-                  {Array.from({ length: Number(wallet.next_reward_at || 10) }).map((_, idx) => {
-                    const isActive = idx < Number(wallet.stars_balance ?? 0);
+              <div className="border-t border-white/5 pt-4">
+                <div className="relative my-4 px-2 select-none">
+                  {/* Track line */}
+                  <div className="h-2 w-full rounded-full bg-black/40 border border-white/5 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 transition-all duration-1000"
+                      style={{ width: `${Math.min(100, (Number(wallet.stars_balance ?? 0) / Number(wallet.next_reward_at || 10)) * 100)}%` }}
+                    />
+                  </div>
+
+                  {/* Milestones */}
+                  {[
+                    { stars: Math.round(Number(wallet.next_reward_at || 10) * 0.3), label: tx(safeLang, 'Çay/Espresso', 'Чай/Эспрессо', 'Tea/Espresso') },
+                    { stars: Math.round(Number(wallet.next_reward_at || 10) * 0.6), label: tx(safeLang, 'Cappuccino/Latte', 'Капучино/Латте', 'Cappuccino/Latte') },
+                    { stars: Number(wallet.next_reward_at || 10), label: tx(safeLang, 'Böyük Qəhvə + Şirniyyat', 'Большой Кофе + Десерт', 'Large Coffee + Pastry') }
+                  ].map((m, mIdx) => {
+                    const mPercent = (m.stars / Number(wallet.next_reward_at || 10)) * 100;
+                    const isUnlocked = Number(wallet.stars_balance ?? 0) >= m.stars;
                     return (
                       <div
-                        key={idx}
-                        className={`relative flex items-center justify-center h-8 w-8 rounded-full transition-all duration-500 ${
-                          isActive
-                            ? 'bg-gradient-to-br from-yellow-300 to-amber-500 text-slate-950 shadow-[0_0_12px_rgba(245,158,11,0.6)] scale-105 rotate-[360deg]'
-                            : 'bg-white/5 text-white/20 border border-white/5'
-                        }`}
+                        key={mIdx}
+                        className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center group cursor-pointer"
+                        style={{ left: `${mPercent}%` }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (Capacitor.isNativePlatform()) {
+                            Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
+                          }
+                        }}
                       >
-                        <Sparkles
-                          size={14}
-                          className={isActive ? 'text-slate-950 animate-pulse' : 'text-white/20'}
-                        />
-                        <span className="absolute -bottom-1 -right-1 text-[7px] font-bold opacity-75 bg-slate-950/80 px-1 rounded-full text-white">
-                          {idx + 1}
-                        </span>
+                        <div
+                          className={`h-4.5 w-4.5 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${
+                            isUnlocked
+                              ? 'bg-gradient-to-br from-yellow-300 to-amber-500 border-amber-600 scale-110 shadow-[0_0_10px_rgba(245,158,11,0.8)]'
+                              : 'bg-slate-900 border-white/20'
+                          }`}
+                        >
+                          {isUnlocked && <span className="text-[8px] text-slate-950 font-bold">✓</span>}
+                        </div>
+                        {/* Tooltip on Hover/Tap */}
+                        <div className="absolute bottom-6 scale-0 group-hover:scale-100 transition-transform origin-bottom duration-200 bg-slate-950/95 border border-white/10 px-2.5 py-1 rounded-xl shadow-2xl text-[9px] font-extrabold text-white whitespace-nowrap z-30">
+                          {m.stars} {wallet.points_label || 'Ulduz'}: {m.label}
+                        </div>
+                        <span className="text-[8px] font-bold text-white/40 mt-1 font-mono">{m.stars}★</span>
                       </div>
                     );
                   })}
                 </div>
-                <div className="mt-2 text-center text-[11px] font-medium text-white/60">
+
+                <div className="mt-6 text-center text-[11px] font-bold text-white/70">
                   {tx(
                     safeLang,
                     `${Number(wallet.stars_balance ?? 0)} / ${Number(wallet.next_reward_at || 10)} ulduz topladınız`,
@@ -1423,6 +1643,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         <section
           onClick={async () => {
             setShowFullQr(true);
+            playTickSound();
             if (Capacitor.isNativePlatform()) {
               try {
                 await Haptics.impact({ style: ImpactStyle.Medium });
@@ -1451,6 +1672,98 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         </section>
       </div>
 
+      {/* Contextual Weather & Combo Card */}
+      <section
+        className="rounded-[28px] p-5 border border-white/[0.06] backdrop-blur-md shadow-lg space-y-4"
+        style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🌦️</span>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-white/70">
+                {tx(safeLang, 'Ağıllı Təkliflərimiz', 'Умные Рекомендации', 'Smart Recommendations')}
+              </p>
+              <p className="text-[10px] text-white/40 font-mono mt-0.5">
+                {simulatedTemp}°C • {simulatedCondition === 'sunny' ? tx(safeLang, 'Günəşli', 'Солнечно', 'Sunny') : tx(safeLang, 'Yağışlı', 'Дождливо', 'Rainy')}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (Capacitor.isNativePlatform()) {
+                Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
+              }
+              setSimulatedTemp(t => t > 20 ? 14 : 26);
+              setSimulatedCondition(c => c === 'sunny' ? 'rainy' : 'sunny');
+            }}
+            className="rounded-full bg-white/5 border border-white/10 px-2.5 py-1 text-[9px] font-bold text-white/80 hover:bg-white/10 active:scale-95 transition"
+          >
+            🔄 {tx(safeLang, 'Havanı Dəyiş', 'Сменить погоду', 'Toggle Weather')}
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-[11px] text-white/60 font-semibold">{getWeatherInfo().weatherDesc}</p>
+          <div className="grid grid-cols-2 gap-2">
+            {getWeatherInfo().recommendedDrinks.map((drink, idx) => (
+              <div
+                key={idx}
+                onClick={async () => {
+                  setShowFullQr(true);
+                  playTickSound();
+                  if (Capacitor.isNativePlatform()) {
+                    try {
+                      await Haptics.impact({ style: ImpactStyle.Light });
+                    } catch {}
+                  }
+                }}
+                className="flex items-center gap-2.5 p-3 rounded-2xl bg-white/[0.04] border border-white/5 hover:bg-white/[0.08] hover:border-white/15 transition cursor-pointer active:scale-95"
+              >
+                <span className="text-xl">{drink.icon}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-bold text-white truncate">{drink.name}</p>
+                  <span className="inline-block px-1.5 py-0.5 mt-0.5 rounded-md bg-teal-500/10 text-teal-400 text-[8px] font-black uppercase tracking-wider">
+                    {drink.tag}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="pt-3 border-t border-white/5">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-white/40 mb-2">
+            {getWeatherInfo().comboTitle}
+          </p>
+          {getWeatherInfo().comboItems.map((combo, idx) => (
+            <div
+              key={idx}
+              onClick={async () => {
+                setShowFullQr(true);
+                playTickSound();
+                if (Capacitor.isNativePlatform()) {
+                  try {
+                    await Haptics.impact({ style: ImpactStyle.Light });
+                  } catch {}
+                }
+              }}
+              className="flex items-center gap-3 p-3 rounded-2xl bg-gradient-to-r from-amber-500/5 to-yellow-500/5 border border-amber-500/10 hover:from-amber-500/10 hover:to-yellow-500/10 hover:border-amber-500/20 transition cursor-pointer active:scale-[0.98]"
+            >
+              <span className="text-2xl">{combo.icon}</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-black text-amber-300">{combo.name}</p>
+                <p className="text-[9px] text-white/50 font-bold mt-0.5">{combo.desc}</p>
+              </div>
+              <span className="text-[10px] font-extrabold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full">
+                Combo
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* Sizin Sevimliləriniz Section */}
       {favoriteItems.length > 0 && (
         <section
@@ -1469,6 +1782,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                 key={item.name}
                 onClick={async () => {
                   setShowFullQr(true);
+                  playTickSound();
                   if (Capacitor.isNativePlatform()) {
                     try {
                       await Haptics.impact({ style: ImpactStyle.Light });
@@ -1557,6 +1871,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       }
       const expTime = Date.now() + 15 * 60 * 1000;
       setActivatedCampaigns(prev => ({ ...prev, [campaignId]: expTime }));
+      playShimmerSound();
       try {
         const qrUrl = await QRCode.toDataURL(`IWPOS:CAMPAIGN:${campaignId}:${customer.card_id}`, {
           width: 180,
@@ -1717,12 +2032,31 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         }
       `}</style>
 
-      <div className="flex items-center gap-2">
-        <span className="text-xl">🤖</span>
-        <div>
-          <div className="text-md font-black text-white tracking-tight">AI Barista</div>
-          <div className="text-[11px] text-white/50 font-semibold">{tx(safeLang, 'Söhbət et, içki və reward tövsiyəsi al.', 'Поговори и получи совет по напиткам и наградам.', 'Chat and get drink and reward suggestions.')}</div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">🤖</span>
+          <div>
+            <div className="text-md font-black text-white tracking-tight">AI Barista</div>
+            <div className="text-[11px] text-white/50 font-semibold">{tx(safeLang, 'Söhbət et, içki və reward tövsiyəsi al.', 'Поговори и получи совет по напиткам и наградам.', 'Chat and get drink and reward suggestions.')}</div>
+          </div>
         </div>
+        <button
+          onClick={async () => {
+            setVoiceEnabled(!voiceEnabled);
+            if (Capacitor.isNativePlatform()) {
+              try {
+                await Haptics.impact({ style: ImpactStyle.Light });
+              } catch {}
+            }
+          }}
+          className={`h-9 w-9 rounded-xl flex items-center justify-center border transition-all ${
+            voiceEnabled 
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+              : 'bg-white/5 border-white/10 text-white/40'
+          }`}
+        >
+          {voiceEnabled ? <Volume2 size={16} className="animate-pulse" /> : <VolumeX size={16} />}
+        </button>
       </div>
 
       <div className="max-h-72 space-y-3.5 overflow-y-auto rounded-[24px] bg-slate-950/35 p-4 border border-white/5">
@@ -1766,23 +2100,36 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       </div>
 
       <div className="flex gap-2">
-        <input
-          className="neon-input"
-          value={baristaInput}
-          onChange={(e) => setBaristaInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') sendBaristaMessage(); }}
-          placeholder={tx(safeLang, 'Mənə nə tövsiyə edərsən?', 'Что ты посоветуешь мне?', 'What would you recommend for me?')}
-          style={{
-            borderRadius: '16px',
-            backgroundColor: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            padding: '12px 16px',
-            fontSize: '13px',
-            color: 'white',
-            outline: 'none',
-            flex: 1
-          }}
-        />
+        <div className="relative flex-1 flex items-center">
+          <input
+            className="neon-input"
+            value={baristaInput}
+            onChange={(e) => setBaristaInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') sendBaristaMessage(); }}
+            placeholder={tx(safeLang, 'Mənə nə tövsiyə edərsən?', 'Что ты посоветуешь мне?', 'What would you recommend for me?')}
+            style={{
+              borderRadius: '16px',
+              backgroundColor: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              padding: '12px 48px 12px 16px',
+              fontSize: '13px',
+              color: 'white',
+              outline: 'none',
+              width: '100%'
+            }}
+          />
+          <button
+            type="button"
+            onClick={toggleListening}
+            className={`absolute right-3 p-1.5 rounded-lg transition-all ${
+              isListening 
+                ? 'bg-red-500 text-white animate-pulse' 
+                : 'text-white/40 hover:text-white/70'
+            }`}
+          >
+            <Mic size={16} />
+          </button>
+        </div>
         <button
           type="button"
           onClick={sendBaristaMessage}
@@ -1988,11 +2335,35 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           : `linear-gradient(180deg, ${backgroundColor} 0%, ${backgroundColor}ee 50%, ${backgroundColor} 100%)`,
       }}
     >
+      <style>{`
+        @keyframes aurora-1 {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(40px, 30px) scale(1.15); }
+        }
+        @keyframes aurora-2 {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(-30px, -40px) scale(0.85); }
+        }
+        @keyframes aurora-3 {
+          0%, 100% { transform: translate(-50%, 0) scale(1); }
+          50% { transform: translate(-30%, -20px) scale(1.1); }
+        }
+        .animate-aurora-1 {
+          animation: aurora-1 18s ease-in-out infinite;
+        }
+        .animate-aurora-2 {
+          animation: aurora-2 22s ease-in-out infinite;
+        }
+        .animate-aurora-3 {
+          animation: aurora-3 15s ease-in-out infinite;
+        }
+      `}</style>
+
       {/* Ambient liquid blobs */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
-        <div className="absolute -left-20 -top-20 h-72 w-72 rounded-full opacity-25 blur-[100px]" style={{ background: primaryColor }} />
-        <div className="absolute -bottom-32 -right-20 h-80 w-80 rounded-full opacity-15 blur-[120px]" style={{ background: accentColor }} />
-        <div className="absolute left-1/2 top-1/3 h-56 w-56 -translate-x-1/2 rounded-full opacity-10 blur-[80px]" style={{ background: primaryColor }} />
+        <div className="absolute -left-20 -top-20 h-72 w-72 rounded-full opacity-25 blur-[100px] animate-aurora-1" style={{ background: primaryColor }} />
+        <div className="absolute -bottom-32 -right-20 h-80 w-80 rounded-full opacity-15 blur-[120px] animate-aurora-2" style={{ background: accentColor }} />
+        <div className="absolute left-1/2 top-1/3 h-56 w-56 -translate-x-1/2 rounded-full opacity-10 blur-[80px] animate-aurora-3" style={{ background: primaryColor }} />
       </div>
 
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-24 pt-5">

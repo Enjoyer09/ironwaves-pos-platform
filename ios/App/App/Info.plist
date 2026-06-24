@@ -49,6 +49,10 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>iRonWaves Loyalty kameradan AI Falçı üçün şəkil çəkmək məqsədilə istifadə edir.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>iRonWaves Loyalty mikrofon vasitəsilə AI Barista-ya səsli sifariş vermək üçün istifadə edir.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>iRonWaves Loyalty səsli əmrləri mətnə çevirmək üçün nitqin tanınmasından istifadə edir.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>iRonWaves Loyalty qalereyadan AI Falçı üçün şəkil seçmək məqsədilə istifadə edir.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
