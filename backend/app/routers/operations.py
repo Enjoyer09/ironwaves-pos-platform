@@ -3521,7 +3521,7 @@ def get_customer_app_bootstrap(
     return {
         "tenant_id": tenant.id,
         "enabled": bool(app_settings.get("enabled", True)),
-        "onesignal_app_id": app_settings.onesignal_app_id,
+        "onesignal_app_id": app_settings.get("onesignal_app_id"),
         "branding": {
             "company_name": branding.company_name if branding else tenant.name,
             "website": (branding.website if branding else f"https://{tenant.domain}") or f"https://{tenant.domain}",
@@ -3924,7 +3924,7 @@ def get_customer_app_session(
 
     return {
         "tenant_id": tenant.id,
-        "onesignal_app_id": app_settings.onesignal_app_id,
+        "onesignal_app_id": app_settings.get("onesignal_app_id"),
         "branding": {
             "company_name": branding.company_name if branding else tenant.name,
             "website": (branding.website if branding else f"https://{tenant.domain}") or f"https://{tenant.domain}",
