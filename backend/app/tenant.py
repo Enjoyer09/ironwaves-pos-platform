@@ -91,8 +91,15 @@ def _resolve_slug_fallback_tenant(domain: str, db: Session) -> Tenant | None:
     tenant = db.query(Tenant).filter(Tenant.slug == slug).first()
     if not tenant:
         return None
-    _sync_single_domain_alias(db, tenant.id, safe_domain)
-    db.commit()
+    try:
+        _sync_single_domain_alias(db, tenant.id, safe_domain)
+        db.commit()
+    except Exception as exc:
+        logger.warning("Failed to auto-sync domain alias for %s: %s", safe_domain, exc)
+        try:
+            db.rollback()
+        except Exception:
+            pass
     return tenant
 
 
@@ -140,8 +147,15 @@ def _resolve_known_alias_tenant(domain: str, db: Session) -> Tenant | None:
         # Deleted/suspended tenants must stay deleted/suspended until a super admin
         # explicitly provisions them again.
         return None
-    _sync_domain_aliases(db, tenant.id, alias["aliases"])
-    db.commit()
+    try:
+        _sync_domain_aliases(db, tenant.id, alias["aliases"])
+        db.commit()
+    except Exception as exc:
+        logger.warning("Failed to sync domain aliases for %s: %s", domain, exc)
+        try:
+            db.rollback()
+        except Exception:
+            pass
     return tenant
 
 
@@ -241,8 +255,15 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
                     if requested_slug and requested_slug != str(tenant.slug or "").strip().lower():
                         tenant_by_slug = db.query(Tenant).filter(Tenant.slug == requested_slug).first()
                         if tenant_by_slug:
-                            _sync_single_domain_alias(db, tenant_by_slug.id, domain)
-                            db.commit()
+                            try:
+                                _sync_single_domain_alias(db, tenant_by_slug.id, domain)
+                                db.commit()
+                            except Exception as exc:
+                                logger.warning("Failed to sync override domain alias for %s: %s", domain, exc)
+                                try:
+                                    db.rollback()
+                                except Exception:
+                                    pass
                             _remember("tenant_domains_slug_override", domain, tenant_by_slug)
                             _log("tenant_resolved", source="tenant_domains_slug_override", domain=domain, tenant_id=tenant_by_slug.id, tenant_slug=tenant_by_slug.slug)
                             return tenant_by_slug
@@ -270,8 +291,15 @@ def resolve_tenant_from_request(request: Request, db: Session) -> Tenant | None:
                         if requested_slug and requested_slug != str(tenant.slug or "").strip().lower():
                             tenant_by_slug = db.query(Tenant).filter(Tenant.slug == requested_slug).first()
                             if tenant_by_slug:
-                                _sync_single_domain_alias(db, tenant_by_slug.id, domain)
-                                db.commit()
+                                try:
+                                    _sync_single_domain_alias(db, tenant_by_slug.id, domain)
+                                    db.commit()
+                                except Exception as exc:
+                                    logger.warning("Failed to sync override legacy domain alias for %s: %s", domain, exc)
+                                    try:
+                                        db.rollback()
+                                    except Exception:
+                                        pass
                                 _remember("tenant_domains_legacy_slug_override", domain, tenant_by_slug)
                                 _log("tenant_resolved", source="tenant_domains_legacy_slug_override", domain=domain, tenant_id=tenant_by_slug.id, tenant_slug=tenant_by_slug.slug)
                                 return tenant_by_slug
