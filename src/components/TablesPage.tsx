@@ -34,6 +34,28 @@ const TABLE_DISCOUNT_PRESETS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50] as const;
 const tablesBootstrapCache = new Map<string, { at: number; data: TablesBootstrapRecord }>();
 const kitchenFeedCache = new Map<string, { at: number; data: any[] }>();
 
+function getWaiterColor(waiter: string) {
+  if (!waiter) return null;
+  const colors = [
+    { bg: 'bg-rose-500/15', border: 'border-rose-400/40', text: 'text-rose-200', dot: 'bg-rose-400' },
+    { bg: 'bg-blue-500/15', border: 'border-blue-400/40', text: 'text-blue-200', dot: 'bg-blue-400' },
+    { bg: 'bg-violet-500/15', border: 'border-violet-400/40', text: 'text-violet-200', dot: 'bg-violet-400' },
+    { bg: 'bg-amber-500/15', border: 'border-amber-400/40', text: 'text-amber-200', dot: 'bg-amber-400' },
+    { bg: 'bg-cyan-500/15', border: 'border-cyan-400/40', text: 'text-cyan-200', dot: 'bg-cyan-400' },
+    { bg: 'bg-pink-500/15', border: 'border-pink-400/40', text: 'text-pink-200', dot: 'bg-pink-400' },
+    { bg: 'bg-indigo-500/15', border: 'border-indigo-400/40', text: 'text-indigo-200', dot: 'bg-indigo-400' },
+    { bg: 'bg-orange-500/15', border: 'border-orange-400/40', text: 'text-orange-200', dot: 'bg-orange-400' },
+    { bg: 'bg-teal-500/15', border: 'border-teal-400/40', text: 'text-teal-200', dot: 'bg-teal-400' },
+    { bg: 'bg-fuchsia-500/15', border: 'border-fuchsia-400/40', text: 'text-fuchsia-200', dot: 'bg-fuchsia-400' },
+  ];
+  let hash = 0;
+  for (let i = 0; i < waiter.length; i++) {
+    hash = waiter.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % colors.length;
+  return colors[index];
+}
+
 // BahaY: detect modern UI mode from tenant settings (fallback to super lab)
 const isBahaYLabHost = (() => {
   try { return String(window.location.hostname || '').toLowerCase() === 'super.ironwaves.store'; }
@@ -4018,6 +4040,12 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                   ACTIVE_CHECK: 'bg-violet-500/15 border-violet-300/40 text-violet-100 hover:bg-violet-500/25',
                   DIRTY: 'bg-slate-500/20 border-slate-300/30 text-slate-100 hover:bg-slate-500/30',
                 };
+                const waiterColor = (table.status === 'SEATED' || table.status === 'ACTIVE_CHECK') && table.assigned_to
+                  ? getWaiterColor(table.assigned_to)
+                  : null;
+                const statusColorClass = waiterColor
+                  ? `${waiterColor.bg} ${waiterColor.border} ${waiterColor.text} hover:bg-opacity-25`
+                  : (statusColors[String(table.status || 'AVAILABLE').toUpperCase()] || statusColors.AVAILABLE);
                 return (
                   <button
                     key={table.id}
@@ -4049,14 +4077,22 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         handleSelectWaiterTable(table);
                       }
                     }}
-                    className={`border p-3 text-left shadow-sm transition ${String(table.shape || '').toLowerCase() === 'circle' ? 'rounded-[999px]' : String(table.shape || '').toLowerCase() === 'square' ? 'rounded-xl' : 'rounded-2xl'} ${draggingTableIds.includes(table.id) ? 'opacity-60' : ''} ${floorEditMode && selectedFloorTableId === table.id ? 'ring-2 ring-cyan-300/80' : ''} ${floorEditMode && selectedFloorTableIds.includes(table.id) ? 'ring-2 ring-violet-300/80' : ''} ${String((table as any).merged_group_id || '').trim() ? 'shadow-[0_0_0_2px_rgba(167,139,250,0.45)]' : ''} ${statusColors[String(table.status || 'AVAILABLE').toUpperCase()] || statusColors.AVAILABLE}`}
+                    className={`border p-3 text-left shadow-sm transition ${String(table.shape || '').toLowerCase() === 'circle' ? 'rounded-[999px]' : String(table.shape || '').toLowerCase() === 'square' ? 'rounded-xl' : 'rounded-2xl'} ${draggingTableIds.includes(table.id) ? 'opacity-60' : ''} ${floorEditMode && selectedFloorTableId === table.id ? 'ring-2 ring-cyan-300/80' : ''} ${floorEditMode && selectedFloorTableIds.includes(table.id) ? 'ring-2 ring-violet-300/80' : ''} ${String((table as any).merged_group_id || '').trim() ? 'shadow-[0_0_0_2px_rgba(167,139,250,0.45)]' : ''} ${statusColorClass}`}
                     style={{
                       gridColumn: `${Math.max(1, Number(table.x || 0) + 1)} / span ${Math.max(1, Number(table.w || 2))}`,
                       gridRow: `${Math.max(1, Number(table.y || 0) + 1)} / span ${Math.max(1, Number(table.h || 2))}`,
                     }}
                   >
                     <div className="font-bold">{table.label}</div>
-                    <div className="mt-2 text-xs"><Users size={12} className="mr-1 inline" />{Number(table.guest_count || 0)} / {Number(table.capacity || 0)}</div>
+                    <div className="mt-2 text-xs flex items-center justify-between gap-1 flex-wrap">
+                      <span><Users size={12} className="mr-1 inline" />{Number(table.guest_count || 0)} / {Number(table.capacity || 0)}</span>
+                      {table.assigned_to && (
+                        <span className="inline-flex items-center gap-1 text-[10px] opacity-90 px-1.5 py-0.5 rounded-full bg-black/40 border border-white/5 font-medium shrink-0">
+                          <span className={`w-1.5 h-1.5 rounded-full ${waiterColor?.dot || 'bg-slate-400'}`} />
+                          {table.assigned_to}
+                        </span>
+                      )}
+                    </div>
                     {table.merged_group_id ? <div className="mt-2 rounded-full border border-violet-300/40 bg-violet-500/15 px-2 py-1 text-[11px] font-semibold text-violet-100">{tx(lang, 'Birləşmiş qrup', 'Объединенная группа', 'Merged group')}</div> : null}
                     {floorEditMode && (
                       <div className="mt-2 flex flex-wrap gap-1">
