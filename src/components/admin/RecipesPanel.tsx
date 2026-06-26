@@ -62,6 +62,7 @@ export default function RecipesPanel() {
   // Xammal əlavə etmək üçün
   const [ingredients, setIngredients] = useState<any[]>([]);
   const [newIngredient, setNewIngredient] = useState('');
+  const [ingredientSearch, setIngredientSearch] = useState('');
   const [newQty, setNewQty] = useState('');
   const [newQtyUnit, setNewQtyUnit] = useState('qram');
   const [deleteRecipeId, setDeleteRecipeId] = useState<string | null>(null);
@@ -144,6 +145,13 @@ export default function RecipesPanel() {
 
   const selectedIngredientMeta = ingredients.find((i) => i.name === newIngredient) || null;
   const qtyUnitOptions = getRecipeEntryUnitOptions(String(selectedIngredientMeta?.unit || ''));
+  const filteredIngredients = React.useMemo(() => {
+    const search = normalizeText(ingredientSearch).trim();
+    if (!search) return ingredients;
+    return ingredients.filter(inv =>
+      normalizeText(inv.name).includes(search)
+    );
+  }, [ingredients, ingredientSearch]);
   const suggestedQtyPlaceholder = (() => {
     const unit = String(newQtyUnit || selectedIngredientMeta?.unit || '').toLowerCase();
     const name = String(selectedIngredientMeta?.name || '').toLowerCase();
@@ -253,6 +261,7 @@ export default function RecipesPanel() {
       setLastSavedByAI(false);
       setNewIngredient('');
       setNewQty('');
+      setIngredientSearch('');
       setNewQtyUnit(invItem ? getDefaultRecipeEntryUnit(String(invItem.unit)) : 'qram');
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Reseptə xammal əlavə olunmadı', 'Не удалось добавить ингредиент в рецепт', 'Failed to add ingredient to recipe'));
@@ -527,42 +536,63 @@ export default function RecipesPanel() {
                 </div>
               </div>
 
-              <div className="flex gap-3 mb-6 bg-slate-900/40 p-4 rounded-xl border border-slate-700/70">
-                <select 
-                  value={newIngredient} 
-                  onChange={e => setNewIngredient(e.target.value)}
-                  className="neon-input flex-1"
-                >
-                    <option value="">{tx(lang, '-- Anbardan Xammal Seç --', '-- Выберите ингредиент со склада --', '-- Select inventory ingredient --')}</option>
-                  {ingredients.map(inv => (
-                    <option key={inv.id} value={inv.name}>{inv.name} (Stok: {inv.stock_qty} {inv.unit})</option>
-                  ))}
-                </select>
-                    <input 
-                  type="number" 
-                  step="0.001"
-                  placeholder={suggestedQtyPlaceholder} 
-                  value={newQty}
-                  onChange={e => setNewQty(e.target.value)}
-                  className="neon-input w-32"
-                />
-                <select
-                  value={newQtyUnit}
-                  onChange={(e) => setNewQtyUnit(e.target.value)}
-                  className="neon-input w-28"
-                  disabled={!selectedIngredientMeta}
-                >
-                  {qtyUnitOptions.map((unit) => (
-                    <option key={unit} value={unit}>{unit}</option>
-                  ))}
-                </select>
-                <button 
-                  onClick={() => { void handleAddIngredient(); }}
-                  className="glossy-gold px-4 py-2 rounded-lg transition-colors"
-                  title={tx(lang, 'Draft-a əlavə et', 'Добавить в черновик', 'Add to draft')}
-                >
-                  <Plus size={20} />
-                </button>
+              <div className="flex flex-col gap-3 mb-6 bg-slate-900/40 p-4 rounded-xl border border-slate-700/70">
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={ingredientSearch}
+                    onChange={e => setIngredientSearch(e.target.value)}
+                    placeholder={tx(lang, 'Anbardan axtar...', 'Поиск на складе...', 'Search warehouse...')}
+                    className="neon-input flex-1"
+                  />
+                  {ingredientSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setIngredientSearch('')}
+                      className="rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-2 text-sm font-semibold text-slate-200 transition-all active:scale-95"
+                    >
+                      {tx(lang, 'Təmizlə', 'Очистить', 'Clear')}
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex gap-3">
+                  <select 
+                    value={newIngredient} 
+                    onChange={e => setNewIngredient(e.target.value)}
+                    className="neon-input flex-1"
+                  >
+                      <option value="">{tx(lang, '-- Anbardan Xammal Seç --', '-- Выберите ингредиент со склада --', '-- Select inventory ingredient --')}</option>
+                    {filteredIngredients.map(inv => (
+                      <option key={inv.id} value={inv.name}>{inv.name} (Stok: {inv.stock_qty} {inv.unit})</option>
+                    ))}
+                  </select>
+                  <input 
+                    type="number" 
+                    step="0.001"
+                    placeholder={suggestedQtyPlaceholder} 
+                    value={newQty}
+                    onChange={e => setNewQty(e.target.value)}
+                    className="neon-input w-32"
+                  />
+                  <select
+                    value={newQtyUnit}
+                    onChange={(e) => setNewQtyUnit(e.target.value)}
+                    className="neon-input w-28"
+                    disabled={!selectedIngredientMeta}
+                  >
+                    {qtyUnitOptions.map((unit) => (
+                      <option key={unit} value={unit}>{unit}</option>
+                    ))}
+                  </select>
+                  <button 
+                    onClick={() => { void handleAddIngredient(); }}
+                    className="glossy-gold px-4 py-2 rounded-lg transition-colors"
+                    title={tx(lang, 'Draft-a əlavə et', 'Добавить в черновик', 'Add to draft')}
+                  >
+                    <Plus size={20} />
+                  </button>
+                </div>
               </div>
               <div className="mb-4 text-xs text-slate-400">
                 {tx(lang, 'İnqrediyentləri əlavə edin, sonra ayrıca Yadda saxla düyməsi ilə resepti yadda saxlayın.', 'Добавьте ингредиенты, затем сохраните рецепт кнопкой Save.', 'Add ingredients, then save the recipe with the Save button.')}
