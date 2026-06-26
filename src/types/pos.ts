@@ -182,6 +182,7 @@ export interface Settings {
     staff_pin_length?: 4 | 6;
     theme_mode?: 'dark' | 'light';
     ui_mode?: 'old' | 'new';
+    login_background_url?: string;
   };
   beverage_service_settings?: {
     coffee_selection_mode: 'size_only' | 'size_and_service';

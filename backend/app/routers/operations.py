@@ -1033,6 +1033,7 @@ DEFAULT_SESSION_SETTINGS = {
     "theme_mode": "dark",
     "ui_mode": "old",
     "tables_ui_mode": "classic",
+    "login_background_url": "",
 }
 
 
@@ -3066,6 +3067,7 @@ def update_session_settings(
         "theme_mode": _clean_theme_mode(payload.get("theme_mode", current.get("theme_mode"))),
         "ui_mode": _clean_ui_mode(payload.get("ui_mode", current.get("ui_mode"))),
         "tables_ui_mode": tables_ui if tables_ui in {"classic", "modern"} else "classic",
+        "login_background_url": _normalize_image_url(payload.get("login_background_url", current.get("login_background_url") or "")),
     }
     _set_setting_value(db, tenant.id, "session_settings", cleaned)
     db.commit()
@@ -3479,6 +3481,7 @@ def get_public_branding(
     
     qr_menu_settings = _setting_value(db, resolved_tenant.id, "qr_menu_settings", {})
     customer_app_settings = _setting_value(db, resolved_tenant.id, "customer_app_settings", {})
+    session_settings = _setting_value(db, resolved_tenant.id, "session_settings", DEFAULT_SESSION_SETTINGS) or {}
     
     hero_image = ""
     if isinstance(qr_menu_settings, dict):
@@ -3487,6 +3490,10 @@ def get_public_branding(
     bg_image = ""
     if isinstance(customer_app_settings, dict):
         bg_image = customer_app_settings.get("background_image_url") or ""
+
+    login_bg = ""
+    if isinstance(session_settings, dict):
+        login_bg = session_settings.get("login_background_url") or ""
 
     if not row:
       return {
@@ -3498,6 +3505,7 @@ def get_public_branding(
           "google_review_url": google_review_url,
           "hero_image_url": _public_image_url(hero_image),
           "background_image_url": _public_image_url(bg_image),
+          "login_background_url": _public_image_url(login_bg),
       }
     return {
         "tenant_id": resolved_tenant.id,
@@ -3508,6 +3516,7 @@ def get_public_branding(
         "google_review_url": google_review_url,
         "hero_image_url": _public_image_url(hero_image),
         "background_image_url": _public_image_url(bg_image),
+        "login_background_url": _public_image_url(login_bg),
     }
 
 

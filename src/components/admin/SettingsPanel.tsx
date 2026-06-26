@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Settings as SettingsIcon } from 'lucide-react';
+import { Settings as SettingsIcon, X } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useAppStore } from '../../store';
 import { tx } from '../../i18n';
@@ -123,6 +123,7 @@ export default function SettingsPanel() {
     staff_pin_length: 4 as 4 | 6,
     theme_mode: 'dark' as 'dark' | 'light',
     ui_mode: 'old' as 'old',
+    login_background_url: '',
   });
   const [beverageServiceSettings, setBeverageServiceSettings] = useState({
     coffee_selection_mode: 'size_and_service' as 'size_only' | 'size_and_service',
@@ -433,6 +434,7 @@ export default function SettingsPanel() {
         staff_pin_length: Number(settingsRes.value.session_settings?.staff_pin_length || 4) === 4 ? 4 : 6,
         theme_mode: settingsRes.value.session_settings?.theme_mode === 'light' ? 'light' : 'dark',
         ui_mode: 'old',
+        login_background_url: String(settingsRes.value.session_settings?.login_background_url || ''),
       });
       setBeverageServiceSettings({
         coffee_selection_mode: settingsRes.value.beverage_service_settings?.coffee_selection_mode === 'size_only' ? 'size_only' : 'size_and_service',
@@ -694,6 +696,7 @@ export default function SettingsPanel() {
         staff_pin_length: sessionSettings.staff_pin_length,
         theme_mode: sessionSettings.theme_mode,
         ui_mode: 'old',
+        login_background_url: sessionSettings.login_background_url || '',
       });
       window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
       flashSuccess(tx(lang, 'Sessiya ayarları yadda saxlanıldı', 'Настройки сессии сохранены', 'Session settings saved'), 'session');
@@ -711,6 +714,7 @@ export default function SettingsPanel() {
         staff_pin_length: sessionSettings.staff_pin_length,
         theme_mode: sessionSettings.theme_mode,
         ui_mode: 'old',
+        login_background_url: sessionSettings.login_background_url || '',
       });
       window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
       flashSuccess(
@@ -735,6 +739,7 @@ export default function SettingsPanel() {
         staff_pin_length: sessionSettings.staff_pin_length,
         theme_mode: nextMode,
         ui_mode: 'old',
+        login_background_url: sessionSettings.login_background_url || '',
       });
       window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
       flashSuccess(
@@ -3164,7 +3169,8 @@ export default function SettingsPanel() {
                         theme_mode: sessionSettings.theme_mode,
                         ui_mode: 'old',
                         tables_ui_mode: mode,
-                      });
+                        login_background_url: sessionSettings.login_background_url || '',
+                      } as any);
                       notify('success', tx(lang, 'Masalar UI rejimi dəyişdirildi', 'Режим UI столов изменен', 'Tables UI mode changed'));
                       window.dispatchEvent(new CustomEvent('settings-updated', { detail: { tenant_id: tenantId } }));
                     } catch (e: any) {
@@ -3196,11 +3202,11 @@ export default function SettingsPanel() {
             'Automatically sign out after inactivity. Use 0 to disable this feature.',
           )}
         </p>
-        <div className="grid gap-4 md:grid-cols-[auto_1fr_auto] md:items-end">
+        <div className="grid gap-4 md:grid-cols-2 md:items-end">
           <label className="text-sm text-slate-300">
             {tx(lang, 'Boş dayanma çıxışı (dəqiqə)', 'Простой выход (минуты)', 'Idle logout (minutes)')}
             <input
-              className="neon-input mt-1 w-52"
+              className="neon-input mt-1 w-full"
               type="number"
               min={0}
               max={480}
@@ -3236,6 +3242,97 @@ export default function SettingsPanel() {
               {tx(lang, '4 rəqəm daha sürətlidir, 6 rəqəm isə təhlükəsizlik üçün tövsiyə olunur.', '4 цифры быстрее, 6 цифр рекомендуются для безопасности.', '4 digits is faster; 6 digits is recommended for security.')}
             </div>
           </div>
+        </div>
+
+        <hr className="border-slate-800/80 my-4" />
+
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-200">
+              {tx(lang, 'Giriş Ekranı Arxa Fon Şəkli', 'Фоновое изображение экрана входа', 'Login Screen Background Image')}
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {tx(
+                lang,
+                'Giriş ekranında (PIN) göstəriləcək şəkli URL olaraq daxil edin və ya cihazınızdan yükləyin (avtomatik olaraq optimal ölçüdə sıxılacaq).',
+                'Введите URL изображения или загрузите его со своего устройства для экрана входа (оно автоматически сжимается до оптимального размера).',
+                'Enter an image URL or upload one from your device for the login screen (it will be automatically compressed to optimal size).',
+              )}
+            </p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-3">
+              <label className="block text-xs text-slate-300 font-medium">
+                {tx(lang, 'Şəkil Linki (URL)', 'Ссылка на изображение (URL)', 'Image URL / Link')}
+                <input
+                  type="text"
+                  placeholder="https://example.com/image.jpg"
+                  className="neon-input mt-1 w-full text-xs"
+                  value={sessionSettings.login_background_url}
+                  onChange={(e) => setSessionSettings((prev) => ({ ...prev, login_background_url: e.target.value }))}
+                />
+              </label>
+              
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-400">{tx(lang, 'və ya', 'или', 'or')}</span>
+                <label className="cursor-pointer text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors underline decoration-dotted">
+                  {tx(lang, 'Şəkil yüklə', 'Загрузить изображение', 'Upload Image')}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        notify('info', tx(lang, 'Şəkil sıxılır...', 'Изображение сжимается...', 'Compressing image...'));
+                        const compressed = await prepareImageDataUrl(file, {
+                          maxDimension: 1920,
+                          outputQuality: 0.75,
+                          maxFileBytes: 15 * 1024 * 1024,
+                        });
+                        setSessionSettings((prev) => ({ ...prev, login_background_url: compressed }));
+                        notify('success', tx(lang, 'Şəkil uğurla sıxıldı və daxil edildi', 'Изображение сжато и загружено', 'Image successfully compressed and set'));
+                      } catch (err: any) {
+                        notify('error', err?.message || 'Compression failed');
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+            
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-700/80 bg-slate-900/40 p-3 min-h-[120px] relative overflow-hidden">
+              {sessionSettings.login_background_url ? (
+                <>
+                  <img
+                    src={sessionSettings.login_background_url}
+                    alt="Background preview"
+                    className="w-full h-full max-h-[140px] object-cover rounded-lg opacity-85"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setSessionSettings((prev) => ({ ...prev, login_background_url: '' }))}
+                    className="absolute top-2 right-2 p-1.5 rounded-full bg-slate-950/80 text-slate-400 hover:text-rose-400 transition"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </>
+              ) : (
+                <div className="text-center space-y-1">
+                  <div className="text-slate-500 text-xs">
+                    {tx(lang, 'Şəkil seçilməyib', 'Изображение не выбрано', 'No image selected')}
+                  </div>
+                  <div className="text-[10px] text-slate-600">
+                    {tx(lang, 'Varsayılan fon şəkli istifadə ediləcək', 'Будет использован фон по умолчанию', 'Default background will be used')}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-2">
           <button onClick={() => { void saveSessionSettings(); }} className={saveButtonClass}>
             {tx(lang, 'Sessiya ayarlarını saxla', 'Сохранить настройки сессии', 'Save Session Settings')}
           </button>
