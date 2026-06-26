@@ -3476,6 +3476,18 @@ def get_public_branding(
     if not isinstance(feedback_settings, dict):
         feedback_settings = DEFAULT_FEEDBACK_SETTINGS
     google_review_url = str(feedback_settings.get("google_review_url") or "").strip()
+    
+    qr_menu_settings = _setting_value(db, resolved_tenant.id, "qr_menu_settings", {})
+    customer_app_settings = _setting_value(db, resolved_tenant.id, "customer_app_settings", {})
+    
+    hero_image = ""
+    if isinstance(qr_menu_settings, dict):
+        hero_image = qr_menu_settings.get("hero_image_url") or ""
+        
+    bg_image = ""
+    if isinstance(customer_app_settings, dict):
+        bg_image = customer_app_settings.get("background_image_url") or ""
+
     if not row:
       return {
           "tenant_id": resolved_tenant.id,
@@ -3484,6 +3496,8 @@ def get_public_branding(
           "logo_url": "",
           "receipt_footer": "Bizi secdiyiniz ucun tesekkur edirik!",
           "google_review_url": google_review_url,
+          "hero_image_url": _public_image_url(hero_image),
+          "background_image_url": _public_image_url(bg_image),
       }
     return {
         "tenant_id": resolved_tenant.id,
@@ -3492,6 +3506,8 @@ def get_public_branding(
         "logo_url": _public_image_url(row.logo_url),
         "receipt_footer": row.receipt_footer or "",
         "google_review_url": google_review_url,
+        "hero_image_url": _public_image_url(hero_image),
+        "background_image_url": _public_image_url(bg_image),
     }
 
 
