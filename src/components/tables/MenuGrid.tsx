@@ -60,6 +60,7 @@ function MenuGrid({
   modernMode,
 }: MenuGridProps) {
   const isBahaYLab = modernMode ?? isBahaYLabDefault;
+  const [hideImages, setHideImages] = useState(() => localStorage.getItem('pos_hide_images') === 'true');
   // Count how many times each item is in draft
   const draftQtyMap = new Map<string, number>();
   if (draftItems) {
@@ -143,13 +144,30 @@ function MenuGrid({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      {/* Search */}
-      <input
-        className="neon-input w-full"
-        value={search}
-        onChange={(e) => onSearchChange(e.target.value)}
-        placeholder={tx(lang, 'Məhsul axtar...', 'Поиск товара...', 'Search item...')}
-      />
+      {/* Search and Density Toggle */}
+      <div className="flex gap-2 items-center">
+        <input
+          className="neon-input flex-1 min-w-0"
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder={tx(lang, 'Məhsul axtar...', 'Поиск товара...', 'Search item...')}
+        />
+        <button
+          type="button"
+          onClick={() => {
+            const next = !hideImages;
+            setHideImages(next);
+            localStorage.setItem('pos_hide_images', String(next));
+          }}
+          className={`flex h-11 items-center gap-1.5 rounded-xl border px-3 text-xs font-black transition shrink-0 ${
+            hideImages
+              ? 'border-yellow-400/50 bg-yellow-400/10 text-yellow-300'
+              : 'border-slate-700/60 bg-slate-800/40 text-slate-400 hover:bg-slate-800/80'
+          }`}
+        >
+          <span>⚡ {tx(lang, 'Sürətli', 'Быстрый', 'Fast')}</span>
+        </button>
+      </div>
 
       {/* Category tabs - horizontal scroll, touch-friendly */}
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -170,7 +188,11 @@ function MenuGrid({
       </div>
 
       {/* Product grid - grouped by variant */}
-      <div className="grid min-h-0 flex-1 auto-rows-max grid-cols-4 gap-1.5 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/30 p-2 md:grid-cols-5 xl:grid-cols-6">
+      <div className={`grid min-h-0 flex-1 auto-rows-max gap-1.5 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/30 p-2 ${
+        hideImages
+          ? 'grid-cols-5 md:grid-cols-7 xl:grid-cols-9'
+          : 'grid-cols-4 md:grid-cols-5 xl:grid-cols-6'
+      }`}>
         {groupedItems.map((group) => {
           const totalQtyInDraft = group.items.reduce((sum: number, it: any) => sum + (draftQtyMap.get(it.id) || 0), 0);
           return (
@@ -198,22 +220,24 @@ function MenuGrid({
                   }}
                   className="flex flex-1 flex-col cursor-pointer active:scale-[0.98] transition"
                 >
-                  {group.image_url ? (
-                    <div className="aspect-[3/2] w-full overflow-hidden bg-slate-800">
-                      <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" loading="lazy" />
-                    </div>
-                  ) : (
-                    <div className="flex h-12 w-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
-                      <span className="text-lg font-black text-slate-600">
-                        {String(group.base || '').slice(0, 2).toUpperCase()}
-                      </span>
-                    </div>
+                  {!hideImages && (
+                    group.image_url ? (
+                      <div className="aspect-[3/2] w-full overflow-hidden bg-slate-800">
+                        <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" loading="lazy" />
+                      </div>
+                    ) : (
+                      <div className="flex h-12 w-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
+                        <span className="text-lg font-black text-slate-600">
+                          {String(group.base || '').slice(0, 2).toUpperCase()}
+                        </span>
+                      </div>
+                    )
                   )}
-                  <div className="flex flex-1 flex-col justify-between p-2 pb-1.5">
-                    <div className="line-clamp-2 text-xs font-bold leading-tight text-slate-100">
+                  <div className={`flex flex-1 flex-col justify-between ${hideImages ? 'p-1.5 pb-2' : 'p-2 pb-1.5'}`}>
+                    <div className={`line-clamp-2 font-bold leading-tight text-slate-100 ${hideImages ? 'text-[11px]' : 'text-xs'}`}>
                       {group.base}
                     </div>
-                    <div className="mt-1 text-sm font-black text-yellow-300">
+                    <div className={`mt-1 font-black text-yellow-300 ${hideImages ? 'text-xs' : 'text-sm'}`}>
                       {group.minPrice.toFixed(2)} ₼
                       {group.hasVariants && <span className="ml-1 text-[10px] font-medium text-slate-400">({group.items.length})</span>}
                     </div>
@@ -228,7 +252,7 @@ function MenuGrid({
 
                 {/* Inline variant/size selection pills */}
                 {group.hasVariants && (
-                  <div className="flex flex-wrap gap-1 p-2 pt-0 border-t border-slate-800/40">
+                  <div className={`flex flex-wrap gap-0.5 border-t border-slate-800/40 ${hideImages ? 'p-1' : 'p-2 pt-0'}`}>
                     {group.items.map((item: any) => {
                       const { variant } = splitVariantName(item.item_name);
                       const qtyInDraft = draftQtyMap.get(item.id) || 0;
@@ -241,15 +265,15 @@ function MenuGrid({
                             tapFeedback();
                             void onSelectItem(item);
                           }}
-                          className={`flex-1 min-w-[32px] rounded-lg py-1 px-0.5 text-[9px] font-black border transition active:scale-[0.93] ${
+                          className={`flex-1 min-w-[28px] rounded py-0.5 px-0.5 text-[8.5px] font-black border transition active:scale-[0.93] ${
                             qtyInDraft > 0
-                              ? 'bg-yellow-400 text-slate-950 border-yellow-400 shadow-sm shadow-yellow-400/20'
+                              ? 'bg-yellow-400 text-slate-950 border-yellow-400 shadow-sm'
                               : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-350 border-slate-700/50'
                           }`}
                         >
                           <div className="flex flex-col items-center justify-center leading-none">
                             <span>{variant || item.item_name}</span>
-                            <span className="text-[7.5px] opacity-75 mt-0.5">{Number(item.price || 0).toFixed(2)}</span>
+                            <span className="text-[7px] opacity-75 mt-0.5">{Number(item.price || 0).toFixed(1)}</span>
                           </div>
                         </button>
                       );

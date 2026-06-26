@@ -135,35 +135,31 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           )}
 
           {/* Total + action buttons */}
-          <div className="flex items-center justify-between text-xs text-slate-300">
+          <div className="flex items-center justify-between text-xs text-slate-300 px-0.5">
             <span>{tx(lang, 'Cəmi', 'Итого', 'Total')}</span>
             <span className="text-sm font-black text-slate-100">{draftTotal} ₼</span>
           </div>
-          <div className="mt-2 flex gap-2">
-            <button
-              type="button"
-              disabled={draftRows.length === 0 || !userCanEdit}
-              onClick={() => { void onSend(); }}
-              className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-b from-yellow-400 to-amber-500 px-3 py-2 text-sm font-black text-slate-900 shadow-lg shadow-yellow-500/25 transition active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
-            >
-              {tx(lang, 'Göndər', 'Отправить', 'Send')}
-            </button>
-            {tableOccupied && (
+
+          {/* Primary Action: Send to Kitchen (appears when draft is not empty) */}
+          {draftRows.length > 0 && (
+            <div className="mt-2">
               <button
                 type="button"
                 disabled={!userCanEdit}
-                onClick={onSettle}
-                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-gradient-to-b from-emerald-400 to-emerald-600 px-3 py-2 text-sm font-black text-white shadow-lg shadow-emerald-500/25 transition active:scale-[0.97] disabled:opacity-50 disabled:shadow-none"
+                onClick={() => { void onSend(); }}
+                className="w-full min-h-12 inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-b from-yellow-400 to-amber-500 px-3 py-2.5 text-sm font-black text-slate-900 shadow-lg shadow-yellow-500/25 transition active:scale-[0.97]"
               >
-                {tx(lang, 'Hesab', 'Счёт', 'Bill')}
+                🚀 {tx(lang, 'Mətbəxə Göndər', 'Отправить в кухню', 'Send to Kitchen')}
               </button>
-            )}
-          </div>
-          <div className="mt-1.5 flex gap-2">
+            </div>
+          )}
+
+          {/* Secondary Actions: Back & Settle/Bill */}
+          <div className="mt-2 flex gap-2">
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex min-h-9 flex-1 items-center justify-center rounded-xl border border-slate-600/80 bg-slate-800/80 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:bg-slate-700/80 active:scale-[0.97]"
+              className="inline-flex min-h-10 flex-1 items-center justify-center rounded-xl border border-slate-600/70 bg-slate-800/80 px-3 py-2 text-xs font-bold text-slate-200 transition hover:bg-slate-700/80 active:scale-[0.97]"
             >
               ← {tx(lang, 'Geri', 'Назад', 'Back')}
             </button>
@@ -171,13 +167,27 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               <button
                 type="button"
                 disabled={!userCanEdit}
-                onClick={onCancelTable}
-                className="inline-flex min-h-9 flex-1 items-center justify-center rounded-xl border border-rose-400/40 bg-gradient-to-b from-rose-500/20 to-rose-600/20 px-3 py-1 text-xs font-semibold text-rose-200 transition hover:from-rose-500/30 hover:to-rose-600/30 active:scale-[0.97] disabled:opacity-50"
+                onClick={onSettle}
+                className="inline-flex min-h-10 flex-[1.2] items-center justify-center gap-1 rounded-xl bg-gradient-to-b from-emerald-400 to-emerald-600 px-3 py-2 text-xs font-black text-white shadow-lg shadow-emerald-500/20 transition active:scale-[0.97] disabled:opacity-50 disabled:shadow-none"
               >
-                {tx(lang, 'Ləğv et', 'Отменить', 'Cancel')}
+                💵 {tx(lang, 'Hesab / Ödəniş', 'Счёт / Оплата', 'Bill / Settle')}
               </button>
             )}
           </div>
+
+          {/* Cancel/Void table check (reorganized to avoid accidental clicks) */}
+          {tableOccupied && (
+            <div className="mt-2.5 flex justify-center">
+              <button
+                type="button"
+                disabled={!userCanEdit}
+                onClick={onCancelTable}
+                className="text-[10px] font-bold text-rose-400/85 hover:text-rose-300 transition duration-150 flex items-center gap-1 active:scale-95 disabled:opacity-40"
+              >
+                ⚠️ {tx(lang, 'Masayı boşalt (satışsız)', 'Отменить стол', 'Cancel check')}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ─── Slide-up Sent Items Panel ─── */}
