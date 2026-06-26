@@ -190,7 +190,7 @@ function MenuGrid({
       {/* Product grid - grouped by variant */}
       <div className={`grid min-h-0 flex-1 auto-rows-max gap-1.5 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/30 p-2 ${
         hideImages
-          ? 'grid-cols-5 md:grid-cols-7 xl:grid-cols-9'
+          ? 'grid-cols-4 md:grid-cols-5 xl:grid-cols-7'
           : 'grid-cols-4 md:grid-cols-5 xl:grid-cols-6'
       }`}>
         {groupedItems.map((group) => {
@@ -233,7 +233,7 @@ function MenuGrid({
                       </div>
                     )
                   )}
-                  <div className={`flex flex-1 flex-col justify-between ${hideImages ? 'p-1.5 pb-2' : 'p-2 pb-1.5'}`}>
+                  <div className={`flex flex-1 flex-col justify-between ${hideImages ? 'p-2 pb-2.5' : 'p-2 pb-1.5'}`}>
                     <div className={`line-clamp-2 font-black leading-tight text-white ${hideImages ? 'text-[11px]' : 'text-xs'}`}>
                       {group.base}
                     </div>
@@ -252,7 +252,7 @@ function MenuGrid({
 
                 {/* Inline variant/size selection pills */}
                 {group.hasVariants && (
-                  <div className={`flex flex-wrap gap-0.5 border-t border-slate-800/40 ${hideImages ? 'p-1' : 'p-2 pt-0'}`}>
+                  <div className={`flex flex-wrap gap-1 border-t border-slate-800/40 ${hideImages ? 'p-1.5' : 'p-2 pt-0'}`}>
                     {group.items.map((item: any) => {
                       const { variant } = splitVariantName(item.item_name);
                       const qtyInDraft = draftQtyMap.get(item.id) || 0;
@@ -265,15 +265,15 @@ function MenuGrid({
                             tapFeedback();
                             void onSelectItem(item);
                           }}
-                          className={`flex-1 min-w-[28px] rounded py-0.5 px-0.5 text-[8.5px] font-black border transition active:scale-[0.93] ${
+                          className={`flex-1 min-w-[32px] min-h-[34px] rounded-lg py-1 px-0.5 text-[9.5px] font-black border transition active:scale-[0.92] ${
                             qtyInDraft > 0
-                              ? 'bg-yellow-400 text-slate-950 border-yellow-400 shadow-sm'
-                              : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-350 border-slate-700/50'
+                              ? 'bg-yellow-400 text-slate-950 border-yellow-400 shadow-sm shadow-yellow-400/20'
+                              : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border-slate-700/50'
                           }`}
                         >
                           <div className="flex flex-col items-center justify-center leading-none">
                             <span>{variant || item.item_name}</span>
-                            <span className="text-[7px] opacity-75 mt-0.5">{Number(item.price || 0).toFixed(1)}</span>
+                            <span className="text-[7.5px] opacity-75 mt-0.5">{Number(item.price || 0).toFixed(2)}</span>
                           </div>
                         </button>
                       );
