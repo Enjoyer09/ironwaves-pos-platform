@@ -655,6 +655,7 @@ export function update_session_settings(payload: {
   staff_pin_length?: number;
   theme_mode?: 'dark' | 'light';
   ui_mode?: 'old';
+  login_background_url?: string;
 }) {
   const settings = getSettings();
   const pinLength = Number(payload.staff_pin_length || settings.session_settings?.staff_pin_length || 4);
@@ -666,6 +667,9 @@ export function update_session_settings(payload: {
       ? (payload.theme_mode === 'light' ? 'light' : 'dark')
       : (settings.session_settings?.theme_mode === 'light' ? 'light' : 'dark'),
     ui_mode: 'old',
+    login_background_url: payload.login_background_url !== undefined
+      ? payload.login_background_url
+      : (settings.session_settings?.login_background_url || ''),
   };
   saveSettings(settings);
   logEvent('admin', 'SESSION_SETTINGS_UPDATE', settings.session_settings);
@@ -1524,6 +1528,7 @@ export async function update_session_settings_live(payload: {
   staff_pin_length?: number;
   theme_mode?: 'dark' | 'light';
   ui_mode?: 'old' | 'new';
+  login_background_url?: string;
 }) {
   if (!isBackendEnabled()) return update_session_settings(payload);
   await apiRequest('/api/v1/ops/settings/session', { method: 'PATCH', tenantId: null, body: payload });
@@ -1750,7 +1755,14 @@ export async function get_business_profile_live(tenant_id?: string) {
 }
 
 export async function get_public_branding_live(tenant_id?: string) {
-  if (!isBackendEnabled()) return get_business_profile(tenant_id);
+  if (!isBackendEnabled()) {
+    const profile = get_business_profile(tenant_id);
+    const settings = getSettings();
+    return {
+      ...profile,
+      login_background_url: settings.session_settings?.login_background_url || '',
+    };
+  }
   const requestedTenant = String(tenant_id || '').trim();
   const query = requestedTenant ? `?tenant_id=${encodeURIComponent(requestedTenant)}` : '';
   const data = await apiRequest<any>(`/api/v1/ops/public-branding${query}`, {

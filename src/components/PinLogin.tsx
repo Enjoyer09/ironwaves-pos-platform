@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../store';
 import { i18n, tx } from '../i18n';
-import { Delete } from 'lucide-react';
+import { Delete, Maximize2, Minimize2 } from 'lucide-react';
 import { getDeviceHash, getPublicIp, LoginRiskContext } from '../lib/risk';
 import { get_business_profile, get_public_branding_live, get_settings_live } from '../api/settings';
 import { getResolvedTenantIdFromHost } from '../lib/tenant';
@@ -32,6 +32,41 @@ export default function PinLogin() {
   const [ownerPassConfirm, setOwnerPassConfirm] = useState('');
   const [staffPinLength, setStaffPinLength] = useState<4 | 6>(4);
   const [isBrandingLoading, setIsBrandingLoading] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  React.useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const syncFullscreen = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreen);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        const root = document.documentElement;
+        if (root.requestFullscreen) {
+          await root.requestFullscreen();
+        } else if ((root as any).webkitRequestFullscreen) {
+          await (root as any).webkitRequestFullscreen();
+        } else if ((root as any).msRequestFullscreen) {
+          await (root as any).msRequestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen();
+        } else if ((document as any).msExitFullscreen) {
+          await (document as any).msExitFullscreen();
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to toggle fullscreen:', err);
+    }
+  };
 
   React.useEffect(() => {
     let mounted = true;
@@ -309,7 +344,7 @@ export default function PinLogin() {
     );
   }
 
-  const restaurantImage = branding?.background_image_url || branding?.hero_image_url || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?q=80&w=1600&auto=format&fit=crop';
+  const restaurantImage = branding?.login_background_url || branding?.background_image_url || branding?.hero_image_url || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?q=80&w=1600&auto=format&fit=crop';
 
   return (
     <div className="min-h-screen w-full bg-[#0b0f19] text-slate-100 font-sans md:h-screen md:overflow-hidden md:flex md:flex-row">
@@ -369,8 +404,17 @@ export default function PinLogin() {
 
       {/* RIGHT PANEL: Login pad */}
       <div 
-        className="w-full md:w-[440px] lg:w-[480px] shrink-0 h-screen overflow-y-auto relative flex flex-col justify-between px-6 py-8 bg-[#0a0e17] border-l border-white/[0.04]"
+        className="w-full md:w-[440px] lg:w-[480px] shrink-0 h-screen overflow-y-auto relative flex flex-col justify-between px-6 py-8 bg-[#0a0e17] border-l border-white/[0.04] md:-ml-[88px] lg:-ml-[96px] shadow-[-15px_0_30px_rgba(0,0,0,0.5)] z-20"
       >
+        {/* Fullscreen toggle button */}
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          className="absolute top-4 right-4 z-50 p-2.5 rounded-xl border border-white/10 bg-slate-950/60 hover:bg-slate-900/60 text-slate-400 hover:text-white transition-all shadow-md active:scale-95"
+          title={isFullscreen ? tx(safeLang, 'Tam ekrandan çıx', 'Выйти из полного экрана', 'Exit Fullscreen') : tx(safeLang, 'Tam ekran', 'Полный экран', 'Fullscreen')}
+        >
+          {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+        </button>
         {/* Mobile backdrop shadow/image blurred */}
         <div 
           className="absolute inset-0 z-0 opacity-15 blur-lg pointer-events-none md:hidden"
@@ -456,24 +500,24 @@ export default function PinLogin() {
           </div>
 
           {/* PIN Pad or Admin login Form */}
-          <div className="rounded-[28px] border border-white/10 bg-slate-900/50 p-5 space-y-4 shadow-xl">
+          <div className="rounded-[28px] border border-white/10 bg-slate-900/50 p-6 space-y-5 shadow-xl">
             {mode === 'staff' ? (
               <>
-                <div className="rounded-2xl border border-white/5 bg-black/40 px-4 py-3 text-center">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">PIN</div>
-                  <div className="mt-1 min-h-8 text-2xl tracking-[0.5em] text-white">
+                <div className="rounded-2xl border border-white/5 bg-black/40 px-5 py-4 text-center">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">PIN</div>
+                  <div className="mt-1 min-h-10 text-3xl tracking-[0.5em] text-white font-extrabold flex items-center justify-center">
                     {pin ? '•'.repeat(pin.length) : Array.from({ length: staffPinLength }).map(() => '•').join(' ')}
                   </div>
-                  <div className="mt-1 text-[10px] text-slate-400">{t.pin_prompt}</div>
+                  <div className="mt-1.5 text-xs text-slate-400">{t.pin_prompt}</div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-3">
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                     <button
                       key={num}
                       onClick={() => handleKeyPress(num.toString())}
                       disabled={isLoggingIn}
-                      className="rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] active:scale-95 py-4 text-xl font-bold text-white transition shadow-sm"
+                      className="rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] active:scale-95 py-5 text-2xl font-bold text-white transition shadow-sm"
                     >
                       {num}
                     </button>
@@ -481,23 +525,23 @@ export default function PinLogin() {
                   <button
                     onClick={handleClear}
                     disabled={isLoggingIn}
-                    className="rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] active:scale-95 py-4 text-xs font-bold text-slate-400 transition"
+                    className="rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] active:scale-95 py-5 text-sm font-bold text-slate-400 transition"
                   >
                     CLR
                   </button>
                   <button
                     onClick={() => handleKeyPress('0')}
                     disabled={isLoggingIn}
-                    className="rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] active:scale-95 py-4 text-xl font-bold text-white transition"
+                    className="rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] active:scale-95 py-5 text-2xl font-bold text-white transition"
                   >
                     0
                   </button>
                   <button
                     onClick={() => setPin((prev) => prev.slice(0, -1))}
                     disabled={isLoggingIn}
-                    className="flex items-center justify-center rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] active:scale-95 py-4 text-white transition"
+                    className="flex items-center justify-center rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] active:scale-95 py-5 text-white transition"
                   >
-                    <Delete size={18} />
+                    <Delete size={20} />
                   </button>
                 </div>
               </>
