@@ -118,7 +118,6 @@ function MenuGrid({
   }
 
   // ─── BahaY: Aelia-style menu grid with variant grouping ─────────────────────
-  const [sizePickerGroup, setSizePickerGroup] = useState<string | null>(null);
 
   const groupedItems = useMemo(() => {
     const groups = new Map<string, any[]>();
@@ -174,71 +173,90 @@ function MenuGrid({
       <div className="grid min-h-0 flex-1 auto-rows-max grid-cols-4 gap-1.5 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/30 p-2 md:grid-cols-5 xl:grid-cols-6">
         {groupedItems.map((group) => {
           const totalQtyInDraft = group.items.reduce((sum: number, it: any) => sum + (draftQtyMap.get(it.id) || 0), 0);
-          const isPickerOpen = sizePickerGroup === group.key;
           return (
             <div key={group.key} className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  tapFeedback();
-                  if (group.hasVariants) {
-                    setSizePickerGroup(isPickerOpen ? null : group.key);
-                  } else {
-                    void onSelectItem(group.items[0]);
-                  }
-                }}
-                className={`relative flex w-full flex-col overflow-hidden rounded-xl border transition active:scale-[0.97] pos-product-card ${
+              <div
+                className={`relative flex w-full flex-col overflow-hidden rounded-xl border transition pos-product-card ${
                   totalQtyInDraft > 0
                     ? 'border-yellow-400/60 bg-slate-900/80 shadow-lg shadow-yellow-400/10'
                     : 'border-slate-700/50 bg-slate-900/50 hover:border-yellow-300/30 hover:bg-slate-900/70'
                 }`}
               >
-                {group.image_url ? (
-                  <div className="aspect-[3/2] w-full overflow-hidden bg-slate-800">
-                    <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" loading="lazy" />
-                  </div>
-                ) : (
-                  <div className="flex h-12 w-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
-                    <span className="text-lg font-black text-slate-600">
-                      {String(group.base || '').slice(0, 2).toUpperCase()}
-                    </span>
-                  </div>
-                )}
-                <div className="flex flex-1 flex-col justify-between p-2">
-                  <div className="line-clamp-2 text-xs font-bold leading-tight text-slate-100">
-                    {group.base}
-                  </div>
-                  <div className="mt-1 text-sm font-black text-yellow-300">
-                    {group.minPrice.toFixed(2)} ₼
-                    {group.hasVariants && <span className="ml-1 text-[10px] font-medium text-slate-400">({group.items.length})</span>}
+                {/* Main clickable area: adds default/first variant */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    tapFeedback();
+                    void onSelectItem(group.items[0]);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      tapFeedback();
+                      void onSelectItem(group.items[0]);
+                    }
+                  }}
+                  className="flex flex-1 flex-col cursor-pointer active:scale-[0.98] transition"
+                >
+                  {group.image_url ? (
+                    <div className="aspect-[3/2] w-full overflow-hidden bg-slate-800">
+                      <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" loading="lazy" />
+                    </div>
+                  ) : (
+                    <div className="flex h-12 w-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
+                      <span className="text-lg font-black text-slate-600">
+                        {String(group.base || '').slice(0, 2).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex flex-1 flex-col justify-between p-2 pb-1.5">
+                    <div className="line-clamp-2 text-xs font-bold leading-tight text-slate-100">
+                      {group.base}
+                    </div>
+                    <div className="mt-1 text-sm font-black text-yellow-300">
+                      {group.minPrice.toFixed(2)} ₼
+                      {group.hasVariants && <span className="ml-1 text-[10px] font-medium text-slate-400">({group.items.length})</span>}
+                    </div>
                   </div>
                 </div>
+
                 {totalQtyInDraft > 0 && (
-                  <div className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400 text-xs font-black text-slate-900 shadow-lg">
+                  <div className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-yellow-400 text-xs font-black text-slate-900 shadow-lg pointer-events-none">
                     {totalQtyInDraft}
                   </div>
                 )}
-              </button>
 
-              {/* Inline size picker */}
-              {isPickerOpen && (
-                <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-xl border border-yellow-400/40 bg-slate-900 p-2 shadow-xl">
-                  {group.items.map((item: any) => {
-                    const { variant } = splitVariantName(item.item_name);
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => { tapFeedback(); void onSelectItem(item); setSizePickerGroup(null); }}
-                        className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition hover:bg-slate-800 active:scale-[0.97]"
-                      >
-                        <span className="text-xs font-bold text-slate-100">{variant || item.item_name}</span>
-                        <span className="text-xs font-black text-yellow-300">{Number(item.price || 0).toFixed(2)} ₼</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+                {/* Inline variant/size selection pills */}
+                {group.hasVariants && (
+                  <div className="flex flex-wrap gap-1 p-2 pt-0 border-t border-slate-800/40">
+                    {group.items.map((item: any) => {
+                      const { variant } = splitVariantName(item.item_name);
+                      const qtyInDraft = draftQtyMap.get(item.id) || 0;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            tapFeedback();
+                            void onSelectItem(item);
+                          }}
+                          className={`flex-1 min-w-[32px] rounded-lg py-1 px-0.5 text-[9px] font-black border transition active:scale-[0.93] ${
+                            qtyInDraft > 0
+                              ? 'bg-yellow-400 text-slate-950 border-yellow-400 shadow-sm shadow-yellow-400/20'
+                              : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-350 border-slate-700/50'
+                          }`}
+                        >
+                          <div className="flex flex-col items-center justify-center leading-none">
+                            <span>{variant || item.item_name}</span>
+                            <span className="text-[7.5px] opacity-75 mt-0.5">{Number(item.price || 0).toFixed(2)}</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
