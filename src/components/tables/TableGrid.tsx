@@ -94,15 +94,28 @@ function TableGrid({
     >
       {visibleTables.map((table) => {
         const localTable = tablesById[String(table.id)] || null;
-        const tableLockHolder = String((table as any).locked_by || localTable?.assigned_to || '').trim();
+        
+        // Resolve active occupied table in merged group
+        const mergedGroupId = String((localTable as any)?.merged_group_id || '').trim();
+        const groupTables = mergedGroupId
+          ? floorTables.filter((r) => String(r.merged_group_id || '').trim() === mergedGroupId)
+          : [];
+        const occupiedTableInGroup = groupTables.find((r) => {
+          const l = tablesById[String(r.id)];
+          return l?.is_occupied;
+        });
+        const activeLocalTable = occupiedTableInGroup ? tablesById[String(occupiedTableInGroup.id)] : localTable;
+        const activeTableState = occupiedTableInGroup || table;
+
+        const tableLockHolder = String((activeTableState as any).locked_by || activeLocalTable?.assigned_to || '').trim();
         const isMyTable = Boolean(currentUsername && tableLockHolder.toLowerCase() === currentUsername.toLowerCase());
-        const otherOwner = Boolean(localTable?.is_occupied && tableLockHolder && tableLockHolder !== currentUsername && !isManagerUser);
-        const floorStatus = String(table.status || '').toUpperCase();
-        const hasLocalActiveCheck = Boolean(localTable?.is_occupied || new Decimal(localTable?.total || 0).greaterThan(0));
+        const otherOwner = Boolean(activeLocalTable?.is_occupied && tableLockHolder && tableLockHolder !== currentUsername && !isManagerUser);
+        const floorStatus = String(activeTableState.status || '').toUpperCase();
+        const hasLocalActiveCheck = Boolean(activeLocalTable?.is_occupied || new Decimal(activeLocalTable?.total || 0).greaterThan(0));
         const status = hasLocalActiveCheck && (!floorStatus || floorStatus === 'AVAILABLE')
           ? 'ACTIVE_CHECK'
           : (floorStatus || 'AVAILABLE');
-        const displayedTotal = new Decimal(table.check_total || localTable?.total || 0);
+        const displayedTotal = new Decimal(activeTableState.check_total || activeLocalTable?.total || 0);
         const statusTone: Record<string, string> = {
           AVAILABLE: 'border-emerald-300/35 bg-emerald-500/12',
           RESERVED: 'border-amber-300/35 bg-amber-500/12',
@@ -169,7 +182,7 @@ function TableGrid({
                   <span className={`h-3.5 w-3.5 rounded-full ${statusDot[status] || statusDot.AVAILABLE}`} />
                   <span>
                     <Users size={13} className="mr-1 inline" />
-                    {Number(table.guest_count || 0)} / {Number(table.capacity || 0)}
+                    {Number(activeTableState.guest_count || 0)} / {Number(table.capacity || 0)}
                   </span>
                 </div>
               </div>
