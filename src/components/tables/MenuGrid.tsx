@@ -234,12 +234,12 @@ function MenuGrid({
                     )
                   )}
                   <div className={`flex flex-1 flex-col justify-between ${hideImages ? 'p-1.5 pb-2' : 'p-2 pb-1.5'}`}>
-                    <div className={`line-clamp-2 font-bold leading-tight text-slate-100 ${hideImages ? 'text-[11px]' : 'text-xs'}`}>
+                    <div className={`line-clamp-2 font-black leading-tight text-white ${hideImages ? 'text-[11px]' : 'text-xs'}`}>
                       {group.base}
                     </div>
-                    <div className={`mt-1 font-black text-yellow-300 ${hideImages ? 'text-xs' : 'text-sm'}`}>
+                    <div className={`mt-1 font-semibold text-yellow-400/80 ${hideImages ? 'text-[10px]' : 'text-[11px]'}`}>
                       {group.minPrice.toFixed(2)} ₼
-                      {group.hasVariants && <span className="ml-1 text-[10px] font-medium text-slate-400">({group.items.length})</span>}
+                      {group.hasVariants && <span className="ml-1 text-[9px] font-medium text-slate-400/70">({group.items.length})</span>}
                     </div>
                   </div>
                 </div>
