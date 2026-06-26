@@ -1200,14 +1200,23 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   };
 
   const handleSelectWaiterTable = useCallback((table: any) => {
-    const status = String(table?.status || '').toUpperCase();
     const localTable = tablesById[String(table?.id || '')];
-    const tableLockHolder = String((table as any)?.locked_by || localTable?.assigned_to || '').trim();
+    
+    // Resolve active table in merged group if any table in the group is occupied
+    const mergedGroupId = String((localTable as any)?.merged_group_id || '').trim();
+    const groupTables = mergedGroupId
+      ? tables.filter((r) => String(r.merged_group_id || '').trim() === mergedGroupId)
+      : [];
+    const occupiedTableInGroup = groupTables.find((r) => r.is_occupied);
+    const activeTable = occupiedTableInGroup || localTable;
+
+    const status = String(activeTable?.status || '').toUpperCase();
+    const tableLockHolder = String((activeTable as any)?.locked_by || activeTable?.assigned_to || '').trim();
     const isManagerUser = ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase());
-    const lockedByAnother = Boolean(localTable?.is_occupied && tableLockHolder && tableLockHolder !== user?.username && !isManagerUser);
+    const lockedByAnother = Boolean(activeTable?.is_occupied && tableLockHolder && tableLockHolder !== user?.username && !isManagerUser);
 
     if (status === 'DIRTY') return;
-    if (status === 'RESERVED' && !localTable?.is_occupied) {
+    if (status === 'RESERVED' && !activeTable?.is_occupied) {
       notify(
         'error',
         tx(
@@ -1223,8 +1232,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       notify('error', tx(lang, 'Bu masa artıq istifadə olunur', 'Этот стол уже используется', 'This table is already in use'));
       return;
     }
-    if (localTable?.is_occupied) {
-      setViewTableId(localTable.id);
+    if (activeTable?.is_occupied) {
+      setViewTableId(activeTable.id);
       return;
     }
     setOpenTableId(table.id);
@@ -4033,6 +4042,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 </>
               )}
               {floorTables.map((table) => {
+                const mergedGroupId = String((table as any).merged_group_id || '').trim();
+                const groupTables = mergedGroupId
+                  ? floorTables.filter((r) => String(r.merged_group_id || '').trim() === mergedGroupId)
+                  : [];
+                const occupiedTableInGroup = groupTables.find((r) => r.is_occupied);
+                const displayTable = occupiedTableInGroup || table;
+
                 const statusColors: Record<string, string> = {
                   AVAILABLE: 'bg-emerald-500/15 border-emerald-300/40 text-emerald-100 hover:bg-emerald-500/25',
                   RESERVED: 'bg-amber-500/15 border-amber-300/40 text-amber-100 hover:bg-amber-500/25',
@@ -4040,12 +4056,12 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                   ACTIVE_CHECK: 'bg-violet-500/15 border-violet-300/40 text-violet-100 hover:bg-violet-500/25',
                   DIRTY: 'bg-slate-500/20 border-slate-300/30 text-slate-100 hover:bg-slate-500/30',
                 };
-                const waiterColor = (table.status === 'SEATED' || table.status === 'ACTIVE_CHECK') && table.assigned_to
-                  ? getWaiterColor(table.assigned_to)
+                const waiterColor = (displayTable.status === 'SEATED' || displayTable.status === 'ACTIVE_CHECK') && displayTable.assigned_to
+                  ? getWaiterColor(displayTable.assigned_to)
                   : null;
                 const statusColorClass = waiterColor
                   ? `${waiterColor.bg} ${waiterColor.border} ${waiterColor.text} hover:bg-opacity-25`
-                  : (statusColors[String(table.status || 'AVAILABLE').toUpperCase()] || statusColors.AVAILABLE);
+                  : (statusColors[String(displayTable.status || 'AVAILABLE').toUpperCase()] || statusColors.AVAILABLE);
                 return (
                   <button
                     key={table.id}
@@ -4085,11 +4101,11 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                   >
                     <div className="font-bold">{table.label}</div>
                     <div className="mt-2 text-xs flex items-center justify-between gap-1 flex-wrap">
-                      <span><Users size={12} className="mr-1 inline" />{Number(table.guest_count || 0)} / {Number(table.capacity || 0)}</span>
-                      {table.assigned_to && (
+                      <span><Users size={12} className="mr-1 inline" />{Number(displayTable.guest_count || 0)} / {Number(table.capacity || 0)}</span>
+                      {displayTable.assigned_to && (
                         <span className="inline-flex items-center gap-1 text-[10px] opacity-90 px-1.5 py-0.5 rounded-full bg-black/40 border border-white/5 font-medium shrink-0">
                           <span className={`w-1.5 h-1.5 rounded-full ${waiterColor?.dot || 'bg-slate-400'}`} />
-                          {table.assigned_to}
+                          {displayTable.assigned_to}
                         </span>
                       )}
                     </div>
