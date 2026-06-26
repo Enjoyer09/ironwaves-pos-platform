@@ -6,11 +6,11 @@
 
 :root {
   color-scheme: dark;
-  --background: 224 71.4% 4.1%;
+  --background: 224 35% 10%;
   --foreground: 210 20% 98%;
-  --card: 224 71.4% 4.1%;
+  --card: 224 35% 10%;
   --card-foreground: 210 20% 98%;
-  --popover: 224 71.4% 4.1%;
+  --popover: 224 35% 10%;
   --popover-foreground: 210 20% 98%;
   --primary: 47.9 95.8% 51.2%;
   --primary-foreground: 240 5.9% 10%;
@@ -28,7 +28,7 @@
   --radius: 0.75rem;
   --hero-heading: 40 10% 96%;
   --hero-sub: 40 6% 82%;
-  --metal-bg: radial-gradient(circle at center, #0d121f 0%, #060910 100%);
+  --metal-bg: radial-gradient(circle at center, #172037 0%, #0e1526 100%);
   --metal-panel: linear-gradient(145deg, rgba(15, 21, 32, 0.85), rgba(10, 15, 23, 0.95));
   --metal-stroke: rgba(255, 255, 255, 0.08);
   --metal-highlight: rgba(255, 255, 255, 0.04);
@@ -59,7 +59,7 @@
 }
 
 :root[data-ui-mode='new'] {
-  --metal-bg: radial-gradient(circle at 12% 8%, #0d1625 0%, #050911 60%, #020408 100%);
+  --metal-bg: radial-gradient(circle at 12% 8%, #19253c 0%, #0e1628 60%, #070c18 100%);
   --metal-panel: linear-gradient(165deg, rgba(13, 20, 31, 0.90), rgba(7, 11, 18, 0.95));
   --metal-stroke: rgba(255, 255, 255, 0.06);
   --metal-highlight: rgba(255, 255, 255, 0.03);
