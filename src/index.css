@@ -2913,5 +2913,28 @@ html[data-ui-mode='old'] .neon-item.text-base {
   animation: sentBadgePulse 2s infinite ease-in-out;
 }
 
+/* Mobile Safe Area & Touch Optimization */
+:root {
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+a, button, select, input, textarea, [role="button"] {
+  touch-action: manipulation;
+}
+
+.metal-app {
+  padding-top: var(--safe-area-top);
+  padding-bottom: var(--safe-area-bottom);
+  padding-left: var(--safe-area-left);
+  padding-right: var(--safe-area-right);
+}
+
 
 
