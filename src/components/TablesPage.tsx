@@ -2971,35 +2971,68 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     }));
               return (
                 <>
-	                  <div className="flex items-center justify-between gap-3">
-	                    <div className="flex min-w-0 items-center gap-3">
-	                      <button
-	                        type="button"
-	                        onClick={() => setViewTableId(null)}
-	                        className="inline-flex min-h-9 shrink-0 items-center rounded-full border border-slate-700/70 bg-slate-900/50 px-3 py-1.5 text-xs font-semibold text-slate-200"
-	                      >
-	                        ← {tx(lang, 'Masalara qayıt', 'Назад к столам', 'Back to tables')}
-	                      </button>
-	                      <h3 className="truncate text-xl font-black text-slate-100">{t.label}</h3>
-	                    </div>
-	                    <div className="rounded-full border border-emerald-300/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-bold text-emerald-100">
-	                      {new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼
-	                    </div>
-	                  </div>
-	                  <div className="mt-2 grid grid-cols-3 gap-2 rounded-2xl border border-slate-800/80 bg-slate-900/35 p-2">
-	                    <div className="rounded-xl bg-slate-950/45 px-3 py-2">
-	                      <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Masa', 'Стол', 'Table')}</div>
-	                      <div className="mt-0.5 text-sm font-bold text-slate-100">{t.label}</div>
-	                    </div>
-	                    <div className="rounded-xl bg-slate-950/45 px-3 py-2">
-	                      <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Nəfər', 'Гости', 'Guests')}</div>
-	                      <div className="mt-0.5 text-sm font-bold text-slate-100">{detailSession?.guest_count ?? Number(t.guest_count || 0)}</div>
-	                    </div>
-	                    <div className="rounded-xl bg-slate-950/45 px-3 py-2">
-	                      <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Toplam', 'Итого', 'Total')}</div>
-	                      <div className="mt-0.5 text-sm font-bold text-slate-100">{new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼</div>
-	                    </div>
-	                  </div>
+                  {isBahaYLab ? (
+                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5 mb-2.5 px-0.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => setViewTableId(null)}
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-900/60 text-slate-200 active:scale-95 taktil-target"
+                        >
+                          ←
+                        </button>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400 animate-pulse" />
+                            <span className="text-sm font-black text-slate-100 truncate">{t.label}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">{detailSession?.guest_count ?? Number(t.guest_count || 0)} {tx(lang, 'nəfər', 'гостя', 'guests')}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {tableLockHolder && (
+                          <span className="rounded-full bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 text-[9px] font-bold text-cyan-200 hidden sm:inline-block">
+                            👤 {tableLockHolder}
+                          </span>
+                        )}
+                        <span className="text-xs font-black text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-xl">
+                          {new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setViewTableId(null)}
+                            className="inline-flex min-h-9 shrink-0 items-center rounded-full border border-slate-700/70 bg-slate-900/50 px-3 py-1.5 text-xs font-semibold text-slate-200"
+                          >
+                            ← {tx(lang, 'Masalara qayıt', 'Назад к столам', 'Back to tables')}
+                          </button>
+                          <h3 className="truncate text-xl font-black text-slate-100">{t.label}</h3>
+                        </div>
+                        <div className="rounded-full border border-emerald-300/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-bold text-emerald-100">
+                          {new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼
+                        </div>
+                      </div>
+                      <div className="mt-2 grid grid-cols-3 gap-2 rounded-2xl border border-slate-800/80 bg-slate-900/35 p-2">
+                        <div className="rounded-xl bg-slate-950/45 px-3 py-2">
+                          <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Masa', 'Стол', 'Table')}</div>
+                          <div className="mt-0.5 text-sm font-bold text-slate-100">{t.label}</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-950/45 px-3 py-2">
+                          <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Nəfər', 'Гости', 'Guests')}</div>
+                          <div className="mt-0.5 text-sm font-bold text-slate-100">{detailSession?.guest_count ?? Number(t.guest_count || 0)}</div>
+                        </div>
+                        <div className="rounded-xl bg-slate-950/45 px-3 py-2">
+                          <div className="text-[10px] uppercase tracking-[0.14em] text-slate-500">{tx(lang, 'Toplam', 'Итого', 'Total')}</div>
+                          <div className="mt-0.5 text-sm font-bold text-slate-100">{new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼</div>
+                        </div>
+                      </div>
+                    </>
+                  )}
                   {tableNeedsSafeCancel && (
                     <div className="mt-3 rounded-2xl border border-rose-300/50 bg-rose-500/15 p-4 shadow-[0_0_28px_rgba(244,63,94,0.16)]">
                       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">

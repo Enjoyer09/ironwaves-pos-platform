@@ -193,8 +193,8 @@ function MenuGrid({
       {/* Product grid - grouped by variant */}
       <div className={`grid min-h-0 flex-1 auto-rows-max gap-2 md:gap-2.5 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/30 p-2.5 ${
         hideImages
-          ? 'grid-cols-4 md:grid-cols-5 xl:grid-cols-7'
-          : 'grid-cols-4 md:grid-cols-5 xl:grid-cols-6'
+          ? 'grid-cols-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-7'
+          : 'grid-cols-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6'
       }`}>
         {groupedItems.map((group) => {
           const totalQtyInDraft = group.items.reduce((sum: number, it: any) => sum + (draftQtyMap.get(it.id) || 0), 0);
@@ -202,10 +202,10 @@ function MenuGrid({
           return (
             <div key={group.key} className="relative">
               <div
-                className={`relative flex w-full flex-col overflow-hidden rounded-xl border transition pos-product-card ${
+                className={`relative flex w-full flex-col overflow-hidden rounded-2xl border transition-all duration-200 pos-product-card ${
                   totalQtyInDraft > 0
-                    ? 'border-yellow-400/60 bg-slate-900/80 shadow-lg shadow-yellow-400/10 card-pulsing-glow'
-                    : 'border-slate-700/50 bg-slate-900/50 hover:border-yellow-300/30 hover:bg-slate-900/70'
+                    ? 'border-yellow-400/80 bg-slate-900/75 shadow-lg shadow-yellow-400/15 scale-[1.01] card-pulsing-glow'
+                    : 'border-slate-800/80 bg-slate-900/60 hover:border-yellow-400/30 hover:bg-slate-900/75 backdrop-blur-sm'
                 }`}
               >
                 {isPromo && (
