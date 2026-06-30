@@ -171,11 +171,12 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
   const [sentPanelOpen, setSentPanelOpen] = useState(false);
   const [editingRowForNote, setEditingRowForNote] = useState<any>(null);
   const [currentNoteText, setCurrentNoteText] = useState('');
+  const [mobileActiveTab, setMobileActiveTab] = useState<'menu' | 'cart'>('menu');
 
   return (
-    <div className="flex min-h-0 flex-1 gap-3 overflow-hidden">
+    <div className="flex flex-col md:flex-row min-h-0 flex-1 gap-3 overflow-hidden relative">
       {/* ─── LEFT: Menu Grid ─── */}
-      <div className="flex min-h-0 flex-[1.6] flex-col overflow-hidden">
+      <div className={`${mobileActiveTab === 'menu' ? 'flex' : 'hidden'} md:flex min-h-0 flex-[1.6] flex-col overflow-hidden`}>
         <MenuGrid
           items={filteredRoundMenu}
           categories={roundCategories}
@@ -189,10 +190,33 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           modernMode={true}
           summerPromoEnabled={summerPromoEnabled}
         />
+
+        {/* Floating Mobile Cart Bar */}
+        {draftRows.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setMobileActiveTab('cart')}
+            className="md:hidden shrink-0 mt-2 flex items-center justify-between bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 px-4 py-3.5 font-black text-xs rounded-xl active:scale-[0.97] shadow-lg shadow-yellow-500/10 taktil-target"
+          >
+            <span className="flex items-center gap-2">🛒 {tx(lang, 'Səbətə bax', 'Посмотреть корзину', 'View Cart')} ({draftRows.reduce((acc, r) => acc + (r.qty || 0), 0)} {tx(lang, 'məhsul', 'шт', 'items')})</span>
+            <span>{draftTotal} ₼ →</span>
+          </button>
+        )}
       </div>
 
       {/* ─── RIGHT: Draft + Actions + Slide-up Sent Panel ─── */}
-      <div className="relative flex h-full min-h-0 w-[300px] shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-950/40">
+      <div className={`${mobileActiveTab === 'cart' ? 'flex' : 'hidden'} md:flex relative h-full min-h-0 w-full md:w-[300px] shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-950/40`}>
+        {/* Mobile Cart Header */}
+        <div className="md:hidden shrink-0 flex items-center justify-between border-b border-slate-850 px-4 py-3 bg-slate-900/60">
+          <span className="text-xs font-black uppercase tracking-wider text-slate-200">🛒 {tx(lang, 'Sifariş Səbəti', 'Корзина заказа', 'Order Cart')}</span>
+          <button
+            type="button"
+            onClick={() => setMobileActiveTab('menu')}
+            className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs font-bold text-slate-200 active:scale-95 taktil-target"
+          >
+            ← {tx(lang, 'Menyu', 'Меню', 'Menu')}
+          </button>
+        </div>
 
         {/* Scrollable draft items area */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-3 pb-1">
@@ -273,8 +297,15 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           <div className="mt-2 flex gap-2">
             <button
               type="button"
+              onClick={() => setMobileActiveTab('menu')}
+              className="md:hidden inline-flex min-h-10 flex-1 items-center justify-center rounded-xl border border-slate-600/70 bg-slate-850 px-2.5 py-2 text-[11px] font-bold text-slate-200 transition hover:bg-slate-700/80 taktil-target"
+            >
+              🍳 {tx(lang, 'Menyuya qayıt', 'В меню', 'Back to Menu')}
+            </button>
+            <button
+              type="button"
               onClick={onBack}
-              className="inline-flex min-h-10 flex-1 items-center justify-center rounded-xl border border-slate-600/70 bg-slate-800/80 px-3 py-2 text-xs font-bold text-slate-200 transition hover:bg-slate-700/80 taktil-target"
+              className="inline-flex min-h-10 flex-1 items-center justify-center rounded-xl border border-slate-600/70 bg-slate-800/80 px-2.5 py-2 text-[11px] font-bold text-slate-200 transition hover:bg-slate-700/80 taktil-target"
             >
               ← {tx(lang, 'Geri', 'Назад', 'Back')}
             </button>
@@ -283,9 +314,9 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 type="button"
                 disabled={!userCanEdit}
                 onClick={onSettle}
-                className="inline-flex min-h-10 flex-[1.2] items-center justify-center gap-1 rounded-xl bg-gradient-to-b from-emerald-400 to-emerald-600 px-3 py-2 text-xs font-black text-white shadow-lg shadow-emerald-500/20 transition disabled:opacity-50 disabled:shadow-none taktil-target"
+                className="inline-flex min-h-10 flex-[1.2] items-center justify-center gap-1 rounded-xl bg-gradient-to-b from-emerald-400 to-emerald-600 px-2.5 py-2 text-[11px] font-black text-white shadow-lg shadow-emerald-500/20 transition disabled:opacity-50 disabled:shadow-none taktil-target"
               >
-                💵 {tx(lang, 'Hesab / Ödəniş', 'Счёт / Оплата', 'Bill / Settle')}
+                💵 {tx(lang, 'Hesab', 'Счет', 'Settle')}
               </button>
             )}
           </div>

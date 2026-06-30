@@ -2832,15 +2832,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	          ref={detailPanelRef}
 	          className={`${
 	            workspaceView === 'floor'
-	              ? isBahaYLab
-	                ? 'fixed inset-0 z-[90] h-screen w-screen overflow-hidden bg-slate-950/95 backdrop-blur workspace-slide-in'
-	                : 'fixed inset-y-3 right-3 z-[90] h-[calc(100vh-1.5rem)] overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur w-[calc(100vw-1.5rem)] lg:w-[min(70vw,1240px)] workspace-slide-in'
+	              ? 'fixed inset-0 md:inset-y-3 md:right-3 z-[90] h-screen md:h-[calc(100vh-1.5rem)] w-screen md:w-[calc(100vw-1.5rem)] lg:w-[min(70vw,1240px)] overflow-hidden bg-slate-950/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur workspace-slide-in'
 	              : 'mt-6'
 	          }`}
         >
           <div className={`metal-panel ${
             workspaceView === 'floor'
-              ? `flex h-full flex-col overflow-hidden p-4 ${isBahaYLab ? 'rounded-none border-none bg-transparent shadow-none' : 'rounded-[30px]'}`
+              ? 'flex h-full flex-col overflow-hidden p-4 rounded-none md:rounded-[30px] border-none md:border md:border-white/10 bg-transparent md:bg-slate-950/95 shadow-none md:shadow-[0_24px_80px_rgba(0,0,0,0.45)]'
               : 'w-full rounded-[30px] p-5'
           }`}>
             {(() => {
