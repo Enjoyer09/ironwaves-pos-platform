@@ -38,7 +38,7 @@ export default defineConfig(({ command }) => {
           description: "iRonWaves Point of Sale System",
           theme_color: "#0f172a",
           background_color: "#0f172a",
-          display: "standalone",
+          display: "fullscreen",
           orientation: "any",
           start_url: "/",
           scope: "/",
