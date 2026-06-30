@@ -92,16 +92,16 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           ) : (
             <div className="space-y-1.5">
               {draftRows.map((row: any) => (
-                <div key={row.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-700/50 bg-slate-900/40 px-2 py-1.5">
+                <div key={row.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-700/50 bg-slate-900/40 px-2 py-1.5 cart-item-anim">
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-xs font-semibold text-slate-100">{row.item_name}</div>
                     <div className="text-[11px] text-slate-400">{Number(row.price || 0).toFixed(2)} ₼</div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button type="button" className="flex h-6 w-6 items-center justify-center rounded border border-slate-600 text-xs text-slate-200" onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) - 1)}>−</button>
+                    <button type="button" className="flex h-6 w-6 items-center justify-center rounded border border-slate-600 text-xs text-slate-200 taktil-target" onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) - 1)}>−</button>
                     <div className="min-w-5 text-center text-xs font-bold text-slate-100">{row.qty}</div>
-                    <button type="button" className="flex h-6 w-6 items-center justify-center rounded border border-slate-600 text-xs text-slate-200" onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) + 1)}>+</button>
-                    <button type="button" className="flex h-6 w-6 items-center justify-center rounded border border-rose-300/40 bg-rose-500/10 text-[10px] text-rose-200" onClick={() => onUpdateQty(String(row.id), 0)}>✕</button>
+                    <button type="button" className="flex h-6 w-6 items-center justify-center rounded border border-slate-600 text-xs text-slate-200 taktil-target" onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) + 1)}>+</button>
+                    <button type="button" className="flex h-6 w-6 items-center justify-center rounded border border-rose-300/40 bg-rose-500/10 text-[10px] text-rose-200 taktil-target" onClick={() => onUpdateQty(String(row.id), 0)}>✕</button>
                   </div>
                 </div>
               ))}
@@ -147,7 +147,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 type="button"
                 disabled={!userCanEdit}
                 onClick={() => { void onSend(); }}
-                className="w-full min-h-12 inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-b from-yellow-400 to-amber-500 px-3 py-2.5 text-sm font-black text-slate-900 shadow-lg shadow-yellow-500/25 transition active:scale-[0.97]"
+                className="w-full min-h-12 inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-b from-yellow-400 to-amber-500 px-3 py-2.5 text-sm font-black text-slate-900 shadow-lg shadow-yellow-500/25 transition taktil-target"
               >
                 🚀 {tx(lang, 'Mətbəxə Göndər', 'Отправить в кухню', 'Send to Kitchen')}
               </button>
@@ -159,7 +159,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex min-h-10 flex-1 items-center justify-center rounded-xl border border-slate-600/70 bg-slate-800/80 px-3 py-2 text-xs font-bold text-slate-200 transition hover:bg-slate-700/80 active:scale-[0.97]"
+              className="inline-flex min-h-10 flex-1 items-center justify-center rounded-xl border border-slate-600/70 bg-slate-800/80 px-3 py-2 text-xs font-bold text-slate-200 transition hover:bg-slate-700/80 taktil-target"
             >
               ← {tx(lang, 'Geri', 'Назад', 'Back')}
             </button>
@@ -168,7 +168,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 type="button"
                 disabled={!userCanEdit}
                 onClick={onSettle}
-                className="inline-flex min-h-10 flex-[1.2] items-center justify-center gap-1 rounded-xl bg-gradient-to-b from-emerald-400 to-emerald-600 px-3 py-2 text-xs font-black text-white shadow-lg shadow-emerald-500/20 transition active:scale-[0.97] disabled:opacity-50 disabled:shadow-none"
+                className="inline-flex min-h-10 flex-[1.2] items-center justify-center gap-1 rounded-xl bg-gradient-to-b from-emerald-400 to-emerald-600 px-3 py-2 text-xs font-black text-white shadow-lg shadow-emerald-500/20 transition disabled:opacity-50 disabled:shadow-none taktil-target"
               >
                 💵 {tx(lang, 'Hesab / Ödəniş', 'Счёт / Оплата', 'Bill / Settle')}
               </button>
@@ -182,7 +182,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 type="button"
                 disabled={!userCanEdit}
                 onClick={onCancelTable}
-                className="text-[10px] font-bold text-rose-400/85 hover:text-rose-300 transition duration-150 flex items-center gap-1 active:scale-95 disabled:opacity-40"
+                className="text-[10px] font-bold text-rose-400/85 hover:text-rose-300 transition duration-150 flex items-center gap-1 disabled:opacity-40 taktil-target"
               >
                 ⚠️ {tx(lang, 'Masayı boşalt (satışsız)', 'Отменить стол', 'Cancel check')}
               </button>

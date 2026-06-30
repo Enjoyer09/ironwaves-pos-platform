@@ -4130,7 +4130,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         handleSelectWaiterTable(table);
                       }
                     }}
-                    className={`border p-3 text-left shadow-sm transition ${String(table.shape || '').toLowerCase() === 'circle' ? 'rounded-[999px]' : String(table.shape || '').toLowerCase() === 'square' ? 'rounded-xl' : 'rounded-2xl'} ${draggingTableIds.includes(table.id) ? 'opacity-60' : ''} ${floorEditMode && selectedFloorTableId === table.id ? 'ring-2 ring-cyan-300/80' : ''} ${floorEditMode && selectedFloorTableIds.includes(table.id) ? 'ring-2 ring-violet-300/80' : ''} ${String((table as any).merged_group_id || '').trim() ? 'shadow-[0_0_0_2px_rgba(167,139,250,0.45)]' : ''} ${statusColorClass}`}
+                    className={`border p-3 text-left shadow-sm transition taktil-target ${String(table.shape || '').toLowerCase() === 'circle' ? 'rounded-[999px]' : String(table.shape || '').toLowerCase() === 'square' ? 'rounded-xl' : 'rounded-2xl'} ${draggingTableIds.includes(table.id) ? 'opacity-60' : ''} ${floorEditMode && selectedFloorTableId === table.id ? 'ring-2 ring-cyan-300/80' : ''} ${floorEditMode && selectedFloorTableIds.includes(table.id) ? 'ring-2 ring-violet-300/80' : ''} ${String((table as any).merged_group_id || '').trim() ? 'shadow-[0_0_0_2px_rgba(167,139,250,0.45)]' : ''} ${statusColorClass}`}
                     style={{
                       gridColumn: `${Math.max(1, Number(table.x || 0) + 1)} / span ${Math.max(1, Number(table.w || 2))}`,
                       gridRow: `${Math.max(1, Number(table.y || 0) + 1)} / span ${Math.max(1, Number(table.h || 2))}`,
