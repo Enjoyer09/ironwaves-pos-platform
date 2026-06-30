@@ -2,6 +2,7 @@ import React, { memo, useMemo, useRef, useState } from 'react';
 import { Users } from 'lucide-react';
 import { Decimal } from 'decimal.js';
 import { tx } from '../../i18n';
+import { playHapticTouch, playHapticHeavy, playHapticSuccess } from '../../lib/haptics';
 
 type TableGridProps = {
   floorTables: any[];
@@ -40,6 +41,7 @@ function TableGrid({
 }: TableGridProps) {
   const [quickActionsTableId, setQuickActionsTableId] = useState<string | null>(null);
   const [showOnlyMine, setShowOnlyMine] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const longPressRef = useRef<number | null>(null);
 
   const isManagerUser = useMemo(
@@ -64,35 +66,56 @@ function TableGrid({
     });
   }, [floorTables, tablesById, showOnlyMine, currentUsername]);
 
+  const searchedTables = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return visibleTables;
+    return visibleTables.filter((table) => 
+      String(table.label || '').toLowerCase().includes(query)
+    );
+  }, [visibleTables, searchQuery]);
+
   return (
     <div>
-      {showMyTablesFilter && currentUsername && (
-        <div className="mb-3 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setShowOnlyMine(!showOnlyMine)}
-            className={`rounded-full px-4 py-2 text-sm font-bold transition ${
-              showOnlyMine
-                ? 'bg-yellow-400 text-slate-900 shadow-lg shadow-yellow-400/20'
-                : 'border border-slate-600/60 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60'
-            }`}
-          >
-            {showOnlyMine
-              ? tx(lang, '★ Yalnız mənim', '★ Только мои', '★ Only mine')
-              : tx(lang, 'Yalnız mənim', 'Только мои', 'Only mine')}
-          </button>
-          {showOnlyMine && (
-            <span className="text-xs text-slate-400">
-              {visibleTables.length} {tx(lang, 'masa', 'столов', 'tables')}
-            </span>
-          )}
-        </div>
-      )}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+        {/* Search Tables Bar */}
+        <input
+          type="text"
+          className="neon-input flex-1 py-2 px-4 text-sm rounded-xl"
+          placeholder={tx(lang, 'Masa axtar (məs. 5)...', 'Поиск стола...', 'Search table...')}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+
+        {showMyTablesFilter && currentUsername && (
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                playHapticTouch();
+                setShowOnlyMine(!showOnlyMine);
+              }}
+              className={`rounded-full px-4 py-2 text-xs font-bold transition ${
+                showOnlyMine
+                  ? 'bg-yellow-400 text-slate-900 shadow-lg shadow-yellow-400/20'
+                  : 'border border-slate-600/60 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60'
+              }`}
+            >
+              {showOnlyMine
+                ? tx(lang, '★ Yalnız mənim', '★ Только мои', '★ Only mine')
+                : tx(lang, 'Yalnız mənim', 'Только мои', 'Only mine')}
+            </button>
+            {showOnlyMine && (
+              <span className="text-xs text-slate-400">
+                {visibleTables.length} {tx(lang, 'masa', 'столов', 'tables')}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
     <div
-      className="grid gap-3"
-      style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${tableGridMinWidth}px, 1fr))` }}
+      className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
     >
-      {visibleTables.map((table) => {
+      {searchedTables.map((table) => {
         const localTable = tablesById[String(table.id)] || null;
         
         // Resolve active occupied table in merged group
@@ -134,13 +157,13 @@ function TableGrid({
         const showQuickActions = quickActionsTableId === table.id;
 
         const handleSelect = () => {
-          tapFeedback();
+          playHapticTouch();
           setQuickActionsTableId(null);
           onSelectTable(table);
         };
         const handleClean = (event: React.MouseEvent<HTMLButtonElement>) => {
           event.stopPropagation();
-          tapFeedback();
+          playHapticSuccess();
           setQuickActionsTableId(null);
           onMarkClean(table.id);
         };
@@ -159,7 +182,7 @@ function TableGrid({
             onMouseDown={() => {
               clearLongPress();
               longPressRef.current = window.setTimeout(() => {
-                tapFeedback();
+                playHapticHeavy();
                 setQuickActionsTableId(table.id);
               }, 450);
             }}
@@ -168,7 +191,7 @@ function TableGrid({
             onTouchStart={() => {
               clearLongPress();
               longPressRef.current = window.setTimeout(() => {
-                tapFeedback();
+                playHapticHeavy();
                 setQuickActionsTableId(table.id);
               }, 450);
             }}

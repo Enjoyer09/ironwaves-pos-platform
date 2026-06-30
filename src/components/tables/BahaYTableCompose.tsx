@@ -2,6 +2,7 @@ import React, { memo, useState } from 'react';
 import { tx } from '../../i18n';
 import { Decimal } from 'decimal.js';
 import MenuGrid from './MenuGrid';
+import { playHapticSuccess, playHapticTouch } from '../../lib/haptics';
 
 type BahaYTableComposeProps = {
   lang: string;
@@ -12,7 +13,7 @@ type BahaYTableComposeProps = {
   roundCategory: string;
   onSearchChange: (v: string) => void;
   onCategoryChange: (v: string) => void;
-  onSelectItem: (item: any) => void | Promise<void>;
+  onSelectItem: (item: any, quantity?: number) => void | Promise<void>;
   roundDraft: any[];
   // Draft
   draftRows: any[];
@@ -191,16 +192,29 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           summerPromoEnabled={summerPromoEnabled}
         />
 
-        {/* Floating Mobile Cart Bar */}
+        {/* Floating Mobile Cart Bar with Quick Send */}
         {draftRows.length > 0 && mobileActiveTab !== 'cart' && (
-          <button
-            type="button"
-            onClick={() => setMobileActiveTab('cart')}
-            className="md:hidden shrink-0 mt-2 flex items-center justify-between bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 px-4 py-3.5 font-black text-xs rounded-xl active:scale-[0.97] shadow-lg shadow-yellow-500/10 taktil-target animate-bounce-subtle"
-          >
-            <span className="flex items-center gap-2">🛒 {tx(lang, 'Səbətə bax', 'Посмотреть корзину', 'View Cart')} ({draftRows.reduce((acc, r) => acc + (r.qty || 0), 0)} {tx(lang, 'məhsul', 'шт', 'items')})</span>
-            <span>{draftTotal} ₼ →</span>
-          </button>
+          <div className="md:hidden shrink-0 mt-2 flex gap-2 animate-bounce-subtle">
+            <button
+              type="button"
+              onClick={() => setMobileActiveTab('cart')}
+              className="flex-1 flex items-center justify-between bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 px-4 py-3.5 font-black text-xs rounded-xl active:scale-[0.97] shadow-lg shadow-yellow-500/10 taktil-target"
+            >
+              <span className="flex items-center gap-2">🛒 {tx(lang, 'Səbətə bax', 'Посмотреть корзину', 'View Cart')} ({draftRows.reduce((acc, r) => acc + (r.qty || 0), 0)})</span>
+              <span>{draftTotal} ₼ →</span>
+            </button>
+            <button
+              type="button"
+              onClick={async (e) => {
+                e.stopPropagation();
+                playHapticSuccess();
+                await onSend();
+              }}
+              className="shrink-0 flex items-center justify-center gap-1 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-3.5 font-black text-xs rounded-xl active:scale-[0.97] shadow-lg shadow-emerald-500/10 taktil-target"
+            >
+              🍳 {tx(lang, 'Göndər', 'Отправить', 'Send')}
+            </button>
+          </div>
         )}
       </div>
 
