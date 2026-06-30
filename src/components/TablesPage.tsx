@@ -967,7 +967,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     ]);
   };
 
-  const addMenuItemToRound = async (item: any) => {
+  const addMenuItemToRound = async (item: any, quantityToAdd = 1) => {
     const activeDetail = tableDetailRecord?.table?.id === viewTableId ? tableDetailRecord : null;
     if (activeDetail?.check?.id && viewTableId) {
       try {
@@ -976,13 +976,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           && new Decimal(row.price || 0).equals(new Decimal(item.price || 0))
         ));
         if (existingDraft) {
-          await update_draft_item_live(existingDraft.id, { qty: Number(existingDraft.qty || 0) + 1 });
+          await update_draft_item_live(existingDraft.id, { qty: Number(existingDraft.qty || 0) + quantityToAdd });
         } else {
           await add_check_draft_item_live(activeDetail.check.id, {
             id: item.id,
             item_name: item.item_name,
             price: String(item.price),
-            qty: 1,
+            qty: quantityToAdd,
             category: item.category,
             is_coffee: Boolean(item.is_coffee),
             course_no: 1,
@@ -999,7 +999,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     setRoundDraft((prev) => {
       const existing = prev.find((row: any) => String(row.id) === String(item.id));
       if (existing) {
-        return prev.map((row: any) => String(row.id) === String(item.id) ? { ...row, qty: Number(row.qty || 0) + 1 } : row);
+        return prev.map((row: any) => String(row.id) === String(item.id) ? { ...row, qty: Number(row.qty || 0) + quantityToAdd } : row);
       }
       return [
         ...prev,
@@ -1009,7 +1009,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           price: String(item.price),
           category: item.category,
           is_coffee: Boolean(item.is_coffee),
-          qty: 1,
+          qty: quantityToAdd,
         },
       ];
     });

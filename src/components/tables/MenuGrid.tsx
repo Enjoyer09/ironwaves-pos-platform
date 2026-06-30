@@ -1,6 +1,7 @@
-import React, { memo, useMemo, useState } from 'react';
+import React, { memo, useMemo, useState, useRef } from 'react';
 import { tx } from '../../i18n';
 import { isPromoEligibleItem } from '../../api/pos';
+import { playHapticTouch, playHapticHeavy, playHapticSuccess } from '../../lib/haptics';
 
 type MenuGridProps = {
   items: any[];
@@ -10,7 +11,7 @@ type MenuGridProps = {
   lang: string;
   onSearchChange: (value: string) => void;
   onCategoryChange: (value: string) => void;
-  onSelectItem: (item: any) => void | Promise<void>;
+  onSelectItem: (item: any, quantity?: number) => void | Promise<void>;
   draftItems?: Array<{ menu_item_id?: string; id?: string; qty?: number }>;
   modernMode?: boolean;
   summerPromoEnabled?: boolean;
@@ -64,6 +65,59 @@ function MenuGrid({
 }: MenuGridProps) {
   const isBahaYLab = modernMode ?? isBahaYLabDefault;
   const [hideImages, setHideImages] = useState(() => localStorage.getItem('pos_hide_images') === 'true');
+  const [longPressItem, setLongPressItem] = useState<any>(null);
+  const [customQtyText, setCustomQtyText] = useState('');
+  const pressTimer = useRef<number | null>(null);
+
+  // Swipe detection for categories
+  const swipeStartX = useRef<number>(0);
+  const swipeStartY = useRef<number>(0);
+
+  const handleTouchStart = (item: any) => {
+    pressTimer.current = window.setTimeout(() => {
+      playHapticHeavy();
+      setLongPressItem(item);
+      setCustomQtyText('');
+    }, 600);
+  };
+
+  const handleTouchEnd = () => {
+    if (pressTimer.current) {
+      window.clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  };
+
+  const handleSwipeStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    if (touch) {
+      swipeStartX.current = touch.clientX;
+      swipeStartY.current = touch.clientY;
+    }
+  };
+
+  const handleSwipeEnd = (e: React.TouchEvent) => {
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    const diffX = touch.clientX - swipeStartX.current;
+    const diffY = touch.clientY - swipeStartY.current;
+
+    if (Math.abs(diffX) > 90 && Math.abs(diffY) < 60) {
+      const idx = categories.indexOf(selectedCategory);
+      if (idx !== -1) {
+        if (diffX < 0) {
+          const nextIdx = (idx + 1) % categories.length;
+          playHapticTouch();
+          onCategoryChange(categories[nextIdx]!);
+        } else {
+          const prevIdx = (idx - 1 + categories.length) % categories.length;
+          playHapticTouch();
+          onCategoryChange(categories[prevIdx]!);
+        }
+      }
+    }
+  };
+
   // Count how many times each item is in draft
   const draftQtyMap = new Map<string, number>();
   if (draftItems) {
@@ -146,7 +200,11 @@ function MenuGrid({
   }, [items]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
+    <div 
+      className="flex min-h-0 flex-1 flex-col gap-3"
+      onTouchStart={handleSwipeStart}
+      onTouchEnd={handleSwipeEnd}
+    >
       {/* Search and Density Toggle */}
       <div className="flex gap-2 items-center">
         <input
@@ -178,7 +236,10 @@ function MenuGrid({
           <button
             key={cat}
             type="button"
-            onClick={() => onCategoryChange(cat)}
+            onClick={() => {
+              playHapticTouch();
+              onCategoryChange(cat);
+            }}
             className={`whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-bold transition pos-category-btn taktil-target ${
               selectedCategory === cat
                 ? 'bg-yellow-400 text-slate-900 shadow-lg shadow-yellow-400/20'
@@ -217,13 +278,26 @@ function MenuGrid({
                 <div
                   role="button"
                   tabIndex={0}
+                  onTouchStart={() => handleTouchStart(group.items[0])}
+                  onTouchEnd={handleTouchEnd}
+                  onTouchMove={handleTouchEnd}
+                  onMouseDown={() => {
+                    pressTimer.current = window.setTimeout(() => {
+                      playHapticHeavy();
+                      setLongPressItem(group.items[0]);
+                      setCustomQtyText('');
+                    }, 600);
+                  }}
+                  onMouseUp={handleTouchEnd}
+                  onMouseLeave={handleTouchEnd}
                   onClick={() => {
-                    tapFeedback();
+                    handleTouchEnd();
+                    playHapticTouch();
                     void onSelectItem(group.items[0]);
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
-                      tapFeedback();
+                      playHapticTouch();
                       void onSelectItem(group.items[0]);
                     }
                   }}
@@ -299,6 +373,74 @@ function MenuGrid({
           </div>
         )}
       </div>
+
+      {/* Long-press Quantity Selector Popover Overlay */}
+      {longPressItem && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/75 backdrop-blur-xs p-4" onClick={() => setLongPressItem(null)}>
+          <div 
+            className="w-full max-w-sm p-6 rounded-[28px] border border-white/10 bg-[#0c121e] shadow-[0_24px_60px_rgba(0,0,0,0.65)] relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center">
+              <h4 className="text-base font-black text-slate-100">{longPressItem.item_name}</h4>
+              <p className="mt-1 text-xs text-slate-400">{tx(lang, 'Sürətli miqdar seçin', 'Выберите количество', 'Select quantity')}</p>
+            </div>
+            
+            {/* Presets */}
+            <div className="mt-5 grid grid-cols-4 gap-2">
+              {[2, 3, 5, 10].map((qty) => (
+                <button
+                  key={qty}
+                  type="button"
+                  onClick={() => {
+                    playHapticSuccess();
+                    void onSelectItem(longPressItem, qty);
+                    setLongPressItem(null);
+                  }}
+                  className="flex min-h-[50px] items-center justify-center rounded-2xl border border-slate-700/60 bg-slate-800/30 text-sm font-black text-slate-200 active:scale-95 active:bg-yellow-400 active:text-slate-950 transition-all"
+                >
+                  +{qty}
+                </button>
+              ))}
+            </div>
+
+            {/* Custom Input */}
+            <div className="mt-5 flex gap-2">
+              <input
+                type="number"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                className="neon-input flex-1 text-center font-black text-lg py-2.5"
+                placeholder={tx(lang, 'Digər...', 'Другое...', 'Custom...')}
+                value={customQtyText}
+                onChange={(e) => setCustomQtyText(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const qty = parseInt(customQtyText, 10);
+                  if (qty > 0) {
+                    playHapticSuccess();
+                    void onSelectItem(longPressItem, qty);
+                    setLongPressItem(null);
+                  }
+                }}
+                className="rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 font-black px-5 py-2.5 text-xs active:scale-95 transition"
+              >
+                {tx(lang, 'Əlavə et', 'Добавить', 'Add')}
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setLongPressItem(null)}
+              className="mt-4 w-full rounded-xl border border-slate-700/60 bg-slate-800/20 py-3.5 text-xs font-bold text-slate-300 active:bg-slate-900/50"
+            >
+              {tx(lang, 'İmtina', 'Отмена', 'Cancel')}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
