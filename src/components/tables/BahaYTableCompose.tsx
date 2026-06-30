@@ -176,7 +176,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
   return (
     <div className="flex flex-col md:flex-row min-h-0 flex-1 gap-3 overflow-hidden relative">
       {/* ─── LEFT: Menu Grid ─── */}
-      <div className={`${mobileActiveTab === 'menu' ? 'flex' : 'hidden'} md:flex min-h-0 flex-[1.6] flex-col overflow-hidden`}>
+      <div className="flex min-h-0 flex-[1.6] flex-col overflow-hidden">
         <MenuGrid
           items={filteredRoundMenu}
           categories={roundCategories}
@@ -192,11 +192,11 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
         />
 
         {/* Floating Mobile Cart Bar */}
-        {draftRows.length > 0 && (
+        {draftRows.length > 0 && mobileActiveTab !== 'cart' && (
           <button
             type="button"
             onClick={() => setMobileActiveTab('cart')}
-            className="md:hidden shrink-0 mt-2 flex items-center justify-between bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 px-4 py-3.5 font-black text-xs rounded-xl active:scale-[0.97] shadow-lg shadow-yellow-500/10 taktil-target"
+            className="md:hidden shrink-0 mt-2 flex items-center justify-between bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 px-4 py-3.5 font-black text-xs rounded-xl active:scale-[0.97] shadow-lg shadow-yellow-500/10 taktil-target animate-bounce-subtle"
           >
             <span className="flex items-center gap-2">🛒 {tx(lang, 'Səbətə bax', 'Посмотреть корзину', 'View Cart')} ({draftRows.reduce((acc, r) => acc + (r.qty || 0), 0)} {tx(lang, 'məhsul', 'шт', 'items')})</span>
             <span>{draftTotal} ₼ →</span>
@@ -204,15 +204,35 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
         )}
       </div>
 
-      {/* ─── RIGHT: Draft + Actions + Slide-up Sent Panel ─── */}
-      <div className={`${mobileActiveTab === 'cart' ? 'flex' : 'hidden'} md:flex relative h-full min-h-0 w-full md:w-[300px] shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-950/40`}>
+      {/* ─── RIGHT: Draft + Actions + Slide-up Sent Panel (iOS-style Bottom Sheet on mobile) ─── */}
+      {/* Backdrop overlay for mobile bottom sheet */}
+      <div
+        className={`md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-xs transition-opacity duration-300 ${
+          mobileActiveTab === 'cart' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={() => setMobileActiveTab('menu')}
+      />
+
+      <div
+        className={`fixed bottom-0 left-0 right-0 z-50 h-[85dvh] rounded-t-[30px] border-t border-slate-800 bg-[#070b12] shadow-[0_-20px_50px_rgba(0,0,0,0.65)] transition-transform duration-300 ease-out flex flex-col overflow-hidden md:relative md:bottom-auto md:left-auto md:right-auto md:z-auto md:h-full md:w-[300px] md:rounded-2xl md:border md:border-slate-700/60 md:bg-slate-950/40 md:shadow-none md:translate-y-0 ${
+          mobileActiveTab === 'cart' ? 'translate-y-0' : 'translate-y-full'
+        }`}
+      >
+        {/* Mobile drag handle */}
+        <div 
+          className="md:hidden shrink-0 w-full py-2.5 flex justify-center cursor-pointer bg-slate-900/30 border-b border-slate-900/10 active:bg-slate-900/50 transition"
+          onClick={() => setMobileActiveTab('menu')}
+        >
+          <div className="h-1 w-12 rounded-full bg-slate-700/60" />
+        </div>
+
         {/* Mobile Cart Header */}
         <div className="md:hidden shrink-0 flex items-center justify-between border-b border-slate-850 px-4 py-3 bg-slate-900/60">
           <span className="text-xs font-black uppercase tracking-wider text-slate-200">🛒 {tx(lang, 'Sifariş Səbəti', 'Корзина заказа', 'Order Cart')}</span>
           <button
             type="button"
             onClick={() => setMobileActiveTab('menu')}
-            className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs font-bold text-slate-200 active:scale-95 taktil-target"
+            className="rounded-lg border border-slate-700 bg-slate-850 px-2.5 py-1 text-xs font-bold text-slate-200 active:scale-95 taktil-target"
           >
             ← {tx(lang, 'Menyu', 'Меню', 'Menu')}
           </button>
