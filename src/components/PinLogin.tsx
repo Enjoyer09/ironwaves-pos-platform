@@ -33,9 +33,14 @@ export default function PinLogin() {
   const [staffPinLength, setStaffPinLength] = useState<4 | 6>(4);
   const [isBrandingLoading, setIsBrandingLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenSupported, setFullscreenSupported] = useState(true);
 
   React.useEffect(() => {
     if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    const hasSupport = root.requestFullscreen || (root as any).webkitRequestFullscreen || (root as any).msRequestFullscreen;
+    setFullscreenSupported(Boolean(hasSupport));
+
     const syncFullscreen = () => {
       setIsFullscreen(Boolean(document.fullscreenElement));
     };
@@ -407,14 +412,16 @@ export default function PinLogin() {
         className="w-full md:w-[440px] lg:w-[480px] shrink-0 h-screen overflow-y-auto relative flex flex-col justify-between px-6 py-8 bg-[#0a0e17] border-l border-white/[0.04] md:-ml-[88px] lg:-ml-[96px] shadow-[-15px_0_30px_rgba(0,0,0,0.5)] z-20"
       >
         {/* Fullscreen toggle button */}
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          className="absolute top-4 right-4 z-50 p-2.5 rounded-xl border border-white/10 bg-slate-950/60 hover:bg-slate-900/60 text-slate-400 hover:text-white transition-all shadow-md active:scale-95"
-          title={isFullscreen ? tx(safeLang, 'Tam ekrandan çıx', 'Выйти из полного экрана', 'Exit Fullscreen') : tx(safeLang, 'Tam ekran', 'Полный экран', 'Fullscreen')}
-        >
-          {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-        </button>
+        {fullscreenSupported && (
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="absolute top-4 right-4 z-50 p-2.5 rounded-xl border border-white/10 bg-slate-950/60 hover:bg-slate-900/60 text-slate-400 hover:text-white transition-all shadow-md active:scale-95"
+            title={isFullscreen ? tx(safeLang, 'Tam ekrandan çıx', 'Выйти из полного экрана', 'Exit Fullscreen') : tx(safeLang, 'Tam ekran', 'Полный экран', 'Fullscreen')}
+          >
+            {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </button>
+        )}
         {/* Mobile backdrop shadow/image blurred */}
         <div 
           className="absolute inset-0 z-0 opacity-15 blur-lg pointer-events-none md:hidden"

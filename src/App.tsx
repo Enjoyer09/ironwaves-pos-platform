@@ -500,6 +500,7 @@ export default function App() {
   const [settingsVersion, setSettingsVersion] = useState(0);
   const [perfEvents, setPerfEvents] = useState<PerfEvent[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenSupported, setFullscreenSupported] = useState(true);
   const [fastSwitchOpen, setFastSwitchOpen] = useState(false);
   const [fastSwitchPin, setFastSwitchPin] = useState('');
   const [fastSwitchError, setFastSwitchError] = useState('');
@@ -1212,6 +1213,10 @@ export default function App() {
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    const hasSupport = root.requestFullscreen || (root as any).webkitRequestFullscreen || (root as any).msRequestFullscreen;
+    setFullscreenSupported(Boolean(hasSupport));
+
     const syncFullscreen = () => {
       setIsFullscreen(Boolean(document.fullscreenElement));
     };
@@ -1403,8 +1408,23 @@ export default function App() {
     try {
       if (typeof document === 'undefined') return;
       const root = document.documentElement;
+      if (!fullscreenSupported) {
+        notify('info', tx(
+          safeLang,
+          'iOS-da tam ekran üçün tətbiqi ana ekrana əlavə edin (Paylaş -> Ana ekrana əlavə et)',
+          'Для полного экрана на iOS добавьте приложение на экран Домой (Поделиться -> На экран Домой)',
+          'For fullscreen on iOS, add this app to your Home Screen (Share -> Add to Home Screen)'
+        ));
+        return;
+      }
       if (!document.fullscreenElement) {
-        await root.requestFullscreen();
+        if (root.requestFullscreen) {
+          await root.requestFullscreen();
+        } else if ((root as any).webkitRequestFullscreen) {
+          await (root as any).webkitRequestFullscreen();
+        } else if ((root as any).msRequestFullscreen) {
+          await (root as any).msRequestFullscreen();
+        }
       }
     } catch {
       notify('error', tx(safeLang, 'Tam ekran açıla bilmədi', 'Не удалось открыть полный экран', 'Failed to enter fullscreen'));
