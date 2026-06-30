@@ -41,6 +41,7 @@ type BahaYTableComposeProps = {
   // Back
   onBack: () => void;
   summerPromoEnabled?: boolean;
+  onUpdateNote?: (id: string, note: string) => void | Promise<void>;
 };
 
 const tapFeedback = () => {
@@ -53,7 +54,7 @@ const tapFeedback = () => {
   }
 };
 
-const DraftRowItem = memo(({ row, onUpdateQty, lang }: { row: any; onUpdateQty: (id: string, qty: number) => void; lang: string }) => {
+const DraftRowItem = memo(({ row, onUpdateQty, onEditNote, lang }: { row: any; onUpdateQty: (id: string, qty: number) => void; onEditNote: (row: any) => void; lang: string }) => {
   const [startX, setStartX] = useState(0);
   const [currentX, setCurrentX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
@@ -113,9 +114,16 @@ const DraftRowItem = memo(({ row, onUpdateQty, lang }: { row: any; onUpdateQty: 
           isSwiping ? 'transition-none' : 'transition-transform duration-200 ease-out'
         }`}
       >
-        <div className="min-w-0 flex-1 select-none">
+        <div
+          role="button"
+          onClick={() => onEditNote(row)}
+          className="min-w-0 flex-1 select-none cursor-pointer"
+        >
           <div className="truncate text-xs font-semibold text-slate-100">{row.item_name}</div>
-          <div className="text-[11px] text-slate-400">{Number(row.price || 0).toFixed(2)} ₼</div>
+          {row.note && (
+            <div className="text-[10px] text-yellow-400/95 font-medium truncate mt-0.5">✎ {row.note}</div>
+          )}
+          <div className="text-[11px] text-slate-400 mt-0.5">{Number(row.price || 0).toFixed(2)} ₼</div>
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -157,10 +165,12 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
     sentItems, onShowFullList, onVoidItem,
     lockHolder, userCanEditTable,
     readyCount, roundsCount, activeTab, onTabChange,
-    onBack, summerPromoEnabled,
+    onBack, summerPromoEnabled, onUpdateNote,
   } = props;
 
   const [sentPanelOpen, setSentPanelOpen] = useState(false);
+  const [editingRowForNote, setEditingRowForNote] = useState<any>(null);
+  const [currentNoteText, setCurrentNoteText] = useState('');
 
   return (
     <div className="flex min-h-0 flex-1 gap-3 overflow-hidden">
@@ -203,6 +213,10 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                   key={row.id}
                   row={row}
                   onUpdateQty={onUpdateQty}
+                  onEditNote={(r) => {
+                    setEditingRowForNote(r);
+                    setCurrentNoteText(r.note || '');
+                  }}
                   lang={lang}
                 />
               ))}
@@ -388,6 +402,94 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
             </button>
           </div>
         </div>
+
+        {/* ─── Slide-up Note Modifier Editor (Seçim 1) ─── */}
+        {editingRowForNote && (
+          <div className="absolute inset-0 z-20 flex flex-col rounded-2xl bg-slate-950/95 p-4 border border-slate-700/60 backdrop-blur-md transition-all duration-200">
+            <div className="flex items-center justify-between border-b border-slate-850 pb-2.5">
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-450">{tx(lang, 'Qeyd Əlavə Et', 'Добавить примечание', 'Add Comment')}</h4>
+                <div className="text-sm font-black text-slate-100 mt-0.5 truncate max-w-[200px]">{editingRowForNote.item_name}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingRowForNote(null)}
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-xs text-slate-350 hover:bg-slate-700 taktil-target"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Note text field */}
+            <div className="mt-3 flex-1 min-h-0 overflow-y-auto space-y-3 pr-0.5 scrollbar-none">
+              <input
+                type="text"
+                value={currentNoteText}
+                onChange={(e) => setCurrentNoteText(e.target.value)}
+                placeholder={tx(lang, 'Sifariş qeydi daxil edin...', 'Введите примечание...', 'Type order note...')}
+                className="neon-input h-10 w-full text-xs font-semibold focus:ring-yellow-300/20"
+                autoFocus
+              />
+
+              {/* Quick Modifier Grid */}
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">{tx(lang, 'Sürətli Seçimlər', 'Быстрый выбор', 'Quick Modifiers')}</div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {['Şəkərsiz', 'Az şirin', 'Buzlu', 'Badam südü', 'Sert', 'Soya südü', 'Ekstra İsti', 'Paket'].map((mod) => {
+                    const selectedMods = currentNoteText.split(',').map(s => s.trim()).filter(Boolean);
+                    const isSelected = selectedMods.includes(mod);
+                    return (
+                      <button
+                        key={mod}
+                        type="button"
+                        onClick={() => {
+                          tapFeedback();
+                          let nextText = '';
+                          if (isSelected) {
+                            nextText = selectedMods.filter(s => s !== mod).join(', ');
+                          } else {
+                            nextText = [...selectedMods, mod].join(', ');
+                          }
+                          setCurrentNoteText(nextText);
+                        }}
+                        className={`rounded-lg border py-2 px-1 text-center text-xs font-black transition taktil-target ${
+                          isSelected
+                            ? 'border-yellow-450 bg-yellow-400/10 text-yellow-300'
+                            : 'border-slate-800 bg-slate-900/60 text-slate-350 hover:border-slate-700/60'
+                        }`}
+                      >
+                        {mod}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="mt-3 border-t border-slate-800 pt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingRowForNote(null)}
+                className="flex-1 rounded-xl border border-slate-700 bg-slate-800/80 py-2.5 text-xs font-bold text-slate-300 taktil-target"
+              >
+                {tx(lang, 'Ləğv et', 'Отмена', 'Cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (onUpdateNote) {
+                    await onUpdateNote(editingRowForNote.id, currentNoteText);
+                  }
+                  setEditingRowForNote(null);
+                }}
+                className="flex-1 rounded-xl bg-gradient-to-b from-yellow-400 to-amber-500 py-2.5 text-xs font-black text-slate-950 shadow-md shadow-yellow-500/10 taktil-target"
+              >
+                {tx(lang, 'Yadda Saxla', 'Сохранить', 'Save')}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

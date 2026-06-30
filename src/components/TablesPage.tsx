@@ -1039,6 +1039,24 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     ));
   };
 
+  const updateRoundDraftNote = async (itemId: string, note: string) => {
+    const activeDetail = tableDetailRecord?.table?.id === viewTableId ? tableDetailRecord : null;
+    const serverDraft = (activeDetail?.draft_items || []).find((row: any) => String(row.id) === String(itemId));
+    if (activeDetail?.check?.id && serverDraft && viewTableId) {
+      try {
+        await update_draft_item_live(itemId, { note: note.trim() || null });
+        await refreshActiveTableDetail(viewTableId);
+        return;
+      } catch (e: any) {
+        notify('error', e?.message || tx(lang, 'Qeyd yenilənmədi', 'Примечание не обновлено', 'Note was not updated'));
+        return;
+      }
+    }
+    setRoundDraft((prev) =>
+      prev.map((row: any) => String(row.id) === String(itemId) ? { ...row, note: note.trim() } : row)
+    );
+  };
+
   const clearRoundComposer = () => {
     setRoundDraft([]);
     setRoundSearch('');
@@ -2063,6 +2081,91 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               ))}
             </div>
             </div>
+            {paymentMethod === 'Nəğd' && (
+              (() => {
+                const table = tables.find((x) => x.id === payTableId);
+                if (!table) return null;
+                const { dueNow } = getTableBillBreakdown(table);
+                const cashPaid = new Decimal(Number(splitCash) || 0);
+                const change = cashPaid.greaterThan(dueNow) ? cashPaid.minus(dueNow) : new Decimal(0);
+                
+                const presets: number[] = [];
+                const exact = dueNow.toNumber();
+                presets.push(exact);
+                [5, 10, 20, 50, 100].forEach((val) => {
+                  if (val > exact && presets.length < 5) {
+                    presets.push(val);
+                  }
+                });
+                while (presets.length < 5) {
+                  const last = presets[presets.length - 1] || exact;
+                  const nextVal = last <= 5 ? 10 : last <= 10 ? 20 : last <= 20 ? 50 : last <= 50 ? 100 : last + 50;
+                  presets.push(nextVal);
+                }
+
+                return (
+                  <div className="mt-3 rounded-xl border border-slate-700/60 bg-slate-950/30 p-3 space-y-3">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      {tx(lang, 'Müştəridən alınan nəğd pul', 'Полученные наличные', 'Cash received')}
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        className="neon-input flex-1 h-11 text-base font-bold text-white"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={splitCash === '0' ? '' : splitCash}
+                        placeholder={dueNow.toFixed(2)}
+                        onChange={(e) => setSplitCash(e.target.value || '0')}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate?.(8);
+                          } catch {}
+                          setSplitCash(dueNow.toFixed(2));
+                        }}
+                        className="rounded-lg border border-slate-700 bg-slate-800 px-3 text-xs font-bold text-slate-200 taktil-target active:scale-95"
+                      >
+                        {tx(lang, 'Dəqiq', 'Точно', 'Exact')}
+                      </button>
+                    </div>
+
+                    {/* Presets Row */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {presets.slice(1).map((val) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => {
+                            try {
+                              if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate?.(8);
+                            } catch {}
+                            setSplitCash(val.toFixed(2));
+                          }}
+                          className={`flex-1 min-w-[50px] rounded-lg border py-1.5 px-2 text-xs font-black transition taktil-target active:scale-95 ${
+                            Number(splitCash) === val
+                              ? 'border-amber-200 bg-amber-300 text-slate-950'
+                              : 'border-slate-700/60 bg-slate-800/40 text-slate-350 hover:bg-slate-800/70'
+                          }`}
+                        >
+                          {val} ₼
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Change Display */}
+                    <div className="flex items-center justify-between border-t border-slate-800/50 pt-2 text-sm">
+                      <span className="font-semibold text-slate-400">{tx(lang, 'Qalıq pul', 'Сдача', 'Change')}</span>
+                      <span className={`text-base font-black ${cashPaid.greaterThan(dueNow) ? 'text-emerald-400 animate-pulse' : 'text-slate-100'}`}>
+                        {change.toFixed(2)} ₼
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()
+            )}
             {paymentMethod === 'Split' && (
               (() => {
                 const table = tables.find((x) => x.id === payTableId);
@@ -3093,6 +3196,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                        onBack={() => setViewTableId(null)}
 	                        onCancelTable={() => { void handleCancelTableCheck(t.id, t.label); }}
 	                        summerPromoEnabled={Boolean(tenantSettings?.beverage_service_settings?.summer_promo_enabled)}
+	                        onUpdateNote={updateRoundDraftNote}
 	                      />
 	                    </div>
 	                  )}
