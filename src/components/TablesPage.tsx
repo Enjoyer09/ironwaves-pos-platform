@@ -2730,8 +2730,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	          className={`${
 	            workspaceView === 'floor'
 	              ? isBahaYLab
-	                ? 'fixed inset-0 z-[90] h-screen w-screen overflow-hidden bg-slate-950/95 backdrop-blur'
-	                : 'fixed inset-y-3 right-3 z-[90] h-[calc(100vh-1.5rem)] overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur w-[calc(100vw-1.5rem)] lg:w-[min(70vw,1240px)]'
+	                ? 'fixed inset-0 z-[90] h-screen w-screen overflow-hidden bg-slate-950/95 backdrop-blur workspace-slide-in'
+	                : 'fixed inset-y-3 right-3 z-[90] h-[calc(100vh-1.5rem)] overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur w-[calc(100vw-1.5rem)] lg:w-[min(70vw,1240px)] workspace-slide-in'
 	              : 'mt-6'
 	          }`}
         >
@@ -3092,6 +3092,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                        onTabChange={(tab) => setTableWorkspaceTab(tab as any)}
 	                        onBack={() => setViewTableId(null)}
 	                        onCancelTable={() => { void handleCancelTableCheck(t.id, t.label); }}
+	                        summerPromoEnabled={Boolean(tenantSettings?.beverage_service_settings?.summer_promo_enabled)}
 	                      />
 	                    </div>
 	                  )}
