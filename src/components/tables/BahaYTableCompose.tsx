@@ -40,7 +40,113 @@ type BahaYTableComposeProps = {
   onTabChange: (tab: string) => void;
   // Back
   onBack: () => void;
+  summerPromoEnabled?: boolean;
 };
+
+const tapFeedback = () => {
+  try {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate?.(8);
+    }
+  } catch {
+    // ignore
+  }
+};
+
+const DraftRowItem = memo(({ row, onUpdateQty, lang }: { row: any; onUpdateQty: (id: string, qty: number) => void; lang: string }) => {
+  const [startX, setStartX] = useState(0);
+  const [currentX, setCurrentX] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const [swipedLeft, setSwipedLeft] = useState(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setStartX(e.touches[0].clientX);
+    setIsSwiping(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isSwiping) return;
+    const diffX = e.touches[0].clientX - startX;
+    if (swipedLeft) {
+      const newX = -70 + diffX;
+      setCurrentX(Math.min(0, Math.max(-95, newX)));
+    } else {
+      setCurrentX(Math.min(0, Math.max(-95, diffX)));
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setIsSwiping(false);
+    if (currentX < -32) {
+      setCurrentX(-70);
+      setSwipedLeft(true);
+    } else {
+      setCurrentX(0);
+      setSwipedLeft(false);
+    }
+  };
+
+  const handleDelete = () => {
+    tapFeedback();
+    onUpdateQty(String(row.id), 0);
+  };
+
+  return (
+    <div className="relative overflow-hidden rounded-lg border border-slate-700/50 bg-slate-950/40 min-h-[48px] cart-item-anim">
+      {/* Background Swipe Delete Button */}
+      <button
+        type="button"
+        onClick={handleDelete}
+        className="absolute right-0 top-0 bottom-0 w-[70px] bg-gradient-to-r from-rose-500 to-rose-700 text-white text-[10px] font-black uppercase tracking-wider flex flex-col items-center justify-center gap-0.5 z-0 taktil-target active:brightness-90"
+      >
+        <span>✕</span>
+        <span>{tx(lang, 'Ləğv', 'Удалить', 'Delete')}</span>
+      </button>
+
+      {/* Foreground Swipeable Item */}
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{ transform: `translateX(${currentX}px)` }}
+        className={`relative flex items-center justify-between gap-2 bg-slate-900/90 px-2 py-1.5 z-10 w-full h-full min-h-[46px] ${
+          isSwiping ? 'transition-none' : 'transition-transform duration-200 ease-out'
+        }`}
+      >
+        <div className="min-w-0 flex-1 select-none">
+          <div className="truncate text-xs font-semibold text-slate-100">{row.item_name}</div>
+          <div className="text-[11px] text-slate-400">{Number(row.price || 0).toFixed(2)} ₼</div>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            className="flex h-6 w-6 items-center justify-center rounded border border-slate-600 text-xs text-slate-200 taktil-target"
+            onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) - 1)}
+          >
+            −
+          </button>
+          <div className="min-w-5 text-center text-xs font-bold text-slate-100 select-none">{row.qty}</div>
+          <button
+            type="button"
+            className="flex h-6 w-6 items-center justify-center rounded border border-slate-600 text-xs text-slate-200 taktil-target"
+            onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) + 1)}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className="flex h-6 w-6 items-center justify-center rounded border border-rose-300/40 bg-rose-500/10 text-[10px] text-rose-200 taktil-target"
+            onClick={() => onUpdateQty(String(row.id), 0)}
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+DraftRowItem.displayName = 'DraftRowItem';
 
 function BahaYTableCompose(props: BahaYTableComposeProps) {
   const {
@@ -51,7 +157,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
     sentItems, onShowFullList, onVoidItem,
     lockHolder, userCanEditTable,
     readyCount, roundsCount, activeTab, onTabChange,
-    onBack,
+    onBack, summerPromoEnabled,
   } = props;
 
   const [sentPanelOpen, setSentPanelOpen] = useState(false);
@@ -71,6 +177,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           onSelectItem={onSelectItem}
           draftItems={roundDraft}
           modernMode={true}
+          summerPromoEnabled={summerPromoEnabled}
         />
       </div>
 
@@ -92,18 +199,12 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
           ) : (
             <div className="space-y-1.5">
               {draftRows.map((row: any) => (
-                <div key={row.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-700/50 bg-slate-900/40 px-2 py-1.5 cart-item-anim">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-xs font-semibold text-slate-100">{row.item_name}</div>
-                    <div className="text-[11px] text-slate-400">{Number(row.price || 0).toFixed(2)} ₼</div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button type="button" className="flex h-6 w-6 items-center justify-center rounded border border-slate-600 text-xs text-slate-200 taktil-target" onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) - 1)}>−</button>
-                    <div className="min-w-5 text-center text-xs font-bold text-slate-100">{row.qty}</div>
-                    <button type="button" className="flex h-6 w-6 items-center justify-center rounded border border-slate-600 text-xs text-slate-200 taktil-target" onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) + 1)}>+</button>
-                    <button type="button" className="flex h-6 w-6 items-center justify-center rounded border border-rose-300/40 bg-rose-500/10 text-[10px] text-rose-200 taktil-target" onClick={() => onUpdateQty(String(row.id), 0)}>✕</button>
-                  </div>
-                </div>
+                <DraftRowItem
+                  key={row.id}
+                  row={row}
+                  onUpdateQty={onUpdateQty}
+                  lang={lang}
+                />
               ))}
             </div>
           )}

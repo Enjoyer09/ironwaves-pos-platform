@@ -1,5 +1,6 @@
 import React, { memo, useMemo, useState } from 'react';
 import { tx } from '../../i18n';
+import { isPromoEligibleItem } from '../../api/pos';
 
 type MenuGridProps = {
   items: any[];
@@ -12,6 +13,7 @@ type MenuGridProps = {
   onSelectItem: (item: any) => void | Promise<void>;
   draftItems?: Array<{ menu_item_id?: string; id?: string; qty?: number }>;
   modernMode?: boolean;
+  summerPromoEnabled?: boolean;
 };
 
 const SIZE_TOKENS = ['XS', 'S', 'M', 'L', 'XL', 'DOUBLE', 'SINGLE'];
@@ -58,6 +60,7 @@ function MenuGrid({
   onSelectItem,
   draftItems,
   modernMode,
+  summerPromoEnabled,
 }: MenuGridProps) {
   const isBahaYLab = modernMode ?? isBahaYLabDefault;
   const [hideImages, setHideImages] = useState(() => localStorage.getItem('pos_hide_images') === 'true');
@@ -195,6 +198,7 @@ function MenuGrid({
       }`}>
         {groupedItems.map((group) => {
           const totalQtyInDraft = group.items.reduce((sum: number, it: any) => sum + (draftQtyMap.get(it.id) || 0), 0);
+          const isPromo = summerPromoEnabled && group.items.some((it: any) => isPromoEligibleItem({ category: it.category || '', item_name: it.item_name }));
           return (
             <div key={group.key} className="relative">
               <div
@@ -204,6 +208,11 @@ function MenuGrid({
                     : 'border-slate-700/50 bg-slate-900/50 hover:border-yellow-300/30 hover:bg-slate-900/70'
                 }`}
               >
+                {isPromo && (
+                  <div className="absolute left-1 top-1 z-20 rounded bg-gradient-to-r from-amber-500 to-amber-600 px-1 py-0.5 text-[8px] font-black uppercase tracking-wider text-slate-950 shadow shadow-amber-500/10 animate-pulse">
+                    ⚡ {tx(lang, 'Kampaniya', 'Промо', 'Promo')}
+                  </div>
+                )}
                 {/* Main clickable area: adds default/first variant */}
                 <div
                   role="button"
