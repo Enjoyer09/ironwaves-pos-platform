@@ -176,7 +176,7 @@ function MenuGrid({
             key={cat}
             type="button"
             onClick={() => onCategoryChange(cat)}
-            className={`whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-bold transition pos-category-btn ${
+            className={`whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-bold transition pos-category-btn taktil-target ${
               selectedCategory === cat
                 ? 'bg-yellow-400 text-slate-900 shadow-lg shadow-yellow-400/20'
                 : 'border border-slate-600/60 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60'
@@ -200,7 +200,7 @@ function MenuGrid({
               <div
                 className={`relative flex w-full flex-col overflow-hidden rounded-xl border transition pos-product-card ${
                   totalQtyInDraft > 0
-                    ? 'border-yellow-400/60 bg-slate-900/80 shadow-lg shadow-yellow-400/10'
+                    ? 'border-yellow-400/60 bg-slate-900/80 shadow-lg shadow-yellow-400/10 card-pulsing-glow'
                     : 'border-slate-700/50 bg-slate-900/50 hover:border-yellow-300/30 hover:bg-slate-900/70'
                 }`}
               >
@@ -218,7 +218,7 @@ function MenuGrid({
                       void onSelectItem(group.items[0]);
                     }
                   }}
-                  className="flex flex-1 flex-col cursor-pointer active:scale-[0.98] transition"
+                  className="flex flex-1 flex-col cursor-pointer transition taktil-target"
                 >
                   {!hideImages && (
                     group.image_url ? (
@@ -265,7 +265,7 @@ function MenuGrid({
                             tapFeedback();
                             void onSelectItem(item);
                           }}
-                          className={`flex-1 min-w-[32px] min-h-[34px] rounded-lg py-1 px-0.5 text-[9.5px] font-black border transition active:scale-[0.92] ${
+                          className={`flex-1 min-w-[32px] min-h-[34px] rounded-lg py-1 px-0.5 text-[9.5px] font-black border transition taktil-target ${
                             qtyInDraft > 0
                               ? 'bg-yellow-400 text-slate-950 border-yellow-400 shadow-sm shadow-yellow-400/20'
                               : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border-slate-700/50'
