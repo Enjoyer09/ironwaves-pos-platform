@@ -129,22 +129,22 @@ const DraftRowItem = memo(({ row, onUpdateQty, onEditNote, lang }: { row: any; o
         <div className="flex items-center gap-1">
           <button
             type="button"
-            className="flex h-6 w-6 items-center justify-center rounded border border-slate-600 text-xs text-slate-200 taktil-target"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-600 text-sm text-slate-200 taktil-target active:scale-90 active:bg-slate-700"
             onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) - 1)}
           >
             −
           </button>
-          <div className="min-w-5 text-center text-xs font-bold text-slate-100 select-none">{row.qty}</div>
+          <div className="min-w-7 text-center text-sm font-bold text-slate-100 select-none">{row.qty}</div>
           <button
             type="button"
-            className="flex h-6 w-6 items-center justify-center rounded border border-slate-600 text-xs text-slate-200 taktil-target"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-600 text-sm text-slate-200 taktil-target active:scale-90 active:bg-slate-700"
             onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) + 1)}
           >
             +
           </button>
           <button
             type="button"
-            className="flex h-6 w-6 items-center justify-center rounded border border-rose-300/40 bg-rose-500/10 text-[10px] text-rose-200 taktil-target"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-rose-300/40 bg-rose-500/10 text-xs text-rose-200 taktil-target active:scale-90"
             onClick={() => onUpdateQty(String(row.id), 0)}
           >
             ✕
