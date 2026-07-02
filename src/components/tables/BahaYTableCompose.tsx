@@ -194,14 +194,17 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
 
         {/* Floating Mobile Cart Bar with Quick Send */}
         {draftRows.length > 0 && mobileActiveTab !== 'cart' && (
-          <div className="md:hidden shrink-0 mt-2 flex gap-2 animate-bounce-subtle">
+          <div className="md:hidden shrink-0 mt-2 flex gap-2">
             <button
               type="button"
               onClick={() => setMobileActiveTab('cart')}
-              className="flex-1 flex items-center justify-between bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 px-4 py-3.5 font-black text-xs rounded-xl active:scale-[0.97] shadow-lg shadow-yellow-500/10 taktil-target"
+              className="flex-1 flex items-center justify-between bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 px-5 py-4 font-black text-sm rounded-2xl active:scale-[0.97] shadow-[0_8px_24px_rgba(250,204,21,0.25)] taktil-target"
             >
-              <span className="flex items-center gap-2">🛒 {tx(lang, 'Səbətə bax', 'Посмотреть корзину', 'View Cart')} ({draftRows.reduce((acc, r) => acc + (r.qty || 0), 0)})</span>
-              <span>{draftTotal} ₼ →</span>
+              <span className="flex items-center gap-2">
+                🛒 {tx(lang, 'Səbət', 'Корзина', 'Cart')}
+                <span className="rounded-full bg-slate-900/20 px-2 py-0.5 text-xs font-black">{draftRows.reduce((acc, r) => acc + (r.qty || 0), 0)}</span>
+              </span>
+              <span className="text-base font-black">{draftTotal} ₼</span>
             </button>
             <button
               type="button"
@@ -210,7 +213,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 playHapticSuccess();
                 await onSend();
               }}
-              className="shrink-0 flex items-center justify-center gap-1 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-3.5 font-black text-xs rounded-xl active:scale-[0.97] shadow-lg shadow-emerald-500/10 taktil-target"
+              className="shrink-0 flex items-center justify-center gap-1.5 bg-emerald-500 text-white px-5 py-4 font-black text-sm rounded-2xl active:scale-[0.97] shadow-[0_8px_24px_rgba(16,185,129,0.25)] taktil-target"
             >
               🍳 {tx(lang, 'Göndər', 'Отправить', 'Send')}
             </button>
@@ -234,19 +237,22 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
       >
         {/* Mobile drag handle */}
         <div 
-          className="md:hidden shrink-0 w-full py-2.5 flex justify-center cursor-pointer bg-slate-900/30 border-b border-slate-900/10 active:bg-slate-900/50 transition"
+          className="md:hidden shrink-0 w-full py-3 flex justify-center cursor-pointer bg-slate-900/50 active:bg-slate-800/60 transition"
           onClick={() => setMobileActiveTab('menu')}
         >
-          <div className="h-1 w-12 rounded-full bg-slate-700/60" />
+          <div className="h-1.5 w-14 rounded-full bg-slate-600/80" />
         </div>
 
         {/* Mobile Cart Header */}
-        <div className="md:hidden shrink-0 flex items-center justify-between border-b border-slate-850 px-4 py-3 bg-slate-900/60">
-          <span className="text-xs font-black uppercase tracking-wider text-slate-200">🛒 {tx(lang, 'Sifariş Səbəti', 'Корзина заказа', 'Order Cart')}</span>
+        <div className="md:hidden shrink-0 flex items-center justify-between border-b border-slate-800/80 px-5 py-3.5 bg-slate-900/70">
+          <div>
+            <span className="text-sm font-black text-white">{tx(lang, 'Sifariş', 'Заказ', 'Order')}</span>
+            <span className="ml-2 text-sm font-black text-yellow-400">{draftTotal} ₼</span>
+          </div>
           <button
             type="button"
             onClick={() => setMobileActiveTab('menu')}
-            className="rounded-lg border border-slate-700 bg-slate-850 px-2.5 py-1 text-xs font-bold text-slate-200 active:scale-95 taktil-target"
+            className="rounded-xl border border-slate-700 bg-slate-800/80 px-3.5 py-2 text-xs font-bold text-slate-200 active:scale-95 taktil-target"
           >
             ← {tx(lang, 'Menyu', 'Меню', 'Menu')}
           </button>
@@ -320,49 +326,51 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 type="button"
                 disabled={!userCanEdit}
                 onClick={() => { void onSend(); }}
-                className="w-full min-h-12 inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-b from-yellow-400 to-amber-500 px-3 py-2.5 text-sm font-black text-slate-900 shadow-lg shadow-yellow-500/25 transition taktil-target"
+                className="relative w-full min-h-14 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-yellow-400 to-amber-500 px-4 py-4 text-[15px] font-black text-slate-900 shadow-[0_8px_24px_rgba(250,204,21,0.3)] transition active:scale-[0.97] disabled:opacity-50 taktil-target overflow-hidden"
               >
+                <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.25) 0%, transparent 100%)' }} />
                 🚀 {tx(lang, 'Mətbəxə Göndər', 'Отправить в кухню', 'Send to Kitchen')}
               </button>
             </div>
           )}
 
           {/* Secondary Actions: Back & Settle/Bill */}
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2.5 flex gap-2">
             <button
               type="button"
               onClick={() => setMobileActiveTab('menu')}
-              className="md:hidden inline-flex min-h-10 flex-1 items-center justify-center rounded-xl border border-slate-600/70 bg-slate-850 px-2.5 py-2 text-[11px] font-bold text-slate-200 transition hover:bg-slate-700/80 taktil-target"
+              className="md:hidden inline-flex min-h-12 flex-1 items-center justify-center rounded-2xl border border-slate-600/60 bg-slate-800/70 px-3 py-3 text-xs font-bold text-slate-200 transition active:scale-[0.97] taktil-target"
             >
               🍳 {tx(lang, 'Menyuya qayıt', 'В меню', 'Back to Menu')}
             </button>
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex min-h-10 flex-1 items-center justify-center rounded-xl border border-slate-600/70 bg-slate-800/80 px-2.5 py-2 text-[11px] font-bold text-slate-200 transition hover:bg-slate-700/80 taktil-target"
+              className="inline-flex min-h-12 flex-1 items-center justify-center rounded-2xl border border-slate-600/60 bg-slate-800/70 px-3 py-3 text-xs font-bold text-slate-200 transition active:scale-[0.97] taktil-target"
             >
-              ← {tx(lang, 'Geri', 'Назад', 'Back')}
+              ← {tx(lang, 'Masalar', 'Столы', 'Tables')}
             </button>
             {tableOccupied && (
               <button
                 type="button"
                 disabled={!userCanEdit}
                 onClick={onSettle}
-                className="inline-flex min-h-10 flex-[1.2] items-center justify-center gap-1 rounded-xl bg-gradient-to-b from-emerald-400 to-emerald-600 px-2.5 py-2 text-[11px] font-black text-white shadow-lg shadow-emerald-500/20 transition disabled:opacity-50 disabled:shadow-none taktil-target"
+                className="relative inline-flex min-h-12 flex-[1.3] items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-b from-emerald-400 to-emerald-600 px-3 py-3 text-xs font-black text-white shadow-[0_6px_20px_rgba(16,185,129,0.25)] transition active:scale-[0.97] disabled:opacity-50 taktil-target overflow-hidden"
               >
+                <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.2) 0%, transparent 100%)' }} />
                 💵 {tx(lang, 'Hesab', 'Счет', 'Settle')}
               </button>
             )}
           </div>
 
-          {/* Cancel/Void table check (reorganized to avoid accidental clicks) */}
+          {/* Cancel/Void table check — intentionally small and separated to prevent accidental taps */}
           {tableOccupied && (
-            <div className="mt-2.5 flex justify-center">
+            <div className="mt-4 flex justify-center border-t border-slate-800/50 pt-3">
               <button
                 type="button"
                 disabled={!userCanEdit}
                 onClick={onCancelTable}
-                className="text-[10px] font-bold text-rose-400/85 hover:text-rose-300 transition duration-150 flex items-center gap-1 disabled:opacity-40 taktil-target"
+                className="text-[10px] font-semibold text-rose-400/70 transition active:text-rose-300 disabled:opacity-30 taktil-target"
               >
                 ⚠️ {tx(lang, 'Masayı boşalt (satışsız)', 'Отменить стол', 'Cancel check')}
               </button>
