@@ -76,7 +76,8 @@ def _pin_attempt_key(request: Request, tenant_id: str) -> str:
     return f"{tenant_id}:{client_ip or 'unknown'}"
 
 
-def _consume_pin_attempts(request: Request, tenant_id: str) -> None:
+def _check_pin_locked(request: Request, tenant_id: str) -> None:
+    """Check if PIN login is locked for this IP — raises 423 if locked."""
     key = _pin_attempt_key(request, tenant_id)
     now = datetime.now(UTC)
     redis_client = _get_redis_security_client()
@@ -89,8 +90,28 @@ def _consume_pin_attempts(request: Request, tenant_id: str) -> None:
                 locked_until_ts = float(state.get("locked_until_ts") or 0)
                 if locked_until_ts and time.time() < locked_until_ts:
                     raise HTTPException(status_code=423, detail="Too many invalid PIN attempts. Try again later.")
-            else:
-                state = {}
+            return
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+    state = _pin_attempt_tracker.get(key, {})
+    locked_until = state.get("locked_until")
+    if isinstance(locked_until, datetime) and now < locked_until:
+        raise HTTPException(status_code=423, detail="Too many invalid PIN attempts. Try again later.")
+
+
+def _consume_pin_attempts(request: Request, tenant_id: str) -> None:
+    """Increment failed PIN counter — call ONLY on failed attempts."""
+    key = _pin_attempt_key(request, tenant_id)
+    now = datetime.now(UTC)
+    redis_client = _get_redis_security_client()
+    if redis_client:
+        try:
+            redis_key = f"ironwaves:pin-attempts:{key}"
+            raw = redis_client.get(redis_key)
+            state = json.loads(str(raw)) if raw else {}
             attempts = int(state.get("attempts", 0)) + 1
             next_state: dict[str, int | float] = {"attempts": attempts}
             ttl = max(60, int(settings.pin_lockout_minutes * 60))
@@ -99,16 +120,11 @@ def _consume_pin_attempts(request: Request, tenant_id: str) -> None:
                 ttl = max(ttl, int(settings.pin_lockout_minutes * 60) + 30)
             redis_client.setex(redis_key, ttl, json.dumps(next_state))
             return
-        except HTTPException:
-            raise
         except Exception:
-            # fallback to in-memory tracker
             pass
 
     state = _pin_attempt_tracker.get(key, {})
     locked_until = state.get("locked_until")
-    if isinstance(locked_until, datetime) and now < locked_until:
-        raise HTTPException(status_code=423, detail="Too many invalid PIN attempts. Try again later.")
     if isinstance(locked_until, datetime) and now >= locked_until:
         state = {}
 
@@ -704,7 +720,7 @@ def pin_login(payload: PinLoginIn, request: Request, response: Response, db: Ses
     )
 
     now = datetime.utcnow()
-    _consume_pin_attempts(request, tenant.id)
+    _check_pin_locked(request, tenant.id)
     matches: list[User] = []
     for u in users:
         if u.locked_until and now < u.locked_until:
@@ -714,6 +730,7 @@ def pin_login(payload: PinLoginIn, request: Request, response: Response, db: Ses
             matches.append(u)
 
     if not matches:
+        _consume_pin_attempts(request, tenant.id)
         _add_auth_audit_log(db, tenant.id, "pin_login", "AUTH_PIN_FAILED", request, {"reason": "invalid_pin"})
         db.commit()
         raise HTTPException(status_code=401, detail="Invalid PIN")

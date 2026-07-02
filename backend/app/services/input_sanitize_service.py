@@ -15,7 +15,12 @@ def clean_public_text(value: str | None, *, max_len: int = 120, field_name: str 
     raw = str(value or "").strip()
     if len(raw) > max_len:
         raise HTTPException(status_code=400, detail=f"{field_name} çox uzundur")
-    if re.search(r"<\s*script|javascript:|data:text/html", raw, re.IGNORECASE):
+    # Block known XSS vectors
+    if re.search(
+        r"<\s*script|javascript:|data:text/html|<\s*img[^>]+onerror|<\s*svg[^>]+onload|<\s*iframe|<\s*object|<\s*embed|on\w+\s*=",
+        raw,
+        re.IGNORECASE,
+    ):
         raise HTTPException(status_code=400, detail=f"{field_name} təhlükəli məzmun daşıyır")
     return raw
 
