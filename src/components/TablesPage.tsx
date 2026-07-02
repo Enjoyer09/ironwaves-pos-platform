@@ -3192,7 +3192,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                    </button>
 	                  </div>
 	                  {tableWorkspaceTab === 'compose' && isBahaYLab && (
-	                    <div className="order-1 flex min-h-0 flex-[1.2] flex-col overflow-hidden">
+	                    <div className="order-1 flex min-h-0 flex-1 flex-col overflow-hidden" style={{ height: 'calc(100dvh - 180px)', maxHeight: 'calc(100dvh - 180px)' }}>
 	                      <BahaYTableCompose
 	                        lang={lang}
 	                        filteredRoundMenu={filteredRoundMenu}
