@@ -1184,6 +1184,7 @@ def _run_startup_migrations():
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_tenant_card_created ON notifications (tenant_id, card_id, created_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_tenant_unread_created ON notifications (tenant_id, is_read, created_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sales_tenant_customer_created ON sales (tenant_id, customer_card_id, created_at)"))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sales_tenant_created_at ON sales (tenant_id, created_at)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_revoked_tokens_tenant_hash ON revoked_tokens (tenant_id, token_hash)"))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_finance_entries_tenant_source_type_created ON finance_entries (tenant_id, source, type, created_at)"))
         conn.execute(text("""
