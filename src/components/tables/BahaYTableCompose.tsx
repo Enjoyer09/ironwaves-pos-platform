@@ -177,7 +177,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
   const hasCartContent = draftRows.length > 0 || sentItems.length > 0;
 
   return (
-    <div className={`flex flex-col min-h-0 flex-1 gap-3 overflow-hidden relative ${hasCartContent ? 'md:grid md:grid-cols-[1fr_340px] lg:grid-cols-[1fr_380px]' : ''}`}>
+    <div className={`flex flex-col min-h-0 flex-1 gap-3 overflow-hidden relative ${hasCartContent ? 'md:grid md:grid-cols-[1fr_440px] lg:grid-cols-[1fr_500px]' : ''}`}>
       {/* ─── LEFT: Menu Grid ─── */}
       <div className="flex min-h-0 flex-col overflow-hidden">
         <MenuGrid
