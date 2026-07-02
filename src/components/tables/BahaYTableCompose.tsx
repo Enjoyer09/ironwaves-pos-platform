@@ -454,7 +454,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                         <button
                           type="button"
                           onClick={() => onVoidItem(it)}
-                          className="shrink-0 rounded-lg border border-rose-300/30 bg-rose-500/10 px-2 py-1 text-[10px] font-bold text-rose-200 transition active:scale-95"
+                          className="shrink-0 rounded-xl border border-rose-300/30 bg-rose-500/10 px-3.5 py-2.5 text-xs font-bold text-rose-200 transition active:scale-90 taktil-target"
                         >
                           {tx(lang, 'Ləğv', 'Отмена', 'Void')}
                         </button>

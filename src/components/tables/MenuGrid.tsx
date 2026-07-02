@@ -352,7 +352,7 @@ function MenuGrid({
                             tapFeedback();
                             void onSelectItem(item);
                           }}
-                          className={`flex-1 min-w-[32px] min-h-[34px] rounded-lg py-1 px-0.5 text-[9.5px] font-black border transition taktil-target ${
+                          className={`flex-1 min-w-[44px] min-h-[44px] rounded-xl py-2 px-1 text-[11px] font-black border transition taktil-target active:scale-90 ${
                             qtyInDraft > 0
                               ? 'bg-yellow-400 text-slate-950 border-yellow-400 shadow-sm shadow-yellow-400/20'
                               : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border-slate-700/50'
