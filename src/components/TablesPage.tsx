@@ -2830,9 +2830,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       {viewTableId && (
         <div
 	          ref={detailPanelRef}
-	          className="fixed inset-0 md:inset-y-3 md:right-3 md:left-auto z-[90] h-full md:h-[calc(100vh-1.5rem)] w-full md:w-[calc(100vw-1.5rem)] lg:w-[1000px] xl:w-[1240px] overflow-hidden bg-slate-950/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur workspace-slide-in"
+	          className="fixed inset-0 z-[90] overflow-hidden bg-[#070b12] workspace-slide-in"
         >
-          <div className="flex h-full flex-col overflow-hidden p-4 rounded-none md:rounded-[30px] bg-[#070b12] md:bg-slate-950/95 shadow-none md:shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:border md:border-white/10 md:metal-panel">
+          <div className="flex h-full flex-col overflow-hidden p-3 md:p-4">
             {(() => {
               const t = tables.find((x) => x.id === viewTableId);
               if (!t) return null;
