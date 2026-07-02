@@ -3209,7 +3209,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                        }}
 	                        sentItems={sentDisplayItems}
 	                        onShowFullList={() => setShowFullOrderList(true)}
-	                        onVoidItem={(item) => { setItemActionTarget({ ...item, action: 'VOID' }); setItemActionReason(''); setItemActionManagerPassword(''); }}
+	                        onVoidItem={(item) => { setItemActionTarget({ item, action: 'VOID' }); setItemActionReason(''); setItemActionManagerPassword(''); }}
 	                        lockHolder={tableLockHolder}
 	                        userCanEditTable={userCanEditTable}
 	                        readyCount={readyItems.length}
@@ -3490,7 +3490,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                                        <button
 	                                          type="button"
 	                                          className="shrink-0 rounded-lg border border-rose-300/40 bg-rose-500/10 px-2.5 py-1.5 text-[11px] font-bold text-rose-200 transition active:scale-95"
-	                                          onClick={() => { setItemActionTarget({ ...row, action: 'VOID' }); setItemActionReason(''); setItemActionManagerPassword(''); }}
+	                                          onClick={() => { setItemActionTarget({ item: row, action: 'VOID' }); setItemActionReason(''); setItemActionManagerPassword(''); }}
 	                                        >
 	                                          {tx(lang, 'Ləğv', 'Отмена', 'Void')}
 	                                        </button>
