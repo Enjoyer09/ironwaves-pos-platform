@@ -244,7 +244,7 @@ function MenuGrid({
               playHapticTouch();
               onCategoryChange(cat);
             }}
-            className={`whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-bold transition pos-category-btn taktil-target ${
+            className={`whitespace-nowrap rounded-full px-6 py-3 text-[15px] font-bold transition pos-category-btn taktil-target active:scale-95 ${
               selectedCategory === cat
                 ? 'bg-yellow-400 text-slate-900 shadow-lg shadow-yellow-400/20'
                 : 'border border-slate-600/60 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60'
