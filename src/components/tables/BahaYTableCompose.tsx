@@ -174,8 +174,10 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
   const [currentNoteText, setCurrentNoteText] = useState('');
   const [mobileActiveTab, setMobileActiveTab] = useState<'menu' | 'cart'>('menu');
 
+  const hasCartContent = draftRows.length > 0 || sentItems.length > 0;
+
   return (
-    <div className="flex flex-col md:grid md:grid-cols-[1fr_380px] lg:grid-cols-[1fr_420px] min-h-0 flex-1 gap-3 overflow-hidden relative">
+    <div className={`flex flex-col min-h-0 flex-1 gap-3 overflow-hidden relative ${hasCartContent ? 'md:grid md:grid-cols-[1fr_340px] lg:grid-cols-[1fr_380px]' : ''}`}>
       {/* ─── LEFT: Menu Grid ─── */}
       <div className="flex min-h-0 flex-col overflow-hidden">
         <MenuGrid
@@ -233,7 +235,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
       <div
         className={`fixed bottom-0 left-0 right-0 z-50 h-[85dvh] rounded-t-[30px] border-t border-slate-800 bg-[#070b12] shadow-[0_-20px_50px_rgba(0,0,0,0.65)] transition-transform duration-300 ease-out flex flex-col overflow-hidden md:relative md:bottom-auto md:left-auto md:right-auto md:z-auto md:h-full md:rounded-2xl md:border md:border-slate-700/60 md:bg-slate-950/50 md:shadow-none md:translate-y-0 ${
           mobileActiveTab === 'cart' ? 'translate-y-0' : 'translate-y-full'
-        }`}
+        } ${!hasCartContent ? 'md:hidden' : ''}`}
       >
         {/* Mobile drag handle */}
         <div 
