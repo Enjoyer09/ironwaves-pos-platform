@@ -3888,7 +3888,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                   </button>
                 </div>
               )}
-              {!floorEditMode && (
+              {!floorEditMode && floorViewMode === 'map' && (
                 <label className="flex min-w-[210px] items-center gap-3 rounded-full border border-slate-700/70 bg-slate-900/40 px-4 py-2 text-xs font-semibold text-slate-200">
                   <span>{tx(lang, 'Zoom', 'Зум', 'Zoom')}</span>
                   <input

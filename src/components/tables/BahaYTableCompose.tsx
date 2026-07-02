@@ -228,7 +228,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
       />
 
       <div
-        className={`fixed bottom-0 left-0 right-0 z-50 h-[85dvh] rounded-t-[30px] border-t border-slate-800 bg-[#070b12] shadow-[0_-20px_50px_rgba(0,0,0,0.65)] transition-transform duration-300 ease-out flex flex-col overflow-hidden md:relative md:bottom-auto md:left-auto md:right-auto md:z-auto md:h-full md:w-[300px] md:rounded-2xl md:border md:border-slate-700/60 md:bg-slate-950/40 md:shadow-none md:translate-y-0 ${
+        className={`fixed bottom-0 left-0 right-0 z-50 h-[85dvh] rounded-t-[30px] border-t border-slate-800 bg-[#070b12] shadow-[0_-20px_50px_rgba(0,0,0,0.65)] transition-transform duration-300 ease-out flex flex-col overflow-hidden md:relative md:bottom-auto md:left-auto md:right-auto md:z-auto md:h-full md:w-[360px] md:rounded-2xl md:border md:border-slate-700/60 md:bg-slate-950/40 md:shadow-none md:translate-y-0 ${
           mobileActiveTab === 'cart' ? 'translate-y-0' : 'translate-y-full'
         }`}
       >
