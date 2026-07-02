@@ -262,10 +262,11 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const itemActionNeedsManager = (action?: string | null, status?: string | null) => {
     const normalizedAction = String(action || '').toUpperCase();
     const normalizedStatus = normalizeOrderItemStatus(status);
-    if (normalizedAction === 'DECREASE') return false;
-    if (normalizedAction === 'VOID') return ['VOID_REQUESTED', 'READY'].includes(normalizedStatus);
-    if (['COMP', 'WASTE', 'REMAKE'].includes(normalizedAction)) return ['READY', 'SERVED'].includes(normalizedStatus);
-    return false;
+    // DRAFT and SENT items can be quickly changed without admin password
+    // PREPARING, READY, SERVED, VOID_REQUESTED require manager approval
+    if (normalizedStatus === 'DRAFT' || normalizedStatus === 'SENT' || normalizedStatus === 'NEW') return false;
+    if (normalizedAction === 'DECREASE' && normalizedStatus === 'PREPARING') return false;
+    return true;
   };
 
   const servedStorageKey = hostScopedKey(`${tenant_id}_table_served_items`);
