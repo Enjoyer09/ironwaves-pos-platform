@@ -64,7 +64,11 @@ function MenuGrid({
   summerPromoEnabled,
 }: MenuGridProps) {
   const isBahaYLab = modernMode ?? isBahaYLabDefault;
-  const [hideImages, setHideImages] = useState(() => localStorage.getItem('pos_hide_images') === 'true');
+  const [hideImages, setHideImages] = useState(() => {
+    const stored = localStorage.getItem('pos_hide_images');
+    // Default to fast mode (no images) for speed
+    return stored === null ? true : stored === 'true';
+  });
   const [longPressItem, setLongPressItem] = useState<any>(null);
   const [customQtyText, setCustomQtyText] = useState('');
   const pressTimer = useRef<number | null>(null);
