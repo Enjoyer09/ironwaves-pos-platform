@@ -2830,17 +2830,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       {viewTableId && (
         <div
 	          ref={detailPanelRef}
-	          className={`${
-	            workspaceView === 'floor'
-	              ? 'fixed inset-0 md:inset-y-3 md:right-3 md:left-auto z-[90] h-full md:h-[calc(100vh-1.5rem)] w-full md:w-[calc(100vw-1.5rem)] lg:w-[1000px] xl:w-[1240px] overflow-hidden bg-slate-950/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur workspace-slide-in'
-	              : 'mt-6'
-	          }`}
+	          className="fixed inset-0 md:inset-y-3 md:right-3 md:left-auto z-[90] h-full md:h-[calc(100vh-1.5rem)] w-full md:w-[calc(100vw-1.5rem)] lg:w-[1000px] xl:w-[1240px] overflow-hidden bg-slate-950/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur workspace-slide-in"
         >
-          <div className={`${
-            workspaceView === 'floor'
-              ? 'flex h-full flex-col overflow-hidden p-4 rounded-none md:rounded-[30px] bg-[#070b12] md:bg-slate-950/95 shadow-none md:shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:border md:border-white/10 md:metal-panel'
-              : 'metal-panel w-full rounded-[30px] p-5'
-          }`}>
+          <div className="flex h-full flex-col overflow-hidden p-4 rounded-none md:rounded-[30px] bg-[#070b12] md:bg-slate-950/95 shadow-none md:shadow-[0_24px_80px_rgba(0,0,0,0.45)] md:border md:border-white/10 md:metal-panel">
             {(() => {
               const t = tables.find((x) => x.id === viewTableId);
               if (!t) return null;
@@ -3192,7 +3184,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                    </button>
 	                  </div>
 	                  {tableWorkspaceTab === 'compose' && isBahaYLab && (
-	                    <div className="order-1 flex min-h-0 flex-1 flex-col overflow-hidden" style={{ height: 'calc(100dvh - 180px)', maxHeight: 'calc(100dvh - 180px)' }}>
+	                    <div className="order-1 flex min-h-0 flex-1 flex-col overflow-hidden h-[calc(100dvh-200px)] md:h-[calc(100dvh-160px)]">
 	                      <BahaYTableCompose
 	                        lang={lang}
 	                        filteredRoundMenu={filteredRoundMenu}
