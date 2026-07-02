@@ -70,6 +70,24 @@ async def upload_menu_image(
     if len(payload) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=400, detail="image too large (max 5MB)")
 
+    # Validate actual file content via magic bytes (not just Content-Type header)
+    magic_signatures = {
+        b"\xff\xd8\xff": "image/jpeg",
+        b"\x89PNG\r\n\x1a\n": "image/png",
+        b"RIFF": "image/webp",  # WebP starts with RIFF....WEBP
+        b"GIF87a": "image/gif",
+        b"GIF89a": "image/gif",
+    }
+    detected_type = None
+    for magic, mime in magic_signatures.items():
+        if payload[:len(magic)] == magic:
+            detected_type = mime
+            break
+    if not detected_type:
+        raise HTTPException(status_code=400, detail="File content does not match a valid image format")
+    if detected_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail=f"Detected format {detected_type} is not allowed")
+
     tenant_dir = MENU_UPLOADS_ROOT / str(tenant.id)
     tenant_dir.mkdir(parents=True, exist_ok=True)
     ext = ALLOWED_IMAGE_TYPES.get(content_type, ".jpg")

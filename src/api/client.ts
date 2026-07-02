@@ -81,6 +81,21 @@ const getResponseCache = new Map<string, { expiresAt: number; data: any }>();
 let refreshInFlight: Promise<boolean> | null = null;
 let lastRefreshFailureAt = 0;
 
+// Periodic cleanup of telemetryThrottle to prevent memory leak in long sessions
+if (typeof window !== 'undefined') {
+  setInterval(() => {
+    const now = Date.now();
+    const keys = Object.keys(telemetryThrottle);
+    if (keys.length > 200) {
+      for (const key of keys) {
+        if (now - telemetryThrottle[key] > 60000) {
+          delete telemetryThrottle[key];
+        }
+      }
+    }
+  }, 120000);
+}
+
 function cloneCachedData<T>(data: T): T {
   try {
     if (typeof structuredClone === 'function') return structuredClone(data);
