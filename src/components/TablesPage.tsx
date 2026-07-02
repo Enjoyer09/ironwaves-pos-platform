@@ -3755,7 +3755,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       )}
 
       <div className={`mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between ${isBahaYLab && viewTableId ? 'hidden' : ''}`}>
-        <h2 className="text-2xl font-bold flex items-center gap-2"><LayoutGrid size={28} className="text-yellow-300"/> {tx(lang, 'Masaların İdarəsi', 'Управление столами', 'Table Management')}</h2>
+        <h2 className="text-2xl font-bold flex items-center gap-2"><LayoutGrid size={28} className="text-yellow-300"/> {tx(lang, 'Masalar', 'Столы', 'Tables')}</h2>
+        {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -3773,14 +3774,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
             <CalendarClock size={16} className="mr-2 inline" />
             {tx(lang, 'Rezervasiyalar', 'Брони', 'Reservations')}
           </button>
-          {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
-            <button onClick={() => setShowCreate(true)} className="glossy-gold min-h-13 px-4 py-3 rounded-xl flex items-center justify-center gap-2 transition-colors font-bold">
-              <Plus size={20} /> {tx(lang, 'Masa Yarat', 'Создать стол', 'Create Table')}
-            </button>
-          )}
-          {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase())
-            && selectedFloorTable
-            && !tablesById[selectedFloorTable.id]?.is_occupied && (
+          <button onClick={() => setShowCreate(true)} className="glossy-gold min-h-13 px-4 py-3 rounded-xl flex items-center justify-center gap-2 transition-colors font-bold">
+            <Plus size={20} /> {tx(lang, 'Masa Yarat', 'Создать стол', 'Create Table')}
+          </button>
+          {selectedFloorTable && !tablesById[selectedFloorTable.id]?.is_occupied && (
             <button
               type="button"
               onClick={() => setDeleteTableId(selectedFloorTable.id)}
@@ -3790,6 +3787,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
             </button>
           )}
         </div>
+        )}
       </div>
       {workspaceView === 'floor' && (
         <div className={`mb-6 rounded-[28px] border border-white/10 bg-slate-900/35 p-4 ${isBahaYLab && viewTableId ? 'hidden' : ''}`}>
@@ -3817,6 +3815,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
           ) : (
             <>
             {/* Zonalar Tab Menyusu */}
+            {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
             <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-white/5 pb-4">
               {floorPlans.map((row) => {
                 const active = row.id === activeFloorId;
@@ -3847,16 +3846,20 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 </button>
               )}
             </div>
+            )}
 
             <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <div className="text-lg font-bold text-slate-100">
                   {floorPlans.find((row) => row.id === activeFloorId)?.name || tx(lang, 'Main Floor', 'Main Floor', 'Main Floor')}
                 </div>
+                {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
                 <div className="mt-1 text-sm text-slate-400">
                   {tx(lang, 'Floor plan görünüşü. Masaya toxunaraq seating və açıq check axınına keçin.', 'План зала. Нажмите на стол, чтобы перейти к seating и открытому чеку.', 'Floor plan view. Tap a table to continue into seating and open check flow.')}
                 </div>
+                )}
               </div>
+              {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
               <div className="flex flex-wrap gap-2">
               {!floorEditMode && (
                 <div className="flex rounded-full bg-slate-900/40 p-0.5 border border-slate-700/60">
@@ -3919,6 +3922,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 </>
               )}
             </div>
+            )}
           </div>
           {floorEditMode && floorMultiSelectMode && selectedFloorTables.length > 0 && (
             <div className="mb-3 rounded-2xl border border-violet-300/20 bg-violet-500/10 p-3">
@@ -4067,6 +4071,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               )}
             </div>
           )}
+          {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
           <div className="mb-3 flex flex-wrap gap-2">
             {[
               ['AVAILABLE', tx(lang, 'Boş', 'Свободно', 'Available'), 'border-emerald-300/40 bg-emerald-500/10 text-emerald-100'],
@@ -4079,7 +4084,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               </div>
             ))}
           </div>
-          {mergedGroups.length > 0 && (
+          )}
+          {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && mergedGroups.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-2">
               {mergedGroups.map((group, index) => (
                 <button
