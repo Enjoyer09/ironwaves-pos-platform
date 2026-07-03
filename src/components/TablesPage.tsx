@@ -2993,8 +2993,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         </span>
                         <button
                           type="button"
-                          onClick={() => { setFastSwitchOpen(true); setFastSwitchPin(''); setFastSwitchError(''); }}
-                          className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border border-slate-600/60 bg-slate-800/50 px-3 py-1.5 text-[11px] font-semibold text-slate-300 transition active:scale-95 taktil-target"
+                          onClick={() => { window.dispatchEvent(new CustomEvent('open-fast-switch')); }}
+                          className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-slate-600/60 bg-slate-800/50 px-4 py-2 text-xs font-bold text-slate-200 transition active:scale-95 taktil-target"
                         >
                           👤 {tx(lang, 'Deyiş', 'Сменить', 'Switch')}
                         </button>
@@ -3019,8 +3019,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           </div>
                           <button
                             type="button"
-                            onClick={() => { setFastSwitchOpen(true); setFastSwitchPin(''); setFastSwitchError(''); }}
-                            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-slate-600/60 bg-slate-800/50 px-3 py-1.5 text-xs font-semibold text-slate-300 transition active:scale-95 taktil-target"
+                            onClick={() => { window.dispatchEvent(new CustomEvent('open-fast-switch')); }}
+                            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-slate-600/60 bg-slate-800/50 px-4 py-2 text-xs font-bold text-slate-200 transition active:scale-95 taktil-target"
                             title={tx(lang, 'İstifadəçi dəyiş', 'Сменить пользователя', 'Switch user')}
                           >
                             👤 {tx(lang, 'Deyiş', 'Сменить', 'Switch')}
