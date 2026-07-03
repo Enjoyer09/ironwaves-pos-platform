@@ -1924,7 +1924,7 @@ export default function App() {
                 <span>{tx(safeLang, 'Help', 'Помощь', 'Help')}</span>
               </button>
               <button
-                onClick={() => { logout(); setFastSwitchOpen(true); setFastSwitchPin(''); setFastSwitchError(''); }}
+                onClick={() => { setFastSwitchOpen(true); setFastSwitchPin(''); setFastSwitchError(''); }}
                 className="rounded-xl border border-rose-400/50 bg-gradient-to-b from-rose-500 to-rose-700 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-rose-500/20 transition active:scale-[0.97]"
                 title={tx(safeLang, 'İstifadəçi dəyiş (PIN)', 'Сменить пользователя (PIN)', 'Switch user (PIN)')}
               >
