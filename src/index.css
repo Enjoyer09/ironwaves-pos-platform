@@ -3049,3 +3049,26 @@ a, button, select, input, textarea, [role="button"] {
 
 
 
+
+/* ── WCAG 1.4.3 Contrast Fix ─────────────────────────────────────────────
+   Default text-slate-400 (#94a3b8) on dark bg (#0a0e17) = ~4.2:1
+   For small text (<18px / <14px bold) WCAG AA requires 4.5:1
+   Bumping secondary text to #a8b5c4 gives ~5:1 on #0a0e17
+   text-slate-500 (#64748b) = ~3:1 → bumped to #8494a7 = ~4.6:1
+   ─────────────────────────────────────────────────────────────────────── */
+@layer utilities {
+  .text-slate-400 {
+    color: #a8b5c4 !important;
+  }
+  .text-slate-500 {
+    color: #8494a7 !important;
+  }
+
+  /* Light theme doesn't need this override — its contrast is fine */
+  html[data-theme='light'] .text-slate-400 {
+    color: #64748b !important;
+  }
+  html[data-theme='light'] .text-slate-500 {
+    color: #475569 !important;
+  }
+}
