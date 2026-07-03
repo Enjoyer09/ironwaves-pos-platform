@@ -16,12 +16,12 @@ import { logUiError } from './lib/logger';
 import { getPendingOfflineSalesCount, syncPendingOfflineSales } from './lib/offline';
 import { probeInternet } from './lib/connectivity';
 import { get_unread_staff_notifications_live, mark_staff_notification_read_live, mark_staff_notifications_read_live } from './api/reports';
-import { getActiveTenantId, getResolvedTenantIdFromHost } from './lib/tenant';
+import { getActiveTenantId, getResolvedTenantIdFromHost, setActiveTenantId } from './lib/tenant';
 import { get_low_stock_items } from './api/inventory';
 import { list_tenants, type TenantRecord } from './api/tenants';
 import { clearDBCache } from './lib/db_sim';
 import { authApi } from './api/auth';
-import { apiRequest, isBackendEnabled } from './api/client';
+import { apiRequest, isBackendEnabled, setClientAuthSession } from './api/client';
 import { isPerfDebugEnabled, type PerfEvent } from './lib/perf';
 import { syncPendingOfflineTableOps } from './api/tables';
 import HelpAssistant from './components/HelpAssistant';
@@ -1458,9 +1458,22 @@ export default function App() {
     setFastSwitchLoading(true);
     setFastSwitchError('');
     try {
-      // Try login with new PIN FIRST (don't logout yet)
-      const success = await login(pin);
-      if (success) {
+      // Directly call pin_login API without going through store login
+      // This avoids triggering auth-expired listeners on failure
+      const tenantId = getActiveTenantId();
+      const res = await authApi.pin_login(pin, tenantId);
+      if (res?.access_token && res?.user) {
+        // Success — apply new session
+        if (res.user.tenant_id) {
+          setActiveTenantId(res.user.tenant_id);
+        }
+        // Update store with new user
+        useAppStore.setState({
+          user: res.user,
+          access_token: res.access_token,
+          refresh_token: null,
+        });
+        setClientAuthSession({ access_token: res.access_token, user: res.user });
         setFastSwitchOpen(false);
         setFastSwitchPin('');
         setFastSwitchError('');
@@ -1473,7 +1486,7 @@ export default function App() {
       }
     } catch (e: any) {
       const msg = String(e?.message || e || '');
-      if (msg.includes('kilidlənib') || msg.includes('locked')) {
+      if (msg.includes('kilidlənib') || msg.includes('locked') || msg.includes('423')) {
         setFastSwitchError(tx(safeLang, 'Hesab kilidlənib, gözləyin', 'Аккаунт заблокирован', 'Account locked'));
       } else {
         setFastSwitchError(tx(safeLang, 'Yanlış PIN', 'Неверный PIN', 'Invalid PIN'));
