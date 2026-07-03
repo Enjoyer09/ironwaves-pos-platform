@@ -155,6 +155,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const detailPanelRef = useRef<HTMLDivElement | null>(null);
   const realtimeRefreshTimerRef = useRef<number | null>(null);
   const realtimeRefreshInFlightRef = useRef(false);
+  const sendRoundInFlightRef = useRef(false);
+  const detailFetchSeqRef = useRef(0);
   const realtimeRefreshPendingRef = useRef(false);
   const realtimeRefreshScopesRef = useRef<Set<'tables' | 'kitchen' | 'floor' | 'reservations' | 'detail'>>(new Set());
   const isActiveRef = useRef(isActive);
@@ -169,6 +171,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const activeFloorIdRef = useRef<string>('');
   const viewTableIdRef = useRef<string | null>(null);
   const workspaceViewRef = useRef<'floor' | 'reservations'>('floor');
+  const reservationDateRef = useRef(reservationDate);
   const businessProfile = get_business_profile(tenant_id);
   const printSettings = tenantSettings.print_settings || { use_qz: false, printer_name: '' };
   const tablesUiMode = (() => {
@@ -488,6 +491,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   }, [workspaceView]);
 
   useEffect(() => {
+    reservationDateRef.current = reservationDate;
+  }, [reservationDate]);
+
+  useEffect(() => {
     if (!copyLayoutSourceFloorId) {
       const fallback = floorPlans.find((row) => row.id !== activeFloorId)?.id || '';
       setCopyLayoutSourceFloorId(fallback);
@@ -596,10 +603,20 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   useEffect(() => {
     clearRoundComposer();
     setShowSentSlideUp(false);
+    setTransferTargetId('');
+    setMergeTargetId('');
   }, [viewTableId]);
 
   useEffect(() => {
-    if (viewTableId) setTableWorkspaceTab('compose');
+    if (viewTableId) {
+      setTableWorkspaceTab('compose');
+      // Cancel any pending closeTableDetail timeout if a new table was opened
+      if ((closeTableDetail as any).__timer) {
+        clearTimeout((closeTableDetail as any).__timer);
+        (closeTableDetail as any).__timer = null;
+        setTableDetailClosing(false);
+      }
+    }
     setDraftSendError(null);
   }, [viewTableId]);
 
@@ -672,15 +689,16 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         }
         if (scopes.includes('reservations') && currentWorkspace === 'reservations') {
           tasks.push(
-            get_reservations_live(tenant_id, reservationDate)
+            get_reservations_live(tenant_id, reservationDateRef.current)
               .then((rows) => setReservations(Array.isArray(rows) ? rows : []))
               .catch(() => {}),
           );
         }
         if (scopes.includes('detail') && currentViewTableId) {
+          const seq = ++detailFetchSeqRef.current;
           tasks.push(
             get_table_detail_live(tenant_id, currentViewTableId)
-              .then((next) => setTableDetailRecord(next))
+              .then((next) => { if (detailFetchSeqRef.current === seq) setTableDetailRecord(next); })
               .catch(() => {}),
           );
         }
@@ -733,7 +751,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       realtimeRefreshScopesRef.current = new Set();
       unsubscribe();
     };
-  }, [tenant_id, reservationDate]);
+  }, [tenant_id]);
 
   useEffect(() => {
     try {
@@ -962,10 +980,14 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   };
 
   const refreshActiveTableDetail = async (tableId: string) => {
+    const seq = ++detailFetchSeqRef.current;
     await Promise.all([
       loadData(),
       activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(),
-      get_table_detail_live(tenant_id, tableId).then((next) => setTableDetailRecord(next)).catch(() => {}),
+      get_table_detail_live(tenant_id, tableId).then((next) => {
+        // Only apply if this is still the latest request (prevents stale data overwrite)
+        if (detailFetchSeqRef.current === seq) setTableDetailRecord(next);
+      }).catch(() => {}),
     ]);
   };
 
@@ -1066,12 +1088,15 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   };
 
   const closeTableDetail = useCallback(() => {
+    if (tableDetailClosing) return; // prevent double-tap
     setTableDetailClosing(true);
-    setTimeout(() => {
+    const closingTimer = setTimeout(() => {
       setViewTableId(null);
       setTableDetailClosing(false);
     }, 200);
-  }, []);
+    // Store timer so we can cancel if a new table opens
+    (closeTableDetail as any).__timer = closingTimer;
+  }, [tableDetailClosing]);
 
   const markReadyItemServed = (tableId: string, itemName: string, qty: number) => {
     const itemKey = `${itemName}`.trim();
@@ -1099,10 +1124,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 
   const sendRoundDirectly = async (table: any) => {
     if (!table?.id) return;
+    if (sendRoundInFlightRef.current) return; // prevent double-tap
+    sendRoundInFlightRef.current = true;
+    try {
     const activeDetail = tableDetailRecord?.table?.id === table.id ? tableDetailRecord : null;
     const serverDraftItems = activeDetail?.draft_items || [];
     if (activeDetail?.check?.id) {
-      if (serverDraftItems.length === 0) return;
+      if (serverDraftItems.length === 0) { sendRoundInFlightRef.current = false; return; }
       try {
         await send_check_drafts_live(activeDetail.check.id, {
           sent_by: user?.username || 'staff',
@@ -1120,22 +1148,32 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         return;
       }
     }
-    if (roundDraft.length === 0) return;
-    await send_table_round_live(table.id, {
-      sent_by: user?.username || 'staff',
-      course_no: 1,
-      items: roundDraft.map((row: any) => ({
-        id: row.id,
-        item_name: row.item_name,
-        price: String(row.price),
-        qty: Number(row.qty || 0),
-        category: row.category,
-        is_coffee: Boolean(row.is_coffee),
-      })),
-    });
-    notify('success', tx(lang, 'Yeni raund mətbəxə göndərildi', 'Новый раунд отправлен на кухню', 'New round sent to kitchen'));
-    clearRoundComposer();
-    await refreshActiveTableDetail(table.id);
+    if (roundDraft.length === 0) { sendRoundInFlightRef.current = false; return; }
+    try {
+      await send_table_round_live(table.id, {
+        sent_by: user?.username || 'staff',
+        course_no: 1,
+        items: roundDraft.map((row: any) => ({
+          id: row.id,
+          item_name: row.item_name,
+          price: String(row.price),
+          qty: Number(row.qty || 0),
+          category: row.category,
+          is_coffee: Boolean(row.is_coffee),
+        })),
+      });
+      notify('success', tx(lang, 'Yeni raund mətbəxə göndərildi', 'Новый раунд отправлен на кухню', 'New round sent to kitchen'));
+      setDraftSendError(null);
+      clearRoundComposer();
+      await refreshActiveTableDetail(table.id);
+    } catch (e: any) {
+      const message = e?.message || tx(lang, 'Mətbəxə göndərilmədi', 'Не отправлено на кухню', 'Kitchen send failed');
+      setDraftSendError(message);
+      notify('error', message);
+    }
+    } finally {
+      sendRoundInFlightRef.current = false;
+    }
   };
 
   const handleAddTable = async () => {
@@ -1467,6 +1505,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       await Promise.all([activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(), loadData()]);
     } catch (e: any) {
       notify('error', e?.message || tx(lang, 'Masalar birləşdirilmədi', 'Столы не объединены', 'Tables were not combined'));
+      setMergeTargetId('');
     }
   };
 
@@ -1780,9 +1819,20 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         onCancel={() => setPendingCancelTable(null)}
         onConfirm={async () => {
           if (!pendingCancelTable) return;
+          const reason = window.prompt(
+            tx(lang, 'Ləğv səbəbi', 'Причина отмены', 'Cancel reason'),
+            tx(lang, 'Səhv açılmış/boş masa', 'Ошибочно открытый/пустой стол', 'Opened by mistake / empty table')
+          );
+          if (!reason || !reason.trim()) return;
           setPendingCancelTable(null);
           try {
-            await cancel_table_check_live(pendingCancelTable.id, 'Boş masa bağlandı');
+            await cancel_table_check_live(pendingCancelTable.id, reason.trim());
+            logEvent(user?.username || 'staff', 'TABLE_CANCEL', {
+              tenant_id,
+              table_id: pendingCancelTable.id,
+              table_label: pendingCancelTable.label || 'Masa',
+              reason: reason.trim(),
+            });
             notify('success', tx(lang, 'Masa ləğv edildi', 'Стол отменен', 'Table cancelled'));
             setViewTableId(null);
             setPayTableId(null);
@@ -2522,7 +2572,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     window.dispatchEvent(new CustomEvent('inventory-updated', { detail: { tenant_id, sale_id: result.sale_id, source: 'table' } }));
                     window.dispatchEvent(new CustomEvent('logs-updated', { detail: { tenant_id, sale_id: result.sale_id, source: 'table' } }));
                     clearServedStateForTable(table.id);
-                     setPayTableId(null);
+                    // Clean up payment state BEFORE showing receipt to prevent flicker
+                    setPayTableId(null);
                     setViewTableId(null);
                     setTableDetailRecord(null);
                     setPaymentMethod('Nəğd');
@@ -2531,6 +2582,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     setSplitCash('0');
                     setTableDiscountPercent('0');
                     setTableDiscountReason('');
+                    // Show receipt modal after payment UI is cleaned up
+                    setTableReceiptHtml(receiptMarkup);
                     await Promise.all([
                       loadData(),
                       activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(),
@@ -3686,6 +3739,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                                 notify('success', tx(lang, 'Masa köçürüldü', 'Стол перенесен', 'Table transferred'));
                                 setTransferTargetId('');
                                 setViewTableId(null);
+                                setTableDetailRecord(null);
                                 await Promise.all([
                                   loadData(),
                                   activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(),

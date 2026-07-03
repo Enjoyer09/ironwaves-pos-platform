@@ -314,12 +314,34 @@ export async function update_table_layout_live(tableId: string, payload: TableLa
 export async function combine_tables_live(tableId: string, targetTableId: string) {
   if (!isBackendEnabled()) {
     const tables = getDB<any>('tables');
-    const source = tables.find((row) => row.id === tableId);
-    const target = tables.find((row) => row.id === targetTableId);
+    const source = tables.find((row: any) => row.id === tableId);
+    const target = tables.find((row: any) => row.id === targetTableId);
     if (!source || !target) throw new Error('Table not found');
+    if (source.id === target.id) throw new Error('Cannot combine table with itself');
     const mergedGroupId = source.merged_group_id || target.merged_group_id || uuidv4();
     source.merged_group_id = mergedGroupId;
     target.merged_group_id = mergedGroupId;
+    // Merge items and totals from source into target if source is occupied
+    if (source.is_occupied) {
+      const targetItems = Array.isArray(target.items) ? [...target.items] : [];
+      const sourceItems = Array.isArray(source.items) ? source.items : [];
+      sourceItems.forEach((incoming: any) => {
+        const idx = targetItems.findIndex((row: any) => row.id === incoming.id || (row.item_name === incoming.item_name && String(row.seat_label || '') === String(incoming.seat_label || '')));
+        if (idx >= 0) targetItems[idx] = { ...targetItems[idx], qty: Number(targetItems[idx].qty || 0) + Number(incoming.qty || 0) };
+        else targetItems.push(incoming);
+      });
+      target.items = targetItems;
+      target.total = new Decimal(target.total || 0).plus(new Decimal(source.total || 0)).toFixed(2);
+      target.is_occupied = true;
+      target.guest_count = Number(target.guest_count || 0) + Number(source.guest_count || 0);
+      target.assigned_to = target.assigned_to || source.assigned_to || null;
+      // Clear source
+      source.items = [];
+      source.total = '0';
+      source.is_occupied = false;
+      source.guest_count = 0;
+      source.assigned_to = null;
+    }
     setDB('tables', tables);
     return { ok: true, merged_group_id: mergedGroupId };
   }
@@ -332,13 +354,23 @@ export async function combine_tables_live(tableId: string, targetTableId: string
 
 export async function split_table_group_live(tableId: string, mergedGroupId?: string | null) {
   if (!isBackendEnabled()) {
-    const tables = getDB<any>('tables').map((row) => (
-      mergedGroupId && row.merged_group_id === mergedGroupId
-        ? { ...row, merged_group_id: null }
-        : row.id === tableId
-          ? { ...row, merged_group_id: null }
-          : row
-    ));
+    const tables = getDB<any>('tables');
+    const groupTables = mergedGroupId
+      ? tables.filter((row: any) => row.merged_group_id === mergedGroupId)
+      : tables.filter((row: any) => row.id === tableId);
+    // Find the "leader" table (the one holding all items after combine)
+    const leader = groupTables.find((row: any) => row.is_occupied && Array.isArray(row.items) && row.items.length > 0);
+    // If there's a leader with items, redistribute items back by original assignment
+    // Since we can't know original ownership, we just clear the group and keep items on leader
+    // The key fix: clear merged_group_id from all members
+    groupTables.forEach((row: any) => {
+      row.merged_group_id = null;
+    });
+    // Also handle edge case: if no mergedGroupId was passed, just clear the single table
+    if (!mergedGroupId) {
+      const single = tables.find((row: any) => row.id === tableId);
+      if (single) single.merged_group_id = null;
+    }
     setDB('tables', tables);
     return { ok: true };
   }
