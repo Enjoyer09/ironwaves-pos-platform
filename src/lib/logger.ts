@@ -38,13 +38,25 @@ export const logEvent = (
   details: Record<string, any>
 ) => {
   const tenantId = details?.tenant_id || 'tenant_default';
+  // Scrub PII/sensitive fields before logging
+  const scrubKeys = new Set(['password', 'override_password', 'pin', 'token', 'access_token', 'card_number', 'phone', 'email']);
+  const scrubbedDetails: Record<string, any> = {};
+  for (const [key, value] of Object.entries(details)) {
+    if (scrubKeys.has(key.toLowerCase())) {
+      scrubbedDetails[key] = '[REDACTED]';
+    } else if (typeof value === 'string' && value.length > 500) {
+      scrubbedDetails[key] = value.slice(0, 100) + '...[truncated]';
+    } else {
+      scrubbedDetails[key] = value;
+    }
+  }
   const logEntry = {
     id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     created_at: new Date().toISOString(),
     tenant_id: tenantId,
     user,
     action,
-    details,
+    details: scrubbedDetails,
   };
   
   // Real layihədə bu DB-yə (logs cədvəlinə) yazılacaq.
