@@ -348,6 +348,16 @@ export default function App() {
     return () => window.removeEventListener('ironwaves-auth-expired', handleAuthExpired as EventListener);
   }, [logout, notify, safeLang]);
 
+  useEffect(() => {
+    const handleOpenFastSwitch = () => {
+      setFastSwitchOpen(true);
+      setFastSwitchPin('');
+      setFastSwitchError('');
+    };
+    window.addEventListener('open-fast-switch', handleOpenFastSwitch as EventListener);
+    return () => window.removeEventListener('open-fast-switch', handleOpenFastSwitch as EventListener);
+  }, []);
+
   const hostMode = useMemo(() => {
     if (typeof window === 'undefined') return 'app';
     const host = String(window.location.host || '').toLowerCase().split(':')[0];
