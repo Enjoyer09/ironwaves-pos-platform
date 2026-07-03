@@ -2991,6 +2991,13 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         <span className="text-xs font-black text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-xl">
                           {new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼
                         </span>
+                        <button
+                          type="button"
+                          onClick={() => { setFastSwitchOpen(true); setFastSwitchPin(''); setFastSwitchError(''); }}
+                          className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border border-slate-600/60 bg-slate-800/50 px-3 py-1.5 text-[11px] font-semibold text-slate-300 transition active:scale-95 taktil-target"
+                        >
+                          👤 {tx(lang, 'Deyiş', 'Сменить', 'Switch')}
+                        </button>
                       </div>
                     </div>
                   ) : (
