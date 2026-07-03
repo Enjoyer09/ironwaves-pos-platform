@@ -1817,8 +1817,8 @@ export default function App() {
               }
         }
       >
-        <div className={`border-b border-slate-700/40 px-4 ${resolvedModule === 'tables' ? 'py-2 md:px-6' : 'py-4 md:px-6'} shrink-0 z-20 ${resolvedModule === 'tables' ? 'space-y-2' : 'space-y-4'}`}>
-          <div className={`flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between ${resolvedModule === 'tables' ? 'hidden' : ''}`}>
+        <div className={`border-b border-slate-700/40 px-4 py-4 md:px-6 shrink-0 z-20 space-y-4`}>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-yellow-400 text-[#111827] rounded-xl flex items-center justify-center shrink-0 font-black overflow-hidden">
                 {profile?.logo_url ? (
