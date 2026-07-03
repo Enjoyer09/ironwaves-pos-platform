@@ -83,6 +83,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const [deleteAdminPass, setDeleteAdminPass] = useState('');
   const [payTableId, setPayTableId] = useState<string | null>(null);
   const [viewTableId, setViewTableId] = useState<string | null>(null);
+  const [tableDetailClosing, setTableDetailClosing] = useState(false);
   const [transferTargetId, setTransferTargetId] = useState('');
   const [mergeTargetId, setMergeTargetId] = useState('');
   const [lockTransferTarget, setLockTransferTarget] = useState('');
@@ -1063,6 +1064,14 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     setRoundSearch('');
     setRoundCategory('ALL');
   };
+
+  const closeTableDetail = useCallback(() => {
+    setTableDetailClosing(true);
+    setTimeout(() => {
+      setViewTableId(null);
+      setTableDetailClosing(false);
+    }, 200);
+  }, []);
 
   const markReadyItemServed = (tableId: string, itemName: string, qty: number) => {
     const itemKey = `${itemName}`.trim();
@@ -2831,7 +2840,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       {viewTableId && (
         <div
 	          ref={detailPanelRef}
-	          className="fixed inset-0 z-[90] overflow-hidden bg-[#070b12] workspace-slide-in"
+	          className={`fixed inset-0 z-[90] overflow-hidden bg-[#070b12] ${tableDetailClosing ? 'workspace-slide-out' : 'workspace-slide-in'}`}
         >
           <div className="flex h-full flex-col overflow-hidden p-3 md:p-4">
             {(() => {
@@ -2969,7 +2978,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       <div className="flex items-center gap-2.5 min-w-0">
                         <button
                           type="button"
-                          onClick={() => setViewTableId(null)}
+                          onClick={() => closeTableDetail()}
                           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-900/60 text-slate-200 active:scale-95 taktil-target"
                         >
                           ←
@@ -3006,7 +3015,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         <div className="flex min-w-0 items-center gap-3">
                           <button
                             type="button"
-                            onClick={() => setViewTableId(null)}
+                            onClick={() => closeTableDetail()}
                             className="inline-flex min-h-9 shrink-0 items-center rounded-full border border-slate-700/70 bg-slate-900/50 px-3 py-1.5 text-xs font-semibold text-slate-200"
                           >
                             ← {tx(lang, 'Masalara qayıt', 'Назад к столам', 'Back to tables')}
@@ -3136,7 +3145,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       ))}
                     </div>
 	                  </div>
-	                  <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden">
+	                  <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden tab-content-enter" key={tableWorkspaceTab}>
                   {tableWorkspaceTab === 'history' && (
                   <div className="min-h-0 overflow-y-auto rounded-xl border border-slate-700/70 bg-slate-900/35 p-4">
                     <div className="flex items-center justify-between gap-3">
@@ -3234,7 +3243,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                        roundsCount={rounds.length}
 	                        activeTab={tableWorkspaceTab}
 	                        onTabChange={(tab) => setTableWorkspaceTab(tab as any)}
-	                        onBack={() => setViewTableId(null)}
+	                        onBack={() => closeTableDetail()}
 	                        onCancelTable={() => { void handleCancelTableCheck(t.id, t.label); }}
 	                        summerPromoEnabled={Boolean(tenantSettings?.beverage_service_settings?.summer_promo_enabled)}
 	                        onUpdateNote={updateRoundDraftNote}
@@ -3709,8 +3718,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     </div>
                   )}
                   <div className={`mt-4 flex justify-end gap-2 ${isBahaYLab ? 'hidden' : ''}`}>
-                    {!isBahaYLab && <button className="neon-btn rounded-lg px-4 py-2" onClick={() => setViewTableId(null)}>{tx(lang, 'Paneli gizlət', 'Скрыть панель', 'Hide panel')}</button>}
-                    {isBahaYLab && <button className="neon-btn rounded-lg px-4 py-2" onClick={() => setViewTableId(null)}>← {tx(lang, 'Geri', 'Назад', 'Back')}</button>}
+                    {!isBahaYLab && <button className="neon-btn rounded-lg px-4 py-2" onClick={() => closeTableDetail()}>{tx(lang, 'Paneli gizlət', 'Скрыть панель', 'Hide panel')}</button>}
+                    {isBahaYLab && <button className="neon-btn rounded-lg px-4 py-2" onClick={() => closeTableDetail()}>← {tx(lang, 'Geri', 'Назад', 'Back')}</button>}
                     {tableNeedsSafeCancel && (
                       <button
                         type="button"
