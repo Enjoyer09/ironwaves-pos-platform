@@ -3006,8 +3006,18 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           </button>
                           <h3 className="truncate text-xl font-black text-slate-100">{t.label}</h3>
                         </div>
-                        <div className="rounded-full border border-emerald-300/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-bold text-emerald-100">
-                          {new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼
+                        <div className="flex items-center gap-2">
+                          <div className="rounded-full border border-emerald-300/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-bold text-emerald-100">
+                            {new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => { setFastSwitchOpen(true); setFastSwitchPin(''); setFastSwitchError(''); }}
+                            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border border-slate-600/60 bg-slate-800/50 px-3 py-1.5 text-xs font-semibold text-slate-300 transition active:scale-95 taktil-target"
+                            title={tx(lang, 'İstifadəçi dəyiş', 'Сменить пользователя', 'Switch user')}
+                          >
+                            👤 {tx(lang, 'Deyiş', 'Сменить', 'Switch')}
+                          </button>
                         </div>
                       </div>
                       <div className="mt-2 grid grid-cols-3 gap-2 rounded-2xl border border-slate-800/80 bg-slate-900/35 p-2">
