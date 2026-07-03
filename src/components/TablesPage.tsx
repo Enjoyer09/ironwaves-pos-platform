@@ -3029,10 +3029,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           <button
                             type="button"
                             onClick={() => { window.dispatchEvent(new CustomEvent('open-fast-switch')); }}
-                            className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-2xl border border-amber-400/40 bg-amber-500/15 px-5 py-2.5 text-sm font-black text-amber-100 shadow-lg shadow-amber-500/10 transition active:scale-95 taktil-target"
+                            className="inline-flex min-h-14 shrink-0 items-center gap-3 rounded-2xl border-2 border-amber-400/60 bg-amber-500/20 px-6 py-3 text-base font-black text-amber-100 shadow-lg shadow-amber-500/15 transition hover:bg-amber-500/30 active:scale-95 taktil-target"
                             title={tx(lang, 'İstifadəçi dəyiş', 'Сменить пользователя', 'Switch user')}
                           >
-                            👤 {tx(lang, 'Deyiş', 'Сменить', 'Switch')}
+                            👤 {tx(lang, 'Dəyiş', 'Сменить', 'Switch')}
                           </button>
                         </div>
                       </div>
