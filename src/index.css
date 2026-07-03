@@ -271,6 +271,35 @@ html {
     animation: marquee 20s linear infinite;
   }
 
+  /* ── Module transition animations ─────────────────────────────────── */
+  .module-panel {
+    @apply absolute inset-0 flex h-full min-h-0 flex-col;
+    opacity: 0;
+    transform: translateY(6px) scale(0.995);
+    pointer-events: none;
+    transition:
+      opacity 220ms cubic-bezier(0.4, 0, 0.2, 1),
+      transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: opacity, transform;
+  }
+
+  .module-panel-active {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+
+  /* Accessibility: disable transitions for users who prefer reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .module-panel {
+      transition: none;
+      transform: none;
+    }
+    .module-panel:not(.module-panel-active) {
+      visibility: hidden;
+    }
+  }
+
   html[data-ui-mode='new'] .metal-app {
     color: #f8fafc;
     background:

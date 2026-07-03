@@ -2008,22 +2008,22 @@ export default function App() {
           <AppErrorBoundary>
             <Suspense fallback={lazyModuleFallback}>
               {mountedModules.includes('pos') && (
-                <div className={`${resolvedModule === 'pos' ? 'flex h-full min-h-0 flex-col' : 'hidden'}`}>
+                <div className={`module-panel ${resolvedModule === 'pos' ? 'module-panel-active' : ''}`}>
                   <POS key={`pos:${moduleTenantKey}`} isActive={resolvedModule === 'pos'} />
                 </div>
               )}
               {mountedModules.includes('kds') && (
-                <div className={`${resolvedModule === 'kds' ? 'flex h-full min-h-0 flex-col' : 'hidden'}`}>
+                <div className={`module-panel ${resolvedModule === 'kds' ? 'module-panel-active' : ''}`}>
                   <KDS key={`kds:${moduleTenantKey}`} isActive={resolvedModule === 'kds'} />
                 </div>
               )}
               {mountedModules.includes('tables') && (
-                <div className={`${resolvedModule === 'tables' ? 'flex h-full min-h-0 flex-col' : 'hidden'}`}>
+                <div className={`module-panel ${resolvedModule === 'tables' ? 'module-panel-active' : ''}`}>
                   <TablesPage key={`tables:${moduleTenantKey}`} isActive={resolvedModule === 'tables'} />
                 </div>
               )}
               {mountedModules.some((moduleKey) => !['pos', 'kds', 'tables'].includes(moduleKey)) && (
-                <div className={`${!['pos', 'kds', 'tables'].includes(resolvedModule) ? 'flex h-full min-h-0 flex-col' : 'hidden'}`}>
+                <div className={`module-panel ${!['pos', 'kds', 'tables'].includes(resolvedModule) ? 'module-panel-active' : ''}`}>
                   <AdminPanel
                     key={`admin:${moduleTenantKey}`}
                     externalTab={resolvedModule as AdminView}
