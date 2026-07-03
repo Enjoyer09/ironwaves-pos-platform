@@ -1291,6 +1291,12 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     if (!ok) return;
     try {
       await cancel_table_check_live(tableId, reason);
+      logEvent(user?.username || 'staff', 'TABLE_CANCEL', {
+        tenant_id,
+        table_id: tableId,
+        table_label: label || 'Masa',
+        reason,
+      });
       notify('success', tx(lang, 'Masa ləğv edildi', 'Стол отменен', 'Table cancelled'));
       setViewTableId(null);
       setPayTableId(null);
@@ -1425,8 +1431,37 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 
   const handleCombineTables = async (sourceTableId: string, targetTableId: string) => {
     if (!targetTableId) return;
+    const sourceTable = tables.find((row) => row.id === sourceTableId);
+    const targetTable = tables.find((row) => row.id === targetTableId);
+    const targetLabel = targetTable?.label || 'Masa';
+    const sourceLabel = sourceTable?.label || 'Masa';
+    // Warn if target table is occupied
+    if (targetTable?.is_occupied) {
+      const ok = window.confirm(
+        tx(lang,
+          `${targetLabel} dolu masadır! Birləşdirmə hər iki masanın sifarişlərini bir check altında toplayacaq. Davam etmək istəyirsiniz?`,
+          `${targetLabel} занят! Объединение соберёт заказы обоих столов под одним чеком. Продолжить?`,
+          `${targetLabel} is occupied! Combining will merge both tables' orders under one check. Continue?`)
+      );
+      if (!ok) return;
+    } else {
+      const ok = window.confirm(
+        tx(lang,
+          `${sourceLabel} və ${targetLabel} birləşdirilsin?`,
+          `Объединить ${sourceLabel} и ${targetLabel}?`,
+          `Combine ${sourceLabel} and ${targetLabel}?`)
+      );
+      if (!ok) return;
+    }
     try {
       await combine_tables_live(sourceTableId, targetTableId);
+      logEvent(user?.username || 'staff', 'TABLE_COMBINE', {
+        tenant_id,
+        source_table_id: sourceTableId,
+        source_label: sourceLabel,
+        target_table_id: targetTableId,
+        target_label: targetLabel,
+      });
       notify('success', tx(lang, 'Masalar birləşdirildi', 'Столы объединены', 'Tables combined'));
       setMergeTargetId('');
       await Promise.all([activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(), loadData()]);
@@ -1436,8 +1471,23 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   };
 
   const handleSplitTables = async (tableId: string, mergedGroupId?: string | null) => {
+    const sourceTable = tables.find((row) => row.id === tableId);
+    const sourceLabel = sourceTable?.label || 'Masa';
+    const ok = window.confirm(
+      tx(lang,
+        `${sourceLabel} qrupunu ayırmaq istəyirsiniz? Hər masa ayrıca check-ə qayıdacaq.`,
+        `Разделить группу ${sourceLabel}? Каждый стол вернётся к отдельному чеку.`,
+        `Split ${sourceLabel} group? Each table will return to a separate check.`)
+    );
+    if (!ok) return;
     try {
       await split_table_group_live(tableId, mergedGroupId || null);
+      logEvent(user?.username || 'staff', 'TABLE_SPLIT', {
+        tenant_id,
+        table_id: tableId,
+        table_label: sourceLabel,
+        merged_group_id: mergedGroupId || null,
+      });
       notify('success', tx(lang, 'Masalar ayrıldı', 'Столы разделены', 'Tables split'));
       await Promise.all([activeFloorId ? loadFloorState(activeFloorId) : Promise.resolve(), loadData()]);
     } catch (e: any) {
@@ -3615,8 +3665,24 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                             disabled={!transferTargetId}
                             onClick={async () => {
                               if (!transferTargetId) return;
+                              const targetTable = otherTables.find((row) => row.id === transferTargetId);
+                              const targetLabel = targetTable?.label || 'Masa';
+                              const ok = window.confirm(
+                                tx(lang,
+                                  `${t.label} masasını ${targetLabel} masasına köçürmək istəyirsiniz?`,
+                                  `Перенести стол ${t.label} на ${targetLabel}?`,
+                                  `Transfer table ${t.label} to ${targetLabel}?`)
+                              );
+                              if (!ok) return;
                               try {
                                 await transfer_table_live(t.id, transferTargetId, user?.username || 'staff');
+                                logEvent(user?.username || 'staff', 'TABLE_TRANSFER', {
+                                  tenant_id,
+                                  source_table_id: t.id,
+                                  source_label: t.label,
+                                  target_table_id: transferTargetId,
+                                  target_label: targetLabel,
+                                });
                                 notify('success', tx(lang, 'Masa köçürüldü', 'Стол перенесен', 'Table transferred'));
                                 setTransferTargetId('');
                                 setViewTableId(null);
