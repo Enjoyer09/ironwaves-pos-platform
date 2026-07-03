@@ -1,4 +1,4 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useEffect } from 'react';
 import { tx } from '../../i18n';
 import { Decimal } from 'decimal.js';
 import MenuGrid from './MenuGrid';
@@ -175,6 +175,13 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
   const [mobileActiveTab, setMobileActiveTab] = useState<'menu' | 'cart'>('menu');
 
   const hasCartContent = draftRows.length > 0 || sentItems.length > 0;
+
+  // Close note editor if the edited item was removed from draft
+  useEffect(() => {
+    if (editingRowForNote && !draftRows.some((r: any) => String(r.id) === String(editingRowForNote.id))) {
+      setEditingRowForNote(null);
+    }
+  }, [draftRows, editingRowForNote]);
 
   return (
     <div className={`flex flex-col min-h-0 flex-1 gap-3 overflow-hidden relative ${hasCartContent ? 'md:grid md:grid-cols-[1fr_440px] lg:grid-cols-[1fr_500px]' : ''}`}>
@@ -553,8 +560,12 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
               <button
                 type="button"
                 onClick={async () => {
-                  if (onUpdateNote) {
-                    await onUpdateNote(editingRowForNote.id, currentNoteText);
+                  if (onUpdateNote && editingRowForNote) {
+                    // Guard: verify the item still exists in draftRows before saving
+                    const stillExists = draftRows.some((r: any) => String(r.id) === String(editingRowForNote.id));
+                    if (stillExists) {
+                      await onUpdateNote(editingRowForNote.id, currentNoteText);
+                    }
                   }
                   setEditingRowForNote(null);
                 }}
