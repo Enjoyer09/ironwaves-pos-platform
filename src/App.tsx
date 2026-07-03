@@ -1458,13 +1458,7 @@ export default function App() {
     setFastSwitchLoading(true);
     setFastSwitchError('');
     try {
-      // Logout current user silently
-      try {
-        await authApi.logout();
-      } catch {
-        // Ignore logout errors
-      }
-      // Login with new PIN
+      // Try login with new PIN FIRST (don't logout yet)
       const success = await login(pin);
       if (success) {
         setFastSwitchOpen(false);
