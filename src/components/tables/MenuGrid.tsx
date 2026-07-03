@@ -300,11 +300,17 @@ function MenuGrid({
                     void onSelectItem(group.items[0]);
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
+                    if (e.shiftKey && (e.key === 'Enter' || e.key === ' ')) {
+                      e.preventDefault();
+                      playHapticHeavy();
+                      setLongPressItem(group.items[0]);
+                      setCustomQtyText('');
+                    } else if (e.key === 'Enter' || e.key === ' ') {
                       playHapticTouch();
                       void onSelectItem(group.items[0]);
                     }
                   }}
+                  aria-label={`${group.base}, ${group.minPrice.toFixed(2)} AZN${group.hasVariants ? ', ' + group.items.length + ' variant' : ''}`}
                   className="flex flex-1 flex-col cursor-pointer transition taktil-target"
                 >
                   {!hideImages && (

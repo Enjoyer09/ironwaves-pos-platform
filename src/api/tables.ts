@@ -8,6 +8,33 @@ import { verifyLocalCredential } from '../lib/local_auth';
 
 import { getDB, setDB } from '../lib/db_sim';
 
+// ── Password attempt rate limiter (max 5 attempts per 5 min) ──────────────
+const PASSWORD_MAX_ATTEMPTS = 5;
+const PASSWORD_LOCKOUT_MS = 5 * 60 * 1000;
+const passwordAttempts: { count: number; firstAttemptAt: number } = { count: 0, firstAttemptAt: 0 };
+
+function checkPasswordRateLimit(): void {
+  const now = Date.now();
+  if (now - passwordAttempts.firstAttemptAt > PASSWORD_LOCKOUT_MS) {
+    passwordAttempts.count = 0;
+    passwordAttempts.firstAttemptAt = now;
+  }
+  if (passwordAttempts.count >= PASSWORD_MAX_ATTEMPTS) {
+    const remainingSec = Math.ceil((PASSWORD_LOCKOUT_MS - (now - passwordAttempts.firstAttemptAt)) / 1000);
+    throw new Error(`Çox sayda uğursuz cəhd. ${remainingSec} saniyə gözləyin.`);
+  }
+}
+
+function recordPasswordAttempt(success: boolean): void {
+  if (success) {
+    passwordAttempts.count = 0;
+    passwordAttempts.firstAttemptAt = 0;
+  } else {
+    if (passwordAttempts.count === 0) passwordAttempts.firstAttemptAt = Date.now();
+    passwordAttempts.count += 1;
+  }
+}
+
 export interface Table {
   id: string;
   tenant_id: string;
@@ -96,7 +123,15 @@ const enqueueOfflineTableOp = (
   payload: Record<string, unknown>,
 ) => {
   const rows = getOfflineTableOps();
-  rows.push({
+  // TTL: remove ops older than 24 hours to prevent stale payment data accumulation
+  const TTL_MS = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const filtered = rows.filter((row) => {
+    if (row.status === 'synced') return false;
+    const createdMs = new Date(row.created_at).getTime();
+    return !Number.isNaN(createdMs) && (now - createdMs) < TTL_MS;
+  });
+  filtered.push({
     id: createOfflineOpId(),
     tenant_id,
     table_id,
@@ -106,7 +141,7 @@ const enqueueOfflineTableOp = (
     retry_count: 0,
     status: 'pending',
   });
-  setOfflineTableOps(rows);
+  setOfflineTableOps(filtered);
 };
 
 const isTableOpAlreadyAppliedError = (message: string, opType: OfflineTableOpType) => {
@@ -232,8 +267,13 @@ export const get_tables = (tenant_id: string) => {
 // FUNKSIYA: create_table
 export const create_table = (tenant_id: string, label: string, created_by: string, floor_plan_id?: string | null) => {
   const tables = getDB<Table>('tables');
+
+  // Input validation
+  const trimmedLabel = String(label || '').trim();
+  if (!trimmedLabel) throw new Error('Masa adı boş ola bilməz');
+  if (trimmedLabel.length > 50) throw new Error('Masa adı 50 simvoldan uzun ola bilməz');
   
-  if (tables.find(t => t.label === label && t.tenant_id === tenant_id)) {
+  if (tables.find(t => t.label === trimmedLabel && t.tenant_id === tenant_id)) {
     throw new Error('Eyni adlı masa artıq mövcuddur');
   }
 
@@ -249,7 +289,7 @@ export const create_table = (tenant_id: string, label: string, created_by: strin
   const new_table: Table = {
     id: uuidv4(),
     tenant_id,
-    label,
+    label: trimmedLabel,
     floor_plan_id: active_floor_id || null,
     pos_x: 0,
     pos_y: 0,
@@ -673,13 +713,18 @@ export const revise_table_items = (table_id: string, payload: TableRevisionPaylo
   // Manager override required only if kitchen-sent items are being removed
   let overrideUsername = payload.actor;
   if (removedSent.length > 0) {
+    checkPasswordRateLimit();
     const users = getDB<any>('users');
     const overrideUser = users.find((row: any) => {
       const role = String(row.role || '').toLowerCase();
       if (!['admin', 'manager', 'super_admin'].includes(role)) return false;
       return verifyLocalCredential(payload.override_password || '', row.password_hash || row.password);
     });
-    if (!overrideUser) throw new Error('Manager/Admin override alınmadı');
+    if (!overrideUser) {
+      recordPasswordAttempt(false);
+      throw new Error('Manager/Admin override alınmadı');
+    }
+    recordPasswordAttempt(true);
     overrideUsername = overrideUser.username;
   }
 

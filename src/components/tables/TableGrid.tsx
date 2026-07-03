@@ -166,6 +166,7 @@ function TableGrid({
               key={table.id}
               role="button"
               tabIndex={0}
+              aria-label={`${table.label}, ${cfg.label}, ${guestCount}/${capacity} ${tx(lang, 'nəfər', 'гостей', 'guests')}${displayedTotal.greaterThan(0) ? `, ${displayedTotal.toFixed(2)} ₼` : ''}`}
               onClick={() => { playHapticTouch(); setQuickActionsTableId(null); onSelectTable(table); }}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playHapticTouch(); onSelectTable(table); } }}
               onTouchStart={() => { clearLongPress(); longPressRef.current = window.setTimeout(() => { playHapticHeavy(); setQuickActionsTableId(table.id); }, 450); }}
@@ -194,19 +195,17 @@ function TableGrid({
 
               {/* Table label */}
               <div className="flex items-center gap-2">
-                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${cfg.dot}`} />
+                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${cfg.dot}`} aria-hidden="true" />
                 <h3 className="text-[15px] font-black text-white">{table.label}</h3>
+                <span className="ml-auto text-[9px] font-bold uppercase tracking-wider" style={{ color: cfg.dot.replace('bg-', '').includes('emerald') ? '#6ee7b7' : cfg.dot.replace('bg-', '').includes('violet') ? '#c4b5fd' : cfg.dot.replace('bg-', '').includes('amber') ? '#fcd34d' : cfg.dot.replace('bg-', '').includes('rose') ? '#fda4af' : '#94a3b8' }}>
+                  {cfg.label}
+                </span>
               </div>
 
               {/* Guest + capacity */}
               <div className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-400">
                 <Users size={11} />
                 <span className={guestCount > 0 ? 'font-semibold text-slate-200' : ''}>{guestCount}/{capacity}</span>
-                {status !== 'AVAILABLE' && status !== 'DIRTY' && (
-                  <span className="ml-auto text-[10px] font-medium" style={{ color: cfg.dot.replace('bg-', '').includes('emerald') ? '#6ee7b7' : cfg.dot.replace('bg-', '').includes('violet') ? '#c4b5fd' : cfg.dot.replace('bg-', '').includes('amber') ? '#fcd34d' : '#fda4af' }}>
-                    {cfg.label}
-                  </span>
-                )}
               </div>
 
               {/* Total amount */}

@@ -100,6 +100,22 @@ select {
   touch-action: manipulation;
 }
 
+/* ── Global focus indicator (WCAG 2.4.7) ─────────────────────────────── */
+:focus-visible {
+  outline: 2px solid rgba(250, 204, 21, 0.7);
+  outline-offset: 2px;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none; /* handled by ring utility */
+}
+
+html[data-theme='light'] :focus-visible {
+  outline-color: rgba(59, 130, 246, 0.7);
+}
+
 html {
   font-size: 90%;
   scroll-behavior: smooth;

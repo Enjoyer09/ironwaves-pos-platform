@@ -129,7 +129,8 @@ const DraftRowItem = memo(({ row, onUpdateQty, onEditNote, lang }: { row: any; o
         <div className="flex items-center gap-1">
           <button
             type="button"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-600 text-sm text-slate-200 taktil-target active:scale-90 active:bg-slate-700"
+            aria-label={tx(lang, 'Azalt', 'Уменьшить', 'Decrease')}
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-600 text-sm text-slate-200 taktil-target active:scale-90 active:bg-slate-700"
             onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) - 1)}
           >
             −
@@ -137,14 +138,16 @@ const DraftRowItem = memo(({ row, onUpdateQty, onEditNote, lang }: { row: any; o
           <div className="min-w-7 text-center text-sm font-bold text-slate-100 select-none">{row.qty}</div>
           <button
             type="button"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-600 text-sm text-slate-200 taktil-target active:scale-90 active:bg-slate-700"
+            aria-label={tx(lang, 'Artır', 'Увеличить', 'Increase')}
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-600 text-sm text-slate-200 taktil-target active:scale-90 active:bg-slate-700"
             onClick={() => onUpdateQty(String(row.id), Number(row.qty || 0) + 1)}
           >
             +
           </button>
           <button
             type="button"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-rose-300/40 bg-rose-500/10 text-xs text-rose-200 taktil-target active:scale-90"
+            aria-label={tx(lang, 'Sil', 'Удалить', 'Remove')}
+            className="flex h-11 w-11 items-center justify-center rounded-xl border border-rose-300/40 bg-rose-500/10 text-xs text-rose-200 taktil-target active:scale-90"
             onClick={() => onUpdateQty(String(row.id), 0)}
           >
             ✕
