@@ -2979,7 +2979,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         <button
                           type="button"
                           onClick={() => closeTableDetail()}
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-700 bg-slate-900/60 text-slate-200 active:scale-95 taktil-target"
+                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-slate-600 bg-slate-800/80 text-lg text-slate-100 shadow-lg transition hover:bg-slate-700/80 active:scale-90 taktil-target"
                         >
                           ←
                         </button>
