@@ -3072,7 +3072,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       </div>
                     </div>
                   )}
-	                  <div className={`mt-2 flex flex-wrap gap-2`}>
+	                  <div className={`mt-2 flex flex-wrap gap-2 ${isBahaYLab ? 'hidden' : ''}`}>
                     {tableLockHolder && (
 	                      <div className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${userCanEditTable ? 'border-cyan-300/30 bg-cyan-500/10 text-cyan-100' : 'border-rose-300/30 bg-rose-500/10 text-rose-100'}`}>
                         {`👤 ${tableLockHolder} ${tx(lang, 'istifadə edir', 'использует', 'is using')}`}
@@ -3120,7 +3120,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       </>
                     )}
                   </div>
-                  {isManagerUser && tableLockHolder && tableLockHolder !== user?.username && (
+                  {isManagerUser && tableLockHolder && tableLockHolder !== user?.username && !isBahaYLab && (
                     <div className="mt-3 grid gap-2 md:grid-cols-[1fr_1fr]">
                       <input className="neon-input" value={lockTransferTarget} onChange={(e) => setLockTransferTarget(e.target.value)} placeholder={tx(lang, 'Yeni owner username', 'Новый владелец username', 'New owner username')} />
                       <input className="neon-input" value={lockReason} onChange={(e) => setLockReason(e.target.value)} placeholder={tx(lang, 'Override səbəbi', 'Причина override', 'Override reason')} />
