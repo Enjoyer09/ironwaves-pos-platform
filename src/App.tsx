@@ -341,6 +341,8 @@ export default function App() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handleAuthExpired = () => {
+      // Skip auth-expired during fast switch — wrong PIN triggers 401 but we don't want logout
+      if (fastSwitchActiveRef.current) return;
       notify('info', tx(safeLang, 'Sessiya bitdi, yenidən giriş edin', 'Сессия истекла, войдите снова', 'Session expired, please sign in again'));
       logout();
     };
@@ -515,6 +517,7 @@ export default function App() {
   const [fastSwitchPin, setFastSwitchPin] = useState('');
   const [fastSwitchError, setFastSwitchError] = useState('');
   const [fastSwitchLoading, setFastSwitchLoading] = useState(false);
+  const fastSwitchActiveRef = useRef(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [demoGuideBubble, setDemoGuideBubble] = useState<DemoGuideBubble | null>(null);
@@ -1457,17 +1460,14 @@ export default function App() {
     if (!pin || pin.length < 4) return;
     setFastSwitchLoading(true);
     setFastSwitchError('');
+    fastSwitchActiveRef.current = true;
     try {
-      // Directly call pin_login API without going through store login
-      // This avoids triggering auth-expired listeners on failure
       const tenantId = getActiveTenantId();
       const res = await authApi.pin_login(pin, tenantId);
       if (res?.access_token && res?.user) {
-        // Success — apply new session
         if (res.user.tenant_id) {
           setActiveTenantId(res.user.tenant_id);
         }
-        // Update store with new user
         useAppStore.setState({
           user: res.user,
           access_token: res.access_token,
@@ -1494,6 +1494,8 @@ export default function App() {
       setFastSwitchPin('');
     } finally {
       setFastSwitchLoading(false);
+      // Delay clearing the flag to let any pending auth-expired events pass
+      setTimeout(() => { fastSwitchActiveRef.current = false; }, 500);
     }
   };
 
