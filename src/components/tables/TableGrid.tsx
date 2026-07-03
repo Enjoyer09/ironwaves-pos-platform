@@ -105,10 +105,10 @@ function TableGrid({
             <button
               type="button"
               onClick={() => { playHapticTouch(); setShowOnlyMine(!showOnlyMine); }}
-              className={`shrink-0 rounded-full px-4 py-2.5 text-xs font-bold transition-all active:scale-95 ${
+              className={`shrink-0 rounded-full px-5 py-3 text-sm font-black transition-all active:scale-95 ${
                 showOnlyMine
                   ? 'bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-900 shadow-lg shadow-yellow-400/25'
-                  : 'border border-slate-600/60 bg-slate-800/60 text-slate-300'
+                  : 'border-2 border-yellow-400/50 bg-yellow-500/10 text-yellow-200 shadow-md shadow-yellow-500/10'
               }`}
             >
               {showOnlyMine ? '★ ' : ''}{tx(lang, 'Mənim masalarım', 'Мои столы', 'My tables')}
