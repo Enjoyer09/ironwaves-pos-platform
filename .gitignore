@@ -23,3 +23,7 @@ Emalatkhana_Backup_*.json
 Trace-*.json.gz
 backups/
 *.dump
+
+# Local databases
+backend/*.db
+backend/*.sqlite

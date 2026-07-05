@@ -72,7 +72,13 @@ export default defineConfig(({ command }) => {
       sourcemap: false,
       cssCodeSplit: true,
       assetsInlineLimit: 4096,
-
+      minify: "terser",
+      terserOptions: {
+        compress: {
+          drop_console: true,
+          drop_debugger: true,
+        },
+      },
     },
   };
 });
