@@ -80,6 +80,31 @@ let lastAuthExpiredEventAt = 0;
 const getResponseCache = new Map<string, { expiresAt: number; data: any }>();
 let refreshInFlight: Promise<boolean> | null = null;
 let lastRefreshFailureAt = 0;
+let proactiveRefreshTimer: number | null = null;
+
+// Proactive token refresh: refresh 5 minutes before expiry to avoid 401 storms
+function scheduleProactiveRefresh(): void {
+  if (typeof window === 'undefined') return;
+  if (proactiveRefreshTimer) window.clearTimeout(proactiveRefreshTimer);
+  const token = getClientAuthSession().access_token;
+  if (!token) return;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    const exp = Number(payload.exp || 0) * 1000;
+    const now = Date.now();
+    // Refresh 5 minutes before expiry (or immediately if less than 5 min left)
+    const refreshAt = Math.max(0, exp - now - 5 * 60 * 1000);
+    proactiveRefreshTimer = window.setTimeout(() => {
+      void tryRefreshSession().then((ok) => {
+        if (ok) scheduleProactiveRefresh();
+      });
+    }, refreshAt);
+  } catch {
+    // malformed token — skip proactive refresh
+  }
+}
 
 // Periodic cleanup of telemetryThrottle to prevent memory leak in long sessions
 if (typeof window !== 'undefined') {
@@ -138,6 +163,9 @@ export function setClientAuthSession(snapshot: SessionAuthSnapshot | null | unde
     access_token: snapshot?.access_token || null,
     user: snapshot?.user || null,
   };
+  if (snapshot?.access_token) {
+    scheduleProactiveRefresh();
+  }
 }
 
 export function getClientAuthSession(): SessionAuthSnapshot {
@@ -215,7 +243,7 @@ const isAbortError = (error: unknown) =>
 
 async function tryRefreshSession(): Promise<boolean> {
   const now = Date.now();
-  if (now - lastRefreshFailureAt < 1500) return false;
+  if (now - lastRefreshFailureAt < 800) return false;
   if (refreshInFlight) return refreshInFlight;
   const base = getApiBaseUrl();
   if (!base) return false;
@@ -475,7 +503,7 @@ async function apiRequestNetwork<T = any>(path: string, options: ApiRequestOptio
       const currentAccessToken = String(getClientAuthSession().access_token || '');
       const shouldExpireCurrentSession = Boolean(requestAccessToken && currentAccessToken && currentAccessToken === requestAccessToken);
       const now = Date.now();
-      if (shouldExpireCurrentSession && now - lastAuthExpiredEventAt > 1000) {
+      if (shouldExpireCurrentSession && now - lastAuthExpiredEventAt > 3000) {
         setClientAuthSession({ access_token: null, user: null });
         lastAuthExpiredEventAt = now;
         window.dispatchEvent(
