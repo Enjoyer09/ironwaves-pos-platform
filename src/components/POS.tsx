@@ -944,14 +944,23 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       void refreshOfflineState();
     };
     const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void refreshOfflineState();
-    }, 60000);
+      if (document.visibilityState === 'visible') {
+        void refreshOfflineState();
+        // Auto-sync pending sales if online
+        if (isPosOnline && pendingSyncCount > 0) {
+          void syncPendingOfflineSales(tenantId).then((result) => {
+            if (result.synced > 0) void clearSyncedOfflineSales(tenantId);
+            void refreshOfflineState();
+          });
+        }
+      }
+    }, 45000);
     window.addEventListener('offline-sales-reset', handleOfflineSalesReset as EventListener);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener('offline-sales-reset', handleOfflineSalesReset as EventListener);
     };
-  }, [tenantId, isActive]);
+  }, [tenantId, isActive, isPosOnline, pendingSyncCount]);
 
   const categories = useMemo(() => ['ALL', ...Array.from(new Set(menu.map((m) => m.category)))], [menu]);
 
