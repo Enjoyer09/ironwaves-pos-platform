@@ -34,8 +34,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_private_key: str | None = None
     jwt_public_key: str | None = None
-    access_token_minutes: int = 15
-    refresh_token_days: int = 7
+    access_token_minutes: int = 60
+    refresh_token_days: int = 14
     pin_min_length: int = 4
     pin_max_failed_attempts: int = 5
     pin_lockout_minutes: int = 15
