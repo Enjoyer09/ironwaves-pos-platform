@@ -2077,6 +2077,14 @@ export default function FinancePanel() {
       title: tx(lang, 'Depozit əməliyyatları', 'Depozit əməliyyatları', 'Depozit əməliyyatları'),
       subtitle: tx(lang, 'Açıq masa depozitləri ayrıca öhdəlik kimi izlənir.', 'Açıq masa depozitləri ayrıca öhdəlik kimi izlənir.', 'Açıq masa depozitləri ayrıca öhdəlik kimi izlənir.'),
     },
+    transfers: {
+      title: tx(lang, 'Transferlər', 'Transferlər', 'Transfers'),
+      subtitle: tx(lang, 'Hesablar arasında daxili hərəkətləri ayrıca idarə edin.', 'Hesablar arasında daxili hərəkətləri ayrıca idarə edin.', 'Manage internal movements between accounts separately.'),
+    },
+    investor: {
+      title: tx(lang, 'İnvestor ödənişləri', 'İnvestor ödənişləri', 'Investor repayments'),
+      subtitle: tx(lang, 'Investor borcu və geri ödəniş axını ayrıca görünür.', 'Investor borcu və geri ödəniş axını ayrıca görünür.', 'Investor liability and repayment flow are shown separately.'),
+    },
     ledger: {
       title: tx(lang, 'Maliyyə jurnalı', 'Maliyyə jurnalı', 'Maliyyə jurnalı'),
       subtitle: tx(lang, 'Audit, təsdiq və geri çevirmə tarixçəsi ayrıca iş sahəsindədir.', 'Audit, təsdiq və geri çevirmə tarixçəsi ayrıca iş sahəsindədir.', 'Audit, approval və reversal tarixçəsi ayrıca iş sahəsindədir.'),

@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowDown, ArrowUp, Grip, LayoutTemplate, Lock, Monitor,
 import { useAppStore } from '../../store';
 import { get_settings_live, publish_pos_layout_draft_live, reset_pos_layout_draft_live, update_pos_layout_draft_live } from '../../api/settings';
 import { tx } from '../../i18n';
-import type { Settings } from '../../types/pos';
+import type { PosLayoutConfig, Settings } from '../../types/pos';
 
 type PosLayoutSettings = NonNullable<Settings['pos_layout']>;
 type LayoutDevice = 'desktop' | 'tablet';
@@ -61,6 +61,20 @@ const stripNestedLayoutMeta = (patch: Partial<PosLayoutSettings> | undefined | n
   const { device_layouts, role_overrides, ...rest } = patch as any;
   return rest as Partial<PosLayoutSettings>;
 };
+
+const completeLayoutProfile = (profile: Partial<PosLayoutConfig>): PosLayoutSettings => ({
+  ...DEFAULT_LAYOUT,
+  ...profile,
+  hidden_widgets: profile.hidden_widgets || [],
+  widget_order: profile.widget_order || DEFAULT_LAYOUT.widget_order,
+  left_hidden_widgets: profile.left_hidden_widgets || [],
+  left_widget_order: profile.left_widget_order || DEFAULT_LAYOUT.left_widget_order || [],
+  widget_sizes: profile.widget_sizes || {},
+  left_widget_sizes: profile.left_widget_sizes || {},
+  widget_options: profile.widget_options || {},
+  device_layouts: profile.device_layouts || {},
+  role_overrides: profile.role_overrides || {},
+});
 
 const PANEL_RATIO_OPTIONS = [
   { key: '50:50', label: '50% / 50%' },
@@ -122,7 +136,16 @@ const PRESET_PATCHES: Record<PosLayoutSettings['preset'], Partial<PosLayoutSetti
   tables: { density: 'comfortable', product_columns: 3, show_cart_tabs: true, hidden_widgets: [] },
 };
 
-const INDUSTRY_PRESETS = [
+const INDUSTRY_PRESETS: Array<{
+  key: string;
+  titleAz: string;
+  titleRu: string;
+  titleEn: string;
+  noteAz: string;
+  noteRu: string;
+  noteEn: string;
+  build: (device: LayoutDevice) => Partial<PosLayoutConfig>;
+}> = [
   {
     key: 'coffee_shop',
     titleAz: 'Coffee Shop',
@@ -275,21 +298,21 @@ export default function PosBuilderPanel() {
   const buildActiveProfile = (source: PosLayoutSettings, device: LayoutDevice, scope: LayoutScope) => {
     const devicePatch = source.device_layouts?.[device];
     if (scope === 'base') {
-      return {
+      return completeLayoutProfile({
         ...DEFAULT_LAYOUT,
         ...source,
         ...stripNestedLayoutMeta(devicePatch),
-      };
+      });
     }
     const rolePatch = source.role_overrides?.[scope] || {};
     const roleDevicePatch = rolePatch.device_layouts?.[device];
-    return {
+    return completeLayoutProfile({
       ...DEFAULT_LAYOUT,
       ...source,
       ...stripNestedLayoutMeta(devicePatch),
       ...stripNestedLayoutMeta(rolePatch),
       ...stripNestedLayoutMeta(roleDevicePatch),
-    };
+    });
   };
 
   useEffect(() => {
@@ -313,7 +336,9 @@ export default function PosBuilderPanel() {
   const visibleLeftWidgets = useMemo(
     () => {
       const profile = buildActiveProfile(layout, activeDevice, activeScope);
-      return profile.left_widget_order.filter((key) => !profile.left_hidden_widgets.includes(key));
+      const leftWidgetOrder = profile.left_widget_order || [];
+      const leftHiddenWidgets = profile.left_hidden_widgets || [];
+      return leftWidgetOrder.filter((key) => !leftHiddenWidgets.includes(key));
     },
     [layout, activeDevice, activeScope],
   );
@@ -322,6 +347,8 @@ export default function PosBuilderPanel() {
     () => buildActiveProfile(layout, activeDevice, activeScope),
     [layout, activeDevice, activeScope],
   );
+  const activeLeftWidgetOrder = activeProfile.left_widget_order || [];
+  const activeLeftHiddenWidgets = activeProfile.left_hidden_widgets || [];
 
   const hasOverride = useCallback(
     (key: keyof PosLayoutSettings) => {
@@ -372,9 +399,9 @@ export default function PosBuilderPanel() {
 
   const toggleLeftHidden = (widgetKey: string) => {
     updateActiveProfile({
-      left_hidden_widgets: activeProfile.left_hidden_widgets.includes(widgetKey)
-        ? activeProfile.left_hidden_widgets.filter((key) => key !== widgetKey)
-        : [...activeProfile.left_hidden_widgets, widgetKey],
+      left_hidden_widgets: activeLeftHiddenWidgets.includes(widgetKey)
+        ? activeLeftHiddenWidgets.filter((key) => key !== widgetKey)
+        : [...activeLeftHiddenWidgets, widgetKey],
     });
   };
 
@@ -439,7 +466,7 @@ export default function PosBuilderPanel() {
   };
 
   const moveLeftWidget = (widgetKey: string, direction: -1 | 1) => {
-    const next = [...activeProfile.left_widget_order];
+    const next = [...activeLeftWidgetOrder];
     const index = next.indexOf(widgetKey);
     if (index < 0) return;
     const target = index + direction;
@@ -450,7 +477,7 @@ export default function PosBuilderPanel() {
 
   const moveLeftWidgetTo = (fromKey: string, toKey: string) => {
     if (!fromKey || !toKey || fromKey === toKey) return;
-    const current = [...activeProfile.left_widget_order];
+    const current = [...activeLeftWidgetOrder];
     const fromIndex = current.indexOf(fromKey);
     const toIndex = current.indexOf(toKey);
     if (fromIndex < 0 || toIndex < 0) return;
@@ -985,8 +1012,8 @@ export default function PosBuilderPanel() {
             {tx(lang, 'Axtarış, kateqoriya və məhsul hissəsini də ayrıca düzün. Tablet-də daha sadə axın saxlaya bilərsiniz.', 'Отдельно настройте поиск, категории и товары. Для tablet можно оставить более простой поток.', 'Arrange search, categories, and product sections separately. You can keep a simpler flow for tablet.')}
           </div>
           <div className="space-y-3">
-            {activeProfile.left_widget_order.map((widgetKey, index) => {
-              const hidden = activeProfile.left_hidden_widgets.includes(widgetKey);
+            {activeLeftWidgetOrder.map((widgetKey, index) => {
+              const hidden = activeLeftHiddenWidgets.includes(widgetKey);
               const isDropTarget = dropTargetLeftWidget === widgetKey && draggingLeftWidget !== widgetKey;
               const isRequired = REQUIRED_LEFT_WIDGETS.includes(widgetKey as any);
               return (
@@ -1067,7 +1094,7 @@ export default function PosBuilderPanel() {
                   <button onClick={() => moveLeftWidget(widgetKey, -1)} className="neon-btn rounded-lg px-2 py-2" disabled={index === 0}>
                     <ArrowUp size={14} />
                   </button>
-                  <button onClick={() => moveLeftWidget(widgetKey, 1)} className="neon-btn rounded-lg px-2 py-2" disabled={index === activeProfile.left_widget_order.length - 1}>
+                  <button onClick={() => moveLeftWidget(widgetKey, 1)} className="neon-btn rounded-lg px-2 py-2" disabled={index === activeLeftWidgetOrder.length - 1}>
                     <ArrowDown size={14} />
                   </button>
                 </div>

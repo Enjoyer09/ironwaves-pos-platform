@@ -4,6 +4,7 @@ import { get_public_landing_settings_live } from "../api/settings";
 type Lang = "az" | "ru" | "en";
 type DemoGuideState = { label: string; x: number; y: number };
 type ActionGuideState = { text: string; x: number; y: number };
+type SlideItem = [string, string, string];
 
 const COPY: Record<Lang, any> = {
   az: {
@@ -316,12 +317,12 @@ export default function LandingPage() {
         const desc = String(row?.[`desc_${lang}`] || row?.desc_az || row?.desc_en || row?.desc_ru || "").trim();
         return [title || "Slide", String(row.image_url), desc || ""] as [string, string, string];
       })
-      .filter(([title, src, desc]) => {
+      .filter(([title, src, desc]: SlideItem) => {
         const hay = `${title} ${src} ${desc}`.toLowerCase();
         return !BLOCKED_IMAGE_TERMS.some((term) => hay.includes(term));
       });
-    const internalOnly = mapped.filter(([, src]) => ALLOWED_INTERNAL_SHOTS.has(String(src || "").trim().toLowerCase()));
-    return internalOnly.length ? internalOnly : (DEFAULT_SHOTS as [string, string, string][]);
+    const internalOnly = mapped.filter(([, src]: SlideItem) => ALLOWED_INTERNAL_SHOTS.has(String(src || "").trim().toLowerCase()));
+    return internalOnly.length ? internalOnly : (DEFAULT_SHOTS as SlideItem[]);
   }, [liveSettings, lang]);
 
   useEffect(() => {
@@ -452,7 +453,7 @@ export default function LandingPage() {
           </div>
         </div>
         <div className="mt-3 flex items-center justify-center gap-2">
-          {slides.map((s, idx) => (
+          {slides.map((s: SlideItem, idx: number) => (
             <button
               key={`${s[0]}_${idx}`}
               type="button"
@@ -547,7 +548,7 @@ export default function LandingPage() {
           ))}
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {slides.map(([title, src, desc], idx) => (
+          {slides.map(([title, src, desc]: SlideItem, idx: number) => (
             <article key={`${title}_${idx}`} className="overflow-hidden rounded-xl border border-[#f6c86c30] bg-[#2b1714]">
               <img src={src} alt={title} className="h-52 w-full object-cover transition duration-700 hover:scale-[1.03]" />
               <div className="p-4">
