@@ -24,14 +24,18 @@ export default function PinLogin() {
   const isDemoHost = typeof window !== 'undefined' && window.location.host.toLowerCase() === 'demo.ironwaves.store';
   const isPlatformHost = typeof window !== 'undefined' && window.location.host.toLowerCase() === 'super.ironwaves.store';
   const tenantId = getResolvedTenantIdFromHost() || '';
-  const [branding, setBranding] = useState(() => (tenantId ? get_business_profile(tenantId) : { company_name: 'iRonWaves POS', logo_url: '' }));
+  const [branding, setBranding] = useState(() => (tenantId ? get_business_profile(tenantId) : null));
   const [tenantAccessState, setTenantAccessState] = useState<'ok' | 'not_found' | 'suspended'>('ok');
   const [ownerBootstrapAvailable, setOwnerBootstrapAvailable] = useState(false);
   const [ownerUser, setOwnerUser] = useState('owner');
   const [ownerPass, setOwnerPass] = useState('');
   const [ownerPassConfirm, setOwnerPassConfirm] = useState('');
   const [staffPinLength, setStaffPinLength] = useState<4 | 6>(4);
-  const [isBrandingLoading, setIsBrandingLoading] = useState(true);
+  const [isBrandingLoading, setIsBrandingLoading] = useState(() => {
+    // If we already have cached branding with a company name, skip the loading state
+    const cached = tenantId ? get_business_profile(tenantId) : null;
+    return !(cached && cached.company_name && cached.company_name !== 'iRonWaves POS');
+  });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenSupported, setFullscreenSupported] = useState(true);
 
@@ -109,8 +113,15 @@ export default function PinLogin() {
   React.useEffect(() => {
     let mounted = true;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    setBranding(tenantId ? get_business_profile(tenantId) : { company_name: 'iRonWaves POS', logo_url: '' });
+    const cached = tenantId ? get_business_profile(tenantId) : null;
+    setBranding(cached || null);
     setTenantAccessState('ok');
+    // If cached branding is valid (not default), show it instantly
+    if (cached && cached.company_name && cached.company_name !== 'iRonWaves POS') {
+      setIsBrandingLoading(false);
+    } else {
+      setIsBrandingLoading(true);
+    }
 
     const fetchBranding = (attempt = 0) => {
       get_public_branding_live(tenantId || undefined)
@@ -157,11 +168,12 @@ export default function PinLogin() {
 
   React.useEffect(() => {
     if (typeof document === 'undefined') return;
+    if (isBrandingLoading) return;
     const companyName = String(branding?.company_name || '').trim();
     document.title = companyName
       ? `${companyName}${/ironwaves/i.test(companyName) ? '' : ' by IronWaves'}`
       : 'iRonWaves POS';
-  }, [branding?.company_name]);
+  }, [branding?.company_name, isBrandingLoading]);
 
   React.useEffect(() => {
     const syncPinLength = () => {
@@ -375,17 +387,29 @@ export default function PinLogin() {
       >
         {/* Floating brand block */}
         <div className="relative z-10 flex items-center gap-3.5 bg-slate-950/40 border border-white/10 backdrop-blur-xl px-5 py-3 rounded-2xl w-fit">
-          {branding?.logo_url ? (
-            <img src={branding.logo_url} alt="brand logo" className="h-10 w-10 rounded-xl object-cover shadow-lg" />
+          {isBrandingLoading ? (
+            <>
+              <div className="h-10 w-10 rounded-xl bg-slate-700/60 animate-pulse" />
+              <div className="space-y-2">
+                <div className="h-4 w-32 rounded-lg bg-slate-700/60 animate-pulse" />
+                <div className="h-2.5 w-20 rounded-lg bg-slate-700/40 animate-pulse" />
+              </div>
+            </>
           ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-400 text-base font-black text-slate-900 shadow-lg">
-              {(branding?.company_name || 'I').trim().slice(0, 1).toUpperCase()}
-            </div>
+            <>
+              {branding?.logo_url ? (
+                <img src={branding.logo_url} alt="brand logo" className="h-10 w-10 rounded-xl object-cover shadow-lg" />
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-400 text-base font-black text-slate-900 shadow-lg">
+                  {(branding?.company_name || 'I').trim().slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <div>
+                <h2 className="text-base font-black tracking-wide text-white leading-none">{branding?.company_name || 'iRonWaves POS'}</h2>
+                {branding?.website && <p className="text-[10px] text-white/50 mt-1">{branding.website}</p>}
+              </div>
+            </>
           )}
-          <div>
-            <h2 className="text-base font-black tracking-wide text-white leading-none">{branding?.company_name || 'iRonWaves POS'}</h2>
-            {branding?.website && <p className="text-[10px] text-white/50 mt-1">{branding.website}</p>}
-          </div>
         </div>
 
         {/* Dynamic Welcome Card */}
@@ -436,15 +460,24 @@ export default function PinLogin() {
           
           {/* Mobile Header */}
           <div className="flex flex-col items-center gap-3 text-center md:hidden mb-2">
-            {branding?.logo_url ? (
-              <img src={branding.logo_url} alt="brand logo" className="h-12 w-12 rounded-xl object-cover shadow-lg" />
+            {isBrandingLoading ? (
+              <>
+                <div className="h-12 w-12 rounded-xl bg-slate-700/60 animate-pulse" />
+                <div className="h-6 w-40 rounded-lg bg-slate-700/60 animate-pulse" />
+              </>
             ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-yellow-400 text-lg font-black text-slate-900 shadow-lg">
-                {(branding?.company_name || 'I').trim().slice(0, 1).toUpperCase()}
-              </div>
+              <>
+                {branding?.logo_url ? (
+                  <img src={branding.logo_url} alt="brand logo" className="h-12 w-12 rounded-xl object-cover shadow-lg" />
+                ) : (
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-yellow-400 text-lg font-black text-slate-900 shadow-lg">
+                    {(branding?.company_name || 'I').trim().slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+                <h1 className="text-2xl font-black text-white">{branding?.company_name || 'iRonWaves POS'}</h1>
+                {branding?.website && <p className="text-[10px] text-slate-400">{branding.website}</p>}
+              </>
             )}
-            <h1 className="text-2xl font-black text-white">{branding?.company_name || 'iRonWaves POS'}</h1>
-            {branding?.website && <p className="text-[10px] text-slate-400">{branding.website}</p>}
           </div>
 
           {/* Quick Demo Access banner (if demo host) */}
