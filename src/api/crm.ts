@@ -641,3 +641,66 @@ export function get_customer_wallet_pass_url(card_id: string, token: string, lan
   const base = getApiBaseUrl() || (typeof window !== 'undefined' ? window.location.origin : '');
   return `${base}/api/v1/ops/customer-app/wallet-pass?id=${encodeURIComponent(card_id)}&t=${encodeURIComponent(token)}&lang=${encodeURIComponent(lang)}`;
 }
+
+export async function create_customer_pre_order_live(payload: {
+  cardId: string;
+  token: string;
+  items: any[];
+  notes?: string;
+  tenantId?: string;
+}) {
+  const tId = payload.tenantId || defaultTenant();
+  if (!isBackendEnabled()) {
+    const orders = getDB<any>('kitchen_orders') || [];
+    const newOrder = {
+      id: uuidv4(),
+      tenant_id: tId,
+      sale_id: uuidv4(),
+      table_label: 'Online Order',
+      order_type: 'Order Online',
+      status: 'NEW',
+      priority: 'NORMAL',
+      items: payload.items.map((it: any) => ({
+        id: it.id || uuidv4(),
+        name: it.name,
+        quantity: it.quantity,
+        price: it.price,
+        variant_name: it.variant_name || null,
+        selected_modifiers: it.selected_modifiers || [],
+        notes: it.notes || ''
+      })),
+      created_at: new Date().toISOString()
+    };
+    orders.push(newOrder);
+    setDB('kitchen_orders', orders);
+
+    const notifications = filterTenantRecords(getDB<Notification>('notifications'), tId);
+    const foreignNotifications = getDB<Notification>('notifications').filter((row) => String(row.tenant_id || '') !== tId);
+    notifications.push({
+      id: uuidv4(),
+      tenant_id: tId,
+      card_id: payload.cardId,
+      message: `Sifarişiniz qəbul edildi! Barista hazırlamağa başlayanda bildiriş alacaqsınız. ☕ (ID: ${newOrder.id.slice(0, 8)})`,
+      is_read: false,
+      created_at: new Date().toISOString()
+    });
+    setDB('notifications', [...foreignNotifications, ...notifications]);
+
+    logEvent(payload.cardId, 'CUSTOMER_PRE_ORDER_CREATED', { tenant_id: tId, order_id: newOrder.id });
+    return Promise.resolve({ success: true, orderId: newOrder.id, fallback: true });
+  }
+
+  return apiRequest<{ success: boolean; orderId: string }>(
+    `/api/v1/ops/customer-app/pre-order?id=${encodeURIComponent(payload.cardId)}&t=${encodeURIComponent(payload.token)}`,
+    {
+      method: 'POST',
+      tenantId: null,
+      auth: false,
+      body: {
+        items: payload.items,
+        notes: payload.notes,
+        tenant_id: tId
+      }
+    }
+  );
+}

@@ -215,7 +215,7 @@ export default function InventoryPanel() {
   };
 
   const formatQty = (value: unknown, unit: string) => {
-    const qty = new Decimal(value || 0);
+    const qty = new Decimal(String(value ?? 0));
     const normalizedUnit = String(unit || '').trim().toLowerCase();
     const integerUnits = ['ədəd', 'adet', 'piece'];
     if (integerUnits.includes(normalizedUnit)) return qty.toDecimalPlaces(0).toString();
@@ -224,7 +224,7 @@ export default function InventoryPanel() {
   };
 
   const formatUnitCost = (value: unknown) => {
-    const cost = new Decimal(value || 0);
+    const cost = new Decimal(String(value ?? 0));
     if (cost.gt(0) && cost.lt(0.01)) {
       return cost.toDecimalPlaces(4).toString();
     }
@@ -323,7 +323,6 @@ export default function InventoryPanel() {
       await restock_item_live(tenant_id, id, qty, totalPrice, user?.username || 'Admin', {
         payment_source: restockPaymentSource,
         supplier: restockSupplier.trim() || undefined,
-        supplier_id: restockSupplierId || undefined,
         invoice_no: restockInvoiceNo.trim() || undefined,
       });
 

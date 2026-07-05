@@ -1,12 +1,14 @@
 import React from 'react';
-import { Bell, Gift, Home, Languages, MessageCircleHeart, MessageSquare, QrCode, Sparkles, UserRound, Camera as CameraIcon, Mic, Volume2, VolumeX } from 'lucide-react';
+import { Bell, Gift, Home, Languages, MessageCircleHeart, MessageSquare, QrCode, Sparkles, UserRound, Camera as CameraIcon, Mic, Volume2, VolumeX, ShoppingBag, ChevronRight, Check, ChevronLeft, X, Sliders } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
 import { tx } from '../i18n';
 import { useAppStore } from '../store';
-import { claim_customer_reward_live, enroll_customer_app_live, get_customer_app_bootstrap_live, get_customer_app_session_live, mark_customer_notification_read_live, save_push_token_live, send_customer_otp_live, verify_customer_otp_live, analyze_customer_fortune_live, chat_customer_barista_live, get_customer_wallet_pass_url } from '../api/crm';
+import { claim_customer_reward_live, enroll_customer_app_live, get_customer_app_bootstrap_live, get_customer_app_session_live, mark_customer_notification_read_live, save_push_token_live, send_customer_otp_live, verify_customer_otp_live, analyze_customer_fortune_live, chat_customer_barista_live, get_customer_wallet_pass_url, create_customer_pre_order_live } from '../api/crm';
+import { get_public_menu_live } from '../api/menu';
 import { clearCustomerSession, readCustomerPushToken, readCustomerPushTokenAsync, writeCustomerPushToken, writeCustomerSession } from '../lib/customer_session';
 
 type Props = {
@@ -15,13 +17,34 @@ type Props = {
   joinMode?: boolean;
 };
 
-type CustomerTab = 'home' | 'offers' | 'barista' | 'falci' | 'profile';
+type CustomerTab = 'home' | 'order' | 'offers' | 'barista' | 'falci' | 'profile';
 
 const BARISTA_QUICK_PROMPTS = [
   'Mənə soyuq içki tövsiyə et',
   'Bu gün hansı reward mənə sərf edir?',
   'Dessert ilə nə uyğun gedər?',
 ];
+
+const getProductImage = (name: string, currentUrl?: string): string => {
+  if (currentUrl && currentUrl.trim().startsWith('http')) return currentUrl;
+  const n = name.toLowerCase();
+  if (n.includes('espresso') || n.includes('double shot')) {
+    return 'https://images.unsplash.com/photo-1510705315444-837e27e8ecea?auto=format&fit=crop&w=400&q=80';
+  }
+  if (n.includes('cappuccino') || n.includes('latte') || n.includes('flat white') || n.includes('macchiato') || n.includes('mocha') || n.includes('qəhvə') || n.includes('coffee')) {
+    return 'https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=400&q=80';
+  }
+  if (n.includes('iced') || n.includes('cold') || n.includes('soyuq') || n.includes('frappe') || n.includes('shake')) {
+    return 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=400&q=80';
+  }
+  if (n.includes('tea') || n.includes('çay') || n.includes('cay') || n.includes('matcha') || n.includes('herbal')) {
+    return 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=400&q=80';
+  }
+  if (n.includes('cheesecake') || n.includes('cake') || n.includes('şirniyyat') || n.includes('sirniyyat') || n.includes('desert') || n.includes('cookie') || n.includes('croissant') || n.includes('kruassan') || n.includes('panini') || n.includes('waffle')) {
+    return 'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=400&q=80';
+  }
+  return 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=400&q=80';
+};
 
 const CUSTOMER_DEBUG_TOOLS_ENABLED = Boolean((import.meta as any)?.env?.DEV) && !Capacitor.isNativePlatform();
 
@@ -279,6 +302,19 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [sessionCreds, setSessionCreds] = React.useState({ cardId, token });
   const [acceptingConsent, setAcceptingConsent] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<CustomerTab>('home');
+  const [cardFlipped, setCardFlipped] = React.useState(false);
+  const [menuItems, setMenuItems] = React.useState<any[]>([]);
+  const [menuLoading, setMenuLoading] = React.useState(false);
+  const [selectedCategory, setSelectedCategory] = React.useState<string>('');
+  const [customerCart, setCustomerCart] = React.useState<any[]>([]);
+  const [modifierSheetItem, setModifierSheetItem] = React.useState<any | null>(null);
+  const [selectedVariant, setSelectedVariant] = React.useState<any | null>(null);
+  const [selectedModifiers, setSelectedModifiers] = React.useState<any[]>([]);
+  const [preOrderSubmitting, setPreOrderSubmitting] = React.useState(false);
+  const [preOrderSuccess, setPreOrderSuccess] = React.useState(false);
+  const [preOrderSuccessId, setPreOrderSuccessId] = React.useState('');
+  const [showCartSheet, setShowCartSheet] = React.useState(false);
+  const [orderNotes, setOrderNotes] = React.useState('');
   const [phone, setPhone] = React.useState('');
   const [otpCode, setOtpCode] = React.useState('');
   const [otpSent, setOtpSent] = React.useState(false);
@@ -333,6 +369,121 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       chunks.push(clean.slice(i, i + 4));
     }
     return chunks.join(' ');
+  };
+
+  const audioCtxRef = React.useRef<AudioContext | null>(null);
+
+  const initAudioCtx = () => {
+    if (typeof window === 'undefined') return null;
+    if (!audioCtxRef.current) {
+      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtxClass) {
+        audioCtxRef.current = new AudioCtxClass();
+      }
+    }
+    const ctx = audioCtxRef.current;
+    if (ctx && ctx.state === 'suspended') {
+      void ctx.resume();
+    }
+    return ctx;
+  };
+
+  const openWalletPass = (e: React.MouseEvent, url: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    void initAudioCtx();
+    if (Capacitor.isNativePlatform()) {
+      window.open(url, '_system');
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const handleOpenModifiers = (item: any) => {
+    setModifierSheetItem(item);
+    setSelectedVariant(item.variants && item.variants.length > 0 ? item.variants[0] : null);
+    setSelectedModifiers([]);
+  };
+
+  const handleToggleModifier = (mod: { name: string; price: number }) => {
+    setSelectedModifiers(prev => {
+      const exists = prev.find(m => m.name === mod.name);
+      if (exists) {
+        return prev.filter(m => m.name !== mod.name);
+      } else {
+        return [...prev, mod];
+      }
+    });
+  };
+
+  const handleAddToCart = () => {
+    if (!modifierSheetItem) return;
+    const basePrice = selectedVariant ? Number(selectedVariant.price) : Number(modifierSheetItem.price || 0);
+    const modifiersTotal = selectedModifiers.reduce((acc, m) => acc + m.price, 0);
+    const finalPrice = basePrice + modifiersTotal;
+
+    const cartItem = {
+      id: modifierSheetItem.id,
+      name: modifierSheetItem.name,
+      quantity: 1,
+      price: finalPrice,
+      variant_name: selectedVariant ? selectedVariant.name : null,
+      selected_modifiers: selectedModifiers,
+      notes: ''
+    };
+
+    setCustomerCart(prev => {
+      const existingIdx = prev.findIndex(item => 
+        item.id === cartItem.id && 
+        item.variant_name === cartItem.variant_name &&
+        JSON.stringify(item.selected_modifiers) === JSON.stringify(cartItem.selected_modifiers)
+      );
+      if (existingIdx > -1) {
+        const next = [...prev];
+        next[existingIdx].quantity += 1;
+        return next;
+      }
+      return [...prev, cartItem];
+    });
+
+    setModifierSheetItem(null);
+    playTickSound();
+    if (Capacitor.isNativePlatform()) {
+      try {
+        Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
+      } catch {}
+    }
+  };
+
+  const handleRemoveFromCart = (index: number) => {
+    setCustomerCart(prev => prev.filter((_, idx) => idx !== index));
+    playTickSound();
+  };
+
+  const handleCheckoutPreOrder = async () => {
+    if (customerCart.length === 0) return;
+    try {
+      setPreOrderSubmitting(true);
+      const res = await create_customer_pre_order_live({
+        cardId: sessionCreds.cardId!,
+        token: sessionCreds.token!,
+        items: customerCart,
+        notes: orderNotes,
+        tenantId: data?.tenant_id
+      });
+      if (res.success) {
+        setPreOrderSuccessId(res.orderId);
+        setPreOrderSuccess(true);
+        setCustomerCart([]);
+        setOrderNotes('');
+        setShowCartSheet(false);
+        playShimmerSound();
+      }
+    } catch (err) {
+      console.warn('Checkout failed:', err);
+    } finally {
+      setPreOrderSubmitting(false);
+    }
   };
 
   const chartData = React.useMemo(() => {
@@ -440,8 +591,9 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   };
 
   const playTickSound = () => {
+    const audioCtx = initAudioCtx();
+    if (!audioCtx) return;
     try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.connect(gain);
@@ -459,8 +611,9 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   };
 
   const playShimmerSound = () => {
+    const audioCtx = initAudioCtx();
+    if (!audioCtx) return;
     try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
       const now = audioCtx.currentTime;
       const playNote = (freq: number, delay: number, duration: number) => {
         const osc = audioCtx.createOscillator();
@@ -536,8 +689,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const rewards = Array.isArray(wallet?.rewards) ? wallet.rewards : [];
   const pendingClaims = Array.isArray(data?.pending_claims) ? data.pending_claims : [];
   const progressPercent = wallet?.next_reward_at ? Math.min(100, Math.round((Number(wallet.progress_current || 0) / Number(wallet.next_reward_at || 1)) * 100)) : 0;
-  const primaryColor = String(branding?.primary_color || '#14b8a6');
-  const accentColor = String(branding?.accent_color || '#7c3aed');
+  const primaryColor = String(branding?.primary_color || '#F48C24');
+  const accentColor = String(branding?.accent_color || '#1A4329');
   const programMode = String(wallet?.program_mode || 'points').toLowerCase();
   const showQrCard = branding?.show_qr_card !== false;
   const showWallet = branding?.show_wallet !== false;
@@ -637,6 +790,76 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       }
     })();
   }, [joinMode, load, sessionCreds.cardId, sessionCreds.token]);
+
+  React.useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    if (!sessionCreds.cardId || !sessionCreds.token) return;
+
+    const setupNativePush = async () => {
+      try {
+        let permStatus = await PushNotifications.checkPermissions();
+        if (permStatus.receive !== 'granted') {
+          permStatus = await PushNotifications.requestPermissions();
+        }
+        if (permStatus.receive === 'granted') {
+          await PushNotifications.register();
+        }
+
+        await PushNotifications.addListener('registration', async (token) => {
+          const pushToken = token.value;
+          if (pushToken) {
+            writeCustomerPushToken(pushToken);
+            try {
+              await save_push_token_live(sessionCreds.cardId, pushToken, sessionCreds.token);
+              console.log('Native Push token registered and synced with CRM:', pushToken);
+            } catch (err) {
+              console.warn('Failed to sync native push token:', err);
+            }
+          }
+        });
+
+        await PushNotifications.addListener('registrationError', (error) => {
+          console.error('Push registration error:', error);
+        });
+      } catch (err) {
+        console.warn('Native push registration setup failed:', err);
+      }
+    };
+
+    void setupNativePush();
+
+    return () => {
+      try {
+        void PushNotifications.removeAllListeners();
+      } catch {}
+    };
+  }, [sessionCreds.cardId, sessionCreds.token]);
+
+  React.useEffect(() => {
+    if (activeTab !== 'order') return;
+    let mounted = true;
+    void (async () => {
+      try {
+        setMenuLoading(true);
+        const menu = await get_public_menu_live();
+        if (mounted) {
+          const items = Array.isArray(menu) ? menu : [];
+          setMenuItems(items);
+          if (items.length > 0) {
+            const cats = Array.from(new Set(items.map(it => it.category).filter(Boolean))) as string[];
+            if (cats.length > 0 && !selectedCategory) {
+              setSelectedCategory(cats[0]);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch public menu items:', err);
+      } finally {
+        if (mounted) setMenuLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [activeTab]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1070,7 +1293,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           <section className="overflow-hidden rounded-[34px] border border-white/10 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]" style={{ background: `linear-gradient(180deg, ${joinAccent}, ${joinPrimary})` }}>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-xs uppercase tracking-[0.3em] text-white/70">{bootstrapBranding.app_name || 'Loyalty Club'}</div>
+                <div className="text-xs uppercase tracking-[0.3em] text-white/70">{bootstrapBranding.app_name || 'Emalatkhana'}</div>
                 <h1 className="mt-3 text-3xl font-black text-white">{bootstrapBranding.hero_title || tx(safeLang, 'Xoş gəldiniz', 'Добро пожаловать', 'Welcome')}</h1>
                 <p className="mt-2 text-sm text-white/80">{bootstrapBranding.hero_subtitle || tx(safeLang, 'Loyalty klubuna bir toxunuşla qoşul', 'Присоединяйся к loyalty клубу одним касанием', 'Join the loyalty club in one tap')}</p>
               </div>
@@ -1265,6 +1488,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   const bottomTabs: Array<{ key: CustomerTab; label: string; icon: React.ReactNode }> = [
     { key: 'home' as CustomerTab, label: tx(safeLang, 'Ana Səhifə', 'Главная', 'Home'), icon: <Home size={18} /> },
+    { key: 'order' as CustomerTab, label: tx(safeLang, 'Sifariş', 'Заказать', 'Order'), icon: <ShoppingBag size={18} /> },
     { key: 'offers' as CustomerTab, label: tx(safeLang, 'Kampaniyalar', 'Кампании', 'Offers'), icon: <Gift size={18} /> },
     ...(aiBaristaEnabled ? [{ key: 'barista' as CustomerTab, label: tx(safeLang, 'Barista', 'Бариста', 'Barista'), icon: <MessageSquare size={18} /> }] : []),
     ...(aiFalciEnabled ? [{ key: 'falci' as CustomerTab, label: tx(safeLang, 'Falçı', 'Фалчы', 'Fortune'), icon: <Sparkles size={18} /> }] : []),
@@ -1309,19 +1533,34 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         }
       `}</style>
 
-      {/* Dynamic Welcoming Greeting Banner */}
-      <div className="flex items-center justify-between px-1">
-        <div>
-          <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-1.5">
-            <span>{getGreeting()}</span>
-            <span className="text-amber-400 font-normal">
-              {new Date().getHours() >= 5 && new Date().getHours() < 12 ? '🌅' : new Date().getHours() >= 12 && new Date().getHours() < 18 ? '☀️' : '🌙'}
-            </span>
-          </h2>
-          <p className="text-[11px] text-white/50 font-bold mt-0.5 uppercase tracking-wider">
-            {tx(safeLang, 'iRonWaves Loyalty proqramına xoş gəldiniz', 'Добро пожаловать в iRonWaves Loyalty', 'Welcome to iRonWaves Loyalty')}
-            {getFirstName()}
-          </p>
+      {/* Welcome Back Header styled exactly like mockup */}
+      <div className="flex items-center justify-between px-1 mb-2">
+        <div className="flex items-center gap-3">
+          {/* Circular avatar */}
+          <div className="h-11 w-11 rounded-full bg-[#1A4329]/10 flex items-center justify-center border border-[#1A4329]/5 text-lg font-black text-[#1A4329]">
+            {customer.name ? customer.name.charAt(0).toUpperCase() : 'M'}
+          </div>
+          <div>
+            <p className="text-[10px] text-[#1A4329]/50 font-bold uppercase tracking-wider">
+              {tx(safeLang, 'Xoş gəldiniz', 'Добро пожаловать', 'Welcome Back')}
+            </p>
+            <h2 className="text-md font-black text-[#1A4329] tracking-tight">
+              {customer.name || tx(safeLang, 'Qonaq', 'Гость', 'Guest')}
+            </h2>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Bell Icon in white circle with shadow */}
+          <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center border border-[#1A4329]/5 shadow-sm text-[#1A4329]/70 relative">
+            <Bell size={18} />
+            {notifications.filter((n: any) => !n.is_read).length > 0 && (
+              <span className="absolute top-2.5 right-2.5 h-2 w-2 rounded-full bg-[#F48C24]" />
+            )}
+          </div>
+          {/* Orange active indicator or filter button */}
+          <div className="h-10 w-10 rounded-full bg-[#F48C24] flex items-center justify-center shadow-[0_4px_12px_rgba(244,140,36,0.25)] text-white">
+            <Sliders size={18} />
+          </div>
         </div>
       </div>
 
@@ -1355,205 +1594,241 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         </div>
       )}
 
-      {/* Premium Digital Membership Card */}
-      <section
+      {/* Premium Digital Membership Card wrapper with 3D Flip */}
+      <div 
         onClick={async (e) => {
           spawnParticles(e);
-          setShowFullQr(true);
           playTickSound();
+          setCardFlipped(!cardFlipped);
           if (Capacitor.isNativePlatform()) {
             try {
-              await Haptics.impact({ style: ImpactStyle.Medium });
-            } catch (hErr) {
-              console.warn('Haptics failed', hErr);
-            }
+              await Haptics.impact({ style: ImpactStyle.Light });
+            } catch {}
           }
         }}
-        className="relative overflow-hidden border p-6 transition-all duration-300 active:scale-[0.99] hover:border-white/20 group cursor-pointer"
-        style={{
-          borderRadius: '28px',
-          borderColor: 'rgba(255, 255, 255, 0.12)',
-          background: heroImage
-            ? `linear-gradient(180deg, rgba(15, 23, 42, 0.2), rgba(15, 23, 42, 0.8)), url(${heroImage}) center/cover`
-            : `linear-gradient(135deg, ${accentColor} 0%, ${primaryColor} 100%)`,
-          boxShadow: `0 20px 45px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.2)`,
-        }}
+        className="perspective-1000 w-full h-[220px] select-none cursor-pointer"
       >
-        {/* Render interactive particles */}
-        {particles.map((p) => (
-          <div
-            key={p.id}
-            className="absolute pointer-events-none text-amber-400 select-none animate-sparkle z-50"
+        <div className={`relative w-full h-full duration-700 preserve-3d transition-transform ${cardFlipped ? 'rotate-y-180' : ''}`}>
+          {/* CARD FRONT */}
+          <div 
+            className="absolute inset-0 backface-hidden border p-6 flex flex-col justify-between overflow-hidden shadow-[0_16px_36px_rgba(26,67,41,0.18)]"
             style={{
-              left: p.x,
-              top: p.y,
-              fontSize: `${p.size}px`,
-              '--dx': `${Math.cos(p.angle) * p.speed * 20}px`,
-              '--dy': `${Math.sin(p.angle) * p.speed * 20}px`,
-            } as React.CSSProperties}
+              borderRadius: '28px',
+              borderColor: 'rgba(26, 67, 41, 0.1)',
+              background: heroImage
+                ? `linear-gradient(180deg, rgba(26, 67, 41, 0.2), rgba(26, 67, 41, 0.8)), url(${heroImage}) center/cover`
+                : `linear-gradient(135deg, ${accentColor} 0%, ${primaryColor} 100%)`,
+            }}
           >
-            ✨
+            {/* Glossy Card Reflection Sweep */}
+            <div className="absolute inset-0 w-[200%] h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-[1500ms] ease-out pointer-events-none" />
+
+            {/* Card Header */}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/80">
+                    {branding.app_name || 'Emalatkhana'}
+                  </p>
+                </div>
+                <h1 className="mt-2 text-2xl font-black text-white tracking-tight">
+                  {branding.hero_title || tx(safeLang, 'Xoş gəldiniz', 'Добро пожаловать', 'Welcome')}
+                </h1>
+              </div>
+              {branding.logo_url ? (
+                <img
+                  src={branding.logo_url}
+                  alt="brand"
+                  className="h-11 w-11 rounded-xl object-cover shadow-2xl border border-white/20"
+                />
+              ) : (
+                <div className="h-11 w-11 rounded-xl bg-white/10 flex items-center justify-center border border-white/20 text-xl">
+                  ☕
+                </div>
+              )}
+            </div>
+
+            {/* Card Chip & Contactless Indicator */}
+            <div className="flex items-center justify-between mt-4">
+              {/* SIM Chip Icon */}
+              <div className="relative w-10 h-7 rounded-md bg-gradient-to-br from-amber-200 via-yellow-400 to-amber-300 border border-amber-500/20 shadow-inner overflow-hidden flex flex-col justify-between p-1 opacity-85">
+                <div className="flex justify-between h-px bg-slate-950/20 mt-1" />
+                <div className="flex justify-between h-px bg-slate-950/20" />
+                <div className="flex justify-between h-px bg-slate-950/20 mb-1" />
+                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-950/20" />
+              </div>
+
+              {/* Tap to Scan Guide */}
+              <div className="text-[9px] font-bold uppercase tracking-wider text-white/70 flex items-center gap-1 bg-black/20 rounded-full px-2.5 py-1 border border-white/5 backdrop-blur-sm animate-pulse">
+                <span>✨</span>
+                <span>{tx(safeLang, 'Skan üçün toxun', 'Коснитесь для скана', 'Tap to Scan')}</span>
+              </div>
+
+              {/* Contactless waves */}
+              <div className="text-white/40">
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M4 12c0-2.21 1.79-4 4-4s4 1.79 4 4-1.79 4-4 4-4-1.79-4-4zm11-6.5c0-.83.67-1.5 1.5-1.5C20.09 4 24 7.91 24 12.5S20.09 21 16.5 21c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5c2.48 0 4.5-2.02 4.5-4.5S18.98 9 16.5 9c-.83 0-1.5-.67-1.5-1.5zm-5-3C10.5 2.17 11.17 1.5 12 1.5C17.79 1.5 22.5 6.21 22.5 12S17.79 22.5 12 22.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5c4.14 0 7.5-3.36 7.5-7.5s-3.36-7.5-7.5-7.5c-.83 0-1.5-.67-1.5-1.5z" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Card Number printed at the bottom like credit card */}
+            <div className="mt-4 flex items-center justify-between text-white/60 text-[10px] font-mono tracking-[0.2em]">
+              <span>{formatCardId(customer.card_id)}</span>
+              <span className="text-[9px] opacity-75">{tx(safeLang, 'MÜŞTƏRİ', 'КЛИЕНТ', 'CUSTOMER')}</span>
+            </div>
           </div>
-        ))}
 
-        {/* Glossy Card Reflection Sweep */}
-        <div className="absolute inset-0 w-[200%] h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-[1500ms] ease-out pointer-events-none" />
+          {/* CARD BACK - High Contrast Solid White */}
+          <div 
+            className="absolute inset-0 backface-hidden rotate-y-180 border p-6 flex flex-col items-center justify-center bg-white shadow-[0_16px_36px_rgba(26,67,41,0.12)]"
+            style={{
+              borderRadius: '28px',
+              borderColor: 'rgba(26, 67, 41, 0.1)',
+            }}
+          >
+            {cardQr ? (
+              <div className="rounded-2xl bg-white p-2.5 shadow-md border border-slate-100">
+                <img src={cardQr} alt="QR Code" className="h-28 w-28 object-contain" />
+              </div>
+            ) : (
+              <div className="text-slate-400 text-xs">No QR Code available</div>
+            )}
+            <div className="mt-3 text-[10px] font-black text-[#F48C24] tracking-[0.25em] uppercase">
+              {tx(safeLang, 'MƏSƏNİ PƏNCƏRƏYƏ YAXINLAŞDIRIN', 'ПОДНЕСИТЕ К СКАНЕРУ', 'SCAN QR CODE')}
+            </div>
+            <div className="mt-1 font-mono text-[9px] text-[#1A4329]/40">{formatCardId(customer.card_id)}</div>
+          </div>
+        </div>
+      </div>
 
-        {/* Card Header */}
-        <div className="flex items-start justify-between gap-4">
+      {/* Card Details Container (Placed directly below card) */}
+      {showWallet && (
+        <section 
+          className="rounded-[28px] border p-6 shadow-[0_12px_40px_rgba(26,67,41,0.03)] space-y-5 bg-white"
+          style={{
+            borderColor: 'rgba(26, 67, 41, 0.05)',
+          }}
+        >
           <div>
-            <div className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
-              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/70">
-                {branding.app_name || 'Loyalty Club'}
-              </p>
-            </div>
-            <h1 className="mt-2 text-2xl font-black text-white tracking-tight">
-              {branding.hero_title || tx(safeLang, 'Xoş gəldiniz', 'Добro пожаловать', 'Welcome')}
-            </h1>
-          </div>
-          {branding.logo_url ? (
-            <img
-              src={branding.logo_url}
-              alt="brand"
-              className="h-12 w-12 rounded-2xl object-cover shadow-2xl border-2 border-white/20"
-            />
-          ) : (
-            <div className="h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 text-xl">
-              👑
-            </div>
-          )}
-        </div>
-
-        {/* Card Chip & Contactless Indicator */}
-        <div className="mt-6 flex items-center justify-between">
-          {/* SIM Chip Icon */}
-          <div className="relative w-10 h-7 rounded-md bg-gradient-to-br from-amber-200 via-yellow-400 to-amber-300 border border-amber-500/20 shadow-inner overflow-hidden flex flex-col justify-between p-1 opacity-85">
-            <div className="flex justify-between h-px bg-slate-950/20 mt-1" />
-            <div className="flex justify-between h-px bg-slate-950/20" />
-            <div className="flex justify-between h-px bg-slate-950/20 mb-1" />
-            <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-950/20" />
-          </div>
-
-          {/* Tap to Scan Guide */}
-          <div className="text-[9px] font-bold uppercase tracking-wider text-white/40 flex items-center gap-1 bg-black/20 rounded-full px-2.5 py-1 border border-white/5 backdrop-blur-sm animate-pulse">
-            <span>✨</span>
-            <span>{tx(safeLang, 'Skan Etmək Üçün Toxun', 'Коснитесь для скана', 'Tap to Scan')}</span>
-          </div>
-
-          {/* Contactless waves */}
-          <div className="text-white/50">
-            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M4 12c0-2.21 1.79-4 4-4s4 1.79 4 4-1.79 4-4 4-4-1.79-4-4zm11-6.5c0-.83.67-1.5 1.5-1.5C20.09 4 24 7.91 24 12.5S20.09 21 16.5 21c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5c2.48 0 4.5-2.02 4.5-4.5S18.98 9 16.5 9c-.83 0-1.5-.67-1.5-1.5zm-5-3C10.5 2.17 11.17 1.5 12 1.5C17.79 1.5 22.5 6.21 22.5 12S17.79 22.5 12 22.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5c4.14 0 7.5-3.36 7.5-7.5s-3.36-7.5-7.5-7.5c-.83 0-1.5-.67-1.5-1.5z" />
-            </svg>
-          </div>
-        </div>
-
-        {/* Card Details Container */}
-        {showWallet && (
-          <div
-            className="mt-6 rounded-2xl p-4 bg-white/[0.07] border border-white/10 backdrop-blur-md shadow-2xl space-y-4"
-          >
             <div className="flex items-end justify-between">
               <div>
-                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/50">
+                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#1A4329]/50">
                   {wallet.points_label || 'Ulduz'}
                 </p>
-                <p className="mt-1 text-3xl font-black text-white tracking-tight">
+                <p className="mt-1 text-3xl font-black text-[#1A4329] tracking-tight">
                   {Number(wallet.stars_balance ?? 0).toFixed(programMode === 'cashback' ? 2 : 0)}
                   {balanceSuffix}
                 </p>
               </div>
               <div className="text-right">
-                <span className="inline-block rounded-full bg-white/10 border border-white/10 px-2.5 py-1 text-[10px] font-bold tracking-wider text-white uppercase backdrop-blur-sm">
+                <span className="inline-block rounded-full bg-[#1A4329]/5 border border-[#1A4329]/10 px-2.5 py-1 text-[10px] font-bold tracking-wider text-[#1A4329] uppercase">
                   {programMode === 'cashback' ? `${Number(wallet.cashback_percent || 0).toFixed(0)}% cashback` : (customer.type || 'Member')}
                 </span>
               </div>
             </div>
 
-            {/* Visual Stars Grid / Milestone Tracker */}
+            {/* Visual Stars Grid / Milestone Tracker with Coffee Cup Animation */}
             {programMode === 'points' ? (
-              <div className="border-t border-white/5 pt-4">
-                <div className="relative my-4 px-2 select-none">
-                  {/* Track line */}
-                  <div className="h-2 w-full rounded-full bg-black/40 border border-white/5 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 transition-all duration-1000"
-                      style={{ width: `${Math.min(100, (Number(wallet.stars_balance ?? 0) / Number(wallet.next_reward_at || 10)) * 100)}%` }}
-                    />
+              <div className="border-t border-[#1A4329]/5 pt-4">
+                <div className="flex items-center gap-5">
+                  {/* Waving Coffee Cup SVG */}
+                  <div className="relative select-none flex-shrink-0 flex items-center justify-center">
+                    <svg viewBox="0 0 100 110" className="w-16 h-18 overflow-visible">
+                      <defs>
+                        <linearGradient id="coffeeLiquidGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                          <stop offset="0%" stopColor="#ffb366" />
+                          <stop offset="40%" stopColor="#F48C24" />
+                          <stop offset="100%" stopColor="#b35900" />
+                        </linearGradient>
+                        <clipPath id="cupInterior">
+                          <path d="M20 18 L80 18 L73 85 C72 93, 28 93, 27 85 Z" />
+                        </clipPath>
+                      </defs>
+                      
+                      {/* Steam waves */}
+                      <path d="M40 10 Q43 4, 40 -2" fill="none" stroke="rgba(244,140,36,0.35)" strokeWidth="1.5" strokeLinecap="round" className="animate-pulse" />
+                      <path d="M50 12 Q53 6, 50 0" fill="none" stroke="rgba(244,140,36,0.45)" strokeWidth="1.5" strokeLinecap="round" className="animate-pulse" />
+                      <path d="M60 10 Q63 4, 60 -2" fill="none" stroke="rgba(244,140,36,0.35)" strokeWidth="1.5" strokeLinecap="round" className="animate-pulse" />
+                      
+                      {/* Cup Handle */}
+                      <path d="M76 35 C90 35, 90 65, 76 65" fill="none" stroke="rgba(26,67,41,0.2)" strokeWidth="4.5" strokeLinecap="round" />
+                      {/* Cup Body Outline */}
+                      <path d="M20 18 L80 18 L73 85 C72 93, 28 93, 27 85 Z" fill="rgba(26,67,41,0.03)" stroke="rgba(26,67,41,0.25)" strokeWidth="2.5" />
+                      {/* Waving Liquid clipped inside cup interior */}
+                      <g clipPath="url(#cupInterior)">
+                        <path 
+                          d="M -100 120 L -100 45 Q -75 40, -50 45 T 0 45 T 50 45 T 100 45 T 150 45 T 200 45 L 200 120 Z" 
+                          fill="url(#coffeeLiquidGrad)"
+                          className="animate-wave"
+                          style={{
+                            transform: `translateY(${Math.max(0, 100 - progressPercent)}%)`,
+                            transition: 'transform 1.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                          }}
+                        />
+                      </g>
+                    </svg>
+                    {/* Floating Star badge */}
+                    <div className="absolute -top-1.5 -right-1 bg-[#F48C24] text-white font-black text-[9px] h-4.5 w-4.5 rounded-full flex items-center justify-center border border-white shadow-lg animate-bounce">
+                      ★
+                    </div>
                   </div>
 
-                  {/* Milestones */}
-                  {[
-                    { stars: Math.round(Number(wallet.next_reward_at || 10) * 0.3), label: tx(safeLang, 'Çay/Espresso', 'Чай/Эспрессо', 'Tea/Espresso') },
-                    { stars: Math.round(Number(wallet.next_reward_at || 10) * 0.6), label: tx(safeLang, 'Cappuccino/Latte', 'Капучино/Латте', 'Cappuccino/Latte') },
-                    { stars: Number(wallet.next_reward_at || 10), label: tx(safeLang, 'Böyük Qəhvə + Şirniyyat', 'Большой Кофе + Десерт', 'Large Coffee + Pastry') }
-                  ].map((m, mIdx) => {
-                    const mPercent = (m.stars / Number(wallet.next_reward_at || 10)) * 100;
-                    const isUnlocked = Number(wallet.stars_balance ?? 0) >= m.stars;
-                    return (
-                      <div
-                        key={mIdx}
-                        className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center group cursor-pointer"
-                        style={{ left: `${mPercent}%` }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (Capacitor.isNativePlatform()) {
-                            Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
-                          }
-                        }}
-                      >
-                        <div
-                          className={`h-4.5 w-4.5 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${
-                            isUnlocked
-                              ? 'bg-gradient-to-br from-yellow-300 to-amber-500 border-amber-600 scale-110 shadow-[0_0_10px_rgba(245,158,11,0.8)]'
-                              : 'bg-slate-900 border-white/20'
-                          }`}
-                        >
-                          {isUnlocked && <span className="text-[8px] text-slate-950 font-bold">✓</span>}
-                        </div>
-                        {/* Tooltip on Hover/Tap */}
-                        <div className="absolute bottom-6 scale-0 group-hover:scale-100 transition-transform origin-bottom duration-200 bg-slate-950/95 border border-white/10 px-2.5 py-1 rounded-xl shadow-2xl text-[9px] font-extrabold text-white whitespace-nowrap z-30">
-                          {m.stars} {wallet.points_label || 'Ulduz'}: {m.label}
-                        </div>
-                        <span className="text-[8px] font-bold text-white/40 mt-1 font-mono">{m.stars}★</span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-6 text-center text-[11px] font-bold text-white/70">
-                  {tx(
-                    safeLang,
-                    `${Number(wallet.stars_balance ?? 0)} / ${Number(wallet.next_reward_at || 10)} ulduz topladınız`,
-                    `Вы собрали ${Number(wallet.stars_balance ?? 0)} / ${Number(wallet.next_reward_at || 10)} звезд`,
-                    `Collected ${Number(wallet.stars_balance ?? 0)} / ${Number(wallet.next_reward_at || 10)} stars`
-                  )}
+                  {/* Milestone details on the right */}
+                  <div className="flex-1 space-y-2">
+                    <div className="text-[11px] font-bold text-[#1A4329]">
+                      {tx(
+                        safeLang,
+                        `${Number(wallet.stars_balance ?? 0)} / ${Number(wallet.next_reward_at || 10)} ulduz topladınız`,
+                        `Вы собрали ${Number(wallet.stars_balance ?? 0)} / ${Number(wallet.next_reward_at || 10)} звезд`,
+                        `Collected ${Number(wallet.stars_balance ?? 0)} / ${Number(wallet.next_reward_at || 10)} stars`
+                      )}
+                    </div>
+                    {/* Progress milestones list */}
+                    <div className="space-y-1">
+                      {[
+                        { stars: Math.round(Number(wallet.next_reward_at || 10) * 0.3), label: tx(safeLang, 'Çay / Espresso', 'Чай / Эспрессо', 'Tea / Espresso') },
+                        { stars: Math.round(Number(wallet.next_reward_at || 10) * 0.6), label: tx(safeLang, 'Cappuccino / Latte', 'Капучино / Латте', 'Cappuccino / Latte') },
+                        { stars: Number(wallet.next_reward_at || 10), label: tx(safeLang, 'Böyük Qəhvə + Desert', 'Большой Кофе + Десерт', 'Large Coffee + Pastry') }
+                      ].map((m, mIdx) => {
+                        const isUnlocked = Number(wallet.stars_balance ?? 0) >= m.stars;
+                        return (
+                          <div key={mIdx} className="flex items-center gap-2 text-[10px]">
+                            <span className={`h-2 w-2 rounded-full ${isUnlocked ? 'bg-[#F48C24] shadow-[0_0_6px_rgba(244,140,36,0.8)]' : 'bg-slate-200'}`} />
+                            <span className={isUnlocked ? 'text-[#1A4329] font-black' : 'text-[#1A4329]/50 font-bold'}>
+                              {m.stars}★ · {m.label}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : (
               /* Cashback progress bar */
-              <div className="border-t border-white/5 pt-3">
-                <div className="h-1.5 overflow-hidden rounded-full bg-black/35">
+              <div className="border-t border-[#1A4329]/5 pt-3">
+                <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-300 transition-all duration-500"
+                    className="h-full rounded-full bg-gradient-to-r from-[#F48C24] to-[#ffb366] transition-all duration-500"
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
-                <div className="mt-2 flex items-center justify-between text-[11px] text-white/50">
+                <div className="mt-2 flex items-center justify-between text-[11px] text-[#1A4329]/50">
                   <span>{tx(safeLang, 'Növbəti reward', 'Следующая награда', 'Next reward')}</span>
-                  <span className="font-bold text-white/80">{wallet.reward_name || 'Reward'} ({progressPercent}%)</span>
+                  <span className="font-bold text-[#1A4329]/80">{wallet.reward_name || 'Reward'} ({progressPercent}%)</span>
                 </div>
               </div>
             )}
 
             {/* Apple & Google Wallet Integration */}
-            <div className="pt-3 border-t border-white/5 flex flex-row gap-2 justify-center items-center">
+            <div className="pt-3 border-t border-[#1A4329]/5 flex flex-row gap-2 justify-center items-center">
               <a
                 href={get_customer_wallet_pass_url(sessionCreds.cardId, sessionCreds.token, safeLang)}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => openWalletPass(e, get_customer_wallet_pass_url(sessionCreds.cardId, sessionCreds.token, safeLang))}
                 className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-black/80 hover:bg-black/90 py-2 border border-white/10 hover:border-white/20 transition text-[10px] font-semibold text-white active:scale-95"
               >
                 <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
@@ -1565,7 +1840,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                 href={get_customer_wallet_pass_url(sessionCreds.cardId, sessionCreds.token, safeLang)}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => openWalletPass(e, get_customer_wallet_pass_url(sessionCreds.cardId, sessionCreds.token, safeLang))}
                 className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-black/80 hover:bg-black/90 py-2 border border-white/10 hover:border-white/20 transition text-[10px] font-semibold text-white active:scale-95"
               >
                 <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
@@ -1574,32 +1849,57 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                 {tx(safeLang, 'Google Wallet', 'Google Wallet', 'Google Wallet')}
               </a>
             </div>
-          </div>
-        )}
 
-        {/* Card Number printed at the bottom like credit card */}
-        <div className="mt-5 flex items-center justify-between text-white/50 text-[11px] font-mono tracking-[0.2em]">
-          <span>{formatCardId(customer.card_id)}</span>
-          <span className="text-[10px] opacity-75">{tx(safeLang, 'LOYALLIQ', 'ЛОЯЛЬНОСТЬ', 'LOYALTY')}</span>
+            {/* Card Number printed at the bottom like credit card */}
+            <div className="mt-5 flex items-center justify-between text-[#1A4329]/40 text-[11px] font-mono tracking-[0.2em] border-t border-[#1A4329]/5 pt-3">
+              <span>{formatCardId(customer.card_id)}</span>
+              <span className="text-[10px] opacity-75">{tx(safeLang, 'LOYALLIQ', 'ЛОЯЛЬНОСТЬ', 'LOYALTY')}</span>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Mockup-Style Promo Banner */}
+      <section className="relative overflow-hidden rounded-[28px] p-5 text-white shadow-[0_12px_36px_rgba(26,67,41,0.04)] bg-gradient-to-r from-[#1A4329] to-[#2E5E3D] border border-white/5">
+        {/* Abstract background shapes acting as mock image */}
+        <div className="absolute right-0 bottom-0 top-0 w-1/3 opacity-30 pointer-events-none select-none">
+          <div className="absolute -right-4 -bottom-4 w-28 h-28 rounded-full bg-[#F48C24] blur-lg" />
+          <div className="absolute right-4 top-2 w-16 h-16 rounded-full bg-white blur-md" />
+        </div>
+        <div className="relative z-10 max-w-[70%] space-y-3.5">
+          <div>
+            <h4 className="text-sm font-black tracking-tight leading-snug">
+              {tx(safeLang, 'Hər gün təzə dəmlənmiş premium qəhvə', 'Свежесваренный премиум кофе каждый день', 'Freshly brewed premium coffee everyday')}
+            </h4>
+            <p className="mt-1 text-[9px] text-white/70 font-semibold uppercase tracking-wider">
+              {tx(safeLang, 'İndi sifariş et, növbəni keç!', 'Закажи сейчас, пропусти очередь!', 'Order now, skip the line!')}
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveTab('order')}
+            className="rounded-full bg-white hover:bg-slate-100 text-[#1A4329] font-black text-[9px] px-3.5 py-1.5 uppercase tracking-wider transition active:scale-95 shadow-sm"
+          >
+            {tx(safeLang, 'Sifariş Et', 'Заказать', 'Order Now')}
+          </button>
         </div>
       </section>
 
       {/* Rewards + QR grid */}
       <div className="grid grid-cols-2 gap-3.5">
         <section
-          className="rounded-[24px] p-5 flex flex-col justify-between border border-white/[0.06] backdrop-blur-md shadow-lg transition hover:border-white/10"
-          style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
+          className="rounded-[28px] p-5 flex flex-col justify-between border shadow-[0_12px_40px_rgba(26,67,41,0.02)] bg-white"
+          style={{ borderColor: 'rgba(26, 67, 41, 0.05)' }}
         >
           <div>
-            <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-white/50">
-              <Gift size={14} className="text-amber-400 animate-bounce" />
-              {tx(safeLang, 'Rewards', 'Награды', 'Rewards')}
+            <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#1A4329]/50">
+              <Gift size={14} className="text-[#F48C24] animate-bounce" />
+              {tx(safeLang, 'Hədiyyələr', 'Награды', 'Rewards')}
             </div>
-            <div className="mt-3 text-4xl font-black text-white tracking-tight">
+            <div className="mt-3 text-4xl font-black text-[#1A4329] tracking-tight">
               {wallet.available_rewards ?? 0}
             </div>
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
-              {wallet.reward_label || 'Reward'}
+            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-[#1A4329]/40">
+              {wallet.reward_label || 'Hədiyyə'}
             </p>
           </div>
           {rewards[0] && Number(wallet.available_rewards || 0) > 0 ? (
@@ -1607,21 +1907,20 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               type="button"
               disabled={claiming}
               onClick={(e) => { e.stopPropagation(); void claimReward(); }}
-              className="relative mt-4 w-full overflow-hidden rounded-xl py-2.5 text-[12px] font-black text-slate-950 transition-all hover:scale-[1.02] active:scale-[0.97] disabled:opacity-50"
+              className="relative mt-4 w-full overflow-hidden rounded-xl py-2.5 text-[12px] font-black text-white transition-all active:scale-[0.97] disabled:opacity-50"
               style={{
                 background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`,
-                boxShadow: `0 8px 20px ${primaryColor}33`,
               }}
             >
               <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/15 to-transparent -translate-x-full hover:translate-x-full transition-transform duration-1000 ease-out" />
-              {claiming ? '...' : tx(safeLang, 'Tətbiq Et', 'Забрать', 'Claim')}
+              {claiming ? '...' : tx(safeLang, 'Tətbiq et', 'Забрать', 'Claim')}
             </button>
           ) : null}
         </section>
 
         <section
           onClick={async () => {
-            setShowFullQr(true);
+            setCardFlipped(!cardFlipped);
             playTickSound();
             if (Capacitor.isNativePlatform()) {
               try {
@@ -1631,39 +1930,39 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               }
             }
           }}
-          className="rounded-[24px] p-5 flex flex-col justify-between border border-white/[0.06] backdrop-blur-md shadow-lg transition hover:border-white/10 active:scale-[0.98] cursor-pointer"
-          style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
+          className="rounded-[28px] p-5 flex flex-col justify-between border shadow-[0_12px_40px_rgba(26,67,41,0.02)] transition active:scale-[0.98] cursor-pointer bg-white"
+          style={{ borderColor: 'rgba(26, 67, 41, 0.05)' }}
         >
-          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-white/50">
-            <QrCode size={14} className="text-teal-400" />
+          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[#1A4329]/50">
+            <QrCode size={14} className="text-[#F48C24]" />
             {tx(safeLang, 'QR Kart', 'QR карта', 'QR Card')}
           </div>
           {showQrCard && cardQr ? (
             <div className="mt-3 flex flex-col items-center">
-              <div className="p-2.5 bg-white rounded-2xl shadow-2xl border border-white/20">
-                <img src={cardQr} alt="qr" className="h-24 w-24 object-contain" />
+              <div className="p-2 bg-white rounded-2xl border border-slate-100 shadow-inner">
+                <img src={cardQr} alt="qr" className="h-20 w-20 object-contain" />
               </div>
-              <p className="mt-2 text-[9px] font-mono tracking-widest text-white/40">{customer.card_id}</p>
+              <p className="mt-2 text-[9px] font-mono tracking-widest text-[#1A4329]/40">{customer.card_id}</p>
             </div>
           ) : (
-            <p className="mt-4 text-xs font-mono tracking-widest text-white/60">{customer.card_id}</p>
+            <p className="mt-4 text-xs font-mono tracking-widest text-[#1A4329]/60">{customer.card_id}</p>
           )}
         </section>
       </div>
 
       {/* Contextual Weather & Combo Card */}
       <section
-        className="rounded-[28px] p-5 border border-white/[0.06] backdrop-blur-md shadow-lg space-y-4"
-        style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
+        className="rounded-[28px] p-5 border shadow-[0_12px_40px_rgba(26,67,41,0.02)] bg-white space-y-4"
+        style={{ borderColor: 'rgba(26, 67, 41, 0.05)' }}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xl">🌦️</span>
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-white/70">
+              <p className="text-xs font-bold uppercase tracking-wider text-[#1A4329]/75">
                 {tx(safeLang, 'Ağıllı Təkliflərimiz', 'Умные Рекомендации', 'Smart Recommendations')}
               </p>
-              <p className="text-[10px] text-white/40 font-mono mt-0.5">
+              <p className="text-[10px] text-[#1A4329]/50 font-mono mt-0.5">
                 {simulatedTemp}°C • {simulatedCondition === 'sunny' ? tx(safeLang, 'Günəşli', 'Солнечно', 'Sunny') : tx(safeLang, 'Yağışlı', 'Дождливо', 'Rainy')}
               </p>
             </div>
@@ -1677,20 +1976,20 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               setSimulatedTemp(t => t > 20 ? 14 : 26);
               setSimulatedCondition(c => c === 'sunny' ? 'rainy' : 'sunny');
             }}
-            className="rounded-full bg-white/5 border border-white/10 px-2.5 py-1 text-[9px] font-bold text-white/80 hover:bg-white/10 active:scale-95 transition"
+            className="rounded-full bg-[#1A4329]/5 border border-[#1A4329]/10 px-2.5 py-1 text-[9px] font-bold text-[#1A4329] hover:bg-[#1A4329]/10 active:scale-95 transition"
           >
             🔄 {tx(safeLang, 'Havanı Dəyiş', 'Сменить погоду', 'Toggle Weather')}
           </button>
         </div>
 
         <div className="space-y-2">
-          <p className="text-[11px] text-white/60 font-semibold">{getWeatherInfo().weatherDesc}</p>
+          <p className="text-[11px] text-[#1A4329]/70 font-semibold">{getWeatherInfo().weatherDesc}</p>
           <div className="grid grid-cols-2 gap-2">
             {getWeatherInfo().recommendedDrinks.map((drink, idx) => (
               <div
                 key={idx}
                 onClick={async () => {
-                  setShowFullQr(true);
+                  setCardFlipped(!cardFlipped);
                   playTickSound();
                   if (Capacitor.isNativePlatform()) {
                     try {
@@ -1698,12 +1997,12 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                     } catch {}
                   }
                 }}
-                className="flex items-center gap-2.5 p-3 rounded-2xl bg-white/[0.04] border border-white/5 hover:bg-white/[0.08] hover:border-white/15 transition cursor-pointer active:scale-95"
+                className="flex items-center gap-2.5 p-3 rounded-2xl bg-[#1A4329]/5 border border-transparent hover:bg-[#1A4329]/10 hover:border-[#1A4329]/10 transition cursor-pointer active:scale-95"
               >
                 <span className="text-xl">{drink.icon}</span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-bold text-white truncate">{drink.name}</p>
-                  <span className="inline-block px-1.5 py-0.5 mt-0.5 rounded-md bg-teal-500/10 text-teal-400 text-[8px] font-black uppercase tracking-wider">
+                  <p className="text-[11px] font-bold text-[#1A4329] truncate">{drink.name}</p>
+                  <span className="inline-block px-1.5 py-0.5 mt-0.5 rounded-md bg-[#F48C24]/10 text-[#F48C24] text-[8px] font-black uppercase tracking-wider">
                     {drink.tag}
                   </span>
                 </div>
@@ -1712,15 +2011,15 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           </div>
         </div>
 
-        <div className="pt-3 border-t border-white/5">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-white/40 mb-2">
+        <div className="pt-3 border-t border-[#1A4329]/5">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-[#1A4329]/40 mb-2">
             {getWeatherInfo().comboTitle}
           </p>
           {getWeatherInfo().comboItems.map((combo, idx) => (
             <div
               key={idx}
               onClick={async () => {
-                setShowFullQr(true);
+                setCardFlipped(!cardFlipped);
                 playTickSound();
                 if (Capacitor.isNativePlatform()) {
                   try {
@@ -1728,14 +2027,14 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                   } catch {}
                 }
               }}
-              className="flex items-center gap-3 p-3 rounded-2xl bg-gradient-to-r from-amber-500/5 to-yellow-500/5 border border-amber-500/10 hover:from-amber-500/10 hover:to-yellow-500/10 hover:border-amber-500/20 transition cursor-pointer active:scale-[0.98]"
+              className="flex items-center gap-3 p-3 rounded-2xl bg-gradient-to-r from-[#F48C24]/5 to-[#ffb366]/5 border border-[#F48C24]/10 hover:from-[#F48C24]/10 hover:to-[#ffb366]/10 hover:border-[#F48C24]/20 transition cursor-pointer active:scale-[0.98]"
             >
               <span className="text-2xl">{combo.icon}</span>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-black text-amber-300">{combo.name}</p>
-                <p className="text-[9px] text-white/50 font-bold mt-0.5">{combo.desc}</p>
+                <p className="text-xs font-black text-[#F48C24]">{combo.name}</p>
+                <p className="text-[9px] text-[#1A4329]/50 font-bold mt-0.5">{combo.desc}</p>
               </div>
-              <span className="text-[10px] font-extrabold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-extrabold text-[#F48C24] bg-[#F48C24]/10 px-2 py-0.5 rounded-full">
                 Combo
               </span>
             </div>
@@ -1746,12 +2045,12 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       {/* Sizin Sevimliləriniz Section */}
       {favoriteItems.length > 0 && (
         <section
-          className="rounded-[28px] p-5 border border-white/[0.06] backdrop-blur-md shadow-lg"
-          style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
+          className="rounded-[28px] p-5 border shadow-[0_12px_40px_rgba(26,67,41,0.02)] bg-white"
+          style={{ borderColor: 'rgba(26, 67, 41, 0.05)' }}
         >
           <div className="flex items-center gap-2 mb-3">
-            <Sparkles size={14} className="text-amber-400" />
-            <p className="text-xs font-bold uppercase tracking-wider text-white/70">
+            <Sparkles size={14} className="text-[#F48C24]" />
+            <p className="text-xs font-bold uppercase tracking-wider text-[#1A4329]/70">
               {tx(safeLang, 'Sizin Sevimliləriniz', 'Ваше любимое', 'Your Favorites')}
             </p>
           </div>
@@ -1760,7 +2059,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               <div
                 key={item.name}
                 onClick={async () => {
-                  setShowFullQr(true);
+                  setCardFlipped(!cardFlipped);
                   playTickSound();
                   if (Capacitor.isNativePlatform()) {
                     try {
@@ -1768,15 +2067,15 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                     } catch {}
                   }
                 }}
-                className="flex items-center gap-3 shrink-0 rounded-2xl p-3 border border-white/5 bg-slate-950/20 active:scale-95 transition-transform cursor-pointer hover:border-white/10"
+                className="flex items-center gap-3 shrink-0 rounded-2xl p-3 border border-slate-100 bg-[#1A4329]/5 active:scale-95 transition-transform cursor-pointer hover:border-[#1A4329]/10"
                 style={{ minWidth: '160px' }}
               >
-                <div className="h-10 w-10 rounded-xl bg-white/5 flex items-center justify-center text-lg border border-white/5">
+                <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-lg border border-slate-100">
                   {item.category === 'coffee' ? '☕' : item.category === 'tea' ? '🍵' : item.category === 'sweet' ? '🍰' : item.category === 'food' ? '🥪' : '🥤'}
                 </div>
                 <div className="overflow-hidden">
-                  <p className="text-[12px] font-bold text-white truncate w-24">{item.name}</p>
-                  <p className="text-[9px] text-white/40 mt-0.5 font-semibold">{item.count} {tx(safeLang, 'dəfə', 'раз', 'times')}</p>
+                  <p className="text-[12px] font-bold text-[#1A4329] truncate w-24">{item.name}</p>
+                  <p className="text-[9px] text-[#1A4329]/40 mt-0.5 font-semibold">{item.count} {tx(safeLang, 'dəfə', 'раз', 'times')}</p>
                 </div>
               </div>
             ))}
@@ -1786,19 +2085,18 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
       {/* Pending claim codes */}
       <section
-        className="rounded-[28px] p-5 border border-white/[0.06] backdrop-blur-md shadow-lg"
-        style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
+        className="rounded-[28px] p-5 border shadow-[0_12px_40px_rgba(26,67,41,0.02)] bg-white"
+        style={{ borderColor: 'rgba(26, 67, 41, 0.05)' }}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="flex h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-            <p className="text-xs font-bold uppercase tracking-wider text-white/70">
+            <span className="flex h-2 w-2 rounded-full bg-[#F48C24] animate-pulse" />
+            <p className="text-xs font-bold uppercase tracking-wider text-[#1A4329]/70">
               {tx(safeLang, 'Aktiv Kodlar', 'Коды наград', 'Active Codes')}
             </p>
           </div>
           <span
-            className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
-            style={{ backgroundColor: `${accentColor}25`, color: accentColor }}
+            className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#F48C24]/10 text-[#F48C24]"
           >
             {pendingClaims.length}
           </span>
@@ -1806,31 +2104,31 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         
         <div className="mt-4 flex gap-3.5 overflow-x-auto pb-1.5 scrollbar-hide">
           {pendingClaims.length === 0 ? (
-            <div className="w-full rounded-2xl py-6 text-center text-xs text-white/30 border border-dashed border-white/10 bg-white/[0.01]">
+            <div className="w-full rounded-2xl py-6 text-center text-xs text-[#1A4329]/30 border border-dashed border-[#1A4329]/10 bg-slate-50/50">
               {tx(safeLang, 'Hələ aktiv kodunuz yoxdur', 'Нет активных кодов', 'No active codes yet')}
             </div>
           ) : (
             pendingClaims.map((row: any) => (
               <div
                 key={row.id}
-                className="relative min-w-[170px] shrink-0 rounded-2xl p-4 overflow-hidden border border-amber-500/20 shadow-inner flex flex-col justify-between"
+                className="relative min-w-[170px] shrink-0 rounded-2xl p-4 overflow-hidden border border-[#F48C24]/20 shadow-inner flex flex-col justify-between"
                 style={{
-                  background: 'linear-gradient(135deg, rgba(251,191,36,0.06) 0%, rgba(217,119,6,0.06) 100%)',
+                  background: 'linear-gradient(135deg, rgba(244,140,36,0.06) 0%, rgba(244,140,36,0.03) 100%)',
                 }}
               >
                 {/* Coupon ticket side notches */}
-                <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-slate-950 border-r border-amber-500/20" />
-                <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-slate-950 border-l border-amber-500/20" />
+                <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-[#FAF8F5] border-r border-[#F48C24]/20" />
+                <div className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-[#FAF8F5] border-l border-[#F48C24]/20" />
 
                 <div>
-                  <p className="text-[8px] font-black uppercase tracking-[0.25em] text-amber-400">
+                  <p className="text-[8px] font-black uppercase tracking-[0.25em] text-[#F48C24]">
                     {tx(safeLang, 'Kassaya Təqdim Et', 'На кассе', 'Present at POS')}
                   </p>
-                  <p className="mt-1.5 text-2xl font-black text-white tracking-tight font-mono">
+                  <p className="mt-1.5 text-2xl font-black text-[#1A4329] tracking-tight font-mono">
                     {row.claim_code}
                   </p>
                 </div>
-                <div className="mt-3 pt-2 border-t border-white/5 text-[10px] text-white/50 truncate font-semibold">
+                <div className="mt-3 pt-2 border-t border-[#1A4329]/5 text-[10px] text-[#1A4329]/50 truncate font-semibold">
                   {row.reward_name}
                 </div>
               </div>
@@ -1840,6 +2138,296 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       </section>
     </div>
   );
+
+  const renderOrderTab = () => {
+    const cats = Array.from(new Set(menuItems.map(it => it.category).filter(Boolean))) as string[];
+    const filtered = menuItems.filter(it => it.category === selectedCategory);
+    
+    return (
+      <div className="space-y-6">
+        {/* Order ahead heading */}
+        <div className="flex items-center justify-between px-1">
+          <div>
+            <h2 className="text-2xl font-black text-[#1A4329] tracking-tight">
+              {tx(safeLang, 'Sifariş Et', 'Заказать', 'Pre-Order')}
+            </h2>
+            <p className="text-[10px] text-[#1A4329]/60 font-bold uppercase tracking-wider mt-0.5">
+              {tx(safeLang, 'Növbə gözləmədən qəhvəni al', 'Кофе без очереди', 'Skip the line, order ahead')}
+            </p>
+          </div>
+          {customerCart.length > 0 && (
+            <button
+              onClick={() => setShowCartSheet(true)}
+              className="relative flex items-center justify-center h-10 w-10 rounded-full bg-[#1A4329] text-white shadow-lg active:scale-95 transition"
+            >
+              <ShoppingBag size={18} />
+              <span className="absolute -top-1 -right-1 bg-[#F48C24] text-white text-[9px] font-black h-4.5 w-4.5 rounded-full flex items-center justify-center border border-white">
+                {customerCart.reduce((sum, item) => sum + item.quantity, 0)}
+              </span>
+            </button>
+          )}
+        </div>
+
+        {/* Categories scroll slider styled exactly like mockup */}
+        {cats.length > 0 && (
+          <div className="flex gap-3 overflow-x-auto pb-2 pt-1 scrollbar-hide">
+            {cats.map(cat => {
+              const firstItem = menuItems.find(it => it.category === cat);
+              const catImage = getProductImage(firstItem?.name || cat, firstItem?.image_url);
+              const isSelected = selectedCategory === cat;
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`flex-none w-20 flex flex-col items-center gap-2 rounded-[22px] p-3 transition border ${
+                    isSelected
+                      ? 'bg-[#F48C24] border-[#F48C24] text-white shadow-[0_6px_16px_rgba(244,140,36,0.25)]'
+                      : 'bg-white border-[#1A4329]/10 text-[#1A4329]/75 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className={`h-11 w-11 rounded-full flex items-center justify-center overflow-hidden bg-slate-100 border ${isSelected ? 'border-white/20' : 'border-slate-100'}`}>
+                    <img src={catImage} alt={cat} className="h-full w-full object-cover" />
+                  </div>
+                  <span className="text-[10px] font-black text-center truncate w-full uppercase tracking-wider">{cat}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Menu list grid */}
+        {menuLoading ? (
+          <div className="py-20 text-center text-xs text-[#1A4329]/40 font-bold">
+            {tx(safeLang, 'Menyu yüklənir...', 'Меню загружается...', 'Loading menu...')}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="py-20 text-center text-xs text-[#1A4329]/40 font-bold border border-dashed border-[#1A4329]/10 rounded-3xl bg-white/50">
+            {tx(safeLang, 'Bu kateqoriyada məhsul tapılmadı', 'Нет товаров в этой категории', 'No products in this category')}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3.5">
+            {filtered.map(item => {
+              const isHot = item.name.toLowerCase().includes('isti') || item.name.toLowerCase().includes('hot') || item.category?.toLowerCase().includes('isti');
+              const badgeText = isHot ? 'HOT' : item.name.toLowerCase().includes('iced') || item.name.toLowerCase().includes('soyuq') ? 'ICED' : 'NEW';
+              const badgeColor = badgeText === 'HOT' ? 'bg-[#F48C24] text-white' : badgeText === 'ICED' ? 'bg-cyan-500 text-white' : 'bg-[#1A4329] text-white';
+              
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => handleOpenModifiers(item)}
+                  className="relative group flex flex-col justify-between rounded-[28px] border bg-white p-3.5 transition active:scale-[0.98] shadow-[0_8px_24px_rgba(26,67,41,0.02)] cursor-pointer"
+                  style={{ borderColor: 'rgba(26, 67, 41, 0.05)' }}
+                >
+                  {/* Badge top-left */}
+                  <span className={`absolute top-2 left-2 z-10 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${badgeColor}`}>
+                    {badgeText}
+                  </span>
+                  <div>
+                    <img
+                      src={getProductImage(item.name, item.image_url)}
+                      alt={item.name}
+                      className="h-28 w-full rounded-2xl object-cover border border-slate-100 group-hover:scale-[1.02] transition duration-300"
+                    />
+                    <h3 className="mt-3 text-xs font-black text-[#1A4329] leading-tight line-clamp-1">{item.name}</h3>
+                  </div>
+
+                  <div className="mt-3 flex items-end justify-between">
+                    <div>
+                      <span className="block text-[11px] font-bold text-[#1A4329]/40 uppercase tracking-wider scale-90 -translate-x-1">{tx(safeLang, 'QİYMƏT', 'ЦЕНА', 'PRICE')}</span>
+                      <span className="text-xs font-black text-[#1A4329]">
+                        {Number(item.price || 0).toFixed(2)} ₼
+                      </span>
+                    </div>
+                    {/* Circle plus button */}
+                    <div className="h-7 w-7 rounded-full bg-[#F48C24] flex items-center justify-center text-white font-bold text-lg shadow-[0_4px_10px_rgba(244,140,36,0.2)] hover:scale-105 active:scale-95 transition">
+                      +
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderModifierSheet = () => {
+    if (!modifierSheetItem) return null;
+    const basePrice = selectedVariant ? Number(selectedVariant.price) : Number(modifierSheetItem.price || 0);
+    const modifiersTotal = selectedModifiers.reduce((acc, m) => acc + m.price, 0);
+    const finalPrice = basePrice + modifiersTotal;
+
+    const hasVariants = modifierSheetItem.variants && modifierSheetItem.variants.length > 0;
+    const hasModifiers = modifierSheetItem.modifiers && modifierSheetItem.modifiers.length > 0;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+        {/* Backdrop click closer */}
+        <div className="absolute inset-0" onClick={() => setModifierSheetItem(null)} />
+        
+        <div className="relative w-full max-w-md rounded-t-[36px] bg-[#FAF8F5] border-t border-slate-200/50 p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.15)] max-h-[90vh] overflow-y-auto flex flex-col justify-between">
+          <div className="overflow-x-hidden">
+            {/* Mockup-Style Header */}
+            <div className="flex items-center justify-between mb-4">
+              <button
+                onClick={() => setModifierSheetItem(null)}
+                className="h-9 w-9 rounded-full bg-white flex items-center justify-center border border-[#1A4329]/5 shadow-sm text-[#1A4329]"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <span className="text-[11px] font-black text-[#1A4329] uppercase tracking-wider">
+                {tx(safeLang, 'Məhsul Təfərrüatı', 'Детали продукта', 'Product Details')}
+              </span>
+              <button
+                onClick={() => setModifierSheetItem(null)}
+                className="h-9 w-9 rounded-full bg-white flex items-center justify-center border border-[#1A4329]/5 shadow-sm text-[#1A4329]"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Asymmetrical Layout Row */}
+            <div className="grid grid-cols-12 gap-3 items-start my-2">
+              {/* Left Column: Details & Specs */}
+              <div className="col-span-7 space-y-3">
+                <div>
+                  <h2 className="text-xl font-black text-[#1A4329] leading-tight">{modifierSheetItem.name}</h2>
+                  <p className="text-[9px] text-[#1A4329]/50 font-bold uppercase tracking-wider mt-0.5">
+                    {modifierSheetItem.category || 'Craft Blend'}
+                  </p>
+                </div>
+
+                {/* Rating stars */}
+                <div className="flex items-center gap-1">
+                  <span className="text-amber-400 text-xs">★★★★★</span>
+                  <span className="text-[10px] text-[#1A4329]/50 font-bold">(4.8)</span>
+                </div>
+
+                {/* Price */}
+                <div>
+                  <span className="text-xl font-black text-[#F48C24]">
+                    {finalPrice.toFixed(2)} ₼
+                  </span>
+                </div>
+
+                {/* Vertical Specs list */}
+                <div className="pt-2 space-y-1.5 border-t border-[#1A4329]/5">
+                  <div>
+                    <span className="block text-[8px] font-bold text-[#1A4329]/40 uppercase tracking-wider">{tx(safeLang, 'KALORİ', 'КАЛОРИИ', 'CALORIES')}</span>
+                    <span className="text-[11px] font-black text-[#1A4329]">210 Cal</span>
+                  </div>
+                  <div>
+                    <span className="block text-[8px] font-bold text-[#1A4329]/40 uppercase tracking-wider">{tx(safeLang, 'ÖLÇÜ', 'РАЗМЕР', 'SIZE')}</span>
+                    <span className="text-[11px] font-black text-[#1A4329]">{selectedVariant?.name || 'Standard'}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[8px] font-bold text-[#1A4329]/40 uppercase tracking-wider">{tx(safeLang, 'NÖV', 'ТИП', 'TYPE')}</span>
+                    <span className="text-[11px] font-black text-[#1A4329]">Espresso-Base</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Circular Offset Image */}
+              <div className="col-span-5 flex justify-end">
+                <div className="relative h-36 w-36 rounded-full overflow-hidden border-[6px] border-white shadow-md translate-x-4 select-none pointer-events-none bg-slate-100 flex items-center justify-center">
+                  <img
+                    src={getProductImage(modifierSheetItem.name, modifierSheetItem.image_url)}
+                    alt={modifierSheetItem.name}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="mt-4 space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-wider text-[#1A4329]/50">
+                {tx(safeLang, 'Təsvir', 'Описание', 'Description')}
+              </p>
+              <p className="text-[11px] text-[#1A4329]/60 leading-relaxed font-semibold">
+                {modifierSheetItem.description || tx(safeLang, 'Emalatkhana tərəfindən sevgi ilə hazırlanan xüsusi premium qarışıq.', 'Особый премиум-бленд, приготовленный с любовью в Emalatkhana.', 'A special premium blend prepared with love by Emalatkhana.')}
+                <span className="text-[#F48C24] font-black ml-1 cursor-pointer">{tx(safeLang, ' ...Daha Ətraflı', ' ...Подробнее', ' ...Read More')}</span>
+              </p>
+            </div>
+
+            {/* Variants Option section */}
+            {hasVariants && (
+              <div className="mt-5 space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-wider text-[#1A4329]/50">
+                  {tx(safeLang, 'Ölçü Seçin', 'Выберите размер', 'Select Size')}
+                </p>
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                  {modifierSheetItem.variants.map((v: any) => (
+                    <button
+                      key={v.name}
+                      onClick={() => setSelectedVariant(v)}
+                      className={`flex-none px-4 py-2.5 rounded-full border transition text-center min-w-[70px] ${
+                        selectedVariant?.name === v.name
+                          ? 'border-[#F48C24] bg-[#F48C24]/5 text-[#1A4329] font-black'
+                          : 'border-[#1A4329]/5 bg-white text-[#1A4329]/75 font-semibold'
+                      }`}
+                    >
+                      <span className="text-[11px] block">{v.name}</span>
+                      <span className="text-[9px] text-[#F48C24] font-black mt-0.5">+{Number(v.price - modifierSheetItem.price).toFixed(2)} ₼</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Modifiers Checkbox list */}
+            {hasModifiers && (
+              <div className="mt-5 space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-wider text-[#1A4329]/50">
+                  {tx(safeLang, 'Əlavələr', 'Добавки', 'Modifiers')}
+                </p>
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                  {modifierSheetItem.modifiers.map((m: any) => {
+                    const isSelected = selectedModifiers.some(mod => mod.name === m.name);
+                    return (
+                      <button
+                        key={m.name}
+                        onClick={() => handleToggleModifier(m)}
+                        className={`flex-none px-4 py-2.5 rounded-full border transition text-center min-w-[70px] ${
+                          isSelected
+                            ? 'border-[#F48C24] bg-[#F48C24]/5 text-[#1A4329] font-black'
+                            : 'border-[#1A4329]/5 bg-white text-[#1A4329]/75 font-semibold'
+                        }`}
+                      >
+                        <span className="text-[11px] block">{m.name}</span>
+                        <span className="text-[9px] text-[#F48C24] font-black mt-0.5">+{Number(m.price).toFixed(2)} ₼</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Fixed Action Panel */}
+          <div className="mt-6 pt-4 border-t border-[#1A4329]/5 flex items-center justify-between gap-4">
+            <button
+              onClick={handleAddToCart}
+              className="flex-1 rounded-full border border-[#1A4329]/20 hover:border-[#1A4329] bg-white text-[#1A4329] py-3.5 text-xs font-black transition active:scale-95 flex items-center justify-center gap-1.5 shadow-sm"
+            >
+              <ShoppingBag size={14} />
+              {tx(safeLang, 'Səbətə At', 'В корзину', 'Add To Cart')}
+            </button>
+            <button
+              onClick={() => {
+                handleAddToCart();
+                setShowCartSheet(true);
+              }}
+              className="flex-1 rounded-full bg-[#F48C24] hover:bg-[#e07f1d] text-white py-3.5 text-xs font-black transition active:scale-95 flex items-center justify-center gap-1.5 shadow-[0_4px_12px_rgba(244,140,36,0.25)]"
+            >
+              {tx(safeLang, 'İndi Al', 'Купить', 'Buy Now')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderOffers = () => {
     const activateCampaign = async (campaignId: string) => {
@@ -1866,20 +2454,20 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     return (
       <div className="space-y-4">
         {/* Campaigns List */}
-        <section className="rounded-[28px] p-5 border border-white/[0.06] backdrop-blur-md shadow-lg" style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}>
+        <section className="rounded-[28px] p-5 border shadow-[0_12px_40px_rgba(26,67,41,0.02)] bg-white" style={{ borderColor: 'rgba(26, 67, 41, 0.05)' }}>
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[15px] font-bold text-white flex items-center gap-2">
-              <Gift size={16} className="text-amber-400" />
+            <p className="text-[15px] font-bold text-[#1A4329] flex items-center gap-2">
+              <Gift size={16} className="text-[#F48C24]" />
               {tx(safeLang, 'Aktiv kampaniyalar', 'Активные кампании', 'Active offers')}
             </p>
-            <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold text-black" style={{ backgroundColor: primaryColor }}>{campaigns.length}</span>
+            <span className="rounded-full px-2.5 py-0.5 text-[10px] font-black text-white" style={{ backgroundColor: primaryColor }}>{campaigns.length}</span>
           </div>
 
           <div className="mt-4 space-y-4">
             {campaigns.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 py-8 text-center border border-dashed border-white/10 rounded-2xl bg-white/[0.01]">
-                <Gift size={28} style={{ color: 'rgba(255,255,255,0.2)' }} />
-                <p className="text-[13px] text-white/40">{tx(safeLang, 'Hazırda aktiv kampaniya yoxdur', 'Сейчас нет активных кампаний', 'No active campaigns right now')}</p>
+              <div className="flex flex-col items-center gap-3 py-8 text-center border border-dashed border-[#1A4329]/10 rounded-2xl bg-slate-50/50">
+                <Gift size={28} className="text-[#1A4329]/20" />
+                <p className="text-[13px] text-[#1A4329]/40 font-semibold">{tx(safeLang, 'Hazırda aktiv kampaniya yoxdur', 'Сейчас нет активных кампаний', 'No active campaigns right now')}</p>
               </div>
             ) : campaigns.map((row: any) => {
               const expTime = activatedCampaigns[row.id];
@@ -1893,34 +2481,32 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               return (
                 <div
                   key={row.id}
-                  className="relative overflow-hidden rounded-[24px] border border-white/10 p-5 shadow-lg transition-all duration-300"
+                  className="relative overflow-hidden rounded-[24px] border p-5 shadow-sm transition-all duration-300"
                   style={{
-                    background: isActive 
-                      ? 'linear-gradient(135deg, rgba(34,197,94,0.06) 0%, rgba(20,184,166,0.06) 100%)' 
-                      : 'linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.04) 100%)',
-                    borderColor: isActive ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)'
+                    backgroundColor: isActive ? '#f0fdf4' : '#ffffff',
+                    borderColor: isActive ? 'rgba(34,197,94,0.3)' : 'rgba(26,67,41,0.08)'
                   }}
                 >
                   {/* Coupon ticket side notches */}
-                  <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-[#080c16] border-r border-white/10" style={{ borderColor: isActive ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)' }} />
-                  <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-[#080c16] border-l border-white/10" style={{ borderColor: isActive ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)' }} />
+                  <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-[#FAF8F5] border-r border-[#1A4329]/10" style={{ borderColor: isActive ? 'rgba(34,197,94,0.3)' : 'rgba(26,67,41,0.08)' }} />
+                  <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-[#FAF8F5] border-l border-[#1A4329]/10" style={{ borderColor: isActive ? 'rgba(34,197,94,0.3)' : 'rgba(26,67,41,0.08)' }} />
 
                   <div className="flex justify-between items-start gap-4">
                     <div>
-                      <h4 className="text-[15px] font-black text-white leading-tight">{row.name}</h4>
+                      <h4 className="text-[15px] font-black text-[#1A4329] leading-tight">{row.name}</h4>
                       <p className="mt-1.5 text-[13px] font-extrabold" style={{ color: primaryColor }}>
                         {row.discount_percent}% {tx(safeLang, 'endirim', 'скидка', 'discount')}
                       </p>
-                      <p className="mt-2 text-[10px] font-medium text-white/40">
+                      <p className="mt-2 text-[10px] font-bold text-[#1A4329]/40">
                         {row.start_time} - {row.end_time} • {row.categories || 'ALL'}
                       </p>
                     </div>
                   </div>
 
                   {isActive ? (
-                    <div className="mt-5 pt-4 border-t border-dashed border-white/10 space-y-4">
+                    <div className="mt-5 pt-4 border-t border-dashed border-[#1A4329]/10 space-y-4">
                       {/* Countdown Timer UI */}
-                      <div className="flex items-center justify-between text-xs font-bold text-emerald-400">
+                      <div className="flex items-center justify-between text-xs font-bold text-emerald-600">
                         <span>{tx(safeLang, 'Kod aktivdir', 'Код активен', 'Code is active')}</span>
                         <span className="font-mono bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                           {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
@@ -1928,7 +2514,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                       </div>
 
                       {/* Ticking Progress Bar */}
-                      <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                      <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-1000 rounded-full"
                           style={{ width: `${progressPercent}%` }}
@@ -1936,7 +2522,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                       </div>
 
                       {/* Revealed QR Code Container */}
-                      <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl shadow-xl">
+                      <div className="flex flex-col items-center justify-center p-4 bg-[#FAF8F5] border border-slate-100 rounded-2xl shadow-inner">
                         {campaignQrs[row.id] ? (
                           <img src={campaignQrs[row.id]} alt="campaign qr" className="h-36 w-36 object-contain" />
                         ) : (
@@ -1944,20 +2530,19 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                             {row.id}
                           </div>
                         )}
-                        <p className="mt-2 text-[10px] font-mono font-bold text-slate-900 tracking-widest uppercase">
+                        <p className="mt-2 text-[10px] font-mono font-bold text-[#1A4329] tracking-widest uppercase">
                           {tx(safeLang, 'KASSAYA TƏQDİM EDİN', 'ПРЕДЪЯВИТЕ НА КАССЕ', 'PRESENT TO CASHIER')}
                         </p>
                       </div>
                     </div>
                   ) : (
-                    <div className="mt-4 pt-3 border-t border-white/5 flex justify-end">
+                    <div className="mt-4 pt-3 border-t border-[#1A4329]/5 flex justify-end">
                       <button
                         type="button"
                         onClick={() => activateCampaign(row.id)}
-                        className="relative overflow-hidden rounded-xl px-4 py-2 text-[11px] font-black text-slate-950 transition-all hover:scale-[1.02] active:scale-[0.97]"
+                        className="relative overflow-hidden rounded-xl px-4 py-2 text-[11px] font-black text-white transition-all active:scale-[0.97]"
                         style={{
                           background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`,
-                          boxShadow: `0 4px 12px ${primaryColor}22`
                         }}
                       >
                         {tx(safeLang, 'Aktivləşdir', 'Активировать', 'Activate')}
@@ -1971,29 +2556,167 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         </section>
 
         {/* Claim codes */}
-        <section className="rounded-[28px] p-5 border border-white/[0.06] backdrop-blur-md shadow-lg" style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}>
-          <p className="text-[15px] font-bold text-white flex items-center gap-2">
-            <Sparkles size={16} className="text-amber-400" />
+        <section className="rounded-[28px] p-5 border shadow-[0_12px_40px_rgba(26,67,41,0.02)] bg-white" style={{ borderColor: 'rgba(26, 67, 41, 0.05)' }}>
+          <p className="text-[15px] font-bold text-[#1A4329] flex items-center gap-2">
+            <Sparkles size={16} className="text-[#F48C24]" />
             {tx(safeLang, 'Claim kodları', 'Коды наград', 'Claim codes')}
           </p>
           <div className="mt-4 space-y-3">
             {pendingClaims.length === 0 ? (
-              <div className="py-8 text-center text-[12px] text-white/30 border border-dashed border-white/10 rounded-2xl bg-white/[0.01]">
+              <div className="py-8 text-center text-[12px] text-[#1A4329]/30 border border-dashed border-[#1A4329]/10 rounded-2xl bg-slate-50/50">
                 {tx(safeLang, 'Aktiv claim kodu yoxdur', 'Активных кодов нет', 'No active claim codes')}
               </div>
             ) : pendingClaims.map((row: any) => (
-              <div key={row.id} className="relative overflow-hidden rounded-2xl p-4 border border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-yellow-500/5 shadow-inner">
+              <div key={row.id} className="relative overflow-hidden rounded-2xl p-4 border border-[#F48C24]/20 bg-[#F48C24]/5 shadow-inner">
                 {/* Side notches for ticket feeling */}
-                <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#080c16] border-r border-amber-500/20" />
-                <div className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#080c16] border-l border-amber-500/20" />
+                <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#FAF8F5] border-r border-[#F48C24]/20" />
+                <div className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#FAF8F5] border-l border-[#F48C24]/20" />
 
-                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/50">{tx(safeLang, 'Kassada göstərin', 'Покажите на кассе', 'Show at POS')}</p>
-                <p className="mt-1 text-2xl font-black text-white font-mono">{row.claim_code}</p>
-                <p className="mt-1 text-[11px] text-white/50">{row.reward_name}</p>
+                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#1A4329]/50">{tx(safeLang, 'Kassada göstərin', 'Покажите на кассе', 'Show at POS')}</p>
+                <p className="mt-1 text-2xl font-black text-[#1A4329] font-mono">{row.claim_code}</p>
+                <p className="mt-1 text-[11px] text-[#1A4329]/50">{row.reward_name}</p>
               </div>
             ))}
           </div>
         </section>
+      </div>
+    );
+  };
+
+  const renderCartSheet = () => {
+    if (!showCartSheet) return null;
+    const cartTotal = customerCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+        {/* Backdrop click closer */}
+        <div className="absolute inset-0" onClick={() => setShowCartSheet(false)} />
+        
+        <div className="relative w-full max-w-md rounded-t-[36px] bg-[#FAF8F5] border-t border-slate-200/50 p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.15)] max-h-[85vh] overflow-y-auto flex flex-col justify-between">
+          <div>
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-black text-[#1A4329]">{tx(safeLang, 'Səbətiniz', 'Ваша корзина', 'Your Cart')}</h2>
+              <button
+                onClick={() => setShowCartSheet(false)}
+                className="h-8 w-8 rounded-full bg-[#1A4329]/5 text-[#1A4329] flex items-center justify-center font-bold hover:bg-[#1A4329]/10"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Cart Items list */}
+            <div className="mt-5 space-y-3">
+              {customerCart.map((item, index) => (
+                <div 
+                  key={index}
+                  className="flex items-center justify-between p-3 rounded-2xl bg-white border border-[#1A4329]/5"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-black text-[#1A4329]">{item.name}</p>
+                    {item.variant_name && (
+                      <p className="text-[9px] text-[#1A4329]/60 font-semibold mt-0.5">
+                        Size: {item.variant_name}
+                      </p>
+                    )}
+                    {item.selected_modifiers && item.selected_modifiers.length > 0 && (
+                      <p className="text-[9px] text-[#1A4329]/40 font-semibold mt-0.5">
+                        Extras: {item.selected_modifiers.map((m: any) => m.name).join(', ')}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-black text-[#F48C24]">
+                      {(item.price * item.quantity).toFixed(2)} ₼
+                    </span>
+                    <button
+                      onClick={() => handleRemoveFromCart(index)}
+                      className="h-6 w-6 rounded-full bg-red-50 text-red-500 hover:bg-red-100 flex items-center justify-center text-[10px] font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Note text field */}
+            <div className="mt-5 space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-wider text-[#1A4329]/50">
+                {tx(safeLang, 'Sifariş Qeydi', 'Примечание', 'Order Notes')}
+              </p>
+              <textarea
+                value={orderNotes}
+                onChange={(e) => setOrderNotes(e.target.value)}
+                placeholder={tx(safeLang, 'Məsələn: Şəkərsiz olsun, isti olsun...', 'Например: Без сахара, горячий...', 'e.g. No sugar, extra hot...')}
+                className="w-full rounded-2xl border border-[#1A4329]/5 bg-white p-3.5 text-xs text-[#1A4329] placeholder-[#1A4329]/30 focus:border-[#F48C24] focus:ring-1 focus:ring-[#F48C24] outline-none min-h-[70px] resize-none"
+              />
+            </div>
+          </div>
+
+          {/* Cart actions footer bar */}
+          <div className="mt-6 pt-4 border-t border-[#1A4329]/5 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-[#1A4329]/40">
+                {tx(safeLang, 'Ümumi Məbləğ', 'Общая сумма', 'Total Amount')}
+              </p>
+              <p className="text-xl font-black text-[#1A4329] tracking-tight">
+                {cartTotal.toFixed(2)} ₼
+              </p>
+            </div>
+            <button
+              onClick={handleCheckoutPreOrder}
+              disabled={preOrderSubmitting}
+              className="flex-1 rounded-2xl bg-[#1A4329] hover:bg-[#153621] disabled:opacity-50 text-white py-3 text-xs font-black transition active:scale-95 flex items-center justify-center gap-1.5 shadow-md"
+            >
+              {preOrderSubmitting ? '...' : tx(safeLang, 'Sifarişi Təsdiqlə', 'Оформить предзаказ', 'Confirm Order')}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderPreOrderSuccess = () => {
+    if (!preOrderSuccess) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+        <div className="w-full max-w-sm rounded-[32px] bg-white border border-[#1A4329]/5 p-6 shadow-2xl text-center space-y-5">
+          <div className="mx-auto h-16 w-16 rounded-full bg-[#1A4329]/5 text-[#F48C24] flex items-center justify-center text-3xl animate-bounce">
+            🎉
+          </div>
+          
+          <div className="space-y-2">
+            <h2 className="text-lg font-black text-[#1A4329] leading-tight">
+              {tx(safeLang, 'Sifariş Qəbul Olundu!', 'Предзаказ оформлен!', 'Order Confirmed!')}
+            </h2>
+            <p className="text-xs text-[#1A4329]/60 leading-relaxed font-semibold">
+              {tx(
+                safeLang,
+                'Sifarişiniz hazırlandıqda sizə bildiriş göndəriləcək. Kassaya yaxınlaşıb təslim ala bilərsiniz.',
+                'Вам придет уведомление, когда заказ будет готов. Вы можете забрать его на кассе.',
+                'We will notify you when your order is ready. You can pick it up at the cashier counter.'
+              )}
+            </p>
+          </div>
+
+          <div className="rounded-2xl bg-[#FAF8F5] p-3 border border-[#1A4329]/5">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-[#1A4329]/40">
+              {tx(safeLang, 'Sifariş Nömrəsi', 'Номер заказа', 'Order Number')}
+            </p>
+            <p className="text-lg font-black text-[#F48C24] tracking-tight mt-0.5">
+              #{preOrderSuccessId.slice(-6).toUpperCase()}
+            </p>
+          </div>
+
+          <button
+            onClick={() => setPreOrderSuccess(false)}
+            className="w-full rounded-2xl bg-[#1A4329] hover:bg-[#153621] text-white py-3 text-xs font-black transition active:scale-95"
+          >
+            {tx(safeLang, 'Əla', 'Отлично', 'Awesome')}
+          </button>
+        </div>
       </div>
     );
   };
@@ -2307,80 +3030,74 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   return (
     <div
-      className="relative min-h-dvh overflow-x-hidden overflow-y-auto overscroll-contain text-slate-100"
+      className="relative min-h-dvh overflow-x-hidden overflow-y-auto overscroll-contain text-[#1A4329] bg-[#FAF8F5]"
       style={{
-        background: backgroundImage
-          ? `linear-gradient(rgba(8,12,22,0.82), rgba(8,12,22,0.94)), url(${backgroundImage}) center/cover`
-          : `linear-gradient(180deg, ${backgroundColor} 0%, ${backgroundColor}ee 50%, ${backgroundColor} 100%)`,
+        background: `linear-gradient(180deg, #FAF8F5 0%, #FAF6F0 100%)`,
       }}
     >
       <style>{`
-        @keyframes aurora-1 {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(40px, 30px) scale(1.15); }
+        @keyframes wave {
+          0% { transform: translateX(0); }
+          50% { transform: translateX(-25%); }
+          100% { transform: translateX(-50%); }
         }
-        @keyframes aurora-2 {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(-30px, -40px) scale(0.85); }
+        .animate-wave {
+          animation: wave 12s linear infinite;
         }
-        @keyframes aurora-3 {
-          0%, 100% { transform: translate(-50%, 0) scale(1); }
-          50% { transform: translate(-30%, -20px) scale(1.1); }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
         }
-        .animate-aurora-1 {
-          animation: aurora-1 18s ease-in-out infinite;
+        .animate-fadeIn {
+          animation: fadeIn 0.3s ease-out forwards;
         }
-        .animate-aurora-2 {
-          animation: aurora-2 22s ease-in-out infinite;
+        .perspective-1000 {
+          perspective: 1000px;
         }
-        .animate-aurora-3 {
-          animation: aurora-3 15s ease-in-out infinite;
+        .backface-hidden {
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+        }
+        .preserve-3d {
+          transform-style: preserve-3d;
+        }
+        .rotate-y-180 {
+          transform: rotateY(180deg);
         }
       `}</style>
 
-      {/* Ambient liquid blobs */}
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
-        <div className="absolute -left-20 -top-20 h-72 w-72 rounded-full opacity-25 blur-[100px] animate-aurora-1" style={{ background: primaryColor }} />
-        <div className="absolute -bottom-32 -right-20 h-80 w-80 rounded-full opacity-15 blur-[120px] animate-aurora-2" style={{ background: accentColor }} />
-        <div className="absolute left-1/2 top-1/3 h-56 w-56 -translate-x-1/2 rounded-full opacity-10 blur-[80px] animate-aurora-3" style={{ background: primaryColor }} />
-      </div>
-
-      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-24 pt-5">
+      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-28 pt-5">
         {/* Language switcher */}
         <div className="mb-4 flex justify-end">
           <div
-            className="flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-medium text-white/70"
-            style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)' }}
+            className="flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-extrabold text-[#1A4329]/70 bg-white border border-[#1A4329]/10 shadow-sm"
           >
             <Languages size={13} />
-            <button type="button" onClick={() => setLang('az')} className={`transition ${safeLang === 'az' ? 'font-bold text-white' : ''}`}>AZ</button>
-            <button type="button" onClick={() => setLang('en')} className={`transition ${safeLang === 'en' ? 'font-bold text-white' : ''}`}>EN</button>
-            <button type="button" onClick={() => setLang('ru')} className={`transition ${safeLang === 'ru' ? 'font-bold text-white' : ''}`}>RU</button>
+            <button type="button" onClick={() => setLang('az')} className={`transition ${safeLang === 'az' ? 'font-black text-[#F48C24]' : ''}`}>AZ</button>
+            <button type="button" onClick={() => setLang('en')} className={`transition ${safeLang === 'en' ? 'font-black text-[#F48C24]' : ''}`}>EN</button>
+            <button type="button" onClick={() => setLang('ru')} className={`transition ${safeLang === 'ru' ? 'font-black text-[#F48C24]' : ''}`}>RU</button>
           </div>
         </div>
 
         {/* Tab content */}
         {resolvedActiveTab === 'home' && renderHome()}
+        {resolvedActiveTab === 'order' && renderOrderTab()}
         {resolvedActiveTab === 'offers' && renderOffers()}
         {resolvedActiveTab === 'barista' && aiBaristaEnabled && renderBarista()}
         {resolvedActiveTab === 'falci' && aiFalciEnabled && renderFalci()}
         {resolvedActiveTab === 'profile' && renderProfile()}
       </div>
 
-      {/* Bottom Navigation — compact glassmorphism */}
+      {/* Bottom Navigation — compact glassmorphism capsule */}
       <nav
         className="fixed inset-x-0 bottom-0 z-30"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}
       >
         <div className="mx-auto max-w-md px-4 pb-3">
           <div
-            className="flex items-center justify-around rounded-2xl py-2"
+            className="flex items-center justify-around rounded-[32px] py-2 border shadow-[0_12px_40px_rgba(26,67,41,0.06)] bg-white"
             style={{
-              backgroundColor: `${backgroundColor}e8`,
-              backdropFilter: 'blur(16px) saturate(1.2)',
-              WebkitBackdropFilter: 'blur(16px) saturate(1.2)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              boxShadow: '0 -4px 24px rgba(0,0,0,0.3)',
+              borderColor: 'rgba(26, 67, 41, 0.05)',
             }}
           >
             {bottomTabs.map((tab) => {
@@ -2400,14 +3117,20 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                       }
                     }
                   }}
-                  className="relative flex flex-col items-center gap-0.5 px-3 py-1.5 transition-colors"
-                  style={{ color: active ? primaryColor : 'rgba(255,255,255,0.45)' }}
+                  className={`relative flex items-center justify-center transition-all duration-300 ${
+                    active
+                      ? 'rounded-full bg-[#F48C24] text-white px-4 py-2 shadow-[0_4px_12px_rgba(244,140,36,0.25)] gap-1.5'
+                      : 'text-[#1A4329]/45 hover:text-[#1A4329]/70 p-2.5 rounded-full hover:bg-slate-50'
+                  }`}
                 >
                   {tab.icon}
-                  <span className="text-[10px] font-medium">{tab.label}</span>
-                  {active && <div className="mt-0.5 h-1 w-1 rounded-full" style={{ backgroundColor: primaryColor }} />}
+                  {active && (
+                    <span className="text-[10px] font-black uppercase tracking-wider animate-fadeIn">
+                      {tab.label}
+                    </span>
+                  )}
                   {unreadCount > 0 && (
-                    <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-white" style={{ backgroundColor: '#ef4444' }}>
+                    <span className={`absolute ${active ? '-top-1 -right-1' : 'top-1.5 right-1.5'} flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-white bg-red-500`}>
                       {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                   )}
@@ -2421,7 +3144,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       {/* Full-screen QR code modal */}
       {showFullQr && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/80 p-4 animate-modalFadeIn"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm p-4 animate-modalFadeIn"
           onClick={async () => {
             setShowFullQr(false);
             if (Capacitor.isNativePlatform()) {
@@ -2433,25 +3156,24 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         >
           {/* Card container */}
           <div
-            className="w-full max-w-md rounded-t-[32px] bg-slate-900 border-t border-white/10 p-6 space-y-6 shadow-2xl animate-scaleIn"
+            className="w-full max-w-md rounded-t-[32px] bg-[#FAF8F5] border-t border-slate-200/50 p-6 space-y-6 shadow-2xl animate-scaleIn"
             onClick={(e) => e.stopPropagation()}
             style={{
               maxHeight: '85vh',
-              background: `linear-gradient(180deg, #1e293b 0%, #0f172a 100%)`,
             }}
           >
             {/* Modal Header/Handle */}
             <div className="flex flex-col items-center gap-2">
-              <div className="h-1.5 w-12 rounded-full bg-white/20" />
-              <h3 className="text-md font-bold text-white mt-2">
+              <div className="h-1.5 w-12 rounded-full bg-[#1A4329]/10" />
+              <h3 className="text-md font-black text-[#1A4329] mt-2">
                 {tx(safeLang, 'Skan Et və Qazan', 'Сканируй и Получай', 'Scan & Earn')}
               </h3>
             </div>
 
             {/* QR Scanner Container */}
-            <div className="flex flex-col items-center justify-center p-6 rounded-2xl bg-white shadow-[0_12px_40px_rgba(255,255,255,0.08)]">
+            <div className="flex flex-col items-center justify-center p-6 rounded-2xl bg-white border border-[#1A4329]/5 shadow-sm">
               {cardQr ? (
-                <div className="p-3 bg-white rounded-xl">
+                <div className="p-1 bg-white rounded-xl">
                   <img src={cardQr} alt="qr" className="h-56 w-56 object-contain" />
                 </div>
               ) : (
@@ -2460,19 +3182,19 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                 </div>
               )}
               <div className="mt-4 text-center">
-                <p className="text-slate-900 font-mono text-sm tracking-wider font-bold">
+                <p className="text-[#1A4329] font-mono text-sm tracking-wider font-bold">
                   {formatCardId(customer.card_id)}
                 </p>
-                <p className="text-slate-500 text-[10px] mt-1 font-semibold uppercase tracking-wider">
+                <p className="text-[#F48C24] text-[10px] mt-1 font-semibold uppercase tracking-wider">
                   {tx(safeLang, 'KASSAYA TƏQDİM EDİN', 'ПРЕДЪЯВИТЕ НА КАССЕ', 'PRESENT TO CASHIER')}
                 </p>
               </div>
             </div>
 
             {/* Quick Tips */}
-            <div className="rounded-2xl bg-white/5 border border-white/5 p-4 flex gap-3 items-center">
+            <div className="rounded-2xl bg-white border border-[#1A4329]/5 p-4 flex gap-3 items-center">
               <span className="text-lg">💡</span>
-              <p className="text-[11px] text-slate-300 leading-relaxed">
+              <p className="text-[11px] text-[#1A4329]/60 leading-relaxed font-semibold">
                 {tx(
                   safeLang,
                   'Skaner oxuya bilsin deyə ekran parlaqlığını artırmağınız tövsiyə olunur.',
@@ -2492,16 +3214,18 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                   } catch {}
                 }
               }}
-              className="w-full py-3.5 rounded-2xl bg-white text-slate-950 font-black text-[13px] active:scale-95 transition-transform"
-              style={{
-                boxShadow: '0 8px 24px rgba(255,255,255,0.15)',
-              }}
+              className="w-full py-3.5 rounded-2xl bg-[#1A4329] text-white font-black text-[13px] active:scale-95 transition-transform shadow-md"
             >
               {tx(safeLang, 'Bağla', 'Закрыть', 'Close')}
             </button>
           </div>
         </div>
       )}
+
+      {/* Modifier sheet, Cart sheet & Success modals */}
+      {renderModifierSheet()}
+      {renderCartSheet()}
+      {renderPreOrderSuccess()}
     </div>
   );
 }

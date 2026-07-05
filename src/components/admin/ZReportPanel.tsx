@@ -140,6 +140,7 @@ export default function ZReportPanel() {
   }, [tenant_id, start, end]);
 
   const shiftStatus = shiftStatusState;
+  const shiftOpenedAt = String((shiftStatusState as any)?.opened_at || shiftStatusState?.timestamp || '');
   const latestReceived = handovers.find((h) => h.received_by === user?.username && String(h.status || '').toUpperCase() === 'ACCEPTED');
   const expectedCashNow = expectedCashState;
   const activeShiftOwner = String(shiftStatus.opened_by || '');
@@ -244,7 +245,7 @@ export default function ZReportPanel() {
     const bankFeeTotal = new Decimal(result?.bank_fee_total || 0);
     const otherIncomeLines = Array.isArray(result?.other_income_lines) ? result.other_income_lines : [];
     const otherExpenseLines = Array.isArray(result?.other_expense_lines) ? result.other_expense_lines : [];
-    const openedAt = String(result?.opened_at || shiftStatusState.opened_at || shiftStatusState.timestamp || '');
+    const openedAt = String(result?.opened_at || shiftOpenedAt || '');
     const closedAt = String(result?.closed_at || new Date().toISOString());
     const cashierBreakdownRows = Array.isArray(result?.cashier_breakdown) && result.cashier_breakdown.length
       ? result.cashier_breakdown.map((row: any) => ({
@@ -256,7 +257,7 @@ export default function ZReportPanel() {
       }))
       : cashierBreakdown;
     const cashierRows = cashierBreakdownRows
-      .map((row) => `
+      .map((row: { cashier: string; salesCount: number; total: Decimal; cash: Decimal; card: Decimal }) => `
         <div class="line"><span>${row.cashier} (${row.salesCount})</span><span>${row.total.toFixed(2)} ₼</span></div>
         <div class="muted">cash ${row.cash.toFixed(2)} ₼ • card ${row.card.toFixed(2)} ₼</div>
       `)

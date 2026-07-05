@@ -347,7 +347,7 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
     key: string;
     table_label: string | null;
     order_type?: string;
-    status: 'NEW' | 'SENT' | 'PREPARING' | 'READY' | 'VOID_REQUESTED';
+    status: 'NEW' | 'PREPARING' | 'READY' | 'DONE' | 'VOID_REQUESTED';
     priority: 'NORMAL' | 'URGENT';
     created_at: string;
     ids: string[];
@@ -362,6 +362,7 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
     const key = order.table_label ? `table:${order.table_label}` : `order:${order.id}`;
       const existing = groupMap.get(key);
     const normalizedItems = normalizeItems(order);
+    const sourceStatus = String((order as any)?.status || '').toUpperCase();
 
     if (!existing) {
       const hasKitchenInstruction = normalizedItems.some((item: any) => ['VOID_REQUESTED', 'REMAKE', 'WASTE'].includes(String(item.status || item.action || '').toUpperCase()));
@@ -369,13 +370,13 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
         key,
         table_label: order.table_label || null,
         order_type: order.order_type,
-        status: hasKitchenInstruction ? 'VOID_REQUESTED' : order.status === 'SENT' ? 'NEW' : order.status,
+        status: hasKitchenInstruction ? 'VOID_REQUESTED' : sourceStatus === 'SENT' ? 'NEW' : (sourceStatus as 'NEW' | 'PREPARING' | 'READY' | 'DONE'),
         priority: order.priority,
         created_at: order.created_at,
         ids: [order.id],
-        newIds: ['NEW', 'SENT'].includes(order.status) ? [order.id] : [],
-        preparingIds: order.status === 'PREPARING' ? [order.id] : [],
-        readyIds: order.status === 'READY' ? [order.id] : [],
+        newIds: ['NEW', 'SENT'].includes(sourceStatus) ? [order.id] : [],
+        preparingIds: sourceStatus === 'PREPARING' ? [order.id] : [],
+        readyIds: sourceStatus === 'READY' ? [order.id] : [],
         items: normalizedItems.map((item: any) => ({
           ids: item.id ? [String(item.id)] : [],
           item_name: item.item_name,

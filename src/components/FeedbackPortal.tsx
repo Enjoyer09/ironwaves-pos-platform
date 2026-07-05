@@ -502,7 +502,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
                   {lang === 'az' ? 'Tag seçimi' : lang === 'ru' ? 'Выбор тегов' : 'Select tags'}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {availablePresetReasons.map((label) => {
+                  {availablePresetReasons.map((label: string) => {
                     const active = presetReasons.includes(label);
                     return (
                       <button
