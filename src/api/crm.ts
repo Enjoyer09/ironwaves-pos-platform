@@ -7,6 +7,29 @@ import { apiRequest, isBackendEnabled, getApiBaseUrl } from './client';
 
 const defaultTenant = () => getActiveTenantId();
 
+const normalizeCustomerType = (value: unknown): CustomerType => {
+  switch (String(value || '').trim().toLowerCase()) {
+    case 'golden':
+      return 'Golden';
+    case 'platinum':
+      return 'Platinum';
+    case 'elite':
+      return 'Elite';
+    case 'telebe':
+    case 'tələbə':
+      return 'Tələbə';
+    case 'ikram':
+      return 'Ikram';
+    default:
+      return 'Normal';
+  }
+};
+
+const normalizeDiscountPercent = (value: unknown): number => {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const getCustomersLocal = (tenantId: string) => {
   const tenantRows = getDB<Customer>(`${tenantId}_customers`) || [];
   if (tenantRows.length > 0) return tenantRows;
@@ -208,18 +231,18 @@ export async function import_customers_live(
       const existing = customers.find((c: any) => String(c.card_id || '').toLowerCase() === row.card_id.toLowerCase());
       if (existing) {
         existing.secret_token = row.secret_token || existing.secret_token;
-        existing.type = row.type;
+        existing.type = normalizeCustomerType(row.type);
         existing.stars = row.stars;
-        existing.discount_percent = row.discount_percent;
+        existing.discount_percent = normalizeDiscountPercent(row.discount_percent);
       } else {
         customers.push({
           id: uuidv4(),
           tenant_id: tenantId,
           card_id: row.card_id,
           secret_token: row.secret_token || uuidv4(),
-          type: row.type,
+          type: normalizeCustomerType(row.type),
           stars: row.stars,
-          discount_percent: row.discount_percent,
+          discount_percent: normalizeDiscountPercent(row.discount_percent),
           created_at: new Date().toISOString(),
         });
       }
@@ -398,7 +421,7 @@ export async function enroll_customer_app_live(
       id: uuidv4(),
       tenant_id: tenantId,
       card_id,
-      type: String(join_customer_type || 'golden'),
+      type: normalizeCustomerType(join_customer_type || 'golden'),
       stars: 0,
       discount_percent: Number.isFinite(join_discount_percent) ? Number(join_discount_percent) : 0,
       secret_token: token,
@@ -618,5 +641,3 @@ export function get_customer_wallet_pass_url(card_id: string, token: string, lan
   const base = getApiBaseUrl() || (typeof window !== 'undefined' ? window.location.origin : '');
   return `${base}/api/v1/ops/customer-app/wallet-pass?id=${encodeURIComponent(card_id)}&t=${encodeURIComponent(token)}&lang=${encodeURIComponent(lang)}`;
 }
-
-

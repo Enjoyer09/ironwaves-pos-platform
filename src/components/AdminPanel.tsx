@@ -207,7 +207,7 @@ export default function AdminPanel({ externalTab, isActive = true, onTabChange }
         const receiptUrl = `${baseUrl}/?r=${encodeURIComponent(receiptRef)}&t=${encodeURIComponent(token)}`;
         
         let feedbackUrl = '';
-        const feedbackSettings = settings?.feedback_settings || {};
+        const feedbackSettings = settings?.feedback_settings;
         if (feedbackSettings?.enabled !== false) {
           const feedbackBaseUrl = String(feedbackSettings?.portal_url || `${baseUrl}/feedback`).trim();
           try {

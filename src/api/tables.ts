@@ -558,7 +558,7 @@ export const pay_table = (
     payment_method,
     cashier: paid_by,
     customer_card_id: null,
-    discount_percent: discountPercent,
+    discount_percent: Number(discountPercent.toString()),
     is_eco_cup: false,
     is_test: false,
     split_cash,

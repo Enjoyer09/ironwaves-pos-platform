@@ -7,6 +7,7 @@ import { apiRequest, isBackendEnabled } from './client';
 import { hashLocalCredential } from '../lib/local_auth';
 import { readScopedStorage, removeScopedStorage } from '../lib/storage_keys';
 import { clearOfflineSalesStore } from '../lib/offline';
+import type { AiProvider } from '../lib/ai_config';
 
 const resolveTenant = (tenant_id?: string) => tenant_id || getActiveTenantId();
 
@@ -161,12 +162,31 @@ function ensureKnownWidgetOrder(
   });
 }
 
+function normalizeAiProvider(raw: unknown): AiProvider {
+  switch (String(raw || '').trim().toLowerCase()) {
+    case 'google':
+    case 'openai':
+    case 'anthropic':
+    case 'openrouter':
+    case 'xai':
+    case 'huggingface':
+    case 'ollama':
+    case 'ollama_freeapi':
+    case 'opencode':
+      return String(raw).trim().toLowerCase() as AiProvider;
+    default:
+      return 'unknown';
+  }
+}
+
 function normalizePosLayoutConfig(
   source: any,
   fallback?: Partial<PosLayoutConfig>,
   isNested: boolean = false,
 ): PosLayoutConfig {
   const base = fallback || {};
+  const rawHiddenWidgets = ((source?.hidden_widgets) || (base.hidden_widgets as string[] | undefined) || []) as unknown[];
+  const rawLeftHiddenWidgets = ((source?.left_hidden_widgets) || (base.left_hidden_widgets as string[] | undefined) || []) as unknown[];
   const widget_order = ensureKnownWidgetOrder(
     source?.widget_order,
     ((base.widget_order as string[] | undefined) || DEFAULT_POS_LAYOUT.widget_order),
@@ -177,13 +197,13 @@ function normalizePosLayoutConfig(
     ((base.left_widget_order as string[] | undefined) || DEFAULT_POS_LAYOUT.left_widget_order || []),
     POS_LEFT_WIDGET_KEYS,
   );
-  const hidden_widgets = Array.from(
-    new Set(((source?.hidden_widgets) || (base.hidden_widgets as string[] | undefined) || []).map((v: any) => String(v || '').trim()).filter(Boolean)),
+  const hidden_widgets: string[] = Array.from(
+    new Set(rawHiddenWidgets.map((v: unknown) => String(v || '').trim()).filter(Boolean)),
   )
     .filter((key) => POS_RIGHT_WIDGET_KEYS.includes(key as any))
     .filter((key) => !POS_REQUIRED_RIGHT_WIDGETS.includes(key as any));
-  const left_hidden_widgets = Array.from(
-    new Set(((source?.left_hidden_widgets) || (base.left_hidden_widgets as string[] | undefined) || []).map((v: any) => String(v || '').trim()).filter(Boolean)),
+  const left_hidden_widgets: string[] = Array.from(
+    new Set(rawLeftHiddenWidgets.map((v: unknown) => String(v || '').trim()).filter(Boolean)),
   )
     .filter((key) => POS_LEFT_WIDGET_KEYS.includes(key as any))
     .filter((key) => !POS_REQUIRED_LEFT_WIDGETS.includes(key as any));
@@ -311,7 +331,10 @@ const DEFAULT_FEEDBACK_SETTINGS: NonNullable<Settings['feedback_settings']> = {
 const FEEDBACK_SETTINGS_OVERRIDES_KEY = 'iw_feedback_settings_overrides_v1';
 
 function normalizeFeedbackSettings(source?: Settings['feedback_settings']): NonNullable<Settings['feedback_settings']> {
-  const raw = source || {};
+  const raw: Partial<NonNullable<Settings['feedback_settings']>> = source || {};
+  const defaultCouponPercent = DEFAULT_FEEDBACK_SETTINGS.coupon_percent ?? 5;
+  const defaultMinStars = DEFAULT_FEEDBACK_SETTINGS.min_stars_for_google_review ?? 4;
+  const defaultRequiredCommentThreshold = DEFAULT_FEEDBACK_SETTINGS.required_comment_threshold ?? 3;
   const rawEnabled = (raw as any).enabled;
   const enabledNormalized =
     rawEnabled === true ||
@@ -325,7 +348,7 @@ function normalizeFeedbackSettings(source?: Settings['feedback_settings']): NonN
     ...raw,
     enabled: enabledNormalized,
     promo_enabled: raw.promo_enabled !== false,
-    coupon_percent: Math.max(1, Math.min(100, Number(raw.coupon_percent ?? DEFAULT_FEEDBACK_SETTINGS.coupon_percent) || DEFAULT_FEEDBACK_SETTINGS.coupon_percent)),
+    coupon_percent: Math.max(1, Math.min(100, Number(raw.coupon_percent ?? defaultCouponPercent) || defaultCouponPercent)),
     portal_url: String(raw.portal_url || '').trim(),
     google_review_url: String(raw.google_review_url || '').trim(),
     receipt_button_text_az: String(raw.receipt_button_text_az || DEFAULT_FEEDBACK_SETTINGS.receipt_button_text_az).trim(),
@@ -341,9 +364,9 @@ function normalizeFeedbackSettings(source?: Settings['feedback_settings']): NonN
     primary_color: String(raw.primary_color || DEFAULT_FEEDBACK_SETTINGS.primary_color).trim(),
     accent_color: String(raw.accent_color || DEFAULT_FEEDBACK_SETTINGS.accent_color).trim(),
     emoji_icon: String(raw.emoji_icon || DEFAULT_FEEDBACK_SETTINGS.emoji_icon).trim(),
-    preset_tags: Array.isArray(raw.preset_tags) ? raw.preset_tags.map(x => String(x || '').trim()).filter(Boolean) : DEFAULT_FEEDBACK_SETTINGS.preset_tags,
-    min_stars_for_google_review: Math.max(1, Math.min(5, Number(raw.min_stars_for_google_review ?? DEFAULT_FEEDBACK_SETTINGS.min_stars_for_google_review) || 4)),
-    required_comment_threshold: Math.max(1, Math.min(5, Number(raw.required_comment_threshold ?? DEFAULT_FEEDBACK_SETTINGS.required_comment_threshold) || 3)),
+    preset_tags: Array.isArray(raw.preset_tags) ? raw.preset_tags.map((x: unknown) => String(x || '').trim()).filter(Boolean) : DEFAULT_FEEDBACK_SETTINGS.preset_tags,
+    min_stars_for_google_review: Math.max(1, Math.min(5, Number(raw.min_stars_for_google_review ?? defaultMinStars) || defaultMinStars)),
+    required_comment_threshold: Math.max(1, Math.min(5, Number(raw.required_comment_threshold ?? defaultRequiredCommentThreshold) || defaultRequiredCommentThreshold)),
     custom_heading_az: String(raw.custom_heading_az || DEFAULT_FEEDBACK_SETTINGS.custom_heading_az).trim(),
     custom_heading_ru: String(raw.custom_heading_ru || DEFAULT_FEEDBACK_SETTINGS.custom_heading_ru).trim(),
     custom_heading_en: String(raw.custom_heading_en || DEFAULT_FEEDBACK_SETTINGS.custom_heading_en).trim(),
@@ -654,7 +677,7 @@ export function update_session_settings(payload: {
   virtual_keyboard_enabled?: boolean;
   staff_pin_length?: number;
   theme_mode?: 'dark' | 'light';
-  ui_mode?: 'old';
+  ui_mode?: 'old' | 'new';
   login_background_url?: string;
 }) {
   const settings = getSettings();
@@ -666,7 +689,7 @@ export function update_session_settings(payload: {
     theme_mode: payload.theme_mode
       ? (payload.theme_mode === 'light' ? 'light' : 'dark')
       : (settings.session_settings?.theme_mode === 'light' ? 'light' : 'dark'),
-    ui_mode: 'old',
+    ui_mode: payload.ui_mode === 'new' ? 'new' : 'old',
     login_background_url: payload.login_background_url !== undefined
       ? payload.login_background_url
       : (settings.session_settings?.login_background_url || ''),
@@ -1268,7 +1291,7 @@ export function publish_pos_layout_draft() {
   const settings = getSettings();
   settings.pos_layout = JSON.parse(JSON.stringify(settings.pos_layout_draft || settings.pos_layout || DEFAULT_POS_LAYOUT));
   saveSettings(settings);
-  logEvent('admin', 'POS_LAYOUT_PUBLISHED', settings.pos_layout);
+  logEvent('admin', 'POS_LAYOUT_PUBLISHED', (settings.pos_layout || {}) as Record<string, any>);
   return { success: true, pos_layout: settings.pos_layout };
 }
 
@@ -1276,7 +1299,7 @@ export function reset_pos_layout_draft() {
   const settings = getSettings();
   settings.pos_layout_draft = JSON.parse(JSON.stringify(settings.pos_layout || DEFAULT_POS_LAYOUT));
   saveSettings(settings);
-  logEvent('admin', 'POS_LAYOUT_DRAFT_RESET', settings.pos_layout_draft);
+  logEvent('admin', 'POS_LAYOUT_DRAFT_RESET', (settings.pos_layout_draft || {}) as Record<string, any>);
   return { success: true, pos_layout_draft: settings.pos_layout_draft };
 }
 
@@ -1344,7 +1367,7 @@ export async function get_settings_live(tenant_id?: string) {
     },
     feedback_settings: normalizeFeedbackSettings(scopedOverride || data?.feedback_settings),
     ai_config: {
-      provider: String(data?.ai_config?.provider || 'unknown') as any,
+      provider: normalizeAiProvider(data?.ai_config?.provider),
       model: String(data?.ai_config?.model || 'auto'),
       autodetected: data?.ai_config?.autodetected !== false,
       ollama_freeapi_enabled: data?.ai_config?.ollama_freeapi_enabled === true,
@@ -1993,13 +2016,13 @@ export async function update_user_credentials_live(
 
 export async function update_api_key_live(
   api_key: string,
-  ai_config?: { provider?: string; model?: string; autodetected?: boolean; ollama_freeapi_enabled?: boolean },
+  ai_config?: { provider?: AiProvider; model?: string; autodetected?: boolean; ollama_freeapi_enabled?: boolean },
 ) {
   if (!isBackendEnabled()) {
     const settings = getSettings();
     settings.gemini_api_key = api_key;
     settings.ai_config = {
-      provider: String(ai_config?.provider || settings.ai_config?.provider || 'unknown'),
+      provider: normalizeAiProvider(ai_config?.provider || settings.ai_config?.provider || 'unknown'),
       model: String(ai_config?.model || settings.ai_config?.model || 'auto'),
       autodetected: ai_config?.autodetected !== false,
       ollama_freeapi_enabled:
@@ -2019,7 +2042,7 @@ export async function update_api_key_live(
   const settings = getSettings();
   settings.gemini_api_key = api_key;
   settings.ai_config = {
-    provider: String(ai_config?.provider || settings.ai_config?.provider || 'unknown'),
+    provider: normalizeAiProvider(ai_config?.provider || settings.ai_config?.provider || 'unknown'),
     model: String(ai_config?.model || settings.ai_config?.model || 'auto'),
     autodetected: ai_config?.autodetected !== false,
     ollama_freeapi_enabled:
@@ -2112,5 +2135,3 @@ export async function run_central_backup_now_live(): Promise<any> {
     tenantId: null,
   });
 }
-
-

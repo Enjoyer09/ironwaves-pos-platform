@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { logEvent } from '../lib/logger';
 import { FinanceEntry } from '../types/pos';
 import { apiRequest, isBackendEnabled } from './client';
+import { get_settings } from './settings';
 
 import { getDB, setDB } from '../lib/db_sim';
 
@@ -212,13 +213,14 @@ export const get_investor_summary = (tenant_id: string) => {
   };
 };
 
-const normalizeSource = (source: string) => {
+const normalizeSource = (source: string): FinanceEntry['source'] => {
   if (source === 'Kassa') return 'cash';
   if (source === 'Bank Kartı') return 'card';
   if (source === 'Nisyə / Borc') return 'debt';
+  if (source === 'Depozit' || source === 'deposit') return 'deposit';
   if (source === 'Seyf' || source === 'safe') return 'safe';
   if (source === 'Investor' || source === 'investor' || source === 'İnvestor') return 'investor';
-  return source as 'cash' | 'card' | 'debt' | 'investor' | 'safe';
+  return 'cash';
 };
 
 // FUNKSIYA: get_balance
@@ -684,6 +686,7 @@ export const fetch_finance_summary = async (tenant_id: string): Promise<FinanceS
           id: String(data.latest_reconciliation.id),
           account_code: data.latest_reconciliation.account_code ?? null,
           account_name: data.latest_reconciliation.account_name ?? null,
+          status: String(data.latest_reconciliation.status ?? 'completed'),
           expected_balance: String(data.latest_reconciliation.expected_balance ?? '0'),
           counted_balance: String(data.latest_reconciliation.counted_balance ?? '0'),
           variance: String(data.latest_reconciliation.variance ?? '0'),

@@ -7,6 +7,7 @@ import { Capacitor } from '@capacitor/core';
 import { tx } from '../i18n';
 import { useAppStore } from '../store';
 import { claim_customer_reward_live, enroll_customer_app_live, get_customer_app_bootstrap_live, get_customer_app_session_live, mark_customer_notification_read_live, save_push_token_live, send_customer_otp_live, verify_customer_otp_live, analyze_customer_fortune_live, chat_customer_barista_live, get_customer_wallet_pass_url } from '../api/crm';
+import { clearCustomerSession, readCustomerPushToken, readCustomerPushTokenAsync, writeCustomerPushToken, writeCustomerSession } from '../lib/customer_session';
 
 type Props = {
   cardId?: string;
@@ -21,6 +22,35 @@ const BARISTA_QUICK_PROMPTS = [
   'Bu gün hansı reward mənə sərf edir?',
   'Dessert ilə nə uyğun gedər?',
 ];
+
+const CUSTOMER_DEBUG_TOOLS_ENABLED = Boolean((import.meta as any)?.env?.DEV) && !Capacitor.isNativePlatform();
+
+type OneSignalRuntime = {
+  push: (callback: () => void | Promise<void>) => void;
+  init: (config: { appId: string; allowLocalhostAsSecureOrigin?: boolean }) => Promise<void>;
+  User: {
+    PushSubscription: {
+      id: string | null;
+    };
+  };
+};
+
+function persistCustomerSession(cardId: string, token: string) {
+  writeCustomerSession(cardId, token);
+}
+
+function scrubCustomerSessionFromUrl() {
+  if (typeof window === 'undefined') return;
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.delete('id');
+  nextUrl.searchParams.delete('t');
+  nextUrl.searchParams.delete('token');
+  nextUrl.searchParams.delete('join');
+  nextUrl.searchParams.delete('club');
+  nextUrl.searchParams.delete('discount');
+  nextUrl.searchParams.set('customer', '1');
+  window.history.replaceState({}, '', nextUrl.toString());
+}
 
 type SimpleAreaChartProps = {
   data: Array<{ date: string; amount: number }>;
@@ -289,6 +319,12 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     return hr >= 10 && hr <= 17 ? 'sunny' : 'rainy';
   });
 
+  React.useEffect(() => {
+    if (!cardId || !token) return;
+    persistCustomerSession(cardId, token);
+    scrubCustomerSessionFromUrl();
+  }, [cardId, token]);
+
   const formatCardId = (id: string) => {
     const clean = String(id || '').replace(/[^a-zA-Z0-9]/g, '');
     if (!clean) return '•••• •••• •••• ••••';
@@ -378,7 +414,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     return namePart ? `, ${namePart}` : '';
   };
 
-  const spawnParticles = (e: React.MouseEvent<HTMLDivElement>) => {
+  const spawnParticles = (e: React.MouseEvent<HTMLElement>) => {
     e.stopPropagation();
     if (Capacitor.isNativePlatform()) {
       Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {});
@@ -514,15 +550,16 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const initOneSignalSDK = React.useCallback((appId: string, cardId: string, token: string) => {
     if (!appId) return;
     try {
-      window.OneSignal = window.OneSignal || [];
-      window.OneSignal.push(async () => {
-        await window.OneSignal.init({
+      const oneSignal = ((window as any).OneSignal || []) as OneSignalRuntime;
+      (window as any).OneSignal = oneSignal;
+      oneSignal.push(async () => {
+        await oneSignal.init({
           appId: appId,
           allowLocalhostAsSecureOrigin: true,
         });
-        const userId = await window.OneSignal.User.PushSubscription.id;
+        const userId = await oneSignal.User.PushSubscription.id;
         if (userId) {
-          localStorage.setItem('push_token', userId);
+          writeCustomerPushToken(userId);
           try {
             await save_push_token_live(cardId, userId, token);
             console.log('OneSignal Push token synced with backend:', userId);
@@ -560,7 +597,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       }
 
       if (Capacitor.isNativePlatform()) {
-        const cachedPushToken = localStorage.getItem('push_token');
+        const cachedPushToken = await readCustomerPushTokenAsync();
         if (cachedPushToken) {
           try {
             await save_push_token_live(sessionCreds.cardId, cachedPushToken, sessionCreds.token);
@@ -715,16 +752,11 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       const next = { cardId: created.card_id, token: created.token };
       setSessionCreds(next);
       if (typeof window !== 'undefined') {
-        localStorage.setItem('customer_card_id', created.card_id);
-        localStorage.setItem('customer_token', created.token);
-        const nextUrl = new URL(window.location.href);
-        nextUrl.searchParams.set('id', created.card_id);
-        nextUrl.searchParams.set('t', created.token);
-        nextUrl.searchParams.delete('join');
-        window.history.replaceState({}, '', nextUrl.toString());
+        persistCustomerSession(created.card_id, created.token);
+        scrubCustomerSessionFromUrl();
 
         if (Capacitor.isNativePlatform()) {
-          const cachedPushToken = localStorage.getItem('push_token');
+          const cachedPushToken = readCustomerPushToken();
           if (cachedPushToken) {
             try {
               await save_push_token_live(created.card_id, cachedPushToken, created.token);
@@ -777,16 +809,11 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       setSessionCreds(next);
       
       if (typeof window !== 'undefined') {
-        localStorage.setItem('customer_card_id', res.card_id);
-        localStorage.setItem('customer_token', res.token);
-        const nextUrl = new URL(window.location.href);
-        nextUrl.searchParams.set('id', res.card_id);
-        nextUrl.searchParams.set('t', res.token);
-        nextUrl.searchParams.delete('join');
-        window.history.replaceState({}, '', nextUrl.toString());
+        persistCustomerSession(res.card_id, res.token);
+        scrubCustomerSessionFromUrl();
 
         if (Capacitor.isNativePlatform()) {
-          const cachedPushToken = localStorage.getItem('push_token');
+          const cachedPushToken = readCustomerPushToken();
           if (cachedPushToken) {
             try {
               await save_push_token_live(res.card_id, cachedPushToken, res.token);
@@ -798,52 +825,6 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       }
     } catch (e: any) {
       setOtpError(String(e?.message || 'OTP verification failed'));
-    } finally {
-      setOtpVerifying(false);
-    }
-  };
-
-  const handleBypassLogin = async () => {
-    const testPhone = '+994501234567';
-    const testCode = '1234';
-    try {
-      setOtpVerifying(true);
-      setOtpError('');
-      setPhone(testPhone);
-      setOtpCode(testCode);
-      
-      await send_customer_otp_live(testPhone);
-      
-      const currentUrl = typeof window !== 'undefined' ? new URL(window.location.href) : null;
-      const joinCustomerType = currentUrl?.searchParams.get('club') || bootstrapData?.join_customer_type || 'golden';
-      const joinDiscount = Number(currentUrl?.searchParams.get('discount') || bootstrapData?.join_discount_percent || 0);
-      
-      const res = await verify_customer_otp_live(testPhone, testCode, joinCustomerType, joinDiscount);
-      const next = { cardId: res.card_id, token: res.token };
-      setSessionCreds(next);
-      
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('customer_card_id', res.card_id);
-        localStorage.setItem('customer_token', res.token);
-        const nextUrl = new URL(window.location.href);
-        nextUrl.searchParams.set('id', res.card_id);
-        nextUrl.searchParams.set('t', res.token);
-        nextUrl.searchParams.delete('join');
-        window.history.replaceState({}, '', nextUrl.toString());
-
-        if (Capacitor.isNativePlatform()) {
-          const cachedPushToken = localStorage.getItem('push_token');
-          if (cachedPushToken) {
-            try {
-              await save_push_token_live(res.card_id, cachedPushToken, res.token);
-            } catch (pErr) {
-              console.warn('Failed to sync push token in enroll', pErr);
-            }
-          }
-        }
-      }
-    } catch (e: any) {
-      setOtpError(String(e?.message || 'Bypass login failed'));
     } finally {
       setOtpVerifying(false);
     }
@@ -1132,14 +1113,11 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                   {otpSending ? '...' : tx(safeLang, 'Razıyam və kod göndər', 'Согласен и отправить код', 'Accept and send code')}
                 </button>
 
-                <button
-                  type="button"
-                  disabled={otpSending || otpVerifying}
-                  onClick={handleBypassLogin}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-3 text-sm font-bold text-white transition active:scale-98 flex items-center justify-center gap-2"
-                >
-                  ⚡ {tx(safeLang, 'Test Girişi (Bypass OTP)', 'Тестовый вход (Bypass OTP)', 'Test Login (Bypass OTP)')}
-                </button>
+                {CUSTOMER_DEBUG_TOOLS_ENABLED ? (
+                  <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center text-xs font-semibold text-white/50">
+                    DEV mode: OTP test bypass removed from the customer-facing flow.
+                  </p>
+                ) : null}
               </div>
             ) : (
               <div className="mt-4 space-y-3">
@@ -1196,8 +1174,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           <button
             type="button"
             onClick={() => {
-              localStorage.removeItem('customer_card_id');
-              localStorage.removeItem('customer_token');
+              clearCustomerSession();
               setSessionCreds({ cardId: '', token: '' });
               setError('');
             }}
@@ -1206,17 +1183,19 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             {tx(safeLang, 'Sessiyanı Sıfırla & Geri Dön', 'Сбросить сессию и вернуться', 'Reset Session & Go Back')}
           </button>
 
-          <button
-            type="button"
-            onClick={() => setShowDevSettings(!showDevSettings)}
-            className="mt-4 block w-full text-center text-xs text-white/40 underline hover:text-white/60"
-          >
-            {showDevSettings 
-              ? tx(safeLang, 'Ayarları gizlə', 'Скрыть настройки', 'Hide settings')
-              : tx(safeLang, 'İnkişaf etdirici ayarları', 'Настройки разработчика', 'Developer settings')}
-          </button>
+          {CUSTOMER_DEBUG_TOOLS_ENABLED ? (
+            <button
+              type="button"
+              onClick={() => setShowDevSettings(!showDevSettings)}
+              className="mt-4 block w-full text-center text-xs text-white/40 underline hover:text-white/60"
+            >
+              {showDevSettings 
+                ? tx(safeLang, 'Ayarları gizlə', 'Скрыть настройки', 'Hide settings')
+                : tx(safeLang, 'İnkişaf etdirici ayarları', 'Настройки разработчика', 'Developer settings')}
+            </button>
+          ) : null}
 
-          {showDevSettings && (
+          {CUSTOMER_DEBUG_TOOLS_ENABLED && showDevSettings && (
             <div className="mt-4 text-left border-t border-white/10 pt-4 space-y-3">
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-white/50 mb-1">
@@ -1284,7 +1263,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   const aiFalciEnabled = branding.ai_falci_enabled === true;
 
-  const bottomTabs = [
+  const bottomTabs: Array<{ key: CustomerTab; label: string; icon: React.ReactNode }> = [
     { key: 'home' as CustomerTab, label: tx(safeLang, 'Ana Səhifə', 'Главная', 'Home'), icon: <Home size={18} /> },
     { key: 'offers' as CustomerTab, label: tx(safeLang, 'Kampaniyalar', 'Кампании', 'Offers'), icon: <Gift size={18} /> },
     ...(aiBaristaEnabled ? [{ key: 'barista' as CustomerTab, label: tx(safeLang, 'Barista', 'Бариста', 'Barista'), icon: <MessageSquare size={18} /> }] : []),

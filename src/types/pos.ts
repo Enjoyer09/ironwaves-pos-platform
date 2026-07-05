@@ -64,7 +64,7 @@ export interface FinanceEntry {
   type: 'in' | 'out';
   category: string; // e.g., 'Satış', 'Bank Komissiyası', 'Refund / Ləğv'
   amount: string; // Decimal toString()
-  source: 'cash' | 'card' | 'debt' | 'investor' | 'safe';
+  source: 'cash' | 'card' | 'debt' | 'investor' | 'safe' | 'deposit';
   description: string;
   created_at: string;
   is_deleted: boolean;
@@ -95,6 +95,7 @@ export interface Customer {
   card_id: string;
   type: CustomerType;
   stars: number;
+  discount_percent?: number;
   secret_token: string;
   created_at: string;
 }
@@ -149,10 +150,12 @@ export type PosLayoutConfig = {
 // --- MODUL 15: SETTINGS ---
 export interface Settings {
   tenant_id: string;
+  is_super_tenant?: boolean;
   service_fee_percent: number;
   table_service_settings?: {
     deposit_per_guest_azn: number;
     reservation_lock_hours?: number;
+    late_release_minutes?: number;
   };
   yield_management_settings?: {
     enabled: boolean;
@@ -182,8 +185,10 @@ export interface Settings {
     staff_pin_length?: 4 | 6;
     theme_mode?: 'dark' | 'light';
     ui_mode?: 'old' | 'new';
+    tables_ui_mode?: 'classic' | 'modern';
     login_background_url?: string;
   };
+  tables_ui_mode?: 'classic' | 'modern';
   beverage_service_settings?: {
     coffee_selection_mode: 'size_only' | 'size_and_service';
     remove_paper_packaging_for_table: boolean;
@@ -270,6 +275,8 @@ export interface Settings {
     logo_shape?: 'rounded' | 'circle' | 'square';
     font_family?: string;
     custom_font_url?: string;
+    theme_preset?: 'dark' | 'light' | 'emerald' | 'custom';
+    layout_preset?: 'classic' | 'bolt';
   };
   feedback_settings?: {
     enabled: boolean;
