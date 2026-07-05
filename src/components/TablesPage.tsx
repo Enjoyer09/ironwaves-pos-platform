@@ -1862,7 +1862,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         <button
                           type="button"
                           onClick={() => closeTableDetail()}
-                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-slate-600 bg-slate-800/80 text-lg text-slate-100 shadow-lg transition hover:bg-slate-700/80 active:scale-90 taktil-target"
+                          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border-2 border-cyan-400/50 bg-cyan-500/15 text-xl text-cyan-100 shadow-lg shadow-cyan-500/10 transition hover:bg-cyan-500/25 active:scale-90 taktil-target"
                         >
                           ←
                         </button>
@@ -1899,7 +1899,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           <button
                             type="button"
                             onClick={() => closeTableDetail()}
-                            className="inline-flex min-h-9 shrink-0 items-center rounded-full border border-slate-700/70 bg-slate-900/50 px-3 py-1.5 text-xs font-semibold text-slate-200"
+                            className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-2xl border-2 border-cyan-400/50 bg-cyan-500/15 px-5 py-2.5 text-sm font-bold text-cyan-100 shadow-lg shadow-cyan-500/10 transition hover:bg-cyan-500/25 active:scale-95 taktil-target"
                           >
                             ← {tx(lang, 'Masalara qayıt', 'Назад к столам', 'Back to tables')}
                           </button>
@@ -2009,8 +2009,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       <input className="neon-input" value={lockReason} onChange={(e) => setLockReason(e.target.value)} placeholder={tx(lang, 'Override səbəbi', 'Причина override', 'Override reason')} />
                     </div>
                   )}
-	                  <div className={`mt-2 rounded-xl border border-slate-700/70 bg-slate-900/30 p-2`}>
-	                    <div className="flex flex-wrap gap-2">
+	                  <div className={`mt-2 rounded-2xl border border-slate-700/70 bg-slate-900/30 p-2.5`}>
+	                    <div className="flex flex-wrap gap-2.5">
                       {([
                         ['compose', tx(lang, 'Sifariş', 'Заказ', 'Order')],
                         ['service', `${tx(lang, 'Servis', 'Сервис', 'Service')}${readyItems.length > 0 ? ` · ${readyItems.length}` : ''}`],
@@ -2021,7 +2021,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                           key={tabKey}
                           type="button"
                           onClick={() => setTableWorkspaceTab(tabKey)}
-	                          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${tableWorkspaceTab === tabKey ? 'bg-yellow-400 text-slate-950' : 'border border-slate-700/70 bg-slate-950/35 text-slate-300'}`}
+	                          className={`rounded-2xl px-5 py-3 text-sm font-bold transition active:scale-95 taktil-target ${tableWorkspaceTab === tabKey ? 'bg-yellow-400 text-slate-950 shadow-md shadow-yellow-500/20 border-2 border-yellow-300/60' : 'border-2 border-slate-600/80 bg-slate-800/50 text-slate-200 hover:bg-slate-700/60 hover:border-slate-500/80'}`}
                         >
                           {label}
                         </button>
