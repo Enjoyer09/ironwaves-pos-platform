@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 
 // https://vite.dev/config/
 export default defineConfig(({ command }) => {
+  const isCustomerOnlyBuild = String(process.env.VITE_CUSTOMER_APP_ONLY || "").trim() === "1";
   if (command === "build") {
     const apiBase = String(process.env.VITE_API_BASE_URL || "").trim();
     if (!apiBase) {
@@ -72,6 +73,11 @@ export default defineConfig(({ command }) => {
       sourcemap: false,
       cssCodeSplit: true,
       assetsInlineLimit: 4096,
+      rollupOptions: isCustomerOnlyBuild
+        ? {
+            input: path.resolve(__dirname, "customer.html"),
+          }
+        : undefined,
       minify: "terser",
       terserOptions: {
         compress: {

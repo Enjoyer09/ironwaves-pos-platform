@@ -61,8 +61,8 @@ interface AppState {
   updateCartItem: (id: string, qty: number) => void;
   clearCart: () => void;
 
-  toasts: { id: string; type: 'success' | 'error' | 'info'; message: string }[];
-  notify: (type: 'success' | 'error' | 'info', message: string) => void;
+  toasts: { id: string; type: 'success' | 'error' | 'info' | 'warning'; message: string }[];
+  notify: (type: 'success' | 'error' | 'info' | 'warning', message: string) => void;
   dismissToast: (id: string) => void;
 }
 

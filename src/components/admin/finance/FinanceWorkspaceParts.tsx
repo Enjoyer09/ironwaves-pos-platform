@@ -5,7 +5,7 @@ import { type FinanceAlert, type FinanceTransactionDetail } from '../../../api/f
 import { tx, formatFriendlyFinanceNote } from '../../../i18n';
 import { formatServerUtcDateTime } from '../../../lib/time';
 
-export type FinanceWorkspaceTab = 'overview' | 'transactions' | 'reconciliation' | 'deposits' | 'ledger';
+export type FinanceWorkspaceTab = 'overview' | 'transactions' | 'reconciliation' | 'deposits' | 'ledger' | 'transfers' | 'investor';
 export type FinanceQuickAction = 'income' | 'expense' | 'transfer' | 'investor_repayment' | 'deposit' | 'reconcile' | 'adjustment';
 export type FinanceStatusTone = 'emerald' | 'rose' | 'amber' | 'sky' | 'violet' | 'slate';
 

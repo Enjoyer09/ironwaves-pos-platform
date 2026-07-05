@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && cp public/sw.js dist/sw.js",
+    "build:customer": "VITE_CUSTOMER_APP_ONLY=1 vite build && mv dist/customer.html dist/index.html && cp public/sw.js dist/sw.js",
+    "sync:ios:customer": "npm run build:customer && npx cap copy ios",
     "preview": "vite preview",
     "start": "node server.js",
     "print-agent": "node tools/print-agent/ironwaves-print-agent.js",

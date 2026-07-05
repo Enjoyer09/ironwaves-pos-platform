@@ -192,13 +192,19 @@ export const i18n = {
 
 export type Lang = keyof typeof i18n;
 
-export function tx(lang: Lang, az: string, ru: string, en?: string): string {
-  if (lang === 'ru') return ru;
-  if (lang === 'en') return en || az;
+export function normalizeLang(lang: unknown): Lang {
+  if (lang === 'ru' || lang === 'en') return lang;
+  return 'az';
+}
+
+export function tx(lang: Lang | string, az: string, ru: string, en?: string): string {
+  const safeLang = normalizeLang(lang);
+  if (safeLang === 'ru') return ru;
+  if (safeLang === 'en') return en || az;
   return az;
 }
 
-export function formatFriendlyFinanceNote(note: string | null | undefined, lang: any): string {
+export function formatFriendlyFinanceNote(note: string | null | undefined, lang: Lang | string): string {
   if (!note) return '-';
   const clean = note.trim();
   

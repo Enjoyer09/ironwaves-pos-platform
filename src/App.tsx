@@ -25,6 +25,8 @@ import { apiRequest, isBackendEnabled, setClientAuthSession } from './api/client
 import { isPerfDebugEnabled, type PerfEvent } from './lib/perf';
 import { syncPendingOfflineTableOps } from './api/tables';
 import HelpAssistant from './components/HelpAssistant';
+import { readCustomerPushToken, readCustomerPushTokenAsync, readCustomerSession, readCustomerSessionAsync, writeCustomerPushToken } from './lib/customer_session';
+import type { Settings } from './types/pos';
 
 // BahaY: detect super lab for v2 features
 const isBahaYLab = (() => {
@@ -90,6 +92,12 @@ type DemoGuideBubble = {
   text: string;
   x: number;
   y: number;
+};
+
+type AppBusinessProfile = {
+  company_name?: string;
+  logo_url?: string;
+  website?: string;
 };
 
 const DEMO_MODULE_GUIDE_AZ: Record<ModuleKey, string> = {
@@ -197,11 +205,12 @@ export default function App() {
 
         await PushNotifications.addListener('registration', async (token) => {
           const pushToken = token.value;
-          localStorage.setItem('push_token', pushToken);
+          writeCustomerPushToken(pushToken);
           console.log('FCM Registration token:', pushToken);
 
-          const savedCardId = localStorage.getItem('customer_card_id') || '';
-          const savedToken = localStorage.getItem('customer_token') || '';
+          const { cardId: savedCardId, token: savedToken } = Capacitor.isNativePlatform()
+            ? await readCustomerSessionAsync()
+            : readCustomerSession();
           if (savedCardId && savedToken) {
             try {
               await save_push_token_live(savedCardId, pushToken, savedToken);
@@ -561,27 +570,46 @@ export default function App() {
     return String(window.location.pathname || '/');
   }, []);
 
-  const customerAppParams = useMemo(() => {
-    if (typeof window === 'undefined') return { cardId: '', token: '', join: false, isMobile: false };
-    
+  const [customerAppParams, setCustomerAppParams] = useState(() => {
+    if (typeof window === 'undefined') return { cardId: '', token: '', join: false, isMobile: false, ready: true };
+
     const isMobile = Capacitor.isNativePlatform();
     if (isMobile) {
-      const savedCardId = localStorage.getItem('customer_card_id') || '';
-      const savedToken = localStorage.getItem('customer_token') || '';
-      return {
-        cardId: savedCardId,
-        token: savedToken,
-        join: !savedCardId || !savedToken,
-        isMobile: true,
-      };
+      return { cardId: '', token: '', join: false, isMobile: true, ready: false };
     }
 
     const params = new URLSearchParams(window.location.search);
+    const { cardId: savedCardId, token: savedToken } = readCustomerSession();
+    const isReturningCustomer = params.get('customer') === '1';
+    const urlCardId = params.get('id') || '';
+    const urlToken = params.get('t') || params.get('token') || '';
     return {
-      cardId: params.get('id') || '',
-      token: params.get('t') || params.get('token') || '',
-      join: params.get('join') === '1',
+      cardId: urlCardId || (isReturningCustomer ? savedCardId : ''),
+      token: urlToken || (isReturningCustomer ? savedToken : ''),
+      join: params.get('join') === '1' || (isReturningCustomer && (!savedCardId || !savedToken)),
       isMobile: false,
+      ready: true,
+    };
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) return;
+    let cancelled = false;
+
+    void (async () => {
+      const session = await readCustomerSessionAsync();
+      if (cancelled) return;
+      setCustomerAppParams({
+        cardId: session.cardId,
+        token: session.token,
+        join: !session.cardId || !session.token,
+        isMobile: true,
+        ready: true,
+      });
+    })();
+
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -603,27 +631,63 @@ export default function App() {
     manager: ['pos', 'tables', 'kds', 'zreport', 'dashboard', 'finance', 'inventory', 'combos', 'analytics', 'logs', 'crm', 'customerapp', 'ai', 'menu', 'recipes'],
     kitchen: ['kds'],
   };
+  const defaultSettings: Settings = {
+    tenant_id: String(user?.tenant_id || activeTenant || ''),
+    service_fee_percent: 0,
+    ui_visibility: defaultUiVisibility,
+    time_settings: {
+      shift_start_time: '08:00',
+      shift_end_time: '23:00',
+      utc_offset: 4,
+      timezone: 'Asia/Baku',
+    },
+    session_settings: {
+      idle_logout_minutes: 0,
+      virtual_keyboard_enabled: true,
+      staff_pin_length: 4,
+      theme_mode: 'dark',
+      ui_mode: 'old',
+      tables_ui_mode: 'classic',
+    },
+    role_modules: defaultRoleModules,
+    inventory_settings: defaultInventorySettings,
+    email_settings: {
+      enabled: false,
+      provider: 'none',
+      resend_api_key: '',
+      sender_email: '',
+      recipient_emails: [],
+      webhook_url: '',
+      timeout_sec: 15,
+    },
+    bank_commission: {
+      min_amount: 0,
+      percent: 0,
+      card_sale_percent: 0,
+      card_transfer_percent: 0,
+    },
+  };
 
-  const appConfig = useMemo(() => {
+  const appConfig = useMemo<{ profile: AppBusinessProfile; settings: Settings }>(() => {
     if (!hasValidUser) {
       return {
-        profile: { logo_url: '' },
-         settings: { ui_visibility: defaultUiVisibility, role_modules: defaultRoleModules, inventory_settings: defaultInventorySettings },
+        profile: { company_name: '', logo_url: '', website: '' },
+        settings: defaultSettings,
       };
     }
     try {
       return {
-        profile: get_business_profile(user?.tenant_id || activeTenant) || { logo_url: '' },
-          settings: get_settings(user?.tenant_id || activeTenant) || { ui_visibility: defaultUiVisibility, role_modules: defaultRoleModules, inventory_settings: defaultInventorySettings },
+        profile: (get_business_profile(user?.tenant_id || activeTenant) || { company_name: '', logo_url: '', website: '' }) as AppBusinessProfile,
+        settings: get_settings(user?.tenant_id || activeTenant) || defaultSettings,
       };
     } catch (e) {
       console.error('App settings/profile init failed:', e);
       return {
-        profile: { logo_url: '' },
-          settings: { ui_visibility: defaultUiVisibility, role_modules: defaultRoleModules, inventory_settings: defaultInventorySettings },
+        profile: { company_name: '', logo_url: '', website: '' },
+        settings: defaultSettings,
       };
     }
-  }, [hasValidUser, user?.tenant_id, businessProfileVersion, settingsVersion]);
+  }, [activeTenant, businessProfileVersion, defaultSettings, hasValidUser, settingsVersion, user?.tenant_id]);
 
   const profile = appConfig.profile;
   const settings = appConfig.settings;
@@ -847,11 +911,13 @@ export default function App() {
     if (!hasValidUser || !user?.tenant_id || !user?.username) return;
     let cancelled = false;
     let timerId: number | null = null;
+    const tenantId = String(user.tenant_id || '');
+    const username = String(user.username || '');
     const pollNotifications = async () => {
       if (notificationInFlightRef.current || document.visibilityState !== 'visible') return;
       notificationInFlightRef.current = true;
       try {
-        const unread = await get_unread_staff_notifications_live(user.tenant_id, user.username);
+        const unread = await get_unread_staff_notifications_live(tenantId, username);
         if (cancelled || unread.length === 0) return;
         const readyNotification = unread.find((n) => String(n.meta?.status || '') === 'READY');
         if (readyNotification) {
@@ -862,7 +928,7 @@ export default function App() {
           notify('info', `${n.title}: ${n.message}`);
         });
         if (nonReady.length > 0) {
-          await mark_staff_notifications_read_live(user.tenant_id, user.username);
+          await mark_staff_notifications_read_live(tenantId, username);
         }
       } catch (e: any) {
         logUiError(user?.tenant_id || activeTenant, 'app-shell', e?.message || 'Failed to load staff notifications');
@@ -1547,6 +1613,10 @@ export default function App() {
   // because feedback links also carry r/t query params.
   if (publicReceiptParams.receiptId) {
     return <Suspense fallback={lazyModuleFallback}><PublicReceipt receiptId={publicReceiptParams.receiptId} token={publicReceiptParams.token} /></Suspense>;
+  }
+
+  if (customerAppParams.isMobile && !customerAppParams.ready) {
+    return <div className="min-h-screen bg-slate-950" />;
   }
 
   if (customerAppParams.isMobile || customerAppParams.join || (customerAppParams.cardId && customerAppParams.token)) {

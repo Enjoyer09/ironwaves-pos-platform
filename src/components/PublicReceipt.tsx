@@ -43,10 +43,10 @@ export default function PublicReceipt({ receiptId, token }: Props) {
         const nextProfile = await get_public_branding_live(res.tenant_id).catch(() => get_business_profile(res.tenant_id));
         setProfile(nextProfile);
         const settings = get_settings(res.tenant_id);
-        const feedbackSettings = settings?.feedback_settings || {};
+        const feedbackSettings = settings?.feedback_settings;
         const defaultFeedbackPortalUrl = `${window.location.origin.replace(/\/+$/, '')}/feedback`;
-        const baseFeedbackUrl = String(feedbackSettings.portal_url || defaultFeedbackPortalUrl || feedbackSettings.google_review_url || '').trim();
-        const feedbackEnabled = feedbackSettings.enabled === true && Boolean(baseFeedbackUrl);
+        const baseFeedbackUrl = String(feedbackSettings?.portal_url || defaultFeedbackPortalUrl || feedbackSettings?.google_review_url || '').trim();
+        const feedbackEnabled = feedbackSettings?.enabled === true && Boolean(baseFeedbackUrl);
         let nextFeedbackUrl = '';
         if (feedbackEnabled && baseFeedbackUrl) {
           nextFeedbackUrl = baseFeedbackUrl;
@@ -61,7 +61,7 @@ export default function PublicReceipt({ receiptId, token }: Props) {
             nextFeedbackUrl = baseFeedbackUrl;
           }
           setFeedback({
-            label: String(feedbackSettings.receipt_button_text_az || 'Rəy bildirin'),
+            label: String(feedbackSettings?.receipt_button_text_az || 'Rəy bildirin'),
             url: nextFeedbackUrl,
           });
         } else {
