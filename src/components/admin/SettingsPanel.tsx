@@ -1387,16 +1387,24 @@ export default function SettingsPanel() {
 
   const settingsSections = [
     { id: 'sec-profile', label: tx(lang, 'Profil', 'Профиль', 'Profile'), cat: 'general' },
+    { id: 'sec-email', label: tx(lang, 'Email', 'Email', 'Email'), cat: 'general' },
     { id: 'sec-delivery', label: tx(lang, 'Çatdırılma', 'Доставка', 'Delivery'), cat: 'integrations' },
     { id: 'sec-print', label: tx(lang, 'Çap', 'Печать', 'Print'), cat: 'operations' },
+    { id: 'sec-zreport', label: tx(lang, 'Z-Hesabat Çek', 'Z-отчёт чек', 'Z-Report Receipt'), cat: 'operations' },
     { id: 'sec-interface', label: tx(lang, 'İnterfeys', 'Интерфейс', 'Interface'), cat: 'interface' },
     { id: 'sec-tables', label: tx(lang, 'Masalar', 'Столы', 'Tables'), cat: 'operations' },
     { id: 'sec-beverage', label: tx(lang, 'İçkilər', 'Напитки', 'Beverage'), cat: 'operations' },
+    { id: 'sec-bankfee', label: tx(lang, 'Bank Faiz', 'Банк комиссии', 'Bank Fees'), cat: 'finance' },
     { id: 'sec-finance', label: tx(lang, 'Maliyyə', 'Финансы', 'Finance'), cat: 'finance' },
+    { id: 'sec-yield', label: tx(lang, 'Yield', 'Yield', 'Yield'), cat: 'finance' },
     { id: 'sec-security', label: tx(lang, 'Təhlükəsizlik', 'Безопасность', 'Security'), cat: 'security' },
     { id: 'sec-staff', label: tx(lang, 'Staff', 'Персонал', 'Staff'), cat: 'security' },
     { id: 'sec-qr', label: tx(lang, 'QR & Feedback', 'QR & Отзывы', 'QR & Feedback'), cat: 'integrations' },
+    { id: 'sec-feedback', label: tx(lang, 'Feedback Portal', 'Портал отзывов', 'Feedback Portal'), cat: 'integrations' },
     { id: 'sec-roles', label: tx(lang, 'Rollar', 'Роли', 'Roles'), cat: 'security' },
+    { id: 'sec-password', label: tx(lang, 'Şifrə/2FA', 'Пароль/2FA', 'Password/2FA'), cat: 'security' },
+    { id: 'sec-users', label: tx(lang, 'İstifadəçilər', 'Пользователи', 'Users'), cat: 'security' },
+    { id: 'sec-danger', label: tx(lang, 'Təhlükəli', 'Опасные', 'Danger'), cat: 'security' },
     { id: 'sec-ai', label: tx(lang, 'AI & Resept', 'AI & Рецепты', 'AI & Recipes'), cat: 'ai' },
   ];
 
@@ -1544,7 +1552,7 @@ export default function SettingsPanel() {
         </div>
       </div>
 
-      <div className="metal-panel p-6 space-y-4">
+      <div id="sec-email" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Email və Resend', 'Email и Resend', 'Email and Resend')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
@@ -2002,7 +2010,7 @@ export default function SettingsPanel() {
         </div>
       </div>
 
-      <div className="metal-panel p-6 space-y-4">
+      <div id="sec-zreport" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Z-Hesabat Çek Ayarları', 'Настройки чека Z-отчёта', 'Z-report receipt settings')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
@@ -2237,7 +2245,7 @@ export default function SettingsPanel() {
         </div>
       </div>
 
-      <div className="metal-panel p-6 space-y-4">
+      <div id="sec-feedback" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Müştəri Feedback Portalı', 'Портал отзывов клиентов', 'Customer feedback portal')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
@@ -2770,7 +2778,7 @@ export default function SettingsPanel() {
         </div>
       </div>
 
-      <div className="metal-panel p-6 space-y-4">
+      <div id="sec-bankfee" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Bank Faiz Ayarları', 'Настройки банковских комиссий', 'Bank Fee Settings')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
@@ -2898,7 +2906,7 @@ export default function SettingsPanel() {
 
       </div>
 
-      <div className="metal-panel p-6 space-y-4">
+      <div id="sec-yield" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Standart İtki Faizi', 'Настройки yield management', 'Yield management')}</h2>
         <p className="text-sm text-slate-400">
           {tx(
@@ -3478,7 +3486,7 @@ export default function SettingsPanel() {
       </div>
 
       {['admin', 'manager', 'super_admin'].includes(currentRole) ? (
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <div id="sec-password" className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
           <div className="metal-panel p-6 space-y-4">
             <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Şifrə Yenilə', 'Смена пароля', 'Change Password')}</h2>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -3584,7 +3592,7 @@ export default function SettingsPanel() {
         </div>
       ) : null}
 
-      <div className="metal-panel overflow-hidden">
+      <div id="sec-users" className="metal-panel overflow-hidden">
         <div className="border-b border-slate-700/70 p-6">
           <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'İstifadəçi İdarəetməsi', 'Управление пользователями', 'User Management')}</h2>
           <p className="mt-2 text-sm text-slate-400">
@@ -3673,7 +3681,7 @@ export default function SettingsPanel() {
       </div>
 
       {['admin', 'super_admin'].includes(currentRole) ? (
-        <div className="metal-panel p-6 space-y-4">
+        <div id="sec-danger" className="metal-panel p-6 space-y-4">
           <h2 className="text-xl font-bold text-red-300">{tx(lang, 'Təhlükəli Əməliyyatlar', 'Опасные операции', 'Danger Zone')}</h2>
           <p className="text-sm text-slate-400">
             {tx(
