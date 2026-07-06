@@ -487,7 +487,7 @@ async function generate_recipe_ai_rows(
 
   let aiRows: Array<{ ingredient: string; qty: number; qty_unit?: string }> = [];
   try {
-    if (!canUseGeminiRemote && selectedProvider !== 'ollama' && selectedProvider !== 'ollama_freeapi' && selectedProvider !== 'opencode') {
+    if (!canUseGeminiRemote && selectedProvider !== 'ollama' && selectedProvider !== 'ollama_freeapi' && selectedProvider !== 'opencode' && selectedProvider !== 'freemodel') {
       throw new Error('REMOTE_PROVIDER_SKIPPED');
     }
     const invText = inventory
@@ -591,6 +591,35 @@ async function generate_recipe_ai_rows(
           max_tokens: 600,
           timeout_seconds: 45,
         });
+      }
+    } else if (selectedProvider === 'freemodel') {
+      const freeModelBase = 'https://freemodel.dev/v1';
+      const freeModelModel = selectedModel && selectedModel !== 'auto' ? selectedModel : 'claude-sonnet-4-20250514';
+      try {
+        const res = await fetch(`${freeModelBase}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${aiKey}`,
+          },
+          body: JSON.stringify({
+            model: freeModelModel,
+            messages: [
+              { role: 'system', content: 'You are a senior restaurant R&D chef and cost controller. Return only valid JSON when asked.' },
+              { role: 'user', content: prompt },
+            ],
+            temperature: 0.2,
+            max_tokens: 600,
+          }),
+        });
+        if (!res.ok) {
+          fallbackReason = `FreeModel.dev HTTP ${res.status}`;
+        } else {
+          const data = await res.json();
+          responseText = String(data?.choices?.[0]?.message?.content || '');
+        }
+      } catch (e: any) {
+        fallbackReason = `FreeModel.dev error: ${e?.message || 'unknown'}`;
       }
     }
 
