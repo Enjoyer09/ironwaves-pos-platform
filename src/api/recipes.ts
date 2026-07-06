@@ -485,6 +485,25 @@ async function generate_recipe_ai_rows(
 
   const invNames = new Set(inventory.map((i: any) => String(i.name || '').trim().toLowerCase()));
 
+  // Fuzzy match: find closest inventory name for AI-returned ingredient
+  const fuzzyMatchInventory = (aiName: string): string | null => {
+    const lower = aiName.toLowerCase().trim();
+    // 1. Exact match
+    if (invNames.has(lower)) return lower;
+    // 2. Inventory name contains AI name or vice versa
+    for (const inv of invNames) {
+      if (inv.includes(lower) || lower.includes(inv)) return inv;
+    }
+    // 3. First word match (e.g. "Qəhvə dənəsi" matches "Qəhvə dənəsi (Arabica)")
+    const firstWord = lower.split(/[\s(,]/)[0];
+    if (firstWord.length >= 3) {
+      for (const inv of invNames) {
+        if (inv.startsWith(firstWord) || inv.includes(firstWord)) return inv;
+      }
+    }
+    return null;
+  };
+
   let aiRows: Array<{ ingredient: string; qty: number; qty_unit?: string }> = [];
   try {
     if (!canUseGeminiRemote && selectedProvider !== 'ollama' && selectedProvider !== 'ollama_freeapi' && selectedProvider !== 'opencode' && selectedProvider !== 'freemodel') {
@@ -635,8 +654,15 @@ async function generate_recipe_ai_rows(
               qty_unit: String(r?.qty_unit || '').trim() || undefined,
             }))
             .filter((r) => r.ingredient && Number.isFinite(r.qty) && r.qty > 0)
-            // inventory-də olmayan inqrediyenti qəbul etmə
-            .filter((r) => invNames.has(r.ingredient.toLowerCase()));
+            // Fuzzy match: inventory-dəki ən yaxın adla əvəz et
+            .map((r) => {
+              const matched = fuzzyMatchInventory(r.ingredient);
+              if (!matched) return null;
+              // Restore original casing from inventory
+              const originalName = inventory.find((i: any) => String(i.name || '').trim().toLowerCase() === matched);
+              return { ...r, ingredient: originalName ? String(originalName.name).trim() : r.ingredient };
+            })
+            .filter((r): r is NonNullable<typeof r> => r !== null);
           remoteGenerated = aiRows.length > 0;
         }
       }
