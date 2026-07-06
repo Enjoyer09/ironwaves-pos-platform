@@ -30,6 +30,7 @@ import {
   update_role_modules_live,
   update_staff_benefits_live,
   update_user_credentials_live,
+  update_api_key_live,
   verify_totp_live,
 } from '../../api/settings';
 import { get_menu_items_live } from '../../api/menu';
@@ -43,6 +44,8 @@ import {
 import ConfirmModal from '../ConfirmModal';
 import { prepareImageDataUrl, prepareSmallImageDataUrl } from '../../lib/image_upload';
 import { isAgentVersionOutdated, localPrintAgentInfo, localPrintAgentPrinters, LocalPrintAgentPrinter } from '../../lib/local_print_agent';
+import { readScopedStorage, writeScopedStorage } from '../../lib/storage_keys';
+import { detectAiConfigFromApiKey, providerLabel as aiProviderLabel } from '../../lib/ai_config';
 
 type RoleModules = { staff: string[]; manager: string[]; kitchen: string[] };
 
@@ -1383,36 +1386,68 @@ export default function SettingsPanel() {
   };
 
   const settingsSections = [
-    { id: 'sec-profile', label: tx(lang, 'Profil', 'Профиль', 'Profile') },
-    { id: 'sec-delivery', label: tx(lang, 'Çatdırılma', 'Доставка', 'Delivery') },
-    { id: 'sec-print', label: tx(lang, 'Çap', 'Печать', 'Print') },
-    { id: 'sec-interface', label: tx(lang, 'İnterfeys', 'Интерфейс', 'Interface') },
-    { id: 'sec-tables', label: tx(lang, 'Masalar', 'Столы', 'Tables') },
-    { id: 'sec-beverage', label: tx(lang, 'İçkilər', 'Напитки', 'Beverage') },
-    { id: 'sec-finance', label: tx(lang, 'Maliyyə', 'Финансы', 'Finance') },
-    { id: 'sec-security', label: tx(lang, 'Təhlükəsizlik', 'Безопасность', 'Security') },
-    { id: 'sec-staff', label: tx(lang, 'Staff', 'Персонал', 'Staff') },
-    { id: 'sec-qr', label: tx(lang, 'QR & Feedback', 'QR & Отзывы', 'QR & Feedback') },
-    { id: 'sec-roles', label: tx(lang, 'Rollar', 'Роли', 'Roles') },
+    { id: 'sec-profile', label: tx(lang, 'Profil', 'Профиль', 'Profile'), cat: 'general' },
+    { id: 'sec-delivery', label: tx(lang, 'Çatdırılma', 'Доставка', 'Delivery'), cat: 'integrations' },
+    { id: 'sec-print', label: tx(lang, 'Çap', 'Печать', 'Print'), cat: 'operations' },
+    { id: 'sec-interface', label: tx(lang, 'İnterfeys', 'Интерфейс', 'Interface'), cat: 'interface' },
+    { id: 'sec-tables', label: tx(lang, 'Masalar', 'Столы', 'Tables'), cat: 'operations' },
+    { id: 'sec-beverage', label: tx(lang, 'İçkilər', 'Напитки', 'Beverage'), cat: 'operations' },
+    { id: 'sec-finance', label: tx(lang, 'Maliyyə', 'Финансы', 'Finance'), cat: 'finance' },
+    { id: 'sec-security', label: tx(lang, 'Təhlükəsizlik', 'Безопасность', 'Security'), cat: 'security' },
+    { id: 'sec-staff', label: tx(lang, 'Staff', 'Персонал', 'Staff'), cat: 'security' },
+    { id: 'sec-qr', label: tx(lang, 'QR & Feedback', 'QR & Отзывы', 'QR & Feedback'), cat: 'integrations' },
+    { id: 'sec-roles', label: tx(lang, 'Rollar', 'Роли', 'Roles'), cat: 'security' },
+    { id: 'sec-ai', label: tx(lang, 'AI & Resept', 'AI & Рецепты', 'AI & Recipes'), cat: 'ai' },
   ];
+
+  const settingsCategories = [
+    { id: 'all', icon: '📋', label: tx(lang, 'Hamısı', 'Все', 'All') },
+    { id: 'general', icon: '🏢', label: tx(lang, 'Ümumi', 'Общее', 'General') },
+    { id: 'operations', icon: '⚙️', label: tx(lang, 'Əməliyyat', 'Операции', 'Operations') },
+    { id: 'finance', icon: '💰', label: tx(lang, 'Maliyyə', 'Финансы', 'Finance') },
+    { id: 'integrations', icon: '🔗', label: tx(lang, 'İnteqrasiya', 'Интеграции', 'Integrations') },
+    { id: 'ai', icon: '🤖', label: tx(lang, 'AI', 'AI', 'AI') },
+    { id: 'security', icon: '🔒', label: tx(lang, 'Təhlükəsizlik', 'Безопасность', 'Security') },
+    { id: 'interface', icon: '🎨', label: tx(lang, 'İnterfeys', 'Интерфейс', 'Interface') },
+  ];
+
+  const [activeSettingsCategory, setActiveSettingsCategory] = useState('all');
+
+  // Toggle section visibility via DOM when category changes
+  useEffect(() => {
+    const visibleIds = activeSettingsCategory === 'all'
+      ? settingsSections.map((s) => s.id)
+      : settingsSections.filter((s) => s.cat === activeSettingsCategory).map((s) => s.id);
+    const visibleSet = new Set(visibleIds);
+    settingsSections.forEach((sec) => {
+      const el = document.getElementById(sec.id);
+      if (el) el.style.display = visibleSet.has(sec.id) ? '' : 'none';
+    });
+  }, [activeSettingsCategory]);
 
 
   return (
-    <div className="flex gap-4">
-      {/* Sidebar navigation */}
-      <nav className="sticky top-0 hidden h-fit w-[180px] shrink-0 flex-col gap-1 rounded-2xl border border-slate-700/60 bg-slate-950/40 p-3 lg:flex">
-        <div className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">{tx(lang, 'Bölmələr', 'Разделы', 'Sections')}</div>
-        {settingsSections.map((sec) => (
-          <button
-            key={sec.id}
-            type="button"
-            onClick={() => document.getElementById(sec.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-            className="rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-300 transition hover:bg-slate-800/60 hover:text-slate-100"
-          >
-            {sec.label}
-          </button>
-        ))}
-      </nav>
+    <div className="flex flex-col gap-4">
+      {/* Category Tab Strip — mobile + desktop friendly */}
+      <div className="sticky top-0 z-20 rounded-2xl border border-slate-700/60 bg-slate-950/80 backdrop-blur-xl p-2">
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
+          {settingsCategories.map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setActiveSettingsCategory(cat.id)}
+              className={`flex shrink-0 items-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition active:scale-95 ${
+                activeSettingsCategory === cat.id
+                  ? 'bg-cyan-400/20 border-2 border-cyan-400/50 text-cyan-100 shadow-md shadow-cyan-500/10'
+                  : 'border-2 border-transparent text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+              }`}
+            >
+              <span className="text-base">{cat.icon}</span>
+              <span className="hidden sm:inline">{cat.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Content */}
       <div className="min-w-0 flex-1 space-y-6">
@@ -3660,6 +3695,34 @@ export default function SettingsPanel() {
           </div>
         </div>
       ) : null}
+
+      <div id="sec-ai" className="metal-panel p-6 space-y-4">
+        <h2 className="text-xl font-bold text-slate-100">🤖 {tx(lang, 'AI Resept Konfiqurasiyası', 'AI Конфигурация рецептов', 'AI Recipe Configuration')}</h2>
+        <p className="text-sm text-slate-400">
+          {tx(lang, 'Resept AI agenti üçün API key konfiqurasiyası. Key formatına görə provider avtomatik tanınır.', 'Конфигурация API key для AI агента рецептов. Провайдер определяется автоматически по формату ключа.', 'API key configuration for the recipe AI agent. Provider is auto-detected from key format.')}
+        </p>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-slate-300">{tx(lang, 'AI API Key', 'AI API Key', 'AI API Key')}</label>
+            <input className="neon-input w-full" type="password" value={readScopedStorage('gemini_api_key') || ''} onChange={(e) => { writeScopedStorage('gemini_api_key', e.target.value); void update_api_key_live(e.target.value, {}); }} placeholder="API key (FreeModel, Gemini, OpenRouter...)" />
+            <p className="text-[10px] text-slate-500">{tx(lang, 'Key formatına görə provider avtomatik tanınır', 'Провайдер определяется автоматически', 'Provider is auto-detected from key format')}</p>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-slate-300">{tx(lang, 'Aşkarlanan provider', 'Определённый провайдер', 'Detected provider')}</label>
+            <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 px-4 py-3 text-sm text-slate-200">
+              {(() => { const k = readScopedStorage('gemini_api_key') || ''; if (!k) return tx(lang, 'Key daxil edilməyib', 'Ключ не введён', 'No key entered'); const d = detectAiConfigFromApiKey(k); return `${aiProviderLabel(d.provider)} · ${d.model}`; })()}
+            </div>
+          </div>
+        </div>
+        <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4 text-xs text-cyan-200/90 space-y-1">
+          <div className="font-bold">{tx(lang, 'Dəstəklənən providerlər:', 'Поддерживаемые провайдеры:', 'Supported providers:')}</div>
+          <div>• <strong>FreeModel.dev</strong> — Claude, GPT (pulsuz kredit)</div>
+          <div>• <strong>Google Gemini</strong> — AIza... key</div>
+          <div>• <strong>OpenRouter</strong> — sk-or-v1-... key</div>
+          <div>• <strong>OpenAI</strong> — sk-... key</div>
+          <div>• <strong>Anthropic</strong> — sk-ant-... key</div>
+        </div>
+      </div>
 
       <div id="sec-roles" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Rol icazələri', 'Права ролей', 'Role permissions')}</h2>
