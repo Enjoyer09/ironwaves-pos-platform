@@ -468,10 +468,11 @@ async function generate_recipe_ai_rows(
   const selectedProvider = String(
     (configuredProvider && configuredProvider !== 'unknown' ? configuredProvider : '')
       || (tenantSettings?.ai_config?.ollama_freeapi_enabled ? 'ollama_freeapi' : detected.provider)
-      || 'unknown',
+      // If provider is unknown but key exists, use freemodel as OpenAI-compatible fallback
+      || (aiKey ? 'freemodel' : 'unknown'),
   );
   const configuredModel = String(tenantSettings?.ai_config?.model || '').trim();
-  const selectedModel = String(configuredModel && configuredModel !== 'auto' ? configuredModel : (detected.model || 'gemini-1.5-flash'));
+  const selectedModel = String(configuredModel && configuredModel !== 'auto' ? configuredModel : (detected.model || 'claude-sonnet-4-20250514'));
   const canUseGeminiRemote = selectedProvider === 'google';
   let remoteGenerated = false;
   let fallbackReason = '';
@@ -506,7 +507,7 @@ async function generate_recipe_ai_rows(
 
   let aiRows: Array<{ ingredient: string; qty: number; qty_unit?: string }> = [];
   try {
-    if (!canUseGeminiRemote && selectedProvider !== 'ollama' && selectedProvider !== 'ollama_freeapi' && selectedProvider !== 'opencode' && selectedProvider !== 'freemodel') {
+    if (!canUseGeminiRemote && selectedProvider !== 'ollama' && selectedProvider !== 'ollama_freeapi' && selectedProvider !== 'opencode' && selectedProvider !== 'freemodel' && selectedProvider !== 'openai' && selectedProvider !== 'anthropic' && selectedProvider !== 'openrouter' && selectedProvider !== 'xai') {
       throw new Error('REMOTE_PROVIDER_SKIPPED');
     }
     const invText = inventory
@@ -611,7 +612,7 @@ async function generate_recipe_ai_rows(
           timeout_seconds: 45,
         });
       }
-    } else if (selectedProvider === 'freemodel') {
+    } else if (selectedProvider === 'freemodel' || selectedProvider === 'openai' || selectedProvider === 'anthropic' || selectedProvider === 'openrouter' || selectedProvider === 'xai') {
       const freeModelBase = 'https://freemodel.dev/v1';
       const freeModelModel = selectedModel && selectedModel !== 'auto' ? selectedModel : 'claude-sonnet-4-20250514';
       const callFreeModel = async (retryCount = 0): Promise<string> => {
