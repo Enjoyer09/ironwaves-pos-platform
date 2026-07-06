@@ -1941,67 +1941,86 @@ export default function SettingsPanel() {
           )}
         </div>
         {printSettings.use_qz && (
-          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-xs text-slate-300 space-y-2">
-            <span className="font-semibold text-emerald-400 block">
-              {tx(
-                lang,
-                '🔒 QZ Tray İcazə Pəncərəsini Ləğv Etmək Üçün Təlimat:',
-                '🔒 Инструкция по отключению окна подтверждения QZ Tray:',
-                '🔒 Instruction to suppress QZ Tray confirmation dialog:',
-              )}
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-xs text-slate-300 space-y-3">
+            <span className="font-semibold text-emerald-400 block text-sm">
+              🔒 {tx(lang, 'QZ Tray — Sessiz Çap Quraşdırması', 'QZ Tray — Настройка тихой печати', 'QZ Tray — Silent Print Setup')}
             </span>
-            <p>
-              {tx(
-                lang,
-                'QZ Tray-in hər dəfə "Çap etmək istəyirsinizmi?" pəncərəsini çıxarmaması üçün bizim təhlükəsiz rəqəmsal sertifikatı QZ-ə bir dəfəlik tanıtmalısınız:',
-                'Чтобы QZ Tray перестал запрашивать разрешение на каждый чек, импортируйте наш бесплатный цифровой сертификат:',
-                'To prevent QZ Tray from asking for permission on every single print job, import our free digital certificate once:',
-              )}
-            </p>
-            <ol className="list-decimal pl-4 space-y-1">
-              <li>
+
+            {/* One-click download buttons */}
+            <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-4 space-y-3">
+              <p className="text-sm font-semibold text-emerald-200">
+                {tx(lang, '⚡ Ən sadə yol (1 dəqiqə):', 'Самый простой способ (1 минута):', '⚡ Easiest way (1 minute):')}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={URL.createObjectURL(new Blob(['7b202bd54bf3dbc7c9394001d2edbdaec85dd8df\n'], { type: 'text/plain' }))}
+                  download="allowed.dat"
+                  className="inline-flex items-center gap-2 rounded-xl border-2 border-emerald-400/50 bg-emerald-500/20 px-4 py-2.5 text-sm font-bold text-emerald-100 transition hover:bg-emerald-500/30 active:scale-95"
+                >
+                  📥 {tx(lang, 'allowed.dat yüklə', 'Скачать allowed.dat', 'Download allowed.dat')}
+                </a>
                 <a
                   href="/downloads/qz-digital-certificate.txt"
                   download="qz-digital-certificate.txt"
-                  className="font-bold text-emerald-400 underline hover:text-emerald-300"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-800/50 px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:bg-slate-700/60 active:scale-95"
                 >
-                  {tx(
-                    lang,
-                    'Buraya klikləyərək qz-digital-certificate.txt faylını yükləyin',
-                    'Нажмите здесь, чтобы скачать qz-digital-certificate.txt',
-                    'Click here to download qz-digital-certificate.txt',
-                  )}
+                  📄 {tx(lang, 'Sertifikat yüklə', 'Скачать сертификат', 'Download certificate')}
                 </a>
-              </li>
-              <li>
-                {tx(
-                  lang,
-                  'Kompüterinizin sağ aşağı küncündəki (Tray) QZ Tray ikonuna sağ klikləyin.',
-                  'Нажмите правой кнопкой мыши по иконке QZ Tray в трее.',
-                  'Right-click the QZ Tray icon in your system tray.',
-                )}
-              </li>
-              <li>
-                <span className="font-semibold">Advanced &rarr; Site Manager</span>{' '}
-                {tx(lang, 'bölməsinə daxil olun.', 'перейдите в этот раздел.', 'navigate to this section.')}
-              </li>
-              <li>
-                {tx(
-                  lang,
-                  'Açılan pəncərədə "+" düyməsinə klikləyib yüklədiyiniz faylı seçin və ya onu birbaşa pəncərəyə sürükləyib buraxın (Drag & Drop).',
-                  'Нажмите "+" и выберите скачанный файл, либо просто перетащите его в окно (Drag & Drop).',
-                  'Click "+" and select the downloaded file, or simply drag & drop it into the window.',
-                )}
-              </li>
-            </ol>
-            <p className="text-slate-400">
-              {tx(
-                lang,
-                'Qeyd: İdxal edildikdən sonra bütün çap əməliyyatları tamamilə səssiz və saniyələr içində icazəsiz baş verəcək.',
-                'Примечание: После импорта печать будет происходить полностью автоматически и мгновенно без запросов.',
-                'Note: Once imported, all printing will happen completely silently and instantly without prompts.',
-              )}
-            </p>
+              </div>
+              <div className="space-y-2 text-xs text-emerald-200/80">
+                <p className="font-bold">{tx(lang, 'Quraşdırma addımları:', 'Шаги установки:', 'Setup steps:')}</p>
+                <ol className="list-decimal pl-4 space-y-1.5">
+                  <li>
+                    {tx(lang,
+                      'Yuxarıdakı "allowed.dat yüklə" düyməsinə basın',
+                      'Нажмите кнопку "Скачать allowed.dat" выше',
+                      'Click "Download allowed.dat" button above')}
+                  </li>
+                  <li>
+                    <strong>Windows:</strong> {tx(lang,
+                      'Faylı bura kopyalayın:',
+                      'Скопируйте файл сюда:',
+                      'Copy file to:')} <code className="rounded bg-black/40 px-1.5 py-0.5">C:\\ProgramData\\QZ Tray\\allowed.dat</code>
+                  </li>
+                  <li>
+                    <strong>macOS:</strong> {tx(lang,
+                      'Faylı bura kopyalayın:',
+                      'Скопируйте файл сюда:',
+                      'Copy file to:')} <code className="rounded bg-black/40 px-1.5 py-0.5">/Library/Application Support/qz/allowed.dat</code>
+                  </li>
+                  <li>
+                    {tx(lang,
+                      'QZ Tray-i restart edin (system tray → sağ klik → Exit → yenidən açın)',
+                      'Перезапустите QZ Tray (system tray → правый клик → Exit → откройте снова)',
+                      'Restart QZ Tray (system tray → right-click → Exit → reopen)')}
+                  </li>
+                </ol>
+                <p className="mt-2 text-emerald-300/70 italic">
+                  ✅ {tx(lang,
+                    'Bir dəfə quraşdırıldıqdan sonra heç bir dialog gəlməyəcək. Bütün çap əməliyyatları sessiz olacaq.',
+                    'После установки ни одно окно подтверждения больше не появится. Вся печать будет бесшумной.',
+                    'Once installed, no confirmation dialogs will appear. All printing will be silent.')}
+                </p>
+              </div>
+            </div>
+
+            {/* Alternative: Site Manager method */}
+            <details className="group">
+              <summary className="cursor-pointer text-xs font-semibold text-slate-400 hover:text-slate-200 transition">
+                {tx(lang, '📖 Alternativ yol: QZ Tray Site Manager', '📖 Альтернативный способ: QZ Tray Site Manager', '📖 Alternative: QZ Tray Site Manager')}
+              </summary>
+              <ol className="mt-2 list-decimal pl-4 space-y-1 text-xs text-slate-400">
+                <li>
+                  {tx(lang, 'Sertifikat faylını yükləyin (yuxarıdakı "Sertifikat yüklə" düyməsi)', 'Скачайте файл сертификата (кнопка "Скачать сертификат" выше)', 'Download the certificate file (button above)')}
+                </li>
+                <li>
+                  {tx(lang, 'QZ Tray ikonuna sağ klikləyin → Advanced → Site Manager', 'Правый клик по иконке QZ Tray → Advanced → Site Manager', 'Right-click QZ Tray icon → Advanced → Site Manager')}
+                </li>
+                <li>
+                  {tx(lang, '"+" düyməsinə basıb sertifikat faylını seçin', 'Нажмите "+" и выберите файл сертификата', 'Click "+" and select the certificate file')}
+                </li>
+              </ol>
+            </details>
           </div>
         )}
         {renderPanelSuccess('print')}
