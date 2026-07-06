@@ -1,4 +1,4 @@
-export type AiProvider = 'google' | 'openai' | 'anthropic' | 'openrouter' | 'xai' | 'huggingface' | 'ollama' | 'ollama_freeapi' | 'opencode' | 'unknown';
+export type AiProvider = 'google' | 'openai' | 'anthropic' | 'openrouter' | 'xai' | 'huggingface' | 'ollama' | 'ollama_freeapi' | 'opencode' | 'freemodel' | 'unknown';
 
 export type AiDetectionResult = {
   provider: AiProvider;
@@ -17,6 +17,7 @@ export const DEFAULT_MODEL_BY_PROVIDER: Record<AiProvider, string> = {
   ollama: 'gpt-oss:20b',
   ollama_freeapi: 'llama3.2:3b',
   opencode: 'deepseek-v4-flash',
+  freemodel: 'claude-sonnet-4-20250514',
   unknown: 'auto',
 };
 
@@ -31,6 +32,7 @@ export function providerLabel(provider: AiProvider): string {
     ollama: 'Ollama Cloud',
     ollama_freeapi: 'OllamaFreeAPI (Experimental)',
     opencode: 'OpenCode Platform',
+    freemodel: 'FreeModel.dev',
     unknown: 'Unknown',
   };
   return map[provider];
@@ -93,6 +95,14 @@ export function detectAiConfigFromApiKey(value: string): AiDetectionResult {
       model: DEFAULT_MODEL_BY_PROVIDER.ollama,
       confidence: 'high',
       reason: 'Ollama API key format detected',
+    };
+  }
+  if (/^(fre|fm|FRE|FM)[_\-][A-Za-z0-9\-_]+$/i.test(apiKey)) {
+    return {
+      provider: 'freemodel',
+      model: DEFAULT_MODEL_BY_PROVIDER.freemodel,
+      confidence: 'high',
+      reason: 'FreeModel.dev key format detected',
     };
   }
   if (/^ol[a-z0-9][A-Za-z0-9\-_]{12,}$/i.test(apiKey) || /ollama/i.test(apiKey)) {
