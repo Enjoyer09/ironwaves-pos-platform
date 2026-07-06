@@ -73,6 +73,8 @@ export default function RecipesPanel() {
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [clearConfirmPassword, setClearConfirmPassword] = useState('');
   const [isClearing, setIsClearing] = useState(false);
+  const [bulkAiRunning, setBulkAiRunning] = useState(false);
+  const [bulkAiProgress, setBulkAiProgress] = useState<{ current: number; total: number; currentItem: string; results: Array<{ name: string; ok: boolean; error?: string }> }>({ current: 0, total: 0, currentItem: '', results: [] });
 
   const verifyAdminPassword = async () => {
     const normalized = String(clearConfirmPassword || '').trim();
@@ -330,6 +332,64 @@ export default function RecipesPanel() {
     }
   };
 
+  const handleBulkAiGenerate = async () => {
+    if (bulkAiRunning || menuItems.length === 0) return;
+    setBulkAiRunning(true);
+    const items = [...menuItems];
+    setBulkAiProgress({ current: 0, total: items.length, currentItem: '', results: [] });
+
+    const results: Array<{ name: string; ok: boolean; error?: string }> = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const name = String(item.item_name || '');
+      setBulkAiProgress((prev) => ({ ...prev, current: i + 1, currentItem: name }));
+      try {
+        await generate_recipe_ai_live(name, user?.username || 'system', tenant_id, {
+          category: item.category,
+          sell_price: item.price,
+        });
+        results.push({ name, ok: true });
+      } catch (e: any) {
+        const msg = String(e?.message || '');
+        // Rate limit — gözlə və yenidən cəhd et
+        if (msg.includes('429') || msg.toLowerCase().includes('rate') || msg.toLowerCase().includes('too many')) {
+          await new Promise((r) => setTimeout(r, 12000));
+          try {
+            await generate_recipe_ai_live(name, user?.username || 'system', tenant_id, {
+              category: item.category,
+              sell_price: item.price,
+            });
+            results.push({ name, ok: true });
+          } catch (e2: any) {
+            results.push({ name, ok: false, error: String(e2?.message || 'retry failed') });
+          }
+        } else {
+          results.push({ name, ok: false, error: msg.slice(0, 80) });
+        }
+      }
+      setBulkAiProgress((prev) => ({ ...prev, results: [...results] }));
+      // Rate limit: 3 san interval API call-lar arasında
+      if (i < items.length - 1) await new Promise((r) => setTimeout(r, 3000));
+    }
+
+    const okCount = results.filter((r) => r.ok).length;
+    const failCount = results.filter((r) => !r.ok).length;
+    notify('success', tx(lang, `Bulk AI: ${okCount} resept yaradıldı, ${failCount} xəta`, `Bulk AI: ${okCount} рецептов создано, ${failCount} ошибок`, `Bulk AI: ${okCount} recipes created, ${failCount} errors`));
+    setBulkAiRunning(false);
+
+    // Refresh missing recipe set
+    const allRecipeNames = await get_recipe_menu_names_live(tenant_id);
+    const recipeNameSet = new Set(allRecipeNames);
+    setMissingRecipeSet(new Set(menuItems.filter((m) => !recipeNameSet.has(String(m.item_name))).map((m) => String(m.item_name))));
+
+    // Refresh current selected menu if any
+    if (selectedMenu) {
+      const nextItems = await get_recipe_live(selectedMenu, tenant_id);
+      setRecipeItems(nextItems);
+      setDraftRecipeItems(nextItems);
+    }
+  };
+
   const hasUnsavedChanges = JSON.stringify(draftRecipeItems.map((item) => ({ ingredient_name: item.ingredient_name, quantity_required: item.quantity_required, quantity_unit: item.quantity_unit || item.unit })))
     !== JSON.stringify(recipeItems.map((item) => ({ ingredient_name: item.ingredient_name, quantity_required: item.quantity_required, quantity_unit: item.quantity_unit || item.unit })));
 
@@ -464,8 +524,32 @@ export default function RecipesPanel() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {/* Sol: Menyu Seçimi */}
         <div className="metal-panel overflow-hidden col-span-1">
-          <div className="p-4 border-b border-slate-700/70 bg-slate-900/40">
+          <div className="p-4 border-b border-slate-700/70 bg-slate-900/40 space-y-3">
             <h2 className="font-bold text-slate-100">{tx(lang, 'Menyu Məhsulları', 'Позиции меню', 'Menu Items')}</h2>
+            <button
+              type="button"
+              disabled={bulkAiRunning || menuItems.length === 0}
+              onClick={() => { void handleBulkAiGenerate(); }}
+              className="w-full rounded-xl bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border-2 border-yellow-400/40 px-4 py-3 text-sm font-bold text-yellow-100 transition hover:from-yellow-500/30 hover:to-amber-500/30 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {bulkAiRunning
+                ? `⏳ ${bulkAiProgress.current}/${bulkAiProgress.total} — ${bulkAiProgress.currentItem}`
+                : `🤖 ${tx(lang, 'Bütün reseptləri AI ilə yarat/yenilə', 'Создать/обновить все рецепты AI', 'Generate/update all recipes with AI')}`}
+            </button>
+            {bulkAiRunning && (
+              <div className="w-full rounded-full bg-slate-800 h-2 overflow-hidden">
+                <div className="h-full bg-yellow-400 transition-all duration-300" style={{ width: `${Math.round((bulkAiProgress.current / Math.max(1, bulkAiProgress.total)) * 100)}%` }} />
+              </div>
+            )}
+            {!bulkAiRunning && bulkAiProgress.results.length > 0 && (
+              <div className="max-h-24 overflow-y-auto rounded-lg border border-slate-700/40 bg-slate-950/40 p-2 text-[10px] space-y-0.5">
+                {bulkAiProgress.results.slice(-10).map((r, i) => (
+                  <div key={i} className={r.ok ? 'text-emerald-300' : 'text-rose-300'}>
+                    {r.ok ? '✓' : '✗'} {r.name} {r.error ? `— ${r.error.slice(0, 40)}` : ''}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="divide-y divide-slate-700/60 max-h-[500px] overflow-y-auto">
             {[...menuItems]

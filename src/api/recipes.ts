@@ -614,7 +614,7 @@ async function generate_recipe_ai_rows(
     } else if (selectedProvider === 'freemodel') {
       const freeModelBase = 'https://freemodel.dev/v1';
       const freeModelModel = selectedModel && selectedModel !== 'auto' ? selectedModel : 'claude-sonnet-4-20250514';
-      try {
+      const callFreeModel = async (retryCount = 0): Promise<string> => {
         const res = await fetch(`${freeModelBase}/chat/completions`, {
           method: 'POST',
           headers: {
@@ -631,12 +631,18 @@ async function generate_recipe_ai_rows(
             max_tokens: 600,
           }),
         });
-        if (!res.ok) {
-          fallbackReason = `FreeModel.dev HTTP ${res.status}`;
-        } else {
-          const data = await res.json();
-          responseText = String(data?.choices?.[0]?.message?.content || '');
+        if (res.status === 429 && retryCount < 2) {
+          await new Promise((r) => setTimeout(r, (retryCount + 1) * 10000));
+          return callFreeModel(retryCount + 1);
         }
+        if (!res.ok) {
+          throw new Error(`FreeModel.dev HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        return String(data?.choices?.[0]?.message?.content || '');
+      };
+      try {
+        responseText = await callFreeModel();
       } catch (e: any) {
         fallbackReason = `FreeModel.dev error: ${e?.message || 'unknown'}`;
       }
