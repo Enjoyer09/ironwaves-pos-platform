@@ -1465,7 +1465,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
         notify('error', tx(lang, `QZ çap alınmadı, brauzerə keçilir: ${e.message || e}`, `QZ печать не удалась, переход к печати браузера: ${e.message || e}`, `QZ printing failed, falling back to browser printing: ${e.message || e}`));
       }
     }
-    const frame = receiptRef.current;
+    const frame = document.querySelector<HTMLIFrameElement>('iframe[title="table-receipt"]');
     if (!frame?.contentWindow) return;
     frame.contentWindow.focus();
     frame.contentWindow.print();
