@@ -3,7 +3,7 @@ import { ShoppingBag, ChevronLeft, X, Heart } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { tx } from '../../i18n';
-import { getProductImage, playTickSound, nativeHapticImpact } from '../../lib/customer_utils';
+import { getProductImage, playTickSound, Haptic, nativeHapticImpact } from '../../lib/customer_utils';
 
 // --- ModifierSheet ---
 type ModifierSheetProps = {
@@ -31,13 +31,13 @@ export function ModifierSheet({ modifierSheetItem, setModifierSheetItem, selecte
       <div className="relative w-full max-w-md rounded-t-[36px] bg-[#0D0B0A]/95 border-t border-white/10 p-6 shadow-2xl max-h-[90vh] overflow-y-auto flex flex-col justify-between text-white backdrop-blur-2xl">
         <div className="overflow-x-hidden">
           <div className="flex items-center justify-between mb-4">
-            <button onClick={() => setModifierSheetItem(null)} className="h-9 w-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center border border-white/10 shadow-lg text-white active:scale-95 transition">
+            <button onClick={async () => { await Haptic.light(); setModifierSheetItem(null); }} className="h-9 w-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center border border-white/10 shadow-lg text-white active:scale-95 transition">
               <ChevronLeft size={18} />
             </button>
             <span className="text-[11px] font-black text-white uppercase tracking-wider">
               {tx(safeLang, 'Məhsul Təfərrüatı', 'Детали продукта', 'Product Details')}
             </span>
-            <button onClick={() => setModifierSheetItem(null)} className="h-9 w-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center border border-white/10 shadow-lg text-white active:scale-95 transition">
+            <button onClick={async () => { await Haptic.light(); setModifierSheetItem(null); }} className="h-9 w-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center border border-white/10 shadow-lg text-white active:scale-95 transition">
               <X size={18} />
             </button>
           </div>
@@ -114,7 +114,7 @@ export function ModifierSheet({ modifierSheetItem, setModifierSheetItem, selecte
           )}
         </div>
 
-        <button type="button" onClick={handleAddToCart}
+        <button type="button" onClick={async () => { await Haptic.medium(); handleAddToCart(); }}
           className="mt-6 w-full rounded-2xl py-3 text-sm font-black text-white transition-all active:scale-[0.97] shadow-lg"
           style={{ background: `linear-gradient(135deg, #F48C24, #ffb366)` }}>
           {tx(safeLang, 'Səbətə at', 'В корзину', 'Add to Cart')} · {finalPrice.toFixed(2)} ₼
@@ -147,7 +147,7 @@ export function CartSheet({ showCartSheet, setShowCartSheet, customerCart, handl
       <div className="relative w-full max-w-md rounded-t-[36px] bg-[#0D0B0A]/95 border-t border-white/10 p-6 shadow-2xl max-h-[85vh] overflow-y-auto flex flex-col backdrop-blur-2xl">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-black text-white">{tx(safeLang, 'Səbətiniz', 'Ваша корзина', 'Your Cart')}</h2>
-          <button onClick={() => setShowCartSheet(false)} className="h-8 w-8 rounded-full bg-white/5 text-white/60 flex items-center justify-center font-bold hover:bg-white/10">
+          <button onClick={async () => { await Haptic.light(); setShowCartSheet(false); }} className="h-8 w-8 rounded-full bg-white/5 text-white/60 flex items-center justify-center font-bold hover:bg-white/10">
             <X size={16} />
           </button>
         </div>
@@ -195,7 +195,7 @@ export function CartSheet({ showCartSheet, setShowCartSheet, customerCart, handl
               </div>
             </div>
 
-            <button onClick={handleCheckoutPreOrder} disabled={preOrderSubmitting}
+            <button onClick={async () => { await Haptic.medium(); handleCheckoutPreOrder(); }} disabled={preOrderSubmitting}
               className="mt-4 w-full rounded-2xl bg-[#1A4329] hover:bg-[#153621] disabled:opacity-50 text-white py-3 text-xs font-black transition active:scale-95 flex items-center justify-center gap-1.5 shadow-md">
               {preOrderSubmitting ? '...' : tx(safeLang, 'Sifarişi Təsdiqlə', 'Оформить предзаказ', 'Confirm Order')}
             </button>
@@ -234,7 +234,7 @@ export function PreOrderSuccess({ preOrderSuccess, preOrderSuccessId, setPreOrde
             <p className="text-[10px] font-mono text-white/30 tracking-wider">ID: {preOrderSuccessId.slice(0, 8)}</p>
           )}
         </div>
-        <button onClick={() => setPreOrderSuccess(false)}
+        <button onClick={async () => { await Haptic.light(); setPreOrderSuccess(false); }}
           className="rounded-2xl bg-[#F48C24] px-8 py-3 text-xs font-black text-white transition active:scale-95 shadow-lg">
           {tx(safeLang, 'Bağla', 'Закрыть', 'Close')}
         </button>

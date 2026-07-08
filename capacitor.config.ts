@@ -9,6 +9,7 @@ const config: CapacitorConfig = {
     'CustomerSessionPlugin',
     'HapticsPlugin',
     'PushNotificationsPlugin',
+    'CustomerLiveActivityPlugin',
   ],
   plugins: {
     CapacitorHttp: {

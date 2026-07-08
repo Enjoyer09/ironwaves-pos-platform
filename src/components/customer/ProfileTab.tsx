@@ -1,6 +1,7 @@
 import React from 'react';
 import { Bell, Gift, Languages } from 'lucide-react';
 import { tx } from '../../i18n';
+import { Haptic } from '../../lib/customer_utils';
 import SimpleAreaChart from './SimpleAreaChart';
 
 type Props = {
@@ -22,9 +23,9 @@ export default function ProfileTab({ safeLang, customer, notifications, history,
           <div className="text-lg font-bold text-white">{tx(safeLang, 'Müştəri Profili', 'Профиль клиента', 'Customer profile')}</div>
           <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-slate-200">
             <Languages size={14} />
-            <button type="button" onClick={() => setLang('az')} className={safeLang === 'az' ? 'font-bold underline' : ''}>AZ</button>
-            <button type="button" onClick={() => setLang('en')} className={safeLang === 'en' ? 'font-bold underline' : ''}>EN</button>
-            <button type="button" onClick={() => setLang('ru')} className={safeLang === 'ru' ? 'font-bold underline' : ''}>RU</button>
+            <button type="button" onClick={async () => { await Haptic.light(); setLang('az'); }} className={safeLang === 'az' ? 'font-bold underline' : ''}>AZ</button>
+            <button type="button" onClick={async () => { await Haptic.light(); setLang('en'); }} className={safeLang === 'en' ? 'font-bold underline' : ''}>EN</button>
+            <button type="button" onClick={async () => { await Haptic.light(); setLang('ru'); }} className={safeLang === 'ru' ? 'font-bold underline' : ''}>RU</button>
           </div>
         </div>
         <div className="mt-4 space-y-3 rounded-[24px] bg-slate-950/35 p-4 text-sm text-slate-200">
@@ -44,7 +45,7 @@ export default function ProfileTab({ safeLang, customer, notifications, history,
             <button
               key={row.id}
               type="button"
-              onClick={() => { if (!row.is_read) void markRead(row.id); }}
+              onClick={async () => { await Haptic.light(); if (!row.is_read) void markRead(row.id); }}
               className={`w-full rounded-2xl border p-4 text-left ${row.is_read ? 'border-slate-700/60 bg-slate-950/20' : 'border-cyan-300/20 bg-cyan-400/10'}`}
             >
               <div className="text-sm text-white">{row.message}</div>
