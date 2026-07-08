@@ -45,7 +45,7 @@ export function ModifierSheet({ modifierSheetItem, setModifierSheetItem, selecte
           <div className="grid grid-cols-12 gap-3 items-start my-2">
             <div className="col-span-7 space-y-3">
               <div>
-                <h2 className="text-xl font-black text-white leading-tight">{modifierSheetItem.name}</h2>
+                <h2 className="text-xl font-black text-white leading-tight">{modifierSheetItem.item_name || modifierSheetItem.name}</h2>
                 <p className="text-[9px] text-white/50 font-bold uppercase tracking-wider mt-0.5">
                   {modifierSheetItem.category || 'Craft Blend'}
                 </p>
@@ -68,7 +68,7 @@ export function ModifierSheet({ modifierSheetItem, setModifierSheetItem, selecte
             </div>
             <div className="col-span-5">
               <div className="rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
-                <img src={getProductImage(modifierSheetItem.name, modifierSheetItem.image_url)} alt={modifierSheetItem.name} className="h-full w-full object-cover" />
+                <img src={getProductImage(modifierSheetItem.item_name || modifierSheetItem.name || '', modifierSheetItem.image_url)} alt={modifierSheetItem.item_name || modifierSheetItem.name || ''} className="h-full w-full object-cover" />
               </div>
             </div>
           </div>
@@ -311,7 +311,7 @@ export default function OrderTab({
         <div className="flex gap-3 overflow-x-auto pb-2 pt-1">
           {cats.map(cat => {
             const firstItem = menuItems.find((it: any) => it.category === cat);
-            const catImage = getProductImage(firstItem?.name || cat, firstItem?.image_url);
+            const catImage = getProductImage(firstItem?.item_name || firstItem?.name || cat, firstItem?.image_url);
             const isSelected = selectedCategory === cat;
             return (
               <button key={cat} onClick={() => setSelectedCategory(cat)}
@@ -341,7 +341,7 @@ export default function OrderTab({
       ) : (
         <div className="grid grid-cols-2 gap-3.5">
           {filtered.map((item: any) => {
-            const itemName = (item.name || '').toLowerCase();
+            const itemName = (item.item_name || item.name || '').toLowerCase();
             const isHot = itemName.includes('isti') || itemName.includes('hot') || (item.category || '').toLowerCase().includes('isti');
             const badgeText = isHot ? 'HOT' : itemName.includes('iced') || itemName.includes('soyuq') ? 'ICED' : 'NEW';
             const badgeColor = badgeText === 'HOT'
@@ -368,9 +368,9 @@ export default function OrderTab({
                   <Heart size={12} fill={isFav ? '#F48C24' : 'none'} />
                 </button>
                 <div>
-                  <img src={getProductImage(item.name || '', item.image_url)} alt={item.name || ''}
+                  <img src={getProductImage(item.item_name || item.name || '', item.image_url)} alt={item.item_name || item.name || ''}
                     className="h-28 w-full rounded-2xl object-cover border border-white/5 group-hover:scale-[1.02] transition duration-300" />
-                  <h3 className="mt-3 text-xs font-black text-white leading-tight line-clamp-1">{item.name}</h3>
+                  <h3 className="mt-3 text-xs font-black text-white leading-tight line-clamp-1">{item.item_name || item.name}</h3>
                 </div>
                 <div className="mt-3 flex items-end justify-between">
                   <div>
