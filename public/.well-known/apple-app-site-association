@@ -1,0 +1,21 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "YOUR_TEAM_ID.com.ironwaves.loyalty"
+        ],
+        "components": [
+          {
+            "/": "/customer/*",
+            "comment": "Matches https://ironwaves.store/customer/... deep links"
+          },
+          {
+            "/": "/c/*",
+            "comment": "Matches https://ironwaves.store/c/... short deep links"
+          }
+        ]
+      }
+    ]
+  }
+}

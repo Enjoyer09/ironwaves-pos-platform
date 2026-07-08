@@ -2,6 +2,7 @@ import React from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Camera as CameraIcon } from 'lucide-react';
 import { tx } from '../../i18n';
+import { Haptic } from '../../lib/customer_utils';
 
 type Props = {
   safeLang: string;
@@ -41,11 +42,10 @@ export default function FalciTab({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          className="rounded-2xl px-5 py-3 font-black text-[12px] text-slate-950 active:scale-95 transition-transform"
+      <div className="flex flex-wrap gap-3">          <button
+            type="button"
+            onClick={async () => { await Haptic.light(); fileRef.current?.click(); }}
+            className="rounded-2xl px-5 py-3 font-black text-[12px] text-slate-950 active:scale-95 transition-transform"
           style={{
             background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`,
             boxShadow: `0 4px 12px ${primaryColor}33`
@@ -56,7 +56,7 @@ export default function FalciTab({
         {Capacitor.isNativePlatform() && (
           <button
             type="button"
-            onClick={takePhotoWithCamera}
+            onClick={async () => { await Haptic.medium(); takePhotoWithCamera(); }}
             className="flex items-center gap-2 rounded-2xl px-5 py-3 font-black text-[12px] text-slate-950 active:scale-95 transition-transform animate-pulse"
             style={{
               background: `linear-gradient(135deg, ${accentColor} 0%, ${primaryColor} 100%)`,

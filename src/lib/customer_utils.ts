@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { tx } from '../i18n';
 
 export type CustomerTab = 'home' | 'order' | 'offers' | 'barista' | 'falci' | 'profile';
@@ -183,3 +183,26 @@ export async function nativeHapticImpact(style: ImpactStyle = ImpactStyle.Light)
     } catch {}
   }
 }
+
+export async function nativeHapticNotification(type: NotificationType = NotificationType.Success) {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await Haptics.notification({ type });
+    } catch {}
+  }
+}
+
+/**
+ * Systematically fires haptic feedback for user interactions.
+ * - Light: button taps, tab switches, toggles
+ * - Medium: cards, sheets opening, important actions
+ * - Heavy: destructive actions, confirmations
+ * - Success: completed operations
+ */
+export const Haptic = {
+  light: () => nativeHapticImpact(ImpactStyle.Light),
+  medium: () => nativeHapticImpact(ImpactStyle.Medium),
+  heavy: () => nativeHapticImpact(ImpactStyle.Heavy),
+  success: () => nativeHapticNotification(NotificationType.Success),
+  error: () => nativeHapticNotification(NotificationType.Error),
+} as const;

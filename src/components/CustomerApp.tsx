@@ -17,6 +17,7 @@ import BaristaTab from './customer/BaristaTab';
 import FalciTab from './customer/FalciTab';
 import OffersTab from './customer/OffersTab';
 import { formatCardId, playTickSound, playShimmerSound, CustomerTab } from '../lib/customer_utils';
+import { syncOnAppOpen, registerWebBackgroundSync, registerCapacitorBackgroundTask } from '../lib/background_fetch';
 
 type Props = {
   cardId?: string;
@@ -407,6 +408,13 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   React.useEffect(() => {
     if (sessionCreds.cardId && sessionCreds.token) {
       void load();
+      // Background sync on app open
+      void syncOnAppOpen(sessionCreds.cardId, sessionCreds.token).then(session => {
+        if (session) setData(session);
+      });
+      // Register background sync mechanisms
+      void registerWebBackgroundSync({ cardId: sessionCreds.cardId, token: sessionCreds.token });
+      void registerCapacitorBackgroundTask({ cardId: sessionCreds.cardId, token: sessionCreds.token });
       return;
     }
     if (!joinMode) {
