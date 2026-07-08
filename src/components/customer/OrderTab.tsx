@@ -341,8 +341,9 @@ export default function OrderTab({
       ) : (
         <div className="grid grid-cols-2 gap-3.5">
           {filtered.map((item: any) => {
-            const isHot = item.name.toLowerCase().includes('isti') || item.name.toLowerCase().includes('hot') || item.category?.toLowerCase().includes('isti');
-            const badgeText = isHot ? 'HOT' : item.name.toLowerCase().includes('iced') || item.name.toLowerCase().includes('soyuq') ? 'ICED' : 'NEW';
+            const itemName = (item.name || '').toLowerCase();
+            const isHot = itemName.includes('isti') || itemName.includes('hot') || (item.category || '').toLowerCase().includes('isti');
+            const badgeText = isHot ? 'HOT' : itemName.includes('iced') || itemName.includes('soyuq') ? 'ICED' : 'NEW';
             const badgeColor = badgeText === 'HOT'
               ? 'bg-[#F48C24]/10 border border-[#F48C24]/20 text-[#F48C24]'
               : badgeText === 'ICED'
@@ -367,7 +368,7 @@ export default function OrderTab({
                   <Heart size={12} fill={isFav ? '#F48C24' : 'none'} />
                 </button>
                 <div>
-                  <img src={getProductImage(item.name, item.image_url)} alt={item.name}
+                  <img src={getProductImage(item.name || '', item.image_url)} alt={item.name || ''}
                     className="h-28 w-full rounded-2xl object-cover border border-white/5 group-hover:scale-[1.02] transition duration-300" />
                   <h3 className="mt-3 text-xs font-black text-white leading-tight line-clamp-1">{item.name}</h3>
                 </div>

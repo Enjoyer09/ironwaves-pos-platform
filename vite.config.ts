@@ -73,11 +73,14 @@ export default defineConfig(({ command }) => {
       sourcemap: false,
       cssCodeSplit: true,
       assetsInlineLimit: 4096,
-      rollupOptions: isCustomerOnlyBuild
-        ? {
-            input: path.resolve(__dirname, "customer.html"),
-          }
-        : undefined,
+      rollupOptions: {
+        external: ['@capacitor/background-task'],
+        ...(isCustomerOnlyBuild
+          ? {
+              input: path.resolve(__dirname, "customer.html"),
+            }
+          : {}),
+      },
       minify: "terser",
       terserOptions: {
         compress: {

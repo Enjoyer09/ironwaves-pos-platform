@@ -18,6 +18,7 @@ import FalciTab from './customer/FalciTab';
 import OffersTab from './customer/OffersTab';
 import { formatCardId, playTickSound, playShimmerSound, CustomerTab } from '../lib/customer_utils';
 import { syncOnAppOpen, registerWebBackgroundSync, registerCapacitorBackgroundTask } from '../lib/background_fetch';
+import { startLiveActivity, updateLiveActivity, endLiveActivity } from '../lib/live_activity';
 
 type Props = {
   cardId?: string;
@@ -334,6 +335,59 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const balanceSuffix = programMode === 'cashback' ? ' ₼' : '';
   const heroImage = String(branding?.hero_image_url || '');
   const aiBaristaEnabled = branding?.ai_barista_enabled === true;
+
+  // Live Activity — start on data load, update on wallet change
+  const hasStartedLiveActivityRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!data?.customer?.name || !wallet) return;
+    const starsBalance = Number(wallet.stars_balance ?? 0);
+    const isCashback = programMode === 'cashback';
+    const cashbackPct = Number(wallet.cashback_percent || 0);
+
+    if (!hasStartedLiveActivityRef.current) {
+      hasStartedLiveActivityRef.current = true;
+      void startLiveActivity({
+        customerName: data.customer.name,
+        programMode,
+        starsBalance,
+        progressPercent,
+        rewardName: wallet.reward_name || 'Reward',
+        isCashback,
+        cashbackPercent: cashbackPct,
+      });
+    }
+  }, [data?.customer?.name, wallet]);
+
+  // Update Live Activity when wallet balance changes
+  const prevWalletRef = React.useRef<string>('');
+  React.useEffect(() => {
+    if (!hasStartedLiveActivityRef.current) return;
+    const walletKey = JSON.stringify({
+      starsBalance: wallet.stars_balance,
+      progressCurrent: wallet.progress_current,
+      rewardName: wallet.reward_name,
+      cashbackPercent: wallet.cashback_percent,
+    });
+    if (walletKey === prevWalletRef.current) return;
+    prevWalletRef.current = walletKey;
+
+    void updateLiveActivity({
+      starsBalance: Number(wallet.stars_balance ?? 0),
+      progressPercent,
+      rewardName: wallet.reward_name || 'Reward',
+      isCashback: programMode === 'cashback',
+      cashbackPercent: Number(wallet.cashback_percent || 0),
+    });
+  }, [wallet.stars_balance, wallet.progress_current, wallet.reward_name, wallet.cashback_percent, wallet.next_reward_at]);
+
+  // End Live Activity on unmount
+  React.useEffect(() => {
+    return () => {
+      if (hasStartedLiveActivityRef.current) {
+        void endLiveActivity();
+      }
+    };
+  }, []);
 
   const onesignalScriptRef = React.useRef<HTMLScriptElement | null>(null);
 
