@@ -167,7 +167,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
     const cartItem = {
       id: modifierSheetItem.id,
-      name: modifierSheetItem.name,
+      name: modifierSheetItem.item_name || modifierSheetItem.name || '',
       quantity: 1,
       price: finalPrice,
       variant_name: selectedVariant ? selectedVariant.name : null,
