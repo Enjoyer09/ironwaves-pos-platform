@@ -16,6 +16,7 @@ type Props = {
   campaignQrs: Record<string, string>;
   setCampaignQrs: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   primaryColor: string;
+  isLight?: boolean;
   accentColor: string;
 };
 

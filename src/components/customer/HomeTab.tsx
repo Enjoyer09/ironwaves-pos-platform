@@ -80,6 +80,7 @@ type Props = {
   get_customer_wallet_pass_url_fn: (cardId: string, token: string, lang: string) => string;
   sessionCreds: { cardId: string; token: string };
   data: any;
+  isLight?: boolean;
 };
 
 export default function HomeTab({
@@ -89,8 +90,11 @@ export default function HomeTab({
   rewards, progressPercent, notifications, favoriteItems, pendingClaims,
   geofenceAlert, setGeofenceAlert, simulatedTemp, simulatedCondition,
   setSimulatedTemp, setSimulatedCondition, setActiveTab, tick,
-  openWalletPass, get_customer_wallet_pass_url_fn, sessionCreds, data
+  openWalletPass, get_customer_wallet_pass_url_fn, sessionCreds, data, isLight = false
 }: Props) {
+  const cardClass = isLight ? 'border-slate-200/80 bg-white/80 backdrop-blur-xl shadow-sm' : 'border-white/10 bg-white/6 backdrop-blur-xl';
+  const textClass = isLight ? 'text-slate-900' : 'text-white';
+  const mutedClass = isLight ? 'text-slate-500' : 'text-white/60';
   const formatCardIdFn = (id: string) => {
     const clean = String(id || '').replace(/[^a-zA-Z0-9]/g, '');
     if (!clean) return '•••• •••• •••• ••••';

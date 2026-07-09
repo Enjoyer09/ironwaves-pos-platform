@@ -11,6 +11,7 @@ type Props = {
   history: any[];
   chartData: Array<{ date: string; amount: number }>;
   primaryColor: string;
+  isLight?: boolean;
   setLang: (lang: string) => void;
   markRead: (id: string) => void | Promise<void>;
 };

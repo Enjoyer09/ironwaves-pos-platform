@@ -15,6 +15,7 @@ type Props = {
   analyzeImageFortune: (file: File) => void;
   takePhotoWithCamera: () => void;
   primaryColor: string;
+  isLight?: boolean;
   accentColor: string;
 };
 
