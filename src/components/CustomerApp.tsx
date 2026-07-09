@@ -59,6 +59,24 @@ function scrubCustomerSessionFromUrl() {
 export default function CustomerApp({ cardId = '', token = '', joinMode = false }: Props) {
   const { lang, setLang } = useAppStore();
   const [loading, setLoading] = React.useState(true);
+
+  // Theme: system default, with manual toggle
+  const [themeMode, setThemeMode] = React.useState<'light' | 'dark'>(() => {
+    try {
+      const saved = localStorage.getItem('customer_theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch {}
+    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: light)').matches) return 'light';
+    return 'dark';
+  });
+  const isLight = themeMode === 'light';
+
+  React.useEffect(() => {
+    try { localStorage.setItem('customer_theme', themeMode); } catch {}
+    // Update meta theme-color for status bar
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', isLight ? '#FFFFFF' : '#0f172a');
+  }, [themeMode, isLight]);
   const [data, setData] = React.useState<any | null>(null);
   const [bootstrapData, setBootstrapData] = React.useState<any | null>(null);
   const [error, setError] = React.useState('');
@@ -1227,15 +1245,27 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   return (
     <div
-      className="relative min-h-dvh overflow-x-hidden overflow-y-auto overscroll-contain text-white bg-[#0D0B0A]"
+      className={`relative min-h-dvh overflow-x-hidden overflow-y-auto overscroll-contain ${isLight ? 'text-slate-900 bg-[#F8F6F4]' : 'text-white bg-[#0D0B0A]'}`}
       style={{
-        background: `linear-gradient(180deg, #181412 0%, #0D0B0A 100%)`,
+        background: isLight
+          ? `linear-gradient(180deg, #FFFFFF 0%, #F3F1EF 100%)`
+          : `linear-gradient(180deg, #181412 0%, #0D0B0A 100%)`,
       }}
     >
       {/* Background glowing light shapes for rich glassmorphism */}
-      <div className="absolute top-0 right-0 h-80 w-80 rounded-full bg-[#F48C24]/10 blur-[130px] pointer-events-none z-0" />
-      <div className="absolute top-1/3 left-0 h-64 w-64 rounded-full bg-[#1A4329]/10 blur-[100px] pointer-events-none z-0" />
-      <div className="absolute top-2/3 right-10 h-72 w-72 rounded-full bg-[#F48C24]/5 blur-[120px] pointer-events-none z-0" />
+      {!isLight && (
+        <>
+          <div className="absolute top-0 right-0 h-80 w-80 rounded-full bg-[#F48C24]/10 blur-[130px] pointer-events-none z-0" />
+          <div className="absolute top-1/3 left-0 h-64 w-64 rounded-full bg-[#1A4329]/10 blur-[100px] pointer-events-none z-0" />
+          <div className="absolute top-2/3 right-10 h-72 w-72 rounded-full bg-[#F48C24]/5 blur-[120px] pointer-events-none z-0" />
+        </>
+      )}
+      {isLight && (
+        <>
+          <div className="absolute top-0 right-0 h-80 w-80 rounded-full bg-orange-200/30 blur-[130px] pointer-events-none z-0" />
+          <div className="absolute top-1/3 left-0 h-64 w-64 rounded-full bg-emerald-100/30 blur-[100px] pointer-events-none z-0" />
+        </>
+      )}
       <style>{`
         @keyframes wave {
           0% { transform: translateX(0); }
@@ -1298,10 +1328,25 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       `}</style>
 
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-28 pt-5">
-        {/* Language switcher */}
-        <div className="mb-4 flex justify-end">
+        {/* Language switcher + Theme toggle */}
+        <div className="mb-4 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setThemeMode(isLight ? 'dark' : 'light')}
+            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-extrabold shadow-sm transition active:scale-95 ${
+              isLight
+                ? 'bg-slate-100 border border-slate-200 text-slate-600'
+                : 'bg-white/10 border border-white/10 text-white/70'
+            }`}
+          >
+            {isLight ? '🌙' : '☀️'}
+          </button>
           <div
-            className="flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-extrabold text-[#1A4329]/70 bg-white border border-[#1A4329]/10 shadow-sm"
+            className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-extrabold shadow-sm ${
+              isLight
+                ? 'text-slate-600 bg-white border border-slate-200'
+                : 'text-[#1A4329]/70 bg-white border border-[#1A4329]/10'
+            }`}
           >
             <Languages size={13} />
             <button type="button" onClick={() => setLang('az')} className={`transition ${safeLang === 'az' ? 'font-black text-[#F48C24]' : ''}`}>AZ</button>
@@ -1457,7 +1502,11 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       >
         <div className="mx-auto max-w-md px-4 pb-3">
           <div
-            className="flex items-center justify-around rounded-[32px] py-2 border border-white/10 shadow-2xl bg-white/5 backdrop-blur-2xl text-white"
+            className={`flex items-center justify-around rounded-[32px] py-2 border shadow-2xl backdrop-blur-2xl ${
+              isLight
+                ? 'border-slate-200 bg-white/80 text-slate-800'
+                : 'border-white/10 bg-white/5 text-white'
+            }`}
           >
             {bottomTabs.map((tab) => {
               const active = tab.key === resolvedActiveTab;
@@ -1479,7 +1528,9 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                   className={`relative flex items-center justify-center transition-all duration-300 ${
                     active
                       ? 'rounded-full bg-[#F48C24] text-white px-4 py-2 shadow-[0_4px_12px_rgba(244,140,36,0.25)] gap-1.5'
-                      : 'text-white/40 hover:text-white/70 p-2.5 rounded-full hover:bg-white/5'
+                      : isLight
+                        ? 'text-slate-400 hover:text-slate-700 p-2.5 rounded-full hover:bg-slate-100'
+                        : 'text-white/40 hover:text-white/70 p-2.5 rounded-full hover:bg-white/5'
                   }`}
                 >
                   {tab.icon}
@@ -1515,7 +1566,11 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         >
           {/* Card container */}
           <div
-            className="w-full max-w-md rounded-t-[32px] bg-[#0D0B0A]/95 border-t border-white/10 p-6 space-y-6 shadow-2xl animate-scaleIn text-white backdrop-blur-2xl"
+            className={`w-full max-w-md rounded-t-[32px] border-t p-6 space-y-6 shadow-2xl animate-scaleIn backdrop-blur-2xl ${
+              isLight
+                ? 'bg-white/95 border-slate-200 text-slate-900'
+                : 'bg-[#0D0B0A]/95 border-white/10 text-white'
+            }`}
             onClick={(e) => e.stopPropagation()}
             style={{
               maxHeight: '85vh',

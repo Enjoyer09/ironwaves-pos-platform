@@ -16,6 +16,7 @@ type Props = {
   toggleListening: () => void;
   sendBaristaMessage: () => void;
   primaryColor: string;
+  isLight?: boolean;
   accentColor: string;
 };
 
