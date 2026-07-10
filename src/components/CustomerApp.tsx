@@ -1401,6 +1401,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           <div key="order" className="animate-tabEnter">
           <OrderTab
             safeLang={safeLang}
+            isLight={isLight}
             menuItems={menuItems}
             menuLoading={menuLoading}
             selectedCategory={selectedCategory}

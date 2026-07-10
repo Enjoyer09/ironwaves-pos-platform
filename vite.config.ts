@@ -65,6 +65,14 @@ export default defineConfig(({ command }) => {
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "src"),
+        // In non-native environments (web dev / CI), stub out the optional
+        // Capacitor background-task plugin so Vite's import analysis doesn't crash.
+        // On iOS native, Capacitor resolves this at runtime — the dynamic import
+        // in background_fetch.ts catches null gracefully.
+        "@capacitor/background-task": path.resolve(
+          __dirname,
+          "src/lib/stubs/capacitor-background-task.ts"
+        ),
       },
     },
 
@@ -88,6 +96,12 @@ export default defineConfig(({ command }) => {
           drop_debugger: true,
         },
       },
+    },
+
+    // Exclude optional Capacitor plugins that are not installed as npm packages
+    // (they are resolved at native runtime only — not via node_modules)
+    optimizeDeps: {
+      exclude: ['@capacitor/background-task'],
     },
   };
 });
