@@ -339,45 +339,57 @@ export default function OrderTab({
           {tx(safeLang, 'Bu kateqoriyada məhsul tapılmadı', 'Нет товаров в этой категории', 'No products in this category')}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3.5">
+        <div className="grid grid-cols-2 gap-4">
           {filtered.map((item: any) => {
             const itemName = (item.item_name || item.name || '').toLowerCase();
             const isHot = itemName.includes('isti') || itemName.includes('hot') || (item.category || '').toLowerCase().includes('isti');
             const badgeText = isHot ? 'HOT' : itemName.includes('iced') || itemName.includes('soyuq') ? 'ICED' : 'NEW';
             const badgeColor = badgeText === 'HOT'
-              ? 'bg-[#F48C24]/10 border border-[#F48C24]/20 text-[#F48C24]'
+              ? 'bg-[#F48C24]/15 border border-[#F48C24]/30 text-[#F48C24]'
               : badgeText === 'ICED'
-                ? 'bg-cyan-500/10 border border-cyan-500/20 text-cyan-400'
-                : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400';
+                ? 'bg-cyan-500/15 border border-cyan-500/25 text-cyan-400'
+                : 'bg-emerald-500/15 border border-emerald-500/25 text-emerald-400';
             const isFav = localFavorites.includes(item.id);
             return (
               <div key={item.id} onClick={() => handleOpenModifiers(item)}
-                className="relative group flex flex-col justify-between rounded-[28px] border border-white/10 bg-white/5 p-3.5 transition active:scale-[0.98] shadow-2xl backdrop-blur-xl cursor-pointer text-white">
-                <span className={`absolute top-2 left-2 z-10 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider ${badgeColor}`}>
-                  {badgeText}
-                </span>
-                <button type="button" onClick={async (e) => {
-                  e.stopPropagation();
-                  playTickSound();
-                  await nativeHapticImpact(ImpactStyle.Light);
-                  setLocalFavorites(prev => prev.includes(item.id) ? prev.filter((id: string) => id !== item.id) : [...prev, item.id]);
-                }}
-                  className={`absolute top-2 right-2 z-10 h-7 w-7 rounded-full flex items-center justify-center border transition active:scale-90 ${
-                    isFav ? 'bg-[#F48C24]/20 border-[#F48C24]/30 text-[#F48C24]' : 'bg-black/40 border-white/10 text-white/80 hover:bg-black/60 backdrop-blur-md'
-                  }`}>
-                  <Heart size={12} fill={isFav ? '#F48C24' : 'none'} />
-                </button>
-                <div>
-                  <img src={getProductImage(item.item_name || item.name || '', item.image_url)} alt={item.item_name || item.name || ''}
-                    className="h-28 w-full rounded-2xl object-cover border border-white/5 group-hover:scale-[1.02] transition duration-300" />
-                  <h3 className="mt-3 text-xs font-black text-white leading-tight line-clamp-1">{item.item_name || item.name}</h3>
+                className="relative group flex flex-col items-center rounded-[36px] border border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl cursor-pointer text-white transition active:scale-[0.96] overflow-hidden pb-4">
+
+                {/* Circular image area */}
+                <div className="relative w-full aspect-square">
+                  <img
+                    src={getProductImage(item.item_name || item.name || '', item.image_url)}
+                    alt={item.item_name || item.name || ''}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  {/* Gradient fade to card body */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#0D0B0A]/80 pointer-events-none" />
+
+                  {/* Badge top-left */}
+                  <span className={`absolute top-3 left-3 z-10 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider backdrop-blur-md ${badgeColor}`}>
+                    {badgeText}
+                  </span>
+
+                  {/* Favorite button top-right */}
+                  <button type="button" onClick={async (e) => {
+                    e.stopPropagation();
+                    playTickSound();
+                    await nativeHapticImpact(ImpactStyle.Light);
+                    setLocalFavorites(prev => prev.includes(item.id) ? prev.filter((id: string) => id !== item.id) : [...prev, item.id]);
+                  }}
+                    className={`absolute top-3 right-3 z-10 h-8 w-8 rounded-full flex items-center justify-center border backdrop-blur-md transition active:scale-90 ${
+                      isFav ? 'bg-[#F48C24]/30 border-[#F48C24]/50 text-[#F48C24]' : 'bg-black/40 border-white/10 text-white/70'
+                    }`}>
+                    <Heart size={13} fill={isFav ? '#F48C24' : 'none'} />
+                  </button>
                 </div>
-                <div className="mt-3 flex items-end justify-between">
-                  <div>
-                    <span className="block text-[11px] font-bold text-white/40 uppercase tracking-wider">{tx(safeLang, 'QİYMƏT', 'ЦЕНА', 'PRICE')}</span>
-                    <span className="text-xs font-black text-white">{Number(item.price || 0).toFixed(2)} ₼</span>
+
+                {/* Card body — name, price, add button */}
+                <div className="w-full px-3.5 pt-3 flex flex-col gap-1.5">
+                  <h3 className="text-[11px] font-black text-white leading-tight line-clamp-2 text-center">{item.item_name || item.name}</h3>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-[13px] font-black text-[#F48C24]">{Number(item.price || 0).toFixed(2)} ₼</span>
+                    <div className="h-8 w-8 rounded-full bg-[#F48C24] flex items-center justify-center text-white font-bold text-xl shadow-[0_4px_14px_rgba(244,140,36,0.35)] active:scale-95 transition">+</div>
                   </div>
-                  <div className="h-7 w-7 rounded-full bg-[#F48C24] flex items-center justify-center text-white font-bold text-lg shadow-[0_4px_10px_rgba(244,140,36,0.2)] hover:scale-105 active:scale-95 transition">+</div>
                 </div>
               </div>
             );
