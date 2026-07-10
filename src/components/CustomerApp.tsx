@@ -1394,6 +1394,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             get_customer_wallet_pass_url_fn={get_customer_wallet_pass_url}
             sessionCreds={sessionCreds}
             data={data}
+            isLight={isLight}
           />
           </div>
         )}
@@ -1443,6 +1444,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             setCampaignQrs={setCampaignQrs}
             primaryColor={primaryColor}
             accentColor={accentColor}
+            isLight={isLight}
           />
           </div>
         )}
@@ -1460,6 +1462,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             sendBaristaMessage={sendBaristaMessage}
             primaryColor={primaryColor}
             accentColor={accentColor}
+            isLight={isLight}
           />
           </div>
         )}
@@ -1477,6 +1480,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             takePhotoWithCamera={takePhotoWithCamera}
             primaryColor={primaryColor}
             accentColor={accentColor}
+            isLight={isLight}
           />
           </div>
         )}
@@ -1491,6 +1495,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             primaryColor={primaryColor}
             setLang={setLang}
             markRead={markRead}
+            isLight={isLight}
           />
           </div>
         )}

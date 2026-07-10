@@ -1,7 +1,6 @@
 import React from 'react';
-import { Capacitor } from '@capacitor/core';
-import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { Mic, Volume2, VolumeX } from 'lucide-react';
+import { ImpactStyle } from '@capacitor/haptics';
 import { tx } from '../../i18n';
 import { BARISTA_QUICK_PROMPTS, nativeHapticImpact } from '../../lib/customer_utils';
 
@@ -23,10 +22,18 @@ type Props = {
 export default function BaristaTab({
   safeLang, baristaMessages, baristaInput, setBaristaInput,
   voiceEnabled, setVoiceEnabled, isListening, toggleListening,
-  sendBaristaMessage, primaryColor, accentColor
+  sendBaristaMessage, primaryColor, accentColor, isLight = false
 }: Props) {
+
+  const textPrimary = isLight ? 'text-slate-900' : 'text-white';
+  const textSecond  = isLight ? 'text-slate-500' : 'text-white/50';
+  const bgCard      = isLight ? 'bg-white border-black/8 shadow-[0_4px_20px_rgba(0,0,0,0.06)]' : 'bg-white/5 border-white/10 backdrop-blur-xl';
+  const chatAreaBg  = isLight ? 'bg-slate-50 border-black/5' : 'bg-slate-950/35 border-white/5';
+  const botBubbleBg = isLight ? 'bg-white border-black/8 text-slate-800' : 'bg-white/[0.08] border-white/10 text-slate-100 backdrop-blur-md';
+  const promptBtn   = isLight ? 'bg-black/5 border-black/8 text-slate-700 hover:bg-black/8' : 'bg-white/5 border-white/10 text-slate-200 hover:bg-white/10';
+
   return (
-    <section className="rounded-[28px] border border-white/10 bg-white/6 p-5 backdrop-blur-xl space-y-4">
+    <section className={`rounded-[28px] border p-5 space-y-4 ${bgCard}`}>
       <style>{`
         @keyframes dotBounce {
           0%, 100% { transform: translateY(0); }
@@ -41,8 +48,8 @@ export default function BaristaTab({
         <div className="flex items-center gap-2">
           <span className="text-xl">🤖</span>
           <div>
-            <div className="text-md font-black text-white tracking-tight">AI Barista</div>
-            <div className="text-[11px] text-white/50 font-semibold">{tx(safeLang, 'Söhbət et, içki və reward tövsiyəsi al.', 'Поговори и получи совет по напиткам и наградам.', 'Chat and get drink and reward suggestions.')}</div>
+            <div className={`text-md font-black tracking-tight ${textPrimary}`}>AI Barista</div>
+            <div className={`text-[11px] font-semibold ${textSecond}`}>{tx(safeLang, 'Söhbət et, içki və reward tövsiyəsi al.', 'Поговори и получи совет по напиткам и наградам.', 'Chat and get drink and reward suggestions.')}</div>
           </div>
         </div>
         <button
@@ -53,30 +60,30 @@ export default function BaristaTab({
           className={`h-9 w-9 rounded-xl flex items-center justify-center border transition-all ${
             voiceEnabled 
               ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
-              : 'bg-white/5 border-white/10 text-white/40'
+              : isLight ? 'bg-black/5 border-black/8 text-slate-400' : 'bg-white/5 border-white/10 text-white/40'
           }`}
         >
           {voiceEnabled ? <Volume2 size={16} className="animate-pulse" /> : <VolumeX size={16} />}
         </button>
       </div>
 
-      <div className="max-h-72 space-y-3.5 overflow-y-auto rounded-[24px] bg-slate-950/35 p-4 border border-white/5">
+      <div className={`max-h-72 space-y-3.5 overflow-y-auto rounded-[24px] p-4 border ${chatAreaBg}`}>
         {baristaMessages.map((msg, idx) => (
           <div key={`${msg.role}_${idx}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {msg.text === '...' ? (
-              <div className="max-w-[80%] rounded-2xl rounded-tl-none px-4 py-3 bg-white/10 border border-white/10 text-slate-100 shadow-md backdrop-blur-md">
+              <div className={`max-w-[80%] rounded-2xl rounded-tl-none px-4 py-3 border shadow-md ${botBubbleBg}`}>
                 <div className="flex items-center gap-1.5 py-1 px-1">
-                  <span className="h-2.5 w-2.5 rounded-full bg-slate-300 animate-dotBounce" style={{ animationDelay: '0ms' as any }} />
-                  <span className="h-2.5 w-2.5 rounded-full bg-slate-300 animate-dotBounce" style={{ animationDelay: '150ms' as any }} />
-                  <span className="h-2.5 w-2.5 rounded-full bg-slate-300 animate-dotBounce" style={{ animationDelay: '300ms' as any }} />
+                  <span className={`h-2.5 w-2.5 rounded-full animate-dotBounce ${isLight ? 'bg-slate-400' : 'bg-slate-300'}`} style={{ animationDelay: '0ms' as any }} />
+                  <span className={`h-2.5 w-2.5 rounded-full animate-dotBounce ${isLight ? 'bg-slate-400' : 'bg-slate-300'}`} style={{ animationDelay: '150ms' as any }} />
+                  <span className={`h-2.5 w-2.5 rounded-full animate-dotBounce ${isLight ? 'bg-slate-400' : 'bg-slate-300'}`} style={{ animationDelay: '300ms' as any }} />
                 </div>
               </div>
             ) : (
               <div
                 className={`max-w-[80%] rounded-2xl px-4 py-3 text-[13px] font-medium leading-relaxed shadow-md transition-all active:scale-[0.98] ${
                   msg.role === 'user' 
-                    ? 'rounded-tr-none text-slate-950' 
-                    : 'rounded-tl-none bg-white/[0.08] border border-white/10 text-slate-100 backdrop-blur-md'
+                    ? 'rounded-tr-none text-white' 
+                    : `rounded-tl-none border ${botBubbleBg}`
                 }`}
                 style={msg.role === 'user' ? { background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)` } : undefined}
               >
@@ -93,7 +100,7 @@ export default function BaristaTab({
             key={prompt}
             type="button"
             onClick={() => setBaristaInput(prompt)}
-            className="rounded-full border border-white/10 bg-white/5 hover:bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-slate-200 transition-all duration-200 hover:scale-[1.03] active:scale-95 shadow-sm"
+            className={`rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-all duration-200 hover:scale-[1.03] active:scale-95 shadow-sm ${promptBtn}`}
           >
             {prompt}
           </button>
@@ -107,16 +114,12 @@ export default function BaristaTab({
             onChange={(e) => setBaristaInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') sendBaristaMessage(); }}
             placeholder={tx(safeLang, 'Mənə nə tövsiyə edərsən?', 'Что ты посоветуешь мне?', 'What would you recommend for me?')}
-            style={{
-              borderRadius: '16px',
-              backgroundColor: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              padding: '12px 48px 12px 16px',
-              fontSize: '13px',
-              color: 'white',
-              outline: 'none',
-              width: '100%'
-            }}
+            className={`rounded-[16px] border px-4 py-3 text-[13px] outline-none w-full ${
+              isLight 
+                ? 'bg-black/5 border-black/8 text-slate-900 placeholder-slate-400 focus:ring-1 focus:ring-[#F48C24]'
+                : 'bg-white/5 border-white/8 text-white placeholder-white/30 focus:ring-1 focus:ring-[#F48C24]'
+            }`}
+            style={{ paddingRight: '48px' }}
           />
           <button
             type="button"
@@ -124,7 +127,7 @@ export default function BaristaTab({
             className={`absolute right-3 p-1.5 rounded-lg transition-all ${
               isListening 
                 ? 'bg-red-500 text-white animate-pulse' 
-                : 'text-white/40 hover:text-white/70'
+                : isLight ? 'text-slate-400 hover:text-slate-600' : 'text-white/40 hover:text-white/70'
             }`}
           >
             <Mic size={16} />
@@ -133,7 +136,7 @@ export default function BaristaTab({
         <button
           type="button"
           onClick={sendBaristaMessage}
-          className="rounded-2xl px-5 py-3 font-black text-[12px] text-slate-950 active:scale-95 transition-transform"
+          className="rounded-2xl px-5 py-3 font-black text-[12px] text-white active:scale-95 transition-transform"
           style={{
             background: `linear-gradient(135deg, ${accentColor} 0%, ${primaryColor} 100%)`,
             boxShadow: `0 4px 12px ${accentColor}33`
