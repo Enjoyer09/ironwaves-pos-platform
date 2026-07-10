@@ -1,8 +1,7 @@
 import React from 'react';
-import { Capacitor } from '@capacitor/core';
-import { Haptics, ImpactStyle } from '@capacitor/haptics';
-import QRCode from 'qrcode';
 import { Gift, Sparkles } from 'lucide-react';
+import { ImpactStyle } from '@capacitor/haptics';
+import QRCode from 'qrcode';
 import { tx } from '../../i18n';
 import { playShimmerSound, Haptic, nativeHapticImpact } from '../../lib/customer_utils';
 
@@ -22,7 +21,7 @@ type Props = {
 
 export default function OffersTab({
   safeLang, campaigns, pendingClaims, customer, activatedCampaigns,
-  setActivatedCampaigns, campaignQrs, setCampaignQrs, primaryColor, accentColor
+  setActivatedCampaigns, campaignQrs, setCampaignQrs, primaryColor, accentColor, isLight = false
 }: Props) {
   const activateCampaign = async (campaignId: string) => {
     await nativeHapticImpact(ImpactStyle.Medium);
@@ -41,11 +40,19 @@ export default function OffersTab({
     }
   };
 
+  const textPrimary = isLight ? 'text-slate-900' : 'text-white';
+  const textSecond  = isLight ? 'text-slate-500' : 'text-white/60';
+  const textMuted   = isLight ? 'text-slate-400' : 'text-white/40';
+  const bgCard      = isLight ? 'bg-white border-black/8 shadow-[0_4px_20px_rgba(0,0,0,0.06)]' : 'bg-white/5 border-white/10 backdrop-blur-xl';
+  const divider     = isLight ? 'border-black/5' : 'border-white/10';
+  const emptyBorder = isLight ? 'border-black/8 bg-black/3' : 'border-white/10 bg-white/5';
+  const circleBg    = isLight ? 'bg-slate-100' : 'bg-[#0D0B0A]';
+
   return (
     <div className="space-y-4">
-      <section className="rounded-[28px] p-5 border border-white/10 shadow-2xl bg-white/5 backdrop-blur-xl text-white">
+      <section className={`rounded-[28px] p-5 border shadow-sm ${bgCard}`}>
         <div className="flex items-center justify-between gap-3">
-          <p className="text-[15px] font-bold text-white flex items-center gap-2">
+          <p className={`text-[15px] font-bold flex items-center gap-2 ${textPrimary}`}>
             <Gift size={16} className="text-[#F48C24]" />
             {tx(safeLang, 'Aktiv kampaniyalar', 'Активные кампании', 'Active offers')}
           </p>
@@ -54,9 +61,9 @@ export default function OffersTab({
 
         <div className="mt-4 space-y-4">
           {campaigns.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-8 text-center border border-dashed border-white/10 rounded-2xl bg-white/5">
-              <Gift size={28} className="text-white/20" />
-              <p className="text-[13px] text-white/40 font-semibold">{tx(safeLang, 'Hazırda aktiv kampaniya yoxdur', 'Сейчас нет активных кампаний', 'No active campaigns right now')}</p>
+            <div className={`flex flex-col items-center gap-3 py-8 text-center border border-dashed rounded-2xl ${emptyBorder} ${textMuted}`}>
+              <Gift size={28} className={textMuted} />
+              <p className="text-[13px] font-semibold">{tx(safeLang, 'Hazırda aktiv kampaniya yoxdur', 'Сейчас нет активных кампаний', 'No active campaigns right now')}</p>
             </div>
           ) : campaigns.map((row: any) => {
             const expTime = activatedCampaigns[row.id];
@@ -67,45 +74,50 @@ export default function OffersTab({
             const seconds = secondsLeft % 60;
             const progressPercent = isActive ? Math.max(0, Math.min(100, (secondsLeft / 900) * 100)) : 0;
 
+            const cardStyle = isActive 
+              ? { backgroundColor: 'rgba(34, 197, 94, 0.05)', borderColor: 'rgba(34, 197, 94, 0.3)' }
+              : isLight 
+                ? { backgroundColor: '#fcfcfc', borderColor: 'rgba(0, 0, 0, 0.08)' }
+                : { backgroundColor: 'rgba(255, 255, 255, 0.02)', borderColor: 'rgba(255, 255, 255, 0.08)' };
+
+            const sideCircleBorder = isActive ? 'rgba(34,197,94,0.3)' : isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
+
             return (
               <div
                 key={row.id}
-                className="relative overflow-hidden rounded-[24px] border p-5 shadow-2xl transition-all duration-300"
-                style={{
-                  backgroundColor: isActive ? 'rgba(34, 197, 94, 0.05)' : 'rgba(255, 255, 255, 0.02)',
-                  borderColor: isActive ? 'rgba(34, 197, 94, 0.3)' : 'rgba(255, 255, 255, 0.08)'
-                }}
+                className="relative overflow-hidden rounded-[24px] border p-5 shadow-sm transition-all duration-300"
+                style={cardStyle}
               >
-                <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-[#0D0B0A] border-r border-white/10" style={{ borderColor: isActive ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)' }} />
-                <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-[#0D0B0A] border-l border-white/10" style={{ borderColor: isActive ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)' }} />
+                <div className={`absolute -left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-r ${circleBg}`} style={{ borderColor: sideCircleBorder }} />
+                <div className={`absolute -right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full border-l ${circleBg}`} style={{ borderColor: sideCircleBorder }} />
 
                 <div className="flex justify-between items-start gap-4">
                   <div>
-                    <h4 className="text-[15px] font-black text-white leading-tight">{row.name}</h4>
+                    <h4 className={`text-[15px] font-black leading-tight ${textPrimary}`}>{row.name}</h4>
                     <p className="mt-1.5 text-[13px] font-extrabold" style={{ color: primaryColor }}>
                       {row.discount_percent}% {tx(safeLang, 'endirim', 'скидка', 'discount')}
                     </p>
-                    <p className="mt-2 text-[10px] font-bold text-white/40">
+                    <p className={`mt-2 text-[10px] font-bold ${textMuted}`}>
                       {row.start_time} - {row.end_time} • {row.categories || 'ALL'}
                     </p>
                   </div>
                 </div>
 
                 {isActive ? (
-                  <div className="mt-5 pt-4 border-t border-dashed border-white/10 space-y-4">
-                    <div className="flex items-center justify-between text-xs font-bold text-emerald-400">
+                  <div className={`mt-5 pt-4 border-t border-dashed space-y-4 ${divider}`}>
+                    <div className="flex items-center justify-between text-xs font-bold text-emerald-500">
                       <span>{tx(safeLang, 'Kod aktivdir', 'Код активен', 'Code is active')}</span>
                       <span className="font-mono bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                         {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
                       </span>
                     </div>
-                    <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                    <div className={`h-1.5 w-full rounded-full overflow-hidden ${isLight ? 'bg-black/10' : 'bg-white/10'}`}>
                       <div
                         className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-1000 rounded-full"
                         style={{ width: `${progressPercent}%` }}
                       />
                     </div>
-                    <div className="flex flex-col items-center justify-center p-4 bg-white border border-white/10 rounded-2xl shadow-inner">
+                    <div className="flex flex-col items-center justify-center p-4 bg-white border border-black/5 rounded-2xl shadow-inner">
                       {campaignQrs[row.id] ? (
                         <img src={campaignQrs[row.id]} alt="campaign qr" className="h-36 w-36 object-contain" />
                       ) : (
@@ -119,10 +131,11 @@ export default function OffersTab({
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-4 pt-3 border-t border-white/10 flex justify-end">                      <button
-                        type="button"
-                        onClick={async () => { await Haptic.medium(); activateCampaign(row.id); }}
-                        className="relative overflow-hidden rounded-xl px-4 py-2 text-[11px] font-black text-white transition-all active:scale-[0.97]"
+                  <div className={`mt-4 pt-3 border-t flex justify-end ${divider}`}>
+                    <button
+                      type="button"
+                      onClick={async () => { await Haptic.medium(); activateCampaign(row.id); }}
+                      className="relative overflow-hidden rounded-xl px-4 py-2 text-[11px] font-black text-white transition-all active:scale-[0.97]"
                       style={{
                         background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`,
                       }}
@@ -137,23 +150,23 @@ export default function OffersTab({
         </div>
       </section>
 
-      <section className="rounded-[28px] p-5 border border-white/10 shadow-2xl bg-white/5 backdrop-blur-xl text-white">
-        <p className="text-[15px] font-bold text-white flex items-center gap-2">
+      <section className={`rounded-[28px] p-5 border shadow-sm ${bgCard}`}>
+        <p className={`text-[15px] font-bold flex items-center gap-2 ${textPrimary}`}>
           <Sparkles size={16} className="text-[#F48C24]" />
           {tx(safeLang, 'Claim kodları', 'Коды наград', 'Claim codes')}
         </p>
         <div className="mt-4 space-y-3">
           {pendingClaims.length === 0 ? (
-            <div className="py-8 text-center text-[12px] text-white/30 border border-dashed border-white/10 rounded-2xl bg-white/5">
+            <div className={`py-8 text-center text-[12px] border border-dashed rounded-2xl ${emptyBorder} ${textMuted}`}>
               {tx(safeLang, 'Aktiv claim kodu yoxdur', 'Активных кодов нет', 'No active claim codes')}
             </div>
           ) : pendingClaims.map((row: any) => (
-            <div key={row.id} className="relative overflow-hidden rounded-2xl p-4 border border-[#F48C24]/30 bg-[#F48C24]/10 shadow-2xl">
-              <div className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#0D0B0A] border-r border-[#F48C24]/20" />
-              <div className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#0D0B0A] border-l border-[#F48C24]/20" />
-              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/60">{tx(safeLang, 'Kassada göstərin', 'Покажите на кассе', 'Show at POS')}</p>
-              <p className="mt-1 text-2xl font-black text-white font-mono">{row.claim_code}</p>
-              <p className="mt-1 text-[11px] text-white/40">{row.reward_name}</p>
+            <div key={row.id} className="relative overflow-hidden rounded-2xl p-4 border border-[#F48C24]/30 bg-[#F48C24]/10 shadow-sm">
+              <div className={`absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-r ${circleBg} border-[#F48C24]/20`} />
+              <div className={`absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-l ${circleBg} border-[#F48C24]/20`} />
+              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-500">{tx(safeLang, 'Kassada göstərin', 'Покажите на кассе', 'Show at POS')}</p>
+              <p className={`mt-1 text-2xl font-black font-mono ${isLight ? 'text-slate-800' : 'text-white'}`}>{row.claim_code}</p>
+              <p className={`mt-1 text-[11px] ${textSecond}`}>{row.reward_name}</p>
             </div>
           ))}
         </div>

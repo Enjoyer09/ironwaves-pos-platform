@@ -38,90 +38,84 @@ export function ModifierSheet({
   const btnBase     = isLight ? 'bg-black/5 hover:bg-black/10 border-black/8 text-slate-800' : 'bg-white/5 hover:bg-white/10 border-white/10 text-white';
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-[200] flex flex-col justify-end">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setModifierSheetItem(null)} />
-      <div className={`relative w-full rounded-t-[36px] ${sheetBg} border-t ${sheetBorder} shadow-2xl max-h-[90dvh] overflow-y-auto overscroll-contain`}
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 20px)' }}>
-        <div className="flex justify-center pt-3 pb-1">
-          <div className={`h-1 w-10 rounded-full ${isLight ? 'bg-black/15' : 'bg-white/20'}`} />
-        </div>
-        <div className="px-5 pt-2 pb-6">
-          <div className="flex items-center justify-between mb-5">
-            <button onClick={async () => { await Haptic.light(); setModifierSheetItem(null); }}
-              className={`h-9 w-9 rounded-full flex items-center justify-center border shadow-sm active:scale-95 transition ${btnBase}`}>
-              <ChevronLeft size={18} />
-            </button>
-            <span className={`text-[11px] font-black uppercase tracking-widest ${textSecond}`}>
-              {tx(safeLang, 'Məhsul Seçimi', 'Детали', 'Product Details')}
-            </span>
-            <button onClick={async () => { await Haptic.light(); setModifierSheetItem(null); }}
-              className={`h-9 w-9 rounded-full flex items-center justify-center border shadow-sm active:scale-95 transition ${btnBase}`}>
-              <X size={18} />
-            </button>
-          </div>
-          <div className="flex gap-4 items-start mb-5">
-            <div className="h-24 w-24 rounded-2xl overflow-hidden flex-shrink-0 shadow-lg">
-              <img
-                src={getProductImage(modifierSheetItem.item_name || modifierSheetItem.name || '', modifierSheetItem.image_url)}
-                alt={modifierSheetItem.item_name || modifierSheetItem.name || ''}
-                className="h-full w-full object-cover"
-              />
-            </div>
-            <div className="flex-1 min-w-0 pt-1">
-              <h2 className={`text-lg font-black ${textPrimary} leading-tight`}>
-                {modifierSheetItem.item_name || modifierSheetItem.name}
-              </h2>
-              <p className={`text-[10px] font-bold uppercase tracking-wider mt-1 ${textSecond}`}>
-                {modifierSheetItem.category || 'Craft Blend'}
-              </p>
-              <p className={`text-xl font-black text-[#F48C24] mt-2`}>{finalPrice.toFixed(2)} ₼</p>
-            </div>
-          </div>
-          {modifierSheetItem.description && (
-            <p className={`text-[11px] leading-relaxed mb-4 ${textSecond}`}>{modifierSheetItem.description}</p>
-          )}
-          {hasVariants && (
-            <div className="mb-5">
-              <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${textSecond}`}>
-                {tx(safeLang, 'Ölçü / Variant', 'Размер', 'Size / Variant')}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {modifierSheetItem.variants.map((v: any) => {
-                  const active = selectedVariant?.name === v.name;
-                  return (
-                    <button key={v.name} type="button" onClick={() => setSelectedVariant(active ? null : v)}
-                      className={`rounded-full px-4 py-2 text-[11px] font-bold border transition active:scale-95 ${active ? 'bg-[#F48C24] border-[#F48C24] text-white' : chipBase}`}>
-                      {v.name} · {Number(v.price || 0).toFixed(2)} ₼
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          {hasModifiers && (
-            <div className="mb-5">
-              <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${textSecond}`}>
-                {tx(safeLang, 'Əlavələr', 'Добавки', 'Add-ons')}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {modifierSheetItem.modifiers.map((mod: any) => {
-                  const active = selectedModifiers.find((m: any) => m.name === mod.name);
-                  return (
-                    <button key={mod.name} type="button" onClick={() => handleToggleModifier(mod)}
-                      className={`rounded-full px-3 py-1.5 text-[10px] font-bold border transition active:scale-95 ${active ? 'bg-[#F48C24] border-[#F48C24] text-white' : chipBase}`}>
-                      {mod.name} +{Number(mod.price || 0).toFixed(2)} ₼
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          <button type="button" onClick={async () => { await Haptic.medium(); handleAddToCart(); }}
-            className="mt-2 w-full rounded-2xl py-4 text-sm font-black text-white transition-all active:scale-[0.97] shadow-xl"
-            style={{ background: 'linear-gradient(135deg, #F48C24, #ffb366)' }}>
-            {tx(safeLang, 'Səbətə at', 'В корзину', 'Add to Cart')} · {finalPrice.toFixed(2)} ₼
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 animate-modalFadeIn">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setModifierSheetItem(null)} />
+      <div className={`relative w-full max-w-sm rounded-[32px] ${sheetBg} border ${sheetBorder} shadow-2xl overflow-y-auto max-h-[85vh] p-5 animate-scaleIn`}>
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={async () => { await Haptic.light(); setModifierSheetItem(null); }}
+            className={`h-8 w-8 rounded-full flex items-center justify-center border shadow-sm active:scale-95 transition ${btnBase}`}>
+            <ChevronLeft size={16} />
+          </button>
+          <span className={`text-[10px] font-black uppercase tracking-widest ${textSecond}`}>
+            {tx(safeLang, 'Məhsul Seçimi', 'Детали', 'Product Details')}
+          </span>
+          <button onClick={async () => { await Haptic.light(); setModifierSheetItem(null); }}
+            className={`h-8 w-8 rounded-full flex items-center justify-center border shadow-sm active:scale-95 transition ${btnBase}`}>
+            <X size={16} />
           </button>
         </div>
+        <div className="flex gap-3.5 items-start mb-4">
+          <div className="h-20 w-20 rounded-xl overflow-hidden flex-shrink-0 shadow-md">
+            <img
+              src={getProductImage(modifierSheetItem.item_name || modifierSheetItem.name || '', modifierSheetItem.image_url)}
+              alt={modifierSheetItem.item_name || modifierSheetItem.name || ''}
+              className="h-full w-full object-cover"
+            />
+          </div>
+          <div className="flex-1 min-w-0 pt-0.5">
+            <h2 className={`text-base font-black ${textPrimary} leading-tight`}>
+              {modifierSheetItem.item_name || modifierSheetItem.name}
+            </h2>
+            <p className={`text-[9px] font-bold uppercase tracking-wider mt-0.5 ${textSecond}`}>
+              {modifierSheetItem.category || 'Craft Blend'}
+            </p>
+            <p className={`text-lg font-black text-[#F48C24] mt-1.5`}>{finalPrice.toFixed(2)} ₼</p>
+          </div>
+        </div>
+        {modifierSheetItem.description && (
+          <p className={`text-[10px] leading-relaxed mb-4 ${textSecond}`}>{modifierSheetItem.description}</p>
+        )}
+        {hasVariants && (
+          <div className="mb-4">
+            <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${textSecond}`}>
+              {tx(safeLang, 'Ölçü / Variant', 'Размер', 'Size / Variant')}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {modifierSheetItem.variants.map((v: any) => {
+                const active = selectedVariant?.name === v.name;
+                return (
+                  <button key={v.name} type="button" onClick={() => setSelectedVariant(active ? null : v)}
+                    className={`rounded-full px-3 py-1.5 text-[10px] font-bold border transition active:scale-95 ${active ? 'bg-[#F48C24] border-[#F48C24] text-white' : chipBase}`}>
+                    {v.name} · {Number(v.price || 0).toFixed(2)} ₼
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {hasModifiers && (
+          <div className="mb-4">
+            <p className={`text-[9px] font-black uppercase tracking-widest mb-1.5 ${textSecond}`}>
+              {tx(safeLang, 'Əlavələr', 'Добавки', 'Add-ons')}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {modifierSheetItem.modifiers.map((mod: any) => {
+                const active = selectedModifiers.find((m: any) => m.name === mod.name);
+                return (
+                  <button key={mod.name} type="button" onClick={() => handleToggleModifier(mod)}
+                    className={`rounded-full px-2.5 py-1.5 text-[9px] font-bold border transition active:scale-95 ${active ? 'bg-[#F48C24] border-[#F48C24] text-white' : chipBase}`}>
+                    {mod.name} +{Number(mod.price || 0).toFixed(2)} ₼
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        <button type="button" onClick={async () => { await Haptic.medium(); handleAddToCart(); }}
+          className="mt-1 w-full rounded-xl py-3.5 text-xs font-black text-white transition-all active:scale-[0.97] shadow-lg"
+          style={{ background: 'linear-gradient(135deg, #F48C24, #ffb366)' }}>
+          {tx(safeLang, 'Səbətə at', 'В корзину', 'Add to Cart')} · {finalPrice.toFixed(2)} ₼
+        </button>
       </div>
     </div>,
     document.body
@@ -160,69 +154,63 @@ export function CartSheet({
     : 'border-white/10 bg-white/5 text-white placeholder-white/30 focus:ring-[#F48C24]';
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-[200] flex flex-col justify-end">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 animate-modalFadeIn">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCartSheet(false)} />
-      <div className={`relative w-full rounded-t-[36px] ${sheetBg} border-t ${sheetBorder} shadow-2xl max-h-[85dvh] overflow-y-auto overscroll-contain flex flex-col`}
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 20px)' }}>
-        <div className="flex justify-center pt-3 pb-1">
-          <div className={`h-1 w-10 rounded-full ${isLight ? 'bg-black/15' : 'bg-white/20'}`} />
+      <div className={`relative w-full max-w-sm rounded-[32px] ${sheetBg} border ${sheetBorder} shadow-2xl overflow-y-auto max-h-[85vh] p-5 flex flex-col animate-scaleIn`}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className={`text-base font-black ${textPrimary}`}>{tx(safeLang, 'Səbətiniz', 'Ваша корзина', 'Your Cart')}</h2>
+          <button onClick={async () => { await Haptic.light(); setShowCartSheet(false); }}
+            className={`h-7 w-7 rounded-full flex items-center justify-center font-bold transition ${isLight ? 'bg-black/5 text-slate-600 hover:bg-black/10' : 'bg-white/5 text-white/60 hover:bg-white/10'}`}>
+            <X size={14} />
+          </button>
         </div>
-        <div className="px-5 pt-3 pb-6 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h2 className={`text-lg font-black ${textPrimary}`}>{tx(safeLang, 'Səbətiniz', 'Ваша корзина', 'Your Cart')}</h2>
-            <button onClick={async () => { await Haptic.light(); setShowCartSheet(false); }}
-              className={`h-8 w-8 rounded-full flex items-center justify-center font-bold transition ${isLight ? 'bg-black/5 text-slate-600 hover:bg-black/10' : 'bg-white/5 text-white/60 hover:bg-white/10'}`}>
-              <X size={16} />
-            </button>
-          </div>
-          <div className="space-y-2">
-            {customerCart.length === 0 ? (
-              <div className={`py-12 text-center text-xs font-bold ${textSecond}`}>
-                {tx(safeLang, 'Səbətiniz boşdur', 'Ваша корзина пуста', 'Your cart is empty')}
+        <div className="space-y-2 flex-1 overflow-y-auto pr-1">
+          {customerCart.length === 0 ? (
+            <div className={`py-12 text-center text-xs font-bold ${textSecond}`}>
+              {tx(safeLang, 'Səbətiniz boşdur', 'Ваша корзина пуста', 'Your cart is empty')}
+            </div>
+          ) : customerCart.map((item: any, idx: number) => (
+            <div key={idx} className={`flex items-center justify-between rounded-xl ${itemBg} border p-3`}>
+              <div className="flex-1 min-w-0">
+                <p className={`text-[11px] font-black ${textPrimary}`}>{item.name}</p>
+                {item.variant_name && <p className={`text-[8px] font-semibold mt-0.5 ${textSecond}`}>{item.variant_name}</p>}
+                {item.selected_modifiers?.length > 0 && (
+                  <p className={`text-[8px] font-semibold mt-0.5 ${textSecond}`}>
+                    +{item.selected_modifiers.map((m: any) => m.name).join(', ')}
+                  </p>
+                )}
               </div>
-            ) : customerCart.map((item: any, idx: number) => (
-              <div key={idx} className={`flex items-center justify-between rounded-2xl ${itemBg} border p-3.5`}>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-xs font-black ${textPrimary}`}>{item.name}</p>
-                  {item.variant_name && <p className={`text-[9px] font-semibold mt-0.5 ${textSecond}`}>{item.variant_name}</p>}
-                  {item.selected_modifiers?.length > 0 && (
-                    <p className={`text-[9px] font-semibold mt-0.5 ${textSecond}`}>
-                      +{item.selected_modifiers.map((m: any) => m.name).join(', ')}
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 ml-3">
-                  <span className={`text-xs font-bold ${textSecond}`}>x{item.quantity}</span>
-                  <span className="text-xs font-black text-[#F48C24]">{(item.price * item.quantity).toFixed(2)} ₼</span>
-                  <button onClick={() => handleRemoveFromCart(idx)}
-                    className="h-6 w-6 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center text-[9px] font-bold hover:bg-red-500/20">✕</button>
-                </div>
+              <div className="flex items-center gap-2 ml-2">
+                <span className={`text-[10px] font-bold ${textSecond}`}>x{item.quantity}</span>
+                <span className="text-[10px] font-black text-[#F48C24]">{(item.price * item.quantity).toFixed(2)} ₼</span>
+                <button onClick={() => handleRemoveFromCart(idx)}
+                  className="h-5.5 w-5.5 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center text-[8px] font-bold hover:bg-red-500/20">✕</button>
               </div>
-            ))}
-          </div>
-          {customerCart.length > 0 && (
-            <>
-              <div>
-                <p className={`text-[10px] font-black uppercase tracking-wider mb-1.5 ${textSecond}`}>
-                  {tx(safeLang, 'Qeyd əlavə edin', 'Добавить заметку', 'Add a note')}
-                </p>
-                <textarea value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)}
-                  placeholder={tx(safeLang, 'Məsələn: az şəkər...', 'Например: меньше сахара...', 'E.g. less sugar, oat milk...')}
-                  className={`w-full rounded-2xl border p-3.5 text-xs focus:outline-none focus:ring-1 min-h-[70px] resize-none ${inputCls}`} />
-              </div>
-              <div className={`pt-4 border-t ${divider}`}>
-                <div className="flex items-center justify-between mb-4">
-                  <p className={`text-[10px] font-black uppercase tracking-wider ${textSecond}`}>{tx(safeLang, 'Ümumi', 'Итого', 'Total')}</p>
-                  <p className={`text-xl font-black ${textPrimary}`}>{subtotal.toFixed(2)} ₼</p>
-                </div>
-                <button onClick={async () => { await Haptic.medium(); handleCheckoutPreOrder(); }} disabled={preOrderSubmitting}
-                  className="w-full rounded-2xl bg-[#1A4329] hover:bg-[#153621] disabled:opacity-50 text-white py-4 text-sm font-black transition active:scale-95 flex items-center justify-center gap-2 shadow-lg">
-                  {preOrderSubmitting ? tx(safeLang, 'Göndərilir...', 'Отправляем...', 'Sending...') : tx(safeLang, 'Sifarişi Təsdiqlə', 'Оформить предзаказ', 'Confirm Order')}
-                </button>
-              </div>
-            </>
-          )}
+            </div>
+          ))}
         </div>
+        {customerCart.length > 0 && (
+          <div className="mt-4 flex flex-col gap-3">
+            <div>
+              <p className={`text-[9px] font-black uppercase tracking-wider mb-1 ${textSecond}`}>
+                {tx(safeLang, 'Qeyd əlavə edin', 'Добавить заметку', 'Add a note')}
+              </p>
+              <textarea value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)}
+                placeholder={tx(safeLang, 'Məsələn: az şəkər...', 'Например: меньше сахара...', 'E.g. less sugar, oat milk...')}
+                className={`w-full rounded-xl border p-3 text-[10px] focus:outline-none focus:ring-1 min-h-[50px] resize-none ${inputCls}`} />
+            </div>
+            <div className={`pt-3 border-t ${divider}`}>
+              <div className="flex items-center justify-between mb-3">
+                <p className={`text-[9px] font-black uppercase tracking-wider ${textSecond}`}>{tx(safeLang, 'Ümumi', 'Итого', 'Total')}</p>
+                <p className={`text-lg font-black ${textPrimary}`}>{subtotal.toFixed(2)} ₼</p>
+              </div>
+              <button onClick={async () => { await Haptic.medium(); handleCheckoutPreOrder(); }} disabled={preOrderSubmitting}
+                className="w-full rounded-xl bg-[#1A4329] hover:bg-[#153621] disabled:opacity-50 text-white py-3.5 text-xs font-black transition active:scale-95 flex items-center justify-center gap-1.5 shadow-lg">
+                {preOrderSubmitting ? tx(safeLang, 'Göndərilir...', 'Отправляем...', 'Sending...') : tx(safeLang, 'Sifarişi Təsdiqlə', 'Оформить предзаказ', 'Confirm Order')}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>,
     document.body
