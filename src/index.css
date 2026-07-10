@@ -283,6 +283,283 @@ html {
     background: linear-gradient(180deg, var(--gold-a), var(--gold-b));
   }
 
+  /* ══════════════════════════════════════════════════════════
+     CUSTOMER APP — PREMIUM GLASS & GLOW SYSTEM
+     ══════════════════════════════════════════════════════════ */
+
+  /* ── Glassmorphism base card ─────────────────────────────── */
+  .cust-glass {
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    will-change: transform;
+  }
+
+  .cust-glass-light {
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    box-shadow: 0 4px 32px rgba(0, 0, 0, 0.07), 0 1.5px 4px rgba(0,0,0,0.04);
+    will-change: transform;
+  }
+
+  /* ── Shimmer sweep overlay ────────────────────────────────── */
+  .shimmer-card {
+    position: relative;
+    overflow: hidden;
+  }
+  .shimmer-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 35%,
+      rgba(255, 255, 255, 0.13) 50%,
+      transparent 65%
+    );
+    background-size: 200% 100%;
+    animation: shimmerSweep 3.5s ease-in-out infinite;
+    pointer-events: none;
+    border-radius: inherit;
+  }
+
+  /* ── Glow utilities ──────────────────────────────────────── */
+  .glow-orange {
+    box-shadow:
+      0 0 0 1px rgba(244, 140, 36, 0.25),
+      0 8px 28px rgba(244, 140, 36, 0.20),
+      0 2px 8px rgba(244, 140, 36, 0.12);
+  }
+  .glow-green {
+    box-shadow:
+      0 0 0 1px rgba(34, 197, 94, 0.30),
+      0 8px 28px rgba(34, 197, 94, 0.18),
+      0 2px 8px rgba(34, 197, 94, 0.10);
+  }
+  .glow-orange-sm {
+    box-shadow: 0 0 12px rgba(244, 140, 36, 0.40), 0 0 4px rgba(244, 140, 36, 0.20);
+  }
+
+  /* ── Premium layered shadow ──────────────────────────────── */
+  .premium-shadow {
+    box-shadow:
+      0 1px 2px rgba(0,0,0,0.08),
+      0 4px 12px rgba(0,0,0,0.10),
+      0 12px 32px rgba(0,0,0,0.12),
+      0 0 0 1px rgba(255,255,255,0.06);
+  }
+  .premium-shadow-light {
+    box-shadow:
+      0 1px 3px rgba(0,0,0,0.06),
+      0 4px 16px rgba(0,0,0,0.08),
+      0 12px 40px rgba(0,0,0,0.06);
+  }
+
+  /* ── Shimmer button ──────────────────────────────────────── */
+  .shimmer-btn {
+    position: relative;
+    overflow: hidden;
+  }
+  .shimmer-btn::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -75%;
+    width: 50%; height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.22),
+      transparent
+    );
+    transform: skewX(-20deg);
+    animation: shimmerBtnSweep 2.4s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  /* ── Glow ring pulse (for + buttons etc.) ────────────────── */
+  .glow-ring-pulse {
+    position: relative;
+  }
+  .glow-ring-pulse::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    background: transparent;
+    border: 2px solid rgba(244, 140, 36, 0.5);
+    animation: glowRingPulse 2s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  /* ── Confetti particle ───────────────────────────────────── */
+  .confetti-particle {
+    position: fixed;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 9999;
+    animation: confettiFall var(--duration, 1.2s) cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  }
+
+  /* ── Toast notification ──────────────────────────────────── */
+  .cust-toast {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    z-index: 500;
+    padding: 10px 18px;
+    border-radius: 24px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #fff;
+    background: linear-gradient(135deg, #F48C24, #ff9f3a);
+    box-shadow: 0 8px 24px rgba(244, 140, 36, 0.40), 0 0 0 1px rgba(255,255,255,0.12);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    opacity: 0;
+    animation: toastPop 2.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    white-space: nowrap;
+    pointer-events: none;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── Animated gradient text ──────────────────────────────── */
+  .gradient-text-animated {
+    background: linear-gradient(135deg, #F48C24 0%, #ffb366 30%, #F48C24 60%, #e67e22 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gradientShift 3s ease-in-out infinite;
+  }
+
+  /* ── Neon border glow ────────────────────────────────────── */
+  .neon-border-orange {
+    border-color: rgba(244, 140, 36, 0.45) !important;
+    box-shadow:
+      0 0 0 1px rgba(244, 140, 36, 0.15),
+      inset 0 0 12px rgba(244, 140, 36, 0.05);
+  }
+  .neon-border-green {
+    border-color: rgba(34, 197, 94, 0.45) !important;
+    box-shadow:
+      0 0 0 1px rgba(34, 197, 94, 0.15),
+      inset 0 0 12px rgba(34, 197, 94, 0.05);
+  }
+
+  /* ── Floating animation ──────────────────────────────────── */
+  .float-slow {
+    animation: floatSlow 4s ease-in-out infinite;
+  }
+
+  /* ── Stagger fade-in for lists ───────────────────────────── */
+  .stagger-fade-in {
+    animation: fadeSlideUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .stagger-1 { animation-delay: 60ms; }
+  .stagger-2 { animation-delay: 120ms; }
+  .stagger-3 { animation-delay: 180ms; }
+  .stagger-4 { animation-delay: 240ms; }
+  .stagger-5 { animation-delay: 300ms; }
+
+  /* ── Membership card premium glow ────────────────────────── */
+  .card-premium-glow {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.10),
+      0 16px 48px rgba(26, 67, 41, 0.28),
+      0 4px 16px rgba(0,0,0,0.20),
+      inset 0 1px 0 rgba(255,255,255,0.15);
+  }
+  .card-premium-glow-light {
+    box-shadow:
+      0 0 0 1px rgba(26, 67, 41, 0.12),
+      0 16px 40px rgba(26, 67, 41, 0.14),
+      0 4px 16px rgba(0,0,0,0.08);
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     KEYFRAMES
+     ══════════════════════════════════════════════════════════ */
+  @keyframes shimmerSweep {
+    0%   { background-position: -200% 0; }
+    50%  { background-position: 200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  @keyframes shimmerBtnSweep {
+    0%   { left: -75%; opacity: 0; }
+    20%  { opacity: 1; }
+    100% { left: 125%; opacity: 0; }
+  }
+
+  @keyframes glowRingPulse {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50%       { opacity: 0; transform: scale(1.25); }
+  }
+
+  @keyframes confettiFall {
+    0%   { opacity: 1; transform: translateY(0) rotate(0deg) scale(1); }
+    100% { opacity: 0; transform: translateY(var(--dy, 180px)) translateX(var(--dx, 0px)) rotate(var(--rot, 360deg)) scale(0.4); }
+  }
+
+  @keyframes toastPop {
+    0%   { opacity: 0; transform: translateX(-50%) translateY(16px) scale(0.92); }
+    12%  { opacity: 1; transform: translateX(-50%) translateY(0px) scale(1.02); }
+    18%  { transform: translateX(-50%) translateY(0px) scale(1); }
+    78%  { opacity: 1; transform: translateX(-50%) translateY(0px) scale(1); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.95); }
+  }
+
+  @keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50%       { background-position: 100% 50%; }
+  }
+
+  @keyframes floatSlow {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-6px); }
+  }
+
+  @keyframes fadeSlideUp {
+    from { opacity: 0; transform: translateY(12px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  @keyframes glowBreath {
+    0%, 100% { box-shadow: 0 0 12px rgba(244,140,36,0.25); }
+    50%       { box-shadow: 0 0 24px rgba(244,140,36,0.50), 0 0 48px rgba(244,140,36,0.15); }
+  }
+
+  @keyframes greenGlowBreath {
+    0%, 100% { box-shadow: 0 0 12px rgba(34,197,94,0.25); }
+    50%       { box-shadow: 0 0 24px rgba(34,197,94,0.50), 0 0 48px rgba(34,197,94,0.15); }
+  }
+
+  .animate-glow-breath {
+    animation: glowBreath 2.5s ease-in-out infinite;
+  }
+  .animate-green-glow {
+    animation: greenGlowBreath 2s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shimmer-card::after,
+    .shimmer-btn::before,
+    .glow-ring-pulse::after,
+    .float-slow,
+    .gradient-text-animated,
+    .animate-glow-breath,
+    .animate-green-glow,
+    .stagger-fade-in {
+      animation: none !important;
+    }
+  }
+
   .animate-marquee {
     animation: marquee 20s linear infinite;
   }
