@@ -14,19 +14,23 @@ type Props = {
   isLight?: boolean;
   setLang: (lang: string) => void;
   markRead: (id: string) => void | Promise<void>;
+  designMode?: 'classic' | 'retro';
 };
 
 export default function ProfileTab({
   safeLang, customer, notifications, history, chartData, primaryColor,
-  setLang, markRead, isLight = false
+  setLang, markRead, isLight = false, designMode = 'classic'
 }: Props) {
 
+  const isRetro     = designMode === 'retro';
   const textPrimary  = isLight ? 'text-slate-900' : 'text-white';
   const textSecond   = isLight ? 'text-slate-500' : 'text-white/60';
   const textMuted    = isLight ? 'text-slate-400' : 'text-white/40';
-  const bgCard       = isLight ? 'cust-glass-light' : 'cust-glass premium-shadow';
+  const bgCard       = isRetro ? 'retro-card' : (isLight ? 'cust-glass-light' : 'cust-glass premium-shadow');
   const innerBoxBg   = isLight ? 'bg-black/3 border-black/5 text-slate-800' : 'bg-black/25 border-white/5 text-slate-200';
-  const itemBorder   = isLight ? 'border-black/5 bg-white/70 shadow-sm' : 'border-white/8 bg-white/4';
+  const itemBorder   = isRetro
+    ? (isLight ? 'border-[2px] border-[#1C2029] bg-white' : 'border-[2px] border-[#2F2622] bg-[#1E1714]')
+    : (isLight ? 'border-black/5 bg-white/70 shadow-sm' : 'border-white/8 bg-white/4');
   const unreadBg     = isLight ? 'border-[#F48C24]/25 bg-[#F48C24]/5' : 'border-[#F48C24]/25 bg-[#F48C24]/8';
   const langBarCls   = isLight ? 'border-black/8 bg-white/80 text-slate-700 shadow-sm backdrop-blur-sm' : 'border-white/10 bg-white/6 text-slate-200 backdrop-blur-md';
 
@@ -37,48 +41,54 @@ export default function ProfileTab({
       {/* Profile Header Card */}
       <section className={`rounded-[28px] border p-5 ${bgCard}`}>
         {/* Glossy highlight */}
-        <div className="absolute inset-x-0 top-0 h-16 pointer-events-none rounded-t-[28px]"
-          style={{ background: isLight ? 'linear-gradient(180deg, rgba(255,255,255,0.5), transparent)' : 'linear-gradient(180deg, rgba(255,255,255,0.04), transparent)' }} />
+        {!isRetro && (
+          <div className="absolute inset-x-0 top-0 h-16 pointer-events-none rounded-t-[28px]"
+            style={{ background: isLight ? 'linear-gradient(180deg, rgba(255,255,255,0.4), transparent)' : 'linear-gradient(180deg, rgba(255,255,255,0.03), transparent)' }} />
+        )}
 
-        <div className="flex items-center justify-between gap-3 mb-4 relative">
+        <div className="flex items-center justify-between gap-3 mb-4 relative z-10">
           {/* Avatar */}
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 rounded-2xl flex items-center justify-center text-xl font-black text-white shimmer-btn"
-              style={{ background: 'linear-gradient(135deg, #F48C24, #ffb366)', boxShadow: '0 6px 18px rgba(244,140,36,0.40)' }}>
+              style={{ background: 'linear-gradient(135deg, #F48C24, #ffb366)', boxShadow: isRetro ? '2px 2px 0px 0px #1C2029' : '0 6px 18px rgba(244,140,36,0.40)' }}>
               {customer.name ? customer.name.charAt(0).toUpperCase() : 'M'}
             </div>
             <div>
               <div className={`text-[15px] font-black ${textPrimary}`}>{customer.name || tx(safeLang, 'Müştəri', 'Клиент', 'Customer')}</div>
-              <div className={`text-[10px] font-semibold ${textMuted}`}>{customer.card_id}</div>
+              <div className={`text-[9px] font-mono tracking-widest mt-0.5 ${textMuted}`}>{customer.card_id}</div>
             </div>
           </div>
 
-          {/* Language switcher */}
-          <div className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs ${langBarCls}`}>
-            <Languages size={12} />
-            {['az', 'en', 'ru'].map(lang => (
-              <button key={lang} type="button"
-                onClick={async () => { await Haptic.light(); setLang(lang); }}
-                className={`px-1 font-bold transition-all rounded ${safeLang === lang
-                  ? 'text-[#F48C24] scale-110'
-                  : isLight ? 'text-slate-500 hover:text-slate-700' : 'text-white/50 hover:text-white/80'}`}>
-                {lang.toUpperCase()}
-              </button>
-            ))}
-          </div>
+          {/* Premium Tag for Member level */}
+          <span className={`text-[9px] font-black uppercase tracking-wider ${
+            isRetro
+              ? 'text-[#F48C24] bg-[#FAF6F0] dark:bg-[#1E1714] px-3 py-1.5 rounded-lg border-2 border-[#1C2029] dark:border-[#2F2622] shadow-[1.5px_1.5px_0px_0px_#1C2029]'
+              : 'text-[#F48C24] bg-[#F48C24]/10 px-3 py-1 rounded-full border border-[#F48C24]/20'
+          } flex-shrink-0`}>
+            {customer.type || 'Golden Member'}
+          </span>
         </div>
 
-        {/* Profile details */}
-        <div className={`space-y-2.5 rounded-[20px] border p-4 text-sm ${innerBoxBg}`}>
+        {/* Profile details - Redesigned into a premium grid layout */}
+        <div className="grid grid-cols-2 gap-3.5 mt-4 relative z-10">
           {[
-            { label: tx(safeLang, 'Kart ID', 'ID карты', 'Card ID'), value: customer.card_id },
-            { label: tx(safeLang, 'Tip', 'Тип', 'Type'), value: customer.type || 'Member' },
-            { label: tx(safeLang, 'Endirim', 'Скидка', 'Discount'), value: `${Number(customer.discount_percent || 0).toFixed(0)}%` },
-            { label: tx(safeLang, 'Qoşulma tarixi', 'Дата подключения', 'Joined'), value: customer.created_at ? new Date(customer.created_at).toLocaleDateString() : '-' },
-          ].map(({ label, value }, i) => (
-            <div key={i} className={`flex items-center justify-between gap-3 pb-2.5 ${i < 3 ? `border-b ${isLight ? 'border-black/5' : 'border-white/5'}` : ''}`}>
-              <span className={`text-[11px] ${textMuted}`}>{label}</span>
-              <span className={`text-[12px] font-bold ${textPrimary}`}>{value}</span>
+            { label: tx(safeLang, 'Endirim faizi', 'Скидка', 'Discount'), value: `${Number(customer.discount_percent || 0).toFixed(0)}%`, highlight: true },
+            { label: tx(safeLang, 'Kart növü', 'Тип карты', 'Card Tier'), value: customer.type || 'Gold' },
+            { label: tx(safeLang, 'Qoşulma tarixi', 'Дата подключения', 'Joined Since'), value: customer.created_at ? new Date(customer.created_at).toLocaleDateString() : '-' },
+            { label: tx(safeLang, 'Kart ID', 'ID карты', 'Card Identifier'), value: String(customer.card_id || '').slice(-8) }
+          ].map(({ label, value, highlight }, i) => (
+            <div key={i} 
+              className={`rounded-2xl p-3.5 border flex flex-col justify-between transition-all ${
+                isRetro
+                  ? isLight
+                    ? 'bg-white border-[2px] border-[#1C2029] shadow-[2px_2px_0px_0px_#1C2029]'
+                    : 'bg-[#1E1714] border-[2px] border-[#2F2622] shadow-[2px_2px_0px_0px_#2F2622]'
+                  : isLight 
+                    ? 'bg-black/3 border-black/5 hover:bg-black/5' 
+                    : 'bg-[#0C0F14] border-white/5 hover:bg-white/5'
+              }`}>
+              <span className={`text-[9px] font-semibold uppercase tracking-wider ${textMuted}`}>{label}</span>
+              <span className={`text-[13px] font-black mt-2 ${highlight ? 'text-[#F48C24] text-base' : textPrimary}`}>{value}</span>
             </div>
           ))}
         </div>
@@ -139,32 +149,86 @@ export default function ProfileTab({
       <section className={`rounded-[28px] border p-5 ${bgCard}`}>
         <div className={`mb-4 flex items-center gap-2 text-[15px] font-bold ${textPrimary}`}>
           <Gift size={16} className="text-[#F48C24]" />
-          {tx(safeLang, 'Son tarixçə', 'Последняя история', 'Recent history')}
+          {tx(safeLang, 'Sifariş Tarixçəsi', 'История заказов', 'Order History')}
         </div>
-        <div className="space-y-2.5">
+        
+        <div className="space-y-4">
           {history.length === 0 ? (
-            <div className={`rounded-2xl border p-4 text-sm text-center ${itemBorder} ${textMuted}`}>
-              {tx(safeLang, 'Hələ alış tarixçəsi yoxdur', 'История покупок пока пуста', 'No purchase history yet')}
+            <div className={`rounded-2xl border p-4 text-xs text-center ${itemBorder} ${textMuted}`}>
+              {tx(safeLang, 'Hələ sifariş tarixçəsi yoxdur', 'История покупок пока пуста', 'No purchase history yet')}
             </div>
-          ) : history.map((row: any, idx: number) => (
-            <div key={row.id}
-              className={`rounded-2xl border p-4 transition-all stagger-fade-in stagger-${Math.min(idx + 1, 5)} ${itemBorder}`}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className={`font-bold text-[12px] ${textPrimary}`}>{new Date(row.created_at).toLocaleString()}</div>
-                  <div className={`mt-1 text-[11px] leading-relaxed ${textSecond}`}>
-                    {(row.items || []).map((item: any) => `${item.item_name} ×${item.qty}`).join(', ') || '-'}
+          ) : history.map((row: any, idx: number) => {
+            const formattedDate = new Date(row.created_at).toLocaleDateString(safeLang === 'az' ? 'az-AZ' : safeLang === 'ru' ? 'ru-RU' : 'en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+
+            return (
+              <div key={row.id}
+                className={`rounded-[22px] border p-4 space-y-3 transition-all stagger-fade-in stagger-${Math.min(idx + 1, 5)} ${isLight ? 'bg-white/90 border-black/5 shadow-sm' : 'bg-[#0C0F14] border-white/5'}`}>
+                
+                {/* Meta details */}
+                <div className="flex items-center justify-between border-b border-white/5 pb-2 text-[9px] font-bold text-white/40 uppercase tracking-wider">
+                  <div>
+                    <span className="block text-white/30">{tx(safeLang, 'SİFARİŞ VAXTI', 'ВРЕМЯ ЗАКАЗА', 'ORDER TIME')}</span>
+                    <span className={`mt-0.5 block ${isLight ? 'text-slate-600' : 'text-white/60'}`}>{formattedDate}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="block text-white/30">{tx(safeLang, 'ÜMUMİ MƏBLƏĞ', 'ОБЩАЯ СУММА', 'TOTAL AMOUNT')}</span>
+                    <span className="mt-0.5 block text-[#F48C24] font-black text-[11px]">₼ {Number(row.total || 0).toFixed(2)}</span>
                   </div>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <div className={`text-[16px] font-black ${textPrimary}`}>{Number(row.total || 0).toFixed(2)} ₼</div>
-                  <div className={`text-[10px] mt-0.5 capitalize rounded-full px-2 py-0.5 font-semibold ${isLight ? 'bg-black/5 text-slate-500' : 'bg-white/5 text-white/50'}`}>
+
+                {/* Items layout */}
+                <div className="space-y-2">
+                  {(row.items || []).map((item: any, itemIdx: number) => {
+                    const itemCategory = (item.category || '').toLowerCase();
+                    const iconEmoji = itemCategory.includes('cay') || itemCategory.includes('tea') ? '🍵' : itemCategory.includes('sweet') || itemCategory.includes('pastry') ? '🍰' : '☕';
+                    return (
+                      <div key={itemIdx} className={`flex items-center gap-3 p-2.5 rounded-xl ${isLight ? 'bg-black/3' : 'bg-white/3 border border-white/5'}`}>
+                        {/* Icon/Image placeholder container */}
+                        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-[#1C2029] to-[#0C0F14] flex items-center justify-center text-lg border border-white/5 flex-shrink-0">
+                          {iconEmoji}
+                        </div>
+                        
+                        {/* Title and qty */}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-[11px] font-black truncate ${textPrimary}`}>{item.item_name}</p>
+                          <p className={`text-[9px] font-semibold mt-0.5 ${textMuted}`}>
+                            {tx(safeLang, 'Standart Seçim', 'Стандартный выбор', 'Standard Brew')}
+                          </p>
+                        </div>
+
+                        {/* Price rendering */}
+                        <div className="text-right flex-shrink-0">
+                          <p className={`text-[11px] font-black ${textPrimary}`}>
+                            <span className="text-[#F48C24]">₼</span> {Number(item.price || 0).toFixed(2)}
+                          </p>
+                          <p className="text-[8px] font-extrabold text-[#F48C24]/80 mt-0.5 uppercase">
+                            × {item.qty}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Payment Method Badge */}
+                <div className="flex items-center justify-between pt-1">
+                  <span className={`text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider ${isLight ? 'bg-black/5 text-slate-500' : 'bg-white/5 text-white/40'}`}>
                     {row.payment_method}
-                  </div>
+                  </span>
+                  <span className="text-[9px] font-black text-emerald-500 flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    {tx(safeLang, 'Uğurla tamamlandı', 'Успешно завершено', 'Completed')}
+                  </span>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
     </div>

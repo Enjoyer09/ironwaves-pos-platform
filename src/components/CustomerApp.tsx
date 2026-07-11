@@ -113,6 +113,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [fortuneStepText, setFortuneStepText] = React.useState('');
   const [showFullQr, setShowFullQr] = React.useState(false);
   const [activatedCampaigns, setActivatedCampaigns] = React.useState<Record<string, number>>({});
+  const [designMode, setDesignMode] = React.useState<'classic' | 'retro'>(() => (localStorage.getItem('customer_design_mode') as 'classic' | 'retro') || 'classic');
   const [campaignQrs, setCampaignQrs] = React.useState<Record<string, string>>({});
   const [tick, setTick] = React.useState(0);
   const [isListening, setIsListening] = React.useState(false);
@@ -1027,89 +1028,120 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   if (!sessionCreds.cardId || !sessionCreds.token) {
     const bootstrapBranding = bootstrapData?.branding || {};
-    const joinPrimary = String(bootstrapBranding.primary_color || '#facc15');
-    const joinAccent = String(bootstrapBranding.accent_color || '#22d3ee');
-    const joinBg = String(bootstrapBranding.background_color || '#0b1220');
+    const joinPrimary = '#F48C24';
+    const joinBg = '#0D0B0A';
     return (
-      <div className="min-h-screen px-4 py-8 text-slate-100" style={{ background: `linear-gradient(180deg, ${joinBg}, #020617)` }}>
-        <div className="mx-auto max-w-md space-y-4">
-          <section className="overflow-hidden rounded-[34px] border border-white/10 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]" style={{ background: `linear-gradient(180deg, ${joinAccent}, ${joinPrimary})` }}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-xs uppercase tracking-[0.3em] text-white/70">{bootstrapBranding.app_name || 'Emalatkhana'}</div>
-                <h1 className="mt-3 text-3xl font-black text-white">{bootstrapBranding.hero_title || tx(safeLang, 'Xoş gəldiniz', 'Добро пожаловать', 'Welcome')}</h1>
-                <p className="mt-2 text-sm text-white/80">{bootstrapBranding.hero_subtitle || tx(safeLang, 'Loyalty klubuna bir toxunuşla qoşul', 'Присоединяйся к loyalty клубу одним касанием', 'Join the loyalty club in one tap')}</p>
-              </div>
-              <div className="flex flex-col items-end gap-3">
-                <div className="flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs text-white backdrop-blur">
-                  <Languages size={14} />
-                  <button type="button" onClick={() => setLang('az')} className={safeLang === 'az' ? 'font-bold underline' : ''}>AZ</button>
-                  <button type="button" onClick={() => setLang('en')} className={safeLang === 'en' ? 'font-bold underline' : ''}>EN</button>
-                  <button type="button" onClick={() => setLang('ru')} className={safeLang === 'ru' ? 'font-bold underline' : ''}>RU</button>
-                </div>
-                {bootstrapBranding.logo_url ? <img src={bootstrapBranding.logo_url} alt="brand" className="h-12 w-12 rounded-2xl object-cover" /> : null}
-              </div>
-            </div>
-          </section>
-          <section className="rounded-[30px] border border-white/10 bg-slate-900/60 backdrop-blur-xl p-5 text-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-            <div className="text-lg font-black text-white">{tx(safeLang, 'Giriş və Qeydiyyat', 'Вход и Регистрация', 'Sign in & Sign up')}</div>
-            
-            <div className="mt-3 rounded-2xl bg-white/5 p-4 text-xs leading-5 text-slate-300 border border-white/5">
-              <span className="font-bold text-white block mb-1">{tx(safeLang, 'Müştəri razılaşması:', 'Согласие клиента:', 'Customer consent:')}</span>
-              {bootstrapData?.consent_text || tx(safeLang, 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.', 'Я согласен на участие в программе лояльности.', 'I agree to join the loyalty program.')}
+      <div className="min-h-screen px-5 pt-[calc(env(safe-area-inset-top,47px)+12px)] pb-8 text-slate-100 flex flex-col justify-between relative overflow-hidden" 
+        style={{ background: `linear-gradient(180deg, #181412 0%, ${joinBg} 100%)` }}>
+        
+        {/* Background glowing light shapes */}
+        <div className="absolute top-[-10%] right-[-10%] h-80 w-80 rounded-full bg-[#F48C24]/12 blur-[120px] pointer-events-none z-0" />
+        <div className="absolute bottom-[20%] left-[-20%] h-72 w-72 rounded-full bg-orange-950/20 blur-[100px] pointer-events-none z-0" />
+
+        {/* Top Header bar with Lang switch */}
+        <div className="flex justify-between items-center relative z-10 w-full max-w-md mx-auto">
+          <div className="flex items-center gap-2">
+            {bootstrapBranding.logo_url ? (
+              <img src={bootstrapBranding.logo_url} alt="brand" className="h-9 w-9 rounded-xl object-cover ring-1 ring-white/10" />
+            ) : (
+              <span className="text-xl">☕</span>
+            )}
+            <span className="text-sm font-extrabold uppercase tracking-widest text-white/90">
+              {bootstrapBranding.app_name || 'iRonWaves'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/5 px-2.5 py-1 text-[10px] font-black text-white/80 backdrop-blur-md">
+            <Languages size={11} />
+            {['az', 'en', 'ru'].map(l => (
+              <button key={l} type="button" onClick={() => setLang(l)} 
+                className={`px-0.5 transition-all ${safeLang === l ? 'text-[#F48C24] font-black scale-105' : 'text-white/40 hover:text-white/70'}`}>
+                {l.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Main Hero & Input container */}
+        <div className="w-full max-w-md mx-auto my-auto space-y-6 relative z-10 pt-8 pb-12">
+          {/* Welcome Slogan */}
+          <div className="space-y-2">
+            <h1 className="text-3xl font-black tracking-tight text-white leading-tight">
+              {tx(safeLang, 'Sizin üçün ən yaxşı qəhvə', 'Лучший кофе для вас', 'Find the best coffee for you')}
+            </h1>
+            <p className="text-[11px] font-semibold text-white/50 leading-relaxed max-w-[280px]">
+              {bootstrapBranding.hero_subtitle || tx(safeLang, 'Loyallıq klubuna qoşulun, növbə gözləmədən sifariş edin və qazanın.', 'Присоединяйтесь к клубу лояльности и заказывайте без очереди.', 'Join the loyalty club, order ahead, and earn rewards.')}
+            </p>
+          </div>
+
+          {/* Input Glass Card */}
+          <section className="rounded-[30px] border border-white/8 bg-white/5 backdrop-blur-2xl p-5 text-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.5)] space-y-4">
+            <div className="text-sm font-black text-white uppercase tracking-wider">
+              {tx(safeLang, 'Giriş və Qeydiyyat', 'Вход и Регистрация', 'Sign in & Sign up')}
             </div>
 
             {!otpSent ? (
-              <div className="mt-4 space-y-3">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">{tx(safeLang, 'Telefon nömrəniz', 'Номер телефона', 'Phone number')}</label>
-                <input
-                  type="tel"
-                  placeholder="+994 50 123 45 67"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-white/20"
-                />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[9px] font-black uppercase tracking-widest text-white/40 mb-1.5">
+                    {tx(safeLang, 'Telefon nömrəniz', 'Номер телефона', 'Phone number')}
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="+994 50 123 45 67"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3.5 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-[#F48C24]/30"
+                  />
+                </div>
+
+                <div className="rounded-2xl bg-white/3 p-3 text-[10px] leading-relaxed text-white/55 border border-white/5">
+                  <span className="font-bold text-white block mb-0.5">
+                    {tx(safeLang, 'Müştəri razılaşması:', 'Согласие клиента:', 'Customer consent:')}
+                  </span>
+                  {bootstrapData?.consent_text || tx(safeLang, 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.', 'Я согласен на участие в программе лояльности.', 'I agree to join the loyalty program.')}
+                </div>
+
                 <button
                   type="button"
                   disabled={otpSending || otpVerifying}
                   onClick={handleSendOtp}
-                  className="w-full rounded-2xl px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-60 transition active:scale-98 hover:brightness-110"
-                  style={{ backgroundColor: joinPrimary }}
+                  className="w-full rounded-2xl py-3.5 text-xs font-black text-slate-950 disabled:opacity-60 transition active:scale-98 hover:brightness-110 shadow-lg shadow-orange-500/15 shimmer-btn"
+                  style={{ background: 'linear-gradient(135deg, #F48C24 0%, #ffb366 100%)' }}
                 >
-                  {otpSending ? '...' : tx(safeLang, 'Razıyam və kod göndər', 'Согласен и отправить код', 'Accept and send code')}
+                  {otpSending ? '...' : tx(safeLang, 'Razıyam və kod göndər', 'Согласен и отправить код', 'Accept & Send Code')}
                 </button>
-
-                {CUSTOMER_DEBUG_TOOLS_ENABLED ? (
-                  <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center text-xs font-semibold text-white/50">
-                    DEV mode: OTP test bypass removed from the customer-facing flow.
-                  </p>
-                ) : null}
               </div>
             ) : (
-              <div className="mt-4 space-y-3">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">{tx(safeLang, 'Təsdiq kodu', 'Код подтверждения', 'Verification code')}</label>
-                <input
-                  type="number"
-                  pattern="[0-9]*"
-                  inputMode="numeric"
-                  placeholder="1234"
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-center text-lg font-bold text-white placeholder-white/20 tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-white/20"
-                />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[9px] font-black uppercase tracking-widest text-white/40 mb-1.5">
+                    {tx(safeLang, 'Təsdiq kodu', 'Код подтверждения', 'Verification code')}
+                  </label>
+                  <input
+                    type="number"
+                    pattern="[0-9]*"
+                    inputMode="numeric"
+                    placeholder="1234"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value)}
+                    className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3.5 text-center text-lg font-black text-white placeholder-white/10 tracking-[0.4em] focus:outline-none focus:ring-1 focus:ring-[#F48C24]/30"
+                  />
+                </div>
+
                 <button
                   type="button"
                   disabled={otpVerifying}
                   onClick={handleVerifyOtp}
-                  className="w-full rounded-2xl px-4 py-3 text-sm font-bold text-slate-950 disabled:opacity-60 transition active:scale-98 hover:brightness-110"
-                  style={{ backgroundColor: joinPrimary }}
+                  className="w-full rounded-2xl py-3.5 text-xs font-black text-slate-950 disabled:opacity-60 transition active:scale-98 hover:brightness-110 shadow-lg shadow-orange-500/15 shimmer-btn"
+                  style={{ background: 'linear-gradient(135deg, #F48C24 0%, #ffb366 100%)' }}
                 >
-                  {otpVerifying ? '...' : tx(safeLang, 'Daxil ol / Təsdiq et', 'Войти / Подтвердить', 'Sign in / Verify')}
+                  {otpVerifying ? '...' : tx(safeLang, 'Təsdiq et & Giriş et', 'Подтвердить и войти', 'Verify & Sign in')}
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setOtpSent(false)}
-                  className="w-full text-center text-xs font-semibold text-slate-400 hover:text-slate-200 underline mt-2"
+                  className="w-full text-center text-[10px] font-black text-white/45 hover:text-white/70 transition uppercase tracking-wider"
                 >
                   {tx(safeLang, 'Nömrəni dəyiş', 'Изменить номер', 'Change number')}
                 </button>
@@ -1117,11 +1149,16 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             )}
 
             {otpError && (
-              <p className="mt-3 text-center text-xs font-medium text-red-200 bg-red-500/10 rounded-xl py-2 px-3 border border-red-500/20">
+              <p className="text-center text-[10px] font-bold text-red-300 bg-red-500/8 rounded-xl py-2 px-3 border border-red-500/20">
                 {otpError}
               </p>
             )}
           </section>
+        </div>
+
+        {/* Footer info text */}
+        <div className="text-center text-[9px] font-semibold text-white/20 mt-auto relative z-10 w-full max-w-md mx-auto">
+          iRonWaves App v1.2.0 · {tx(safeLang, 'Bütün hüquqlar qorunur', 'Все права защищены', 'All rights reserved')}
         </div>
       </div>
     );
@@ -1245,11 +1282,17 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   return (
     <div
-      className={`relative min-h-dvh overflow-x-hidden overflow-y-auto overscroll-contain ${isLight ? 'text-slate-900 bg-[#F8F6F4]' : 'text-white bg-[#0D0B0A]'}`}
+      className={`relative min-h-dvh overflow-x-hidden overflow-y-auto overscroll-contain customer-app-wrapper transition-colors duration-300 ${
+        designMode === 'retro'
+          ? isLight ? 'retro-bg-light text-slate-900' : 'retro-bg-dark text-white'
+          : isLight ? 'text-slate-900 bg-[#F8F6F4]' : 'text-white bg-[#0D0B0A]'
+      }`}
       style={{
-        background: isLight
-          ? `linear-gradient(180deg, #FFFFFF 0%, #F3F1EF 100%)`
-          : `linear-gradient(180deg, #181412 0%, #0D0B0A 100%)`,
+        background: designMode === 'retro'
+          ? (isLight ? '#FAF6F0' : '#15100E')
+          : (isLight
+            ? `linear-gradient(180deg, #FFFFFF 0%, #F3F1EF 100%)`
+            : `linear-gradient(180deg, #181412 0%, #0D0B0A 100%)`),
       }}
     >
       {/* Background glowing light shapes for rich glassmorphism */}
@@ -1327,20 +1370,39 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         }
       `}</style>
 
-      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-28 pt-5">
-        {/* Language switcher + Theme toggle */}
+      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-28 pt-[calc(env(safe-area-inset-top,47px)+12px)]">
+        {/* Language switcher + Theme/Design toggle */}
         <div className="mb-4 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setThemeMode(isLight ? 'dark' : 'light')}
-            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-extrabold shadow-sm transition active:scale-95 ${
-              isLight
-                ? 'bg-slate-100 border border-slate-200 text-slate-600'
-                : 'bg-white/10 border border-white/10 text-white/70'
-            }`}
-          >
-            {isLight ? '🌙' : '☀️'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setThemeMode(isLight ? 'dark' : 'light')}
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-extrabold shadow-sm transition active:scale-95 ${
+                isLight
+                  ? 'bg-slate-100 border border-slate-200 text-slate-600'
+                  : 'bg-white/10 border border-white/10 text-white/70'
+              }`}
+            >
+              {isLight ? '🌙' : '☀️'}
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                const nextMode = designMode === 'classic' ? 'retro' : 'classic';
+                setDesignMode(nextMode);
+                localStorage.setItem('customer_design_mode', nextMode);
+                await nativeHapticImpact(ImpactStyle.Light);
+                playTickSound();
+              }}
+              className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider shadow-sm transition active:scale-95 ${
+                isLight
+                  ? 'bg-slate-100 border border-slate-200 text-slate-700'
+                  : 'bg-white/10 border border-white/10 text-white/90'
+              }`}
+            >
+              🎨 {designMode === 'classic' ? 'Premium' : 'Comic'}
+            </button>
+          </div>
           <div
             className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-extrabold shadow-sm ${
               isLight
@@ -1395,6 +1457,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             sessionCreds={sessionCreds}
             data={data}
             isLight={isLight}
+            designMode={designMode}
           />
           </div>
         )}
@@ -1428,6 +1491,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             preOrderSuccessId={preOrderSuccessId}
             setPreOrderSuccess={setPreOrderSuccess}
             handleRemoveFromCart={handleRemoveFromCart}
+            designMode={designMode}
           />
           </div>
         )}
@@ -1463,6 +1527,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             primaryColor={primaryColor}
             accentColor={accentColor}
             isLight={isLight}
+            designMode={designMode}
           />
           </div>
         )}
@@ -1496,6 +1561,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             setLang={setLang}
             markRead={markRead}
             isLight={isLight}
+            designMode={designMode}
           />
           </div>
         )}
@@ -1508,10 +1574,14 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       >
         <div className="mx-auto max-w-md px-4 pb-3">
           <div
-            className={`flex items-center justify-around rounded-[32px] py-2 border shadow-2xl backdrop-blur-2xl ${
-              isLight
-                ? 'border-slate-200 bg-white/80 text-slate-800'
-                : 'border-white/10 bg-white/5 text-white'
+            className={`flex items-center justify-around rounded-[32px] py-2 border ${
+              designMode === 'retro'
+                ? isLight
+                  ? 'border-[2px] border-[#1C2029] bg-[#FFFDF9] text-[#1C2029] shadow-[3px_3px_0px_0px_#1C2029]'
+                  : 'border-[2px] border-[#2F2622] bg-[#1A1513] text-white shadow-[3px_3px_0px_0px_#2F2622]'
+                : isLight
+                  ? 'border-slate-200 bg-white/80 text-slate-800 shadow-2xl backdrop-blur-2xl'
+                  : 'border-white/10 bg-white/5 text-white shadow-2xl backdrop-blur-2xl'
             }`}
           >
             {bottomTabs.map((tab) => {
@@ -1533,7 +1603,9 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                   }}
                   className={`relative flex items-center justify-center transition-all duration-300 ${
                     active
-                      ? 'rounded-full bg-[#F48C24] text-white px-4 py-2 shadow-[0_4px_12px_rgba(244,140,36,0.25)] gap-1.5'
+                      ? designMode === 'retro'
+                        ? 'rounded-xl border-[2px] border-[#1C2029] dark:border-[#2F2622] bg-[#F48C24] text-[#1C2029] dark:text-[#1C2029] px-4 py-2 shadow-[2px_2px_0px_0px_#1C2029] dark:shadow-[2px_2px_0px_0px_#2F2622] gap-1.5'
+                        : 'rounded-full bg-[#F48C24] text-white px-4 py-2 shadow-[0_4px_12px_rgba(244,140,36,0.25)] gap-1.5'
                       : isLight
                         ? 'text-slate-400 hover:text-slate-700 p-2.5 rounded-full hover:bg-slate-100'
                         : 'text-white/40 hover:text-white/70 p-2.5 rounded-full hover:bg-white/5'
