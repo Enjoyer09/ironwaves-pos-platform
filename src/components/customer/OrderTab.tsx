@@ -477,7 +477,7 @@ export default function OrderTab({
   const textPrimary = isLight ? 'text-slate-900'   : 'text-white';
   const textSecond  = isLight ? 'text-slate-500'   : 'text-white/60';
   const catInactive = isRetro
-    ? (isLight ? 'border-[2px] border-[#1C2029] bg-white text-slate-800 shadow-[1.5px_1.5px_0px_0px_#1C2029]' : 'border-[2px] border-[#2F2622] bg-[#1E1714] text-white shadow-[1.5px_1.5px_0px_0px_#2F2622]')
+    ? (isLight ? 'border-[2px] border-[#2B1B1A] bg-white text-slate-800 shadow-[1.5px_1.5px_0px_0px_#2B1B1A]' : 'border-[2px] border-[#3D2F2A] bg-[#1E1714] text-white shadow-[1.5px_1.5px_0px_0px_#3D2F2A]')
     : (isLight ? 'bg-white/80 border-black/8 text-slate-700 hover:bg-white shadow-sm backdrop-blur-sm' : 'bg-white/6 border-white/10 text-white/70 hover:bg-white/12 backdrop-blur-sm');
   const cardBg      = isRetro
     ? 'retro-card'
@@ -537,17 +537,17 @@ export default function OrderTab({
               <button key={cat} onClick={async () => { await Haptic.light(); setSelectedCategory(cat); }}
                 className={`flex-none w-[76px] flex flex-col items-center gap-1.5 rounded-[22px] p-2.5 transition-all border ${
                   isSelected
-                    ? isRetro ? 'text-[#1C2029] dark:text-white retro-btn' : 'text-white shimmer-btn glow-orange'
+                    ? isRetro ? 'text-[#2B1B1A] dark:text-white retro-btn' : 'text-white shimmer-btn glow-orange'
                     : catInactive
                 }`}
                 style={isSelected ? {
-                  background: 'linear-gradient(135deg, #F48C24, #ffb366)',
-                  borderColor: isRetro ? (isLight ? '#1C2029' : '#2F2622') : 'rgba(244,140,36,0.4)',
+                  background: isRetro ? 'linear-gradient(135deg, #D47B5E, #E9A583)' : 'linear-gradient(135deg, #F48C24, #ffb366)',
+                  borderColor: isRetro ? (isLight ? '#2B1B1A' : '#3D2F2A') : 'rgba(244,140,36,0.4)',
                 } : undefined}>
                 <div className={`h-11 w-11 rounded-full overflow-hidden border-2 shadow-sm ${
                   isSelected 
-                    ? isRetro ? 'border-[#1C2029] dark:border-white/40' : 'border-white/40' 
-                    : isRetro ? (isLight ? 'border-[#1C2029]' : 'border-[#2F2622]') : (isLight ? 'border-black/8' : 'border-white/6')
+                    ? isRetro ? 'border-[#2B1B1A] dark:border-white/40' : 'border-white/40' 
+                    : isRetro ? (isLight ? 'border-[#2B1B1A]' : 'border-[#3D2F2A]') : (isLight ? 'border-black/8' : 'border-white/6')
                 }`}>
                   <img src={catImage} alt={cat} className="h-full w-full object-cover" />
                 </div>
@@ -603,7 +603,7 @@ export default function OrderTab({
                 onClick={() => handleOpenModifiers(item)}
                 className={`relative group flex flex-col items-center rounded-[28px] border overflow-hidden cursor-pointer card-tilt stagger-fade-in stagger-${Math.min(itemIdx % 5 + 1, 5)} ${cardBg}`}>
                 {/* Product Image */}
-                <div className={`relative w-full aspect-square overflow-hidden ${isRetro ? 'border-b-[2px] border-[#1C2029] dark:border-[#2F2622]' : ''}`}>
+                <div className={`relative w-full aspect-square overflow-hidden ${isRetro ? 'border-b-[2px] border-[#2B1B1A] dark:border-[#3D2F2A]' : ''}`}>
                   <img
                     src={getProductImage(item.item_name || item.name || '', item.image_url)}
                     alt={item.item_name || item.name || ''}
@@ -621,7 +621,7 @@ export default function OrderTab({
                   {/* Badge (Bottom/Top Left) */}
                   <span className={`absolute bottom-2.5 left-2.5 z-10 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider backdrop-blur-md ${
                     isRetro
-                      ? 'bg-[#FAF6F0] text-slate-800 border-2 border-[#1C2029] shadow-sm'
+                      ? 'bg-[#FAF8F5] text-slate-800 border-2 border-[#2B1B1A] shadow-sm'
                       : badgeColor
                   }`}>
                     {badgeText}
@@ -630,7 +630,7 @@ export default function OrderTab({
                   {/* Floating Corner Rating Badge */}
                   <div className={
                     isRetro
-                      ? "absolute top-0 right-0 flex items-center gap-0.5 bg-[#FAF6F0] px-2 py-0.5 rounded-bl-xl border-l-[2px] border-b-[2px] border-[#1C2029] dark:border-[#2F2622] text-[9px] font-black text-slate-800 z-10 shadow-sm"
+                      ? "absolute top-0 right-0 flex items-center gap-0.5 bg-[#FAF8F5] px-2 py-0.5 rounded-bl-xl border-l-[2px] border-b-[2px] border-[#2B1B1A] dark:border-[#3D2F2A] text-[9px] font-black text-slate-800 z-10 shadow-sm"
                       : "absolute top-0 right-0 flex items-center gap-0.5 bg-[#0C0F14]/75 backdrop-blur-md px-2.5 py-1 rounded-bl-[18px] border-l border-b border-white/5 text-[9px] font-black text-white z-10"
                   }>
                     <span className="text-yellow-500">★</span>
@@ -647,13 +647,13 @@ export default function OrderTab({
                     className={`absolute top-10 right-2.5 z-10 h-7 w-7 rounded-full flex items-center justify-center border backdrop-blur-md transition-all active:scale-90 ${
                       isRetro
                         ? isFav
-                          ? 'bg-[#F48C24] border-[2px] border-[#1C2029] dark:border-[#2F2622] text-[#1C2029]'
-                          : 'bg-white border-[2px] border-[#1C2029] dark:border-[#2F2622] text-slate-500'
+                          ? 'bg-[#D47B5E] border-[2px] border-[#2B1B1A] dark:border-[#3D2F2A] text-white'
+                          : 'bg-white border-[2px] border-[#2B1B1A] dark:border-[#3D2F2A] text-slate-500'
                         : isFav
                           ? 'bg-[#F48C24]/25 border-[#F48C24]/50 text-[#F48C24] glow-orange-sm'
                           : isLight ? 'bg-white/80 border-black/10 text-slate-500' : 'bg-black/40 border-white/10 text-white/60'
                     }`}>
-                    <Heart size={11} fill={isFav ? (isRetro ? '#1C2029' : '#F48C24') : 'none'} />
+                    <Heart size={11} fill={isFav ? (isRetro ? '#FAF8F5' : '#F48C24') : 'none'} />
                   </button>
                 </div>
 
@@ -675,7 +675,7 @@ export default function OrderTab({
                     </p>
                     {/* + button */}
                     {isRetro ? (
-                      <div className="h-7 w-7 border-[2px] border-[#1C2029] dark:border-[#2F2622] bg-[#F48C24] flex items-center justify-center text-[#1C2029] font-black text-sm shadow-[1.5px_1.5px_0px_0px_#1C2029] rounded-lg active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all">
+                      <div className="h-7 w-7 border-[2px] border-[#2B1B1A] dark:border-[#3D2F2A] bg-[#D47B5E] flex items-center justify-center text-white font-black text-sm shadow-[1.5px_1.5px_0px_0px_#2B1B1A] dark:shadow-[1.5px_1.5px_0px_0px_#3D2F2A] rounded-lg active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all">
                         <Plus size={14} />
                       </div>
                     ) : (

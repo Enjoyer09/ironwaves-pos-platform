@@ -50,7 +50,10 @@ export default function ProfileTab({
           {/* Avatar */}
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 rounded-2xl flex items-center justify-center text-xl font-black text-white shimmer-btn"
-              style={{ background: 'linear-gradient(135deg, #F48C24, #ffb366)', boxShadow: isRetro ? '2px 2px 0px 0px #1C2029' : '0 6px 18px rgba(244,140,36,0.40)' }}>
+              style={{
+                background: isRetro ? 'linear-gradient(135deg, #D47B5E, #E9A583)' : 'linear-gradient(135deg, #F48C24, #ffb366)',
+                boxShadow: isRetro ? '2px 2px 0px 0px #2B1B1A' : '0 6px 18px rgba(244,140,36,0.40)'
+              }}>
               {customer.name ? customer.name.charAt(0).toUpperCase() : 'M'}
             </div>
             <div>
@@ -62,7 +65,7 @@ export default function ProfileTab({
           {/* Premium Tag for Member level */}
           <span className={`text-[9px] font-black uppercase tracking-wider ${
             isRetro
-              ? 'text-[#F48C24] bg-[#FAF6F0] dark:bg-[#1E1714] px-3 py-1.5 rounded-lg border-2 border-[#1C2029] dark:border-[#2F2622] shadow-[1.5px_1.5px_0px_0px_#1C2029]'
+              ? 'text-[#D47B5E] bg-[#FAF8F5] dark:bg-[#1E1714] px-3 py-1.5 rounded-lg border-2 border-[#2B1B1A] dark:border-[#3D2F2A] shadow-[1.5px_1.5px_0px_0px_#2B1B1A]'
               : 'text-[#F48C24] bg-[#F48C24]/10 px-3 py-1 rounded-full border border-[#F48C24]/20'
           } flex-shrink-0`}>
             {customer.type || 'Golden Member'}
@@ -81,14 +84,14 @@ export default function ProfileTab({
               className={`rounded-2xl p-3.5 border flex flex-col justify-between transition-all ${
                 isRetro
                   ? isLight
-                    ? 'bg-white border-[2px] border-[#1C2029] shadow-[2px_2px_0px_0px_#1C2029]'
-                    : 'bg-[#1E1714] border-[2px] border-[#2F2622] shadow-[2px_2px_0px_0px_#2F2622]'
+                    ? 'bg-white border-[2px] border-[#2B1B1A] shadow-[2px_2px_0px_0px_#2B1B1A]'
+                    : 'bg-[#1E1714] border-[2px] border-[#3D2F2A] shadow-[2px_2px_0px_0px_#3D2F2A]'
                   : isLight 
                     ? 'bg-black/3 border-black/5 hover:bg-black/5' 
                     : 'bg-[#0C0F14] border-white/5 hover:bg-white/5'
               }`}>
               <span className={`text-[9px] font-semibold uppercase tracking-wider ${textMuted}`}>{label}</span>
-              <span className={`text-[13px] font-black mt-2 ${highlight ? 'text-[#F48C24] text-base' : textPrimary}`}>{value}</span>
+              <span className={`text-[13px] font-black mt-2 ${highlight ? isRetro ? 'text-[#D47B5E] text-base' : 'text-[#F48C24] text-base' : textPrimary}`}>{value}</span>
             </div>
           ))}
         </div>
@@ -97,11 +100,11 @@ export default function ProfileTab({
       {/* Notifications */}
       <section className={`rounded-[28px] border p-5 ${bgCard}`}>
         <div className={`mb-4 flex items-center gap-2 text-[15px] font-bold ${textPrimary}`}>
-          <Bell size={16} className={unreadCount > 0 ? 'text-[#F48C24] animate-bounce' : textMuted} />
+          <Bell size={16} className={unreadCount > 0 ? isRetro ? 'text-[#D47B5E] animate-bounce' : 'text-[#F48C24] animate-bounce' : textMuted} />
           {tx(safeLang, 'Bildirişlər', 'Уведомления', 'Notifications')}
           {unreadCount > 0 && (
-            <span className="ml-auto rounded-full px-2 py-0.5 text-[10px] font-black text-white animate-pulse"
-              style={{ background: 'linear-gradient(135deg, #F48C24, #ffb366)', boxShadow: '0 4px 12px rgba(244,140,36,0.35)' }}>
+            <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-black text-white ${isRetro ? 'border-2 border-[#2B1B1A] dark:border-[#3D2F2A] shadow-[1.5px_1.5px_0px_0px_#2B1B1A]' : 'animate-pulse'}`}
+              style={isRetro ? { background: '#D47B5E' } : { background: 'linear-gradient(135deg, #F48C24, #ffb366)', boxShadow: '0 4px 12px rgba(244,140,36,0.35)' }}>
               {unreadCount}
             </span>
           )}

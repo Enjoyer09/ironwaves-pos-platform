@@ -3500,88 +3500,88 @@ a, button, select, input, textarea, [role="button"] {
 }
 
 /* ══════════════════════════════════════════════════════════
-   RETRO-COMIC / VINTAGE BARISTA DESIGN SYSTEM
+   RETRO-COMIC / VINTAGE BARISTA DESIGN SYSTEM (COZY WARM NEUTRALS)
    ══════════════════════════════════════════════════════════ */
 
 .retro-bg-light {
-  background: #FAF6F0 !important; /* Soft vintage warm cream */
+  background: #FAF8F5 !important; /* Soft warm oat/cream */
 }
 
 .retro-bg-dark {
-  background: #15100E !important; /* Rich warm dark espresso */
+  background: #15100E !important; /* Rich warm dark roast espresso */
 }
 
 .retro-card {
-  border: 2.5px solid #1C2029 !important;
+  border: 2.5px solid #2B1B1A !important;
   border-radius: 20px !important;
   background-color: #FFFDF9;
-  box-shadow: 4px 4px 0px 0px #1C2029 !important;
+  box-shadow: 4px 4px 0px 0px #2B1B1A !important;
   transition: all 0.2s ease;
   position: relative;
 }
 
 html[data-theme='dark'] .retro-card {
-  border-color: #2F2622 !important;
+  border-color: #3D2F2A !important;
   background-color: #1E1714;
-  box-shadow: 4px 4px 0px 0px #2F2622 !important;
+  box-shadow: 4px 4px 0px 0px #3D2F2A !important;
 }
 
 .retro-card:hover {
   transform: translate(-1px, -1px);
-  box-shadow: 5px 5px 0px 0px #1C2029 !important;
+  box-shadow: 5px 5px 0px 0px #2B1B1A !important;
 }
 
 html[data-theme='dark'] .retro-card:hover {
-  box-shadow: 5px 5px 0px 0px #2F2622 !important;
+  box-shadow: 5px 5px 0px 0px #3D2F2A !important;
 }
 
 .retro-btn {
-  border: 2.5px solid #1C2029 !important;
+  border: 2.5px solid #2B1B1A !important;
   border-radius: 16px !important;
-  background: linear-gradient(135deg, #F48C24 0%, #ffb366 100%) !important;
-  color: #1C2029 !important;
+  background: linear-gradient(135deg, #D47B5E 0%, #E9A583 100%) !important;
+  color: #FAF8F5 !important;
   font-weight: 900 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.05em !important;
-  box-shadow: 3px 3px 0px 0px #1C2029 !important;
+  box-shadow: 3px 3px 0px 0px #2B1B1A !important;
   transition: all 0.1s ease;
 }
 
 html[data-theme='dark'] .retro-btn {
-  border-color: #2F2622 !important;
-  box-shadow: 3px 3px 0px 0px #2F2622 !important;
+  border-color: #3D2F2A !important;
+  box-shadow: 3px 3px 0px 0px #3D2F2A !important;
 }
 
 .retro-btn:active {
   transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0px 0px #1C2029 !important;
+  box-shadow: 1px 1px 0px 0px #2B1B1A !important;
 }
 
 html[data-theme='dark'] .retro-btn:active {
-  box-shadow: 1px 1px 0px 0px #2F2622 !important;
+  box-shadow: 1px 1px 0px 0px #3D2F2A !important;
 }
 
 /* Polaroid Photo Frame */
 .retro-polaroid {
-  border: 2px solid #1C2029;
+  border: 2px solid #2B1B1A;
   background-color: #FFFFFF;
   padding: 6px;
   padding-bottom: 24px;
-  box-shadow: 3px 3px 0px 0px #1C2029;
+  box-shadow: 3px 3px 0px 0px #2B1B1A;
   border-radius: 8px;
 }
 
 html[data-theme='dark'] .retro-polaroid {
-  border-color: #2F2622;
+  border-color: #3D2F2A;
   background-color: #261F1C;
-  box-shadow: 3px 3px 0px 0px #2F2622;
+  box-shadow: 3px 3px 0px 0px #3D2F2A;
 }
 
 /* Möhür Mövqeləri (Retro Stamp Slots) */
 .retro-stamp-slot {
   width: 44px;
   height: 44px;
-  border: 2px dashed #1C2029;
+  border: 2px dashed #2B1B1A;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -3591,15 +3591,20 @@ html[data-theme='dark'] .retro-polaroid {
 }
 
 html[data-theme='dark'] .retro-stamp-slot {
-  border-color: #2F2622;
+  border-color: #3D2F2A;
 }
 
 .retro-stamp-active {
   border-style: solid;
-  border-color: #F48C24;
-  background-color: #F48C24/10;
+  border-color: #D47B5E;
+  background-color: #D47B5E;
+  color: #FAF8F5 !important;
   transform: scale(1.05) rotate(-6deg);
-  box-shadow: 0 4px 12px rgba(244,140,36,0.2);
+  box-shadow: 2px 2px 0px 0px #2B1B1A;
+}
+
+html[data-theme='dark'] .retro-stamp-active {
+  box-shadow: 2px 2px 0px 0px #3D2F2A;
 }
 
 /* Retro Slab Serif font overrides */
