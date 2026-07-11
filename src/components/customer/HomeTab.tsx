@@ -123,21 +123,21 @@ export default function HomeTab({
 
   const isRetro     = designMode === 'retro';
   const headerBtn   = isRetro
-    ? (isLight ? 'border-[2px] border-[#1C2029] bg-white text-slate-900 shadow-[2px_2px_0px_0px_#1C2029]' : 'border-[2px] border-[#2F2622] bg-[#1E1714] text-white shadow-[2px_2px_0px_0px_#2F2622]')
+    ? (isLight ? 'border-[2px] border-[#2B1B1A] bg-white text-slate-900 shadow-[2px_2px_0px_0px_#2B1B1A]' : 'border-[2px] border-[#3D2F2A] bg-[#1E1714] text-white shadow-[2px_2px_0px_0px_#3D2F2A]')
     : (isLight ? 'bg-white/80 border-black/8 text-slate-800 shadow-sm backdrop-blur-sm' : 'bg-white/8 border-white/12 text-white/90 backdrop-blur-md');
   const headerText  = isLight ? 'text-slate-900' : 'text-white';
   const subText     = isLight ? 'text-slate-500' : 'text-white/60';
   const textMuted   = isLight ? 'text-slate-400' : 'text-white/40';
-  const borderSec   = isRetro ? (isLight ? 'border-[#1C2029]' : 'border-[#2F2622]') : (isLight ? 'border-black/6' : 'border-white/8');
+  const borderSec   = isRetro ? (isLight ? 'border-[#2B1B1A]' : 'border-[#3D2F2A]') : (isLight ? 'border-black/6' : 'border-white/8');
   const bgCard      = isRetro ? 'retro-card' : (isLight ? 'cust-glass-light' : 'cust-glass premium-shadow');
   const inputSearch = isRetro
-    ? (isLight ? 'border-[2px] border-[#1C2029] bg-white text-slate-900 placeholder-slate-400' : 'border-[2px] border-[#2F2622] bg-[#1E1714] text-white placeholder-white/30')
+    ? (isLight ? 'border-[2px] border-[#2B1B1A] bg-white text-slate-900 placeholder-slate-400' : 'border-[2px] border-[#3D2F2A] bg-[#1E1714] text-white placeholder-white/30')
     : (isLight ? 'bg-white/80 border-black/8 text-slate-900 placeholder-slate-400 backdrop-blur-sm shadow-sm' : 'bg-white/6 border-white/10 text-white placeholder-white/40 backdrop-blur-md');
   const walletBtn   = isRetro
     ? 'retro-btn font-black text-center flex items-center justify-center'
     : (isLight ? 'bg-white border-black/8 text-slate-800 shadow-sm hover:bg-slate-50' : 'bg-white/6 hover:bg-white/10 text-white border-white/10 backdrop-blur-sm');
   const comboCard   = isRetro
-    ? (isLight ? 'border-[2px] border-[#1C2029] bg-[#FAF8F5] text-slate-800' : 'border-[2px] border-[#2F2622] bg-[#1A1513] text-white')
+    ? (isLight ? 'border-[2px] border-[#2B1B1A] bg-[#FAF8F5] text-slate-800' : 'border-[2px] border-[#3D2F2A] bg-[#1A1513] text-white')
     : (isLight ? 'bg-orange-50/60 border-orange-100/80 hover:bg-orange-50 shadow-sm' : 'bg-gradient-to-r from-[#F48C24]/10 to-[#ffb366]/5 border-white/10 hover:border-[#F48C24]/30 hover:shadow-[0_0_20px_rgba(244,140,36,0.12)]');
 
   const formatCardIdFn = (id: string) => {
@@ -278,10 +278,14 @@ export default function HomeTab({
               }}>
               <div className="flex justify-between items-center relative z-10 w-full">
                 <div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.25em] text-[#F48C24]">iRonWaves Loyalty</p>
-                  <h1 className="mt-0.5 text-[14px] font-black text-[#1C2029] dark:text-white uppercase tracking-wider">{branding.hero_title || tx(safeLang, 'Möhür Kartı', 'Штамп-карта', 'Coffee Stamp Card')}</h1>
+                  <p className={`text-[9px] font-black uppercase tracking-[0.25em] ${isRetro ? 'text-[#D47B5E]' : 'text-[#F48C24]'}`}>iRonWaves Loyalty</p>
+                  <h1 className="mt-0.5 text-[14px] font-black text-[#2B1B1A] dark:text-white uppercase tracking-wider">{branding.hero_title || tx(safeLang, 'Möhür Kartı', 'Штамп-карта', 'Coffee Stamp Card')}</h1>
                 </div>
-                <span className="text-[9px] font-black uppercase px-2.5 py-1 bg-[#F48C24] text-white border border-[#1C2029] dark:border-[#2F2622] rounded-lg shadow-[1.5px_1.5px_0px_0px_#1C2029]">
+                <span className={`text-[9px] font-black uppercase px-2.5 py-1 text-white border rounded-lg ${
+                  isRetro
+                    ? 'bg-[#D47B5E] border-[#2B1B1A] dark:border-[#3D2F2A] shadow-[1.5px_1.5px_0px_0px_#2B1B1A]'
+                    : 'bg-[#F48C24] border-[#1C2029] dark:border-[#2F2622] shadow-[1.5px_1.5px_0px_0px_#1C2029]'
+                }`}>
                   {Number(wallet.stars_balance || 0)} Stars
                 </span>
               </div>
@@ -369,14 +373,14 @@ export default function HomeTab({
           )}
 
           {/* CARD BACK */}
-          <div className={`absolute inset-0 backface-hidden border flex flex-col items-center justify-center ${isRetro ? 'retro-card text-[#1C2029] dark:text-white' : 'text-white'}`}
+          <div className={`absolute inset-0 backface-hidden border flex flex-col items-center justify-center ${isRetro ? 'retro-card text-[#2B1B1A] dark:text-white' : 'text-white'}`}
             style={{
               borderRadius: '28px',
-              borderColor: isRetro ? (isLight ? '#1C2029' : '#2F2622') : 'rgba(255,255,255,0.06)',
+              borderColor: isRetro ? (isLight ? '#2B1B1A' : '#3D2F2A') : 'rgba(255,255,255,0.06)',
               background: isRetro
                 ? (isLight ? '#FFFDF9' : '#1E1714')
                 : 'linear-gradient(135deg, #1C2029 0%, #0C0F14 100%)',
-              boxShadow: isRetro ? (isLight ? '4px 4px 0px 0px #1C2029' : '4px 4px 0px 0px #2F2622') : '0 0 0 1px rgba(255,255,255,0.05), 0 16px 48px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.12)',
+              boxShadow: isRetro ? (isLight ? '4px 4px 0px 0px #2B1B1A' : '4px 4px 0px 0px #3D2F2A') : '0 0 0 1px rgba(255,255,255,0.05), 0 16px 48px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.12)',
               transform: 'rotateY(180deg)',
               WebkitTransform: 'rotateY(180deg)',
               backfaceVisibility: 'hidden',
@@ -392,7 +396,7 @@ export default function HomeTab({
             ) : (
               <div className="text-slate-400 text-xs">No QR Code available</div>
             )}
-            <div className="mt-3 text-[10px] font-black text-[#F48C24] tracking-[0.25em] uppercase">
+            <div className={`mt-3 text-[10px] font-black tracking-[0.25em] uppercase ${isRetro ? 'text-[#D47B5E]' : 'text-[#F48C24]'}`}>
               {tx(safeLang, 'KASSAYA YAXINLAŞDIRIN', 'ПОДНЕСИТЕ К СКАНЕРУ', 'SCAN QR CODE')}
             </div>
             <div className="mt-1 font-mono text-[9px] text-white/50">{formatCardIdFn(customer.card_id)}</div>
