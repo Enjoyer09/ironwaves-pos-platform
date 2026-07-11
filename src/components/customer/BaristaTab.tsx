@@ -17,12 +17,14 @@ type Props = {
   primaryColor: string;
   isLight?: boolean;
   accentColor: string;
+  designMode?: 'classic' | 'retro';
 };
 
 export default function BaristaTab({
   safeLang, baristaMessages, baristaInput, setBaristaInput,
   voiceEnabled, setVoiceEnabled, isListening, toggleListening,
-  sendBaristaMessage, primaryColor, accentColor, isLight = false
+  sendBaristaMessage, primaryColor, accentColor, isLight = false,
+  designMode = 'classic'
 }: Props) {
   const chatEndRef = React.useRef<HTMLDivElement>(null);
 
@@ -30,16 +32,23 @@ export default function BaristaTab({
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [baristaMessages]);
 
+  const isRetro = designMode === 'retro';
   const textPrimary = isLight ? 'text-slate-900' : 'text-white';
   const textSecond  = isLight ? 'text-slate-500' : 'text-white/50';
-  const bgCard      = isLight ? 'cust-glass-light' : 'cust-glass premium-shadow';
-  const chatAreaBg  = isLight ? 'bg-white/60 border-black/5' : 'bg-black/20 border-white/5 backdrop-blur-sm';
-  const botBubble   = isLight
-    ? 'bg-white border-black/8 text-slate-800 shadow-sm'
-    : 'bg-white/8 border-white/10 text-slate-100 backdrop-blur-md';
-  const promptBtn   = isLight
-    ? 'bg-white/80 border-black/8 text-slate-700 hover:bg-white shadow-sm'
-    : 'bg-white/6 border-white/10 text-slate-200 hover:bg-white/12';
+  const bgCard      = isRetro ? 'retro-card' : (isLight ? 'cust-glass-light' : 'cust-glass premium-shadow');
+  const chatAreaBg  = isRetro
+    ? (isLight ? 'bg-white border-2 border-[#1C2029] shadow-inner' : 'bg-[#1E1714] border-2 border-[#2F2622] shadow-inner')
+    : (isLight ? 'bg-white/60 border-black/5' : 'bg-black/20 border-white/5 backdrop-blur-sm');
+  const botBubble   = isRetro
+    ? (isLight ? 'bg-white border-2 border-[#1C2029] text-slate-800 shadow-[2px_2px_0px_0px_#1C2029]' : 'bg-[#221B18] border-2 border-[#2F2622] text-slate-100 shadow-[2px_2px_0px_0px_#2F2622]')
+    : (isLight
+      ? 'bg-white border-black/8 text-slate-800 shadow-sm'
+      : 'bg-white/8 border-white/10 text-slate-100 backdrop-blur-md');
+  const promptBtn   = isRetro
+    ? (isLight ? 'border-[2px] border-[#1C2029] bg-white text-slate-800 shadow-[1.5px_1.5px_0px_0px_#1C2029]' : 'border-[2px] border-[#2F2622] bg-[#1E1714] text-white shadow-[1.5px_1.5px_0px_0px_#2F2622]')
+    : (isLight
+      ? 'bg-white/80 border-black/8 text-slate-700 hover:bg-white shadow-sm'
+      : 'bg-white/6 border-white/10 text-slate-200 hover:bg-white/12');
 
   return (
     <section className={`rounded-[28px] border p-5 space-y-4 ${bgCard}`}>
@@ -90,7 +99,7 @@ export default function BaristaTab({
       {/* Chat Area */}
       <div className={`max-h-72 space-y-3.5 overflow-y-auto rounded-[24px] p-4 border ${chatAreaBg}`}>
         {baristaMessages.map((msg, idx) => (
-          <div key={`${msg.role}_${idx}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} stagger-fade-in`}>
+          <div key={`${msg.role}_${idx}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} Z-10`}>
             {msg.text === '...' ? (
               <div className={`max-w-[80%] rounded-2xl rounded-tl-none px-4 py-3 border shadow-md ${botBubble}`}>
                 <div className="flex items-center gap-1.5 py-1 px-1">
@@ -101,12 +110,16 @@ export default function BaristaTab({
               </div>
             ) : (
               <div
-                className={`max-w-[80%] rounded-2xl px-4 py-3 text-[13px] font-medium leading-relaxed shadow-md transition-all ${
+                className={`max-w-[80%] rounded-2xl px-4 py-3 text-[13px] leading-relaxed shadow-md transition-all ${
                   msg.role === 'user'
-                    ? 'rounded-tr-none text-white shimmer-card'
-                    : `rounded-tl-none border ${botBubble}`
-                }`}
-                style={msg.role === 'user' ? {
+                    ? isRetro
+                      ? 'rounded-tr-none border-[2px] border-[#1C2029] dark:border-[#2F2622] bg-[#F48C24] text-[#1C2029] dark:text-white shadow-[2px_2px_0px_0px_#1C2029] dark:shadow-[2px_2px_0px_0px_#2F2622] font-black'
+                      : 'rounded-tr-none text-white shimmer-card font-semibold'
+                    : isRetro
+                      ? 'rounded-tl-none font-bold'
+                      : 'rounded-tl-none font-medium'
+                } ${msg.role !== 'user' ? botBubble : ''}`}
+                style={(msg.role === 'user' && !isRetro) ? {
                   background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`,
                   boxShadow: `0 4px 12px ${primaryColor}40`,
                 } : undefined}>
@@ -140,9 +153,13 @@ export default function BaristaTab({
             onKeyDown={(e) => { if (e.key === 'Enter') sendBaristaMessage(); }}
             placeholder={tx(safeLang, 'Mənə nə tövsiyə edərsən?', 'Что ты посоветуешь мне?', 'What would you recommend?')}
             className={`rounded-2xl border px-4 py-3 text-[13px] outline-none w-full transition ${
-              isLight
-                ? 'bg-white/80 border-black/8 text-slate-900 placeholder-slate-400 focus:ring-1 focus:ring-[#F48C24] shadow-sm'
-                : 'bg-white/6 border-white/10 text-white placeholder-white/30 focus:ring-1 focus:ring-[#F48C24] backdrop-blur-sm'
+              isRetro
+                ? isLight
+                  ? 'border-[2.5px] border-[#1C2029] bg-white text-slate-900 placeholder-slate-400 shadow-inner'
+                  : 'border-[2.5px] border-[#2F2622] bg-[#1E1714] text-white placeholder-white/30 shadow-inner'
+                : isLight
+                  ? 'bg-white/80 border-black/8 text-slate-900 placeholder-slate-400 focus:ring-1 focus:ring-[#F48C24] shadow-sm'
+                  : 'bg-white/6 border-white/10 text-white placeholder-white/30 focus:ring-1 focus:ring-[#F48C24] backdrop-blur-sm'
             }`}
             style={{ paddingRight: '48px' }}
           />
@@ -160,12 +177,14 @@ export default function BaristaTab({
         <button
           type="button"
           onClick={sendBaristaMessage}
-          className="rounded-2xl px-5 py-3 font-black text-[12px] text-white active:scale-95 transition-all flex items-center gap-1.5 shimmer-btn"
-          style={{
+          className={`px-5 py-3 font-black text-[12px] transition-all flex items-center gap-1.5 ${
+            isRetro ? 'retro-btn shadow-[3px_3px_0px_0px_#1C2029] dark:shadow-[3px_3px_0px_0px_#2F2622]' : 'rounded-2xl text-white active:scale-95 shimmer-btn'
+          }`}
+          style={isRetro ? undefined : {
             background: `linear-gradient(135deg, ${accentColor} 0%, ${primaryColor} 100%)`,
             boxShadow: `0 6px 18px ${accentColor}45`,
           }}>
-          <Send size={14} />
+          <img src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><line x1='22' y1='2' x2='11' y2='13'></line><polygon points='22 2 15 22 11 13 2 9 22 2'></polygon></svg>" className="h-3.5 w-3.5" style={{ filter: isLight && isRetro ? 'none' : 'invert(1)' }} />
           {tx(safeLang, 'Göndər', 'Отправить', 'Send')}
         </button>
       </div>

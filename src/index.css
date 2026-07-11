@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=Arvo:wght@400;700&display=swap');
 @import "@fontsource/geist-sans/400.css";
 @import "@fontsource/geist-sans/500.css";
 @import "@fontsource/geist-sans/600.css";
@@ -286,6 +287,11 @@ html {
   /* ══════════════════════════════════════════════════════════
      CUSTOMER APP — PREMIUM GLASS & GLOW SYSTEM
      ══════════════════════════════════════════════════════════ */
+
+  /* ── Customer App Wrapper Font ───────────────────────────── */
+  .customer-app-wrapper {
+    font-family: 'Sora', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  }
 
   /* ── Glassmorphism base card ─────────────────────────────── */
   .cust-glass {
@@ -3492,3 +3498,114 @@ a, button, select, input, textarea, [role="button"] {
     color: #475569 !important;
   }
 }
+
+/* ══════════════════════════════════════════════════════════
+   RETRO-COMIC / VINTAGE BARISTA DESIGN SYSTEM
+   ══════════════════════════════════════════════════════════ */
+
+.retro-bg-light {
+  background: #FAF6F0 !important; /* Soft vintage warm cream */
+}
+
+.retro-bg-dark {
+  background: #15100E !important; /* Rich warm dark espresso */
+}
+
+.retro-card {
+  border: 2.5px solid #1C2029 !important;
+  border-radius: 20px !important;
+  background-color: #FFFDF9;
+  box-shadow: 4px 4px 0px 0px #1C2029 !important;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+html[data-theme='dark'] .retro-card {
+  border-color: #2F2622 !important;
+  background-color: #1E1714;
+  box-shadow: 4px 4px 0px 0px #2F2622 !important;
+}
+
+.retro-card:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0px 0px #1C2029 !important;
+}
+
+html[data-theme='dark'] .retro-card:hover {
+  box-shadow: 5px 5px 0px 0px #2F2622 !important;
+}
+
+.retro-btn {
+  border: 2.5px solid #1C2029 !important;
+  border-radius: 16px !important;
+  background: linear-gradient(135deg, #F48C24 0%, #ffb366 100%) !important;
+  color: #1C2029 !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  box-shadow: 3px 3px 0px 0px #1C2029 !important;
+  transition: all 0.1s ease;
+}
+
+html[data-theme='dark'] .retro-btn {
+  border-color: #2F2622 !important;
+  box-shadow: 3px 3px 0px 0px #2F2622 !important;
+}
+
+.retro-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px 0px #1C2029 !important;
+}
+
+html[data-theme='dark'] .retro-btn:active {
+  box-shadow: 1px 1px 0px 0px #2F2622 !important;
+}
+
+/* Polaroid Photo Frame */
+.retro-polaroid {
+  border: 2px solid #1C2029;
+  background-color: #FFFFFF;
+  padding: 6px;
+  padding-bottom: 24px;
+  box-shadow: 3px 3px 0px 0px #1C2029;
+  border-radius: 8px;
+}
+
+html[data-theme='dark'] .retro-polaroid {
+  border-color: #2F2622;
+  background-color: #261F1C;
+  box-shadow: 3px 3px 0px 0px #2F2622;
+}
+
+/* Möhür Mövqeləri (Retro Stamp Slots) */
+.retro-stamp-slot {
+  width: 44px;
+  height: 44px;
+  border: 2px dashed #1C2029;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+html[data-theme='dark'] .retro-stamp-slot {
+  border-color: #2F2622;
+}
+
+.retro-stamp-active {
+  border-style: solid;
+  border-color: #F48C24;
+  background-color: #F48C24/10;
+  transform: scale(1.05) rotate(-6deg);
+  box-shadow: 0 4px 12px rgba(244,140,36,0.2);
+}
+
+/* Retro Slab Serif font overrides */
+.retro-bg-light h1, .retro-bg-light h2, .retro-bg-light h3, .retro-bg-light h4,
+.retro-bg-dark h1, .retro-bg-dark h2, .retro-bg-dark h3, .retro-bg-dark h4 {
+  font-family: 'Arvo', Georgia, serif !important;
+}
+
+

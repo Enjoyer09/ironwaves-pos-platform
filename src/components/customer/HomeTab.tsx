@@ -1,5 +1,5 @@
 import React from 'react';
-import { Gift, Sparkles, QrCode, Menu } from 'lucide-react';
+import { Gift, Sparkles, QrCode, Menu, Sun, CloudRain, Coffee, Cookie } from 'lucide-react';
 import { ImpactStyle } from '@capacitor/haptics';
 import { tx } from '../../i18n';
 import { formatCardId, playTickSound, getWeatherInfo, get_customer_wallet_pass_url, nativeHapticImpact, Haptic } from '../../lib/customer_utils';
@@ -107,6 +107,7 @@ type Props = {
   sessionCreds: { cardId: string; token: string };
   data: any;
   isLight?: boolean;
+  designMode?: 'classic' | 'retro';
 };
 
 export default function HomeTab({
@@ -116,18 +117,28 @@ export default function HomeTab({
   rewards, progressPercent, notifications, favoriteItems, pendingClaims,
   geofenceAlert, setGeofenceAlert, simulatedTemp, simulatedCondition,
   setSimulatedTemp, setSimulatedCondition, setActiveTab, tick,
-  openWalletPass, get_customer_wallet_pass_url_fn, sessionCreds, data, isLight = false
+  openWalletPass, get_customer_wallet_pass_url_fn, sessionCreds, data, isLight = false,
+  designMode = 'classic'
 }: Props) {
 
-  const headerBtn   = isLight ? 'bg-white/80 border-black/8 text-slate-800 shadow-sm backdrop-blur-sm' : 'bg-white/8 border-white/12 text-white/90 backdrop-blur-md';
+  const isRetro     = designMode === 'retro';
+  const headerBtn   = isRetro
+    ? (isLight ? 'border-[2px] border-[#1C2029] bg-white text-slate-900 shadow-[2px_2px_0px_0px_#1C2029]' : 'border-[2px] border-[#2F2622] bg-[#1E1714] text-white shadow-[2px_2px_0px_0px_#2F2622]')
+    : (isLight ? 'bg-white/80 border-black/8 text-slate-800 shadow-sm backdrop-blur-sm' : 'bg-white/8 border-white/12 text-white/90 backdrop-blur-md');
   const headerText  = isLight ? 'text-slate-900' : 'text-white';
   const subText     = isLight ? 'text-slate-500' : 'text-white/60';
   const textMuted   = isLight ? 'text-slate-400' : 'text-white/40';
-  const borderSec   = isLight ? 'border-black/6' : 'border-white/8';
-  const bgCard      = isLight ? 'cust-glass-light' : 'cust-glass premium-shadow';
-  const inputSearch = isLight ? 'bg-white/80 border-black/8 text-slate-900 placeholder-slate-400 backdrop-blur-sm shadow-sm' : 'bg-white/6 border-white/10 text-white placeholder-white/40 backdrop-blur-md';
-  const walletBtn   = isLight ? 'bg-white border-black/8 text-slate-800 shadow-sm hover:bg-slate-50' : 'bg-white/6 hover:bg-white/10 text-white border-white/10 backdrop-blur-sm';
-  const comboCard   = isLight ? 'bg-orange-50/60 border-orange-100/80 hover:bg-orange-50 shadow-sm' : 'bg-gradient-to-r from-[#F48C24]/10 to-[#ffb366]/5 border-white/10 hover:border-[#F48C24]/30 hover:shadow-[0_0_20px_rgba(244,140,36,0.12)]';
+  const borderSec   = isRetro ? (isLight ? 'border-[#1C2029]' : 'border-[#2F2622]') : (isLight ? 'border-black/6' : 'border-white/8');
+  const bgCard      = isRetro ? 'retro-card' : (isLight ? 'cust-glass-light' : 'cust-glass premium-shadow');
+  const inputSearch = isRetro
+    ? (isLight ? 'border-[2px] border-[#1C2029] bg-white text-slate-900 placeholder-slate-400' : 'border-[2px] border-[#2F2622] bg-[#1E1714] text-white placeholder-white/30')
+    : (isLight ? 'bg-white/80 border-black/8 text-slate-900 placeholder-slate-400 backdrop-blur-sm shadow-sm' : 'bg-white/6 border-white/10 text-white placeholder-white/40 backdrop-blur-md');
+  const walletBtn   = isRetro
+    ? 'retro-btn font-black text-center flex items-center justify-center'
+    : (isLight ? 'bg-white border-black/8 text-slate-800 shadow-sm hover:bg-slate-50' : 'bg-white/6 hover:bg-white/10 text-white border-white/10 backdrop-blur-sm');
+  const comboCard   = isRetro
+    ? (isLight ? 'border-[2px] border-[#1C2029] bg-[#FAF8F5] text-slate-800' : 'border-[2px] border-[#2F2622] bg-[#1A1513] text-white')
+    : (isLight ? 'bg-orange-50/60 border-orange-100/80 hover:bg-orange-50 shadow-sm' : 'bg-gradient-to-r from-[#F48C24]/10 to-[#ffb366]/5 border-white/10 hover:border-[#F48C24]/30 hover:shadow-[0_0_20px_rgba(244,140,36,0.12)]');
 
   const formatCardIdFn = (id: string) => {
     const clean = String(id || '').replace(/[^a-zA-Z0-9]/g, '');
@@ -190,10 +201,11 @@ export default function HomeTab({
       <div className="flex items-center justify-between px-1 mb-4">
         <button type="button" onClick={() => setActiveTab('profile')}
           className={`h-10 w-10 rounded-full border flex items-center justify-center active:scale-95 transition-all duration-150 ${headerBtn}`}>
-          <Menu size={20} />
+          <Menu size={18} />
         </button>
         <button type="button" onClick={() => setActiveTab('profile')}
-          className={`relative h-10 w-10 rounded-full border flex items-center justify-center font-black active:scale-95 transition-all duration-150 ${headerBtn}`}>
+          className={`relative h-10 w-10 rounded-full border flex items-center justify-center font-black active:scale-95 transition-all duration-150 ${headerBtn}`}
+          style={{ background: 'linear-gradient(135deg, #F48C24, #ffb366)', border: 'none', color: '#fff', boxShadow: '0 4px 12px rgba(244,140,36,0.3)' }}>
           {customer.name ? customer.name.charAt(0).toUpperCase() : 'M'}
           {notifications.filter((n: any) => !n.is_read).length > 0 && (
             <span className="absolute top-0 right-0 h-2.5 w-2.5 rounded-full bg-[#F48C24] border-2 border-[#181412] animate-pulse" />
@@ -203,13 +215,11 @@ export default function HomeTab({
 
       {/* Hero Greeting */}
       <div className="px-1 mb-6 stagger-fade-in">
-        <p className={`text-[12px] font-bold uppercase tracking-wider ${subText}`}>
-          {tx(safeLang, `Salam, ${customer.name || 'Qonaq'} 👋`, `Привет, ${customer.name || 'Гость'} 👋`, `Hi, ${customer.name || 'Guest'} 👋`)}
+        <p className={`text-[10px] font-black uppercase tracking-widest ${subText}`}>
+          {tx(safeLang, `Xoş gəldin, ${customer.name || 'Qonaq'} 👋`, `Привет, ${customer.name || 'Гость'} 👋`, `Welcome, ${customer.name || 'Guest'} 👋`)}
         </p>
-        <h1 className={`mt-1 text-3xl font-black leading-tight tracking-tight ${headerText}`}>
-          {tx(safeLang, 'Yaxşı Qəhvə,', 'Хороший Кофе,', 'Good Coffee,')}<br />
-          {tx(safeLang, 'Yaxşı Əhval!', 'Хорошее Настроение!', 'Good ')}
-          <span className="text-[#F48C24]">{tx(safeLang, '', '', 'Mood!')}</span>
+        <h1 className={`mt-1.5 text-2xl font-black leading-tight tracking-tight ${headerText}`}>
+          {tx(safeLang, 'Sizin üçün ən yaxşı qəhvə', 'Лучший кофе для вас', 'Find the best coffee for you')}
         </h1>
       </div>
 
@@ -217,8 +227,8 @@ export default function HomeTab({
       <div className="px-1 mb-6 flex gap-3 stagger-fade-in stagger-1">
         <div className="relative flex-1">
           <input type="text" readOnly
-            placeholder={tx(safeLang, 'Sevdiyiniz dadları axtarın...', 'Найдите ваш любимый вкус...', 'Search your favorite coffee...')}
-            className={`w-full rounded-full border px-10 py-3 text-xs transition duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#F48C24]/40 ${inputSearch}`}
+            placeholder={tx(safeLang, 'Qəhvə, çay və ya desert axtarın...', 'Найдите ваш любимый вкус...', 'Search your favorite coffee...')}
+            className={`w-full rounded-[18px] border px-10 py-3.5 text-xs transition duration-200 cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#F48C24]/30 ${inputSearch}`}
             onClick={() => setActiveTab('order')} />
           <span className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${textMuted}`}>
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -227,8 +237,8 @@ export default function HomeTab({
           </span>
         </div>
         <button type="button" onClick={() => setActiveTab('order')}
-          className="h-10 w-10 rounded-full bg-[#F48C24] flex items-center justify-center text-white animate-glow-breath active:scale-95 transition-all duration-150 shimmer-btn">
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          className="h-12 w-12 rounded-[18px] bg-[#F48C24] flex items-center justify-center text-white active:scale-95 transition-all duration-150 shadow-md shadow-orange-500/10 shimmer-btn">
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
           </svg>
         </button>
@@ -256,74 +266,127 @@ export default function HomeTab({
         <div className={`relative w-full h-full duration-700 preserve-3d transition-transform ${cardFlipped ? 'rotate-y-180' : ''}`}>
 
           {/* CARD FRONT */}
-          <div className={`absolute inset-0 backface-hidden border flex flex-col justify-between overflow-hidden card-sweep ${isLight ? 'card-premium-glow-light' : 'card-premium-glow'}`}
-            style={{
-              borderRadius: '28px',
-              borderColor: isLight ? 'rgba(26,67,41,0.12)' : 'rgba(255,255,255,0.12)',
-              background: heroImage
-                ? `linear-gradient(180deg, rgba(26, 67, 41, 0.15), rgba(26, 67, 41, 0.82)), url(${heroImage}) center/cover`
-                : `linear-gradient(135deg, ${accentColor} 0%, ${primaryColor} 100%)`,
-              padding: '24px',
-            }}>
-            {/* Glossy highlight bar */}
-            <div className="absolute inset-x-0 top-0 h-24 pointer-events-none"
-              style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.10), transparent)', borderRadius: '28px 28px 0 0' }} />
-
-            <div className="flex items-start justify-between gap-4 relative z-10">
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
-                  <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/80">{branding.app_name || 'Emalatkhana'}</p>
+          {isRetro ? (
+            <div className="absolute inset-0 backface-hidden border flex flex-col justify-between overflow-hidden retro-card"
+              style={{
+                borderRadius: '28px',
+                padding: '20px',
+                transform: 'rotateY(0deg)',
+                WebkitTransform: 'rotateY(0deg)',
+                backfaceVisibility: 'hidden',
+                WebkitBackfaceVisibility: 'hidden',
+              }}>
+              <div className="flex justify-between items-center relative z-10 w-full">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.25em] text-[#F48C24]">iRonWaves Loyalty</p>
+                  <h1 className="mt-0.5 text-[14px] font-black text-[#1C2029] dark:text-white uppercase tracking-wider">{branding.hero_title || tx(safeLang, 'Möhür Kartı', 'Штамп-карта', 'Coffee Stamp Card')}</h1>
                 </div>
-                <h1 className="mt-2 text-2xl font-black text-white tracking-tight drop-shadow-lg">{branding.hero_title || tx(safeLang, 'Xoş gəldiniz', 'Добро пожаловать', 'Welcome')}</h1>
+                <span className="text-[9px] font-black uppercase px-2.5 py-1 bg-[#F48C24] text-white border border-[#1C2029] dark:border-[#2F2622] rounded-lg shadow-[1.5px_1.5px_0px_0px_#1C2029]">
+                  {Number(wallet.stars_balance || 0)} Stars
+                </span>
               </div>
-              {branding.logo_url ? (
-                <img src={branding.logo_url} alt="brand" className="h-11 w-11 rounded-xl object-cover shadow-2xl border border-white/25 ring-1 ring-white/10" />
-              ) : (
-                <div className="h-11 w-11 rounded-xl bg-white/15 flex items-center justify-center border border-white/25 text-xl shadow-xl">☕</div>
-              )}
-            </div>
 
-            <div className="flex items-center justify-between mt-4 relative z-10">
-              {/* EMV chip */}
-              <div className="relative w-10 h-7 rounded-md bg-gradient-to-br from-amber-200 via-yellow-400 to-amber-300 border border-amber-500/20 shadow-inner overflow-hidden flex flex-col justify-between p-1 opacity-90">
-                <div className="flex justify-between h-px bg-slate-950/20 mt-1" />
-                <div className="flex justify-between h-px bg-slate-950/20" />
-                <div className="flex justify-between h-px bg-slate-950/20 mb-1" />
-                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-950/20" />
+              {/* 10 Stamps Grid */}
+              <div className="grid grid-cols-5 gap-y-3 gap-x-2 my-2 justify-items-center relative z-10">
+                {Array.from({ length: 10 }).map((_, slotIdx) => {
+                  const totalStarsCount = Number(wallet.stars_balance ?? 0);
+                  const activeStampsCount = totalStarsCount > 0 && totalStarsCount % 10 === 0 ? 10 : totalStarsCount % 10;
+                  const isStamped = slotIdx < activeStampsCount;
+                  return (
+                    <div key={slotIdx} className={`retro-stamp-slot ${isStamped ? 'retro-stamp-active' : ''}`}>
+                      {isStamped ? (
+                        <span className="text-white text-base font-black drop-shadow-md">★</span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-slate-400 dark:text-white/30">{slotIdx + 1}</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-              <div className="text-[9px] font-bold uppercase tracking-wider text-white/80 flex items-center gap-1 bg-black/25 rounded-full px-2.5 py-1 border border-white/8 backdrop-blur-sm animate-pulse">
-                <span>✨</span>
-                <span>{tx(safeLang, 'Skan üçün toxun', 'Коснитесь для скана', 'Tap to Scan')}</span>
-              </div>
-              <div className="text-white/40">
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M4 12c0-2.21 1.79-4 4-4s4 1.79 4 4-1.79 4-4 4-4-1.79-4-4zm11-6.5c0-.83.67-1.5 1.5-1.5C20.09 4 24 7.91 24 12.5S20.09 21 16.5 21c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5c2.48 0 4.5-2.02 4.5-4.5S18.98 9 16.5 9c-.83 0-1.5-.67-1.5-1.5zm-5-3C10.5 2.17 11.17 1.5 12 1.5C17.79 1.5 22.5 6.21 22.5 12S17.79 22.5 12 22.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5c4.14 0 7.5-3.36 7.5-7.5s-3.36-7.5-7.5-7.5c-.83 0-1.5-.67-1.5-1.5z" />
-                </svg>
-              </div>
-            </div>
 
-            <div className="mt-4 flex items-center justify-between text-white/50 text-[10px] font-mono tracking-[0.2em] relative z-10">
-              <span>{formatCardIdFn(customer.card_id)}</span>
-              <span className="text-[9px] opacity-75">{tx(safeLang, 'MÜŞTƏRİ', 'КЛИЕНТ', 'CUSTOMER')}</span>
+              <div className="flex items-center justify-between text-[9px] font-mono tracking-[0.15em] relative z-10 border-t border-dashed border-slate-900/10 dark:border-white/10 pt-2 text-slate-500 dark:text-white/40">
+                <span>ID: {formatCardIdFn(customer.card_id)}</span>
+                <span className="text-[8px] font-black uppercase tracking-widest text-[#F48C24]">{tx(safeLang, 'Skan üçün toxun', 'Коснитесь для скана', 'Tap to scan')}</span>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className={`absolute inset-0 backface-hidden border flex flex-col justify-between overflow-hidden card-sweep ${isLight ? 'card-premium-glow-light' : 'card-premium-glow'}`}
+              style={{
+                borderRadius: '28px',
+                borderColor: isLight ? 'rgba(26,67,41,0.12)' : 'rgba(255,255,255,0.06)',
+                background: heroImage
+                  ? `linear-gradient(180deg, rgba(26, 67, 41, 0.2), rgba(13, 11, 10, 0.95)), url(${heroImage}) center/cover`
+                  : 'linear-gradient(135deg, #1C2029 0%, #0C0F14 100%)',
+                padding: '24px',
+                transform: 'rotateY(0deg)',
+                WebkitTransform: 'rotateY(0deg)',
+                backfaceVisibility: 'hidden',
+                WebkitBackfaceVisibility: 'hidden',
+              }}>
+              {/* Glossy highlight bar */}
+              <div className="absolute inset-x-0 top-0 h-24 pointer-events-none"
+                style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.04), transparent)', borderRadius: '28px 28px 0 0' }} />
+
+              <div className="flex items-start justify-between gap-4 relative z-10">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#F48C24] animate-ping" />
+                    <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/80">{branding.app_name || 'iRonWaves'}</p>
+                  </div>
+                  <h1 className="mt-2 text-xl font-black text-white tracking-tight drop-shadow-lg">{branding.hero_title || tx(safeLang, 'Qızılı Üzvlük', 'Золотое членство', 'Gold Membership')}</h1>
+                </div>
+                {branding.logo_url ? (
+                  <img src={branding.logo_url} alt="brand" className="h-11 w-11 rounded-xl object-cover shadow-2xl border border-white/20 ring-1 ring-white/10" />
+                ) : (
+                  <div className="h-11 w-11 rounded-xl bg-white/10 flex items-center justify-center border border-white/20 text-xl shadow-xl">☕</div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between mt-4 relative z-10">
+                {/* EMV chip */}
+                <div className="relative w-10 h-7 rounded-md bg-gradient-to-br from-amber-200 via-yellow-400 to-amber-300 border border-amber-500/20 shadow-inner overflow-hidden flex flex-col justify-between p-1 opacity-90">
+                  <div className="flex justify-between h-px bg-slate-950/20 mt-1" />
+                  <div className="flex justify-between h-px bg-slate-950/20" />
+                  <div className="flex justify-between h-px bg-slate-950/20 mb-1" />
+                  <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-950/20" />
+                </div>
+                <div className="text-[9px] font-bold uppercase tracking-wider text-white/80 flex items-center gap-1 bg-black/30 rounded-full px-3 py-1 border border-white/5 backdrop-blur-sm animate-pulse">
+                  <span>✨</span>
+                  <span>{tx(safeLang, 'Skan üçün toxun', 'Коснитесь для скана', 'Tap to Scan')}</span>
+                </div>
+                <div className="text-white/40">
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M4 12c0-2.21 1.79-4 4-4s4 1.79 4 4-1.79 4-4 4-4-1.79-4-4zm11-6.5c0-.83.67-1.5 1.5-1.5C20.09 4 24 7.91 24 12.5S20.09 21 16.5 21c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5c2.48 0 4.5-2.02 4.5-4.5S18.98 9 16.5 9c-.83 0-1.5-.67-1.5-1.5zm-5-3C10.5 2.17 11.17 1.5 12 1.5C17.79 1.5 22.5 6.21 22.5 12S17.79 22.5 12 22.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5c4.14 0 7.5-3.36 7.5-7.5s-3.36-7.5-7.5-7.5c-.83 0-1.5-.67-1.5-1.5z" />
+                  </svg>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between text-white/50 text-[10px] font-mono tracking-[0.2em] relative z-10">
+                <span>{formatCardIdFn(customer.card_id)}</span>
+                <span className="text-[9px] opacity-75">{tx(safeLang, 'MÜŞTƏRİ', 'КЛИЕНТ', 'CUSTOMER')}</span>
+              </div>
+            </div>
+          )}
 
           {/* CARD BACK */}
-          <div className="absolute inset-0 backface-hidden rotate-y-180 border flex flex-col items-center justify-center text-white"
+          <div className={`absolute inset-0 backface-hidden border flex flex-col items-center justify-center ${isRetro ? 'retro-card text-[#1C2029] dark:text-white' : 'text-white'}`}
             style={{
               borderRadius: '28px',
-              borderColor: 'rgba(255,255,255,0.15)',
-              background: 'linear-gradient(135deg, rgba(26,67,41,0.85), rgba(14,12,11,0.95))',
-              backdropFilter: 'blur(32px)',
-              WebkitBackdropFilter: 'blur(32px)',
-              boxShadow: '0 0 0 1px rgba(255,255,255,0.10), 0 16px 48px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.12)',
+              borderColor: isRetro ? (isLight ? '#1C2029' : '#2F2622') : 'rgba(255,255,255,0.06)',
+              background: isRetro
+                ? (isLight ? '#FFFDF9' : '#1E1714')
+                : 'linear-gradient(135deg, #1C2029 0%, #0C0F14 100%)',
+              boxShadow: isRetro ? (isLight ? '4px 4px 0px 0px #1C2029' : '4px 4px 0px 0px #2F2622') : '0 0 0 1px rgba(255,255,255,0.05), 0 16px 48px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.12)',
+              transform: 'rotateY(180deg)',
+              WebkitTransform: 'rotateY(180deg)',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
             }}>
             {/* Glossy highlight */}
             <div className="absolute inset-x-0 top-0 h-20 pointer-events-none"
-              style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.08), transparent)', borderRadius: '28px 28px 0 0' }} />
+              style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.04), transparent)', borderRadius: '28px 28px 0 0' }} />
             {cardQr ? (
-              <div className="rounded-2xl bg-white p-3 shadow-2xl border border-white/20 ring-1 ring-black/5">
+              <div className="rounded-2xl bg-white p-3 shadow-2xl border border-white/5 ring-1 ring-black/5">
                 <img src={cardQr} alt="QR Code" className="h-28 w-28 object-contain" />
               </div>
             ) : (
@@ -512,46 +575,61 @@ export default function HomeTab({
       {/* Smart Recommendations */}
       <section className={`rounded-[28px] p-5 border shadow-sm space-y-4 stagger-fade-in stagger-5 ${isLight ? 'cust-glass-light' : 'cust-glass'}`}>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xl float-slow">🌦️</span>
+          <div className="flex items-center gap-2.5">
+            <div className={`h-9 w-9 rounded-xl flex items-center justify-center border ${isLight ? 'bg-black/3 border-black/5' : 'bg-white/5 border-white/5'}`}>
+              {simulatedCondition === 'sunny' ? (
+                <Sun className="text-[#F48C24] animate-pulse" size={16} />
+              ) : (
+                <CloudRain className="text-cyan-500 animate-bounce" size={16} />
+              )}
+            </div>
             <div>
-              <p className={`text-xs font-bold uppercase tracking-wider ${isLight ? 'text-slate-800' : 'text-white/80'}`}>{tx(safeLang, 'Ağıllı Təkliflərimiz', 'Умные Рекомендации', 'Smart Recommendations')}</p>
-              <p className={`text-[10px] font-mono mt-0.5 ${textMuted}`}>{simulatedTemp}°C • {simulatedCondition === 'sunny' ? tx(safeLang, 'Günəşli', 'Солнечно', 'Sunny') : tx(safeLang, 'Yağışlı', 'Дождливо', 'Rainy')}</p>
+              <p className={`text-[11px] font-black uppercase tracking-wider ${isLight ? 'text-slate-800' : 'text-white/80'}`}>
+                {tx(safeLang, 'Ağıllı Təkliflərimiz', 'Умные Рекомендации', 'Smart Recommendations')}
+              </p>
+              <p className={`text-[9px] font-mono mt-0.5 ${textMuted}`}>
+                {simulatedTemp}°C · {simulatedCondition === 'sunny' ? tx(safeLang, 'Günəşli', 'Солнечно', 'Sunny') : tx(safeLang, 'Yağışlı', 'Дождливо', 'Rainy')}
+              </p>
             </div>
           </div>
           <button type="button" onClick={async () => { await nativeHapticImpact(ImpactStyle.Light); setSimulatedTemp(t => t > 20 ? 14 : 26); setSimulatedCondition(c => c === 'sunny' ? 'rainy' : 'sunny'); }}
-            className={`rounded-full border px-2.5 py-1 text-[9px] font-bold active:scale-95 transition ${isLight ? 'bg-black/5 border-black/8 text-slate-700 hover:bg-black/8' : 'bg-white/6 border-white/10 text-white hover:bg-white/12'}`}>
-            🔄 {tx(safeLang, 'Havanı Dəyiş', 'Сменить погоду', 'Toggle Weather')}
+            className={`rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-wider active:scale-95 transition ${isLight ? 'bg-black/5 border-black/8 text-slate-700 hover:bg-black/8' : 'bg-white/6 border-white/10 text-white hover:bg-white/12'}`}>
+            {tx(safeLang, 'Havanı Dəyiş', 'Сменить погоду', 'Toggle Weather')}
           </button>
         </div>
 
-        <div className="space-y-2">
-          <p className={`text-[11px] font-semibold ${isLight ? 'text-slate-600' : 'text-white/70'}`}>{getWeatherInfo(safeLang, simulatedTemp).weatherDesc}</p>
-          <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-3">
+          <p className={`text-[10px] font-semibold ${isLight ? 'text-slate-500' : 'text-white/50'}`}>{getWeatherInfo(safeLang, simulatedTemp).weatherDesc}</p>
+          
+          <div className="grid grid-cols-2 gap-2.5">
             {getWeatherInfo(safeLang, simulatedTemp).recommendedDrinks.map((drink, idx) => (
               <div key={idx} onClick={async () => { setActiveTab('order'); await nativeHapticImpact(ImpactStyle.Light); }}
-                className={`flex items-center gap-2.5 p-3 rounded-2xl border transition-all cursor-pointer active:scale-95 ${isLight ? 'bg-white/60 border-black/5 hover:bg-white shadow-sm hover:shadow-md' : 'bg-white/5 border-white/6 hover:bg-white/10 hover:border-white/12 hover:shadow-[0_4px_16px_rgba(0,0,0,0.15)]'}`}>
-                <span className="text-xl">{drink.icon}</span>
+                className={`flex items-center gap-2.5 p-3 rounded-2xl border transition-all cursor-pointer active:scale-95 ${isLight ? 'bg-black/3 border-black/5 hover:bg-black/5 shadow-sm' : 'bg-[#0C0F14] border-white/5 hover:bg-white/5'}`}>
+                <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${isLight ? 'bg-white border-black/5 shadow-sm' : 'bg-white/5 border-white/5'}`}>
+                  <Coffee size={13} className="text-[#F48C24]" />
+                </div>
                 <div className="min-w-0 flex-1">
-                  <p className={`text-[11px] font-bold truncate ${headerText}`}>{drink.name}</p>
-                  <span className="inline-block px-1.5 py-0.5 mt-0.5 rounded-md bg-[#F48C24]/10 text-[#F48C24] text-[8px] font-black uppercase tracking-wider">{drink.tag}</span>
+                  <p className={`text-[10px] font-black truncate ${headerText}`}>{drink.name}</p>
+                  <span className="inline-block px-1.5 py-0.5 mt-0.5 rounded-md bg-[#F48C24]/10 text-[#F48C24] text-[7px] font-black uppercase tracking-wider">{drink.tag}</span>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className={`pt-3 border-t ${borderSec}`}>
-          <p className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${textMuted}`}>{getWeatherInfo(safeLang, simulatedTemp).comboTitle}</p>
+        <div className={`pt-3.5 border-t ${borderSec}`}>
+          <p className={`text-[9px] font-black uppercase tracking-widest mb-2.5 ${textMuted}`}>{getWeatherInfo(safeLang, simulatedTemp).comboTitle}</p>
           {getWeatherInfo(safeLang, simulatedTemp).comboItems.map((combo, idx) => (
             <div key={idx} onClick={async () => { setActiveTab('order'); await nativeHapticImpact(ImpactStyle.Light); }}
-              className={`flex items-center gap-3 p-3 rounded-2xl border transition-all cursor-pointer active:scale-[0.98] mb-2 ${comboCard}`}>
-              <span className="text-2xl">{combo.icon}</span>
+              className={`flex items-center gap-3 p-3 rounded-2xl border transition-all cursor-pointer active:scale-[0.98] mb-2 ${isLight ? 'bg-[#FAF8F5] border-orange-200/30 text-slate-800' : 'bg-[#0C0F14] border-white/5'}`}>
+              <div className={`h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'bg-white border-black/5 shadow-sm' : 'bg-white/5 border-white/5'}`}>
+                <Cookie size={16} className="text-[#F48C24]" />
+              </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-black text-[#F48C24]">{combo.name}</p>
+                <p className="text-[11px] font-black text-[#F48C24]">{combo.name}</p>
                 <p className={`text-[9px] font-semibold mt-0.5 ${subText}`}>{combo.desc}</p>
               </div>
-              <span className="text-[10px] font-extrabold text-[#F48C24] bg-[#F48C24]/10 px-2 py-0.5 rounded-full border border-[#F48C24]/20">Combo</span>
+              <span className="text-[8px] font-black uppercase tracking-wider text-[#F48C24] bg-[#F48C24]/10 px-2.5 py-1 rounded-full border border-[#F48C24]/20 flex-shrink-0">Combo</span>
             </div>
           ))}
         </div>
