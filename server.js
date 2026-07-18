@@ -81,8 +81,31 @@ function sendFile(filePath, res) {
 }
 
 const server = http.createServer((req, res) => {
-  const requestUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-  const pathname = decodeURIComponent(requestUrl.pathname || '/');
+  // Prevent null-byte injection crashes
+  if ((req.url || '').includes('\x00') || (req.url || '').includes('%00')) {
+    res.statusCode = 400;
+    setSecurityHeaders(res);
+    res.end('Bad Request');
+    return;
+  }
+
+  let pathname = '/';
+  try {
+    const requestUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+    pathname = decodeURIComponent(requestUrl.pathname || '/');
+  } catch (err) {
+    res.statusCode = 400;
+    setSecurityHeaders(res);
+    res.end('Bad Request');
+    return;
+  }
+
+  if (pathname.includes('\x00')) {
+    res.statusCode = 400;
+    setSecurityHeaders(res);
+    res.end('Bad Request');
+    return;
+  }
 
   if (BLOCKED_PATTERNS.some((pattern) => pattern.test(pathname))) {
     res.statusCode = 403;
