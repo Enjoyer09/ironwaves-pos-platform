@@ -470,7 +470,11 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 
   useEffect(() => {
     viewTableIdRef.current = viewTableId;
-  }, [viewTableId]);
+    // On mobile, always reset to compose tab when a new table is selected
+    if (isMobileView && viewTableId) {
+      setTableWorkspaceTab('compose');
+    }
+  }, [viewTableId, isMobileView]);
 
   useEffect(() => {
     workspaceViewRef.current = workspaceView;
@@ -2052,7 +2056,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                       <input className="neon-input" value={lockReason} onChange={(e) => setLockReason(e.target.value)} placeholder={tx(lang, 'Override səbəbi', 'Причина override', 'Override reason')} />
                     </div>
                   )}
-	                  <div className={`mt-2 rounded-2xl border border-slate-700/70 bg-slate-900/30 p-2.5`}>
+	                  <div className={`mt-2 rounded-2xl border border-slate-700/70 bg-slate-900/30 p-2.5 ${ isBahaYLab && isMobileView ? 'hidden' : ''}`}>
 	                    <div className="flex flex-wrap gap-2.5">
                       {([
                         ['compose', tx(lang, 'Sifariş', 'Заказ', 'Order')],
