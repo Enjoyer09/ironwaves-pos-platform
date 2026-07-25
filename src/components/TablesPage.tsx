@@ -1906,9 +1906,9 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400 animate-pulse" />
-                            <span className="text-sm font-black text-slate-100 truncate">{t.label}</span>
+                            <span className="text-base font-black text-slate-100 truncate">{t.label}</span>
                           </div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">{detailSession?.guest_count ?? Number(t.guest_count || 0)} {tx(lang, 'nəfər', 'гостя', 'guests')}</div>
+                          <div className="text-xs text-slate-400 mt-0.5">{detailSession?.guest_count ?? Number(t.guest_count || 0)} {tx(lang, 'nəfər', 'гостя', 'guests')}</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -1920,13 +1920,16 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         <span className="text-xs font-black text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-xl">
                           {new Decimal(detailCheck?.total || t.total || 0).toFixed(2)} ₼
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => { window.dispatchEvent(new CustomEvent('open-fast-switch')); }}
-                          className="inline-flex min-h-14 shrink-0 items-center gap-3 rounded-2xl border-2 border-amber-400/60 bg-amber-500/20 px-6 py-3 text-base font-black text-amber-100 shadow-lg shadow-amber-500/15 transition hover:bg-amber-500/30 active:scale-95 taktil-target"
-                        >
-                          👤 {tx(lang, 'Dəyiş', 'Сменить', 'Switch')}
-                        </button>
+                        {/* Dəyiş button — hidden on mobile (auto-lock handles switching) */}
+                        {!isMobileView && (
+                          <button
+                            type="button"
+                            onClick={() => { window.dispatchEvent(new CustomEvent('open-fast-switch')); }}
+                            className="inline-flex min-h-14 shrink-0 items-center gap-3 rounded-2xl border-2 border-amber-400/60 bg-amber-500/20 px-6 py-3 text-base font-black text-amber-100 shadow-lg shadow-amber-500/15 transition hover:bg-amber-500/30 active:scale-95 taktil-target"
+                          >
+                            👤 {tx(lang, 'Dəyiş', 'Сменить', 'Switch')}
+                          </button>
+                        )}
                       </div>
                     </div>
                   ) : (

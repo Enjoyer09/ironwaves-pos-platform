@@ -262,8 +262,8 @@ function MenuGrid({
       {/* Product grid - grouped by variant */}
       <div className={`grid min-h-0 flex-1 auto-rows-max gap-2 md:gap-2.5 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/30 p-2 sm:p-2.5 ${
         hideImages
-          ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-7'
-          : 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6'
+          ? 'grid-cols-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-7'
+          : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-6'
       }`}>
         {groupedItems.map((group) => {
           const totalQtyInDraft = group.items.reduce((sum: number, it: any) => sum + (draftQtyMap.get(it.id) || 0), 0);

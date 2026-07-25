@@ -213,43 +213,43 @@ export default function MobileWaiterUI({
                   ? 'bg-gradient-to-b from-rose-500 to-rose-700 shadow-lg shadow-rose-500/25'
                   : 'bg-slate-800/70 border border-slate-700/60'
               }`}
-              style={{ minHeight: '110px' }}
+              style={{ minHeight: '130px' }}
             >
               {/* Top drag-pill indicator */}
-              <div className="flex justify-center pt-2 pb-1 shrink-0">
-                <div className={`h-[3px] w-7 rounded-full ${
+              <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+                <div className={`h-[3px] w-8 rounded-full ${
                   isOccupied || isReady ? 'bg-white/35' : 'bg-slate-600'
                 }`} />
               </div>
 
               {/* Table label */}
-              <div className={`px-2.5 text-sm font-black leading-tight tracking-tight flex-1 ${
+              <div className={`px-3 text-base font-black leading-tight tracking-tight ${
                 isOccupied || isReady ? 'text-white' : 'text-slate-100'
               }`}>
                 {table.label}
               </div>
 
               {/* Amount or free indicator */}
-              <div className="px-2.5 mt-1">
+              <div className="px-3 mt-1.5 flex-1">
                 {isOccupied ? (
-                  <div className="text-base font-black text-white leading-none">
-                    {totalVal} <span className="text-[10px] opacity-80">₼</span>
+                  <div className="text-xl font-black text-white leading-none">
+                    {totalVal} <span className="text-xs opacity-80">₼</span>
                   </div>
                 ) : (
-                  <div className="text-[10px] font-bold text-slate-500">
+                  <div className="text-xs font-bold text-slate-500">
                     {tx(lang, 'Boş', 'Свободен', 'Free')}
                   </div>
                 )}
               </div>
 
               {/* Bottom: guests + waiter */}
-              <div className="px-2.5 pb-2 mt-1.5 shrink-0">
+              <div className="px-3 pb-2.5 mt-2 shrink-0">
                 {isOccupied ? (
-                  <div className="text-[9px] font-semibold text-white/65 truncate">
+                  <div className="text-[11px] font-semibold text-white/70 truncate">
                     👥 {guestNum} · {table.assigned_to || ''}
                   </div>
                 ) : (
-                  <div className="text-[9px] font-semibold text-slate-600">
+                  <div className="text-[11px] font-semibold text-slate-500">
                     {tx(lang, 'Sərbəst', 'Свободен', 'Free')}
                   </div>
                 )}
