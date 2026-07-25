@@ -256,7 +256,7 @@ function MenuGrid({
       </div>
 
       {/* Product grid - grouped by variant */}
-      <div className={`grid min-h-0 flex-1 auto-rows-max gap-2 md:gap-2.5 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/30 p-2.5 ${
+      <div className={`grid min-h-0 flex-1 auto-rows-max gap-2 md:gap-2.5 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/30 p-2 sm:p-2.5 ${
         hideImages
           ? 'grid-cols-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-7'
           : 'grid-cols-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6'
@@ -311,7 +311,7 @@ function MenuGrid({
                     }
                   }}
                   aria-label={`${group.base}, ${group.minPrice.toFixed(2)} AZN${group.hasVariants ? ', ' + group.items.length + ' variant' : ''}`}
-                  className="flex flex-1 flex-col cursor-pointer transition taktil-target"
+                  className="flex flex-1 flex-col cursor-pointer transition taktil-target min-h-[72px] sm:min-h-0"
                 >
                   {!hideImages && (
                     group.image_url ? (
@@ -326,11 +326,11 @@ function MenuGrid({
                       </div>
                     )
                   )}
-                  <div className={`flex flex-1 flex-col justify-between ${hideImages ? 'p-2 pb-2.5' : 'p-2 pb-1.5'}`}>
-                    <div className={`line-clamp-2 font-black leading-tight text-white ${hideImages ? 'text-[11px]' : 'text-xs'}`}>
+                  <div className={`flex flex-1 flex-col justify-between ${hideImages ? 'p-2.5 pb-3 sm:p-2 sm:pb-2.5' : 'p-2 pb-1.5'}`}>
+                    <div className={`line-clamp-2 font-black leading-tight text-white ${hideImages ? 'text-sm sm:text-[11px]' : 'text-xs'}`}>
                       {group.base}
                     </div>
-                    <div className={`mt-1 font-semibold text-yellow-400/80 ${hideImages ? 'text-[10px]' : 'text-[11px]'}`}>
+                    <div className={`mt-1.5 font-semibold text-yellow-400/80 ${hideImages ? 'text-xs sm:text-[10px]' : 'text-[11px]'}`}>
                       {group.minPrice.toFixed(2)} ₼
                       {group.hasVariants && <span className="ml-1 text-[9px] font-medium text-slate-400/70">({group.items.length})</span>}
                     </div>
