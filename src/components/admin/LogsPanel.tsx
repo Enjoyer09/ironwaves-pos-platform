@@ -10,6 +10,7 @@ export default function LogsPanel() {
   const [limit, setLimit] = useState(100);
   const [pageSize, setPageSize] = useState(10);
   const [quickFilter, setQuickFilter] = useState<'all' | 'finance_audit'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'order' | 'inventory' | 'finance' | 'auth' | 'system'>('all');
   const [query, setQuery] = useState('');
   const [superErrorMode, setSuperErrorMode] = useState(false);
   const [tenantFilter, setTenantFilter] = useState('');
@@ -110,14 +111,36 @@ export default function LogsPanel() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return logs.filter((l: any) => {
-      if (quickFilter === 'finance_audit' && String(l.action || '').toUpperCase() !== 'FINANCE_ANOMALY_SNAPSHOT') {
+      const act = String(l.action || '').toUpperCase();
+      if (quickFilter === 'finance_audit' && act !== 'FINANCE_ANOMALY_SNAPSHOT') {
         return false;
+      }
+      if (categoryFilter === 'order') {
+        if (!['CHECK_SETTLED', 'TABLE_OPENED', 'ROUND_SENT', 'ORDER_DRAFT_ITEM_ADDED', 'ORDER_DRAFT_ITEM_UPDATED', 'TABLE_TRANSFERRED', 'TABLE_MERGED', 'TABLE_SENT_TO_KITCHEN', 'KITCHEN_ACCEPTED', 'KITCHEN_COMPLETED', 'SALE_VOIDED', 'SALE_PARTIAL_REFUND', 'REFUND_CREATED'].includes(act)) {
+          return false;
+        }
+      } else if (categoryFilter === 'inventory') {
+        if (!['INVENTORY_ADD', 'INVENTORY_RESTOCK', 'INVENTORY_LOSS', 'INVENTORY_DELETE', 'INVENTORY_CONSUMED', 'MENU_ADD', 'MENU_EDIT', 'MENU_SOFT_DELETE'].includes(act)) {
+          return false;
+        }
+      } else if (categoryFilter === 'finance') {
+        if (!['FINANCE_TRANSACTION_POSTED', 'FINANCE_TRANSACTION_REVERSED', 'FINANCE_LEGACY_WALLET_SYNC_SKIPPED', 'FINANCE_LEGACY_WALLET_SYNCED', 'FINANCE_ANOMALY_SNAPSHOT', 'X_REPORT_CREATED', 'Z_REPORT_CREATED', 'SHIFT_OPENED', 'SHIFT_CLOSED', 'SHIFT_HANDOVER', 'SHIFT_HANDOVER_ACCEPTED'].includes(act)) {
+          return false;
+        }
+      } else if (categoryFilter === 'auth') {
+        if (!['SUCCESSFUL_LOGIN', 'LOGOUT', 'AUTH_LOGIN_SUCCESS', 'AUTH_LOGOUT', 'STAFF_AUTO_SHIFT_JOIN', 'STAFF_AUTO_SHIFT_LEAVE', 'USER_UPSERT', 'USER_DELETE', 'USER_CREDENTIALS_UPDATED'].includes(act)) {
+          return false;
+        }
+      } else if (categoryFilter === 'system') {
+        if (!['UI_ERROR', 'BACKEND_UNHANDLED_EXCEPTION', 'API_NETWORK_ERROR', 'CUSTOMER_APP_SETTINGS_UPDATED', 'PRINT_SETTINGS_UPDATED', 'QR_SETTINGS_UPDATED', 'QR_GENERATED'].includes(act)) {
+          return false;
+        }
       }
       if (!q) return true;
       const row = `${l.user} ${l.action} ${JSON.stringify(l.details || {})}`.toLowerCase();
       return row.includes(q);
     });
-  }, [logs, query, quickFilter]);
+  }, [logs, query, quickFilter, categoryFilter]);
 
   const visibleLogs = useMemo(() => filtered.slice(0, pageSize), [filtered, pageSize]);
 
@@ -259,6 +282,25 @@ export default function LogsPanel() {
       QR_GENERATED: tx(lang, 'Yeni QR yaradıldı', 'Создан новый QR', 'New QR generated'),
       OFFLINE_SALES_SYNCED: tx(lang, 'Offline satışlar serverə göndərildi', 'Оффлайн продажи синхронизированы', 'Offline sales synced'),
       FINANCE_ANOMALY_SNAPSHOT: tx(lang, 'Maliyyə audit snapshot-u', 'Снимок финансового аудита', 'Finance audit snapshot'),
+      
+      // New mappings for detailed Az/Ru/En rendering
+      FINANCE_LEGACY_WALLET_SYNC_SKIPPED: tx(lang, 'Köhnə pul qabı sinxronizasiyası ötürüldü', 'Пропущен синхронизация старого кошелька', 'Legacy wallet sync skipped'),
+      FINANCE_LEGACY_WALLET_SYNCED: tx(lang, 'Köhnə pul qabı ilə sinxronizasiya olundu', 'Синхронизировано со старым кошельком', 'Legacy wallet synced'),
+      FINANCE_TRANSACTION_POSTED: tx(lang, 'Maliyyə əməliyyatı qeydə alındı', 'Финансовая транзакция проведена', 'Financial transaction posted'),
+      FINANCE_TRANSACTION_REVERSED: tx(lang, 'Maliyyə əməliyyatı ləğv edildi (Reversal)', 'Финансовая транзакция сторнирована', 'Financial transaction reversed'),
+      CHECK_SETTLED: tx(lang, 'Masa hesabı bağlandı (Ödəniş)', 'Счет стола закрыт (Оплата)', 'Table check settled (Payment)'),
+      UI_ERROR: tx(lang, 'İnterfeys xətası (UI Error)', 'Ошибка интерфейса (UI Error)', 'Interface error (UI Error)'),
+      SUCCESSFUL_LOGIN: tx(lang, 'Uğurlu giriş (Sistem)', 'Успешный вход (Система)', 'Successful login (System)'),
+      LOGOUT: tx(lang, 'Çıxış edildi', 'Выход выполнен', 'Logged out'),
+      AUTH_LOGIN_SUCCESS: tx(lang, 'Uğurlu giriş (Kassir)', 'Успешная авторизация', 'Auth login success'),
+      AUTH_LOGOUT: tx(lang, 'Sessiyadan çıxış edildi', 'Сессия закрыта', 'Auth session logged out'),
+      STAFF_AUTO_SHIFT_JOIN: tx(lang, 'Növbəyə avtomatik qoşulma', 'Авто-подключение к смене', 'Auto-joined shift'),
+      STAFF_AUTO_SHIFT_LEAVE: tx(lang, 'Növbədən avtomatik çıxma', 'Авто-выход из смены', 'Auto-left shift'),
+      TABLE_OPENED: tx(lang, 'Yeni masa açıldı', 'Стол открыт', 'Table opened'),
+      ROUND_SENT: tx(lang, 'Sifariş raundu göndərildi', 'Раунд заказа отправлен', 'Order round sent'),
+      ORDER_DRAFT_ITEM_ADDED: tx(lang, 'Məhsul sifarişə əlavə edildi', 'Товар добавлен в заказ', 'Item added to draft order'),
+      ORDER_DRAFT_ITEM_UPDATED: tx(lang, 'Sifariş məhsul sayı dəyişdi', 'Количество товара обновлено', 'Draft item quantity updated'),
+      CUSTOMER_APP_SETTINGS_UPDATED: tx(lang, 'Müştəri tətbiqi ayarları dəyişdirildi', 'Настройки клиентского приложения обновлены', 'Customer app settings updated'),
     };
     return labels[action] || action.replace(/_/g, ' ').toLowerCase();
   };
@@ -386,6 +428,59 @@ export default function LogsPanel() {
       return bits.length > 0 ? bits.join(' • ') : tx(lang, 'Audit xətası yoxdur', 'Нет ошибок аудита', 'No audit warning');
     }
 
+    // New summaries for legacy wallet, transactions, check settlement, UI errors, login/logout, and orders
+    if (action === 'FINANCE_LEGACY_WALLET_SYNC_SKIPPED') {
+      const r = details.reason === 'legacy_wallet_sync_disabled' 
+        ? tx(lang, 'sinxronizasiya deaktivdir', 'синхронизация отключена', 'sync disabled') 
+        : details.reason;
+      return `${tx(lang, 'Köhnə pul qabı sinxronizasiyası ötürüldü', 'Синхронизация старого кошелька пропущена', 'Legacy wallet sync skipped')} • ${tx(lang, 'Səbəb', 'Причина', 'Reason')}: ${r}`;
+    }
+    if (action === 'FINANCE_LEGACY_WALLET_SYNCED') {
+      return `${tx(lang, 'Köhnə pul qabı sinxronizasiya olundu', 'Синхронизировано со старым кошельком', 'Legacy wallet synced')} • ${amount || '0'} ₼`;
+    }
+    if (action === 'FINANCE_TRANSACTION_POSTED') {
+      return `${tx(lang, 'Maliyyə yazılışı', 'Финансовая запись', 'Financial entry')}: ${amount || '0'} ₼ (${details.source || ''} ➔ ${details.destination || ''})`;
+    }
+    if (action === 'FINANCE_TRANSACTION_REVERSED') {
+      return `${tx(lang, 'Maliyyə yazılışı ləğv edildi', 'Финансовая запись сторнирована', 'Financial entry reversed')}: ${amount || '0'} ₼`;
+    }
+    if (action === 'CHECK_SETTLED') {
+      return `${details.table_label || 'Masa'}: ${tx(lang, 'Çek', 'Чек', 'Check')} ${details.check_number || ''} ${tx(lang, 'bağlandı', 'закрыт', 'settled')} • ${tx(lang, 'Cəm', 'Итого', 'Total')}: ${amount || details.final_total || '0'} ₼`;
+    }
+    if (action === 'UI_ERROR') {
+      return `${tx(lang, 'UI Xətası', 'UI Ошибка', 'UI Error')}: ${details.message || ''} • ${details.module || ''} (${details.duration_ms ? `${details.duration_ms}ms` : ''})`;
+    }
+    if (action === 'SUCCESSFUL_LOGIN') {
+      return `${tx(lang, 'Uğurlu giriş', 'Успешный вход', 'Successful login')}: ${details.role || ''} (${details.method || ''})`;
+    }
+    if (action === 'AUTH_LOGIN_SUCCESS') {
+      return `${tx(lang, 'Kassir giriş etdi', 'Кассир вошел', 'Cashier logged in')}: ${details.username || ''}`;
+    }
+    if (action === 'AUTH_LOGOUT') {
+      return `${tx(lang, 'Sessiyadan çıxış', 'Выход из сессии', 'Session logged out')}: ${details.username || ''}`;
+    }
+    if (action === 'STAFF_AUTO_SHIFT_JOIN') {
+      return tx(lang, 'Giriş ilə növbəyə qoşuldu', 'Подключен к смене при входе', 'Joined shift on login');
+    }
+    if (action === 'STAFF_AUTO_SHIFT_LEAVE') {
+      return tx(lang, 'Çıxış ilə növbədən ayrıldı', 'Вышел из смены при выходе', 'Left shift on logout');
+    }
+    if (action === 'TABLE_OPENED') {
+      return `${details.table_label || 'Masa'}: ${tx(lang, 'Yeni sifariş açıldı', 'Открыт новый заказ', 'New order opened')} • ${tx(lang, 'Qonaq', 'Гости', 'Guests')}: ${details.guest_count || 1}`;
+    }
+    if (action === 'ROUND_SENT') {
+      return `${details.table || 'Masa'}: ${tx(lang, 'Raund', 'Раунд', 'Round')} ${details.round_no || 1} • ${details.item_count || 0} ${tx(lang, 'məhsul mətbəxə', 'блюд на кухню', 'items to kitchen')}`;
+    }
+    if (action === 'ORDER_DRAFT_ITEM_ADDED') {
+      return `${tx(lang, 'Əlavə edildi', 'Добавлено', 'Added')}: ${details.item_name || ''} • ${details.qty || 1} ${tx(lang, 'ədəd', 'шт.', 'pcs')}`;
+    }
+    if (action === 'ORDER_DRAFT_ITEM_UPDATED') {
+      return `${tx(lang, 'Sayı yeniləndi', 'Количество изменено', 'Quantity updated')} • ${details.qty || 1} ${tx(lang, 'ədəd', 'шт.', 'pcs')}`;
+    }
+    if (action === 'CUSTOMER_APP_SETTINGS_UPDATED') {
+      return `${tx(lang, 'Müştəri proqramı ayarları yeniləndi', 'Настройки лояльности обновлены', 'Loyalty settings updated')}: ${details.app_name || ''} (${details.program_mode || ''})`;
+    }
+
     if (amount) return `${tx(lang, 'Məbləğ', 'Сумма', 'Amount')}: ${amount} ₼`;
     if (itemName) return itemName;
     return details.message || '-';
@@ -474,6 +569,14 @@ export default function LogsPanel() {
           <select value={quickFilter} onChange={(e) => setQuickFilter(e.target.value as 'all' | 'finance_audit')} className="neon-input">
             <option value="all">{tx(lang, 'Bütün loqlar', 'Все логи', 'All logs')}</option>
             <option value="finance_audit">{tx(lang, 'Maliyyə auditləri', 'Финансовые аудиты', 'Finance audits')}</option>
+          </select>
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value as any)} className="neon-input">
+            <option value="all">{tx(lang, 'Bütün Kateqoriyalar', 'Все категории', 'All Categories')}</option>
+            <option value="order">{tx(lang, 'Masa və Sifariş', 'Столы и Заказы', 'Tables & Orders')}</option>
+            <option value="inventory">{tx(lang, 'Anbar və Xammal', 'Склад и Сырье', 'Inventory & Goods')}</option>
+            <option value="finance">{tx(lang, 'Maliyyə və Audit', 'Финансы и Аудит', 'Finance & Audit')}</option>
+            <option value="auth">{tx(lang, 'Giriş-Çıxış / Təhlükəsizlik', 'Сессии и Авторизация', 'Auth & Sessions')}</option>
+            <option value="system">{tx(lang, 'Sistem və Xətalar', 'Система и Ошибки', 'System & Errors')}</option>
           </select>
           <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="neon-input" />
           <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="neon-input" />
