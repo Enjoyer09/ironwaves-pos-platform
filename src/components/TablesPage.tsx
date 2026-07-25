@@ -92,13 +92,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
-  // Auto-detect mobile phone or tablet / touchscreen, with manual override option
-  const [isMobileView, setIsMobileView] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem('waiter_mobile_view');
-      if (saved === 'true') return true;
-      if (saved === 'false') return false;
-    } catch {}
+  // Auto-detect mobile phone or tablet / touchscreen — no manual override, always re-detect on load
+  const [isMobileView] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const isTouch = window.matchMedia?.('(pointer: coarse)').matches;
       const isSmallScreen = window.innerWidth < 1024;
@@ -107,11 +102,6 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
     return false;
   });
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('waiter_mobile_view', String(isMobileView));
-    } catch {}
-  }, [isMobileView]);
 
   // 30-Second Inactivity Auto-Lock timer for Waiter Mode safety
   useEffect(() => {
