@@ -86,7 +86,6 @@ type Props = {
   heroImage: string;
   cardFlipped: boolean;
   setCardFlipped: (v: boolean) => void;
-  spawnParticles: (e: React.MouseEvent<HTMLElement>) => void;
   claimReward: () => void;
   claiming: boolean;
   rewards: any[];
@@ -112,7 +111,7 @@ type Props = {
 export default function HomeTab({
   safeLang, customer, customer_card_id, branding, wallet, primaryColor,
   accentColor, programMode, cardQr, showQrCard, showWallet, balanceSuffix,
-  heroImage, cardFlipped, setCardFlipped, spawnParticles, claimReward, claiming,
+  heroImage, cardFlipped, setCardFlipped, claimReward, claiming,
   rewards, progressPercent, notifications, favoriteItems, pendingClaims,
   geofenceAlert, setGeofenceAlert, simulatedTemp, simulatedCondition,
   setSimulatedTemp, setSimulatedCondition, setActiveTab,
@@ -259,7 +258,7 @@ export default function HomeTab({
       )}
 
       {/* Premium Digital Membership Card */}
-      <div onClick={async (e) => { spawnParticles(e); playTickSound(); setCardFlipped(!cardFlipped); await nativeHapticImpact(ImpactStyle.Light); }}
+      <div onClick={async (e) => { spawnConfetti(e.clientX, e.clientY); playTickSound(); setCardFlipped(!cardFlipped); await nativeHapticImpact(ImpactStyle.Light); }}
         className="w-full h-[220px] select-none cursor-pointer stagger-fade-in stagger-2"
         style={{ perspective: '1200px' }}>
         <div className={`relative w-full h-full duration-700 preserve-3d transition-transform ${cardFlipped ? 'rotate-y-180' : ''}`}>

@@ -118,7 +118,6 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [isListening, setIsListening] = React.useState(false);
   const [voiceEnabled, setVoiceEnabled] = React.useState(false);
   const recognitionRef = React.useRef<any>(null);
-  const [particles, setParticles] = React.useState<Array<{ id: number; x: number; y: number; size: number; angle: number; speed: number; emoji?: string; color?: string }>>([]);
   const [geofenceAlert, setGeofenceAlert] = React.useState(false);
   const [showDevSettings, setShowDevSettings] = React.useState(false);
   const [localFavorites, setLocalFavorites] = React.useState<string[]>(() => {
@@ -310,37 +309,6 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   
 
 
-  const spawnParticles = (e: React.MouseEvent<HTMLElement>) => {
-    e.stopPropagation();
-    if (Capacitor.isNativePlatform()) {
-      Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {});
-    }
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    // Enhanced particles — more variety with stars and sparkles
-    const emojis = ['✦', '✧', '★', '✨', '💫', '🔥', '☕', '🌟'];
-    const newParticles = Array.from({ length: 14 }).map((_, i) => ({
-      id: Math.random(),
-      x,
-      y,
-      size: Math.random() * 10 + 6,
-      angle: (i * 30 * Math.PI) / 180 + (Math.random() - 0.5) * 0.5,
-      speed: Math.random() * 4 + 2.5,
-      emoji: emojis[Math.floor(Math.random() * emojis.length)],
-      color: ['#F48C24', '#ffb366', '#ffd700', '#ff6b6b', '#48c6ef'][Math.floor(Math.random() * 5)],
-    }));
-
-    setParticles((prev) => [...prev, ...newParticles]);
-
-    setTimeout(() => {
-      setParticles((prev) => prev.filter((p) => !newParticles.find((np) => np.id === p.id)));
-    }, 1000);
-  };
-
-
-
 
   const rewards = Array.isArray(wallet?.rewards) ? wallet.rewards : [];
   const pendingClaims = Array.isArray(data?.pending_claims) ? data.pending_claims : [];
@@ -456,7 +424,15 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       setData(session);
       
       if (session.onesignal_app_id) {
-        initOneSignalSDK(session.onesignal_app_id, sessionCreds.cardId, sessionCreds.token);
+        if ('requestIdleCallback' in window) {
+          window.requestIdleCallback(() => {
+            initOneSignalSDK(session.onesignal_app_id, sessionCreds.cardId, sessionCreds.token);
+          }, { timeout: 2000 });
+        } else {
+          setTimeout(() => {
+            initOneSignalSDK(session.onesignal_app_id, sessionCreds.cardId, sessionCreds.token);
+          }, 1500);
+        }
       }
 
       if (Capacitor.isNativePlatform()) {
@@ -1457,7 +1433,6 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             heroImage={heroImage}
             cardFlipped={cardFlipped}
             setCardFlipped={setCardFlipped}
-            spawnParticles={spawnParticles}
             claimReward={claimReward}
             claiming={claiming}
             rewards={rewards}
