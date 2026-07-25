@@ -3613,4 +3613,63 @@ html[data-theme='dark'] .retro-stamp-active {
   font-family: 'Arvo', Georgia, serif !important;
 }
 
+/* ══════════════════════════════════════════════════════════
+   VIEW TRANSITIONS & HERO TAB SLIDE ANIMATIONS
+   ══════════════════════════════════════════════════════════ */
+
+/* Keep root body background, header, and bottom nav completely fixed */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none !important;
+}
+
+/* Assign transition name to active tab content wrapper */
+.tab-content-wrapper {
+  view-transition-name: tab-content;
+}
+
+/* Sliding keyframe animations with soft blur */
+@keyframes tab-slide-to-left {
+  to { transform: translateX(-32px); opacity: 0; filter: blur(5px); }
+}
+@keyframes tab-slide-from-right {
+  from { transform: translateX(32px); opacity: 0; filter: blur(5px); }
+}
+@keyframes tab-slide-to-right {
+  to { transform: translateX(32px); opacity: 0; filter: blur(5px); }
+}
+@keyframes tab-slide-from-left {
+  from { transform: translateX(-32px); opacity: 0; filter: blur(5px); }
+}
+
+/* Shared settings for tab transitions */
+::view-transition-group(tab-content) {
+  animation-duration: 0.28s;
+  animation-timing-function: cubic-bezier(0.34, 1.3, 0.64, 1); /* Springy elastic transition */
+}
+
+/* Forward transition: new content enters from right, old goes left */
+html:active-view-transition-type(forward)::view-transition-old(tab-content) {
+  animation-name: tab-slide-to-left;
+}
+html:active-view-transition-type(forward)::view-transition-new(tab-content) {
+  animation-name: tab-slide-from-right;
+}
+
+/* Backward transition: new content enters from left, old goes right */
+html:active-view-transition-type(backward)::view-transition-old(tab-content) {
+  animation-name: tab-slide-to-right;
+}
+html:active-view-transition-type(backward)::view-transition-new(tab-content) {
+  animation-name: tab-slide-from-left;
+}
+
+/* Support users with prefers-reduced-motion settings */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(tab-content) {
+    animation: none !important;
+  }
+}
+
+
 
