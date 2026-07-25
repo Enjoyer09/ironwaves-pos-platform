@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Utensils, CheckCircle2, Clock, Plus, ChevronRight, Bell } from 'lucide-react';
+import { Search, Utensils } from 'lucide-react';
 import { tx } from '../../i18n';
 import { Decimal } from 'decimal.js';
 import { ImpactStyle } from '@capacitor/haptics';
@@ -164,57 +164,38 @@ export default function MobileWaiterUI({
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
         </div>
 
-        {/* Status Filter Chips */}
-        <div className="grid grid-cols-4 gap-1.5">
-          <button
-            type="button"
-            onClick={() => setStatusFilter('all')}
-            className={`rounded-xl py-2 px-1 text-[11px] font-black text-center transition ${
-              statusFilter === 'all'
-                ? 'bg-slate-700 text-white border border-slate-500'
-                : 'bg-slate-900/60 text-slate-400 border border-slate-800'
-            }`}
-          >
-            {tx(lang, 'Hamsı', 'Все', 'All')} ({tables.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('free')}
-            className={`rounded-xl py-2 px-1 text-[11px] font-black text-center transition ${
-              statusFilter === 'free'
-                ? 'bg-emerald-500/25 border border-emerald-400/50 text-emerald-300'
-                : 'bg-slate-900/60 text-slate-400 border border-slate-800'
-            }`}
-          >
-            🟢 {tx(lang, 'Boş', 'Свободно', 'Free')} ({freeCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('occupied')}
-            className={`rounded-xl py-2 px-1 text-[11px] font-black text-center transition ${
-              statusFilter === 'occupied'
-                ? 'bg-rose-500/25 border border-rose-400/50 text-rose-300'
-                : 'bg-slate-900/60 text-slate-400 border border-slate-800'
-            }`}
-          >
-            🔴 {tx(lang, 'Dolu', 'Занят', 'Busy')} ({occupiedCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => setStatusFilter('ready')}
-            className={`rounded-xl py-2 px-1 text-[11px] font-black text-center transition ${
-              statusFilter === 'ready'
-                ? 'bg-cyan-500/25 border border-cyan-400/50 text-cyan-300 animate-pulse'
-                : 'bg-slate-900/60 text-slate-400 border border-slate-800'
-            }`}
-          >
-            🔵 {tx(lang, 'Hazır', 'Готово', 'Ready')} ({readyCount})
-          </button>
+        {/* Status Filter — horizontal scroll pills */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1">
+          {([
+            ['all',      tx(lang, 'Hamısı',  'Все',     'All'),   `${tables.length}`       ],
+            ['free',     tx(lang, 'Boş',     'Свободно','Free'),  `${freeCount}`           ],
+            ['occupied', tx(lang, 'Dolu',    'Занят',   'Busy'),  `${occupiedCount}`       ],
+            ['ready',    tx(lang, 'Hazır',   'Готово',  'Ready'), `${readyCount}`          ],
+          ] as [typeof statusFilter, string, string][]).map(([key, label, count]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setStatusFilter(key)}
+              className={`flex-none flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-black transition-all whitespace-nowrap ${
+                statusFilter === key
+                  ? key === 'all'      ? 'bg-slate-600 text-white'
+                  : key === 'free'     ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30'
+                  : key === 'occupied' ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30'
+                                       : 'bg-cyan-500 text-white shadow-md shadow-cyan-500/30 animate-pulse'
+                  : 'bg-slate-800/80 text-slate-400 border border-slate-700/60'
+              }`}
+            >
+              {label}
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+                statusFilter === key ? 'bg-white/25 text-white' : 'bg-slate-700 text-slate-300'
+              }`}>{count}</span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Mobile Touch Table Cards Grid */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Mobile Touch Table Cards — 3-column Menulux-style grid */}
+      <div className="grid grid-cols-3 gap-2">
         {filteredTables.map((table) => {
           const isOccupied = Boolean(table.is_occupied);
           const isReady = readyTableIds.has(table.id);
@@ -225,59 +206,53 @@ export default function MobileWaiterUI({
             <div
               key={table.id}
               onClick={() => handleTableTap(table)}
-              className={`relative flex flex-col justify-between rounded-3xl p-4 border transition-all duration-200 cursor-pointer active:scale-96 ${
+              className={`relative flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-95 transition-all duration-150 ${
                 isReady
-                  ? 'bg-gradient-to-br from-cyan-950/80 to-slate-900 border-cyan-400 animate-ready-glow'
+                  ? 'bg-gradient-to-b from-cyan-500 to-cyan-700 shadow-lg shadow-cyan-500/30'
                   : isOccupied
-                  ? 'bg-gradient-to-br from-slate-900 to-rose-950/40 border-rose-500/40 shadow-lg shadow-rose-950/20'
-                  : 'bg-gradient-to-br from-slate-900 to-emerald-950/20 border-emerald-500/30 hover:border-emerald-400/50'
+                  ? 'bg-gradient-to-b from-rose-500 to-rose-700 shadow-lg shadow-rose-500/25'
+                  : 'bg-slate-800/70 border border-slate-700/60'
               }`}
-              style={{ minHeight: '135px' }}
+              style={{ minHeight: '110px' }}
             >
-              {/* Card Top Row */}
-              <div className="flex items-start justify-between">
-                <span className="text-base font-black text-white tracking-tight leading-tight">
-                  {table.label}
-                </span>
-
-                {isReady ? (
-                  <span className="flex items-center gap-1 rounded-full bg-cyan-500/30 border border-cyan-400 px-2 py-0.5 text-[9px] font-black text-cyan-200 animate-pulse">
-                    <Bell size={10} /> {tx(lang, 'Hazırdır!', 'Готово!', 'Ready!')}
-                  </span>
-                ) : isOccupied ? (
-                  <span className="rounded-full bg-rose-500/20 border border-rose-500/30 px-2 py-0.5 text-[9px] font-black text-rose-300">
-                    🔴 Dolu
-                  </span>
-                ) : (
-                  <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-black text-emerald-300">
-                    🟢 Boş
-                  </span>
-                )}
+              {/* Top drag-pill indicator */}
+              <div className="flex justify-center pt-2 pb-1 shrink-0">
+                <div className={`h-[3px] w-7 rounded-full ${
+                  isOccupied || isReady ? 'bg-white/35' : 'bg-slate-600'
+                }`} />
               </div>
 
-              {/* Card Center Detail */}
-              <div className="my-2">
+              {/* Table label */}
+              <div className={`px-2.5 text-sm font-black leading-tight tracking-tight flex-1 ${
+                isOccupied || isReady ? 'text-white' : 'text-slate-100'
+              }`}>
+                {table.label}
+              </div>
+
+              {/* Amount or free indicator */}
+              <div className="px-2.5 mt-1">
                 {isOccupied ? (
-                  <div className="space-y-1">
-                    <div className="text-xl font-black text-amber-400 tracking-tight">
-                      {totalVal} <span className="text-xs font-bold text-amber-400/70">₼</span>
-                    </div>
-                    <div className="text-[10px] font-semibold text-slate-400 flex items-center gap-2">
-                      <span>👥 {guestNum} {tx(lang, 'nəfər', 'чел.', 'guests')}</span>
-                    </div>
+                  <div className="text-base font-black text-white leading-none">
+                    {totalVal} <span className="text-[10px] opacity-80">₼</span>
                   </div>
                 ) : (
-                  <div className="text-xs font-bold text-emerald-400/80 flex items-center gap-1">
-                    <Plus size={14} />
-                    <span>{tx(lang, 'Sifariş başla', 'Открыть стол', 'Start Order')}</span>
+                  <div className="text-[10px] font-bold text-slate-500">
+                    {tx(lang, 'Boş', 'Свободен', 'Free')}
                   </div>
                 )}
               </div>
 
-              {/* Card Bottom Row */}
-              <div className="flex items-center justify-between text-[10px] font-semibold border-t border-white/5 pt-2 text-slate-400">
-                <span>{table.assigned_to ? `👤 ${table.assigned_to}` : tx(lang, 'Sərbəst', 'Свободен', 'Free')}</span>
-                <ChevronRight size={14} className={isOccupied ? 'text-amber-400' : 'text-emerald-400'} />
+              {/* Bottom: guests + waiter */}
+              <div className="px-2.5 pb-2 mt-1.5 shrink-0">
+                {isOccupied ? (
+                  <div className="text-[9px] font-semibold text-white/65 truncate">
+                    👥 {guestNum} · {table.assigned_to || ''}
+                  </div>
+                ) : (
+                  <div className="text-[9px] font-semibold text-slate-600">
+                    {tx(lang, 'Sərbəst', 'Свободен', 'Free')}
+                  </div>
+                )}
               </div>
             </div>
           );

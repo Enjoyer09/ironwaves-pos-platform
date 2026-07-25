@@ -66,8 +66,12 @@ function MenuGrid({
   const isBahaYLab = modernMode ?? isBahaYLabDefault;
   const [hideImages, setHideImages] = useState(() => {
     const stored = localStorage.getItem('pos_hide_images');
-    // Default to fast mode (no images) for speed
-    return stored === null ? true : stored === 'true';
+    if (stored !== null) return stored === 'true';
+    // On mobile/touch: show images by default (visual recognition is faster)
+    // On desktop: fast text mode by default
+    const isTouchDevice = typeof window !== 'undefined' &&
+      window.matchMedia?.('(pointer: coarse)').matches;
+    return !isTouchDevice;
   });
   const [longPressItem, setLongPressItem] = useState<any>(null);
   const [customQtyText, setCustomQtyText] = useState('');
@@ -258,8 +262,8 @@ function MenuGrid({
       {/* Product grid - grouped by variant */}
       <div className={`grid min-h-0 flex-1 auto-rows-max gap-2 md:gap-2.5 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/30 p-2 sm:p-2.5 ${
         hideImages
-          ? 'grid-cols-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-7'
-          : 'grid-cols-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6'
+          ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-7'
+          : 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6'
       }`}>
         {groupedItems.map((group) => {
           const totalQtyInDraft = group.items.reduce((sum: number, it: any) => sum + (draftQtyMap.get(it.id) || 0), 0);
