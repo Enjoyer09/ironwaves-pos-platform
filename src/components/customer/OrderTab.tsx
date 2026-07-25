@@ -483,7 +483,7 @@ export default function OrderTab({
     ? 'retro-card'
     : (isLight
       ? 'bg-white border-black/8 shadow-[0_4px_20px_rgba(0,0,0,0.07)] hover:shadow-[0_8px_28px_rgba(0,0,0,0.10)]'
-      : 'bg-white/5 border-white/10 backdrop-blur-xl hover:border-white/18 hover:bg-white/8');
+      : 'bg-gradient-to-br from-[#252A32] to-[#0C0F14] border-white/10 shadow-[0_10px_25px_rgba(0,0,0,0.4),inset_0_1px_1px_rgba(255,255,255,0.08)] backdrop-blur-xl hover:border-white/20');
   const loadingText = isLight ? 'text-slate-400'   : 'text-white/40';
   const emptyBorder = isLight ? 'border-black/8 bg-black/3' : 'border-white/10 bg-white/4';
 

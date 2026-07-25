@@ -100,13 +100,16 @@ export default function BaristaTab({
       <div className={`max-h-72 space-y-3.5 overflow-y-auto rounded-[24px] p-4 border ${chatAreaBg}`}>
         {baristaMessages.map((msg, idx) => (
           <div key={`${msg.role}_${idx}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} Z-10`}>
-            {msg.text === '...' ? (
-              <div className={`max-w-[80%] rounded-2xl rounded-tl-none px-4 py-3 border shadow-md ${botBubble}`}>
-                <div className="flex items-center gap-1.5 py-1 px-1">
+            {msg.text === '...' || msg.text.startsWith('...') ? (
+              <div className={`max-w-[85%] rounded-2xl rounded-tl-none px-4 py-3 border shadow-md flex items-center gap-3 ${botBubble}`}>
+                <div className="flex items-center gap-1.5 py-0.5">
                   {[0, 150, 300].map(delay => (
-                    <span key={delay} className={`h-2.5 w-2.5 rounded-full animate-dotBounce ${isLight ? 'bg-slate-400' : 'bg-slate-300'}`} style={{ animationDelay: `${delay}ms` }} />
+                    <span key={delay} className={`h-2 w-2 rounded-full animate-dotBounce ${isLight ? 'bg-amber-600' : 'bg-[#F48C24]'}`} style={{ animationDelay: `${delay}ms` }} />
                   ))}
                 </div>
+                <span className={`text-[11px] font-semibold italic ${isLight ? 'text-slate-500' : 'text-white/60'}`}>
+                  {tx(safeLang, 'Barista tövsiyələr hazırlayır...', 'Бариста готовит рекомендации...', 'Barista is brewing recommendations...')}
+                </span>
               </div>
             ) : (
               <div
