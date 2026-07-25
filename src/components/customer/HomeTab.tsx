@@ -101,7 +101,6 @@ type Props = {
   setSimulatedTemp: React.Dispatch<React.SetStateAction<number>>;
   setSimulatedCondition: React.Dispatch<React.SetStateAction<'sunny' | 'rainy'>>;
   setActiveTab: (tab: any) => void;
-  tick: number;
   openWalletPass: (e: React.MouseEvent, url: string) => void;
   get_customer_wallet_pass_url_fn: (cardId: string, token: string, lang: string) => string;
   sessionCreds: { cardId: string; token: string };
@@ -116,7 +115,7 @@ export default function HomeTab({
   heroImage, cardFlipped, setCardFlipped, spawnParticles, claimReward, claiming,
   rewards, progressPercent, notifications, favoriteItems, pendingClaims,
   geofenceAlert, setGeofenceAlert, simulatedTemp, simulatedCondition,
-  setSimulatedTemp, setSimulatedCondition, setActiveTab, tick,
+  setSimulatedTemp, setSimulatedCondition, setActiveTab,
   openWalletPass, get_customer_wallet_pass_url_fn, sessionCreds, data, isLight = false,
   designMode = 'classic'
 }: Props) {
