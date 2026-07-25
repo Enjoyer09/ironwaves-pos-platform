@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, UserRoundCog, Utensils, CheckCircle2, Clock, Plus, ChevronRight, Bell } from 'lucide-react';
+import { Search, Utensils, CheckCircle2, Clock, Plus, ChevronRight, Bell } from 'lucide-react';
 import { tx } from '../../i18n';
 import { Decimal } from 'decimal.js';
 import { ImpactStyle } from '@capacitor/haptics';
@@ -101,7 +101,7 @@ export default function MobileWaiterUI({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] bg-[#0b0f19] flex flex-col h-[100dvh] max-h-[100dvh] overflow-y-auto p-4 space-y-4 pb-24 select-none">
+    <div className="fixed inset-0 z-[60] bg-[#0b0f19] flex flex-col h-[100dvh] max-h-[100dvh] overflow-y-auto p-4 space-y-3 pb-24 select-none">
       <style>{`
         @keyframes pulseGlowReady {
           0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
@@ -110,38 +110,27 @@ export default function MobileWaiterUI({
         .animate-ready-glow { animation: pulseGlowReady 1.8s infinite ease-in-out; }
       `}</style>
 
-      {/* Top Header Card */}
-      <div className="flex items-center justify-between rounded-3xl border border-white/10 bg-slate-900/80 p-4 backdrop-blur-xl shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center font-black text-slate-950 text-base shadow-md">
-            {user?.username ? user.username.charAt(0).toUpperCase() : 'W'}
+      {/* Top Header Card - compact, no PIN switch (auto-lock handles it) */}
+      <div className="flex items-center gap-3 rounded-3xl border border-white/10 bg-slate-900/80 p-4 backdrop-blur-xl shadow-lg">
+        <div className="h-11 w-11 shrink-0 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center font-black text-slate-950 text-base shadow-md">
+          {user?.username ? user.username.charAt(0).toUpperCase() : 'W'}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-black text-white flex items-center gap-1.5 flex-wrap">
+            <span className="truncate">{user?.username || 'Ofisiant'}</span>
+            <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-extrabold text-emerald-400 shrink-0">
+              {tx(lang, 'Ofisiant Mode', 'Режим официанта', 'Waiter Mode')}
+            </span>
           </div>
-          <div>
-            <div className="text-sm font-black text-white flex items-center gap-1.5">
-              <span>{user?.username || 'Ofisiant'}</span>
-              <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-extrabold text-emerald-400">
-                {tx(lang, 'Ofisiant Mode', 'Режим официанта', 'Waiter Mode')}
-              </span>
-            </div>
-            <div className="text-[10px] font-semibold text-slate-400 mt-0.5">
-              {tables.length} {tx(lang, 'Masa', 'Столов', 'Tables')} · {freeCount} {tx(lang, 'Boş', 'Свободно', 'Free')}
-            </div>
+          <div className="text-[10px] font-semibold text-slate-400 mt-0.5">
+            {tables.length} {tx(lang, 'Masa', 'Столов', 'Tables')} · {freeCount} {tx(lang, 'Boş', 'Свободно', 'Free')} · {occupiedCount} {tx(lang, 'Dolu', 'Занят', 'Busy')}
           </div>
         </div>
-
-        <button
-          type="button"
-          onClick={() => { void nativeHapticImpact(ImpactStyle.Medium); onFastSwitch(); }}
-          className="flex items-center gap-1.5 rounded-2xl border border-amber-400/40 bg-amber-500/15 px-3.5 py-2.5 text-xs font-black text-amber-300 active:scale-95 transition shadow-sm"
-        >
-          <UserRoundCog size={16} />
-          <span>{tx(lang, 'Dəyiş (PIN)', 'Сменить (PIN)', 'Switch PIN')}</span>
-        </button>
       </div>
 
-      {/* Zone Floor Plan Tabs */}
-      {floorPlans.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1 pt-1 -mx-1 px-1 no-scrollbar">
+      {/* Zone Floor Plan Tabs — only shown when there are 2+ floor plans */}
+      {floorPlans.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar">
           {floorPlans.map((fp) => {
             const active = fp.id === activeFloorId;
             return (
