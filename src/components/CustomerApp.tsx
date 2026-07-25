@@ -1280,6 +1280,33 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       ? 'home'
       : activeTab;
 
+  const switchTabWithTransition = (newTab: CustomerTab) => {
+    if (newTab === resolvedActiveTab) return;
+
+    const tabKeys = bottomTabs.map(t => t.key);
+    const oldIdx = tabKeys.indexOf(resolvedActiveTab);
+    const newIdx = tabKeys.indexOf(newTab);
+    const direction = newIdx > oldIdx ? 'forward' : 'backward';
+
+    if (!(document as any).startViewTransition) {
+      setActiveTab(newTab);
+      return;
+    }
+
+    try {
+      (document as any).startViewTransition({
+        update: () => {
+          setActiveTab(newTab);
+        },
+        types: [direction]
+      });
+    } catch (e) {
+      (document as any).startViewTransition(() => {
+        setActiveTab(newTab);
+      });
+    }
+  };
+
   return (
     <div
       className={`relative min-h-dvh overflow-x-hidden overflow-y-auto overscroll-contain customer-app-wrapper transition-colors duration-300 ${
@@ -1418,6 +1445,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         </div>
 
         {/* Tab content */}
+        <div className="tab-content-wrapper flex-1 flex flex-col">
         {resolvedActiveTab === 'home' && (
           <div key="home" className="animate-tabEnter">
           <HomeTab
@@ -1450,7 +1478,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             simulatedCondition={simulatedCondition}
             setSimulatedTemp={setSimulatedTemp}
             setSimulatedCondition={setSimulatedCondition}
-            setActiveTab={setActiveTab}
+            setActiveTab={switchTabWithTransition}
             tick={tick}
             openWalletPass={openWalletPass}
             get_customer_wallet_pass_url_fn={get_customer_wallet_pass_url}
@@ -1565,6 +1593,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           />
           </div>
         )}
+        </div>
       </div>
 
       {/* Bottom Navigation — compact glassmorphism capsule */}
@@ -1592,7 +1621,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                   key={tab.key}
                   type="button"
                   onClick={async () => {
-                    setActiveTab(tab.key);
+                    switchTabWithTransition(tab.key);
                     if (Capacitor.isNativePlatform()) {
                       try {
                         await Haptics.impact({ style: ImpactStyle.Light });
