@@ -1023,8 +1023,21 @@ export default function App() {
     const tenant = user?.tenant_id || activeTenant || 'tenant_default';
     let lastReportedAt = 0;
     let observer: PerformanceObserver | null = null;
+
+    let isPrintingGlobal = false;
+    const onBeforePrint = () => { isPrintingGlobal = true; };
+    const onAfterPrint = () => {
+      setTimeout(() => {
+        isPrintingGlobal = false;
+      }, 1000);
+    };
+
+    window.addEventListener('beforeprint', onBeforePrint);
+    window.addEventListener('afterprint', onAfterPrint);
+
     try {
       observer = new PerformanceObserver((list) => {
+        if (isPrintingGlobal) return;
         const now = Date.now();
         if (now - lastReportedAt < 8000) return;
         const entries = list.getEntries() || [];
@@ -1041,6 +1054,8 @@ export default function App() {
       // longtask observer might be unavailable on some browsers
     }
     return () => {
+      window.removeEventListener('beforeprint', onBeforePrint);
+      window.removeEventListener('afterprint', onAfterPrint);
       try {
         observer?.disconnect();
       } catch {
