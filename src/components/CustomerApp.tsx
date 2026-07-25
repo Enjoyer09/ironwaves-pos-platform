@@ -115,7 +115,6 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [activatedCampaigns, setActivatedCampaigns] = React.useState<Record<string, number>>({});
   const [designMode, setDesignMode] = React.useState<'classic' | 'retro'>(() => (localStorage.getItem('customer_design_mode') as 'classic' | 'retro') || 'classic');
   const [campaignQrs, setCampaignQrs] = React.useState<Record<string, string>>({});
-  const [tick, setTick] = React.useState(0);
   const [isListening, setIsListening] = React.useState(false);
   const [voiceEnabled, setVoiceEnabled] = React.useState(false);
   const recognitionRef = React.useRef<any>(null);
@@ -616,12 +615,6 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     ]);
   }, [lang]);
 
-  React.useEffect(() => {
-    const timer = setInterval(() => {
-      setTick(t => t + 1);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   React.useEffect(() => {
     const SpeechLib = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -1479,7 +1472,6 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             setSimulatedTemp={setSimulatedTemp}
             setSimulatedCondition={setSimulatedCondition}
             setActiveTab={switchTabWithTransition}
-            tick={tick}
             openWalletPass={openWalletPass}
             get_customer_wallet_pass_url_fn={get_customer_wallet_pass_url}
             sessionCreds={sessionCreds}
