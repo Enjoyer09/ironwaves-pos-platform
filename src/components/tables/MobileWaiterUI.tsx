@@ -101,7 +101,7 @@ export default function MobileWaiterUI({
   };
 
   return (
-    <div className="flex flex-col space-y-4 pb-20 select-none">
+    <div className="fixed inset-0 z-[60] bg-[#0b0f19] flex flex-col h-[100dvh] max-h-[100dvh] overflow-y-auto p-4 space-y-4 pb-24 select-none">
       <style>{`
         @keyframes pulseGlowReady {
           0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
@@ -303,8 +303,8 @@ export default function MobileWaiterUI({
 
       {/* Quick Open Table Modal (Fast 1-tap guest picker) */}
       {quickOpenTable && (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-modalFadeIn">
-          <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl space-y-5 animate-scaleIn text-white">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-modalFadeIn" onClick={() => setQuickOpenTable(null)}>
+          <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl space-y-5 animate-scaleIn text-white" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div>
                 <h3 className="text-lg font-black text-amber-400">{quickOpenTable.label}</h3>
