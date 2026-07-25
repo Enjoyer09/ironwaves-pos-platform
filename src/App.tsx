@@ -535,6 +535,16 @@ export default function App() {
   const [scale, setScale] = useState(1);
 
   useEffect(() => {
+    const handleTriggerFastSwitch = () => {
+      setFastSwitchOpen(true);
+      setFastSwitchPin('');
+      setFastSwitchError('');
+    };
+    window.addEventListener('trigger-fast-switch', handleTriggerFastSwitch);
+    return () => window.removeEventListener('trigger-fast-switch', handleTriggerFastSwitch);
+  }, []);
+
+  useEffect(() => {
     const handleResize = () => {
       const baselineWidth = 1400;
       const baselineHeight = 850;

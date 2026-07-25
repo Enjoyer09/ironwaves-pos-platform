@@ -90,6 +90,48 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   const notify = useAppStore((state) => state.notify);
   const tenant_id = user?.tenant_id || 'tenant_default';
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+  // Auto-detect mobile phone or tablet / touchscreen, with manual override option
+  const [isMobileView, setIsMobileView] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('waiter_mobile_view');
+      if (saved === 'true') return true;
+      if (saved === 'false') return false;
+    } catch {}
+    if (typeof window !== 'undefined') {
+      const isTouch = window.matchMedia?.('(pointer: coarse)').matches;
+      const isSmallScreen = window.innerWidth < 1024;
+      return Boolean(isSmallScreen || isTouch);
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('waiter_mobile_view', String(isMobileView));
+    } catch {}
+  }, [isMobileView]);
+
+  // 30-Second Inactivity Auto-Lock timer for Waiter Mode safety
+  useEffect(() => {
+    if (!isMobileView || !isActive) return;
+    let timer: number;
+    const resetTimer = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('trigger-fast-switch'));
+      }, 30000); // 30s timeout
+    };
+
+    resetTimer();
+    const events = ['touchstart', 'touchend', 'click', 'mousemove', 'keydown'];
+    events.forEach(ev => window.addEventListener(ev, resetTimer, { passive: true }));
+    return () => {
+      window.clearTimeout(timer);
+      events.forEach(ev => window.removeEventListener(ev, resetTimer));
+    };
+  }, [isMobileView, isActive]);
+
   const [newTableName, setNewTableName] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [workspaceView, setWorkspaceView] = useState<'floor' | 'reservations'>('floor');
@@ -2335,7 +2377,20 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
       />
 
       <div className={`mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between ${isBahaYLab && viewTableId ? 'hidden' : ''}`}>
-        <h2 className="text-2xl font-bold flex items-center gap-2"><LayoutGrid size={28} className="text-yellow-300"/> {tx(lang, 'Masalar', 'Столы', 'Tables')}</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-2xl font-bold flex items-center gap-2"><LayoutGrid size={28} className="text-yellow-300"/> {tx(lang, 'Masalar', 'Столы', 'Tables')}</h2>
+          <button
+            type="button"
+            onClick={() => setIsMobileView(prev => !prev)}
+            className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-black transition-all active:scale-95 ${
+              isMobileView
+                ? 'bg-amber-500/20 border border-amber-400/40 text-amber-300 shadow-sm'
+                : 'bg-slate-800/60 border border-slate-700/80 text-slate-300 hover:bg-slate-700'
+            }`}
+            title={tx(lang, 'Mobil/Desktop rejimi dəyiş', 'Переключить мобильный/десктоп режим', 'Toggle Mobile/Desktop mode')}>
+            <span>{isMobileView ? '📱 Mobil (Ofisiant)' : '💻 Masaüstü'}</span>
+          </button>
+        </div>
         {['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase()) && (
         <div className="flex flex-wrap items-center gap-2">
           <button
