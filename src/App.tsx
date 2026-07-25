@@ -1755,8 +1755,8 @@ export default function App() {
 
       {/* Fast User Switch PIN Modal */}
       {fastSwitchOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="metal-panel w-full max-w-sm rounded-3xl p-7 shadow-[0_24px_60px_rgba(0,0,0,0.5)]" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-md p-4 touch-none overscroll-none select-none">
+          <div className="metal-panel w-full max-w-sm rounded-3xl p-7 shadow-[0_24px_60px_rgba(0,0,0,0.5)] touch-none" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-center text-xl font-bold text-slate-100">
               {tx(safeLang, 'PIN daxil edin', 'Введите PIN', 'Enter PIN')}
             </h3>

@@ -364,7 +364,7 @@ export default function PinLogin() {
   const restaurantImage = branding?.login_background_url || branding?.background_image_url || branding?.hero_image_url || 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?q=80&w=1600&auto=format&fit=crop';
 
   return (
-    <div className="min-h-screen w-full bg-[#0b0f19] text-slate-100 font-sans md:h-screen md:overflow-hidden md:flex md:flex-row">
+    <div className="fixed inset-0 h-[100dvh] w-full bg-[#0b0f19] text-slate-100 font-sans overflow-hidden select-none touch-none md:static md:h-screen md:flex md:flex-row">
       <style>{`
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
@@ -433,7 +433,7 @@ export default function PinLogin() {
 
       {/* RIGHT PANEL: Login pad */}
       <div 
-        className="w-full md:w-[440px] lg:w-[480px] shrink-0 h-screen overflow-y-auto relative flex flex-col justify-between px-6 py-8 bg-[#0a0e17] border-l border-white/[0.04] md:-ml-[88px] lg:-ml-[96px] shadow-[-15px_0_30px_rgba(0,0,0,0.5)] z-20"
+        className="w-full md:w-[440px] lg:w-[480px] shrink-0 h-[100dvh] max-h-[100dvh] md:h-screen overflow-hidden md:overflow-y-auto relative flex flex-col justify-between px-6 py-6 bg-[#0a0e17] border-l border-white/[0.04] md:-ml-[88px] lg:-ml-[96px] shadow-[-15px_0_30px_rgba(0,0,0,0.5)] z-20 touch-none overscroll-none"
       >
         {/* Fullscreen toggle button */}
         {fullscreenSupported && (
