@@ -221,6 +221,7 @@ function MenuGrid({
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={tx(lang, 'Məhsul axtar...', 'Поиск товара...', 'Search item...')}
         />
+        {/* ⚡ Fast mode toggle — hidden on mobile (images shown by default on touch) */}
         <button
           type="button"
           onClick={() => {
@@ -228,7 +229,7 @@ function MenuGrid({
             setHideImages(next);
             localStorage.setItem('pos_hide_images', String(next));
           }}
-          className={`flex h-11 items-center gap-1.5 rounded-xl border px-3 text-xs font-black transition shrink-0 ${
+          className={`hidden sm:flex h-11 items-center gap-1.5 rounded-xl border px-3 text-xs font-black transition shrink-0 ${
             hideImages
               ? 'border-yellow-400/50 bg-yellow-400/10 text-yellow-300'
               : 'border-slate-700/60 bg-slate-800/40 text-slate-400 hover:bg-slate-800/80'
@@ -238,8 +239,8 @@ function MenuGrid({
         </button>
       </div>
 
-      {/* Category tabs - horizontal scroll, touch-friendly */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+      {/* Category tabs — full-width horizontal scroll, Menulux style */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-0.5 px-0.5">
         {categories.map((cat) => (
           <button
             key={cat}
@@ -248,7 +249,7 @@ function MenuGrid({
               playHapticTouch();
               onCategoryChange(cat);
             }}
-            className={`whitespace-nowrap rounded-full px-6 py-3 text-[15px] font-bold transition pos-category-btn taktil-target active:scale-95 ${
+            className={`whitespace-nowrap rounded-2xl px-5 py-3 text-sm font-black transition pos-category-btn taktil-target active:scale-95 ${
               selectedCategory === cat
                 ? 'bg-yellow-400 text-slate-900 shadow-lg shadow-yellow-400/20'
                 : 'border border-slate-600/60 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60'
@@ -271,10 +272,10 @@ function MenuGrid({
           return (
             <div key={group.key} className="relative">
               <div
-                className={`relative flex w-full flex-col overflow-hidden rounded-2xl border transition-all duration-200 pos-product-card ${
+                className={`relative flex w-full flex-col overflow-hidden rounded-2xl transition-all duration-200 pos-product-card ${
                   totalQtyInDraft > 0
-                    ? 'border-yellow-400/80 bg-slate-900/75 shadow-lg shadow-yellow-400/15 scale-[1.01] card-pulsing-glow'
-                    : 'border-slate-800/80 bg-slate-900/60 hover:border-yellow-400/30 hover:bg-slate-900/75 backdrop-blur-sm'
+                    ? 'ring-2 ring-yellow-400 shadow-lg shadow-yellow-400/20 scale-[1.02] card-pulsing-glow bg-slate-900'
+                    : 'bg-slate-900/80 hover:bg-slate-800/90'
                 }`}
               >
                 {isPromo && (
@@ -315,26 +316,29 @@ function MenuGrid({
                     }
                   }}
                   aria-label={`${group.base}, ${group.minPrice.toFixed(2)} AZN${group.hasVariants ? ', ' + group.items.length + ' variant' : ''}`}
-                  className="flex flex-1 flex-col cursor-pointer transition taktil-target min-h-[72px] sm:min-h-0"
+                  className={`flex flex-1 flex-col cursor-pointer transition taktil-target`}
                 >
-                  {!hideImages && (
+                  {!hideImages ? (
                     group.image_url ? (
-                      <div className="aspect-[3/2] w-full overflow-hidden bg-slate-800">
+                      // Real image — square crop like Menulux
+                      <div className="aspect-square w-full overflow-hidden bg-slate-800">
                         <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" loading="lazy" />
                       </div>
                     ) : (
-                      <div className="flex h-12 w-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
-                        <span className="text-lg font-black text-slate-600">
-                          {String(group.base || '').slice(0, 2).toUpperCase()}
+                      // No image placeholder — square, gradient bg, large initial
+                      <div className="aspect-square w-full flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-800">
+                        <span className="text-3xl font-black text-slate-500 select-none">
+                          {String(group.base || '').charAt(0).toUpperCase()}
                         </span>
                       </div>
                     )
-                  )}
-                  <div className={`flex flex-1 flex-col justify-between ${hideImages ? 'p-2.5 pb-3 sm:p-2 sm:pb-2.5' : 'p-2 pb-1.5'}`}>
-                    <div className={`line-clamp-2 font-black leading-tight text-white ${hideImages ? 'text-sm sm:text-[11px]' : 'text-xs'}`}>
+                  ) : null}
+                  {/* Text info — centered for image mode, left for fast mode */}
+                  <div className={`flex flex-col ${hideImages ? 'p-2.5 pb-3 sm:p-2 sm:pb-2.5' : 'p-2 pt-1.5'} ${!hideImages ? 'items-center text-center' : ''}`}>
+                    <div className={`line-clamp-2 font-black leading-tight text-white ${hideImages ? 'text-sm sm:text-[11px]' : 'text-xs sm:text-[11px]'}`}>
                       {group.base}
                     </div>
-                    <div className={`mt-1.5 font-semibold text-yellow-400/80 ${hideImages ? 'text-xs sm:text-[10px]' : 'text-[11px]'}`}>
+                    <div className={`font-black text-amber-400 ${hideImages ? 'text-xs sm:text-[10px] mt-1.5' : 'text-xs mt-1'}`}>
                       {group.minPrice.toFixed(2)} ₼
                       {group.hasVariants && <span className="ml-1 text-[9px] font-medium text-slate-400/70">({group.items.length})</span>}
                     </div>
