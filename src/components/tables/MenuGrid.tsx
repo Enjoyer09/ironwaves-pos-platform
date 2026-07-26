@@ -322,7 +322,7 @@ function MenuGrid({
                     group.image_url ? (
                       // Real image — square crop like Menulux
                       <div className="aspect-square w-full overflow-hidden bg-slate-800">
-                        <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" loading="lazy" />
+                        <img src={group.image_url} alt={group.base} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                       </div>
                     ) : (
                       // No image placeholder — square, gradient bg, large initial

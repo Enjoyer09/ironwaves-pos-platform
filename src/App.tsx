@@ -941,7 +941,13 @@ export default function App() {
           await mark_staff_notifications_read_live(tenantId, username);
         }
       } catch (e: any) {
-        logUiError(user?.tenant_id || activeTenant, 'app-shell', e?.message || 'Failed to load staff notifications');
+        const msg = String(e?.message || '');
+        // Auth errors (Invalid token, Unauthorized, 401) are handled by the proactive
+        // token-refresh in client.ts — skip logging them to avoid false-alarm UI_ERRORs.
+        const isAuthError = /invalid token|unauthorized|401/i.test(msg);
+        if (!isAuthError) {
+          logUiError(user?.tenant_id || activeTenant, 'app-shell', msg || 'Failed to load staff notifications');
+        }
       } finally {
         notificationInFlightRef.current = false;
       }
