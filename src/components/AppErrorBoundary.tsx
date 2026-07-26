@@ -22,20 +22,35 @@ const isChunkLoadFailure = (message: string) => {
   );
 };
 
+// Auth errors are handled by ironwaves-auth-expired → logout()
+// No need to show crash screen or log them as UI_ERROR.
+const isAuthError = (message: string) => {
+  const text = String(message || '');
+  return /invalid token|unauthorized|401|session expired/i.test(text);
+};
+
+
 export default class AppErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, errorMessage: '' };
   }
 
-  static getDerivedStateFromError() {
+  static getDerivedStateFromError(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    // Auth errors: don't set hasError — ironwaves-auth-expired already handles logout.
+    if (isAuthError(message)) return null;
     return { hasError: true };
   }
+
 
   componentDidCatch(error: unknown) {
     // Guard the app shell and keep user in control.
     console.error('UI crash captured by ErrorBoundary:', error);
     const message = error instanceof Error ? error.message : String(error);
+    // Auth errors (Invalid token, Unauthorized) are handled by the ironwaves-auth-expired
+    // event → logout(). Skip logging and crash screen to avoid noise.
+    if (isAuthError(message)) return;
     this.setState({ errorMessage: message });
     if (isChunkLoadFailure(message)) {
       try {
@@ -59,6 +74,7 @@ export default class AppErrorBoundary extends React.Component<Props, State> {
       // ignore telemetry failures
     }
   }
+
 
   render() {
     if (this.state.hasError) {

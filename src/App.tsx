@@ -1057,7 +1057,7 @@ export default function App() {
         const now = Date.now();
         if (now - lastReportedAt < 8000) return;
         const entries = list.getEntries() || [];
-        const heavy = entries.find((entry: any) => Number(entry.duration || 0) >= 180);
+        const heavy = entries.find((entry: any) => Number(entry.duration || 0) >= 250);
         if (!heavy) return;
         lastReportedAt = now;
         logUiError(tenant, 'ui-freeze', 'Long task detected on main thread', {
