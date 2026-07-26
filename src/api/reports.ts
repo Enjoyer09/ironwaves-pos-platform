@@ -160,6 +160,8 @@ export const get_unread_staff_notifications_live = async (tenant_id: string, use
   return apiRequest<StaffNotification[]>('/api/v1/ops/staff-notifications/unread', {
     method: 'GET',
     tenantId: null,
+    timeoutMs: 8000,  // background poll — fail fast, retry next 45s cycle
+    retryCount: 0,    // don't retry background polls, saves bandwidth
   });
 };
 
