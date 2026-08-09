@@ -21,7 +21,8 @@ import { get_low_stock_items } from './api/inventory';
 import { list_tenants, type TenantRecord } from './api/tenants';
 import { clearDBCache } from './lib/db_sim';
 import { authApi } from './api/auth';
-import { apiRequest, getApiBaseUrl, isBackendEnabled, setClientAuthSession } from './api/client';
+import { apiRequest, isBackendEnabled, setClientAuthSession } from './api/client';
+
 
 import { isPerfDebugEnabled, type PerfEvent } from './lib/perf';
 import { syncPendingOfflineTableOps } from './api/tables';
@@ -268,22 +269,8 @@ export default function App() {
     }
   }, []);
 
-  // Railway cold-start pre-warm: fire a /health ping on app load so the container
-  // starts waking up BEFORE the user reaches the login screen.
-  // Fire-and-forget — errors are fully silenced.
-  useEffect(() => {
-    if (!isBackendEnabled()) return;
-    try {
-      const base = getApiBaseUrl();
-      const ctrl = new AbortController();
-      const timer = window.setTimeout(() => ctrl.abort(), 30000);
-      fetch(`${base}/health`, { signal: ctrl.signal })
-        .catch(() => null)
-        .finally(() => window.clearTimeout(timer));
-    } catch {
-      // silent
-    }
-  }, []);
+
+
 
 
 

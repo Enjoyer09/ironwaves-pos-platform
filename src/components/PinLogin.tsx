@@ -403,9 +403,10 @@ export default function PinLogin() {
               {isServerStarting && (
                 <div className="ml-2 flex items-center gap-1.5 text-xs text-yellow-300/80 animate-pulse">
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-yellow-400 animate-ping" />
-                  Server açılır...
+                  Bağlantı gözlənilir...
                 </div>
               )}
+
             </>
 
           ) : (
