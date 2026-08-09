@@ -102,6 +102,15 @@ export const logUiError = (
   message: string,
   context?: Record<string, any>,
 ) => {
+  const text = String(message || '').toLowerCase();
+  
+  // Exclude transient network errors, timeout failures, aborts, and auth expirations
+  // from UI_ERROR logs since they are already tracked by API telemetry.
+  const isTransientOrAuth = /vaxt limiti|limiti keçdi|timeout|network|failed to fetch|abort|connection|unauthorized|invalid token|401|session expired/i.test(text);
+  if (isTransientOrAuth) {
+    return;
+  }
+
   const entry = {
     id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     created_at: new Date().toISOString(),
@@ -118,3 +127,4 @@ export const logUiError = (
 
   logEvent('System', 'UI_ERROR', { tenant_id: tenantId, module, message, ...context });
 };
+
