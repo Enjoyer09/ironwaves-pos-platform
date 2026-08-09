@@ -4,7 +4,7 @@
  * floor state, restaurant data, reservations.
  * All functions use in-flight dedup and TTL caching.
  */
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, startTransition } from 'react';
 import { get_tables_live } from '../../api/tables';
 import { get_kitchen_orders_live } from '../../api/kds';
 import { get_menu_items_live } from '../../api/menu';
@@ -77,11 +77,14 @@ export function useTablesData(params: UseTablesDataParams) {
     try {
       const nextTables = await get_tables_live(tenantId);
       const safeTables = Array.isArray(nextTables) ? nextTables : [];
-      setTables(safeTables);
-      const cached = tablesBootstrapCache.get(tenantId);
-      if (cached?.data) {
-        tablesBootstrapCache.set(tenantId, { at: Date.now(), data: { ...cached.data, tables: safeTables } });
-      }
+      // startTransition: table list update is non-urgent — don't block the main thread
+      startTransition(() => {
+        setTables(safeTables);
+        const cached = tablesBootstrapCache.get(tenantId);
+        if (cached?.data) {
+          tablesBootstrapCache.set(tenantId, { at: Date.now(), data: { ...cached.data, tables: safeTables } });
+        }
+      });
     } finally {
       loadDataInFlightRef.current = false;
     }
@@ -92,15 +95,18 @@ export function useTablesData(params: UseTablesDataParams) {
     const nextFloorPlans = Array.isArray(bootstrap.floor_plans) ? bootstrap.floor_plans : [];
     const nextFloorState = bootstrap.floor_state;
     const nextActiveFloorId = String(nextFloorState?.floor?.id || nextFloorPlans.find((row) => row.is_active)?.id || nextFloorPlans[0]?.id || '');
-    setTables(Array.isArray(bootstrap.tables) ? bootstrap.tables : []);
-    setFloorPlans(nextFloorPlans);
-    setFloorTables(Array.isArray(nextFloorState?.tables) ? nextFloorState.tables : []);
-    if (nextActiveFloorId) {
-      skipNextFloorStateLoadRef.current = nextActiveFloorId;
-      setActiveFloorId(nextActiveFloorId);
-    } else {
-      setActiveFloorId('');
-    }
+    // startTransition: batch all bootstrap state into one non-urgent render — prevents 1700ms+ freeze on initial load
+    startTransition(() => {
+      setTables(Array.isArray(bootstrap.tables) ? bootstrap.tables : []);
+      setFloorPlans(nextFloorPlans);
+      setFloorTables(Array.isArray(nextFloorState?.tables) ? nextFloorState.tables : []);
+      if (nextActiveFloorId) {
+        skipNextFloorStateLoadRef.current = nextActiveFloorId;
+        setActiveFloorId(nextActiveFloorId);
+      } else {
+        setActiveFloorId('');
+      }
+    });
   }, [setTables, setFloorPlans, setFloorTables, setActiveFloorId, skipNextFloorStateLoadRef]);
 
   const loadTablesBootstrap = useCallback(async (opts: { force?: boolean; background?: boolean } = {}) => {
@@ -149,7 +155,7 @@ export function useTablesData(params: UseTablesDataParams) {
     const cached = kitchenFeedCache.get(cacheKey);
     const now = Date.now();
     if (!opts.force && cached?.data && now - cached.at < KITCHEN_FEED_TTL_MS) {
-      setKitchenOrders(cached.data);
+      startTransition(() => setKitchenOrders(cached.data));
       return;
     }
     if (loadKitchenFeedInFlightRef.current) return;
@@ -158,7 +164,7 @@ export function useTablesData(params: UseTablesDataParams) {
       const nextOrders = await get_kitchen_orders_live(tenantId);
       const safeOrders = Array.isArray(nextOrders) ? nextOrders : [];
       kitchenFeedCache.set(cacheKey, { at: Date.now(), data: safeOrders });
-      setKitchenOrders(safeOrders);
+      startTransition(() => setKitchenOrders(safeOrders));
     } finally {
       loadKitchenFeedInFlightRef.current = false;
     }
@@ -169,7 +175,8 @@ export function useTablesData(params: UseTablesDataParams) {
     loadMenuCatalogInFlightRef.current = true;
     try {
       const nextMenu = await get_menu_items_live(tenantId);
-      setMenuCatalog(Array.isArray(nextMenu) ? nextMenu : []);
+      // startTransition: menu catalog is large — non-urgent, don't block interactions
+      startTransition(() => setMenuCatalog(Array.isArray(nextMenu) ? nextMenu : []));
     } finally {
       loadMenuCatalogInFlightRef.current = false;
     }
@@ -181,7 +188,7 @@ export function useTablesData(params: UseTablesDataParams) {
     loadReservationsInFlightRef.current = true;
     try {
       const rows = await get_reservations_live(tenantId, reservationDateRef.current);
-      setReservations(Array.isArray(rows) ? rows : []);
+      startTransition(() => setReservations(Array.isArray(rows) ? rows : []));
     } finally {
       loadReservationsInFlightRef.current = false;
     }
@@ -193,7 +200,7 @@ export function useTablesData(params: UseTablesDataParams) {
     setIsFloorPlansLoading(true);
     try {
       const floors = await get_floor_plans_live(tenantId);
-      setFloorPlans(Array.isArray(floors) ? floors : []);
+      startTransition(() => setFloorPlans(Array.isArray(floors) ? floors : []));
     } finally {
       setIsFloorPlansLoading(false);
       loadRestaurantInFlightRef.current = false;
@@ -207,14 +214,16 @@ export function useTablesData(params: UseTablesDataParams) {
     const state = await get_floor_state_live(tenantId, floorId).catch(() => null);
     if (!state) return;
     const safeTables = Array.isArray(state.tables) ? state.tables : [];
-    setFloorTables(safeTables);
-    const cached = tablesBootstrapCache.get(tenantId);
-    if (cached?.data) {
-      tablesBootstrapCache.set(tenantId, {
-        at: Date.now(),
-        data: { ...cached.data, floor_state: { ...state, tables: safeTables } },
-      });
-    }
+    startTransition(() => {
+      setFloorTables(safeTables);
+      const cached = tablesBootstrapCache.get(tenantId);
+      if (cached?.data) {
+        tablesBootstrapCache.set(tenantId, {
+          at: Date.now(),
+          data: { ...cached.data, floor_state: { ...state, tables: safeTables } },
+        });
+      }
+    });
   }, [tenantId, setFloorTables]);
 
   const refreshActiveTableDetail = useCallback(async (tableId: string) => {
@@ -223,7 +232,7 @@ export function useTablesData(params: UseTablesDataParams) {
       loadData(),
       activeFloorIdRef.current ? loadFloorState(activeFloorIdRef.current) : Promise.resolve(),
       get_table_detail_live(tenantId, tableId).then((next) => {
-        if (detailFetchSeqRef.current === seq) setTableDetailRecord(next);
+        if (detailFetchSeqRef.current === seq) startTransition(() => setTableDetailRecord(next));
       }).catch(() => {}),
     ]);
   }, [tenantId, loadData, loadFloorState, activeFloorIdRef, detailFetchSeqRef, setTableDetailRecord]);

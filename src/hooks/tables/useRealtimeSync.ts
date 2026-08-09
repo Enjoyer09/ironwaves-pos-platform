@@ -2,7 +2,7 @@
  * Custom hook for WebSocket realtime subscription.
  * Debounces events, batches scoped refreshes, prevents concurrent execution.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, startTransition } from 'react';
 import { subscribeTenantRealtime } from '../../api/realtime';
 import { get_tables_live } from '../../api/tables';
 import { get_kitchen_orders_live } from '../../api/kds';
@@ -74,28 +74,28 @@ export function useRealtimeSync(params: UseRealtimeSyncParams) {
         if (scopes.includes('tables')) {
           tasks.push(
             get_tables_live(tenantId)
-              .then((next) => setTables(Array.isArray(next) ? next : []))
+              .then((next) => startTransition(() => setTables(Array.isArray(next) ? next : [])))
               .catch(() => {}),
           );
         }
         if (scopes.includes('kitchen')) {
           tasks.push(
             get_kitchen_orders_live(tenantId)
-              .then((next) => setKitchenOrders(Array.isArray(next) ? next : []))
+              .then((next) => startTransition(() => setKitchenOrders(Array.isArray(next) ? next : [])))
               .catch(() => {}),
           );
         }
         if (scopes.includes('floor') && currentFloorId) {
           tasks.push(
             get_floor_state_live(tenantId, currentFloorId)
-              .then((state) => setFloorTables(Array.isArray(state?.tables) ? state.tables : []))
+              .then((state) => startTransition(() => setFloorTables(Array.isArray(state?.tables) ? state.tables : [])))
               .catch(() => {}),
           );
         }
         if (scopes.includes('reservations') && currentWorkspace === 'reservations') {
           tasks.push(
             get_reservations_live(tenantId, reservationDateRef.current)
-              .then((rows) => setReservations(Array.isArray(rows) ? rows : []))
+              .then((rows) => startTransition(() => setReservations(Array.isArray(rows) ? rows : [])))
               .catch(() => {}),
           );
         }
@@ -103,7 +103,7 @@ export function useRealtimeSync(params: UseRealtimeSyncParams) {
           const seq = ++detailFetchSeqRef.current;
           tasks.push(
             get_table_detail_live(tenantId, currentViewTableId)
-              .then((next) => { if (detailFetchSeqRef.current === seq) setTableDetailRecord(next); })
+              .then((next) => { if (detailFetchSeqRef.current === seq) startTransition(() => setTableDetailRecord(next)); })
               .catch(() => {}),
           );
         }
