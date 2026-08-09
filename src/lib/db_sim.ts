@@ -52,15 +52,21 @@ export function setDB<T>(key: string, data: T[]): void {
     if (serialized.length > 2_000_000) {
       return;
     }
-    localStorage.setItem(scopedDbKey(key), serialized);
+    // Defer the blocking localStorage write to the next tick to prevent UI freeze
+    setTimeout(() => {
+      try {
+        localStorage.setItem(scopedDbKey(key), serialized);
+      } catch {
+        // QuotaExceededError or RangeError — try to free space
+        try {
+          localStorage.removeItem(scopedDbKey(key));
+        } catch {
+          // ignore
+        }
+      }
+    }, 0);
   } catch {
-    // QuotaExceededError or RangeError — keep memCache but don't crash.
-    // Try to free space by removing the problematic key from localStorage.
-    try {
-      localStorage.removeItem(scopedDbKey(key));
-    } catch {
-      // ignore
-    }
+    // ignore serialization errors
   }
 }
 
