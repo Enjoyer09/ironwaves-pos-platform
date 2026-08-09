@@ -36,6 +36,8 @@ export default function PinLogin() {
     const cached = tenantId ? get_business_profile(tenantId) : null;
     return !(cached && cached.company_name && cached.company_name !== 'iRonWaves POS');
   });
+  const [isServerStarting, setIsServerStarting] = useState(false);
+
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenSupported, setFullscreenSupported] = useState(true);
 
@@ -150,12 +152,16 @@ export default function PinLogin() {
             setIsBrandingLoading(false);
             return;
           }
-          // Network error / timeout — retry
-          if (attempt < 3) {
-            retryTimer = setTimeout(() => fetchBranding(attempt + 1), attempt === 0 ? 1500 : 3000);
+          // Network error / timeout — retry with cold start indicator
+          if (attempt < 4) {
+            // Show "server starting" message after first failed attempt
+            if (attempt >= 1) setIsServerStarting(true);
+            retryTimer = setTimeout(() => fetchBranding(attempt + 1), attempt === 0 ? 2000 : 4000);
           } else {
+            setIsServerStarting(false);
             setIsBrandingLoading(false);
           }
+
         });
     };
 
@@ -394,7 +400,14 @@ export default function PinLogin() {
                 <div className="h-4 w-32 rounded-lg bg-slate-700/60 animate-pulse" />
                 <div className="h-2.5 w-20 rounded-lg bg-slate-700/40 animate-pulse" />
               </div>
+              {isServerStarting && (
+                <div className="ml-2 flex items-center gap-1.5 text-xs text-yellow-300/80 animate-pulse">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-yellow-400 animate-ping" />
+                  Server açılır...
+                </div>
+              )}
             </>
+
           ) : (
             <>
               {branding?.logo_url ? (

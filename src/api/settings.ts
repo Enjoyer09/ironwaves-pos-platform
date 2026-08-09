@@ -1791,10 +1791,11 @@ export async function get_public_branding_live(tenant_id?: string) {
   const data = await apiRequest<any>(`/api/v1/ops/public-branding${query}`, {
     tenantId: null,
     auth: false,
-    timeoutMs: 12000,
-    retryCount: 2,
+    timeoutMs: 25000,   // Railway cold start takes 15-20s; 25s gives safe headroom
+    retryCount: 0,       // PinLogin's fetchBranding already handles retries — avoid compounding
     retryDelayMs: 1500,
   });
+
   const profiles = getDB<any>('business_profile');
   const resolvedTenant = String(data?.tenant_id || requestedTenant);
   const idx = profiles.findIndex((p) => p.tenant_id === resolvedTenant);
