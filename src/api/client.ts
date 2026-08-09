@@ -121,18 +121,15 @@ if (typeof window !== 'undefined') {
   }, 120000);
 }
 
-function cloneCachedData<T>(data: T): T {
-  try {
-    if (typeof structuredClone === 'function') return structuredClone(data);
-  } catch {
-    // fall through
-  }
-  try {
-    return JSON.parse(JSON.stringify(data)) as T;
-  } catch {
-    return data;
-  }
+// NOTE: We intentionally do NOT deep-clone cached responses.
+// structuredClone is synchronous and takes 2-4s on large payloads (50+ tables with
+// orders + floor plan data), causing severe main-thread freezes (observed: 4403ms).
+// React state must be treated as immutable — components use setX(prev => [...prev])
+// patterns, never mutating references directly, so shared references are safe.
+function passCachedData<T>(data: T): T {
+  return data;
 }
+
 
 function getResponseCacheTtl(path: string): number {
   const cleanPath = String(path || '').split('?')[0];
@@ -300,7 +297,7 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
     if (cacheTtlMs > 0) {
       const cached = getResponseCache.get(dedupeKey);
       if (cached && cached.expiresAt > Date.now()) {
-        return Promise.resolve(cloneCachedData(cached.data));
+        return Promise.resolve(passCachedData(cached.data));
       }
     }
     const existing = inFlightGetRequests.get(dedupeKey);
@@ -309,7 +306,7 @@ export async function apiRequest<T = any>(path: string, options: ApiRequestOptio
       if (cacheTtlMs > 0) {
         getResponseCache.set(dedupeKey, {
           expiresAt: Date.now() + cacheTtlMs,
-          data: cloneCachedData(data),
+          data: passCachedData(data),
         });
       }
       return data;
