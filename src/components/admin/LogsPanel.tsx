@@ -20,7 +20,9 @@ export default function LogsPanel() {
   const [fromDate, setFromDate] = useState(() => localDateInputValue());
   const [toDate, setToDate] = useState(() => localDateInputValue());
   const [logs, setLogs] = useState<any[]>([]);
-  const uiErrors = useMemo(() => get_ui_errors(tenant_id, 20), [tenant_id, logs.length]);
+  const [telemetryClearSeq, setTelemetryClearSeq] = useState(0);
+  const uiErrors = useMemo(() => get_ui_errors(tenant_id, 20), [tenant_id, logs.length, telemetryClearSeq]);
+
 
   React.useEffect(() => {
     if (String(user?.role || '').toLowerCase() !== 'super_admin') {
@@ -683,7 +685,7 @@ export default function LogsPanel() {
                 className="neon-btn rounded-lg px-2 py-1 text-xs"
                 onClick={() => {
                   clear_ui_errors(tenant_id);
-                  window.location.reload();
+                  setTelemetryClearSeq((prev) => prev + 1);
                 }}
               >
                 {tx(lang, 'Telemetri təmizlə', 'Очистить телеметрию')}
