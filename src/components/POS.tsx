@@ -2385,40 +2385,41 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                 />
               </div>
             </div>
-            <div className="mb-3 flex flex-wrap gap-1.5">
-              <div className="flex flex-1 flex-wrap gap-1.5">
-                {categories.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => setCategory(cat)}
-                    disabled={isPosMenuEditMode}
-                    className={`pos3-chip pos-category-btn ${category === cat ? 'pos3-chip-active' : ''} ${isPosMenuEditMode ? 'cursor-not-allowed opacity-70' : ''}`}
-                  >
-                    {cat === 'ALL' ? t.all_categories : cat}
-                  </button>
-                ))}
-              </div>
-              {canEditPosMenuOrder && (
-                <button
-                  type="button"
-                  disabled={isReorderingPosMenu}
-                  onClick={() => setIsPosMenuEditMode((prev) => !prev)}
-                  className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${isPosMenuEditMode ? 'border-amber-300/70 bg-amber-300/15 text-amber-100' : 'border-slate-600 bg-slate-900/60 text-slate-200'} disabled:cursor-not-allowed disabled:opacity-60`}
-                >
-                  {isReorderingPosMenu
-                    ? tx(lang, 'Yazılır...', 'Сохраняется...', 'Saving...')
-                    : isPosMenuEditMode
-                      ? tx(lang, 'Bağla', 'Закрыть', 'Close')
-                      : tx(lang, 'Düzənlə', 'Редактировать', 'Edit')}
-                </button>
-              )}
-            </div>
             {isPosMenuEditMode && (
               <div className="mb-3 text-[11px] text-amber-200/90">
                 {tx(lang, 'Kartı tutub başqa yerə sürüşdürün.', 'Перетащите карточку на новое место.', 'Drag a card to a new position.')}
               </div>
             )}
-            <div className="pos3-product-grid">
+            <div className="pos3-menu-body">
+              <div className="pos3-rail">
+                <div className="pos3-rail-scroll">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setCategory(cat)}
+                      disabled={isPosMenuEditMode}
+                      className={`pos3-rail-chip pos-category-btn ${category === cat ? 'pos3-rail-chip-active' : ''} ${isPosMenuEditMode ? 'cursor-not-allowed opacity-70' : ''}`}
+                    >
+                      {cat === 'ALL' ? t.all_categories : cat}
+                    </button>
+                  ))}
+                </div>
+                {canEditPosMenuOrder && (
+                  <button
+                    type="button"
+                    disabled={isReorderingPosMenu}
+                    onClick={() => setIsPosMenuEditMode((prev) => !prev)}
+                    className={`mt-2 shrink-0 rounded-xl border px-1 py-2 text-[11px] font-semibold leading-tight transition ${isPosMenuEditMode ? 'border-amber-300/70 bg-amber-300/15 text-amber-100' : 'border-slate-600 bg-slate-900/60 text-slate-200'} disabled:cursor-not-allowed disabled:opacity-60`}
+                  >
+                    {isReorderingPosMenu
+                      ? tx(lang, 'Yazılır...', 'Сохраняется...', 'Saving...')
+                      : isPosMenuEditMode
+                        ? tx(lang, 'Bağla', 'Закрыть', 'Close')
+                        : tx(lang, 'Düzənlə', 'Редактировать', 'Edit')}
+                  </button>
+                )}
+              </div>
+              <div className="pos3-product-grid">
               {groupedMenu.map((group) => {
                 const qtyInCart = getGroupQty(group);
                 return (
@@ -2503,6 +2504,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                   </div>
                 );
               })}
+              </div>
             </div>
           </section>
 

@@ -6,6 +6,8 @@
 
 Dünya səviyyəli restoran POS-unu (Toast, Square, Poster, iiko) gözəllik yox, **ofisiantın əmr daxiletmə sürəti** müəyyən edir. Glass/aurora brend qatıdır, əsas deyil. Bu sənəd 3 qatlı dizayn sistemini, macOS tərzli aurora reseptini, şüşə primitiv spec-ini, göz yormayan tünd palitra qaydalarını və 5 addımlı yol xəritəsini müəyyən edir. Bütün dəyişikliklər `data-ui-mode='new'` opt-in qapısı arxasında qalır — mövcud kafelər (classic) dəyişmir.
 
+**📌 Əsas qərar (2026-08-12): Bütün yeniliklər Modern-BahaY (pos3) UI üzərində aparılır.** Komanda vizual işləri klassik UI-ə aparmır — klassik yalnız mövcud kafelərin görünüşünü qorumaq üçün saxlanılır. Yeni funksiyalar, dizayn dəyişiklikləri və düzəlişlər əvvəlcə **pos3 layout-da (POS satış) + müasir masalar görünüşündə** tətbiq edilir; `data-ui-mode='new'` qapısı klassik görünüşü toxunulmaz saxlayır. Klassik UI-ə yalnız production-ı qıran kritik bug-lar üçün toxunulur — və bu halda belə düzəliş iki layout-da da yoxlanılmalıdır.
+
 ## 2. 3 qatlı dizayn sistemi
 
 Dünya səviyyəsinə çıxmağın əsası **"tək vizual dil"**dir — bu, rəqabət auditindəki ən böyük boşluqdur (5 fərqli dil eyni məhsulda: metal/neon staff, pos2/pos3, classic masalar, customer orange, mobil waiter).

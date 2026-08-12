@@ -901,14 +901,38 @@ html {
     @apply border-amber-200/80 bg-amber-300 text-slate-900;
   }
 
+  .pos3-menu-body {
+    @apply flex min-h-0 flex-1 gap-2;
+  }
+
+  .pos3-rail {
+    @apply flex w-20 min-h-0 shrink-0 flex-col md:w-24;
+  }
+
+  .pos3-rail-scroll {
+    @apply flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-y-contain pr-1;
+  }
+
+  .pos3-rail-chip {
+    @apply flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-600/80 bg-slate-800/45 px-1 py-2 text-center text-[12.5px] font-semibold leading-tight text-slate-300 transition;
+  }
+
+  .pos3-rail-chip:hover {
+    @apply bg-slate-700/55 text-slate-100;
+  }
+
+  .pos3-rail-chip-active {
+    @apply border-amber-200/80 bg-amber-300 text-slate-900;
+  }
+
   .pos3-product-grid {
     @apply grid min-h-0 flex-1 auto-rows-max grid-cols-3 gap-1 overflow-y-auto overscroll-y-contain pr-1 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6;
     align-content: start;
-    max-height: calc(100vh - 260px);
   }
 
   .pos3-card {
     @apply rounded-xl border border-slate-700/65 bg-[linear-gradient(168deg,rgba(19,30,45,0.92),rgba(11,18,29,0.9))] p-1.5 shadow-[0_4px_12px_rgba(2,6,23,0.25)] transition;
+    min-height: 90px;
   }
 
   .pos3-card-active {
@@ -1385,6 +1409,71 @@ html {
     background: linear-gradient(168deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03)) !important;
     border-color: var(--glass-border) !important;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 6px 18px rgba(2, 6, 23, 0.22) !important;
+    backdrop-filter: blur(12px) saturate(var(--glass-saturate)) !important;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     POS 3 (MODERN-BAHAY) — flagship glass unification
+     Main CTA → desaturated gold family; active chips softened; chips,
+     nav/utility/cart-tab/qty controls → translucent frosted glass.
+     All gated under html[data-ui-mode='new']; classic mode untouched.
+     ═══════════════════════════════════════════════════════════════════ */
+
+  /* Chips + small controls → translucent glass chips (small surfaces) */
+  html[data-ui-mode='new'] .pos3-chip,
+  html[data-ui-mode='new'] .pos3-nav-btn,
+  html[data-ui-mode='new'] .pos3-utility-btn,
+  html[data-ui-mode='new'] .pos3-cart-tab,
+  html[data-ui-mode='new'] .pos3-qty-btn,
+  html[data-ui-mode='new'] .pos3-rail-chip {
+    color: #e2e8f0 !important;
+    background: linear-gradient(170deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)) !important;
+    border-color: var(--glass-border) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 6px 18px rgba(2, 6, 23, 0.28) !important;
+    backdrop-filter: blur(14px) saturate(var(--glass-saturate)) !important;
+  }
+
+  html[data-ui-mode='new'] .pos3-chip:hover,
+  html[data-ui-mode='new'] .pos3-nav-btn:hover,
+  html[data-ui-mode='new'] .pos3-utility-btn:hover,
+  html[data-ui-mode='new'] .pos3-rail-chip:hover {
+    background: linear-gradient(170deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05)) !important;
+  }
+
+  /* Active chips + cart tabs + nav → desaturated gold (eye-friendly #d8b156) */
+  html[data-ui-mode='new'] .pos3-chip-active,
+  html[data-ui-mode='new'] .pos3-cart-tab-active,
+  html[data-ui-mode='new'] .pos3-nav-btn-active,
+  html[data-ui-mode='new'] .pos3-rail-chip-active {
+    color: #161006 !important;
+    border-color: rgba(216, 177, 86, 0.70) !important;
+    background: linear-gradient(180deg, var(--glass-accent) 0%, var(--glass-accent-deep) 100%) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 10px 26px rgba(161, 120, 44, 0.28) !important;
+  }
+
+  /* Qty +/- buttons: hover ring → soft gold */
+  html[data-ui-mode='new'] .pos3-qty-btn:hover {
+    border-color: rgba(216, 177, 86, 0.55) !important;
+    background: rgba(216, 177, 86, 0.14) !important;
+    color: #f0e3c4 !important;
+  }
+
+  /* Main CTA (Send to kitchen / Pay) → gold primary, not orange-pink-purple */
+  html[data-ui-mode='new'] .pos3-primary-btn {
+    color: #161006 !important;
+    border-color: rgba(216, 177, 86, 0.70) !important;
+    background: linear-gradient(180deg, var(--glass-accent) 0%, var(--glass-accent-deep) 100%) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 10px 26px rgba(161, 120, 44, 0.28) !important;
+  }
+
+  /* Active product card → gold ring instead of bright amber */
+  html[data-ui-mode='new'] .pos3-card-active {
+    border-color: rgba(216, 177, 86, 0.60) !important;
+    box-shadow: 0 14px 28px rgba(2, 6, 23, 0.42), inset 0 0 0 1px rgba(216, 177, 86, 0.20) !important;
   }
 
   /* ═══════════════════════════════════════════════════════════════════
@@ -1443,7 +1532,18 @@ html {
     html[data-ui-mode='new'] .pos3-menu,
     html[data-ui-mode='new'] .staff-pos-main,
     html[data-ui-mode='new'] .staff-cart-panel,
-    html[data-ui-mode='new'] .tables-glass-panel {
+    html[data-ui-mode='new'] .tables-glass-panel,
+    html[data-ui-mode='new'] .pos3-chip,
+    html[data-ui-mode='new'] .pos3-nav-btn,
+    html[data-ui-mode='new'] .pos3-utility-btn,
+    html[data-ui-mode='new'] .pos3-cart-tab,
+    html[data-ui-mode='new'] .pos3-qty-btn,
+    html[data-ui-mode='new'] .pos3-rail-chip,
+    html[data-ui-mode='new'] .pos2-product-card,
+    html[data-ui-mode='new'] .pos3-card,
+    html[data-ui-mode='new'] .pos3-recent-card,
+    html[data-ui-mode='new'] .staff-product-card,
+    html[data-ui-mode='new'] .staff-recent-card {
       background: linear-gradient(170deg, rgba(24, 34, 50, 0.97), rgba(10, 16, 26, 0.97)) !important;
     }
   }
@@ -1466,7 +1566,18 @@ html {
     html[data-ui-mode='new'] .neon-input,
     html[data-ui-mode='new'] .tables-glass-panel,
     html[data-ui-mode='new'] .table-card-glass,
-    html[data-ui-mode='new'] .floor-table-cell {
+    html[data-ui-mode='new'] .floor-table-cell,
+    html[data-ui-mode='new'] .pos3-chip,
+    html[data-ui-mode='new'] .pos3-nav-btn,
+    html[data-ui-mode='new'] .pos3-utility-btn,
+    html[data-ui-mode='new'] .pos3-cart-tab,
+    html[data-ui-mode='new'] .pos3-qty-btn,
+    html[data-ui-mode='new'] .pos3-rail-chip,
+    html[data-ui-mode='new'] .pos2-product-card,
+    html[data-ui-mode='new'] .pos3-card,
+    html[data-ui-mode='new'] .pos3-recent-card,
+    html[data-ui-mode='new'] .staff-product-card,
+    html[data-ui-mode='new'] .staff-recent-card {
       backdrop-filter: none !important;
       background: linear-gradient(170deg, rgba(24, 34, 50, 0.97), rgba(10, 16, 26, 0.97)) !important;
     }
