@@ -7,6 +7,7 @@ import { useAppStore } from '../store';
 import { tx } from '../i18n';
 import { logUiError } from '../lib/logger';
 import { approve_void_request_live, get_pending_approvals_live, reject_void_request_live, type PendingApprovalItem } from '../api/restaurant';
+import { ORDER_STATUS_THEME, ORDER_STATUS_THEME_DEFAULT } from '../utils/tables/tableUtils';
 
 export default function KDS({ isActive = true }: { isActive?: boolean }) {
   const user = useAppStore((state) => state.user);
@@ -258,88 +259,57 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
     const elapsed = getElapsedMinutes(created_at);
     if (elapsed > 15) return 'border-red-400/80 bg-red-900/25';
     if (elapsed > 10) return 'border-yellow-300/80 bg-yellow-900/20';
-    
-    switch (status) {
-      case 'SENT':
-      case 'NEW': return 'border-blue-300/60 bg-blue-900/20';
-      case 'PREPARING': return 'border-orange-300/60 bg-orange-900/20';
-      case 'READY': return 'border-emerald-300/70 bg-emerald-900/20';
-      case 'VOID_REQUESTED': return 'border-yellow-300/90 bg-yellow-900/30';
-      case 'VOIDED': return 'border-rose-300/70 bg-rose-900/20';
-      case 'COMPED': return 'border-sky-300/70 bg-sky-900/20';
-      case 'WASTE': return 'border-slate-300/40 bg-slate-800/40';
-      case 'REMAKE': return 'border-orange-300/80 bg-orange-900/25';
-      default: return 'border-slate-600 bg-slate-800/30';
-    }
+    const s = String(status || '').toUpperCase();
+    return (ORDER_STATUS_THEME[s] || ORDER_STATUS_THEME_DEFAULT).card;
+  };
+
+  // Instructional prefix/helper texts for special KDS item tones (styling itself
+  // comes from the shared ORDER_STATUS_THEME in tableUtils).
+  const kitchenItemToneInfo: Record<string, { prefix: string; helper: string }> = {
+    VOID_REQUESTED: {
+      prefix: tx(lang, 'STOP / LƏĞV TƏLƏBİ', 'СТОП / ЗАПРОС ОТМЕНЫ', 'STOP / CANCEL REQUEST'),
+      helper: tx(lang, 'Bu item üzrə hazırlığı dayandırın və təsdiq gözləyin.', 'Остановите подготовку этой позиции и ждите подтверждения.', 'Stop prep for this item and wait for confirmation.'),
+    },
+    REMAKE: {
+      prefix: tx(lang, 'DÜZƏLİŞ / ƏVVƏLKİNİ HAZIRLAMA', 'ИСПРАВЛЕНИЕ / НЕ ГОТОВИТЬ СТАРОЕ', 'CORRECTION / DO NOT PREP OLD'),
+      helper: tx(lang, 'Bu item yenisi ilə əvəzlənib. Yeni düzəliş sətrini hazırlayın.', 'Эта позиция заменена новой. Готовьте новую строку исправления.', 'This item was replaced. Prep the new correction line.'),
+    },
+    CORRECTION: {
+      prefix: tx(lang, 'YENİ DÜZƏLİŞ', 'НОВОЕ ИСПРАВЛЕНИЕ', 'NEW CORRECTION'),
+      helper: tx(lang, 'Bu yeni düzəliş sətridir. Bunu hazırlayın, əvvəlki sətri hazırlamayın.', 'Это новая строка исправления. Готовьте ее, старую строку не готовьте.', 'This is the new correction row. Prep this and do not prep the old row.'),
+    },
+    WASTE: {
+      prefix: tx(lang, 'İSRAF', 'СПИСАНО', 'WASTE'),
+      helper: tx(lang, 'Audit üçün saxlanılıb, hazırlanma axınına daxil etməyin.', 'Сохранено для аудита, не включайте в приготовление.', 'Kept for audit, do not prep.'),
+    },
+    COMPED: {
+      prefix: tx(lang, 'HESABDAN SİLİNİB', 'СПИСАНО СО СЧЕТА', 'COMPED'),
+      helper: tx(lang, 'Billing dəyişib, item auditdə qalır.', 'Биллинг изменен, позиция остается в аудите.', 'Billing changed, item remains in audit.'),
+    },
+    VOIDED: {
+      prefix: tx(lang, 'LƏĞV EDİLDİ', 'ОТМЕНЕНО', 'VOIDED'),
+      helper: tx(lang, 'Bu item aktiv hazırlanma siyahısından çıxıb.', 'Эта позиция снята с активного приготовления.', 'This item is no longer active for prep.'),
+    },
   };
 
   const kitchenItemTone = (status: string) => {
-    switch (String(status || '').toUpperCase()) {
-      case 'VOID_REQUESTED':
-        return {
-          row: 'border-yellow-300/70 bg-yellow-500/15 text-yellow-50',
-          qty: 'bg-yellow-500/30 text-yellow-50',
-          prefix: tx(lang, 'STOP / LƏĞV TƏLƏBİ', 'СТОП / ЗАПРОС ОТМЕНЫ', 'STOP / CANCEL REQUEST'),
-          helper: tx(lang, 'Bu item üzrə hazırlığı dayandırın və təsdiq gözləyin.', 'Остановите подготовку этой позиции и ждите подтверждения.', 'Stop prep for this item and wait for confirmation.'),
-        };
-      case 'REMAKE':
-        return {
-          row: 'border-orange-300/70 bg-orange-500/15 text-orange-50',
-          qty: 'bg-orange-500/30 text-orange-50',
-          prefix: tx(lang, 'DÜZƏLİŞ / ƏVVƏLKİNİ HAZIRLAMA', 'ИСПРАВЛЕНИЕ / НЕ ГОТОВИТЬ СТАРОЕ', 'CORRECTION / DO NOT PREP OLD'),
-          helper: tx(lang, 'Bu item yenisi ilə əvəzlənib. Yeni düzəliş sətrini hazırlayın.', 'Эта позиция заменена новой. Готовьте новую строку исправления.', 'This item was replaced. Prep the new correction line.'),
-        };
-      case 'CORRECTION':
-        return {
-          row: 'border-orange-300/70 bg-orange-500/15 text-orange-50',
-          qty: 'bg-orange-500/30 text-orange-50',
-          prefix: tx(lang, 'YENİ DÜZƏLİŞ', 'НОВОЕ ИСПРАВЛЕНИЕ', 'NEW CORRECTION'),
-          helper: tx(lang, 'Bu yeni düzəliş sətridir. Bunu hazırlayın, əvvəlki sətri hazırlamayın.', 'Это новая строка исправления. Готовьте ее, старую строку не готовьте.', 'This is the new correction row. Prep this and do not prep the old row.'),
-        };
-      case 'WASTE':
-        return {
-          row: 'border-slate-400/50 bg-slate-700/35 text-slate-100',
-          qty: 'bg-slate-600/60 text-slate-100',
-          prefix: tx(lang, 'İSRAF', 'СПИСАНО', 'WASTE'),
-          helper: tx(lang, 'Audit üçün saxlanılıb, hazırlanma axınına daxil etməyin.', 'Сохранено для аудита, не включайте в приготовление.', 'Kept for audit, do not prep.'),
-        };
-      case 'COMPED':
-        return {
-          row: 'border-sky-300/50 bg-sky-500/15 text-sky-50',
-          qty: 'bg-sky-500/25 text-sky-50',
-          prefix: tx(lang, 'HESABDAN SİLİNİB', 'СПИСАНО СО СЧЕТА', 'COMPED'),
-          helper: tx(lang, 'Billing dəyişib, item auditdə qalır.', 'Биллинг изменен, позиция остается в аудите.', 'Billing changed, item remains in audit.'),
-        };
-      case 'VOIDED':
-        return {
-          row: 'border-rose-300/60 bg-rose-500/15 text-rose-50',
-          qty: 'bg-rose-500/25 text-rose-50',
-          prefix: tx(lang, 'LƏĞV EDİLDİ', 'ОТМЕНЕНО', 'VOIDED'),
-          helper: tx(lang, 'Bu item aktiv hazırlanma siyahısından çıxıb.', 'Эта позиция снята с активного приготовления.', 'This item is no longer active for prep.'),
-        };
-      default:
-        return {
-          row: 'border-slate-700/50 bg-slate-950/25 text-slate-100',
-          qty: 'bg-slate-700 text-slate-100',
-          prefix: '',
-          helper: '',
-        };
-    }
+    const s = String(status || '').toUpperCase();
+    const theme = ORDER_STATUS_THEME[s] || ORDER_STATUS_THEME_DEFAULT;
+    const info = kitchenItemToneInfo[s];
+    return {
+      row: theme.row,
+      qty: theme.qty,
+      prefix: info?.prefix || '',
+      helper: info?.helper || '',
+    };
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'SENT': return <span className="rounded px-2 py-1 text-xs font-bold bg-blue-400/20 text-blue-200 border border-blue-300/40">{tx(lang, 'GÖNDƏRİLDİ', 'ОТПРАВЛЕНО', 'SENT')}</span>;
-      case 'NEW': return <span className="rounded px-2 py-1 text-xs font-bold bg-blue-400/20 text-blue-200 border border-blue-300/40">{tx(lang, 'YENİ', 'НОВЫЙ', 'NEW')}</span>;
-      case 'PREPARING': return <span className="rounded px-2 py-1 text-xs font-bold bg-orange-400/20 text-orange-200 border border-orange-300/40">{tx(lang, 'HAZIRLANIR', 'ГОТОВИТСЯ', 'PREPARING')}</span>;
-      case 'READY': return <span className="rounded px-2 py-1 text-xs font-bold bg-emerald-400/20 text-emerald-200 border border-emerald-300/40">{tx(lang, 'HAZIRDIR', 'ГОТОВО', 'READY')}</span>;
-      case 'VOID_REQUESTED': return <span className="rounded px-2 py-1 text-xs font-bold bg-yellow-400/25 text-yellow-100 border border-yellow-300/60">{tx(lang, 'LƏĞV TƏLƏBİ', 'ЗАПРОС ОТМЕНЫ', 'CANCEL REQUEST')}</span>;
-      case 'VOIDED': return <span className="rounded px-2 py-1 text-xs font-bold bg-rose-400/20 text-rose-200 border border-rose-300/40">{tx(lang, 'LƏĞV EDİLDİ', 'ОТМЕНЕНО', 'VOIDED')}</span>;
-      case 'COMPED': return <span className="rounded px-2 py-1 text-xs font-bold bg-sky-400/20 text-sky-200 border border-sky-300/40">{tx(lang, 'HESABDAN SİLİNİB', 'СПИСАНО СО СЧЕТА', 'Comped')}</span>;
-      case 'WASTE': return <span className="rounded px-2 py-1 text-xs font-bold bg-slate-400/20 text-slate-200 border border-slate-300/40">{tx(lang, 'İSRAF', 'СПИСАНО', 'Waste')}</span>;
-      case 'REMAKE': return <span className="rounded px-2 py-1 text-xs font-bold bg-orange-400/20 text-orange-200 border border-orange-300/40">{tx(lang, 'YENİDƏN DÜZƏLT', 'ПЕРЕДЕЛАТЬ', 'Remake')}</span>;
-      default: return null;
-    }
+    const s = String(status || '').toUpperCase();
+    const theme = ORDER_STATUS_THEME[s];
+    if (!theme || !theme.badge) return null;
+    const l = theme.label;
+    return <span className={`rounded px-2 py-1 text-xs font-bold ${theme.badge}`}>{tx(lang, l.az, l.ru, l.en)}</span>;
   };
 
   const groupedOrders = useMemo(() => {
