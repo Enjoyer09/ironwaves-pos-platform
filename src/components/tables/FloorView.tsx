@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { Users } from 'lucide-react';
 import { tx, type Lang } from '../../i18n';
 import { getWaiterColor } from '../../utils/tables/tableUtils';
-import type { FloorSummary } from '../../utils/tables/floorUtils';
+import { TABLE_STATUS_LABELS, TABLE_STATUS_THEME, type FloorSummary } from '../../utils/tables/floorUtils';
 import type { FloorPlanRecord, FloorTableState } from '../../api/restaurant';
 import FloorTableEditor from './FloorTableEditor';
 import TableGrid from './TableGrid';
@@ -127,6 +127,13 @@ function FloorView(props: FloorViewProps) {
   } = props;
 
   const isManager = ['admin', 'manager', 'super_admin'].includes(userRole.toLowerCase());
+
+  // Table status colors + labels come from the shared palette (floorUtils TABLE_STATUS_THEME /
+  // TABLE_STATUS_LABELS, UI_COMPETITIVE_AUDIT §6.3) — one hue per status across all screens.
+  const statusLabel = (status: string) => {
+    const l = TABLE_STATUS_LABELS[String(status || '').toUpperCase()] || TABLE_STATUS_LABELS.AVAILABLE;
+    return tx(lang, l.az, l.ru, l.en);
+  };
 
   return (
     <>
@@ -255,17 +262,12 @@ function FloorView(props: FloorViewProps) {
         />
       )}
 
-      {/* Status legend */}
+      {/* Status legend — shared palette TABLE_STATUS_THEME (UI_COMPETITIVE_AUDIT §6.3) */}
       {isManager && (
       <div className="mb-3 flex flex-wrap gap-2">
-        {[
-          ['AVAILABLE', tx(lang, 'Boş', 'Свободно', 'Available'), 'border-emerald-300/40 bg-emerald-500/10 text-emerald-100'],
-          ['RESERVED', tx(lang, 'Rezerv', 'Резерв', 'Reserved'), 'border-amber-300/40 bg-amber-500/10 text-amber-100'],
-          ['ACTIVE_CHECK', tx(lang, 'Aktiv çek', 'Активный чек', 'Active check'), 'border-rose-300/40 bg-rose-500/10 text-rose-100'],
-          ['DIRTY', tx(lang, 'Təmizlik', 'Уборка', 'Dirty'), 'border-slate-300/30 bg-slate-500/20 text-slate-100'],
-        ].map(([key, label, className]) => (
-          <div key={String(key)} className={`rounded-full border px-3 py-1 text-xs font-semibold ${className}`}>
-            {label}: {floorSummary[String(key) as keyof FloorSummary] || 0}
+        {(Object.keys(TABLE_STATUS_THEME) as Array<keyof FloorSummary>).map((key) => (
+          <div key={String(key)} className={`rounded-full border px-3 py-1 text-xs font-semibold ${TABLE_STATUS_THEME[key].chip}`}>
+            {statusLabel(String(key))}: {floorSummary[key] || 0}
           </div>
         ))}
       </div>
@@ -416,19 +418,12 @@ function FloorView(props: FloorViewProps) {
             const occupiedTableInGroup = groupTables.find((r) => (r as any).is_occupied);
             const displayTable = occupiedTableInGroup || table;
 
-            const statusColors: Record<string, string> = {
-              AVAILABLE: 'bg-emerald-500/15 border-emerald-300/40 text-emerald-100 hover:bg-emerald-500/25',
-              RESERVED: 'bg-amber-500/15 border-amber-300/40 text-amber-100 hover:bg-amber-500/25',
-              SEATED: 'bg-sky-500/15 border-sky-300/40 text-sky-100 hover:bg-sky-500/25',
-              ACTIVE_CHECK: 'bg-violet-500/15 border-violet-300/40 text-violet-100 hover:bg-violet-500/25',
-              DIRTY: 'bg-slate-500/20 border-slate-300/30 text-slate-100 hover:bg-slate-500/30',
-            };
             const waiterColor = (displayTable.status === 'SEATED' || displayTable.status === 'ACTIVE_CHECK') && (displayTable as any).assigned_to
               ? getWaiterColor((displayTable as any).assigned_to)
               : null;
             const statusColorClass = waiterColor
               ? `${waiterColor.bg} ${waiterColor.border} ${waiterColor.text} hover:bg-opacity-25`
-              : (statusColors[String(displayTable.status || 'AVAILABLE').toUpperCase()] || statusColors.AVAILABLE);
+              : (TABLE_STATUS_THEME[String(displayTable.status || 'AVAILABLE').toUpperCase()] || TABLE_STATUS_THEME.AVAILABLE).cell;
             return (
               <button
                 key={table.id}
