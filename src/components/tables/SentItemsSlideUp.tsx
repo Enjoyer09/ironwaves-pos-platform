@@ -1,6 +1,6 @@
 import React from 'react';
 import { tx } from '../../i18n';
-import { normalizeOrderItemStatus, sentItemActions as getSentItemActions, itemActionLabel } from '../../utils/tables/tableUtils';
+import { normalizeOrderItemStatus, sentItemActions as getSentItemActions, itemActionLabel, ORDER_STATUS_THEME, ORDER_STATUS_THEME_DEFAULT } from '../../utils/tables/tableUtils';
 
 interface SentItemsSlideUpProps {
   lang: string;
@@ -46,12 +46,11 @@ export default function SentItemsSlideUp({ lang, items, userCanEdit, onClose, on
               const status = normalizeOrderItemStatus(it.status || it.raw_status);
               const isTerminal = ['VOIDED', 'COMPED', 'WASTE'].includes(status);
               const actions = it.id && userCanEdit ? getSentItemActions({ ...it, status }) : [];
+              // Dots from the shared ORDER_STATUS_THEME (UI_COMPETITIVE_AUDIT §6.3) —
+              // same hue per status as KDS badges and TablesPage dots.
               const dotColor =
-                status === 'READY' ? 'bg-emerald-400' :
-                status === 'PREPARING' ? 'bg-orange-400' :
-                status === 'VOID_REQUESTED' ? 'bg-yellow-400 animate-pulse' :
-                status === 'SERVED' ? 'bg-violet-400' :
-                isTerminal ? 'bg-slate-600' : 'bg-blue-400';
+                status === 'VOID_REQUESTED' ? `${ORDER_STATUS_THEME.VOID_REQUESTED.dot} animate-pulse` :
+                (ORDER_STATUS_THEME[status]?.dot || ORDER_STATUS_THEME_DEFAULT.dot);
               const statusLabel =
                 status === 'READY' ? tx(lang, 'Hazır', 'Готово', 'Ready') :
                 status === 'PREPARING' ? tx(lang, 'Hazırlanır', 'Готовится', 'Preparing') :

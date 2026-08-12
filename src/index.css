@@ -1244,6 +1244,82 @@ html {
       linear-gradient(160deg, #0d1524 0%, #0a1120 55%, #070d18 100%) !important;
   }
 
+  /* ═══════════════════════════════════════════════════════════════════
+     AURORA (Phase 4) — animated shell backdrop (UI_WORLDCLASS_ROADMAP §3)
+     Two soft color blobs drift slowly on the SHELL background only (login +
+     app shell). Animates transform + opacity exclusively — GPU compositor
+     friendly, zero layout/paint work. Pseudo-elements sit at z-index:-1 inside
+     an isolated stacking context: above the shell's static background, below
+     all content; glass panels on top blur them naturally (macOS feel).
+     Scoped to html[data-ui-mode='new'] — classic mode is untouched.
+     ═══════════════════════════════════════════════════════════════════ */
+  html[data-ui-mode='new'] .metal-app {
+    position: relative; /* containing block for the absolute blobs */
+    isolation: isolate; /* blobs stay below content, above the shell bg */
+    overflow: hidden; /* legacy fallback */
+    overflow: clip; /* clip drift without creating a scroll container */
+  }
+
+  html[data-ui-mode='new'] .metal-app::before,
+  html[data-ui-mode='new'] .metal-app::after {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+    border-radius: 9999px;
+    will-change: transform;
+  }
+
+  /* Gold blob — upper-left, slow drift */
+  html[data-ui-mode='new'] .metal-app::before {
+    width: 60vmax;
+    height: 60vmax;
+    left: -18vmax;
+    top: -22vmax;
+    background: radial-gradient(circle at 32% 30%, rgba(216, 177, 86, 0.14) 0%, rgba(216, 177, 86, 0) 55%);
+    animation: aurora-drift-a 32s linear infinite;
+  }
+
+  /* Blue + teal blob — lower-right, slower drift */
+  html[data-ui-mode='new'] .metal-app::after {
+    width: 55vmax;
+    height: 55vmax;
+    right: -20vmax;
+    bottom: -24vmax;
+    background:
+      radial-gradient(circle at 62% 58%, rgba(59, 130, 246, 0.13) 0%, rgba(59, 130, 246, 0) 50%),
+      radial-gradient(circle at 30% 88%, rgba(45, 212, 191, 0.10) 0%, rgba(45, 212, 191, 0) 45%);
+    animation: aurora-drift-b 40s linear infinite;
+  }
+
+  @keyframes aurora-drift-a {
+    0%, 100% { transform: translate3d(-3%, -2%, 0) scale(1); opacity: 0.85; }
+    33%      { transform: translate3d(4%, 5%, 0) scale(1.07); opacity: 1; }
+    66%      { transform: translate3d(-1%, 7%, 0) scale(0.95); opacity: 0.9; }
+  }
+
+  @keyframes aurora-drift-b {
+    0%, 100% { transform: translate3d(3%, 4%, 0) scale(1.04); opacity: 0.8; }
+    50%      { transform: translate3d(-5%, -4%, 0) scale(0.94); opacity: 1; }
+  }
+
+  /* Accessibility: OS asks for less motion → blobs freeze in place */
+  @media (prefers-reduced-motion: reduce) {
+    html[data-ui-mode='new'] .metal-app::before,
+    html[data-ui-mode='new'] .metal-app::after {
+      animation: none;
+      opacity: 0.55;
+    }
+  }
+
+  /* Accessibility: OS asks for less transparency → calm solid backdrop */
+  @media (prefers-reduced-transparency: reduce) {
+    html[data-ui-mode='new'] .metal-app::before,
+    html[data-ui-mode='new'] .metal-app::after {
+      display: none;
+    }
+  }
+
   /* Frosted translucent panels (hairline border + soft layered shadow) */
   html[data-ui-mode='new'] .metal-panel,
   html[data-ui-mode='new'] .pos2-checkout-pane,

@@ -48,6 +48,7 @@ import {
   itemActionNeedsManager as itemActionNeedsManagerUtil,
   formatDisplayId,
   itemActionLabel as itemActionLabelUtil,
+  ORDER_STATUS_THEME,
 } from '../utils/tables/tableUtils';
 import {
   computeFloorSummary,
@@ -2081,10 +2082,10 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                    >
 	                      <div className="flex items-center gap-2.5">
 	                        <div className="flex -space-x-1.5">
-	                          {sentDisplayItems.some((it: any) => normalizeOrderItemStatus(it.status) === 'READY') && <span className="h-3 w-3 rounded-full border-2 border-slate-900 bg-emerald-400" />}
-	                          {sentDisplayItems.some((it: any) => normalizeOrderItemStatus(it.status) === 'PREPARING') && <span className="h-3 w-3 rounded-full border-2 border-slate-900 bg-orange-400" />}
-	                          {sentDisplayItems.some((it: any) => ['SENT', 'NEW'].includes(normalizeOrderItemStatus(it.status))) && <span className="h-3 w-3 rounded-full border-2 border-slate-900 bg-blue-400" />}
-	                          {sentDisplayItems.some((it: any) => normalizeOrderItemStatus(it.status) === 'VOID_REQUESTED') && <span className="h-3 w-3 rounded-full border-2 border-slate-900 bg-yellow-400 animate-pulse" />}
+                          {sentDisplayItems.some((it: any) => normalizeOrderItemStatus(it.status) === 'READY') && <span className={`h-3 w-3 rounded-full border-2 border-slate-900 ${ORDER_STATUS_THEME.READY.dot}`} />}
+                          {sentDisplayItems.some((it: any) => normalizeOrderItemStatus(it.status) === 'PREPARING') && <span className={`h-3 w-3 rounded-full border-2 border-slate-900 ${ORDER_STATUS_THEME.PREPARING.dot}`} />}
+                          {sentDisplayItems.some((it: any) => ['SENT', 'NEW'].includes(normalizeOrderItemStatus(it.status))) && <span className={`h-3 w-3 rounded-full border-2 border-slate-900 ${ORDER_STATUS_THEME.SENT.dot}`} />}
+                          {sentDisplayItems.some((it: any) => normalizeOrderItemStatus(it.status) === 'VOID_REQUESTED') && <span className={`h-3 w-3 rounded-full border-2 border-slate-900 ${ORDER_STATUS_THEME.VOID_REQUESTED.dot} animate-pulse`} />}
 	                        </div>
 	                        <span className="text-sm font-bold text-slate-200">{tx(lang, 'Göndərilmişlər', 'Отправленные', 'Sent')}</span>
 	                      </div>
