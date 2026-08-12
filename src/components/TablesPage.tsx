@@ -1509,7 +1509,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
   };
 
   return (
-    <div className="h-full overflow-auto p-3 text-slate-100 md:p-6">
+    <div className="tables-page-shell h-full overflow-auto p-3 text-slate-100 md:p-6">
       {!isOnline && (
         <div className="mb-4 rounded-xl border border-amber-300/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
           <div className="font-semibold">{tx(lang, 'Offline masa rejimi aktivdir', 'Офлайн режим столов активен', 'Offline table mode is active')}</div>

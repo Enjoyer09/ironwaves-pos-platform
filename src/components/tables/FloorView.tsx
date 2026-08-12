@@ -361,7 +361,7 @@ function FloorView(props: FloorViewProps) {
       {/* Map grid or List view */}
       {floorEditMode || floorViewMode === 'map' ? (
         <div
-          className="relative grid gap-3 rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3"
+          className="tables-glass-panel relative grid gap-3 rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3"
           style={{
             gridTemplateColumns: `repeat(${Math.max(6, floorPlans.find((row) => row.id === activeFloorId)?.width_units || 12)}, minmax(0, 1fr))`,
             gridAutoRows: '70px',
@@ -460,7 +460,7 @@ function FloorView(props: FloorViewProps) {
                     onSelectWaiterTable(table);
                   }
                 }}
-                className={`border p-3 text-left shadow-sm transition taktil-target ${String(table.shape || '').toLowerCase() === 'circle' ? 'rounded-[999px]' : String(table.shape || '').toLowerCase() === 'square' ? 'rounded-xl' : 'rounded-2xl'} ${draggingTableIds.includes(table.id) ? 'opacity-60' : ''} ${floorEditMode && selectedFloorTableId === table.id ? 'ring-2 ring-cyan-300/80' : ''} ${floorEditMode && selectedFloorTableIds.includes(table.id) ? 'ring-2 ring-violet-300/80' : ''} ${String((table as any).merged_group_id || '').trim() ? 'shadow-[0_0_0_2px_rgba(167,139,250,0.45)]' : ''} ${statusColorClass}`}
+                className={`floor-table-cell border p-3 text-left shadow-sm transition taktil-target ${String(table.shape || '').toLowerCase() === 'circle' ? 'rounded-[999px]' : String(table.shape || '').toLowerCase() === 'square' ? 'rounded-xl' : 'rounded-2xl'} ${draggingTableIds.includes(table.id) ? 'opacity-60' : ''} ${floorEditMode && selectedFloorTableId === table.id ? 'ring-2 ring-cyan-300/80' : ''} ${floorEditMode && selectedFloorTableIds.includes(table.id) ? 'ring-2 ring-violet-300/80' : ''} ${String((table as any).merged_group_id || '').trim() ? 'shadow-[0_0_0_2px_rgba(167,139,250,0.45)]' : ''} ${statusColorClass}`}
                 style={{
                   gridColumn: `${Math.max(1, Number(table.x || 0) + 1)} / span ${Math.max(1, Number(table.w || 2))}`,
                   gridRow: `${Math.max(1, Number(table.y || 0) + 1)} / span ${Math.max(1, Number(table.h || 2))}`,
@@ -492,7 +492,7 @@ function FloorView(props: FloorViewProps) {
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
           <div
-            className={`rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3 ${viewTableId ? 'lg:pr-2' : ''}`}
+            className={`tables-glass-panel rounded-2xl border border-slate-700/70 bg-slate-950/30 p-3 ${viewTableId ? 'lg:pr-2' : ''}`}
             style={{ marginRight: viewTableId ? 'min(72vw, 1260px)' : '0' }}
           >
             <TableGrid

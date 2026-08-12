@@ -1480,6 +1480,8 @@ export default function App() {
       const local = localStorage.getItem('iw_pos_ui_mode');
       if (local === 'modern' || local === 'classic') return local as 'modern' | 'classic';
     } catch {}
+    // §9.1 (UI_AUDIT_GLASS): unify with the global glass gate — ui_mode='new' implies modern layout
+    if (String(settings.session_settings?.ui_mode || '').toLowerCase() === 'new') return 'modern' as const;
     const fromSettings = String(settings.session_settings?.tables_ui_mode || settings.tables_ui_mode || '').toLowerCase();
     if (fromSettings === 'modern' || fromSettings === 'classic') return fromSettings as 'modern' | 'classic';
     return 'classic';
