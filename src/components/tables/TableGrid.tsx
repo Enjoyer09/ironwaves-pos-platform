@@ -3,6 +3,7 @@ import { Users, Clock, Utensils, Sparkles } from 'lucide-react';
 import { Decimal } from 'decimal.js';
 import { tx } from '../../i18n';
 import { playHapticTouch, playHapticHeavy, playHapticSuccess } from '../../lib/haptics';
+import { TABLE_STATUS_LABELS, TABLE_STATUS_THEME } from '../../utils/tables/floorUtils';
 
 type TableGridProps = {
   floorTables: any[];
@@ -151,15 +152,17 @@ function TableGrid({
           const guestCount = Number(activeTableState.guest_count || 0);
           const capacity = Number(table.capacity || 4);
 
-          // Premium status styling
-          const statusConfig: Record<string, { bg: string; border: string; glow: string; dot: string; label: string }> = {
-            AVAILABLE: { bg: 'from-emerald-500/8 to-emerald-600/4', border: 'border-emerald-400/25', glow: '', dot: 'bg-emerald-400', label: tx(lang, 'Boş', 'Свободен', 'Free') },
-            RESERVED: { bg: 'from-amber-500/10 to-amber-600/5', border: 'border-amber-400/30', glow: 'shadow-[0_0_20px_rgba(245,158,11,0.08)]', dot: 'bg-amber-400', label: tx(lang, 'Rezerv', 'Забронирован', 'Reserved') },
-            SEATED: { bg: 'from-rose-500/10 to-rose-600/5', border: 'border-rose-400/25', glow: '', dot: 'bg-rose-400', label: tx(lang, 'Oturan', 'Сидят', 'Seated') },
-            ACTIVE_CHECK: { bg: 'from-violet-500/10 to-violet-600/5', border: 'border-violet-400/30', glow: 'shadow-[0_0_24px_rgba(139,92,246,0.1)]', dot: 'bg-violet-400', label: tx(lang, 'Aktiv', 'Активен', 'Active') },
-            DIRTY: { bg: 'from-slate-500/8 to-slate-600/4', border: 'border-slate-400/20', glow: '', dot: 'bg-slate-400', label: tx(lang, 'Təmizlik', 'Уборка', 'Dirty') },
+          // Status styling from the shared palette (floorUtils TABLE_STATUS_THEME, UI_COMPETITIVE_AUDIT §6.3)
+          const theme = TABLE_STATUS_THEME[status] || TABLE_STATUS_THEME.AVAILABLE;
+          const labelRow = TABLE_STATUS_LABELS[status] || TABLE_STATUS_LABELS.AVAILABLE;
+          const cfg = {
+            border: theme.listBorder,
+            glow: theme.listGlow,
+            dot: theme.dot,
+            text: theme.text,
+            gradient: theme.gradient,
+            label: tx(lang, labelRow.az, labelRow.ru, labelRow.en),
           };
-          const cfg = statusConfig[status] || statusConfig.AVAILABLE;
 
           return (
             <div
@@ -178,7 +181,7 @@ function TableGrid({
                 isSelected ? 'ring-2 ring-yellow-300/70 shadow-[0_0_30px_rgba(250,204,21,0.15)]' : ''
               } ${isMyTable && showMyTablesFilter ? 'ring-1 ring-yellow-400/40' : ''}`}
               style={{
-                background: `linear-gradient(145deg, ${status === 'AVAILABLE' ? 'rgba(16,185,129,0.06)' : status === 'ACTIVE_CHECK' ? 'rgba(139,92,246,0.08)' : status === 'RESERVED' ? 'rgba(245,158,11,0.07)' : status === 'SEATED' ? 'rgba(244,63,94,0.07)' : 'rgba(100,116,139,0.06)'}, rgba(15,23,42,0.4))`,
+                background: `linear-gradient(145deg, ${cfg.gradient}, rgba(15,23,42,0.4))`,
                 backdropFilter: 'blur(8px)',
               }}
             >
@@ -197,7 +200,7 @@ function TableGrid({
               <div className="flex items-center gap-2">
                 <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${cfg.dot}`} aria-hidden="true" />
                 <h3 className="text-[15px] font-black text-white">{table.label}</h3>
-                <span className="ml-auto text-[9px] font-bold uppercase tracking-wider" style={{ color: cfg.dot.replace('bg-', '').includes('emerald') ? '#6ee7b7' : cfg.dot.replace('bg-', '').includes('violet') ? '#c4b5fd' : cfg.dot.replace('bg-', '').includes('amber') ? '#fcd34d' : cfg.dot.replace('bg-', '').includes('rose') ? '#fda4af' : '#94a3b8' }}>
+                <span className="ml-auto text-[9px] font-bold uppercase tracking-wider" style={{ color: cfg.text }}>
                   {cfg.label}
                 </span>
               </div>

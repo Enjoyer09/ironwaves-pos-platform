@@ -37,6 +37,80 @@ export interface FloorSummary {
   DIRTY: number;
 }
 
+/**
+ * Canonical table-status palette — single source of truth (UI_COMPETITIVE_AUDIT §6.3).
+ * One hue per status, shared by FloorView (legend chips + map cells) and TableGrid (list cards):
+ *   AVAILABLE = emerald · RESERVED = amber · SEATED = rose · ACTIVE_CHECK = violet · DIRTY = slate
+ * All class strings are full literals so Tailwind's scanner generates them.
+ */
+export const TABLE_STATUS_THEME: Record<
+  string,
+  {
+    chip: string; // FloorView manager legend chip
+    cell: string; // FloorView floor-map table cell
+    listBorder: string; // TableGrid card border
+    listGlow: string; // TableGrid card glow shadow
+    dot: string; // status dot (TableGrid card)
+    text: string; // status label text color (TableGrid card)
+    gradient: string; // TableGrid inline card background rgba
+  }
+> = {
+  AVAILABLE: {
+    chip: 'border-emerald-300/40 bg-emerald-500/10 text-emerald-100',
+    cell: 'bg-emerald-500/15 border-emerald-300/40 text-emerald-100 hover:bg-emerald-500/25',
+    listBorder: 'border-emerald-400/25',
+    listGlow: '',
+    dot: 'bg-emerald-400',
+    text: '#6ee7b7',
+    gradient: 'rgba(16,185,129,0.06)',
+  },
+  RESERVED: {
+    chip: 'border-amber-300/40 bg-amber-500/10 text-amber-100',
+    cell: 'bg-amber-500/15 border-amber-300/40 text-amber-100 hover:bg-amber-500/25',
+    listBorder: 'border-amber-400/30',
+    listGlow: 'shadow-[0_0_20px_rgba(245,158,11,0.08)]',
+    dot: 'bg-amber-400',
+    text: '#fcd34d',
+    gradient: 'rgba(245,158,11,0.07)',
+  },
+  SEATED: {
+    chip: 'border-rose-300/40 bg-rose-500/10 text-rose-100',
+    cell: 'bg-rose-500/15 border-rose-300/40 text-rose-100 hover:bg-rose-500/25',
+    listBorder: 'border-rose-400/25',
+    listGlow: '',
+    dot: 'bg-rose-400',
+    text: '#fda4af',
+    gradient: 'rgba(244,63,94,0.07)',
+  },
+  ACTIVE_CHECK: {
+    chip: 'border-violet-300/40 bg-violet-500/10 text-violet-100',
+    cell: 'bg-violet-500/15 border-violet-300/40 text-violet-100 hover:bg-violet-500/25',
+    listBorder: 'border-violet-400/30',
+    listGlow: 'shadow-[0_0_24px_rgba(139,92,246,0.1)]',
+    dot: 'bg-violet-400',
+    text: '#c4b5fd',
+    gradient: 'rgba(139,92,246,0.08)',
+  },
+  DIRTY: {
+    chip: 'border-slate-300/30 bg-slate-500/20 text-slate-100',
+    cell: 'bg-slate-500/20 border-slate-300/30 text-slate-100 hover:bg-slate-500/30',
+    listBorder: 'border-slate-400/20',
+    listGlow: '',
+    dot: 'bg-slate-400',
+    text: '#94a3b8',
+    gradient: 'rgba(100,116,139,0.06)',
+  },
+};
+
+/** i18n labels for table statuses (az / ru / en) — pass through tx(lang, l.az, l.ru, l.en). */
+export const TABLE_STATUS_LABELS: Record<string, { az: string; ru: string; en: string }> = {
+  AVAILABLE: { az: 'Boş', ru: 'Свободен', en: 'Free' },
+  RESERVED: { az: 'Rezerv', ru: 'Забронирован', en: 'Reserved' },
+  SEATED: { az: 'Dolu', ru: 'Занят', en: 'Seated' },
+  ACTIVE_CHECK: { az: 'Aktiv', ru: 'Активен', en: 'Active' },
+  DIRTY: { az: 'Təmizlik', ru: 'Уборка', en: 'Dirty' },
+};
+
 export interface ReservationTimelineEntry {
   reservation: any;
   lane: number;
