@@ -741,10 +741,17 @@ export default function App() {
     root.style.colorScheme = themeMode;
   }, [themeMode]);
 
+  // Glass UI / modern look is gated by the tenant setting (session_settings.ui_mode).
+  // Default is 'old', so every cafe keeps its current look until a tenant opts into 'new'.
+  const uiMode = useMemo<'old' | 'new'>(() => {
+    const stored = String(settings.session_settings?.ui_mode || '').toLowerCase();
+    return stored === 'new' ? 'new' : 'old';
+  }, [settings, settingsVersion]);
+
   useEffect(() => {
     const root = document.documentElement;
-    root.setAttribute('data-ui-mode', 'old');
-  }, []);
+    root.setAttribute('data-ui-mode', uiMode);
+  }, [uiMode]);
 
   useEffect(() => {
     const handleOpenTableInPos = () => setCurrentModule('pos');

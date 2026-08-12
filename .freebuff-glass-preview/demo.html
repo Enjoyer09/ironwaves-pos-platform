@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="az" data-ui-mode="new" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Glass UI — Phase 1 Demo</title>
+  <link rel="stylesheet" href="built.css" />
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      overflow: auto;
+      display: grid;
+      place-items: center;
+      padding: 32px 16px;
+    }
+    .demo-wrap { width: min(880px, 100%); }
+    .demo-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 16px; }
+    .demo-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .demo-head h1 { margin: 0; font-size: 20px; color: #f8fafc; }
+    .demo-head small { color: #9aa7ba; }
+    .demo-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: #9aa7ba; margin: 22px 0 6px; }
+    .toggle-btn {
+      border: 1px solid rgba(255,255,255,0.10);
+      background: linear-gradient(170deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+      color: #e2e8f0; padding: 8px 14px; border-radius: 10px; cursor: pointer; font-size: 13px;
+      backdrop-filter: blur(14px) saturate(140%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 6px 18px rgba(2,6,23,0.28);
+    }
+    .mode-badge { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px;
+      background: linear-gradient(180deg, #d8b156, #c9a24b); color: #161006; }
+    .glass-note { font-size: 12px; color: #cbd5e1; margin-top: 8px; }
+    .glass-note b { color: #d8b156; }
+    .pos3-card-demo { padding: 12px; border-radius: 12px; }
+    .pos3-card-demo .thumb { height: 74px; border-radius: 8px; display: grid; place-items: center;
+      border: 1px solid rgba(255,255,255,0.10); background: linear-gradient(145deg, #22344a, #141f31); font-weight: 700; color: #cbd5e1; }
+  </style>
+</head>
+<body>
+  <div class="demo-wrap">
+    <div class="demo-head">
+      <div>
+        <h1>Glass UI — Phase 1</h1>
+        <small>IronWaves POS · macOS-style token system (blur 18px, hairline border, #d8b156)</small>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="mode-badge" id="modeBadge">NEW</span>
+        <button class="toggle-btn" id="toggleBtn" onclick="toggleMode()">Köhnə görünüşə keç</button>
+      </div>
+    </div>
+
+    <div class="demo-label">Panels · .metal-panel (frosted)</div>
+    <div class="demo-row">
+      <div class="metal-panel" style="padding:18px;border-radius:16px">
+        <div style="font-weight:700;color:#f8fafc">Satış paneli</div>
+        <div style="font-size:13px;color:#9aa7ba;margin-top:4px">backdrop-filter: blur(18px) · hairline border · yumşaq kölgə</div>
+      </div>
+      <div class="metal-panel" style="padding:18px;border-radius:16px">
+        <div style="font-weight:700;color:#f8fafc">Maliyyə paneli</div>
+        <div style="font-size:13px;color:#9aa7ba;margin-top:4px">Şəffaf səth — arxadakı ləkələr bulanıqlaşır</div>
+      </div>
+      <div class="metal-panel" style="padding:18px;border-radius:16px">
+        <div style="font-weight:700;color:#f8fafc">Anbar paneli</div>
+        <div style="font-size:13px;color:#9aa7ba;margin-top:4px">İç parıltı: inset 0 1px 0 rgba(255,255,255,0.08)</div>
+      </div>
+    </div>
+
+    <div class="demo-label">Buttons · .neon-btn / .neon-btn-active</div>
+    <div class="demo-row">
+      <button class="neon-btn">Adi düymə</button>
+      <button class="neon-btn neon-btn-active">Aktiv düymə — #d8b156</button>
+      <button class="neon-chip">Chip</button>
+    </div>
+
+    <div class="demo-label">Inputs · .neon-input (frosted)</div>
+    <div class="demo-row">
+      <input class="neon-input" placeholder="Axtarış..." style="margin:0" />
+      <input class="neon-input" placeholder="Endirim %" style="margin:0" />
+    </div>
+
+    <div class="demo-label">Product cards · .pos3-card (glass)</div>
+    <div class="demo-row">
+      <div class="pos3-card pos3-card-demo">
+        <div class="thumb">☕ Cappuccino</div>
+        <div style="margin-top:8px;font-size:13px;font-weight:600;color:#f8fafc">Cappuccino</div>
+        <div style="font-size:12px;font-weight:700;color:#d8b156">4.50 ₼</div>
+      </div>
+      <div class="pos3-card pos3-card-demo">
+        <div class="thumb">🍰 Tiramisu</div>
+        <div style="margin-top:8px;font-size:13px;font-weight:600;color:#f8fafc">Tiramisu</div>
+        <div style="font-size:12px;font-weight:700;color:#d8b156">6.00 ₼</div>
+      </div>
+      <div class="pos3-card pos3-card-demo">
+        <div class="thumb">🥛 Latte</div>
+        <div style="margin-top:8px;font-size:13px;font-weight:600;color:#f8fafc">Latte</div>
+        <div style="font-size:12px;font-weight:700;color:#d8b156">4.00 ₼</div>
+      </div>
+    </div>
+
+    <p class="glass-note">
+      Demo <b>yalnız CSS tokenlərini</b> göstərir. Təqdimat üçün əlavə edilmişdir —
+      real tətbiqdə glass yalnız <b>data-ui-mode="new"</b> aktiv olanda işləyir (default: köhnə görünüş).
+    </p>
+  </div>
+
+  <script>
+    function toggleMode() {
+      var root = document.documentElement;
+      var isNew = root.getAttribute('data-ui-mode') === 'new';
+      root.setAttribute('data-ui-mode', isNew ? 'old' : 'new');
+      document.getElementById('modeBadge').textContent = isNew ? 'OLD' : 'NEW';
+      document.getElementById('toggleBtn').textContent = isNew ? 'Yeni görünüşə keç' : 'Köhnə görünüşə keç';
+    }
+  </script>
+</body>
+</html>
