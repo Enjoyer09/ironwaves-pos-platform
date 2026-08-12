@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="az">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PinLogin — macOS Glass Demo</title>
+  <!--__CSS__-->
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; min-height: 100vh; overflow: auto; background: #0b0f19; }
+    .stage { display: flex; gap: 24px; padding: 28px; flex-wrap: wrap; align-items: flex-start; }
+    .stage-col { flex: 1 1 340px; min-width: 320px; }
+    .stage-title { color: #9aa7ba; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 12px; }
+    /* right-panel equivalent from PinLogin.tsx */
+    .login-panel {
+      border-radius: 20px; padding: 28px 24px; border: 1px solid rgba(255,255,255,0.04);
+      box-shadow: -15px 0 30px rgba(0,0,0,0.5);
+      background:
+        radial-gradient(circle at 18% 12%, rgba(216,177,86,0.16) 0%, rgba(216,177,86,0) 42%),
+        radial-gradient(circle at 88% 18%, rgba(59,130,246,0.13) 0%, rgba(59,130,246,0) 40%),
+        radial-gradient(circle at 52% 92%, rgba(45,212,191,0.10) 0%, rgba(45,212,191,0) 44%),
+        linear-gradient(180deg, #0d1524 0%, #0a1120 60%, #08101c 100%);
+    }
+    .label { font-size: 11px; font-weight: 700; letter-spacing: 0.16em; color: #9aa7ba; text-transform: uppercase; margin: 0 0 8px; }
+    .demo-foot { color: #64748b; font-size: 12px; padding: 0 28px 28px; max-width: 900px; line-height: 1.6; }
+    .demo-foot b { color: #d8b156; }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <!-- RIGHT PANEL: login pad (PinLogin glass) -->
+    <div class="stage-col">
+      <p class="stage-title">Right panel — glass card + #d8b156 accent</p>
+      <div class="login-panel">
+        <div class="label">iRonWaves POS</div>
+
+        <!-- Language & mode card (GLASS_CARD) -->
+        <div class="rounded-[24px] border border-white/10 bg-white/[0.07] backdrop-blur-[18px] backdrop-saturate-[140%] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_2px_rgba(0,0,0,0.06),0_8px_24px_rgba(0,0,0,0.12),0_24px_60px_rgba(0,0,0,0.10)] p-4 space-y-3" style="border-radius:24px">
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Tətbiq dili</span>
+            <select class="neon-input text-xs min-h-8 w-24 py-1" style="border-radius:10px"><option>AZ</option><option>RU</option><option>EN</option></select>
+          </div>
+          <div class="flex gap-1.5 p-1 rounded-2xl bg-black/40 border border-white/5">
+            <button class="flex-1 min-h-10 text-xs font-bold rounded-xl transition bg-gradient-to-r from-[#d8b156] to-[#c9a24b] text-[#161006] shadow-md">STAFF</button>
+            <button class="flex-1 min-h-10 text-xs font-bold rounded-xl transition text-slate-400 hover:text-white">ADMIN</button>
+          </div>
+        </div>
+
+        <!-- PIN pad card (GLASS_CARD) -->
+        <div class="rounded-[28px] border border-white/10 bg-white/[0.07] backdrop-blur-[18px] backdrop-saturate-[140%] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_2px_rgba(0,0,0,0.06),0_8px_24px_rgba(0,0,0,0.12),0_24px_60px_rgba(0,0,0,0.10)] p-6 space-y-5" style="border-radius:28px; margin-top:14px">
+          <div class="rounded-2xl border border-white/5 bg-black/40 px-5 py-4 text-center">
+            <div class="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">PIN</div>
+            <div class="mt-1 min-h-10 text-3xl tracking-[0.5em] text-white font-extrabold">• • • •</div>
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <button class="rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] py-5 text-2xl font-bold text-white transition shadow-sm">1</button>
+            <button class="rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] py-5 text-2xl font-bold text-white transition shadow-sm">2</button>
+            <button class="rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] py-5 text-2xl font-bold text-white transition shadow-sm">3</button>
+            <button class="rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] py-5 text-2xl font-bold text-white transition shadow-sm">4</button>
+            <button class="rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] py-5 text-2xl font-bold text-white transition shadow-sm">5</button>
+            <button class="rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] py-5 text-2xl font-bold text-white transition shadow-sm">6</button>
+          </div>
+          <button class="w-full rounded-2xl py-3.5 text-sm font-extrabold transition-all active:scale-95 bg-gradient-to-r from-[#d8b156] to-[#c9a24b] text-[#161006] shadow-md hover:shadow-lg">
+            PIN-i Sıfırla
+          </button>
+        </div>
+
+        <!-- logo fallback badge -->
+        <div class="mt-4 flex items-center gap-3">
+          <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-[#d8b156] text-lg font-black text-[#161006] shadow-lg">E</div>
+          <div>
+            <div class="text-base font-black text-white">Emalatxana Coffee</div>
+            <span class="inline-block rounded-full bg-[#d8b156]/20 border border-[#d8b156]/30 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-[#e8c877]">⚡ iRonWaves POS System</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LEFT PANEL: restaurant image + glass blocks -->
+    <div class="stage-col">
+      <p class="stage-title">Left panel — glass brand & welcome blocks</p>
+      <div class="relative rounded-[20px] overflow-hidden flex flex-col justify-between p-12 min-h-[520px]"
+        style="background-image:linear-gradient(180deg, rgba(10,15,26,0.25) 0%, rgba(10,15,26,0.85) 100%), url('https://images.unsplash.com/photo-1554118811-1e0d58224f24?q=80&w=1600&auto=format&fit=crop');background-position:center;background-size:cover">
+        <div class="relative z-10 flex items-center gap-3.5 rounded-2xl w-fit px-5 py-3 border border-white/10 bg-[rgba(13,18,28,0.55)] backdrop-blur-[18px] backdrop-saturate-[140%] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_2px_rgba(0,0,0,0.06),0_8px_24px_rgba(0,0,0,0.12),0_24px_60px_rgba(0,0,0,0.10)]">
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-[#d8b156] text-base font-black text-[#161006] shadow-lg">E</div>
+          <div>
+            <div class="text-base font-black tracking-wide text-white leading-none">Emalatxana Coffee</div>
+            <div class="text-[10px] text-white/50 mt-1">emalatxana.ironwaves.store</div>
+          </div>
+        </div>
+        <div class="relative z-10 max-w-lg rounded-[28px] border border-white/10 bg-[rgba(13,18,28,0.55)] backdrop-blur-[18px] backdrop-saturate-[140%] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_2px_rgba(0,0,0,0.06),0_8px_24px_rgba(0,0,0,0.12),0_24px_60px_rgba(0,0,0,0.10)] p-6 space-y-2">
+          <span class="inline-block rounded-full bg-[#d8b156]/20 border border-[#d8b156]/30 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-[#e8c877]">⚡ iRonWaves POS System</span>
+          <h1 class="text-3xl font-black text-white leading-tight">Xoş Gəlmisiniz!</h1>
+          <p class="text-xs text-slate-300 leading-relaxed">Zəhmət olmasa daxil olmaq üçün heyət PIN kodunuzu və ya admin hesabınızı istifadə edin.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="demo-foot">
+    Bu demo <b>PinLogin.tsx</b>-də işlədilən eyni klassları (GLASS_CARD, GLASS_ACCENT, LOGIN_BG_GRADIENT) göstərir:
+    kart = <b>blur(18px) saturate(140%)</b> + hairline border + yumşaq kölgə; akcent = <b>#d8b156 → #c9a24b</b>.
+    Dəyişiklik yalnız PinLogin.tsx-dədir — Phase 1 fayllarına (App.tsx/index.css) toxunulmayıb.
+  </p>
+</body>
+</html>

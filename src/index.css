@@ -68,6 +68,21 @@
   --gold-b: #b45309;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   GLASS UI TOKENS (Phase 1) — macOS-style token system
+   Consumed by the glass layer that activates under <html data-ui-mode="new">
+   (tenant opt-in via session_settings.ui_mode === 'new'; default 'old'
+   keeps every cafe on its current look).
+   ═══════════════════════════════════════════════════════════════════════ */
+:root {
+  --glass-blur: 18px;
+  --glass-saturate: 140%;
+  --glass-border: rgba(255, 255, 255, 0.10);
+  --glass-highlight: rgba(255, 255, 255, 0.08);
+  --glass-accent: #d8b156;
+  --glass-accent-deep: #c9a24b;
+}
+
 html,
 body,
 #root {
@@ -1208,6 +1223,123 @@ html {
 
   .staff-checkout-btn {
     @apply mt-3 flex h-14 w-full items-center justify-center gap-2 rounded-xl border border-amber-200/40 bg-[linear-gradient(120deg,#f6b24f,#d8754f,#9164ff)] px-4 text-base font-bold text-white shadow-[0_10px_30px_rgba(219,120,79,0.45)] transition disabled:cursor-not-allowed disabled:opacity-45;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     GLASS UI LAYER (Phase 1) — macOS-style frosted surfaces
+     Active only under <html data-ui-mode="new"> (tenant opt-in, default 'old').
+     Every override uses !important because this layer must win over both the
+     classic component rules above AND the light-theme utilities below, so the
+     glass look is always coherent once a tenant opts in.
+     ═══════════════════════════════════════════════════════════════════════ */
+
+  /* Ambient vibrancy behind the glass — gives backdrop-filter something to blur */
+  html[data-ui-mode='new'] .metal-app {
+    background:
+      radial-gradient(circle at 16% 8%, rgba(216, 177, 86, 0.10) 0%, rgba(216, 177, 86, 0) 40%),
+      radial-gradient(circle at 88% 10%, rgba(59, 130, 246, 0.08) 0%, rgba(59, 130, 246, 0) 36%),
+      radial-gradient(circle at 50% 100%, rgba(45, 212, 191, 0.06) 0%, rgba(45, 212, 191, 0) 38%),
+      linear-gradient(160deg, #0d1524 0%, #0a1120 55%, #070d18 100%) !important;
+  }
+
+  /* Frosted translucent panels (hairline border + soft layered shadow) */
+  html[data-ui-mode='new'] .metal-panel,
+  html[data-ui-mode='new'] .pos2-checkout-pane,
+  html[data-ui-mode='new'] .pos3-checkout,
+  html[data-ui-mode='new'] .pos3-menu,
+  html[data-ui-mode='new'] .pos3-header,
+  html[data-ui-mode='new'] .staff-pos-header,
+  html[data-ui-mode='new'] .staff-pos-main,
+  html[data-ui-mode='new'] .staff-cart-panel {
+    background: linear-gradient(170deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035)) !important;
+    border-color: var(--glass-border) !important;
+    box-shadow:
+      inset 0 1px 0 var(--glass-highlight),
+      0 1px 2px rgba(0, 0, 0, 0.06),
+      0 8px 24px rgba(0, 0, 0, 0.12),
+      0 24px 60px rgba(0, 0, 0, 0.10) !important;
+    /* Unprefixed only: modern Chrome ignores -webkit-backdrop-filter and Lightning CSS
+       dedupes a prefixed+unprefixed pair down to the -webkit- form, which would make
+       the blur silently dead in Chrome. */
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) !important;
+  }
+
+  /* Buttons / chips / list rows → translucent glass chips */
+  html[data-ui-mode='new'] .neon-btn,
+  html[data-ui-mode='new'] .neon-chip,
+  html[data-ui-mode='new'] .neon-tab,
+  html[data-ui-mode='new'] .pay-btn,
+  html[data-ui-mode='new'] .neon-item {
+    background: linear-gradient(170deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)) !important;
+    border-color: var(--glass-border) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 6px 18px rgba(2, 6, 23, 0.28) !important;
+    backdrop-filter: blur(14px) saturate(140%) !important;
+  }
+
+  /* Inputs → frosted fields */
+  html[data-ui-mode='new'] .neon-input {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)) !important;
+    border-color: var(--glass-border) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 1px 3px rgba(2, 6, 23, 0.30) !important;
+    backdrop-filter: blur(12px) !important;
+  }
+
+  /* Active states → desaturated gold (eye-friendly replacement for #facc15) */
+  html[data-ui-mode='new'] .neon-btn-active,
+  html[data-ui-mode='new'] .neon-chip-active,
+  html[data-ui-mode='new'] .neon-tab-active,
+  html[data-ui-mode='new'] .pay-btn-active,
+  html[data-ui-mode='new'] .glossy-gold {
+    color: #161006 !important;
+    border-color: rgba(216, 177, 86, 0.70) !important;
+    background: linear-gradient(180deg, var(--glass-accent) 0%, var(--glass-accent-deep) 100%) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 10px 26px rgba(161, 120, 44, 0.28) !important;
+  }
+
+  /* Product / recent cards */
+  html[data-ui-mode='new'] .pos2-product-card,
+  html[data-ui-mode='new'] .pos3-card,
+  html[data-ui-mode='new'] .pos3-recent-card,
+  html[data-ui-mode='new'] .staff-product-card,
+  html[data-ui-mode='new'] .staff-recent-card {
+    background: linear-gradient(168deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03)) !important;
+    border-color: var(--glass-border) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 6px 18px rgba(2, 6, 23, 0.22) !important;
+  }
+
+  /* Fallback: no backdrop-filter support → keep panels solid and readable */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    html[data-ui-mode='new'] .metal-panel,
+    html[data-ui-mode='new'] .pos2-checkout-pane,
+    html[data-ui-mode='new'] .pos3-checkout,
+    html[data-ui-mode='new'] .pos3-menu,
+    html[data-ui-mode='new'] .staff-pos-main,
+    html[data-ui-mode='new'] .staff-cart-panel {
+      background: linear-gradient(170deg, rgba(24, 34, 50, 0.97), rgba(10, 16, 26, 0.97)) !important;
+    }
+  }
+
+  /* Accessibility: reduce blur when the OS asks for less transparency */
+  @media (prefers-reduced-transparency: reduce) {
+    html[data-ui-mode='new'] .metal-panel,
+    html[data-ui-mode='new'] .pos2-checkout-pane,
+    html[data-ui-mode='new'] .pos3-checkout,
+    html[data-ui-mode='new'] .pos3-menu,
+    html[data-ui-mode='new'] .pos3-header,
+    html[data-ui-mode='new'] .staff-pos-header,
+    html[data-ui-mode='new'] .staff-pos-main,
+    html[data-ui-mode='new'] .staff-cart-panel,
+    html[data-ui-mode='new'] .neon-btn,
+    html[data-ui-mode='new'] .neon-chip,
+    html[data-ui-mode='new'] .neon-tab,
+    html[data-ui-mode='new'] .pay-btn,
+    html[data-ui-mode='new'] .neon-item,
+    html[data-ui-mode='new'] .neon-input {
+      backdrop-filter: none !important;
+      background: linear-gradient(170deg, rgba(24, 34, 50, 0.97), rgba(10, 16, 26, 0.97)) !important;
+    }
   }
 }
 

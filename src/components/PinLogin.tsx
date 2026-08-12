@@ -8,6 +8,21 @@ import { getResolvedTenantIdFromHost } from '../lib/tenant';
 import { authApi } from '../api/auth';
 import { getApiBaseUrl } from '../api/client';
 
+// ── macOS-style glass surfaces (PinLogin-only; kept separate from Phase 1 token work) ──
+// Frosted translucent card: blur 18px + saturate 140%, hairline border, soft layered shadow.
+const GLASS_CARD =
+  'border border-white/10 bg-white/[0.07] backdrop-blur-[18px] backdrop-saturate-[140%] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_2px_rgba(0,0,0,0.06),0_8px_24px_rgba(0,0,0,0.12),0_24px_60px_rgba(0,0,0,0.10)]';
+// Image-backed variant (left panel over the restaurant photo): darker tint keeps white
+// text readable even when the tenant's background image is bright at the top.
+const GLASS_CARD_OVER_IMAGE =
+  'border border-white/10 bg-[rgba(13,18,28,0.55)] backdrop-blur-[18px] backdrop-saturate-[140%] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_2px_rgba(0,0,0,0.06),0_8px_24px_rgba(0,0,0,0.12),0_24px_60px_rgba(0,0,0,0.10)]';
+// Desaturated gold accent (eye-friendly replacement for the saturated #facc15 / #f59e0b).
+const GLASS_ACCENT = 'bg-gradient-to-r from-[#d8b156] to-[#c9a24b]';
+
+// Soft ambient color blobs behind the glass (macOS-style vibrancy for the blur to frost).
+const LOGIN_BG_GRADIENT =
+  'radial-gradient(circle at 18% 12%, rgba(216,177,86,0.16) 0%, rgba(216,177,86,0) 42%), radial-gradient(circle at 88% 18%, rgba(59,130,246,0.13) 0%, rgba(59,130,246,0) 40%), radial-gradient(circle at 52% 92%, rgba(45,212,191,0.10) 0%, rgba(45,212,191,0) 44%), linear-gradient(180deg, #0d1524 0%, #0a1120 60%, #08101c 100%)';
+
 export default function PinLogin() {
   const { login, adminLogin, bootstrapPlatformOwner, lang, setLang, adminNeeds2FA, authErrorMessage, clearAuthError } = useAppStore();
   const safeLang = (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az';
@@ -321,8 +336,8 @@ export default function PinLogin() {
     const isSuspended = tenantAccessState === 'suspended';
     return (
       <div className="metal-app relative flex min-h-[100dvh] items-center justify-center overflow-hidden px-4 py-8">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_20%),linear-gradient(180deg,rgba(10,16,22,0.88),rgba(10,16,22,0.96))]" />
-        <div className="relative w-full max-w-2xl rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,21,32,0.92),rgba(15,21,32,0.82))] p-7 shadow-[0_28px_90px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+        <div className="absolute inset-0" style={{ background: LOGIN_BG_GRADIENT }} />
+        <div className={`relative w-full max-w-2xl rounded-[32px] ${GLASS_CARD} p-7`}>
           <div className="mb-3 inline-flex rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">
             iRonWaves POS
           </div>
@@ -392,7 +407,7 @@ export default function PinLogin() {
         }}
       >
         {/* Floating brand block */}
-        <div className="relative z-10 flex items-center gap-3.5 bg-slate-950/40 border border-white/10 backdrop-blur-xl px-5 py-3 rounded-2xl w-fit">
+        <div className={`relative z-10 flex items-center gap-3.5 ${GLASS_CARD_OVER_IMAGE} px-5 py-3 rounded-2xl w-fit`}>
           {isBrandingLoading ? (
             <>
               <div className="h-10 w-10 rounded-xl bg-slate-700/60 animate-pulse" />
@@ -401,8 +416,8 @@ export default function PinLogin() {
                 <div className="h-2.5 w-20 rounded-lg bg-slate-700/40 animate-pulse" />
               </div>
               {isServerStarting && (
-                <div className="ml-2 flex items-center gap-1.5 text-xs text-yellow-300/80 animate-pulse">
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-yellow-400 animate-ping" />
+                <div className="ml-2 flex items-center gap-1.5 text-xs text-[#e8c877]/80 animate-pulse">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#d8b156] animate-ping" />
                   Bağlantı gözlənilir...
                 </div>
               )}
@@ -414,7 +429,7 @@ export default function PinLogin() {
               {branding?.logo_url ? (
                 <img src={branding.logo_url} alt="brand logo" className="h-10 w-10 rounded-xl object-cover shadow-lg" />
               ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-400 text-base font-black text-slate-900 shadow-lg">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#d8b156] text-base font-black text-[#161006] shadow-lg">
                   {(branding?.company_name || 'I').trim().slice(0, 1).toUpperCase()}
                 </div>
               )}
@@ -427,8 +442,8 @@ export default function PinLogin() {
         </div>
 
         {/* Dynamic Welcome Card */}
-        <div className="relative z-10 max-w-lg rounded-[28px] border border-white/10 bg-slate-950/50 p-6 backdrop-blur-xl space-y-2">
-          <span className="inline-block rounded-full bg-yellow-400/20 border border-yellow-400/30 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-yellow-300">
+        <div className={`relative z-10 max-w-lg rounded-[28px] ${GLASS_CARD_OVER_IMAGE} p-6 space-y-2`}>
+          <span className="inline-block rounded-full bg-[#d8b156]/20 border border-[#d8b156]/30 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-[#e8c877]">
             ⚡ iRonWaves POS System
           </span>
           <h1 className="text-3xl font-black text-white leading-tight">
@@ -447,7 +462,8 @@ export default function PinLogin() {
 
       {/* RIGHT PANEL: Login pad */}
       <div 
-        className="w-full md:w-[440px] lg:w-[480px] shrink-0 h-[100dvh] max-h-[100dvh] md:h-screen overflow-hidden md:overflow-y-auto relative flex flex-col justify-between px-6 py-6 bg-[#0a0e17] border-l border-white/[0.04] md:-ml-[88px] lg:-ml-[96px] shadow-[-15px_0_30px_rgba(0,0,0,0.5)] z-20 touch-none overscroll-none"
+        className="w-full md:w-[440px] lg:w-[480px] shrink-0 h-[100dvh] max-h-[100dvh] md:h-screen overflow-hidden md:overflow-y-auto relative flex flex-col justify-between px-6 py-6 border-l border-white/[0.04] md:-ml-[88px] lg:-ml-[96px] shadow-[-15px_0_30px_rgba(0,0,0,0.5)] z-20 touch-none overscroll-none"
+        style={{ background: LOGIN_BG_GRADIENT }}
       >
         {/* Fullscreen toggle button */}
         {fullscreenSupported && (
@@ -484,7 +500,7 @@ export default function PinLogin() {
                 {branding?.logo_url ? (
                   <img src={branding.logo_url} alt="brand logo" className="h-12 w-12 rounded-xl object-cover shadow-lg" />
                 ) : (
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-yellow-400 text-lg font-black text-slate-900 shadow-lg">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#d8b156] text-lg font-black text-[#161006] shadow-lg">
                     {(branding?.company_name || 'I').trim().slice(0, 1).toUpperCase()}
                   </div>
                 )}
@@ -520,7 +536,7 @@ export default function PinLogin() {
           )}
 
           {/* Language selector & Mode selection card */}
-          <div className="rounded-[24px] border border-white/10 bg-white/[0.02] p-4 space-y-3">
+          <div className={`rounded-[24px] ${GLASS_CARD} p-4 space-y-3`}>
             <div className="flex items-center justify-between gap-3">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                 {tx(safeLang, 'Tətbiq dili', 'Язык приложения', 'Language')}
@@ -536,16 +552,16 @@ export default function PinLogin() {
                 <option value="en">EN</option>
               </select>
             </div>
-            
+
             <div className="flex gap-1.5 p-1 rounded-2xl bg-black/40 border border-white/5">
               <button 
-                className={`flex-1 min-h-10 text-xs font-bold rounded-xl transition ${mode === 'staff' ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'}`} 
+                className={`flex-1 min-h-10 text-xs font-bold rounded-xl transition ${mode === 'staff' ? `${GLASS_ACCENT} text-[#161006] shadow-md` : 'text-slate-400 hover:text-white'}`} 
                 onClick={() => setMode('staff')}
               >
                 {tx(safeLang, 'STAFF', 'ПЕРСОНАЛ', 'STAFF')}
               </button>
               <button 
-                className={`flex-1 min-h-10 text-xs font-bold rounded-xl transition ${mode === 'admin' ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'}`} 
+                className={`flex-1 min-h-10 text-xs font-bold rounded-xl transition ${mode === 'admin' ? `${GLASS_ACCENT} text-[#161006] shadow-md` : 'text-slate-400 hover:text-white'}`} 
                 onClick={() => setMode('admin')}
               >
                 {tx(safeLang, 'ADMIN', 'АДМИН', 'ADMIN')}
@@ -554,7 +570,7 @@ export default function PinLogin() {
           </div>
 
           {/* PIN Pad or Admin login Form */}
-          <div className="rounded-[28px] border border-white/10 bg-slate-900/50 p-6 space-y-5 shadow-xl">
+          <div className={`rounded-[28px] ${GLASS_CARD} p-6 space-y-5`}>
             {mode === 'staff' ? (
               <>
                 <div className="rounded-2xl border border-white/5 bg-black/40 px-5 py-4 text-center">
@@ -571,7 +587,7 @@ export default function PinLogin() {
                       key={num}
                       onClick={() => handleKeyPress(num.toString())}
                       disabled={isLoggingIn}
-                      className="rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] active:scale-95 py-5 text-2xl font-bold text-white transition shadow-sm"
+                      className="rounded-2xl border border-white/5 bg-white/[0.08] hover:bg-white/[0.14] active:scale-95 py-5 text-2xl font-bold text-white transition shadow-sm"
                     >
                       {num}
                     </button>
@@ -579,7 +595,7 @@ export default function PinLogin() {
                   <button
                     onClick={handleClear}
                     disabled={isLoggingIn}
-                    className="rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] active:scale-95 py-5 text-sm font-bold text-slate-400 transition"
+                    className="rounded-2xl border border-white/5 bg-white/[0.08] hover:bg-white/[0.14] active:scale-95 py-5 text-sm font-bold text-slate-400 transition"
                   >
                     CLR
                   </button>
@@ -593,7 +609,7 @@ export default function PinLogin() {
                   <button
                     onClick={() => setPin((prev) => prev.slice(0, -1))}
                     disabled={isLoggingIn}
-                    className="flex items-center justify-center rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] active:scale-95 py-5 text-white transition"
+                    className="flex items-center justify-center rounded-2xl border border-white/5 bg-white/[0.08] hover:bg-white/[0.14] active:scale-95 py-5 text-white transition"
                   >
                     <Delete size={20} />
                   </button>
@@ -632,7 +648,7 @@ export default function PinLogin() {
             <button
               onClick={() => (mode === 'admin' ? handleAdminSubmit() : handleClear())}
               disabled={isLoggingIn}
-              className={`w-full rounded-2xl py-3.5 text-sm font-extrabold transition-all active:scale-95 ${error ? 'bg-red-500 text-white animate-shake' : 'bg-gradient-to-r from-yellow-400 to-amber-500 text-slate-900 shadow-md hover:shadow-lg'}`}
+              className={`w-full rounded-2xl py-3.5 text-sm font-extrabold transition-all active:scale-95 ${error ? 'bg-red-500 text-white animate-shake' : `${GLASS_ACCENT} text-[#161006] shadow-md hover:shadow-lg`}`}
             >
               {mode === 'staff'
                 ? (isLoggingIn ? tx(safeLang, 'Yoxlanılır...', 'Проверка...', 'Checking...') : tx(safeLang, 'PIN-i Sıfırla', 'Сбросить PIN', 'Reset PIN'))
