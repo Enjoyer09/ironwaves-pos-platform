@@ -6,6 +6,8 @@
 
 What defines a world-class restaurant POS (Toast, Square, Poster, iiko) is not beauty but **how fast a waiter can enter an order**. Glass/aurora is the brand layer, not the core. This document defines the 3-layer design system, a macOS-style aurora recipe, the glass primitive spec, eye-friendly dark palette rules, and a 5-step roadmap. All changes stay behind the `data-ui-mode='new'` opt-in gate — existing cafes (classic) are untouched.
 
+**📌 Key decision (2026-08-12): All updates are carried out on the Modern-BahaY (pos3) UI.** The team does not put visual work into the classic UI — classic is kept only to preserve existing cafes' look. New features, design changes and fixes are applied first on the **pos3 layout (POS sales) + the modern tables view**; the `data-ui-mode='new'` gate keeps the classic look untouched. The classic UI is only touched for critical bugs that break production — and even then the fix must be verified in both layouts.
+
 ## 2. 3-layer design system
 
 The foundation of world-class quality is **"one visual language"** — this is the biggest gap in the competitive audit (5 different dialects in one product: metal/neon staff, pos2/pos3, classic tables, customer orange, mobile waiter).
