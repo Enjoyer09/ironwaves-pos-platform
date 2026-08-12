@@ -174,7 +174,7 @@ function TableGrid({
               onMouseDown={() => { clearLongPress(); longPressRef.current = window.setTimeout(() => { playHapticHeavy(); setQuickActionsTableId(table.id); }, 450); }}
               onMouseUp={clearLongPress}
               onMouseLeave={clearLongPress}
-              className={`group relative overflow-hidden rounded-[22px] border p-3.5 transition-all duration-200 active:scale-[0.97] ${cfg.border} ${cfg.glow} ${
+              className={`table-card-glass group relative overflow-hidden rounded-[22px] border p-3.5 transition-all duration-200 active:scale-[0.97] ${cfg.border} ${cfg.glow} ${
                 isSelected ? 'ring-2 ring-yellow-300/70 shadow-[0_0_30px_rgba(250,204,21,0.15)]' : ''
               } ${isMyTable && showMyTablesFilter ? 'ring-1 ring-yellow-400/40' : ''}`}
               style={{

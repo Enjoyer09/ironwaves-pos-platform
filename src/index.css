@@ -34,7 +34,7 @@
   --metal-stroke: rgba(255, 255, 255, 0.08);
   --metal-highlight: rgba(255, 255, 255, 0.04);
   --gold-a: #fbbf24;
-  --gold-b: #b45309;
+  --gold-b: #c9a24b;
 }
 
 :root[data-theme='light'] {
@@ -65,7 +65,7 @@
   --metal-stroke: rgba(255, 255, 255, 0.06);
   --metal-highlight: rgba(255, 255, 255, 0.03);
   --gold-a: #fbbf24;
-  --gold-b: #b45309;
+  --gold-b: #c9a24b;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -437,7 +437,9 @@ html {
     border-radius: 24px;
     font-size: 12px;
     font-weight: 800;
-    color: #fff;
+    /* §9.5 (UI_AUDIT_GLASS): white text on #F48C24 was 2.44:1 (FAIL) —
+       dark stone-900 text reaches ~7.18:1 on the orange gradient. */
+    color: #1c1917;
     background: linear-gradient(135deg, #F48C24, #ff9f3a);
     box-shadow: 0 8px 24px rgba(244, 140, 36, 0.40), 0 0 0 1px rgba(255,255,255,0.12);
     backdrop-filter: blur(12px);
@@ -1309,6 +1311,54 @@ html {
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 6px 18px rgba(2, 6, 23, 0.22) !important;
   }
 
+  /* ═══════════════════════════════════════════════════════════════════
+     MASALAR (TABLES) — glass floor view + table cards (Phase 2)
+     Opt-in via html[data-ui-mode='new'] only; default 'old' untouched.
+     Status colors (emerald/amber/rose/violet/slate) are KEPT — only
+     backdrop blur, translucency and soft shadows are added.
+     ═══════════════════════════════════════════════════════════════════ */
+
+  /* Ambient color blobs behind the floor / table area (desktop + mobile) */
+  html[data-ui-mode='new'] .tables-page-shell {
+    background:
+      radial-gradient(circle at 18% 10%, rgba(216, 177, 86, 0.10) 0%, rgba(216, 177, 86, 0) 44%),
+      radial-gradient(circle at 88% 16%, rgba(59, 130, 246, 0.09) 0%, rgba(59, 130, 246, 0) 40%),
+      radial-gradient(circle at 45% 100%, rgba(45, 212, 191, 0.06) 0%, rgba(45, 212, 191, 0) 42%),
+      transparent !important;
+  }
+
+  html[data-ui-mode='new'] .tables-mobile-shell {
+    background:
+      radial-gradient(circle at 22% 8%, rgba(216, 177, 86, 0.12) 0%, rgba(216, 177, 86, 0) 42%),
+      radial-gradient(circle at 92% 26%, rgba(59, 130, 246, 0.10) 0%, rgba(59, 130, 246, 0) 40%),
+      radial-gradient(circle at 38% 96%, rgba(45, 212, 191, 0.08) 0%, rgba(45, 212, 191, 0) 45%),
+      #0b0f19 !important;
+  }
+
+  /* Floor grid + list panels → frosted glass containers
+     (blur 16px — §7.6: large surfaces stay ≤16px for weak devices) */
+  html[data-ui-mode='new'] .tables-glass-panel {
+    background: rgba(10, 15, 24, 0.28) !important;
+    border-color: var(--glass-border) !important;
+    box-shadow:
+      inset 0 1px 0 var(--glass-highlight),
+      0 8px 24px rgba(2, 6, 23, 0.16),
+      0 24px 60px rgba(2, 6, 23, 0.12) !important;
+    backdrop-filter: blur(16px) saturate(var(--glass-saturate)) !important;
+  }
+
+  /* Map-view table cells → frosted colored-glass chips (status tints kept) */
+  html[data-ui-mode='new'] .floor-table-cell {
+    backdrop-filter: blur(16px) saturate(var(--glass-saturate)) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 6px 18px rgba(2, 6, 23, 0.26);
+  }
+
+  /* List + mobile table cards → frosted (overrides inline blur(8px); status tint kept) */
+  html[data-ui-mode='new'] .table-card-glass {
+    backdrop-filter: blur(16px) saturate(var(--glass-saturate)) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10), 0 8px 24px rgba(2, 6, 23, 0.26);
+  }
+
   /* Fallback: no backdrop-filter support → keep panels solid and readable */
   @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     html[data-ui-mode='new'] .metal-panel,
@@ -1316,7 +1366,8 @@ html {
     html[data-ui-mode='new'] .pos3-checkout,
     html[data-ui-mode='new'] .pos3-menu,
     html[data-ui-mode='new'] .staff-pos-main,
-    html[data-ui-mode='new'] .staff-cart-panel {
+    html[data-ui-mode='new'] .staff-cart-panel,
+    html[data-ui-mode='new'] .tables-glass-panel {
       background: linear-gradient(170deg, rgba(24, 34, 50, 0.97), rgba(10, 16, 26, 0.97)) !important;
     }
   }
@@ -1336,7 +1387,10 @@ html {
     html[data-ui-mode='new'] .neon-tab,
     html[data-ui-mode='new'] .pay-btn,
     html[data-ui-mode='new'] .neon-item,
-    html[data-ui-mode='new'] .neon-input {
+    html[data-ui-mode='new'] .neon-input,
+    html[data-ui-mode='new'] .tables-glass-panel,
+    html[data-ui-mode='new'] .table-card-glass,
+    html[data-ui-mode='new'] .floor-table-cell {
       backdrop-filter: none !important;
       background: linear-gradient(170deg, rgba(24, 34, 50, 0.97), rgba(10, 16, 26, 0.97)) !important;
     }

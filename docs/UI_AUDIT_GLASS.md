@@ -1,5 +1,7 @@
 # UI Audit & macOS Glass Planı — iRonWaves POS
 
+> 🌐 **English version:** [UI_AUDIT_GLASS_EN.md](UI_AUDIT_GLASS_EN.md)
+
 > Bu sənəd UI-nin hazırkı vəziyyətini, macOS-üslublu glass (frosted glass) dizayn sisteminə keçid planını və production-da təhlükəsiz tətbiq qaydalarını təsvir edir. Komanda gələcək glass işlərini bu plana uyğun aparmalıdır.
 
 **Status (2026-08):** Phase 1 (glass token sistemi + `data-ui-mode` bağlantısı) və PinLogin glass-ı implementasiya olunub. Aşağıdakı bölmələrdə status hər maddə üzrə qeyd olunub.
@@ -86,7 +88,7 @@ Hesablama: relative luminance + kontrast düsturu ilə aparıldı (`node /tmp/co
 | Akcent | `#111827` mətn | `#161006` mətn | Ağ mətn |
 |---|---|---|---|
 | `#facc15` (cari) | 11.58 AAA | 12.34 AAA | 1.53 ❌ |
-| `#b45309` (`--gold-b`) | **3.53 ⚠️** | 3.76 ⚠️ | 5.02 AA |
+| `#b45309` (köhnə `--gold-b`, indi `#c9a24b`) | **3.53 ⚠️** | 3.76 ⚠️ | 5.02 AA — mətn kimi saxlanır |
 | `#d8b156` (təklif) | **8.74 AAA** | **9.31 AAA** | 2.03 ❌ |
 | `#c9a24b` (təklif) | **7.39 AAA** | **7.88 AAA** | 2.40 ❌ |
 | `#e8c877` (açıq mətn) | 10.95 AAA | 11.67 AAA | 1.62 ❌ |
@@ -101,7 +103,7 @@ Hesablama: relative luminance + kontrast düsturu ilə aparıldı (`node /tmp/co
 
 ### 5.3 Kritik nəticələr
 
-1. **`#b45309` kontrast bug-ı:** `neon-btn-active` gradient dibi tünd mətndə cəmi 3.53:1 — normal mətn üçün AA keçmir. `#d8b156→#c9a24b` keçidi bunu düzəldir (7.39 AAA). **TODO: index.css-də düzəliş.**
+1. **`#b45309` kontrast bug-ı:** `neon-btn-active` gradient dibi tünd mətndə cəmi 3.53:1 — normal mətn üçün AA keçmir. `#d8b156→#c9a24b` keçidi bunu düzəldir (7.39 AAA). **✅ Hazır (2026-08-12):** `--gold-b` həm `:root`, həm də `:root[data-ui-mode='new']`-də `#c9a24b` edildi — old/light/new bütün variantlarda gradient dibi `#c9a24b`-dir (build + vizual yoxlama keçdi).
 2. **Qızıl üzərində ağ mətn qadağandır** (bütün tonlarda FAIL). CustomerApp toast-ları (`#F48C24` + ağ mətn = 2.44:1) ayrıca düzəliş tələb edir.
 3. **Light-temada qızıl mətn yoxdur:** açıq qızılı (`#fcd34d`) ağ kartda 1.44:1 — ən azı `#b45309` (5.02 AA) işlədilməlidir.
 4. **KDS üçün parlaq sarı saxlanmalıdır** — mətbəx ekranı uzaqdan oxunur (`#facc15` + `#0f172a` = 13.17 AAA).
@@ -116,10 +118,11 @@ Hesablama: relative luminance + kontrast düsturu ilə aparıldı (`node /tmp/co
 | 🥇 1 | **PinLogin** | Fon ləkələri + glass kart + `#d8b156` | ✅ **Hazır** |
 | 🥇 2 | **POS (satış)** | Səbət paneli `blur(16px)`, menü kartları şəffaf | ⏳ Phase 1 CSS-də hazır, tenant aktivləşdirməsi lazım |
 | 🥈 3 | **App shell / naviqasiya** | Üst bar + modul naviqasiyası glass pill | ⏳ `metal-panel`/`neon-*` vasitəsilə hazır |
-| 🥈 4 | **Masalar (Tables)** | Masa kartları glass, status rəngləri saxla | ⏳ yoxlanılmayıb |
+| 🥈 4 | **Masalar (Tables)** | Masa kartları glass, status rəngləri saxla | ✅ **Hazır (2026-08-12)** — opt-in `data-ui-mode='new'`; `table-card-glass`/`floor-table-cell`/`tables-glass-panel` blur(16px, §7.6), shell ləkələri; status rəngləri saxlanıb |
 | 🥉 5 | **KDS (mətbəx)** | Parlaqlıq saxlanmalı; yalnız panellərdə yumşaq blur | ⚠️ xüsusi diqqət |
 | 🥉 6 | **AdminPanel** | Glass kartlar; light-temada açıq variant | ⏳ yoxlanılmayıb |
 | ✅ Hazır | **CustomerApp** | Tam glass mövcuddur | ℹ️ yalnız `saturate(180%)→140%` endirmə |
+| ✅ Hazır | **Akcent kontrast bug-ı** | `--gold-b` gradient dibi `#b45309`→`#c9a24b` (old/light/new) | ✅ **Hazır (2026-08-12)** |
 
 ---
 
@@ -149,12 +152,12 @@ Hesablama: relative luminance + kontrast düsturu ilə aparıldı (`node /tmp/co
 
 ## 9. Məlum Boşluqlar / Növbəti Addımlar
 
-1. **POS `isNewUiMode` uzlaşdırılması:** `POS.tsx` hələ `session_settings.ui_mode`-a baxmır (yalnız `tables_ui_mode`/localStorage). Tenant `ui_mode='new'` qoysa qlobal glass işləyir, amma POS layout `pos2/pos3` klasslarına keçmir. İki qapı eyniləşdirilməlidir.
-2. **`#b45309` düzəlişi:** `neon-btn-active` gradient dibi 3.53:1 — `#c9a24b`-yə dəyişilməlidir (bax §5.3.1).
-3. **KDS yoxlanışı:** glass rejimində parlaqlıq itməməlidir.
-4. **Light-temada qızıl mətn** (qiymətlər) — ən azı `#b45309`-a endirilməlidir.
-5. **CustomerApp portağalı** (`#F48C24`) — ağ mətnli toast/düymələr tünd mətnə çevrilməlidir.
-6. **Demo artefaktları:** `.freebuff-glass-preview/` qovluğu (demo HTML-lər, hər biri ~380KB inline CSS) müvəqqətidir — **commit etməzdən əvvəl silinməlidir**.
+1. **POS `isNewUiMode` uzlaşdırılması:** ~~`POS.tsx` hələ `session_settings.ui_mode`-a baxmır (yalnız `tables_ui_mode`/localStorage). Tenant `ui_mode='new'` qoysa qlobal glass işləyir, amma POS layout `pos2/pos3` klasslarına keçmir. İki qapı eyniləşdirilməlidir.~~ **✅ Hazır (2026-08-12):** `POS.tsx` `isNewUiMode` və `App.tsx` `currentUiMode` artıq `session_settings.ui_mode === 'new'`-ı da yoxlayır (lokal override → host → `ui_mode` → `tables_ui_mode`). Glass tenant-ı indi `pos2/pos3` layout-a da keçir — tək qapı. **Qeyd:** `TablesPage.isBahaYLab` bilərəkdən `ui_mode`-a bağlanmır — bu eksperimental lab qapısıdır (`super.ironwaves.store` + `tables_ui_mode='modern'`); glass CSS masalar ekranına `data-ui-mode` vasitəsilə ayrıca tətbiq olunur.
+2. **`#b45309` düzəlişi:** ~~`neon-btn-active` gradient dibi 3.53:1 — `#c9a24b`-yə dəyişilməlidir (bax §5.3.1).~~ **✅ Hazır (2026-08-12)** — `--gold-b` → `#c9a24b` (old/light/new variantlarında; mətn rəngi `#b45309` qəsdən saxlanıldı, 5.02 AA).
+3. **KDS yoxlanışı:** ~~glass rejimində parlaqlıq itməməlidir.~~ **✅ Yoxlanıldı (2026-08-12, computed-style):** KDS neon-* sinifləri işlətmədiyi üçün glass layer masalarına toxunmur — order kartlarının `bg-{c}-900/20` + `border-{c}-300/*` rəngləri NEW mode-da eyni qalır (utilities qazanır), sarı akcentlər (`text-yellow-300`) parlaq saxlanılır; yalnız `metal-panel` (header çipi) yumşaq glass blur alır. Kod dəyişikliyi tələb olunmadı.
+4. **Light-temada qızıl mətn** (qiymətlər) — ~~ən azı `#b45309`-a endirilməlidir.~~ **✅ Artıq təmin olunub:** `html[data-theme='light'] [class*='text-amber-100']` (və yellow/orange) `color: #b45309` (5.02 AA) ilə xəritələnir — dəyişiklik tələb olunmur.
+5. **CustomerApp portağalı** (`#F48C24`) — ~~ağ mətnli toast/düymələr tünd mətnə çevrilməlidir.~~ **✅ Hazır (2026-08-12):** `.cust-toast` mətn rəngi `#fff` → `#1c1917` (2.44:1 → ~7.18:1). Join düyməsi artıq `text-slate-950` idi — dəyişiklik tələb olunmadı.
+6. **Demo artefaktları:** ~~`.freebuff-glass-preview/` qovluğu (demo HTML-lər, hər biri ~380KB inline CSS) müvəqqətidir — commit etməzdən əvvəl silinməlidir.~~ **✅ Silindi (2026-08-12)** — qovluq repository-dən təmizləndi.
 
 ---
 

@@ -101,7 +101,7 @@ export default function MobileWaiterUI({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] bg-[#0b0f19] flex flex-col h-[100dvh] max-h-[100dvh] overflow-y-auto p-4 space-y-3 pb-24 select-none">
+    <div className="tables-mobile-shell fixed inset-0 z-[60] bg-[#0b0f19] flex flex-col h-[100dvh] max-h-[100dvh] overflow-y-auto p-4 space-y-3 pb-24 select-none">
       <style>{`
         @keyframes pulseGlowReady {
           0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
@@ -206,7 +206,7 @@ export default function MobileWaiterUI({
             <div
               key={table.id}
               onClick={() => handleTableTap(table)}
-              className={`relative flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-95 transition-all duration-150 ${
+              className={`table-card-glass relative flex flex-col rounded-2xl overflow-hidden cursor-pointer active:scale-95 transition-all duration-150 ${
                 isReady
                   ? 'bg-gradient-to-b from-cyan-500 to-cyan-700 shadow-lg shadow-cyan-500/30'
                   : isOccupied

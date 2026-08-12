@@ -1719,6 +1719,8 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
           ? 'bg-[radial-gradient(circle_at_top,#2e3247,#151b26_58%)]'
           : 'bg-[radial-gradient(circle_at_top,#2a3342,#141b24_55%)]';
   // BahaY: Aelia-style new POS UI — controlled by tenant setting with local override fallback
+  // §9.1 (UI_AUDIT_GLASS): also honor session_settings.ui_mode === 'new' so a glass tenant
+  // gets the pos2/pos3 layout too (single gate with the global glass toggle).
   const isNewUiMode = (() => {
     try {
       const local = localStorage.getItem('iw_pos_ui_mode');
@@ -1729,7 +1731,9 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       const host = String(window.location.hostname || '').toLowerCase();
       if (host === 'super.ironwaves.store') return true;
     } catch {}
-    const fromSettings = String(tenantSettings.session_settings?.tables_ui_mode || tenantSettings.tables_ui_mode || '').toLowerCase();
+    const sessionSettings = tenantSettings.session_settings || {};
+    if (String(sessionSettings.ui_mode || '').toLowerCase() === 'new') return true;
+    const fromSettings = String(sessionSettings.tables_ui_mode || tenantSettings.tables_ui_mode || '').toLowerCase();
     return fromSettings === 'modern';
   })();
   const orderTypeBlockVisible = isWidgetVisible('orderType');
