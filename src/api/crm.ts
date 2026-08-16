@@ -372,6 +372,8 @@ export async function get_customer_app_session_live(card_id: string, token: stri
         lifetime_stars: Number((customer as any).lifetime_stars ?? stars),
         tier: computeTier(Number((customer as any).lifetime_stars ?? stars), settings.tiers),
         discount_percent: String((customer as any).discount_percent || 0),
+        name: String((customer as any).name || ''),
+        birth_date: (customer as any).birth_date || null,
         created_at: customer.created_at,
       },
       wallet: {
@@ -449,8 +451,12 @@ export async function enroll_customer_app_live(
   tenant_id?: string,
   join_customer_type?: string,
   join_discount_percent?: number,
+  name?: string,
+  birth_date?: string,
 ) {
   const tenantId = tenant_id || defaultTenant();
+  const cleanName = String(name || '').trim();
+  const cleanBirth = String(birth_date || '').trim() || undefined;
   if (!consent_accepted) throw new Error('Consent must be accepted');
   if (!isBackendEnabled()) {
     const customers = getCustomersLocal(tenantId);
@@ -466,6 +472,8 @@ export async function enroll_customer_app_live(
       secret_token: token,
       created_at: new Date().toISOString(),
     };
+    if (cleanName) (newCustomer as any).name = cleanName;
+    if (cleanBirth) (newCustomer as any).birth_date = cleanBirth;
     customers.push(newCustomer);
     saveCustomersLocal(tenantId, customers);
     send_notification({ card_ids: [card_id], message: 'Loyalty club hesabınız yaradıldı. QR kartınızı kassada göstərə bilərsiniz.' });
@@ -479,6 +487,8 @@ export async function enroll_customer_app_live(
       consent_accepted: true,
       join_customer_type,
       join_discount_percent,
+      name: cleanName || undefined,
+      birth_date: cleanBirth,
     },
   });
 }
@@ -608,7 +618,11 @@ export async function verify_customer_otp_live(
   code: string,
   joinCustomerType: string = 'golden',
   joinDiscountPercent: number = 0,
+  name?: string,
+  birthDate?: string,
 ) {
+  const cleanName = String(name || '').trim();
+  const cleanBirth = String(birthDate || '').trim() || undefined;
   if (!isBackendEnabled()) {
     if (code !== '1234') {
       throw new Error('Təsdiq kodu yanlışdır');
@@ -626,8 +640,68 @@ export async function verify_customer_otp_live(
       code,
       join_customer_type: joinCustomerType,
       join_discount_percent: joinDiscountPercent,
+      name: cleanName || undefined,
+      birth_date: cleanBirth,
     },
   });
+}
+
+export async function update_customer_name_live(card_id: string, token: string, name: string, tenant_id?: string) {
+  const tenantId = tenant_id || defaultTenant();
+  const safeCard = String(card_id || '').trim();
+  const safeToken = String(token || '').trim();
+  const cleanName = String(name || '').trim();
+  if (!safeCard || !safeToken || !cleanName) {
+    throw new Error('Customer name update is invalid');
+  }
+  if (!isBackendEnabled()) {
+    const customers = getCustomersLocal(tenantId);
+    const idx = customers.findIndex(
+      (row) => String(row.card_id || '').toLowerCase() === safeCard.toLowerCase() && row.secret_token === safeToken,
+    );
+    if (idx === -1) throw new Error('Customer session is invalid');
+    (customers[idx] as any).name = cleanName;
+    saveCustomersLocal(tenantId, customers);
+    return { success: true, name: cleanName };
+  }
+  return apiRequest<{ success: boolean; name: string }>(
+    `/api/v1/ops/customer-app/profile/name?id=${encodeURIComponent(safeCard)}&t=${encodeURIComponent(safeToken)}`,
+    {
+      method: 'POST',
+      tenantId: null,
+      auth: false,
+      body: { name: cleanName },
+    },
+  );
+}
+
+export async function update_customer_birthday_live(card_id: string, token: string, birth_date: string, tenant_id?: string) {
+  const tenantId = tenant_id || defaultTenant();
+  const safeCard = String(card_id || '').trim();
+  const safeToken = String(token || '').trim();
+  const cleanBirth = String(birth_date || '').trim();
+  if (!safeCard || !safeToken || !cleanBirth) {
+    throw new Error('Customer birth date update is invalid');
+  }
+  if (!isBackendEnabled()) {
+    const customers = getCustomersLocal(tenantId);
+    const idx = customers.findIndex(
+      (row) => String(row.card_id || '').toLowerCase() === safeCard.toLowerCase() && row.secret_token === safeToken,
+    );
+    if (idx === -1) throw new Error('Customer session is invalid');
+    (customers[idx] as any).birth_date = cleanBirth;
+    saveCustomersLocal(tenantId, customers);
+    return { success: true, birth_date: cleanBirth };
+  }
+  return apiRequest<{ success: boolean; birth_date: string }>(
+    `/api/v1/ops/customer-app/profile/birthday?id=${encodeURIComponent(safeCard)}&t=${encodeURIComponent(safeToken)}`,
+    {
+      method: 'POST',
+      tenantId: null,
+      auth: false,
+      body: { birth_date: cleanBirth },
+    },
+  );
 }
 
 export async function analyze_customer_fortune_live(image_base64: string, card_id: string, token: string, lang: string = 'az') {

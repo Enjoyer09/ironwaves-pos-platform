@@ -516,6 +516,7 @@ class Customer(Base):
     tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
     card_id: Mapped[str] = mapped_column(String(80), nullable=False)
     type: Mapped[str] = mapped_column(String(32), nullable=False, default="Normal")
+    name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     stars: Mapped[int] = mapped_column(Integer, default=0)
     lifetime_stars: Mapped[int] = mapped_column(Integer, default=0)
     secret_token: Mapped[str] = mapped_column(String(64), nullable=False, default=lambda: secrets.token_hex(16))

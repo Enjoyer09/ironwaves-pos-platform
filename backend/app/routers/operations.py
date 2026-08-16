@@ -1125,6 +1125,72 @@ def _resolve_customer_session(db: Session, tenant_id: str, card_id: str, token: 
     return row
 
 
+def _clean_customer_name(raw: str | None) -> str:
+    """Adı təmizləyir və validasiya edir (P0-3 onboarding).
+
+    Boş, 2-60 simvol xaricində və HTML/skript işarələri olan adlar rədd edilir.
+    """
+    clean = str(raw or "").strip()
+    if not clean:
+        raise HTTPException(status_code=400, detail="Ad boş ola bilməz")
+    if len(clean) < 2 or len(clean) > 60:
+        raise HTTPException(status_code=400, detail="Ad 2-60 simvol aralığında olmalıdır")
+    if re.search(r"[<>&]", clean):
+        raise HTTPException(status_code=400, detail="Ad HTML işarələri ehtiva edə bilməz")
+    return clean
+
+
+def _parse_birth_date(raw: str | None) -> date | None:
+    """Doğum tarixini YYYY-MM-DD formatında parse edir (P1-2/P0-3).
+
+    Boş verilərsə None qaytarır (opsional sahə); yanlış format, gələcək tarix
+    və ya yaş 6-120 xaricindədirsə 400 verir.
+    """
+    if raw is None or not str(raw).strip():
+        return None
+    raw_str = str(raw).strip()
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", raw_str):
+        raise HTTPException(status_code=400, detail="Doğum tarixi YYYY-MM-DD formatında olmalıdır")
+    try:
+        parsed = datetime.strptime(raw_str, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Doğum tarixi düzgün deyil")
+    today = _restaurant_now().date()
+    if parsed >= today:
+        raise HTTPException(status_code=400, detail="Doğum tarixi keçmişdə olmalıdır")
+    age = (today - parsed).days // 365
+    if age < 6 or age > 120:
+        raise HTTPException(status_code=400, detail="Yaş 6-120 aralığında olmalıdır")
+    return parsed
+
+
+def _ensure_customer_consent(db: Session, tenant_id: str, card_id: str, source: str, request: Request) -> CustomerConsent:
+    """Müştəri üçün CustomerConsent sətri yaradır (idempotent).
+
+    Mövcud consent varsa toxunmur — telefon OTP yolu (P0-3 compliance) üçün
+    həm yeni, həm köhnə müştərilərdə razılıq qeydi saxlanır.
+    """
+    existing = (
+        db.query(CustomerConsent)
+        .filter(CustomerConsent.tenant_id == tenant_id, CustomerConsent.card_id == card_id)
+        .first()
+    )
+    if existing:
+        return existing
+    consent = CustomerConsent(
+        tenant_id=tenant_id,
+        card_id=card_id,
+        consent_type="customer_app",
+        accepted=True,
+        source=source,
+        ip_address=_request_ip(request),
+        user_agent=str(request.headers.get("user-agent") or "")[:255],
+        accepted_at=datetime.utcnow(),
+    )
+    db.add(consent)
+    return consent
+
+
 @router.get("/settings")
 def get_app_settings(
     response: Response,
@@ -3689,6 +3755,8 @@ def enroll_customer_app(
         card_id = f"QR-{secrets.token_hex(4).upper()}"
     secret_token = secrets.token_urlsafe(18)
     join_type = _clean_customer_type(payload.get("join_customer_type") or tenant_app_settings.get("join_customer_type") or "golden")
+    clean_name = _clean_customer_name(payload.get("name")) if payload.get("name") else None
+    parsed_birth = _parse_birth_date(payload.get("birth_date")) if payload.get("birth_date") else None
     customer = Customer(
         tenant_id=tenant.id,
         card_id=card_id,
@@ -3696,6 +3764,8 @@ def enroll_customer_app(
         stars=0,
         discount_percent=Decimal(str(payload.get("join_discount_percent") or tenant_app_settings.get("join_discount_percent") or 0)),
         secret_token=secret_token,
+        name=clean_name,
+        birth_date=parsed_birth,
     )
     db.add(customer)
     db.add(
@@ -3757,6 +3827,8 @@ class VerifyOtpIn(BaseModel):
     code: str
     join_customer_type: str | None = "golden"
     join_discount_percent: float | None = 0.0
+    name: str | None = None
+    birth_date: str | None = None
 
 
 @router.post("/customer-app/otp/send")
@@ -3805,6 +3877,7 @@ def send_customer_otp(
 @router.post("/customer-app/otp/verify")
 def verify_customer_otp(
     payload: VerifyOtpIn,
+    request: Request,
     db: Session = Depends(get_db),
     tenant = Depends(get_tenant),
 ):
@@ -3831,10 +3904,20 @@ def verify_customer_otp(
         .first()
     )
     
+    # P0-3 onboarding: istifadəçi ad + doğum tarixini verify mərhələsində göndərir
+    clean_name = _clean_customer_name(payload.name) if payload.name else None
+    parsed_birth = _parse_birth_date(payload.birth_date) if payload.birth_date else None
+
     if customer:
         if not customer.phone:
             customer.phone = phone
-            db.commit()
+        if clean_name:
+            customer.name = clean_name
+        if parsed_birth:
+            customer.birth_date = parsed_birth
+        # Compliance: telefonla qeydiyyatda razılıq qeydi saxlanır (idempotent)
+        _ensure_customer_consent(db, tenant.id, customer.card_id, "phone_otp", request)
+        db.commit()
         return {
             "success": True,
             "is_new": False,
@@ -3858,9 +3941,13 @@ def verify_customer_otp(
             stars=0,
             discount_percent=discount,
             secret_token=secret_token,
-            phone=phone
+            phone=phone,
+            name=clean_name,
+            birth_date=parsed_birth,
         )
         db.add(new_cust)
+        # Compliance: OTP yolu ilə qoşulmada razılıq qeydi saxlanır
+        _ensure_customer_consent(db, tenant.id, card_id, "phone_otp", request)
         db.add(
             Notification(
                 tenant_id=tenant.id,
@@ -4039,6 +4126,7 @@ def get_customer_app_session(
         "customer": {
             "card_id": customer.card_id,
             "type": customer.type,
+            "name": customer.name or "",
             "stars": stars,
             "lifetime_stars": int(customer.lifetime_stars or 0),
             "tier": _compute_tier(int(customer.lifetime_stars or 0), app_settings.get("tiers") or DEFAULT_TIERS),
@@ -4114,6 +4202,48 @@ def get_customer_app_session(
         ],
         "customer_app_settings": app_settings,
     }
+
+
+@router.post("/customer-app/profile/birthday")
+def update_customer_birthday(
+    payload: CustomerBirthdayIn,
+    id: str = Query(...),
+    t: str = Query(...),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    """
+    Müştərinin doğum tarixini təyin/redaktə edir (P1-2).
+
+    Validasiya: YYYY-MM-DD formatı, keçmiş tarix, yaş 6-120.
+    `birth_date` nullable-dır — köhnə müştərilər təsirlənmir.
+    """
+    customer = _resolve_customer_session(db, tenant.id, id, t)
+    parsed = _parse_birth_date(payload.birth_date)
+    customer.birth_date = parsed
+    db.commit()
+    return {"success": True, "birth_date": parsed.isoformat() if parsed else None}
+
+
+@router.post("/customer-app/profile/name")
+def update_customer_name(
+    payload: CustomerNameIn,
+    id: str = Query(...),
+    t: str = Query(...),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    """
+    Müştərinin adını təyin/redaktə edir (P0-3 onboarding).
+
+    Validasiya: strip, 2-60 simvol, HTML/skript işarələri rədd olunur.
+    `name` nullable-dır — köhnə müştərilər təsirlənmir.
+    """
+    customer = _resolve_customer_session(db, tenant.id, id, t)
+    clean = _clean_customer_name(payload.name)
+    customer.name = clean
+    db.commit()
+    return {"success": True, "name": clean}
 
 
 @router.post("/customer-app/rewards/claim")

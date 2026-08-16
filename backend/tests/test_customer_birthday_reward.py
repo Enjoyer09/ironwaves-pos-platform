@@ -339,6 +339,121 @@ def test_birthday_custom_bonus_and_scan_uses_tenant_today(monkeypatch):
 
 
 # ──────────────────────────────────────────
+# Profile endpoint
+# ──────────────────────────────────────────
+
+def test_birthday_profile_endpoint_valid_and_session():
+    _bootstrap_env()
+    operations = importlib.import_module("app.routers.operations")
+
+    engine, db = _make_db()
+    tenant = _seed_tenant(db)
+    customer = _seed_customer(db, tenant, birth_date=None)
+    admin = type("U", (), {"username": "admin-1", "role": "admin"})()
+
+    # Set a valid birth date (clearly past, adult)
+    res = operations.update_customer_birthday(
+        payload=operations.CustomerBirthdayIn(birth_date="1995-05-10"),
+        id=customer.card_id,
+        t=customer.secret_token,
+        db=db,
+        tenant=tenant,
+    )
+    assert res["success"] is True
+    assert res["birth_date"] == "1995-05-10"
+
+    db.refresh(customer)
+    assert customer.birth_date == date(1995, 5, 10)
+
+    # Session exposes birth_date (additive field)
+    session = operations.get_customer_app_session(
+        id=customer.card_id,
+        t=customer.secret_token,
+        db=db,
+        tenant=tenant,
+    )
+    assert session["customer"]["birth_date"] == "1995-05-10"
+
+    # Overwrite works (edit path)
+    res = operations.update_customer_birthday(
+        payload=operations.CustomerBirthdayIn(birth_date="1990-01-01"),
+        id=customer.card_id,
+        t=customer.secret_token,
+        db=db,
+        tenant=tenant,
+    )
+    assert res["success"] is True
+    db.refresh(customer)
+    assert customer.birth_date == date(1990, 1, 1)
+
+    db.close()
+    engine.dispose()
+
+
+def test_birthday_profile_endpoint_validation():
+    _bootstrap_env()
+    operations = importlib.import_module("app.routers.operations")
+
+    engine, db = _make_db()
+    tenant = _seed_tenant(db)
+    customer = _seed_customer(db, tenant, birth_date=None)
+
+    def _call(birth_date: str):
+        return operations.update_customer_birthday(
+            payload=operations.CustomerBirthdayIn(birth_date=birth_date),
+            id=customer.card_id,
+            t=customer.secret_token,
+            db=db,
+            tenant=tenant,
+        )
+
+    # Bad format
+    with pytest.raises(HTTPException) as exc:
+        _call("10-05-1995")
+    assert exc.value.status_code == 400
+
+    # Not a real date
+    with pytest.raises(HTTPException) as exc:
+        _call("1995-13-45")
+    assert exc.value.status_code == 400
+
+    # Future date
+    future = operations._restaurant_now().date() + timedelta(days=365)
+    with pytest.raises(HTTPException) as exc:
+        _call(future.isoformat())
+    assert exc.value.status_code == 400
+
+    # Today -> not in the past
+    with pytest.raises(HTTPException) as exc:
+        _call(operations._restaurant_now().date().isoformat())
+    assert exc.value.status_code == 400
+
+    # Too young (2 days ago)
+    young = operations._restaurant_now().date() - timedelta(days=2)
+    with pytest.raises(HTTPException) as exc:
+        _call(young.isoformat())
+    assert exc.value.status_code == 400
+
+    # Nothing persisted after all rejections
+    db.refresh(customer)
+    assert customer.birth_date is None
+
+    # Invalid session -> 401
+    with pytest.raises(HTTPException) as exc:
+        operations.update_customer_birthday(
+            payload=operations.CustomerBirthdayIn(birth_date="1995-05-10"),
+            id=customer.card_id,
+            t="wrong-token",
+            db=db,
+            tenant=tenant,
+        )
+    assert exc.value.status_code == 401
+
+    db.close()
+    engine.dispose()
+
+
+# ──────────────────────────────────────────
 # Settings PATCH + guard marker
 # ──────────────────────────────────────────
 
