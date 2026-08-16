@@ -134,6 +134,11 @@ test('local name + birth date update roundtrip', async () => {
   assert.equal(session.customer.name, 'Leyla');
   assert.equal(session.customer.birth_date, '1995-05-10');
 
+  // clearing birth date is allowed (empty -> removed, mirrors backend None)
+  await update_customer_birthday_live('QR-NAME1', 'tok-1', '', 't1');
+  const cleared = await get_customer_app_session_live('QR-NAME1', 'tok-1', 't1');
+  assert.equal(cleared.customer.birth_date, null);
+
   // invalid session rejected
   await assert.rejects(() => update_customer_name_live('QR-NAME1', 'wrong-token', 'Leyla', 't1'), /invalid/i);
   await assert.rejects(() => update_customer_birthday_live('QR-NAME1', 'wrong-token', '1995-05-10', 't1'), /invalid/i);

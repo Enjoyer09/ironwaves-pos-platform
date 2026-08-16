@@ -7,7 +7,7 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
 import { tx } from '../i18n';
 import { useAppStore } from '../store';
-import { claim_customer_reward_live, enroll_customer_app_live, get_customer_app_bootstrap_live, get_customer_app_session_live, mark_customer_notification_read_live, save_push_token_live, send_customer_otp_live, verify_customer_otp_live, analyze_customer_fortune_live, chat_customer_barista_live, get_customer_wallet_pass_url, create_customer_pre_order_live, get_customer_orders_live } from '../api/crm';
+import { claim_customer_reward_live, enroll_customer_app_live, get_customer_app_bootstrap_live, get_customer_app_session_live, mark_customer_notification_read_live, save_push_token_live, send_customer_otp_live, verify_customer_otp_live, analyze_customer_fortune_live, chat_customer_barista_live, get_customer_wallet_pass_url, create_customer_pre_order_live, get_customer_orders_live, update_customer_name_live, update_customer_birthday_live } from '../api/crm';
 import { get_public_menu_live } from '../api/menu';
 import { clearCustomerSession, readCustomerPushToken, readCustomerPushTokenAsync, writeCustomerPushToken, writeCustomerSession } from '../lib/customer_session';
 import HomeTab from './customer/HomeTab';
@@ -803,6 +803,15 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     } finally {
       setOtpVerifying(false);
     }
+  };
+
+  const handleSaveProfile = async (updates: { name?: string; birth_date?: string }) => {
+    const { cardId, token } = sessionCreds;
+    if (!cardId || !token) return;
+    if (updates.name) await update_customer_name_live(cardId, token, updates.name);
+    // birth_date boş ola bilər — backend onu silmə (None) kimi qəbul edir
+    if (updates.birth_date !== undefined) await update_customer_birthday_live(cardId, token, updates.birth_date);
+    await load();
   };
 
   const sendBaristaMessage = async () => {
@@ -1660,6 +1669,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             markRead={markRead}
             isLight={isLight}
             designMode={designMode}
+            onSaveProfile={handleSaveProfile}
           />
           </div>
         )}
