@@ -30,3 +30,6 @@ backend/*.sqlite
 
 # Freebuff desktop local state (SQLite db) — not part of the project
 .freebuff/
+
+# frontend smoke test build output
+tests/.build/
