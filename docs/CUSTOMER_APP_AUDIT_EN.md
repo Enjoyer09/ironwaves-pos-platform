@@ -167,9 +167,12 @@ Two modes: **points** (stars → claim) and **cashback** (percentage accrual). S
 > **Frontend smoke:** `npm run test:smoke` → `tests/crm_local_smoke.test.mjs` (get_customer_orders_live local fallback: tenant/card filter, sort, 10-limit, roundtrip)
 > **Reward claim test:** `backend/tests/test_customer_reward_claim_flow.py` — 6 tests on real SQLite (RW code format, in-app notification, FCM push, pending limit, custom threshold, session guard); FCM push added to the claim endpoint (previously in-app notification only).
 > **KDS complete check:** KDS.tsx live path sends a body (`{ready_items}` → `/kitchen-feed/{round}/complete`); empty-body regression test in `test_customer_order_status_flow.py` (restaurant.py does not crash with empty `{}`); legacy `/ops/kitchen-orders/{id}/complete` is guarded against `payload=None`.
-| P0-3 | 🔴 High | **Onboarding: name prompt + explicit consent checkbox** | ⏳ |
-| P1-1 | 🟠 Medium | **Tier system** (Bronze/Silver/Gold) — card visual differentiation + thresholds | ⏳ |
-| P1-2 | 🟠 Medium | **Birthday reward** (+ birthdate prompt) | ⏳ |
+| P0-3 | 🔴 High | **Onboarding: name prompt + explicit consent checkbox** | ✅ Done (2026-08-16) |
+> **P0-3a:** `Customer.name` migration + consent row in OTP verify (compliance gap closed) + name/birth-date inputs + mandatory consent checkbox (button disabled) + `POST /customer-app/profile/name` — `backend/tests/test_customer_onboarding_flow.py` (5 tests) + smoke.
+| P1-1 | 🟠 Medium | **Tier system** (Bronze/Silver/Gold) — card visual differentiation + thresholds | ✅ Done (2026-08-16) |
+> **P1-1a (core):** `lifetime_stars` migration (backfill) + pos.py points earn + `_compute_tier` + session `tier` field + card/badge/progress UI — `backend/tests/test_customer_tier_system.py` (7 tests) + smoke. Multiplier (P1-1b) is a separate phase.
+| P1-2 | 🟠 Medium | **Birthday reward** (+ birthdate prompt) | ✅ Done (2026-08-16) |
+> **P1-2a (core):** `birth_date` migration + `birthday_scheduler` (Baku tz, daily guard marker, year-based ledger idempotency) + grant (stars+lifetime+ledger+notification+push, disabled by default) + `POST /customer-app/profile/birthday` (format/past/age validation) — `backend/tests/test_customer_birthday_reward.py` (12 tests). Profile UI + prompt (P1-2b) is a separate phase.
 | P1-3 | 🟠 Medium | **Offline QR cache** — card opens without network | ⏳ |
 | P1-4 | 🟠 Medium | **Server-validated campaigns** — activated state on the backend | ⏳ |
 | P2-1 | 🟡 Low | **Guest mode** — browse menu without an account | ⏳ |
@@ -198,3 +201,105 @@ Two modes: **points** (stars → claim) and **cashback** (percentage accrual). S
 - [UI_WORLDCLASS_ROADMAP_EN.md](UI_WORLDCLASS_ROADMAP_EN.md) — world-class roadmap (EN)
 - [UI_AUDIT_GLASS_EN.md](UI_AUDIT_GLASS_EN.md) — glass UI technical spec (EN)
 - [CUSTOMER_APP_AUDIT.md](CUSTOMER_APP_AUDIT.md) — this document in Azerbaijani
+
+---
+
+## 12. Technical Spec: P1-1 Tier System
+
+### Goal
+Derive a Bronze/Silver/Gold level from the customer's lifetime earned stars
+(`lifetime_stars`) and surface it on the card visual + a progress bar.
+
+### Design decisions
+- Tier source: `lifetime_stars` (NOT the current `stars` balance) — redemption
+  reduces stars but never demotes the level (prestige is preserved).
+- Backfill: existing customers get `lifetime_stars = stars` — nobody starts at zero.
+- Config is per-tenant: `customer_app_settings.tiers` (default: Bronze 0 / Silver 100 / Gold 300).
+- `Customer.type` (set by the cashier) is untouched — the tier is fully derived.
+- Multiplier (Gold 1.5×) is the P1-1b phase — it touches earn logic separately.
+
+### Data model (migration 20260816_0002)
+`customers.lifetime_stars INTEGER NOT NULL DEFAULT 0` + backfill UPDATE.
+`down`: column is dropped (derived computation — no data loss).
+
+### Backend behaviour
+- `pos.py` points-mode sale: `lifetime_stars += coffee_qty` (cashback untouched).
+- `_compute_tier(lifetime_stars, tiers)` → `{key, label{az,ru,en}, color, multiplier,
+  current_threshold, next_threshold, progress_pct}` — floor progress (100 only at threshold).
+- Session `customer` gains `lifetime_stars` + `tier` (additive — old clients unaffected).
+
+### API contract (session)
+`customer.tier = { key, label, color, multiplier, current_threshold, next_threshold|null, progress_pct }`
+
+### Frontend
+- HomeTab: card gradient tinted with the tier color (`${color}2E`), tier chip on the
+  card face, wallet badge, progress bar to the next level.
+- ProfileTab: tier badge (colored) + "Card Tier" value = tier label.
+- `crm.ts` local fallback: `computeTier` mirror — session tier works without backend.
+
+### Config format
+`customer_app_settings.tiers = [{ "key", "label": {az,ru,en}, "threshold", "color", "multiplier" }]`
+
+### Status
+- ✅ P1-1a (core): migration + earn + `_compute_tier` + session + UI — done (2026-08-16)
+- ⏳ P1-1b: Gold multiplier 1.5× application + admin panel tier config UI
+
+### Tests
+- `backend/tests/test_customer_tier_system.py` (7 tests) + `test:smoke` (local session tier)
+
+### Double-check
+tsc + build + full pytest + visual check (3 tier colors, new/retro/light modes)
+
+---
+
+## 13. Technical Spec: P1-2 Birthday Reward
+
+### Goal
+Automatically grant bonus stars + notification + push on the customer's birthday
+(Starbucks birthday drink analogue) — affecting both balance and tier progress.
+
+### Design decisions
+- Scheduler wakes every 30 minutes but scans at most once per day (guard marker).
+- "Today" is computed per tenant in its own timezone (`time_settings.timezone`,
+  default Asia/Baku; UTC+4 fallback when ZoneInfo is unavailable).
+- Two-layer idempotency: daily marker (restart-proof) + year-based ledger entry
+  (`Birthday bonus {year}`) — double grants are impossible even across workers.
+- Disabled by default: `customer_app_settings.birthday_enabled=false` — nothing is
+  granted until a tenant opts in.
+- Grant writes to both `stars` and `lifetime_stars` — a birthday gift also helps
+  tier progression.
+- `birth_date` is nullable — old/unknown customers are skipped; migration is lossless.
+
+### Data model (migration 20260816_0003)
+`customers.birth_date DATE NULL` — optional field, no backfill required.
+`down`: column dropped (only user-entered dates are lost).
+
+### Backend behaviour
+- `app/services/birthday_scheduler.py` — `run_birthday_scan(db, today?)` core logic;
+  `start_birthday_scheduler()` background thread started in `main.py` startup.
+- Scan: active tenants → `birthday_enabled` → `birth_date` month/day == today → grant.
+- Grant: `stars += bonus`, `lifetime_stars += bonus`, `LoyaltyLedgerEntry(unit='birthday',
+  entry_type='earn', description='Birthday bonus {year}')`, in-app Notification, FCM push.
+- Each customer is wrapped in try/except — one failure never stops the whole scan;
+  commits happen per tenant.
+
+### API contract (endpoint + session)
+`POST /customer-app/profile/birthday { birth_date: "YYYY-MM-DD" }` (id+t auth) →
+`{ success, birth_date }`. Validation: format, past date, age 6-120 → 400 on error.
+Session `customer.birth_date` (nullable, additive).
+
+### Config format
+`customer_app_settings.birthday_enabled: bool` (default false) +
+`customer_app_settings.birthday_bonus_stars: int` (default 5, min 1).
+PATCH `/settings/customer-app` accepts both keys.
+
+### Status
+- ✅ P1-2a (core): migration + scheduler + grant + endpoint + tests — done (2026-08-16)
+- ⏳ P1-2b: ProfileTab birthdate prompt/edit UI + admin config UI
+
+### Tests
+- `backend/tests/test_customer_birthday_reward.py` (12 tests): grant, idempotency,
+  disabled tenant, NULL/wrong month, custom bonus, endpoint validation, guard marker
+
+### Double-check
+tsc + build + full pytest + frontend smoke + doc balance (AZ = EN)
