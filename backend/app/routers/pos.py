@@ -857,6 +857,8 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
     if customer is not None:
         if program_mode != "cashback":
             customer.stars = customer_stars_after
+            # Lifetime stars drive tier progression and are never reduced by redemption.
+            customer.lifetime_stars = int(customer.lifetime_stars or 0) + int(coffee_qty or 0)
         if reward_claim:
             if program_mode != "cashback":
                 customer.stars = max(0, int(customer.stars or 0) - int(reward_claim.points_cost or 0))

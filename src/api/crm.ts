@@ -7,6 +7,43 @@ import { apiRequest, isBackendEnabled, getApiBaseUrl } from './client';
 
 const defaultTenant = () => getActiveTenantId();
 
+const DEFAULT_TIERS = [
+  { key: 'bronze', label: { az: 'Bürünc', ru: 'Бронза', en: 'Bronze' }, threshold: 0, color: '#cd7f32', multiplier: 1 },
+  { key: 'silver', label: { az: 'Gümüş', ru: 'Серебро', en: 'Silver' }, threshold: 100, color: '#c0c0c0', multiplier: 1 },
+  { key: 'gold', label: { az: 'Qızıl', ru: 'Золото', en: 'Gold' }, threshold: 300, color: '#d8b156', multiplier: 1.5 },
+];
+
+// Mirrors backend _compute_tier: derive tier + progress from lifetime stars.
+function computeTier(lifetimeStars: number, tiers?: any[]) {
+  const sorted = (Array.isArray(tiers) ? tiers : DEFAULT_TIERS)
+    .filter((t) => t && t.key)
+    .slice()
+    .sort((a, b) => (Number(a.threshold) || 0) - (Number(b.threshold) || 0));
+  const list = sorted.length > 0 ? sorted : DEFAULT_TIERS;
+  let current = list[0];
+  let nextTier: any = null;
+  for (const t of list) {
+    if (lifetimeStars >= (Number(t.threshold) || 0)) current = t;
+    else if (!nextTier) { nextTier = t; break; }
+  }
+  const currentThreshold = Math.max(0, Number(current.threshold) || 0);
+  let progressPct = 100;
+  if (nextTier) {
+    const nextThreshold = Math.max(0, Number(nextTier.threshold) || 0);
+    const span = nextThreshold - currentThreshold;
+    progressPct = span <= 0 ? 0 : Math.min(100, Math.round(((lifetimeStars - currentThreshold) / span) * 100));
+  }
+  return {
+    key: String(current.key || 'bronze'),
+    label: current.label || DEFAULT_TIERS[0].label,
+    color: String(current.color || '#cd7f32'),
+    multiplier: Number(current.multiplier) || 1,
+    current_threshold: currentThreshold,
+    next_threshold: nextTier ? Math.max(0, Number(nextTier.threshold) || 0) : null,
+    progress_pct: progressPct,
+  };
+}
+
 const normalizeCustomerType = (value: unknown): CustomerType => {
   switch (String(value || '').trim().toLowerCase()) {
     case 'golden':
@@ -332,6 +369,8 @@ export async function get_customer_app_session_live(card_id: string, token: stri
         card_id: customer.card_id,
         type: customer.type,
         stars,
+        lifetime_stars: Number((customer as any).lifetime_stars ?? stars),
+        tier: computeTier(Number((customer as any).lifetime_stars ?? stars), settings.tiers),
         discount_percent: String((customer as any).discount_percent || 0),
         created_at: customer.created_at,
       },
