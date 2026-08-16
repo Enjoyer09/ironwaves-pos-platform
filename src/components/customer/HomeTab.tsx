@@ -104,6 +104,7 @@ type Props = {
   get_customer_wallet_pass_url_fn: (cardId: string, token: string, lang: string) => string;
   sessionCreds: { cardId: string; token: string };
   data: any;
+  activeOrders: any[];
   isLight?: boolean;
   designMode?: 'classic' | 'retro';
 };

@@ -428,6 +428,85 @@ export function PreOrderSuccess({ preOrderSuccess, preOrderSuccessId, setPreOrde
   );
 }
 
+// ─── Live Order Status ─────────────────────────────────────────────────────────
+// Mirrors the KDS order-status theme (NEW=sky, PREPARING=amber, READY=emerald).
+const ORDER_STATUS_STEPS: Array<{ key: string; label: [string, string, string]; dot: string; text: string; ring: string }> = [
+  { key: 'NEW',       label: ['Qəbul edildi', 'Принят', 'Confirmed'],    dot: 'bg-sky-500',     text: 'text-sky-600 dark:text-sky-400',       ring: 'border-sky-500/40' },
+  { key: 'PREPARING', label: ['Hazırlanır', 'Готовится', 'Preparing'],   dot: 'bg-amber-500',   text: 'text-amber-600 dark:text-amber-400',   ring: 'border-amber-500/40' },
+  { key: 'READY',     label: ['Hazırdır', 'Готов', 'Ready'],             dot: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400', ring: 'border-emerald-500/40' },
+];
+
+function LiveOrderStatus({ orders, safeLang, isLight, isRetro }: { orders: any[]; safeLang: string; isLight: boolean; isRetro: boolean }) {
+  const active = orders.filter((o: any) => ORDER_STATUS_STEPS.some((s) => s.key === String(o.status || '')));
+  if (active.length === 0) return null;
+
+  const cardBg = isRetro
+    ? 'retro-card'
+    : (isLight ? 'bg-white/85 border-black/8 shadow-sm backdrop-blur-md' : 'bg-white/6 border-white/10 backdrop-blur-xl');
+  const cardBorder = isRetro ? '' : 'border';
+  const textPrimary = isLight ? 'text-slate-900' : 'text-white';
+  const textSecond  = isLight ? 'text-slate-500' : 'text-white/60';
+
+  return (
+    <div className="space-y-2.5">
+      {active.map((order: any) => {
+        const status = String(order.status || 'NEW');
+        const stepIdx = Math.max(0, ORDER_STATUS_STEPS.findIndex((s) => s.key === status));
+        const meta = ORDER_STATUS_STEPS[stepIdx];
+        const itemCount = Array.isArray(order.items)
+          ? order.items.reduce((n: number, it: any) => n + Number(it.qty || it.quantity || 1), 0)
+          : 0;
+        return (
+          <div key={order.id} className={`rounded-3xl p-4 space-y-3 ${cardBorder} ${cardBg} ${meta.ring}`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${meta.dot} animate-pulse`} />
+                <span className={`text-sm font-black truncate ${textPrimary}`}>
+                  {tx(safeLang, meta.label[0], meta.label[1], meta.label[2])}
+                </span>
+              </div>
+              <span className={`text-[9px] font-mono tracking-wider shrink-0 ${textSecond}`}>
+                #{String(order.id || '').slice(0, 8)} · {itemCount}
+              </span>
+            </div>
+
+            {/* 3-step progress: NEW → PREPARING → READY */}
+            <div className="flex items-center gap-1.5">
+              {ORDER_STATUS_STEPS.map((s, i) => (
+                <React.Fragment key={s.key}>
+                  {i > 0 && (
+                    <div className={`h-px flex-1 rounded-full ${i <= stepIdx ? meta.dot : (isLight ? 'bg-black/10' : 'bg-white/12')}`} />
+                  )}
+                  <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-black border-2 transition-all ${
+                    i <= stepIdx
+                      ? `${s.dot} border-transparent text-white shadow-sm ${i === stepIdx ? 'scale-110' : ''}`
+                      : (isLight ? 'border-black/15 text-slate-300' : 'border-white/15 text-white/25')
+                  }`}>
+                    {i < stepIdx ? '✓' : i + 1}
+                  </div>
+                </React.Fragment>
+              ))}
+              <span className={`ml-1 text-[9px] font-bold uppercase tracking-wider ${textSecond}`}>
+                {status === 'READY'
+                  ? tx(safeLang, 'Hazırdır', 'Готов', 'Ready')
+                  : status === 'PREPARING'
+                    ? tx(safeLang, 'Hazırlanır…', 'Готовится…', 'Preparing…')
+                    : tx(safeLang, 'Növbədə', 'В очереди', 'In queue')}
+              </span>
+            </div>
+
+            {status === 'READY' && (
+              <p className={`text-[10px] font-bold ${textSecond}`}>
+                {tx(safeLang, 'Sifarişiniz hazırdır — kassadan götürə bilərsiniz! 🎉', 'Ваш заказ готов — заберите на кассе! 🎉', 'Your order is ready — pick it up at the counter! 🎉')}
+              </p>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── OrderTab Main ──────────────────────────────────────────────────────────────
 // ─── OrderTab Main ──────────────────────────────────────────────────────────────
 type OrderTabProps = {
@@ -458,6 +537,7 @@ type OrderTabProps = {
   preOrderSuccessId: string;
   setPreOrderSuccess: (v: boolean) => void;
   handleRemoveFromCart: (index: number) => void;
+  activeOrders: any[];
   designMode?: 'classic' | 'retro';
 };
 
@@ -468,7 +548,7 @@ export default function OrderTab({
   selectedVariant, setSelectedVariant, selectedModifiers, handleToggleModifier,
   handleAddToCart, showCartSheet, orderNotes, setOrderNotes,
   handleCheckoutPreOrder, preOrderSubmitting, preOrderSuccess, preOrderSuccessId,
-  setPreOrderSuccess, handleRemoveFromCart, designMode = 'classic'
+  setPreOrderSuccess, handleRemoveFromCart, activeOrders, designMode = 'classic'
 }: OrderTabProps) {
   const cats     = Array.from(new Set(menuItems.map((it: any) => it.category).filter(Boolean))) as string[];
   const filtered = menuItems.filter((it: any) => it.category === selectedCategory);
@@ -503,6 +583,9 @@ export default function OrderTab({
           transform: scale(0.96) rotateX(2deg);
         }
       `}</style>
+
+      {/* Live order status (KDS-synced) */}
+      <LiveOrderStatus orders={activeOrders} safeLang={safeLang} isLight={isLight} isRetro={isRetro} />
 
       {/* Header */}
       <div className="flex items-center justify-between px-1">
@@ -595,9 +678,6 @@ export default function OrderTab({
               ? tx(safeLang, 'Təbii bitki dəmləməsi', 'Натуральный травяной настой', 'Natural Herbal Brew')
               : tx(safeLang, 'Özəl qəhvəxana resepti', 'Особый рецепт кофейни', 'Special House Recipe');
 
-            // Generate fake/consistent rating based on product name length for dynamic visual look
-            const ratingValue = (4.5 + ((itemName.length % 5) * 0.1)).toFixed(1);
-
             return (
               <div key={item.id}
                 onClick={() => handleOpenModifiers(item)}
@@ -627,16 +707,6 @@ export default function OrderTab({
                     {badgeText}
                   </span>
 
-                  {/* Floating Corner Rating Badge */}
-                  <div className={
-                    isRetro
-                      ? "absolute top-0 right-0 flex items-center gap-0.5 bg-[#FAF8F5] px-2 py-0.5 rounded-bl-xl border-l-[2px] border-b-[2px] border-[#2B1B1A] dark:border-[#3D2F2A] text-[9px] font-black text-slate-800 z-10 shadow-sm"
-                      : "absolute top-0 right-0 flex items-center gap-0.5 bg-[#0C0F14]/75 backdrop-blur-md px-2.5 py-1 rounded-bl-[18px] border-l border-b border-white/5 text-[9px] font-black text-white z-10"
-                  }>
-                    <span className="text-yellow-500">★</span>
-                    <span>{ratingValue}</span>
-                  </div>
-
                   {/* Favorite */}
                   <button type="button" onClick={async (e) => {
                     e.stopPropagation();
@@ -644,7 +714,7 @@ export default function OrderTab({
                     await nativeHapticImpact(ImpactStyle.Light);
                     setLocalFavorites(prev => prev.includes(item.id) ? prev.filter((id: string) => id !== item.id) : [...prev, item.id]);
                   }}
-                    className={`absolute top-10 right-2.5 z-10 h-7 w-7 rounded-full flex items-center justify-center border backdrop-blur-md transition-all active:scale-90 ${
+                    className={`absolute top-2.5 right-2.5 z-10 h-7 w-7 rounded-full flex items-center justify-center border backdrop-blur-md transition-all active:scale-90 ${
                       isRetro
                         ? isFav
                           ? 'bg-[#D47B5E] border-[2px] border-[#2B1B1A] dark:border-[#3D2F2A] text-white'

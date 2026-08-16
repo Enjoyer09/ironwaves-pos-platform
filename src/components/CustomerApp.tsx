@@ -7,7 +7,7 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
 import { tx } from '../i18n';
 import { useAppStore } from '../store';
-import { claim_customer_reward_live, enroll_customer_app_live, get_customer_app_bootstrap_live, get_customer_app_session_live, mark_customer_notification_read_live, save_push_token_live, send_customer_otp_live, verify_customer_otp_live, analyze_customer_fortune_live, chat_customer_barista_live, get_customer_wallet_pass_url, create_customer_pre_order_live } from '../api/crm';
+import { claim_customer_reward_live, enroll_customer_app_live, get_customer_app_bootstrap_live, get_customer_app_session_live, mark_customer_notification_read_live, save_push_token_live, send_customer_otp_live, verify_customer_otp_live, analyze_customer_fortune_live, chat_customer_barista_live, get_customer_wallet_pass_url, create_customer_pre_order_live, get_customer_orders_live } from '../api/crm';
 import { get_public_menu_live } from '../api/menu';
 import { clearCustomerSession, readCustomerPushToken, readCustomerPushTokenAsync, writeCustomerPushToken, writeCustomerSession } from '../lib/customer_session';
 import HomeTab from './customer/HomeTab';
@@ -40,6 +40,14 @@ type OneSignalRuntime = {
 
 function persistCustomerSession(cardId: string, token: string) {
   writeCustomerSession(cardId, token);
+}
+
+function showStatusToast(message: string) {
+  const el = document.createElement('div');
+  el.className = 'cust-toast';
+  el.textContent = message;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2700);
 }
 
 function scrubCustomerSessionFromUrl() {
@@ -96,6 +104,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [preOrderSubmitting, setPreOrderSubmitting] = React.useState(false);
   const [preOrderSuccess, setPreOrderSuccess] = React.useState(false);
   const [preOrderSuccessId, setPreOrderSuccessId] = React.useState('');
+  const [activeOrders, setActiveOrders] = React.useState<any[]>([]);
   const [showCartSheet, setShowCartSheet] = React.useState(false);
   const [orderNotes, setOrderNotes] = React.useState('');
   const [phone, setPhone] = React.useState('');
@@ -238,6 +247,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         setOrderNotes('');
         setShowCartSheet(false);
         playShimmerSound();
+        void refreshOrders();
       }
     } catch (err) {
       console.warn('Checkout failed:', err);
@@ -246,6 +256,58 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       setPreOrderSubmitting(false);
     }
   };
+
+  const activeOrdersRef = React.useRef<any[]>([]);
+  activeOrdersRef.current = activeOrders;
+
+  const refreshOrders = React.useCallback(async () => {
+    if (!sessionCreds.cardId || !sessionCreds.token) return;
+    try {
+      const orders = await get_customer_orders_live(sessionCreds.cardId, sessionCreds.token, data?.tenant_id);
+      const prevByStatus = new Map(activeOrdersRef.current.map((o: any) => [o.id, o.status]));
+      setActiveOrders(orders);
+      // Once the just-placed order reaches a terminal state, stop tracking it
+      setPreOrderSuccessId((prev) => {
+        if (prev && orders.some((o: any) => o.id === prev && (o.status === 'READY' || o.status === 'VOIDED'))) {
+          return '';
+        }
+        return prev;
+      });
+      // Web fallback toast for status transitions (native gets real push)
+      for (const o of orders) {
+        const prevStatus = prevByStatus.get(o.id);
+        if (!prevStatus || prevStatus === o.status) continue;
+        if (o.status === 'PREPARING') {
+          showStatusToast('Sifarişiniz hazırlanır ☕');
+        } else if (o.status === 'READY') {
+          showStatusToast('Sifarişiniz hazırdır! 🎉');
+          playShimmerSound();
+          if (Capacitor.isNativePlatform()) {
+            try {
+              Haptics.notification({ type: NotificationType.Success }).catch(() => {});
+            } catch {}
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Order status fetch failed:', e);
+    }
+  }, [sessionCreds.cardId, sessionCreds.token, data?.tenant_id]);
+
+  // Poll order status while there is an active (non-terminal) order
+  React.useEffect(() => {
+    const hasActiveOrder = activeOrdersRef.current.some((o: any) => o.status === 'NEW' || o.status === 'PREPARING');
+    if (!preOrderSuccessId && !hasActiveOrder) return;
+    void refreshOrders();
+    const timer = window.setInterval(() => void refreshOrders(), 8000);
+    return () => window.clearInterval(timer);
+  }, [preOrderSuccessId, refreshOrders]);
+
+  // Load existing active orders on session start
+  React.useEffect(() => {
+    if (!sessionCreds.cardId || !sessionCreds.token) return;
+    void refreshOrders();
+  }, [refreshOrders]);
 
   const chartData = React.useMemo(() => {
     const historyList = Array.isArray(data?.history) ? data.history : [];
@@ -1451,6 +1513,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             get_customer_wallet_pass_url_fn={get_customer_wallet_pass_url}
             sessionCreds={sessionCreds}
             data={data}
+            activeOrders={activeOrders}
             isLight={isLight}
             designMode={designMode}
           />
@@ -1486,6 +1549,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             preOrderSuccessId={preOrderSuccessId}
             setPreOrderSuccess={setPreOrderSuccess}
             handleRemoveFromCart={handleRemoveFromCart}
+            activeOrders={activeOrders}
             designMode={designMode}
           />
           </div>

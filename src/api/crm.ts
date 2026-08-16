@@ -658,6 +658,7 @@ export async function create_customer_pre_order_live(payload: {
       sale_id: uuidv4(),
       table_label: 'Online Order',
       order_type: 'Order Online',
+      card_id: payload.cardId,
       status: 'NEW',
       priority: 'NORMAL',
       items: payload.items.map((it: any) => ({
@@ -701,6 +702,40 @@ export async function create_customer_pre_order_live(payload: {
         notes: payload.notes,
         tenant_id: tId
       }
+    }
+  );
+}
+
+export async function get_customer_orders_live(cardId: string, token: string, tenant_id?: string) {
+  const tId = tenant_id || defaultTenant();
+  const safeCard = String(cardId || '').trim();
+  const safeToken = String(token || '').trim();
+  if (!safeCard || !safeToken) {
+    throw new Error('Customer session is invalid');
+  }
+
+  if (!isBackendEnabled()) {
+    const orders = (getDB<any>('kitchen_orders') || [])
+      .filter((row: any) => String(row.tenant_id || '') === tId && String(row.card_id || '').toLowerCase() === safeCard.toLowerCase())
+      .sort((a: any, b: any) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+      .slice(0, 10)
+      .map((row: any) => ({
+        id: row.id,
+        status: row.status || 'NEW',
+        order_type: row.order_type || 'Online',
+        items: Array.isArray(row.items) ? row.items : [],
+        created_at: row.created_at || null,
+        completed_at: row.completed_at || null,
+      }));
+    return orders;
+  }
+
+  return apiRequest<any[]>(
+    `/api/v1/ops/customer-app/orders?id=${encodeURIComponent(safeCard)}&t=${encodeURIComponent(safeToken)}`,
+    {
+      method: 'GET',
+      tenantId: null,
+      auth: false,
     }
   );
 }
