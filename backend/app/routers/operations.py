@@ -1078,6 +1078,21 @@ class RewardClaimIn(BaseModel):
     reward_id: str | None = None
 
 
+class CustomerPreOrderItemIn(BaseModel):
+    id: str | None = None
+    name: str
+    quantity: int = 1
+    price: Decimal = Decimal("0")
+    variant_name: str | None = None
+    selected_modifiers: list[dict] | None = None
+    notes: str | None = None
+
+
+class CustomerPreOrderIn(BaseModel):
+    items: list[CustomerPreOrderItemIn]
+    notes: str | None = None
+
+
 class ShiftHandoverCreateIn(BaseModel):
     received_by: str
     declared_cash: Decimal
@@ -4093,6 +4108,13 @@ def claim_customer_reward(
             is_read=False,
         )
     )
+    _notify_customer_push(
+        db,
+        tenant.id,
+        customer.card_id,
+        "Reward kodunuz hazırdır! 🎉",
+        f"Claim kodunuz: {claim_code} — kassada göstərin və pulsuz içkinizi alın.",
+    )
     db.commit()
     return {
         "success": True,
@@ -4101,6 +4123,94 @@ def claim_customer_reward(
         "points_cost": claim.points_cost,
         "available_rewards": max(0, available_rewards - 1),
     }
+
+
+@router.post("/customer-app/pre-order")
+def create_customer_pre_order(
+    payload: CustomerPreOrderIn,
+    id: str = Query(...),
+    t: str = Query(...),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    customer = _resolve_customer_session(db, tenant.id, id, t)
+    if not payload.items:
+        raise HTTPException(status_code=400, detail="Order is empty")
+    items = [
+        {
+            "id": str(item.id or ""),
+            "item_name": str(item.name or "").strip(),
+            "qty": max(1, int(item.quantity or 1)),
+            "price": str(item.price if item.price is not None else 0),
+            "variant_name": item.variant_name,
+            "selected_modifiers": item.selected_modifiers or [],
+            "notes": str(item.notes or "").strip(),
+        }
+        for item in payload.items
+    ]
+    order = KitchenOrder(
+        tenant_id=tenant.id,
+        table_label="Online Order",
+        order_type="Online",
+        status="NEW",
+        priority="NORMAL",
+        card_id=customer.card_id,
+        items_json=json.dumps(items, ensure_ascii=False),
+    )
+    db.add(order)
+    db.add(
+        Notification(
+            tenant_id=tenant.id,
+            card_id=customer.card_id,
+            message="Sifarişiniz qəbul edildi! Barista hazırlamağa başlayanda bildiriş alacaqsınız. ☕",
+            is_read=False,
+        )
+    )
+    _notify_front_of_house(
+        db,
+        tenant.id,
+        "Yeni Online Sifariş",
+        f"Online sifariş qəbul edildi: {_summarize_items(items)}",
+        {
+            "kitchen_order_id": order.id,
+            "table_label": "Online Order",
+            "status": "NEW",
+            "items": _summarize_items(items),
+        },
+        fallback_roles={"staff", "manager", "admin", "super_admin"},
+    )
+    db.commit()
+    return {"success": True, "orderId": order.id}
+
+
+@router.get("/customer-app/orders")
+def get_customer_orders(
+    id: str = Query(...),
+    t: str = Query(...),
+    limit: int = Query(10),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    customer = _resolve_customer_session(db, tenant.id, id, t)
+    bounded_limit = max(1, min(int(limit or 10), 50))
+    rows = (
+        db.query(KitchenOrder)
+        .filter(KitchenOrder.tenant_id == tenant.id, KitchenOrder.card_id == customer.card_id)
+        .order_by(KitchenOrder.created_at.desc())
+        .limit(bounded_limit)
+        .all()
+    )
+    return [
+        {
+            "id": row.id,
+            "status": row.status,
+            "order_type": row.order_type,
+            "items": _json_load(row.items_json, []),
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+        }
+        for row in rows
+    ]
 
 
 @router.post("/customer-app/notifications/{notification_id}/read")
@@ -5608,6 +5718,19 @@ def list_kitchen_orders(
     ]
 
 
+def _notify_customer_push(db: Session, tenant_id: str, card_id: str | None, title: str, body: str) -> None:
+    if not card_id:
+        return
+    customer_row = db.query(Customer).filter(Customer.tenant_id == tenant_id, Customer.card_id == card_id).first()
+    if not customer_row or not customer_row.push_token:
+        return
+    try:
+        from app.routers.pos import send_push_notification as _send_push_notification
+        _send_push_notification(customer_row.push_token, title, body)
+    except Exception as pe:
+        logger.warning(f"Could not send customer push: {pe}")
+
+
 @router.post("/kitchen-orders/{order_id}/accept")
 def accept_kitchen_order(
     order_id: str,
@@ -5633,6 +5756,13 @@ def accept_kitchen_order(
             "items": _summarize_items(_json_load(row.items_json, [])),
         },
     )
+    _notify_customer_push(
+        db,
+        tenant.id,
+        row.card_id,
+        "Sifarişiniz hazırlanır ☕",
+        "Barista sifarişinizi hazırlamağa başladı. Bir neçə dəqiqə gözləyin!",
+    )
     db.commit()
     return {"success": True}
 
@@ -5652,7 +5782,7 @@ def complete_kitchen_order(
         raise HTTPException(status_code=400, detail="Kitchen order cannot be completed in current state")
     row.status = "READY"
     row.completed_at = datetime.utcnow()
-    ready_items = [str(item).strip() for item in (payload.ready_items or []) if str(item).strip()]
+    ready_items = [str(item).strip() for item in ((payload.ready_items if payload else None) or []) if str(item).strip()]
     ready_items = ready_items[:12]
     ready_summary = ", ".join(ready_items) if ready_items else _summarize_items(_json_load(row.items_json, []))
     table_owner = None
@@ -5677,6 +5807,13 @@ def complete_kitchen_order(
         },
         preferred_username=table_owner,
         fallback_roles={"manager", "admin", "super_admin"},
+    )
+    _notify_customer_push(
+        db,
+        tenant.id,
+        row.card_id,
+        "Sifarişiniz hazırdır! 🎉",
+        "Sifarişinizi götürməyə buyurun. Nuş olsun! ☕",
     )
     db.commit()
     return {"success": True}

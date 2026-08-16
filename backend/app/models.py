@@ -500,6 +500,7 @@ class KitchenOrder(Base):
     sale_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     table_label: Mapped[str | None] = mapped_column(String(120), nullable=True)
     order_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    card_id: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(16), default="NEW")
     priority: Mapped[str] = mapped_column(String(16), default="NORMAL")
     items_json: Mapped[str] = mapped_column(Text, nullable=False)
