@@ -680,7 +680,8 @@ export async function update_customer_birthday_live(card_id: string, token: stri
   const safeCard = String(card_id || '').trim();
   const safeToken = String(token || '').trim();
   const cleanBirth = String(birth_date || '').trim();
-  if (!safeCard || !safeToken || !cleanBirth) {
+  // Boş birth_date backend tərəfindən təmizləmə (None) kimi qəbul edilir (P1-2a).
+  if (!safeCard || !safeToken) {
     throw new Error('Customer birth date update is invalid');
   }
   if (!isBackendEnabled()) {

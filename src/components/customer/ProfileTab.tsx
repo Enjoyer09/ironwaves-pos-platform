@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, Gift, Languages, TrendingUp } from 'lucide-react';
+import { Bell, Check, Gift, Languages, Pencil, TrendingUp, X } from 'lucide-react';
 import { tx } from '../../i18n';
 import { Haptic } from '../../lib/customer_utils';
 import SimpleAreaChart from './SimpleAreaChart';
@@ -15,12 +15,50 @@ type Props = {
   setLang: (lang: string) => void;
   markRead: (id: string) => void | Promise<void>;
   designMode?: 'classic' | 'retro';
+  onSaveProfile?: (updates: { name?: string; birth_date?: string }) => Promise<void> | void;
 };
 
 export default function ProfileTab({
   safeLang, customer, notifications, history, chartData, primaryColor,
-  setLang, markRead, isLight = false, designMode = 'classic'
+  setLang, markRead, isLight = false, designMode = 'classic', onSaveProfile
 }: Props) {
+  const [editing, setEditing] = React.useState(false);
+  const [editName, setEditName] = React.useState('');
+  const [editBirth, setEditBirth] = React.useState('');
+  const [saveError, setSaveError] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
+  const todayIso = new Date().toISOString().split('T')[0];
+
+  const startEdit = () => {
+    setEditName(String(customer?.name || ''));
+    setEditBirth(String(customer?.birth_date || ''));
+    setSaveError('');
+    setEditing(true);
+  };
+
+  const saveEdit = async () => {
+    setSaving(true);
+    setSaveError('');
+    try {
+      const updates: { name?: string; birth_date?: string } = {};
+      const newName = editName.trim();
+      const newBirth = editBirth.trim();
+      if (newName && newName !== String(customer?.name || '')) updates.name = newName;
+      if (newBirth !== String(customer?.birth_date || '')) updates.birth_date = newBirth;
+      if (onSaveProfile) await onSaveProfile(updates);
+      setEditing(false);
+      await Haptic.success();
+    } catch (e: any) {
+      setSaveError(String(e?.message || tx(safeLang, 'Yadda saxlanmadı', 'Не удалось сохранить', 'Could not save')));
+      await Haptic.error();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputCls = isLight
+    ? 'w-full rounded-xl border border-black/10 bg-white/80 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#F48C24]/40'
+    : 'w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:ring-1 focus:ring-[#F48C24]/40';
 
   const isRetro     = designMode === 'retro';
   const textPrimary  = isLight ? 'text-slate-900' : 'text-white';
@@ -61,7 +99,19 @@ export default function ProfileTab({
               {customer.name ? customer.name.charAt(0).toUpperCase() : 'M'}
             </div>
             <div>
-              <div className={`text-[15px] font-black ${textPrimary}`}>{customer.name || tx(safeLang, 'Müştəri', 'Клиент', 'Customer')}</div>
+              <div className="flex items-center gap-1.5">
+                <div className={`text-[15px] font-black ${textPrimary}`}>{customer.name || tx(safeLang, 'Müştəri', 'Клиент', 'Customer')}</div>
+                {!editing && (
+                  <button
+                    type="button"
+                    onClick={startEdit}
+                    aria-label={tx(safeLang, 'Adı və doğum tarixini redaktə et', 'Редактировать имя и дату рождения', 'Edit name & birth date')}
+                    className={`p-1 rounded-lg transition ${isLight ? 'text-slate-400 hover:text-slate-700 hover:bg-black/5' : 'text-white/35 hover:text-white hover:bg-white/10'}`}
+                  >
+                    <Pencil size={11} />
+                  </button>
+                )}
+              </div>
               <div className={`text-[9px] font-mono tracking-widest mt-0.5 ${textMuted}`}>{customer.card_id}</div>
             </div>
           </div>
@@ -76,6 +126,64 @@ export default function ProfileTab({
             {tierLabel}
           </span>
         </div>
+
+        {/* Name + birth date inline edit (P1-2b) */}
+        {editing && (
+          <div className={`rounded-2xl border p-3.5 space-y-3 mt-3 relative z-10 ${isLight ? 'bg-black/3 border-black/5' : 'bg-white/4 border-white/8'}`}>
+            <div>
+              <label className={`block text-[9px] font-black uppercase tracking-widest mb-1.5 ${textMuted}`}>
+                {tx(safeLang, 'Adınız', 'Ваше имя', 'Your name')}
+              </label>
+              <input
+                type="text"
+                maxLength={60}
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder={tx(safeLang, 'Məs. Aysel', 'Напр. Айсель', 'e.g. Aysel')}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={`block text-[9px] font-black uppercase tracking-widest mb-1.5 ${textMuted}`}>
+                {tx(safeLang, 'Doğum tarixi (istəyə bağlı — boş buraxın silmək üçün)', 'Дата рождения (необязательно — оставьте пустым, чтобы удалить)', 'Birth date (optional — leave empty to remove)')}
+              </label>
+              <input
+                type="date"
+                value={editBirth}
+                max={todayIso}
+                onChange={(e) => setEditBirth(e.target.value)}
+                style={{ colorScheme: 'dark' }}
+                className={inputCls}
+              />
+            </div>
+            {saveError && (
+              <p className="text-[10px] font-bold text-red-300 bg-red-500/8 rounded-xl py-2 px-3 border border-red-500/20">
+                {saveError}
+              </p>
+            )}
+            <div className="flex gap-2 pt-0.5">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={saveEdit}
+                className="flex-1 rounded-xl py-2.5 text-[11px] font-black text-slate-950 flex items-center justify-center gap-1.5 transition active:scale-[0.98] disabled:opacity-60"
+                style={{ background: 'linear-gradient(135deg, #F48C24 0%, #ffb366 100%)' }}
+              >
+                <Check size={12} />
+                {saving ? '...' : tx(safeLang, 'Yadda saxla', 'Сохранить', 'Save')}
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setEditing(false)}
+                className={`flex-1 rounded-xl py-2.5 text-[11px] font-black flex items-center justify-center gap-1.5 border transition active:scale-[0.98] disabled:opacity-60 ${isLight ? 'border-black/10 text-slate-500 hover:bg-black/5' : 'border-white/10 text-white/50 hover:bg-white/5'}`}
+              >
+                <X size={12} />
+                {tx(safeLang, 'Ləğv et', 'Отмена', 'Cancel')}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Profile details - Redesigned into a premium grid layout */}
         <div className="grid grid-cols-2 gap-3.5 mt-4 relative z-10">
