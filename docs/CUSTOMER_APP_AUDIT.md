@@ -167,9 +167,12 @@ Menyu fetch → kateqoriya çipləri → məhsul gridi (şəkil, badge, reytinq,
 > **Frontend smoke:** `npm run test:smoke` → `tests/crm_local_smoke.test.mjs` (get_customer_orders_live lokal fallback: tenant/card filtr, sort, 10-limit, roundtrip)
 > **Reward claim test:** `backend/tests/test_customer_reward_claim_flow.py` — real SQLite ilə 6 test (RW kod formatı, in-app bildiriş, FCM push, pending limiti, custom threshold, sessiya mühafizəsi); claim endpoint-ə FCM push əlavə edildi (əvvəl yalnız in-app bildiriş idi).
 > **KDS complete yoxlaması:** KDS.tsx canlı path-i body göndərir (`{ready_items}` → `/kitchen-feed/{round}/complete`); boş-body regression testi `test_customer_order_status_flow.py`-də (restaurant.py boş `{}` ilə crash etmir); legacy `/ops/kitchen-orders/{id}/complete` payload=None guard-ı artıq qorunur.
-| P0-3 | 🔴 Yüksək | **Onboarding: ad sorğusu + açıq consent checkbox** | ⏳ |
-| P1-1 | 🟠 Orta | **Tier sistemi** (Bronze/Silver/Gold) — kart vizualında fərqlilik + keçid hədləri | ⏳ |
-| P1-2 | 🟠 Orta | **Birthday reward** (+ doğum tarixi sorğusu) | ⏳ |
+| P0-3 | 🔴 Yüksək | **Onboarding: ad sorğusu + açıq consent checkbox** | ✅ Hazır (2026-08-16) |
+> **P0-3a:** `Customer.name` migration + OTP verify-də consent sətri (compliance boşluğu bağlandı) + ad/doğum tarixi input-ları + məcburi consent checkbox (düymə disabled) + `POST /customer-app/profile/name` — `backend/tests/test_customer_onboarding_flow.py` (5 test) + smoke.
+| P1-1 | 🟠 Orta | **Tier sistemi** (Bronze/Silver/Gold) — kart vizualında fərqlilik + keçid hədləri | ✅ Hazır (2026-08-16) |
+> **P1-1a (core):** `lifetime_stars` migration (backfill) + pos.py points-earn + `_compute_tier` + session `tier` sahəsi + kart/badge/progress UI — `backend/tests/test_customer_tier_system.py` (7 test) + smoke. Multiplier (P1-1b) ayrı fazadır.
+| P1-2 | 🟠 Orta | **Birthday reward** (+ doğum tarixi sorğusu) | ✅ Hazır (2026-08-16) |
+> **P1-2a (core):** `birth_date` migration + `birthday_scheduler` (Baku tz, gündəlik guard marker, il-əsaslı ledger idempotency) + grant (stars+lifetime+ledger+notification+push, default qapalı) + `POST /customer-app/profile/birthday` (format/keçmiş/yaş validasiyası) — `backend/tests/test_customer_birthday_reward.py` (12 test). Profile UI + sorğu (P1-2b) ayrı fazadır.
 | P1-3 | 🟠 Orta | **Offline QR cache** — şəbəkə yoxdursa kart açılsın | ⏳ |
 | P1-4 | 🟠 Orta | **Kampaniya server təsdiqi** — activated vəziyyəti backend-də | ⏳ |
 | P2-1 | 🟡 Aşağı | **Qonaq rejimi** — hesabsız menyu baxışı | ⏳ |
@@ -198,3 +201,105 @@ Menyu fetch → kateqoriya çipləri → məhsul gridi (şəkil, badge, reytinq,
 - [UI_WORLDCLASS_ROADMAP.md](UI_WORLDCLASS_ROADMAP.md) — dünya-səviyyəsi yol xəritəsi (AZ)
 - [UI_AUDIT_GLASS.md](UI_AUDIT_GLASS.md) — glass UI texniki spec (AZ)
 - [CUSTOMER_APP_AUDIT_EN.md](CUSTOMER_APP_AUDIT_EN.md) — bu sənədin ingiliscəsi
+
+---
+
+## 12. Texniki Spec: P1-1 Tier Sistemi
+
+### Məqsəd
+Müştərinin ömürlük qazandığı ulduzlara (`lifetime_stars`) görə Bronze/Silver/Gold
+səviyyəsi təyin etmək və bunu kart vizualında + irəliləyiş barında göstərmək.
+
+### Dizayn qərarları
+- Tier mənbəyi: `lifetime_stars` (cari `stars` DEYİL) — redemption stars-ı azaldır,
+  amma səviyyə geri düşmür (prestij qorunur).
+- Backfill: mövcud müştərilər üçün `lifetime_stars = stars` — heç kim sıfırdan başlamır.
+- Konfiq tenant-bazlıdır: `customer_app_settings.tiers` (default: Bronze 0 / Silver 100 / Gold 300).
+- `Customer.type` (cashier tərəfindən təyin olunur) toxunulmur — tier tamamilə törəmə dəyərdir.
+- Multiplier (Gold 1.5×) P1-1b fazasındadır — earn məntiqinə ayrıca toxunur.
+
+### Data model (migration 20260816_0002)
+`customers.lifetime_stars INTEGER NOT NULL DEFAULT 0` + backfill UPDATE.
+`down`: sütun silinir (törəmə hesablama — data itkisi yoxdur).
+
+### Backend davranışı
+- `pos.py` points-rejimi satışında: `lifetime_stars += coffee_qty` (cashback toxunulmur).
+- `_compute_tier(lifetime_stars, tiers)` → `{key, label{az,ru,en}, color, multiplier,
+  current_threshold, next_threshold, progress_pct}` — floor progress (100 yalnız həddə çatanda).
+- Session `customer` obyektinə `lifetime_stars` + `tier` əlavə olunur (additive — köhnə tətbiqlər pozulmur).
+
+### API kontraktı (session)
+`customer.tier = { key, label, color, multiplier, current_threshold, next_threshold|null, progress_pct }`
+
+### Frontend
+- HomeTab: kart qradienti tier rənginə tint (`${color}2E`), kart üzündə tier chip,
+  wallet badge, növbəti səviyyə progress barı.
+- ProfileTab: tier badge (rəngli) + "Kart növü" dəyəri = tier adı.
+- `crm.ts` lokal fallback: `computeTier` mirror — backend yoxkən də session tier işləyir.
+
+### Konfiqurasiya formatı
+`customer_app_settings.tiers = [{ "key", "label": {az,ru,en}, "threshold", "color", "multiplier" }]`
+
+### Status
+- ✅ P1-1a (core): migration + earn + `_compute_tier` + session + UI — hazır (2026-08-16)
+- ⏳ P1-1b: Gold multiplier 1.5× tətbiqi + admin panel tier konfiq UI
+
+### Testlər
+- `backend/tests/test_customer_tier_system.py` (7 test) + `test:smoke` (lokal session tier)
+
+### Double-check
+tsc + build + tam pytest + vizual yoxlama (3 tier rəngi, new/retro/light rejimləri)
+
+---
+
+## 13. Texniki Spec: P1-2 Birthday Reward
+
+### Məqsəd
+Müştərinin doğum günündə avtomatik bonus ulduz + bildiriş + push vermək
+(Starbucks birthday drink analoqu) — balans və tier irəliləyişinə təsir etsin.
+
+### Dizayn qərarları
+- Scheduler hər 30 dəqiqə oyanır, amma gündə yalnız 1 dəfə skan edir (guard marker).
+- "Bugün" hər tenant üçün öz vaxt qurşağında hesablanır (`time_settings.timezone`,
+  default Asia/Baku; ZoneInfo yoxdursa UTC+4 fallback).
+- İdempotency iki qatlı: gündəlik marker (restart-a davamlı) + il-əsaslı ledger sətri
+  (`Birthday bonus {year}`) — multi-worker-da ikiqat grant mümkün deyil.
+- Default QAPALI: `customer_app_settings.birthday_enabled=false` — tenant açmadan
+  heç nə verilmir.
+- Grant həm `stars`, həm `lifetime_stars`-a yazılır — doğum günü hədiyyəsi tier
+  irəliləyişinə də kömək edir.
+- `birth_date` nullable — köhnə/naməlum müştərilər skanda atlanır, migration data
+  itkisizdir.
+
+### Data model (migration 20260816_0003)
+`customers.birth_date DATE NULL` — opsional sahə, backfill tələb olunmur.
+`down`: sütun silinir (məlumat itkisi: yalnız istifadəçinin daxil etdiyi tarix).
+
+### Backend davranışı
+- `app/services/birthday_scheduler.py` — `run_birthday_scan(db, today?)` əsas məntiq;
+  `start_birthday_scheduler()` background thread-i `main.py` start-up-da işə düşür.
+- Skan: aktiv tenant-lar → `birthday_enabled` → `birth_date` ay/gün == bugün → grant.
+- Grant: `stars += bonus`, `lifetime_stars += bonus`, `LoyaltyLedgerEntry(unit='birthday',
+  entry_type='earn', description='Birthday bonus {year}')`, in-app Notification, FCM push.
+- Hər müştəri try/except-də — bir xəta bütün skanı dayandırmaz; commit tenant başına.
+
+### API kontraktı (endpoint + session)
+`POST /customer-app/profile/birthday { birth_date: "YYYY-MM-DD" }` (id+t auth) →
+`{ success, birth_date }`. Validasiya: format, keçmiş tarix, yaş 6-120 → səhv 400.
+Session `customer.birth_date` (nullable, additive).
+
+### Konfiqurasiya formatı
+`customer_app_settings.birthday_enabled: bool` (default false) +
+`customer_app_settings.birthday_bonus_stars: int` (default 5, min 1).
+PATCH `/settings/customer-app` hər iki açarı qəbul edir.
+
+### Status
+- ✅ P1-2a (core): migration + scheduler + grant + endpoint + testlər — hazır (2026-08-16)
+- ⏳ P1-2b: ProfileTab doğum tarixi sorğusu/redaktə UI + admin konfiq UI
+
+### Testlər
+- `backend/tests/test_customer_birthday_reward.py` (12 test): grant, idempotency,
+  disabled tenant, NULL/yanlış ay, custom bonus, endpoint validasiya, guard marker
+
+### Double-check
+tsc + build + tam pytest + frontend smoke + sənəd balansı (AZ = EN)
