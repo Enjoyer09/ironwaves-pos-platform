@@ -26,6 +26,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -41,6 +42,11 @@ BAKU_UTC_OFFSET = timedelta(hours=4)
 SCHEDULER_CHECK_INTERVAL = 1800  # hər 30 dəqiqə yoxla (saniyə)
 DEFAULT_BIRTHDAY_BONUS = 5  # default bonus ulduz sayı
 GUARD_SETTING_KEY = "birthday_scheduler_last_run"
+
+# Session-level Postgres advisory lock açarı. Çoxlu uvicorn worker-i / replica
+# eyni anda skan işlədə bilməsin deyə istifadə olunur. Cluster daxilində unikal
+# olmalıdır — başqa scheduler (backup) üçün FƏRQLİ açar seçin.
+BIRTHDAY_SCAN_LOCK_KEY = 7401
 
 try:
     from zoneinfo import ZoneInfo
@@ -268,12 +274,79 @@ def run_birthday_scan(db: Session, today: date | None = None) -> dict[str, Any]:
 
 
 # ──────────────────────────────────────────
+# Postgres advisory lock (multi-worker qorunması)
+# ──────────────────────────────────────────
+
+def _try_acquire_scan_lock(db: Session) -> bool:
+    """
+    Skan üçün session-level Postgres advisory lock almağa çalışır.
+
+    - Postgres: `pg_try_advisory_lock` (non-blocking) — lock başqa worker-dadırsa
+      dərhal False qaytarır; alınarsa commit/rollback-dən SAĞ QALIR (xact lock deyil).
+    - SQLite/dev: advisory lock yoxdur → həmişə True (no-op). Testlər skanı birbaşa
+      `run_birthday_scan` ilə çağırır, lock yalnız scheduler loop-unu qoruyur.
+    - İstənilən xəta lock-u BLOKLAMIR → True qaytarılır (scheduler heç vaxt dayanmaz).
+    """
+    if getattr(db.bind, "dialect", None) is None or str(db.bind.dialect.name) != "postgresql":
+        return True
+    try:
+        acquired = db.execute(text("SELECT pg_try_advisory_lock(:k)"), {"k": BIRTHDAY_SCAN_LOCK_KEY}).scalar()
+        return bool(acquired)
+    except Exception as e:
+        logger.warning("Advisory lock alınmadı (davam edilir): %s", str(e)[:150])
+        return True
+
+
+def _release_scan_lock(db: Session) -> None:
+    """`_try_acquire_scan_lock` ilə alınmış session lock-u buraxır.
+
+    Session-level lock connection pool-a qayıdan connection-da SIZAR — buna görə
+    həmişə explicit unlock edilir (finally blokunda).
+    """
+    if getattr(db.bind, "dialect", None) is None or str(db.bind.dialect.name) != "postgresql":
+        return
+    try:
+        db.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": BIRTHDAY_SCAN_LOCK_KEY})
+    except Exception as e:
+        logger.warning("Advisory lock buraxıla bilmədi: %s", str(e)[:150])
+
+
+def _run_scan_if_due(db: Session, super_tenant_id: str, today: date | None = None) -> dict[str, Any] | None:
+    """
+    Lock + gündəlik guard yoxlaması ilə skanı idarə edir (multi-worker-safe).
+
+    - Lock başqa worker-dadırsa → None (bu dövr atlanır).
+    - Guard marker bu gün üçün artıq yazılıbsa → None (restart-a davamlı dedup).
+    - Əks halda: skan → marker yaz → commit → nəticə dict.
+
+    Guard yoxlaması lock-un İÇİNDƏdir — iki worker-un eyni anda keçməsi mümkün deyil
+    (əvvəlki check-then-act race-i aradan qaldırılır).
+    """
+    today_iso = (today or _baku_today()).isoformat()
+    if not _try_acquire_scan_lock(db):
+        return None
+    try:
+        last_run = _get_guard_date(db, super_tenant_id)
+        if last_run == today_iso:
+            return None
+        result = run_birthday_scan(db, today=today)
+        _set_guard_date(db, super_tenant_id, today_iso)
+        db.commit()
+        return result
+    finally:
+        _release_scan_lock(db)
+
+
+# ──────────────────────────────────────────
 # Scheduler loop
 # ──────────────────────────────────────────
 
 def _scheduler_loop():
-    """Hər 30 dəqiqə oyanır, gündə yalnız 1 dəfə skan işlədir (guard marker)."""
-    logger.info("Birthday Scheduler başladı (hər %d saniyə yoxlama, gündə 1 dəfə skan)", SCHEDULER_CHECK_INTERVAL)
+    """Hər 30 dəqiqə oyanır, gündə yalnız 1 dəfə skan işlədir (advisory lock + guard marker)."""
+    logger.info(
+        "Birthday Scheduler başladı (hər %d saniyə yoxlama, advisory lock + gündə 1 dəfə skan)",
+        SCHEDULER_CHECK_INTERVAL,
+    )
     while True:
         try:
             with SessionLocal() as db:
@@ -286,21 +359,13 @@ def _scheduler_loop():
                     logger.warning("Birthday scheduler: super tenant tapılmadı, skan atlanır.")
                     time.sleep(SCHEDULER_CHECK_INTERVAL)
                     continue
-
-                today_str = _baku_today().isoformat()
-                last_run = _get_guard_date(db, super_tenant.id)
-                if last_run == today_str:
-                    logger.info("Birthday skan bu gün artıq icra olunub (%s).", last_run)
-                    time.sleep(SCHEDULER_CHECK_INTERVAL)
-                    continue
-
-                result = run_birthday_scan(db)
-                _set_guard_date(db, super_tenant.id, today_str)
-                db.commit()
-                logger.info(
-                    "Birthday skan tamamlandı: %s",
-                    {k: v for k, v in result.items()},
-                )
+                result = _run_scan_if_due(db, super_tenant.id)
+                if result is None:
+                    logger.info(
+                        "Birthday skan bu dövr üçün atlandı (lock başqa worker-dadır və ya bu gün artıq icra olunub)."
+                    )
+                else:
+                    logger.info("Birthday skan tamamlandı: %s", {k: v for k, v in result.items()})
         except Exception as e:
             logger.error("Birthday scheduler xətası: %s", str(e)[:300])
         time.sleep(SCHEDULER_CHECK_INTERVAL)
