@@ -9,7 +9,7 @@ import re
 import secrets
 import threading
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 try:
     from zoneinfo import ZoneInfo
@@ -1091,6 +1091,14 @@ class CustomerPreOrderItemIn(BaseModel):
 class CustomerPreOrderIn(BaseModel):
     items: list[CustomerPreOrderItemIn]
     notes: str | None = None
+
+
+class CustomerBirthdayIn(BaseModel):
+    birth_date: str  # YYYY-MM-DD
+
+
+class CustomerNameIn(BaseModel):
+    name: str
 
 
 class ShiftHandoverCreateIn(BaseModel):
@@ -2877,6 +2885,8 @@ def update_customer_app_settings(
         "show_campaigns": bool(payload.get("show_campaigns", True)),
         "show_history": bool(payload.get("show_history", True)),
         "show_notifications": bool(payload.get("show_notifications", True)),
+        "birthday_enabled": bool(payload.get("birthday_enabled", False)),
+        "birthday_bonus_stars": max(0, int(payload.get("birthday_bonus_stars") or 5)),
     }
     _set_setting_value(db, tenant.id, "customer_app_settings", cleaned)
     db.commit()
@@ -3968,6 +3978,8 @@ def get_customer_app_session(
             "show_campaigns": True,
             "show_history": True,
             "show_notifications": True,
+            "birthday_enabled": False,
+            "birthday_bonus_stars": 5,
         },
     )
     if not bool(app_settings.get("enabled", True)):
@@ -4031,6 +4043,7 @@ def get_customer_app_session(
             "lifetime_stars": int(customer.lifetime_stars or 0),
             "tier": _compute_tier(int(customer.lifetime_stars or 0), app_settings.get("tiers") or DEFAULT_TIERS),
             "discount_percent": str(customer.discount_percent or 0),
+            "birth_date": customer.birth_date.isoformat() if customer.birth_date else None,
             "created_at": customer.created_at.isoformat() if customer.created_at else None,
         },
         "wallet": {

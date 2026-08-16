@@ -1,9 +1,9 @@
 import uuid
 import secrets
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -520,6 +520,7 @@ class Customer(Base):
     lifetime_stars: Mapped[int] = mapped_column(Integer, default=0)
     secret_token: Mapped[str] = mapped_column(String(64), nullable=False, default=lambda: secrets.token_hex(16))
     discount_percent: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal("0.00"))
+    birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     push_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     phone: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
