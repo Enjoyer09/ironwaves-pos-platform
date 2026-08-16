@@ -390,6 +390,65 @@ def test_birthday_profile_endpoint_valid_and_session():
     engine.dispose()
 
 
+def test_birthday_profile_endpoint_clear_flow():
+    """Doğum tarixi redaktə axını (P1-2b): təyin → sil (boş) → yenidən təyin."""
+    _bootstrap_env()
+    operations = importlib.import_module("app.routers.operations")
+
+    engine, db = _make_db()
+    tenant = _seed_tenant(db)
+    customer = _seed_customer(db, tenant, birth_date=None)
+
+    def _set(birth_date: str):
+        return operations.update_customer_birthday(
+            payload=operations.CustomerBirthdayIn(birth_date=birth_date),
+            id=customer.card_id,
+            t=customer.secret_token,
+            db=db,
+            tenant=tenant,
+        )
+
+    # 1. Set a birth date first
+    res = _set("1995-05-10")
+    assert res["success"] is True
+    assert res["birth_date"] == "1995-05-10"
+    db.refresh(customer)
+    assert customer.birth_date == date(1995, 5, 10)
+
+    # 2. Clear with empty string -> None (P1-2b 'leave empty to remove')
+    res = _set("")
+    assert res["success"] is True
+    assert res["birth_date"] is None
+    db.refresh(customer)
+    assert customer.birth_date is None
+
+    # Session no longer exposes a birth date
+    session = operations.get_customer_app_session(
+        id=customer.card_id,
+        t=customer.secret_token,
+        db=db,
+        tenant=tenant,
+    )
+    assert session["customer"]["birth_date"] is None
+
+    # 3. Whitespace-only also clears (backend normalizes -> None)
+    res = _set("   ")
+    assert res["success"] is True
+    assert res["birth_date"] is None
+    db.refresh(customer)
+    assert customer.birth_date is None
+
+    # 4. Re-set works after clearing — birthday scheduler still sees it
+    res = _set("1988-03-15")
+    assert res["success"] is True
+    assert res["birth_date"] == "1988-03-15"
+    db.refresh(customer)
+    assert customer.birth_date == date(1988, 3, 15)
+
+    db.close()
+    engine.dispose()
+
+
 def test_birthday_profile_endpoint_validation():
     _bootstrap_env()
     operations = importlib.import_module("app.routers.operations")
