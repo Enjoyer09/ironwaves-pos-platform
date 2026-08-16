@@ -34,6 +34,10 @@ export default function ProfileTab({
   const unreadBg     = isLight ? 'border-[#F48C24]/25 bg-[#F48C24]/5' : 'border-[#F48C24]/25 bg-[#F48C24]/8';
   const langBarCls   = isLight ? 'border-black/8 bg-white/80 text-slate-700 shadow-sm backdrop-blur-sm' : 'border-white/10 bg-white/6 text-slate-200 backdrop-blur-md';
 
+  const tier: any = customer?.tier || null;
+  const tierColor = String(tier?.color || '#F48C24');
+  const tierLabel = (tier?.label?.[safeLang] as string) || tier?.label?.en || customer?.type || 'Golden Member';
+
   const unreadCount = notifications.filter((n: any) => !n.is_read).length;
 
   return (
@@ -62,13 +66,14 @@ export default function ProfileTab({
             </div>
           </div>
 
-          {/* Premium Tag for Member level */}
-          <span className={`text-[9px] font-black uppercase tracking-wider ${
+          {/* Tier badge */}
+          <span className={`text-[9px] font-black uppercase tracking-wider flex-shrink-0 ${
             isRetro
               ? 'text-[#D47B5E] bg-[#FAF8F5] dark:bg-[#1E1714] px-3 py-1.5 rounded-lg border-2 border-[#2B1B1A] dark:border-[#3D2F2A] shadow-[1.5px_1.5px_0px_0px_#2B1B1A]'
-              : 'text-[#F48C24] bg-[#F48C24]/10 px-3 py-1 rounded-full border border-[#F48C24]/20'
-          } flex-shrink-0`}>
-            {customer.type || 'Golden Member'}
+              : 'px-3 py-1 rounded-full border'
+          }`}
+          style={isRetro ? undefined : { color: tierColor, borderColor: `${tierColor}40`, backgroundColor: `${tierColor}14` }}>
+            {tierLabel}
           </span>
         </div>
 
@@ -76,7 +81,7 @@ export default function ProfileTab({
         <div className="grid grid-cols-2 gap-3.5 mt-4 relative z-10">
           {[
             { label: tx(safeLang, 'Endirim faizi', 'Скидка', 'Discount'), value: `${Number(customer.discount_percent || 0).toFixed(0)}%`, highlight: true },
-            { label: tx(safeLang, 'Kart növü', 'Тип карты', 'Card Tier'), value: customer.type || 'Gold' },
+            { label: tx(safeLang, 'Kart növü', 'Тип карты', 'Card Tier'), value: tierLabel },
             { label: tx(safeLang, 'Qoşulma tarixi', 'Дата подключения', 'Joined Since'), value: customer.created_at ? new Date(customer.created_at).toLocaleDateString() : '-' },
             { label: tx(safeLang, 'Kart ID', 'ID карты', 'Card Identifier'), value: String(customer.card_id || '').slice(-8) }
           ].map(({ label, value, highlight }, i) => (

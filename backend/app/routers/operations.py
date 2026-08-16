@@ -3868,6 +3868,46 @@ def verify_customer_otp(
         }
 
 
+DEFAULT_TIERS: list[dict] = [
+    {"key": "bronze", "label": {"az": "Bürünc", "ru": "Бронза", "en": "Bronze"}, "threshold": 0, "color": "#cd7f32", "multiplier": 1},
+    {"key": "silver", "label": {"az": "Gümüş", "ru": "Серебро", "en": "Silver"}, "threshold": 100, "color": "#c0c0c0", "multiplier": 1},
+    {"key": "gold", "label": {"az": "Qızıl", "ru": "Золото", "en": "Gold"}, "threshold": 300, "color": "#d8b156", "multiplier": 1.5},
+]
+
+
+def _compute_tier(lifetime_stars: int, tiers: list[dict] | None) -> dict:
+    """Derive the current tier and progress to the next from lifetime stars."""
+    sorted_tiers = sorted(
+        [t for t in (tiers or []) if isinstance(t, dict) and t.get("key")],
+        key=lambda t: max(0, int(t.get("threshold") or 0)),
+    )
+    if not sorted_tiers:
+        sorted_tiers = DEFAULT_TIERS
+    current = sorted_tiers[0]
+    next_tier: dict | None = None
+    for t in sorted_tiers:
+        if lifetime_stars >= int(t.get("threshold") or 0):
+            current = t
+        elif next_tier is None:
+            next_tier = t
+            break
+    current_threshold = max(0, int(current.get("threshold") or 0))
+    progress_pct = 100
+    if next_tier:
+        next_threshold = max(0, int(next_tier.get("threshold") or 0))
+        span = next_threshold - current_threshold
+        progress_pct = 0 if span <= 0 else min(100, int((lifetime_stars - current_threshold) / span * 100))
+    return {
+        "key": str(current.get("key") or "bronze"),
+        "label": current.get("label") or DEFAULT_TIERS[0]["label"],
+        "color": str(current.get("color") or "#cd7f32"),
+        "multiplier": float(current.get("multiplier") or 1),
+        "current_threshold": current_threshold,
+        "next_threshold": int(next_tier.get("threshold") or 0) if next_tier else None,
+        "progress_pct": progress_pct,
+    }
+
+
 @router.get("/customer-app/session")
 def get_customer_app_session(
     id: str = Query(...),
@@ -3988,6 +4028,8 @@ def get_customer_app_session(
             "card_id": customer.card_id,
             "type": customer.type,
             "stars": stars,
+            "lifetime_stars": int(customer.lifetime_stars or 0),
+            "tier": _compute_tier(int(customer.lifetime_stars or 0), app_settings.get("tiers") or DEFAULT_TIERS),
             "discount_percent": str(customer.discount_percent or 0),
             "created_at": customer.created_at.isoformat() if customer.created_at else None,
         },

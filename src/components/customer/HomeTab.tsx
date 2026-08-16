@@ -139,6 +139,11 @@ export default function HomeTab({
     ? (isLight ? 'border-[2px] border-[#2B1B1A] bg-[#FAF8F5] text-slate-800' : 'border-[2px] border-[#3D2F2A] bg-[#1A1513] text-white')
     : (isLight ? 'bg-orange-50/60 border-orange-100/80 hover:bg-orange-50 shadow-sm' : 'bg-gradient-to-r from-[#F48C24]/10 to-[#ffb366]/5 border-white/10 hover:border-[#F48C24]/30 hover:shadow-[0_0_20px_rgba(244,140,36,0.12)]');
 
+  const tier: any = customer?.tier || null;
+  const tierColor = String(tier?.color || '#cd7f32');
+  const tierLabel = (tier?.label?.[safeLang] as string) || tier?.label?.en || customer?.type || 'Member';
+  const lifetimeStars = Number(customer?.lifetime_stars ?? customer?.stars ?? 0);
+
   const formatCardIdFn = (id: string) => {
     const clean = String(id || '').replace(/[^a-zA-Z0-9]/g, '');
     if (!clean) return '•••• •••• •••• ••••';
@@ -319,7 +324,7 @@ export default function HomeTab({
                 borderColor: isLight ? 'rgba(26,67,41,0.12)' : 'rgba(255,255,255,0.06)',
                 background: heroImage
                   ? `linear-gradient(180deg, rgba(26, 67, 41, 0.2), rgba(13, 11, 10, 0.95)), url(${heroImage}) center/cover`
-                  : 'linear-gradient(135deg, #1C2029 0%, #0C0F14 100%)',
+                  : `linear-gradient(135deg, ${tierColor}2E 0%, #1C2029 45%, #0C0F14 100%)`,
                 padding: '24px',
                 transform: 'rotateY(0deg)',
                 WebkitTransform: 'rotateY(0deg)',
@@ -366,7 +371,11 @@ export default function HomeTab({
 
               <div className="mt-4 flex items-center justify-between text-white/50 text-[10px] font-mono tracking-[0.2em] relative z-10">
                 <span>{formatCardIdFn(customer.card_id)}</span>
-                <span className="text-[9px] opacity-75">{tx(safeLang, 'MÜŞTƏRİ', 'КЛИЕНТ', 'CUSTOMER')}</span>
+                <span className="flex items-center gap-1.5 rounded-full bg-black/30 border border-white/10 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider"
+                  style={{ color: tierColor }}>
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tierColor }} />
+                  {tierLabel}
+                </span>
               </div>
             </div>
           )}
@@ -415,9 +424,27 @@ export default function HomeTab({
                 </p>
               </div>
               <span className={`inline-block rounded-full px-3 py-1 text-[10px] font-bold tracking-wider uppercase border ${isLight ? 'bg-black/5 border-black/8 text-slate-800' : 'bg-white/6 border-white/12 text-white'}`}>
-                {programMode === 'cashback' ? `${Number(wallet.cashback_percent || 0).toFixed(0)}% cashback` : (customer.type || 'Member')}
+                {programMode === 'cashback' ? `${Number(wallet.cashback_percent || 0).toFixed(0)}% cashback` : (tier ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tierColor }} />
+                    {tierLabel}
+                  </span>
+                ) : (customer.type || 'Member'))}
               </span>
             </div>
+
+            {tier && tier.next_threshold != null && (
+              <div className="mb-4">
+                <div className={`flex items-center justify-between text-[9px] font-bold uppercase tracking-wider mb-1.5 ${subText}`}>
+                  <span>{lifetimeStars} {tx(safeLang, 'ulduz', 'звёзд', 'stars')} · {tierLabel}</span>
+                  <span>{tx(safeLang, 'Növbəti səviyyə', 'Следующий уровень', 'Next level')}: {tier.next_threshold}</span>
+                </div>
+                <div className={`h-1.5 rounded-full overflow-hidden ${isLight ? 'bg-black/8' : 'bg-white/10'}`}>
+                  <div className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${Math.max(0, Math.min(100, Number(tier.progress_pct) || 0))}%`, backgroundColor: tierColor }} />
+                </div>
+              </div>
+            )}
 
             {programMode === 'points' ? (
               <div className={`border-t pt-4 ${borderSec}`}>
