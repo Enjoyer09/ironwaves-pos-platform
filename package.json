@@ -8,6 +8,7 @@
     "build": "vite build && cp public/sw.js dist/sw.js",
     "build:customer": "VITE_CUSTOMER_APP_ONLY=1 vite build && mv dist/customer.html dist/index.html && cp public/sw.js dist/sw.js",
     "sync:ios:customer": "npm run build:customer && npx cap copy ios",
+    "test:smoke": "esbuild tests/crm_local_smoke.test.mjs --bundle --platform=node --format=esm --outfile=tests/.build/crm_local_smoke.test.mjs --log-level=warning && node --test tests/.build/crm_local_smoke.test.mjs",
     "preview": "vite preview",
     "start": "node server.js",
     "print-agent": "node tools/print-agent/ironwaves-print-agent.js",
