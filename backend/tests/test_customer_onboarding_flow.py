@@ -318,6 +318,76 @@ def test_update_customer_name_endpoint():
     engine.dispose()
 
 
+def test_update_customer_name_edit_flow():
+    """Name redaktə axını (P1-2b): təyin → yenilə → sərhəd validasiyası (uzunluq/HTML)."""
+    _bootstrap_env()
+    operations = importlib.import_module("app.routers.operations")
+
+    engine, db = _make_db()
+    tenant = _seed_tenant(db)
+    customer = _seed_customer(db, tenant)
+
+    def _set(name: str):
+        return operations.update_customer_name(
+            payload=operations.CustomerNameIn(name=name),
+            id=customer.card_id,
+            t=customer.secret_token,
+            db=db,
+            tenant=tenant,
+        )
+
+    # 1. Set -> trimmed + persisted
+    res = _set("  Aysel  ")
+    assert res["success"] is True
+    assert res["name"] == "Aysel"
+    db.refresh(customer)
+    assert customer.name == "Aysel"
+
+    # 2. Overwrite (edit path)
+    res = _set("Aysel Məmmədova")
+    assert res["success"] is True
+    assert res["name"] == "Aysel Məmmədova"
+    db.refresh(customer)
+    assert customer.name == "Aysel Məmmədova"
+
+    # 3. Length lower boundary: 1 char -> 400, 2 chars -> OK
+    with pytest.raises(HTTPException) as exc:
+        _set("A")
+    assert exc.value.status_code == 400
+
+    res = _set("Ay")
+    assert res["name"] == "Ay"
+
+    # 4. Upper boundary: 60 chars OK, 61 chars -> 400
+    ok60 = "X" * 60
+    res = _set(ok60)
+    assert res["success"] is True
+    assert res["name"] == ok60
+    with pytest.raises(HTTPException) as exc:
+        _set("Y" * 61)
+    assert exc.value.status_code == 400
+
+    # 5. HTML / script / angle brackets / ampersand -> 400
+    for bad in ("<script>alert(1)</script>", "A&B", "A>B", "A<B"):
+        with pytest.raises(HTTPException) as exc:
+            _set(bad)
+        assert exc.value.status_code == 400
+
+    # 6. After all rejections the last valid value persists + session reflects it
+    db.refresh(customer)
+    assert customer.name == ok60
+    session = operations.get_customer_app_session(
+        id=customer.card_id,
+        t=customer.secret_token,
+        db=db,
+        tenant=tenant,
+    )
+    assert session["customer"]["name"] == ok60
+
+    db.close()
+    engine.dispose()
+
+
 # ──────────────────────────────────────────
 # Enroll path
 # ──────────────────────────────────────────
