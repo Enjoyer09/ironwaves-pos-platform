@@ -489,6 +489,176 @@ def test_birthday_settings_patch_accepts_keys():
     engine.dispose()
 
 
+# ──────────────────────────────────────────
+# Multi-worker advisory lock (P1-2 hardening)
+# ──────────────────────────────────────────
+
+class _FakeDialect:
+    name = "postgresql"
+
+
+class _FakeResult:
+    def __init__(self, value):
+        self._value = value
+
+    def scalar(self):
+        return self._value
+
+
+class _FakeDb:
+    """Postgres dialect-i simulyasiya edən db — advisory SQL-i yoxlamaq üçün."""
+
+    def __init__(self, scalar_value=True):
+        self.bind = type("B", (), {"dialect": _FakeDialect()})()
+        self.calls: list[tuple[str, dict | None]] = []
+        self._scalar = scalar_value
+
+    def execute(self, sql, params=None):
+        self.calls.append((str(sql), params))
+        return _FakeResult(self._scalar)
+
+
+def test_scan_lock_sqlite_fallback_noop():
+    """SQLite-də advisory lock yoxdur → həmişə True, unlock no-op (crash yoxdur)."""
+    _bootstrap_env()
+    engine, db = _make_db()
+    assert bd._try_acquire_scan_lock(db) is True
+    bd._release_scan_lock(db)  # must not raise
+    db.close()
+    engine.dispose()
+
+
+def test_scan_lock_postgres_issues_advisory_sql():
+    """Postgres dialect-də düzgün advisory lock SQL-i işlədilir."""
+    _bootstrap_env()
+
+    db = _FakeDb(scalar_value=True)
+    assert bd._try_acquire_scan_lock(db) is True
+    assert "pg_try_advisory_lock" in db.calls[0][0]
+    assert db.calls[0][1] == {"k": bd.BIRTHDAY_SCAN_LOCK_KEY}
+
+    bd._release_scan_lock(db)
+    assert "pg_advisory_unlock" in db.calls[1][0]
+    assert db.calls[1][1] == {"k": bd.BIRTHDAY_SCAN_LOCK_KEY}
+
+    # lock başqa worker-dadırsa → False (non-blocking skip)
+    busy = _FakeDb(scalar_value=False)
+    assert bd._try_acquire_scan_lock(busy) is False
+
+
+def test_run_scan_if_due_lock_busy_skips(monkeypatch):
+    """Lock başqa worker-dadırsa skan ATLANIR: grant yox, marker yazılmır."""
+    _bootstrap_env()
+    engine, db = _make_db()
+    tenant = _seed_tenant(db)
+    customer = _seed_customer(db, tenant, birth_date=date(1995, 8, 16))
+
+    monkeypatch.setattr(bd, "_try_acquire_scan_lock", lambda db_: False)
+
+    result = bd._run_scan_if_due(db, tenant.id, today=date(2026, 8, 16))
+    assert result is None
+    db.refresh(customer)
+    assert customer.stars == 10  # untouched
+    assert bd._get_guard_date(db, tenant.id) is None  # marker not written
+
+    db.close()
+    engine.dispose()
+
+
+def test_run_scan_if_due_guard_fresh_skips():
+    """Guard marker bu gün yazılıbsa → hətta lock sərbəst olsa belə skan atlanır."""
+    _bootstrap_env()
+    engine, db = _make_db()
+    tenant = _seed_tenant(db)
+    customer = _seed_customer(db, tenant, birth_date=date(1995, 8, 16))
+    bd._set_guard_date(db, tenant.id, "2026-08-16")
+    db.commit()
+
+    result = bd._run_scan_if_due(db, tenant.id, today=date(2026, 8, 16))
+    assert result is None
+    db.refresh(customer)
+    assert customer.stars == 10
+
+    db.close()
+    engine.dispose()
+
+
+def test_run_scan_if_due_full_flow_sets_marker():
+    """Tam axın: lock + stale guard → skan işləyir, grant olur, marker yazılır."""
+    _bootstrap_env()
+    engine, db = _make_db()
+    tenant = _seed_tenant(db)
+    customer = _seed_customer(db, tenant, birth_date=date(1995, 8, 16))
+
+    result = bd._run_scan_if_due(db, tenant.id, today=date(2026, 8, 16))
+    assert result is not None
+    assert result["granted"] == 1
+    db.refresh(customer)
+    assert customer.stars == 15
+    assert bd._get_guard_date(db, tenant.id) == "2026-08-16"
+
+    db.close()
+    engine.dispose()
+
+
+def test_run_scan_if_due_multi_worker_sequence():
+    """İki worker ardıcıllığı: A skan edir + marker yazır; B (sonra) atlanır.
+
+    Bu, lock-un əldə edilməsindən sonra guard yoxlamasının dedup etdiyini
+    sübut edir — ikiqat grant mümkün deyil.
+    """
+    _bootstrap_env()
+    engine, db = _make_db()
+    tenant = _seed_tenant(db)
+    customer = _seed_customer(db, tenant, birth_date=date(1995, 8, 16))
+
+    # Worker A
+    res_a = bd._run_scan_if_due(db, tenant.id, today=date(2026, 8, 16))
+    assert res_a["granted"] == 1
+    db.refresh(customer)
+    assert customer.stars == 15
+
+    # Worker B — lock sərbəst, amma guard artıq bugünkü → atlanır
+    res_b = bd._run_scan_if_due(db, tenant.id, today=date(2026, 8, 16))
+    assert res_b is None
+    db.refresh(customer)
+    assert customer.stars == 15  # ikiqat grant yoxdur
+
+    db.close()
+    engine.dispose()
+
+
+def test_scan_lock_real_postgres_mutual_exclusion():
+    """Real Postgres varsa: iki session eyni anda lock ala BİLMƏZ (race).
+
+    `TEST_POSTGRES_URL` və ya `DATABASE_URL` postgresql:// olduqda işləyir;
+    əks halda skip (CI-da Postgres ilə işə salmaq üçün nəzərdə tutulub).
+    """
+    pg_url = os.environ.get("TEST_POSTGRES_URL", "") or os.environ.get("DATABASE_URL", "")
+    if not str(pg_url).startswith("postgresql"):
+        pytest.skip("Postgres required for the real advisory lock race test")
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker as _sessionmaker
+
+    pg_engine = create_engine(pg_url, pool_size=3, max_overflow=0)
+    Session = _sessionmaker(bind=pg_engine)
+    db1 = Session()
+    db2 = Session()
+    try:
+        assert bd._try_acquire_scan_lock(db1) is True
+        # db1 lock-u saxlayır → db2 eyni anda ala bilmir
+        assert bd._try_acquire_scan_lock(db2) is False
+        # db1 buraxandan sonra db2 ala bilir
+        bd._release_scan_lock(db1)
+        assert bd._try_acquire_scan_lock(db2) is True
+        bd._release_scan_lock(db2)
+    finally:
+        db1.close()
+        db2.close()
+        pg_engine.dispose()
+
+
 def test_birthday_daily_guard_marker_roundtrip():
     _bootstrap_env()
     engine, db = _make_db()
