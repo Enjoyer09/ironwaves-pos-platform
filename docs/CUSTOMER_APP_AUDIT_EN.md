@@ -172,7 +172,8 @@ Two modes: **points** (stars → claim) and **cashback** (percentage accrual). S
 | P1-1 | 🟠 Medium | **Tier system** (Bronze/Silver/Gold) — card visual differentiation + thresholds | ✅ Done (2026-08-16) |
 > **P1-1a (core):** `lifetime_stars` migration (backfill) + pos.py points earn + `_compute_tier` + session `tier` field + card/badge/progress UI — `backend/tests/test_customer_tier_system.py` (7 tests) + smoke. Multiplier (P1-1b) is a separate phase.
 | P1-2 | 🟠 Medium | **Birthday reward** (+ birthdate prompt) | ✅ Done (2026-08-16) |
-> **P1-2a (core):** `birth_date` migration + `birthday_scheduler` (Baku tz, daily guard marker, year-based ledger idempotency) + grant (stars+lifetime+ledger+notification+push, disabled by default) + `POST /customer-app/profile/birthday` (format/past/age validation) — `backend/tests/test_customer_birthday_reward.py` (12 tests). Profile UI + prompt (P1-2b) is a separate phase.
+> **P1-2a (core):** `birth_date` migration + `birthday_scheduler` (Baku tz, daily guard marker, year-based ledger idempotency) + grant (stars+lifetime+ledger+notification+push, disabled by default) + `POST /customer-app/profile/birthday` (format/past/age validation) — `backend/tests/test_customer_birthday_reward.py` (12 tests). Multi-worker advisory lock added (20 tests total).
+> **P1-2b:** ProfileTab name/birth-date edit UI — `update_customer_name_live`/`update_customer_birthday_live`; empty birth date clears (None). Admin config UI (P1-2c) is a separate phase.
 | P1-3 | 🟠 Medium | **Offline QR cache** — card opens without network | ⏳ |
 | P1-4 | 🟠 Medium | **Server-validated campaigns** — activated state on the backend | ⏳ |
 | P2-1 | 🟡 Low | **Guest mode** — browse menu without an account | ⏳ |
@@ -295,11 +296,13 @@ PATCH `/settings/customer-app` accepts both keys.
 
 ### Status
 - ✅ P1-2a (core): migration + scheduler + grant + endpoint + tests — done (2026-08-16)
-- ⏳ P1-2b: ProfileTab birthdate prompt/edit UI + admin config UI
+- ✅ P1-2b: ProfileTab name/birth-date edit UI — done (2026-08-16)
+- ⏳ P1-2c: admin config UI (birthday_enabled / birthday_bonus_stars panel)
 
 ### Tests
-- `backend/tests/test_customer_birthday_reward.py` (12 tests): grant, idempotency,
-  disabled tenant, NULL/wrong month, custom bonus, endpoint validation, guard marker
+- `backend/tests/test_customer_birthday_reward.py` (20 tests): grant, idempotency,
+  disabled tenant, NULL/wrong month, custom bonus, endpoint validation, guard marker,
+  advisory lock race (PG skippable)
 
 ### Double-check
 tsc + build + full pytest + frontend smoke + doc balance (AZ = EN)

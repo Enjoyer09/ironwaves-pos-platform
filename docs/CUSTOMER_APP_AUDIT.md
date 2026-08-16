@@ -172,7 +172,8 @@ Menyu fetch → kateqoriya çipləri → məhsul gridi (şəkil, badge, reytinq,
 | P1-1 | 🟠 Orta | **Tier sistemi** (Bronze/Silver/Gold) — kart vizualında fərqlilik + keçid hədləri | ✅ Hazır (2026-08-16) |
 > **P1-1a (core):** `lifetime_stars` migration (backfill) + pos.py points-earn + `_compute_tier` + session `tier` sahəsi + kart/badge/progress UI — `backend/tests/test_customer_tier_system.py` (7 test) + smoke. Multiplier (P1-1b) ayrı fazadır.
 | P1-2 | 🟠 Orta | **Birthday reward** (+ doğum tarixi sorğusu) | ✅ Hazır (2026-08-16) |
-> **P1-2a (core):** `birth_date` migration + `birthday_scheduler` (Baku tz, gündəlik guard marker, il-əsaslı ledger idempotency) + grant (stars+lifetime+ledger+notification+push, default qapalı) + `POST /customer-app/profile/birthday` (format/keçmiş/yaş validasiyası) — `backend/tests/test_customer_birthday_reward.py` (12 test). Profile UI + sorğu (P1-2b) ayrı fazadır.
+> **P1-2a (core):** `birth_date` migration + `birthday_scheduler` (Baku tz, gündəlik guard marker, il-əsaslı ledger idempotency) + grant (stars+lifetime+ledger+notification+push, default qapalı) + `POST /customer-app/profile/birthday` (format/keçmiş/yaş validasiyası) — `backend/tests/test_customer_birthday_reward.py` (12 test). Multi-worker advisory lock əlavə edildi (ümumi 20 test).
+> **P1-2b:** ProfileTab ad/doğum tarixi redaktə UI — `update_customer_name_live`/`update_customer_birthday_live`; boş birth_date silmə (None). Admin konfiq UI (P1-2c) ayrı fazadır.
 | P1-3 | 🟠 Orta | **Offline QR cache** — şəbəkə yoxdursa kart açılsın | ⏳ |
 | P1-4 | 🟠 Orta | **Kampaniya server təsdiqi** — activated vəziyyəti backend-də | ⏳ |
 | P2-1 | 🟡 Aşağı | **Qonaq rejimi** — hesabsız menyu baxışı | ⏳ |
@@ -295,11 +296,13 @@ PATCH `/settings/customer-app` hər iki açarı qəbul edir.
 
 ### Status
 - ✅ P1-2a (core): migration + scheduler + grant + endpoint + testlər — hazır (2026-08-16)
-- ⏳ P1-2b: ProfileTab doğum tarixi sorğusu/redaktə UI + admin konfiq UI
+- ✅ P1-2b: ProfileTab ad/doğum tarixi redaktə UI — hazır (2026-08-16)
+- ⏳ P1-2c: admin konfiq UI (birthday_enabled / birthday_bonus_stars paneli)
 
 ### Testlər
-- `backend/tests/test_customer_birthday_reward.py` (12 test): grant, idempotency,
-  disabled tenant, NULL/yanlış ay, custom bonus, endpoint validasiya, guard marker
+- `backend/tests/test_customer_birthday_reward.py` (20 test): grant, idempotency,
+  disabled tenant, NULL/yanlış ay, custom bonus, endpoint validasiya, guard marker,
+  advisory lock race (PG skippable)
 
 ### Double-check
 tsc + build + tam pytest + frontend smoke + sənəd balansı (AZ = EN)
