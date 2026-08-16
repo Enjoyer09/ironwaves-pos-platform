@@ -29,6 +29,7 @@ from app.routers import agent, ai_ops, analytics_api, auth, catalog, customer_fe
 from app.security import decode_token, hash_password, get_client_ip
 from app.services.ai_agent_bg import start_background_agent
 from app.services.backup_scheduler import start_backup_scheduler
+from app.services.birthday_scheduler import start_birthday_scheduler
 from app.tenant import resolve_tenant_from_request
 
 
@@ -1254,6 +1255,9 @@ async def on_startup():
 
     # Start the automated per-tenant backup scheduler
     start_backup_scheduler()
+
+    # Start the per-tenant birthday reward scheduler
+    start_birthday_scheduler()
 
 
 @app.get("/health")
