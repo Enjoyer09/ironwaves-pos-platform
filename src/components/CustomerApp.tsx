@@ -113,6 +113,9 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [otpSending, setOtpSending] = React.useState(false);
   const [otpVerifying, setOtpVerifying] = React.useState(false);
   const [otpError, setOtpError] = React.useState('');
+  const [customerName, setCustomerName] = React.useState('');
+  const [birthDate, setBirthDate] = React.useState('');
+  const [consentChecked, setConsentChecked] = React.useState(false);
   const [baristaMessages, setBaristaMessages] = React.useState<Array<{ role: 'assistant' | 'user'; text: string }>>([]);
   const [baristaInput, setBaristaInput] = React.useState('');
   const [fortuneText, setFortuneText] = React.useState('');
@@ -776,7 +779,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       const joinCustomerType = currentUrl?.searchParams.get('club') || bootstrapData?.join_customer_type || 'golden';
       const joinDiscount = Number(currentUrl?.searchParams.get('discount') || bootstrapData?.join_discount_percent || 0);
       
-      const res = await verify_customer_otp_live(phone, trimmedCode, joinCustomerType, joinDiscount);
+      const res = await verify_customer_otp_live(phone, trimmedCode, joinCustomerType, joinDiscount, customerName.trim(), birthDate);
       const next = { cardId: res.card_id, token: res.token };
       setSessionCreds(next);
       
@@ -1125,16 +1128,52 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                   />
                 </div>
 
-                <div className="rounded-2xl bg-white/3 p-3 text-[10px] leading-relaxed text-white/55 border border-white/5">
-                  <span className="font-bold text-white block mb-0.5">
-                    {tx(safeLang, 'Müştəri razılaşması:', 'Согласие клиента:', 'Customer consent:')}
-                  </span>
-                  {bootstrapData?.consent_text || tx(safeLang, 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.', 'Я согласен на участие в программе лояльности.', 'I agree to join the loyalty program.')}
+                <div>
+                  <label className="block text-[9px] font-black uppercase tracking-widest text-white/40 mb-1.5">
+                    {tx(safeLang, 'Adınız (istəyə bağlı)', 'Ваше имя (необязательно)', 'Your name (optional)')}
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={60}
+                    placeholder={tx(safeLang, 'Məs. Aysel', 'Напр. Айсель', 'e.g. Aysel')}
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3.5 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-[#F48C24]/30"
+                  />
                 </div>
+
+                <div>
+                  <label className="block text-[9px] font-black uppercase tracking-widest text-white/40 mb-1.5">
+                    {tx(safeLang, 'Doğum tarixi (istəyə bağlı — doğum günü bonusu üçün 🎂)', 'Дата рождения (необязательно — для бонуса ко дню рождения 🎂)', 'Birth date (optional — for a birthday bonus 🎂)')}
+                  </label>
+                  <input
+                    type="date"
+                    value={birthDate}
+                    max={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => setBirthDate(e.target.value)}
+                    style={{ colorScheme: 'dark' }}
+                    className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3.5 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-[#F48C24]/30"
+                  />
+                </div>
+
+                <label className="flex items-start gap-2.5 cursor-pointer rounded-2xl bg-white/3 p-3 border border-white/5">
+                  <input
+                    type="checkbox"
+                    checked={consentChecked}
+                    onChange={(e) => setConsentChecked(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded accent-[#F48C24] flex-shrink-0"
+                  />
+                  <span className="text-[10px] leading-relaxed text-white/55">
+                    <span className="font-bold text-white block mb-0.5">
+                      {tx(safeLang, 'Müştəri razılaşması:', 'Согласие клиента:', 'Customer consent:')}
+                    </span>
+                    {bootstrapData?.consent_text || tx(safeLang, 'Mən loyallıq proqramına qoşulmağa və şəxsi reward hesabımın yaradılmasına razıyam.', 'Я согласен на участие в программе лояльности.', 'I agree to join the loyalty program.')}
+                  </span>
+                </label>
 
                 <button
                   type="button"
-                  disabled={otpSending || otpVerifying}
+                  disabled={!consentChecked || otpSending || otpVerifying}
                   onClick={handleSendOtp}
                   className="w-full rounded-2xl py-3.5 text-xs font-black text-slate-950 disabled:opacity-60 transition active:scale-98 hover:brightness-110 shadow-lg shadow-orange-500/15 shimmer-btn"
                   style={{ background: 'linear-gradient(135deg, #F48C24 0%, #ffb366 100%)' }}

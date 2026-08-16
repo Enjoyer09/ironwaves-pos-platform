@@ -14,7 +14,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { clearDBCache, setDB, getDB } from '../src/lib/db_sim';
-import { get_customer_orders_live, create_customer_pre_order_live } from '../src/api/crm';
+import {
+  get_customer_orders_live,
+  create_customer_pre_order_live,
+  get_customer_app_session_live,
+  update_customer_name_live,
+  update_customer_birthday_live,
+} from '../src/api/crm';
 
 function seed(rows) {
   clearDBCache('kitchen_orders');
@@ -92,6 +98,47 @@ test('empty store returns empty list', async () => {
   seed([]);
   const orders = await get_customer_orders_live('QR-1', 'tok', 't1');
   assert.deepEqual(orders, []);
+});
+
+test('local session exposes tier + lifetime_stars', async () => {
+  clearDBCache();
+  setDB('customers', [
+    {
+      id: 'cust-1', tenant_id: 't1', card_id: 'QR-TIER1', secret_token: 'tok-1',
+      type: 'golden', stars: 3, lifetime_stars: 150, discount_percent: 0,
+      created_at: '2026-08-16T10:00:00Z',
+    },
+  ]);
+  const session = await get_customer_app_session_live('QR-TIER1', 'tok-1', 't1');
+  assert.equal(session.customer.lifetime_stars, 150);
+  assert.equal(session.customer.tier.key, 'silver');
+  assert.equal(session.customer.tier.label.az, 'Gümüş');
+  assert.equal(session.customer.tier.progress_pct, 25);
+  assert.equal(session.customer.tier.next_threshold, 300);
+});
+
+test('local name + birth date update roundtrip', async () => {
+  clearDBCache();
+  setDB('customers', [
+    {
+      id: 'cust-1', tenant_id: 't1', card_id: 'QR-NAME1', secret_token: 'tok-1',
+      type: 'golden', stars: 0, discount_percent: 0,
+      created_at: '2026-08-16T10:00:00Z',
+    },
+  ]);
+
+  await update_customer_name_live('QR-NAME1', 'tok-1', '  Leyla  ', 't1');
+  await update_customer_birthday_live('QR-NAME1', 'tok-1', '1995-05-10', 't1');
+
+  const session = await get_customer_app_session_live('QR-NAME1', 'tok-1', 't1');
+  assert.equal(session.customer.name, 'Leyla');
+  assert.equal(session.customer.birth_date, '1995-05-10');
+
+  // invalid session rejected
+  await assert.rejects(() => update_customer_name_live('QR-NAME1', 'wrong-token', 'Leyla', 't1'), /invalid/i);
+  await assert.rejects(() => update_customer_birthday_live('QR-NAME1', 'wrong-token', '1995-05-10', 't1'), /invalid/i);
+  // empty name rejected
+  await assert.rejects(() => update_customer_name_live('QR-NAME1', 'tok-1', '   ', 't1'), /invalid/i);
 });
 
 test('local roundtrip: pre-order becomes visible via get_customer_orders_live', async () => {
