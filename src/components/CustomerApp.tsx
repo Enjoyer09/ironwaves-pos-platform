@@ -16,7 +16,8 @@ import ProfileTab from './customer/ProfileTab';
 import BaristaTab from './customer/BaristaTab';
 import FalciTab from './customer/FalciTab';
 import OffersTab from './customer/OffersTab';
-import { formatCardId, playTickSound, playShimmerSound, nativeHapticImpact, CustomerTab } from '../lib/customer_utils';
+import { formatCardId, playTickSound, playShimmerSound, CustomerTab } from '../lib/customer_utils';
+import { updateCartItemQty } from '../lib/cartMath';
 import { syncOnAppOpen, registerWebBackgroundSync, registerCapacitorBackgroundTask } from '../lib/background_fetch';
 import { startLiveActivity, updateLiveActivity, endLiveActivity } from '../lib/live_activity';
 
@@ -127,7 +128,11 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [fortuneStepText, setFortuneStepText] = React.useState('');
   const [showFullQr, setShowFullQr] = React.useState(false);
   const [activatedCampaigns, setActivatedCampaigns] = React.useState<Record<string, { exp: number; start: number }>>({});
-  const [designMode, setDesignMode] = React.useState<'classic' | 'retro'>(() => (localStorage.getItem('customer_design_mode') as 'classic' | 'retro') || 'classic');
+  // U3 decision: Premium is the single design language. The retro/comic variant
+  // and its toggle are no longer exposed to users; designMode is pinned to
+  // 'classic' so everyone sees the same premium UI (stale localStorage values
+  // are ignored because we no longer read customer_design_mode).
+  const designMode: 'classic' | 'retro' = 'classic';
   const [campaignQrs, setCampaignQrs] = React.useState<Record<string, string>>({});
   const [isListening, setIsListening] = React.useState(false);
   const [voiceEnabled, setVoiceEnabled] = React.useState(false);
@@ -228,7 +233,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   const handleUpdateCartQty = (index: number, delta: number) => {
     setCustomerCart(prev => prev.map((item, idx) =>
-      idx === index ? { ...item, quantity: Math.max(1, Number(item.quantity || 1) + delta) } : item
+      idx === index ? updateCartItemQty(item, delta) : item
     ));
     playTickSound();
   };
@@ -1454,16 +1459,12 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   return (
     <div
       className={`relative min-h-dvh overflow-x-hidden overflow-y-auto overscroll-contain customer-app-wrapper transition-colors duration-300 ${
-        designMode === 'retro'
-          ? isLight ? 'retro-bg-light text-slate-900' : 'retro-bg-dark text-white'
-          : isLight ? 'text-slate-900 bg-[#F8F6F4]' : 'text-white bg-[#0D0B0A]'
+        isLight ? 'text-slate-900 bg-[#F8F6F4]' : 'text-white bg-[#0D0B0A]'
       }`}
       style={{
-        background: designMode === 'retro'
-          ? (isLight ? '#FAF6F0' : '#15100E')
-          : (isLight
-            ? `linear-gradient(180deg, #FFFFFF 0%, #F3F1EF 100%)`
-            : `linear-gradient(180deg, #181412 0%, #0D0B0A 100%)`),
+        background: isLight
+          ? `linear-gradient(180deg, #FFFFFF 0%, #F3F1EF 100%)`
+          : `linear-gradient(180deg, #181412 0%, #0D0B0A 100%)`,
       }}
     >
       {/* Background glowing light shapes for rich glassmorphism */}
@@ -1579,24 +1580,6 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               }`}
             >
               {isLight ? '🌙' : '☀️'}
-            </button>
-            <button
-              type="button"
-              aria-label={tx(safeLang, 'Dizayn rejimini dəyiş', 'Сменить режим дизайна', 'Toggle design mode')}
-              onClick={async () => {
-                const nextMode = designMode === 'classic' ? 'retro' : 'classic';
-                setDesignMode(nextMode);
-                localStorage.setItem('customer_design_mode', nextMode);
-                await nativeHapticImpact(ImpactStyle.Light);
-                playTickSound();
-              }}
-              className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider shadow-sm transition active:scale-95 ${
-                isLight
-                  ? 'bg-slate-100 border border-slate-200 text-slate-700'
-                  : 'bg-white/10 border border-white/10 text-white/90'
-              }`}
-            >
-              🎨 {designMode === 'classic' ? 'Premium' : 'Comic'}
             </button>
           </div>
           <div
@@ -1773,13 +1756,9 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         <div className="mx-auto max-w-md px-4 pb-3">
           <div
             className={`flex items-center justify-around rounded-[32px] py-2 border ${
-              designMode === 'retro'
-                ? isLight
-                  ? 'border-[2px] border-[#1C2029] bg-[#FFFDF9] text-[#1C2029] shadow-[3px_3px_0px_0px_#1C2029]'
-                  : 'border-[2px] border-[#2F2622] bg-[#1A1513] text-white shadow-[3px_3px_0px_0px_#2F2622]'
-                : isLight
-                  ? 'border-slate-200 bg-white/80 text-slate-800 shadow-2xl backdrop-blur-2xl'
-                  : 'border-white/10 bg-white/5 text-white shadow-2xl backdrop-blur-2xl'
+              isLight
+                ? 'border-slate-200 bg-white/80 text-slate-800 shadow-2xl backdrop-blur-2xl'
+                : 'border-white/10 bg-white/5 text-white shadow-2xl backdrop-blur-2xl'
             }`}
           >
             {bottomTabs.map((tab) => {
@@ -1801,9 +1780,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                   }}
                   className={`relative flex items-center justify-center transition-all duration-300 ${
                     active
-                      ? designMode === 'retro'
-                        ? 'rounded-xl border-[2px] border-[#1C2029] dark:border-[#2F2622] bg-[#F48C24] text-[#1C2029] dark:text-[#1C2029] px-4 py-2 shadow-[2px_2px_0px_0px_#1C2029] dark:shadow-[2px_2px_0px_0px_#2F2622] gap-1.5'
-                        : 'rounded-full bg-[#F48C24] text-white px-4 py-2 shadow-[0_4px_12px_rgba(244,140,36,0.25)] gap-1.5'
+                      ? 'rounded-full bg-[#F48C24] text-white px-4 py-2 shadow-[0_4px_12px_rgba(244,140,36,0.25)] gap-1.5'
                       : isLight
                         ? 'text-slate-400 hover:text-slate-700 p-2.5 rounded-full hover:bg-slate-100'
                         : 'text-white/40 hover:text-white/70 p-2.5 rounded-full hover:bg-white/5'

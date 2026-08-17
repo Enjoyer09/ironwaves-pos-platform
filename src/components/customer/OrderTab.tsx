@@ -4,6 +4,7 @@ import { ShoppingBag, ChevronLeft, X, Heart, Plus, Minus } from 'lucide-react';
 import { ImpactStyle } from '@capacitor/haptics';
 import { tx } from '../../i18n';
 import { getProductImage, playTickSound, Haptic, nativeHapticImpact } from '../../lib/customer_utils';
+import { cartSubtotal, cartItemCount } from '../../lib/cartMath';
 
 /* ── Toast helper (re-used from HomeTab pattern) ───────────────────── */
 function showAddedToast(name: string, lang: string) {
@@ -219,7 +220,7 @@ export function CartSheet({
   designMode = 'classic'
 }: CartSheetProps) {
   if (!showCartSheet) return null;
-  const subtotal = customerCart.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0);
+  const subtotal = cartSubtotal(customerCart);
 
   const isRetro     = designMode === 'retro';
   const sheetBg     = isRetro
@@ -627,7 +628,7 @@ export default function OrderTab({
             style={{ background: 'linear-gradient(135deg, #F48C24, #ffb366)', boxShadow: '0 6px 20px rgba(244,140,36,0.45)' }}>
             <ShoppingBag size={18} />
             <span className="absolute -top-1 -right-1 bg-white text-[#F48C24] text-[9px] font-black h-4.5 w-4.5 rounded-full flex items-center justify-center border-2 border-[#F48C24] shadow-sm">
-              {customerCart.reduce((sum: number, item: any) => sum + item.quantity, 0)}
+              {cartItemCount(customerCart)}
             </span>
           </button>
         )}

@@ -30,6 +30,12 @@ import {
   campaignCountdown,
   formatCountdown,
 } from '../src/lib/campaignTimer';
+import {
+  clampQty,
+  updateCartItemQty,
+  cartSubtotal,
+  cartItemCount,
+} from '../src/lib/cartMath';
 
 function seed(rows) {
   clearDBCache('kitchen_orders');
@@ -598,4 +604,72 @@ test('F4 formatCountdown: pads both fields and rolls over minutes', () => {
   assert.equal(formatCountdown(7, 5), '07:05');
   assert.equal(formatCountdown(12, 59), '12:59');
   assert.equal(formatCountdown(61, 30), '61:30');
+});
+
+// ── F5: cart qty stepper — quantity clamp + totals ───────────────────────────
+// Logic lives in src/lib/cartMath.ts (pure helpers used by CustomerApp +
+// OrderTab CartSheet).
+
+test('F5 clampQty: never drops below 1 and applies the delta', () => {
+  assert.equal(clampQty(3, +1), 4);
+  assert.equal(clampQty(3, -1), 2);
+  assert.equal(clampQty(1, -1), 1); // floor at 1, not 0
+  assert.equal(clampQty(1, -5), 1);
+  assert.equal(clampQty(0, +1), 2); // 0 treated as 1 base + delta
+});
+
+test('F5 clampQty: accepts numeric strings and guards NaN/negatives', () => {
+  assert.equal(clampQty('2', +1), 3);
+  assert.equal(clampQty(undefined, +1), 2); // missing -> 1 base
+  assert.equal(clampQty(null, -1), 1);
+  assert.equal(clampQty('abc', +1), 2);     // NaN -> 1 base (was NaN inline)
+  assert.equal(clampQty(-3, +1), 2);        // negative -> 1 base
+});
+
+test('F5 updateCartItemQty: immutable, keeps other fields, clamps qty', () => {
+  const item = { id: 'm1', name: 'Latte', price: 4.5, quantity: 2 };
+  const updated = updateCartItemQty(item, +1);
+  assert.equal(updated.quantity, 3);
+  assert.equal(updated.id, 'm1');
+  assert.equal(updated.name, 'Latte');
+  assert.equal(updated.price, 4.5);
+  assert.equal(item.quantity, 2); // original untouched (immutability)
+  // last unit stays: decrement at 1 keeps 1
+  assert.equal(updateCartItemQty({ ...item, quantity: 1 }, -1).quantity, 1);
+});
+
+test('F5 cartSubtotal: price × quantity summed, empty cart is 0', () => {
+  assert.equal(cartSubtotal([
+    { price: 4.5, quantity: 2 },
+    { price: 3, quantity: 1 },
+  ]), 12); // 9 + 3
+  assert.equal(cartSubtotal([]), 0);
+  // string prices and quantities coerce like the old inline code
+  assert.equal(cartSubtotal([{ price: '4.5', quantity: '2' }]), 9);
+  // missing price/quantity fall back to 0 / 1 (was NaN inline)
+  assert.equal(cartSubtotal([{ name: 'x' }]), 0);
+});
+
+test('F5 cartItemCount: sums quantities across lines', () => {
+  assert.equal(cartItemCount([
+    { quantity: 2 },
+    { quantity: 3 },
+    { quantity: 1 },
+  ]), 6);
+  assert.equal(cartItemCount([]), 0);
+  assert.equal(cartItemCount([{ quantity: '2' }, { quantity: undefined }]), 3); // 2 + 1
+});
+
+test('F5 stepper roundtrip: decrement then increment restores quantity', () => {
+  let item = { id: 'm2', price: 2.5, quantity: 4 };
+  item = updateCartItemQty(item, -1);
+  assert.equal(item.quantity, 3);
+  item = updateCartItemQty(item, -1);
+  assert.equal(item.quantity, 2);
+  item = updateCartItemQty(item, +1);
+  assert.equal(item.quantity, 3);
+  item = updateCartItemQty(item, +1);
+  assert.equal(item.quantity, 4);
+  // subtotal tracks the stepper
+  assert.equal(cartSubtotal([item]), 10); // 4 × 2.5
 });
