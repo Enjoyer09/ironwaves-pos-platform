@@ -657,6 +657,46 @@ def test_create_sale_time_window_rejected(monkeypatch):
     engine.dispose()
 
 
+def test_offline_consumption_not_reconciled_allows_double_redemption(monkeypatch):
+    """P1-4c gap proof: an offline device consumes locally (USED in db_sim) but
+    the server never hears about it — the same activation is still ACTIVE there,
+    so another sale can consume it again. This is the cross-device double
+    redemption documented in §17; the frontend mitigations (terminal sync error
+    + campaigns_require_online) are the P1-4c fix, the server alone cannot stop
+    the first consumption that never arrives.
+    """
+    _bootstrap_env()
+    operations = importlib.import_module("app.routers.operations")
+    pos = importlib.import_module("app.routers.pos")
+
+    engine, db = _make_db()
+    tenant = _seed_tenant(db)
+    customer = _seed_customer(db, tenant)
+    campaign = _seed_campaign(db, tenant)
+    _activate(operations, customer, campaign.id, tenant, db)
+    activation = db.query(CampaignActivation).filter(CampaignActivation.tenant_id == tenant.id).one()
+
+    # Device A (offline) consumes locally: sale 1 succeeds and flips USED.
+    _create_sale(pos, db, tenant, campaign_id=campaign.id, activation_id=activation.id, monkeypatch=monkeypatch)
+    db.refresh(activation)
+    assert activation.status == "USED"
+
+    # Simulate the offline consumption never reaching the server (no sync):
+    # the server row is still ACTIVE from its point of view.
+    activation.status = "ACTIVE"
+    db.commit()
+
+    # Device B (online) consumes the SAME activation on a second sale — succeeds,
+    # proving the gap: one activation discounted twice.
+    _create_sale(pos, db, tenant, campaign_id=campaign.id, activation_id=activation.id, monkeypatch=monkeypatch)
+    db.refresh(activation)
+    assert activation.status == "USED"
+    assert db.query(Sale).count() == 2
+
+    db.close()
+    engine.dispose()
+
+
 def test_create_sale_campaign_card_mismatch_rejected(monkeypatch):
     """P1-4b: a campaign activated for card A cannot be applied to card B's sale."""
     _bootstrap_env()
