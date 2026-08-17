@@ -98,7 +98,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [cardFlipped, setCardFlipped] = React.useState(false);
   const [menuItems, setMenuItems] = React.useState<any[]>([]);
   const [menuLoading, setMenuLoading] = React.useState(false);
-  const [selectedCategory, setSelectedCategory] = React.useState<string>('');
+  const [selectedCategory, setSelectedCategory] = React.useState<string>('ALL');
   const [customerCart, setCustomerCart] = React.useState<any[]>([]);
   const [modifierSheetItem, setModifierSheetItem] = React.useState<any | null>(null);
   const [selectedVariant, setSelectedVariant] = React.useState<any | null>(null);
@@ -126,7 +126,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [fortuneProgress, setFortuneProgress] = React.useState(0);
   const [fortuneStepText, setFortuneStepText] = React.useState('');
   const [showFullQr, setShowFullQr] = React.useState(false);
-  const [activatedCampaigns, setActivatedCampaigns] = React.useState<Record<string, number>>({});
+  const [activatedCampaigns, setActivatedCampaigns] = React.useState<Record<string, { exp: number; start: number }>>({});
   const [designMode, setDesignMode] = React.useState<'classic' | 'retro'>(() => (localStorage.getItem('customer_design_mode') as 'classic' | 'retro') || 'classic');
   const [campaignQrs, setCampaignQrs] = React.useState<Record<string, string>>({});
   const [isListening, setIsListening] = React.useState(false);
@@ -148,14 +148,6 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   });
   const fileRef = React.useRef<HTMLInputElement | null>(null);
   const safeLang = lang === 'ru' || lang === 'en' ? lang : 'az';
-  const [simulatedTemp, setSimulatedTemp] = React.useState<number>(() => {
-    const hr = new Date().getHours();
-    return hr >= 10 && hr <= 17 ? 26 : 14;
-  });
-  const [simulatedCondition, setSimulatedCondition] = React.useState<'sunny' | 'rainy'>(() => {
-    const hr = new Date().getHours();
-    return hr >= 10 && hr <= 17 ? 'sunny' : 'rainy';
-  });
 
   React.useEffect(() => {
     if (!cardId || !token) return;
@@ -231,6 +223,13 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   const handleRemoveFromCart = (index: number) => {
     setCustomerCart(prev => prev.filter((_, idx) => idx !== index));
+    playTickSound();
+  };
+
+  const handleUpdateCartQty = (index: number, delta: number) => {
+    setCustomerCart(prev => prev.map((item, idx) =>
+      idx === index ? { ...item, quantity: Math.max(1, Number(item.quantity || 1) + delta) } : item
+    ));
     playTickSound();
   };
 
@@ -367,6 +366,29 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       .slice(0, 4);
   }, [data?.history]);
 
+  // F1: real, data-driven "Picked for you" — items from the customer's most recent order.
+  const recentItems = React.useMemo(() => {
+    const historyList = Array.isArray(data?.history) ? data.history : [];
+    if (historyList.length === 0) return [];
+    const sorted = [...historyList].sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)));
+    const latest = sorted[0];
+    const itemsList = Array.isArray(latest?.items) ? latest.items : [];
+    return itemsList
+      .map((item: any) => {
+        const name = String(item.item_name || '').trim();
+        if (!name) return null;
+        let category = 'coffee';
+        const lower = name.toLowerCase();
+        if (lower.includes('çay') || lower.includes('tea') || lower.includes('matcha')) category = 'tea';
+        else if (lower.includes('keks') || lower.includes('tort') || lower.includes('cake') || lower.includes('kurabiye') || lower.includes('cookie') || lower.includes('şirniyyat') || lower.includes('desert')) category = 'sweet';
+        else if (lower.includes('sendviç') || lower.includes('sandwich') || lower.includes('tost') || lower.includes('burger')) category = 'food';
+        else if (lower.includes('limonad') || lower.includes('su') || lower.includes('sok') || lower.includes('juice') || lower.includes('cola')) category = 'cold';
+        return { name, category };
+      })
+      .filter(Boolean)
+      .slice(0, 4);
+  }, [data?.history]);
+
   const branding = data?.branding || {};
   const wallet = data?.wallet || {};
   const notifications = Array.isArray(data?.notifications) ? data.notifications : [];
@@ -390,9 +412,12 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       let changed = false;
       for (const a of acts) {
         const exp = Date.parse(a.expires_at);
-        if (Number.isFinite(exp) && exp > Date.now() && next[a.campaign_id] !== exp) {
-          next[a.campaign_id] = exp;
-          changed = true;
+        if (Number.isFinite(exp) && exp > Date.now()) {
+          const start = Number.isFinite(Date.parse(a.activated_at)) ? Date.parse(a.activated_at) : exp - 900000;
+          if (!next[a.campaign_id] || next[a.campaign_id].exp !== exp) {
+            next[a.campaign_id] = { exp, start };
+            changed = true;
+          }
         }
       }
       return changed ? next : prev;
@@ -406,7 +431,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       if (res?.success && res.expires_at) {
         const expMs = Date.parse(res.expires_at);
         if (Number.isFinite(expMs) && expMs > Date.now()) {
-          setActivatedCampaigns((prev) => ({ ...prev, [campaignId]: expMs }));
+          setActivatedCampaigns((prev) => ({ ...prev, [campaignId]: { exp: expMs, start: Date.now() } }));
         }
         return res.expires_at;
       }
@@ -1615,10 +1640,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             pendingClaims={pendingClaims}
             geofenceAlert={geofenceAlert}
             setGeofenceAlert={setGeofenceAlert}
-            simulatedTemp={simulatedTemp}
-            simulatedCondition={simulatedCondition}
-            setSimulatedTemp={setSimulatedTemp}
-            setSimulatedCondition={setSimulatedCondition}
+            recentItems={recentItems}
             setActiveTab={switchTabWithTransition}
             openWalletPass={openWalletPass}
             get_customer_wallet_pass_url_fn={get_customer_wallet_pass_url}
@@ -1660,6 +1682,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             preOrderSuccessId={preOrderSuccessId}
             setPreOrderSuccess={setPreOrderSuccess}
             handleRemoveFromCart={handleRemoveFromCart}
+            handleUpdateCartQty={handleUpdateCartQty}
             activeOrders={activeOrders}
             designMode={designMode}
           />

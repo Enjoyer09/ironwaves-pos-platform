@@ -203,6 +203,7 @@ type CartSheetProps = {
   setShowCartSheet: (v: boolean) => void;
   customerCart: any[];
   handleRemoveFromCart: (index: number) => void;
+  onUpdateQty: (index: number, delta: number) => void;
   orderNotes: string;
   setOrderNotes: (v: string) => void;
   handleCheckoutPreOrder: () => void;
@@ -213,7 +214,7 @@ type CartSheetProps = {
 };
 
 export function CartSheet({
-  showCartSheet, setShowCartSheet, customerCart, handleRemoveFromCart,
+  showCartSheet, setShowCartSheet, customerCart, handleRemoveFromCart, onUpdateQty,
   orderNotes, setOrderNotes, handleCheckoutPreOrder, preOrderSubmitting, safeLang, isLight,
   designMode = 'classic'
 }: CartSheetProps) {
@@ -311,14 +312,23 @@ export function CartSheet({
 
                 {/* Right Side: Quantity indicator and Remove button */}
                 <div className="flex flex-col items-end justify-between flex-shrink-0">
-                  <button onClick={() => handleRemoveFromCart(idx)}
-                    className="h-5 w-5 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center text-[10px] font-bold hover:bg-red-500/20 transition-all active:scale-90 border border-red-500/15">
-                    <X size={10} />
+                  <button aria-label={tx(safeLang, 'Səbətdən sil', 'Удалить из корзины', 'Remove from cart')} onClick={() => handleRemoveFromCart(idx)}
+                    className="h-7 w-7 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center text-[10px] font-bold hover:bg-red-500/20 transition-all active:scale-90 border border-red-500/15">
+                    <X size={12} />
                   </button>
 
-                  <div className="flex items-center gap-1.5 bg-[#1C2029] px-2 py-0.5 rounded-lg border border-white/5 text-[9px] font-black text-[#F48C24] mt-2">
-                    <span className="text-white/40 font-bold">Qty: </span>
-                    <span>{item.quantity}</span>
+                  <div className="flex items-center gap-1 bg-[#1C2029] px-1 py-0.5 rounded-lg border border-white/5 mt-2">
+                    <button type="button" aria-label={tx(safeLang, 'Azalt', 'Уменьшить', 'Decrease')}
+                      onClick={() => onUpdateQty(idx, -1)}
+                      className="h-7 w-7 rounded-md flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 active:scale-90 transition text-sm font-black">
+                      −
+                    </button>
+                    <span className="text-[10px] font-black text-[#F48C24] min-w-5 text-center">{item.quantity}</span>
+                    <button type="button" aria-label={tx(safeLang, 'Artır', 'Увеличить', 'Increase')}
+                      onClick={() => onUpdateQty(idx, +1)}
+                      className="h-7 w-7 rounded-md flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 active:scale-90 transition text-sm font-black">
+                      +
+                    </button>
                   </div>
                 </div>
               </div>
@@ -537,6 +547,7 @@ type OrderTabProps = {
   preOrderSuccessId: string;
   setPreOrderSuccess: (v: boolean) => void;
   handleRemoveFromCart: (index: number) => void;
+  handleUpdateCartQty: (index: number, delta: number) => void;
   activeOrders: any[];
   designMode?: 'classic' | 'retro';
 };
@@ -548,14 +559,27 @@ export default function OrderTab({
   selectedVariant, setSelectedVariant, selectedModifiers, handleToggleModifier,
   handleAddToCart, showCartSheet, orderNotes, setOrderNotes,
   handleCheckoutPreOrder, preOrderSubmitting, preOrderSuccess, preOrderSuccessId,
-  setPreOrderSuccess, handleRemoveFromCart, activeOrders, designMode = 'classic'
+  setPreOrderSuccess, handleRemoveFromCart, handleUpdateCartQty, activeOrders, designMode = 'classic'
 }: OrderTabProps) {
-  const cats     = Array.from(new Set(menuItems.map((it: any) => it.category).filter(Boolean))) as string[];
-  const filtered = menuItems.filter((it: any) => it.category === selectedCategory);
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const cats = React.useMemo(
+    () => Array.from(new Set(menuItems.map((it: any) => it.category).filter(Boolean))) as string[],
+    [menuItems],
+  );
+  const filtered = React.useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return menuItems.filter((it: any) => {
+      const matchesCat = selectedCategory === 'ALL' || it.category === selectedCategory;
+      const name = (it.item_name || it.name || '').toLowerCase();
+      const matchesQ = !q || name.includes(q);
+      return matchesCat && matchesQ;
+    });
+  }, [menuItems, selectedCategory, searchQuery]);
 
   const isRetro = designMode === 'retro';
   const textPrimary = isLight ? 'text-slate-900'   : 'text-white';
   const textSecond  = isLight ? 'text-slate-500'   : 'text-white/60';
+  const textMuted   = isLight ? 'text-slate-400'   : 'text-white/40';
   const catInactive = isRetro
     ? (isLight ? 'border-[2px] border-[#2B1B1A] bg-white text-slate-800 shadow-[1.5px_1.5px_0px_0px_#2B1B1A]' : 'border-[2px] border-[#3D2F2A] bg-[#1E1714] text-white shadow-[1.5px_1.5px_0px_0px_#3D2F2A]')
     : (isLight ? 'bg-white/80 border-black/8 text-slate-700 hover:bg-white shadow-sm backdrop-blur-sm' : 'bg-white/6 border-white/10 text-white/70 hover:bg-white/12 backdrop-blur-sm');
@@ -609,9 +633,55 @@ export default function OrderTab({
         )}
       </div>
 
+      {/* Search (F2) */}
+      <div className="relative">
+        <span className={`absolute left-4 top-1/2 -translate-y-1/2 ${textMuted}`}>
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </span>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={tx(safeLang, 'Menyudan axtarın...', 'Поиск по меню...', 'Search the menu...')}
+          className={`w-full rounded-[18px] border py-3 pl-10 pr-4 text-xs transition focus:outline-none focus:ring-1 focus:ring-[#F48C24]/30 ${
+            isRetro
+              ? (isLight ? 'border-[2px] border-[#2B1B1A] bg-white text-slate-900 placeholder-slate-400' : 'border-[2px] border-[#3D2F2A] bg-[#1E1714] text-white placeholder-white/30')
+              : (isLight ? 'bg-white/80 border-black/8 text-slate-900 placeholder-slate-400 backdrop-blur-sm shadow-sm' : 'bg-white/6 border-white/10 text-white placeholder-white/30 backdrop-blur-md')
+          }`}
+        />
+      </div>
+
       {/* Category Chips */}
-      {cats.length > 0 && (
+      {(cats.length > 0 || searchQuery.length > 0) && (
         <div className="flex gap-2.5 overflow-x-auto pb-2 pt-1 -mx-1 px-1">
+          {/* All chip (F3) */}
+          <button key="ALL" type="button" onClick={async () => { await Haptic.light(); setSelectedCategory('ALL'); }}
+            className={`flex-none w-[76px] flex flex-col items-center gap-1.5 rounded-[22px] p-2.5 transition-all border ${
+              selectedCategory === 'ALL'
+                ? isRetro ? 'text-[#2B1B1A] dark:text-white retro-btn' : 'text-white shimmer-btn glow-orange'
+                : catInactive
+            }`}
+            style={selectedCategory === 'ALL' ? {
+              background: isRetro ? 'linear-gradient(135deg, #D47B5E, #E9A583)' : 'linear-gradient(135deg, #F48C24, #ffb366)',
+              borderColor: isRetro ? (isLight ? '#2B1B1A' : '#3D2F2A') : 'rgba(244,140,36,0.4)',
+            } : undefined}>
+            <div className={`h-11 w-11 rounded-full overflow-hidden border-2 shadow-sm flex items-center justify-center text-lg ${
+              selectedCategory === 'ALL'
+                ? isRetro ? 'border-[#2B1B1A] dark:border-white/40' : 'border-white/40'
+                : isRetro ? (isLight ? 'border-[#2B1B1A]' : 'border-[#3D2F2A]') : (isLight ? 'border-black/8' : 'border-white/6')
+            } ${isLight ? 'bg-slate-100' : 'bg-white/8'}`}>
+              ☕
+            </div>
+            <span className={`text-[9px] font-black text-center truncate w-full uppercase tracking-wider leading-tight ${
+              selectedCategory === 'ALL'
+                ? isRetro ? 'text-[#1C2029] dark:text-white' : 'text-white'
+                : isLight ? 'text-slate-700' : 'text-white/70'
+            }`}>
+              {tx(safeLang, 'Hamısı', 'Все', 'All')}
+            </span>
+          </button>
           {cats.map(cat => {
             const firstItem = menuItems.find((it: any) => it.category === cat);
             const catImage  = getProductImage(firstItem?.item_name || firstItem?.name || cat, firstItem?.image_url);
@@ -654,7 +724,9 @@ export default function OrderTab({
         </div>
       ) : filtered.length === 0 ? (
         <div className={`py-20 text-center text-xs font-bold border border-dashed rounded-3xl ${emptyBorder} ${loadingText}`}>
-          {tx(safeLang, 'Bu kateqoriyada məhsul tapılmadı', 'Нет товаров в этой категории', 'No products in this category')}
+          {searchQuery
+            ? tx(safeLang, 'Axtarışa uyğun nəticə tapılmadı', 'Ничего не найдено', 'No results found')
+            : tx(safeLang, 'Bu kateqoriyada məhsul tapılmadı', 'Нет товаров в этой категории', 'No products in this category')}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3.5">
@@ -769,7 +841,7 @@ export default function OrderTab({
         handleAddToCart={handleAddToCart} safeLang={safeLang} isLight={isLight} designMode={designMode} />
 
       <CartSheet showCartSheet={showCartSheet} setShowCartSheet={setShowCartSheet}
-        customerCart={customerCart} handleRemoveFromCart={handleRemoveFromCart}
+        customerCart={customerCart} handleRemoveFromCart={handleRemoveFromCart} onUpdateQty={handleUpdateCartQty}
         orderNotes={orderNotes} setOrderNotes={setOrderNotes}
         handleCheckoutPreOrder={handleCheckoutPreOrder} preOrderSubmitting={preOrderSubmitting}
         safeLang={safeLang} isLight={isLight} designMode={designMode} />
