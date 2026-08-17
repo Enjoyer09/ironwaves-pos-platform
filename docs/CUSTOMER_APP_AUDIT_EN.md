@@ -180,7 +180,8 @@ Two modes: **points** (stars → claim) and **cashback** (percentage accrual). S
 > **P1-4:** `campaign_activations` table + `POST /customer-app/campaigns/{id}/activate` (single-use, 15-min window) + session `campaign_activations` + `POST /api/v1/pos/campaigns/validate` (ACTIVE→USED) + POS `IWPOS:CAMPAIGN:` recognition — `backend/tests/test_customer_campaign_activation.py` (11 tests) + smoke 14/14.
 | P1-4b | 🟠 Medium | **POS discount application** — campaign + card max rule, consumption at sale | ✅ Done (2026-08-17) |
 > **P1-4b:** validate does not consume — returns `activation_id`; consumption happens atomically in `create_sale` at the sale commit (ACTIVE→USED + same checks). `effective = max(manual, customer, campaign)`; `discount_reason = "Kampaniya: {name}"` auto-filled; `Sale.campaign_id` (migration 0006). POS attaches the campaign to the cart (rejected while a claim is active). — 17 tests + smoke 15/15.
-| P1-4c | 🟠 Medium | **Offline campaign sync** — 400 rejection to manual review, scan requires online | ⏳ |
+| P1-4c | 🟠 Medium | **Offline campaign sync** — 400 rejection to manual review, scan requires online | ✅ Done (2026-08-17) |
+> **P1-4c:** `campaigns_require_online` config — campaign scans are blocked while the backend is OFF; `syncPendingOfflineSales` moves a campaign rejection to a terminal state (parked one year out — auto-retry stops, manual review + retry remain). Gap test: offline→online double redemption proven (18 tests).
 | P2-1 | 🟡 Low | **Guest mode** — browse menu without an account | ⏳ |
 | P2-2 | 🟡 Low | **Reorder + favorites → order** | ⏳ |
 | P2-3 | 🟡 Low | **Payment integration** (prepay + pickup ETA) | ⏳ |
@@ -554,8 +555,8 @@ backend is OFF, and the offline fake-QR risk.
   requiring a token/signature in the local store is a separate project.
 
 ### Status
-- ✅ Local fallback audit (2026-08-17): mechanism documented; risks and
-  recommendations queued as P1-4c on the roadmap.
+- ✅ Local fallback audit (2026-08-17): mechanism documented; P1-4c
+  (campaigns_require_online + terminal sync error) implemented.
 
 ### Double-check
 tsc + build + full pytest + frontend smoke + doc balance (AZ = EN)
