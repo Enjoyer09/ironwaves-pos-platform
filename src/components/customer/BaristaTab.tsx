@@ -86,6 +86,7 @@ export default function BaristaTab({
           </div>
         </div>
         <button
+          aria-label={voiceEnabled ? tx(safeLang, 'Səsi söndür', 'Выключить звук', 'Mute voice') : tx(safeLang, 'Səsi aç', 'Включить звук', 'Enable voice')}
           onClick={async () => { setVoiceEnabled(!voiceEnabled); await nativeHapticImpact(ImpactStyle.Light); }}
           className={`h-9 w-9 rounded-xl flex items-center justify-center border transition-all ${
             voiceEnabled
@@ -168,6 +169,7 @@ export default function BaristaTab({
           />
           <button
             type="button"
+            aria-label={tx(safeLang, 'Səsli mesaj', 'Голосовой ввод', 'Voice input')}
             onClick={toggleListening}
             className={`absolute right-3 p-1.5 rounded-lg transition-all ${
               isListening
@@ -179,6 +181,7 @@ export default function BaristaTab({
         </div>
         <button
           type="button"
+          aria-label={tx(safeLang, 'Göndər', 'Отправить', 'Send')}
           onClick={sendBaristaMessage}
           className={`px-5 py-3 font-black text-[12px] transition-all flex items-center gap-1.5 ${
             isRetro ? 'retro-btn shadow-[3px_3px_0px_0px_#1C2029] dark:shadow-[3px_3px_0px_0px_#2F2622]' : 'rounded-2xl text-white active:scale-95 shimmer-btn'

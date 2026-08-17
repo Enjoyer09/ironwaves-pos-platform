@@ -16,7 +16,7 @@ import ProfileTab from './customer/ProfileTab';
 import BaristaTab from './customer/BaristaTab';
 import FalciTab from './customer/FalciTab';
 import OffersTab from './customer/OffersTab';
-import { formatCardId, playTickSound, playShimmerSound, CustomerTab } from '../lib/customer_utils';
+import { formatCardId, playTickSound, playShimmerSound, nativeHapticImpact, CustomerTab } from '../lib/customer_utils';
 import { syncOnAppOpen, registerWebBackgroundSync, registerCapacitorBackgroundTask } from '../lib/background_fetch';
 import { startLiveActivity, updateLiveActivity, endLiveActivity } from '../lib/live_activity';
 
@@ -1112,7 +1112,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   if (loading) {
     return (
-      <div className="flex min-h-dvh items-center justify-center" style={{ background: '#0b1220' }}>
+      <div className="customer-app-wrapper flex min-h-dvh items-center justify-center" style={{ background: '#0b1220' }}>
         <div className="flex flex-col items-center gap-6">
           {/* Premium shimmer spinner */}
           <div className="relative h-16 w-16">
@@ -1139,7 +1139,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     const joinPrimary = '#F48C24';
     const joinBg = '#0D0B0A';
     return (
-      <div className="min-h-screen px-5 pt-[calc(env(safe-area-inset-top,47px)+12px)] pb-8 text-slate-100 flex flex-col justify-between relative overflow-hidden" 
+      <div className="customer-app-wrapper min-h-screen px-5 pt-[calc(env(safe-area-inset-top,47px)+12px)] pb-8 text-slate-100 flex flex-col justify-between relative overflow-hidden" 
         style={{ background: `linear-gradient(180deg, #181412 0%, ${joinBg} 100%)` }}>
         
         {/* Background glowing light shapes */}
@@ -1570,6 +1570,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           <div className="flex items-center gap-2">
             <button
               type="button"
+              aria-label={isLight ? tx(safeLang, 'Tünd tema', 'Тёмная тема', 'Dark theme') : tx(safeLang, 'Açıq tema', 'Светлая тема', 'Light theme')}
               onClick={() => setThemeMode(isLight ? 'dark' : 'light')}
               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-extrabold shadow-sm transition active:scale-95 ${
                 isLight
@@ -1581,6 +1582,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             </button>
             <button
               type="button"
+              aria-label={tx(safeLang, 'Dizayn rejimini dəyiş', 'Сменить режим дизайна', 'Toggle design mode')}
               onClick={async () => {
                 const nextMode = designMode === 'classic' ? 'retro' : 'classic';
                 setDesignMode(nextMode);

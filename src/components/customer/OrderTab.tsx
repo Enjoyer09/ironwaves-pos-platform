@@ -83,15 +83,15 @@ export function ModifierSheet({
 
         {/* Header */}
         <div className="flex items-center justify-between p-5 pb-3 relative z-10">
-          <button onClick={async () => { await Haptic.light(); setModifierSheetItem(null); }}
-            className={`h-8 w-8 rounded-full flex items-center justify-center border active:scale-95 transition ${btnBase}`}>
+          <button aria-label={tx(safeLang, 'Geri', 'Назад', 'Back')} onClick={async () => { await Haptic.light(); setModifierSheetItem(null); }}
+            className={`h-9 w-9 rounded-full flex items-center justify-center border active:scale-95 transition ${btnBase}`}>
             <ChevronLeft size={16} />
           </button>
           <span className={`text-[10px] font-black uppercase tracking-widest ${textSecond}`}>
             {tx(safeLang, 'Məhsul Seçimi', 'Детали', 'Product Details')}
           </span>
-          <button onClick={async () => { await Haptic.light(); setModifierSheetItem(null); }}
-            className={`h-8 w-8 rounded-full flex items-center justify-center border active:scale-95 transition ${btnBase}`}>
+          <button aria-label={tx(safeLang, 'Bağla', 'Закрыть', 'Close')} onClick={async () => { await Haptic.light(); setModifierSheetItem(null); }}
+            className={`h-9 w-9 rounded-full flex items-center justify-center border active:scale-95 transition ${btnBase}`}>
             <X size={16} />
           </button>
         </div>
@@ -259,9 +259,9 @@ export function CartSheet({
         {/* Header */}
         <div className="flex items-center justify-between mb-4 relative z-10">
           <h2 className={`text-base font-black ${textPrimary}`}>{tx(safeLang, 'Səbətiniz', 'Ваша корзина', 'Your Cart')}</h2>
-          <button onClick={async () => { await Haptic.light(); setShowCartSheet(false); }}
-            className={`h-7 w-7 rounded-full flex items-center justify-center font-bold transition ${isLight ? 'bg-black/6 text-slate-600 hover:bg-black/10' : 'bg-white/6 text-white/60 hover:bg-white/12'}`}>
-            <X size={14} />
+          <button aria-label={tx(safeLang, 'Bağla', 'Закрыть', 'Close')} onClick={async () => { await Haptic.light(); setShowCartSheet(false); }}
+            className={`h-9 w-9 rounded-full flex items-center justify-center font-bold transition ${isLight ? 'bg-black/6 text-slate-600 hover:bg-black/10' : 'bg-white/6 text-white/60 hover:bg-white/12'}`}>
+            <X size={16} />
           </button>
         </div>
 
@@ -786,7 +786,8 @@ export default function OrderTab({
                     await nativeHapticImpact(ImpactStyle.Light);
                     setLocalFavorites(prev => prev.includes(item.id) ? prev.filter((id: string) => id !== item.id) : [...prev, item.id]);
                   }}
-                    className={`absolute top-2.5 right-2.5 z-10 h-7 w-7 rounded-full flex items-center justify-center border backdrop-blur-md transition-all active:scale-90 ${
+                    aria-label={isFav ? tx(safeLang, 'Sevimlilərdən çıxar', 'Убрать из избранного', 'Remove from favorites') : tx(safeLang, 'Sevimlilərə əlavə et', 'В избранное', 'Add to favorites')}
+                    className={`absolute top-2.5 right-2.5 z-10 h-9 w-9 rounded-full flex items-center justify-center border backdrop-blur-md transition-all active:scale-90 ${
                       isRetro
                         ? isFav
                           ? 'bg-[#D47B5E] border-[2px] border-[#2B1B1A] dark:border-[#3D2F2A] text-white'
@@ -817,12 +818,12 @@ export default function OrderTab({
                     </p>
                     {/* + button */}
                     {isRetro ? (
-                      <div className="h-7 w-7 border-[2px] border-[#2B1B1A] dark:border-[#3D2F2A] bg-[#D47B5E] flex items-center justify-center text-white font-black text-sm shadow-[1.5px_1.5px_0px_0px_#2B1B1A] dark:shadow-[1.5px_1.5px_0px_0px_#3D2F2A] rounded-lg active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all">
+                      <div className="h-9 w-9 border-[2px] border-[#2B1B1A] dark:border-[#3D2F2A] bg-[#D47B5E] flex items-center justify-center text-white font-black text-sm shadow-[1.5px_1.5px_0px_0px_#2B1B1A] dark:shadow-[1.5px_1.5px_0px_0px_#3D2F2A] rounded-lg active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all">
                         <Plus size={14} />
                       </div>
                     ) : (
                       <div className="relative glow-ring-pulse rounded-full">
-                        <div className="h-7 w-7 rounded-full bg-[#F48C24] flex items-center justify-center text-white font-bold text-base shadow-[0_3px_10px_rgba(244,140,36,0.35)] active:scale-90 transition">
+                        <div className="h-9 w-9 rounded-full bg-[#F48C24] flex items-center justify-center text-white font-bold text-base shadow-[0_3px_10px_rgba(244,140,36,0.35)] active:scale-90 transition">
                           <Plus size={14} />
                         </div>
                       </div>

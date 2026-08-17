@@ -201,11 +201,11 @@ export default function HomeTab({
 
       {/* Top Header Row */}
       <div className="flex items-center justify-between px-1 mb-4">
-        <button type="button" onClick={() => setActiveTab('profile')}
+        <button type="button" onClick={() => setActiveTab('profile')} aria-label={tx(safeLang, 'Profil', 'Профиль', 'Profile')}
           className={`h-10 w-10 rounded-full border flex items-center justify-center active:scale-95 transition-all duration-150 ${headerBtn}`}>
           <Menu size={18} />
         </button>
-        <button type="button" onClick={() => setActiveTab('profile')}
+        <button type="button" onClick={() => setActiveTab('profile')} aria-label={tx(safeLang, 'Profil', 'Профиль', 'Profile')}
           className={`relative h-10 w-10 rounded-full border flex items-center justify-center font-black active:scale-95 transition-all duration-150 ${headerBtn}`}
           style={{ background: 'linear-gradient(135deg, #F48C24, #ffb366)', border: 'none', color: '#fff', boxShadow: '0 4px 12px rgba(244,140,36,0.3)' }}>
           {customer.name ? customer.name.charAt(0).toUpperCase() : 'M'}

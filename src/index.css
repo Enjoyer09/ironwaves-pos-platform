@@ -308,6 +308,26 @@ html {
     font-family: 'Sora', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
   }
 
+  /* ── U1 readability pass: minimum font sizes + WCAG AA contrast ──
+     Scoped to the customer app. Tiny Tailwind sizes were 7–11px and
+     white/30–50 muted text failed WCAG AA (docs/CUSTOMER_APP_UI_AUDIT.md §3 U1).
+     Bumped to a 10/11/12/13px floor and brighter muted opacity. */
+  .customer-app-wrapper .text-\[7px\] { font-size: 10px !important; }
+  .customer-app-wrapper .text-\[8px\] { font-size: 10px !important; }
+  .customer-app-wrapper .text-\[9px\] { font-size: 11px !important; }
+  .customer-app-wrapper .text-\[10px\] { font-size: 12px !important; }
+  .customer-app-wrapper .text-\[11px\] { font-size: 13px !important; }
+  .customer-app-wrapper .text-\[12px\],
+  .customer-app-wrapper .text-xs { font-size: 13px !important; }
+
+  /* Contrast: brighten muted white text on dark so small text reaches AA. */
+  .customer-app-wrapper .text-white\/30,
+  .customer-app-wrapper .text-white\/35 { color: rgba(255, 255, 255, 0.60) !important; }
+  .customer-app-wrapper .text-white\/40 { color: rgba(255, 255, 255, 0.68) !important; }
+  .customer-app-wrapper .text-white\/50 { color: rgba(255, 255, 255, 0.76) !important; }
+  /* Light-theme muted text: slate-400 ~2.9:1 -> slate-500 ~4.7:1 on white. */
+  .customer-app-wrapper .text-slate-400 { color: #64748b !important; }
+
   /* ── Glassmorphism base card ─────────────────────────────── */
   .cust-glass {
     backdrop-filter: blur(24px) saturate(180%);
