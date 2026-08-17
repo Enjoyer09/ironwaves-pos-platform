@@ -2964,6 +2964,7 @@ def update_customer_app_settings(
         "show_campaigns": bool(payload.get("show_campaigns", True)),
         "show_history": bool(payload.get("show_history", True)),
         "show_notifications": bool(payload.get("show_notifications", True)),
+        "campaigns_require_online": bool(payload.get("campaigns_require_online", False)),
         "birthday_enabled": bool(payload.get("birthday_enabled", False)),
         "birthday_bonus_stars": max(0, int(payload.get("birthday_bonus_stars") or 5)),
     }

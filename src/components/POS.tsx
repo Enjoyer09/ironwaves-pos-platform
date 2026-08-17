@@ -1523,6 +1523,24 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       );
       return;
     }
+    // P1-4c: campaigns_require_online — the single-use guarantee only exists on
+    // the server. When the tenant opts in, block scans while offline instead of
+    // silently trusting the forgeable local store.
+    if (!isBackendEnabled()) {
+      const appSettings = get_settings(tenantId).customer_app_settings;
+      if (appSettings?.campaigns_require_online) {
+        notify(
+          'error',
+          tx(
+            lang,
+            'Kampaniya yoxlanışı üçün internet bağlantısı lazımdır',
+            'Для проверки кампании нужно интернет-соединение',
+            'An internet connection is required to validate campaigns',
+          ),
+        );
+        return;
+      }
+    }
     try {
       const result = await validate_pos_campaign_live(campaignId, cardId);
       if (result?.valid) {

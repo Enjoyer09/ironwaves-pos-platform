@@ -14,6 +14,15 @@ const MAX_SYNC_BATCH = 25;
 const MAX_RETRY_COUNT = 8;
 const BASE_RETRY_DELAY_MS = 15_000;
 
+// P1-4c: a campaign rejection is terminal — the activation was consumed
+// elsewhere (cross-device) or expired, so auto-retrying can never succeed.
+// The sale stays visible in the offline queue for manual review (cashier can
+// retry or void it) but stops being picked up by the periodic auto-sync.
+const isTerminalCampaignRejection = (message: string) =>
+  /kampaniya etibarsızdır|campaign invalid|istifadə olunub|vaxtı keçib|already used|already redeemed/i.test(
+    String(message || ''),
+  );
+
 const normalizeOfflineSyncError = (message: string) => {
   const raw = String(message || '').trim();
   const lower = raw.toLowerCase();
@@ -383,9 +392,15 @@ export const syncPendingOfflineSales = async (tenantId: string) => {
         const retryCount = Number(row.retry_count || 0) + 1;
         const cappedRetry = Math.min(retryCount, MAX_RETRY_COUNT);
         const nextAttemptDelay = BASE_RETRY_DELAY_MS * (2 ** Math.min(cappedRetry, 6));
-        const nextAttemptAt = new Date(Date.now() + nextAttemptDelay).toISOString();
         const dedupedAsSynced = /already exists|duplicate|uq_sales_tenant_offline_request_id/i.test(message);
         const shouldKeepPending = !dedupedAsSynced;
+        // P1-4c: terminal state for campaign rejections — keep the sale visible
+        // (manual review) but park it one year out so the auto-sync loop stops
+        // retrying it forever. The cashier can still retry via the queue UI.
+        const terminalCampaign = shouldKeepPending && isTerminalCampaignRejection(message);
+        const nextAttemptAt = terminalCampaign
+          ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+          : new Date(Date.now() + nextAttemptDelay).toISOString();
 
         await new Promise<void>((resolve, reject) => {
           const tx = db.transaction(SALES_STORE, 'readwrite');
