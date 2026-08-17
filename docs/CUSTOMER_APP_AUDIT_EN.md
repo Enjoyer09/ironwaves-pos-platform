@@ -178,7 +178,9 @@ Two modes: **points** (stars → claim) and **cashback** (percentage accrual). S
 > **P1-3:** `crm.ts` session cache helpers (localStorage + in-memory fallback, token-hashed key) — every successful session is written to cache; on API failure it is returned from cache (with `_from_cache` marker). `CustomerApp.tsx` offline banner (📡 Offline mode + Retry) — the card opens even without network. Smoke tests: write/read roundtrip, card+token separation, null-guard (3 new tests).
 | P1-4 | 🟠 Medium | **Server-validated campaigns** — activated state on the backend | ✅ Done (2026-08-16) |
 > **P1-4:** `campaign_activations` table + `POST /customer-app/campaigns/{id}/activate` (single-use, 15-min window) + session `campaign_activations` + `POST /api/v1/pos/campaigns/validate` (ACTIVE→USED) + POS `IWPOS:CAMPAIGN:` recognition — `backend/tests/test_customer_campaign_activation.py` (11 tests) + smoke 14/14.
-| P1-4b | 🟠 Medium | **POS discount application** — campaign + card max rule, consumption at sale | ⏳ |
+| P1-4b | 🟠 Medium | **POS discount application** — campaign + card max rule, consumption at sale | ✅ Done (2026-08-17) |
+> **P1-4b:** validate does not consume — returns `activation_id`; consumption happens atomically in `create_sale` at the sale commit (ACTIVE→USED + same checks). `effective = max(manual, customer, campaign)`; `discount_reason = "Kampaniya: {name}"` auto-filled; `Sale.campaign_id` (migration 0006). POS attaches the campaign to the cart (rejected while a claim is active). — 17 tests + smoke 15/15.
+| P1-4c | 🟠 Medium | **Offline campaign sync** — 400 rejection to manual review, scan requires online | ⏳ |
 | P2-1 | 🟡 Low | **Guest mode** — browse menu without an account | ⏳ |
 | P2-2 | 🟡 Low | **Reorder + favorites → order** | ⏳ |
 | P2-3 | 🟡 Low | **Payment integration** (prepay + pickup ETA) | ⏳ |
@@ -433,13 +435,14 @@ can diverge on the same check. When the campaign joins max, the frontend must
 be reduced to the same max (tier is already inside `ctx.discount`, avoid double-apply).
 
 ### Status
-- ⏳ P1-4b (planned — 2026-08-16): max rule + consumption at sale + Sale.campaign_id
+- ✅ P1-4b (done — 2026-08-17): max rule + consumption at sale + Sale.campaign_id
 
 ### Tests
-- `backend/tests/test_customer_campaign_activation.py` (+6): max applied at
-  sale, consumption + reason recorded, expired/used activation → sale rejected,
-  double use across two sales rejected, no consumption at scan, local roundtrip
-- Smoke: card discount + campaign → max, sale consumption
+- `backend/tests/test_customer_campaign_activation.py` (17 tests): max applied
+  at sale (5% card vs 20% campaign → 20%), consumption + `Kampaniya:` reason,
+  expired/used activation → sale rejected, double use across two sales
+  rejected, card-mismatch rejected, no consumption at scan (2 scans valid)
+- Smoke (15/15): card discount + campaign → max, sale consumption, 2nd sale rejected
 
 ### Double-check
 tsc + build + full pytest + frontend smoke + doc balance (AZ = EN)
@@ -493,6 +496,66 @@ exposed in the QR content, could someone create a discount code for another card
 ### Tests
 - Existing `test_customer_campaign_activation.py` (11): wrong card_id/campaign_id
   → valid:false already covered; +2 if POS identity check is added.
+
+### Double-check
+tsc + build + full pytest + frontend smoke + doc balance (AZ = EN)
+
+---
+
+## 17. Local Fallback (db_sim): Campaign Activation + Offline Risk
+
+### Goal
+Document how the P1-4 campaign activation is simulated in db_sim when the
+backend is OFF, and the offline fake-QR risk.
+
+### Simulation mechanism (crm.ts local fallback)
+- `campaign_activations`: a plain localStorage array (host-scoped `db_campaign_`
+  `activations`, in-memory Map + localStorage). Row: id, tenant_id,
+  campaign_id, card_id, status, activated_at, expires_at — shared on device.
+- `activate_customer_campaign_live` (local): requires a local customer session
+  (card_id + secret_token match); creates an ACTIVE row
+  (expires_at = now + campaign_activation_minutes, default 15 min).
+- `validate_pos_campaign_live` (local): checks ACTIVE + unexpired + happy-hour
+  window; since P1-4b it does NOT consume (returns activation_id).
+  No token/signature check — the row itself is the only credential.
+- `create_sale` (pos.ts local): re-checks the same row, marks USED, joins max.
+
+### Offline fake-QR risk
+| Vector | Result | Reason |
+|---|---|---|
+| Inject a row via devtools on the device | valid | validate only reads the store, no credential |
+| Customer console on a shared kiosk | valid | web customer view shares the same origin/storage |
+| campaign_id enumeration | sufficient | happy_hours store is on-device, session lists them |
+
+### Assessment: LOW–MEDIUM
+- Backend guarantees (customer secret_token for activation, staff auth for
+  POS, server-side consumption) silently drop in offline mode.
+- But this is systemic: offline customers, stars, finance and reward claims
+  also live in db_sim — the whole offline POS is a "trust the device" model.
+- A cashier can already give manual discounts — a fake QR is not a new power.
+- The sharpest new gap: cross-device double redemption + stuck offline sales.
+
+### Cross-device double redemption + stuck sales
+1. Device A offline: scan → local ACTIVE → sale → local USED → queued.
+2. Device B online: same QR → server ACTIVE (local consumption never reached
+   the server) → sale → server USED — one activation discounts twice.
+3. A reconnects: sync replays → backend 400 "Kampaniya etibarsızdır" →
+   `syncPendingOfflineSales` only counts dedup messages as 'synced'; a campaign
+   rejection stays 'pending' with infinite retry — no terminal state.
+
+### Recommendations
+- Baseline (accepted risk): the single-use guarantee only holds online.
+  Optionally add a `campaigns_require_online` config — block campaign scans
+  while the backend is OFF (P1-4c).
+- Sync fix: an offline sale rejected with the campaign error (400) should
+  move to a terminal 'error' (manual review) state instead of infinite retry,
+  so the shop can refund/void it (P1-4c).
+- Forgery: do not run POS on public kiosks; staff login (already present);
+  requiring a token/signature in the local store is a separate project.
+
+### Status
+- ✅ Local fallback audit (2026-08-17): mechanism documented; risks and
+  recommendations queued as P1-4c on the roadmap.
 
 ### Double-check
 tsc + build + full pytest + frontend smoke + doc balance (AZ = EN)
