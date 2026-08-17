@@ -1,8 +1,10 @@
 import React from 'react';
-import { Gift, Sparkles, QrCode, Menu, Sun, CloudRain, Coffee, Cookie } from 'lucide-react';
+import { Gift, Sparkles, QrCode, Menu } from 'lucide-react';
 import { ImpactStyle } from '@capacitor/haptics';
 import { tx } from '../../i18n';
-import { formatCardId, playTickSound, getWeatherInfo, get_customer_wallet_pass_url, nativeHapticImpact, Haptic } from '../../lib/customer_utils';
+import { formatCardId, playTickSound, nativeHapticImpact, Haptic } from '../../lib/customer_utils';
+
+const CATEGORY_EMOJI: Record<string, string> = { coffee: '☕', tea: '🍵', sweet: '🍰', food: '🥪', cold: '🥤' };
 
 /* ── Animated Counter ────────────────────────────────────────────── */
 function AnimatedCounter({ value, suffix = '', decimals = 0 }: { value: number; suffix?: string; decimals?: number }) {
@@ -95,10 +97,7 @@ type Props = {
   pendingClaims: any[];
   geofenceAlert: boolean;
   setGeofenceAlert: (v: boolean) => void;
-  simulatedTemp: number;
-  simulatedCondition: 'sunny' | 'rainy';
-  setSimulatedTemp: React.Dispatch<React.SetStateAction<number>>;
-  setSimulatedCondition: React.Dispatch<React.SetStateAction<'sunny' | 'rainy'>>;
+  recentItems: Array<{ name: string; category: string }>;
   setActiveTab: (tab: any) => void;
   openWalletPass: (e: React.MouseEvent, url: string) => void;
   get_customer_wallet_pass_url_fn: (cardId: string, token: string, lang: string) => string;
@@ -114,8 +113,7 @@ export default function HomeTab({
   accentColor, programMode, cardQr, showQrCard, showWallet, balanceSuffix,
   heroImage, cardFlipped, setCardFlipped, claimReward, claiming,
   rewards, progressPercent, notifications, favoriteItems, pendingClaims,
-  geofenceAlert, setGeofenceAlert, simulatedTemp, simulatedCondition,
-  setSimulatedTemp, setSimulatedCondition, setActiveTab,
+  geofenceAlert, setGeofenceAlert, recentItems, setActiveTab,
   openWalletPass, get_customer_wallet_pass_url_fn, sessionCreds, data, isLight = false,
   designMode = 'classic'
 }: Props) {
@@ -602,68 +600,41 @@ export default function HomeTab({
         </section>
       </div>
 
-      {/* Smart Recommendations */}
-      <section className={`rounded-[28px] p-5 border shadow-sm space-y-4 stagger-fade-in stagger-5 ${isLight ? 'cust-glass-light' : 'cust-glass'}`}>
-        <div className="flex items-center justify-between">
+      {/* For You — real, data-driven (F1: fake weather simulation removed) */}
+      {recentItems.length > 0 && (
+        <section className={`rounded-[28px] p-5 border shadow-sm space-y-4 stagger-fade-in stagger-5 ${isLight ? 'cust-glass-light' : 'cust-glass'}`}>
           <div className="flex items-center gap-2.5">
             <div className={`h-9 w-9 rounded-xl flex items-center justify-center border ${isLight ? 'bg-black/3 border-black/5' : 'bg-white/5 border-white/5'}`}>
-              {simulatedCondition === 'sunny' ? (
-                <Sun className="text-[#F48C24] animate-pulse" size={16} />
-              ) : (
-                <CloudRain className="text-cyan-500 animate-bounce" size={16} />
-              )}
+              <Sparkles className="text-[#F48C24]" size={16} />
             </div>
             <div>
               <p className={`text-[11px] font-black uppercase tracking-wider ${isLight ? 'text-slate-800' : 'text-white/80'}`}>
-                {tx(safeLang, 'Ağıllı Təkliflərimiz', 'Умные Рекомендации', 'Smart Recommendations')}
+                {tx(safeLang, 'Sizin üçün', 'Для вас', 'Picked for You')}
               </p>
               <p className={`text-[9px] font-mono mt-0.5 ${textMuted}`}>
-                {simulatedTemp}°C · {simulatedCondition === 'sunny' ? tx(safeLang, 'Günəşli', 'Солнечно', 'Sunny') : tx(safeLang, 'Yağışlı', 'Дождливо', 'Rainy')}
+                {tx(safeLang, 'Son sifarişlərinizə əsasən', 'На основе ваших заказов', 'Based on your recent orders')}
               </p>
             </div>
           </div>
-          <button type="button" onClick={async () => { await nativeHapticImpact(ImpactStyle.Light); setSimulatedTemp(t => t > 20 ? 14 : 26); setSimulatedCondition(c => c === 'sunny' ? 'rainy' : 'sunny'); }}
-            className={`rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-wider active:scale-95 transition ${isLight ? 'bg-black/5 border-black/8 text-slate-700 hover:bg-black/8' : 'bg-white/6 border-white/10 text-white hover:bg-white/12'}`}>
-            {tx(safeLang, 'Havanı Dəyiş', 'Сменить погоду', 'Toggle Weather')}
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          <p className={`text-[10px] font-semibold ${isLight ? 'text-slate-500' : 'text-white/50'}`}>{getWeatherInfo(safeLang, simulatedTemp).weatherDesc}</p>
-          
-          <div className="grid grid-cols-2 gap-2.5">
-            {getWeatherInfo(safeLang, simulatedTemp).recommendedDrinks.map((drink, idx) => (
+          <div className="space-y-2.5">
+            {recentItems.map((item: any, idx: number) => (
               <div key={idx} onClick={async () => { setActiveTab('order'); await nativeHapticImpact(ImpactStyle.Light); }}
-                className={`flex items-center gap-2.5 p-3 rounded-2xl border transition-all cursor-pointer active:scale-95 ${isLight ? 'bg-black/3 border-black/5 hover:bg-black/5 shadow-sm' : 'bg-[#0C0F14] border-white/5 hover:bg-white/5'}`}>
-                <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${isLight ? 'bg-white border-black/5 shadow-sm' : 'bg-white/5 border-white/5'}`}>
-                  <Coffee size={13} className="text-[#F48C24]" />
+                className={`flex items-center gap-3 p-3 rounded-2xl border transition-all cursor-pointer active:scale-[0.98] ${isLight ? 'bg-white/70 border-black/6 hover:shadow-md shadow-sm' : 'bg-[#0C0F14] border-white/5 hover:bg-white/5'}`}>
+                <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-lg border ${isLight ? 'bg-white border-black/6 shadow-sm' : 'bg-white/10 border-white/6'}`}>
+                  {CATEGORY_EMOJI[item.category] || '🥤'}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className={`text-[10px] font-black truncate ${headerText}`}>{drink.name}</p>
-                  <span className="inline-block px-1.5 py-0.5 mt-0.5 rounded-md bg-[#F48C24]/10 text-[#F48C24] text-[7px] font-black uppercase tracking-wider">{drink.tag}</span>
+                  <p className="text-[11px] font-black truncate text-[#F48C24]">{item.name}</p>
+                  <p className={`text-[9px] font-semibold mt-0.5 capitalize ${subText}`}>{item.category}</p>
                 </div>
+                <span className="text-[8px] font-black uppercase tracking-wider text-[#F48C24] bg-[#F48C24]/10 px-2.5 py-1 rounded-full border border-[#F48C24]/20 flex-shrink-0">
+                  {tx(safeLang, 'Sifariş', 'Заказать', 'Order')}
+                </span>
               </div>
             ))}
           </div>
-        </div>
-
-        <div className={`pt-3.5 border-t ${borderSec}`}>
-          <p className={`text-[9px] font-black uppercase tracking-widest mb-2.5 ${textMuted}`}>{getWeatherInfo(safeLang, simulatedTemp).comboTitle}</p>
-          {getWeatherInfo(safeLang, simulatedTemp).comboItems.map((combo, idx) => (
-            <div key={idx} onClick={async () => { setActiveTab('order'); await nativeHapticImpact(ImpactStyle.Light); }}
-              className={`flex items-center gap-3 p-3 rounded-2xl border transition-all cursor-pointer active:scale-[0.98] mb-2 ${isLight ? 'bg-[#FAF8F5] border-orange-200/30 text-slate-800' : 'bg-[#0C0F14] border-white/5'}`}>
-              <div className={`h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isLight ? 'bg-white border-black/5 shadow-sm' : 'bg-white/5 border-white/5'}`}>
-                <Cookie size={16} className="text-[#F48C24]" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-black text-[#F48C24]">{combo.name}</p>
-                <p className={`text-[9px] font-semibold mt-0.5 ${subText}`}>{combo.desc}</p>
-              </div>
-              <span className="text-[8px] font-black uppercase tracking-wider text-[#F48C24] bg-[#F48C24]/10 px-2.5 py-1 rounded-full border border-[#F48C24]/20 flex-shrink-0">Combo</span>
-            </div>
-          ))}
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Your Favorites */}
       {favoriteItems.length > 0 && (

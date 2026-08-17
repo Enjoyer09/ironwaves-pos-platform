@@ -10,8 +10,8 @@ type Props = {
   campaigns: any[];
   pendingClaims: any[];
   customer: { card_id: string };
-  activatedCampaigns: Record<string, number>;
-  setActivatedCampaigns: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  activatedCampaigns: Record<string, { exp: number; start: number }>;
+  setActivatedCampaigns: React.Dispatch<React.SetStateAction<Record<string, { exp: number; start: number }>>>;
   campaignQrs: Record<string, string>;
   setCampaignQrs: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   primaryColor: string;
@@ -25,6 +25,16 @@ export default function OffersTab({
   setActivatedCampaigns, campaignQrs, setCampaignQrs, primaryColor, accentColor, isLight = false,
   onActivateCampaign
 }: Props) {
+
+  // F4: tick every second while any campaign QR is active so the countdown and
+  // progress bar stay live (previously frozen unless an order was being polled).
+  const [, forceTick] = React.useReducer((x: number) => x + 1, 0);
+  React.useEffect(() => {
+    const anyActive = Object.values(activatedCampaigns).some((a) => a.exp > Date.now());
+    if (!anyActive) return;
+    const timer = window.setInterval(() => forceTick(), 1000);
+    return () => window.clearInterval(timer);
+  }, [activatedCampaigns]);
 
   const activateCampaign = async (campaignId: string) => {
     await nativeHapticImpact(ImpactStyle.Medium);
@@ -46,7 +56,7 @@ export default function OffersTab({
       console.error('Campaign activation rejected by server');
       return;
     }
-    setActivatedCampaigns(prev => ({ ...prev, [campaignId]: expTime }));
+    setActivatedCampaigns(prev => ({ ...prev, [campaignId]: { exp: expTime, start: Date.now() } }));
     playShimmerSound();
     try {
       const qrUrl = await QRCode.toDataURL(`IWPOS:CAMPAIGN:${campaignId}:${customer.card_id}`, {
@@ -88,13 +98,15 @@ export default function OffersTab({
               <p className="text-[13px] font-semibold">{tx(safeLang, 'Hazırda aktiv kampaniya yoxdur', 'Сейчас нет активных кампаний', 'No active campaigns right now')}</p>
             </div>
           ) : campaigns.map((row: any, idx: number) => {
-            const expTime        = activatedCampaigns[row.id];
+            const expTime        = activatedCampaigns[row.id]?.exp;
+            const startTime      = activatedCampaigns[row.id]?.start;
             const isActive       = expTime && expTime > Date.now();
             const timeLeftMs     = isActive ? expTime - Date.now() : 0;
             const secondsLeft    = Math.max(0, Math.floor(timeLeftMs / 1000));
             const minutes        = Math.floor(secondsLeft / 60);
             const seconds        = secondsLeft % 60;
-            const progressPct    = isActive ? Math.max(0, Math.min(100, (secondsLeft / 900) * 100)) : 0;
+            const totalMs        = isActive && startTime ? expTime - startTime : 900000;
+            const progressPct    = isActive ? Math.max(0, Math.min(100, (timeLeftMs / totalMs) * 100)) : 0;
 
             return (
               <div key={row.id}
