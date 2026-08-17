@@ -34,6 +34,7 @@ import { apiRequest, isBackendEnabled } from '../api/client';
 import ConfirmModal from './ConfirmModal';
 import { getTenantDomains } from '../lib/tenant';
 import StaffPosMode from './pos/staff/StaffPosMode';
+import VirtualMenuGrid from './pos/VirtualMenuGrid';
 
 type OrderType = 'Dine In' | 'Take Away' | 'Order Online';
 type PaymentMethod = 'Nəğd' | 'Kart' | 'Split' | 'Staff';
@@ -374,18 +375,26 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     }));
   };
 
+  // Identity-stable merge: returns the ORIGINAL array/item references when
+  // nothing effectively changed, so refresh calls (refreshMenuImages,
+  // refreshData, offline restore) don't invalidate the categories /
+  // filteredMenu / groupedMenu memos with a throwaway array.
   const mergeMenuWithImages = useCallback((items: any[]) => {
     const imageMeta = menuImagesRef.current;
-    return (Array.isArray(items) ? items : []).map((item) => {
+    const source = Array.isArray(items) ? items : [];
+    let changed = false;
+    const merged = source.map((item) => {
       const meta = imageMeta.get(String(item?.id || ''));
-      return meta
-        ? {
-            ...item,
-            image_url: meta.image_url,
-            description: meta.description,
-          }
-        : item;
+      if (!meta) return item;
+      if (item?.image_url === meta.image_url && item?.description === meta.description) return item;
+      changed = true;
+      return {
+        ...item,
+        image_url: meta.image_url,
+        description: meta.description,
+      };
     });
+    return changed ? merged : source;
   }, []);
 
   const refreshMenuImages = useCallback(async (force: boolean = false) => {
@@ -2212,13 +2221,15 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       const size = getLeftWidgetSize(widget);
       if (isNewUiMode) {
         return (
-          <div key={widget} className="pos2-product-grid grid flex-1 auto-rows-max grid-cols-2 gap-2 overflow-y-auto pr-1 md:grid-cols-3 2xl:grid-cols-4">
-            {groupedMenu.map((group) => {
+          <VirtualMenuGrid
+            key={widget}
+            groups={groupedMenu}
+            getKey={(g) => g.group_key}
+            renderItem={(group) => {
               const preview = group.items[0];
               const qtyInCart = getGroupQty(group);
               return (
                 <div
-                  key={group.group_key}
                   draggable={isPosMenuEditMode && canEditPosMenuOrder && !isReorderingPosMenu}
                   onDragStart={() => {
                     if (!isPosMenuEditMode) return;
@@ -2281,16 +2292,23 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                   </div>
                 </div>
               );
-            })}
-          </div>
+            }}
+            scrollClassName="flex-1 overflow-y-auto pr-1"
+            gridClassName="pos2-product-grid grid auto-rows-max grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-4"
+            estimatedRowHeight={220}
+            threshold={100}
+            disableVirtualization={isPosMenuEditMode}
+          />
         );
       }
       return (
-        <div key={widget} className={`grid flex-1 auto-rows-max grid-cols-1 gap-2 overflow-y-auto pr-1 ${productGridClass}`}>
-          {groupedMenu.map((group) => {
+        <VirtualMenuGrid
+          key={widget}
+          groups={groupedMenu}
+          getKey={(g) => g.group_key}
+          renderItem={(group) => {
             return (
               <button
-                key={group.group_key}
                 draggable={isPosMenuEditMode && canEditPosMenuOrder && !isReorderingPosMenu}
                 onDragStart={() => {
                   if (!isPosMenuEditMode) return;
@@ -2324,8 +2342,13 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                 </div>
               </button>
             );
-          })}
-        </div>
+            }}
+            scrollClassName="flex-1 overflow-y-auto pr-1"
+            gridClassName={`grid auto-rows-max grid-cols-1 gap-2 ${productGridClass}`}
+            estimatedRowHeight={70}
+            threshold={100}
+            disableVirtualization={isPosMenuEditMode}
+          />
       );
     }
     return null;
@@ -2518,12 +2541,13 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                   </button>
                 )}
               </div>
-              <div className="pos3-product-grid">
-              {groupedMenu.map((group) => {
-                const qtyInCart = getGroupQty(group);
-                return (
-                  <div
-                    key={group.group_key}
+              <VirtualMenuGrid
+                groups={groupedMenu}
+                getKey={(g) => g.group_key}
+                renderItem={(group) => {
+                  const qtyInCart = getGroupQty(group);
+                  return (
+                    <div
                     draggable={isPosMenuEditMode && canEditPosMenuOrder && !isReorderingPosMenu}
                     onDragStart={() => {
                       if (!isPosMenuEditMode) return;
@@ -2601,9 +2625,14 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                       )}
                     </div>
                   </div>
-                );
-              })}
-              </div>
+                  );
+                }}
+                scrollClassName="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pr-1"
+                gridClassName="grid min-h-0 auto-rows-max grid-cols-3 gap-1 content-start md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6"
+                estimatedRowHeight={130}
+                threshold={100}
+                disableVirtualization={isPosMenuEditMode}
+              />
             </div>
           </section>
 

@@ -49,6 +49,8 @@ export default function CustomerAppPanel() {
     show_campaigns: true,
     show_history: true,
     show_notifications: true,
+    campaigns_require_online: false,
+    campaign_activation_minutes: '15',
   });
 
   useEffect(() => {
@@ -85,6 +87,8 @@ export default function CustomerAppPanel() {
           show_campaigns: Boolean(c.show_campaigns ?? true),
           show_history: Boolean(c.show_history ?? true),
           show_notifications: Boolean(c.show_notifications ?? true),
+          campaigns_require_online: Boolean(c.campaigns_require_online),
+          campaign_activation_minutes: String(c.campaign_activation_minutes || 15),
         }));
       } catch (e: any) {
         notify('error', e?.message || 'Customer app settings yüklənmədi');
@@ -152,6 +156,8 @@ export default function CustomerAppPanel() {
       show_campaigns: form.show_campaigns,
       show_history: form.show_history,
       show_notifications: form.show_notifications,
+      campaigns_require_online: form.campaigns_require_online,
+      campaign_activation_minutes: Number(form.campaign_activation_minutes || 15),
     });
     flash(tx(lang, 'Customer app dizaynı yadda saxlanıldı', 'Дизайн customer app сохранен', 'Customer app design saved'));
   };
@@ -424,6 +430,20 @@ export default function CustomerAppPanel() {
             <input type="checkbox" checked={form.show_campaigns} onChange={(e) => setForm((prev) => ({ ...prev, show_campaigns: e.target.checked }))} />
             <span>{tx(lang, 'Kampaniyaları göstər', 'Показывать кампании', 'Show campaigns')}</span>
           </label>
+        </div>
+        <div className="rounded-2xl border border-slate-700/60 bg-slate-900/40 p-4 space-y-3">
+          <div className="text-sm font-semibold text-slate-200">{tx(lang, 'Kampaniya yoxlanışı', 'Проверка кампании', 'Campaign validation')}</div>
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={form.campaigns_require_online} onChange={(e) => setForm((prev) => ({ ...prev, campaigns_require_online: e.target.checked }))} />
+            <span>{tx(lang, 'Skan üçün internet tələb et (offline-da kampaniya bağlanır)', 'Требовать интернет для сканирования (офлайн кампании отключены)', 'Require internet for scans (campaigns disabled offline)')}</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <span className="shrink-0">{tx(lang, 'Pəncərə (dəq)', 'Окно (мин)', 'Window (min)')}:</span>
+            <input className="neon-input w-24" type="number" min={1} value={form.campaign_activation_minutes} onChange={(e) => setForm((prev) => ({ ...prev, campaign_activation_minutes: e.target.value }))} />
+            <span className="text-xs text-slate-500">{tx(lang, 'Aktivasiya pəncərəsinin uzunluğu (default 15)', 'Длина окна активации (по умолчанию 15)', 'Activation window length (default 15)')}</span>
+          </label>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <label className="flex items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" checked={form.show_history} onChange={(e) => setForm((prev) => ({ ...prev, show_history: e.target.checked }))} />
             <span>{tx(lang, 'Tarixçəni göstər', 'Показывать историю', 'Show history')}</span>

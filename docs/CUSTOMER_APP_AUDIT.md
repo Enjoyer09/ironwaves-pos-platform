@@ -303,7 +303,7 @@ PATCH `/settings/customer-app` hər iki açarı qəbul edir.
 ### Status
 - ✅ P1-2a (core): migration + scheduler + grant + endpoint + testlər — hazır (2026-08-16)
 - ✅ P1-2b: ProfileTab ad/doğum tarixi redaktə UI — hazır (2026-08-16)
-- ⏳ P1-2c: admin konfiq UI (birthday_enabled / birthday_bonus_stars paneli)
+- ✅ P1-2c (hazır — 2026-08-17): admin konfiq UI — CustomerAppPanel-ə kampaniya ayarları (`campaigns_require_online` + `campaign_activation_minutes`, load/save + backend PATCH whitelist); birthday paneli (P1-2d) ayrı qalır
 
 ### Testlər
 - `backend/tests/test_customer_birthday_reward.py` (20 test): grant, idempotency,
