@@ -174,7 +174,8 @@ Menyu fetch → kateqoriya çipləri → məhsul gridi (şəkil, badge, reytinq,
 | P1-2 | 🟠 Orta | **Birthday reward** (+ doğum tarixi sorğusu) | ✅ Hazır (2026-08-16) |
 > **P1-2a (core):** `birth_date` migration + `birthday_scheduler` (Baku tz, gündəlik guard marker, il-əsaslı ledger idempotency) + grant (stars+lifetime+ledger+notification+push, default qapalı) + `POST /customer-app/profile/birthday` (format/keçmiş/yaş validasiyası) — `backend/tests/test_customer_birthday_reward.py` (12 test). Multi-worker advisory lock əlavə edildi (ümumi 20 test).
 > **P1-2b:** ProfileTab ad/doğum tarixi redaktə UI — `update_customer_name_live`/`update_customer_birthday_live`; boş birth_date silmə (None). Admin konfiq UI (P1-2c) ayrı fazadır.
-| P1-3 | 🟠 Orta | **Offline QR cache** — şəbəkə yoxdursa kart açılsın | ⏳ |
+| P1-3 | 🟠 Orta | **Offline QR cache** — şəbəkə yoxdursa kart açılsın | ✅ Hazır (2026-08-16) |
+> **P1-3:** `crm.ts` session cache helper-ləri (localStorage + in-memory fallback, token-hash key) — uğurlu session hər dəfə cache-ə yazılır; API xətasında cache-dən qaytarılır (`_from_cache` markeri ilə). `CustomerApp.tsx` offline banner (📡 Offline rejim + Retry) — kart şəbəkə yoxkən də açılır. Smoke test: write/read roundtrip, token+kart ayrılığı, null-mühafizə (3 yeni test).
 | P1-4 | 🟠 Orta | **Kampaniya server təsdiqi** — activated vəziyyəti backend-də | ⏳ |
 | P2-1 | 🟡 Aşağı | **Qonaq rejimi** — hesabsız menyu baxışı | ⏳ |
 | P2-2 | 🟡 Aşağı | **Reorder + sevimlilər → sifariş** | ⏳ |

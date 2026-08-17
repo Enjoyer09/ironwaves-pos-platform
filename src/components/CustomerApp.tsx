@@ -88,6 +88,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [data, setData] = React.useState<any | null>(null);
   const [bootstrapData, setBootstrapData] = React.useState<any | null>(null);
   const [error, setError] = React.useState('');
+  // P1-3: true when the card opened from the offline session cache (network down)
+  const [offlineMode, setOfflineMode] = React.useState(false);
   const [claiming, setClaiming] = React.useState(false);
   const [cardQr, setCardQr] = React.useState('');
   const [sessionCreds, setSessionCreds] = React.useState({ cardId, token });
@@ -487,6 +489,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       setError('');
       const session = await get_customer_app_session_live(sessionCreds.cardId, sessionCreds.token);
       setData(session);
+      setOfflineMode(Boolean((session as any)?._from_cache));
       
       if (session.onesignal_app_id) {
         if ('requestIdleCallback' in window) {
@@ -1477,6 +1480,29 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       `}</style>
 
       <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-28 pt-[calc(env(safe-area-inset-top,47px)+12px)]">
+        {offlineMode && (
+          <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 px-3.5 py-2.5 backdrop-blur-md">
+            <div className="flex items-center gap-2.5">
+              <span className="text-base">📡</span>
+              <div>
+                <div className="text-[11px] font-extrabold text-amber-200">
+                  {tx(safeLang, 'Offline rejim', 'Офлайн режим', 'Offline mode')}
+                </div>
+                <div className="text-[10px] font-medium text-amber-200/60">
+                  {tx(safeLang, 'Son sinxronlaşdırılmış məlumatlar göstərilir', 'Показаны последние синхронизированные данные', 'Showing last synced data')}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="shrink-0 rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-amber-200 transition active:scale-95"
+            >
+              {tx(safeLang, 'Yenidən cəhd', 'Повторить', 'Retry')}
+            </button>
+          </div>
+        )}
+
         {/* Language switcher + Theme/Design toggle */}
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">

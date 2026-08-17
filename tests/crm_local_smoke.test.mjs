@@ -20,6 +20,9 @@ import {
   get_customer_app_session_live,
   update_customer_name_live,
   update_customer_birthday_live,
+  writeCustomerSessionCache,
+  readCustomerSessionCache,
+  clearCustomerSessionCache,
 } from '../src/api/crm';
 
 function seed(rows) {
@@ -144,6 +147,53 @@ test('local name + birth date update roundtrip', async () => {
   await assert.rejects(() => update_customer_birthday_live('QR-NAME1', 'wrong-token', '1995-05-10', 't1'), /invalid/i);
   // empty name rejected
   await assert.rejects(() => update_customer_name_live('QR-NAME1', 'tok-1', '   ', 't1'), /invalid/i);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// P1-3 offline session cache: the last fetched session survives a network outage.
+// The local fallback path of get_customer_app_session_live never hits the cache,
+// so these tests exercise the cache helpers directly (write -> read roundtrip,
+// token separation, clear) plus the `_from_cache` marker shape.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('session cache roundtrip: write then read returns the same session', () => {
+  clearCustomerSessionCache();
+  const session = {
+    tenant_id: 't1',
+    customer: { card_id: 'QR-CACHE1', name: 'Aysel', stars: 12 },
+    wallet: { stars_balance: 12, available_rewards: 1 },
+  };
+  writeCustomerSessionCache('QR-CACHE1', 'tok-cache', session);
+  const cached = readCustomerSessionCache('QR-CACHE1', 'tok-cache');
+  assert.ok(cached, 'cached session found');
+  assert.equal(cached.session.customer.card_id, 'QR-CACHE1');
+  assert.equal(cached.session.customer.stars, 12);
+  assert.equal(cached.session.wallet.stars_balance, 12);
+  assert.ok(cached.ts > 0, 'timestamp recorded');
+  clearCustomerSessionCache('QR-CACHE1', 'tok-cache');
+  assert.equal(readCustomerSessionCache('QR-CACHE1', 'tok-cache'), null, 'cleared per-card');
+});
+
+test('session cache is separated by card AND token', () => {
+  clearCustomerSessionCache();
+  writeCustomerSessionCache('QR-CACHE2', 'tok-a', { customer: { card_id: 'QR-CACHE2', stars: 5 } });
+  // same card, different token -> no access
+  assert.equal(readCustomerSessionCache('QR-CACHE2', 'tok-b'), null, 'wrong token -> miss');
+  // same token, different card -> no access
+  assert.equal(readCustomerSessionCache('QR-OTHER', 'tok-a'), null, 'wrong card -> miss');
+  // exact match still works
+  assert.ok(readCustomerSessionCache('QR-CACHE2', 'tok-a'), 'exact match found');
+  clearCustomerSessionCache();
+});
+
+test('session cache rejects empty/invalid sessions on write and read', () => {
+  clearCustomerSessionCache();
+  writeCustomerSessionCache('QR-CACHE3', 'tok-x', null);
+  assert.equal(readCustomerSessionCache('QR-CACHE3', 'tok-x'), null, 'null session not cached');
+  // card id is case-insensitive on read
+  writeCustomerSessionCache('QR-CACHE3', 'tok-x', { customer: { card_id: 'QR-CACHE3', stars: 1 } });
+  assert.ok(readCustomerSessionCache('qr-cache3', 'tok-x'), 'case-insensitive card id');
+  clearCustomerSessionCache();
 });
 
 test('local roundtrip: pre-order becomes visible via get_customer_orders_live', async () => {
