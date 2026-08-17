@@ -1120,7 +1120,19 @@ def _resolve_customer_session(db: Session, tenant_id: str, card_id: str, token: 
         .filter(Customer.tenant_id == tenant_id, func.lower(Customer.card_id) == safe_card.lower())
         .first()
     )
-    if not row or row.secret_token != safe_token:
+    if not row or not row.secret_token:
+        raise HTTPException(status_code=401, detail="Customer session is invalid")
+    # Timing-safe comparison (secrets.compare_digest). compare_digest raises
+    # TypeError on non-ASCII strings — every mismatch (incl. non-ASCII input or
+    # stored token) must become a 401, never a 500.
+    try:
+        token_ok = secrets.compare_digest(
+            str(row.secret_token).encode("ascii"),
+            safe_token.encode("ascii"),
+        )
+    except (UnicodeEncodeError, AttributeError):
+        token_ok = False
+    if not token_ok:
         raise HTTPException(status_code=401, detail="Customer session is invalid")
     return row
 
