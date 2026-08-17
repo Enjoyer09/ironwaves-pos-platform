@@ -97,7 +97,8 @@ type Props = {
   pendingClaims: any[];
   geofenceAlert: boolean;
   setGeofenceAlert: (v: boolean) => void;
-  recentItems: Array<{ name: string; category: string }>;
+  recentItems: any[];
+  onReorderItem: (item: any) => void;
   setActiveTab: (tab: any) => void;
   openWalletPass: (e: React.MouseEvent, url: string) => void;
   get_customer_wallet_pass_url_fn: (cardId: string, token: string, lang: string) => string;
@@ -115,7 +116,7 @@ export default function HomeTab({
   rewards, progressPercent, notifications, favoriteItems, pendingClaims,
   geofenceAlert, setGeofenceAlert, recentItems, setActiveTab,
   openWalletPass, get_customer_wallet_pass_url_fn, sessionCreds, data, isLight = false,
-  designMode = 'classic'
+  designMode = 'classic', onReorderItem
 }: Props) {
 
   const isRetro     = designMode === 'retro';
@@ -618,7 +619,9 @@ export default function HomeTab({
           </div>
           <div className="space-y-2.5">
             {recentItems.map((item: any, idx: number) => (
-              <div key={idx} onClick={async () => { setActiveTab('order'); await nativeHapticImpact(ImpactStyle.Light); }}
+              <div key={idx} onClick={async () => { onReorderItem(item); await nativeHapticImpact(ImpactStyle.Light); }}
+                role="button" tabIndex={0} aria-label={`${item.name} ${tx(safeLang, 'yenidən sifariş et', 'заказать снова', 'reorder')}`}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onReorderItem(item); } }}
                 className={`flex items-center gap-3 p-3 rounded-2xl border transition-all cursor-pointer active:scale-[0.98] ${isLight ? 'bg-white/70 border-black/6 hover:shadow-md shadow-sm' : 'bg-[#0C0F14] border-white/5 hover:bg-white/5'}`}>
                 <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-lg border ${isLight ? 'bg-white border-black/6 shadow-sm' : 'bg-white/10 border-white/6'}`}>
                   {CATEGORY_EMOJI[item.category] || '🥤'}
@@ -628,7 +631,7 @@ export default function HomeTab({
                   <p className={`text-[9px] font-semibold mt-0.5 capitalize ${subText}`}>{item.category}</p>
                 </div>
                 <span className="text-[8px] font-black uppercase tracking-wider text-[#F48C24] bg-[#F48C24]/10 px-2.5 py-1 rounded-full border border-[#F48C24]/20 flex-shrink-0">
-                  {tx(safeLang, 'Sifariş', 'Заказать', 'Order')}
+                  + {tx(safeLang, 'Sifariş', 'Заказать', 'Order')}
                 </span>
               </div>
             ))}
@@ -645,7 +648,9 @@ export default function HomeTab({
           </div>
           <div className="flex gap-3 overflow-x-auto pb-1">
             {favoriteItems.map((item: any) => (
-              <div key={item.name} onClick={async () => { setActiveTab('order'); await nativeHapticImpact(ImpactStyle.Light); }}
+              <div key={item.name} onClick={async () => { onReorderItem(item.lastItem || item); await nativeHapticImpact(ImpactStyle.Light); }}
+                role="button" tabIndex={0} aria-label={`${item.name} ${tx(safeLang, 'yenidən sifariş et', 'заказать снова', 'reorder')}`}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onReorderItem(item.lastItem || item); } }}
                 className={`flex items-center gap-3 shrink-0 rounded-2xl p-3 border active:scale-95 transition-all cursor-pointer ${isLight ? 'bg-white/70 border-black/6 hover:shadow-md shadow-sm' : 'bg-white/6 border-white/6 hover:border-white/12 hover:bg-white/10'}`}
                 style={{ minWidth: '160px' }}>
                 <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-lg border ${isLight ? 'bg-white border-black/6 shadow-sm' : 'bg-white/10 border-white/6'}`}>
