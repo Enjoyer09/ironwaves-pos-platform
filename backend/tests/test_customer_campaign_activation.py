@@ -1,5 +1,5 @@
 """
-P1-4 Campaign server validation — real SQLite tests.
+P1-4 Campaign server validation + P1-4b sale consumption — real SQLite tests.
 
 Covers:
   - POST /customer-app/campaigns/{id}/activate: create -> success + expires_at
@@ -8,15 +8,19 @@ Covers:
   - inactive / missing campaign -> 404
   - invalid session -> 401
   - session exposes campaign_activations; expired rows are filtered out
-  - POST /api/v1/pos/campaigns/validate: valid -> ACTIVE->USED + discount info
-  - double redemption -> { valid: false }
+  - POST /api/v1/pos/campaigns/validate: valid -> NO consumption + activation_id
+  - double scan stays valid (consumption moved to sale, P1-4b)
   - happy hour time window (weekday) enforced at validate time
   - custom campaign_activation_minutes from customer_app_settings
+  - POST /api/v1/pos/sale with campaign_id/activation_id: max rule, atomic
+    ACTIVE->USED, discount_reason, expired/used/window/card-mismatch rejections
 """
 import importlib
 import json
 import os
 from datetime import date, datetime, timedelta
+from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
@@ -24,7 +28,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.models import Base, CampaignActivation, Customer, HappyHour, Setting, Tenant
+from app.models import Base, CampaignActivation, Customer, HappyHour, Sale, Setting, Tenant
 
 
 def _bootstrap_env() -> None:
@@ -287,7 +291,12 @@ def test_session_exposes_activation_and_filters_expired():
     engine.dispose()
 
 
-def test_pos_validate_valid_marks_used():
+def test_pos_validate_valid_no_consumption_returns_activation():
+    """P1-4b: validate reports the discount but does NOT consume the activation.
+
+    Consumption moved to create_sale — a failed/abandoned sale never burns the
+    customer's campaign.
+    """
     _bootstrap_env()
     operations = importlib.import_module("app.routers.operations")
     pos = importlib.import_module("app.routers.pos")
@@ -308,15 +317,18 @@ def test_pos_validate_valid_marks_used():
     assert res.valid is True
     assert res.discount_percent == campaign.discount_percent
     assert res.name == campaign.name
+    assert res.activation_id
 
     row = db.query(CampaignActivation).filter(CampaignActivation.tenant_id == tenant.id).one()
-    assert row.status == "USED"
+    assert row.status == "ACTIVE"  # NOT consumed at scan
+    assert row.id == res.activation_id
 
     db.close()
     engine.dispose()
 
 
-def test_pos_validate_double_redemption_rejected():
+def test_pos_validate_double_scan_stays_valid():
+    """P1-4b: repeated scans stay valid — the single-use guard lives at sale."""
     _bootstrap_env()
     operations = importlib.import_module("app.routers.operations")
     pos = importlib.import_module("app.routers.pos")
@@ -334,16 +346,15 @@ def test_pos_validate_double_redemption_rejected():
         tenant=tenant,
         user=None,
     )
-    assert first.valid is True
-
-    # Same QR scanned again -> USED already.
     second = pos.validate_pos_campaign(
         payload=pos.CampaignValidateIn(campaign_id=campaign.id, card_id=customer.card_id),
         db=db,
         tenant=tenant,
         user=None,
     )
-    assert second.valid is False
+    assert first.valid is True
+    assert second.valid is True
+    assert first.activation_id == second.activation_id
 
     db.close()
     engine.dispose()
@@ -434,6 +445,245 @@ def test_activate_custom_activation_minutes():
     expected = datetime.utcnow() + timedelta(minutes=45)
     # Allow small clock skew between the two utcnow() calls.
     assert abs((expires_at - expected).total_seconds()) < 120
+
+    db.close()
+    engine.dispose()
+
+
+# ──────────────────────────────────────────
+# P1-4b: sale-level consumption (create_sale)
+# ──────────────────────────────────────────
+
+def _sale_payload(
+    *,
+    customer_card_id: str | None = None,
+    campaign_id: str | None = None,
+    activation_id: str | None = None,
+    discount_percent: int = 0,
+    discount_reason: str | None = None,
+):
+    from app.schemas import SaleCreateIn, SaleItemIn
+
+    return SaleCreateIn(
+        cart_items=[
+            SaleItemIn(item_name="Espresso", price=Decimal("4.00"), qty=2, category="Qəhvə", is_coffee=True),
+        ],
+        payment_method="Cash",
+        customer_card_id=customer_card_id,
+        campaign_id=campaign_id,
+        activation_id=activation_id,
+        discount_percent=Decimal(str(discount_percent)),
+        discount_reason=discount_reason,
+    )
+
+
+def _create_sale(pos, db, tenant, *, customer_card_id=None, campaign_id=None, activation_id=None,
+                 discount_percent=0, discount_reason=None, monkeypatch):
+    monkeypatch.setattr(pos, "_active_shift", lambda *_: True)
+    monkeypatch.setattr(pos, "_staff_shift_session_open", lambda *_: True)
+    monkeypatch.setattr(pos, "_bank_commission_config", lambda *_: (Decimal("0"), Decimal("0")))
+    monkeypatch.setattr(pos, "post_sale_payment", lambda *a, **k: None)
+    monkeypatch.setattr(pos, "post_sale_cogs", lambda *a, **k: None)
+    user = SimpleNamespace(username="cashier-1", role="admin")
+    payload = _sale_payload(
+        customer_card_id=customer_card_id,
+        campaign_id=campaign_id,
+        activation_id=activation_id,
+        discount_percent=discount_percent,
+        discount_reason=discount_reason,
+    )
+    return pos.create_sale(payload=payload, db=db, tenant=tenant, user=user)
+
+
+def test_create_sale_applies_campaign_max_and_consumes(monkeypatch):
+    """P1-4b: campaign joins max(manual, customer, campaign); consumption + reason
+    are recorded atomically on the sale."""
+    _bootstrap_env()
+    operations = importlib.import_module("app.routers.operations")
+    pos = importlib.import_module("app.routers.pos")
+
+    engine, db = _make_db()
+    tenant = _seed_tenant(db)
+    customer = _seed_customer(db, tenant)
+    customer.discount_percent = Decimal("5")
+    db.commit()
+    campaign = _seed_campaign(db, tenant, discount=20)
+    _activate(operations, customer, campaign.id, tenant, db)
+    activation = db.query(CampaignActivation).filter(CampaignActivation.tenant_id == tenant.id).one()
+
+    res = _create_sale(
+        pos, db, tenant,
+        customer_card_id=customer.card_id,
+        campaign_id=campaign.id,
+        activation_id=activation.id,
+        monkeypatch=monkeypatch,
+    )
+    assert res["sale_id"]
+
+    # 20% campaign wins over the 5% card discount (max rule): 8.00 - 1.60 = 6.40.
+    assert res["total"] == Decimal("6.40")
+
+    sale = db.query(Sale).filter(Sale.tenant_id == tenant.id).one()
+    assert sale.campaign_id == campaign.id
+    assert sale.discount_reason == "Kampaniya: Happy Hour Test"
+    assert sale.discount_amount == Decimal("1.60")
+
+    # Atomic consumption: activation is USED right after the sale.
+    db.refresh(activation)
+    assert activation.status == "USED"
+
+    db.close()
+    engine.dispose()
+
+
+def test_scan_does_not_consume_but_sale_consumes(monkeypatch):
+    """P1-4b end-to-end: validate keeps ACTIVE, create_sale flips USED."""
+    _bootstrap_env()
+    operations = importlib.import_module("app.routers.operations")
+    pos = importlib.import_module("app.routers.pos")
+
+    engine, db = _make_db()
+    tenant = _seed_tenant(db)
+    customer = _seed_customer(db, tenant)
+    campaign = _seed_campaign(db, tenant)
+    _activate(operations, customer, campaign.id, tenant, db)
+    activation = db.query(CampaignActivation).filter(CampaignActivation.tenant_id == tenant.id).one()
+
+    scan = pos.validate_pos_campaign(
+        payload=pos.CampaignValidateIn(campaign_id=campaign.id, card_id=customer.card_id),
+        db=db,
+        tenant=tenant,
+        user=None,
+    )
+    assert scan.valid is True
+    db.refresh(activation)
+    assert activation.status == "ACTIVE"  # scan did not consume
+
+    _create_sale(pos, db, tenant, campaign_id=campaign.id, activation_id=scan.activation_id, monkeypatch=monkeypatch)
+    db.refresh(activation)
+    assert activation.status == "USED"  # sale consumed
+
+    db.close()
+    engine.dispose()
+
+
+def test_create_sale_expired_activation_rejected(monkeypatch):
+    """P1-4b: an expired activation cannot be applied at sale time."""
+    _bootstrap_env()
+    operations = importlib.import_module("app.routers.operations")
+    pos = importlib.import_module("app.routers.pos")
+
+    engine, db = _make_db()
+    tenant = _seed_tenant(db)
+    customer = _seed_customer(db, tenant)
+    campaign = _seed_campaign(db, tenant)
+    _activate(operations, customer, campaign.id, tenant, db)
+    activation = db.query(CampaignActivation).filter(CampaignActivation.tenant_id == tenant.id).one()
+    activation.expires_at = datetime.utcnow() - timedelta(minutes=1)
+    db.commit()
+
+    with pytest.raises(HTTPException) as exc:
+        _create_sale(
+            pos, db, tenant,
+            campaign_id=campaign.id,
+            activation_id=activation.id,
+            monkeypatch=monkeypatch,
+        )
+    assert exc.value.status_code == 400
+    assert db.query(Sale).count() == 0
+
+    db.close()
+    engine.dispose()
+
+
+def test_create_sale_double_use_across_sales_rejected(monkeypatch):
+    """P1-4b: single-use is enforced across sales — the second sale is rejected."""
+    _bootstrap_env()
+    operations = importlib.import_module("app.routers.operations")
+    pos = importlib.import_module("app.routers.pos")
+
+    engine, db = _make_db()
+    tenant = _seed_tenant(db)
+    customer = _seed_customer(db, tenant)
+    campaign = _seed_campaign(db, tenant)
+    _activate(operations, customer, campaign.id, tenant, db)
+    activation = db.query(CampaignActivation).filter(CampaignActivation.tenant_id == tenant.id).one()
+
+    _create_sale(pos, db, tenant, campaign_id=campaign.id, activation_id=activation.id, monkeypatch=monkeypatch)
+
+    # Same activation on a second sale -> rejected (already USED).
+    with pytest.raises(HTTPException) as exc:
+        _create_sale(
+            pos, db, tenant,
+            campaign_id=campaign.id,
+            activation_id=activation.id,
+            monkeypatch=monkeypatch,
+        )
+    assert exc.value.status_code == 400
+    assert db.query(Sale).count() == 1
+
+    db.close()
+    engine.dispose()
+
+
+def test_create_sale_time_window_rejected(monkeypatch):
+    """P1-4b: the happy-hour window is re-checked at sale time."""
+    _bootstrap_env()
+    operations = importlib.import_module("app.routers.operations")
+    pos = importlib.import_module("app.routers.pos")
+
+    engine, db = _make_db()
+    tenant = _seed_tenant(db)
+    customer = _seed_customer(db, tenant)
+    today = datetime.utcnow().weekday() + 1
+    other_day = 1 if today != 1 else 2
+    campaign = _seed_campaign(db, tenant, days=[other_day])
+    _activate(operations, customer, campaign.id, tenant, db)
+    activation = db.query(CampaignActivation).filter(CampaignActivation.tenant_id == tenant.id).one()
+
+    with pytest.raises(HTTPException) as exc:
+        _create_sale(
+            pos, db, tenant,
+            campaign_id=campaign.id,
+            activation_id=activation.id,
+            monkeypatch=monkeypatch,
+        )
+    assert exc.value.status_code == 400
+    assert db.query(Sale).count() == 0
+    db.refresh(activation)
+    assert activation.status == "ACTIVE"  # not burned by a rejected sale
+
+    db.close()
+    engine.dispose()
+
+
+def test_create_sale_campaign_card_mismatch_rejected(monkeypatch):
+    """P1-4b: a campaign activated for card A cannot be applied to card B's sale."""
+    _bootstrap_env()
+    operations = importlib.import_module("app.routers.operations")
+    pos = importlib.import_module("app.routers.pos")
+
+    engine, db = _make_db()
+    tenant = _seed_tenant(db)
+    customer = _seed_customer(db, tenant)  # QR-CAMP0001 owns the activation
+    other = _seed_customer(db, tenant, card_id="QR-CAMP0002")
+    campaign = _seed_campaign(db, tenant)
+    _activate(operations, customer, campaign.id, tenant, db)
+    activation = db.query(CampaignActivation).filter(CampaignActivation.tenant_id == tenant.id).one()
+
+    # Sale attached to a DIFFERENT card -> the activation lookup finds nothing.
+    with pytest.raises(HTTPException) as exc:
+        _create_sale(
+            pos, db, tenant,
+            customer_card_id=other.card_id,
+            campaign_id=campaign.id,
+            activation_id=activation.id,
+            monkeypatch=monkeypatch,
+        )
+    assert exc.value.status_code == 400
+    assert db.query(Sale).count() == 0
+    db.refresh(activation)
+    assert activation.status == "ACTIVE"
 
     db.close()
     engine.dispose()

@@ -160,6 +160,8 @@ class SaleCreateIn(BaseModel):
     order_type: str | None = "Take Away"
     customer_card_id: str | None = None
     reward_claim_code: str | None = None
+    campaign_id: str | None = None
+    activation_id: str | None = None
     split_cash: Decimal | None = None
     split_card: Decimal | None = None
     offline_request_id: str | None = None
