@@ -174,7 +174,8 @@ Two modes: **points** (stars → claim) and **cashback** (percentage accrual). S
 | P1-2 | 🟠 Medium | **Birthday reward** (+ birthdate prompt) | ✅ Done (2026-08-16) |
 > **P1-2a (core):** `birth_date` migration + `birthday_scheduler` (Baku tz, daily guard marker, year-based ledger idempotency) + grant (stars+lifetime+ledger+notification+push, disabled by default) + `POST /customer-app/profile/birthday` (format/past/age validation) — `backend/tests/test_customer_birthday_reward.py` (12 tests). Multi-worker advisory lock added (20 tests total).
 > **P1-2b:** ProfileTab name/birth-date edit UI — `update_customer_name_live`/`update_customer_birthday_live`; empty birth date clears (None). Admin config UI (P1-2c) is a separate phase.
-| P1-3 | 🟠 Medium | **Offline QR cache** — card opens without network | ⏳ |
+| P1-3 | 🟠 Medium | **Offline QR cache** — card opens without network | ✅ Done (2026-08-16) |
+> **P1-3:** `crm.ts` session cache helpers (localStorage + in-memory fallback, token-hashed key) — every successful session is written to cache; on API failure it is returned from cache (with `_from_cache` marker). `CustomerApp.tsx` offline banner (📡 Offline mode + Retry) — the card opens even without network. Smoke tests: write/read roundtrip, card+token separation, null-guard (3 new tests).
 | P1-4 | 🟠 Medium | **Server-validated campaigns** — activated state on the backend | ⏳ |
 | P2-1 | 🟡 Low | **Guest mode** — browse menu without an account | ⏳ |
 | P2-2 | 🟡 Low | **Reorder + favorites → order** | ⏳ |

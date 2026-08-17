@@ -44,6 +44,92 @@ function computeTier(lifetimeStars: number, tiers?: any[]) {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Offline session cache (P1-3): lets the customer card open when the network is
+// down — the last successfully fetched session is kept in localStorage (with an
+// in-memory fallback for environments without storage, e.g. Node smoke tests).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CUSTOMER_SESSION_CACHE_PREFIX = 'iw_cust_session_v1';
+const sessionCacheMemory = new Map<string, { session: any; ts: number }>();
+
+function sessionCacheKey(cardId: string, token: string): string {
+  return `${CUSTOMER_SESSION_CACHE_PREFIX}:${String(cardId || '').trim().toLowerCase()}:${hashToken(token)}`;
+}
+
+// Simple non-crypto hash — avoids storing the raw token in localStorage key space.
+// Not a security boundary (session creds are already persisted via customer_session.ts),
+// it just keeps the token out of the storage key.
+function hashToken(token: string): string {
+  let h = 0;
+  const s = String(token || '');
+  for (let i = 0; i < s.length; i += 1) {
+    h = (h * 31 + s.charCodeAt(i)) | 0;
+  }
+  return (h >>> 0).toString(36);
+}
+
+export function writeCustomerSessionCache(cardId: string, token: string, session: any): void {
+  if (!session) return;
+  const key = sessionCacheKey(cardId, token);
+  const record = { session, ts: Date.now() };
+  sessionCacheMemory.set(key, record);
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(key, JSON.stringify(record));
+    }
+  } catch {
+    // quota / privacy mode — memory copy is enough for this session
+  }
+}
+
+export function readCustomerSessionCache(cardId: string, token: string): { session: any; ts: number } | null {
+  const key = sessionCacheKey(cardId, token);
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.session) {
+          const record = { session: parsed.session, ts: Number(parsed.ts) || Date.now() };
+          sessionCacheMemory.set(key, record);
+          return record;
+        }
+      }
+    }
+  } catch {
+    // corrupted entry — fall through to memory copy
+  }
+  const mem = sessionCacheMemory.get(key);
+  return mem ? { session: mem.session, ts: mem.ts } : null;
+}
+
+export function clearCustomerSessionCache(cardId?: string, token?: string): void {
+  if (cardId && token) {
+    const key = sessionCacheKey(cardId, token);
+    sessionCacheMemory.delete(key);
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
+    } catch {
+      // ignore
+    }
+    return;
+  }
+  sessionCacheMemory.clear();
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const keys: string[] = [];
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(CUSTOMER_SESSION_CACHE_PREFIX)) keys.push(k);
+      }
+      for (const k of keys) localStorage.removeItem(k);
+    }
+  } catch {
+    // ignore
+  }
+}
+
 const normalizeCustomerType = (value: unknown): CustomerType => {
   switch (String(value || '').trim().toLowerCase()) {
     case 'golden':
@@ -412,11 +498,23 @@ export async function get_customer_app_session_live(card_id: string, token: stri
     };
   }
 
-  return apiRequest<any>(`/api/v1/ops/customer-app/session?id=${encodeURIComponent(safeCard)}&t=${encodeURIComponent(safeToken)}`, {
-    method: 'GET',
-    tenantId: null,
-    auth: false,
-  });
+  try {
+    const session = await apiRequest<any>(`/api/v1/ops/customer-app/session?id=${encodeURIComponent(safeCard)}&t=${encodeURIComponent(safeToken)}`, {
+      method: 'GET',
+      tenantId: null,
+      auth: false,
+    });
+    writeCustomerSessionCache(safeCard, safeToken, session);
+    return session;
+  } catch (err) {
+    // Offline fallback (P1-3): if the network is down but we have a previously
+    // fetched session, return it so the card still opens.
+    const cached = readCustomerSessionCache(safeCard, safeToken);
+    if (cached) {
+      return { ...cached.session, _from_cache: true, _cached_at: cached.ts };
+    }
+    throw err;
+  }
 }
 
 export async function get_customer_app_bootstrap_live(tenant_id?: string) {
