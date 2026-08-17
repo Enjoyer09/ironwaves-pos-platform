@@ -180,7 +180,8 @@ Menyu fetch → kateqoriya çipləri → məhsul gridi (şəkil, badge, reytinq,
 > **P1-4:** `campaign_activations` cədvəli + `POST /customer-app/campaigns/{id}/activate` (tək istifadə, 15 dəq pəncərə) + session `campaign_activations` + `POST /api/v1/pos/campaigns/validate` (ACTIVE→USED) + POS `IWPOS:CAMPAIGN:` tanınması — `backend/tests/test_customer_campaign_activation.py` (11 test) + smoke 14/14.
 | P1-4b | 🟠 Orta | **POS endirim tətbiqi** — kampaniya + kart max qaydası, satışda istehlak | ✅ Hazır (2026-08-17) |
 > **P1-4b:** validate istehlak etmir — `activation_id` qaytarır; istehlak `create_sale`-də satış commit-i ilə atomik (ACTIVE→USED + eyni yoxlamalar). `effective = max(manual, customer, campaign)`; `discount_reason = "Kampaniya: {name}"` avtomatik; `Sale.campaign_id` (migration 0006). POS cart-a kampaniya bağlayır (claim aktivkən rədd). — 17 test + smoke 15/15.
-| P1-4c | 🟠 Orta | **Offline kampaniya sync** — 400 rəddi manual-review-ə, skan online-a bağlı | ⏳ |
+| P1-4c | 🟠 Orta | **Offline kampaniya sync** — 400 rəddi manual-review-ə, skan online-a bağlı | ✅ Hazır (2026-08-17) |
+> **P1-4c:** `campaigns_require_online` konfiq — backend OFF-da kampaniya skanı bloklanır; `syncPendingOfflineSales` kampaniya rəddini terminal vəziyyətə keçirir (1 il sonraya park edir — auto-retry dayanır, manual review + retry qalır). Boşluq testi: offline→online ikiqat istifadə sübut edildi (18 test).
 | P2-1 | 🟡 Aşağı | **Qonaq rejimi** — hesabsız menyu baxışı | ⏳ |
 | P2-2 | 🟡 Aşağı | **Reorder + sevimlilər → sifariş** | ⏳ |
 | P2-3 | 🟡 Aşağı | **Ödəniş inteqrasiyası** (prepay + pickup ETA) | ⏳ |
@@ -554,8 +555,8 @@ təqlid edildiyini və offline saxta QR riskini sənədləşdirmək.
   store-da token/siqnatur tələb olunarsa ayrıca layihədir.
 
 ### Status
-- ✅ Lokal fallback audit (2026-08-17): mexanizm sənədləşdirildi; risklər və
-  tövsiyələr P1-4c kimi yol xəritəsinə əlavə olundu.
+- ✅ Lokal fallback audit (2026-08-17): mexanizm sənədləşdirildi; P1-4c
+  (campaigns_require_online + terminal sync error) implementasiya edildi.
 
 ### Double-check
 tsc + build + tam pytest + frontend smoke + sənəd balansı (AZ = EN)
