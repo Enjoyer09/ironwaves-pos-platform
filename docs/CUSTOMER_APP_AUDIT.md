@@ -178,7 +178,9 @@ Menyu fetch → kateqoriya çipləri → məhsul gridi (şəkil, badge, reytinq,
 > **P1-3:** `crm.ts` session cache helper-ləri (localStorage + in-memory fallback, token-hash key) — uğurlu session hər dəfə cache-ə yazılır; API xətasında cache-dən qaytarılır (`_from_cache` markeri ilə). `CustomerApp.tsx` offline banner (📡 Offline rejim + Retry) — kart şəbəkə yoxkən də açılır. Smoke test: write/read roundtrip, token+kart ayrılığı, null-mühafizə (3 yeni test).
 | P1-4 | 🟠 Orta | **Kampaniya server təsdiqi** — activated vəziyyəti backend-də | ✅ Hazır (2026-08-16) |
 > **P1-4:** `campaign_activations` cədvəli + `POST /customer-app/campaigns/{id}/activate` (tək istifadə, 15 dəq pəncərə) + session `campaign_activations` + `POST /api/v1/pos/campaigns/validate` (ACTIVE→USED) + POS `IWPOS:CAMPAIGN:` tanınması — `backend/tests/test_customer_campaign_activation.py` (11 test) + smoke 14/14.
-| P1-4b | 🟠 Orta | **POS endirim tətbiqi** — kampaniya + kart max qaydası, satışda istehlak | ⏳ |
+| P1-4b | 🟠 Orta | **POS endirim tətbiqi** — kampaniya + kart max qaydası, satışda istehlak | ✅ Hazır (2026-08-17) |
+> **P1-4b:** validate istehlak etmir — `activation_id` qaytarır; istehlak `create_sale`-də satış commit-i ilə atomik (ACTIVE→USED + eyni yoxlamalar). `effective = max(manual, customer, campaign)`; `discount_reason = "Kampaniya: {name}"` avtomatik; `Sale.campaign_id` (migration 0006). POS cart-a kampaniya bağlayır (claim aktivkən rədd). — 17 test + smoke 15/15.
+| P1-4c | 🟠 Orta | **Offline kampaniya sync** — 400 rəddi manual-review-ə, skan online-a bağlı | ⏳ |
 | P2-1 | 🟡 Aşağı | **Qonaq rejimi** — hesabsız menyu baxışı | ⏳ |
 | P2-2 | 🟡 Aşağı | **Reorder + sevimlilər → sifariş** | ⏳ |
 | P2-3 | 🟡 Aşağı | **Ödəniş inteqrasiyası** (prepay + pickup ETA) | ⏳ |
@@ -433,13 +435,14 @@ totalı fərqlənə bilər. Kampaniya max-a qoşularkən frontend də eyni max-a
 endirilməlidir (tier artıq `ctx.discount`-a daxil olduğu üçün ikiqat tətbiq olunmasın).
 
 ### Status
-- ⏳ P1-4b (plan — 2026-08-16): max qaydası + satışda istehlak + Sale.campaign_id
+- ✅ P1-4b (hazır — 2026-08-17): max qaydası + satışda istehlak + Sale.campaign_id
 
 ### Testlər
-- `backend/tests/test_customer_campaign_activation.py` (+6): sale-də max tətbiqi,
-  istehlak + səbəb yazılması, vaxtı keçmiş/used aktivasiya → satış rəddi,
-  iki satışda iki dəfə istifadə rəddi, skanda istehlak yox, lokal roundtrip
-- Smoke: kart endirimi + kampaniya → max, sale istehlakı
+- `backend/tests/test_customer_campaign_activation.py` (17 test): sale-də max
+  tətbiqi (5% kart vs 20% kampaniya → 20%), istehlak + `Kampaniya:` səbəbi,
+  vaxtı keçmiş/used aktivasiya → satış rəddi, iki satışda iki dəfə istifadə
+  rəddi, kart uyğunsuzluğu rəddi, skanda istehlak yox (2 skan da etibarlı)
+- Smoke (15/15): kart endirimi + kampaniya → max, sale istehlakı, 2-ci sale rəddi
 
 ### Double-check
 tsc + build + tam pytest + frontend smoke + sənəd balansı (AZ = EN)
@@ -493,6 +496,66 @@ tsc + build + tam pytest + frontend smoke + sənəd balansı (AZ = EN)
 ### Testlər
 - Mövcud `test_customer_campaign_activation.py` (11): yanlış card_id/campaign_id
   → valid:false artıq əhatə olunub; POS kimlik təsdiqi əlavə edilərsə +2.
+
+### Double-check
+tsc + build + tam pytest + frontend smoke + sənəd balansı (AZ = EN)
+
+---
+
+## 17. Lokal Fallback (db_sim): Kampaniya Aktivasiyası + Offline Risk
+
+### Məqsəd
+P1-4 kampaniya aktivasiyasının offline rejimdə (backend OFF) db_sim-də necə
+təqlid edildiyini və offline saxta QR riskini sənədləşdirmək.
+
+### Simulyasiya mexanizmi (crm.ts lokal fallback)
+- `campaign_activations`: düz localStorage massivi (host-scoped `db_campaign_`
+  `activations`, in-memory Map + localStorage). Sətir: id, tenant_id,
+  campaign_id, card_id, status, activated_at, expires_at — cihazda paylaşılır.
+- `activate_customer_campaign_live` (lokal): cihazdakı lokal müştəri sessiyasını
+  (card_id + secret_token uyğunluğu) tələb edir; ACTIVE sətir yaradır
+  (expires_at = indi + campaign_activation_minutes, default 15 dəq).
+- `validate_pos_campaign_live` (lokal): ACTIVE + vaxtı keçməmiş + happy hour
+  pəncərəsi yoxlayır; P1-4b-dən bəri istehlak ETMİR (activation_id qaytarır).
+  Token/imza yoxlaması YOXDUR — sətirin özü yeganə etimad sənədidir.
+- `create_sale` (pos.ts lokal): eyni sətri yenidən yoxlayır, USED edir, max-a qoşur.
+
+### Offline saxta QR riski
+| Vektor | Nəticə | Səbəb |
+|---|---|---|
+| Cihazda devtools ilə sətir əlavə etmək | etibarlı | validate yalnız store-a baxır, kredensial tələb etmir |
+| Paylaşılan kioskda müştəri konsolu | etibarlı | web customer view eyni origin/storage-dadır |
+| campaign_id enumeration | kifayətdir | happy_hours store cihazdadır, session sadalayır |
+
+### Qiymətləndirmə: AŞAĞI–ORTA
+- Backend garantiyaları (aktivasiya üçün müştəri secret_token-i, POS üçün
+  staff auth, server-side istehlak) offline-da SESSİZ şəkildə düşür.
+- Amma sistemikdir: offline rejimdə müştərilər, ulduzlar, finance və reward
+  claim-lər də db_sim-dədir — bütün offline POS "cihaza etibar" modelidir.
+- Kassir onsuz da manual endirim verə bilər — saxta QR yeni imkan deyil.
+- Ən kəskin yeni boşluq: cihazlar arası ikiqat istifadə + ilişib qalmış satış.
+
+### İkiqat istifadə (cihazlar arası) + ilişib qalmış satış
+1. A cihazı offline: skan → lokal ACTIVE → satış → lokal USED → növbəyə yazılır.
+2. B cihazı online: eyni QR → server ACTIVE (lokal istehlak serverə çatmır)
+   → satış → server USED — eyni aktivasiya iki dəfə endirim verir.
+3. A birləşir: sync replay → backend 400 "Kampaniya etibarsızdır" →
+   `syncPendingOfflineSales` yalnız dedup mesajlarını 'synced' sayır; kampaniya
+   rəddi sonsuz retry ilə 'pending' qalır — terminal vəziyyət yoxdur.
+
+### Tövsiyələr
+- Baseline (qəbul edilən risk): kampaniya tək-istifadə garantiyası yalnız
+  online-da doğrudur. İstəyə görə `campaigns_require_online` konfiq əlavə et —
+  backend OFF-da kampaniya skanını blokla (P1-4c).
+- Sync düzəlişi: kampaniya rəddi (400) ilə gələn offline satışı sonsuz retry
+  əvəzinə terminal 'error' (manual review) vəziyyətinə keçir — mağaza geri
+  qaytara/void edə bilsin (P1-4c).
+- Forgery: POS-u ictimai kioskda işlətmə; staff login (mövcuddur); lokal
+  store-da token/siqnatur tələb olunarsa ayrıca layihədir.
+
+### Status
+- ✅ Lokal fallback audit (2026-08-17): mexanizm sənədləşdirildi; risklər və
+  tövsiyələr P1-4c kimi yol xəritəsinə əlavə olundu.
 
 ### Double-check
 tsc + build + tam pytest + frontend smoke + sənəd balansı (AZ = EN)
