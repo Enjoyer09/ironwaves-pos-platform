@@ -238,6 +238,45 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     playTickSound();
   };
 
+  // Starbucks-style one-tap reorder: rebuild a cart item from an order-history
+  // payload (menu item id + saved variant/modifiers are preserved) and merge it
+  // into the cart, then jump to the Order tab.
+  const handleReorderItem = React.useCallback((historyItem: any) => {
+    if (!historyItem) return;
+    const menuItem = menuItems.find((m: any) => String(m.id) === String(historyItem.id));
+    const name = historyItem.item_name || historyItem.name || menuItem?.item_name || '';
+    if (!historyItem.id && !menuItem) {
+      showStatusToast(tx(safeLang, 'Bu məhsul artıq menyuda yoxdur', 'Этого товара больше нет в меню', 'This item is no longer on the menu'));
+      return;
+    }
+    const cartItem = {
+      id: historyItem.id || menuItem.id,
+      name,
+      quantity: Math.max(1, Number(historyItem.qty || 1)),
+      // Prefer the live menu price; fall back to the price at the time of order.
+      price: menuItem ? Number(menuItem.price ?? 0) : Number(historyItem.price ?? 0),
+      variant_name: historyItem.variant_name ?? null,
+      selected_modifiers: historyItem.selected_modifiers || [],
+      notes: historyItem.notes || ''
+    };
+    setCustomerCart(prev => {
+      const existingIdx = prev.findIndex(item =>
+        item.id === cartItem.id &&
+        item.variant_name === cartItem.variant_name &&
+        JSON.stringify(item.selected_modifiers) === JSON.stringify(cartItem.selected_modifiers)
+      );
+      if (existingIdx > -1) {
+        const next = [...prev];
+        next[existingIdx] = { ...next[existingIdx], quantity: next[existingIdx].quantity + cartItem.quantity };
+        return next;
+      }
+      return [...prev, cartItem];
+    });
+    playTickSound();
+    showStatusToast(tx(safeLang, 'Səbətə əlavə edildi 🛒', 'Добавлено в корзину 🛒', 'Added to cart 🛒'));
+    switchTabWithTransition('order');
+  }, [menuItems, safeLang]);
+
   const handleCheckoutPreOrder = async () => {
     if (customerCart.length === 0) return;
     try {
@@ -336,8 +375,10 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   }, [data?.history, safeLang]);
 
   const favoriteItems = React.useMemo(() => {
-    const counts: Record<string, { name: string; count: number; category: string }> = {};
-    const historyList = Array.isArray(data?.history) ? data.history : [];
+    const counts: Record<string, { name: string; count: number; category: string; lastItem?: any }> = {};
+    // Oldest → newest; lastItem overwritten so the most recent payload wins.
+    const historyList = [...(Array.isArray(data?.history) ? data.history : [])]
+      .sort((a: any, b: any) => String(a.created_at).localeCompare(String(b.created_at)));
     
     for (const sale of historyList) {
       const itemsList = Array.isArray(sale.items) ? sale.items : [];
@@ -361,8 +402,9 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         if (counts[name]) {
           counts[name].count += qty;
         } else {
-          counts[name] = { name, count: qty, category };
+          counts[name] = { name, count: qty, category, lastItem: item };
         }
+        counts[name].lastItem = item;
       }
     }
 
@@ -388,7 +430,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         else if (lower.includes('keks') || lower.includes('tort') || lower.includes('cake') || lower.includes('kurabiye') || lower.includes('cookie') || lower.includes('şirniyyat') || lower.includes('desert')) category = 'sweet';
         else if (lower.includes('sendviç') || lower.includes('sandwich') || lower.includes('tost') || lower.includes('burger')) category = 'food';
         else if (lower.includes('limonad') || lower.includes('su') || lower.includes('sok') || lower.includes('juice') || lower.includes('cola')) category = 'cold';
-        return { name, category };
+        // Keep the full history payload so one-tap reorder can rebuild the cart item.
+        return { ...item, name, category };
       })
       .filter(Boolean)
       .slice(0, 4);
@@ -1626,6 +1669,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             geofenceAlert={geofenceAlert}
             setGeofenceAlert={setGeofenceAlert}
             recentItems={recentItems}
+            onReorderItem={handleReorderItem}
             setActiveTab={switchTabWithTransition}
             openWalletPass={openWalletPass}
             get_customer_wallet_pass_url_fn={get_customer_wallet_pass_url}
