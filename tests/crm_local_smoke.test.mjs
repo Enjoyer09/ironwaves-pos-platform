@@ -25,6 +25,11 @@ import {
   clearCustomerSessionCache,
 } from '../src/api/crm';
 import { computeVirtualWindow } from '../src/lib/virtualGrid';
+import {
+  hasActiveCampaign,
+  campaignCountdown,
+  formatCountdown,
+} from '../src/lib/campaignTimer';
 
 function seed(rows) {
   clearDBCache('kitchen_orders');
@@ -478,4 +483,119 @@ test('vgrid: every scroll position is covered by its rendered window', () => {
     assert.ok(row < w.endRow, `window reaches row ${row} (end=${w.endRow})`);
     assert.ok(w.startIndex >= 0 && w.endIndex <= 2000 && w.endIndex >= w.startIndex);
   }
+});
+
+// ── F4: campaign countdown — 1s ticker predicate + (exp−start) progress ──────
+// Logic lives in src/lib/campaignTimer.ts (pure helpers used by OffersTab).
+
+test('F4 ticker: runs only while at least one campaign is active', () => {
+  const now = 1_700_000_000_000;
+  // empty -> no tick
+  assert.equal(hasActiveCampaign({}, now), false);
+  // all expired -> no tick
+  assert.equal(
+    hasActiveCampaign({ a: { exp: now - 1000, start: now - 900000 } }, now),
+    false,
+  );
+  // exp exactly == now -> expired (strict `>`), no tick
+  assert.equal(hasActiveCampaign({ a: { exp: now, start: now - 1000 } }, now), false);
+  // one live campaign -> tick
+  assert.equal(
+    hasActiveCampaign({ a: { exp: now + 5000, start: now - 1000 } }, now),
+    true,
+  );
+  // mixed expired + live -> still ticks
+  assert.equal(
+    hasActiveCampaign({
+      a: { exp: now - 5000, start: now - 900000 },
+      b: { exp: now + 30_000, start: now - 1000 },
+    }, now),
+    true,
+  );
+});
+
+test('F4 countdown: active mid-window is exactly 50% of the (exp−start) window', () => {
+  const start = 1_000_000;
+  const exp = start + 900000; // 15-min default window
+  const now = start + 450000; // halfway
+  const cd = campaignCountdown(exp, start, now);
+  assert.equal(cd.isActive, true);
+  assert.equal(cd.timeLeftMs, 450000);
+  assert.equal(cd.secondsLeft, 450);
+  assert.equal(cd.minutes, 7);
+  assert.equal(cd.seconds, 30);
+  assert.equal(cd.totalMs, 900000);
+  assert.equal(cd.progressPct, 50);
+  assert.equal(formatCountdown(cd.minutes, cd.seconds), '07:30');
+});
+
+test('F4 progress: uses the real (exp−start) window, not a hardcoded 900s', () => {
+  // Admin-configured window (P1-2c campaign_activation_minutes), e.g. 5 min.
+  const start = 5_000;
+  const exp = start + 300000; // 5-min window
+  const now = start + 60000;  // 60s in -> 240s left = 80%
+  const cd = campaignCountdown(exp, start, now);
+  assert.equal(cd.progressPct, 80); // (240000 / 300000) * 100
+  assert.equal(cd.secondsLeft, 240);
+  // If it wrongly used 900000 the percentage would be 26.67 — pin it.
+  assert.notEqual(cd.progressPct, Math.round((240000 / 900000) * 100));
+});
+
+test('F4 countdown: missing start falls back to 900s window (legacy local activations)', () => {
+  const now = 2_000_000;
+  const exp = now + 180000; // 3 min left
+  const cd = campaignCountdown(exp, undefined, now);
+  assert.equal(cd.isActive, true);
+  assert.equal(cd.totalMs, 900000);
+  assert.equal(cd.progressPct, 20); // 180000 / 900000
+  assert.equal(cd.minutes, 3);
+  assert.equal(cd.seconds, 0);
+});
+
+test('F4 countdown: expired campaign shows inactive, 00:00 and 0% progress', () => {
+  const now = 3_000_000;
+  const start = now - 900000;
+  const exp = now - 5000; // 5s past expiry
+  const cd = campaignCountdown(exp, start, now);
+  assert.equal(cd.isActive, false);
+  assert.equal(cd.timeLeftMs, 0);
+  assert.equal(cd.secondsLeft, 0);
+  assert.equal(cd.minutes, 0);
+  assert.equal(cd.seconds, 0);
+  assert.equal(cd.progressPct, 0);
+  assert.equal(formatCountdown(cd.minutes, cd.seconds), '00:00');
+});
+
+test('F4 countdown: progress clamps to [0, 100] under clock skew', () => {
+  const now = 4_000_000;
+  // start in the future -> timeLeft > total -> would be >100% without clamp
+  const start = now + 50000;
+  const exp = start + 100000;
+  const cd = campaignCountdown(exp, start, now);
+  assert.equal(cd.isActive, true);
+  assert.equal(cd.progressPct, 100); // clamped
+  // secondsLeft still floors at 0 for a negative-ish remainder
+  const early = campaignCountdown(exp, start, exp + 10_000);
+  assert.equal(early.progressPct, 0);
+});
+
+test('F4 countdown: secondsLeft floors instead of rounding up', () => {
+  const start = 1_000;
+  const exp = start + 60000;
+  // 999ms left -> 0s shown, never 1s
+  assert.equal(campaignCountdown(exp, start, exp - 999).secondsLeft, 0);
+  // 1499ms left -> 1s
+  assert.equal(campaignCountdown(exp, start, exp - 1499).secondsLeft, 1);
+  // 60_000ms left -> exactly 1:00
+  const cd = campaignCountdown(exp, start, start);
+  assert.equal(cd.minutes, 1);
+  assert.equal(cd.seconds, 0);
+  assert.equal(formatCountdown(cd.minutes, cd.seconds), '01:00');
+});
+
+test('F4 formatCountdown: pads both fields and rolls over minutes', () => {
+  assert.equal(formatCountdown(0, 0), '00:00');
+  assert.equal(formatCountdown(7, 5), '07:05');
+  assert.equal(formatCountdown(12, 59), '12:59');
+  assert.equal(formatCountdown(61, 30), '61:30');
 });

@@ -4,6 +4,7 @@ import { ImpactStyle } from '@capacitor/haptics';
 import QRCode from 'qrcode';
 import { tx } from '../../i18n';
 import { playShimmerSound, Haptic, nativeHapticImpact } from '../../lib/customer_utils';
+import { hasActiveCampaign, campaignCountdown, formatCountdown } from '../../lib/campaignTimer';
 
 type Props = {
   safeLang: string;
@@ -30,8 +31,7 @@ export default function OffersTab({
   // progress bar stay live (previously frozen unless an order was being polled).
   const [, forceTick] = React.useReducer((x: number) => x + 1, 0);
   React.useEffect(() => {
-    const anyActive = Object.values(activatedCampaigns).some((a) => a.exp > Date.now());
-    if (!anyActive) return;
+    if (!hasActiveCampaign(activatedCampaigns, Date.now())) return;
     const timer = window.setInterval(() => forceTick(), 1000);
     return () => window.clearInterval(timer);
   }, [activatedCampaigns]);
@@ -98,15 +98,11 @@ export default function OffersTab({
               <p className="text-[13px] font-semibold">{tx(safeLang, 'Hazırda aktiv kampaniya yoxdur', 'Сейчас нет активных кампаний', 'No active campaigns right now')}</p>
             </div>
           ) : campaigns.map((row: any, idx: number) => {
-            const expTime        = activatedCampaigns[row.id]?.exp;
-            const startTime      = activatedCampaigns[row.id]?.start;
-            const isActive       = expTime && expTime > Date.now();
-            const timeLeftMs     = isActive ? expTime - Date.now() : 0;
-            const secondsLeft    = Math.max(0, Math.floor(timeLeftMs / 1000));
-            const minutes        = Math.floor(secondsLeft / 60);
-            const seconds        = secondsLeft % 60;
-            const totalMs        = isActive && startTime ? expTime - startTime : 900000;
-            const progressPct    = isActive ? Math.max(0, Math.min(100, (timeLeftMs / totalMs) * 100)) : 0;
+            const cd = campaignCountdown(activatedCampaigns[row.id]?.exp, activatedCampaigns[row.id]?.start, Date.now());
+            const isActive       = cd.isActive;
+            const minutes        = cd.minutes;
+            const seconds        = cd.seconds;
+            const progressPct    = cd.progressPct;
 
             return (
               <div key={row.id}
@@ -161,7 +157,7 @@ export default function OffersTab({
                           <span>{tx(safeLang, 'Kod aktivdir', 'Код активен', 'Code is active')}</span>
                         </div>
                         <span className="font-mono text-sm font-black text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
-                          {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
+                          {formatCountdown(minutes, seconds)}
                         </span>
                       </div>
                       {/* Progress */}
