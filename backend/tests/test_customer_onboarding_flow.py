@@ -427,3 +427,46 @@ def test_enroll_accepts_name_and_birth_date():
 
     db.close()
     engine.dispose()
+
+
+def test_customer_session_timing_safe_token_guard():
+    """Regression (2026-08-17): secret_token müqayisəsi timing-safe olmalıdır.
+
+    `secrets.compare_digest` qeyri-ASCII sətirlərdə TypeError qaldırır — helper
+    hər uyğunsuzluğu (qeyri-ASCII token daxil) 401-ə çevirməlidir, 500-ə yox.
+    """
+    _bootstrap_env()
+    operations = importlib.import_module("app.routers.operations")
+
+    engine, db = _make_db()
+    tenant = _seed_tenant(db)
+    customer = _seed_customer(db, tenant)
+
+    # Correct token resolves the session
+    session = operations.get_customer_app_session(
+        id=customer.card_id, t=customer.secret_token, db=db, tenant=tenant
+    )
+    assert session["customer"]["card_id"] == customer.card_id
+
+    # Wrong token -> 401
+    with pytest.raises(HTTPException) as exc:
+        operations.get_customer_app_session(id=customer.card_id, t="wrong-token", db=db, tenant=tenant)
+    assert exc.value.status_code == 401
+
+    # Non-ASCII token must NOT crash (naive compare_digest -> TypeError -> 500)
+    with pytest.raises(HTTPException) as exc:
+        operations.get_customer_app_session(id=customer.card_id, t="tok\u00e9\u4e2d", db=db, tenant=tenant)
+    assert exc.value.status_code == 401
+
+    # Non-ASCII stored token must also not crash -> 401
+    customer.secret_token = "tok\u00e9\u4e2d"
+    db.commit()
+    with pytest.raises(HTTPException) as exc:
+        operations.get_customer_app_session(
+            id=customer.card_id, t=str(customer.secret_token), db=db, tenant=tenant
+        )
+    assert exc.value.status_code == 401
+    db.rollback()
+
+    db.close()
+    engine.dispose()
