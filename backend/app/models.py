@@ -661,6 +661,28 @@ class HappyHour(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class CampaignActivation(Base):
+    """P1-4: per-customer campaign (happy hour) activation, validated at POS.
+
+    Single-use: a successful POS validate flips status ACTIVE -> USED so the
+    same QR cannot give a discount twice. One customer can have only one
+    ACTIVE activation per campaign at a time (unique constraint).
+    """
+
+    __tablename__ = "campaign_activations"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "campaign_id", "card_id", name="uq_campaign_activation_per_customer"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), index=True)
+    campaign_id: Mapped[str] = mapped_column(String(36), ForeignKey("happy_hours.id"), index=True)
+    card_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(16), default="ACTIVE")  # ACTIVE | USED
+    activated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
 class DonerBatch(Base):
     __tablename__ = "doner_batches"
 

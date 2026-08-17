@@ -31,6 +31,7 @@ from app.models import (
     AgentInsight,
     AuditLog,
     BusinessProfile,
+    CampaignActivation,
     Check,
     Customer,
     CustomerConsent,
@@ -4089,6 +4090,18 @@ def get_customer_app_session(
         .order_by(RewardClaim.created_at.desc())
         .all()
     )
+    now = datetime.utcnow()
+    active_campaign_rows = (
+        db.query(CampaignActivation, HappyHour)
+        .join(HappyHour, HappyHour.id == CampaignActivation.campaign_id)
+        .filter(
+            CampaignActivation.tenant_id == tenant.id,
+            CampaignActivation.card_id == customer.card_id,
+            CampaignActivation.status == "ACTIVE",
+            CampaignActivation.expires_at > now,
+        )
+        .all()
+    )
 
     stars = int(customer.stars or 0)
     next_reward_at = max(1, int(app_settings.get("reward_threshold") or 10))
@@ -4212,6 +4225,15 @@ def get_customer_app_session(
             }
             for row in pending_claims
         ],
+        "campaign_activations": [
+            {
+                "campaign_id": activation.campaign_id,
+                "name": campaign_row.name,
+                "discount_percent": campaign_row.discount_percent,
+                "expires_at": activation.expires_at.isoformat() if activation.expires_at else None,
+            }
+            for activation, campaign_row in active_campaign_rows
+        ],
         "customer_app_settings": app_settings,
     }
 
@@ -4256,6 +4278,66 @@ def update_customer_name(
     customer.name = clean
     db.commit()
     return {"success": True, "name": clean}
+
+
+@router.post("/customer-app/campaigns/{campaign_id}/activate")
+def activate_customer_campaign(
+    campaign_id: str,
+    id: str = Query(...),
+    t: str = Query(...),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+):
+    """P1-4: müştəri kampaniyanı (happy hour) backend-də aktivləşdirir.
+
+    Aktivasiya pəncərəsi `customer_app_settings.campaign_activation_minutes`
+    (default 15 dəq) qədərdir. Mövcud ACTIVE sətir `expires_at`-i yeniləyir
+    (yenidən aktivləşdirmə); USED sətir 409 qaytarır (tək istifadə).
+    """
+    customer = _resolve_customer_session(db, tenant.id, id, t)
+    campaign = (
+        db.query(HappyHour)
+        .filter(HappyHour.id == campaign_id, HappyHour.tenant_id == tenant.id, HappyHour.is_active == True)
+        .first()
+    )
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    app_settings = _setting_value(
+        db,
+        tenant.id,
+        "customer_app_settings",
+        {"campaign_activation_minutes": 15},
+    )
+    minutes = max(1, int(app_settings.get("campaign_activation_minutes") or 15))
+    expires_at = datetime.utcnow() + timedelta(minutes=minutes)
+
+    existing = (
+        db.query(CampaignActivation)
+        .filter(
+            CampaignActivation.tenant_id == tenant.id,
+            CampaignActivation.campaign_id == campaign.id,
+            CampaignActivation.card_id == customer.card_id,
+        )
+        .first()
+    )
+    if existing and existing.status == "USED":
+        raise HTTPException(status_code=409, detail="Campaign activation already used")
+    if existing:
+        existing.status = "ACTIVE"
+        existing.expires_at = expires_at
+    else:
+        db.add(
+            CampaignActivation(
+                tenant_id=tenant.id,
+                campaign_id=campaign.id,
+                card_id=customer.card_id,
+                status="ACTIVE",
+                expires_at=expires_at,
+            )
+        )
+    db.commit()
+    return {"success": True, "expires_at": expires_at.isoformat()}
 
 
 @router.post("/customer-app/rewards/claim")
