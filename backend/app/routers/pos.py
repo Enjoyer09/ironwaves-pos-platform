@@ -51,6 +51,7 @@ class CampaignValidateOut(BaseModel):
     valid: bool
     discount_percent: int | None = None
     name: str | None = None
+    activation_id: str | None = None
 
 
 def send_push_notification(push_token: str, title: str, body: str):
@@ -525,11 +526,12 @@ def validate_pos_campaign(
     tenant: Tenant = Depends(get_tenant),
     user=Depends(get_current_user),
 ):
-    """P1-4: kampaniya aktivasiyasını kassada yoxlayır.
+    """P1-4b: kampaniya aktivasiyasını kassada yoxlayır.
 
     ACTIVE + `expires_at > now` + happy hour vaxt pəncərəsi doğrudursa
-    `{ valid: true, discount_percent, name }` qaytarır və status ACTIVE -> USED
-    keçir (tək istifadə — eyni QR iki dəfə endirim verə bilməz).
+    `{ valid: true, discount_percent, name, activation_id }` qaytarır.
+    İSTEHLak ETMİR — status ACTIVE->USED yalnız `create_sale`-də satış
+    commit-i ilə atomik keçir (satış baş tutmasa müştəri kampaniyanı itirmir).
     Hər hansı şərt pozulursa `{ valid: false }`.
     """
     now = datetime.utcnow()
@@ -567,12 +569,13 @@ def validate_pos_campaign(
     if not (isinstance(days, list) and weekday in days and campaign.start_time <= current_time <= campaign.end_time):
         return CampaignValidateOut(valid=False)
 
-    activation.status = "USED"
-    db.commit()
+    # No consumption here (P1-4b): the activation is consumed atomically inside
+    # create_sale, so a failed/abandoned sale never burns the customer's campaign.
     return CampaignValidateOut(
         valid=True,
         discount_percent=int(campaign.discount_percent or 0),
         name=str(campaign.name or ""),
+        activation_id=activation.id,
     )
 
 
@@ -623,13 +626,69 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
             customer_type = str(customer.type or "Normal")
             customer_discount = Decimal(str(customer.discount_percent or 0))
 
+    # P1-4b: campaign consumption happens HERE (atomically with the sale commit),
+    # not at scan time. Re-validates ACTIVE + expiry + happy-hour window + card,
+    # applies max(manual, customer, campaign) and records an auditable reason.
+    campaign_discount = Decimal("0")
+    campaign_name = ""
+    campaign_consumed = False
+    campaign_id_for_sale: str | None = None
+    if payload.campaign_id:
+        campaign_id_for_sale = str(payload.campaign_id or "").strip()
+        campaign = (
+            db.query(HappyHour)
+            .filter(HappyHour.id == campaign_id_for_sale, HappyHour.tenant_id == tenant.id, HappyHour.is_active == True)
+            .first()
+        )
+        activation_q = db.query(CampaignActivation).filter(
+            CampaignActivation.tenant_id == tenant.id,
+            CampaignActivation.campaign_id == campaign_id_for_sale,
+            CampaignActivation.status == "ACTIVE",
+            CampaignActivation.expires_at > datetime.utcnow(),
+        )
+        if str(payload.activation_id or "").strip():
+            activation_q = activation_q.filter(CampaignActivation.id == str(payload.activation_id).strip())
+        if customer:
+            activation_q = activation_q.filter(func.lower(CampaignActivation.card_id) == str(customer.card_id).lower())
+        activation = activation_q.first()
+
+        now_c = datetime.utcnow()
+        weekday = now_c.weekday() + 1
+        current_time = now_c.strftime("%H:%M")
+        try:
+            days = json.loads(campaign.days_of_week_json or "[]") if campaign else []
+        except Exception:
+            days = []
+        window_ok = bool(
+            campaign
+            and isinstance(days, list)
+            and weekday in days
+            and campaign.start_time <= current_time <= campaign.end_time
+        )
+        if not campaign or not activation or not window_ok:
+            raise HTTPException(
+                status_code=400,
+                detail="Kampaniya etibarsızdır — istifadə olunub və ya vaxtı keçib",
+            )
+        campaign_discount = Decimal(str(campaign.discount_percent or 0))
+        campaign_name = str(campaign.name or "")
+        activation.status = "USED"
+        campaign_consumed = True
+
     manual_discount = Decimal(str(payload.discount_percent or 0))
     if manual_discount > 0 and not (payload.discount_reason or "").strip():
         raise HTTPException(
             status_code=400,
             detail="Maliyyə hesabatlığı üçün endirim səbəbini qeyd edin! (Discount reason is required for manual discount)"
         )
-    effective_discount = max(manual_discount, customer_discount)
+    effective_discount = max(manual_discount, customer_discount, campaign_discount)
+    sale_reason = str(payload.discount_reason or "").strip() or None
+    if campaign_consumed:
+        campaign_reason = f"Kampaniya: {campaign_name}"
+        # The frontend auto-fills the same reason at scan time — avoid a
+        # duplicated "Kampaniya: X; Kampaniya: X" on the receipt/audit trail.
+        if not (sale_reason and campaign_reason in sale_reason):
+            sale_reason = f"{sale_reason}; {campaign_reason}" if sale_reason else campaign_reason
     customer_program = _setting_value(
         db,
         tenant.id,
@@ -829,7 +888,8 @@ def create_sale(payload: SaleCreateIn, db: Session = Depends(get_db), tenant: Te
         receipt_token=receipt_token,
         total=total,
         discount_amount=discount,
-        discount_reason=payload.discount_reason,
+        discount_reason=sale_reason,
+        campaign_id=campaign_id_for_sale,
         reward_claim_code=str(payload.reward_claim_code or "").strip().upper() or None,
         cogs=cogs_total.quantize(Decimal("0.0001")),
         items_json=json.dumps(sale_items_payload, ensure_ascii=False),
