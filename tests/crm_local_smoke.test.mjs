@@ -24,6 +24,7 @@ import {
   readCustomerSessionCache,
   clearCustomerSessionCache,
 } from '../src/api/crm';
+import { computeVirtualWindow } from '../src/lib/virtualGrid';
 
 function seed(rows) {
   clearDBCache('kitchen_orders');
@@ -405,4 +406,76 @@ test('campaign is consumed at sale locally (P1-4b), not at scan', async () => {
 
   // Same activation on a second sale -> rejected (single-use at sale).
   assert.throws(() => create_sale(salePayload()), /Kampaniya etibarsızdır/);
+});
+
+// ── Virtualized grid windowing (POS menu) ─────────────────────────────────
+
+test('vgrid: empty list renders nothing with a stable spacer', () => {
+  const w = computeVirtualWindow({ itemCount: 0, cols: 4, scrollTop: 0, viewportH: 800, rowH: 200 });
+  assert.equal(w.visibleCount, 0);
+  assert.equal(w.startIndex, 0);
+  assert.equal(w.endIndex, 0);
+  assert.equal(w.totalRows, 1);
+  assert.ok(w.totalH > 0);
+});
+
+test('vgrid: list smaller than a viewport renders everything', () => {
+  const w = computeVirtualWindow({ itemCount: 10, cols: 3, scrollTop: 0, viewportH: 1000, rowH: 100 });
+  assert.equal(w.visibleCount, 10);
+  assert.equal(w.startRow, 0);
+  assert.equal(w.totalRows, 4);
+});
+
+test('vgrid: scrolled mid-list slices only visible rows plus overscan', () => {
+  const w = computeVirtualWindow({ itemCount: 1000, cols: 4, scrollTop: 2500, viewportH: 800, rowH: 100 });
+  assert.equal(w.startRow, 22);
+  assert.equal(w.endRow, 36);
+  assert.equal(w.startIndex, 22 * 4);
+  assert.equal(w.endIndex, 36 * 4);
+  assert.equal(w.offsetY, 22 * 100);
+  assert.equal(w.totalRows, 250);
+  assert.equal(w.totalH, 250 * 100);
+});
+
+test('vgrid: overscan clamps at the top', () => {
+  const w = computeVirtualWindow({ itemCount: 500, cols: 5, scrollTop: 40, viewportH: 600, rowH: 120 });
+  assert.equal(w.startRow, 0);
+  assert.equal(w.startIndex, 0);
+});
+
+test('vgrid: over-scrolled bottom shows the last page, not an empty window', () => {
+  const w = computeVirtualWindow({ itemCount: 997, cols: 4, scrollTop: 1_000_000, viewportH: 800, rowH: 100 });
+  assert.equal(w.totalRows, 250);
+  assert.equal(w.endRow, 250);
+  assert.equal(w.endIndex, 997);
+  assert.equal(w.startRow, 247); // scrollRow clamped to totalRows, overscan 3 back
+  assert.equal(w.startIndex, 247 * 4);
+  assert.equal(w.visibleCount, 997 - 247 * 4);
+});
+
+test('vgrid: invalid cols and rowH fall back safely', () => {
+  const w1 = computeVirtualWindow({ itemCount: 100, cols: 0, scrollTop: 0, viewportH: 800, rowH: 200 });
+  assert.equal(w1.startIndex, 0); // single-column fallback, no crash
+  assert.ok(w1.visibleCount > 0 && w1.visibleCount <= 100);
+  const w2 = computeVirtualWindow({ itemCount: 100, cols: 4, scrollTop: 0, viewportH: 0, rowH: 0 });
+  assert.ok(w2.totalH > 0);
+  assert.ok(w2.visibleCount >= 1);
+});
+
+test('vgrid: custom overscan shrinks the rendered slice', () => {
+  const withDefault = computeVirtualWindow({ itemCount: 1000, cols: 4, scrollTop: 2500, viewportH: 800, rowH: 100 });
+  const withOne = computeVirtualWindow({ itemCount: 1000, cols: 4, scrollTop: 2500, viewportH: 800, rowH: 100, overscan: 1 });
+  assert.ok(withOne.visibleCount < withDefault.visibleCount);
+  assert.equal(withOne.startRow, 24);
+  assert.equal(withOne.endRow, 34);
+});
+
+test('vgrid: every scroll position is covered by its rendered window', () => {
+  for (const scrollTop of [0, 100, 250, 600, 1200, 2400, 5000]) {
+    const row = Math.floor(scrollTop / 140);
+    const w = computeVirtualWindow({ itemCount: 2000, cols: 6, scrollTop, viewportH: 700, rowH: 140 });
+    assert.ok(w.startRow <= row, `window starts before row ${row} (start=${w.startRow})`);
+    assert.ok(row < w.endRow, `window reaches row ${row} (end=${w.endRow})`);
+    assert.ok(w.startIndex >= 0 && w.endIndex <= 2000 && w.endIndex >= w.startIndex);
+  }
 });

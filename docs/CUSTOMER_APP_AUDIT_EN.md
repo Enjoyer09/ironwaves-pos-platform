@@ -303,7 +303,7 @@ PATCH `/settings/customer-app` accepts both keys.
 ### Status
 - ✅ P1-2a (core): migration + scheduler + grant + endpoint + tests — done (2026-08-16)
 - ✅ P1-2b: ProfileTab name/birth-date edit UI — done (2026-08-16)
-- ⏳ P1-2c: admin config UI (birthday_enabled / birthday_bonus_stars panel)
+- ✅ P1-2c (done — 2026-08-17): admin config UI — campaign settings in CustomerAppPanel (`campaigns_require_online` + `campaign_activation_minutes`, load/save + backend PATCH whitelist); birthday panel (P1-2d) stays separate
 
 ### Tests
 - `backend/tests/test_customer_birthday_reward.py` (20 tests): grant, idempotency,

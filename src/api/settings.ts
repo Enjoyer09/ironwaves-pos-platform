@@ -1238,6 +1238,7 @@ export function update_customer_app_settings(payload: {
   show_history: boolean;
   show_notifications: boolean;
   campaigns_require_online?: boolean;
+  campaign_activation_minutes?: number;
 }) {
   const settings = getSettings();
   settings.customer_app_settings = {
@@ -1269,6 +1270,7 @@ export function update_customer_app_settings(payload: {
     show_history: Boolean(payload.show_history),
     show_notifications: Boolean(payload.show_notifications),
     campaigns_require_online: payload.campaigns_require_online === true,
+    campaign_activation_minutes: Number.isFinite(payload.campaign_activation_minutes) ? Math.max(1, Number(payload.campaign_activation_minutes)) : 15,
   };
   saveSettings(settings);
   logEvent('admin', 'CUSTOMER_APP_SETTINGS_UPDATED', settings.customer_app_settings);
@@ -1477,6 +1479,7 @@ export async function update_customer_app_settings_live(payload: {
   show_history: boolean;
   show_notifications: boolean;
   campaigns_require_online?: boolean;
+  campaign_activation_minutes?: number;
 }) {
   if (!isBackendEnabled()) return update_customer_app_settings(payload);
   await apiRequest('/api/v1/ops/settings/customer-app', { method: 'PATCH', tenantId: null, body: payload });
