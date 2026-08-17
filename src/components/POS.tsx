@@ -2163,7 +2163,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                   disabled={isPosMenuEditMode}
                   className={`neon-chip pos-category-btn ${category === cat ? 'neon-chip-active' : ''} ${isPosMenuEditMode ? 'cursor-not-allowed opacity-70' : ''}`}
                 >
-                  {cat === 'ALL' ? t.all_categories : cat}
+                  {cat === 'ALL' ? tx(lang, 'Hamısı', 'Все', 'All') : cat}
                 </button>
               ))}
             </div>
@@ -2481,7 +2481,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                       disabled={isPosMenuEditMode}
                       className={`pos3-rail-chip pos-category-btn ${category === cat ? 'pos3-rail-chip-active' : ''} ${isPosMenuEditMode ? 'cursor-not-allowed opacity-70' : ''}`}
                     >
-                      {cat === 'ALL' ? t.all_categories : cat}
+                      {cat === 'ALL' ? tx(lang, 'Hamısı', 'Все', 'All') : cat}
                     </button>
                   ))}
                 </div>
