@@ -21,6 +21,8 @@ export interface SalePayload {
   cashier: string;
   customer_card_id: string | null;
   reward_claim_code?: string | null;
+  campaign_id?: string | null;
+  activation_id?: string | null;
   customer_type?: CustomerType;
   discount_percent: number;
   is_eco_cup: boolean;
@@ -43,6 +45,7 @@ export interface Sale {
   customer_card_id: string | null;
   customer_type?: string;
   reward_claim_code?: string | null;
+  campaign_id?: string | null;
   original_total: string; // Decimal toString()
   discount_amount: string; // Decimal toString()
   total: string; // Decimal toString()

@@ -67,6 +67,8 @@ type CartContext = {
   cupMode: 'paper' | 'glass';
   kitchenSent?: boolean;
   rewardClaimCode?: string;
+  // P1-4b: validated campaign awaiting sale-level consumption.
+  campaign?: { campaignId: string; activationId: string; name: string; percent: number };
 };
 
 type MenuGroup = {
@@ -144,6 +146,7 @@ const defaultCtx: CartContext = {
   cupMode: 'paper',
   kitchenSent: false,
   rewardClaimCode: '',
+  campaign: undefined,
 };
 
 const formatDisplayId = (id: string) => {
@@ -352,12 +355,13 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   const feedbackCouponPercent = feedbackCouponPreview?.status === 'PENDING' ? Number(feedbackCouponPreview.percent || 0) : 0;
   const typedDiscountPercent = Number(ctx.discount || 0);
   const hasClaimCode = Boolean(enteredClaimCode);
+  const campaignPercent = ctx.campaign ? Number(ctx.campaign.percent || 0) : 0;
   const effectiveDiscountPercent =
     feedbackCouponPercent > 0
       ? feedbackCouponPercent
       : hasClaimCode
         ? 0
-        : typedDiscountPercent;
+        : Math.max(typedDiscountPercent, campaignPercent);
   const rewardClaimCodeForSale = isFeedbackCouponCode(enteredClaimCode) ? null : (enteredClaimCode || null);
 
   const patchCtx = (patch: Partial<CartContext>) => {
@@ -411,6 +415,11 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
 
   const clearCart = (key: 'S1' | 'S2' | 'S3' = activeCart) => {
     setCarts((prev) => ({ ...prev, [key]: [] }));
+    // P1-4b: a validated campaign dies with its cart.
+    setCartCtx((prev) => ({
+      ...prev,
+      [key]: { ...prev[key], campaign: undefined },
+    }));
   };
 
   const requestClearCart = (key: 'S1' | 'S2' | 'S3' = activeCart) => {
@@ -1206,6 +1215,8 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         order_type: ctx.orderType,
         customer_card_id: ctx.customer?.card_id || null,
         reward_claim_code: rewardClaimCodeForSale,
+        campaign_id: ctx.campaign?.campaignId || null,
+        activation_id: ctx.campaign?.activationId || null,
         split_cash: splitCash ? splitCash.toFixed(2) : null,
         split_card: splitCard ? splitCard.toFixed(2) : null,
       };
@@ -1228,6 +1239,8 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         cashier: user.username,
         customer_card_id: ctx.customer?.card_id || null,
         reward_claim_code: rewardClaimCodeForSale,
+        campaign_id: ctx.campaign?.campaignId || null,
+        activation_id: ctx.campaign?.activationId || null,
         discount_percent: effectiveDiscountPercent,
         discount_reason: ctx.discountReason || null,
         is_eco_cup: false,
@@ -1498,20 +1511,44 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   // single-use). A valid scan reports the discount to the cashier; the cart is
   // NOT modified automatically — the cashier applies the discount manually.
   const handleCampaignScan = async (campaignId: string, cardId: string) => {
+    if (hasClaimCode) {
+      notify(
+        'error',
+        tx(
+          lang,
+          'Reward kodu aktivkən kampaniya skan edilə bilməz — əvvəlcə kodu təmizləyin',
+          'Нельзя сканировать кампанию при активном коде награды — сначала очистите код',
+          'Cannot scan a campaign while a reward code is active — clear the claim first',
+        ),
+      );
+      return;
+    }
     try {
       const result = await validate_pos_campaign_live(campaignId, cardId);
       if (result?.valid) {
+        // P1-4b: the campaign is attached to the cart; it is consumed inside
+        // create_sale (atomic with the sale commit), not at scan time.
+        patchCtx({
+          campaign: {
+            campaignId,
+            activationId: result.activation_id || '',
+            name: result.name || '',
+            percent: result.discount_percent ?? 0,
+          },
+          discountReason: `Kampaniya: ${result.name || 'kampaniya'}`,
+          customerQR: '',
+        });
         notify(
           'success',
           tx(
             lang,
-            `Kampaniya etibarlıdır: -${result.discount_percent ?? 0}% (${result.name || 'kampaniya'})`,
-            `Кампания действительна: -${result.discount_percent ?? 0}% (${result.name || 'кампания'})`,
-            `Campaign valid: -${result.discount_percent ?? 0}% (${result.name || 'campaign'})`,
+            `Kampaniya etibarlıdır: -${result.discount_percent ?? 0}% (${result.name || 'kampaniya'}) — satışda tətbiq olunacaq`,
+            `Кампания действительна: -${result.discount_percent ?? 0}% (${result.name || 'кампания'}) — будет применена при продаже`,
+            `Campaign valid: -${result.discount_percent ?? 0}% (${result.name || 'campaign'}) — applied at sale`,
           ),
         );
-        patchCtx({ customerQR: '' });
       } else {
+        patchCtx({ campaign: undefined });
         notify(
           'error',
           tx(
@@ -1812,7 +1849,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               {tx(lang, 'Kodu Oxu', 'Считать код', 'Read Code')}
             </button>
             <button
-              onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '' })}
+              onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '', campaign: undefined })}
               className="pay-btn h-12 w-full"
               title={tx(lang, 'Müştəri və reward sahələrini sıfırlayır.', 'Сбрасывает клиента и поля reward.', 'Resets customer and reward fields.')}
               data-guide={tx(lang, 'Müştəri və reward sahələrini sıfırlayır.', 'Сбрасывает клиента и поля reward.', 'Resets customer and reward fields.')}
@@ -2573,7 +2610,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={handleFindCustomer} className="pay-btn h-10">{tx(lang, 'Kodu Oxu', 'Считать код', 'Read Code')}</button>
-                <button onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '' })} className="pay-btn h-10">{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</button>
+                <button onClick={() => patchCtx({ customer: null, customerQR: '', rewardClaimCode: '', campaign: undefined })} className="pay-btn h-10">{tx(lang, 'Təmizlə', 'Очистить', 'Clear')}</button>
               </div>
               {feedbackCouponPreview ? (
                 <div className={`rounded-md border px-2 py-1 text-xs ${feedbackCouponPreview.status === 'PENDING' ? 'border-emerald-400/50 bg-emerald-500/10 text-emerald-200' : 'border-slate-600/60 bg-slate-700/30 text-slate-300'}`}>
