@@ -33,7 +33,7 @@ All 7 tabs of the Customer App (Home, Order, Offers, Profile, Barista, Fortune) 
 |---|---|---|---|
 | U1 | **Font sizes are systematically too small** — `text-[7px]`→`text-[10px]` everywhere (tier, card ID, notification time); `text-white/35`–`/40` fails WCAG AA contrast. International standard: body ≥13px | 🔴 | ✅ CSS pass (§8 check plan) |
 | U2 | **Touch targets below 44px** — fav heart 28px, `+` 28px, close 28–32px. Apple HIG 44px / Material 48px | 🔴 | ✅ Partial (36px) |
-| U3 | **Two design systems (Premium + Retro)** — `isRetro ? ... : ...` doubles the code in every component; the "🎨 Premium/Comic" toggle is exposed to real users. International standard: one premium language | 🟠 | ⏳ Decision |
+| U3 | **Two design systems (Premium + Retro)** — `isRetro ? ... : ...` doubles the code in every component; the "🎨 Premium/Comic" toggle is exposed to real users. International standard: one premium language | 🟠 | ✅ Decision: Premium is the single language (toggle hidden, retro removal in P2) |
 | U4 | **A11y** — icon-only buttons lacked `aria-label` (theme/design/menu/mic/voice/heart/close) | 🟠 | ✅ Fixed |
 | U5 | **Performance** — OrderTab `filtered`/`cats` recomputed every render (not memoized); no menu-grid virtualization; each tab injects its own `<style>` block | 🟡 | ✅ Partial (memo) |
 | U6 | Loading state is just "Menu loading..." text — no skeleton loaders | 🟡 | ⏳ P2 |
@@ -65,6 +65,7 @@ All 7 tabs of the Customer App (Home, Order, Offers, Profile, Barista, Fortune) 
 | **U5:** OrderTab `cats`/`filtered` → `useMemo` | `OrderTab.tsx` |
 | **U2 (partial):** heart/`+`/close buttons 28→36px, cart remove 20→28px | `OrderTab.tsx` |
 | **U1:** font sizes raised to a 10/11/12/13px floor + `text-white/30–50`/`text-slate-400` contrast brought closer to WCAG AA (CSS override scoped to `.customer-app-wrapper`) | `index.css`, `CustomerApp.tsx` |
+| **U3 (decision):** Premium is the single design language — the "🎨 Premium/Comic" toggle is hidden from users, `designMode` is pinned to `'classic'` (stale `customer_design_mode` localStorage values are no longer read); the 4 retro branches in the shell were reduced to classic. Retro `isRetro` branches (85 refs) will be removed in a P2 refactor | `CustomerApp.tsx` |
 | Bonus: dead `get_customer_wallet_pass_url` import + missing `nativeHapticImpact` import fixed (tsc 23→21) | `HomeTab.tsx`, `CustomerApp.tsx` |
 
 **Verification:** `tsc --noEmit` 21 (baseline 23 — down 2), `npm run build` ✅, `test:smoke` 23/23 ✅.
@@ -76,7 +77,7 @@ All 7 tabs of the Customer App (Home, Order, Offers, Profile, Barista, Fortune) 
 | Priority | Item | Note |
 |---|---|---|
 | P1 | **U1 — visual check** | CSS pass is done; verify overflow/truncation/chip squeeze per the §8 plan |
-| P1 | **U3 — retro decision** | Hide the "Premium/Comic" toggle from real users or formally keep retro as a branded variant |
+| P2 | **U3 — remove retro code** | Decision made (2026-08-17): Premium is the single language. `isRetro ? ... : ...` branches (HomeTab 15, OrderTab 45, ProfileTab 13, BaristaTab 12) and `retro-*` CSS will be cleaned up — behavior unchanged, just dead code |
 | P2 | **F6 — direct add-to-cart** | Direct `+` on the card for non-variant items (default variant), sheet for variant ones |
 | P2 | **F7 — OTP UX** | `inputMode="numeric"` + resend timer + better error messaging |
 | P2 | **F8 — cancellation status** | Clear message for VOID/VOID_REQUESTED |

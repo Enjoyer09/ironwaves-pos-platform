@@ -33,7 +33,7 @@ Customer App-in bütün 7 tab-ı (Home, Order, Offers, Profile, Barista, Falçı
 |---|---|---|---|
 | U1 | **Font ölçüləri sistemli şəkildə çox kiçikdir** — `text-[7px]`→`text-[10px]` hər yerdə (tier, kart ID, bildiriş vaxtı); `text-white/35`–`/40` kontrastı WCAG AA keçmir. Beynəlxalq standart: body ≥13px | 🔴 | ✅ CSS keçidi (§8 yoxlama planı) |
 | U2 | **Touch target-lər 44px-dən kiçik** — fav heart 28px, `+` 28px, close 28–32px. Apple HIG 44px / Material 48px | 🔴 | ✅ Qismən (36px) |
-| U3 | **İki dizayn sistemi (Premium + Retro)** — `isRetro ? ... : ...` bütün komponentlərdə kodu ikiqat çətinləşdirir; "🎨 Premium/Comic" toggle-ı real istifadəçiyə açıqdır. Beynəlxalq standart: tək premium dil | 🟠 | ⏳ Qərar |
+| U3 | **İki dizayn sistemi (Premium + Retro)** — `isRetro ? ... : ...` bütün komponentlərdə kodu ikiqat çətinləşdirir; "🎨 Premium/Comic" toggle-ı real istifadəçiyə açıqdır. Beynəlxalq standart: tək premium dil | 🟠 | ✅ Qərar: Premium tək dil (toggle gizləndi, P2-də retro silinməsi) |
 | U4 | **A11y** — ikon-only düymələrdə `aria-label` yox idi (tema/dizayn/menu/mic/voice/heart/close) | 🟠 | ✅ Düzəldildi |
 | U5 | **Performans** — OrderTab `filtered`/`cats` hər render-də hesablanırdı (memo deyil); menu grid virtualizasiya yoxdur; hər tab öz `<style>` blokunu inject edir | 🟡 | ✅ Qismən (memo) |
 | U6 | Yüklənmə state-i sadəcə "Menyu yüklənir..." mətni — skeleton loader yoxdur | 🟡 | ⏳ P2 |
@@ -65,6 +65,7 @@ Customer App-in bütün 7 tab-ı (Home, Order, Offers, Profile, Barista, Falçı
 | **U5:** OrderTab `cats`/`filtered` → `useMemo` | `OrderTab.tsx` |
 | **U2 (qismən):** heart/`+`/close düymələri 28→36px, cart remove 20→28px | `OrderTab.tsx` |
 | **U1:** font ölçüləri 10/11/12/13px bazasına qaldırıldı + `text-white/30–50`/`text-slate-400` kontrastı WCAG AA-ya yaxınlaşdırıldı (`.customer-app-wrapper` scope-da CSS override) | `index.css`, `CustomerApp.tsx` |
+| **U3 (qərar):** Premium tək dizayn dili — "🎨 Premium/Comic" toggle-ı istifadəçidən gizlədildi, `designMode` sabit `'classic'` (köhnə `customer_design_mode` localStorage dəyərləri artıq oxunmur); shell-dəki 4 retro dalı classic-ə endirildi. Retro `isRetro` dalları (85 referans) P2 refaktorunda silinəcək | `CustomerApp.tsx` |
 | Bonus: ölü `get_customer_wallet_pass_url` importu + çatışmayan `nativeHapticImpact` importu düzəldildi (tsc 23→21) | `HomeTab.tsx`, `CustomerApp.tsx` |
 
 **Yoxlama:** `tsc --noEmit` 21 (baza 23 — 2 azaldı), `npm run build` ✅, `test:smoke` 23/23 ✅.
@@ -76,7 +77,7 @@ Customer App-in bütün 7 tab-ı (Home, Order, Offers, Profile, Barista, Falçı
 | Prioritet | Maddə | Qeyd |
 |---|---|---|
 | P1 | **U1 — vizual yoxlama** | CSS keçidi hazırdır; §8 planı ilə overflow/truncate/çip sıxılması yoxlanmalıdır |
-| P1 | **U3 — retro qərarı** | "Premium/Comic" toggle-ı real istifadəçidən gizlət və ya retro-nu brend variantı kimi rəsmi saxlamaq qərarı ver |
+| P2 | **U3 — retro kodunun silinməsi** | Qərar verildi (2026-08-17): Premium tək dildir. `isRetro ? ... : ...` dalları (HomeTab 15, OrderTab 45, ProfileTab 13, BaristaTab 12) və `retro-*` CSS-i təmizlənəcək — davranış dəyişmir, sadəcə ölü kod |
 | P2 | **F6 — birbaşa add-to-cart** | Variantsız məhsulda kart üzərində birbaşa `+` (default variant), variantlıda sheet |
 | P2 | **F7 — OTP UX** | `inputMode="numeric"` + resend timer + səhv mesajı təkmilləşdirməsi |
 | P2 | **F8 — ləğv statusu** | VOID/VOID_REQUESTED üçün istifadəçiyə aydın mesaj |
