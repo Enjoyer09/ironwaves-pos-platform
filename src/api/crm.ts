@@ -494,6 +494,23 @@ export async function get_customer_app_session_live(card_id: string, token: stri
       notifications: settings.show_notifications === false ? [] : notifications,
       history: settings.show_history === false ? [] : sales,
       pending_claims: pendingClaims,
+      campaign_activations: (getDB<any>('campaign_activations') || [])
+        .filter(
+          (row: any) =>
+            String(row.tenant_id || '') === tenantId &&
+            row.card_id === customer.card_id &&
+            row.status === 'ACTIVE' &&
+            new Date(row.expires_at).getTime() > Date.now(),
+        )
+        .map((row: any) => {
+          const hh = happyHours.find((h: any) => h.id === row.campaign_id);
+          return {
+            campaign_id: row.campaign_id,
+            name: hh?.name || '',
+            discount_percent: Number(hh?.discount_percent || 0),
+            expires_at: row.expires_at,
+          };
+        }),
       customer_app_settings: settings,
     };
   }
@@ -665,6 +682,120 @@ export async function claim_customer_reward_live(card_id: string, token: string,
       body: { reward_id: reward_id || 'default-reward' },
     },
   );
+}
+
+export async function activate_customer_campaign_live(campaign_id: string, card_id: string, token: string, tenant_id?: string) {
+  const tenantId = tenant_id || defaultTenant();
+  const safeCampaign = String(campaign_id || '').trim();
+  const safeCard = String(card_id || '').trim();
+  const safeToken = String(token || '').trim();
+  if (!safeCampaign || !safeCard || !safeToken) {
+    throw new Error('Campaign activation request is invalid');
+  }
+
+  if (!isBackendEnabled()) {
+    const customer = getCustomersLocal(tenantId).find(
+      (row) => String(row.card_id || '').toLowerCase() === safeCard.toLowerCase() && row.secret_token === safeToken,
+    );
+    if (!customer) throw new Error('Customer session is invalid');
+    const happyHour = filterTenantRecords(getDB<any>('happy_hours'), tenantId).find(
+      (row) => row.id === safeCampaign && row.is_active,
+    );
+    if (!happyHour) throw new Error('Campaign not found');
+    const settings = getDB<any>('settings').find((row) => row.tenant_id === tenantId)?.customer_app_settings || {};
+    const minutes = Math.max(1, Number(settings.campaign_activation_minutes || 15));
+    const expiresAt = Date.now() + minutes * 60 * 1000;
+    const all = getDB<any>('campaign_activations') || [];
+    const tenantRows = all.filter(
+      (row) => String(row.tenant_id || '') === tenantId && row.card_id === customer.card_id && row.campaign_id === safeCampaign,
+    );
+    const foreignRows = all.filter(
+      (row) => !(String(row.tenant_id || '') === tenantId && row.card_id === customer.card_id && row.campaign_id === safeCampaign),
+    );
+    if (tenantRows.find((row) => row.status === 'USED')) {
+      throw new Error('Campaign activation already used');
+    }
+    const existing = tenantRows.find((row) => row.status === 'ACTIVE');
+    if (existing) {
+      existing.expires_at = new Date(expiresAt).toISOString();
+      setDB('campaign_activations', [...foreignRows, ...tenantRows]);
+    } else {
+      setDB('campaign_activations', [
+        ...foreignRows,
+        ...tenantRows,
+        {
+          id: uuidv4(),
+          tenant_id: tenantId,
+          campaign_id: safeCampaign,
+          card_id: customer.card_id,
+          status: 'ACTIVE',
+          activated_at: new Date().toISOString(),
+          expires_at: new Date(expiresAt).toISOString(),
+        },
+      ]);
+    }
+    return { success: true, expires_at: new Date(expiresAt).toISOString() };
+  }
+
+  return apiRequest<{ success: boolean; expires_at: string }>(
+    `/api/v1/ops/customer-app/campaigns/${encodeURIComponent(safeCampaign)}/activate?id=${encodeURIComponent(safeCard)}&t=${encodeURIComponent(safeToken)}`,
+    {
+      method: 'POST',
+      tenantId: null,
+      auth: false,
+    },
+  );
+}
+
+export async function validate_pos_campaign_live(campaign_id: string, card_id: string, tenant_id?: string) {
+  const tenantId = tenant_id || defaultTenant();
+  const safeCampaign = String(campaign_id || '').trim();
+  const safeCard = String(card_id || '').trim();
+  if (!safeCampaign || !safeCard) {
+    return { valid: false };
+  }
+
+  if (!isBackendEnabled()) {
+    const all = getDB<any>('campaign_activations') || [];
+    const act = all.find(
+      (row) =>
+        String(row.tenant_id || '') === tenantId &&
+        row.campaign_id === safeCampaign &&
+        String(row.card_id || '').toLowerCase() === safeCard.toLowerCase() &&
+        row.status === 'ACTIVE' &&
+        new Date(row.expires_at).getTime() > Date.now(),
+    );
+    const happyHour = filterTenantRecords(getDB<any>('happy_hours'), tenantId).find(
+      (row) => row.id === safeCampaign && row.is_active,
+    );
+    if (!act || !happyHour) return { valid: false };
+    // Happy hour time window: weekday (Mon=1..Sun=7) + HH:MM within start/end.
+    const now = new Date();
+    const weekday = now.getDay() === 0 ? 7 : now.getDay();
+    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    let days: number[] = [];
+    const rawDays = happyHour.days_of_week_json;
+    if (Array.isArray(rawDays)) {
+      days = rawDays.map(Number);
+    } else if (typeof rawDays === 'string') {
+      try {
+        days = JSON.parse(rawDays).map(Number);
+      } catch {
+        days = [];
+      }
+    }
+    if (!days.includes(weekday) || happyHour.start_time > currentTime || currentTime > happyHour.end_time) {
+      return { valid: false };
+    }
+    act.status = 'USED';
+    setDB('campaign_activations', all);
+    return { valid: true, discount_percent: Number(happyHour.discount_percent || 0), name: String(happyHour.name || '') };
+  }
+
+  return apiRequest<{ valid: boolean; discount_percent?: number; name?: string }>('/api/v1/pos/campaigns/validate', {
+    method: 'POST',
+    body: { campaign_id: safeCampaign, card_id: safeCard },
+  });
 }
 
 export async function save_push_token_live(card_id: string, push_token: string, token: string, tenant_id?: string) {

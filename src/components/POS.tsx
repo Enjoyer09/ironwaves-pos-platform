@@ -11,6 +11,7 @@ import { getDB, setDB } from '../lib/db_sim';
 import { i18n, tx } from '../i18n';
 import { get_business_profile, get_settings, get_settings_live } from '../api/settings';
 import { find_feedback_coupon_live, isFeedbackCouponCode, redeem_feedback_coupon_live } from '../api/feedback';
+import { validate_pos_campaign_live } from '../api/crm';
 import { logUiError } from '../lib/logger';
 import { qzPrintHtml } from '../lib/qz';
 import { hostScopedKey } from '../lib/storage_keys';
@@ -1493,6 +1494,43 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
     );
   };
 
+  // P1-4: IWPOS:CAMPAIGN: scans are validated against the backend (server-side
+  // single-use). A valid scan reports the discount to the cashier; the cart is
+  // NOT modified automatically — the cashier applies the discount manually.
+  const handleCampaignScan = async (campaignId: string, cardId: string) => {
+    try {
+      const result = await validate_pos_campaign_live(campaignId, cardId);
+      if (result?.valid) {
+        notify(
+          'success',
+          tx(
+            lang,
+            `Kampaniya etibarlıdır: -${result.discount_percent ?? 0}% (${result.name || 'kampaniya'})`,
+            `Кампания действительна: -${result.discount_percent ?? 0}% (${result.name || 'кампания'})`,
+            `Campaign valid: -${result.discount_percent ?? 0}% (${result.name || 'campaign'})`,
+          ),
+        );
+        patchCtx({ customerQR: '' });
+      } else {
+        notify(
+          'error',
+          tx(
+            lang,
+            'Kampaniya etibarsızdır — istifadə olunub və ya vaxtı keçib',
+            'Кампания недействительна — использована или истекла',
+            'Campaign invalid — already used or expired',
+          ),
+        );
+      }
+    } catch (err: any) {
+      logUiError(tenantId, 'pos', err?.message || String(err), { phase: 'campaign_validate' });
+      notify(
+        'error',
+        tx(lang, 'Kampaniya yoxlanışı alınmadı', 'Не удалось проверить кампанию', 'Campaign check failed'),
+      );
+    }
+  };
+
   const handleFindCustomer = async () => {
     const code = (ctx.customerQR || '').trim();
     if (!code) return;
@@ -1504,6 +1542,12 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       extracted = code.split(':').slice(2).join(':') || code;
     } else if (upper.startsWith('CARD:')) {
       extracted = code.split(':').slice(1).join(':') || code;
+    } else if (upper.startsWith('IWPOS:CAMPAIGN:')) {
+      const parts = code.split(':').slice(2).join(':');
+      const campaignId = parts.split(':')[0] || '';
+      const cardId = parts.split(':').slice(1).join(':') || '';
+      void handleCampaignScan(campaignId, cardId);
+      return;
     } else if (upper.startsWith('IWPOS:CLAIM:')) {
       applyRewardCode(code, 'reward');
       return;
