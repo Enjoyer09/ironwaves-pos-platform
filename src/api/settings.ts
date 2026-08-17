@@ -511,6 +511,7 @@ function getSettings(tenant_id?: string): Settings {
       show_campaigns: true,
       show_history: true,
       show_notifications: true,
+      campaigns_require_online: false,
     },
     pos_layout: DEFAULT_POS_LAYOUT,
     pos_layout_draft: DEFAULT_POS_LAYOUT,
@@ -944,6 +945,7 @@ export function get_settings(tenant_id?: string) {
       show_campaigns: true,
       show_history: true,
       show_notifications: true,
+      campaigns_require_online: false,
     };
   }
   if (!s.pos_layout) {
@@ -1235,6 +1237,7 @@ export function update_customer_app_settings(payload: {
   show_campaigns: boolean;
   show_history: boolean;
   show_notifications: boolean;
+  campaigns_require_online?: boolean;
 }) {
   const settings = getSettings();
   settings.customer_app_settings = {
@@ -1265,6 +1268,7 @@ export function update_customer_app_settings(payload: {
     show_campaigns: Boolean(payload.show_campaigns),
     show_history: Boolean(payload.show_history),
     show_notifications: Boolean(payload.show_notifications),
+    campaigns_require_online: payload.campaigns_require_online === true,
   };
   saveSettings(settings);
   logEvent('admin', 'CUSTOMER_APP_SETTINGS_UPDATED', settings.customer_app_settings);
@@ -1472,6 +1476,7 @@ export async function update_customer_app_settings_live(payload: {
   show_campaigns: boolean;
   show_history: boolean;
   show_notifications: boolean;
+  campaigns_require_online?: boolean;
 }) {
   if (!isBackendEnabled()) return update_customer_app_settings(payload);
   await apiRequest('/api/v1/ops/settings/customer-app', { method: 'PATCH', tenantId: null, body: payload });

@@ -338,6 +338,7 @@ export interface Settings {
     show_campaigns: boolean;
     show_history: boolean;
     show_notifications: boolean;
+    campaigns_require_online?: boolean;
   };
   pos_layout?: PosLayoutConfig;
   pos_layout_draft?: PosLayoutConfig;
