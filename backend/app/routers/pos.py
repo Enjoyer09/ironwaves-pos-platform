@@ -6,19 +6,51 @@ from datetime import datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.db import get_db
 from app.deps import get_current_user, get_tenant
 from app.json_utils import safe_json_list
-from app.models import AuditLog, Customer, DonerBatch, FinanceAccount, FinanceEntry, FinanceTransaction, InventoryItem, LoyaltyLedgerEntry, MenuItem, Recipe, RewardClaim, Sale, Setting, Shift, Tenant
+from app.models import (
+    AuditLog,
+    CampaignActivation,
+    Customer,
+    DonerBatch,
+    FinanceAccount,
+    FinanceEntry,
+    FinanceTransaction,
+    HappyHour,
+    InventoryItem,
+    LoyaltyLedgerEntry,
+    MenuItem,
+    Recipe,
+    RewardClaim,
+    Sale,
+    Setting,
+    Shift,
+    Tenant,
+)
 from app.schemas import SaleCreateIn, SaleCreateOut, SaleReceiptHtmlIn
 from app.services.finance_service import mirror_posted_transaction_to_legacy_wallet, post_finance_transaction, post_sale_cogs, post_sale_payment
 
 
 router = APIRouter(prefix="/api/v1/pos", tags=["pos"])
 logger = logging.getLogger(__name__)
+
+
+class CampaignValidateIn(BaseModel):
+    """P1-4: POS kassada kampaniya QR-inin yoxlanılması."""
+
+    campaign_id: str
+    card_id: str
+
+
+class CampaignValidateOut(BaseModel):
+    valid: bool
+    discount_percent: int | None = None
+    name: str | None = None
 
 
 def send_push_notification(push_token: str, title: str, body: str):
@@ -484,6 +516,64 @@ def get_menu_images(
         }
         for row in rows
     ]
+
+
+@router.post("/campaigns/validate", response_model=CampaignValidateOut)
+def validate_pos_campaign(
+    payload: CampaignValidateIn,
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_tenant),
+    user=Depends(get_current_user),
+):
+    """P1-4: kampaniya aktivasiyasını kassada yoxlayır.
+
+    ACTIVE + `expires_at > now` + happy hour vaxt pəncərəsi doğrudursa
+    `{ valid: true, discount_percent, name }` qaytarır və status ACTIVE -> USED
+    keçir (tək istifadə — eyni QR iki dəfə endirim verə bilməz).
+    Hər hansı şərt pozulursa `{ valid: false }`.
+    """
+    now = datetime.utcnow()
+    campaign_id = str(payload.campaign_id or "").strip()
+    card_id = str(payload.card_id or "").strip()
+    if not campaign_id or not card_id:
+        return CampaignValidateOut(valid=False)
+
+    campaign = (
+        db.query(HappyHour)
+        .filter(HappyHour.id == campaign_id, HappyHour.tenant_id == tenant.id, HappyHour.is_active == True)
+        .first()
+    )
+    activation = (
+        db.query(CampaignActivation)
+        .filter(
+            CampaignActivation.tenant_id == tenant.id,
+            CampaignActivation.campaign_id == campaign_id,
+            func.lower(CampaignActivation.card_id) == card_id.lower(),
+            CampaignActivation.status == "ACTIVE",
+            CampaignActivation.expires_at > now,
+        )
+        .first()
+    )
+    if not campaign or not activation:
+        return CampaignValidateOut(valid=False)
+
+    # Happy hour time window: weekday (Mon=1..Sun=7) + HH:MM within start/end.
+    weekday = now.weekday() + 1
+    current_time = now.strftime("%H:%M")
+    try:
+        days = json.loads(campaign.days_of_week_json or "[]")
+    except Exception:
+        days = []
+    if not (isinstance(days, list) and weekday in days and campaign.start_time <= current_time <= campaign.end_time):
+        return CampaignValidateOut(valid=False)
+
+    activation.status = "USED"
+    db.commit()
+    return CampaignValidateOut(
+        valid=True,
+        discount_percent=int(campaign.discount_percent or 0),
+        name=str(campaign.name or ""),
+    )
 
 
 @router.post("/sale", response_model=SaleCreateOut)
