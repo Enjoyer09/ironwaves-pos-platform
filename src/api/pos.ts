@@ -313,6 +313,50 @@ export const create_sale = (payload: SalePayload) => {
 
     }
 
+    // P1-4b: campaign consumption happens HERE (local mirror of backend
+    // create_sale) — validate never consumes, so a failed sale doesn't burn
+    // the customer's campaign. Re-checks ACTIVE + expiry + happy-hour window.
+    if (payload.campaign_id) {
+      const all = getDB<any>('campaign_activations') || [];
+      const act = all.find(
+        (row: any) =>
+          String(row.tenant_id || '') === payload.tenant_id &&
+          row.campaign_id === payload.campaign_id &&
+          (!payload.activation_id || row.id === payload.activation_id) &&
+          row.status === 'ACTIVE' &&
+          new Date(row.expires_at).getTime() > Date.now(),
+      );
+      const happyHour = (getDB<any>('happy_hours') || []).find(
+        (row: any) => row.id === payload.campaign_id && row.is_active,
+      );
+      if (!act || !happyHour) {
+        throw new Error('Kampaniya etibarsızdır — istifadə olunub və ya vaxtı keçib');
+      }
+      const now = new Date();
+      const weekday = now.getDay() === 0 ? 7 : now.getDay();
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      let days: number[] = [];
+      const rawDays = happyHour.days_of_week_json;
+      if (Array.isArray(rawDays)) {
+        days = rawDays.map(Number);
+      } else if (typeof rawDays === 'string') {
+        try {
+          days = JSON.parse(rawDays).map(Number);
+        } catch {
+          days = [];
+        }
+      }
+      if (!days.includes(weekday) || happyHour.start_time > currentTime || currentTime > happyHour.end_time) {
+        throw new Error('Kampaniya etibarsızdır — istifadə olunub və ya vaxtı keçib');
+      }
+      act.status = 'USED';
+      setDB('campaign_activations', all);
+      const campaignPercent = Number(happyHour.discount_percent || 0);
+      if (campaignPercent > Number(apply_discount_percent || 0)) {
+        apply_discount_percent = campaignPercent;
+      }
+    }
+
     let { raw_total, final_total, discount_amount, cogs_total, free_coffees, customer_stars_after, item_promo_discounts } = calculate_total(
       payload.cart_items,
       payload.tenant_id,
@@ -475,6 +519,7 @@ export const create_sale = (payload: SalePayload) => {
       payment_method: payload.payment_method,
       order_type: payload.order_type || 'Dine In',
       cup_mode: payload.cup_mode || 'paper',
+      campaign_id: payload.campaign_id || null,
       items: enriched_cart_items as any,
       customer_stars_after: customer?.stars,
       free_coffees_applied: free_coffees,

@@ -787,15 +787,23 @@ export async function validate_pos_campaign_live(campaign_id: string, card_id: s
     if (!days.includes(weekday) || happyHour.start_time > currentTime || currentTime > happyHour.end_time) {
       return { valid: false };
     }
-    act.status = 'USED';
-    setDB('campaign_activations', all);
-    return { valid: true, discount_percent: Number(happyHour.discount_percent || 0), name: String(happyHour.name || '') };
+    // P1-4b: NO consumption at scan — the activation is consumed inside
+    // create_sale so a failed/abandoned sale never burns the campaign.
+    return {
+      valid: true,
+      discount_percent: Number(happyHour.discount_percent || 0),
+      name: String(happyHour.name || ''),
+      activation_id: String(act.id || ''),
+    };
   }
 
-  return apiRequest<{ valid: boolean; discount_percent?: number; name?: string }>('/api/v1/pos/campaigns/validate', {
-    method: 'POST',
-    body: { campaign_id: safeCampaign, card_id: safeCard },
-  });
+  return apiRequest<{ valid: boolean; discount_percent?: number; name?: string; activation_id?: string }>(
+    '/api/v1/pos/campaigns/validate',
+    {
+      method: 'POST',
+      body: { campaign_id: safeCampaign, card_id: safeCard },
+    },
+  );
 }
 
 export async function save_push_token_live(card_id: string, push_token: string, token: string, tenant_id?: string) {

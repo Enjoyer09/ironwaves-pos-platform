@@ -240,18 +240,19 @@ import { activate_customer_campaign_live, validate_pos_campaign_live } from '../
 
 // ─────────────────────────────────────────────────────────────────────────────
 // P1-4 campaign server validation — local fallback roundtrip: activate persists
-// in the local store, the session exposes it, POS validates it exactly once
-// (single-use), and USED rows disappear from the session.
+// in the local store, the session exposes it, POS validates it. Since P1-4b,
+// validate does NOT consume — consumption moved to create_sale, so scans stay
+// valid until the sale commit; USED rows disappear from the session.
 // ─────────────────────────────────────────────────────────────────────────────
 
 function seedCampaignSetup() {
   clearDBCache();
-  setDB('customers', [
-    {
-      id: 'cust-1', tenant_id: 't1', card_id: 'QR-CAMP1', secret_token: 'tok-1',
-      type: 'golden', stars: 0, discount_percent: 0, created_at: '2026-08-16T10:00:00Z',
-    },
-  ]);
+  const customer = {
+    id: 'cust-1', tenant_id: 't1', card_id: 'QR-CAMP1', secret_token: 'tok-1',
+    type: 'golden', stars: 0, discount_percent: 0, created_at: '2026-08-16T10:00:00Z',
+  };
+  setDB('customers', [customer]);
+  setDB('t1_customers', [customer]); // key used by the local create_sale
   // Wide window on today's weekday so the time check always passes.
   const now = new Date();
   const weekday = now.getDay() === 0 ? 7 : now.getDay();
@@ -279,17 +280,27 @@ test('campaign activate + session + POS validate local roundtrip', async () => {
   assert.equal(session.campaign_activations[0].discount_percent, 20);
   assert.equal(session.campaign_activations[0].expires_at, act.expires_at);
 
-  // POS validates it exactly once.
+  // POS validates it — scan does NOT consume (P1-4b).
   const first = await validate_pos_campaign_live('hh-1', 'QR-CAMP1', 't1');
   assert.equal(first.valid, true);
   assert.equal(first.discount_percent, 20);
   assert.equal(first.name, 'Happy Hour Test');
+  assert.ok(first.activation_id, 'activation_id returned for sale-level consumption');
 
-  // Second scan -> single-use rejected.
+  // Second scan stays valid — single-use lives at the sale, not the scan.
   const second = await validate_pos_campaign_live('hh-1', 'QR-CAMP1', 't1');
-  assert.equal(second.valid, false);
+  assert.equal(second.valid, true);
+  assert.equal(second.activation_id, first.activation_id);
 
-  // USED rows disappear from the session.
+  // Session still exposes the ACTIVE activation after scans.
+  const mid = await get_customer_app_session_live('QR-CAMP1', 'tok-1', 't1');
+  assert.equal(mid.campaign_activations.length, 1);
+
+  // Simulate the sale committing: mark USED -> row disappears from the session.
+  const row = (getDB('campaign_activations') || []).find(
+    (r) => r.tenant_id === 't1' && r.campaign_id === 'hh-1' && r.card_id === 'QR-CAMP1',
+  );
+  row.status = 'USED';
   const after = await get_customer_app_session_live('QR-CAMP1', 'tok-1', 't1');
   assert.deepEqual(after.campaign_activations, []);
 });
@@ -320,9 +331,13 @@ test('campaign re-activation refreshes expiry locally (no duplicates)', async ()
 test('campaign activate rejects used / missing / invalid locally', async () => {
   seedCampaignSetup();
 
-  // Used campaign -> 409-equivalent rejection.
+  // Used campaign -> 409-equivalent rejection (mark USED directly — validate
+  // no longer consumes since P1-4b).
   await activate_customer_campaign_live('hh-1', 'QR-CAMP1', 'tok-1', 't1');
-  await validate_pos_campaign_live('hh-1', 'QR-CAMP1', 't1');
+  const usedRow = (getDB('campaign_activations') || []).find(
+    (r) => r.tenant_id === 't1' && r.campaign_id === 'hh-1' && r.card_id === 'QR-CAMP1',
+  );
+  usedRow.status = 'USED';
   await assert.rejects(
     () => activate_customer_campaign_live('hh-1', 'QR-CAMP1', 'tok-1', 't1'),
     /used/i,
@@ -343,4 +358,51 @@ test('campaign activate rejects used / missing / invalid locally', async () => {
   // Empty payload -> invalid, not a crash.
   const res = await validate_pos_campaign_live('', '', 't1');
   assert.equal(res.valid, false);
+});
+
+test('campaign is consumed at sale locally (P1-4b), not at scan', async () => {
+  seedCampaignSetup();
+
+  const { create_sale } = await import('../src/api/pos');
+  const { Decimal } = await import('decimal.js');
+
+  await activate_customer_campaign_live('hh-1', 'QR-CAMP1', 'tok-1', 't1');
+  const row = (getDB('campaign_activations') || []).find(
+    (r) => r.tenant_id === 't1' && r.campaign_id === 'hh-1' && r.card_id === 'QR-CAMP1',
+  );
+  assert.equal(row.status, 'ACTIVE');
+
+  const scan = await validate_pos_campaign_live('hh-1', 'QR-CAMP1', 't1');
+  assert.equal(scan.valid, true);
+  assert.equal(row.status, 'ACTIVE', 'scan must not consume (P1-4b)');
+
+  const salePayload = () => ({
+    tenant_id: 't1',
+    cart_items: [
+      { item_name: 'Espresso', price: new Decimal(4), qty: 2, is_coffee: true, category: 'Qəhvə', cup_mode: 'paper' },
+    ],
+    payment_method: 'Cash',
+    cashier: 'cashier-1',
+    customer_card_id: 'QR-CAMP1',
+    discount_percent: 0,
+    discount_reason: `Kampaniya: ${scan.name}`,
+    campaign_id: 'hh-1',
+    activation_id: scan.activation_id,
+    is_eco_cup: false,
+    is_test: true,
+    split_cash: null,
+    split_card: null,
+    card_tips: new Decimal(0),
+    customer_type: 'golden',
+    order_type: 'Take Away',
+    cup_mode: 'paper',
+  });
+
+  // First sale consumes the activation atomically.
+  const first = create_sale(salePayload());
+  assert.ok(first.success);
+  assert.equal(row.status, 'USED', 'sale consumes the activation');
+
+  // Same activation on a second sale -> rejected (single-use at sale).
+  assert.throws(() => create_sale(salePayload()), /Kampaniya etibarsızdır/);
 });
