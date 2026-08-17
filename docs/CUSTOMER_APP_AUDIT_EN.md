@@ -176,7 +176,9 @@ Two modes: **points** (stars → claim) and **cashback** (percentage accrual). S
 > **P1-2b:** ProfileTab name/birth-date edit UI — `update_customer_name_live`/`update_customer_birthday_live`; empty birth date clears (None). Admin config UI (P1-2c) is a separate phase.
 | P1-3 | 🟠 Medium | **Offline QR cache** — card opens without network | ✅ Done (2026-08-16) |
 > **P1-3:** `crm.ts` session cache helpers (localStorage + in-memory fallback, token-hashed key) — every successful session is written to cache; on API failure it is returned from cache (with `_from_cache` marker). `CustomerApp.tsx` offline banner (📡 Offline mode + Retry) — the card opens even without network. Smoke tests: write/read roundtrip, card+token separation, null-guard (3 new tests).
-| P1-4 | 🟠 Medium | **Server-validated campaigns** — activated state on the backend | ⏳ |
+| P1-4 | 🟠 Medium | **Server-validated campaigns** — activated state on the backend | ✅ Done (2026-08-16) |
+> **P1-4:** `campaign_activations` table + `POST /customer-app/campaigns/{id}/activate` (single-use, 15-min window) + session `campaign_activations` + `POST /api/v1/pos/campaigns/validate` (ACTIVE→USED) + POS `IWPOS:CAMPAIGN:` recognition — `backend/tests/test_customer_campaign_activation.py` (11 tests) + smoke 14/14.
+| P1-4b | 🟠 Medium | **POS discount application** — campaign + card max rule, consumption at sale | ⏳ |
 | P2-1 | 🟡 Low | **Guest mode** — browse menu without an account | ⏳ |
 | P2-2 | 🟡 Low | **Reorder + favorites → order** | ⏳ |
 | P2-3 | 🟡 Low | **Payment integration** (prepay + pickup ETA) | ⏳ |
@@ -304,6 +306,193 @@ PATCH `/settings/customer-app` accepts both keys.
 - `backend/tests/test_customer_birthday_reward.py` (20 tests): grant, idempotency,
   disabled tenant, NULL/wrong month, custom bonus, endpoint validation, guard marker,
   advisory lock race (PG skippable)
+
+### Double-check
+tsc + build + full pytest + frontend smoke + doc balance (AZ = EN)
+
+## 14. Technical Spec: P1-4 Campaign Server Validation
+
+### Goal
+Store campaign (happy hour) activations on the backend — today the activation
+lives only in the device's React state (lost when the app closes) and POS does not
+recognize `IWPOS:CAMPAIGN:` codes at all. With server validation the cashier can
+reliably check the code, it is single-use, and it no longer depends on which
+device the customer opened the app on.
+
+### Design decisions
+- New `campaign_activations` table — `(tenant_id, campaign_id, card_id)` unique:
+  one customer can have only one active activation per campaign at a time.
+- Activation is a 15-minute window (matching the current UI); once `expires_at`
+  passes, activations disappear from the session.
+- The customer creates the activation (`POST /customer-app/campaigns/{id}/activate`,
+  id+t auth); POS only VALIDATES it via `POST /api/v1/pos/campaigns/validate`.
+- Single-use: a successful validate flips status `ACTIVE` → `USED` — the same QR
+  cannot give a discount twice at the register (double-redemption guard).
+- Happy hour time window is checked at validate time (`start_time`/`end_time`/
+  `days_of_week_json`) — an activation is only valid while the campaign is running.
+- Session field is additive: `campaign_activations` is appended, old apps are not
+  broken. With backend OFF, crm.ts local fallback mirrors the same flow.
+
+### Data model (migration 20260816_0005)
+`campaign_activations` table: `id` (uuid PK), `tenant_id` (FK tenants, index),
+`campaign_id` (FK happy_hours, index), `card_id` (String 36, index),
+`status` (String: ACTIVE/USED, default ACTIVE), `activated_at` (DateTime),
+`expires_at` (DateTime), `UNIQUE (tenant_id, campaign_id, card_id)`.
+`down`: table dropped (only active campaign sessions are lost).
+
+### Backend behaviour
+- `CampaignActivation` model + `POST /customer-app/campaigns/{campaign_id}/activate`:
+  404 if the campaign is not active for the tenant; existing ACTIVE row refreshes
+  `expires_at` (re-activation), USED row returns 409 (single use).
+- Session serializer: rows with `expires_at > now` are returned as
+  `campaign_activations: [{ campaign_id, name, discount_percent, expires_at }]`;
+  expired rows are filtered out.
+- `POST /api/v1/pos/campaigns/validate { campaign_id, card_id }` (POS auth):
+  ACTIVE + `expires_at > now` + time window → `{ valid: true, discount_percent,
+  name }` and status=USED; any failed condition returns `{ valid: false }`.
+
+### API contract (customer + POS)
+`POST /customer-app/campaigns/{campaign_id}/activate` (id+t) → `{ success, expires_at }`.
+Session `campaign_activations` (additive).
+`POST /api/v1/pos/campaigns/validate { campaign_id, card_id }` →
+`{ valid, discount_percent?, name? }`.
+
+### Config format
+`customer_app_settings.campaign_activation_minutes: int` (default 15) — length of
+an activation window; `show_campaigns` is already consumed by the session.
+
+### Status
+- ✅ P1-4 (done — 2026-08-16): migration + activate endpoint + session + POS
+  validate + OffersTab backend wiring + POS `IWPOS:CAMPAIGN:` recognition
+
+### Tests
+- `backend/tests/test_customer_campaign_activation.py` (11 tests): activate
+  create/re-activate, expired filtering, session visibility, POS validate
+  valid → USED, double-redemption rejection, 404/401/409, time window
+
+### Double-check
+tsc + build + full pytest + frontend smoke + doc balance (AZ = EN)
+
+## 15. Technical Spec: P1-4b POS Campaign Discount Application
+
+### Goal
+P1-4 stores the activation on the server; this spec defines how the discount
+is applied to the cart at the register: how the campaign discount combines
+with the card discount (max rule) and how a successful validate reaches the sale.
+
+### Combination rule: MAX (not stacked)
+- The backend already applies `max(manual, customer)` (pos.py `create_sale`).
+  The campaign joins the same rule as a third source:
+  `effective = max(manual, customer_card, campaign)`.
+- Why not stacking: stacking (e.g. 10% + 20% = 28%) changes backend math,
+  rounding and audit rules; campaigns are usually larger than the card
+  discount (20% vs 5-10%), so max makes the campaign win during its window —
+  which is exactly the marketing intent.
+- Exception: if a manager manual discount (e.g. 25%) exceeds the campaign in
+  max, the campaign is not applied — the manager override wins, `discount_reason` required.
+
+### Consumption moment: at sale (recommended) — not at scan
+- **Option A (as built):** validate flips ACTIVE→USED at scan time. Simple,
+  but if the sale fails (payment declined) the customer loses the campaign.
+- **Option B (recommended):** validate does NOT consume at scan — it returns
+  `{ valid, discount_percent, name, activation_id }`; consumption happens
+  atomically inside `create_sale` with the sale commit (ACTIVE→USED + the same
+  checks inside the transaction). Single use is preserved, but it is consumed
+  only on a real purchase — fair + safe.
+
+### Cart flow (frontend)
+- Add `campaign?: { campaignId, name, percent }` to `CartContext`.
+- Successful scan: `patchCtx({ campaign, discountReason: 'Kampaniya: ' + name })` —
+  the existing finance rule (reason mandatory for manual discount) is met
+  automatically and the reason is auditable.
+- `effectiveDiscountPercent = max(ctx.discount, campaign.percent)` — since the
+  card discount lives in `ctx.discount`, the max rule is identical in UI and backend.
+- A campaign scan while a claim code is active is rejected with a warning (rules stay simple).
+- `campaign` is cleared when the cart is cleared or the customer changes.
+
+### Backend changes
+- `SaleCreateIn` += `campaign_id`, `activation_id` (nullable).
+- `create_sale`: if a campaign is present, re-check the activation (ACTIVE, time
+  window, same card) → `effective_discount = max(...)` → USED +
+  `discount_reason = "Kampaniya: {name}"` → committed in the same transaction.
+- Add `campaign_id` (String 36, nullable) to the `Sale` model — structured
+  field for reporting (migration 20260816_0006, additive).
+- Local mode (db_sim) mirrors the same flow: validate does not consume,
+  `create_sale` consumes.
+
+### API contract
+`POST /api/v1/pos/campaigns/validate` → `{ valid, discount_percent?, name?,
+activation_id? }` (no consumption).
+`POST /api/v1/pos/sale` += `{ campaign_id?, activation_id? }` → consumption
+happens at sale commit, `discount_reason` is auto-filled.
+
+### Known inconsistency (must be resolved in this spec)
+Frontend `calculate_total` stacks tier+manual+eco (`min(1, manual+tier+eco)`),
+while the backend uses `max(manual, customer)` — the UI total and backend total
+can diverge on the same check. When the campaign joins max, the frontend must
+be reduced to the same max (tier is already inside `ctx.discount`, avoid double-apply).
+
+### Status
+- ⏳ P1-4b (planned — 2026-08-16): max rule + consumption at sale + Sale.campaign_id
+
+### Tests
+- `backend/tests/test_customer_campaign_activation.py` (+6): max applied at
+  sale, consumption + reason recorded, expired/used activation → sale rejected,
+  double use across two sales rejected, no consumption at scan, local roundtrip
+- Smoke: card discount + campaign → max, sale consumption
+
+### Double-check
+tsc + build + full pytest + frontend smoke + doc balance (AZ = EN)
+
+---
+
+## 16. Security: Campaign Activation Forgery
+
+### Goal
+Verify whether the `IWPOS:CAMPAIGN:` QR can be forged — since `card_id` is
+exposed in the QR content, could someone create a discount code for another card?
+
+### Verdict: forgery is NOT possible
+- `card_id` is a "username"; the trust boundary is the server-side activation
+  row. The QR is only a lookup key — it carries no signature or token.
+- An activation row is only created by the `activate` endpoint and binds the
+  authenticated session (`customer.card_id`), never a request-supplied card_id.
+- `secret_token` (128-bit) never appears in any QR: campaign QR =
+  `IWPOS:CAMPAIGN:{campaign_id}:{card_id}`, card QR = `IWPOS:CARD:{card_id}`.
+
+### Attack attempts (verified against the code)
+| Attempt | Result | Reason |
+|---|---|---|
+| Forge QR with someone else's card_id | ❌ valid:false | validate only looks up an existing ACTIVE row (pos.py:546) |
+| Activate for someone else | ❌ 401 | activate accepts no card_id; binds the session (operations.py:4308) |
+| card_id enumeration | ❌ empty | a row only exists once the owner activates with their session |
+| Extract token from QR | ❌ none | tokens are never written into QR codes |
+
+### Real risks (in priority order)
+1. **QR sharing/screenshot** — within the 15-min window, anyone holding the QR
+   image can redeem the discount at the register (POS does not verify identity).
+   Standard coupon behaviour, but it can be limited if desired.
+2. **Consumption happens at scan** — if the sale fails, the customer loses the
+   campaign (P1-4b fixes this by consuming at sale).
+3. **Local fallback (backend OFF)** — db_sim simulates the whole flow in
+   localStorage; offline mode has no server check (accepted risk).
+4. **Token comparison uses `!=`** — `_resolve_customer_session` compares without
+   `secrets.compare_digest` (theoretical; one-line hardening).
+
+### Recommendations
+- Implement P1-4b (move consumption into `create_sale`) — closes the lost
+  campaign and burned-QR problems.
+- POS identity check for high-value campaigns (name / last 4 phone digits).
+- Compare tokens with `secrets.compare_digest` (hardening).
+- ⚠️ Do NOT add a token to the campaign QR — it would expose a secret (negative).
+
+### Status
+- ✅ Security audit (2026-08-17): forgery not possible; recommendations queued
+  as P1-4b + hardening on the roadmap.
+
+### Tests
+- Existing `test_customer_campaign_activation.py` (11): wrong card_id/campaign_id
+  → valid:false already covered; +2 if POS identity check is added.
 
 ### Double-check
 tsc + build + full pytest + frontend smoke + doc balance (AZ = EN)
