@@ -234,3 +234,113 @@ test('local roundtrip: pre-order becomes visible via get_customer_orders_live', 
   const foreign = await get_customer_orders_live('QR-AAA1111', 'tok-1', 't2');
   assert.deepEqual(foreign, []);
 });
+
+// P1-4: campaign server validation — separate import so the P1-3 commit stays independent
+import { activate_customer_campaign_live, validate_pos_campaign_live } from '../src/api/crm';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// P1-4 campaign server validation — local fallback roundtrip: activate persists
+// in the local store, the session exposes it, POS validates it exactly once
+// (single-use), and USED rows disappear from the session.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function seedCampaignSetup() {
+  clearDBCache();
+  setDB('customers', [
+    {
+      id: 'cust-1', tenant_id: 't1', card_id: 'QR-CAMP1', secret_token: 'tok-1',
+      type: 'golden', stars: 0, discount_percent: 0, created_at: '2026-08-16T10:00:00Z',
+    },
+  ]);
+  // Wide window on today's weekday so the time check always passes.
+  const now = new Date();
+  const weekday = now.getDay() === 0 ? 7 : now.getDay();
+  setDB('happy_hours', [
+    {
+      id: 'hh-1', tenant_id: 't1', name: 'Happy Hour Test', is_active: true,
+      start_time: '00:00', end_time: '23:59', discount_percent: 20,
+      days_of_week_json: JSON.stringify([weekday]), categories: 'ALL',
+    },
+  ]);
+}
+
+test('campaign activate + session + POS validate local roundtrip', async () => {
+  seedCampaignSetup();
+
+  const act = await activate_customer_campaign_live('hh-1', 'QR-CAMP1', 'tok-1', 't1');
+  assert.equal(act.success, true);
+  assert.ok(act.expires_at, 'expires_at returned');
+
+  // Session exposes the activation (server-style shape).
+  const session = await get_customer_app_session_live('QR-CAMP1', 'tok-1', 't1');
+  assert.equal(session.campaign_activations.length, 1);
+  assert.equal(session.campaign_activations[0].campaign_id, 'hh-1');
+  assert.equal(session.campaign_activations[0].name, 'Happy Hour Test');
+  assert.equal(session.campaign_activations[0].discount_percent, 20);
+  assert.equal(session.campaign_activations[0].expires_at, act.expires_at);
+
+  // POS validates it exactly once.
+  const first = await validate_pos_campaign_live('hh-1', 'QR-CAMP1', 't1');
+  assert.equal(first.valid, true);
+  assert.equal(first.discount_percent, 20);
+  assert.equal(first.name, 'Happy Hour Test');
+
+  // Second scan -> single-use rejected.
+  const second = await validate_pos_campaign_live('hh-1', 'QR-CAMP1', 't1');
+  assert.equal(second.valid, false);
+
+  // USED rows disappear from the session.
+  const after = await get_customer_app_session_live('QR-CAMP1', 'tok-1', 't1');
+  assert.deepEqual(after.campaign_activations, []);
+});
+
+test('campaign re-activation refreshes expiry locally (no duplicates)', async () => {
+  seedCampaignSetup();
+
+  const first = await activate_customer_campaign_live('hh-1', 'QR-CAMP1', 'tok-1', 't1');
+  // Force the stored expiry into the past, then re-activate -> must refresh.
+  const stored = (getDB('campaign_activations') || []).find(
+    (r) => r.tenant_id === 't1' && r.campaign_id === 'hh-1' && r.card_id === 'QR-CAMP1',
+  );
+  const pastExpiry = new Date(Date.now() - 60 * 1000).toISOString();
+  stored.expires_at = pastExpiry;
+
+  const second = await activate_customer_campaign_live('hh-1', 'QR-CAMP1', 'tok-1', 't1');
+  assert.equal(second.success, true);
+
+  const rows = (getDB('campaign_activations') || []).filter(
+    (r) => r.tenant_id === 't1' && r.campaign_id === 'hh-1' && r.card_id === 'QR-CAMP1',
+  );
+  assert.equal(rows.length, 1, 'exactly one activation row');
+  assert.equal(rows[0].status, 'ACTIVE');
+  assert.ok(Date.parse(rows[0].expires_at) > Date.parse(pastExpiry), 'expiry refreshed from the past');
+  assert.ok(Date.parse(rows[0].expires_at) > Date.now(), 'expiry moved to the future');
+});
+
+test('campaign activate rejects used / missing / invalid locally', async () => {
+  seedCampaignSetup();
+
+  // Used campaign -> 409-equivalent rejection.
+  await activate_customer_campaign_live('hh-1', 'QR-CAMP1', 'tok-1', 't1');
+  await validate_pos_campaign_live('hh-1', 'QR-CAMP1', 't1');
+  await assert.rejects(
+    () => activate_customer_campaign_live('hh-1', 'QR-CAMP1', 'tok-1', 't1'),
+    /used/i,
+  );
+
+  // Missing campaign -> not found.
+  await assert.rejects(
+    () => activate_customer_campaign_live('no-such', 'QR-CAMP1', 'tok-1', 't1'),
+    /not found/i,
+  );
+
+  // Bad session -> invalid.
+  await assert.rejects(
+    () => activate_customer_campaign_live('hh-1', 'QR-CAMP1', 'wrong-token', 't1'),
+    /invalid/i,
+  );
+
+  // Empty payload -> invalid, not a crash.
+  const res = await validate_pos_campaign_live('', '', 't1');
+  assert.equal(res.valid, false);
+});

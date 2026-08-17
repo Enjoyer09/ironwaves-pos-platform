@@ -7,7 +7,7 @@ import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
 import { tx } from '../i18n';
 import { useAppStore } from '../store';
-import { claim_customer_reward_live, enroll_customer_app_live, get_customer_app_bootstrap_live, get_customer_app_session_live, mark_customer_notification_read_live, save_push_token_live, send_customer_otp_live, verify_customer_otp_live, analyze_customer_fortune_live, chat_customer_barista_live, get_customer_wallet_pass_url, create_customer_pre_order_live, get_customer_orders_live, update_customer_name_live, update_customer_birthday_live } from '../api/crm';
+import { activate_customer_campaign_live, claim_customer_reward_live, enroll_customer_app_live, get_customer_app_bootstrap_live, get_customer_app_session_live, mark_customer_notification_read_live, save_push_token_live, send_customer_otp_live, verify_customer_otp_live, analyze_customer_fortune_live, chat_customer_barista_live, get_customer_wallet_pass_url, create_customer_pre_order_live, get_customer_orders_live, update_customer_name_live, update_customer_birthday_live } from '../api/crm';
 import { get_public_menu_live } from '../api/menu';
 import { clearCustomerSession, readCustomerPushToken, readCustomerPushTokenAsync, writeCustomerPushToken, writeCustomerSession } from '../lib/customer_session';
 import HomeTab from './customer/HomeTab';
@@ -379,6 +379,43 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   const rewards = Array.isArray(wallet?.rewards) ? wallet.rewards : [];
   const pendingClaims = Array.isArray(data?.pending_claims) ? data.pending_claims : [];
+
+  // P1-4: server-validated campaign activations survive restarts and cross-device
+  // — seed the local timer state from the session (expired rows are already filtered).
+  React.useEffect(() => {
+    const acts = Array.isArray((data as any)?.campaign_activations) ? (data as any).campaign_activations : [];
+    if (acts.length === 0) return;
+    setActivatedCampaigns((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const a of acts) {
+        const exp = Date.parse(a.expires_at);
+        if (Number.isFinite(exp) && exp > Date.now() && next[a.campaign_id] !== exp) {
+          next[a.campaign_id] = exp;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [data]);
+
+  const handleActivateCampaign = React.useCallback(async (campaignId: string) => {
+    if (!sessionCreds.cardId || !sessionCreds.token) return null;
+    try {
+      const res = await activate_customer_campaign_live(campaignId, sessionCreds.cardId, sessionCreds.token);
+      if (res?.success && res.expires_at) {
+        const expMs = Date.parse(res.expires_at);
+        if (Number.isFinite(expMs) && expMs > Date.now()) {
+          setActivatedCampaigns((prev) => ({ ...prev, [campaignId]: expMs }));
+        }
+        return res.expires_at;
+      }
+      return null;
+    } catch (e: any) {
+      console.error('Campaign activation failed:', e?.message || e);
+      return null;
+    }
+  }, [sessionCreds.cardId, sessionCreds.token]);
   const progressPercent = wallet?.next_reward_at ? Math.min(100, Math.round((Number(wallet.progress_current || 0) / Number(wallet.next_reward_at || 1)) * 100)) : 0;
   const primaryColor = String(branding?.primary_color || '#F48C24');
   const accentColor = String(branding?.accent_color || '#1A4329');
@@ -1642,6 +1679,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             primaryColor={primaryColor}
             accentColor={accentColor}
             isLight={isLight}
+            onActivateCampaign={handleActivateCampaign}
           />
           </div>
         )}

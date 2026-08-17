@@ -17,16 +17,35 @@ type Props = {
   primaryColor: string;
   isLight?: boolean;
   accentColor: string;
+  onActivateCampaign: (campaignId: string) => Promise<string | null>;
 };
 
 export default function OffersTab({
   safeLang, campaigns, pendingClaims, customer, activatedCampaigns,
-  setActivatedCampaigns, campaignQrs, setCampaignQrs, primaryColor, accentColor, isLight = false
+  setActivatedCampaigns, campaignQrs, setCampaignQrs, primaryColor, accentColor, isLight = false,
+  onActivateCampaign
 }: Props) {
 
   const activateCampaign = async (campaignId: string) => {
     await nativeHapticImpact(ImpactStyle.Medium);
-    const expTime = Date.now() + 15 * 60 * 1000;
+    // P1-4: server-validated activation — the expiry comes from the backend so
+    // the QR is guaranteed to validate at the POS. On failure we do NOT show a
+    // QR (a local-only QR would be rejected by the cashier anyway).
+    let expTime: number | null = null;
+    try {
+      const serverExpires = await onActivateCampaign(campaignId);
+      if (serverExpires) {
+        const parsed = Date.parse(serverExpires);
+        expTime = Number.isFinite(parsed) ? parsed : Date.now() + 15 * 60 * 1000;
+      }
+    } catch (err) {
+      console.error('Campaign activation failed', err);
+    }
+    if (!expTime) {
+      await Haptic.error();
+      console.error('Campaign activation rejected by server');
+      return;
+    }
     setActivatedCampaigns(prev => ({ ...prev, [campaignId]: expTime }));
     playShimmerSound();
     try {
