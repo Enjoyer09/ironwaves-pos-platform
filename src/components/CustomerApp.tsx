@@ -1586,7 +1586,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         }
       `}</style>
 
-      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-28 pt-[calc(env(safe-area-inset-top,47px)+12px)]">
+      <div className="relative z-10 mx-auto flex min-h-dvh w-full max-w-lg flex-col px-3.5 sm:px-4 pb-36 pt-[max(env(safe-area-inset-top,0px)+16px,54px)]">
         {offlineMode && (
           <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 px-3.5 py-2.5 backdrop-blur-md">
             <div className="flex items-center gap-2.5">
@@ -1802,11 +1802,11 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         className="fixed inset-x-0 bottom-0 z-30"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 12px)' }}
       >
-        <div className="mx-auto max-w-md px-4 pb-3">
+        <div className="mx-auto max-w-lg px-3.5 sm:px-4 pb-2.5">
           <div
             className={`flex items-center justify-around rounded-[28px] py-2 px-2 border ${
               isLight
-                ? 'border-black/6 bg-white/85 text-slate-800 shadow-xl backdrop-blur-2xl'
+                ? 'border-black/8 bg-white/90 text-slate-800 shadow-[0_12px_36px_rgba(0,0,0,0.12),0_2px_8px_rgba(0,0,0,0.06)] backdrop-blur-2xl'
                 : 'glass-nav-capsule bg-white/5 text-white shadow-2xl'
             }`}
           >

@@ -589,14 +589,24 @@ export default function OrderTab({
 }: OrderTabProps) {
   const [showStorePicker, setShowStorePicker] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
-  const cats = React.useMemo(
-    () => Array.from(new Set(menuItems.map((it: any) => it.category).filter(Boolean))) as string[],
-    [menuItems],
-  );
+  const cats = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const it of menuItems) {
+      const raw = String(it.category || '').trim();
+      if (!raw) continue;
+      const key = raw.toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, raw);
+      }
+    }
+    return Array.from(map.values());
+  }, [menuItems]);
   const filtered = React.useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
+    const selCatLower = selectedCategory.toLowerCase();
     return menuItems.filter((it: any) => {
-      const matchesCat = selectedCategory === 'ALL' || it.category === selectedCategory;
+      const itCat = String(it.category || '').trim().toLowerCase();
+      const matchesCat = selectedCategory === 'ALL' || itCat === selCatLower;
       const name = (it.item_name || it.name || '').toLowerCase();
       const matchesQ = !q || name.includes(q);
       return matchesCat && matchesQ;
@@ -742,10 +752,10 @@ export default function OrderTab({
 
       {/* Category Chips */}
       {(cats.length > 0 || searchQuery.length > 0) && (
-        <div className="flex gap-2.5 overflow-x-auto pb-2 pt-1 -mx-1 px-1">
+        <div className="flex gap-2 overflow-x-auto pb-2 pt-1 -mx-0.5 px-0.5">
           {/* All chip (F3) */}
           <button key="ALL" type="button" onClick={async () => { await Haptic.light(); setSelectedCategory('ALL'); }}
-            className={`flex-none w-[76px] flex flex-col items-center gap-1.5 rounded-[22px] p-2.5 transition-all border ${
+            className={`flex-none w-[70px] flex flex-col items-center gap-1.5 rounded-2xl p-2 transition-all border ${
               selectedCategory === 'ALL'
                 ? isRetro ? 'text-[#2B1B1A] dark:text-white retro-btn' : 'text-white shimmer-btn glow-orange'
                 : catInactive
@@ -754,14 +764,14 @@ export default function OrderTab({
               background: isRetro ? 'linear-gradient(135deg, #D47B5E, #E9A583)' : 'linear-gradient(135deg, #F48C24, #ffb366)',
               borderColor: isRetro ? (isLight ? '#2B1B1A' : '#3D2F2A') : 'rgba(244,140,36,0.4)',
             } : undefined}>
-            <div className={`h-11 w-11 rounded-full overflow-hidden border-2 shadow-sm flex items-center justify-center text-lg ${
+            <div className={`h-10 w-10 rounded-full overflow-hidden border-2 shadow-sm flex items-center justify-center text-base ${
               selectedCategory === 'ALL'
                 ? isRetro ? 'border-[#2B1B1A] dark:border-white/40' : 'border-white/40'
                 : isRetro ? (isLight ? 'border-[#2B1B1A]' : 'border-[#3D2F2A]') : (isLight ? 'border-black/8' : 'border-white/6')
             } ${isLight ? 'bg-slate-100' : 'bg-white/8'}`}>
               ☕
             </div>
-            <span className={`text-[9px] font-black text-center truncate w-full uppercase tracking-wider leading-tight ${
+            <span className={`text-[10px] font-bold text-center truncate w-full leading-tight capitalize ${
               selectedCategory === 'ALL'
                 ? isRetro ? 'text-[#1C2029] dark:text-white' : 'text-white'
                 : isLight ? 'text-slate-700' : 'text-white/70'
@@ -770,12 +780,12 @@ export default function OrderTab({
             </span>
           </button>
           {cats.map(cat => {
-            const firstItem = menuItems.find((it: any) => it.category === cat);
+            const firstItem = menuItems.find((it: any) => String(it.category || '').toLowerCase() === cat.toLowerCase());
             const catImage  = getProductImage(firstItem?.item_name || firstItem?.name || cat, firstItem?.image_url);
-            const isSelected = selectedCategory === cat;
+            const isSelected = selectedCategory.toLowerCase() === cat.toLowerCase();
             return (
               <button key={cat} onClick={async () => { await Haptic.light(); setSelectedCategory(cat); }}
-                className={`flex-none w-[76px] flex flex-col items-center gap-1.5 rounded-[22px] p-2.5 transition-all border ${
+                className={`flex-none w-[70px] flex flex-col items-center gap-1.5 rounded-2xl p-2 transition-all border ${
                   isSelected
                     ? isRetro ? 'text-[#2B1B1A] dark:text-white retro-btn' : 'text-white shimmer-btn glow-orange'
                     : catInactive
@@ -784,14 +794,14 @@ export default function OrderTab({
                   background: isRetro ? 'linear-gradient(135deg, #D47B5E, #E9A583)' : 'linear-gradient(135deg, #F48C24, #ffb366)',
                   borderColor: isRetro ? (isLight ? '#2B1B1A' : '#3D2F2A') : 'rgba(244,140,36,0.4)',
                 } : undefined}>
-                <div className={`h-11 w-11 rounded-full overflow-hidden border-2 shadow-sm ${
+                <div className={`h-10 w-10 rounded-full overflow-hidden border-2 shadow-sm ${
                   isSelected 
                     ? isRetro ? 'border-[#2B1B1A] dark:border-white/40' : 'border-white/40' 
                     : isRetro ? (isLight ? 'border-[#2B1B1A]' : 'border-[#3D2F2A]') : (isLight ? 'border-black/8' : 'border-white/6')
                 }`}>
                   <img src={catImage} alt={cat} className="h-full w-full object-cover" />
                 </div>
-                <span className={`text-[9px] font-black text-center truncate w-full uppercase tracking-wider leading-tight ${
+                <span className={`text-[10px] font-bold text-center truncate w-full leading-tight capitalize ${
                   isSelected 
                     ? isRetro ? 'text-[#1C2029] dark:text-white' : 'text-white' 
                     : isLight ? 'text-slate-700' : 'text-white/70'
@@ -816,7 +826,7 @@ export default function OrderTab({
             : tx(safeLang, 'Bu kateqoriyada məhsul tapılmadı', 'Нет товаров в этой категории', 'No products in this category')}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3.5">
+        <div className="grid grid-cols-2 gap-3">
           {filtered.map((item: any, itemIdx: number) => {
             const itemName  = (item.item_name || item.name || '').toLowerCase();
             const isHot     = itemName.includes('isti') || itemName.includes('hot') || (item.category || '').toLowerCase().includes('isti');
@@ -840,7 +850,7 @@ export default function OrderTab({
             return (
               <div key={item.id}
                 onClick={() => handleOpenModifiers(item)}
-                className={`relative group flex flex-col items-center rounded-[28px] border overflow-hidden cursor-pointer card-tilt stagger-fade-in stagger-${Math.min(itemIdx % 5 + 1, 5)} ${cardBg}`}>
+                className={`relative group flex flex-col items-center rounded-[22px] border overflow-hidden cursor-pointer card-tilt stagger-fade-in stagger-${Math.min(itemIdx % 5 + 1, 5)} ${cardBg}`}>
                 {/* Product Image */}
                 <div className={`relative w-full aspect-square overflow-hidden ${isRetro ? 'border-b-[2px] border-[#2B1B1A] dark:border-[#3D2F2A]' : ''}`}>
                   <img
@@ -858,7 +868,7 @@ export default function OrderTab({
                   )}
 
                   {/* Badge (Bottom/Top Left) */}
-                  <span className={`absolute bottom-2.5 left-2.5 z-10 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider backdrop-blur-md ${
+                  <span className={`absolute bottom-2.5 left-2.5 z-10 px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider backdrop-blur-md ${
                     isRetro
                       ? 'bg-[#FAF8F5] text-slate-800 border-2 border-[#2B1B1A] shadow-sm'
                       : badgeColor
@@ -874,7 +884,7 @@ export default function OrderTab({
                     setLocalFavorites(prev => prev.includes(item.id) ? prev.filter((id: string) => id !== item.id) : [...prev, item.id]);
                   }}
                     aria-label={isFav ? tx(safeLang, 'Sevimlilərdən çıxar', 'Убрать из избранного', 'Remove from favorites') : tx(safeLang, 'Sevimlilərə əlavə et', 'В избранное', 'Add to favorites')}
-                    className={`absolute top-2.5 right-2.5 z-10 h-9 w-9 rounded-full flex items-center justify-center border backdrop-blur-md transition-all active:scale-90 ${
+                    className={`absolute top-2.5 right-2.5 z-10 h-8 w-8 rounded-full flex items-center justify-center border backdrop-blur-md transition-all active:scale-90 ${
                       isRetro
                         ? isFav
                           ? 'bg-[#D47B5E] border-[2px] border-[#2B1B1A] dark:border-[#3D2F2A] text-white'
@@ -883,34 +893,34 @@ export default function OrderTab({
                           ? 'bg-[#F48C24]/25 border-[#F48C24]/50 text-[#F48C24] glow-orange-sm'
                           : isLight ? 'bg-white/80 border-black/10 text-slate-500' : 'bg-black/40 border-white/10 text-white/60'
                     }`}>
-                    <Heart size={11} fill={isFav ? (isRetro ? '#FAF8F5' : '#F48C24') : 'none'} />
+                    <Heart size={12} fill={isFav ? (isRetro ? '#FAF8F5' : '#F48C24') : 'none'} />
                   </button>
                 </div>
 
                 {/* Info Row */}
-                <div className="w-full px-3.5 pt-2.5 pb-3.5 flex flex-col gap-1">
-                  <h3 className={`text-[11px] font-black leading-tight line-clamp-1 ${textPrimary}`}>
+                <div className="w-full px-3 pt-2.5 pb-3 flex flex-col gap-0.5">
+                  <h3 className={`text-xs font-bold leading-tight line-clamp-1 ${textPrimary}`}>
                     {item.item_name || item.name}
                   </h3>
                   
                   {/* Recipe Subtitle */}
-                  <p className={`text-[9px] font-semibold leading-none truncate ${isLight ? 'text-slate-400' : 'text-white/35'}`}>
+                  <p className={`text-[10px] font-medium leading-tight truncate ${isLight ? 'text-slate-400' : 'text-white/40'}`}>
                     {subTitleText}
                   </p>
 
-                  <div className="flex items-center justify-between mt-1.5">
-                    <p className={`text-[12px] font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                      <span className="text-[#F48C24] font-black">₼ </span>
+                  <div className="flex items-center justify-between mt-1 pt-0.5">
+                    <p className={`text-[13px] font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                      <span className="text-[#F48C24]">₼ </span>
                       <span>{Number(item.price || 0).toFixed(2)}</span>
                     </p>
                     {/* + button */}
                     {isRetro ? (
-                      <div className="h-9 w-9 border-[2px] border-[#2B1B1A] dark:border-[#3D2F2A] bg-[#D47B5E] flex items-center justify-center text-white font-black text-sm shadow-[1.5px_1.5px_0px_0px_#2B1B1A] dark:shadow-[1.5px_1.5px_0px_0px_#3D2F2A] rounded-lg active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all">
+                      <div className="h-8 w-8 border-[2px] border-[#2B1B1A] dark:border-[#3D2F2A] bg-[#D47B5E] flex items-center justify-center text-white font-bold text-sm shadow-[1.5px_1.5px_0px_0px_#2B1B1A] dark:shadow-[1.5px_1.5px_0px_0px_#3D2F2A] rounded-lg active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all">
                         <Plus size={14} />
                       </div>
                     ) : (
                       <div className="relative glow-ring-pulse rounded-full">
-                        <div className="h-9 w-9 rounded-full bg-[#F48C24] flex items-center justify-center text-white font-bold text-base shadow-[0_3px_10px_rgba(244,140,36,0.35)] active:scale-90 transition">
+                        <div className="h-8 w-8 rounded-full bg-[#F48C24] flex items-center justify-center text-white font-bold text-sm shadow-[0_3px_10px_rgba(244,140,36,0.35)] active:scale-90 transition">
                           <Plus size={14} />
                         </div>
                       </div>
