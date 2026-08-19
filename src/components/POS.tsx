@@ -1923,14 +1923,15 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             )}
           </div>
           {!hasClaimCode && (
-            <div className="grid grid-cols-5 gap-1 mt-1.5">
+            <div className="grid grid-cols-5 gap-1.5 mt-1.5">
               {['0', '5', '10', '15', '20'].map((val) => (
                 <button
                   key={val}
                   type="button"
+                  aria-label={`${val}% endirim`}
                   onClick={() => patchCtx({ discount: val })}
-                  className={`rounded-lg border py-1.5 text-[11px] font-semibold transition ${
-                    (ctx.discount || '0') === val ? 'border-amber-300 bg-amber-500/20 text-amber-100 font-bold' : 'border-slate-700 bg-slate-800/40 text-slate-300 hover:bg-slate-700/50'
+                  className={`min-h-[44px] flex items-center justify-center rounded-xl border text-xs font-black transition active:scale-95 ${
+                    (ctx.discount || '0') === val ? 'border-amber-300 bg-amber-500/25 text-amber-100 shadow-sm shadow-amber-400/20' : 'border-slate-700/80 bg-slate-800/60 text-slate-200 hover:bg-slate-700/60'
                   }`}
                 >
                   {val}%
@@ -1982,16 +1983,31 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
         <React.Fragment key={widget}>
           {ctx.selectedTable && (
             <div className={`space-y-2 ${size === 'expanded' ? 'text-sm' : 'text-xs'}`}>
-              {tableRoutingBanner && ctx.selectedTable === tableRoutingBanner.tableId && (
-                <div className="rounded-lg border border-cyan-300/40 bg-cyan-400/10 px-3 py-2 text-xs text-cyan-100">
-                  {tx(lang, 'Bu sifariş', 'Этот заказ', 'This order is for')} <span className="font-bold">{tableRoutingBanner.tableLabel}</span>.
+              <div className="rounded-xl border-2 border-amber-400/60 bg-amber-400/15 p-3 shadow-md shadow-amber-400/10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-400 text-slate-950 font-black text-sm">
+                      🍽️
+                    </span>
+                    <span className="font-black text-sm text-amber-100">
+                      {tx(lang, 'Aktiv Masa:', 'Активный стол:', 'Active Table:')} {tableRoutingBanner?.tableLabel || occupiedTables.find(t => t.id === ctx.selectedTable)?.label || ctx.selectedTable}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label={tx(lang, 'Masadan ayrıl', 'Отвязать от стола', 'Detach from table')}
+                    onClick={() => patchCtx({ selectedTable: '', orderType: 'Take Away' })}
+                    className="text-xs font-bold px-2 py-1 rounded-md bg-slate-900/60 text-slate-300 hover:text-rose-300 transition"
+                  >
+                    ✕ {tx(lang, 'Ayrıl', 'Отвязать', 'Detach')}
+                  </button>
                 </div>
-              )}
+              </div>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <button onClick={() => patchCtx({ cupMode: 'paper' })} className={`rounded-md border px-2 py-2 text-xs font-semibold ${ctx.cupMode === 'paper' ? 'text-slate-900' : 'border-slate-600 bg-slate-800/40 text-slate-200'}`} style={ctx.cupMode === 'paper' ? { borderColor: posLayout.accent_color, backgroundColor: posLayout.accent_color } : undefined}>
+                <button onClick={() => patchCtx({ cupMode: 'paper' })} className={`min-h-[44px] rounded-xl border px-3 py-2 text-xs font-bold transition active:scale-95 ${ctx.cupMode === 'paper' ? 'text-slate-900' : 'border-slate-600 bg-slate-800/40 text-slate-200'}`} style={ctx.cupMode === 'paper' ? { borderColor: posLayout.accent_color, backgroundColor: posLayout.accent_color } : undefined}>
                   {tx(lang, 'Kağız stəkan', 'Бумажный стакан', 'Paper cup')}
                 </button>
-                <button onClick={() => patchCtx({ cupMode: 'glass' })} className={`rounded-md border px-2 py-2 text-xs font-semibold ${ctx.cupMode === 'glass' ? 'text-slate-900' : 'border-slate-600 bg-slate-800/40 text-slate-200'}`} style={ctx.cupMode === 'glass' ? { borderColor: posLayout.accent_color, backgroundColor: posLayout.accent_color } : undefined}>
+                <button onClick={() => patchCtx({ cupMode: 'glass' })} className={`min-h-[44px] rounded-xl border px-3 py-2 text-xs font-bold transition active:scale-95 ${ctx.cupMode === 'glass' ? 'text-slate-900' : 'border-slate-600 bg-slate-800/40 text-slate-200'}`} style={ctx.cupMode === 'glass' ? { borderColor: posLayout.accent_color, backgroundColor: posLayout.accent_color } : undefined}>
                   {tx(lang, 'Şüşə stəkan', 'Стеклянный стакан', 'Glass cup')}
                 </button>
               </div>

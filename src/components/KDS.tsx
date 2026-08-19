@@ -543,11 +543,11 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
                 )}
               </div>
               <div className="flex flex-col items-end text-sm font-medium">
-                <div className="flex items-center text-slate-100 font-bold bg-slate-800/80 px-2 py-1 rounded-lg border border-slate-600/50">
-                  <Clock size={14} className="mr-1" />
+                <div className="flex items-center text-slate-100 font-black text-sm bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-600/70 shadow-sm">
+                  <Clock size={16} className="mr-1.5 text-amber-300" />
                   {getElapsedMinutes(order.created_at)} {tx(lang, 'dəq', 'мин', 'min')}
                 </div>
-                <div className="text-slate-400 text-xs mt-1">
+                <div className="text-slate-300 text-xs font-semibold mt-1">
                   {new Date(parseServerTimestamp(order.created_at)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
