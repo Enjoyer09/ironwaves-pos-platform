@@ -70,17 +70,17 @@ const DraftRowItem = memo(({ row, onUpdateQty, onEditNote, lang }: { row: any; o
     if (!isSwiping) return;
     const diffX = e.touches[0].clientX - startX;
     if (swipedLeft) {
-      const newX = -70 + diffX;
-      setCurrentX(Math.min(0, Math.max(-95, newX)));
+      const newX = -88 + diffX;
+      setCurrentX(Math.min(0, Math.max(-110, newX)));
     } else {
-      setCurrentX(Math.min(0, Math.max(-95, diffX)));
+      setCurrentX(Math.min(0, Math.max(-110, diffX)));
     }
   };
 
   const handleTouchEnd = () => {
     setIsSwiping(false);
-    if (currentX < -32) {
-      setCurrentX(-70);
+    if (currentX < -40) {
+      setCurrentX(-88);
       setSwipedLeft(true);
     } else {
       setCurrentX(0);
@@ -94,14 +94,15 @@ const DraftRowItem = memo(({ row, onUpdateQty, onEditNote, lang }: { row: any; o
   };
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-slate-700/50 bg-slate-950/40 min-h-[48px] cart-item-anim">
+    <div className="relative overflow-hidden rounded-xl border border-slate-700/50 bg-slate-950/40 min-h-[52px] cart-item-anim">
       {/* Background Swipe Delete Button */}
       <button
         type="button"
+        aria-label={tx(lang, 'Ləğv et', 'Удалить', 'Delete')}
         onClick={handleDelete}
-        className="absolute right-0 top-0 bottom-0 w-[70px] bg-gradient-to-r from-rose-500 to-rose-700 text-white text-[10px] font-black uppercase tracking-wider flex flex-col items-center justify-center gap-0.5 z-0 taktil-target active:brightness-90"
+        className="absolute right-0 top-0 bottom-0 w-[88px] bg-gradient-to-r from-rose-500 to-rose-700 text-white text-xs font-black uppercase tracking-wider flex flex-col items-center justify-center gap-0.5 z-0 taktil-target active:brightness-90"
       >
-        <span>✕</span>
+        <span className="text-sm">✕</span>
         <span>{tx(lang, 'Ləğv', 'Удалить', 'Delete')}</span>
       </button>
 
@@ -111,7 +112,7 @@ const DraftRowItem = memo(({ row, onUpdateQty, onEditNote, lang }: { row: any; o
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         style={{ transform: `translateX(${currentX}px)` }}
-        className={`relative flex items-center justify-between gap-2 bg-slate-900/90 px-2 py-1.5 z-10 w-full h-full min-h-[46px] ${
+        className={`relative flex items-center justify-between gap-2 bg-slate-900/95 px-3 py-2 z-10 w-full h-full min-h-[50px] ${
           isSwiping ? 'transition-none' : 'transition-transform duration-200 ease-out'
         }`}
       >
@@ -120,11 +121,11 @@ const DraftRowItem = memo(({ row, onUpdateQty, onEditNote, lang }: { row: any; o
           onClick={() => onEditNote(row)}
           className="min-w-0 flex-1 select-none cursor-pointer"
         >
-          <div className="truncate text-xs font-semibold text-slate-100">{row.item_name}</div>
+          <div className="truncate text-sm font-bold text-slate-100">{row.item_name}</div>
           {row.note && (
-            <div className="text-[10px] text-yellow-400/95 font-medium truncate mt-0.5">✎ {row.note}</div>
+            <div className="text-xs text-yellow-400 font-semibold truncate mt-0.5">✎ {row.note}</div>
           )}
-          <div className="text-[11px] text-slate-400 mt-0.5">{Number(row.price || 0).toFixed(2)} ₼</div>
+          <div className="text-xs font-semibold text-amber-300/90 mt-0.5">{Number(row.price || 0).toFixed(2)} ₼</div>
         </div>
         <div className="flex items-center gap-1">
           <button

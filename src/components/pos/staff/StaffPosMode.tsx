@@ -134,7 +134,7 @@ export function StaffProductCard(props: {
 
   return (
     <article className={`staff-product-card ${qtyInCart > 0 ? 'staff-product-card-active' : ''}`}>
-      <button className="staff-product-image-wrap" onClick={onPlus}>
+      <button type="button" aria-label={group.base} className="staff-product-image-wrap" onClick={onPlus}>
         {group.image_url ? (
           <img src={group.image_url} alt={group.base} className="staff-product-image" />
         ) : (
@@ -149,15 +149,15 @@ export function StaffProductCard(props: {
         <div className="staff-product-price">{minPrice.toFixed(2)} ₼</div>
       </div>
       <div className="staff-qty-row">
-        <button className="staff-qty-btn" onClick={onMinus} disabled={qtyInCart <= 0}>
+        <button type="button" aria-label={`${group.base} - 1`} className="staff-qty-btn" onClick={onMinus} disabled={qtyInCart <= 0}>
           <Minus size={15} />
         </button>
         <div className="staff-qty-value">{qtyInCart}</div>
-        <button className="staff-qty-btn" onClick={onPlus}>
+        <button type="button" aria-label={`${group.base} + 1`} className="staff-qty-btn" onClick={onPlus}>
           <Plus size={15} />
         </button>
         {hasVariants ? (
-          <button className="staff-variant-btn" onClick={onOpenVariant}>
+          <button type="button" aria-label={`${group.base} variant seçimi`} className="staff-variant-btn" onClick={onOpenVariant}>
             Variant
           </button>
         ) : null}
@@ -214,12 +214,12 @@ export function StaffCartItem(props: {
         <span className="staff-cart-item-price">{toDecimalSafe(item.price).times(item.qty).toFixed(2)} ₼</span>
       </div>
       <div className="staff-cart-item-actions">
-        <button className="staff-qty-btn" onClick={() => updateCartItem(item.line_id, item.qty - 1)}>
-          <Minus size={13} />
+        <button type="button" aria-label={`${item.item_name} - 1`} className="staff-qty-btn" onClick={() => updateCartItem(item.line_id, item.qty - 1)}>
+          <Minus size={15} />
         </button>
         <span className="staff-qty-value">{item.qty}</span>
-        <button className="staff-qty-btn" onClick={() => updateCartItem(item.line_id, item.qty + 1)}>
-          <Plus size={13} />
+        <button type="button" aria-label={`${item.item_name} + 1`} className="staff-qty-btn" onClick={() => updateCartItem(item.line_id, item.qty + 1)}>
+          <Plus size={15} />
         </button>
       </div>
     </div>
