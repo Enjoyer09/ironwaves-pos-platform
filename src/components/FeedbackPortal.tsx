@@ -366,6 +366,7 @@ export default function FeedbackPortal({ tenantId = '', saleId = '', receiptId =
       <div className="blob-wave blob-wave-a" />
       <div className="blob-wave blob-wave-b" />
       <div className="blob-wave blob-wave-c" />
+      <div className="web-noise-overlay" />
 
       <div className="mx-auto w-full max-w-[430px]">
         <div className="glass-card relative overflow-hidden rounded-[26px] p-4 text-slate-900 sm:rounded-[30px] sm:p-5">

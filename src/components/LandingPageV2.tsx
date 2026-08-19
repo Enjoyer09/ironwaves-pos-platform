@@ -107,7 +107,10 @@ export default function LandingPageV2() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0a0f1a] text-slate-100 font-sans">
+    <div className="relative min-h-screen bg-[#0a0f1a] text-slate-100 font-sans overflow-x-hidden">
+      {/* Background Aurora & Real Noise */}
+      <div className="web-aurora-bg" />
+      <div className="web-noise-overlay" />
 
       {/* ─── NAV ─── */}
       <nav className="sticky top-0 z-50 border-b border-slate-800/60 bg-[#0a0f1a]/90 backdrop-blur-xl">
