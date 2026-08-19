@@ -1934,8 +1934,13 @@ export default function App() {
                 height: '100%',
                 paddingBottom: keyboardInset > 0 ? `${keyboardInset}px` : undefined,
               }
-        }
       >
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:px-4 focus:py-2 focus:bg-amber-400 focus:text-slate-950 font-bold rounded-xl shadow-2xl"
+        >
+          {tx(safeLang, 'Əsas məzmuna keçid', 'Перейти к основному содержимому', 'Skip to main content')}
+        </a>
         <div className={`border-b border-slate-700/40 px-4 py-4 md:px-6 shrink-0 z-20 space-y-4`}>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">
@@ -2084,13 +2089,15 @@ export default function App() {
             </div>
           </div>
 
-          <div className="hidden md:flex items-center gap-3 overflow-x-auto pb-2">
+          <div className="hidden md:flex items-center gap-3 overflow-x-auto pb-2" role="tablist" aria-label={tx(safeLang, 'Modullar naviqasiyası', 'Навигация по модулям', 'Modules navigation')}>
             {visibleModules.map((item) => {
                 const offlineAvailable = new Set<ModuleKey>(['pos', 'tables', 'kds', 'settings']);
                 const isDisabledOffline = !isOnline && !offlineAvailable.has(item.key);
                 return (
                 <button
                   key={item.key}
+                  role="tab"
+                  aria-selected={resolvedModule === item.key}
                   onClick={() => { if (!isDisabledOffline) setCurrentModule(item.key); }}
                   disabled={isDisabledOffline}
                   className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap px-4 py-3 text-sm ${isDisabledOffline ? 'opacity-35 cursor-not-allowed grayscale' : ''}`}
@@ -2123,7 +2130,7 @@ export default function App() {
           </div>
         )}
 
-        <div className="relative min-h-0 flex-1 overflow-hidden">
+        <main id="main-content" tabIndex={-1} className="relative min-h-0 flex-1 overflow-hidden outline-none">
           <AppErrorBoundary>
             <Suspense fallback={lazyModuleFallback}>
               {mountedModules.includes('pos') && (
@@ -2153,19 +2160,21 @@ export default function App() {
               )}
             </Suspense>
           </AppErrorBoundary>
-        </div>
+        </main>
 
         <div className="shrink-0 border-t border-slate-700/40 bg-[#0e141d]/95 px-2 py-2 md:hidden">
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="flex gap-2 overflow-x-auto pb-1 snap-x snap-mandatory" role="tablist" aria-label={tx(safeLang, 'Mobil modullar naviqasiyası', 'Мобильная навигация по модулям', 'Mobile modules navigation')}>
             {visibleModules.map((item) => {
               const offlineAvailable = new Set<ModuleKey>(['pos', 'tables', 'kds', 'settings']);
               const isDisabledOffline = !isOnline && !offlineAvailable.has(item.key);
               return (
               <button
                 key={`mobile_${item.key}`}
+                role="tab"
+                aria-selected={resolvedModule === item.key}
                 onClick={() => { if (!isDisabledOffline) setCurrentModule(item.key); }}
                 disabled={isDisabledOffline}
-                className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap ${isDisabledOffline ? 'opacity-35 cursor-not-allowed grayscale' : ''}`}
+                className={`${resolvedModule === item.key ? 'neon-chip neon-chip-active' : 'neon-chip'} whitespace-nowrap snap-start ${isDisabledOffline ? 'opacity-35 cursor-not-allowed grayscale' : ''}`}
                 title={item.label}
                 data-guide={DEMO_MODULE_GUIDE_AZ[item.key]}
                 onMouseEnter={(e) => handleDemoGuideHover(DEMO_MODULE_GUIDE_AZ[item.key], e)}

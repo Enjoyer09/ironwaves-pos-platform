@@ -72,7 +72,13 @@ export const useAppStore = create<AppState>()(
       hasHydrated: false,
       setHasHydrated: (value) => set({ hasHydrated: value }),
       lang: 'az',
-      setLang: (lang) => set({ lang: (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az' }),
+      setLang: (lang) => {
+        const validLang = (lang === 'az' || lang === 'ru' || lang === 'en') ? lang : 'az';
+        if (typeof document !== 'undefined') {
+          document.documentElement.lang = validLang;
+        }
+        set({ lang: validLang });
+      },
       
       user: null,
       access_token: null,
@@ -325,8 +331,11 @@ export const useAppStore = create<AppState>()(
       onRehydrateStorage: () => (state) => {
         // Runtime guard for corrupted persisted lang/session payloads.
         const currentLang = state?.lang as string | undefined;
-        if (!['az', 'ru', 'en'].includes(String(currentLang || ''))) {
-          state?.setLang('az');
+        const validLang = ['az', 'ru', 'en'].includes(String(currentLang || '')) ? (currentLang as string) : 'az';
+        if (state && currentLang !== validLang) {
+          state.setLang(validLang as any);
+        } else if (typeof document !== 'undefined') {
+          document.documentElement.lang = validLang;
         }
         // Access/refresh tokens must never be rehydrated from storage.
         if (state) {
