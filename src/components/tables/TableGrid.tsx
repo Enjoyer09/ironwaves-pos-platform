@@ -118,9 +118,9 @@ function TableGrid({
 
           {/* Live stats pills */}
           <div className="hidden items-center gap-1.5 sm:flex">
-            <span className="rounded-full bg-emerald-500/15 px-2.5 py-1 text-[10px] font-bold text-emerald-300">{stats.available} {tx(lang, 'boş', 'св.', 'free')}</span>
-            <span className="rounded-full bg-violet-500/15 px-2.5 py-1 text-[10px] font-bold text-violet-300">{stats.occupied} {tx(lang, 'dolu', 'зан.', 'busy')}</span>
-            {stats.reserved > 0 && <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-[10px] font-bold text-amber-300">{stats.reserved} {tx(lang, 'rezerv', 'бр.', 'res.')}</span>}
+            <span className="rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs font-bold text-emerald-300">{stats.available} {tx(lang, 'boş', 'св.', 'free')}</span>
+            <span className="rounded-full bg-violet-500/15 px-3 py-1.5 text-xs font-bold text-violet-300">{stats.occupied} {tx(lang, 'dolu', 'зан.', 'busy')}</span>
+            {stats.reserved > 0 && <span className="rounded-full bg-amber-500/15 px-3 py-1.5 text-xs font-bold text-amber-300">{stats.reserved} {tx(lang, 'rezerv', 'бр.', 'res.')}</span>}
           </div>
         </div>
       </div>

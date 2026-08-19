@@ -86,7 +86,7 @@ function MenuGrid({
       playHapticHeavy();
       setLongPressItem(item);
       setCustomQtyText('');
-    }, 600);
+    }, 380);
   };
 
   const handleTouchEnd = () => {
@@ -110,7 +110,7 @@ function MenuGrid({
     const diffX = touch.clientX - swipeStartX.current;
     const diffY = touch.clientY - swipeStartY.current;
 
-    if (Math.abs(diffX) > 90 && Math.abs(diffY) < 60) {
+    if (Math.abs(diffX) > 50 && Math.abs(diffY) < 60) {
       const idx = categories.indexOf(selectedCategory);
       if (idx !== -1) {
         if (diffX < 0) {
