@@ -1167,23 +1167,23 @@ html {
   }
 
   .staff-product-name {
-    @apply line-clamp-1 text-[11px] font-semibold text-slate-100;
+    @apply line-clamp-1 text-sm font-bold text-slate-100;
   }
 
   .staff-product-sub {
-    @apply mt-0.5 line-clamp-1 text-[10px] text-slate-400;
+    @apply mt-0.5 line-clamp-1 text-xs text-slate-300;
   }
 
   .staff-product-price {
-    @apply mt-0.5 text-[12px] font-bold text-amber-300;
+    @apply mt-0.5 text-sm font-extrabold text-amber-300;
   }
 
   .staff-qty-row {
-    @apply mt-1 flex items-center gap-1;
+    @apply mt-1 flex items-center gap-1.5;
   }
 
   .staff-qty-btn {
-    @apply inline-flex h-6 w-6 items-center justify-center rounded-md border border-slate-600/80 bg-slate-900/55 text-xs text-slate-100 transition disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-600/80 bg-slate-900/70 text-sm font-bold text-slate-100 transition disabled:cursor-not-allowed disabled:opacity-40;
   }
 
   .staff-qty-btn:hover {
@@ -1191,11 +1191,11 @@ html {
   }
 
   .staff-qty-value {
-    @apply inline-flex min-w-7 items-center justify-center rounded-md border border-slate-700/80 bg-slate-950/45 px-1.5 py-0.5 text-xs font-bold text-slate-100;
+    @apply inline-flex min-w-8 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-950/45 px-2.5 py-1 text-sm font-black text-slate-100;
   }
 
   .staff-variant-btn {
-    @apply ml-auto rounded-md border border-amber-300/40 bg-amber-300/10 px-2 py-1 text-[10px] font-semibold text-amber-100;
+    @apply ml-auto min-h-[44px] rounded-xl border border-amber-300/40 bg-amber-300/10 px-3 py-2 text-xs font-bold text-amber-100;
   }
 
   .staff-cart-panel {
@@ -3413,26 +3413,28 @@ html {
   margin-top: 0.25rem !important;
 }
 .pos3-card .pos3-qty-btn {
-  height: 1.5rem !important;
-  width: 1.5rem !important;
-  border-radius: 0.5rem !important;
+  height: 2.75rem !important;
+  width: 2.75rem !important;
+  border-radius: 0.75rem !important;
 }
 .pos3-card .pos3-qty-btn svg {
-  width: 10px !important;
-  height: 10px !important;
+  width: 16px !important;
+  height: 16px !important;
 }
 .pos3-card .pos3-qty-value {
-  min-width: 1.5rem !important;
-  padding: 0.1rem 0.25rem !important;
-  font-size: 9px !important;
-  border-radius: 0.5rem !important;
+  min-width: 2rem !important;
+  padding: 0.25rem 0.5rem !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  border-radius: 0.75rem !important;
 }
 .pos3-card-fallback-mark {
-  height: 1.35rem !important;
-  min-width: 1.35rem !important;
-  font-size: 9px !important;
-  padding-left: 0.25rem !important;
-  padding-right: 0.25rem !important;
+  height: 1.5rem !important;
+  min-width: 1.5rem !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  padding-left: 0.35rem !important;
+  padding-right: 0.35rem !important;
 }
 
 /* Tables Compose menu grid card overrides */

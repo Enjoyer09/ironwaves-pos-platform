@@ -374,7 +374,7 @@ function MenuGrid({
                         >
                           <div className="flex flex-col items-center justify-center leading-none">
                             <span>{variant || item.item_name}</span>
-                            <span className="text-[7.5px] opacity-75 mt-0.5">{Number(item.price || 0).toFixed(2)}</span>
+                            <span className="text-[11px] font-medium opacity-85 mt-0.5">{Number(item.price || 0).toFixed(2)} ₼</span>
                           </div>
                         </button>
                       );

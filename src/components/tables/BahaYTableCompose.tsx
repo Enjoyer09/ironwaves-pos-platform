@@ -512,15 +512,15 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                 value={currentNoteText}
                 onChange={(e) => setCurrentNoteText(e.target.value)}
                 placeholder={tx(lang, 'Sifariş qeydi daxil edin...', 'Введите примечание...', 'Type order note...')}
-                className="neon-input h-10 w-full text-xs font-semibold focus:ring-yellow-300/20"
+                className="neon-input h-11 w-full text-sm font-bold focus:ring-yellow-300/20"
                 autoFocus
               />
 
               {/* Quick Modifier Grid */}
               <div>
                 <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">{tx(lang, 'Sürətli Seçimlər', 'Быстрый выбор', 'Quick Modifiers')}</div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {['Şəkərsiz', 'Az şirin', 'Buzlu', 'Badam südü', 'Sert', 'Soya südü', 'Ekstra İsti', 'Paket'].map((mod) => {
+                <div className="grid grid-cols-2 gap-2">
+                  {['Şəkərsiz', 'Az şirin', 'Buzlu', 'Badam südü', 'Sərt', 'Soya südü', 'Ekstra İsti', 'Paket'].map((mod) => {
                     const selectedMods = currentNoteText.split(',').map(s => s.trim()).filter(Boolean);
                     const isSelected = selectedMods.includes(mod);
                     return (
@@ -537,7 +537,7 @@ function BahaYTableCompose(props: BahaYTableComposeProps) {
                           }
                           setCurrentNoteText(nextText);
                         }}
-                        className={`rounded-lg border py-2 px-1 text-center text-xs font-black transition taktil-target ${
+                        className={`min-h-[44px] flex items-center justify-center rounded-xl border py-2.5 px-2 text-center text-xs font-black transition taktil-target ${
                           isSelected
                             ? 'border-yellow-450 bg-yellow-400/10 text-yellow-300'
                             : 'border-slate-800 bg-slate-900/60 text-slate-350 hover:border-slate-700/60'
