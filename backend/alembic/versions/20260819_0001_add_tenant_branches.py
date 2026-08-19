@@ -38,28 +38,57 @@ def upgrade() -> None:
     op.create_index("ix_tenant_branches_tenant_active", "tenant_branches", ["tenant_id", "is_active"])
 
     # Backfill: create a default branch for each tenant from business_profiles
+    # Uses gen_random_uuid() on PostgreSQL; falls back to lower(hex(randomblob()))
+    # on SQLite via a runtime check on the dialect.
     conn = op.get_bind()
-    conn.execute(
-        sa.text(
-            """
-            INSERT INTO tenant_branches (id, tenant_id, name, address, phone, is_active, is_default, sort_order, created_at)
-            SELECT
-                lower(hex(randomblob(4)) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab', abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))))
-            , bp.tenant_id
-            , COALESCE(bp.company_name, 'Main')
-            , bp.address
-            , bp.phone
-            , 1
-            , 1
-            , 0
-            , datetime('now')
-            FROM business_profiles bp
-            WHERE NOT EXISTS (
-                SELECT 1 FROM tenant_branches tb WHERE tb.tenant_id = bp.tenant_id
+    is_postgres = conn.dialect.name == "postgresql"
+
+    if is_postgres:
+        # Ensure pgcrypto extension is available for gen_random_uuid()
+        conn.execute(sa.text("CREATE EXTENSION IF NOT EXISTS pgcrypto"))
+        conn.execute(
+            sa.text(
+                """
+                INSERT INTO tenant_branches (id, tenant_id, name, address, phone, is_active, is_default, sort_order, created_at)
+                SELECT
+                    gen_random_uuid()
+                    , bp.tenant_id
+                    , COALESCE(bp.company_name, 'Main')
+                    , bp.address
+                    , bp.phone
+                    , 1
+                    , 1
+                    , 0
+                    , NOW()
+                FROM business_profiles bp
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM tenant_branches tb WHERE tb.tenant_id = bp.tenant_id
+                )
+                """
             )
-            """
         )
-    )
+    else:
+        conn.execute(
+            sa.text(
+                """
+                INSERT INTO tenant_branches (id, tenant_id, name, address, phone, is_active, is_default, sort_order, created_at)
+                SELECT
+                    lower(hex(randomblob(4)) || '-' || lower(hex(randomblob(2))) || '-4' || substr(lower(hex(randomblob(2))),2) || '-' || substr('89ab', abs(random()) % 4 + 1, 1) || substr(lower(hex(randomblob(2))),2) || '-' || lower(hex(randomblob(6))))
+                    , bp.tenant_id
+                    , COALESCE(bp.company_name, 'Main')
+                    , bp.address
+                    , bp.phone
+                    , 1
+                    , 1
+                    , 0
+                    , datetime('now')
+                FROM business_profiles bp
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM tenant_branches tb WHERE tb.tenant_id = bp.tenant_id
+                )
+                """
+            )
+        )
 
 
 def downgrade() -> None:
