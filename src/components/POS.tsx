@@ -2182,10 +2182,12 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
       return (
         <div key={widget} className="mb-3">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <div className={`flex flex-wrap overflow-x-auto pb-1 ${size === 'compact' ? 'gap-1' : size === 'expanded' ? 'gap-3' : 'gap-2'}`}>
+            <div className={`flex flex-wrap overflow-x-auto pb-1 ${size === 'compact' ? 'gap-1' : size === 'expanded' ? 'gap-3' : 'gap-2'}`} role="tablist" aria-label={tx(lang, 'Kateqoriyalar', 'Категории', 'Categories')}>
               {categories.map((cat) => (
                 <button
                   key={cat}
+                  role="tab"
+                  aria-selected={category === cat}
                   onClick={() => setCategory(cat)}
                   disabled={isPosMenuEditMode}
                   className={`neon-chip pos-category-btn ${category === cat ? 'neon-chip-active' : ''} ${isPosMenuEditMode ? 'cursor-not-allowed opacity-70' : ''}`}
@@ -2514,10 +2516,12 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
             )}
             <div className="pos3-menu-body">
               <div className="pos3-rail">
-                <div className="pos3-rail-scroll">
+                <div className="pos3-rail-scroll" role="tablist" aria-label={tx(lang, 'Kateqoriyalar', 'Категории', 'Categories')}>
                   {categories.map((cat) => (
                     <button
                       key={cat}
+                      role="tab"
+                      aria-selected={category === cat}
                       onClick={() => setCategory(cat)}
                       disabled={isPosMenuEditMode}
                       className={`pos3-rail-chip pos-category-btn ${category === cat ? 'pos3-rail-chip-active' : ''} ${isPosMenuEditMode ? 'cursor-not-allowed opacity-70' : ''}`}

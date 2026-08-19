@@ -1438,11 +1438,13 @@ export default function SettingsPanel() {
     <div className="flex flex-col gap-4">
       {/* Category Tab Strip — mobile + desktop friendly */}
       <div className="sticky top-0 z-20 rounded-2xl border border-slate-700/60 bg-slate-950/80 backdrop-blur-xl p-2">
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5" role="tablist" aria-label={tx(lang, 'Ayarlar kateqoriyaları', 'Категории настроек', 'Settings categories')} style={{ scrollbarWidth: 'none' }}>
           {settingsCategories.map((cat) => (
             <button
               key={cat.id}
               type="button"
+              role="tab"
+              aria-selected={activeSettingsCategory === cat.id}
               onClick={() => setActiveSettingsCategory(cat.id)}
               className={`flex shrink-0 items-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition active:scale-95 ${
                 activeSettingsCategory === cat.id
