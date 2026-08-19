@@ -1934,6 +1934,7 @@ export default function App() {
                 height: '100%',
                 paddingBottom: keyboardInset > 0 ? `${keyboardInset}px` : undefined,
               }
+        }
       >
         <a
           href="#main-content"
