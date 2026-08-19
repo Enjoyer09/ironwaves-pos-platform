@@ -825,3 +825,68 @@ test('reorder: full reorder roundtrip — build, merge twice, verify totals', ()
   assert.equal(cart[0].quantity, 3);
   assert.equal(cart[0].price, 6);
 });
+
+test('store selection: local session exposes a stores array with the tenant default', async () => {
+  clearDBCache();
+  setDB('business_profile', [
+    { id: 'bp-1', tenant_id: 't1', company_name: 'BahaY Coffee', address: 'Nizami küç. 55', phone: '+994 12 555' },
+  ]);
+  setDB('customers', [
+    {
+      id: 'cust-1', tenant_id: 't1', card_id: 'QR-STORE1', secret_token: 'tok-1',
+      type: 'golden', stars: 0, discount_percent: 0,
+      created_at: '2026-08-16T10:00:00Z',
+    },
+  ]);
+  const session = await get_customer_app_session_live('QR-STORE1', 'tok-1', 't1');
+  assert.equal(Array.isArray(session.stores), true);
+  assert.equal(session.stores.length, 1);
+  assert.equal(session.stores[0].id, 't1');
+  assert.equal(session.stores[0].name, 'BahaY Coffee');
+  assert.equal(session.stores[0].address, 'Nizami küç. 55');
+  assert.equal(session.stores[0].phone, '+994 12 555');
+  assert.equal(session.stores[0].is_default, true);
+  assert.equal(session.branding.address, 'Nizami küç. 55');
+  assert.equal(session.branding.phone, '+994 12 555');
+});
+
+test('store selection: local pre-order carries the store name into the order', async () => {
+  clearDBCache();
+  setDB('business_profile', [
+    { id: 'bp-1', tenant_id: 't1', company_name: 'BahaY Coffee', address: 'Nizami küç. 55', phone: '+994 12 555' },
+  ]);
+  setDB('customers', [
+    {
+      id: 'cust-1', tenant_id: 't1', card_id: 'QR-STORE2', secret_token: 'tok-1',
+      type: 'golden', stars: 0, discount_percent: 0,
+      created_at: '2026-08-16T10:00:00Z',
+    },
+  ]);
+  const res = await create_customer_pre_order_live({
+    cardId: 'QR-STORE2', token: 'tok-1', tenantId: 't1',
+    storeId: 't1', storeName: 'BahaY Coffee',
+    items: [{ id: 'm1', name: 'Espresso', quantity: 1, price: 3 }],
+  });
+  assert.equal(res.success, true);
+  const orders = getDB('kitchen_orders');
+  assert.equal(orders.length, 1);
+  assert.equal(orders[0].table_label, 'Online Order · BahaY Coffee');
+});
+
+test('store selection: pre-order without a store falls back to plain Online Order', async () => {
+  clearDBCache();
+  setDB('customers', [
+    {
+      id: 'cust-1', tenant_id: 't1', card_id: 'QR-STORE3', secret_token: 'tok-1',
+      type: 'golden', stars: 0, discount_percent: 0,
+      created_at: '2026-08-16T10:00:00Z',
+    },
+  ]);
+  const res = await create_customer_pre_order_live({
+    cardId: 'QR-STORE3', token: 'tok-1', tenantId: 't1',
+    items: [{ id: 'm1', name: 'Espresso', quantity: 1, price: 3 }],
+  });
+  assert.equal(res.success, true);
+  const orders = getDB('kitchen_orders');
+  assert.equal(orders[0].table_label, 'Online Order');
+});
