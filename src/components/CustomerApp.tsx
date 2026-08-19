@@ -1191,12 +1191,10 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     const joinPrimary = '#F48C24';
     const joinBg = '#0D0B0A';
     return (
-      <div className="customer-app-wrapper min-h-screen px-5 pt-[calc(env(safe-area-inset-top,47px)+12px)] pb-8 text-slate-100 flex flex-col justify-between relative overflow-hidden" 
-        style={{ background: `linear-gradient(180deg, #181412 0%, ${joinBg} 100%)` }}>
-        
-        {/* Background glowing light shapes */}
-        <div className="absolute top-[-10%] right-[-10%] h-80 w-80 rounded-full bg-[#F48C24]/12 blur-[120px] pointer-events-none z-0" />
-        <div className="absolute bottom-[20%] left-[-20%] h-72 w-72 rounded-full bg-orange-950/20 blur-[100px] pointer-events-none z-0" />
+      <div className="customer-app-wrapper customer-app-shell min-h-screen px-5 pt-[calc(env(safe-area-inset-top,47px)+12px)] pb-8 text-slate-100 flex flex-col justify-between relative overflow-hidden">
+        {/* Dynamic Aurora & Real-world Noise Layers */}
+        <div className="customer-app-aurora" />
+        <div className="customer-app-noise" />
 
         {/* Top Header bar with Lang switch */}
         <div className="flex justify-between items-center relative z-10 w-full max-w-md mx-auto">
@@ -1206,15 +1204,15 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             ) : (
               <span className="text-xl">☕</span>
             )}
-            <span className="text-sm font-extrabold uppercase tracking-widest text-white/90">
+            <span className="text-sm font-bold tracking-wider text-white/90">
               {bootstrapBranding.app_name || 'iRonWaves'}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/5 px-2.5 py-1 text-[10px] font-black text-white/80 backdrop-blur-md">
-            <Languages size={11} />
+          <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-white/80 backdrop-blur-md">
+            <Languages size={13} />
             {(['az', 'en', 'ru'] as const).map(l => (
               <button key={l} type="button" onClick={() => setLang(l)} 
-                className={`px-0.5 transition-all ${safeLang === l ? 'text-[#F48C24] font-black scale-105' : 'text-white/40 hover:text-white/70'}`}>
+                className={`px-1 transition-all ${safeLang === l ? 'text-[#F48C24] font-bold scale-105' : 'text-white/40 hover:text-white/70'}`}>
                 {l.toUpperCase()}
               </button>
             ))}
@@ -1222,27 +1220,27 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         </div>
 
         {/* Main Hero & Input container */}
-        <div className="w-full max-w-md mx-auto my-auto space-y-6 relative z-10 pt-8 pb-12">
+        <div className="w-full max-w-md mx-auto my-auto space-y-6 relative z-10 pt-6 pb-10">
           {/* Welcome Slogan */}
-          <div className="space-y-2">
-            <h1 className="text-3xl font-black tracking-tight text-white leading-tight">
+          <div className="space-y-1.5">
+            <h1 className="text-2xl font-bold tracking-tight text-white leading-tight">
               {tx(safeLang, 'Sizin üçün ən yaxşı qəhvə', 'Лучший кофе для вас', 'Find the best coffee for you')}
             </h1>
-            <p className="text-[11px] font-semibold text-white/50 leading-relaxed max-w-[280px]">
+            <p className="text-xs text-white/60 leading-relaxed max-w-[300px]">
               {bootstrapBranding.hero_subtitle || tx(safeLang, 'Loyallıq klubuna qoşulun, növbə gözləmədən sifariş edin və qazanın.', 'Присоединяйтесь к клубу лояльности и заказывайте без очереди.', 'Join the loyalty club, order ahead, and earn rewards.')}
             </p>
           </div>
 
           {/* Input Glass Card */}
-          <section className="rounded-[30px] border border-white/8 bg-white/5 backdrop-blur-2xl p-5 text-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.5)] space-y-4">
-            <div className="text-sm font-black text-white uppercase tracking-wider">
+          <section className="rounded-[28px] cust-glass p-6 text-slate-100 space-y-5">
+            <div className="text-base font-bold text-white">
               {tx(safeLang, 'Giriş və Qeydiyyat', 'Вход и Регистрация', 'Sign in & Sign up')}
             </div>
 
             {!otpSent ? (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-[9px] font-black uppercase tracking-widest text-white/40 mb-1.5">
+                  <label className="block text-xs font-medium text-white/60 mb-1.5">
                     {tx(safeLang, 'Telefon nömrəniz', 'Номер телефона', 'Phone number')}
                   </label>
                   <input
@@ -1250,12 +1248,12 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                     placeholder="+994 50 123 45 67"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="w-full rounded-2xl border border-white/8 bg-white/5 px-4 py-3.5 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-[#F48C24]/30"
+                    className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3.5 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-[#F48C24]/50"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[9px] font-black uppercase tracking-widest text-white/40 mb-1.5">
+                  <label className="block text-xs font-medium text-white/60 mb-1.5">
                     {tx(safeLang, 'Adınız (istəyə bağlı)', 'Ваше имя (необязательно)', 'Your name (optional)')}
                   </label>
                   <input
@@ -1514,18 +1512,17 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           : `linear-gradient(180deg, #181412 0%, #0D0B0A 100%)`,
       }}
     >
-      {/* Background glowing light shapes for rich glassmorphism */}
+      {/* Dynamic Aurora and Real-world Noise Background Layers */}
       {!isLight && (
         <>
-          <div className="absolute top-0 right-0 h-80 w-80 rounded-full bg-[#F48C24]/10 blur-[130px] pointer-events-none z-0" />
-          <div className="absolute top-1/3 left-0 h-64 w-64 rounded-full bg-[#1A4329]/10 blur-[100px] pointer-events-none z-0" />
-          <div className="absolute top-2/3 right-10 h-72 w-72 rounded-full bg-[#F48C24]/5 blur-[120px] pointer-events-none z-0" />
+          <div className="customer-app-aurora" />
+          <div className="customer-app-noise" />
         </>
       )}
       {isLight && (
         <>
-          <div className="absolute top-0 right-0 h-80 w-80 rounded-full bg-orange-200/30 blur-[130px] pointer-events-none z-0" />
-          <div className="absolute top-1/3 left-0 h-64 w-64 rounded-full bg-emerald-100/30 blur-[100px] pointer-events-none z-0" />
+          <div className="absolute top-0 right-0 h-80 w-80 rounded-full bg-orange-200/25 blur-[130px] pointer-events-none z-0" />
+          <div className="absolute top-1/3 left-0 h-64 w-64 rounded-full bg-emerald-100/25 blur-[100px] pointer-events-none z-0" />
         </>
       )}
       <style>{`
@@ -1807,10 +1804,10 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       >
         <div className="mx-auto max-w-md px-4 pb-3">
           <div
-            className={`flex items-center justify-around rounded-[32px] py-2 border ${
+            className={`flex items-center justify-around rounded-[28px] py-2 px-2 border ${
               isLight
-                ? 'border-slate-200 bg-white/80 text-slate-800 shadow-2xl backdrop-blur-2xl'
-                : 'border-white/10 bg-white/5 text-white shadow-2xl backdrop-blur-2xl'
+                ? 'border-black/6 bg-white/85 text-slate-800 shadow-xl backdrop-blur-2xl'
+                : 'glass-nav-capsule bg-white/5 text-white shadow-2xl'
             }`}
           >
             {bottomTabs.map((tab) => {
@@ -1824,15 +1821,15 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                     switchTabWithTransition(tab.key);
                     if (Capacitor.isNativePlatform()) {
                       try {
-                        await Haptics.impact({ style: ImpactStyle.Light });
+                        await Haptics.impact({ style: ImpactStyle.Medium });
                       } catch (hErr) {
                         console.warn('Haptics failed', hErr);
                       }
                     }
                   }}
-                  className={`relative flex items-center justify-center transition-all duration-300 ${
+                  className={`relative flex items-center justify-center transition-all duration-200 active:scale-[0.96] ${
                     active
-                      ? 'rounded-full bg-[#F48C24] text-white px-4 py-2 shadow-[0_4px_12px_rgba(244,140,36,0.25)] gap-1.5'
+                      ? 'rounded-full bg-[#F48C24] text-white px-4 py-2 shadow-[0_2px_10px_rgba(244,140,36,0.22)] gap-1.5'
                       : isLight
                         ? 'text-slate-400 hover:text-slate-700 p-2.5 rounded-full hover:bg-slate-100'
                         : 'text-white/40 hover:text-white/70 p-2.5 rounded-full hover:bg-white/5'
@@ -1840,7 +1837,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                 >
                   {tab.icon}
                   {active && (
-                    <span className="text-[10px] font-black uppercase tracking-wider animate-fadeIn">
+                    <span className="text-[11px] font-bold tracking-wide animate-fadeIn">
                       {tab.label}
                     </span>
                   )}

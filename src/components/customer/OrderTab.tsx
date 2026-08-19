@@ -66,9 +66,9 @@ export function ModifierSheet({
 
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-      style={{ animation: 'modalFadeIn 0.25s ease forwards', backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
+      style={{ animation: 'modalFadeIn 0.25s ease forwards', backgroundColor: 'rgba(0,0,0,0.60)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
       <div className="absolute inset-0" onClick={() => setModifierSheetItem(null)} />
-      <div className={`relative w-full max-w-sm rounded-[32px] ${sheetBg} border ${sheetBorder} overflow-y-auto max-h-[88vh] flex flex-col`}
+      <div className={`relative w-full max-w-sm rounded-[28px] ${sheetBg} border ${sheetBorder} overflow-y-auto max-h-[88vh] flex flex-col`}
         style={{
           animation: 'scaleIn 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
           boxShadow: isRetro
@@ -241,9 +241,9 @@ export function CartSheet({
 
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4"
-      style={{ animation: 'modalFadeIn 0.25s ease forwards', backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}>
+      style={{ animation: 'modalFadeIn 0.25s ease forwards', backgroundColor: 'rgba(0,0,0,0.60)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
       <div className="absolute inset-0" onClick={() => setShowCartSheet(false)} />
-      <div className={`relative w-full max-w-sm rounded-[32px] ${sheetBg} border ${sheetBorder} max-h-[88vh] p-5 flex flex-col`}
+      <div className={`relative w-full max-w-sm rounded-[28px] ${sheetBg} border ${sheetBorder} max-h-[88vh] p-6 flex flex-col`}
         style={{
           animation: 'scaleIn 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
           boxShadow: isRetro

@@ -79,28 +79,28 @@ export default function ProfileTab({
   const unreadCount = notifications.filter((n: any) => !n.is_read).length;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Profile Header Card */}
-      <section className={`rounded-[28px] border p-5 ${bgCard}`}>
+      <section className={`rounded-[24px] border p-6 ${bgCard}`}>
         {/* Glossy highlight */}
         {!isRetro && (
-          <div className="absolute inset-x-0 top-0 h-16 pointer-events-none rounded-t-[28px]"
+          <div className="absolute inset-x-0 top-0 h-16 pointer-events-none rounded-t-[24px]"
             style={{ background: isLight ? 'linear-gradient(180deg, rgba(255,255,255,0.4), transparent)' : 'linear-gradient(180deg, rgba(255,255,255,0.03), transparent)' }} />
         )}
 
         <div className="flex items-center justify-between gap-3 mb-4 relative z-10">
           {/* Avatar */}
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl flex items-center justify-center text-xl font-black text-white shimmer-btn"
+            <div className="h-12 w-12 rounded-2xl flex items-center justify-center text-xl font-bold text-white shimmer-btn"
               style={{
                 background: isRetro ? 'linear-gradient(135deg, #D47B5E, #E9A583)' : 'linear-gradient(135deg, #F48C24, #ffb366)',
-                boxShadow: isRetro ? '2px 2px 0px 0px #2B1B1A' : '0 6px 18px rgba(244,140,36,0.40)'
+                boxShadow: isRetro ? '2px 2px 0px 0px #2B1B1A' : '0 4px 16px rgba(244,140,36,0.30)'
               }}>
               {customer.name ? customer.name.charAt(0).toUpperCase() : 'M'}
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <div className={`text-[15px] font-black ${textPrimary}`}>{customer.name || tx(safeLang, 'Müştəri', 'Клиент', 'Customer')}</div>
+                <div className={`text-[15px] font-bold ${textPrimary}`}>{customer.name || tx(safeLang, 'Müştəri', 'Клиент', 'Customer')}</div>
                 {!editing && (
                   <button
                     type="button"
@@ -108,16 +108,16 @@ export default function ProfileTab({
                     aria-label={tx(safeLang, 'Adı və doğum tarixini redaktə et', 'Редактировать имя и дату рождения', 'Edit name & birth date')}
                     className={`p-1 rounded-lg transition ${isLight ? 'text-slate-400 hover:text-slate-700 hover:bg-black/5' : 'text-white/35 hover:text-white hover:bg-white/10'}`}
                   >
-                    <Pencil size={11} />
+                    <Pencil size={12} />
                   </button>
                 )}
               </div>
-              <div className={`text-[9px] font-mono tracking-widest mt-0.5 ${textMuted}`}>{customer.card_id}</div>
+              <div className={`text-[10px] font-mono tracking-widest mt-0.5 ${textMuted}`}>{customer.card_id}</div>
             </div>
           </div>
 
           {/* Tier badge */}
-          <span className={`text-[9px] font-black uppercase tracking-wider flex-shrink-0 ${
+          <span className={`text-[9px] font-bold uppercase tracking-wider flex-shrink-0 ${
             isRetro
               ? 'text-[#D47B5E] bg-[#FAF8F5] dark:bg-[#1E1714] px-3 py-1.5 rounded-lg border-2 border-[#2B1B1A] dark:border-[#3D2F2A] shadow-[1.5px_1.5px_0px_0px_#2B1B1A]'
               : 'px-3 py-1 rounded-full border'
@@ -127,11 +127,11 @@ export default function ProfileTab({
           </span>
         </div>
 
-        {/* Name + birth date inline edit (P1-2b) */}
+        {/* Name + birth date inline edit */}
         {editing && (
-          <div className={`rounded-2xl border p-3.5 space-y-3 mt-3 relative z-10 ${isLight ? 'bg-black/3 border-black/5' : 'bg-white/4 border-white/8'}`}>
+          <div className={`rounded-2xl border p-4 space-y-3 mt-3 relative z-10 ${isLight ? 'bg-black/3 border-black/5' : 'bg-white/4 border-white/8'}`}>
             <div>
-              <label className={`block text-[9px] font-black uppercase tracking-widest mb-1.5 ${textMuted}`}>
+              <label className={`block text-[10px] font-semibold uppercase tracking-widest mb-1.5 ${textMuted}`}>
                 {tx(safeLang, 'Adınız', 'Ваше имя', 'Your name')}
               </label>
               <input
@@ -144,7 +144,7 @@ export default function ProfileTab({
               />
             </div>
             <div>
-              <label className={`block text-[9px] font-black uppercase tracking-widest mb-1.5 ${textMuted}`}>
+              <label className={`block text-[10px] font-semibold uppercase tracking-widest mb-1.5 ${textMuted}`}>
                 {tx(safeLang, 'Doğum tarixi (istəyə bağlı — boş buraxın silmək üçün)', 'Дата рождения (необязательно — оставьте пустым, чтобы удалить)', 'Birth date (optional — leave empty to remove)')}
               </label>
               <input
@@ -152,31 +152,24 @@ export default function ProfileTab({
                 value={editBirth}
                 max={todayIso}
                 onChange={(e) => setEditBirth(e.target.value)}
-                style={{ colorScheme: 'dark' }}
                 className={inputCls}
               />
             </div>
-            {saveError && (
-              <p className="text-[10px] font-bold text-red-300 bg-red-500/8 rounded-xl py-2 px-3 border border-red-500/20">
-                {saveError}
-              </p>
-            )}
-            <div className="flex gap-2 pt-0.5">
+            {saveError && <p className="text-xs text-rose-400">{saveError}</p>}
+            <div className="flex items-center gap-2 pt-1">
               <button
                 type="button"
                 disabled={saving}
                 onClick={saveEdit}
-                className="flex-1 rounded-xl py-2.5 text-[11px] font-black text-slate-950 flex items-center justify-center gap-1.5 transition active:scale-[0.98] disabled:opacity-60"
-                style={{ background: 'linear-gradient(135deg, #F48C24 0%, #ffb366 100%)' }}
+                className="flex items-center gap-1.5 rounded-xl bg-[#F48C24] px-4 py-2 text-xs font-bold text-white transition active:scale-95 disabled:opacity-50"
               >
                 <Check size={12} />
                 {saving ? '...' : tx(safeLang, 'Yadda saxla', 'Сохранить', 'Save')}
               </button>
               <button
                 type="button"
-                disabled={saving}
                 onClick={() => setEditing(false)}
-                className={`flex-1 rounded-xl py-2.5 text-[11px] font-black flex items-center justify-center gap-1.5 border transition active:scale-[0.98] disabled:opacity-60 ${isLight ? 'border-black/10 text-slate-500 hover:bg-black/5' : 'border-white/10 text-white/50 hover:bg-white/5'}`}
+                className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs transition active:scale-95 ${isLight ? 'border-black/10 text-slate-600' : 'border-white/10 text-white/60'}`}
               >
                 <X size={12} />
                 {tx(safeLang, 'Ləğv et', 'Отмена', 'Cancel')}
@@ -185,7 +178,7 @@ export default function ProfileTab({
           </div>
         )}
 
-        {/* Profile details - Redesigned into a premium grid layout */}
+        {/* Profile details */}
         <div className="grid grid-cols-2 gap-3.5 mt-4 relative z-10">
           {[
             { label: tx(safeLang, 'Endirim faizi', 'Скидка', 'Discount'), value: `${Number(customer.discount_percent || 0).toFixed(0)}%`, highlight: true },
@@ -204,20 +197,20 @@ export default function ProfileTab({
                     : 'bg-[#0C0F14] border-white/5 hover:bg-white/5'
               }`}>
               <span className={`text-[9px] font-semibold uppercase tracking-wider ${textMuted}`}>{label}</span>
-              <span className={`text-[13px] font-black mt-2 ${highlight ? isRetro ? 'text-[#D47B5E] text-base' : 'text-[#F48C24] text-base' : textPrimary}`}>{value}</span>
+              <span className={`text-[13px] font-bold mt-2 ${highlight ? isRetro ? 'text-[#D47B5E] text-base' : 'text-[#F48C24] text-base' : textPrimary}`}>{value}</span>
             </div>
           ))}
         </div>
       </section>
 
       {/* Notifications */}
-      <section className={`rounded-[28px] border p-5 ${bgCard}`}>
+      <section className={`rounded-[24px] border p-6 ${bgCard}`}>
         <div className={`mb-4 flex items-center gap-2 text-[15px] font-bold ${textPrimary}`}>
           <Bell size={16} className={unreadCount > 0 ? isRetro ? 'text-[#D47B5E] animate-bounce' : 'text-[#F48C24] animate-bounce' : textMuted} />
           {tx(safeLang, 'Bildirişlər', 'Уведомления', 'Notifications')}
           {unreadCount > 0 && (
-            <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-black text-white ${isRetro ? 'border-2 border-[#2B1B1A] dark:border-[#3D2F2A] shadow-[1.5px_1.5px_0px_0px_#2B1B1A]' : 'animate-pulse'}`}
-              style={isRetro ? { background: '#D47B5E' } : { background: 'linear-gradient(135deg, #F48C24, #ffb366)', boxShadow: '0 4px 12px rgba(244,140,36,0.35)' }}>
+            <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold text-white ${isRetro ? 'border-2 border-[#2B1B1A] dark:border-[#3D2F2A] shadow-[1.5px_1.5px_0px_0px_#2B1B1A]' : 'animate-pulse'}`}
+              style={isRetro ? { background: '#D47B5E' } : { background: 'linear-gradient(135deg, #F48C24, #ffb366)', boxShadow: '0 4px 12px rgba(244,140,36,0.30)' }}>
               {unreadCount}
             </span>
           )}
@@ -236,7 +229,7 @@ export default function ProfileTab({
               {!row.is_read && (
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#F48C24] animate-pulse" />
-                  <span className="text-[9px] font-black uppercase tracking-wider text-[#F48C24]">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-[#F48C24]">
                     {tx(safeLang, 'Yeni', 'Новое', 'New')}
                   </span>
                 </div>
@@ -250,7 +243,7 @@ export default function ProfileTab({
 
       {/* Purchase Chart */}
       {chartData.length > 1 && (
-        <section className={`rounded-[28px] border p-5 ${bgCard}`}>
+        <section className={`rounded-[24px] border p-6 ${bgCard}`}>
           <div className={`mb-3 text-[15px] font-bold flex items-center gap-2 ${textPrimary}`}>
             <TrendingUp size={16} className="text-emerald-500" />
             {tx(safeLang, 'Alış dinamikası', 'Динамика покупок', 'Purchase dynamics')}
@@ -262,7 +255,7 @@ export default function ProfileTab({
       )}
 
       {/* Purchase History */}
-      <section className={`rounded-[28px] border p-5 ${bgCard}`}>
+      <section className={`rounded-[24px] border p-6 ${bgCard}`}>
         <div className={`mb-4 flex items-center gap-2 text-[15px] font-bold ${textPrimary}`}>
           <Gift size={16} className="text-[#F48C24]" />
           {tx(safeLang, 'Sifariş Tarixçəsi', 'История заказов', 'Order History')}

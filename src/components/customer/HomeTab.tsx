@@ -186,7 +186,7 @@ export default function HomeTab({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <style>{`
         @keyframes modalFadeIn {
           from { opacity: 0; }
@@ -245,10 +245,10 @@ export default function HomeTab({
 
       {/* Hero Greeting */}
       <div className="px-1 mb-6 stagger-fade-in">
-        <p className={`text-[10px] font-black uppercase tracking-widest ${subText}`}>
+        <p className={`text-xs font-medium ${subText}`}>
           {tx(safeLang, `Xoş gəldin, ${customer.name || 'Qonaq'} 👋`, `Привет, ${customer.name || 'Гость'} 👋`, `Welcome, ${customer.name || 'Guest'} 👋`)}
         </p>
-        <h1 className={`mt-1.5 text-2xl font-black leading-tight tracking-tight ${headerText}`}>
+        <h1 className={`mt-1 text-2xl font-bold leading-tight tracking-tight ${headerText}`}>
           {tx(safeLang, 'Sizin üçün ən yaxşı qəhvə', 'Лучший кофе для вас', 'Find the best coffee for you')}
         </h1>
       </div>
@@ -281,7 +281,7 @@ export default function HomeTab({
           <div className="flex gap-3">
             <span className="text-2xl float-slow">☕</span>
             <div>
-              <h4 className="text-[13px] font-black text-yellow-500">{tx(safeLang, 'iRonWaves-ə yaxınsan!', 'Рядом с iRonWaves!', 'Near iRonWaves!')}</h4>
+              <h4 className="text-[13px] font-bold text-yellow-500">{tx(safeLang, 'iRonWaves-ə yaxınsan!', 'Рядом с iRonWaves!', 'Near iRonWaves!')}</h4>
               <p className={`mt-0.5 text-[11px] ${isLight ? 'text-slate-700' : 'text-slate-200'}`}>{tx(safeLang, 'İçəri keç, ulduzlarını qəhvəyə çevir! 🌟', 'Заходи, преврати свои звезды в кофе! 🌟', 'Come in and turn your stars into coffee! 🌟')}</p>
             </div>
           </div>
@@ -290,16 +290,16 @@ export default function HomeTab({
       )}
 
       {/* Premium Digital Membership Card */}
-      <div onClick={async (e) => { spawnConfetti(e.clientX, e.clientY); playTickSound(); setCardFlipped(!cardFlipped); await nativeHapticImpact(ImpactStyle.Light); }}
+      <div onClick={async (e) => { spawnConfetti(e.clientX, e.clientY); playTickSound(); setCardFlipped(!cardFlipped); await nativeHapticImpact(ImpactStyle.Medium); }}
         className="w-full h-[220px] select-none cursor-pointer stagger-fade-in stagger-2"
         style={{ perspective: '1200px' }}>
-        <div className={`relative w-full h-full duration-700 preserve-3d transition-transform ${cardFlipped ? 'rotate-y-180' : ''}`}>
+        <div className={`relative w-full h-full duration-500 preserve-3d transition-transform ${cardFlipped ? 'rotate-y-180' : ''}`}>
 
           {/* CARD FRONT */}
           {isRetro ? (
             <div className="absolute inset-0 backface-hidden border flex flex-col justify-between overflow-hidden retro-card"
               style={{
-                borderRadius: '28px',
+                borderRadius: '24px',
                 padding: '20px',
                 transform: 'rotateY(0deg)',
                 WebkitTransform: 'rotateY(0deg)',
@@ -308,10 +308,10 @@ export default function HomeTab({
               }}>
               <div className="flex justify-between items-center relative z-10 w-full">
                 <div>
-                  <p className={`text-[9px] font-black uppercase tracking-[0.25em] ${isRetro ? 'text-[#D47B5E]' : 'text-[#F48C24]'}`}>iRonWaves Loyalty</p>
-                  <h1 className="mt-0.5 text-[14px] font-black text-[#2B1B1A] dark:text-white uppercase tracking-wider">{branding.hero_title || tx(safeLang, 'Möhür Kartı', 'Штамп-карта', 'Coffee Stamp Card')}</h1>
+                  <p className={`text-[9px] font-bold uppercase tracking-[0.25em] ${isRetro ? 'text-[#D47B5E]' : 'text-[#F48C24]'}`}>iRonWaves Loyalty</p>
+                  <h1 className="mt-0.5 text-[14px] font-bold text-[#2B1B1A] dark:text-white uppercase tracking-wider">{branding.hero_title || tx(safeLang, 'Möhür Kartı', 'Штамп-карта', 'Coffee Stamp Card')}</h1>
                 </div>
-                <span className={`text-[9px] font-black uppercase px-2.5 py-1 text-white border rounded-lg ${
+                <span className={`text-[9px] font-bold uppercase px-2.5 py-1 text-white border rounded-lg ${
                   isRetro
                     ? 'bg-[#D47B5E] border-[#2B1B1A] dark:border-[#3D2F2A] shadow-[1.5px_1.5px_0px_0px_#2B1B1A]'
                     : 'bg-[#F48C24] border-[#1C2029] dark:border-[#2F2622] shadow-[1.5px_1.5px_0px_0px_#1C2029]'
@@ -329,7 +329,7 @@ export default function HomeTab({
                   return (
                     <div key={slotIdx} className={`retro-stamp-slot ${isStamped ? 'retro-stamp-active' : ''}`}>
                       {isStamped ? (
-                        <span className="text-white text-base font-black drop-shadow-md">★</span>
+                        <span className="text-white text-base font-bold drop-shadow-md">★</span>
                       ) : (
                         <span className="text-[10px] font-bold text-slate-400 dark:text-white/30">{slotIdx + 1}</span>
                       )}
@@ -340,14 +340,14 @@ export default function HomeTab({
 
               <div className="flex items-center justify-between text-[9px] font-mono tracking-[0.15em] relative z-10 border-t border-dashed border-slate-900/10 dark:border-white/10 pt-2 text-slate-500 dark:text-white/40">
                 <span>ID: {formatCardIdFn(customer.card_id)}</span>
-                <span className="text-[8px] font-black uppercase tracking-widest text-[#F48C24]">{tx(safeLang, 'Skan üçün toxun', 'Коснитесь для скана', 'Tap to scan')}</span>
+                <span className="text-[8px] font-bold uppercase tracking-widest text-[#F48C24]">{tx(safeLang, 'Skan üçün toxun', 'Коснитесь для скана', 'Tap to scan')}</span>
               </div>
             </div>
           ) : (
             <div className={`absolute inset-0 backface-hidden border flex flex-col justify-between overflow-hidden card-sweep ${isLight ? 'card-premium-glow-light' : 'card-premium-glow'}`}
               style={{
-                borderRadius: '28px',
-                borderColor: isLight ? 'rgba(26,67,41,0.12)' : 'rgba(255,255,255,0.06)',
+                borderRadius: '24px',
+                borderColor: isLight ? 'rgba(26,67,41,0.12)' : 'rgba(255,255,255,0.08)',
                 background: heroImage
                   ? `linear-gradient(180deg, rgba(26, 67, 41, 0.2), rgba(13, 11, 10, 0.95)), url(${heroImage}) center/cover`
                   : `linear-gradient(135deg, ${tierColor}2E 0%, #1C2029 45%, #0C0F14 100%)`,
@@ -358,16 +358,16 @@ export default function HomeTab({
                 WebkitBackfaceVisibility: 'hidden',
               }}>
               {/* Glossy highlight bar */}
-              <div className="absolute inset-x-0 top-0 h-24 pointer-events-none"
-                style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.04), transparent)', borderRadius: '28px 28px 0 0' }} />
+              <div className="absolute inset-x-0 top-0 h-28 pointer-events-none"
+                style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 22%)', borderRadius: '24px 24px 0 0' }} />
 
               <div className="flex items-start justify-between gap-4 relative z-10">
                 <div>
                   <div className="flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-[#F48C24] animate-ping" />
-                    <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/80">{branding.app_name || 'iRonWaves'}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/80">{branding.app_name || 'iRonWaves'}</p>
                   </div>
-                  <h1 className="mt-2 text-xl font-black text-white tracking-tight drop-shadow-lg">{branding.hero_title || tx(safeLang, 'Qızılı Üzvlük', 'Золотое членство', 'Gold Membership')}</h1>
+                  <h1 className="mt-2 text-xl font-bold text-white tracking-tight drop-shadow-lg">{branding.hero_title || tx(safeLang, 'Qızılı Üzvlük', 'Золотое членство', 'Gold Membership')}</h1>
                 </div>
                 {branding.logo_url ? (
                   <img src={branding.logo_url} alt="brand" className="h-11 w-11 rounded-xl object-cover shadow-2xl border border-white/20 ring-1 ring-white/10" />
@@ -397,7 +397,7 @@ export default function HomeTab({
 
               <div className="mt-4 flex items-center justify-between text-white/50 text-[10px] font-mono tracking-[0.2em] relative z-10">
                 <span>{formatCardIdFn(customer.card_id)}</span>
-                <span className="flex items-center gap-1.5 rounded-full bg-black/30 border border-white/10 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider"
+                <span className="flex items-center gap-1.5 rounded-full bg-black/30 border border-white/10 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
                   style={{ color: tierColor }}>
                   <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: tierColor }} />
                   {tierLabel}
@@ -409,7 +409,7 @@ export default function HomeTab({
           {/* CARD BACK */}
           <div className={`absolute inset-0 backface-hidden border flex flex-col items-center justify-center ${isRetro ? 'retro-card text-[#2B1B1A] dark:text-white' : 'text-white'}`}
             style={{
-              borderRadius: '28px',
+              borderRadius: '24px',
               borderColor: isRetro ? (isLight ? '#2B1B1A' : '#3D2F2A') : 'rgba(255,255,255,0.06)',
               background: isRetro
                 ? (isLight ? '#FFFDF9' : '#1E1714')
@@ -421,8 +421,8 @@ export default function HomeTab({
               WebkitBackfaceVisibility: 'hidden',
             }}>
             {/* Glossy highlight */}
-            <div className="absolute inset-x-0 top-0 h-20 pointer-events-none"
-              style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.04), transparent)', borderRadius: '28px 28px 0 0' }} />
+            <div className="absolute inset-x-0 top-0 h-24 pointer-events-none"
+              style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 22%)', borderRadius: '24px 24px 0 0' }} />
             {cardQr ? (
               <div className="rounded-2xl bg-white p-3 shadow-2xl border border-white/5 ring-1 ring-black/5">
                 <img src={cardQr} alt="QR Code" className="h-28 w-28 object-contain" />
@@ -430,7 +430,7 @@ export default function HomeTab({
             ) : (
               <div className="text-slate-400 text-xs">No QR Code available</div>
             )}
-            <div className={`mt-3 text-[10px] font-black tracking-[0.25em] uppercase ${isRetro ? 'text-[#D47B5E]' : 'text-[#F48C24]'}`}>
+            <div className={`mt-3 text-[10px] font-bold tracking-[0.25em] uppercase ${isRetro ? 'text-[#D47B5E]' : 'text-[#F48C24]'}`}>
               {tx(safeLang, 'KASSAYA YAXINLAŞDIRIN', 'ПОДНЕСИТЕ К СКАНЕРУ', 'SCAN QR CODE')}
             </div>
             <div className="mt-1 font-mono text-[9px] text-white/50">{formatCardIdFn(customer.card_id)}</div>
@@ -440,12 +440,12 @@ export default function HomeTab({
 
       {/* Wallet Section */}
       {showWallet && (
-        <section className={`rounded-[28px] border p-5 space-y-4 stagger-fade-in stagger-3 ${isLight ? 'cust-glass-light' : 'cust-glass premium-shadow'}`}>
+        <section className={`rounded-[24px] border p-6 space-y-5 stagger-fade-in stagger-3 ${isLight ? 'cust-glass-light' : 'cust-glass premium-shadow'}`}>
           <div>
             <div className="flex items-end justify-between mb-4">
               <div>
                 <p className={`text-[9px] font-bold uppercase tracking-[0.2em] ${textMuted}`}>{wallet.points_label || 'Ulduz'}</p>
-                <p className={`mt-1 text-3xl font-black tracking-tight wallet-balance-glow ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                <p className={`mt-1 text-3xl font-bold tracking-tight wallet-balance-glow ${isLight ? 'text-slate-900' : 'text-white'}`}>
                   <AnimatedCounter value={Number(wallet.stars_balance ?? 0)} decimals={programMode === 'cashback' ? 2 : 0} suffix={balanceSuffix} />
                 </p>
               </div>
@@ -574,7 +574,7 @@ export default function HomeTab({
         </div>
         {/* Glossy top bar */}
         <div className="absolute inset-x-0 top-0 h-16 pointer-events-none"
-          style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.06), transparent)', borderRadius: '28px 28px 0 0' }} />
+          style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.06), transparent)', borderRadius: '24px 24px 0 0' }} />
         <div className="relative z-10 max-w-[70%] space-y-3.5">
           <div>
             <h4 className="text-sm font-black tracking-tight leading-snug drop-shadow-sm">{tx(safeLang, 'Hər gün təzə dəmlənmiş premium qəhvə', 'Свежесваренный премиум кофе каждый день', 'Freshly brewed premium coffee everyday')}</h4>
@@ -590,19 +590,19 @@ export default function HomeTab({
       {/* Rewards + QR grid */}
       <div className="grid grid-cols-2 gap-3.5 stagger-fade-in stagger-4">
         {/* Rewards Card */}
-        <section className={`rounded-[28px] p-5 flex flex-col justify-between border shadow-sm ${isLight ? 'cust-glass-light' : 'cust-glass'} ${Number(wallet.available_rewards || 0) > 0 ? (isLight ? 'neon-border-orange' : 'neon-border-orange animate-glow-breath') : ''}`}>
+        <section className={`rounded-[24px] p-6 flex flex-col justify-between border shadow-sm ${isLight ? 'cust-glass-light' : 'cust-glass'} ${Number(wallet.available_rewards || 0) > 0 ? (isLight ? 'neon-border-orange' : 'neon-border-orange animate-glow-breath') : ''}`}>
           <div>
-            <div className={`flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider ${subText}`}>
+            <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${subText}`}>
               <Gift size={14} className="text-[#F48C24] animate-bounce" />
               {tx(safeLang, 'Hədiyyələr', 'Награды', 'Rewards')}
             </div>
-            <div className={`mt-3 text-4xl font-black tracking-tight ${headerText}`}>{wallet.available_rewards ?? 0}</div>
-            <p className={`mt-1 text-[10px] font-semibold uppercase tracking-wider ${textMuted}`}>{wallet.reward_label || 'Hədiyyə'}</p>
+            <div className={`mt-3 text-4xl font-bold tracking-tight ${headerText}`}>{wallet.available_rewards ?? 0}</div>
+            <p className={`mt-1 text-xs font-semibold uppercase tracking-wider ${textMuted}`}>{wallet.reward_label || 'Hədiyyə'}</p>
           </div>
           {rewards[0] && Number(wallet.available_rewards || 0) > 0 ? (
             <button type="button" disabled={claiming} onClick={handleClaimWithConfetti}
-              className="relative mt-4 w-full overflow-hidden rounded-xl py-2.5 text-[12px] font-black text-white transition-all active:scale-[0.97] disabled:opacity-50 shimmer-btn"
-              style={{ background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`, boxShadow: `0 6px 20px ${primaryColor}40` }}>
+              className="relative mt-4 w-full overflow-hidden rounded-xl py-2.5 text-[12px] font-bold text-white transition-all active:scale-[0.97] disabled:opacity-50 shimmer-btn"
+              style={{ background: `linear-gradient(135deg, ${primaryColor} 0%, ${accentColor} 100%)`, boxShadow: `0 4px 16px ${primaryColor}30` }}>
               {claiming ? '...' : tx(safeLang, 'Tətbiq et', 'Забрать', 'Claim')} 🎉
             </button>
           ) : null}
@@ -610,8 +610,8 @@ export default function HomeTab({
 
         {/* QR Card */}
         <section onClick={async () => { setCardFlipped(!cardFlipped); playTickSound(); await nativeHapticImpact(ImpactStyle.Medium); }}
-          className={`rounded-[28px] p-5 flex flex-col justify-between border shadow-sm transition active:scale-[0.97] cursor-pointer ${isLight ? 'cust-glass-light' : 'cust-glass'}`}>
-          <div className={`flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider ${subText}`}>
+          className={`rounded-[24px] p-6 flex flex-col justify-between border shadow-sm transition active:scale-[0.97] cursor-pointer ${isLight ? 'cust-glass-light' : 'cust-glass'}`}>
+          <div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${subText}`}>
             <QrCode size={14} className="text-[#F48C24]" />
             {tx(safeLang, 'QR Kart', 'QR карта', 'QR Card')}
           </div>
@@ -628,18 +628,18 @@ export default function HomeTab({
         </section>
       </div>
 
-      {/* For You — real, data-driven (F1: fake weather simulation removed) */}
+      {/* For You — real, data-driven */}
       {recentItems.length > 0 && (
-        <section className={`rounded-[28px] p-5 border shadow-sm space-y-4 stagger-fade-in stagger-5 ${isLight ? 'cust-glass-light' : 'cust-glass'}`}>
+        <section className={`rounded-[24px] p-6 border shadow-sm space-y-4 stagger-fade-in stagger-5 ${isLight ? 'cust-glass-light' : 'cust-glass'}`}>
           <div className="flex items-center gap-2.5">
             <div className={`h-9 w-9 rounded-xl flex items-center justify-center border ${isLight ? 'bg-black/3 border-black/5' : 'bg-white/5 border-white/5'}`}>
               <Sparkles className="text-[#F48C24]" size={16} />
             </div>
             <div>
-              <p className={`text-[11px] font-black uppercase tracking-wider ${isLight ? 'text-slate-800' : 'text-white/80'}`}>
+              <p className={`text-xs font-bold ${isLight ? 'text-slate-800' : 'text-white/90'}`}>
                 {tx(safeLang, 'Sizin üçün', 'Для вас', 'Picked for You')}
               </p>
-              <p className={`text-[9px] font-mono mt-0.5 ${textMuted}`}>
+              <p className={`text-[10px] font-medium mt-0.5 ${textMuted}`}>
                 {tx(safeLang, 'Son sifarişlərinizə əsasən', 'На основе ваших заказов', 'Based on your recent orders')}
               </p>
             </div>
@@ -649,15 +649,17 @@ export default function HomeTab({
               <div key={idx} onClick={async () => { onReorderItem(item); await nativeHapticImpact(ImpactStyle.Light); }}
                 role="button" tabIndex={0} aria-label={`${item.name} ${tx(safeLang, 'yenidən sifariş et', 'заказать снова', 'reorder')}`}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onReorderItem(item); } }}
-                className={`flex items-center gap-3 p-3 rounded-2xl border transition-all cursor-pointer active:scale-[0.98] ${isLight ? 'bg-white/70 border-black/6 hover:shadow-md shadow-sm' : 'bg-[#0C0F14] border-white/5 hover:bg-white/5'}`}>
-                <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-lg border ${isLight ? 'bg-white border-black/6 shadow-sm' : 'bg-white/10 border-white/6'}`}>
-                  {CATEGORY_EMOJI[item.category] || '🥤'}
+                className={`flex items-center justify-between gap-3 rounded-2xl p-3.5 border active:scale-[0.98] transition-all cursor-pointer ${isLight ? 'bg-white/70 border-black/6 hover:shadow-md' : 'bg-white/6 border-white/6 hover:border-white/12 hover:bg-white/10'}`}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-lg border ${isLight ? 'bg-white border-black/6 shadow-sm' : 'bg-white/10 border-white/6'}`}>
+                    {(() => { switch(item.category) { case 'coffee': return '☕'; case 'tea': return '🍵'; case 'sweet': return '🍰'; case 'food': return '🥪'; default: return '🥤'; } })()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className={`text-xs font-bold truncate ${headerText}`}>{item.name}</p>
+                    <p className={`text-[10px] font-medium ${textMuted}`}>{item.price ? `${Number(item.price).toFixed(2)} ₼` : ''} · {item.count} {tx(safeLang, 'dəfə', 'раз', 'times')}</p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-black truncate text-[#F48C24]">{item.name}</p>
-                  <p className={`text-[9px] font-semibold mt-0.5 capitalize ${subText}`}>{item.category}</p>
-                </div>
-                <span className="text-[8px] font-black uppercase tracking-wider text-[#F48C24] bg-[#F48C24]/10 px-2.5 py-1 rounded-full border border-[#F48C24]/20 flex-shrink-0">
+                <span className="text-[10px] font-bold text-[#F48C24] bg-[#F48C24]/10 px-3 py-1 rounded-full border border-[#F48C24]/20 flex-shrink-0">
                   + {tx(safeLang, 'Sifariş', 'Заказать', 'Order')}
                 </span>
               </div>
@@ -668,8 +670,8 @@ export default function HomeTab({
 
       {/* Your Favorites */}
       {favoriteItems.length > 0 && (
-        <section className={`rounded-[28px] p-5 border shadow-sm space-y-4 ${isLight ? 'cust-glass-light' : 'cust-glass'}`}>
-          <div className="flex items-center gap-2 mb-3">
+        <section className={`rounded-[24px] p-6 border shadow-sm space-y-4 ${isLight ? 'cust-glass-light' : 'cust-glass'}`}>
+          <div className="flex items-center gap-2 mb-2">
             <Sparkles size={14} className="text-[#F48C24]" />
             <p className={`text-xs font-bold uppercase tracking-wider ${subText}`}>{tx(safeLang, 'Sizin Sevimliləriniz', 'Ваше любимое', 'Your Favorites')}</p>
           </div>
@@ -684,8 +686,8 @@ export default function HomeTab({
                   {(() => { switch(item.category) { case 'coffee': return '☕'; case 'tea': return '🍵'; case 'sweet': return '🍰'; case 'food': return '🥪'; default: return '🥤'; } })()}
                 </div>
                 <div className="overflow-hidden">
-                  <p className={`text-[12px] font-bold truncate w-24 ${headerText}`}>{item.name}</p>
-                  <p className={`text-[9px] mt-0.5 font-semibold ${textMuted}`}>{item.count} {tx(safeLang, 'dəfə', 'раз', 'times')}</p>
+                  <p className={`text-xs font-bold truncate w-24 ${headerText}`}>{item.name}</p>
+                  <p className={`text-[10px] mt-0.5 font-medium ${textMuted}`}>{item.count} {tx(safeLang, 'dəfə', 'раз', 'times')}</p>
                 </div>
               </div>
             ))}
