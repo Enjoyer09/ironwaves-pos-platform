@@ -36,6 +36,10 @@ import {
   cartSubtotal,
   cartItemCount,
 } from '../src/lib/cartMath';
+import {
+  buildReorderItem,
+  mergeReorderItem,
+} from '../src/lib/reorderItem';
 
 function seed(rows) {
   clearDBCache('kitchen_orders');
@@ -672,4 +676,152 @@ test('F5 stepper roundtrip: decrement then increment restores quantity', () => {
   assert.equal(item.quantity, 4);
   // subtotal tracks the stepper
   assert.equal(cartSubtotal([item]), 10); // 4 × 2.5
+});
+
+test('reorder: builds a cart item from history, preferring the live menu price', () => {
+  const menuItem = { id: 'm9', item_name: 'Flat White', price: 6 };
+  const item = buildReorderItem(
+    { id: 'm9', item_name: 'Old Name', qty: 2, price: 4, variant_name: 'Large', selected_modifiers: ['+extra shot'], notes: 'no sugar' },
+    menuItem,
+  );
+  assert.deepEqual(item, {
+    id: 'm9',
+    name: 'Old Name', // history name wins over menu name (as the component did)
+    quantity: 2,
+    price: 6, // live menu price preferred over the historical 4
+    variant_name: 'Large',
+    selected_modifiers: ['+extra shot'],
+    notes: 'no sugar',
+  });
+});
+
+test('reorder: falls back to the price at the time of order when menu is gone', () => {
+  // id present but no matching menu entry — item is still reorderable with
+  // the historical price (only id-less + menu-less items are rejected).
+  const item = buildReorderItem({ id: 'gone-1', name: 'Seasonal Latte', qty: 1, price: 5.5 }, undefined);
+  assert.equal(item.id, 'gone-1');
+  assert.equal(item.name, 'Seasonal Latte');
+  assert.equal(item.price, 5.5);
+});
+
+test('reorder: rejects id-less items with no menu match (no longer on the menu)', () => {
+  assert.equal(buildReorderItem({ name: 'Ghost Item', qty: 1, price: 3 }, undefined), null);
+  assert.equal(buildReorderItem({}, undefined), null);
+});
+
+test('reorder: quantity clamps to at least 1 and defaults safely', () => {
+  const zero = buildReorderItem({ id: 'm1', qty: 0 }, { id: 'm1', price: 2 });
+  assert.equal(zero.quantity, 1);
+  const missing = buildReorderItem({ id: 'm1' }, { id: 'm1', price: 2 });
+  assert.equal(missing.quantity, 1);
+  const stringQty = buildReorderItem({ id: 'm1', qty: '3' }, { id: 'm1', price: 2 });
+  assert.equal(stringQty.quantity, 3);
+});
+
+test('reorder: merge sums quantity on an identical line (same key)', () => {
+  const cart = [
+    { id: 'm9', name: 'Flat White', quantity: 2, price: 6, variant_name: 'Large', selected_modifiers: [], notes: '' },
+  ];
+  const item = { id: 'm9', name: 'Flat White', quantity: 1, price: 6, variant_name: 'Large', selected_modifiers: [], notes: '' };
+  const next = mergeReorderItem(cart, item);
+  assert.equal(next.length, 1);
+  assert.equal(next[0].quantity, 3);
+  // original cart untouched (immutable)
+  assert.equal(cart[0].quantity, 2);
+});
+
+test('reorder: merge appends when variant or modifiers differ', () => {
+  const cart = [
+    { id: 'm9', name: 'Flat White', quantity: 2, price: 6, variant_name: 'Large', selected_modifiers: [], notes: '' },
+  ];
+  const diffVariant = { id: 'm9', name: 'Flat White', quantity: 1, price: 6, variant_name: 'Small', selected_modifiers: [], notes: '' };
+  const diffMods = { id: 'm9', name: 'Flat White', quantity: 1, price: 6, variant_name: 'Large', selected_modifiers: ['+extra shot'], notes: '' };
+  assert.equal(mergeReorderItem(cart, diffVariant).length, 2);
+  assert.equal(mergeReorderItem(cart, diffMods).length, 2);
+});
+
+test('reorder: empty cart merge returns the single item', () => {
+  const item = { id: 'm1', name: 'Espresso', quantity: 2, price: 3, variant_name: null, selected_modifiers: [], notes: '' };
+  const next = mergeReorderItem([], item);
+  assert.equal(next.length, 1);
+  assert.deepEqual(next[0], item);
+});
+
+test('store selection: local session exposes a stores array with the tenant default', async () => {
+  clearDBCache();
+  setDB('business_profile', [
+    { id: 'bp-1', tenant_id: 't1', company_name: 'BahaY Coffee', address: 'Nizami küç. 55', phone: '+994 12 555' },
+  ]);
+  setDB('customers', [
+    {
+      id: 'cust-1', tenant_id: 't1', card_id: 'QR-STORE1', secret_token: 'tok-1',
+      type: 'golden', stars: 0, discount_percent: 0,
+      created_at: '2026-08-16T10:00:00Z',
+    },
+  ]);
+  const session = await get_customer_app_session_live('QR-STORE1', 'tok-1', 't1');
+  assert.equal(Array.isArray(session.stores), true);
+  assert.equal(session.stores.length, 1);
+  assert.equal(session.stores[0].id, 't1');
+  assert.equal(session.stores[0].name, 'BahaY Coffee');
+  assert.equal(session.stores[0].address, 'Nizami küç. 55');
+  assert.equal(session.stores[0].phone, '+994 12 555');
+  assert.equal(session.stores[0].is_default, true);
+  // branding also carries address/phone for the default fallback
+  assert.equal(session.branding.address, 'Nizami küç. 55');
+  assert.equal(session.branding.phone, '+994 12 555');
+});
+
+test('store selection: local pre-order carries the store name into the order', async () => {
+  clearDBCache();
+  setDB('business_profile', [
+    { id: 'bp-1', tenant_id: 't1', company_name: 'BahaY Coffee', address: 'Nizami küç. 55', phone: '+994 12 555' },
+  ]);
+  setDB('customers', [
+    {
+      id: 'cust-1', tenant_id: 't1', card_id: 'QR-STORE2', secret_token: 'tok-1',
+      type: 'golden', stars: 0, discount_percent: 0,
+      created_at: '2026-08-16T10:00:00Z',
+    },
+  ]);
+  const res = await create_customer_pre_order_live({
+    cardId: 'QR-STORE2', token: 'tok-1', tenantId: 't1',
+    storeId: 't1', storeName: 'BahaY Coffee',
+    items: [{ id: 'm1', name: 'Espresso', quantity: 1, price: 3 }],
+  });
+  assert.equal(res.success, true);
+  const orders = getDB('kitchen_orders');
+  assert.equal(orders.length, 1);
+  assert.equal(orders[0].table_label, 'Online Order · BahaY Coffee');
+});
+
+test('store selection: pre-order without a store falls back to plain Online Order', async () => {
+  clearDBCache();
+  setDB('customers', [
+    {
+      id: 'cust-1', tenant_id: 't1', card_id: 'QR-STORE3', secret_token: 'tok-1',
+      type: 'golden', stars: 0, discount_percent: 0,
+      created_at: '2026-08-16T10:00:00Z',
+    },
+  ]);
+  const res = await create_customer_pre_order_live({
+    cardId: 'QR-STORE3', token: 'tok-1', tenantId: 't1',
+    items: [{ id: 'm1', name: 'Espresso', quantity: 1, price: 3 }],
+  });
+  assert.equal(res.success, true);
+  const orders = getDB('kitchen_orders');
+  assert.equal(orders[0].table_label, 'Online Order');
+});
+
+test('reorder: full reorder roundtrip — build, merge twice, verify totals', () => {
+  // Same item ordered twice from history ends up as one cart line with the
+  // summed quantity, and the live price is what lands in the cart.
+  const menuItem = { id: 'm9', item_name: 'Flat White', price: 6 };
+  const first = buildReorderItem({ id: 'm9', item_name: 'Flat White', qty: 2, price: 4 }, menuItem);
+  const second = buildReorderItem({ id: 'm9', item_name: 'Flat White', qty: 1, price: 4 }, menuItem);
+  let cart = mergeReorderItem([], first);
+  cart = mergeReorderItem(cart, second);
+  assert.equal(cart.length, 1);
+  assert.equal(cart[0].quantity, 3);
+  assert.equal(cart[0].price, 6);
 });

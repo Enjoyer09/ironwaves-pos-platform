@@ -551,6 +551,10 @@ type OrderTabProps = {
   handleUpdateCartQty: (index: number, delta: number) => void;
   activeOrders: any[];
   designMode?: 'classic' | 'retro';
+  // Starbucks-style store selection (pickup branch).
+  stores?: any[];
+  selectedStoreId?: string;
+  setSelectedStore?: (id: string) => void;
 };
 
 export default function OrderTab({
@@ -560,8 +564,10 @@ export default function OrderTab({
   selectedVariant, setSelectedVariant, selectedModifiers, handleToggleModifier,
   handleAddToCart, showCartSheet, orderNotes, setOrderNotes,
   handleCheckoutPreOrder, preOrderSubmitting, preOrderSuccess, preOrderSuccessId,
-  setPreOrderSuccess, handleRemoveFromCart, handleUpdateCartQty, activeOrders, designMode = 'classic'
+  setPreOrderSuccess, handleRemoveFromCart, handleUpdateCartQty, activeOrders, designMode = 'classic',
+  stores = [], selectedStoreId = '', setSelectedStore
 }: OrderTabProps) {
+  const [showStorePicker, setShowStorePicker] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
   const cats = React.useMemo(
     () => Array.from(new Set(menuItems.map((it: any) => it.category).filter(Boolean))) as string[],
@@ -633,6 +639,66 @@ export default function OrderTab({
           </button>
         )}
       </div>
+
+      {/* Store selection (Starbucks-style pickup branch) */}
+      {stores.length > 0 && (
+        <div>
+          <button type="button" onClick={async () => { await Haptic.light(); setShowStorePicker(v => !v); }}
+            className={`w-full flex items-center gap-3 rounded-[18px] border p-3 text-left transition active:scale-[0.99] ${
+              isRetro
+                ? (isLight ? 'border-[2px] border-[#2B1B1A] bg-white' : 'border-[2px] border-[#3D2F2A] bg-[#1E1714]')
+                : (isLight ? 'bg-white/80 border-black/8 backdrop-blur-sm shadow-sm' : 'bg-white/6 border-white/10 backdrop-blur-md')
+            }`}>
+            <span className="flex h-10 w-10 flex-none items-center justify-center rounded-full text-[#F48C24]"
+              style={{ background: 'rgba(244,140,36,0.12)', border: '1px solid rgba(244,140,36,0.25)' }}>
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className={`block text-[10px] font-bold uppercase tracking-wider ${textMuted}`}>
+                {tx(safeLang, 'Götürmə mağazası', 'Магазин самовывоза', 'Pickup store')}
+              </span>
+              <span className={`block truncate text-sm font-black ${textPrimary}`}>
+                {stores.find((s: any) => String(s.id) === String(selectedStoreId))?.name || stores[0]?.name || ''}
+              </span>
+              {stores.find((s: any) => String(s.id) === String(selectedStoreId))?.address || stores[0]?.address ? (
+                <span className={`block truncate text-[11px] ${textSecond}`}>
+                  {stores.find((s: any) => String(s.id) === String(selectedStoreId))?.address || stores[0]?.address}
+                </span>
+              ) : null}
+            </span>
+            <svg className={`h-4 w-4 flex-none transition-transform ${showStorePicker ? 'rotate-180' : ''} ${textMuted}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {/* Store picker list */}
+          {showStorePicker && (
+            <div className={`mt-2 overflow-hidden rounded-[18px] border ${isLight ? 'bg-white border-black/8 shadow-sm' : 'bg-[#1A1F27]/95 border-white/10 shadow-xl backdrop-blur-xl'}`}>
+              {stores.map((s: any) => {
+                const active = String(s.id) === String(selectedStoreId) || (!selectedStoreId && s.is_default);
+                return (
+                  <button key={s.id} type="button"
+                    onClick={async () => { await Haptic.light(); setSelectedStore?.(String(s.id)); setShowStorePicker(false); }}
+                    className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition ${active ? 'bg-[#F48C24]/8' : 'hover:bg-white/5'}`}>
+                    <span className="min-w-0 flex-1">
+                      <span className={`block truncate text-sm font-black ${textPrimary}`}>{s.name}</span>
+                      {s.address ? <span className={`block truncate text-[11px] ${textSecond}`}>{s.address}</span> : null}
+                    </span>
+                    {active && (
+                      <svg className="h-5 w-5 flex-none text-[#F48C24]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Search (F2) */}
       <div className="relative">

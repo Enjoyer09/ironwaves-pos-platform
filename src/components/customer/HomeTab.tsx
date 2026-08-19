@@ -95,6 +95,7 @@ type Props = {
   notifications: any[];
   favoriteItems: any[];
   pendingClaims: any[];
+  claims: any[];
   geofenceAlert: boolean;
   setGeofenceAlert: (v: boolean) => void;
   recentItems: any[];
@@ -113,7 +114,7 @@ export default function HomeTab({
   safeLang, customer, customer_card_id, branding, wallet, primaryColor,
   accentColor, programMode, cardQr, showQrCard, showWallet, balanceSuffix,
   heroImage, cardFlipped, setCardFlipped, claimReward, claiming,
-  rewards, progressPercent, notifications, favoriteItems, pendingClaims,
+  rewards, progressPercent, notifications, favoriteItems, pendingClaims, claims,
   geofenceAlert, setGeofenceAlert, recentItems, setActiveTab,
   openWalletPass, get_customer_wallet_pass_url_fn, sessionCreds, data, isLight = false,
   designMode = 'classic', onReorderItem
@@ -142,6 +143,32 @@ export default function HomeTab({
   const tierColor = String(tier?.color || '#cd7f32');
   const tierLabel = (tier?.label?.[safeLang] as string) || tier?.label?.en || customer?.type || 'Member';
   const lifetimeStars = Number(customer?.lifetime_stars ?? customer?.stars ?? 0);
+
+  // Starbucks-style activated rewards: prefer the all-status claim history from
+  // the backend; fall back to pending claims (older API responses).
+  const claimList = (Array.isArray(claims) && claims.length > 0) ? claims : pendingClaims;
+  const activeClaims = claimList.filter((c: any) => c.status === 'PENDING' || !c.status);
+  const usedClaims = claimList.filter((c: any) => c.status === 'REDEEMED');
+
+  const formatClaimDate = (iso?: string | null) => {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString(safeLang === 'az' ? 'az-AZ' : safeLang === 'ru' ? 'ru-RU' : 'en-US', { day: 'numeric', month: 'short' });
+    } catch {
+      return '';
+    }
+  };
+
+  const claimStatusMeta = (status: string) => {
+    if (status === 'PENDING') {
+      return { label: tx(safeLang, 'Aktiv', 'Активен', 'Active'), dot: 'bg-emerald-500', chip: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500' };
+    }
+    if (status === 'REDEEMED') {
+      return { label: tx(safeLang, 'İstifadə olundu', 'Использовано', 'Used'), dot: 'bg-white/30', chip: isLight ? 'bg-black/5 border-black/10 text-slate-400' : 'bg-white/5 border-white/10 text-white/40' };
+    }
+    return { label: status, dot: 'bg-white/30', chip: isLight ? 'bg-black/5 border-black/10 text-slate-400' : 'bg-white/5 border-white/10 text-white/40' };
+  };
 
   const formatCardIdFn = (id: string) => {
     const clean = String(id || '').replace(/[^a-zA-Z0-9]/g, '');
@@ -666,41 +693,91 @@ export default function HomeTab({
         </section>
       )}
 
-      {/* Active Codes / Tickets */}
+      {/* My Rewards — Starbucks-style activated rewards with status */}
       <section className={`rounded-[28px] p-5 border shadow-sm ${isLight ? 'cust-glass-light' : 'cust-glass'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="flex h-2 w-2 rounded-full bg-[#F48C24] animate-pulse" />
-            <p className={`text-xs font-bold uppercase tracking-wider ${subText}`}>{tx(safeLang, 'Aktiv Kodlar', 'Коды наград', 'Active Codes')}</p>
+            <Gift size={14} className="text-[#F48C24]" />
+            <p className={`text-xs font-bold uppercase tracking-wider ${subText}`}>{tx(safeLang, 'Mükafatlarım', 'Мои награды', 'My Rewards')}</p>
           </div>
-          <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#F48C24]/10 text-[#F48C24] border border-[#F48C24]/20">{pendingClaims.length}</span>
+          <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#F48C24]/10 text-[#F48C24] border border-[#F48C24]/20">{activeClaims.length}</span>
         </div>
-        <div className="mt-4 flex gap-3.5 overflow-x-auto pb-1.5">
-          {pendingClaims.length === 0 ? (
-            <div className={`w-full rounded-2xl py-6 text-center text-xs border border-dashed ${isLight ? 'border-black/10 bg-black/3' : 'border-white/10 bg-white/4'} ${textMuted}`}>
-              {tx(safeLang, 'Hələ aktiv kodunuz yoxdur', 'Нет активных кодов', 'No active codes yet')}
-            </div>
-          ) : pendingClaims.map((row: any) => (
-            <div key={row.id}
-              className="relative min-w-[175px] shrink-0 rounded-2xl p-4 overflow-hidden flex flex-col justify-between shimmer-card"
-              style={{
-                background: 'linear-gradient(135deg, rgba(244,140,36,0.12) 0%, rgba(244,140,36,0.06) 100%)',
-                border: '1px solid rgba(244,140,36,0.32)',
-                boxShadow: '0 4px 16px rgba(244,140,36,0.10), inset 0 1px 0 rgba(255,255,255,0.05)',
-              }}>
-              {/* Ticket perforations */}
-              <div className={`absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-r border-[#F48C24]/20 ${isLight ? 'bg-slate-100' : 'bg-[#0E0C0B]'}`} />
-              <div className={`absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-l border-[#F48C24]/20 ${isLight ? 'bg-slate-100' : 'bg-[#0E0C0B]'}`} />
-              {/* Dashed center line */}
-              <div className="absolute top-1/2 left-4 right-4 h-px border-t border-dashed border-[#F48C24]/20 pointer-events-none" />
-              <div>
-                <p className="text-[8px] font-black uppercase tracking-[0.25em] text-[#F48C24]">{tx(safeLang, 'Kassaya Təqdim Et', 'На кассе', 'Present at POS')}</p>
-                <p className={`mt-1.5 text-2xl font-black tracking-tight font-mono ${isLight ? 'text-slate-800' : 'text-white'}`}>{row.claim_code}</p>
+
+        {claimList.length === 0 ? (
+          <div className={`mt-4 w-full rounded-2xl py-6 text-center text-xs border border-dashed ${isLight ? 'border-black/10 bg-black/3' : 'border-white/10 bg-white/4'} ${textMuted}`}>
+            {tx(safeLang, 'Hələ mükafat claim etməmisiniz — Ulduzlar bölməsindən claim edin', 'Вы еще не активировали награды — активируйте в разделе Звезды', 'No rewards claimed yet — claim one from the Stars section')}
+          </div>
+        ) : (
+          <>
+            {/* Active tickets */}
+            {activeClaims.length > 0 && (
+              <div className="mt-4 flex gap-3.5 overflow-x-auto pb-1.5">
+                {activeClaims.map((row: any) => {
+                  const meta = claimStatusMeta(row.status);
+                  return (
+                    <div key={row.id}
+                      className="relative min-w-[175px] shrink-0 rounded-2xl p-4 overflow-hidden flex flex-col justify-between shimmer-card"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(244,140,36,0.12) 0%, rgba(244,140,36,0.06) 100%)',
+                        border: '1px solid rgba(244,140,36,0.32)',
+                        boxShadow: '0 4px 16px rgba(244,140,36,0.10), inset 0 1px 0 rgba(255,255,255,0.05)',
+                      }}>
+                      {/* Ticket perforations */}
+                      <div className={`absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-r border-[#F48C24]/20 ${isLight ? 'bg-slate-100' : 'bg-[#0E0C0B]'}`} />
+                      <div className={`absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-l border-[#F48C24]/20 ${isLight ? 'bg-slate-100' : 'bg-[#0E0C0B]'}`} />
+                      {/* Dashed center line */}
+                      <div className="absolute top-1/2 left-4 right-4 h-px border-t border-dashed border-[#F48C24]/20 pointer-events-none" />
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[8px] font-black uppercase tracking-[0.25em] text-[#F48C24]">{tx(safeLang, 'Kassaya Təqdim Et', 'На кассе', 'Present at POS')}</p>
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-wider border ${meta.chip}`}>
+                            <span className={`h-1 w-1 rounded-full ${meta.dot} animate-pulse`} />
+                            {meta.label}
+                          </span>
+                        </div>
+                        <p className={`mt-1.5 text-2xl font-black tracking-tight font-mono ${isLight ? 'text-slate-800' : 'text-white'}`}>{row.claim_code}</p>
+                      </div>
+                      <div className={`mt-3 pt-2 border-t text-[10px] truncate font-semibold ${isLight ? 'border-black/5 text-slate-500' : 'border-white/10 text-white/60'}`}>{row.reward_name}</div>
+                    </div>
+                  );
+                })}
               </div>
-              <div className={`mt-3 pt-2 border-t text-[10px] truncate font-semibold ${isLight ? 'border-black/5 text-slate-500' : 'border-white/10 text-white/60'}`}>{row.reward_name}</div>
-            </div>
-          ))}
-        </div>
+            )}
+
+            {/* Used rewards — muted history */}
+            {usedClaims.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <p className={`text-[9px] font-bold uppercase tracking-wider ${textMuted}`}>
+                  {tx(safeLang, 'İstifadə olunmuş', 'Использованные', 'Redeemed')}
+                </p>
+                {usedClaims.map((row: any) => {
+                  const meta = claimStatusMeta(row.status);
+                  return (
+                    <div key={row.id}
+                      className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 opacity-70 ${isLight ? 'bg-black/2 border-black/5' : 'bg-white/3 border-white/6'}`}>
+                      <div className="min-w-0 flex items-center gap-2.5">
+                        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${meta.chip}`}>✓</span>
+                        <div className="min-w-0">
+                          <p className={`text-[11px] font-bold truncate ${isLight ? 'text-slate-700' : 'text-white/70'}`}>{row.reward_name}</p>
+                          <p className={`text-[9px] font-mono mt-0.5 truncate ${textMuted}`}>{row.claim_code}</p>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end">
+                        <span className={`inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-400' : 'text-white/40'}`}>
+                          <span className={`h-1 w-1 rounded-full ${meta.dot}`} />
+                          {meta.label}
+                        </span>
+                        {formatClaimDate(row.redeemed_at || row.created_at) && (
+                          <span className={`mt-0.5 text-[9px] font-mono ${textMuted}`}>{formatClaimDate(row.redeemed_at || row.created_at)}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
       </section>
     </div>
   );

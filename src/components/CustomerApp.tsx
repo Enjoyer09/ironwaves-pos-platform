@@ -18,6 +18,7 @@ import FalciTab from './customer/FalciTab';
 import OffersTab from './customer/OffersTab';
 import { formatCardId, playTickSound, playShimmerSound, CustomerTab } from '../lib/customer_utils';
 import { updateCartItemQty } from '../lib/cartMath';
+import { buildReorderItem, mergeReorderItem } from '../lib/reorderItem';
 import { syncOnAppOpen, registerWebBackgroundSync, registerCapacitorBackgroundTask } from '../lib/background_fetch';
 import { startLiveActivity, updateLiveActivity, endLiveActivity } from '../lib/live_activity';
 
@@ -110,6 +111,26 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [activeOrders, setActiveOrders] = React.useState<any[]>([]);
   const [showCartSheet, setShowCartSheet] = React.useState(false);
   const [orderNotes, setOrderNotes] = React.useState('');
+  // Starbucks-style store selection: the branch the customer picks for pickup.
+  // Persisted in localStorage so the choice survives app restarts; falls back
+  // to the tenant's default store when the session has no stores list.
+  const [selectedStoreId, setSelectedStoreId] = React.useState<string>(() => {
+    try {
+      return localStorage.getItem('customer_store_id') || '';
+    } catch {
+      return '';
+    }
+  });
+  const stores = Array.isArray((data as any)?.stores) && (data as any).stores.length > 0
+    ? (data as any).stores
+    : [{ id: (data as any)?.tenant_id || '', name: (data as any)?.branding?.company_name || '', address: (data as any)?.branding?.address || '', phone: (data as any)?.branding?.phone || '', is_default: true }];
+  const selectedStore = stores.find((s: any) => String(s.id) === String(selectedStoreId)) || stores[0] || null;
+  const setSelectedStore = React.useCallback((id: string) => {
+    setSelectedStoreId(id);
+    try {
+      localStorage.setItem('customer_store_id', id);
+    } catch {}
+  }, []);
   const [phone, setPhone] = React.useState('');
   const [otpCode, setOtpCode] = React.useState('');
   const [otpSent, setOtpSent] = React.useState(false);
@@ -240,38 +261,17 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   // Starbucks-style one-tap reorder: rebuild a cart item from an order-history
   // payload (menu item id + saved variant/modifiers are preserved) and merge it
-  // into the cart, then jump to the Order tab.
+  // into the cart, then jump to the Order tab. The pure math lives in
+  // src/lib/reorderItem.ts (buildReorderItem + mergeReorderItem) — unit-tested.
   const handleReorderItem = React.useCallback((historyItem: any) => {
     if (!historyItem) return;
     const menuItem = menuItems.find((m: any) => String(m.id) === String(historyItem.id));
-    const name = historyItem.item_name || historyItem.name || menuItem?.item_name || '';
-    if (!historyItem.id && !menuItem) {
+    const cartItem = buildReorderItem(historyItem, menuItem);
+    if (!cartItem) {
       showStatusToast(tx(safeLang, 'Bu məhsul artıq menyuda yoxdur', 'Этого товара больше нет в меню', 'This item is no longer on the menu'));
       return;
     }
-    const cartItem = {
-      id: historyItem.id || menuItem.id,
-      name,
-      quantity: Math.max(1, Number(historyItem.qty || 1)),
-      // Prefer the live menu price; fall back to the price at the time of order.
-      price: menuItem ? Number(menuItem.price ?? 0) : Number(historyItem.price ?? 0),
-      variant_name: historyItem.variant_name ?? null,
-      selected_modifiers: historyItem.selected_modifiers || [],
-      notes: historyItem.notes || ''
-    };
-    setCustomerCart(prev => {
-      const existingIdx = prev.findIndex(item =>
-        item.id === cartItem.id &&
-        item.variant_name === cartItem.variant_name &&
-        JSON.stringify(item.selected_modifiers) === JSON.stringify(cartItem.selected_modifiers)
-      );
-      if (existingIdx > -1) {
-        const next = [...prev];
-        next[existingIdx] = { ...next[existingIdx], quantity: next[existingIdx].quantity + cartItem.quantity };
-        return next;
-      }
-      return [...prev, cartItem];
-    });
+    setCustomerCart(prev => mergeReorderItem(prev, cartItem));
     playTickSound();
     showStatusToast(tx(safeLang, 'Səbətə əlavə edildi 🛒', 'Добавлено в корзину 🛒', 'Added to cart 🛒'));
     switchTabWithTransition('order');
@@ -286,7 +286,9 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         token: sessionCreds.token!,
         items: customerCart,
         notes: orderNotes,
-        tenantId: data?.tenant_id
+        tenantId: data?.tenant_id,
+        storeId: selectedStore?.id || undefined,
+        storeName: selectedStore?.name || undefined
       });
       if (res.success) {
         setPreOrderSuccessId(res.orderId);
@@ -449,6 +451,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   const rewards = Array.isArray(wallet?.rewards) ? wallet.rewards : [];
   const pendingClaims = Array.isArray(data?.pending_claims) ? data.pending_claims : [];
+  // Starbucks-style activated rewards: all-status claim history (PENDING + REDEEMED).
+  const claims = Array.isArray(data?.claims) ? data.claims : [];
 
   // P1-4: server-validated campaign activations survive restarts and cross-device
   // — seed the local timer state from the session (expired rows are already filtered).
@@ -1666,6 +1670,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             notifications={notifications}
             favoriteItems={favoriteItems}
             pendingClaims={pendingClaims}
+            claims={claims}
             geofenceAlert={geofenceAlert}
             setGeofenceAlert={setGeofenceAlert}
             recentItems={recentItems}
@@ -1714,6 +1719,9 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             handleUpdateCartQty={handleUpdateCartQty}
             activeOrders={activeOrders}
             designMode={designMode}
+            stores={stores}
+            selectedStoreId={selectedStore?.id || ''}
+            setSelectedStore={setSelectedStore}
           />
           </div>
         )}

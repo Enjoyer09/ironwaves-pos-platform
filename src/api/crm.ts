@@ -450,7 +450,18 @@ export async function get_customer_app_session_live(card_id: string, token: stri
         show_wallet: settings.show_wallet !== false,
         ai_barista_enabled: settings.ai_barista_enabled === true,
         ai_falci_enabled: settings.ai_falci_enabled === true,
+        address: profile?.address || '',
+        phone: profile?.phone || '',
       },
+      stores: [
+        {
+          id: tenantId,
+          name: profile?.company_name || 'iRonWaves POS',
+          address: profile?.address || '',
+          phone: profile?.phone || '',
+          is_default: true,
+        },
+      ],
       customer: {
         card_id: customer.card_id,
         type: customer.type,
@@ -999,6 +1010,8 @@ export async function create_customer_pre_order_live(payload: {
   items: any[];
   notes?: string;
   tenantId?: string;
+  storeId?: string;
+  storeName?: string;
 }) {
   const tId = payload.tenantId || defaultTenant();
   if (!isBackendEnabled()) {
@@ -1007,8 +1020,8 @@ export async function create_customer_pre_order_live(payload: {
       id: uuidv4(),
       tenant_id: tId,
       sale_id: uuidv4(),
-      table_label: 'Online Order',
       order_type: 'Order Online',
+      table_label: payload.storeName ? `Online Order · ${payload.storeName}` : 'Online Order',
       card_id: payload.cardId,
       status: 'NEW',
       priority: 'NORMAL',
@@ -1051,7 +1064,9 @@ export async function create_customer_pre_order_live(payload: {
       body: {
         items: payload.items,
         notes: payload.notes,
-        tenant_id: tId
+        tenant_id: tId,
+        store_id: payload.storeId,
+        store_name: payload.storeName,
       }
     }
   );

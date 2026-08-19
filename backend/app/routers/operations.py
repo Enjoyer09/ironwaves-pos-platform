@@ -1092,6 +1092,10 @@ class CustomerPreOrderItemIn(BaseModel):
 class CustomerPreOrderIn(BaseModel):
     items: list[CustomerPreOrderItemIn]
     notes: str | None = None
+    # Starbucks-style store selection: the branch the customer picked for pickup.
+    # Optional — older clients send no store and orders fall back to the tenant default.
+    store_id: str | None = None
+    store_name: str | None = None
 
 
 class CustomerBirthdayIn(BaseModel):
@@ -4092,6 +4096,16 @@ def get_customer_app_session(
         .order_by(RewardClaim.created_at.desc())
         .all()
     )
+    # Starbucks-style "activated rewards" list: recent claims across ALL statuses
+    # (PENDING = active ticket, REDEEMED = used) so the customer app can show
+    # a status-aware rewards history. Limited to the latest few.
+    recent_claims = (
+        db.query(RewardClaim)
+        .filter(RewardClaim.tenant_id == tenant.id, RewardClaim.card_id == customer.card_id)
+        .order_by(RewardClaim.created_at.desc())
+        .limit(8)
+        .all()
+    )
     now = datetime.utcnow()
     active_campaign_rows = (
         db.query(CampaignActivation, HappyHour)
@@ -4149,7 +4163,18 @@ def get_customer_app_session(
             "show_wallet": bool(app_settings.get("show_wallet", True)),
             "ai_barista_enabled": bool(app_settings.get("ai_barista_enabled", False)),
             "ai_falci_enabled": bool(app_settings.get("ai_falci_enabled", False)),
+            "address": (branding.address if branding else "") or "",
+            "phone": (branding.phone if branding else "") or "",
         },
+        "stores": [
+            {
+                "id": tenant.id,
+                "name": (branding.company_name if branding else tenant.name) or tenant.name,
+                "address": (branding.address if branding else "") or "",
+                "phone": (branding.phone if branding else "") or "",
+                "is_default": True,
+            }
+        ],
         "customer": {
             "card_id": customer.card_id,
             "type": customer.type,
@@ -4226,6 +4251,19 @@ def get_customer_app_session(
                 "created_at": row.created_at.isoformat() if row.created_at else None,
             }
             for row in pending_claims
+        ],
+        "claims": [
+            {
+                "id": row.id,
+                "claim_code": row.claim_code,
+                "reward_name": row.reward_name,
+                "reward_description": row.reward_description or "",
+                "points_cost": row.points_cost,
+                "status": row.status,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "redeemed_at": row.redeemed_at.isoformat() if row.redeemed_at else None,
+            }
+            for row in recent_claims
         ],
         "campaign_activations": [
             {
@@ -4429,9 +4467,10 @@ def create_customer_pre_order(
         }
         for item in payload.items
     ]
+    store_label = (str(payload.store_name or "").strip() or "Online Order")
     order = KitchenOrder(
         tenant_id=tenant.id,
-        table_label="Online Order",
+        table_label=store_label,
         order_type="Online",
         status="NEW",
         priority="NORMAL",
@@ -4454,14 +4493,14 @@ def create_customer_pre_order(
         f"Online sifariş qəbul edildi: {_summarize_items(items)}",
         {
             "kitchen_order_id": order.id,
-            "table_label": "Online Order",
+            "table_label": store_label,
             "status": "NEW",
             "items": _summarize_items(items),
         },
         fallback_roles={"staff", "manager", "admin", "super_admin"},
     )
     db.commit()
-    return {"success": True, "orderId": order.id}
+    return {"success": True, "orderId": order.id, "store_id": payload.store_id, "store_name": store_label}
 
 
 @router.get("/customer-app/orders")
