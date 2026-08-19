@@ -600,17 +600,17 @@ export default function KDS({ isActive = true }: { isActive?: boolean }) {
                       {!isKitchenInstruction && item.ids?.length > 0 ? (
                         <div className="flex flex-wrap gap-2 pl-10">
                           {canStart ? (
-                            <button type="button" aria-label={tx(lang, 'Hazırlığa başla', 'Начать готовить', 'Start preparing')} onClick={() => { void handleItemStatus(item.ids, 'PREPARING'); }} className="min-h-10 rounded-xl border border-blue-300/35 bg-blue-500/10 px-3 py-2 text-xs font-black text-blue-100">
+                            <button type="button" aria-label={tx(lang, 'Hazırlığa başla', 'Начать готовить', 'Start preparing')} onClick={() => { void handleItemStatus(item.ids, 'PREPARING'); }} className="min-h-12 rounded-xl border border-blue-300/35 bg-blue-500/10 px-4 py-2.5 text-xs font-black text-blue-100">
                               {tx(lang, 'Başla', 'Начать', 'Start')}
                             </button>
                           ) : null}
                           {canReady ? (
-                            <button type="button" aria-label={tx(lang, 'Sifarişi hazır et', 'Отметить готовым', 'Mark ready')} onClick={() => { void handleItemStatus(item.ids, 'READY'); }} className="min-h-10 rounded-xl border border-yellow-300/40 bg-yellow-400/15 px-3 py-2 text-xs font-black text-yellow-100">
+                            <button type="button" aria-label={tx(lang, 'Sifarişi hazır et', 'Отметить готовым', 'Mark ready')} onClick={() => { void handleItemStatus(item.ids, 'READY'); }} className="min-h-12 rounded-xl border border-yellow-300/40 bg-yellow-400/15 px-4 py-2.5 text-xs font-black text-yellow-100">
                               {tx(lang, 'Hazırdır', 'Готово', 'Ready')}
                             </button>
                           ) : null}
                           {canServe ? (
-                            <button type="button" aria-label={tx(lang, 'Servis edildi kimi işarələ', 'Отметить как подано', 'Mark as served')} onClick={() => { void handleItemStatus(item.ids, 'SERVED'); }} className="min-h-10 rounded-xl border border-emerald-300/40 bg-emerald-500/15 px-3 py-2 text-xs font-black text-emerald-100">
+                            <button type="button" aria-label={tx(lang, 'Servis edildi kimi işarələ', 'Отметить как подано', 'Mark as served')} onClick={() => { void handleItemStatus(item.ids, 'SERVED'); }} className="min-h-12 rounded-xl border border-emerald-300/40 bg-emerald-500/15 px-4 py-2.5 text-xs font-black text-emerald-100">
                               {tx(lang, 'Servis edildi', 'Подано', 'Served')}
                             </button>
                           ) : null}
