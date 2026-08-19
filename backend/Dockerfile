@@ -36,4 +36,4 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "python -m alembic upgrade head && python scripts/migrate_z_report_html.py && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --workers ${WEB_CONCURRENCY:-2}"]
+CMD ["sh", "-c", "python -m alembic upgrade head 2>&1 || (echo 'ALEMBIC MIGRATION FAILED' && exit 1) && (python scripts/migrate_z_report_html.py 2>&1 || echo 'Z-REPORT MIGRATION WARNING (non-fatal)') && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --workers ${WEB_CONCURRENCY:-2}"]
