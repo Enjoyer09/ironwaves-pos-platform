@@ -24,10 +24,10 @@ type StaffPosModeProps = {
   }>;
   cart: any[];
   checkoutBaseTotal: any;
-  getGroupQty: (group: { items: any[] }) => number;
-  increaseGroupQty: (group: { items: any[] }) => void;
-  decreaseGroupQty: (group: { items: any[] }) => void;
-  openProductPicker: (group: { base: string; items: any[] }) => void;
+  getGroupQty: (group: any) => number;
+  increaseGroupQty: (group: any) => void;
+  decreaseGroupQty: (group: any) => void;
+  openProductPicker: (group: any) => void;
   toDecimalSafe: (value: unknown, fallback?: string) => any;
   updateCartItem: (lineId: string, qty: number) => void;
   selectedPayment: PaymentMethod;

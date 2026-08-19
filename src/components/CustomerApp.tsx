@@ -1212,7 +1212,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           </div>
           <div className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/5 px-2.5 py-1 text-[10px] font-black text-white/80 backdrop-blur-md">
             <Languages size={11} />
-            {['az', 'en', 'ru'].map(l => (
+            {(['az', 'en', 'ru'] as const).map(l => (
               <button key={l} type="button" onClick={() => setLang(l)} 
                 className={`px-0.5 transition-all ${safeLang === l ? 'text-[#F48C24] font-black scale-105' : 'text-white/40 hover:text-white/70'}`}>
                 {l.toUpperCase()}

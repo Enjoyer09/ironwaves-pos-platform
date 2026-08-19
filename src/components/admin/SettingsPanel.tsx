@@ -46,6 +46,8 @@ import { prepareImageDataUrl, prepareSmallImageDataUrl } from '../../lib/image_u
 import { isAgentVersionOutdated, localPrintAgentInfo, localPrintAgentPrinters, LocalPrintAgentPrinter } from '../../lib/local_print_agent';
 import { readScopedStorage, writeScopedStorage } from '../../lib/storage_keys';
 import { detectAiConfigFromApiKey, providerLabel as aiProviderLabel } from '../../lib/ai_config';
+import { BusinessProfileSection } from './settings/BusinessProfileSection';
+import { EmailSettingsSection } from './settings/EmailSettingsSection';
 
 type RoleModules = { staff: string[]; manager: string[]; kitchen: string[] };
 
@@ -1519,76 +1521,24 @@ export default function SettingsPanel() {
         {successMsg ? <div className="border-b border-emerald-400/20 bg-emerald-500/10 px-6 py-3 text-sm text-emerald-200">{successMsg}</div> : null}
       </div>
 
-      <div id="sec-profile" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Biznes Profili', 'Профиль бизнеса', 'Business Profile')}</h2>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Şirkət adı', 'Название компании', 'Company name')}</label>
-            <input className="neon-input" value={profile?.company_name || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), company_name: e.target.value }))} />
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Telefon', 'Телефон', 'Phone')}</label>
-            <input className="neon-input" value={profile?.phone || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), phone: e.target.value }))} />
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Ünvan', 'Адрес', 'Address')}</label>
-            <input className="neon-input" value={profile?.address || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), address: e.target.value }))} />
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'Website', 'Сайт', 'Website')}</label>
-            <input className="neon-input" value={profile?.website || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), website: e.target.value }))} />
-          </div>
-          <div className="field-stack form-card">
-            <label className="field-label">{tx(lang, 'QR Base URL', 'QR Base URL', 'QR Base URL')}</label>
-            <input className="neon-input" value={profile?.qr_base_url || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), qr_base_url: e.target.value }))} />
-          </div>
-          <div className="field-stack form-card md:col-span-2">
-            <label className="field-label">{tx(lang, 'Qəbz alt mətni', 'Текст внизу чека', 'Receipt footer')}</label>
-            <input className="neon-input" value={profile?.receipt_footer || ''} onChange={(e) => setProfile((prev: any) => ({ ...(prev || {}), receipt_footer: e.target.value }))} />
-          </div>
-          <input className="neon-input md:col-span-2" type="file" accept="image/*" onChange={handleLogoUpload} />
-        </div>
-        {renderPanelSuccess('business_profile')}
-        <div className="flex justify-end">
-          <button onClick={() => { void saveBusinessProfile(); }} className={saveButtonClass}>{tx(lang, 'Saxla', 'Сохранить', 'Save')}</button>
-        </div>
-      </div>
+      <BusinessProfileSection
+        lang={lang}
+        profile={profile}
+        setProfile={setProfile}
+        handleLogoUpload={handleLogoUpload}
+        saveBusinessProfile={saveBusinessProfile}
+        renderPanelSuccess={renderPanelSuccess}
+        saveButtonClass={saveButtonClass}
+      />
 
-      <div id="sec-email" className="metal-panel p-6 space-y-4">
-        <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Email və Resend', 'Email и Resend', 'Email and Resend')}</h2>
-        <p className="text-sm text-slate-400">
-          {tx(
-            lang,
-            'Browserdən birbaşa API key göstərmək əvəzinə email-lər backend üzərindən göndərilir.',
-            'Письма отправляются через backend, чтобы не раскрывать API key в браузере.',
-            'Emails are sent through the backend so the API key is not exposed in the browser.',
-          )}
-        </p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <label className="flex items-center gap-2 text-sm text-slate-300">
-            <input type="checkbox" checked={emailSettings.enabled} onChange={(e) => setEmailSettings((prev) => ({ ...prev, enabled: e.target.checked }))} />
-            <span>{tx(lang, 'Email göndərimini aktiv et', 'Включить отправку email', 'Enable email sending')}</span>
-          </label>
-          <select className="neon-input" value={emailSettings.provider} onChange={(e) => setEmailSettings((prev) => ({ ...prev, provider: e.target.value }))}>
-            <option value="none">{tx(lang, 'Provayder seçin', 'Выберите провайдера', 'Select provider')}</option>
-            <option value="resend">Resend</option>
-            <option value="webhook">{tx(lang, 'Webhook', 'Webhook', 'Webhook')}</option>
-          </select>
-          <input className="neon-input" value={emailSettings.sender_email} onChange={(e) => setEmailSettings((prev) => ({ ...prev, sender_email: e.target.value }))} placeholder={tx(lang, 'Göndərən email', 'Email отправителя', 'Sender email')} />
-          <input className="neon-input" value={emailSettings.recipient_emails} onChange={(e) => setEmailSettings((prev) => ({ ...prev, recipient_emails: e.target.value }))} placeholder={tx(lang, 'Default alıcılar (vergüllə)', 'Получатели по умолчанию (через запятую)', 'Default recipients (comma separated)')} />
-          {emailSettings.provider === 'resend' ? (
-            <input className="neon-input md:col-span-2" value={emailSettings.resend_api_key} onChange={(e) => setEmailSettings((prev) => ({ ...prev, resend_api_key: e.target.value }))} placeholder="re_..." />
-          ) : null}
-          {emailSettings.provider === 'webhook' ? (
-            <input className="neon-input md:col-span-2" value={emailSettings.webhook_url} onChange={(e) => setEmailSettings((prev) => ({ ...prev, webhook_url: e.target.value }))} placeholder={tx(lang, 'Webhook URL', 'Webhook URL', 'Webhook URL')} />
-          ) : null}
-          <input className="neon-input" type="number" min={5} value={emailSettings.timeout_sec} onChange={(e) => setEmailSettings((prev) => ({ ...prev, timeout_sec: e.target.value }))} placeholder={tx(lang, 'Timeout (san)', 'Timeout (сек)', 'Timeout (sec)')} />
-        </div>
-        {renderPanelSuccess('email')}
-        <div className="flex justify-end">
-          <button onClick={() => { void saveEmailSettings(); }} className={saveButtonClass}>{tx(lang, 'Yadda saxla', 'Сохранить', 'Save')}</button>
-        </div>
-      </div>
+      <EmailSettingsSection
+        lang={lang}
+        emailSettings={emailSettings}
+        setEmailSettings={setEmailSettings}
+        saveEmailSettings={saveEmailSettings}
+        renderPanelSuccess={renderPanelSuccess}
+        saveButtonClass={saveButtonClass}
+      />
 
       <div id="sec-delivery" className="metal-panel p-6 space-y-4">
         <h2 className="text-xl font-bold text-slate-100">{tx(lang, 'Çatdırılma İnteqrasiyaları', 'Интеграции доставки', 'Delivery Integrations')}</h2>

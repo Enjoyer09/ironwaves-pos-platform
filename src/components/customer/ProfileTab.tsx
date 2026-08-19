@@ -12,7 +12,7 @@ type Props = {
   chartData: Array<{ date: string; amount: number }>;
   primaryColor: string;
   isLight?: boolean;
-  setLang: (lang: string) => void;
+  setLang: (lang: any) => void;
   markRead: (id: string) => void | Promise<void>;
   designMode?: 'classic' | 'retro';
   onSaveProfile?: (updates: { name?: string; birth_date?: string }) => Promise<void> | void;

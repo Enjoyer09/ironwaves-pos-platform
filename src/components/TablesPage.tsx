@@ -1769,7 +1769,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
               if (!t) return null;
               const items = Array.isArray(t.items) ? t.items : [];
               const activeKitchenOrders = kitchenOrders.filter((row) => row.table_label === t.label);
-              const detailRounds = tableDetailRecord?.table?.id === t.id ? (tableDetailRecord.rounds || []) : [];
+              const detailRounds = tableDetailRecord?.table?.id === t.id ? (tableDetailRecord?.rounds || []) : [];
               const kitchenRows = detailRounds.length > 0
                 ? detailRounds.map((row) => ({
                     id: row.id,
@@ -1817,20 +1817,20 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 .flatMap((row: any) => Array.isArray(row.items) ? row.items : [])
                 .filter((row: any) => String(row.action || '').toUpperCase() === 'CANCEL');
               const otherTables = tables.filter((row) => row.id !== t.id);
-              const detailSession = tableDetailRecord?.table?.id === t.id ? tableDetailRecord.session : null;
-              const detailCheck = tableDetailRecord?.table?.id === t.id ? tableDetailRecord.check : null;
-              const tableLockHolder = String((tableDetailRecord?.table?.id === t.id ? tableDetailRecord.table.locked_by : null) || t.assigned_to || '').trim() || null;
+              const detailSession = tableDetailRecord?.table?.id === t.id ? tableDetailRecord?.session : null;
+              const detailCheck = tableDetailRecord?.table?.id === t.id ? tableDetailRecord?.check : null;
+              const tableLockHolder = String((tableDetailRecord?.table?.id === t.id ? tableDetailRecord?.table?.locked_by : null) || t.assigned_to || '').trim() || null;
               const isManagerUser = ['admin', 'manager', 'super_admin'].includes(String(user?.role || '').toLowerCase());
               const userCanEditTable = !tableLockHolder || tableLockHolder === user?.username || isManagerUser;
 	              const detailActiveItems = detailRounds.length > 0
 	                ? detailRounds.flatMap((round) => round.items.map((item) => ({ ...item, round_no: round.round_no })))
 	                : [];
-	              const serverDraftItems = tableDetailRecord?.table?.id === t.id ? (tableDetailRecord.draft_items || []) : [];
+	              const serverDraftItems = tableDetailRecord?.table?.id === t.id ? (tableDetailRecord?.draft_items || []) : [];
 	              const draftRows = detailCheck?.id ? serverDraftItems : roundDraft;
 	              const draftTotal = draftRows.reduce((acc: Decimal, row: any) => acc.plus(new Decimal(row.price || 0).times(row.qty || 0)), new Decimal(0)).toFixed(2);
 	              const sentDisplayItems = detailCheck?.id ? detailActiveItems : (detailActiveItems.length > 0 ? detailActiveItems : items);
 	              const fullOrderRows = detailCheck?.id ? [...draftRows, ...detailActiveItems] : (detailActiveItems.length > 0 ? detailActiveItems : items);
-	              const visibleCheckTotal = new Decimal(detailCheck?.total || (tableDetailRecord?.table?.id === t.id ? tableDetailRecord.table.check_total : null) || t.total || 0);
+	              const visibleCheckTotal = new Decimal(detailCheck?.total || (tableDetailRecord?.table?.id === t.id ? tableDetailRecord?.table?.check_total : null) || t.total || 0);
 	              const tableNeedsSafeCancel = Boolean(
 	                t.is_occupied &&
 	                fullOrderRows.length === 0 &&
@@ -2124,7 +2124,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
 	                        sentItems={sentDisplayItems}
 	                        onShowFullList={() => setShowFullOrderList(true)}
 	                        onVoidItem={(item) => { setItemActionTarget({ item, action: 'VOID' }); setItemActionReason(''); setItemActionManagerPassword(''); }}
-	                        lockHolder={tableLockHolder}
+	                        lockHolder={tableLockHolder || ''}
 	                        userCanEditTable={userCanEditTable}
 	                        readyCount={readyItems.length}
 	                        roundsCount={rounds.length}
@@ -2481,7 +2481,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                 setActiveFloorId={setActiveFloorId}
                 kitchenOrders={kitchenOrders}
                 onOpenTable={async (tableId, guestCount) => {
-                  await open_table_live(tableId, { guest_count: Number(guestCount || 1) });
+                  await open_table_live(tableId, { guest_count: Number(guestCount || 1), deposit_guest_count: 0, opened_by: user?.username || 'waiter' });
                   await loadData();
                 }}
                 onSelectTable={handleSelectWaiterTable}
