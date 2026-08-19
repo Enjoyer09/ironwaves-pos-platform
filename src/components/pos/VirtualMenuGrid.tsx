@@ -114,7 +114,7 @@ export default function VirtualMenuGrid<T>({
 
   if (virtualize) {
     return (
-      <div ref={scrollRef} onScroll={handleScroll} className={scrollClassName}>
+      <div ref={scrollRef} onScroll={handleScroll} className={scrollClassName} style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
         <div style={{ position: 'relative', height: win.totalH }}>
           <div
             ref={windowRef}
@@ -131,7 +131,7 @@ export default function VirtualMenuGrid<T>({
   }
 
   return (
-    <div ref={scrollRef} onScroll={handleScroll} className={scrollClassName}>
+    <div ref={scrollRef} onScroll={handleScroll} className={scrollClassName} style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
       <div ref={windowRef} className={gridClassName}>
         {groups.map((group) => (
           <Fragment key={getKey(group)}>{renderItem(group)}</Fragment>
