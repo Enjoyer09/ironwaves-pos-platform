@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Decimal } from 'decimal.js';
 import QRCode from 'qrcode';
 import JsBarcode from 'jsbarcode';
-import { Search, ShoppingCart, ClipboardList, Plus, Minus, Check, ScanLine, ChevronDown, WifiOff } from 'lucide-react';
+import { Search, ShoppingCart, ClipboardList, Plus, Minus, Check, ScanLine, ChevronDown, WifiOff, ImageOff } from 'lucide-react';
 import { useAppStore } from '../store';
 import { get_menu_for_pos, create_sale, calculate_total, calculate_staff_payable, save_sale_receipt_html_live } from '../api/pos';
 import { get_tables_live, send_to_kitchen_live, pay_table_live } from '../api/tables';
@@ -1848,8 +1848,8 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
   const tableBlockVisible = isWidgetVisible('table');
   const sidebarWidgetOrder = posLayout.widget_order || [];
   const pinnedCheckoutWidgets = ['cartSummary', 'payments'];
-  const floatingSidebarWidgets = sidebarWidgetOrder.filter((widget) => !pinnedCheckoutWidgets.includes(widget));
-  const footerSidebarWidgets = sidebarWidgetOrder.filter((widget) => pinnedCheckoutWidgets.includes(widget));
+  const floatingSidebarWidgets = sidebarWidgetOrder.filter((widget: string) => !pinnedCheckoutWidgets.includes(widget));
+  const footerSidebarWidgets = sidebarWidgetOrder.filter((widget: string) => pinnedCheckoutWidgets.includes(widget));
   const renderSidebarWidget = (widget: string) => {
     if (!isWidgetVisible(widget)) return null;
     if (widget === 'customer') {

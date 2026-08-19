@@ -95,10 +95,8 @@ export async function registerCapacitorBackgroundTask(payload: BgSyncPayload) {
   if (!Capacitor.isNativePlatform()) return;
 
   try {
-    // Dynamic import to avoid crashes if plugin isn't installed
-    const { BackgroundTask } = await import(
-      /* @vite-ignore */ '@capacitor/background-task'
-    ).catch(() => ({ BackgroundTask: null }));
+    // @ts-ignore
+    const { BackgroundTask } = await import('@capacitor/background-task' as any).catch(() => ({ BackgroundTask: null }));
 
     if (!BackgroundTask) {
       console.log('[BackgroundFetch] @capacitor/background-task not installed — skipping');

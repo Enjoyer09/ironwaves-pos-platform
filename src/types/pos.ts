@@ -403,7 +403,7 @@ export interface Settings {
   };
   gemini_api_key?: string;
   ai_config?: {
-    provider?: 'google' | 'openai' | 'anthropic' | 'openrouter' | 'xai' | 'huggingface' | 'ollama' | 'ollama_freeapi' | 'opencode' | 'unknown';
+    provider?: 'google' | 'openai' | 'anthropic' | 'openrouter' | 'xai' | 'huggingface' | 'ollama' | 'ollama_freeapi' | 'opencode' | 'freemodel' | 'unknown';
     model?: string;
     autodetected?: boolean;
     ollama_freeapi_enabled?: boolean;

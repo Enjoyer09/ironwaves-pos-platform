@@ -10,7 +10,7 @@ const CATEGORY_EMOJI: Record<string, string> = { coffee: '☕', tea: '🍵', swe
 function AnimatedCounter({ value, suffix = '', decimals = 0 }: { value: number; suffix?: string; decimals?: number }) {
   const [display, setDisplay] = React.useState(0);
   const prevRef = React.useRef(0);
-  const rafRef = React.useRef<number>();
+  const rafRef = React.useRef<number | undefined>(undefined);
 
   React.useEffect(() => {
     const startVal = prevRef.current;
