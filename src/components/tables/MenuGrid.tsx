@@ -110,7 +110,8 @@ function MenuGrid({
     const diffX = touch.clientX - swipeStartX.current;
     const diffY = touch.clientY - swipeStartY.current;
 
-    if (Math.abs(diffX) > 50 && Math.abs(diffY) < 60) {
+    // Only switch categories on a clear, deliberate horizontal flick (not vertical scrolling)
+    if (Math.abs(diffX) > 80 && Math.abs(diffX) > Math.abs(diffY) * 2.5 && Math.abs(diffY) < 35) {
       const idx = categories.indexOf(selectedCategory);
       if (idx !== -1) {
         if (diffX < 0) {
@@ -261,11 +262,11 @@ function MenuGrid({
       </div>
 
       {/* Product grid - grouped by variant */}
-      <div className={`grid min-h-0 flex-1 auto-rows-max gap-2 md:gap-2.5 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/30 p-2 sm:p-2.5 ${
+      <div className={`grid min-h-0 flex-1 auto-rows-max gap-2 md:gap-2.5 overflow-y-auto overscroll-y-contain rounded-2xl border border-slate-700/50 bg-slate-950/30 p-2 sm:p-2.5 touch-pan-y ${
         hideImages
           ? 'grid-cols-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-7'
           : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-6'
-      }`}>
+      }`} style={{ WebkitOverflowScrolling: 'touch' }}>
         {groupedItems.map((group) => {
           const totalQtyInDraft = group.items.reduce((sum: number, it: any) => sum + (draftQtyMap.get(it.id) || 0), 0);
           const isPromo = summerPromoEnabled && group.items.some((it: any) => isPromoEligibleItem({ category: it.category || '', item_name: it.item_name }));

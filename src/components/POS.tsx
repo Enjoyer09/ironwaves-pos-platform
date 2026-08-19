@@ -2647,7 +2647,7 @@ export default function POS({ isActive = true }: { isActive?: boolean }) {
                   </div>
                   );
                 }}
-                scrollClassName="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pr-1"
+                scrollClassName="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pr-1 touch-pan-y"
                 gridClassName="grid min-h-0 auto-rows-max grid-cols-3 gap-1 content-start md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6"
                 estimatedRowHeight={130}
                 threshold={100}

@@ -960,8 +960,9 @@ html {
     background: linear-gradient(145deg, #22344a, #141f31);
   }
 
+  .pos3-shell,
   html[data-ui-mode='new'] .pos3-shell {
-    @apply flex h-full min-h-0 flex-col px-3 pb-4 pt-3 md:px-4 xl:px-6;
+    @apply flex h-full min-h-0 flex-col overflow-hidden px-3 pb-4 pt-3 md:px-4 xl:px-6;
     background:
       radial-gradient(circle at 12% 4%, rgba(148, 163, 184, 0.12), transparent 30%),
       radial-gradient(circle at 92% 2%, rgba(59, 130, 246, 0.1), transparent 28%),
@@ -1010,11 +1011,11 @@ html {
   }
 
   .pos3-workspace {
-    @apply grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_448px];
+    @apply grid min-h-0 flex-1 overflow-hidden grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_448px];
   }
 
   .pos3-menu {
-    @apply flex min-h-0 flex-col overflow-hidden rounded-3xl border border-slate-700/60 bg-slate-950/26 p-3.5 shadow-[0_16px_34px_rgba(2,6,23,0.38)];
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-slate-700/60 bg-slate-950/26 p-3.5 shadow-[0_16px_34px_rgba(2,6,23,0.38)];
     backdrop-filter: blur(5px);
   }
 
@@ -1031,7 +1032,7 @@ html {
   }
 
   .pos3-menu-body {
-    @apply flex min-h-0 flex-1 gap-2;
+    @apply flex min-h-0 flex-1 gap-2 overflow-hidden;
   }
 
   .pos3-rail {
@@ -1040,6 +1041,8 @@ html {
 
   .pos3-rail-scroll {
     @apply flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-y-contain pr-1;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
 
   .pos3-rail-chip {
@@ -1057,6 +1060,8 @@ html {
   .pos3-product-grid {
     @apply grid min-h-0 flex-1 auto-rows-max grid-cols-3 gap-1 overflow-y-auto overscroll-y-contain pr-1 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6;
     align-content: start;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
 
   .pos3-card {
@@ -1202,11 +1207,11 @@ html {
   }
 
   .staff-pos-workspace {
-    @apply grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_470px];
+    @apply grid min-h-0 flex-1 overflow-hidden grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_470px];
   }
 
   .staff-pos-main {
-    @apply flex min-h-0 flex-col rounded-3xl border border-slate-700/60 bg-slate-950/24 p-4 shadow-[0_16px_30px_rgba(2,6,23,0.34)];
+    @apply flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-slate-700/60 bg-slate-950/24 p-4 shadow-[0_16px_30px_rgba(2,6,23,0.34)];
     backdrop-filter: blur(5px);
   }
 
@@ -1229,6 +1234,8 @@ html {
 
   .staff-category-tabs {
     @apply mt-3 flex gap-2 overflow-x-auto pb-1;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
   }
 
   .staff-category-chip {
@@ -1240,8 +1247,10 @@ html {
   }
 
   .staff-product-grid {
-    @apply mt-2 grid min-h-0 flex-1 auto-rows-max grid-cols-3 gap-1.5 overflow-y-auto pr-1 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6;
+    @apply mt-2 grid min-h-0 flex-1 auto-rows-max grid-cols-3 gap-1.5 overflow-y-auto overscroll-y-contain pr-1 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6;
     align-content: start;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
 
   .staff-product-card {
