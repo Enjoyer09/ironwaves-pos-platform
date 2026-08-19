@@ -581,10 +581,12 @@ export default function PinLogin() {
                   <div className="mt-1.5 text-xs text-slate-400">{t.pin_prompt}</div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 gap-3" role="group" aria-label={tx(safeLang, 'PIN düymələri', 'Клавиатура PIN', 'PIN Keypad')}>
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                     <button
                       key={num}
+                      type="button"
+                      aria-label={`${num}`}
                       onClick={() => handleKeyPress(num.toString())}
                       disabled={isLoggingIn}
                       className="rounded-2xl border border-white/5 bg-white/[0.08] hover:bg-white/[0.14] active:scale-95 py-5 text-2xl font-bold text-white transition shadow-sm"
@@ -593,6 +595,8 @@ export default function PinLogin() {
                     </button>
                   ))}
                   <button
+                    type="button"
+                    aria-label={tx(safeLang, 'Təmizlə', 'Очистить', 'Clear')}
                     onClick={handleClear}
                     disabled={isLoggingIn}
                     className="rounded-2xl border border-white/5 bg-white/[0.08] hover:bg-white/[0.14] active:scale-95 py-5 text-sm font-bold text-slate-400 transition"
@@ -600,6 +604,8 @@ export default function PinLogin() {
                     CLR
                   </button>
                   <button
+                    type="button"
+                    aria-label="0"
                     onClick={() => handleKeyPress('0')}
                     disabled={isLoggingIn}
                     className="rounded-2xl border border-white/5 bg-white/[0.03] hover:bg-white/[0.08] active:scale-95 py-5 text-2xl font-bold text-white transition"
@@ -607,6 +613,8 @@ export default function PinLogin() {
                     0
                   </button>
                   <button
+                    type="button"
+                    aria-label={tx(safeLang, 'Sil', 'Удалить', 'Delete')}
                     onClick={() => setPin((prev) => prev.slice(0, -1))}
                     disabled={isLoggingIn}
                     className="flex items-center justify-center rounded-2xl border border-white/5 bg-white/[0.08] hover:bg-white/[0.14] active:scale-95 py-5 text-white transition"
