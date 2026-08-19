@@ -585,8 +585,12 @@ export default function DashboardPanel({ onOpenTab }: { onOpenTab: (tab: Dashboa
 
 function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="space-y-5 bg-slate-950/20 text-slate-100">
-      {children}
+    <div className="relative space-y-5 bg-slate-950/20 text-slate-100">
+      <div className="web-aurora-subtle" />
+      <div className="web-noise-overlay" />
+      <div className="relative z-10 space-y-5">
+        {children}
+      </div>
     </div>
   );
 }

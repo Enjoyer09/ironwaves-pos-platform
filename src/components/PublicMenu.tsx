@@ -292,7 +292,9 @@ export default function PublicMenu() {
       className="relative min-h-dvh overflow-x-hidden overflow-y-auto overscroll-contain flex flex-col justify-between"
       style={{ background: backgroundColor, color: textColor, fontFamily: resolvedFontFamily }}
     >
-      {/* Ambient liquid blobs */}
+      {/* Ambient live aurora & noise */}
+      <div className="customer-app-aurora" />
+      <div className="customer-app-noise" />
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
         <div
           className="absolute -left-20 -top-20 h-72 w-72 rounded-full opacity-35 blur-[100px]"
