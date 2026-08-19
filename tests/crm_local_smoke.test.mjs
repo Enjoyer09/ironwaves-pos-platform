@@ -890,3 +890,23 @@ test('store selection: pre-order without a store falls back to plain Online Orde
   const orders = getDB('kitchen_orders');
   assert.equal(orders[0].table_label, 'Online Order');
 });
+
+test('order status: get_customer_orders_live returns table_label for store-aware orders', async () => {
+  clearDBCache();
+  setDB('customers', [
+    {
+      id: 'cust-1', tenant_id: 't1', card_id: 'QR-ORDER1', secret_token: 'tok-1',
+      type: 'golden', stars: 0, discount_percent: 0,
+      created_at: '2026-08-16T10:00:00Z',
+    },
+  ]);
+  // Pre-order with store name → table_label = 'Online Order · BahaY Coffee'
+  await create_customer_pre_order_live({
+    cardId: 'QR-ORDER1', token: 'tok-1', tenantId: 't1',
+    storeId: 't1', storeName: 'BahaY Coffee',
+    items: [{ id: 'm1', name: 'Espresso', quantity: 1, price: 3 }],
+  });
+  const orders = await get_customer_orders_live('QR-ORDER1', 'tok-1', 't1');
+  assert.equal(orders.length, 1);
+  assert.equal(orders[0].table_label, 'Online Order · BahaY Coffee');
+});

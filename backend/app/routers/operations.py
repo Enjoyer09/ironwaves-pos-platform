@@ -4525,6 +4525,7 @@ def get_customer_orders(
             "id": row.id,
             "status": row.status,
             "order_type": row.order_type,
+            "table_label": row.table_label or '',
             "items": _json_load(row.items_json, []),
             "created_at": row.created_at.isoformat() if row.created_at else None,
             "completed_at": row.completed_at.isoformat() if row.completed_at else None,

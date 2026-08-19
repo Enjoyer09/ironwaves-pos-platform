@@ -481,6 +481,26 @@ function LiveOrderStatus({ orders, safeLang, isLight, isRetro }: { orders: any[]
               </span>
             </div>
 
+            {/* Pickup store name (from 'Online Order · StoreName' table_label) */}
+            {(() => {
+              const label = String(order.table_label || '');
+              const sep = label.indexOf('·');
+              if (sep < 0) return null;
+              const storeName = label.slice(sep + 1).trim();
+              if (!storeName) return null;
+              return (
+                <div className="flex items-center gap-1.5">
+                  <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span className={`text-[9px] font-bold ${textSecond}`}>
+                    {tx(safeLang, 'Götürmə:', 'Самовывоз:', 'Pickup:')} {storeName}
+                  </span>
+                </div>
+              );
+            })()}
+
             {/* 3-step progress: NEW → PREPARING → READY */}
             <div className="flex items-center gap-1.5">
               {ORDER_STATUS_STEPS.map((s, i) => (

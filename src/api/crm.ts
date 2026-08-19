@@ -1089,6 +1089,7 @@ export async function get_customer_orders_live(cardId: string, token: string, te
         id: row.id,
         status: row.status || 'NEW',
         order_type: row.order_type || 'Online',
+        table_label: row.table_label || 'Online Order',
         items: Array.isArray(row.items) ? row.items : [],
         created_at: row.created_at || null,
         completed_at: row.completed_at || null,
