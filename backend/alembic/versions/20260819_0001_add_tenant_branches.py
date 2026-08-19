@@ -51,13 +51,13 @@ def upgrade() -> None:
                 """
                 INSERT INTO tenant_branches (id, tenant_id, name, address, phone, is_active, is_default, sort_order, created_at)
                 SELECT
-                    gen_random_uuid()
+                    gen_random_uuid()::text
                     , bp.tenant_id
                     , COALESCE(bp.company_name, 'Main')
                     , bp.address
                     , bp.phone
-                    , 1
-                    , 1
+                    , true
+                    , true
                     , 0
                     , NOW()
                 FROM business_profiles bp
