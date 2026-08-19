@@ -2051,7 +2051,7 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                     </div>
                   )}
 	                  <div className={`mt-2 rounded-2xl border border-slate-700/70 bg-slate-900/30 p-2.5 ${ isBahaYLab && isMobileView ? 'hidden' : ''}`}>
-	                    <div className="flex flex-wrap gap-2.5">
+	                    <div className="flex flex-wrap gap-2.5" role="tablist" aria-label={tx(lang, 'Masa iş sahəsi', 'Рабочая область стола', 'Table workspace')}>
                       {([
                         ['compose', tx(lang, 'Sifariş', 'Заказ', 'Order')],
                         ['service', `${tx(lang, 'Servis', 'Сервис', 'Service')}${readyItems.length > 0 ? ` · ${readyItems.length}` : ''}`],
@@ -2061,6 +2061,8 @@ export default function TablesPage({ isActive = true }: { isActive?: boolean }) 
                         <button
                           key={tabKey}
                           type="button"
+                          role="tab"
+                          aria-selected={tableWorkspaceTab === tabKey}
                           onClick={() => setTableWorkspaceTab(tabKey)}
 	                          className={`rounded-2xl px-5 py-3 text-sm font-bold transition active:scale-95 taktil-target ${tableWorkspaceTab === tabKey ? 'bg-yellow-400 text-slate-950 shadow-md shadow-yellow-500/20 border-2 border-yellow-300/60' : 'border-2 border-slate-600/80 bg-slate-800/50 text-slate-200 hover:bg-slate-700/60 hover:border-slate-500/80'}`}
                         >
