@@ -6,6 +6,37 @@ import { formatCardId, playTickSound, nativeHapticImpact, Haptic } from '../../l
 
 const CATEGORY_EMOJI: Record<string, string> = { coffee: '☕', tea: '🍵', sweet: '🍰', food: '🥪', cold: '🥤' };
 
+/* ── Cozy coffee-shop helpers ──────────────────────────────────── */
+function coffeeGreeting(lang: string): string {
+  const h = new Date().getHours();
+  if (h < 12) return lang === 'ru' ? 'Доброе утро' : lang === 'en' ? 'Good morning' : 'Sabahlar xeyir';
+  if (h < 18) return lang === 'ru' ? 'Добрый день' : lang === 'en' ? 'Good afternoon' : 'Günortanız xeyir';
+  return lang === 'ru' ? 'Добрый вечер' : lang === 'en' ? 'Good evening' : 'Axşamınız xeyir';
+}
+
+/* Steaming coffee cup with a latte-art rosette — hero accent */
+function CoffeeCupSteam() {
+  return (
+    <div className="relative h-[68px] w-[68px]" aria-hidden="true">
+      <span className="coffee-steam" style={{ left: '30%', animationDelay: '0s' }} />
+      <span className="coffee-steam" style={{ left: '50%', animationDelay: '0.8s' }} />
+      <span className="coffee-steam" style={{ left: '68%', animationDelay: '1.5s' }} />
+      <svg viewBox="0 0 64 64" className="h-full w-full drop-shadow-lg">
+        <ellipse cx="32" cy="57" rx="25" ry="4.5" fill="rgba(0,0,0,0.18)" />
+        <path d="M15 27 h34 v13 a17 17 0 0 1 -34 0 z" fill="#3A2417" />
+        <path d="M49 29 q11 1 9 12 q-2 7 -9 5" stroke="#3A2417" strokeWidth="4.5" fill="none" strokeLinecap="round" />
+        <ellipse cx="32" cy="27" rx="17" ry="5" fill="#6F4A2F" />
+        <g stroke="#F3E9DC" strokeWidth="1.3" fill="none" strokeLinecap="round" opacity="0.92">
+          <path d="M32 23 q-1.5 4 0 8 q1.5 -4 0 -8" />
+          <path d="M28 25 q3.5 2 8 0" />
+          <path d="M29 27 q3 1.5 6 0" />
+        </g>
+        <circle cx="32" cy="27" r="1.6" fill="#F3E9DC" />
+      </svg>
+    </div>
+  );
+}
+
 /* ── Animated Counter ────────────────────────────────────────────── */
 function AnimatedCounter({ value, suffix = '', decimals = 0 }: { value: number; suffix?: string; decimals?: number }) {
   const [display, setDisplay] = React.useState(0);
@@ -245,14 +276,22 @@ export default function HomeTab({
         </button>
       </div>
 
-      {/* Hero Greeting */}
-      <div className="px-1 mb-6 stagger-fade-in">
-        <p className={`text-xs font-medium ${subText}`}>
-          {tx(safeLang, `Xoş gəldin, ${customer.name || 'Qonaq'} 👋`, `Привет, ${customer.name || 'Гость'} 👋`, `Welcome, ${customer.name || 'Guest'} 👋`)}
-        </p>
-        <h1 className={`mt-1 text-2xl font-bold leading-tight tracking-tight ${headerText}`}>
-          {tx(safeLang, 'Sizin üçün ən yaxşı qəhvə', 'Лучший кофе для вас', 'Find the best coffee for you')}
-        </h1>
+      {/* Hero Greeting — cozy coffee shop */}
+      <div className="px-1 mb-6 stagger-fade-in flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className={`text-xs font-medium ${subText}`}>
+            {coffeeGreeting(safeLang)} {customer.name ? `, ${customer.name}` : ''} ☕
+          </p>
+          <h1 className={`mt-1 text-[26px] leading-tight tracking-tight ${headerText} font-cozy`}>
+            {tx(safeLang, 'Bugün hansı qəhvə ilə başlayırıq?', 'С чего начнём кофе сегодня?', "What coffee shall we start with today?")}
+          </h1>
+          <p className={`mt-1.5 text-[12px] font-semibold ${isLight ? 'text-amber-700' : 'text-[#E0A458]'}`}>
+            {tx(safeLang, "Barista tövsiyəsi: günün brendini yoxla", 'Совет бариста: попробуй напиток дня', "Barista's tip: try the brew of the day")}
+          </p>
+        </div>
+        <div className="shrink-0 mb-1">
+          <CoffeeCupSteam />
+        </div>
       </div>
 
       {/* Search & Filter Bar */}
@@ -373,7 +412,7 @@ export default function HomeTab({
                     <span className="h-1.5 w-1.5 rounded-full bg-[#F48C24] animate-ping" />
                     <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/80">{branding.app_name || 'iRonWaves'}</p>
                   </div>
-                  <h1 className="mt-2 text-xl font-bold text-white tracking-tight drop-shadow-lg">{branding.hero_title || tx(safeLang, 'Qızılı Üzvlük', 'Золотое членство', 'Gold Membership')}</h1>
+                  <h1 className="mt-2 text-xl font-bold text-white tracking-tight drop-shadow-lg font-cozy">{branding.hero_title || tx(safeLang, 'Qızılı Üzvlük', 'Золотое членство', 'Gold Membership')}</h1>
                 </div>
                 {branding.logo_url ? (
                   <img src={branding.logo_url} alt="brand" className="h-11 w-11 rounded-xl object-cover shadow-2xl border border-white/20 ring-1 ring-white/10" />
