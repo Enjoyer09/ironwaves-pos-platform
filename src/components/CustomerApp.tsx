@@ -1593,8 +1593,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
       }`}
       style={{
         background: isLight
-          ? `linear-gradient(180deg, #FFFFFF 0%, #F3F1EF 100%)`
-          : `linear-gradient(180deg, #181412 0%, #0D0B0A 100%)`,
+          ? `linear-gradient(180deg, #FCF4EA 0%, #F2E4D2 100%)`
+          : `linear-gradient(180deg, #2A1A10 0%, #160D07 100%)`,
       }}
     >
       {/* Dynamic Aurora and Real-world Noise Background Layers */}
