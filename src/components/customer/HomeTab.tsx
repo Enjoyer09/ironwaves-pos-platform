@@ -631,6 +631,10 @@ export default function HomeTab({
           ) : (
             <p className={`mt-4 text-xs font-mono tracking-widest ${subText}`}>{customer.card_id}</p>
           )}
+          {/* C10: scan-to-pay guidance — make the QR's purpose explicit */}
+          <p className={`mt-3 pt-3 border-t ${isLight ? 'border-black/5 text-slate-500' : 'border-white/8 text-white/50'} text-[10px] font-semibold leading-snug text-center`}>
+            {tx(safeLang, 'Kasada ödəmək üçün QR-kodu skan edin', 'Отсканируйте QR для оплаты на кассе', 'Scan this QR at the counter to pay')}
+          </p>
         </section>
       </div>
 

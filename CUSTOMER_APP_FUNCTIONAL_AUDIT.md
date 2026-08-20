@@ -148,11 +148,11 @@
 - **C8** Sevimliləri localStorage/backend sinxron et. → ✅ `localFavorites` artıq localStorage-da qalıcı (C8 ilkin olaraq həll olunub).
 - **C9** Ödəniş üsulu ekranı (və ya "kassada ödə" açıqlığı). → ✅ `CartSheet` ödəniş seçimi (Kasada/Kart/Apple-Google) + API-yə `payment_method` ötürülür.
 
-### P2 (Polish — sonrakı)
-- **C10** Skan-et-ödə yönləndirməsi.
-- **C11** Onboarding 3-shəkil.
-- **C12** Aurora+noise arxa fon (Glass audit spec).
-- Tema keçid düyməsi UI-də görünən et.
+### P2 (Polish — sonrakı) ✅ TAMAMI HƏLL OLUNDU
+- **C10** Skan-et-ödə yönləndirməsi. → ✅ `HomeTab.tsx` QR kartında "Kasada ödəmək üçün QR-kodu skan edin" ipucu xətti + onboarding slide 3.
+- **C11** Onboarding 3-shəkil. → ✅ `CustomerApp.tsx` ilk açılışda 3-slide onboarding (`ironwaves_customer_onboarded` localStorage flag), trilingual, Skip/Next/Get Started.
+- **C12** Aurora+noise arxa fon (Glass audit spec). → ✅ Artıq mövcuddur: `customer-app-aurora` + `customer-app-noise` (index.css) dark modda animasiyalı, `prefers-reduced-motion` hörmət edilir.
+- Tema keçid düyməsi UI-də görünən et. (əlavə polish — hələ edilməyib)
 
 ---
 
