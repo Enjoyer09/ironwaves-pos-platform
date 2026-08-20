@@ -20,6 +20,46 @@ function showAddedToast(name: string, lang: string) {
   setTimeout(() => el.remove(), 2700);
 }
 
+/* ── Modal a11y: Escape-to-close, body scroll lock, focus trap ──────── */
+function useModalA11y(isOpen: boolean, onClose: () => void, panelRef: React.RefObject<HTMLDivElement | null>) {
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (e.key === 'Tab') {
+        const panel = panelRef.current;
+        if (!panel) return;
+        const focusables = panel.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    const focusId = window.setTimeout(() => panelRef.current?.focus(), 60);
+    return () => {
+      document.removeEventListener('keydown', onKey, true);
+      document.body.style.overflow = prevOverflow;
+      window.clearTimeout(focusId);
+    };
+  }, [isOpen, onClose, panelRef]);
+}
+
 // ─── ModifierSheet ─────────────────────────────────────────────────────────────
 type ModifierSheetProps = {
   modifierSheetItem: any;
@@ -39,6 +79,8 @@ export function ModifierSheet({
   selectedModifiers, handleToggleModifier, handleAddToCart, safeLang, isLight,
   designMode = 'classic'
 }: ModifierSheetProps) {
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  useModalA11y(!!modifierSheetItem, () => setModifierSheetItem(null), panelRef);
   if (!modifierSheetItem) return null;
 
   const isRetro = designMode === 'retro';
@@ -68,7 +110,7 @@ export function ModifierSheet({
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4"
       style={{ animation: 'modalFadeIn 0.25s ease forwards', backgroundColor: 'rgba(0,0,0,0.60)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
       <div className="absolute inset-0" onClick={() => setModifierSheetItem(null)} />
-      <div className={`relative w-full max-w-sm rounded-[28px] ${sheetBg} border ${sheetBorder} overflow-y-auto max-h-[88vh] flex flex-col`}
+      <div ref={panelRef} role="dialog" aria-modal="true" tabIndex={-1} className={`relative w-full max-w-sm rounded-[28px] ${sheetBg} border ${sheetBorder} overflow-y-auto max-h-[88vh] flex flex-col`}
         style={{
           animation: 'scaleIn 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
           boxShadow: isRetro
@@ -219,6 +261,8 @@ export function CartSheet({
   orderNotes, setOrderNotes, handleCheckoutPreOrder, preOrderSubmitting, safeLang, isLight,
   designMode = 'classic'
 }: CartSheetProps) {
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  useModalA11y(showCartSheet, () => setShowCartSheet(false), panelRef);
   if (!showCartSheet) return null;
   const subtotal = cartSubtotal(customerCart);
 
@@ -243,7 +287,7 @@ export function CartSheet({
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4"
       style={{ animation: 'modalFadeIn 0.25s ease forwards', backgroundColor: 'rgba(0,0,0,0.60)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
       <div className="absolute inset-0" onClick={() => setShowCartSheet(false)} />
-      <div className={`relative w-full max-w-sm rounded-[28px] ${sheetBg} border ${sheetBorder} max-h-[88vh] p-6 flex flex-col`}
+      <div ref={panelRef} role="dialog" aria-modal="true" tabIndex={-1} className={`relative w-full max-w-sm rounded-[28px] ${sheetBg} border ${sheetBorder} max-h-[88vh] p-6 flex flex-col`}
         style={{
           animation: 'scaleIn 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
           boxShadow: isRetro
@@ -295,16 +339,16 @@ export function CartSheet({
                 {/* Central: Details */}
                 <div className="flex-1 min-w-0 flex flex-col justify-between">
                   <div>
-                    <p className={`text-[11px] font-black truncate ${textPrimary}`}>{item.name}</p>
-                    <p className={`text-[8px] font-semibold mt-0.5 ${isLight ? 'text-slate-400' : 'text-white/35'}`}>{subTitle}</p>
+                    <p className={`text-[13px] font-black truncate ${textPrimary}`}>{item.name}</p>
+                    <p className={`text-[11px] font-semibold mt-0.5 ${isLight ? 'text-slate-400' : 'text-white/35'}`}>{subTitle}</p>
                   </div>
 
                   {/* Size and price chip */}
                   <div className="flex items-center gap-1.5 mt-1">
-                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded bg-white/5 border border-white/5 uppercase ${textSecond}`}>
+                    <span className={`text-[10px] font-black px-1.5 py-0.5 rounded bg-white/5 border border-white/5 uppercase ${textSecond}`}>
                       {itemSize}
                     </span>
-                    <span className="text-[10px] font-black text-white/90">
+                    <span className="text-[13px] font-black text-white/90">
                       <span className="text-[#F48C24] font-black">₼ </span>
                       {Number(item.price).toFixed(2)}
                     </span>
@@ -314,20 +358,20 @@ export function CartSheet({
                 {/* Right Side: Quantity indicator and Remove button */}
                 <div className="flex flex-col items-end justify-between flex-shrink-0">
                   <button aria-label={tx(safeLang, 'Səbətdən sil', 'Удалить из корзины', 'Remove from cart')} onClick={() => handleRemoveFromCart(idx)}
-                    className="h-7 w-7 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center text-[10px] font-bold hover:bg-red-500/20 transition-all active:scale-90 border border-red-500/15">
-                    <X size={12} />
+                    className="h-11 w-11 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center text-[13px] font-bold hover:bg-red-500/20 transition-all active:scale-90 border border-red-500/15">
+                    <X size={16} />
                   </button>
 
-                  <div className="flex items-center gap-1 bg-[#1C2029] px-1 py-0.5 rounded-lg border border-white/5 mt-2">
+                  <div className="flex items-center gap-1 bg-[#1C2029] px-1.5 py-1.5 rounded-lg border border-white/5 mt-2">
                     <button type="button" aria-label={tx(safeLang, 'Azalt', 'Уменьшить', 'Decrease')}
                       onClick={() => onUpdateQty(idx, -1)}
-                      className="h-7 w-7 rounded-md flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 active:scale-90 transition text-sm font-black">
+                      className="h-11 w-11 rounded-md flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 active:scale-90 transition text-base font-black">
                       −
                     </button>
-                    <span className="text-[10px] font-black text-[#F48C24] min-w-5 text-center">{item.quantity}</span>
+                    <span className="text-[13px] font-black text-[#F48C24] min-w-6 text-center">{item.quantity}</span>
                     <button type="button" aria-label={tx(safeLang, 'Artır', 'Увеличить', 'Increase')}
                       onClick={() => onUpdateQty(idx, +1)}
-                      className="h-7 w-7 rounded-md flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 active:scale-90 transition text-sm font-black">
+                      className="h-11 w-11 rounded-md flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 active:scale-90 transition text-base font-black">
                       +
                     </button>
                   </div>
@@ -341,7 +385,7 @@ export function CartSheet({
           <div className="mt-4 flex flex-col gap-3 relative z-10">
             {/* Notes */}
             <div>
-              <p className={`text-[9px] font-black uppercase tracking-wider mb-1.5 ${textSecond}`}>
+              <p className={`text-[11px] font-black uppercase tracking-wider mb-1.5 ${textSecond}`}>
                 {tx(safeLang, 'Qeyd əlavə edin', 'Добавить заметку', 'Add a note')}
               </p>
               <textarea value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)}
@@ -354,8 +398,8 @@ export function CartSheet({
               {/* Highlighted total box */}
               <div className={`flex items-center justify-between mb-3 rounded-2xl p-3 ${isLight ? 'bg-black/3 border border-black/5' : 'bg-white/4 border border-white/6'}`}>
                 <div>
-                  <p className={`text-[9px] font-black uppercase tracking-wider ${textSecond}`}>{tx(safeLang, 'Ümumi', 'Итого', 'Total')}</p>
-                  <p className={`text-[8px] ${textSecond}`}>{customerCart.length} {tx(safeLang, 'məhsul', 'товаров', 'items')}</p>
+                  <p className={`text-[11px] font-black uppercase tracking-wider ${textSecond}`}>{tx(safeLang, 'Ümumi', 'Итого', 'Total')}</p>
+                  <p className={`text-[10px] ${textSecond}`}>{customerCart.length} {tx(safeLang, 'məhsul', 'товаров', 'items')}</p>
                 </div>
                 <p className={`text-xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>{subtotal.toFixed(2)} ₼</p>
               </div>
@@ -494,7 +538,7 @@ function LiveOrderStatus({ orders, safeLang, isLight, isRetro }: { orders: any[]
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  <span className={`text-[9px] font-bold ${textSecond}`}>
+                  <span className={`text-[10px] font-bold ${textSecond}`}>
                     {tx(safeLang, 'Götürmə:', 'Самовывоз:', 'Pickup:')} {storeName}
                   </span>
                 </div>
@@ -517,7 +561,7 @@ function LiveOrderStatus({ orders, safeLang, isLight, isRetro }: { orders: any[]
                   </div>
                 </React.Fragment>
               ))}
-              <span className={`ml-1 text-[9px] font-bold uppercase tracking-wider ${textSecond}`}>
+              <span className={`ml-1 text-[10px] font-bold uppercase tracking-wider ${textSecond}`}>
                 {status === 'READY'
                   ? tx(safeLang, 'Hazırdır', 'Готов', 'Ready')
                   : status === 'PREPARING'
@@ -575,6 +619,8 @@ type OrderTabProps = {
   stores?: any[];
   selectedStoreId?: string;
   setSelectedStore?: (id: string) => void;
+  searchQuery: string;
+  setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
 };
 
 export default function OrderTab({
@@ -584,11 +630,11 @@ export default function OrderTab({
   selectedVariant, setSelectedVariant, selectedModifiers, handleToggleModifier,
   handleAddToCart, showCartSheet, orderNotes, setOrderNotes,
   handleCheckoutPreOrder, preOrderSubmitting, preOrderSuccess, preOrderSuccessId,
-  setPreOrderSuccess, handleRemoveFromCart, handleUpdateCartQty, activeOrders, designMode = 'classic',
+  setPreOrderSuccess, handleRemoveFromCart, handleUpdateCartQty,
+  searchQuery, setSearchQuery, activeOrders, designMode = 'classic',
   stores = [], selectedStoreId = '', setSelectedStore
 }: OrderTabProps) {
   const [showStorePicker, setShowStorePicker] = React.useState(false);
-  const [searchQuery, setSearchQuery] = React.useState('');
   const cats = React.useMemo(() => {
     const map = new Map<string, string>();
     for (const it of menuItems) {
