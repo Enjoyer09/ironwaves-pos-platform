@@ -65,6 +65,37 @@ function scrubCustomerSessionFromUrl() {
   window.history.replaceState({}, '', nextUrl.toString());
 }
 
+// C11: first-launch onboarding slides (trilingual). Indexed by safeLang.
+type TriLang = { az: string; ru: string; en: string };
+const ONBOARD_SLIDES: Array<{ icon: string; title: TriLang; body: TriLang }> = [
+  {
+    icon: '☕',
+    title: { az: 'Öncədən sifariş verin', ru: 'Закажите заранее', en: 'Order ahead' },
+    body: {
+      az: 'Sevdiyiniz qəhvəni seçin, növbədə gözləmədən hazır olanadək götürün.',
+      ru: 'Выберите любимый кофе и заберите готовым, не стоя в очереди.',
+      en: 'Pick your favourite drink and skip the queue — we prep it before you arrive.',
+    },
+  },
+  {
+    icon: '✨',
+    title: { az: 'AI Barista və Falçı', ru: 'AI Бариста и Фалчы', en: 'AI Barista & Fortune' },
+    body: {
+      az: 'İçki tövsiyəsi üçün AI Barista ilə söhbət edin və ya Falçı ilə gələcəyə nəzər salın.',
+      ru: 'Поговорите с AI Бариста за советом по напитку или загляните в будущее с Фалчы.',
+      en: 'Chat with the AI Barista for drink tips, or peek into the future with the Fortune teller.',
+    },
+  },
+  {
+    icon: '📱',
+    title: { az: 'Kasada sadəcə skan edin', ru: 'Просто отсканируйте на кассе', en: 'Just scan at the counter' },
+    body: {
+      az: 'Üzvlük QR-kodunuzu kassada skan edərək ödəyin və mükafat ulduzları toplayın.',
+      ru: 'Отсканируйте QR членства на кассе, чтобы оплатить и копить звёзды.',
+      en: 'Scan your membership QR at the counter to pay and collect reward stars.',
+    },
+  },
+];
 
 export default function CustomerApp({ cardId = '', token = '', joinMode = false }: Props) {
   const { lang, setLang } = useAppStore();
@@ -101,6 +132,15 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [aiSubTab, setAiSubTab] = React.useState<'barista' | 'falci'>('barista');
   // C9: explicit payment-method step before checkout
   const [paymentMethod, setPaymentMethod] = React.useState<'counter' | 'card' | 'wallet'>('counter');
+  // C11: first-launch 3-slide onboarding
+  const [showOnboarding, setShowOnboarding] = React.useState(() => {
+    try { return !localStorage.getItem('ironwaves_customer_onboarded'); } catch { return false; }
+  });
+  const [onboardStep, setOnboardStep] = React.useState(0);
+  const finishOnboarding = () => {
+    try { localStorage.setItem('ironwaves_customer_onboarded', '1'); } catch {}
+    setShowOnboarding(false);
+  };
   const [cardFlipped, setCardFlipped] = React.useState(false);
   const [menuItems, setMenuItems] = React.useState<any[]>([]);
   const [menuLoading, setMenuLoading] = React.useState(false);
@@ -2001,6 +2041,50 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               className="w-full py-3.5 rounded-2xl bg-[#1A4329] text-white font-black text-[13px] active:scale-95 transition-transform shadow-md"
             >
               {tx(safeLang, 'Bağla', 'Закрыть', 'Close')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* C11: First-launch 3-slide onboarding */}
+      {showOnboarding && (
+        <div
+          className="fixed inset-0 z-[300] flex items-center justify-center p-5"
+          style={{ background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
+          role="dialog" aria-modal="true" aria-label={tx(safeLang, 'Xoş gəlmisiniz', 'Добро пожаловать', 'Welcome')}
+        >
+          <div
+            className={`relative w-full max-w-sm rounded-[32px] overflow-hidden border p-7 text-center space-y-6 ${
+              isLight ? 'bg-white/95 border-black/6 text-slate-900 shadow-2xl' : 'bg-[#0D0B0A]/95 border-white/10 text-white shadow-2xl'
+            }`}
+            style={{ animation: 'scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }}
+          >
+            <div className="absolute inset-x-0 top-0 h-16 pointer-events-none rounded-t-[32px]"
+              style={{ background: isLight ? 'linear-gradient(180deg, rgba(255,255,255,0.5), transparent)' : 'linear-gradient(180deg, rgba(255,255,255,0.05), transparent)' }} />
+            <button onClick={finishOnboarding}
+              className={`absolute top-4 right-4 z-10 text-[11px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-400' : 'text-white/40'}`}
+              aria-label={tx(safeLang, 'Keç', 'Пропустить', 'Skip')}>
+              {tx(safeLang, 'Keç', 'Пропустить', 'Skip')}
+            </button>
+
+            <div className="relative text-6xl mt-2">{ONBOARD_SLIDES[onboardStep].icon}</div>
+            <div className="relative space-y-2">
+              <h2 className="text-xl font-black leading-tight">{ONBOARD_SLIDES[onboardStep].title[safeLang as 'az' | 'ru' | 'en']}</h2>
+              <p className={`text-xs leading-relaxed font-semibold ${isLight ? 'text-slate-500' : 'text-white/60'}`}>{ONBOARD_SLIDES[onboardStep].body[safeLang as 'az' | 'ru' | 'en']}</p>
+            </div>
+
+            <div className="relative flex items-center justify-center gap-2">
+              {ONBOARD_SLIDES.map((_, i) => (
+                <span key={i} className={`h-2 rounded-full transition-all duration-300 ${i === onboardStep ? 'w-6 bg-[#F48C24]' : (isLight ? 'w-2 bg-slate-300' : 'w-2 bg-white/20')}`} />
+              ))}
+            </div>
+
+            <button onClick={() => (onboardStep < ONBOARD_SLIDES.length - 1 ? setOnboardStep(onboardStep + 1) : finishOnboarding())}
+              className="relative w-full py-3.5 rounded-2xl text-[13px] font-black text-white active:scale-95 transition-transform shadow-md"
+              style={{ background: 'linear-gradient(135deg, #F48C24, #ffb366)', boxShadow: '0 6px 20px rgba(244,140,36,0.40)' }}>
+              {onboardStep < ONBOARD_SLIDES.length - 1
+                ? tx(safeLang, 'Davam et', 'Далее', 'Next')
+                : tx(safeLang, 'Başlayaq', 'Начать', 'Get Started')}
             </button>
           </div>
         </div>
