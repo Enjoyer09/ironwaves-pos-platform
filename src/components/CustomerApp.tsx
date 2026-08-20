@@ -2067,6 +2067,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
               {tx(safeLang, 'Keç', 'Пропустить', 'Skip')}
             </button>
 
+            <img src="/logo.jpg" alt="Emalathhana" width={56} height={56}
+              className="relative mx-auto mt-1 h-14 w-14 rounded-2xl object-cover border border-white/10 shadow-md" />
             <div className="relative text-6xl mt-2">{ONBOARD_SLIDES[onboardStep].icon}</div>
             <div className="relative space-y-2">
               <h2 className="text-xl font-black leading-tight">{ONBOARD_SLIDES[onboardStep].title[safeLang as 'az' | 'ru' | 'en']}</h2>

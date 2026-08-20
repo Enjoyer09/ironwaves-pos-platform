@@ -266,6 +266,8 @@ export default function HomeTab({
           className={`h-10 w-10 rounded-full border flex items-center justify-center active:scale-95 transition-all duration-150 ${headerBtn}`}>
           <Menu size={18} />
         </button>
+        <img src="/logo.jpg" alt="Emalathhana" width={36} height={36}
+          className="h-9 w-9 rounded-xl object-cover border border-white/10 shadow-md" />
         <button type="button" onClick={() => setActiveTab('profile')} aria-label={tx(safeLang, 'Profil', 'Профиль', 'Profile')}
           className={`relative h-10 w-10 rounded-full border flex items-center justify-center font-black active:scale-95 transition-all duration-150 ${headerBtn}`}
           style={{ background: 'linear-gradient(135deg, #F48C24, #ffb366)', border: 'none', color: '#fff', boxShadow: '0 4px 12px rgba(244,140,36,0.3)' }}>

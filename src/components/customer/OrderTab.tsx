@@ -496,6 +496,8 @@ export function PreOrderSuccess({ preOrderSuccess, preOrderSuccessId, setPreOrde
         <div className="absolute inset-x-0 top-0 h-16 pointer-events-none rounded-t-[32px]"
           style={{ background: isLight ? 'linear-gradient(180deg, rgba(255,255,255,0.5), transparent)' : 'linear-gradient(180deg, rgba(255,255,255,0.05), transparent)' }} />
 
+        <img src="/logo.jpg" alt="Emalathhana" width={56} height={56}
+          className="relative mx-auto h-14 w-14 rounded-2xl object-cover border border-white/10 shadow-md" />
         <div className="relative mx-auto h-20 w-20 rounded-full flex items-center justify-center text-4xl animate-bounce"
           style={{ background: 'linear-gradient(135deg, rgba(244,140,36,0.15), rgba(244,140,36,0.05))', border: '1px solid rgba(244,140,36,0.20)' }}>
           🎉
