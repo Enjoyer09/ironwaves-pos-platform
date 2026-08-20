@@ -1,5 +1,5 @@
 import React from 'react';
-import { Gift, Home, Languages, MessageSquare, ShoppingBag, Sparkles, UserRound } from 'lucide-react';
+import { Coffee, Gift, Home, Languages, MessageSquare, ShoppingBag, Sparkles, UserRound } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
@@ -1544,7 +1544,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
 
   const bottomTabs: Array<{ key: CustomerTab; label: string; icon: React.ReactNode }> = [
     { key: 'home' as CustomerTab, label: tx(safeLang, 'Ana Səhifə', 'Главная', 'Home'), icon: <Home size={18} /> },
-    { key: 'order' as CustomerTab, label: tx(safeLang, 'Sifariş', 'Заказать', 'Order'), icon: <ShoppingBag size={18} /> },
+    { key: 'order' as CustomerTab, label: tx(safeLang, 'Menyu', 'Меню', 'Menu'), icon: <Coffee size={18} /> },
     { key: 'offers' as CustomerTab, label: tx(safeLang, 'Kampaniyalar', 'Кампании', 'Offers'), icon: <Gift size={18} /> },
     // C2: collapse Barista + Falçı into one "AI" hub tab so the bar never
     // exceeds 5 tabs (Apple HIG). The hub switches between the two inside.
@@ -1937,7 +1937,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
                   }}
                   className={`relative flex items-center justify-center transition-all duration-200 active:scale-[0.96] ${
                     active
-                      ? 'rounded-full bg-[#F48C24] text-white px-4 py-2 shadow-[0_2px_10px_rgba(244,140,36,0.22)] gap-1.5'
+                      ? 'rounded-full bg-[#FF8B26] text-white px-4 py-2 shadow-[0_2px_12px_rgba(255,139,38,0.35)] gap-1.5'
                       : isLight
                         ? 'text-slate-400 hover:text-slate-700 p-2.5 rounded-full hover:bg-slate-100'
                         : 'text-white/40 hover:text-white/70 p-2.5 rounded-full hover:bg-white/5'

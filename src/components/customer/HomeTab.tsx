@@ -14,28 +14,7 @@ function coffeeGreeting(lang: string): string {
   return lang === 'ru' ? 'Добрый вечер' : lang === 'en' ? 'Good evening' : 'Axşamınız xeyir';
 }
 
-/* Steaming coffee cup with a latte-art rosette — hero accent */
-function CoffeeCupSteam() {
-  return (
-    <div className="relative h-[68px] w-[68px]" aria-hidden="true">
-      <span className="coffee-steam" style={{ left: '30%', animationDelay: '0s' }} />
-      <span className="coffee-steam" style={{ left: '50%', animationDelay: '0.8s' }} />
-      <span className="coffee-steam" style={{ left: '68%', animationDelay: '1.5s' }} />
-      <svg viewBox="0 0 64 64" className="h-full w-full drop-shadow-lg">
-        <ellipse cx="32" cy="57" rx="25" ry="4.5" fill="rgba(0,0,0,0.18)" />
-        <path d="M15 27 h34 v13 a17 17 0 0 1 -34 0 z" fill="#3A2417" />
-        <path d="M49 29 q11 1 9 12 q-2 7 -9 5" stroke="#3A2417" strokeWidth="4.5" fill="none" strokeLinecap="round" />
-        <ellipse cx="32" cy="27" rx="17" ry="5" fill="#6F4A2F" />
-        <g stroke="#F3E9DC" strokeWidth="1.3" fill="none" strokeLinecap="round" opacity="0.92">
-          <path d="M32 23 q-1.5 4 0 8 q1.5 -4 0 -8" />
-          <path d="M28 25 q3.5 2 8 0" />
-          <path d="M29 27 q3 1.5 6 0" />
-        </g>
-        <circle cx="32" cy="27" r="1.6" fill="#F3E9DC" />
-      </svg>
-    </div>
-  );
-}
+/* Energetic brand hero — orange panel (no steam cup). */
 
 /* ── Animated Counter ────────────────────────────────────────────── */
 function AnimatedCounter({ value, suffix = '', decimals = 0 }: { value: number; suffix?: string; decimals?: number }) {
@@ -150,7 +129,7 @@ export default function HomeTab({
   rewards, progressPercent, notifications, favoriteItems, pendingClaims, claims,
   geofenceAlert, setGeofenceAlert, recentItems, searchQuery, setSearchQuery, setActiveTab,
   openWalletPass, get_customer_wallet_pass_url_fn, sessionCreds, data, isLight = false,
-  designMode = 'classic', onReorderItem
+  designMode = 'classic', onReorderItem, activeOrders
 }: Props) {
 
   const isRetro     = designMode === 'retro';
@@ -278,21 +257,31 @@ export default function HomeTab({
         </button>
       </div>
 
-      {/* Hero Greeting — cozy coffee shop */}
-      <div className="px-1 mb-6 stagger-fade-in flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <p className={`text-xs font-medium ${subText}`}>
-            {coffeeGreeting(safeLang)} {customer.name ? `, ${customer.name}` : ''} ☕
+      {/* Hero — energetic brand orange panel */}
+      <div className="px-1 mb-6 stagger-fade-in">
+        <div
+          className="rounded-[24px] p-5 shadow-[0_10px_30px_rgba(255,139,38,0.28)]"
+          style={{ background: 'linear-gradient(135deg, #FF8B26 0%, #F48C24 100%)' }}
+        >
+          <p className="text-[12px] font-medium text-white/85">
+            {coffeeGreeting(safeLang)} {customer.name ? `, ${customer.name}` : ''}
           </p>
-          <h1 className={`mt-1 text-[26px] leading-tight tracking-tight ${headerText} font-cozy`}>
+          <h1 className="mt-1 text-[22px] leading-tight font-bold text-white">
             {tx(safeLang, 'Bugün hansı qəhvə ilə başlayırıq?', 'С чего начнём кофе сегодня?', "What coffee shall we start with today?")}
           </h1>
-          <p className={`mt-1.5 text-[12px] font-semibold ${isLight ? 'text-amber-700' : 'text-[#E0A458]'}`}>
+          <p className="mt-1.5 text-[12px] font-semibold text-white/80">
             {tx(safeLang, "Barista tövsiyəsi: günün brendini yoxla", 'Совет бариста: попробуй напиток дня', "Barista's tip: try the brew of the day")}
           </p>
-        </div>
-        <div className="shrink-0 mb-1">
-          <CoffeeCupSteam />
+          <button
+            type="button"
+            onClick={() => setActiveTab('order')}
+            className="mt-4 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-[13px] font-bold text-[#F48C24] active:scale-95 transition-all duration-150 shadow-sm"
+          >
+            {tx(safeLang, 'Sifariş et', 'Заказать', 'Order now')}
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14m-6-6 6 6-6 6" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -320,6 +309,32 @@ export default function HomeTab({
           </svg>
         </button>
       </div>
+
+      {/* Active order — energetic brand progress pill */}
+      {Array.isArray(activeOrders) && activeOrders.length > 0 && (
+        <div className="px-1 mb-6">
+          <button
+            type="button"
+            onClick={() => setActiveTab('order')}
+            className="w-full rounded-[20px] border border-[#FF8B26]/30 bg-[#FF8B26]/[0.08] p-4 flex items-center gap-3 text-left active:scale-[0.99] transition-all duration-150"
+          >
+            <div className="h-10 w-10 rounded-full bg-[#FF8B26] flex items-center justify-center text-white shrink-0">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 2" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[12px] font-bold text-[#F48C24]">
+                {tx(safeLang, 'Sifariş hazırlanır', 'Заказ готовится', 'Order in progress')}
+              </p>
+              <p className="text-[11px] text-slate-500 truncate">
+                {activeOrders[0]?.item_names || activeOrders[0]?.title || tx(safeLang, 'Kasırada götür', 'Заберите у кассы', 'Pick up at counter')}
+              </p>
+            </div>
+            <span className="text-[11px] font-black text-[#FF8B26] shrink-0">{activeOrders[0]?.eta || '2 dəq'}</span>
+          </button>
+        </div>
+      )}
 
       {/* Geofence Alert */}
       {geofenceAlert && (
