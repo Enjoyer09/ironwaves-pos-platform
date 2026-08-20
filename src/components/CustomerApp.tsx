@@ -97,6 +97,10 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [sessionCreds, setSessionCreds] = React.useState({ cardId, token });
   const [acceptingConsent, setAcceptingConsent] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<CustomerTab>('home');
+  // C2: which AI experience is shown inside the combined "AI" hub tab
+  const [aiSubTab, setAiSubTab] = React.useState<'barista' | 'falci'>('barista');
+  // C9: explicit payment-method step before checkout
+  const [paymentMethod, setPaymentMethod] = React.useState<'counter' | 'card' | 'wallet'>('counter');
   const [cardFlipped, setCardFlipped] = React.useState(false);
   const [menuItems, setMenuItems] = React.useState<any[]>([]);
   const [menuLoading, setMenuLoading] = React.useState(false);
@@ -193,6 +197,42 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   };
 
   const handleOpenModifiers = (item: any) => {
+    const hasVariants = item.variants && item.variants.length > 0;
+    const hasModifiers = item.modifiers && item.modifiers.length > 0;
+    // C4: one-tap quick-add — skip the full ModifierSheet when there is
+    // nothing to configure. This removes the biggest source of tap friction
+    // for simple products (espresso, sparkling water, a single-size pastry).
+    if (!hasVariants && !hasModifiers) {
+      setCustomerCart(prev => {
+        const existingIdx = prev.findIndex(ci =>
+          ci.id === item.id &&
+          ci.variant_name === null &&
+          JSON.stringify(ci.selected_modifiers) === '[]'
+        );
+        if (existingIdx > -1) {
+          const next = [...prev];
+          next[existingIdx].quantity += 1;
+          return next;
+        }
+        return [...prev, {
+          id: item.id,
+          name: item.item_name || item.name || '',
+          quantity: 1,
+          price: Number(item.price || 0),
+          variant_name: null,
+          selected_modifiers: [],
+          notes: ''
+        }];
+      });
+      playTickSound();
+      if (Capacitor.isNativePlatform()) {
+        try {
+          Haptics.impact({ style: ImpactStyle.Light }).catch(() => {});
+        } catch {}
+      }
+      showStatusToast(tx(safeLang, 'Səbətə əlavə edildi 🛒', 'Добавлено в корзину 🛒', 'Added to cart 🛒'));
+      return;
+    }
     setModifierSheetItem(item);
     setSelectedVariant(item.variants && item.variants.length > 0 ? item.variants[0] : null);
     setSelectedModifiers([]);
@@ -289,7 +329,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
         notes: orderNotes,
         tenantId: data?.tenant_id,
         storeId: selectedStore?.id || undefined,
-        storeName: selectedStore?.name || undefined
+        storeName: selectedStore?.name || undefined,
+        paymentMethod
       });
       if (res.success) {
         setPreOrderSuccessId(res.orderId);
@@ -1465,14 +1506,17 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
     { key: 'home' as CustomerTab, label: tx(safeLang, 'Ana Səhifə', 'Главная', 'Home'), icon: <Home size={18} /> },
     { key: 'order' as CustomerTab, label: tx(safeLang, 'Sifariş', 'Заказать', 'Order'), icon: <ShoppingBag size={18} /> },
     { key: 'offers' as CustomerTab, label: tx(safeLang, 'Kampaniyalar', 'Кампании', 'Offers'), icon: <Gift size={18} /> },
-    ...(aiBaristaEnabled ? [{ key: 'barista' as CustomerTab, label: tx(safeLang, 'Barista', 'Бариста', 'Barista'), icon: <MessageSquare size={18} /> }] : []),
-    ...(aiFalciEnabled ? [{ key: 'falci' as CustomerTab, label: tx(safeLang, 'Falçı', 'Фалчы', 'Fortune'), icon: <Sparkles size={18} /> }] : []),
+    // C2: collapse Barista + Falçı into one "AI" hub tab so the bar never
+    // exceeds 5 tabs (Apple HIG). The hub switches between the two inside.
+    ...(aiBaristaEnabled || aiFalciEnabled
+      ? [{ key: 'ai' as CustomerTab, label: tx(safeLang, 'AI', 'AI', 'AI'), icon: <Sparkles size={18} /> }]
+      : []),
     { key: 'profile', label: tx(safeLang, 'Profil', 'Профиль', 'Profile'), icon: <UserRound size={18} /> },
   ];
 
   const resolvedActiveTab: CustomerTab =
-    (activeTab === 'barista' && !aiBaristaEnabled) || (activeTab === 'falci' && !aiFalciEnabled)
-      ? 'home'
+    (activeTab === 'barista' || activeTab === 'falci')
+      ? (aiBaristaEnabled || aiFalciEnabled ? 'ai' : 'home')
       : activeTab;
 
   const switchTabWithTransition = (newTab: CustomerTab) => {
@@ -1713,6 +1757,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             orderNotes={orderNotes}
             setOrderNotes={setOrderNotes}
             handleCheckoutPreOrder={handleCheckoutPreOrder}
+            paymentMethod={paymentMethod}
+            setPaymentMethod={setPaymentMethod}
             preOrderSubmitting={preOrderSubmitting}
             preOrderSuccess={preOrderSuccess}
             preOrderSuccessId={preOrderSuccessId}
@@ -1745,41 +1791,58 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
           />
           </div>
         )}
-        {resolvedActiveTab === 'barista' && aiBaristaEnabled && (
-          <div key="barista" className="animate-tabEnter">
-          <BaristaTab
-            safeLang={safeLang}
-            baristaMessages={baristaMessages}
-            baristaInput={baristaInput}
-            setBaristaInput={setBaristaInput}
-            voiceEnabled={voiceEnabled}
-            setVoiceEnabled={setVoiceEnabled}
-            isListening={isListening}
-            toggleListening={toggleListening}
-            sendBaristaMessage={sendBaristaMessage}
-            primaryColor={primaryColor}
-            accentColor={accentColor}
-            isLight={isLight}
-            designMode={designMode}
-          />
-          </div>
-        )}
-        {resolvedActiveTab === 'falci' && aiFalciEnabled && (
-          <div key="falci" className="animate-tabEnter">
-          <FalciTab
-            safeLang={safeLang}
-            fortuneText={fortuneText}
-            fortuneImage={fortuneImage}
-            fortuneLoading={fortuneLoading}
-            fortuneProgress={fortuneProgress}
-            fortuneStepText={fortuneStepText}
-            fileRef={fileRef}
-            analyzeImageFortune={analyzeImageFortune}
-            takePhotoWithCamera={takePhotoWithCamera}
-            primaryColor={primaryColor}
-            accentColor={accentColor}
-            isLight={isLight}
-          />
+        {resolvedActiveTab === 'ai' && (aiBaristaEnabled || aiFalciEnabled) && (
+          <div key="ai" className="animate-tabEnter">
+            {/* C2: AI hub sub-switcher — pick Barista or Fortune inside one tab */}
+            <div className="px-4 pt-3 pb-1">
+              <div className={`flex rounded-2xl p-1 ${isLight ? 'bg-black/[0.04]' : 'bg-white/[0.06]'}`}>
+                {aiBaristaEnabled && (
+                  <button onClick={() => setAiSubTab('barista')} aria-pressed={aiSubTab === 'barista'}
+                    className={`flex-1 rounded-xl py-2.5 text-[12px] font-black transition ${aiSubTab === 'barista' ? 'bg-[#F48C24] text-white shadow-sm' : (isLight ? 'text-slate-600' : 'text-white/60')}`}>
+                    {tx(safeLang, 'AI Barista', 'AI Бариста', 'AI Barista')}
+                  </button>
+                )}
+                {aiFalciEnabled && (
+                  <button onClick={() => setAiSubTab('falci')} aria-pressed={aiSubTab === 'falci'}
+                    className={`flex-1 rounded-xl py-2.5 text-[12px] font-black transition ${aiSubTab === 'falci' ? 'bg-[#F48C24] text-white shadow-sm' : (isLight ? 'text-slate-600' : 'text-white/60')}`}>
+                    {tx(safeLang, 'Falçı', 'Фалчы', 'Fortune')}
+                  </button>
+                )}
+              </div>
+            </div>
+            {aiBaristaEnabled && (aiSubTab === 'barista' || !aiFalciEnabled) && (
+              <BaristaTab
+                safeLang={safeLang}
+                baristaMessages={baristaMessages}
+                baristaInput={baristaInput}
+                setBaristaInput={setBaristaInput}
+                voiceEnabled={voiceEnabled}
+                setVoiceEnabled={setVoiceEnabled}
+                isListening={isListening}
+                toggleListening={toggleListening}
+                sendBaristaMessage={sendBaristaMessage}
+                primaryColor={primaryColor}
+                accentColor={accentColor}
+                isLight={isLight}
+                designMode={designMode}
+              />
+            )}
+            {aiFalciEnabled && (aiSubTab === 'falci' || !aiBaristaEnabled) && (
+              <FalciTab
+                safeLang={safeLang}
+                fortuneText={fortuneText}
+                fortuneImage={fortuneImage}
+                fortuneLoading={fortuneLoading}
+                fortuneProgress={fortuneProgress}
+                fortuneStepText={fortuneStepText}
+                fileRef={fileRef}
+                analyzeImageFortune={analyzeImageFortune}
+                takePhotoWithCamera={takePhotoWithCamera}
+                primaryColor={primaryColor}
+                accentColor={accentColor}
+                isLight={isLight}
+              />
+            )}
           </div>
         )}
         {resolvedActiveTab === 'profile' && (
