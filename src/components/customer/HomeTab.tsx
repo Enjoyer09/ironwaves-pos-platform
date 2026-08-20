@@ -100,6 +100,8 @@ type Props = {
   setGeofenceAlert: (v: boolean) => void;
   recentItems: any[];
   onReorderItem: (item: any) => void;
+  searchQuery: string;
+  setSearchQuery: (v: string) => void;
   setActiveTab: (tab: any) => void;
   openWalletPass: (e: React.MouseEvent, url: string) => void;
   get_customer_wallet_pass_url_fn: (cardId: string, token: string, lang: string) => string;
@@ -115,7 +117,7 @@ export default function HomeTab({
   accentColor, programMode, cardQr, showQrCard, showWallet, balanceSuffix,
   heroImage, cardFlipped, setCardFlipped, claimReward, claiming,
   rewards, progressPercent, notifications, favoriteItems, pendingClaims, claims,
-  geofenceAlert, setGeofenceAlert, recentItems, setActiveTab,
+  geofenceAlert, setGeofenceAlert, recentItems, searchQuery, setSearchQuery, setActiveTab,
   openWalletPass, get_customer_wallet_pass_url_fn, sessionCreds, data, isLight = false,
   designMode = 'classic', onReorderItem
 }: Props) {
@@ -256,10 +258,14 @@ export default function HomeTab({
       {/* Search & Filter Bar */}
       <div className="px-1 mb-6 flex gap-3 stagger-fade-in stagger-1">
         <div className="relative flex-1">
-          <input type="text" readOnly
+          <input type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setActiveTab('order'); } }}
             placeholder={tx(safeLang, 'Qəhvə, çay və ya desert axtarın...', 'Найдите ваш любимый вкус...', 'Search your favorite coffee...')}
-            className={`w-full rounded-[18px] border px-10 py-3.5 text-xs transition duration-200 cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#F48C24]/30 ${inputSearch}`}
-            onClick={() => setActiveTab('order')} />
+            className={`w-full rounded-[18px] border px-10 py-3.5 text-xs transition duration-200 focus:outline-none focus:ring-1 focus:ring-[#F48C24]/30 ${inputSearch}`}
+            onClick={() => setActiveTab('order')}
+            aria-label={tx(safeLang, 'Menyuda axtarış', 'Поиск в меню', 'Search the menu')} />
           <span className={`absolute left-3.5 top-1/2 -translate-y-1/2 ${textMuted}`}>
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />

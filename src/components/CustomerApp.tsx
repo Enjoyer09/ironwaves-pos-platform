@@ -110,6 +110,7 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
   const [preOrderSuccessId, setPreOrderSuccessId] = React.useState('');
   const [activeOrders, setActiveOrders] = React.useState<any[]>([]);
   const [showCartSheet, setShowCartSheet] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState('');
   const [orderNotes, setOrderNotes] = React.useState('');
   // Starbucks-style store selection: the branch the customer picks for pickup.
   // Persisted in localStorage so the choice survives app restarts; falls back
@@ -1672,6 +1673,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             setGeofenceAlert={setGeofenceAlert}
             recentItems={recentItems}
             onReorderItem={handleReorderItem}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
             setActiveTab={switchTabWithTransition}
             openWalletPass={openWalletPass}
             get_customer_wallet_pass_url_fn={get_customer_wallet_pass_url}
@@ -1694,6 +1697,8 @@ export default function CustomerApp({ cardId = '', token = '', joinMode = false 
             setSelectedCategory={setSelectedCategory}
             customerCart={customerCart}
             setShowCartSheet={setShowCartSheet}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
             localFavorites={localFavorites}
             setLocalFavorites={setLocalFavorites}
             handleOpenModifiers={handleOpenModifiers}
