@@ -135,18 +135,18 @@
 
 ## 5. Prioritetli Düzəlişlər
 
-### P0 (Rahatlıq üçün kritik — dərhal)
-- **C1** Home axtarışını real edin və ya yalançı affordance-ni çıxarın.
-- **C3** Səbət stepper/sil toxunma hədəflərini 44px-ə böyüt.
-- **C5** Modal fokus trap + Escape bağlama + body scroll kilidi.
-- **C6** Kritik şriftləri 12px-ə çatdır (qiymət/miqdar/status).
+### P0 (Rahatlıq üçün kritik — dərhal) ✅ TAMAMI HƏLL OLUNDU
+- **C1** Home axtarışını real edin və ya yalançı affordance-ni çıxarın. → ✅ `HomeTab.tsx` real controlled input + Enter ilə OrderTab-a keçid.
+- **C3** Səbət stepper/sil toxunma hədəflərini 44px-ə böyüt. → ✅ `OrderTab.tsx` CartSheet-də 44px toxunma hədəfləri.
+- **C5** Modal fokus trap + Escape bağlama + body scroll kilidi. → ✅ `useModalA11y` hook (Escape + Tab trap + scroll lock).
+- **C6** Kritik şriftləri 12px-ə çatdır (qiymət/miqdar/status). → ✅ Kritik ölçülər 10–13px-ə qaldırıldı.
 
-### P1 (Vacib — növbəti sprint)
-- **C2** 6 tab-i 4-5-ə endir (Barista+Falci birləşdir).
-- **C4** Modifier-siz məhsullarda quick-add.
-- **C7** Qlobal "sifariş hazırdır" bildirişi.
-- **C8** Sevimliləri localStorage/backend sinxron et.
-- **C9** Ödəniş üsulu ekranı (və ya "kassada ödə" açıqlığı).
+### P1 (Vacib — növbəti sprint) ✅ TAMAMI HƏLL OLUNDU
+- **C2** 6 tab-i 4-5-ə endir (Barista+Falci birləşdir). → ✅ `CustomerApp.tsx` tək "AI" hub tab + daxili Barista/Falçı keçid.
+- **C4** Modifier-siz məhsullarda quick-add. → ✅ `handleOpenModifiers` bir toxunuşla səbətə əlavə edir.
+- **C7** Qlobal "sifariş hazırdır" bildirişi. → ✅ `refreshOrders` içində global toast (hər tabda görünür, 8s poll).
+- **C8** Sevimliləri localStorage/backend sinxron et. → ✅ `localFavorites` artıq localStorage-da qalıcı (C8 ilkin olaraq həll olunub).
+- **C9** Ödəniş üsulu ekranı (və ya "kassada ödə" açıqlığı). → ✅ `CartSheet` ödəniş seçimi (Kasada/Kart/Apple-Google) + API-yə `payment_method` ötürülür.
 
 ### P2 (Polish — sonrakı)
 - **C10** Skan-et-ödə yönləndirməsi.

@@ -1012,6 +1012,7 @@ export async function create_customer_pre_order_live(payload: {
   tenantId?: string;
   storeId?: string;
   storeName?: string;
+  paymentMethod?: 'counter' | 'card' | 'wallet';
 }) {
   const tId = payload.tenantId || defaultTenant();
   if (!isBackendEnabled()) {
@@ -1067,6 +1068,7 @@ export async function create_customer_pre_order_live(payload: {
         tenant_id: tId,
         store_id: payload.storeId,
         store_name: payload.storeName,
+        payment_method: payload.paymentMethod,
       }
     }
   );

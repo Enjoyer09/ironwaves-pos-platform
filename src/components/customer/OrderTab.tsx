@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { ShoppingBag, ChevronLeft, X, Heart, Plus, Minus } from 'lucide-react';
+import { ShoppingBag, ChevronLeft, X, Heart, Plus, Minus, Store, CreditCard, Smartphone } from 'lucide-react';
 import { ImpactStyle } from '@capacitor/haptics';
 import { tx } from '../../i18n';
 import { getProductImage, playTickSound, Haptic, nativeHapticImpact } from '../../lib/customer_utils';
@@ -254,12 +254,14 @@ type CartSheetProps = {
   safeLang: string;
   isLight: boolean;
   designMode?: 'classic' | 'retro';
+  paymentMethod: 'counter' | 'card' | 'wallet';
+  setPaymentMethod: (v: 'counter' | 'card' | 'wallet') => void;
 };
 
 export function CartSheet({
   showCartSheet, setShowCartSheet, customerCart, handleRemoveFromCart, onUpdateQty,
   orderNotes, setOrderNotes, handleCheckoutPreOrder, preOrderSubmitting, safeLang, isLight,
-  designMode = 'classic'
+  designMode = 'classic', paymentMethod, setPaymentMethod
 }: CartSheetProps) {
   const panelRef = React.useRef<HTMLDivElement>(null);
   useModalA11y(showCartSheet, () => setShowCartSheet(false), panelRef);
@@ -393,6 +395,36 @@ export function CartSheet({
                 className={`w-full rounded-xl border p-3 text-[10px] focus:outline-none focus:ring-1 min-h-[50px] resize-none transition ${inputCls}`} />
             </div>
 
+            {/* C9: explicit payment-method step before checkout */}
+            <div>
+              <p className={`text-[11px] font-black uppercase tracking-wider mb-1.5 ${textSecond}`}>
+                {tx(safeLang, 'Ödəniş üsulu', 'Способ оплаты', 'Payment method')}
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { key: 'counter' as const, label: tx(safeLang, 'Kasada', 'На кассе', 'At counter'), icon: <Store size={16} /> },
+                  { key: 'card' as const, label: tx(safeLang, 'Kart', 'Карта', 'Card'), icon: <CreditCard size={16} /> },
+                  { key: 'wallet' as const, label: tx(safeLang, 'Apple/Google', 'Apple/Google', 'Apple/Google'), icon: <Smartphone size={16} /> },
+                ]).map((opt) => (
+                  <button key={opt.key} type="button" onClick={() => setPaymentMethod(opt.key)}
+                    aria-pressed={paymentMethod === opt.key}
+                    className={`flex flex-col items-center justify-center gap-1 rounded-xl border py-2.5 px-1 transition text-[10px] font-bold ${
+                      paymentMethod === opt.key
+                        ? 'border-[#F48C24] bg-[#F48C24]/10 text-[#F48C24]'
+                        : (isLight ? 'border-black/10 text-slate-600' : 'border-white/10 text-white/60')
+                    }`}>
+                    {opt.icon}
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <p className={`mt-1.5 text-[10px] leading-snug ${textSecond}`}>
+                {paymentMethod === 'counter' && tx(safeLang, 'Təsdiqdən sonra kasadan ödəyəcəksiniz.', 'Оплатите на кассе после подтверждения.', 'Pay at the counter after confirming.')}
+                {paymentMethod === 'card' && tx(safeLang, 'Təsdiq ekranında kart məlumatlarını daxil edəcəksiniz.', 'Введите данные карты на экране подтверждения.', 'Enter card details on the confirmation screen.')}
+                {paymentMethod === 'wallet' && tx(safeLang, 'Apple Pay / Google Pay ilə ödəyəcəksiniz.', 'Оплата через Apple Pay / Google Pay.', 'Pay with Apple Pay / Google Pay.')}
+              </p>
+            </div>
+
             {/* Total + Checkout */}
             <div className={`pt-3 border-t ${divider}`}>
               {/* Highlighted total box */}
@@ -421,7 +453,11 @@ export function CartSheet({
                 <ShoppingBag size={16} />
                 {preOrderSubmitting
                   ? tx(safeLang, 'Göndərilir...', 'Отправляем...', 'Sending...')
-                  : tx(safeLang, 'Sifarişi Təsdiqlə', 'Оформить предзаказ', 'Confirm Order')}
+                  : (paymentMethod === 'counter'
+                    ? tx(safeLang, 'Kasada Ödəməklə Təsdiqlə', 'Подтвердить (оплата на кассе)', 'Confirm · Pay at Counter')
+                    : paymentMethod === 'card'
+                      ? tx(safeLang, 'Kartla Ödəməklə Təsdiqlə', 'Подтвердить (картой)', 'Confirm · Pay by Card')
+                      : tx(safeLang, 'Apple/Google ilə Təsdiqlə', 'Подтвердить (Apple/Google)', 'Confirm · Apple/Google Pay'))}
               </button>
             </div>
           </div>
@@ -439,9 +475,10 @@ type PreOrderSuccessProps = {
   setPreOrderSuccess: (v: boolean) => void;
   safeLang: string;
   isLight: boolean;
+  paymentMethod: 'counter' | 'card' | 'wallet';
 };
 
-export function PreOrderSuccess({ preOrderSuccess, preOrderSuccessId, setPreOrderSuccess, safeLang, isLight }: PreOrderSuccessProps) {
+export function PreOrderSuccess({ preOrderSuccess, preOrderSuccessId, setPreOrderSuccess, safeLang, isLight, paymentMethod }: PreOrderSuccessProps) {
   if (!preOrderSuccess) return null;
   const dlgBg = isLight ? 'bg-white/92 backdrop-blur-2xl' : 'bg-[#0D0B0A]/92 backdrop-blur-2xl';
   const textPrimary = isLight ? 'text-slate-900' : 'text-white';
@@ -469,6 +506,11 @@ export function PreOrderSuccess({ preOrderSuccess, preOrderSuccessId, setPreOrde
           </h2>
           <p className={`text-xs leading-relaxed font-semibold ${textSecond}`}>
             {tx(safeLang, 'Sifarişiniz baristaya ötürüldü. Tezliklə hazır olacaq! ☕', 'Ваш заказ передан бариста. Скоро будет готово! ☕', 'Your order has been sent to the barista. Coming right up! ☕')}
+          </p>
+          <p className={`text-[10px] font-bold rounded-full px-3 py-1 inline-block ${isLight ? 'bg-black/[0.05] text-slate-600' : 'bg-white/[0.07] text-white/70'}`}>
+            {paymentMethod === 'counter' && tx(safeLang, 'Ödəniş: Kasada', 'Оплата: На кассе', 'Payment: At counter')}
+            {paymentMethod === 'card' && tx(safeLang, 'Ödəniş: Kart', 'Оплата: Картой', 'Payment: Card')}
+            {paymentMethod === 'wallet' && tx(safeLang, 'Ödəniş: Apple/Google Pay', 'Оплата: Apple/Google Pay', 'Payment: Apple/Google Pay')}
           </p>
           {preOrderSuccessId && <p className={`text-[10px] font-mono tracking-wider ${textSecond}`}>ID: {preOrderSuccessId.slice(0, 8)}</p>}
         </div>
@@ -621,6 +663,8 @@ type OrderTabProps = {
   setSelectedStore?: (id: string) => void;
   searchQuery: string;
   setSearchQuery: React.Dispatch<React.SetStateAction<string>>;
+  paymentMethod: 'counter' | 'card' | 'wallet';
+  setPaymentMethod: (v: 'counter' | 'card' | 'wallet') => void;
 };
 
 export default function OrderTab({
@@ -631,7 +675,7 @@ export default function OrderTab({
   handleAddToCart, showCartSheet, orderNotes, setOrderNotes,
   handleCheckoutPreOrder, preOrderSubmitting, preOrderSuccess, preOrderSuccessId,
   setPreOrderSuccess, handleRemoveFromCart, handleUpdateCartQty,
-  searchQuery, setSearchQuery, activeOrders, designMode = 'classic',
+  searchQuery, setSearchQuery, paymentMethod, setPaymentMethod, activeOrders, designMode = 'classic',
   stores = [], selectedStoreId = '', setSelectedStore
 }: OrderTabProps) {
   const [showStorePicker, setShowStorePicker] = React.useState(false);
@@ -988,10 +1032,12 @@ export default function OrderTab({
         customerCart={customerCart} handleRemoveFromCart={handleRemoveFromCart} onUpdateQty={handleUpdateCartQty}
         orderNotes={orderNotes} setOrderNotes={setOrderNotes}
         handleCheckoutPreOrder={handleCheckoutPreOrder} preOrderSubmitting={preOrderSubmitting}
-        safeLang={safeLang} isLight={isLight} designMode={designMode} />
+        safeLang={safeLang} isLight={isLight} designMode={designMode}
+        paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod} />
 
       <PreOrderSuccess preOrderSuccess={preOrderSuccess} preOrderSuccessId={preOrderSuccessId}
-        setPreOrderSuccess={setPreOrderSuccess} safeLang={safeLang} isLight={isLight} />
+        setPreOrderSuccess={setPreOrderSuccess} safeLang={safeLang} isLight={isLight}
+        paymentMethod={paymentMethod} />
     </div>
   );
 }
