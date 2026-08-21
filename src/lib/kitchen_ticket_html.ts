@@ -92,15 +92,15 @@ export function buildKitchenTicketHtml({
       }
 
       return `
-        <div style="border-bottom: 1px dashed #000; padding: 4px 0; page-break-inside: avoid; break-inside: avoid;">
-          <div style="font-size: 16px; font-weight: 900; line-height: 1.25;">
-            <span style="display: inline-block; font-size: 17px; font-weight: 900; margin-right: 4px;">${qty}x</span>
+        <div style="border-bottom: 1px dashed #444; padding: 2px 0; page-break-inside: avoid; break-inside: avoid;">
+          <div style="font-size: 13px; font-weight: 900; line-height: 1.2; word-break: break-word;">
+            <span style="font-size: 14px; font-weight: 900; margin-right: 3px;">${qty}x</span>
             ${esc(item.item_name)}
           </div>
 
           ${
             mods.length > 0
-              ? `<div style="margin: 2px 0 1px 18px; font-size: 12px; font-weight: 700; color: #111;">
+              ? `<div style="margin: 1px 0 1px 14px; font-size: 10px; font-weight: 700; color: #111;">
                   ${mods.map((m) => `<div>+ ${esc(m)}</div>`).join('')}
                 </div>`
               : ''
@@ -108,15 +108,15 @@ export function buildKitchenTicketHtml({
 
           ${
             seat
-              ? `<div style="margin: 1px 0 0 18px; font-size: 11px; font-weight: 800;">
-                  [ ${tx(lang, 'Oturacaq', 'Место', 'Seat')}: ${esc(seat)} ]
+              ? `<div style="margin: 1px 0 0 14px; font-size: 10px; font-weight: 800;">
+                  [ ${tx(lang, 'Yer', 'Место', 'Seat')}: ${esc(seat)} ]
                 </div>`
               : ''
           }
 
           ${
             cupMode
-              ? `<div style="margin: 1px 0 0 18px; font-size: 11px; font-weight: 800;">
+              ? `<div style="margin: 1px 0 0 14px; font-size: 10px; font-weight: 800;">
                   [ ${cupMode === 'glass' ? tx(lang, 'Şüşə fincan', 'Стекло', 'Glass') : tx(lang, 'Kağız fincan', 'Бумажный', 'Paper')} ]
                 </div>`
               : ''
@@ -124,7 +124,7 @@ export function buildKitchenTicketHtml({
 
           ${
             notes
-              ? `<div style="margin: 2px 0 0 18px; padding: 2px 4px; border-left: 3px solid #000; font-size: 12px; font-weight: 900;">
+              ? `<div style="margin: 1px 0 0 14px; padding: 1px 3px; border-left: 2px solid #000; font-size: 10px; font-weight: 900;">
                   ⚡ ${tx(lang, 'Qeyd', 'Прим.', 'Note')}: ${esc(notes)}
                 </div>`
               : ''
@@ -142,45 +142,45 @@ export function buildKitchenTicketHtml({
   <style>
     ${THERMAL_RECEIPT_PRINT_CSS}
     .kitchen-box {
-      border: 2px solid #000;
-      padding: 4px 6px;
-      margin-bottom: 6px;
+      border: 1.5px solid #000;
+      padding: 3px 4px;
+      margin-bottom: 4px;
       text-align: center;
       page-break-inside: avoid;
       break-inside: avoid;
     }
     .kitchen-title {
-      font-size: 16px !important;
+      font-size: 11px !important;
       font-weight: 900 !important;
       text-transform: uppercase;
-      letter-spacing: 0.02em;
     }
     .kitchen-target {
-      font-size: 20px !important;
+      font-size: 15px !important;
       font-weight: 900 !important;
-      margin-top: 2px;
+      margin-top: 1px;
       text-transform: uppercase;
+      word-break: break-word;
     }
     .kitchen-meta-row {
       display: flex;
       justify-content: space-between;
-      font-size: 12px;
+      font-size: 10px;
       font-weight: 700;
-      line-height: 1.3;
-      margin: 2px 0;
+      line-height: 1.2;
+      margin: 1px 0;
     }
   </style>
 </head>
 <body>
   <div class="kitchen-box">
-    ${companyName ? `<div style="font-size: 11px; font-weight: 800; text-transform: uppercase;">${esc(companyName)}</div>` : ''}
+    ${companyName ? `<div style="font-size: 9px; font-weight: 800; text-transform: uppercase;">${esc(companyName)}</div>` : ''}
     <div class="kitchen-title">*** ${tx(lang, 'MƏTBƏX SİFARİŞİ', 'ЗАКАЗ НА КУХНЮ', 'KITCHEN TICKET')} ***</div>
     <div class="kitchen-target">${esc(orderTypeLabel)}</div>
   </div>
 
   <div style="page-break-inside: avoid; break-inside: avoid;">
     <div class="kitchen-meta-row">
-      <span>${tx(lang, 'Çek No', 'Чек №', 'Ticket #')}: <b>#${displayId}</b></span>
+      <span>${tx(lang, 'Çek', 'Чек', 'Ticket')}: <b>#${displayId}</b></span>
       <span>${dateStr.split(' ')[1] || ''}</span>
     </div>
     <div class="kitchen-meta-row">
@@ -194,23 +194,23 @@ export function buildKitchenTicketHtml({
     }
     ${
       ticket.notes
-        ? `<div style="margin-top: 3px; padding: 2px 4px; border-left: 3px solid #000; font-size: 12px; font-weight: 900;">
-            ⚡ ${tx(lang, 'Masa Qeydi', 'Заметка к столу', 'Table Note')}: ${esc(ticket.notes)}
+        ? `<div style="margin-top: 2px; padding: 1px 3px; border-left: 2px solid #000; font-size: 10px; font-weight: 900;">
+            ⚡ ${tx(lang, 'Qeyd', 'Заметка', 'Note')}: ${esc(ticket.notes)}
           </div>`
         : ''
     }
   </div>
 
-  <div style="border-top: 2px solid #000; margin-top: 4px; padding-top: 2px;">
+  <div style="border-top: 1.5px solid #000; margin-top: 3px; padding-top: 2px;">
     ${itemsHtml}
   </div>
 
-  <div style="border-top: 2px solid #000; margin-top: 6px; padding-top: 4px; display: flex; justify-content: space-between; font-size: 14px; font-weight: 900; page-break-inside: avoid; break-inside: avoid;">
-    <span>${tx(lang, 'CƏMİ SAY', 'ВСЕГО ПОЗИЦИЙ', 'TOTAL ITEMS')}:</span>
+  <div style="border-top: 1.5px solid #000; margin-top: 4px; padding-top: 3px; display: flex; justify-content: space-between; font-size: 12px; font-weight: 900; page-break-inside: avoid; break-inside: avoid;">
+    <span>${tx(lang, 'CƏMİ SAY', 'ВСЕГО', 'TOTAL')}:</span>
     <span>${totalQty} ${tx(lang, 'ədəd', 'шт', 'pcs')}</span>
   </div>
 
-  <div style="text-align: center; margin-top: 10px; font-size: 11px; font-weight: 700; color: #333; page-break-inside: avoid; break-inside: avoid;">
+  <div style="text-align: center; margin-top: 6px; font-size: 10px; font-weight: 700; color: #333; page-break-inside: avoid; break-inside: avoid;">
     -- ${tx(lang, 'Mətbəx Çapı Tamamlandı', 'Печать для кухни завершена', 'Kitchen Print Finished')} --
   </div>
 </body>

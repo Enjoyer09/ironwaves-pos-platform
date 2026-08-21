@@ -226,7 +226,7 @@ export const qzPrintHtml = async (html: string, printerName?: string) => {
 
   const config = qz.configs.create(printer, {
     copies: 1,
-    scaleContent: false,
+    scaleContent: true,
     rasterize: true,
     margins: 0,
   });
