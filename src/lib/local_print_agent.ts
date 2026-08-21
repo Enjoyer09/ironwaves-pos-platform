@@ -90,16 +90,16 @@ export async function printDirectOrFallback(
     }
   } catch {}
 
-  // 2. Try QZ Tray if enabled
-  if (options?.useQz && options?.printerName) {
-    try {
-      const { qzPrintHtml } = await import('./qz');
-      await qzPrintHtml(html, options.printerName);
-      return { method: 'qz', success: true };
-    } catch {}
+  // 2. Try QZ Tray (supports explicit printer or QZ default printer)
+  try {
+    const { qzPrintHtml } = await import('./qz');
+    await qzPrintHtml(html, options?.printerName);
+    return { method: 'qz', success: true };
+  } catch (err) {
+    console.warn('QZ Tray print attempted but failed:', err);
   }
 
-  // 3. Fallback to Browser Print Dialog (Save to PDF / Native Print)
+  // 3. Fallback to Browser Print Dialog (Save to PDF / Native Print) only if allowed
   if (options?.allowBrowserFallback !== false) {
     const browserSuccess = printHtmlViaBrowserIframe(html);
     if (browserSuccess) {

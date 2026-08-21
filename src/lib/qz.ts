@@ -189,12 +189,39 @@ export const qzPrintHtml = async (html: string, printerName?: string) => {
   const qz = await loadQzScript();
   await ensureQzConnection(qz);
 
-  const printer = printerName?.trim()
-    ? await qz.printers.find(printerName.trim())
-    : await qz.printers.getDefault();
+  let printer: any = null;
+  const targetName = String(printerName || '').trim();
+
+  if (targetName) {
+    try {
+      printer = await qz.printers.find(targetName);
+    } catch {
+      try {
+        const allPrinters = await qz.printers.find();
+        if (Array.isArray(allPrinters)) {
+          printer = allPrinters.find((p: string) =>
+            p.toLowerCase().includes(targetName.toLowerCase()) || targetName.toLowerCase().includes(p.toLowerCase())
+          );
+        }
+      } catch {}
+    }
+  }
 
   if (!printer) {
-    throw new Error('Printer tapılmadı');
+    try {
+      printer = await qz.printers.getDefault();
+    } catch {}
+  }
+
+  if (!printer) {
+    const all = await qz.printers.find().catch(() => []);
+    if (Array.isArray(all) && all.length > 0) {
+      printer = all[0];
+    }
+  }
+
+  if (!printer) {
+    throw new Error('QZ Tray sistemində heç bir printer tapılmadı');
   }
 
   const config = qz.configs.create(printer, {
